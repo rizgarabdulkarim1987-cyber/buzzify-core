@@ -1,5 +1,6 @@
 'use client';
 
+import dynamic from 'next/dynamic';
 import { useEffect, useMemo, useState } from 'react';
 import { matchesQuery } from '@/lib/search';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
@@ -12,6 +13,9 @@ import { Header } from './Header';
 import { ProductRow } from './ProductRow';
 import { SignatureFeature } from './SignatureFeature';
 
+// Loaded lazily so the menu route does not carry the sheet in its initial JavaScript.
+const ProductSheet = dynamic(() => import('@/ui/product/ProductSheet').then((module) => module.ProductSheet));
+
 export function MenuApp({ view }: { view: MenuView }) {
   const { t, href } = useApp();
   const [query, setQuery] = useState('');
@@ -20,6 +24,12 @@ export function MenuApp({ view }: { view: MenuView }) {
 
   useEffect(() => {
     track('MENU_VIEW', {}, { once: true });
+  }, []);
+
+  // Warm the sheet chunk shortly after the menu is interactive so the first tap feels instant.
+  useEffect(() => {
+    const warm = setTimeout(() => void import('@/ui/product/ProductSheet'), 1500);
+    return () => clearTimeout(warm);
   }, []);
 
   const visible = useMemo(
@@ -57,11 +67,13 @@ export function MenuApp({ view }: { view: MenuView }) {
   }, [categories]);
 
   // Product sheet history: opening pushes /p/{slug}; Back closes the sheet.
-  const openProduct = (id: string) => {
+  const openProduct = (id: string, replace = false) => {
     const product = view.products.find((candidate) => candidate.id === id);
     if (!product) return;
     track('PRODUCT_VIEW', { productId: id });
-    window.history.pushState({ sheet: true }, '', href(`/p/${product.slug}`));
+    const url = href(`/p/${product.slug}`);
+    if (replace) window.history.replaceState({ sheet: true }, '', url);
+    else window.history.pushState({ sheet: true }, '', url);
     setOpenId(id);
   };
   const closeProduct = () => {
@@ -79,8 +91,6 @@ export function MenuApp({ view }: { view: MenuView }) {
   }, [view.products]);
 
   const opened = openId ? view.products.find((product) => product.id === openId) : undefined;
-  void opened;
-  void closeProduct;
 
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pb-28">
@@ -144,7 +154,7 @@ export function MenuApp({ view }: { view: MenuView }) {
       </main>
 
       <CartBar />
-      {/* Task 15 renders <ProductSheet product={opened} close={closeProduct} open={openProduct} /> here. */}
+      {opened && <ProductSheet product={opened} close={closeProduct} open={openProduct} />}
     </div>
   );
 }
