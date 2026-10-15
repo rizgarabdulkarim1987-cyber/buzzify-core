@@ -91,8 +91,10 @@ orders candidates that already qualify.
 
 ### The 3D stage
 
-The signature hero and the product sheet show a live 3D model for products whose first media item is
-`art: "burger"` or `art: "cup"` (three.js through React Three Fiber, built from code, no model files).
+The signature hero, the product sheet and Explore show a live 3D model for products whose first media item
+is art with a model: `burger`, `cup` and `glass` by art kind, or any of `croissant` and `millefeuille` named
+through the media item's `model` field (for example `{ "kind": "art", "art": "pastry", "model": "croissant" }`).
+Three.js through React Three Fiber, built from code, no model files.
 Options can change the model: an option's `visualKey` (`cheese`, `patty`, `bacon`) adds a draped cheese
 slice, a second patty or bacon to the burger. See `docs/superpowers/specs/2026-10-15-immersive-slice-design.md`.
 
@@ -104,6 +106,22 @@ slice, a second patty or bacon to the burger. See `docs/superpowers/specs/2026-1
 - Drag or swipe to turn the model; arrow keys turn it when it is focused. `prefers-reduced-motion` removes the
   assembly animation, the idle turn and the hero's scroll drift.
 - The browser tests run with 3D remembered as off except `tests/e2e/stage.spec.ts`, which opts in.
+
+### Explore
+
+`/{tenant}/{locale}/explore` is the menu as a film you scrub with your thumb: one fixed canvas, one scene per
+category led by that category's signature dish (`isSignature`), gliding across a dark set as you scroll.
+Scenes come from data, so a new signature or category appears without code. Design and research notes are in
+`docs/superpowers/specs/2026-10-16-explore-experience-design.md`.
+
+- The dish name is set huge and outlined behind the object. Scrolling glides the objects across the set and
+  fans their layers apart a little in transit; each scene snaps into place.
+- "What is inside" pulls the layers apart and pins an ingredient label to each. Chips for options with a
+  `visualKey` (Premium cheese, Double patty, Bacon) change the model live. "Add to order" and "Customise"
+  use the existing cart and product sheet, and the cart is shared with the full menu.
+- Where 3D cannot run (`?stage=off`, weak devices, no WebGL) the dish illustrations glide across the same set.
+  `prefers-reduced-motion` removes the glide, the fan, the steam and the dust; one scene is reachable at a time.
+- Layer names ("Brioche bun", "Clear ice") are generic strings per model in the message files, not tenant data.
 
 ### Replacing the placeholder art
 
@@ -131,8 +149,9 @@ checked on a phone GPU.
   The largest contributors are the web fonts (about 172 KB across 3 files) and JavaScript (207 KB across 12
   requests before the redesign, 225 KB across 13 after it, above the roughly 120 KB goal). Follow-ups: fewer font files or `font-display: optional` for body
   text, and trimming the menu route's initial chunks.
-- 3D exists for burgers and cups only. Other dishes keep their illustration, and the hero keeps its illustration
-  when the signature of the hour is a pastry. Three.js logs a one-line `THREE.Clock` deprecation warning from
+- 3D exists for five models: burger, cup, glass, croissant and mille-feuille. Other dishes keep their
+  illustration. The models are stylized product renders built from code, not photographs; real `.glb` files or
+  photography would replace them and are the way to photorealism. Three.js logs a one-line `THREE.Clock` deprecation warning from
   React Three Fiber at each stage start; it is harmless.
 - The rate limiter is in memory, so it applies per server instance. A shared store comes with hardening.
 - No tax or service charge; the quote reserves a `charges` list for them.

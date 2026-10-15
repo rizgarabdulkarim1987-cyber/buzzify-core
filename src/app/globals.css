@@ -87,6 +87,17 @@ dialog::backdrop {
     0 14px 28px -14px rgb(0 0 0 / 0.9);
 }
 
+/* Explore snaps each scene into place while it is mounted. */
+html.explore-snap {
+  scroll-snap-type: y mandatory;
+}
+
+/* Huge outlined type that sits behind the dish. */
+.outline-type {
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in oklab, var(--accent) 34%, transparent);
+}
+
 .scroll-hidden {
   scrollbar-width: none;
 }
