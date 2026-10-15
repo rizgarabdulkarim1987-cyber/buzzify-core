@@ -5,6 +5,7 @@ import {
   MathUtils,
   PlaneGeometry,
   RingGeometry,
+  TorusGeometry,
   Vector2,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
@@ -164,8 +165,60 @@ export function makeBacon(): BufferGeometry {
   return merged;
 }
 
+const SAUCER: Profile = [
+  [0, 0],
+  [0.55, 0],
+  [0.9, 0.025],
+  [1.02, 0.085],
+  [0.97, 0.085],
+  [0.88, 0.06],
+  [0.58, 0.045],
+  [0, 0.045],
+];
+
+/** Outer wall up, over the rim, inner wall down, to the floor of the cup. */
+const CUP: Profile = [
+  [0, 0],
+  [0.34, 0],
+  [0.5, 0.04],
+  [0.66, 0.28],
+  [0.74, 0.6],
+  [0.69, 0.6],
+  [0.61, 0.3],
+  [0.46, 0.1],
+  [0, 0.09],
+];
+
+export function makeSaucer(): BufferGeometry {
+  return lathe(SAUCER, 0.085, 64);
+}
+
+/** A cup with a loop handle on its +x side. */
+export function makeCup(): BufferGeometry {
+  const body = lathe(CUP, 0.6, 64);
+  const handle = new TorusGeometry(0.19, 0.04, 10, 24, Math.PI);
+  handle.rotateZ(-Math.PI / 2);
+  handle.translate(0.7, 0.03, 0);
+  const merged = mergeGeometries([body, handle]);
+  body.dispose();
+  handle.dispose();
+  return merged;
+}
+
+/** The surface of the drink; a thin disc so its top face carries the crema texture. */
+export function makeCoffee(): BufferGeometry {
+  const disc = new CylinderGeometry(0.655, 0.655, 0.04, 56);
+  return disc;
+}
+
 export function makeLayerGeometry(kind: LayerKind): BufferGeometry {
   switch (kind) {
+    case 'saucer':
+      return makeSaucer();
+    case 'cup':
+      return makeCup();
+    case 'coffee':
+      return makeCoffee();
     case 'bun-bottom':
       return makeBun('bottom');
     case 'bun-top':

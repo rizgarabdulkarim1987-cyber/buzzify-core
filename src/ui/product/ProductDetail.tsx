@@ -2,12 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { unitPriceFromMenu } from '@/lib/menu-price';
+import { stageTone } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { CloseIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
+import { ProductStage } from '@/ui/stage/ProductStage';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
 import { PairingList } from './PairingList';
@@ -30,6 +32,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
   const [quantity, setQuantity] = useState(1);
 
   const orderable = product.orderState === 'OK';
+  const staged = stageTone(product.media) !== null;
   const unit = unitPriceFromMenu(product, variantId, selected);
   const missing = product.groups.filter(
     (group) => group.minSelect > group.options.filter((option) => selected.includes(option.id)).length,
@@ -90,14 +93,25 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="relative">
-        <ProductVisual
-          media={product.media}
-          name={product.name}
-          slug={`${product.slug}-detail`}
-          priority
-          sizes="(min-width: 640px) 576px, 100vw"
-          className="aspect-[16/10] w-full"
-        />
+        {staged ? (
+          <ProductStage
+            product={product}
+            selectedIds={selected}
+            variant="sheet"
+            testId="sheet-stage"
+            posterSlug={`${product.slug}-detail`}
+            className="aspect-[16/10] w-full"
+          />
+        ) : (
+          <ProductVisual
+            media={product.media}
+            name={product.name}
+            slug={`${product.slug}-detail`}
+            priority
+            sizes="(min-width: 640px) 576px, 100vw"
+            className="aspect-[16/10] w-full"
+          />
+        )}
         {mode === 'sheet' && (
           <button
             type="button"

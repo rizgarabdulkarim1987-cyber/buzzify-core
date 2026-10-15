@@ -21,6 +21,7 @@ import { formatMoney } from '@/server/domain/money';
 import type { CartInput, CartLineInput } from '@/server/domain/types';
 import { configureTracking } from '@/ui/analytics/track';
 import { createCartStore, type CartStore } from '@/ui/cart/cart-store';
+import { syncStagePreference } from '@/ui/stage/preference';
 
 export interface TenantClientInfo {
   slug: string;
@@ -135,6 +136,11 @@ export function AppProviders({
   useEffect(() => {
     configureTracking({ slug: tenant.slug, table });
   }, [tenant.slug, table]);
+
+  // Remember a `?stage=` choice now, before any tap can replace the URL.
+  useEffect(() => {
+    syncStagePreference();
+  }, []);
 
   // The quote is derived from the cart: `requestKey` identifies what must be priced, and the answer is
   // stored with the key it belongs to, so "loading" and "error" are computed rather than set in effects.

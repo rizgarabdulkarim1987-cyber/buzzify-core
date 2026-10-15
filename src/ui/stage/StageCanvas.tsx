@@ -11,6 +11,7 @@ import {
   PMREMGenerator,
   RepeatWrapping,
   SphereGeometry,
+  SRGBColorSpace,
   type Group,
   type InstancedMesh,
   type Scene as ThreeScene,
@@ -18,10 +19,17 @@ import {
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import type { Layer, LayerKind } from '@/lib/stage';
-import { advanceTurn, type StageControls } from './controls';
-import { domeHeight, makeLayerGeometry } from './burger-parts';
+import {
+  advanceTurn,
+  createActivity,
+  markBusy,
+  needsFullRate,
+  type StageActivity,
+  type StageControls,
+} from './controls';
+import { domeHeight, makeLayerGeometry } from './stage-parts';
 
-export interface BurgerCanvasProps {
+export interface StageCanvasProps {
   layers: Layer[];
   /** Hex colour of the bun. */
   tone: string;
@@ -40,8 +48,9 @@ export interface BurgerCanvasProps {
 }
 
 const ENTER_HEIGHT = 1.5;
-const STAGGER_SECONDS = 0.11;
 const LEAVE_MS = 450;
+/** Seconds between layers landing: the hero's reveal is unhurried, the sheet's is quick. */
+const STAGGER_SECONDS = { hero: 0.11, sheet: 0.045 } as const;
 
 interface Item {
   layer: Layer;
@@ -50,11 +59,11 @@ interface Item {
   instant: boolean;
 }
 
-function initialItems(layers: Layer[], reveal: boolean): Item[] {
+function initialItems(layers: Layer[], reveal: boolean, stagger: number): Item[] {
   return layers.map((layer, index) => ({
     layer,
     leaving: false,
-    delay: reveal ? index * STAGGER_SECONDS : 0,
+    delay: reveal ? index * stagger : 0,
     instant: !reveal,
   }));
 }
@@ -127,12 +136,65 @@ function shadowTexture(): CanvasTexture {
   return new CanvasTexture(canvas);
 }
 
+/** The surface of the drink: a body colour, a lighter crema ring at the edge and a soft swirl. */
+function cremaTexture(tone: string): CanvasTexture {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = size;
+  canvas.height = size;
+  const context = canvas.getContext('2d');
+  if (context) {
+    const base = new Color(tone);
+    const light = base.clone().lerp(new Color('#f3e2c4'), 0.55);
+    const dark = base.clone().multiplyScalar(0.7);
+    context.fillStyle = '#' + dark.getHexString();
+    context.fillRect(0, 0, size, size);
+    const body = context.createRadialGradient(size / 2, size / 2, 8, size / 2, size / 2, size / 2);
+    body.addColorStop(0, '#' + base.getHexString());
+    body.addColorStop(0.72, '#' + base.getHexString());
+    body.addColorStop(1, '#' + light.getHexString());
+    context.fillStyle = body;
+    context.fillRect(0, 0, size, size);
+    context.strokeStyle = 'rgba(' + [light.r, light.g, light.b].map((v) => Math.round(v * 255)).join(',') + ',0.55)';
+    context.lineWidth = 9;
+    context.lineCap = 'round';
+    context.beginPath();
+    for (let i = 0; i <= 180; i++) {
+      const angle = i * 0.12;
+      const radius = 6 + i * 0.52;
+      const x = size / 2 + Math.cos(angle) * radius;
+      const y = size / 2 + Math.sin(angle) * radius;
+      if (i === 0) context.moveTo(x, y);
+      else context.lineTo(x, y);
+    }
+    context.stroke();
+  }
+  const texture = new CanvasTexture(canvas);
+  texture.colorSpace = SRGBColorSpace;
+  return texture;
+}
+
 function shade(hex: string, factor: number): Color {
   return new Color(hex).multiplyScalar(factor);
 }
 
-function LayerMaterial({ kind, tone, bump }: { kind: LayerKind; tone: string; bump: CanvasTexture }) {
+function LayerMaterial({
+  kind,
+  tone,
+  bump,
+  crema,
+}: {
+  kind: LayerKind;
+  tone: string;
+  bump: CanvasTexture;
+  crema: CanvasTexture;
+}) {
   switch (kind) {
+    case 'saucer':
+    case 'cup':
+      return <meshPhysicalMaterial color="#f4efe6" roughness={0.16} clearcoat={1} clearcoatRoughness={0.06} />;
+    case 'coffee':
+      return <meshStandardMaterial map={crema} roughness={0.28} />;
     case 'bun-bottom':
       return <meshStandardMaterial color={shade(tone, 0.9)} roughness={0.6} />;
     case 'bun-top':
@@ -187,7 +249,17 @@ function Sesame({ count = 34 }: { count?: number }) {
   );
 }
 
-function LayerMesh({ item, tone, bump }: { item: Item; tone: string; bump: CanvasTexture }) {
+function LayerMesh({
+  item,
+  tone,
+  bump,
+  crema,
+}: {
+  item: Item;
+  tone: string;
+  bump: CanvasTexture;
+  crema: CanvasTexture;
+}) {
   const group = useRef<Group>(null);
   const geometry = useMemo(() => makeLayerGeometry(item.layer.key), [item.layer.key]);
   useEffect(() => () => geometry.dispose(), [geometry]);
@@ -226,7 +298,7 @@ function LayerMesh({ item, tone, bump }: { item: Item; tone: string; bump: Canva
   return (
     <group ref={group} position={[0, startY, 0]} visible={item.delay === 0}>
       <mesh geometry={geometry}>
-        <LayerMaterial kind={item.layer.key} tone={tone} bump={bump} />
+        <LayerMaterial kind={item.layer.key} tone={tone} bump={bump} crema={crema} />
       </mesh>
       {item.layer.key === 'bun-top' && <Sesame />}
     </group>
@@ -283,6 +355,25 @@ function Rig({
   return <group ref={spin}>{children}</group>;
 }
 
+/** Draws on demand: every frame while something moves, about 30 a second while only idling. */
+function FrameDriver({ controls, activity }: { controls: RefObject<StageControls>; activity: StageActivity }) {
+  const invalidate = useThree((state) => state.invalidate);
+  useEffect(() => {
+    let frame = 0;
+    let last = 0;
+    const tick = (now: number) => {
+      frame = requestAnimationFrame(tick);
+      if (needsFullRate(controls.current, activity, now) || now - last >= 33) {
+        last = now;
+        invalidate();
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [controls, activity, invalidate]);
+  return null;
+}
+
 function ReadyProbe({ onReady }: { onReady: () => void }) {
   const frames = useRef(0);
   const fired = useRef(false);
@@ -296,13 +387,18 @@ function ReadyProbe({ onReady }: { onReady: () => void }) {
   return null;
 }
 
-function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: Omit<BurgerCanvasProps, 'paused' | 'onFailure'>) {
-  const [items, setItems] = useState<Item[]>(() => initialItems(layers, reveal));
+function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: Omit<StageCanvasProps, 'paused' | 'onFailure'>) {
+  const [items, setItems] = useState<Item[]>(() => initialItems(layers, reveal, STAGGER_SECONDS[variant]));
   const [seen, setSeen] = useState(layers);
   if (seen !== layers) {
     setSeen(layers);
     setItems((previous) => mergeItems(previous, layers, reveal));
   }
+  const [activity] = useState(createActivity);
+  // A change of layers, or the first reveal, needs full-rate frames until the springs have settled.
+  useEffect(() => {
+    markBusy(activity, 2600);
+  }, [activity, layers]);
 
   const anyLeaving = items.some((item) => item.leaving);
   useEffect(() => {
@@ -313,16 +409,17 @@ function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: O
 
   const bump = useMemo(() => noiseTexture(128), []);
   const shadow = useMemo(() => shadowTexture(), []);
+  const crema = useMemo(() => cremaTexture(tone), [tone]);
   useEffect(
     () => () => {
       bump.dispose();
       shadow.dispose();
+      crema.dispose();
     },
-    [bump, shadow],
+    [bump, shadow, crema],
   );
 
-  const top = layers[layers.length - 1];
-  const height = top ? top.y + top.height / 2 : 1;
+  const height = Math.max(0.5, ...layers.map((layer) => layer.y + layer.height / 2));
 
   return (
     <>
@@ -343,19 +440,20 @@ function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: O
       </mesh>
       <Rig height={height} variant={variant} idleTurn={idleTurn} controls={controls}>
         {items.map((item) => (
-          <LayerMesh key={item.layer.key} item={item} tone={tone} bump={bump} />
+          <LayerMesh key={item.layer.key} item={item} tone={tone} bump={bump} crema={crema} />
         ))}
       </Rig>
+      <FrameDriver controls={controls} activity={activity} />
       <ReadyProbe onReady={onReady} />
     </>
   );
 }
 
-export function BurgerCanvas({ paused, onFailure, ...scene }: BurgerCanvasProps) {
+export function StageCanvas({ paused, onFailure, ...scene }: StageCanvasProps) {
   return (
     <Canvas
-      dpr={[1, 2]}
-      frameloop={paused ? 'never' : 'always'}
+      dpr={[1, 1.75]}
+      frameloop={paused ? 'never' : 'demand'}
       camera={{ fov: 30, position: [0, 1.6, 6.4], near: 0.1, far: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {

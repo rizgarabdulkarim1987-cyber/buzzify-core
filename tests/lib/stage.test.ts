@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { burgerLayers, isStageArt, qualifiesFor3D, selectionFromOptions } from '@/lib/stage';
+import {
+  burgerLayers,
+  cupLayers,
+  isStageArt,
+  layersFor,
+  qualifiesFor3D,
+  selectionFromOptions,
+  stageTone,
+} from '@/lib/stage';
 
 const none = { cheese: false, patty: false, bacon: false };
 
@@ -54,6 +62,28 @@ describe('burgerLayers', () => {
   });
 });
 
+describe('cupLayers', () => {
+  it('stacks saucer, cup and coffee', () => {
+    expect(cupLayers().map((l) => l.key)).toEqual(['saucer', 'cup', 'coffee']);
+  });
+
+  it('seats the cup on the saucer and the coffee inside the cup', () => {
+    const [saucer, cup, coffee] = cupLayers() as [ReturnType<typeof cupLayers>[0], ReturnType<typeof cupLayers>[0], ReturnType<typeof cupLayers>[0]];
+    expect(saucer.y - saucer.height / 2).toBeCloseTo(0, 9);
+    expect(cup.y - cup.height / 2).toBeCloseTo(saucer.y + saucer.height / 2, 9);
+    expect(coffee.y).toBeGreaterThan(cup.y - cup.height / 2);
+    expect(coffee.y + coffee.height / 2).toBeLessThan(cup.y + cup.height / 2);
+  });
+});
+
+describe('layersFor', () => {
+  it('chooses the layer list by art kind', () => {
+    const selection = { cheese: true, patty: false, bacon: false };
+    expect(layersFor('burger', selection)).toEqual(burgerLayers(selection));
+    expect(layersFor('cup', selection)).toEqual(cupLayers());
+  });
+});
+
 describe('selectionFromOptions', () => {
   const options = [
     { id: 'a', visualKey: 'cheese' },
@@ -75,7 +105,21 @@ describe('selectionFromOptions', () => {
 describe('isStageArt', () => {
   it('knows which art kinds have a 3D stage', () => {
     expect(isStageArt('burger')).toBe(true);
-    expect(isStageArt('cup')).toBe(false);
+    expect(isStageArt('cup')).toBe(true);
+    expect(isStageArt('plate')).toBe(false);
+  });
+});
+
+describe('stageTone', () => {
+  it('returns the art colour for art that has a stage', () => {
+    expect(stageTone([{ kind: 'art', art: 'burger', tone: '#A5662F' }])).toBe('#A5662F');
+    expect(stageTone([{ kind: 'art', art: 'cup', tone: '#8A6A4B' }])).toBe('#8A6A4B');
+  });
+
+  it('returns null for art without a stage, real images and empty media', () => {
+    expect(stageTone([{ kind: 'art', art: 'plate', tone: '#A5662F' }])).toBeNull();
+    expect(stageTone([{ kind: 'image', url: '/a.jpg', alt: 'a', width: 1, height: 1 }])).toBeNull();
+    expect(stageTone([])).toBeNull();
   });
 });
 

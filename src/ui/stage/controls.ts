@@ -13,6 +13,24 @@ export interface StageControls {
   lastTouch: number;
 }
 
+/** When the scene last needed full-rate frames, as a `performance.now()` deadline in milliseconds. */
+export interface StageActivity {
+  busyUntil: number;
+}
+
+export function createActivity(): StageActivity {
+  return { busyUntil: 0 };
+}
+
+export function markBusy(activity: StageActivity, milliseconds: number): void {
+  activity.busyUntil = Math.max(activity.busyUntil, performance.now() + milliseconds);
+}
+
+/** Frames are only drawn at full rate while something is moving; an idle turn needs far fewer. */
+export function needsFullRate(controls: StageControls, activity: StageActivity, now: number): boolean {
+  return controls.dragging || Math.abs(controls.velocity) > 0.02 || now < activity.busyUntil;
+}
+
 export function createControls(): StageControls {
   return { yaw: 0, velocity: 0, dragging: false, lastTouch: 0 };
 }
@@ -69,7 +87,7 @@ export function nudge(controls: StageControls, direction: -1 | 1): void {
 
 export function resetTurn(controls: StageControls): void {
   const turns = Math.round(controls.yaw / (Math.PI * 2));
-  controls.yaw = turns * Math.PI * 2;
+  controls.yaw = turns * Math.PI * 2 + 0; // + 0 turns -0 into 0
   controls.velocity = 0;
   controls.lastTouch = performance.now() / 1000;
 }

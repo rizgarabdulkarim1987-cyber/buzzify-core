@@ -1,0 +1,97 @@
+import { expect, test, type Page } from '@playwright/test';
+
+const PLAIN = 'bun-bottom,lettuce,tomato,patty,pickles,bun-top';
+const WITH_CHEESE = 'bun-bottom,lettuce,tomato,patty,cheese,pickles,bun-top';
+const WITH_BOTH = 'bun-bottom,lettuce,tomato,patty,patty-2,cheese,pickles,bun-top';
+const WITH_DOUBLE = 'bun-bottom,lettuce,tomato,patty,patty-2,pickles,bun-top';
+const CUP = 'saucer,cup,coffee';
+
+// Software WebGL in headless Chromium is slow to start; the stage reports its state, so the tests wait on that.
+const READY = { timeout: 25_000 };
+
+async function openFromList(page: Page, name: string, query = '?stage=on') {
+  await page.goto(`/atelier/en${query}`);
+  await page.getByTestId('product-row').filter({ hasText: name }).getByRole('button').first().click();
+  return page.getByRole('dialog');
+}
+
+test.describe('3D stage', () => {
+  // Several software-WebGL browsers start at once in CI-style runs; give each test room beyond the wait.
+  test.describe.configure({ timeout: 90_000 });
+
+  test('the hero keeps its illustration until the live stage is ready, when its dish has a stage', async ({ page }) => {
+    await page.goto('/atelier/en?stage=on');
+    // The signature changes with the daypart. Burgers and coffee cups have a stage; pastries do not yet.
+    const title = (await page.locator('#signature-title').textContent()) ?? '';
+    const hero = page.getByTestId('hero-stage');
+    if (/Burger|White|Espresso|Cappuccino|Cortado|Matcha|Earl Grey/.test(title)) {
+      await expect(hero).toHaveAttribute('data-stage-state', 'ready', READY);
+      await expect(hero.locator('canvas')).toHaveCount(1);
+      await expect(hero).toHaveAttribute('role', 'img');
+      await expect(hero).toHaveAccessibleName(new RegExp(title.trim()));
+    } else {
+      await expect(hero).toHaveCount(0);
+    }
+  });
+
+  test('the burger page shows the plain stack as a live 3D stage', async ({ page }) => {
+    await page.goto('/atelier/en/p/atelier-burger?stage=on');
+    const stage = page.getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-layers', PLAIN);
+    await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    await expect(stage.locator('canvas')).toHaveCount(1);
+    await expect(stage).toHaveAccessibleName(/Atelier Burger/);
+  });
+
+  test('the coffee page shows a cup on a saucer', async ({ page }) => {
+    await page.goto('/atelier/en/p/flat-white?stage=on');
+    const stage = page.getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-layers', CUP);
+    await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    await expect(stage).toHaveAccessibleName(/Flat White/);
+  });
+
+  test('choosing extras changes the model and its description', async ({ page }) => {
+    const dialog = await openFromList(page, 'Atelier Burger');
+    const stage = dialog.getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    await expect(stage).toHaveAttribute('data-stage-layers', PLAIN);
+
+    await dialog.getByRole('checkbox', { name: /Premium cheese/ }).check();
+    await expect(stage).toHaveAttribute('data-stage-layers', WITH_CHEESE);
+    await expect(stage).toHaveAccessibleName(/with Premium cheese/);
+
+    await dialog.getByRole('checkbox', { name: /Double patty/ }).check();
+    await expect(stage).toHaveAttribute('data-stage-layers', WITH_BOTH);
+    await expect(stage).toHaveAccessibleName(/Premium cheese and Double patty/);
+
+    await dialog.getByRole('checkbox', { name: /Premium cheese/ }).uncheck();
+    await expect(stage).toHaveAttribute('data-stage-layers', WITH_DOUBLE);
+  });
+
+  test('rapid toggling settles on the last choice', async ({ page }) => {
+    const dialog = await openFromList(page, 'Atelier Burger');
+    const stage = dialog.getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    const cheese = dialog.getByRole('checkbox', { name: /Premium cheese/ });
+    await cheese.check();
+    await cheese.uncheck();
+    await cheese.check();
+    await expect(stage).toHaveAttribute('data-stage-layers', WITH_CHEESE);
+  });
+
+  test('keeps the illustration when 3D is switched off', async ({ page }) => {
+    await page.goto('/atelier/en/p/atelier-burger?stage=off');
+    const stage = page.getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-state', 'unavailable');
+    await expect(stage.locator('canvas')).toHaveCount(0);
+    await expect(stage.locator('svg').first()).toBeVisible();
+  });
+
+  test('dishes without a model keep their illustration and have no stage', async ({ page }) => {
+    // No 3D needed for this one, so it runs with the suite's default of 3D off and stays out of WebGL's way.
+    const dialog = await openFromList(page, 'Croissant', '');
+    await expect(dialog.getByRole('heading', { name: 'Croissant' })).toBeVisible();
+    await expect(dialog.getByTestId('sheet-stage')).toHaveCount(0);
+  });
+});

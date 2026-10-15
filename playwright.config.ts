@@ -7,7 +7,16 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   reporter: [['list']],
-  use: { baseURL: 'http://127.0.0.1:3100', trace: 'retain-on-failure' },
+  use: {
+    baseURL: 'http://127.0.0.1:3100',
+    trace: 'retain-on-failure',
+    // The 3D stage has its own suite (stage.spec.ts, which opts back in with ?stage=on). Every other suite
+    // tests menu, cart and pricing behaviour and should not depend on how fast software WebGL starts.
+    storageState: {
+      cookies: [],
+      origins: [{ origin: 'http://127.0.0.1:3100', localStorage: [{ name: 'atelier:stage', value: 'off' }] }],
+    },
+  },
   projects: [
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
     { name: 'desktop', use: { ...devices['Desktop Chrome'] }, grep: /@desktop/ },

@@ -141,7 +141,7 @@ export function MenuApp({ view }: { view: MenuView }) {
       </div>
 
       {query.trim() === '' && signature && (
-        <SignatureFeature product={signature} daypart={view.daypart} onOpen={openProduct} />
+        <SignatureFeature product={signature} daypart={view.daypart} onOpen={openProduct} covered={opened !== undefined} />
       )}
 
       <CategoryRail categories={categories.length > 0 ? categories : view.categories} activeId={activeId} />

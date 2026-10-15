@@ -25,12 +25,17 @@ In (the slice):
   product sheet for products whose media is `art: 'burger'`.
 - Option-driven model changes: Premium cheese adds a draped cheese slice, Double patty adds a
   second patty and lifts the stack.
+- A second procedural model, the coffee cup (saucer, cup with handle, crema), used by the six hot
+  drinks. Added during the build because the signature item changes with the daypart: at the
+  time of review (22:15 in Baghdad) the hero is a Flat White, and a 3D slice with no 3D in the hero
+  would have been useless to review.
 - A motion language (section 5) and its reduced-motion behaviour.
 - One schema addition so options can declare what they do to the model (section 6).
 
 Out (rolled out only after the user reviews the slice):
 
-- 3D for cups, plates, pastry, bowls and glasses; real `.glb` loading; Explore mode; light theme switch.
+- 3D for plates, pastry, bowls and glasses (the hero keeps its illustration when the signature of
+  the hour is one of those); real `.glb` loading; Explore mode; light theme switch.
 - The cart, search and category data flow, pricing, revenue engine, i18n and tenant isolation are untouched.
 
 ## 3. Visual direction
@@ -100,7 +105,12 @@ Migration is additive and nullable, so existing data stays valid.
   cannot run, the SVG art stays and everything else works.
 - The 3D chunk is not part of the menu route's initial JavaScript. The hero poster stays the
   LCP element. The Lighthouse run is repeated and reported as met or not met, as before.
-- The render loop stops when the stage is offscreen or the tab is hidden. Pixel ratio is capped at 2.
+- The scene draws on demand: every frame while the visitor drags, a flick coasts or layers move,
+  and about 30 frames a second while it only idles. The loop stops when the stage is offscreen,
+  covered by the product sheet or the tab is hidden. Pixel ratio is capped at 1.75.
+- The visitor can override the device rule: `?stage=on` and `?stage=off` are remembered on the
+  device (local storage), `?stage=auto` forgets the choice. When a stage falls back to its
+  illustration it says why in `data-stage-reason` (`device`, `error` or `context-lost`).
 - The stage is `role="img"` with a label naming the product and the selected extras, updated as
   options change. The change is announced through the existing live region. Contrast and focus
   rules from sub-project 1 hold; axe must stay clean.

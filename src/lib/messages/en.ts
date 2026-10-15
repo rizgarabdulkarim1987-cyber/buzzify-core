@@ -25,6 +25,8 @@ const en: Messages = {
   'product.allergens': 'Contains',
   'product.size': 'Size',
   'product.close': 'Close',
+  'stage.label': '{name}. Interactive 3D view; drag or use the arrow keys to turn it.',
+  'stage.labelWith': '{name} with {extras}. Interactive 3D view; drag or use the arrow keys to turn it.',
   'product.back': 'Back to the menu',
   'product.quantity': 'Quantity',
   'product.increase': 'Increase quantity',

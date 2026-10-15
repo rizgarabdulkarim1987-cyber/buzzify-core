@@ -25,6 +25,8 @@ const ckb: Messages = {
   'product.allergens': 'لەخۆدەگرێت',
   'product.size': 'قەبارە',
   'product.close': 'داخستن',
+  'stage.label': '{name}. بینینی سێ ڕەهەندی کارلێککار؛ بیکێشە یان تیرەکان بەکاربهێنە بۆ سوڕاندنی.',
+  'stage.labelWith': '{name} لەگەڵ {extras}. بینینی سێ ڕەهەندی کارلێککار؛ بیکێشە یان تیرەکان بەکاربهێنە بۆ سوڕاندنی.',
   'product.back': 'گەڕانەوە بۆ مینیوو',
   'product.quantity': 'ژمارە',
   'product.increase': 'زیادکردنی ژمارە',

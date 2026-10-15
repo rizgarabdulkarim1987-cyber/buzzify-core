@@ -25,6 +25,8 @@ const ar: Messages = {
   'product.allergens': 'يحتوي على',
   'product.size': 'الحجم',
   'product.close': 'إغلاق',
+  'stage.label': '{name}. عرض ثلاثي الأبعاد تفاعلي؛ اسحب أو استخدم مفاتيح الأسهم لتدويره.',
+  'stage.labelWith': '{name} مع {extras}. عرض ثلاثي الأبعاد تفاعلي؛ اسحب أو استخدم مفاتيح الأسهم لتدويره.',
   'product.back': 'العودة إلى القائمة',
   'product.quantity': 'الكمية',
   'product.increase': 'زيادة الكمية',

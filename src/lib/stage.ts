@@ -1,13 +1,26 @@
+import type { MediaItem } from './media';
+
 /**
  * The 3D stage's model, kept free of three.js so it runs on the server, in tests and in the
  * renderer alike. The renderer only draws what `burgerLayers` returns.
  */
 
-export const STAGE_ARTS = ['burger'] as const;
+export const STAGE_ARTS = ['burger', 'cup'] as const;
 export type StageArt = (typeof STAGE_ARTS)[number];
 
 export function isStageArt(art: string): art is StageArt {
   return (STAGE_ARTS as readonly string[]).includes(art);
+}
+
+/** The art kind and colour when a product's media can be shown as a 3D stage, otherwise null. */
+export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone: string } | null {
+  const first = media[0];
+  return first && first.kind === 'art' && isStageArt(first.art) ? { art: first.art, tone: first.tone } : null;
+}
+
+/** The art colour when a product's media can be shown as a 3D stage, otherwise null. */
+export function stageTone(media: ReadonlyArray<MediaItem>): string | null {
+  return stageOf(media)?.tone ?? null;
 }
 
 export type LayerKind =
@@ -19,7 +32,10 @@ export type LayerKind =
   | 'bacon'
   | 'cheese'
   | 'pickles'
-  | 'bun-top';
+  | 'bun-top'
+  | 'saucer'
+  | 'cup'
+  | 'coffee';
 
 export interface Layer {
   key: LayerKind;
@@ -46,6 +62,9 @@ const HEIGHT: Record<LayerKind, number> = {
   cheese: 0.05,
   pickles: 0.06,
   'bun-top': 0.52,
+  saucer: 0.085,
+  cup: 0.6,
+  coffee: 0.04,
 };
 
 /** Layers from the disc upward. A second patty, bacon and cheese sit under the pickles and top bun. */
@@ -63,6 +82,26 @@ export function burgerLayers(selection: BurgerSelection): Layer[] {
     base += height;
     return layer;
   });
+}
+
+/**
+ * A cup of coffee: saucer, cup, and the drink inside the cup. The coffee sits inside the cup's
+ * height rather than above it, so these layers are nested, not stacked.
+ */
+export function cupLayers(): Layer[] {
+  const saucer = HEIGHT.saucer;
+  const cup = HEIGHT.cup;
+  const coffee = HEIGHT.coffee;
+  return [
+    { key: 'saucer', height: saucer, y: saucer / 2 },
+    { key: 'cup', height: cup, y: saucer + cup / 2 },
+    { key: 'coffee', height: coffee, y: saucer + cup * 0.83 },
+  ];
+}
+
+/** The layers a stage draws for an art kind. Only burgers react to the selection. */
+export function layersFor(art: StageArt, selection: BurgerSelection): Layer[] {
+  return art === 'burger' ? burgerLayers(selection) : cupLayers();
 }
 
 /** Turns the options a customer has chosen into what the model should show. */
