@@ -20,6 +20,15 @@ test.describe('application shell', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ckb');
   });
 
+  test('loads only the fonts a locale needs', async ({ page }) => {
+    await page.goto('/atelier/en');
+    expect(await page.locator('html').getAttribute('class')).not.toMatch(/naskh/i);
+    await page.goto('/atelier/ar');
+    const arabic = (await page.locator('html').getAttribute('class')) ?? '';
+    expect(arabic).toMatch(/naskh/i);
+    expect(arabic).not.toMatch(/bodoni|hanken/i);
+  });
+
   test('returns 404 for an unknown restaurant or locale', async ({ request }) => {
     expect((await request.get('/nope/en')).status()).toBe(404);
     expect((await request.get('/atelier/xx')).status()).toBe(404);
