@@ -1,14 +1,10 @@
 import { notFound } from 'next/navigation';
-import { resolveRoute } from '@/server/route-context';
-import { LanguageSwitch } from '@/ui/LanguageSwitch';
+import { loadMenuView, resolveRoute } from '@/server/route-context';
+import { MenuApp } from '@/ui/menu/MenuApp';
 
 export default async function Page({ params }: { params: Promise<{ tenant: string; locale: string }> }) {
   const route = await resolveRoute(await params);
   if (!route) notFound();
-  return (
-    <main>
-      <h1>{route.tenant.name}</h1>
-      <LanguageSwitch />
-    </main>
-  );
+  const view = await loadMenuView(route);
+  return <MenuApp view={view} />;
 }
