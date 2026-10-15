@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.data/
+.env
+.env.local
+src/generated/
+playwright-report/
+test-results/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.superpowers/
