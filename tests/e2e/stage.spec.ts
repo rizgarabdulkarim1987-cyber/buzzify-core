@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
 const PLAIN = 'bun-bottom,lettuce,tomato,patty,pickles,bun-top';
@@ -8,6 +9,13 @@ const CUP = 'saucer,cup,coffee';
 
 // Software WebGL in headless Chromium is slow to start; the stage reports its state, so the tests wait on that.
 const READY = { timeout: 25_000 };
+
+async function audit(page: Page) {
+  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
+  return results.violations
+    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
+    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
+}
 
 async function openFromList(page: Page, name: string, query = '?stage=on') {
   await page.goto(`/atelier/en${query}`);
@@ -86,6 +94,30 @@ test.describe('3D stage', () => {
     await expect(stage).toHaveAttribute('data-stage-state', 'unavailable');
     await expect(stage.locator('canvas')).toHaveCount(0);
     await expect(stage.locator('svg').first()).toBeVisible();
+  });
+
+  test('the menu with its live hero stage has no serious accessibility violations', async ({ page }) => {
+    await page.goto('/atelier/en?stage=on');
+    const hero = page.getByTestId('hero-stage');
+    if ((await hero.count()) > 0) await expect(hero).toHaveAttribute('data-stage-state', 'ready', READY);
+    expect(await audit(page)).toEqual([]);
+  });
+
+  for (const [name, path] of [
+    ['burger page', '/atelier/en/p/atelier-burger?stage=on'],
+    ['cup page in Arabic', '/atelier/ar/p/flat-white?stage=on'],
+  ] as const) {
+    test(`the ${name} with its live stage has no serious accessibility violations`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.getByTestId('sheet-stage')).toHaveAttribute('data-stage-state', 'ready', READY);
+      expect(await audit(page)).toEqual([]);
+    });
+  }
+
+  test('an open product sheet with its live stage has no serious accessibility violations', async ({ page }) => {
+    const dialog = await openFromList(page, 'Atelier Burger');
+    await expect(dialog.getByTestId('sheet-stage')).toHaveAttribute('data-stage-state', 'ready', READY);
+    expect(await audit(page)).toEqual([]);
   });
 
   test('dishes without a model keep their illustration and have no stage', async ({ page }) => {

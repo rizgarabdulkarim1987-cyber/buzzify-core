@@ -8,6 +8,7 @@ import type { UpsellOffer } from '@/server/domain';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
+import { RollingMoney } from '@/ui/RollingMoney';
 import { CloseIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { ProductStage } from '@/ui/stage/ProductStage';
 import { useSuggestions } from '@/ui/useSuggestions';
@@ -228,10 +229,10 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
             type="button"
             disabled={!canAdd}
             onClick={add}
-            className="flex min-h-12 flex-1 items-center justify-between rounded-full bg-accent px-6 text-on-accent disabled:opacity-40"
+            className="flex min-h-12 flex-1 items-center justify-between rounded-full bg-accent px-6 text-on-accent transition-transform duration-150 ease-out-strong active:scale-[0.98] disabled:opacity-40"
           >
             <span>{t('product.add')}</span>
-            <span className="tabular-nums">{money(unit * quantity)}</span>
+            <RollingMoney value={unit * quantity} className="tabular-nums" />
           </button>
         </div>
       </div>

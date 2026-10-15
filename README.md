@@ -89,6 +89,22 @@ Per restaurant, `Restaurant.engineConfig` (JSON) overrides defaults: `upsellMaxO
 Relevance is a hard gate: a recommendation must come from a rule or from the product's own options; margin only
 orders candidates that already qualify.
 
+### The 3D stage
+
+The signature hero and the product sheet show a live 3D model for products whose first media item is
+`art: "burger"` or `art: "cup"` (three.js through React Three Fiber, built from code, no model files).
+Options can change the model: an option's `visualKey` (`cheese`, `patty`, `bacon`) adds a draped cheese
+slice, a second patty or bacon to the burger. See `docs/superpowers/specs/2026-10-15-immersive-slice-design.md`.
+
+- The page is server-rendered with the illustration first. The 3D chunk loads after the page is idle and only
+  when the device qualifies (WebGL available, no data saver, at least 4 GB of memory and 4 cores when the
+  browser says so). Anywhere else the illustration stays and everything else works.
+- `?stage=off` turns 3D off on this device, `?stage=on` forces it on where WebGL exists, `?stage=auto`
+  forgets the choice. A stage that falls back says why in `data-stage-reason`.
+- Drag or swipe to turn the model; arrow keys turn it when it is focused. `prefers-reduced-motion` removes the
+  assembly animation, the idle turn and the hero's scroll drift.
+- The browser tests run with 3D remembered as off except `tests/e2e/stage.spec.ts`, which opts in.
+
 ### Replacing the placeholder art
 
 Each product's `media` list drives its visual. Put real files under `public/media/atelier/` and set, for
@@ -100,16 +116,29 @@ Only same-origin paths and `https://` URLs are accepted.
 `docs/perf/` holds the latest measured baseline. The suite runs axe on the menu, product sheet and cart
 in all three languages, checks 44 px targets, keyboard entry and reduced motion.
 
+### Measured cost of the 3D stage
+
+`docs/perf/baseline-2026-10-15-menu-3d-off.md` and `...-menu-3d-on.md` measure the same page with and without
+3D. The stage does not change LCP (the heading and illustration paint first), but its chunk adds about 242 KB of
+script transferred after load, and headless Chrome's software WebGL blocks the main thread for seconds while
+it initialises (TBT 3.7 s in that run). That figure is inflated by software rendering and has not been
+checked on a phone GPU.
+
 ## Known limitations
 
-- **LCP target not met.** The latest baseline measures LCP at 3.46 s against the 2.5 s goal (score 91, TBT
-  62 ms, CLS 0.024). The LCP element is the first product row's text, which repaints when web fonts swap in.
+- **LCP target not met.** The latest baseline with 3D off (`baseline-2026-10-15-menu-3d-off.md`) measures LCP at
+  3.61 s against the 2.5 s goal (score 79, TBT 463 ms, CLS 0.024; the pre-redesign baseline was 3.46 s, score 91). The LCP element is the first product row's text, which repaints when web fonts swap in.
   The largest contributors are the web fonts (about 172 KB across 3 files) and JavaScript (207 KB across 12
-  requests, above the roughly 120 KB goal). Follow-ups: fewer font files or `font-display: optional` for body
+  requests before the redesign, 225 KB across 13 after it, above the roughly 120 KB goal). Follow-ups: fewer font files or `font-display: optional` for body
   text, and trimming the menu route's initial chunks.
+- 3D exists for burgers and cups only. Other dishes keep their illustration, and the hero keeps its illustration
+  when the signature of the hour is a pastry. Three.js logs a one-line `THREE.Clock` deprecation warning from
+  React Three Fiber at each stage start; it is harmless.
 - The rate limiter is in memory, so it applies per server instance. A shared store comes with hardening.
 - No tax or service charge; the quote reserves a `charges` list for them.
 - The Lighthouse result depends on the machine; see the dated file in `docs/perf/`.
+- Stop `npm run dev` before `npm run build` or `npm run perf`. Both write `.next`, and a production build under a
+  running dev server leaves it serving broken routes until it is restarted from a clean `.next`.
 - Hosting is undecided. The schema targets PostgreSQL.
 
 ## Security notes

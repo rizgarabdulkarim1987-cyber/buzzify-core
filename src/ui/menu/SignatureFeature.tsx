@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
 import { stageTone } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { Daypart } from '@/server/domain/types';
@@ -26,6 +26,11 @@ export function SignatureFeature({
 }) {
   const { t, money } = useApp();
   const staged = stageTone(product.media) !== null;
+  // The lit stage drifts down and dims a little as the menu scrolls over it, which gives the page depth.
+  const reduced = useReducedMotion();
+  const { scrollY } = useScroll();
+  const drift = useTransform(scrollY, [0, 420], [0, reduced ? 0 : 56]);
+  const dim = useTransform(scrollY, [0, 420], [1, reduced ? 1 : 0.3]);
   return (
     <motion.section
       aria-labelledby="signature-title"
@@ -35,8 +40,9 @@ export function SignatureFeature({
       className="pt-3"
     >
       <p className="px-5 text-sm text-muted">{t(`signature.${daypart ?? 'NONE'}`)}</p>
-      <div
+      <motion.div
         data-hero-stage
+        style={{ y: drift, opacity: dim }}
         className="stage-light grain relative isolate mt-1 [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_70%,transparent)]"
       >
         {staged ? (
@@ -61,7 +67,7 @@ export function SignatureFeature({
             />
           </button>
         )}
-      </div>
+      </motion.div>
       <button
         type="button"
         onClick={() => onOpen(product.id)}
