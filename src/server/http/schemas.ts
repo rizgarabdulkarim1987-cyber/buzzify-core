@@ -1,0 +1,59 @@
+import { z } from 'zod';
+import { EVENT_TYPES } from '@/server/data/events';
+import { LOCALES, MAX_LINES, MAX_QUANTITY } from '@/server/domain/types';
+
+const id = z.string().min(1).max(64);
+const locale = z.enum(LOCALES).default('en');
+
+export const cartSchema = z.object({
+  lines: z
+    .array(
+      z.object({
+        productId: id,
+        variantId: id.nullable().default(null),
+        optionIds: z.array(id).max(20).default([]),
+        quantity: z.number().int().min(1).max(MAX_QUANTITY),
+      }),
+    )
+    .max(MAX_LINES)
+    .default([]),
+  bundles: z
+    .array(z.object({ bundleId: id, quantity: z.number().int().min(1).max(MAX_QUANTITY) }))
+    .max(10)
+    .default([]),
+});
+
+export const quoteRequestSchema = z.object({
+  locale,
+  cart: cartSchema,
+});
+
+export const suggestionsRequestSchema = z.object({
+  context: z.enum(['menu', 'product', 'cart']),
+  locale,
+  product: z
+    .object({
+      productId: id,
+      variantId: id.nullable().default(null),
+      optionIds: z.array(id).max(20).default([]),
+    })
+    .optional(),
+  cart: cartSchema.default({ lines: [], bundles: [] }),
+  dismissedIds: z.array(z.string().max(128)).max(100).default([]),
+});
+
+export const eventsRequestSchema = z.object({
+  anonymousSessionId: z.string().min(8).max(64),
+  tableNumber: z.number().int().min(1).max(999).nullable().default(null),
+  events: z
+    .array(
+      z.object({
+        type: z.enum(EVENT_TYPES),
+        productId: id.optional(),
+        suggestionId: z.string().max(128).optional(),
+        payload: z.record(z.string(), z.unknown()).default({}),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
