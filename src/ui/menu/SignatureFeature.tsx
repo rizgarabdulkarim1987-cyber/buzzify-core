@@ -8,6 +8,10 @@ import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { ProductStage } from '@/ui/stage/ProductStage';
 
+/**
+ * The signature of the hour. The object stands in a pool of light, runs edge to edge and dissolves
+ * into the page; the name is set large and overlaps its lower edge, aligned to the reading start.
+ */
 export function SignatureFeature({
   product,
   daypart,
@@ -25,39 +29,52 @@ export function SignatureFeature({
   return (
     <motion.section
       aria-labelledby="signature-title"
-      initial={{ y: 10 }}
-      animate={{ y: 0 }}
-      transition={{ type: 'spring', duration: 0.6, bounce: 0.1 }}
-      className="px-4 pt-4 pb-6"
+      initial={{ opacity: 0.001, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ type: 'spring', duration: 0.6, bounce: 0.08 }}
+      className="pt-3"
     >
-      <p className="text-sm text-muted">{t(`signature.${daypart ?? 'NONE'}`)}</p>
-      {staged && (
-        <ProductStage
-          product={product}
-          variant="hero"
-          testId="hero-stage"
-          posterSlug={`${product.slug}-feature`}
-          className="mt-2 aspect-[4/3] w-full rounded-xl"
-          suspended={covered}
-          onActivate={() => onOpen(product.id)}
-        />
-      )}
-      <button type="button" onClick={() => onOpen(product.id)} className="mt-2 block w-full text-start">
-        {!staged && (
-          <ProductVisual
-            media={product.media}
-            name={product.name}
-            slug={`${product.slug}-feature`}
-            priority
-            sizes="(min-width: 640px) 576px, 100vw"
-            className="aspect-[4/3] w-full rounded-xl"
+      <p className="px-5 text-sm text-muted">{t(`signature.${daypart ?? 'NONE'}`)}</p>
+      <div
+        data-hero-stage
+        className="stage-light grain relative isolate mt-1 [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_70%,transparent)]"
+      >
+        {staged ? (
+          <ProductStage
+            product={product}
+            variant="hero"
+            testId="hero-stage"
+            posterSlug={`${product.slug}-feature`}
+            className="aspect-[5/4] w-full"
+            suspended={covered}
+            onActivate={() => onOpen(product.id)}
           />
+        ) : (
+          <button type="button" onClick={() => onOpen(product.id)} className="block w-full" tabIndex={-1} aria-hidden="true">
+            <ProductVisual
+              media={product.media}
+              name={product.name}
+              slug={`${product.slug}-feature`}
+              priority
+              sizes="(min-width: 640px) 576px, 100vw"
+              className="aspect-[5/4] w-full"
+            />
+          </button>
         )}
-        <span id="signature-title" className="mt-4 block font-display text-3xl leading-tight">
+      </div>
+      <button
+        type="button"
+        onClick={() => onOpen(product.id)}
+        className="relative z-10 -mt-14 block w-full px-5 pb-8 text-start transition-transform duration-150 ease-out-strong active:scale-[0.99]"
+      >
+        <span
+          id="signature-title"
+          className="block font-display text-[clamp(2.75rem,12.5vw,4.5rem)] leading-[0.95] tracking-[-0.01em]"
+        >
           {product.name}
         </span>
-        {product.description && <span className="mt-2 block max-w-prose text-muted">{product.description}</span>}
-        <span className="mt-3 block tabular-nums">{money(product.displayPrice)}</span>
+        {product.description && <span className="mt-3 block max-w-[30ch] text-muted">{product.description}</span>}
+        <span className="mt-4 block text-lg tabular-nums text-accent">{money(product.displayPrice)}</span>
       </button>
     </motion.section>
   );

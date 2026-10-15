@@ -19,8 +19,10 @@ export function LanguageSwitch() {
           lang={code}
           hrefLang={code}
           aria-current={code === locale ? 'true' : undefined}
-          className={`grid min-h-11 min-w-11 place-items-center rounded-full px-3 transition-colors ${
-            code === locale ? 'bg-raised text-text' : 'text-muted hover:text-text'
+          className={`grid min-h-11 min-w-11 place-items-center px-2.5 transition-colors duration-150 ${
+            code === locale
+              ? 'text-text underline decoration-accent decoration-2 underline-offset-[10px]'
+              : 'text-muted [@media(hover:hover)]:hover:text-text'
           }`}
         >
           {LOCALE_NAMES[code]}

@@ -92,7 +92,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="relative">
+      <div className="stage-light relative">
         {staged ? (
           <ProductStage
             product={product}
@@ -125,11 +125,11 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto px-5 pb-6">
-        <Heading id={titleId} className="mt-5 font-display text-3xl leading-tight">
+        <Heading id={titleId} className="mt-4 font-display text-[2.5rem] leading-[1.02] tracking-[-0.01em]">
           {product.name}
         </Heading>
         {product.description && <p className="mt-2 max-w-prose text-muted">{product.description}</p>}
-        <p className="mt-3 tabular-nums">{money(product.displayPrice)}</p>
+        <p className="mt-3 text-lg tabular-nums text-accent">{money(product.displayPrice)}</p>
         {!orderable && (
           <p className="mt-3 text-accent">
             {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}

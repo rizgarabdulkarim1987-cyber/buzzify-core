@@ -13,46 +13,64 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
   const canQuickAdd = orderable && !product.needsChoices;
 
   return (
-    <li data-testid="product-row" className="relative border-b border-line">
-      <button
-        type="button"
-        onClick={() => onOpen(product.id)}
-        className="grid w-full grid-cols-[1fr_auto] items-center gap-4 px-4 py-4 text-start"
-      >
-        <span className="min-w-0">
-          <span className="block font-display text-lg leading-snug">{product.name}</span>
+    <li
+      data-testid="product-row"
+      className="group mx-5 grid grid-cols-[1fr_auto] items-center gap-x-5 border-b border-line py-5"
+    >
+      <div className="min-w-0">
+        <button
+          type="button"
+          onClick={() => onOpen(product.id)}
+          className="block w-full text-start transition-transform duration-150 ease-out-strong active:scale-[0.985]"
+        >
+          <span className="block font-display text-xl leading-snug">{product.name}</span>
           {product.description && (
-            <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted">{product.description}</span>
+            <span className="mt-1.5 line-clamp-2 block max-w-[34ch] text-sm leading-relaxed text-muted">
+              {product.description}
+            </span>
           )}
-          <span className="mt-2 block text-sm tabular-nums">{money(product.displayPrice)}</span>
+        </button>
+        <div className="mt-2 flex min-h-11 items-center gap-4">
+          <span className="text-sm tabular-nums text-accent">{money(product.displayPrice)}</span>
           {!orderable && (
-            <span className="mt-1 block text-sm text-accent">
+            <span className="text-sm text-muted">
               {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}
             </span>
           )}
-        </span>
+          {canQuickAdd && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.92 }}
+              aria-label={t('product.quickAdd', { name: product.name })}
+              onClick={() => {
+                addLine({ productId: product.id, variantId: null, optionIds: [], quantity: 1 });
+                track('ADD_TO_CART', { productId: product.id, payload: { source: 'quick-add' } });
+                announce(t('cart.added', { name: product.name }));
+              }}
+              className="grid size-11 place-items-center rounded-full border border-accent/55 text-accent transition-colors duration-150 [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-on-accent"
+            >
+              <PlusIcon />
+            </motion.button>
+          )}
+        </div>
+      </div>
+      {/* The plate repeats the name button for pointer users; keyboard and screen readers use the name. */}
+      <button
+        type="button"
+        tabIndex={-1}
+        aria-hidden="true"
+        onClick={() => onOpen(product.id)}
+        className="block rounded-full"
+      >
         <ProductVisual
           media={product.media}
           name={product.name}
           slug={product.slug}
-          className={`size-24 rounded-lg ${orderable ? '' : 'opacity-50'}`}
+          className={`plate size-[84px] transition-transform duration-200 ease-out-strong [@media(hover:hover)]:group-hover:scale-105 ${
+            orderable ? '' : 'opacity-50'
+          }`}
         />
       </button>
-      {canQuickAdd && (
-        <motion.button
-          type="button"
-          whileTap={{ scale: 0.92 }}
-          aria-label={t('product.quickAdd', { name: product.name })}
-          onClick={() => {
-            addLine({ productId: product.id, variantId: null, optionIds: [], quantity: 1 });
-            track('ADD_TO_CART', { productId: product.id, payload: { source: 'quick-add' } });
-            announce(t('cart.added', { name: product.name }));
-          }}
-          className="absolute end-3 bottom-3 grid size-11 place-items-center rounded-full bg-accent text-on-accent"
-        >
-          <PlusIcon />
-        </motion.button>
-      )}
     </li>
   );
 }

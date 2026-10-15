@@ -246,6 +246,7 @@ export function ProductStage({
                 idleTurn={!reduced}
                 paused={paused}
                 variant={variant}
+                model={art}
                 controls={controls}
                 onReady={() => setState((current) => (current === 'loading' ? 'ready' : current))}
                 onFailure={() => {

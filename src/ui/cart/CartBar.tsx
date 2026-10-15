@@ -11,7 +11,7 @@ export function CartBar() {
       <a
         href={href('/cart')}
         data-testid="cart-bar"
-        className="pointer-events-auto mx-auto flex min-h-14 w-full max-w-xl items-center justify-between rounded-full bg-accent px-6 text-on-accent"
+        className="pointer-events-auto mx-auto flex min-h-14 w-full max-w-xl items-center justify-between rounded-full bg-accent px-6 text-on-accent shadow-[0_16px_36px_-14px_rgb(0_0_0/0.85)] transition-transform duration-150 ease-out-strong active:scale-[0.98]"
       >
         <span>{t('cart.items', { count: itemCount })}</span>
         <span className="tabular-nums" aria-live="polite">

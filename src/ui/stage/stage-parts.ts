@@ -8,7 +8,7 @@ import {
   TorusGeometry,
   Vector2,
 } from 'three';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { LayerKind } from '@/lib/stage';
 
 /**
@@ -25,8 +25,13 @@ type Profile = ReadonlyArray<readonly [number, number]>;
  * the bottom, up the side and back to the axis, which gives outward-facing normals.
  */
 function lathe(profile: Profile, height: number, segments = SEGMENTS): BufferGeometry {
-  const geometry = new LatheGeometry(profile.map(([x, y]) => new Vector2(x, y)), segments);
-  geometry.translate(0, -height / 2, 0);
+  const raw = new LatheGeometry(profile.map(([x, y]) => new Vector2(x, y)), segments);
+  raw.translate(0, -height / 2, 0);
+  // The seam of a lathe duplicates its vertices, which leaves a visible crease in the lighting.
+  // Dropping the (unused) UVs lets the seam vertices merge before the normals are computed.
+  raw.deleteAttribute('uv');
+  const geometry = mergeVertices(raw, 1e-4);
+  raw.dispose();
   geometry.computeVertexNormals();
   return geometry;
 }
@@ -199,6 +204,7 @@ export function makeCup(): BufferGeometry {
   const handle = new TorusGeometry(0.19, 0.04, 10, 24, Math.PI);
   handle.rotateZ(-Math.PI / 2);
   handle.translate(0.7, 0.03, 0);
+  handle.deleteAttribute('uv'); // the body has none (see lathe); merged geometries must share attributes
   const merged = mergeGeometries([body, handle]);
   body.dispose();
   handle.dispose();

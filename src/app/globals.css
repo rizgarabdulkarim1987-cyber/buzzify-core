@@ -11,6 +11,7 @@
   --color-on-accent: var(--on-accent);
   --font-display: var(--font-display-stack);
   --font-sans: var(--font-text-stack);
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
 }
 
 :root {
@@ -56,6 +57,34 @@ body {
 
 dialog::backdrop {
   background: rgb(0 0 0 / 0.62);
+}
+
+/* A pool of warm light from above: the object on show stands in it. */
+.stage-light {
+  background: radial-gradient(
+    62% 48% at 50% 36%,
+    color-mix(in oklab, var(--accent) 24%, transparent),
+    transparent 74%
+  );
+}
+
+/* Fine film grain over a lit area, so the dark does not band. Static, no animation. */
+.grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
+}
+
+/* A dish on a round plate: champagne hairline ring and a soft drop. */
+.plate {
+  border-radius: 9999px;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 38%, transparent),
+    0 14px 28px -14px rgb(0 0 0 / 0.9);
 }
 
 .scroll-hidden {

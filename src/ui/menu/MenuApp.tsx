@@ -114,10 +114,10 @@ export function MenuApp({ view }: { view: MenuView }) {
       </a>
       <Header />
 
-      <div className="px-4 pb-3">
+      <div className="px-5 pb-3">
         <label className="relative block">
           <span className="sr-only">{t('menu.search')}</span>
-          <SearchIcon className="pointer-events-none absolute start-4 top-1/2 -translate-y-1/2 text-muted" />
+          <SearchIcon className="pointer-events-none absolute start-0 top-1/2 -translate-y-1/2 text-muted" />
           <input
             type="search"
             role="searchbox"
@@ -125,14 +125,14 @@ export function MenuApp({ view }: { view: MenuView }) {
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder={t('menu.searchPlaceholder')}
-            className="h-12 w-full rounded-full border border-line bg-surface ps-11 pe-12 text-base text-text placeholder:text-muted"
+            className="h-12 w-full rounded-none border-0 border-b border-line bg-transparent ps-9 pe-11 text-base text-text transition-colors duration-150 placeholder:text-muted focus:border-accent"
           />
           {query !== '' && (
             <button
               type="button"
               aria-label={t('menu.clearSearch')}
               onClick={() => setQuery('')}
-              className="absolute end-1 top-1/2 grid size-11 -translate-y-1/2 place-items-center text-muted"
+              className="absolute end-0 top-1/2 grid size-11 -translate-y-1/2 place-items-center text-muted"
             >
               <CloseIcon />
             </button>
@@ -148,11 +148,11 @@ export function MenuApp({ view }: { view: MenuView }) {
 
       <main id="menu">
         {visible.length === 0 ? (
-          <p className="px-4 py-12 text-center text-muted">{t('menu.noResults', { query: query.trim() })}</p>
+          <p className="px-5 py-12 text-center text-muted">{t('menu.noResults', { query: query.trim() })}</p>
         ) : (
           categories.map((category) => (
             <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="scroll-mt-14">
-              <h2 id={`h-${category.slug}`} className="px-4 pt-8 pb-2 font-display text-2xl">
+              <h2 id={`h-${category.slug}`} className="px-5 pt-10 pb-1 font-display text-3xl tracking-[-0.005em]">
                 {category.name}
               </h2>
               <ul>

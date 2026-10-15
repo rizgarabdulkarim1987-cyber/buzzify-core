@@ -18,7 +18,7 @@ import {
   type WebGLRenderer,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
-import type { Layer, LayerKind } from '@/lib/stage';
+import type { Layer, LayerKind, StageArt } from '@/lib/stage';
 import {
   advanceTurn,
   createActivity,
@@ -40,6 +40,8 @@ export interface StageCanvasProps {
   /** Stop rendering (offscreen or hidden). */
   paused: boolean;
   variant: 'hero' | 'sheet';
+  /** Which model is drawn; it decides the plinth size and the camera angle. */
+  model: StageArt;
   controls: RefObject<StageControls>;
   /** Called once, after the first frames have been drawn. */
   onReady: () => void;
@@ -47,6 +49,16 @@ export interface StageCanvasProps {
   onFailure: () => void;
 }
 
+/**
+ * Per-model framing. `plinth` is the champagne disc's outer radius, `lift` how high the camera sits
+ * (a cup is seen from above so the coffee shows) and `aim` how far below the object's middle the
+ * camera looks, which raises the object in the frame so a name can overlap the plinth.
+ */
+const FRAMING: Record<StageArt, { plinth: number; lift: number; aim: number }> = {
+  burger: { plinth: 1.5, lift: 0.95, aim: 0.3 },
+  cup: { plinth: 1.3, lift: 2.1, aim: 0.15 },
+};
+const FOV = 30;
 const ENTER_HEIGHT = 1.5;
 const LEAVE_MS = 450;
 /** Seconds between layers landing: the hero's reveal is unhurried, the sheet's is quick. */
@@ -330,12 +342,14 @@ function Environment() {
 function Rig({
   height,
   variant,
+  model,
   idleTurn,
   controls,
   children,
 }: {
   height: number;
   variant: 'hero' | 'sheet';
+  model: StageArt;
   idleTurn: boolean;
   controls: RefObject<StageControls>;
   children: React.ReactNode;
@@ -344,13 +358,20 @@ function Rig({
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     if (spin.current) spin.current.rotation.y = advanceTurn(controls.current, dt, idleTurn);
-    const lift = variant === 'hero' ? 0.9 : 1.15;
-    const distance = (variant === 'hero' ? 5.4 : 5.9) + height * 1.15;
+    // Fit the plinth to the frame's width and the object to its height, whichever needs more room.
+    const framing = FRAMING[model];
+    const half = Math.tan((FOV * Math.PI) / 360);
+    const aspect = state.size.width / Math.max(1, state.size.height);
+    const byWidth = (framing.plinth * 1.14) / (half * aspect);
+    const byHeight = (height + 1.1) / (2 * half);
+    const distance = Math.max(byWidth, byHeight);
+    const lift = framing.lift + (variant === 'sheet' ? 0.1 : 0);
+    const aim = framing.aim;
     const camera = state.camera;
     const ease = 1 - Math.exp(-4 * dt);
-    camera.position.y += (lift + height * 0.5 - camera.position.y) * ease;
+    camera.position.y += (lift + height * 0.35 - camera.position.y) * ease;
     camera.position.z += (distance - camera.position.z) * ease;
-    camera.lookAt(0, height * 0.42, 0);
+    camera.lookAt(0, height * 0.42 - aim, 0);
   });
   return <group ref={spin}>{children}</group>;
 }
@@ -387,7 +408,16 @@ function ReadyProbe({ onReady }: { onReady: () => void }) {
   return null;
 }
 
-function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: Omit<StageCanvasProps, 'paused' | 'onFailure'>) {
+function Scene({
+  layers,
+  tone,
+  reveal,
+  idleTurn,
+  variant,
+  model,
+  controls,
+  onReady,
+}: Omit<StageCanvasProps, 'paused' | 'onFailure'>) {
   const [items, setItems] = useState<Item[]>(() => initialItems(layers, reveal, STAGGER_SECONDS[variant]));
   const [seen, setSeen] = useState(layers);
   if (seen !== layers) {
@@ -431,14 +461,14 @@ function Scene({ layers, tone, reveal, idleTurn, variant, controls, onReady }: O
         <meshBasicMaterial map={shadow} transparent depthWrite={false} toneMapped={false} opacity={0.85} />
       </mesh>
       <mesh position={[0, -0.09, 0]}>
-        <cylinderGeometry args={[1.58, 1.66, 0.14, 72]} />
+        <cylinderGeometry args={[FRAMING[model].plinth - 0.08, FRAMING[model].plinth, 0.14, 72]} />
         <meshStandardMaterial color="#d6bc8a" metalness={1} roughness={0.22} />
       </mesh>
       <mesh position={[0, -0.018, 0]}>
-        <cylinderGeometry args={[1.3, 1.3, 0.02, 72]} />
+        <cylinderGeometry args={[FRAMING[model].plinth - 0.3, FRAMING[model].plinth - 0.3, 0.02, 72]} />
         <meshStandardMaterial color="#1b1a19" roughness={0.55} metalness={0.3} />
       </mesh>
-      <Rig height={height} variant={variant} idleTurn={idleTurn} controls={controls}>
+      <Rig height={height} variant={variant} model={model} idleTurn={idleTurn} controls={controls}>
         {items.map((item) => (
           <LayerMesh key={item.layer.key} item={item} tone={tone} bump={bump} crema={crema} />
         ))}
@@ -454,7 +484,7 @@ export function StageCanvas({ paused, onFailure, ...scene }: StageCanvasProps) {
     <Canvas
       dpr={[1, 1.75]}
       frameloop={paused ? 'never' : 'demand'}
-      camera={{ fov: 30, position: [0, 1.6, 6.4], near: 0.1, far: 40 }}
+      camera={{ fov: FOV, position: [0, 1.6, 6.4], near: 0.1, far: 40 }}
       gl={{ antialias: true, alpha: true, powerPreference: 'high-performance' }}
       onCreated={({ gl }) => {
         gl.setClearColor(0x000000, 0);
