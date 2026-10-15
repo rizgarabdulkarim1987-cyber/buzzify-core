@@ -1,5 +1,5 @@
 import type { ArtKind } from '@/lib/media';
-import type { Daypart } from '@/server/domain/types';
+import type { Daypart, VisualKey } from '@/server/domain/types';
 
 export interface Tri {
   en: string;
@@ -20,6 +20,8 @@ export interface SeedOption {
   costDelta: number | null;
   suggested?: boolean;
   suggestPriority?: number;
+  /** What the option does to the 3D model, when the product has one. */
+  visualKey?: VisualKey;
 }
 
 export interface SeedGroup {
@@ -501,6 +503,7 @@ export const ATELIER: SeedData = {
               costDelta: 35,
               suggested: true,
               suggestPriority: 70,
+              visualKey: 'cheese',
             },
             {
               name: t('Double patty', 'قرصان من اللحم', 'دوو پارچە گۆشت'),
@@ -509,11 +512,13 @@ export const ATELIER: SeedData = {
               costDelta: 160,
               suggested: true,
               suggestPriority: 85,
+              visualKey: 'patty',
             },
             {
               name: t('Bacon', 'لحم مقدد', 'باکۆن'),
               priceDelta: 150,
               costDelta: 60,
+              visualKey: 'bacon',
             },
           ],
         },

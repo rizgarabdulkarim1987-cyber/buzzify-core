@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
+import { toVisualKey } from '@/server/domain/types';
 import type {
   Catalog,
   CatalogGroup,
@@ -99,6 +100,7 @@ export async function loadCatalog(prisma: PrismaClient, restaurantId: string): P
           isSuggested: o.isSuggested,
           suggestPriority: o.suggestPriority,
           isAvailable: o.isAvailable,
+          visualKey: toVisualKey(o.visualKey),
           translations: translationMap(o.translations),
         })),
       })),

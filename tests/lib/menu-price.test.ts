@@ -38,6 +38,7 @@ describe('unitPriceFromMenu', () => {
             costDelta: null,
             isSuggested: false,
             suggestPriority: 0,
+            visualKey: null,
             isAvailable: true,
             translations: { en: { name: 'Neg' } },
           },

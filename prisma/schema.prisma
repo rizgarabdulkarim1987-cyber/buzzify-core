@@ -185,6 +185,8 @@ model ModifierOption {
   isSuggested     Boolean       @default(false)
   suggestPriority Int           @default(50)
   isAvailable     Boolean       @default(true)
+  /// What the option does to the product's 3D model: cheese, patty or bacon. Null means nothing.
+  visualKey       String?
   translations    Json
   sortOrder       Int           @default(0)
   restaurant      Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

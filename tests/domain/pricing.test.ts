@@ -174,6 +174,7 @@ describe('quoteCart: price floor', () => {
               isSuggested: false,
               suggestPriority: 0,
               isAvailable: true,
+              visualKey: null,
               translations: { en: { name: 'Mistyped discount' } },
             },
           ],

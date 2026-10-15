@@ -97,6 +97,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
                 costDelta: option.costDelta,
                 isSuggested: option.suggested ?? false,
                 suggestPriority: option.suggestPriority ?? 50,
+                visualKey: option.visualKey ?? null,
                 translations: translations({
                   name: option.name,
                   ...(option.effect ? { effect: option.effect } : {}),

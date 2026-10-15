@@ -11,6 +11,14 @@ export const MAX_LINES = 50;
 
 export type TranslationMap = Partial<Record<Locale, Record<string, string>>>;
 
+/** What an option visibly does to a product's 3D model. */
+export const VISUAL_KEYS = ['cheese', 'patty', 'bacon'] as const;
+export type VisualKey = (typeof VISUAL_KEYS)[number];
+
+export function toVisualKey(value: unknown): VisualKey | null {
+  return (VISUAL_KEYS as readonly unknown[]).includes(value) ? (value as VisualKey) : null;
+}
+
 export interface CatalogOption {
   id: string;
   groupId: string;
@@ -19,6 +27,7 @@ export interface CatalogOption {
   isSuggested: boolean;
   suggestPriority: number;
   isAvailable: boolean;
+  visualKey: VisualKey | null;
   translations: TranslationMap; // name, effect
 }
 

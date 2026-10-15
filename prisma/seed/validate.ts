@@ -1,3 +1,4 @@
+import { VISUAL_KEYS } from '../../src/server/domain/types';
 import type { SeedData, Tri } from './atelier';
 
 const LOCALES = ['en', 'ar', 'ckb'] as const;
@@ -47,6 +48,9 @@ export function validateSeed(data: SeedData): string[] {
       for (const option of group.options) {
         checkTri(problems, `${label} option`, option.name);
         if (option.effect) checkTri(problems, `${label} option effect`, option.effect);
+        if (option.visualKey !== undefined && !(VISUAL_KEYS as readonly string[]).includes(option.visualKey)) {
+          problems.push(`${label}: option visualKey "${option.visualKey}" is not one of ${VISUAL_KEYS.join(', ')}`);
+        }
       }
     }
     for (const variant of product.variants ?? []) checkTri(problems, `${label} variant`, variant.name);

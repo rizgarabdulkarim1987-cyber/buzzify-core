@@ -34,6 +34,14 @@ describe('buildMenuView', () => {
     expect(burger.groups[0]?.options.map((o) => o.name)).toEqual(['Premium cheese', 'Double patty', 'Bacon']);
   });
 
+  it('carries what an option does to the product visually', () => {
+    const view = buildMenuView(makeCatalog(), tenant, 'en', at(12));
+    const burger = view.products.find((p) => p.id === IDS.burger)!;
+    expect(burger.groups[0]?.options.map((o) => o.visualKey)).toEqual(['cheese', 'patty', 'bacon']);
+    const espresso = view.products.find((p) => p.id === IDS.espresso)!;
+    expect(espresso.groups.flatMap((g) => g.options).every((o) => o.visualKey === null)).toBe(true);
+  });
+
   it('shows the price a customer will actually pay, including the default variant', () => {
     const catalog = withProduct(makeCatalog(), IDS.espresso, {
       variants: [

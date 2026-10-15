@@ -28,6 +28,12 @@ describe('ATELIER seed', () => {
     }
   });
 
+  it('tells the 3D burger what each extra does', () => {
+    const burger = ATELIER.products.find((p) => p.slug === 'atelier-burger')!;
+    const keys = burger.groups!.flatMap((g) => g.options).map((o) => o.visualKey);
+    expect(keys).toEqual(['cheese', 'patty', 'bacon']);
+  });
+
   it('has unique slugs and a single default variant per variant list', () => {
     const slugs = ATELIER.products.map((p) => p.slug);
     expect(new Set(slugs).size).toBe(slugs.length);
@@ -61,6 +67,12 @@ describe('validateSeed', () => {
     const data = clone();
     data.pairingRules[0]!.target = 'does-not-exist';
     expect(validateSeed(data).join('\n')).toMatch(/does-not-exist/);
+  });
+
+  it('flags an option visual key the stage does not know', () => {
+    const data = clone();
+    data.products.find((p) => p.slug === 'atelier-burger')!.groups![0]!.options[0]!.visualKey = 'sparkles' as never;
+    expect(validateSeed(data).join('\n')).toMatch(/visualKey/);
   });
 
   it('flags a cost at or above the price', () => {

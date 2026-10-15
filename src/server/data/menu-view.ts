@@ -12,6 +12,7 @@ import {
   type CatalogProduct,
   type Daypart,
   type Orderability,
+  type VisualKey,
 } from '@/server/domain';
 import type { TenantInfo } from './tenant';
 
@@ -21,6 +22,8 @@ export interface MenuOptionView {
   effect: string | null;
   priceDelta: number;
   isAvailable: boolean;
+  /** What choosing this option does to the 3D model, if anything. */
+  visualKey: VisualKey | null;
 }
 
 export interface MenuGroupView {
@@ -85,6 +88,7 @@ function mapGroup(group: CatalogGroup, locale: Locale, fallback: Locale): MenuGr
       effect: resolveText(option.translations, 'effect', locale, fallback) || null,
       priceDelta: option.priceDelta,
       isAvailable: option.isAvailable,
+      visualKey: option.visualKey,
     })),
   };
 }
