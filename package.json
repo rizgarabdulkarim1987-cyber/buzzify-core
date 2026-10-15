@@ -3,7 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.19" },
+  "engines": {
+    "node": ">=22.19"
+  },
   "scripts": {
     "dev": "next dev -p 3100",
     "build": "next build",
@@ -54,7 +56,6 @@
     "tsx": "4.23.15",
     "typescript": "5.9.3",
     "vite": "8.3.4",
-    "vite-tsconfig-paths": "6.1.1",
     "vitest": "5.0.5"
   }
 }
