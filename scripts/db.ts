@@ -32,8 +32,19 @@ async function waitFor(open: boolean, seconds: number): Promise<boolean> {
 async function ensureDatabase(name: string): Promise<void> {
   const admin = new pg.Client({ host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD, database: 'postgres' });
   await admin.connect();
-  const found = await admin.query('SELECT 1 FROM pg_database WHERE datname = $1', [name]);
-  if (found.rowCount === 0) await admin.query(`CREATE DATABASE "${name}"`);
+  const found = await admin.query(
+    'SELECT pg_encoding_to_char(encoding) AS encoding FROM pg_database WHERE datname = $1',
+    [name],
+  );
+  if (found.rowCount === 0) {
+    await admin.query(`CREATE DATABASE "${name}" ENCODING 'UTF8' TEMPLATE template0`);
+  } else if (found.rows[0]?.encoding !== 'UTF8') {
+    await admin.end();
+    throw new Error(
+      `Database "${name}" is ${found.rows[0]?.encoding}, not UTF8, so Arabic and Sorani text would fail. ` +
+        'Stop the server, delete the .data folder and run the command again.',
+    );
+  }
   await admin.end();
 }
 
@@ -46,6 +57,8 @@ async function start(): Promise<void> {
     password: DB_PASSWORD,
     port: DB_PORT,
     persistent: true,
+    // Windows defaults the cluster to WIN1252, which cannot store Arabic or Sorani text.
+    initdbFlags: ['--encoding=UTF8', '--locale=C'],
   });
   if (!existsSync(resolve(DATA_DIR, 'PG_VERSION'))) await server.initialise();
   await server.start();
