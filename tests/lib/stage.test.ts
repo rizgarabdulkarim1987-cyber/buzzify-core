@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
   burgerLayers,
+  croissantLayers,
   cupLayers,
+  drinkStyle,
+  explodeOffset,
+  glassLayers,
   isStageArt,
   layersFor,
+  millefeuilleLayers,
   qualifiesFor3D,
   selectionFromOptions,
+  stageOf,
   stageTone,
 } from '@/lib/stage';
 
@@ -62,6 +68,21 @@ describe('burgerLayers', () => {
   });
 });
 
+describe('drinkStyle', () => {
+  it('gives milk drinks and matcha latte art and leaves espresso and tea plain', () => {
+    expect(drinkStyle('#8A6A4B')).toBe('art'); // flat white
+    expect(drinkStyle('#9B7653')).toBe('art'); // cappuccino
+    expect(drinkStyle('#7A5A3F')).toBe('art'); // cortado
+    expect(drinkStyle('#7F9A5E')).toBe('art'); // matcha latte
+    expect(drinkStyle('#6B4A2F')).toBe('plain'); // espresso
+    expect(drinkStyle('#B58B4C')).toBe('plain'); // earl grey
+  });
+
+  it('is plain for colours it cannot read', () => {
+    expect(drinkStyle('nonsense')).toBe('plain');
+  });
+});
+
 describe('cupLayers', () => {
   it('stacks saucer, cup and coffee', () => {
     expect(cupLayers().map((l) => l.key)).toEqual(['saucer', 'cup', 'coffee']);
@@ -73,6 +94,87 @@ describe('cupLayers', () => {
     expect(cup.y - cup.height / 2).toBeCloseTo(saucer.y + saucer.height / 2, 9);
     expect(coffee.y).toBeGreaterThan(cup.y - cup.height / 2);
     expect(coffee.y + coffee.height / 2).toBeLessThan(cup.y + cup.height / 2);
+  });
+});
+
+describe('the glass, the croissant and the mille-feuille', () => {
+  it('puts ice and a lemon wheel inside and on the rim of the glass', () => {
+    const [glass, liquid, ice, lemon] = glassLayers() as [
+      ReturnType<typeof glassLayers>[0],
+      ReturnType<typeof glassLayers>[0],
+      ReturnType<typeof glassLayers>[0],
+      ReturnType<typeof glassLayers>[0],
+    ];
+    expect([glass.key, liquid.key, ice.key, lemon.key]).toEqual(['glass', 'liquid', 'ice', 'lemon']);
+    expect(liquid.y + liquid.height / 2).toBeLessThan(glass.y + glass.height / 2);
+    expect(ice.y).toBeGreaterThan(liquid.y - liquid.height / 2);
+    expect(lemon.y).toBeGreaterThan(glass.y + glass.height / 2 - 0.1);
+  });
+
+  it('is a single layer for the croissant', () => {
+    expect(croissantLayers().map((l) => l.key)).toEqual(['croissant']);
+  });
+
+  it('stacks the mille-feuille: three sheets, two creams, icing on top', () => {
+    const layers = millefeuilleLayers();
+    expect(layers.map((l) => l.key)).toEqual(['puff-1', 'cream-1', 'puff-2', 'cream-2', 'puff-3', 'icing']);
+    for (let i = 1; i < layers.length; i++) {
+      expect(layers[i]!.y - layers[i]!.height / 2).toBeCloseTo(layers[i - 1]!.y + layers[i - 1]!.height / 2, 9);
+    }
+  });
+
+  it('chooses the layers by model', () => {
+    const none = { cheese: false, patty: false, bacon: false };
+    expect(layersFor('glass', none)).toEqual(glassLayers());
+    expect(layersFor('croissant', none)).toEqual(croissantLayers());
+    expect(layersFor('millefeuille', none)).toEqual(millefeuilleLayers());
+  });
+});
+
+describe('explodeOffset', () => {
+  it('spreads a stack upward from its base: the bottom stays on the plinth, the top rises, in order', () => {
+    const layers = burgerLayers({ cheese: true, patty: true, bacon: false });
+    const offsets = layers.map((layer) => explodeOffset('burger', layers, layer.key));
+    expect(offsets[0]).toBe(0);
+    expect(offsets[offsets.length - 1]).toBeGreaterThan(0.5);
+    for (let i = 1; i < offsets.length; i++) expect(offsets[i]!).toBeGreaterThan(offsets[i - 1]!);
+    expect(Math.min(...offsets)).toBeGreaterThanOrEqual(0);
+  });
+
+  it('spreads the mille-feuille the same way', () => {
+    const layers = millefeuilleLayers();
+    expect(explodeOffset('millefeuille', layers, 'puff-1')).toBe(0);
+    expect(explodeOffset('millefeuille', layers, 'icing')).toBeGreaterThan(0);
+  });
+
+  it('lifts the cup off its saucer and the garnish off the glass', () => {
+    const cup = cupLayers();
+    expect(explodeOffset('cup', cup, 'saucer')).toBe(0);
+    expect(explodeOffset('cup', cup, 'cup')).toBeGreaterThan(0);
+    const glass = glassLayers();
+    expect(explodeOffset('glass', glass, 'glass')).toBe(0);
+    expect(explodeOffset('glass', glass, 'lemon')).toBeGreaterThan(explodeOffset('glass', glass, 'ice'));
+  });
+
+  it('leaves the croissant alone', () => {
+    expect(explodeOffset('croissant', croissantLayers(), 'croissant')).toBe(0);
+  });
+});
+
+describe('stageOf', () => {
+  it('uses the art kind by default and an explicit model when one is named', () => {
+    expect(stageOf([{ kind: 'art', art: 'glass', tone: '#E8D96A' }])).toEqual({ art: 'glass', tone: '#E8D96A' });
+    expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#9DB07A', model: 'millefeuille' }])).toEqual({
+      art: 'millefeuille',
+      tone: '#9DB07A',
+    });
+    expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'croissant' }])?.art).toBe('croissant');
+  });
+
+  it('has no stage for art without a model, or for a model it does not know', () => {
+    expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A' }])).toBeNull();
+    expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'teapot' }])).toBeNull();
+    expect(stageOf([{ kind: 'image', url: '/a.jpg', alt: 'a', width: 1, height: 1 }])).toBeNull();
   });
 });
 

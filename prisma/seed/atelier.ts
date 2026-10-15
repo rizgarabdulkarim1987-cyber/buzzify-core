@@ -53,6 +53,8 @@ export interface SeedProduct {
   hideOutsideDaypart?: boolean;
   slot?: string;
   art: ArtKind;
+  /** Which 3D model draws the art, when the art kind alone is ambiguous. */
+  model?: string;
   tone: string;
   name: Tri;
   description: Tri;
@@ -356,6 +358,7 @@ export const ATELIER: SeedData = {
     },
     {
       slug: 'croissant',
+      model: 'croissant',
       category: 'breakfast',
       price: 350,
       cost: 80,
@@ -720,6 +723,7 @@ export const ATELIER: SeedData = {
     },
     {
       slug: 'mille-feuille',
+      model: 'millefeuille',
       category: 'patisserie',
       price: 800,
       cost: 230,
@@ -816,6 +820,7 @@ export const ATELIER: SeedData = {
     {
       slug: 'yuzu-lemonade',
       category: 'cold',
+      signature: true,
       price: 550,
       cost: 110,
       popularity: 58,

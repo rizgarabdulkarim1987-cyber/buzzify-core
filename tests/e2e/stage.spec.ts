@@ -51,6 +51,19 @@ test.describe('3D stage', () => {
     await expect(stage).toHaveAccessibleName(/Atelier Burger/);
   });
 
+  test('the croissant, the mille-feuille and the lemonade have their own models', async ({ page }) => {
+    for (const [slug, layers] of [
+      ['croissant', 'croissant'],
+      ['mille-feuille', 'puff-1,cream-1,puff-2,cream-2,puff-3,icing'],
+      ['yuzu-lemonade', 'glass,liquid,ice,lemon'],
+    ] as const) {
+      await page.goto(`/atelier/en/p/${slug}?stage=on`);
+      const stage = page.getByTestId('sheet-stage');
+      await expect(stage).toHaveAttribute('data-stage-layers', layers);
+      await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    }
+  });
+
   test('the coffee page shows a cup on a saucer', async ({ page }) => {
     await page.goto('/atelier/en/p/flat-white?stage=on');
     const stage = page.getByTestId('sheet-stage');
@@ -122,8 +135,8 @@ test.describe('3D stage', () => {
 
   test('dishes without a model keep their illustration and have no stage', async ({ page }) => {
     // No 3D needed for this one, so it runs with the suite's default of 3D off and stays out of WebGL's way.
-    const dialog = await openFromList(page, 'Croissant', '');
-    await expect(dialog.getByRole('heading', { name: 'Croissant' })).toBeVisible();
+    const dialog = await openFromList(page, 'Basque Cheesecake', '');
+    await expect(dialog.getByRole('heading', { name: 'Basque Cheesecake' })).toBeVisible();
     await expect(dialog.getByTestId('sheet-stage')).toHaveCount(0);
   });
 });

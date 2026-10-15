@@ -1,3 +1,4 @@
+import { STAGE_ARTS } from '../../src/lib/stage';
 import { VISUAL_KEYS } from '../../src/server/domain/types';
 import type { SeedData, Tri } from './atelier';
 
@@ -34,6 +35,9 @@ export function validateSeed(data: SeedData): string[] {
     if (product.price <= 0) problems.push(`${label}: price must be positive`);
     if (product.cost !== null && product.cost >= product.price) {
       problems.push(`${label}: cost ${product.cost} is not below price ${product.price}`);
+    }
+    if (product.model !== undefined && !(STAGE_ARTS as readonly string[]).includes(product.model)) {
+      problems.push(`${label}: model "${product.model}" is not one of ${STAGE_ARTS.join(', ')}`);
     }
     checkTri(problems, `${label} name`, product.name);
     checkTri(problems, `${label} description`, product.description);

@@ -2,7 +2,7 @@ export const ART_KINDS = ['cup', 'glass', 'plate', 'pastry', 'bowl', 'burger'] a
 export type ArtKind = (typeof ART_KINDS)[number];
 
 export type MediaItem =
-  | { kind: 'art'; art: ArtKind; tone: string }
+  | { kind: 'art'; art: ArtKind; tone: string; /** Which 3D model draws this art, when the art kind alone is ambiguous. */ model?: string }
   | { kind: 'image'; url: string; alt: string; width: number; height: number }
   | { kind: 'video'; url: string; poster: string }
   | { kind: 'model3d'; url: string; poster: string };
@@ -22,7 +22,8 @@ export function parseMedia(raw: unknown): MediaItem[] {
     const v = entry as Record<string, unknown>;
     if (v.kind === 'art') {
       if ((ART_KINDS as readonly unknown[]).includes(v.art) && typeof v.tone === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.tone)) {
-        items.push({ kind: 'art', art: v.art as ArtKind, tone: v.tone });
+        const model = typeof v.model === 'string' && /^[a-z]{2,24}$/.test(v.model) ? v.model : undefined;
+        items.push({ kind: 'art', art: v.art as ArtKind, tone: v.tone, ...(model ? { model } : {}) });
       }
     } else if (v.kind === 'image') {
       if (isSafeUrl(v.url) && typeof v.alt === 'string' && Number.isFinite(v.width) && Number.isFinite(v.height)) {

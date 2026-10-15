@@ -3,18 +3,12 @@
 import { useReducedMotion } from 'motion/react';
 import dynamic from 'next/dynamic';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import {
-  layersFor,
-  qualifiesFor3D,
-  selectionFromOptions,
-  stageOf,
-  type StageEnvironment,
-} from '@/lib/stage';
+import { layersFor, selectionFromOptions, stageOf } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { beginDrag, createControls, dragBy, endDrag, nudge, resetTurn } from './controls';
-import { syncStagePreference } from './preference';
+import { deviceQualifies } from './device';
 
 // The 3D chunk (three.js and the scene) is never part of the menu route's initial JavaScript.
 const StageCanvas = dynamic(() => import('./StageCanvas').then((module) => module.StageCanvas), {
@@ -24,28 +18,6 @@ const StageCanvas = dynamic(() => import('./StageCanvas').then((module) => modul
 type StageState = 'poster' | 'loading' | 'ready' | 'unavailable';
 
 const TAP_SLOP_PX = 6;
-
-function probeEnvironment(): StageEnvironment {
-  const nav = navigator as Navigator & { deviceMemory?: number; connection?: { saveData?: boolean } };
-  const forced = syncStagePreference();
-  let webgl = false;
-  try {
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('webgl2') ?? canvas.getContext('webgl');
-    webgl = context !== null;
-    // Give the probe context back so it does not count against the page's limit.
-    (context as WebGLRenderingContext | null)?.getExtension('WEBGL_lose_context')?.loseContext();
-  } catch {
-    webgl = false;
-  }
-  return {
-    webgl,
-    saveData: nav.connection?.saveData === true,
-    deviceMemory: nav.deviceMemory,
-    cores: nav.hardwareConcurrency,
-    forced,
-  };
-}
 
 class StageBoundary extends Component<{ onError: () => void; children: ReactNode }, { failed: boolean }> {
   state = { failed: false };
@@ -125,7 +97,7 @@ export function ProductStage({
     let cancelled = false;
     const decide = () => {
       if (cancelled) return;
-      const qualified = qualifiesFor3D(probeEnvironment());
+      const qualified = deviceQualifies();
       setState(qualified ? 'loading' : 'unavailable');
       if (!qualified) setReason('device');
     };

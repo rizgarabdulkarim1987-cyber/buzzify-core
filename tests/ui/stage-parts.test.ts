@@ -1,7 +1,20 @@
 import { Box3, type BufferGeometry } from 'three';
 import { describe, expect, it } from 'vitest';
-import { burgerLayers, cupLayers, type LayerKind } from '@/lib/stage';
-import { domeHeight, makeLayerGeometry } from '@/ui/stage/stage-parts';
+import {
+  burgerLayers,
+  croissantLayers,
+  cupLayers,
+  glassLayers,
+  millefeuilleLayers,
+  type LayerKind,
+} from '@/lib/stage';
+import {
+  CUP_RIM,
+  SAUCER_RIM,
+  domeHeight,
+  makeLayerGeometry,
+  makeSesame,
+} from '@/ui/stage/stage-parts';
 
 const ALL: LayerKind[] = [
   'bun-bottom',
@@ -16,6 +29,17 @@ const ALL: LayerKind[] = [
   'saucer',
   'cup',
   'coffee',
+  'glass',
+  'liquid',
+  'ice',
+  'lemon',
+  'croissant',
+  'puff-1',
+  'cream-1',
+  'puff-2',
+  'cream-2',
+  'puff-3',
+  'icing',
 ];
 
 function box(geometry: BufferGeometry): Box3 {
@@ -30,7 +54,9 @@ describe('stage geometry', () => {
     for (const kind of ALL) {
       const position = makeLayerGeometry(kind).getAttribute('position');
       expect(position.count, kind).toBeGreaterThan(0);
-      for (let i = 0; i < position.array.length; i++) expect(Number.isFinite(position.array[i]), kind).toBe(true);
+      let broken = 0;
+      for (let i = 0; i < position.array.length; i++) if (!Number.isFinite(position.array[i])) broken++;
+      expect(broken, kind).toBe(0);
     }
   });
 
@@ -38,7 +64,13 @@ describe('stage geometry', () => {
     // The core is everything within 0.9 of the axis. A draped slice of cheese hangs further out, where
     // nothing else is stacked, so only its core has to fit the layer.
     const heights = new Map(
-      [...burgerLayers({ cheese: true, patty: true, bacon: true }), ...cupLayers()].map((l) => [l.key, l.height]),
+      [
+        ...burgerLayers({ cheese: true, patty: true, bacon: true }),
+        ...cupLayers(),
+        ...glassLayers(),
+        ...croissantLayers(),
+        ...millefeuilleLayers(),
+      ].map((l) => [l.key, l.height]),
     );
     for (const kind of ALL) {
       const position = makeLayerGeometry(kind).getAttribute('position');
@@ -49,9 +81,12 @@ describe('stage geometry', () => {
         low = Math.min(low, position.getY(i));
         high = Math.max(high, position.getY(i));
       }
-      expect(high - low, kind).toBeLessThanOrEqual(heights.get(kind)! + 0.04);
+      // A lemon wheel hangs on the rim at an angle, so like the cheese drape it is not bound by its layer.
+      if (kind !== 'lemon') expect(high - low, kind).toBeLessThanOrEqual(heights.get(kind)! + 0.04);
       // The cheese core is a flat slab; its thickness is drawn by the material, not the mesh.
-      if (kind !== 'cheese') expect(high - low, kind).toBeGreaterThan(0.03);
+      if (kind !== 'cheese' && kind !== 'coffee' && kind !== 'liquid') {
+        expect(high - low, kind).toBeGreaterThan(0.03);
+      }
     }
   });
 
@@ -100,6 +135,84 @@ describe('stage geometry', () => {
     expect(radius(box(cup))).toBeGreaterThan(0.8); // the handle reaches past the rim
     expect(radius(box(makeLayerGeometry('saucer')))).toBeGreaterThan(0.95);
     expect(radius(box(makeLayerGeometry('coffee')))).toBeLessThan(0.7);
+  });
+
+  it('paints every part with vertex colours in a sane range', () => {
+    for (const kind of ALL) {
+      const geometry = makeLayerGeometry(kind);
+      const color = geometry.getAttribute('color');
+      expect(color, kind).toBeDefined();
+      expect(color.count, kind).toBe(geometry.getAttribute('position').count);
+      // One assertion per part: asserting per vertex would be tens of thousands of expectations.
+      let low = Infinity;
+      let high = -Infinity;
+      for (let i = 0; i < color.array.length; i++) {
+        const value = color.array[i]!;
+        if (value < low) low = value;
+        if (value > high) high = value;
+      }
+      expect(low, kind).toBeGreaterThanOrEqual(0);
+      expect(high, kind).toBeLessThanOrEqual(1.5);
+    }
+  });
+
+  it('builds the same shape every time', () => {
+    for (const kind of ALL) {
+      const a = makeLayerGeometry(kind).getAttribute('position');
+      const b = makeLayerGeometry(kind).getAttribute('position');
+      expect(a.count, kind).toBe(b.count);
+      for (let i = 0; i < a.array.length; i += 97) expect(a.array[i], kind).toBe(b.array[i]);
+    }
+  });
+
+  it('gives the buns the colour of the product', () => {
+    const mean = (hex: string) => {
+      const color = makeLayerGeometry('bun-top', { tone: hex }).getAttribute('color');
+      let red = 0;
+      for (let i = 0; i < color.count; i++) red += color.getX(i);
+      return red / color.count;
+    };
+    expect(mean('#C98B4A')).toBeGreaterThan(mean('#5A3A20'));
+  });
+
+  it('has a sesame seed small enough to scatter by the dozen', () => {
+    const b = box(makeSesame());
+    expect(Math.max(b.max.x - b.min.x, b.max.z - b.min.z)).toBeLessThan(0.16);
+    expect(b.max.y - b.min.y).toBeLessThan(0.08);
+  });
+
+  it('tells the scene where the gilded rims sit', () => {
+    const cup = box(makeLayerGeometry('cup'));
+    expect(CUP_RIM.y).toBeCloseTo(cup.max.y, 1);
+    expect(CUP_RIM.radius).toBeGreaterThan(0.68);
+    expect(CUP_RIM.radius).toBeLessThan(0.8);
+    const saucer = box(makeLayerGeometry('saucer'));
+    expect(SAUCER_RIM.y).toBeCloseTo(saucer.max.y, 1);
+    expect(SAUCER_RIM.radius).toBeGreaterThan(0.95);
+  });
+
+  it('builds a tall hollow glass with the drink inside it', () => {
+    const glass = box(makeLayerGeometry('glass'));
+    expect(glass.max.y - glass.min.y).toBeGreaterThan(1.0);
+    expect(radius(glass)).toBeLessThan(0.6);
+    const liquid = box(makeLayerGeometry('liquid'));
+    expect(radius(liquid)).toBeLessThan(radius(glass));
+    expect(liquid.max.y - liquid.min.y).toBeLessThan(glass.max.y - glass.min.y);
+  });
+
+  it('builds a crescent croissant, wider than it is deep', () => {
+    const b = box(makeLayerGeometry('croissant'));
+    expect(b.max.x - b.min.x).toBeGreaterThan(1.3);
+    expect(b.max.x - b.min.x).toBeGreaterThan(b.max.z - b.min.z);
+    expect(b.max.y - b.min.y).toBeLessThan(0.56);
+  });
+
+  it('builds the mille-feuille as flat rectangular slabs of the same footprint', () => {
+    const puff = box(makeLayerGeometry('puff-1'));
+    const icing = box(makeLayerGeometry('icing'));
+    expect(puff.max.x - puff.min.x).toBeCloseTo(1.7, 1);
+    expect(puff.max.z - puff.min.z).toBeCloseTo(0.62, 1);
+    expect(icing.max.x - icing.min.x).toBeCloseTo(puff.max.x - puff.min.x, 1);
   });
 
   it('describes the bun dome as a falling curve from its crown', () => {

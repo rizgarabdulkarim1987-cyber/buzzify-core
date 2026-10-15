@@ -8,6 +8,15 @@ describe('parseMedia', () => {
     ]);
   });
 
+  it('keeps a well-formed model name on art and drops a malformed one', () => {
+    expect(parseMedia([{ kind: 'art', art: 'pastry', tone: '#9DB07A', model: 'millefeuille' }])).toEqual([
+      { kind: 'art', art: 'pastry', tone: '#9DB07A', model: 'millefeuille' },
+    ]);
+    expect(parseMedia([{ kind: 'art', art: 'pastry', tone: '#9DB07A', model: '../etc/passwd' }])).toEqual([
+      { kind: 'art', art: 'pastry', tone: '#9DB07A' },
+    ]);
+  });
+
   it('accepts images with safe URLs', () => {
     const image = { kind: 'image', url: '/media/atelier/espresso.jpg', alt: 'Espresso', width: 800, height: 600 };
     expect(parseMedia([image])).toEqual([image]);

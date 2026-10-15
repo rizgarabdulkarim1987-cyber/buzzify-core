@@ -5,6 +5,9 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 7_000 },
   fullyParallel: true,
+  // The 3D suites run software WebGL, which is CPU bound; more workers than this starve each other and
+  // turn timing into noise.
+  workers: 3,
   retries: 0,
   reporter: [['list']],
   use: {

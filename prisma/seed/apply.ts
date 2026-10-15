@@ -70,7 +70,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
         slot: product.slot ?? null,
         allergens: product.allergens,
         ingredients: product.ingredients as unknown as Record<string, string[]>,
-        media: [{ kind: 'art', art: product.art, tone: product.tone }],
+        media: [{ kind: 'art', art: product.art, tone: product.tone, ...(product.model ? { model: product.model } : {}) }],
         translations: translations({ name: product.name, description: product.description }),
         sortOrder: index,
         variants: {
