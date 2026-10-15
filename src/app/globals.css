@@ -1,1 +1,77 @@
 @import 'tailwindcss';
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-accent: var(--accent);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-on-accent: var(--on-accent);
+  --font-display: var(--font-display-stack);
+  --font-sans: var(--font-text-stack);
+}
+
+:root {
+  --bg: #0e0e0f;
+  --surface: #1b1a19;
+  --raised: #2a2826;
+  --accent: #d6bc8a;
+  --text: #ede8df;
+  --muted: #a7a096;
+  --line: #3a3633;
+  --on-accent: #0e0e0f;
+  --font-display-stack: var(--font-bodoni), 'Times New Roman', serif;
+  --font-text-stack: var(--font-hanken), system-ui, sans-serif;
+}
+
+:root[lang='ar'],
+:root[lang='ckb'] {
+  --font-display-stack: var(--font-naskh), 'Noto Naskh Arabic', serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+
+html {
+  background: var(--bg);
+  color: var(--text);
+  -webkit-text-size-adjust: 100%;
+}
+
+html:has(dialog[open]) {
+  overflow: hidden;
+}
+
+body {
+  min-height: 100dvh;
+  font-family: var(--font-text-stack);
+  overflow-wrap: anywhere;
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+dialog::backdrop {
+  background: rgb(0 0 0 / 0.62);
+}
+
+.scroll-hidden {
+  scrollbar-width: none;
+}
+.scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
