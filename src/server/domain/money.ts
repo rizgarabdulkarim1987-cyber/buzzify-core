@@ -1,6 +1,9 @@
 import type { Locale } from './types';
 
-const LOCALE_TAG: Record<Locale, string> = { en: 'en-US', ar: 'ar-IQ', ckb: 'ckb-IQ' };
+// Sorani uses Arabic-Iraq conventions for numbers and currency. Node and Chromium ship different
+// "ckb" data (US$ 9.00 on the server, $9.00 in the browser), which breaks hydration, whereas "ar-IQ"
+// is formatted identically by both.
+const LOCALE_TAG: Record<Locale, string> = { en: 'en-US', ar: 'ar-IQ', ckb: 'ar-IQ' };
 
 export function minorUnitDigits(currency: string): number {
   return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;

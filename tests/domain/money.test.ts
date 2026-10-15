@@ -28,4 +28,12 @@ describe('money', () => {
   it('does not throw for Sorani', () => {
     expect(() => formatMoney(500, 'USD', 'ckb')).not.toThrow();
   });
+
+  it('formats Sorani exactly like Arabic so server and browser always agree', () => {
+    // Node and Chromium disagree about the ckb locale data (US$ 9.00 vs $9.00), which broke hydration.
+    for (const numerals of ['latn', 'arab'] as const) {
+      expect(formatMoney(900, 'USD', 'ckb', numerals)).toBe(formatMoney(900, 'USD', 'ar', numerals));
+      expect(formatMoney(15000, 'IQD', 'ckb', numerals)).toBe(formatMoney(15000, 'IQD', 'ar', numerals));
+    }
+  });
 });

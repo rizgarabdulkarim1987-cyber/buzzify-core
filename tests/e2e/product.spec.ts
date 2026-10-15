@@ -8,7 +8,10 @@ async function openBurger(page: import('@playwright/test').Page) {
     .getByRole('button', { name: /Atelier Burger/ })
     .first()
     .click();
-  return page.getByRole('dialog');
+  const dialog = page.getByRole('dialog');
+  // Wait for the lazily loaded sheet, otherwise later steps race its mount.
+  await expect(dialog).toBeVisible();
+  return dialog;
 }
 
 test.describe('Product detail', () => {
@@ -61,6 +64,14 @@ test.describe('Product detail', () => {
 
   test('closes with Escape and returns to the menu URL', async ({ page }) => {
     const dialog = await openBurger(page);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(page).toHaveURL(/\/atelier\/en$/);
+  });
+
+  test('returns to the menu URL even when the router has replaced the history state', async ({ page }) => {
+    const dialog = await openBurger(page);
+    await page.evaluate(() => window.history.replaceState({}, '', window.location.href));
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await expect(page).toHaveURL(/\/atelier\/en$/);

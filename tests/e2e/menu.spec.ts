@@ -73,6 +73,19 @@ test.describe('Quick Menu', () => {
     expect(overflowRtl).toBeLessThanOrEqual(0);
   });
 
+  test('hydrates Arabic and Sorani pages without console errors', async ({ page }) => {
+    const problems: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') problems.push(message.text());
+    });
+    page.on('pageerror', (error) => problems.push(error.message));
+    for (const path of ['/atelier/ar', '/atelier/ckb', '/atelier/ckb/p/atelier-burger']) {
+      await page.goto(path);
+      await page.waitForLoadState('networkidle');
+    }
+    expect(problems).toEqual([]);
+  });
+
   test('renders right to left in Arabic with translated content', async ({ page }) => {
     await page.goto('/atelier/ar');
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
