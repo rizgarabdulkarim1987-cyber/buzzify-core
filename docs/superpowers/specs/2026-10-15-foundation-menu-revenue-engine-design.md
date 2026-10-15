@@ -1,6 +1,6 @@
 # Sub-project 1: Foundation, Customer Menu and Revenue Engine
 
-Status: design approved in conversation, awaiting written-spec review.
+Status: approved. Amended during planning (see the plan's "Spec refinements").
 Date: 2026-10-15
 Part of: Luxury 3D Smart Restaurant Menu and Revenue Platform (working name: buzzify-menu)
 
@@ -76,9 +76,11 @@ sub-project, so nothing in the UI pretends to place an order.
 ### 4.1 Stack
 
 Next.js (App Router) with TypeScript, React, Tailwind CSS, Motion for React, Prisma
-on PostgreSQL, Zod, Zustand (cart), next-intl (UI strings), Vitest (unit and API
-integration), Playwright with axe (end to end and accessibility). Versions are
-pinned exactly at scaffold time to the then-current stable releases.
+on PostgreSQL, Zod, Zustand (cart), an in-house typed message module for UI strings
+(`{param}` interpolation and plural keys over `Intl.PluralRules`; the `[locale]` path
+segment owns routing, so next-intl is not used), Vitest (unit and API integration),
+Playwright with axe (end to end and accessibility), and Lighthouse for the
+performance baseline. Versions are pinned exactly in `package.json`.
 
 ### 4.2 Code layout
 
@@ -144,7 +146,7 @@ All tenant-owned tables include `restaurantId`.
 | `RestaurantDomain` | `restaurantId`, `host` (unique) |
 | `BrandConfig` | `restaurantId` (unique), color tokens, typography, default theme, motion intensity, navigation style, logo media |
 | `Category` | `slug`, `sortOrder`, `translations`, `isActive` |
-| `Product` | `categoryId`, `slug`, `basePrice`, `cost?`, `popularity` (0-100), `priority` (0-100), `isSignature`, `isFeatured`, `isAvailable`, `stockCount?`, `lowStockThreshold?`, `dayparts[]` (empty = all), `hideOutsideDaypart`, `allergens[]`, `ingredients`, `media[]`, `translations`, `sortOrder` |
+| `Product` | `categoryId`, `slug`, `basePrice`, `cost?`, `popularity` (0-100), `priority` (0-100), `isSignature`, `isFeatured`, `isAvailable`, `stockCount?`, `lowStockThreshold?`, `dayparts[]` (empty = all), `hideOutsideDaypart`, `slot?` (DRINK, SIDE, DESSERT, STARTER, BAKERY, MAIN), `allergens[]`, `ingredients`, `media[]`, `translations`, `sortOrder` |
 | `ProductVariant` | `productId`, `priceDelta`, `costDelta?`, `isDefault`, `translations`, `sortOrder` |
 | `ModifierGroup` | `productId`, `minSelect`, `maxSelect`, `translations`, `sortOrder` |
 | `ModifierOption` | `groupId`, `priceDelta`, `costDelta?`, `isSuggested`, `suggestPriority`, `effect` (translatable "what changes"), `isAvailable`, `sortOrder` |
@@ -200,10 +202,12 @@ For a selected product (with its current configuration), return up to 3 offers.
 - Candidates come from `PairingRule`s matched against every cart line, not only the
   last item.
 - Filters: already in the cart, unavailable, out of daypart, slot already filled
-  (the target's category is already satisfied by the cart), and dismissed this
-  session (`dismissedIds` is an input).
-- Score: rule weight times matching-line count with diminishing returns, plus margin
-  and popularity and priority, minus a low-stock penalty. Top 3, each with a
+  (the cart already holds a product with the same non-null `slot` as the target),
+  and dismissed this session (`dismissedIds` is an input). At most one offer per
+  slot.
+- Score: rule weight times matching-line count with diminishing returns (several
+  rules supporting one target add at half weight each, capped), plus margin and
+  popularity and priority, minus a low-stock penalty. Top 3, each with a
   plain-language reason from the rule's translated `reason`.
 - Placement: inline on product detail and as a quiet row in the cart. Never a modal.
 
@@ -226,6 +230,9 @@ For a selected product (with its current configuration), return up to 3 offers.
   Signature shelf and cart nudges, always with `reasons[]` for explainability.
 - Daypart comes from the restaurant's schedule in its own timezone, including
   windows that wrap past midnight (for example 22:00 to 03:00).
+- A product with `dayparts` set is unorderable outside them only when
+  `hideOutsideDaypart` is true. Otherwise it stays orderable but is not promoted or
+  recommended outside its dayparts.
 
 ### 6.6 Relevance gate
 
@@ -295,8 +302,8 @@ replaces the generated art with no code change.
 
 Logical CSS properties throughout; `dir` derived from locale; directional icons
 mirrored; numeral style per restaurant. Switching language changes the path
-segment only. The cart persists (keyed by tenant and table) and the quote is
-re-fetched in the new language.
+segment only. The cart persists per device and restaurant, and scanning a different
+table's QR code starts a fresh order. The quote is re-fetched in the new language.
 
 ### 7.9 Motion
 
@@ -309,7 +316,8 @@ settles in. Transform and opacity only, interruptible springs.
 
 Target: LCP under 2.5 s on a throttled mobile profile, where practical.
 
-- Server-rendered menu payload cached per tenant and locale, revalidated by tag.
+- Tenant catalog cached per restaurant (300 s, tag `catalog:{restaurantId}`); the
+  menu view, daypart and signature item are computed per request from it.
 - LCP image sized and prioritized, AVIF or WebP via `next/image`.
 - Fonts self-hosted and subset.
 - Menu route initial JavaScript targeted at roughly 120 KB gzipped; cart and sheet
