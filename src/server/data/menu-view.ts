@@ -6,6 +6,7 @@ import {
   orderability,
   pickSignature,
   resolveText,
+  unitPrice,
   type Catalog,
   type CatalogGroup,
   type CatalogProduct,
@@ -44,6 +45,8 @@ export interface MenuProductView {
   name: string;
   description: string;
   basePrice: number;
+  /** What one unit costs with the default size and no options: the same number the quote starts from. */
+  displayPrice: number;
   needsChoices: boolean;
   orderState: Orderability;
   isSignature: boolean;
@@ -110,6 +113,7 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
       name: resolveText(product.translations, 'name', locale, fallback),
       description: resolveText(product.translations, 'description', locale, fallback),
       basePrice: product.basePrice,
+      displayPrice: unitPrice(product, null, []).price,
       needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),
       orderState: orderability(product, current),
       isSignature: product.isSignature,

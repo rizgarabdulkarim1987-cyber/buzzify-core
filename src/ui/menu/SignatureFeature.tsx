@@ -38,7 +38,7 @@ export function SignatureFeature({
           {product.name}
         </span>
         {product.description && <span className="mt-2 block max-w-prose text-muted">{product.description}</span>}
-        <span className="mt-3 block tabular-nums">{money(product.basePrice)}</span>
+        <span className="mt-3 block tabular-nums">{money(product.displayPrice)}</span>
       </button>
     </motion.section>
   );

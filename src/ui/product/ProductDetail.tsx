@@ -115,7 +115,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
           {product.name}
         </Heading>
         {product.description && <p className="mt-2 max-w-prose text-muted">{product.description}</p>}
-        <p className="mt-3 tabular-nums">{money(product.basePrice)}</p>
+        <p className="mt-3 tabular-nums">{money(product.displayPrice)}</p>
         {!orderable && (
           <p className="mt-3 text-accent">
             {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}

@@ -31,6 +31,8 @@ export async function loadCatalog(prisma: PrismaClient, restaurantId: string): P
   const [categories, products, upsellRules, pairingRules, bundles, schedule] = await Promise.all([
     db.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
     db.product.findMany({
+      // Deactivating a category pulls its products from sale, not just from the headings.
+      where: { category: { isActive: true } },
       orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
       include: {
         variants: { orderBy: { sortOrder: 'asc' } },

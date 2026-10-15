@@ -21,10 +21,28 @@ describe('analytics tracking', () => {
 
   const lastBody = () => JSON.parse((fetchMock.mock.calls.at(-1)?.[1] as { body: string }).body);
 
-  it('does nothing before it is configured', () => {
+  it('sends nothing before it is configured, then sends what was recorded in the meantime', () => {
+    // A child component's mount effect runs before the provider that configures tracking, so early
+    // events must be kept rather than dropped.
     track('MENU_VIEW');
     vi.advanceTimersByTime(5000);
     expect(fetchMock).not.toHaveBeenCalled();
+    configureTracking({ slug: 'atelier', table: 4 });
+    vi.advanceTimersByTime(2000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lastBody().events.map((e: { type: string }) => e.type)).toEqual(['MENU_VIEW']);
+    expect(lastBody().tableNumber).toBe(4);
+  });
+
+  it('bounds the number of events held before configuration', () => {
+    for (let i = 0; i < 500; i += 1) track('PRODUCT_VIEW', { productId: `p${i}` });
+    configureTracking({ slug: 'atelier', table: null });
+    flushTracking();
+    const sent = fetchMock.mock.calls.reduce(
+      (total, call) => total + JSON.parse((call[1] as { body: string }).body).events.length,
+      0,
+    );
+    expect(sent).toBeLessThanOrEqual(50);
   });
 
   it('batches events and sends them after two seconds', () => {

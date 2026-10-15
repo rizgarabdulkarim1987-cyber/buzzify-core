@@ -59,6 +59,43 @@ describe('scopedDb', () => {
     ).rejects.toThrow(/Tenant mismatch/);
   });
 
+  it('cannot move a row to another tenant through update data', async () => {
+    const db = scopedDb(prisma, a.restaurant.id);
+    await expect(
+      db.product.update({ where: { id: a.product.id }, data: { restaurantId: b.restaurant.id } as never }),
+    ).rejects.toThrow(/Tenant mismatch/);
+    const row = await prisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(row.restaurantId).toBe(a.restaurant.id);
+  });
+
+  it('cannot re-home rows through updateMany, upsert or a relation write', async () => {
+    const db = scopedDb(prisma, a.restaurant.id);
+    await expect(
+      db.product.updateMany({ data: { restaurantId: b.restaurant.id } as never }),
+    ).rejects.toThrow(/Tenant mismatch/);
+    await expect(
+      db.category.upsert({
+        where: { id: a.category.id },
+        create: { slug: 'x', translations: {} } as never,
+        update: { restaurantId: b.restaurant.id } as never,
+      }),
+    ).rejects.toThrow(/Tenant mismatch/);
+    await expect(
+      db.product.update({
+        where: { id: a.product.id },
+        data: { restaurant: { connect: { id: b.restaurant.id } } } as never,
+      }),
+    ).rejects.toThrow(/Tenant mismatch/);
+    const row = await prisma.product.findUniqueOrThrow({ where: { id: a.product.id } });
+    expect(row.restaurantId).toBe(a.restaurant.id);
+  });
+
+  it('still allows ordinary updates inside the tenant', async () => {
+    const db = scopedDb(prisma, a.restaurant.id);
+    const updated = await db.product.update({ where: { id: a.product.id }, data: { basePrice: 450 } });
+    expect(updated.basePrice).toBe(450);
+  });
+
   it("counts only the tenant's rows", async () => {
     expect(await scopedDb(prisma, a.restaurant.id).product.count()).toBe(1);
   });

@@ -24,7 +24,7 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
           {product.description && (
             <span className="mt-1 line-clamp-2 block text-sm leading-relaxed text-muted">{product.description}</span>
           )}
-          <span className="mt-2 block text-sm tabular-nums">{money(product.basePrice)}</span>
+          <span className="mt-2 block text-sm tabular-nums">{money(product.displayPrice)}</span>
           {!orderable && (
             <span className="mt-1 block text-sm text-accent">
               {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}

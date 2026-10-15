@@ -34,6 +34,22 @@ describe('data layer (database)', () => {
     expect(burger.translations.ckb?.name).toBeTruthy();
   });
 
+  it('takes the products of a deactivated category out of the catalog', async () => {
+    const before = await loadCatalog(prisma, restaurantId);
+    const category = await prisma.category.findFirstOrThrow({ where: { restaurantId, slug: 'cold' } });
+    const inCategory = before.products.filter((p) => p.categoryId === category.id).length;
+    expect(inCategory).toBeGreaterThan(0);
+    try {
+      await prisma.category.update({ where: { id: category.id }, data: { isActive: false } });
+      const after = await loadCatalog(prisma, restaurantId);
+      expect(after.categories.map((c) => c.slug)).not.toContain('cold');
+      expect(after.products).toHaveLength(before.products.length - inCategory);
+      expect(after.products.some((p) => p.categoryId === category.id)).toBe(false);
+    } finally {
+      await prisma.category.update({ where: { id: category.id }, data: { isActive: true } });
+    }
+  });
+
   it('resolves a tenant by slug and by host', async () => {
     const bySlug = await findTenant(prisma, { slug: 'atelier' });
     expect(bySlug?.name).toBe('ATELIER');

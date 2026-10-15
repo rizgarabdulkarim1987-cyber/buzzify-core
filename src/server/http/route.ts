@@ -2,8 +2,33 @@ import type { z } from 'zod';
 import { getTenant, type TenantInfo } from '@/server/data/tenant';
 import { createRateLimiter } from './rate-limit';
 
-const MAX_BODY_CHARS = 32 * 1024;
+const MAX_BODY_BYTES = 32 * 1024;
 const limiters = new Map<string, ReturnType<typeof createRateLimiter>>();
+
+/**
+ * Reads a request body up to `limit` bytes. Returns null as soon as the declared length or the bytes read
+ * exceed the limit, so an oversized body is never buffered in full.
+ */
+async function readBodyWithLimit(request: Request, limit: number): Promise<string | null> {
+  const declared = Number(request.headers.get('content-length'));
+  if (Number.isFinite(declared) && declared > limit) return null;
+  if (!request.body) return '';
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
 
 function limiterFor(route: string, limit: number, windowMs: number) {
   const key = `${route}:${limit}:${windowMs}`;
@@ -40,8 +65,8 @@ export async function handleTenantRequest<S extends z.ZodType>(
     });
   }
 
-  const text = await request.text();
-  if (text.length > MAX_BODY_CHARS) return problem(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large');
+  const text = await readBodyWithLimit(request, MAX_BODY_BYTES);
+  if (text === null) return problem(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large');
 
   let json: unknown;
   try {

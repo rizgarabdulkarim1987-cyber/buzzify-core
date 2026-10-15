@@ -117,6 +117,48 @@ describe('public API', () => {
       expect((await post(quote, 'atelier', null, { raw: huge })).status).toBe(413);
     });
 
+    it('stops reading an oversized streamed body instead of buffering all of it', async () => {
+      const counter = { pulled: 0 };
+      const chunk = new Uint8Array(16 * 1024).fill(120);
+      let sent = 0;
+      const body = new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (sent >= 200) {
+            controller.close();
+            return;
+          }
+          sent += 1;
+          counter.pulled = sent;
+          controller.enqueue(chunk);
+        },
+      });
+      ipCounter += 1;
+      const request = new Request('http://localhost/api/atelier/quote', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': `10.0.1.${ipCounter}` },
+        body,
+        duplex: 'half',
+      } as RequestInit);
+      const response = await quote.POST(request, { params: Promise.resolve({ tenant: 'atelier' }) });
+      expect(response.status).toBe(413);
+      expect(counter.pulled).toBeLessThan(10);
+    });
+
+    it('rejects a declared content length above the cap without parsing the body', async () => {
+      ipCounter += 1;
+      const request = new Request('http://localhost/api/atelier/quote', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'content-length': '5000000',
+          'x-forwarded-for': `10.0.2.${ipCounter}`,
+        },
+        body: '{}',
+      });
+      const response = await quote.POST(request, { params: Promise.resolve({ tenant: 'atelier' }) });
+      expect(response.status).toBe(413);
+    });
+
     it('rate limits a single client', async () => {
       const statuses: number[] = [];
       for (let i = 0; i < 62; i += 1) {

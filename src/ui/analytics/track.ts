@@ -52,8 +52,12 @@ export function flushTracking(): void {
   if (queue.length > 0) flushTracking();
 }
 
+/** Events recorded before tracking is configured are kept, up to this many, and sent once it is. */
+const MAX_PENDING = 50;
+
 export function configureTracking(next: Config): void {
   config = next;
+  if (queue.length > 0) timer ??= setTimeout(flushTracking, 2000);
   if (!listening && typeof document !== 'undefined') {
     listening = true;
     document.addEventListener('visibilitychange', () => {
@@ -67,13 +71,15 @@ export function track(
   data: { productId?: string; suggestionId?: string; payload?: Record<string, unknown> } = {},
   options: { once?: boolean } = {},
 ): void {
-  if (!config) return;
+  if (!config && queue.length >= MAX_PENDING) return;
   if (options.once) {
     const key = `${type}:${data.suggestionId ?? data.productId ?? ''}`;
     if (seen.has(key)) return;
     seen.add(key);
   }
   queue.push({ type, productId: data.productId, suggestionId: data.suggestionId, payload: data.payload ?? {} });
+  // A child component's effect runs before the provider that configures tracking, so wait for it.
+  if (!config) return;
   if (queue.length >= 10) flushTracking();
   else timer ??= setTimeout(flushTracking, 2000);
 }

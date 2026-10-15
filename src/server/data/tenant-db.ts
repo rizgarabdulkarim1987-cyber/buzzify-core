@@ -38,6 +38,19 @@ const FILTERED = new Set([
   'deleteMany',
 ]);
 const CREATING = new Set(['create', 'createMany', 'createManyAndReturn']);
+const UPDATING = new Set(['update', 'updateMany', 'updateManyAndReturn']);
+
+/** An update may change anything except which restaurant owns the row. */
+function guardUpdate(data: unknown, restaurantId: string): unknown {
+  const row = (data ?? {}) as Record<string, unknown>;
+  if (row.restaurantId !== undefined && row.restaurantId !== restaurantId) {
+    throw new Error('Tenant mismatch: refusing to move a row to another restaurant');
+  }
+  if (row.restaurant !== undefined) {
+    throw new Error('Tenant mismatch: a scoped update may not change the owning restaurant');
+  }
+  return data;
+}
 
 type Args = Record<string, unknown> & { where?: Record<string, unknown> };
 
@@ -64,6 +77,10 @@ export function scopedDb(prisma: PrismaClient, restaurantId: string) {
         async $allOperations({ model, operation, args, query }) {
           if (!SCOPED.has(model)) return query(args);
           const input = (args ?? {}) as Args;
+          if (UPDATING.has(operation)) {
+            const scoped = scopeWhere(input, restaurantId);
+            return query({ ...scoped, data: guardUpdate(input.data, restaurantId) } as never);
+          }
           if (FILTERED.has(operation)) return query(scopeWhere(input, restaurantId));
           if (CREATING.has(operation)) {
             const data = input.data;
@@ -76,6 +93,7 @@ export function scopedDb(prisma: PrismaClient, restaurantId: string) {
             return query({
               ...scopeWhere(input, restaurantId),
               create: scopeData(input.create, restaurantId),
+              update: guardUpdate(input.update, restaurantId),
             } as never);
           }
           throw new Error(`Operation ${operation} is not allowed on tenant-scoped model ${model}`);
