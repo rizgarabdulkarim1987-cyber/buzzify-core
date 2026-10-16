@@ -131,8 +131,24 @@ Only same-origin paths and `https://` URLs are accepted.
 
 ## Performance and accessibility
 
-`docs/perf/` holds the latest measured baseline. The suite runs axe on the menu, product sheet and cart
-in all three languages, checks 44 px targets, keyboard entry and reduced motion.
+`docs/perf/baseline-2026-10-16.md` is the latest measured baseline, with the menu before and after the
+performance pass. The suite runs axe on the menu, product sheet and cart in all three languages, checks 44 px
+targets, keyboard entry and reduced motion.
+
+What keeps the menu's first load small, and the tests that hold it there:
+
+- Fonts are not preloaded (`next/font` would preload every face on every locale), each page downloads only its
+  own script's faces, and every face is a single regular-weight file. Bodoni Moda is bundled with its weight
+  pinned and its optical-size axis kept (`src/app/fonts/README.md`). `tests/e2e/fonts.spec.ts` checks which
+  faces each locale downloads, their weights and a byte budget.
+- The animation library is not in the menu's initial JavaScript. Menu motion is CSS, the Web Animations API
+  or a scroll listener; the library loads with the product sheet, imported from `framer-motion` (the
+  `motion/react` entry builds its full component at module scope and defeats tree shaking). ESLint rejects
+  `motion` and `framer-motion` imports outside the sheet, product and Explore code.
+- The page carries search text in its own language only; the other languages load from
+  `POST /api/[tenant]/search-index` the first time the search box is used.
+- `npm run perf` reports initial script (requested before the largest paint) separately from script loaded
+  afterwards, and the verdicts for both goals.
 
 ### Measured cost of the 3D stage
 
@@ -144,11 +160,11 @@ checked on a phone GPU.
 
 ## Known limitations
 
-- **LCP target not met.** The latest baseline with 3D off (`baseline-2026-10-15-menu-3d-off.md`) measures LCP at
-  3.61 s against the 2.5 s goal (score 79, TBT 463 ms, CLS 0.024; the pre-redesign baseline was 3.46 s, score 91). The LCP element is the first product row's text, which repaints when web fonts swap in.
-  The largest contributors are the web fonts (about 172 KB across 3 files) and JavaScript (207 KB across 12
-  requests before the redesign, 225 KB across 13 after it, above the roughly 120 KB goal). Follow-ups: fewer font files or `font-display: optional` for body
-  text, and trimming the menu route's initial chunks.
+- **Performance goals narrowly missed.** `baseline-2026-10-16.md` measures a median LCP of 2.51 s on
+  `/atelier/en` (from 3.61 s; individual runs 2.49 to 2.58 s) against the 2.5 s goal, and 166 KB of initial
+  script (from 217 KB) against about 120 KB. React DOM, the Next.js client and the runtime alone are about
+  139 KB, so the script goal is not reachable on this stack. The two Latin web fonts (40 KB) are the largest
+  remaining cost before the first paint; the system font for body text would save about 13 KB.
 - 3D exists for five models: burger, cup, glass, croissant and mille-feuille. Other dishes keep their
   illustration. The models are stylized product renders built from code, not photographs; real `.glb` files or
   photography would replace them and are the way to photorealism. Three.js logs a one-line `THREE.Clock` deprecation warning from
