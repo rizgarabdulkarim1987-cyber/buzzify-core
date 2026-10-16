@@ -1,9 +1,9 @@
 // The Studio's components. Import from here or from the component's own file.
-export { Alert, type AlertTone } from './Alert';
+export { Alert, FailureAlert, type AlertProps, type AlertTone, type FailureAlertProps } from './Alert';
 export { Button, buttonClasses, type ButtonProps, type ButtonSize, type ButtonVariant } from './Button';
 export { Checkbox, type CheckboxProps } from './Checkbox';
 export { CommandPalette, type CommandGroup, type CommandPaletteProps, type CommandResult } from './CommandPalette';
-export { ConfirmDialog, type ConfirmDialogProps } from './ConfirmDialog';
+export { ConfirmDialog, type ConfirmDialogProps, type ConfirmProblem } from './ConfirmDialog';
 export { CopyButton, type CopyButtonProps } from './CopyButton';
 export { cx } from './cx';
 export { DataTable, type DataTableProps } from './DataTable';
@@ -20,6 +20,7 @@ export {
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Field, type FieldProps } from './Field';
 export { FilterBar, SearchFilter, useFilterParams } from './FilterBar';
+export { FormError, type FormErrorProps } from './FormError';
 export { IconButton, type IconButtonProps } from './IconButton';
 export { Input, PasswordInput, type InputProps } from './Input';
 export { PageHeader, type PageHeaderProps } from './PageHeader';

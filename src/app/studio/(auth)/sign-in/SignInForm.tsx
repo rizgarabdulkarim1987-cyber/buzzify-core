@@ -3,12 +3,12 @@
 import Link from 'next/link';
 import { signIn } from '@/app/studio/_actions/session';
 import { TWO_FACTOR_PATH } from '@/server/studio/framework/paths';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { navigateAway } from '@/studio/navigate';
-import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { Input, PasswordInput } from '@/studio/ui/Input';
 
 /** Where to go once the password is right: the second step (carrying `next` along), or `next`, or the Studio. */
@@ -25,11 +25,10 @@ export function SignInForm({ next }: { next: string | null }) {
       requireFields(values, { email: t('error.text.emailInvalid'), password: t('error.text.passwordEnter') }),
     onSuccess: (data) => navigateAway(destination(data.next, next)),
   });
-  const message = formMessage(form.failure, ['email', 'password']);
 
   return (
     <form {...form.props} className="flex flex-col gap-5">
-      {message && <Alert tone="danger">{message}</Alert>}
+      <FormError form={form} fields={['email', 'password']} />
       <Field label={t('auth.signIn.email')} error={form.fieldError('email')}>
         <Input
           name="email"

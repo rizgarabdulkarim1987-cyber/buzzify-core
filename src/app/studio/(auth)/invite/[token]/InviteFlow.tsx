@@ -6,13 +6,14 @@ import { acceptInvitationAction } from '@/app/studio/_actions/people';
 import { signOut } from '@/app/studio/_actions/session';
 import type { InvitationView } from '@/server/studio/services/invitations';
 import { describeFailure } from '@/studio/errors';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useLocale, useT } from '@/studio/i18n';
 import { navigateAway } from '@/studio/navigate';
 import { AuthPanel } from '@/studio/shell/AuthPanel';
 import { Alert } from '@/studio/ui/Alert';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { Input, PasswordInput } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 
@@ -106,12 +107,11 @@ function NewAccountForm({ token, onAccepted }: { token: string; onAccepted: (nex
       onSuccess: (data) => onAccepted(data.next),
     },
   );
-  const message = formMessage(form.failure, ['name', 'password']);
 
   return (
     <form {...form.props} className="flex flex-col gap-5">
       <p className="text-base text-muted">{t('auth.invite.newIntro')}</p>
-      {message && <Alert tone="danger">{message}</Alert>}
+      <FormError form={form} fields={['name', 'password']} />
       <Field label={t('auth.invite.name')} error={form.fieldError('name')}>
         <Input name="name" size="lg" autoComplete="name" maxLength={120} autoFocus defaultValue={form.value('name')} />
       </Field>
@@ -130,7 +130,7 @@ function AcceptButton({ token, onAccepted }: { token: string; onAccepted: (next:
   const form = useActionForm(() => acceptInvitationAction({ token }), { onSuccess: (data) => onAccepted(data.next) });
   return (
     <form {...form.props} className="flex flex-col gap-4">
-      {form.failure && <Alert tone="danger">{form.failure.message}</Alert>}
+      <FormError form={form} fields={[]} />
       <Button type="submit" variant="primary" size="lg" pending={form.pending} className="w-full">
         {form.pending ? t('auth.invite.accepting') : t('auth.invite.accept')}
       </Button>

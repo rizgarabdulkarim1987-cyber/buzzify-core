@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState, type FormEvent } from 'react';
+import { useActionState, useEffect, useRef, useState, type FormEvent, type RefObject } from 'react';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { describeFailure, type DescribedFailure } from './errors';
 import { useLocale, useT } from './i18n';
@@ -32,16 +32,24 @@ export interface ActionForm<T> {
     action: (formData: FormData) => void;
     onSubmit: (event: FormEvent<HTMLFormElement>) => void;
     noValidate: true;
+    ref: RefObject<HTMLFormElement | null>;
   };
   pending: boolean;
   /** The server's last answer, when it said yes. */
   data: T | null;
   /** The last refusal, in the person's language; none while the client's own check has the last word. */
   failure: DescribedFailure | null;
+  /** The messages by field of the last failed submit: the client's check, else the server's. */
+  errors: Record<string, string>;
   /** The message for one field: the client's check first, then the server's. */
   fieldError: (name: string) => string | undefined;
   /** A kept value, for the field's `defaultValue`. */
   value: (name: string) => string | undefined;
+  /**
+   * Counts the submits. A failure's announcement is keyed by it, so the same refusal twice is a new alert and is read out
+   * again.
+   */
+  attempt: number;
 }
 
 function textValues(formData: FormData): FormValues {
@@ -52,10 +60,19 @@ function textValues(formData: FormData): FormValues {
   return values;
 }
 
+/** Moves focus to the first control (in the form's order) that one of `names` belongs to; false when there is none. */
+export function focusFirstField(form: HTMLFormElement | null, names: readonly string[]): boolean {
+  if (!form || names.length === 0) return false;
+  const first = [...form.elements].find((element) => names.includes((element as HTMLInputElement).name)) as HTMLElement | undefined;
+  first?.focus();
+  return first !== undefined;
+}
+
 /**
  * A form wired to a Studio Server Action through `useActionState`: it checks what it can before sending, sends the
  * form's fields, keeps the ones worth keeping, and turns a refusal into messages in the person's language (never the
- * server's English).
+ * server's English). After any refusal that names fields, focus goes to the first of them; `FormError` says what went
+ * wrong for assistive technology.
  */
 export function useActionForm<T>(
   submit: (values: FormValues) => Promise<ActionResult<T>>,
@@ -63,6 +80,8 @@ export function useActionForm<T>(
 ): ActionForm<T> {
   const t = useT();
   const { locale } = useLocale();
+  const ref = useRef<HTMLFormElement>(null);
+  const [attempt, setAttempt] = useState(0);
   const [clientErrors, setClientErrors] = useState<Record<string, string> | null>(null);
   const [state, formAction, pending] = useActionState<FormState<T>, FormData>(
     async (_previous, formData) => {
@@ -75,29 +94,38 @@ export function useActionForm<T>(
     { result: null, values: {} },
   );
 
+  // The server's answer is a new state object each time: when it refused fields, the first of them takes focus, as after
+  // the client's own check (React has reset the form by then, which leaves focus alone).
+  useEffect(() => {
+    const result = state.result;
+    if (result && !result.ok && result.error.fields) focusFirstField(ref.current, Object.keys(result.error.fields));
+  }, [state]);
+
   // Checked in `onSubmit`, before React starts the action: a form that is not sent is not reset either.
   const onSubmit = (event: FormEvent<HTMLFormElement>) => {
     const form = event.currentTarget;
+    setAttempt((count) => count + 1);
     const errors = options.validate?.(textValues(new FormData(form)));
     if (errors && Object.keys(errors).length > 0) {
       event.preventDefault();
       setClientErrors(errors);
-      // Straight to the first field to fix.
-      const first = [...form.elements].find((element) => (element as HTMLInputElement).name in errors);
-      (first as HTMLElement | undefined)?.focus();
+      focusFirstField(form, Object.keys(errors));
     } else {
       setClientErrors(null);
     }
   };
 
   const failure = !clientErrors && state.result && !state.result.ok ? describeFailure(t, locale, state.result.error) : null;
+  const errors = clientErrors ?? failure?.fields ?? {};
   return {
-    props: { action: formAction, onSubmit, noValidate: true },
+    props: { action: formAction, onSubmit, noValidate: true, ref },
     pending,
     data: state.result?.ok ? state.result.data : null,
     failure,
-    fieldError: (name) => clientErrors?.[name] ?? failure?.fields[name],
+    errors,
+    fieldError: (name) => errors[name],
     value: (name) => state.values[name],
+    attempt,
   };
 }
 

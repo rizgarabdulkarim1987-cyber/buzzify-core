@@ -2,12 +2,12 @@
 
 import Link from 'next/link';
 import { resetPassword } from '@/app/studio/_actions/session';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { navigateAway } from '@/studio/navigate';
-import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { PasswordInput } from '@/studio/ui/Input';
 
 export function ResetForm({ token }: { token: string }) {
@@ -20,25 +20,21 @@ export function ResetForm({ token }: { token: string }) {
     },
     onSuccess: () => navigateAway('/studio/sign-in?notice=reset'),
   });
-  const message = formMessage(form.failure, ['password', 'confirm']);
   // The link is spent or has expired: a new one is the way on.
   const linkProblem = form.failure?.fields.token !== undefined;
 
   return (
     <form {...form.props} className="flex flex-col gap-5">
-      {message && (
-        <Alert tone="danger">
-          {message}
-          {linkProblem && (
-            <>
-              {' '}
-              <Link href="/studio/forgot" className="font-medium underline underline-offset-2">
-                {t('auth.reset.requestNew')}
-              </Link>
-            </>
-          )}
-        </Alert>
-      )}
+      <FormError form={form} fields={['password', 'confirm']}>
+        {linkProblem && (
+          <>
+            {' '}
+            <Link href="/studio/forgot" className="font-medium underline underline-offset-2">
+              {t('auth.reset.requestNew')}
+            </Link>
+          </>
+        )}
+      </FormError>
       <Field label={t('auth.reset.password')} hint={t('auth.passwordHint')} error={form.fieldError('password')}>
         <PasswordInput name="password" size="lg" autoComplete="new-password" autoFocus />
       </Field>

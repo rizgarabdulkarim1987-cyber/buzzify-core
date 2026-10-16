@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { confirmTwoFactor, startTwoFactorSetup } from '@/app/studio/_actions/account';
 import { signOut } from '@/app/studio/_actions/session';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { navigateAway } from '@/studio/navigate';
 import { RecoveryCodes } from '@/studio/shell/RecoveryCodes';
@@ -15,6 +15,7 @@ import { Checkbox } from '@/studio/ui/Checkbox';
 import { CopyButton } from '@/studio/ui/CopyButton';
 import { cx } from '@/studio/ui/cx';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { Input, PasswordInput } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 import { Textarea } from '@/studio/ui/Textarea';
@@ -93,8 +94,6 @@ export function SetupTwoFactor({ email, alreadyOn, finishHref }: { email: string
   }
 
   const current = STEPS.findIndex((item) => item.id === step);
-  const startMessage = formMessage(start.failure, ['password']);
-  const confirmMessage = formMessage(confirm.failure, ['code']);
 
   return (
     <div>
@@ -120,7 +119,7 @@ export function SetupTwoFactor({ email, alreadyOn, finishHref }: { email: string
       {step === 'password' && (
         <form {...start.props} className="flex flex-col gap-5">
           <p className="text-base text-muted">{t('auth.setup.passwordIntro')}</p>
-          {startMessage && <Alert tone="danger">{startMessage}</Alert>}
+          <FormError form={start} fields={['password']} />
           <Field label={t('auth.setup.password')} error={start.fieldError('password')}>
             <PasswordInput name="password" size="lg" autoComplete="current-password" autoFocus />
           </Field>
@@ -158,7 +157,7 @@ export function SetupTwoFactor({ email, alreadyOn, finishHref }: { email: string
             </div>
           </div>
           <form {...confirm.props} className="flex flex-col gap-5 border-t border-line pt-6">
-            {confirmMessage && <Alert tone="danger">{confirmMessage}</Alert>}
+            <FormError form={confirm} fields={['code']} />
             <Field label={t('auth.setup.code')} error={confirm.fieldError('code')}>
               <Input
                 name="code"

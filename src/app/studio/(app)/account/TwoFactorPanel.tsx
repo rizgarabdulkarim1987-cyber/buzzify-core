@@ -11,7 +11,7 @@ import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { RecoveryCodes } from '@/studio/shell/RecoveryCodes';
 import { Button, buttonClasses } from '@/studio/ui/Button';
-import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
+import { ConfirmDialog, type ConfirmProblem } from '@/studio/ui/ConfirmDialog';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
 import { PasswordInput } from '@/studio/ui/Input';
@@ -27,19 +27,12 @@ export function TwoFactorPanel({ enabled, superAdmin, email }: { enabled: boolea
   const t = useT();
   const { locale } = useLocale();
   const [asking, setAsking] = useState<PasswordAction | null>(null);
-  const [problem, setProblem] = useState<{ message?: string; password?: string }>({});
   const [codes, setCodes] = useState<string[] | null>(null);
 
-  const ask = (action: PasswordAction | null) => {
-    setProblem({});
-    setAsking(action);
-  };
-
-  /** Shows a refusal: on the password field when that is what it is about, else for the whole dialog. */
-  const refuse = (result: Extract<ActionResult<unknown>, { ok: false }>) => {
+  /** A refusal for the dialog: on the password field when that is what it is about, else for the whole dialog. */
+  const refuse = (result: Extract<ActionResult<unknown>, { ok: false }>): ConfirmProblem => {
     const described = describeFailure(t, locale, result.error);
-    setProblem(described.fields.password ? { password: described.fields.password } : { message: described.message });
-    return false;
+    return described.fields.password ? { fields: { password: described.fields.password } } : { message: described.message };
   };
 
   if (!enabled) {
@@ -60,11 +53,11 @@ export function TwoFactorPanel({ enabled, superAdmin, email }: { enabled: boolea
       <StatusBadge tone="success">{t('status.on')}</StatusBadge>
       <p className="max-w-[60ch] text-base text-muted">{t('account.twoFactor.onIntro')}</p>
       <div className="mt-1 flex flex-wrap items-center gap-2">
-        <Button icon={<KeyRound aria-hidden />} onClick={() => ask('regenerate')}>
+        <Button icon={<KeyRound aria-hidden />} onClick={() => setAsking('regenerate')}>
           {t('account.twoFactor.regenerate')}
         </Button>
         {!superAdmin && (
-          <Button variant="ghost" icon={<ShieldOff aria-hidden />} onClick={() => ask('disable')}>
+          <Button variant="ghost" icon={<ShieldOff aria-hidden />} onClick={() => setAsking('disable')}>
             {t('account.twoFactor.disable')}
           </Button>
         )}
@@ -73,12 +66,11 @@ export function TwoFactorPanel({ enabled, superAdmin, email }: { enabled: boolea
 
       <ConfirmDialog
         open={asking === 'regenerate'}
-        onOpenChange={(open) => ask(open ? 'regenerate' : null)}
+        onOpenChange={(open) => setAsking(open ? 'regenerate' : null)}
         title={t('account.twoFactor.regenerateTitle')}
         body={t('account.twoFactor.regenerateBody')}
         confirmLabel={t('account.twoFactor.regenerateConfirm')}
         tone="primary"
-        error={problem.message}
         onConfirm={async (form) => {
           const result = await regenerateRecoveryCodes({ password: form.get('password') ?? '' });
           if (!result.ok) return refuse(result);
@@ -86,18 +78,19 @@ export function TwoFactorPanel({ enabled, superAdmin, email }: { enabled: boolea
           return true;
         }}
       >
-        <Field label={t('account.twoFactor.password')} error={problem.password}>
-          <PasswordInput name="password" autoComplete="current-password" autoFocus />
-        </Field>
+        {(errors) => (
+          <Field label={t('account.twoFactor.password')} error={errors.password}>
+            <PasswordInput name="password" autoComplete="current-password" autoFocus />
+          </Field>
+        )}
       </ConfirmDialog>
 
       <ConfirmDialog
         open={asking === 'disable'}
-        onOpenChange={(open) => ask(open ? 'disable' : null)}
+        onOpenChange={(open) => setAsking(open ? 'disable' : null)}
         title={t('account.twoFactor.disableTitle')}
         body={t('account.twoFactor.disableBody')}
         confirmLabel={t('account.twoFactor.disableConfirm')}
-        error={problem.message}
         onConfirm={async (form) => {
           const result = await disableTwoFactor({ password: form.get('password') ?? '' });
           if (!result.ok) return refuse(result);
@@ -105,9 +98,11 @@ export function TwoFactorPanel({ enabled, superAdmin, email }: { enabled: boolea
           return true;
         }}
       >
-        <Field label={t('account.twoFactor.password')} error={problem.password}>
-          <PasswordInput name="password" autoComplete="current-password" autoFocus />
-        </Field>
+        {(errors) => (
+          <Field label={t('account.twoFactor.password')} error={errors.password}>
+            <PasswordInput name="password" autoComplete="current-password" autoFocus />
+          </Field>
+        )}
       </ConfirmDialog>
 
       <Dialog

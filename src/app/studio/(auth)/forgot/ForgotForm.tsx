@@ -3,11 +3,11 @@
 import { MailCheck } from 'lucide-react';
 import { useState } from 'react';
 import { requestPasswordReset } from '@/app/studio/_actions/session';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
-import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { Input } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 
@@ -23,7 +23,6 @@ export function ForgotForm() {
     validate: (values) => requireFields(values, { email: t('error.text.emailInvalid') }),
     onSuccess: (_data, values) => setSentTo((values.email ?? '').trim()),
   });
-  const message = formMessage(form.failure, ['email']);
 
   if (sentTo !== null) {
     return (
@@ -52,7 +51,7 @@ export function ForgotForm() {
     <div className="flex flex-col gap-6">
       <p className="text-base text-muted">{t('auth.forgot.intro')}</p>
       <form {...form.props} className="flex flex-col gap-5">
-        {message && <Alert tone="danger">{message}</Alert>}
+        <FormError form={form} fields={['email']} />
         <Field label={t('auth.forgot.email')} error={form.fieldError('email')}>
           <Input
             name="email"

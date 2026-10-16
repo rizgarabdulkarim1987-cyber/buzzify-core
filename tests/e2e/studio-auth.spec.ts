@@ -30,6 +30,17 @@ async function freshPage(browser: Browser, options: { signedIn?: boolean; locale
   return context.newPage();
 }
 
+/**
+ * Presses a language in the switch until the page has turned: a click that lands before the page has hydrated (a loaded
+ * machine, just after a reload) does nothing, and pressing again is what a person would do.
+ */
+async function switchLanguage(page: Page, group: string, language: string, dir: 'ltr' | 'rtl') {
+  await expect(async () => {
+    await page.getByRole('group', { name: group }).getByRole('button', { name: language }).click();
+    await expect(page.locator('html')).toHaveAttribute('dir', dir, { timeout: 2000 });
+  }).toPass();
+}
+
 async function seriousViolations(page: Page): Promise<string[]> {
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
   return results.violations
@@ -71,7 +82,7 @@ test.describe('Studio sign-in @desktop', () => {
 
     await page.getByLabel('Authentication code').fill(totp(admin.secret) === '000000' ? '111111' : '000000');
     await page.getByRole('button', { name: 'Verify' }).click();
-    await expect(page.getByText('That code is not correct')).toBeVisible();
+    await expect(page.getByLabel('Authentication code')).toHaveAccessibleDescription('That code is not correct');
 
     await page.getByLabel('Authentication code').fill(totp(admin.secret));
     await page.getByRole('button', { name: 'Verify' }).click();
@@ -110,7 +121,7 @@ test.describe('Studio sign-in @desktop', () => {
     await page.getByLabel('New password', { exact: true }).fill(next);
     await page.getByLabel('Repeat the new password').fill(`${next}x`);
     await page.getByRole('button', { name: 'Save the new password' }).click();
-    await expect(page.getByText('The two passwords are not the same')).toBeVisible();
+    await expect(page.getByLabel('Repeat the new password')).toHaveAccessibleDescription('The two passwords are not the same');
 
     await page.getByLabel('Repeat the new password').fill(next);
     await page.getByRole('button', { name: 'Save the new password' }).click();
@@ -145,7 +156,7 @@ test.describe('Studio sign-in @desktop', () => {
     await page.getByLabel('Your name').fill('Hawre Owner');
     await page.getByLabel('Password', { exact: true }).fill('password');
     await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page.getByText('Use at least 12 characters')).toBeVisible();
+    await expect(page.getByLabel('Password', { exact: true })).toHaveAccessibleDescription('Use at least 12 characters');
 
     await page.getByLabel('Password', { exact: true }).fill(uniquePassword());
     await page.getByRole('button', { name: 'Create account' }).click();
@@ -185,14 +196,12 @@ test.describe('Studio sign-in @desktop', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
     expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByRole('group', { name: 'Language' }).getByRole('button', { name: 'العربية' }).click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await switchLanguage(page, 'Language', 'العربية', 'rtl');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('تسجيل الدخول');
     await page.reload();
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
 
-    await page.getByRole('group', { name: 'اللغة' }).getByRole('button', { name: 'English' }).click();
-    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr');
+    await switchLanguage(page, 'اللغة', 'English', 'ltr');
     await expect(page.getByRole('heading', { level: 1 })).toHaveText('Sign in');
     await page.context().close();
   });

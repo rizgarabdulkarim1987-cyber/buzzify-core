@@ -5,11 +5,12 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { changePassword, requestEmailChange, setStudioLanguage } from '@/app/studio/_actions/account';
 import { LOCALE_NAMES, LOCALES } from '@/lib/locale';
-import { formMessage, requireFields, useActionForm } from '@/studio/forms';
+import { requireFields, useActionForm } from '@/studio/forms';
 import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
+import { FormError } from '@/studio/ui/FormError';
 import { Input, PasswordInput } from '@/studio/ui/Input';
 import { isolated } from '@/studio/ui/isolate';
 import { Select } from '@/studio/ui/Select';
@@ -23,12 +24,11 @@ export function EmailChangeForm({ currentEmail }: { currentEmail: string }) {
     validate: (values) => requireFields(values, { newEmail: t('error.text.emailInvalid') }),
     onSuccess: () => setSent(true),
   });
-  const message = formMessage(form.failure, ['newEmail']);
 
   return (
     <form {...form.props} className="flex max-w-md flex-col gap-4">
       {sent && <Alert tone="success">{isolated(t('account.email.sent'), { email: currentEmail })}</Alert>}
-      {message && <Alert tone="danger">{message}</Alert>}
+      <FormError form={form} fields={['newEmail']} />
       <Field label={t('account.email.new')} error={form.fieldError('newEmail')}>
         <Input name="newEmail" type="email" dir="ltr" className="rtl:text-right" autoComplete="email" defaultValue={form.value('newEmail')} />
       </Field>
@@ -50,7 +50,7 @@ export function LanguageForm() {
 
   return (
     <form {...form.props} className="flex max-w-md flex-col gap-4">
-      {form.failure && <Alert tone="danger">{form.failure.message}</Alert>}
+      <FormError form={form} fields={['locale']} />
       <Field label={t('account.language.title')} hideLabel error={form.fieldError('locale')}>
         <Select
           name="locale"
@@ -79,11 +79,10 @@ export function PasswordForm() {
       toast.success(t('account.password.changed'));
     },
   });
-  const message = formMessage(form.failure, ['current', 'next', 'confirm']);
 
   return (
     <form {...form.props} className="flex max-w-md flex-col gap-4">
-      {message && <Alert tone="danger">{message}</Alert>}
+      <FormError form={form} fields={['current', 'next', 'confirm']} />
       <Field label={t('account.password.current')} error={form.fieldError('current')}>
         <PasswordInput name="current" autoComplete="current-password" />
       </Field>

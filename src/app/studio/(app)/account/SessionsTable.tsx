@@ -116,7 +116,7 @@ export function SessionsTable({ sessions }: { sessions: SessionView[] }) {
           if (result.ok) toast.success(t('account.sessions.endedOthers', { count: result.data.ended }));
           else toast.error(describeFailure(t, locale, result.error).message);
           router.refresh();
-          return true;
+          return true as const;
         }}
       />
     </div>
