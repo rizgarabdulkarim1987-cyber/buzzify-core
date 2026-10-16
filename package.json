@@ -30,6 +30,7 @@
     "@prisma/adapter-pg": "7.10.0",
     "@prisma/client": "7.10.0",
     "@react-three/fiber": "^9.8.2",
+    "better-auth": "1.7.10",
     "dotenv": "18.0.8",
     "framer-motion": "14.3.0",
     "motion": "14.3.0",
