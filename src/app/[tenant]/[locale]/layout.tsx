@@ -15,7 +15,17 @@ export async function generateMetadata({
   const route = await resolveRoute(await params);
   if (!route) return { title: 'Not found' };
   const name = route.tenant.name;
-  return { title: { default: name, template: `%s | ${name}` } };
+  return { title: { default: name, template: `%s | ${name}` }, icons: { icon: iconFor(route.tenant.brand) } };
+}
+
+/**
+ * A small accent-coloured mark in the restaurant's own colour, as a data URI. Without any icon link a browser
+ * asks the server for /favicon.ico, which is a 404 and a wasted connection while the page is loading.
+ */
+function iconFor(brand: { theme: 'dark' | 'light'; tokens: Record<'dark' | 'light', { accent: string }> }): string {
+  const accent = brand.tokens[brand.theme].accent;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="${accent}"/></svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
 export default async function RootLayout({
