@@ -1,4 +1,4 @@
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { getPrisma } from '@/server/data/prisma';
@@ -9,11 +9,12 @@ import { invoke, invokeQuery, query } from '@/server/studio/framework/invoke';
 import { defineQuery } from '@/server/studio/framework/query';
 import { studioRoute } from '@/server/studio/framework/route';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
-import { cookieHeader } from '../helpers/auth';
+import { cookieHeader, cookieStore } from '../helpers/auth';
 import { requireTestDb, resetTestData } from '../helpers/db';
 
-// Server Actions and pages read the request through `headers()`, which only exists inside Next. The test stands in for it;
-// without a request to answer for, `headers()` gives empty headers, as Better Auth's cookie plugin expects of it.
+// Server Actions and pages read the request through `headers()` and `cookies()`, which only exist inside Next. The test
+// stands in for them; without a request to answer for, `headers()` gives empty headers, as Better Auth's cookie plugin
+// expects of it.
 vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()), cookies: vi.fn() }));
 
 const PASSWORD = 'correct horse battery staple';
@@ -74,7 +75,9 @@ describe('invoke, query and studioRoute', () => {
   }
 
   function asRequest(session: Headers | null, extra: Record<string, string> = {}) {
-    vi.mocked(headers).mockResolvedValue(requestHeaders(session, extra) as never);
+    const sent = requestHeaders(session, extra);
+    vi.mocked(headers).mockResolvedValue(sent as never);
+    vi.mocked(cookies).mockResolvedValue(cookieStore(sent.get('cookie')) as never);
   }
 
   // The framework uses the application's client, which reads DATABASE_URL: point it at the test database.

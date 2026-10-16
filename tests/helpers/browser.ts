@@ -42,6 +42,7 @@ export class Browser {
         ({
           set: (name: string, value: string, options: CookieOptions = {}) => this.store(name, value, options),
           get: (name: string) => (this.jar.has(name) ? { name, value: this.jar.get(name) } : undefined),
+          getAll: () => [...this.jar].map(([name, value]) => ({ name, value })),
         }) as never,
     );
     return this;

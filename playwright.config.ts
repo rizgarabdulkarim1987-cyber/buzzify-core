@@ -21,8 +21,13 @@ export default defineConfig({
     },
   },
   projects: [
-    { name: 'mobile', use: { ...devices['Pixel 7'] } },
-    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, grep: /@desktop/ },
+    // The Studio's signed-in suites start from a Super Admin with two-factor, made once per run (studio.setup.ts) and
+    // removed after the last suite that needs it (studio.teardown.ts).
+    { name: 'studio setup', testMatch: /studio\.setup\.ts$/, teardown: 'studio teardown', use: { ...devices['Desktop Chrome'] } },
+    { name: 'studio teardown', testMatch: /studio\.teardown\.ts$/ },
+    // The public menu is mobile-first; the Studio is a desktop tool, and its suites are tagged @desktop.
+    { name: 'mobile', use: { ...devices['Pixel 7'] }, grepInvert: /@desktop/ },
+    { name: 'desktop', use: { ...devices['Desktop Chrome'] }, grep: /@desktop/, dependencies: ['studio setup'] },
   ],
   webServer: {
     command: 'npm run dev',

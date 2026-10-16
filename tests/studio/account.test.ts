@@ -620,3 +620,36 @@ describe('sessions', () => {
     });
   });
 });
+
+describe('myRestaurants', () => {
+  it('lists the restaurants the person belongs to, with their role and menus, and nothing else', async () => {
+    const { createMenuFixture } = await import('../helpers/db');
+    const mine = await createMenuFixture(prisma(), 'mine-a', { publish: false });
+    const second = await prisma().menu.create({
+      data: { restaurantId: mine.restaurant.id, name: 'Breakfast', slug: 'mine-b', locales: ['en'], timezone: 'Asia/Baghdad' },
+    });
+    const theirs = await createMenuFixture(prisma(), 'theirs-a', { publish: false });
+    await prisma().membership.create({ data: { userId: dana.userId, restaurantId: mine.restaurant.id, role: 'OWNER' } });
+    danaBrowser.activate();
+
+    expect(dataOf(await invokeQuery(accountQueries.myRestaurants, undefined))).toEqual([
+      {
+        id: mine.restaurant.id,
+        name: mine.restaurant.name,
+        role: 'OWNER',
+        menus: [
+          { id: second.id, name: 'Breakfast' },
+          { id: mine.menu.id, name: mine.menu.name },
+        ],
+      },
+    ]);
+    expect(JSON.stringify(dataOf(await invokeQuery(accountQueries.myRestaurants, { restaurantId: theirs.restaurant.id })))).not.toContain(
+      theirs.restaurant.id,
+    );
+  });
+
+  it('refuses a request without a session', async () => {
+    new Browser().activate();
+    expect(codeOf(await invokeQuery(accountQueries.myRestaurants, undefined))).toBe('UNAUTHENTICATED');
+  });
+});

@@ -10,3 +10,8 @@ export const STUDIO_MESSAGES: Record<Locale, Messages> = { en, ar, ckb };
 export function getStudioTranslator(locale: Locale): Translate {
   return createTranslator(locale, STUDIO_MESSAGES);
 }
+
+/** The catalog a page's client components receive: its language's, without the email texts only the server sends. */
+export function clientMessages(locale: Locale): Messages {
+  return Object.fromEntries(Object.entries(STUDIO_MESSAGES[locale]).filter(([key]) => !key.startsWith('email.')));
+}

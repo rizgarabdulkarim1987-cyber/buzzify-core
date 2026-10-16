@@ -41,3 +41,21 @@ export function totpFromUri(uri: string, atMs = Date.now()): string {
     1_000_000;
   return String(code).padStart(6, '0');
 }
+
+/**
+ * What Next's `cookies()` gives for a request that sends `header`: the cookies by name, with decoded values. For tests
+ * that stand in for `next/headers` with a fixed request.
+ */
+export function cookieStore(header: string | null) {
+  const all = (header ?? '')
+    .split(/;\s*/)
+    .filter(Boolean)
+    .map((pair) => {
+      const i = pair.indexOf('=');
+      return { name: pair.slice(0, i).trim(), value: decodeURIComponent(pair.slice(i + 1).trim()) };
+    });
+  return {
+    getAll: () => all,
+    get: (name: string) => all.find((cookie) => cookie.name === name),
+  };
+}

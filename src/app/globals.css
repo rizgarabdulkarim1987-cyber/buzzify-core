@@ -1,4 +1,7 @@
 @import 'tailwindcss';
+/* The Studio builds its own stylesheet (src/studio/studio.css); its class names stay out of the guests' one. */
+@source not '../studio';
+@source not './studio';
 
 @theme inline {
   --color-bg: var(--bg);

@@ -1,0 +1,200 @@
+/*
+ * The Studio's stylesheet: its own Tailwind build, separate from the public menu's (src/app/globals.css). It reads only
+ * the Studio's files, and its theme holds only the Studio's tokens, so a class from the public palette does not exist
+ * here and nothing here reaches a guest's page.
+ */
+@import 'tailwindcss' source(none);
+@source '.';
+@source '../app/studio';
+
+/*
+ * Tokens. Black, white and neutral greys; one amber, used only for selection, the current navigation item and the
+ * focus ring, and never as text on white. Muted text is 6.6:1 on white and 6.2:1 on the surface grey.
+ */
+:root {
+  --s-bg: #ffffff;
+  --s-surface: #f7f7f6;
+  --s-raised: #ffffff;
+  --s-line: #e4e4e2;
+  --s-text: #111111;
+  --s-muted: #5c5c59;
+  --s-ink: #000000;
+  --s-accent: #f2b705;
+  --s-danger: #b42318;
+  --s-success: #067647;
+
+  /* Derived from the tokens above: states of the same few colours. */
+  --s-line-strong: #cfcfcb;
+  --s-hover: #efefed;
+  --s-pressed: #e7e7e4;
+  --s-on-ink: #ffffff;
+  --s-ink-hover: #262625;
+  --s-danger-hover: #93190f;
+  --s-danger-wash: #fdf1f0;
+  --s-success-wash: #eef7f2;
+  --s-accent-wash: #fdf6dd;
+  --s-overlay: rgb(17 17 17 / 0.4);
+
+  --s-font: var(--font-studio-latin), var(--font-studio-arabic), system-ui, sans-serif;
+  --s-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+
+/* Arabic and Sorani interfaces lead with the Arabic-script face; each face only covers its own script (fonts.ts). */
+.s-script-arabic {
+  --s-font: var(--font-studio-arabic), var(--font-studio-latin), system-ui, sans-serif;
+}
+
+@theme inline {
+  --color-*: initial;
+  --color-bg: var(--s-bg);
+  --color-surface: var(--s-surface);
+  --color-raised: var(--s-raised);
+  --color-line: var(--s-line);
+  --color-line-strong: var(--s-line-strong);
+  --color-hover: var(--s-hover);
+  --color-pressed: var(--s-pressed);
+  --color-text: var(--s-text);
+  --color-muted: var(--s-muted);
+  --color-ink: var(--s-ink);
+  --color-ink-hover: var(--s-ink-hover);
+  --color-on-ink: var(--s-on-ink);
+  --color-accent: var(--s-accent);
+  --color-accent-wash: var(--s-accent-wash);
+  --color-danger: var(--s-danger);
+  --color-danger-hover: var(--s-danger-hover);
+  --color-danger-wash: var(--s-danger-wash);
+  --color-success: var(--s-success);
+  --color-success-wash: var(--s-success-wash);
+  --color-overlay: var(--s-overlay);
+
+  --font-*: initial;
+  --font-sans: var(--s-font);
+  --font-mono: var(--s-mono);
+
+  /* A fixed scale for a working screen: body 14 px, tables 13 px. */
+  --text-*: initial;
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 13px;
+  --text-sm--line-height: 18px;
+  --text-base: 14px;
+  --text-base--line-height: 20px;
+  --text-md: 16px;
+  --text-md--line-height: 24px;
+  --text-lg: 18px;
+  --text-lg--line-height: 24px;
+  --text-xl: 20px;
+  --text-xl--line-height: 28px;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 32px;
+  --text-3xl: 34px;
+  --text-3xl--line-height: 44px;
+
+  --radius-*: initial;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* The one shadow: a dialog lifts off the page. */
+  --shadow-*: initial;
+  --shadow-dialog: 0 24px 48px -16px rgb(0 0 0 / 0.28), 0 2px 8px rgb(0 0 0 / 0.08);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+
+  --animate-spin: spin 0.9s linear infinite;
+  --animate-dialog-in: dialog-in 160ms var(--ease-out);
+  --animate-overlay-in: overlay-in 160ms var(--ease-out);
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px) scale(0.98);
+    }
+  }
+  @keyframes overlay-in {
+    from {
+      opacity: 0;
+    }
+  }
+}
+
+@layer base {
+  html {
+    background: var(--s-bg);
+    color: var(--s-text);
+    font-family: var(--s-font);
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    scrollbar-color: var(--s-line-strong) transparent;
+    caret-color: var(--s-ink);
+  }
+
+  body {
+    min-height: 100dvh;
+    font-size: 14px;
+    line-height: 20px;
+    background: var(--s-bg);
+  }
+
+  /* Arabic script sits taller than Latin at the same size: give its lines room. */
+  .s-script-arabic body {
+    line-height: 22px;
+  }
+
+  ::selection {
+    background: var(--s-accent);
+    color: var(--s-ink);
+  }
+
+  /*
+   * Focus: the amber ring, offset from the control, with a black edge on the control itself so the change of state is
+   * plain against white (amber alone is too light on white to be the only signal).
+   */
+  :focus-visible {
+    outline: 2px solid var(--s-accent);
+    outline-offset: 2px;
+  }
+  :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1']), [role='switch'], [role='menuitem']):focus-visible {
+    box-shadow: 0 0 0 1px var(--s-ink);
+  }
+
+  /* A menu or dialog that takes focus itself (to hand it to its first item) shows no ring of its own. */
+  [tabindex='-1']:focus-visible {
+    outline: none;
+  }
+
+  ::placeholder {
+    color: var(--s-muted);
+    opacity: 1;
+  }
+
+  /* Data reads in columns: digits of equal width wherever numbers line up. */
+  table,
+  time,
+  code,
+  kbd {
+    font-variant-numeric: tabular-nums;
+  }
+
+  code,
+  kbd,
+  samp {
+    font-family: var(--s-mono);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 1ms !important;
+      transition-duration: 1ms !important;
+    }
+  }
+}

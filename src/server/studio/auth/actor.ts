@@ -1,4 +1,4 @@
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
@@ -43,7 +43,28 @@ export async function actorFromHeaders(prisma: PrismaClient, requestHeaders: Hea
 }
 
 /**
+ * The current request's headers with its `cookie` header taken from `cookies()`. The two differ in the page Next renders
+ * along with a Server Action's answer when the action has set cookies: `cookies()` then holds the new ones and
+ * `headers()` still the ones the browser sent. Turning on two-factor, changing the password and accepting an invitation
+ * all replace the session cookie, and the page rendered with their answer must see the new session, not the one that
+ * was just ended (it would send the person to the sign-in page).
+ */
+async function sessionHeaders(): Promise<Headers> {
+  const [requestHeaders, jar] = await Promise.all([headers(), cookies()]);
+  const current = new Headers(requestHeaders);
+  // Name and value only: inside an action `cookies()` holds response cookies, whose own `toString()` adds attributes.
+  const cookie = jar
+    .getAll()
+    .filter(({ value }) => value !== '')
+    .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
+    .join('; ');
+  if (cookie) current.set('cookie', cookie);
+  else current.delete('cookie');
+  return current;
+}
+
+/**
  * The actor behind the current request, or `null` when nobody is signed in. Cached for the length of one request, so a
  * page, its layout and the components under them share one session lookup and one database read.
  */
-export const getActor = cache(async (): Promise<Actor | null> => actorFromHeaders(getPrisma(), await headers()));
+export const getActor = cache(async (): Promise<Actor | null> => actorFromHeaders(getPrisma(), await sessionHeaders()));
