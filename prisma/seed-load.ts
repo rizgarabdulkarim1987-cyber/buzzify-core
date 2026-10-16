@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createPrisma } from '@/server/data/prisma';
+import { describeDatabase } from '../scripts/database-target';
 import { assertLocalDatabase } from './seed/local-database';
 import { seedLoad } from './seed/load';
 
@@ -10,14 +11,6 @@ import { seedLoad } from './seed/load';
  * (`ALLOW_REMOTE_DEV_SEED=1` overrides the second), before it connects. `npm run test:load` seeds the test
  * database itself and times the lists.
  */
-
-/** Where `DATABASE_URL` points, without its credentials, so the person can see which database this will change. */
-function describeDatabase(): string {
-  const url = process.env.DATABASE_URL;
-  if (!url || !URL.canParse(url)) return 'the development database (DATABASE_URL is not set)';
-  const { hostname, port, pathname } = new URL(url);
-  return `${hostname}${port ? `:${port}` : ''}${pathname}`;
-}
 
 async function main(): Promise<void> {
   if (process.env.NODE_ENV === 'production') throw new Error('The load seed is never run in production (NODE_ENV is "production")');

@@ -5,6 +5,7 @@ import { createPrisma } from '@/server/data/prisma';
 import { authEnv } from '@/server/env';
 import { checkPasswordPolicy, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, normalizeEmail } from '@/server/studio/auth/users';
+import { describeDatabase } from './database-target';
 import { createPrompter, type Prompter } from './prompt';
 
 /**
@@ -46,14 +47,6 @@ async function askPassword(prompt: Prompter): Promise<string> {
     console.error('The two passwords are not the same.');
     if (attempt >= ATTEMPTS) throw new Error('Too many invalid answers');
   }
-}
-
-/** Where `DATABASE_URL` points, without its credentials, so the person can see which database this will change. */
-function describeDatabase(): string {
-  const url = process.env.DATABASE_URL;
-  if (!url || !URL.canParse(url)) return 'the development database (DATABASE_URL is not set)';
-  const { hostname, port, pathname } = new URL(url);
-  return `${hostname}${port ? `:${port}` : ''}${pathname}`;
 }
 
 async function main(): Promise<void> {

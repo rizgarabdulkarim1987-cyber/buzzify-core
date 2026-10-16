@@ -13,6 +13,8 @@ const TSX = 'node_modules/tsx/dist/cli.mjs';
 const PASSWORD = 'dev-only-change-me-2026';
 /** A name that can never resolve (RFC 6761), so a guard that fails would end in an error, not in a connection. */
 const HOSTED = 'postgresql://neondb_owner:s3cret-pass@db.example.invalid/neondb';
+/** Loopback in the URL, but `pg` takes the host from the query parameter: the bypass the guard must not fall for. */
+const HOSTED_BY_PARAMETER = 'postgresql://neondb_owner:s3cret-pass@127.0.0.1:54329/neondb?host=db.example.invalid';
 
 let prisma: PrismaClient;
 
@@ -101,6 +103,31 @@ describe('npm run db:seed', () => {
   });
 });
 
+describe('a loopback address with a host parameter', () => {
+  it('does not get db:seed past the guard: pg would connect to the host in the parameter', async () => {
+    const { code, out } = run('prisma/seed.ts', { DATABASE_URL: HOSTED_BY_PARAMETER, DEV_SEED_PASSWORD: PASSWORD });
+
+    expect(code).toBe(1);
+    expect(out).toContain('db.example.invalid');
+    expect(out).toContain('ALLOW_REMOTE_DEV_SEED=1');
+    expect(out).not.toContain('s3cret-pass');
+    expect(out).not.toContain(PASSWORD);
+    expect(await atelier()).toBeNull();
+    expect(await prisma.user.count()).toBe(0);
+  });
+
+  it('does not get db:seed:load past it either', async () => {
+    const { code, out } = run('prisma/seed-load.ts', { DATABASE_URL: HOSTED_BY_PARAMETER }, ['5']);
+
+    expect(code).toBe(1);
+    expect(out).toContain('db.example.invalid');
+    expect(out).toContain('ALLOW_REMOTE_DEV_SEED=1');
+    expect(out).not.toContain('Database:');
+    expect(out).not.toContain('s3cret-pass');
+    expect(await prisma.restaurant.count()).toBe(0);
+  });
+});
+
 describe('npm run db:seed:load', () => {
   it('refuses a database on another host before it connects, naming the host only', async () => {
     const { code, out } = run('prisma/seed-load.ts', { DATABASE_URL: HOSTED }, ['5']);
@@ -116,6 +143,7 @@ describe('npm run db:seed:load', () => {
     const { code, out } = run('prisma/seed-load.ts', {}, ['5']);
 
     expect(code, out).toBe(0);
+    expect(out).toContain(`Database: 127.0.0.1:54329/${TEST_DB}`);
     expect(out).toContain('Seeded 5 restaurants');
     expect(await prisma.menu.count()).toBe(5);
   });
