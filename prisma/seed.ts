@@ -3,11 +3,40 @@ import { createPrisma } from '@/server/data/prisma';
 import { publishMenu } from '@/server/publish/publish';
 import { ATELIER } from './seed/atelier';
 import { seedMenu } from './seed/apply';
+import { assertLocalDatabase } from './seed/local-database';
 import { seedDevUsers } from './seed/users';
 import { assertSeedValid } from './seed/validate';
 
+/**
+ * Decided before anything is written, so a refusal leaves the database as it was. The development users share a password
+ * that `.env.example` publishes, and that file turns it on once it is copied to `.env`, so it must never reach a
+ * production database or a hosted one:
+ * - in production with `DEV_SEED_PASSWORD` set the whole seed stops (a deploy that has it set is wrong, whichever way it
+ *   got there); with it unset the demo menu is seeded and the users are skipped;
+ * - anywhere else the users need `DATABASE_URL` to point at this machine (or `ALLOW_REMOTE_DEV_SEED=1`). The demo menu
+ *   alone, with `DEV_SEED_PASSWORD` unset, is not restricted to a host.
+ * Returns whether the development users are to be seeded.
+ */
+function checkDevUsers(): boolean {
+  const production = process.env.NODE_ENV === 'production';
+  const passwordSet = Boolean(process.env.DEV_SEED_PASSWORD);
+  if (production && passwordSet) {
+    throw new Error(
+      'DEV_SEED_PASSWORD is set while NODE_ENV is "production". The development users are never created in production; ' +
+        'unset DEV_SEED_PASSWORD there. Nothing was changed.',
+    );
+  }
+  if (!production && passwordSet) {
+    assertLocalDatabase('Seeding the development users (DEV_SEED_PASSWORD is set)', {
+      instead: 'Nothing was changed. To seed the demo menu alone, unset DEV_SEED_PASSWORD.',
+    });
+  }
+  return !production;
+}
+
 async function main() {
   assertSeedValid(ATELIER);
+  const withDevUsers = checkDevUsers();
   const prisma = createPrisma();
   try {
     const { profile } = ATELIER;
@@ -41,8 +70,9 @@ async function main() {
       throw new Error(`The ${slug} seed cannot be published:\n${blocking.map((i) => JSON.stringify(i)).join('\n')}`);
     }
 
-    // Sign-in users for development: skipped without DEV_SEED_PASSWORD, refused in production.
-    await seedDevUsers(prisma, restaurant.id);
+    // Sign-in users for development: skipped without DEV_SEED_PASSWORD, and never in production.
+    if (withDevUsers) await seedDevUsers(prisma, restaurant.id);
+    else console.log('Development users skipped (production).');
 
     console.log(
       `Seeded ${slug} (${menuId}) for ${restaurant.name}: ${ATELIER.products.length} products, ` +

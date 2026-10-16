@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { PrismaClient } from '@/generated/prisma/client';
 import { authFor } from '@/server/studio/auth/auth';
 import { seedDevUsers } from '../../prisma/seed/users';
+import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { resetTestData, testPrisma } from '../helpers/db';
 
 const PASSWORD = 'dev-only-change-me-2026';
@@ -9,6 +10,7 @@ const OTHER_PASSWORD = 'a different long passphrase 31';
 const ADMIN = 'admin@buzzify.test';
 const DESIGNER = 'designer@buzzify.test';
 const OWNER = 'owner@buzzify.test';
+const HOSTED = 'postgresql://neondb_owner:s3cret-pass@ep-xyz.eu-central-1.aws.neon.tech/neondb';
 
 let prisma: PrismaClient;
 let restaurantId: string;
@@ -21,6 +23,9 @@ beforeEach(async () => {
   await resetTestData(prisma);
   restaurantId = (await prisma.restaurant.create({ data: { name: 'ATELIER' } })).id;
   vi.stubEnv('DEV_SEED_PASSWORD', PASSWORD);
+  // Where the seed thinks it is writing: this machine, whatever the developer's shell exports.
+  vi.stubEnv('DATABASE_URL', databaseUrl(TEST_DB));
+  vi.stubEnv('ALLOW_REMOTE_DEV_SEED', '');
   vi.spyOn(console, 'log').mockImplementation(() => undefined);
 });
 
@@ -136,6 +141,38 @@ describe('seedDevUsers', () => {
 
     vi.stubEnv('DEV_SEED_PASSWORD', '');
     await expect(seedDevUsers(prisma, restaurantId)).rejects.toThrow(/production/i);
+  });
+
+  it('refuses a database that is not on this machine, before it creates anyone, and names the host but not the credentials', async () => {
+    vi.stubEnv('DATABASE_URL', HOSTED);
+
+    const refusal = await seedDevUsers(prisma, restaurantId).then(
+      () => '',
+      (error: Error) => error.message,
+    );
+
+    expect(refusal).toContain('ep-xyz.eu-central-1.aws.neon.tech');
+    expect(refusal).toContain('ALLOW_REMOTE_DEV_SEED=1');
+    expect(refusal).not.toContain('s3cret-pass');
+    expect(await prisma.user.count()).toBe(0);
+    expect(await prisma.membership.count()).toBe(0);
+  });
+
+  it('creates the users on another host when ALLOW_REMOTE_DEV_SEED=1 says so', async () => {
+    vi.stubEnv('DATABASE_URL', HOSTED);
+    vi.stubEnv('ALLOW_REMOTE_DEV_SEED', '1');
+
+    await seedDevUsers(prisma, restaurantId);
+
+    expect(await prisma.user.count()).toBe(3);
+  });
+
+  it('has nothing to refuse while DEV_SEED_PASSWORD is not set, whatever the host', async () => {
+    vi.stubEnv('DATABASE_URL', HOSTED);
+    vi.stubEnv('DEV_SEED_PASSWORD', '');
+
+    await expect(seedDevUsers(prisma, restaurantId)).resolves.toBeUndefined();
+    expect(await prisma.user.count()).toBe(0);
   });
 
   it('names the variable when the password does not meet the password policy', async () => {
