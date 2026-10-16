@@ -12,6 +12,7 @@ type RouteModule = { POST: (request: Request, ctx: { params: Promise<{ tenant: s
 let quote: RouteModule;
 let suggestions: RouteModule;
 let events: RouteModule;
+let searchIndex: RouteModule;
 let atelier: Awaited<ReturnType<typeof prisma.restaurant.findUniqueOrThrow>>;
 let burgerId = '';
 let friesId = '';
@@ -50,6 +51,7 @@ describe('public API', () => {
     quote = (await import('@/app/api/[tenant]/quote/route')) as RouteModule;
     suggestions = (await import('@/app/api/[tenant]/suggestions/route')) as RouteModule;
     events = (await import('@/app/api/[tenant]/events/route')) as RouteModule;
+    searchIndex = (await import('@/app/api/[tenant]/search-index/route')) as RouteModule;
   });
 
   afterAll(async () => {
@@ -215,6 +217,23 @@ describe('public API', () => {
       expect(response.status).toBe(200);
       const body = await response.json();
       expect(body.signature?.productId).toBeTruthy();
+    });
+  });
+
+  describe('search index', () => {
+    it("returns every language's search text for this restaurant's menu only", async () => {
+      const response = await post(searchIndex, 'atelier', {});
+      expect(response.status).toBe(200);
+      const { keys } = (await response.json()) as { keys: Record<string, string> };
+      expect(Object.keys(keys)).toContain(burgerId);
+      expect(Object.keys(keys)).not.toContain(otherTenantProductId);
+      // The burger is findable by its Arabic name, whichever language the page is in.
+      expect(keys[burgerId]).toMatch(/[ء-ي]/);
+    });
+
+    it('returns 404 for an unknown tenant and 400 for a body that is not an object', async () => {
+      expect((await post(searchIndex, 'nope-cafe', {})).status).toBe(404);
+      expect((await post(searchIndex, 'atelier', [])).status).toBe(400);
     });
   });
 

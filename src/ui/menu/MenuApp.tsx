@@ -13,13 +13,15 @@ import { CategoryRail } from './CategoryRail';
 import { Header } from './Header';
 import { ProductRow } from './ProductRow';
 import { SignatureFeature } from './SignatureFeature';
+import { useSearchIndex } from './useSearchIndex';
 
 // Loaded lazily so the menu route does not carry the sheet in its initial JavaScript.
 const ProductSheet = dynamic(() => import('@/ui/product/ProductSheet').then((module) => module.ProductSheet));
 
 export function MenuApp({ view }: { view: MenuView }) {
-  const { t } = useApp();
+  const { t, tenant } = useApp();
   const [query, setQuery] = useState('');
+  const { keys: searchKeys, load: loadSearchIndex } = useSearchIndex(tenant.slug);
   const [activeId, setActiveId] = useState<string | null>(view.categories[0]?.id ?? null);
 
   useEffect(() => {
@@ -33,8 +35,8 @@ export function MenuApp({ view }: { view: MenuView }) {
   }, []);
 
   const visible = useMemo(
-    () => view.products.filter((product) => matchesQuery(product.searchKey, query)),
-    [view.products, query],
+    () => view.products.filter((product) => matchesQuery(searchKeys?.[product.id] ?? product.searchKey, query)),
+    [view.products, searchKeys, query],
   );
   const byCategory = useMemo(() => {
     const groups = new Map<string, MenuProductView[]>();
@@ -87,7 +89,11 @@ export function MenuApp({ view }: { view: MenuView }) {
             role="searchbox"
             aria-label={t('menu.search')}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onFocus={loadSearchIndex}
+            onChange={(event) => {
+              loadSearchIndex();
+              setQuery(event.target.value);
+            }}
             placeholder={t('menu.searchPlaceholder')}
             className="h-12 w-full rounded-none border-0 border-b border-line bg-transparent ps-9 pe-11 text-base text-text transition-colors duration-150 placeholder:text-muted focus:border-accent"
           />

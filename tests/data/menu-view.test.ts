@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildMenuView } from '@/server/data/menu-view';
+import { buildMenuView, buildSearchIndex } from '@/server/data/menu-view';
 import type { TenantInfo } from '@/server/data/tenant';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
 import { at, IDS, makeCatalog, withProduct } from '../domain/fixtures';
@@ -76,16 +76,34 @@ describe('buildMenuView', () => {
     expect(buildMenuView(catalog, tenant, 'en', at(9)).products.some((p) => p.id === IDS.croissant)).toBe(true);
   });
 
-  it('builds a search key across all locales and ingredients', () => {
-    const catalog = withProduct(makeCatalog(), IDS.espresso, {
+  const espressoInThreeLocales = () =>
+    withProduct(makeCatalog(), IDS.espresso, {
       translations: { en: { name: 'Espresso', description: '' }, ar: { name: 'إسبريسو' }, ckb: { name: 'ئێسپرێسۆ' } },
       ingredients: { en: ['Coffee'], ar: ['قهوة'] },
     });
-    const view = buildMenuView(catalog, tenant, 'en', at(12));
+
+  it("gives each product a search key in the page's own language and ingredients", () => {
+    const view = buildMenuView(espressoInThreeLocales(), tenant, 'en', at(12));
     const key = view.products.find((p) => p.id === IDS.espresso)!.searchKey;
+    expect(key).toContain('espresso');
+    expect(key).toContain('coffee');
+    // The other languages are not sent with the page; they arrive with the search index.
+    expect(key).not.toContain('اسبريسو');
+    expect(key).not.toContain('قهوه');
+  });
+
+  it('builds a search index across all locales and ingredients', () => {
+    const index = buildSearchIndex(espressoInThreeLocales(), at(12));
+    const key = index[IDS.espresso]!;
     expect(key).toContain('espresso');
     expect(key).toContain('اسبريسو');
     expect(key).toContain('قهوه');
+  });
+
+  it('keeps products that are hidden from the menu out of the search index', () => {
+    const catalog = withProduct(makeCatalog(), IDS.croissant, { hideOutsideDaypart: true });
+    expect(buildSearchIndex(catalog, at(12))[IDS.croissant]).toBeUndefined();
+    expect(buildSearchIndex(catalog, at(9))[IDS.croissant]).toBeDefined();
   });
 
   it('picks the signature product for the daypart and reports the daypart', () => {

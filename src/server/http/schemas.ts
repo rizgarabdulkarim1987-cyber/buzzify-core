@@ -28,6 +28,8 @@ export const quoteRequestSchema = z.object({
   cart: cartSchema,
 });
 
+export const searchIndexRequestSchema = z.object({});
+
 export const suggestionsRequestSchema = z.object({
   context: z.enum(['menu', 'product', 'cart']),
   locale,
