@@ -65,7 +65,7 @@ describe('visibleNav', () => {
     expect(visibleNav(owner)).toEqual([
       {
         key: 'myRestaurant',
-        href: '/studio/restaurants/r1',
+        href: '/studio/restaurants/r1/menus',
         labelKey: 'nav.myRestaurant',
         icon: 'store',
         match: ['/studio/restaurants/r1'],
@@ -80,10 +80,10 @@ describe('visibleNav', () => {
     expect(item!.match).toEqual(['/studio/restaurants/r1', '/studio/menus/m1']);
   });
 
-  it('sends an owner whose restaurant has several menus to the restaurant', () => {
+  it("sends an owner whose restaurant has several menus (or none) to the restaurant's Menus tab", () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
     const [item] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1', 'm2'] }]);
-    expect(item!.href).toBe('/studio/restaurants/r1');
+    expect(item!.href).toBe('/studio/restaurants/r1/menus');
     expect(item!.match).toEqual(['/studio/restaurants/r1', '/studio/menus/m1', '/studio/menus/m2']);
   });
 
@@ -99,8 +99,8 @@ describe('visibleNav', () => {
       { id: 'r2', name: 'مطعم مازو', menuIds: [] },
     ]);
     expect(items.map((item) => [item.href, item.label])).toEqual([
-      ['/studio/restaurants/r1', 'ATELIER'],
-      ['/studio/restaurants/r2', 'مطعم مازو'],
+      ['/studio/restaurants/r1/menus', 'ATELIER'],
+      ['/studio/restaurants/r2/menus', 'مطعم مازو'],
     ]);
   });
 
@@ -110,7 +110,7 @@ describe('visibleNav', () => {
       { id: 'r1', name: 'ATELIER', menuIds: ['m1', 'm2'] },
       { id: 'r9', name: 'Elsewhere', menuIds: ['m9'] },
     ]);
-    expect(items.map((item) => item.href)).toEqual(['/studio/restaurants/r1']);
+    expect(items.map((item) => item.href)).toEqual(['/studio/restaurants/r1/menus']);
   });
 });
 

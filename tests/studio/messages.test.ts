@@ -109,6 +109,7 @@ describe('server texts', () => {
   const SOURCES = [
     ...files('src/server/studio/actions'),
     ...files('src/server/studio/public-actions'),
+    ...files('src/server/studio/queries'),
     ...files('src/server/studio/services'),
     'src/server/studio/auth/fields.ts',
     'src/server/studio/auth/password-policy.ts',
@@ -122,6 +123,8 @@ describe('server texts', () => {
     'Better Auth gave a two-factor link without a key',
     'Better Auth started a two-factor method other than an authenticator app',
     'A restaurant action ran without a restaurant',
+    'A restaurant query ran without a restaurant',
+    'An audit entry names a restaurant other than its target',
     'Super Admin',
   ]);
 

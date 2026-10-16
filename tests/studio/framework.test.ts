@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
-import { defineAction, runAction } from '@/server/studio/framework/action';
+import { defineAction, runAction, type CheckedTarget } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { actorScope, defineQuery, runQuery } from '@/server/studio/framework/query';
 import { StudioError, type ActionResult } from '@/server/studio/framework/result';
@@ -416,6 +416,73 @@ describe('Studio action framework', () => {
         restaurantId: null,
         menuId: null,
         action: 'restaurant.create',
+      });
+    });
+
+    describe("an audit entry's restaurant", () => {
+      /** A platform action that makes a restaurant and files its audit row under `filedUnder(created id)`. */
+      const createAndFile = (filedUnder: (createdId: string) => string | undefined) =>
+        defineAction({
+          name: 'test.audited.platform',
+          permission: 'restaurant.create',
+          input: z.object({}),
+          target: () => ({ kind: 'platform' }),
+          run: (ctx) =>
+            ctx.transaction(async (tx) => {
+              const created = await tx.restaurant.create({ data: { name: 'Filed' } });
+              const restaurantId = filedUnder(created.id);
+              ctx.audit({
+                action: 'restaurant.created',
+                entityType: 'Restaurant',
+                entityId: created.id,
+                ...(restaurantId === undefined ? {} : { restaurantId }),
+              });
+              return created.id;
+            }),
+        });
+
+      /** A restaurant action that renames its restaurant and files its audit row under `filedUnder`. */
+      const renameAndFile = (filedUnder: string) =>
+        defineAction({
+          name: 'test.audited.restaurant',
+          permission: 'restaurant.edit',
+          input: z.object({ restaurantId: z.string().min(1) }),
+          target: (input): CheckedTarget => ({ kind: 'restaurant', restaurantId: input.restaurantId }),
+          run: (ctx, input) =>
+            ctx.transaction(async (tx) => {
+              await tx.restaurant.update({ where: { id: input.restaurantId }, data: { name: 'Touched' } });
+              ctx.audit({ action: 'restaurant.touched', entityType: 'Restaurant', entityId: input.restaurantId, restaurantId: filedUnder });
+            }),
+        });
+
+      it('is filed under the restaurant the platform action names, so its Activity shows it', async () => {
+        const made = await runAction(prisma, superAdmin, createAndFile((id) => id), {}, META);
+        const createdId = (made as { ok: true; data: string }).data;
+        expect(await prisma.auditLog.findFirstOrThrow()).toMatchObject({ restaurantId: createdId, entityId: createdId, menuId: null });
+      });
+
+      it('stays null on a platform action that names none', async () => {
+        await runAction(prisma, superAdmin, createAndFile(() => undefined), {}, META);
+        expect((await prisma.auditLog.findFirstOrThrow()).restaurantId).toBeNull();
+      });
+
+      it("accepts the target's own restaurant on a restaurant action", async () => {
+        const own = renameAndFile(a.restaurant.id);
+        expect(codeOf(await runAction(prisma, designerOfA, own, { restaurantId: a.restaurant.id }, META))).toBe('OK');
+        expect((await prisma.auditLog.findFirstOrThrow()).restaurantId).toBe(a.restaurant.id);
+      });
+
+      it('refuses any other restaurant on a restaurant action as an internal error, and rolls the action back', async () => {
+        const errors = captureErrors();
+        const other = renameAndFile(b.restaurant.id);
+        const result = await runAction(prisma, designerOfA, other, { restaurantId: a.restaurant.id }, META);
+        // Nothing leaves the server but the generic answer; the log names the action.
+        expect(result).toEqual({ ok: false, error: { code: 'INVALID', message: 'Something went wrong' } });
+        expect(errors()).toMatch(/Action test.audited.restaurant failed with Error: An audit entry names a restaurant other than its target/);
+        expect(await prisma.auditLog.count()).toBe(0);
+        // The handler's own write went with it.
+        expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: a.restaurant.id } })).name).toBe('Restaurant fw-a');
+        expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: b.restaurant.id } })).name).toBe('Restaurant fw-b');
       });
     });
 

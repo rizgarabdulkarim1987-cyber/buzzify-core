@@ -165,7 +165,7 @@ test.describe('Studio sign-in @desktop', () => {
     // An owner's Studio is their restaurant: one item in the navigation, and the restaurant on the first page.
     const nav = page.getByRole('navigation', { name: 'Studio' });
     await expect(nav.getByRole('link')).toHaveCount(1);
-    await expect(nav.getByRole('link', { name: 'My restaurant' })).toHaveAttribute('href', /^\/studio\/(menus|restaurants)\/\w+$/);
+    await expect(nav.getByRole('link', { name: 'My restaurant' })).toHaveAttribute('href', /^\/studio\/(menus\/\w+|restaurants\/\w+\/menus)$/);
     await expect(page.getByRole('region', { name: 'Your restaurants' }).getByRole('link', { name: new RegExp(restaurant.name) })).toBeVisible();
 
     // The link is spent.

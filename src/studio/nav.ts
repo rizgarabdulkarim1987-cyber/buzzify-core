@@ -65,7 +65,8 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
     const known = owned.find((restaurant) => restaurant.id === id);
     const menuIds = known?.menuIds ?? [];
     const restaurantPath = `/studio/restaurants/${id}`;
-    const href = !several && menuIds.length === 1 ? `/studio/menus/${menuIds[0]}` : restaurantPath;
+    // One menu is the whole of the restaurant's work, so it opens at once; otherwise the restaurant's Menus tab does.
+    const href = !several && menuIds.length === 1 ? `/studio/menus/${menuIds[0]}` : `${restaurantPath}/menus`;
     return {
       key: 'myRestaurant' as const,
       href,

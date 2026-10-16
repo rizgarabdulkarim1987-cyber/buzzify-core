@@ -14,6 +14,12 @@ export interface AuditEntry {
   action: string;
   entityType: string;
   entityId: string;
+  /**
+   * The restaurant the row is filed under, for an action whose target is the platform and that acts on one restaurant
+   * (creating it, say, so its Activity tab shows that). A restaurant or menu target files every row under its own
+   * restaurant, so a value there must be that same restaurant; any other is a bug and fails the action.
+   */
+  restaurantId?: string;
   /** What changed, field by field. Chosen by the action: never a request body, a password or a token. */
   changes?: Record<string, { before: unknown; after: unknown }>;
 }
@@ -140,6 +146,7 @@ class Work {
       db: this.prisma,
       transaction: (fn) => this.transaction(fn),
       audit: (entry) => {
+        this.checkAuditRestaurant(entry);
         this.audits.push(entry);
       },
       afterCommit: (fn) => {
@@ -155,10 +162,18 @@ class Work {
     return scopedClient(this.prisma, menuId === null ? { restaurantId } : { menuId, restaurantId });
   }
 
+  /** A restaurant or menu target files its rows under its own restaurant: an entry may not name another one. */
+  private checkAuditRestaurant(entry: AuditEntry): void {
+    const own = this.access.restaurantId;
+    if (own !== null && entry.restaurantId !== undefined && entry.restaurantId !== own) {
+      throw new Error('An audit entry names a restaurant other than its target');
+    }
+  }
+
   private rows(entries: AuditEntry[]): Prisma.AuditLogCreateManyInput[] {
     return entries.map((entry) => ({
       actorId: this.actor.userId,
-      restaurantId: this.access.restaurantId,
+      restaurantId: this.access.restaurantId ?? entry.restaurantId ?? null,
       menuId: this.access.menuId,
       action: entry.action,
       entityType: entry.entityType,

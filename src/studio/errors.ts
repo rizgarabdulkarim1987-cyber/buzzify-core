@@ -1,6 +1,7 @@
 import type { Translate } from '@/lib/i18n';
 import type { Locale } from '@/lib/locale';
 import type { StudioFailure } from '@/server/studio/framework/result';
+import { formatDateTime } from './format';
 
 /**
  * The server's refusals, by their English text, and the Studio message that says each in the person's language. The
@@ -62,6 +63,22 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This account is already deactivated': 'error.text.alreadyDeactivated',
   'This account is not deactivated': 'error.text.notDeactivated',
   'You cannot deactivate your own account': 'error.text.deactivateSelf',
+
+  // Restaurants and branches
+  'Enter the restaurant name': 'error.text.restaurantNameEnter',
+  'Enter the branch name': 'error.text.branchNameEnter',
+  'This is too long': 'error.text.tooLong',
+  'Choose one of the types offered': 'error.text.typeChoose',
+  'Choose one of the statuses offered': 'error.text.statusChoose',
+  'Use digits, spaces, + ( ) and - only': 'error.text.phoneFormat',
+  'Enter a link that starts with https://': 'error.text.linkFormat',
+  'Enter a time such as 09:00': 'error.text.timeFormat',
+  'Opening and closing times cannot be the same': 'error.text.timeRangeSame',
+  'Use at most 3 time ranges a day': 'error.text.rangesTooMany',
+  'Each branch can be listed only once': 'error.text.branchOnce',
+  'Delete all of its menus first': 'error.text.menusFirst',
+  'Type the restaurant name exactly to confirm': 'error.text.confirmName',
+  'Enter a valid date': 'error.text.dateInvalid',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -72,7 +89,10 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt']);
+
+/** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
+const isolate = (text: string) => `\u2068${text}\u2069`;
 
 /**
  * A failure in the person's language. A text the catalog knows is shown in its wording; one it does not know is shown
@@ -86,6 +106,13 @@ export function describeFailure(t: Translate, locale: Locale, failure: StudioFai
   };
 
   let message = say(failure.message, `error.${failure.code}`);
+  // A save refused because the row moved on says who moved it and when, when the server knows.
+  const changedAt = failure.fields?.changedAt;
+  if (failure.code === 'CONFLICT' && changedAt && !Number.isNaN(Date.parse(changedAt))) {
+    const time = formatDateTime(changedAt, locale);
+    const by = failure.fields?.changedBy;
+    message = by ? t('error.conflictBy', { name: isolate(by), time }) : t('error.conflictAt', { time });
+  }
   const retryAfter = Number(failure.fields?.retryAfterSec);
   if (failure.code === 'RATE_LIMITED' && Number.isFinite(retryAfter) && retryAfter > 0) {
     message = t('error.retryIn', { count: Math.ceil(retryAfter / 60) });

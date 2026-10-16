@@ -130,3 +130,57 @@ export async function linkInMail(to: string, timeoutMs = 10_000): Promise<string
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
+
+/** A restaurant in the development database, made without going through the Studio, and what is needed to find it again. */
+export interface TestRestaurant {
+  id: string;
+  name: string;
+  clientNumber: number;
+}
+
+/** A restaurant with a name no other run uses and no menus. Remove it with `removeRestaurants`. */
+export async function createTestRestaurant(label = 'Place', extra: { city?: string } = {}): Promise<TestRestaurant> {
+  const db = prisma();
+  try {
+    const name = `E2E ${label} ${randomUUID().slice(0, 6)}`;
+    const row = await db.restaurant.create({ data: { name, city: extra.city ?? '' }, select: { id: true, name: true, clientNumber: true } });
+    return { id: row.id, name: row.name, clientNumber: row.clientNumber };
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Gives a person a role at a restaurant. */
+export async function assignMember(userId: string, restaurantId: string, role: 'DESIGNER' | 'OWNER'): Promise<void> {
+  const db = prisma();
+  try {
+    await db.membership.create({ data: { userId, restaurantId, role } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/**
+ * Deletes restaurants a test made, with their branches, members, invitations and what the audit log says about them. They
+ * must have no menus (`createTemporaryMenu().remove()` deletes its own restaurant).
+ */
+export async function removeRestaurants(ids: readonly string[]): Promise<void> {
+  const db = prisma();
+  try {
+    await db.auditLog.deleteMany({ where: { OR: [{ restaurantId: { in: [...ids] } }, { entityId: { in: [...ids] } }] } });
+    await db.restaurant.deleteMany({ where: { id: { in: [...ids] } } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** `removeRestaurants` for restaurants a test made through the Studio and knows only by name. */
+export async function removeRestaurantsNamed(names: readonly string[]): Promise<void> {
+  const db = prisma();
+  try {
+    const found = await db.restaurant.findMany({ where: { name: { in: [...names] } }, select: { id: true } });
+    await removeRestaurants(found.map((restaurant) => restaurant.id));
+  } finally {
+    await db.$disconnect();
+  }
+}

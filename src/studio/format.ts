@@ -36,3 +36,8 @@ export function describeUserAgent(userAgent: string): { browser: string | null; 
     system: SYSTEMS.find(([pattern]) => pattern.test(userAgent))?.[1] ?? null,
   };
 }
+
+/** A date in the interface language ("Oct 16, 2026" in English), on the Studio calendar: the same day for everyone reading it. */
+export function formatDate(iso: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: STUDIO_TIME_ZONE }).format(new Date(iso));
+}

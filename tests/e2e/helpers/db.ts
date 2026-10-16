@@ -9,6 +9,8 @@ export interface TemporaryMenu {
   slug: string;
   /** The menu's name as guests see it (its restaurant's). */
   name: string;
+  /** The restaurant that owns it. */
+  restaurantId: string;
   /** The slug of its one product. */
   productSlug: string;
   /** Gives the menu a new slug the way a rename does: the old one stays as a `MenuSlug` row that now redirects. */
@@ -38,6 +40,7 @@ export async function createTemporaryMenu({ locales }: { locales?: Locale[] } = 
   return {
     slug,
     name: restaurant.name,
+    restaurantId: restaurant.id,
     productSlug: product.slug,
     async rename() {
       const renamed = `${slug}-renamed`;
