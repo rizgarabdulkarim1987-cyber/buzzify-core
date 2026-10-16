@@ -292,6 +292,21 @@ describe('tenant scoping', () => {
       expect((await both.restaurant.findMany()).map((r) => r.id)).toEqual([a.restaurant.id]);
     });
 
+    it('lets a client scoped to a menu id that does not exist yet create that one menu, in its restaurant only', async () => {
+      const db = scopedClient(prisma, { menuId: 'tenant-new-menu', restaurantId: a.restaurant.id });
+      // Any other id, or none, is still refused.
+      await expect(db.menu.create({ data: { ...menuData('tenant-other'), id: 'tenant-other-id' } as never })).rejects.toThrow(/cannot create a Menu/);
+      await expect(db.menu.create({ data: menuData('tenant-none') as never })).rejects.toThrow(/cannot create a Menu/);
+      // Its restaurant is stamped, and another one refused.
+      await expect(
+        db.menu.create({ data: { ...menuData('tenant-stolen'), id: 'tenant-new-menu', restaurantId: b.restaurant.id } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+      const created = await db.menu.create({ data: { ...menuData('tenant-new'), id: 'tenant-new-menu' } as never });
+      expect(created).toMatchObject({ id: 'tenant-new-menu', restaurantId: a.restaurant.id });
+      // And its menu rows can be written through the same client.
+      expect((await db.table.create({ data: { number: 1, label: 'T1' } as never })).menuId).toBe('tenant-new-menu');
+    });
+
     it('leaves slugs, domains and users unfiltered, and Restaurant and Membership without a restaurant', async () => {
       // What the handler must key by trusted ids itself (see ActionContext.transaction).
       expect(await restaurantDb(prisma, a.restaurant.id).menuSlug.count()).toBe(2);

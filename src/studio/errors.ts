@@ -79,6 +79,29 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Delete all of its menus first': 'error.text.menusFirst',
   'Type the restaurant name exactly to confirm': 'error.text.confirmName',
   'Enter a valid date': 'error.text.dateInvalid',
+
+  // Menus
+  'Enter the menu name': 'error.text.menuNameEnter',
+  'Choose at least one language': 'error.text.languagesChoose',
+  'Choose each language once': 'error.text.languagesOnce',
+  'Choose one of the currencies offered': 'error.text.currencyChoose',
+  'Choose one of the time zones offered': 'error.text.timeZoneChoose',
+  'Choose one of the numeral systems offered': 'error.text.numeralsChoose',
+  'Choose the default language among the menu languages': 'error.text.defaultLanguage',
+  'Choose one of the changes offered': 'error.text.changeChoose',
+  'This address is taken': 'error.text.slugTaken',
+  'This address is reserved': 'error.text.slugReserved',
+  'Use at least 3 characters': 'error.text.slugTooShort',
+  'Use at most 48 characters': 'error.text.slugTooLong',
+  'Use lowercase letters, digits and single hyphens': 'error.text.slugCharacters',
+  'Archived menus cannot be published': 'error.text.archivedNoPublish',
+  'This menu cannot be published yet': 'error.text.publishBlocked',
+  'This change is not possible from the current status': 'error.text.statusChange',
+  'Archive the menu before deleting it': 'error.text.archiveFirst',
+  'Type the menu name exactly to confirm': 'error.text.confirmMenuName',
+  'Choose at least one menu': 'error.text.menusAtLeastOne',
+  'Choose at most 200 menus': 'error.text.menusAtMost',
+  'Each menu can be listed only once': 'error.text.menuOnce',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

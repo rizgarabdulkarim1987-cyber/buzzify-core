@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { PublishIssue } from '@/server/domain/publish-rules';
 
 /**
  * Why a Studio action or query did not run. The Studio shows each in the person's language (`error.*` messages); the
@@ -18,6 +19,8 @@ export interface StudioFailure {
   message: string;
   /** Per-field messages keyed by the field's dotted path (`hours.mon.1`), or the details of a conflict. */
   fields?: Record<string, string>;
+  /** What stands in the way of a publish, one entry per problem, for the Studio to list by code in the person's language. */
+  issues?: PublishIssue[];
 }
 
 /** What every action and query returns to its caller. Plain data, so it crosses the Server Action boundary as it is. */
@@ -40,20 +43,27 @@ export const UNEXPECTED_MESSAGE = 'Something went wrong';
 export class StudioError extends Error {
   readonly code: ErrorCode;
   readonly fields?: Record<string, string>;
+  readonly issues?: PublishIssue[];
 
-  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGES[code], fields?: Record<string, string>) {
+  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGES[code], fields?: Record<string, string>, issues?: PublishIssue[]) {
     super(message);
     this.name = 'StudioError';
     this.code = code;
     if (fields) this.fields = fields;
+    if (issues) this.issues = issues;
   }
 }
 
-export function failure(code: ErrorCode, message: string = DEFAULT_MESSAGES[code], fields?: Record<string, string>): {
+export function failure(
+  code: ErrorCode,
+  message: string = DEFAULT_MESSAGES[code],
+  fields?: Record<string, string>,
+  issues?: PublishIssue[],
+): {
   ok: false;
   error: StudioFailure;
 } {
-  return { ok: false, error: fields ? { code, message, fields } : { code, message } };
+  return { ok: false, error: { code, message, ...(fields ? { fields } : {}), ...(issues ? { issues } : {}) } };
 }
 
 /**
@@ -73,7 +83,7 @@ export function invalidInput(error: z.ZodError): { ok: false; error: StudioFailu
 
 /** The result for a thrown `StudioError`, or null for anything else. */
 export function expectedFailure(error: unknown): { ok: false; error: StudioFailure } | null {
-  return error instanceof StudioError ? failure(error.code, error.message, error.fields) : null;
+  return error instanceof StudioError ? failure(error.code, error.message, error.fields, error.issues) : null;
 }
 
 /**

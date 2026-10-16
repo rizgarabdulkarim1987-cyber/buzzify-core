@@ -112,6 +112,40 @@ export async function atelierRestaurant(): Promise<{ id: string; name: string }>
   }
 }
 
+/** The menu a slug names now (its id and name), as the Studio lists it. */
+export async function menuBySlug(slug: string): Promise<{ id: string; name: string }> {
+  const db = prisma();
+  try {
+    return await db.menu.findUniqueOrThrow({ where: { slug }, select: { id: true, name: true } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/**
+ * Deletes what a menu test made, and nothing else: the menus that have or had one of these addresses, every `MenuSlug`
+ * row of those addresses and menus (tombstones included, which nothing else ever removes), and the audit rows about
+ * them. A menu the test deleted through the Studio is known only by the id the test saw, so it passes those too; an id
+ * of a menu that still exists under another address (one the test only looked at) is left alone.
+ */
+export async function removeMenus({ slugs, menuIds }: { slugs: readonly string[]; menuIds: readonly string[] }): Promise<void> {
+  const db = prisma();
+  try {
+    const named = await db.menuSlug.findMany({ where: { slug: { in: [...slugs] } }, select: { menuId: true } });
+    const current = await db.menu.findMany({ where: { slug: { in: [...slugs] } }, select: { id: true } });
+    const ours = [...new Set([...named.map((row) => row.menuId), ...current.map((menu) => menu.id)].filter((id): id is string => id !== null))];
+    // A menu that no longer exists can only be one the test deleted; one that exists belongs to the test only if found above.
+    const existing = new Set((await db.menu.findMany({ where: { id: { in: [...menuIds] } }, select: { id: true } })).map((menu) => menu.id));
+    const deleted = menuIds.filter((id) => !existing.has(id));
+    await db.menuSlug.deleteMany({ where: { OR: [{ slug: { in: [...slugs] } }, { menuId: { in: ours } }] } });
+    await db.menu.deleteMany({ where: { id: { in: ours } } });
+    const ids = [...ours, ...deleted];
+    await db.auditLog.deleteMany({ where: { OR: [{ menuId: { in: ids } }, { entityId: { in: ids } }] } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 /** An owner invitation to `restaurantId` from `inviterId`, for a new address. Returns the address and the link. */
 export async function inviteOwner(inviterId: string, restaurantId: string): Promise<{ email: string; url: string }> {
   const email = uniqueEmail('owner');

@@ -1,0 +1,372 @@
+import { z } from 'zod';
+import type { Prisma } from '@/generated/prisma/client';
+import { expireMenu } from '@/server/data/cache';
+import { nextMenuStatus } from '@/server/domain/menu-status';
+import { loadDraftSnapshot, refreshDraftHash, writeDraftFromSnapshot } from '@/server/publish/draft';
+import { PublishError, publishMenu } from '@/server/publish/publish';
+import { defineAction, runAction, type ActionContext } from '@/server/studio/framework/action';
+import { updateWithVersion } from '@/server/studio/framework/concurrency';
+import { StudioError } from '@/server/studio/framework/result';
+import {
+  BULK_ACTIONS,
+  claimSlug,
+  type BulkResult,
+  DEFAULT_SCHEDULE,
+  defaultBrand,
+  isUniqueViolation,
+  menuName,
+  menuSlugs,
+  newMenuInput,
+  requireSlugAvailable,
+  slugField,
+  slugRefusal,
+  statusAction,
+} from '@/server/studio/services/menus';
+
+/**
+ * Menus: creating one in a restaurant, publishing it, changing its status and its address, duplicating and deleting it,
+ * and doing one of those to many at once. Each change writes its audit row in the same transaction and expires every
+ * cached address of the menu once it has committed, so guests see it at once.
+ *
+ * Audit rows for changes that move the menu's `version` (its address, a publish, which takes the row as its lock) are
+ * filed as `Menu`, so a save refused for a stale version names who made the change in between. A status change does not
+ * move the version and is filed as `MenuStatus`.
+ */
+
+const idField = z.string().min(1).max(100);
+const versionField = z.number().int().positive();
+
+const atMenu = (menuId: string) => ({ kind: 'menu', menuId }) as const;
+const atRestaurant = (restaurantId: string) => ({ kind: 'restaurant', restaurantId }) as const;
+
+/** The menu a menu-target action works on. The framework has already resolved it. */
+function menuOf(ctx: ActionContext): string {
+  if (ctx.menuId === null) throw new Error('A menu action ran without a menu');
+  return ctx.menuId;
+}
+
+/** The restaurant a restaurant- or menu-target action works in. */
+function restaurantOf(ctx: ActionContext): string {
+  if (ctx.restaurantId === null) throw new Error('A menu action ran without a restaurant');
+  return ctx.restaurantId;
+}
+
+const json = (value: unknown) => value as Prisma.InputJsonValue;
+
+// Creating ------------------------------------------------------------------------------------------------------------
+
+export const createMenu = defineAction({
+  name: 'menus.create',
+  permission: 'menu.create',
+  input: newMenuInput,
+  target: (i) => atRestaurant(i.restaurantId),
+  run: async (ctx, input) => {
+    const restaurantId = restaurantOf(ctx);
+    // The menu's rows need a client scoped to it, so the transaction is scoped to the id it is about to get.
+    const menuId = ctx.newId();
+    await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
+      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } });
+      if (!restaurant) throw new StudioError('NOT_FOUND');
+      await requireSlugAvailable(tx, input.slug, null);
+      try {
+        await tx.menu.create({
+          data: {
+            id: menuId,
+            restaurantId,
+            name: input.name,
+            slug: input.slug,
+            locales: input.locales,
+            defaultLocale: input.defaultLocale,
+            currency: input.currency,
+            timezone: input.timezone,
+            numeralSystem: input.numeralSystem,
+          },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) throw slugRefusal('taken');
+        throw error;
+      }
+      await claimSlug(tx, input.slug, menuId);
+      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name) } });
+      await tx.daypartSchedule.createMany({ data: DEFAULT_SCHEDULE.map((window) => ({ menuId, ...window })) });
+      await refreshDraftHash(tx, menuId);
+
+      ctx.audit({
+        action: 'menu.created',
+        entityType: 'Menu',
+        entityId: menuId,
+        changes: {
+          name: { before: null, after: input.name },
+          slug: { before: null, after: input.slug },
+          locales: { before: null, after: input.locales },
+          currency: { before: null, after: input.currency },
+        },
+      });
+      // A guest who tried the address before it existed left it cached as missing.
+      ctx.afterCommit(() => expireMenu([input.slug], menuId));
+    });
+    return { menuId };
+  },
+});
+
+// Publishing ----------------------------------------------------------------------------------------------------------
+
+export const publish = defineAction({
+  name: 'menus.publish',
+  permission: 'publish.now',
+  input: z.object({ menuId: idField, note: z.string().trim().max(500, 'This is too long').optional() }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, { note }) =>
+    ctx.transaction(async (tx) => {
+      const menuId = menuOf(ctx);
+      const before = await tx.menu.findUnique({ where: { id: menuId }, select: { liveRevision: { select: { number: true } } } });
+      let outcome;
+      try {
+        outcome = await publishMenu(tx, { menuId, actorId: ctx.actor.userId, ...(note ? { note } : {}), now: new Date() });
+      } catch (error) {
+        if (error instanceof PublishError) {
+          throw error.code === 'ARCHIVED' ? new StudioError('INVALID', 'Archived menus cannot be published') : new StudioError('NOT_FOUND');
+        }
+        throw error;
+      }
+      // Blocked: the issues go back to be listed, and the transaction (with the version it took) is rolled back.
+      if (!outcome.ok) throw new StudioError('INVALID', 'This menu cannot be published yet', undefined, outcome.issues);
+
+      ctx.audit({
+        action: 'menu.published',
+        entityType: 'Menu',
+        entityId: menuId,
+        changes: { revision: { before: before?.liveRevision?.number ?? null, after: outcome.number } },
+      });
+      const slugs = await menuSlugs(tx, menuId);
+      ctx.afterCommit(() => expireMenu(slugs, menuId));
+      return { revisionId: outcome.revisionId, number: outcome.number, warnings: outcome.warnings };
+    }),
+});
+
+// Status --------------------------------------------------------------------------------------------------------------
+
+export const changeMenuStatus = defineAction({
+  name: 'menus.changeStatus',
+  permission: 'menu.status',
+  input: z.object({ menuId: idField, action: statusAction }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, { action }) =>
+    ctx.transaction(async (tx) => {
+      const menuId = menuOf(ctx);
+      const row = await tx.menu.findUnique({
+        where: { id: menuId },
+        select: { status: true, statusBeforeArchive: true, liveRevisionId: true },
+      });
+      if (!row) throw new StudioError('NOT_FOUND');
+      const next = nextMenuStatus(row.status, action, {
+        hasLiveRevision: row.liveRevisionId !== null,
+        statusBeforeArchive: row.statusBeforeArchive,
+      });
+      if (next === null) throw new StudioError('INVALID', 'This change is not possible from the current status');
+
+      // Not a setting, so the version stays; the status it was read at must still be the status it changes from.
+      const { count } = await tx.menu.updateMany({
+        where: { id: menuId, status: row.status },
+        data: { status: next, statusBeforeArchive: next === 'ARCHIVED' ? row.status : null },
+      });
+      if (count === 0) throw new StudioError('CONFLICT');
+
+      ctx.audit({
+        action: 'menu.status_changed',
+        entityType: 'MenuStatus',
+        entityId: menuId,
+        changes: { status: { before: row.status, after: next } },
+      });
+      const slugs = await menuSlugs(tx, menuId);
+      ctx.afterCommit(() => expireMenu(slugs, menuId));
+      return { status: next };
+    }),
+});
+
+// The address ---------------------------------------------------------------------------------------------------------
+
+export const changeMenuSlug = defineAction({
+  name: 'menus.changeSlug',
+  permission: 'menu.settings',
+  input: z.object({ menuId: idField, slug: slugField, version: versionField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, { slug, version }) =>
+    ctx.transaction(async (tx) => {
+      const menuId = menuOf(ctx);
+      const row = await tx.menu.findUnique({ where: { id: menuId }, select: { slug: true, version: true } });
+      if (!row) throw new StudioError('NOT_FOUND');
+      if (row.slug === slug) return { slug, version: row.version };
+
+      // Its own former addresses are the menu's to take back; anyone else's, or a deleted menu's, never.
+      await requireSlugAvailable(tx, slug, menuId);
+      try {
+        await updateWithVersion(tx.menu, { id: menuId, version, data: { slug }, entityType: 'Menu' }, tx);
+      } catch (error) {
+        if (isUniqueViolation(error)) throw slugRefusal('taken');
+        throw error;
+      }
+      // The old address keeps its row, so it redirects to this one for good.
+      await claimSlug(tx, slug, menuId);
+
+      ctx.audit({ action: 'menu.slug_changed', entityType: 'Menu', entityId: menuId, changes: { slug: { before: row.slug, after: slug } } });
+      const slugs = await menuSlugs(tx, menuId);
+      ctx.afterCommit(() => expireMenu(slugs, menuId));
+      return { slug, version: version + 1 };
+    }),
+});
+
+// Duplicating ---------------------------------------------------------------------------------------------------------
+
+export const duplicateMenu = defineAction({
+  name: 'menus.duplicate',
+  permission: 'menu.duplicate',
+  input: z.object({ menuId: idField, name: menuName, slug: slugField, targetRestaurantId: idField.optional() }),
+  target: (i) => atMenu(i.menuId),
+  run: async (ctx, input) => {
+    const sourceId = menuOf(ctx);
+    const restaurantId = input.targetRestaurantId ?? restaurantOf(ctx);
+    // Another restaurant is a Super Admin's to copy into (`transactionIn` holds to it too); say so before reading.
+    if (restaurantId !== ctx.restaurantId && !ctx.actor.isSuperAdmin) throw new StudioError('FORBIDDEN');
+
+    // What is copied, read from the source: its settings, brand kit and tables, and its draft as it would be published
+    // (so inactive categories with their products, inactive rules and bundles stay behind, and nothing is sold out).
+    const source = await ctx.transaction(async (tx) => {
+      const menu = await tx.menu.findUnique({ where: { id: sourceId } });
+      if (!menu) throw new StudioError('NOT_FOUND');
+      const brand = await tx.brandConfig.findUnique({ where: { menuId: sourceId } });
+      const tables = await tx.table.findMany({ orderBy: { number: 'asc' }, select: { number: true, label: true } });
+      const snapshot = await loadDraftSnapshot(tx, sourceId);
+      return { menu, brand, tables, snapshot };
+    });
+
+    const menuId = ctx.newId();
+    await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
+      await requireSlugAvailable(tx, input.slug, null);
+      const { menu, brand } = source;
+      try {
+        await tx.menu.create({
+          data: {
+            id: menuId,
+            restaurantId,
+            name: input.name,
+            slug: input.slug,
+            currency: menu.currency,
+            defaultLocale: menu.defaultLocale,
+            locales: menu.locales,
+            timezone: menu.timezone,
+            numeralSystem: menu.numeralSystem,
+            engineConfig: json(menu.engineConfig),
+            seo: json(menu.seo),
+          },
+        });
+      } catch (error) {
+        if (isUniqueViolation(error)) throw slugRefusal('taken');
+        throw error;
+      }
+      await claimSlug(tx, input.slug, menuId);
+      if (brand) {
+        await tx.brandConfig.create({
+          data: {
+            menuId,
+            tokens: json(brand.tokens),
+            typography: json(brand.typography),
+            theme: brand.theme,
+            motionIntensity: brand.motionIntensity,
+            navStyle: brand.navStyle,
+            railStyle: brand.railStyle,
+            logoText: brand.logoText,
+          },
+        });
+      }
+      // New ids for every row and every reference; the draft hash is computed at the end.
+      await writeDraftFromSnapshot(tx, menuId, source.snapshot);
+      if (source.tables.length > 0) await tx.table.createMany({ data: source.tables.map((table) => ({ menuId, ...table })) });
+
+      ctx.audit({
+        action: 'menu.duplicated',
+        entityType: 'Menu',
+        entityId: menuId,
+        changes: {
+          duplicatedFrom: { before: null, after: sourceId },
+          name: { before: null, after: input.name },
+          slug: { before: null, after: input.slug },
+        },
+      });
+      ctx.afterCommit(() => expireMenu([input.slug], menuId));
+    });
+    return { menuId };
+  },
+});
+
+// Deleting ------------------------------------------------------------------------------------------------------------
+
+export const deleteMenu = defineAction({
+  name: 'menus.delete',
+  permission: 'menu.delete',
+  input: z.object({ menuId: idField, confirmName: z.string().max(200) }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, { confirmName }) =>
+    ctx.transaction(async (tx) => {
+      const menuId = menuOf(ctx);
+      const row = await tx.menu.findUnique({ where: { id: menuId }, select: { name: true, slug: true, status: true } });
+      if (!row) throw new StudioError('NOT_FOUND');
+      if (row.status !== 'ARCHIVED') throw new StudioError('INVALID', 'Archive the menu before deleting it');
+      if (confirmName.trim() !== row.name) {
+        const message = 'Type the menu name exactly to confirm';
+        throw new StudioError('INVALID', message, { confirmName: message });
+      }
+
+      // Its addresses stay reserved as tombstones, so an old QR code never opens someone else's menu.
+      const slugs = await menuSlugs(tx, menuId);
+      await tx.menuSlug.updateMany({ where: { menuId }, data: { menuId: null } });
+      // Its catalog, revisions, brand kit, tables and events go with it.
+      await tx.menu.deleteMany({ where: { id: menuId } });
+
+      ctx.audit({
+        action: 'menu.deleted',
+        entityType: 'Menu',
+        entityId: menuId,
+        changes: { name: { before: row.name, after: null }, slug: { before: row.slug, after: null } },
+      });
+      ctx.afterCommit(() => expireMenu(slugs, menuId));
+      return { deleted: true as const };
+    }),
+});
+
+// Many at once --------------------------------------------------------------------------------------------------------
+
+/**
+ * Publishes, suspends, archives or restores up to 200 menus. Each one is the single action run for the same person
+ * (`runAction`), so its checks, its transaction and its audit row are exactly those of doing it alone; one that fails
+ * (blocked, not allowed in its status, outside the person's restaurants) is reported and the others go on.
+ */
+export const bulkMenuAction = defineAction({
+  name: 'menus.bulk',
+  permission: null,
+  input: z.object({
+    menuIds: z
+      .array(idField)
+      .min(1, 'Choose at least one menu')
+      .max(200, 'Choose at most 200 menus')
+      .refine((ids) => new Set(ids).size === ids.length, 'Each menu can be listed only once'),
+    action: z.enum(BULK_ACTIONS, 'Choose one of the changes offered'),
+  }),
+  target: () => ({ kind: 'self' }),
+  run: async (ctx, { menuIds, action }) => {
+    const results: BulkResult[] = [];
+    // One at a time: each is its own transaction, and a long list should not take every connection.
+    for (const menuId of menuIds) {
+      const result =
+        action === 'publish'
+          ? await runAction(ctx.db, ctx.actor, publish, { menuId }, ctx.meta)
+          : await runAction(ctx.db, ctx.actor, changeMenuStatus, { menuId, action }, ctx.meta);
+      results.push(
+        result.ok
+          ? { menuId, ok: true }
+          : { menuId, ok: false, code: result.error.code, ...(result.error.issues ? { issues: result.error.issues } : {}) },
+      );
+    }
+    return { results };
+  },
+});

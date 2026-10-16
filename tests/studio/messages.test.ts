@@ -5,6 +5,7 @@ import { LOCALES } from '@/lib/locale';
 import { PERMISSIONS } from '@/server/domain/permissions';
 import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import type { ErrorCode } from '@/server/studio/framework/result';
+import { slugMessage } from '@/server/studio/services/menus';
 import { SERVER_TEXT } from '@/studio/errors';
 import { STUDIO_MESSAGES, getStudioTranslator } from '@/studio/messages';
 
@@ -124,6 +125,9 @@ describe('server texts', () => {
     'Better Auth started a two-factor method other than an authenticator app',
     'A restaurant action ran without a restaurant',
     'A restaurant query ran without a restaurant',
+    'A menu action ran without a menu',
+    'A menu action ran without a restaurant',
+    'A menu query ran without a menu',
     'An audit entry names a restaurant other than its target',
     'Super Admin',
   ]);
@@ -145,6 +149,12 @@ describe('server texts', () => {
     expect(SERVER_TEXT[`Use at least ${MIN_PASSWORD_LENGTH} characters`]).toBeTruthy();
     expect(SERVER_TEXT[`Use at most ${MAX_PASSWORD_LENGTH} characters`]).toBeTruthy();
     expect(SERVER_TEXT['Use at most 120 characters']).toBeTruthy();
+  });
+
+  it('translates every slug problem, including those built from the length limits', () => {
+    for (const problem of ['taken', 'RESERVED', 'TOO_SHORT', 'TOO_LONG', 'BAD_CHARACTERS'] as const) {
+      expect(SERVER_TEXT[slugMessage(problem)], problem).toBeTruthy();
+    }
   });
 
   it('points every server text at a message that exists in every language', () => {

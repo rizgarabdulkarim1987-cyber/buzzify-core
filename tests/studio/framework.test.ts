@@ -581,6 +581,120 @@ describe('Studio action framework', () => {
     });
   });
 
+  describe('transactionIn', () => {
+    const menuRow = (restaurantId: string, id: string, slug: string) => ({
+      id,
+      restaurantId,
+      name: `Menu ${slug}`,
+      slug,
+      locales: ['en'],
+      timezone: 'Asia/Baghdad',
+    });
+
+    /**
+     * A menu action that makes a new menu in `restaurantId` (its own restaurant when left out) through `transactionIn`,
+     * with one menu-scoped row and an audit row. `fail` throws after both writes; `menuId` picks the id to scope to.
+     */
+    const makeMenu = defineAction({
+      name: 'test.makeMenu',
+      permission: 'menu.duplicate',
+      input: z.object({
+        menuId: z.string().min(1),
+        restaurantId: z.string().optional(),
+        slug: z.string(),
+        fail: z.boolean().default(false),
+        scopeTo: z.enum(['new', 'target', 'other']).default('new'),
+        otherMenuId: z.string().optional(),
+        skipCreate: z.boolean().default(false),
+      }),
+      target: atMenu,
+      run: async (ctx, input) => {
+        const newId = ctx.newId();
+        const restaurantId = input.restaurantId ?? (ctx.restaurantId as string);
+        const menuId = input.scopeTo === 'new' ? newId : input.scopeTo === 'target' ? (ctx.menuId as string) : (input.otherMenuId as string);
+        return ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
+          if (!input.skipCreate) {
+            await tx.menu.create({ data: menuRow(restaurantId, newId, input.slug) });
+            await tx.table.create({ data: { menuId: newId, number: 1, label: 'Table 01' } });
+          }
+          ctx.audit({ action: 'menu.created', entityType: 'Menu', entityId: newId });
+          if (input.fail) throw new StudioError('INVALID', 'Stopped on purpose');
+          return newId;
+        });
+      },
+    });
+
+    it('creates a menu in its own restaurant and writes its menu rows and the audit row in one transaction', async () => {
+      const result = await runAction(prisma, designerOfA, makeMenu, { menuId: a.menu.id, slug: 'fw-made' }, META);
+      expect(result.ok).toBe(true);
+      const newId = (result as { ok: true; data: string }).data;
+      expect(newId).toMatch(/^c[0-9a-z]{24}$/);
+      expect(await prisma.menu.findUniqueOrThrow({ where: { id: newId } })).toMatchObject({ restaurantId: a.restaurant.id, slug: 'fw-made' });
+      expect(await prisma.table.count({ where: { menuId: newId } })).toBe(1);
+      // Filed under the scope it ran in: the restaurant and the new menu.
+      expect(await prisma.auditLog.findFirstOrThrow()).toMatchObject({ restaurantId: a.restaurant.id, menuId: newId, entityId: newId });
+    });
+
+    it('refuses another restaurant to anyone but a Super Admin, and writes nothing', async () => {
+      const input = { menuId: a.menu.id, restaurantId: b.restaurant.id, slug: 'fw-elsewhere' };
+      expect(codeOf(await runAction(prisma, designerOfA, makeMenu, input, META))).toBe('FORBIDDEN');
+      // Even for someone who belongs to both.
+      await prisma.membership.create({ data: { userId: designerOfA.userId, restaurantId: b.restaurant.id, role: 'DESIGNER' } });
+      const both = (await loadActor(prisma, designerOfA.userId)) as Actor;
+      expect(codeOf(await runAction(prisma, both, makeMenu, input, META))).toBe('FORBIDDEN');
+      expect(await prisma.menu.count({ where: { slug: 'fw-elsewhere' } })).toBe(0);
+      expect(await prisma.auditLog.count()).toBe(0);
+    });
+
+    it('lets a Super Admin work in another restaurant, filing the audit row there', async () => {
+      const result = await runAction(prisma, superAdmin, makeMenu, { menuId: a.menu.id, restaurantId: b.restaurant.id, slug: 'fw-there' }, META);
+      const newId = (result as { ok: true; data: string }).data;
+      expect(await prisma.menu.findUniqueOrThrow({ where: { id: newId } })).toMatchObject({ restaurantId: b.restaurant.id });
+      expect(await prisma.auditLog.findFirstOrThrow()).toMatchObject({ restaurantId: b.restaurant.id, menuId: newId });
+    });
+
+    it('answers a restaurant that does not exist with NOT_FOUND', async () => {
+      const input = { menuId: a.menu.id, restaurantId: 'no-such-restaurant', slug: 'fw-nowhere' };
+      expect(codeOf(await runAction(prisma, superAdmin, makeMenu, input, META))).toBe('NOT_FOUND');
+    });
+
+    it('rolls back the rows and the audit row together', async () => {
+      expect(codeOf(await runAction(prisma, designerOfA, makeMenu, { menuId: a.menu.id, slug: 'fw-fail', fail: true }, META))).toBe('INVALID');
+      expect(await prisma.menu.count({ where: { slug: 'fw-fail' } })).toBe(0);
+      expect(await prisma.table.count({ where: { label: 'Table 01' } })).toBe(0);
+      expect(await prisma.auditLog.count()).toBe(0);
+    });
+
+    it('scopes only to the target menu or one the action creates, and the new one must be created', async () => {
+      const errors = captureErrors();
+      // Another existing menu, even one of the same restaurant, is a bug in the action.
+      const sibling = await prisma.menu.create({ data: menuRow(a.restaurant.id, 'fw-sibling-id', 'fw-sibling') });
+      const other = { menuId: a.menu.id, slug: 'fw-x', scopeTo: 'other', otherMenuId: sibling.id };
+      expect(codeOf(await runAction(prisma, designerOfA, makeMenu, other, META))).toBe('INVALID');
+      expect(errors()).toContain('must be the target or one the action created');
+      // A generated id the transaction does not create.
+      expect(codeOf(await runAction(prisma, designerOfA, makeMenu, { menuId: a.menu.id, slug: 'fw-y', skipCreate: true }, META))).toBe('INVALID');
+      expect(errors()).toContain('was not created');
+      expect(await prisma.auditLog.count()).toBe(0);
+    });
+
+    it('works on the target menu itself like transaction', async () => {
+      const touch = defineAction({
+        name: 'test.touchTarget',
+        permission: 'menu.settings',
+        input: menuInput,
+        target: atMenu,
+        run: (ctx) =>
+          ctx.transactionIn({ restaurantId: ctx.restaurantId as string, menuId: ctx.menuId as string }, async (tx) => {
+            ctx.audit({ action: 'menu.touched', entityType: 'Menu', entityId: ctx.menuId as string });
+            return (await tx.product.findMany()).map((product) => product.id);
+          }),
+      });
+      expect(await runAction(prisma, designerOfA, touch, { menuId: a.menu.id }, META)).toEqual({ ok: true, data: [a.product.id] });
+      expect(await prisma.auditLog.findFirstOrThrow()).toMatchObject({ restaurantId: a.restaurant.id, menuId: a.menu.id });
+    });
+  });
+
   describe('defineAction and defineQuery', () => {
     it('refuses permission null with any target but self, in its type and when the action is defined', () => {
       expect(() =>

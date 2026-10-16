@@ -5,6 +5,7 @@ import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, R
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { profileOf, seesAgencyNotes } from '@/server/studio/services/restaurants';
+import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
 
 /**
  * What the Restaurants screens read. The list is a platform read: every restaurant for a Super Admin, and for anyone
@@ -26,28 +27,6 @@ function restaurantOf(ctx: QueryContext): string {
   if (ctx.restaurantId === null) throw new Error('A restaurant query ran without a restaurant');
   return ctx.restaurantId;
 }
-
-/** Iraq has had no daylight saving since 2008, so a day there is always this far ahead of UTC. */
-const STUDIO_UTC_OFFSET = '+03:00';
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-function isCalendarDate(value: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) && new Date(`${value}T00:00:00Z`).toISOString().startsWith(value);
-}
-
-/**
- * A typed search as the text `contains` looks for. Prisma passes it to LIKE as it is, so a typed % or _ would match
- * anything; each is escaped (with the backslash PostgreSQL's LIKE reads as its escape), and a typed backslash, which
- * no name needs, is dropped.
- */
-function literal(text: string): string {
-  return text.replace(/\\/g, '').replace(/[%_]/g, (character) => `\\${character}`);
-}
-
-const dateField = z.string().refine(isCalendarDate, 'Enter a valid date');
-
-/** The moment a calendar day starts in the Studio's time zone. */
-const startOfDay = (date: string) => new Date(`${date}T00:00:00${STUDIO_UTC_OFFSET}`);
 
 export const listRestaurants = defineQuery({
   name: 'restaurants.list',
@@ -83,15 +62,8 @@ export const listRestaurants = defineQuery({
     if (input.city) filters.push({ city: { equals: input.city, mode: 'insensitive' } });
     if (input.type) filters.push({ type: input.type });
     if (input.status) filters.push({ status: input.status });
-    if (input.createdFrom || input.createdTo) {
-      filters.push({
-        createdAt: {
-          ...(input.createdFrom ? { gte: startOfDay(input.createdFrom) } : {}),
-          // The last day counts whole: up to, not including, the next one.
-          ...(input.createdTo ? { lt: new Date(startOfDay(input.createdTo).getTime() + DAY_MS) } : {}),
-        },
-      });
-    }
+    const created = createdBetween(input.createdFrom, input.createdTo);
+    if (created) filters.push({ createdAt: created });
     const where: Prisma.RestaurantWhereInput = { AND: filters };
 
     const [total, found, cities] = await Promise.all([

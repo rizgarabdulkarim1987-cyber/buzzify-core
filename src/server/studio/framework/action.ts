@@ -5,7 +5,8 @@ import { globalDb, scopedClient, type ScopedClient, type ScopedTx } from '@/serv
 import type { Permission } from '@/server/domain/permissions';
 import type { Actor } from '@/server/studio/auth/actor';
 import { admit, checkDefinition, type Access, type CheckedTarget, type SelfTarget, type Target } from './access';
-import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
+import { createId } from './ids';
+import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
 export type { CheckedTarget, SelfTarget, Target } from './access';
 
@@ -28,6 +29,12 @@ export interface AuditEntry {
 export interface RequestMeta {
   ip: string;
   userAgent: string;
+}
+
+/** Where `transactionIn` runs: a restaurant, and optionally one of its menus. */
+export interface TransactionScope {
+  restaurantId: string;
+  menuId?: string;
 }
 
 /** What an action's handler receives, besides its parsed input. */
@@ -61,10 +68,28 @@ export interface ActionContext {
    * at a time.
    */
   transaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T>;
+  /**
+   * Like `transaction`, on a client scoped to `scope` instead of the target: for an action that makes a menu (whose rows
+   * need a client scoped to it) or that works in another restaurant (a Super Admin duplicating a menu into it).
+   *
+   * - `restaurantId` is the target's own restaurant, or, for a Super Admin only, any other that exists (`FORBIDDEN` for
+   *   anyone else, `NOT_FOUND` when it does not exist).
+   * - `menuId`, when given, is the target's own menu, or an id from `newId()` for a menu this transaction creates (the
+   *   client lets it create the `Menu` row with that id, and the transaction fails unless it does). Any other menu is a
+   *   bug in the action and fails it.
+   *
+   * Audit rows are written inside it, filed under the scope's restaurant and menu; afterCommit callbacks run once it
+   * has committed. A failed transaction drops what was queued during it, as `transaction` does.
+   */
+  transactionIn<T>(scope: TransactionScope, fn: (tx: ScopedTx) => Promise<T>): Promise<T>;
+  /** A new id for a row the action is about to create, to scope `transactionIn` to a menu that does not exist yet. */
+  newId(): string;
   /** Queues an audit row for the next transaction, or for the end of the action when no transaction follows. */
   audit(entry: AuditEntry): void;
   /** Queues work for after the next commit (or the end of the action), such as expiring a cached menu. */
   afterCommit(fn: () => void): void;
+  /** The request's address and browser: an action that runs others for each of many targets passes them on. */
+  meta: RequestMeta;
 }
 
 // The input type comes from the schema alone (`NoInfer` elsewhere), so a shared target helper that reads fewer fields
@@ -124,10 +149,18 @@ export function clampMeta(meta: RequestMeta): RequestMeta {
   return { ip: String(meta.ip ?? '').slice(0, MAX_IP), userAgent: String(meta.userAgent ?? '').slice(0, MAX_USER_AGENT) };
 }
 
+/** Where audit rows are filed: the target's restaurant and menu, or the scope of `transactionIn`. */
+interface Place {
+  restaurantId: string | null;
+  menuId: string | null;
+}
+
 /** One action's run: the audit rows and callbacks it has queued, and the transactions it opens. */
 class Work {
   private audits: AuditEntry[] = [];
   private callbacks: Array<() => void> = [];
+  /** Ids from `newId()` that no committed transaction has created a menu with yet. */
+  private readonly generated = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaClient,
@@ -144,7 +177,14 @@ class Work {
       menuId: this.access.menuId,
       permissions: this.access.permissions,
       db: this.prisma,
-      transaction: (fn) => this.transaction(fn),
+      meta: this.meta,
+      transaction: (fn) => this.run(this.client(), this.access, fn),
+      transactionIn: (scope, fn) => this.transactionIn(scope, fn),
+      newId: () => {
+        const id = createId();
+        this.generated.add(id);
+        return id;
+      },
       audit: (entry) => {
         this.checkAuditRestaurant(entry);
         this.audits.push(entry);
@@ -170,11 +210,11 @@ class Work {
     }
   }
 
-  private rows(entries: AuditEntry[]): Prisma.AuditLogCreateManyInput[] {
+  private rows(entries: AuditEntry[], place: Place): Prisma.AuditLogCreateManyInput[] {
     return entries.map((entry) => ({
       actorId: this.actor.userId,
-      restaurantId: this.access.restaurantId ?? entry.restaurantId ?? null,
-      menuId: this.access.menuId,
+      restaurantId: place.restaurantId ?? entry.restaurantId ?? null,
+      menuId: place.menuId,
       action: entry.action,
       entityType: entry.entityType,
       entityId: entry.entityId,
@@ -184,14 +224,24 @@ class Work {
     }));
   }
 
-  async transaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
+  /**
+   * Runs `fn` in one transaction on `client`, writes the queued audit rows (filed under `place`) before it commits, and
+   * runs the callbacks once it has. `check` runs last inside the transaction, so a failing check rolls it all back.
+   */
+  private async run<T>(
+    client: ScopedClient,
+    place: Place,
+    fn: (tx: ScopedTx) => Promise<T>,
+    check?: (tx: ScopedTx) => Promise<void>,
+  ): Promise<T> {
     const auditsBefore = this.audits.length;
     const callbacksBefore = this.callbacks.length;
     let value: T;
     try {
-      value = await this.client().$transaction(async (tx) => {
+      value = await client.$transaction(async (tx) => {
         const result = await fn(tx);
-        if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits) });
+        if (check) await check(tx);
+        if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
         return result;
       });
     } catch (error) {
@@ -205,10 +255,47 @@ class Work {
     return value;
   }
 
+  private async transactionIn<T>(scope: TransactionScope, fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
+    const restaurantId: unknown = scope?.restaurantId;
+    const menuId: unknown = scope?.menuId;
+    if (typeof restaurantId !== 'string' || restaurantId === '') throw new Error('transactionIn needs a restaurant');
+    if (menuId !== undefined && (typeof menuId !== 'string' || menuId === '')) throw new Error('transactionIn needs a menu id or none');
+
+    if (restaurantId !== this.access.restaurantId) {
+      // Another restaurant is a Super Admin's to work in, never anyone else's, whatever they belong to.
+      if (!this.actor.isSuperAdmin) throw new StudioError('FORBIDDEN');
+      const exists = await this.prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { id: true } });
+      if (!exists) throw new StudioError('NOT_FOUND');
+    }
+
+    let creating: string | null = null;
+    if (menuId !== undefined) {
+      if (menuId === this.access.menuId) {
+        if (restaurantId !== this.access.restaurantId) throw new Error("transactionIn: the target's menu is in the target's restaurant");
+      } else if (this.generated.has(menuId)) {
+        creating = menuId;
+      } else {
+        throw new Error('transactionIn: the menu must be the target or one the action created with newId()');
+      }
+    }
+
+    const client = scopedClient(this.prisma, menuId === undefined ? { restaurantId } : { menuId, restaurantId });
+    const created = creating;
+    const value = await this.run(client, { restaurantId, menuId: menuId ?? null }, fn, async (tx) => {
+      if (created === null) return;
+      // The client finds a menu only by its id and restaurant, so this also says it was made where the scope says.
+      const menu = await tx.menu.findFirst({ where: { id: created }, select: { id: true } });
+      if (!menu) throw new Error(`transactionIn: the menu ${created} was not created in the transaction scoped to it`);
+    });
+    // The menu exists now: its id names a menu like any other and cannot be scoped to as a new one again.
+    if (created !== null) this.generated.delete(created);
+    return value;
+  }
+
   /** After the handler has returned: audit rows no transaction took (an export, say), then the remaining callbacks. */
   async finish(): Promise<void> {
     if (this.audits.length > 0) {
-      await this.prisma.auditLog.createMany({ data: this.rows(this.audits) });
+      await this.prisma.auditLog.createMany({ data: this.rows(this.audits, this.access) });
       this.audits = [];
     }
     this.runCallbacks();

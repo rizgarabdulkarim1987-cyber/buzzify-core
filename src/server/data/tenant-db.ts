@@ -107,7 +107,8 @@ type Args = Record<string, unknown> & { where?: Record<string, unknown> };
 /**
  * The guard for one model and one owner, as a rewrite of the query's arguments: reads, updates and deletes are filtered
  * to rows whose `column` equals the owner's id, creates are stamped with it, and an update may change anything except
- * which owner a row belongs to. The owner's own row (`column` is `id`) cannot be created through the client.
+ * which owner a row belongs to. The owner's own row (`column` is `id`) can be created through the client only with the
+ * owner's id, which is how an action creates a menu in a transaction scoped to it; no other row of its model.
  */
 function confine({ owner, id, column }: Confinement) {
   /** The relation field that mirrors the column (`menuId` is the foreign key of `menu`); none for the row's own id. */
@@ -131,8 +132,13 @@ function confine({ owner, id, column }: Confinement) {
   }
 
   function scopeData(model: string, row: unknown): Record<string, unknown> {
-    if (column === 'id') throw new Error(`Tenant scope: a client scoped to a ${owner} cannot create a ${model}`);
     const data = (row ?? {}) as Record<string, unknown>;
+    if (column === 'id') {
+      // The owner's own row only, under the id the client was scoped to: a menu that an action creates in a transaction
+      // scoped to the id it generated for it (`ActionContext.transactionIn`). Any other row of the model is refused.
+      if (data.id !== id) throw new Error(`Tenant scope: a client scoped to a ${owner} cannot create a ${model}`);
+      return data;
+    }
     if (data[column] !== undefined && data[column] !== id) {
       throw new Error(`Tenant mismatch: refusing to write a row for another ${owner}`);
     }
