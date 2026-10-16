@@ -1,15 +1,9 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
 import { authFor, type Auth } from './auth';
-import { checkPasswordPolicy, type PasswordProblem } from './password-policy';
+import { checkPasswordPolicy, PasswordPolicyError } from './password-policy';
 
-/** The password does not meet the policy; `reason` says how. */
-export class PasswordPolicyError extends Error {
-  constructor(readonly reason: PasswordProblem) {
-    super(`The password is not acceptable: ${reason}`);
-    this.name = 'PasswordPolicyError';
-  }
-}
+export { PasswordPolicyError };
 
 /** An account with this email already exists. */
 export class EmailTakenError extends Error {

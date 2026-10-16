@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { after } from 'next/server';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readDevMail } from '@/server/email/send';
 import { renderEmail } from '@/server/email/templates';
@@ -31,6 +32,15 @@ vi.mock('@/server/email/send', async (importActual) => {
   };
 });
 
+/**
+ * `after()` throws outside a request scope, which is what the Studio's fallback is for. Wrapping it lets a test stand in
+ * for a request: it records what was scheduled instead of running it, so the test can show that nothing ran early.
+ */
+vi.mock('next/server', async (importActual) => {
+  const actual = await importActual<typeof import('next/server')>();
+  return { ...actual, after: vi.fn(actual.after) };
+});
+
 const prisma = testPrisma();
 const auth = createAuth(prisma);
 
@@ -59,13 +69,18 @@ async function mailTo(to: string, count = 1) {
 
 const linkIn = (text: string) => /https?:\/\/[^\s]+/.exec(text)?.[0] as string;
 
+let realAfter: typeof after;
+
 beforeAll(async () => {
+  realAfter = (await vi.importActual<typeof import('next/server')>('next/server')).after;
   // Never send real mail from a test, whatever the developer's shell exports.
   vi.stubEnv('RESEND_API_KEY', '');
   await resetTestData(prisma);
 });
 
 beforeEach(async () => {
+  vi.mocked(after).mockReset();
+  vi.mocked(after).mockImplementation(realAfter);
   sending.delayMs = 0;
   sending.failure = null;
   await resetTestData(prisma);
@@ -194,6 +209,51 @@ describe('creating users', () => {
     expect(await prisma.account.count()).toBe(0);
     // The address is free again.
     await expect(createPasswordUser(prisma, { email: 'half@example.com', name: 'Half', password: GOOD }, auth)).resolves.toBeDefined();
+  });
+});
+
+describe('the password hash', () => {
+  it.each([
+    ['short', 'TOO_SHORT'],
+    ['password1234', 'COMMON'],
+    ['k'.repeat(129), 'TOO_LONG'],
+  ] as const)('refuses to hash the password %#, so no route can store it', async (password, reason) => {
+    const ctx = await auth.$context;
+    const error = await ctx.password.hash(password).catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(PasswordPolicyError);
+    expect((error as PasswordPolicyError).reason).toBe(reason);
+  });
+
+  it('hashes an acceptable password in a form that verifies', async () => {
+    const ctx = await auth.$context;
+    const hash = await ctx.password.hash(GOOD);
+    expect(hash).not.toContain(GOOD);
+    expect(await ctx.password.verify({ hash, password: GOOD })).toBe(true);
+    expect(await ctx.password.verify({ hash, password: `${GOOD}!` })).toBe(false);
+  });
+
+  it("stops a reset to a common password that passed Better Auth's own length check, and keeps the old password", async () => {
+    const to = address('commonreset');
+    await createPasswordUser(prisma, { email: to, name: 'Omar', password: GOOD }, auth);
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    const [mail] = await mailTo(to);
+    const token = new URL(linkIn(mail?.text ?? '')).searchParams.get('token') as string;
+
+    await expect(auth.api.resetPassword({ body: { newPassword: 'password1234', token } })).rejects.toBeInstanceOf(PasswordPolicyError);
+    expect((await auth.api.signInEmail({ body: { email: to, password: GOOD } })).user.email).toBe(to);
+    await expect(auth.api.signInEmail({ body: { email: to, password: 'password1234' } })).rejects.toMatchObject({ statusCode: 401 });
+  });
+
+  it('stops a password change to a common password', async () => {
+    await createPasswordUser(prisma, { email: 'owner@example.com', name: 'Owner', password: GOOD }, auth);
+    const signedIn = await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD }, returnHeaders: true });
+    await expect(
+      auth.api.changePassword({
+        body: { currentPassword: GOOD, newPassword: 'password1234' },
+        headers: cookieHeader(signedIn.headers.getSetCookie()),
+      }),
+    ).rejects.toBeInstanceOf(PasswordPolicyError);
+    expect((await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD } })).user.email).toBe('owner@example.com');
   });
 });
 
@@ -363,8 +423,9 @@ describe('account emails', () => {
     const signedIn = await auth.api.signInEmail({ body: { email: to, password: GOOD }, returnHeaders: true });
     sending.failure = new Error('Email delivery failed (invalid_from_address): bad sender');
 
-    // Better Auth swallows what its callbacks throw, so the request still answers; the failure is in the log.
+    // A failed send is logged, not thrown, and the request still answers.
     await auth.api.changeEmail({ body: { newEmail: next }, headers: cookieHeader(signedIn.headers.getSetCookie()) });
+    await vi.waitFor(() => expect(console.error).toHaveBeenCalled());
     const logged = vi.mocked(console.error).mock.calls.flat().join(' ');
     expect(logged).toContain('changeEmailConfirm');
     expect(logged).toContain('bad sender');
@@ -439,5 +500,98 @@ describe('account emails', () => {
     // Following that link completes the change.
     await auth.api.verifyEmail({ query: { token: verifyUrl.searchParams.get('token') as string }, headers: session });
     expect((await prisma.user.findFirstOrThrow({ where: { name: 'Sara' } })).email).toBe(newAddress);
+  });
+});
+
+describe('sending after the response', () => {
+  /** Stands in for a request: `after()` records its task instead of running it. */
+  function schedule() {
+    const tasks: Array<() => Promise<void> | void> = [];
+    vi.mocked(after).mockImplementation((task) => {
+      tasks.push(task as () => Promise<void> | void);
+    });
+    return tasks;
+  }
+  const quiet = () => new Promise((resolve) => setTimeout(resolve, 150));
+
+  it('hands the reset mail to after() and sends nothing until the response is out', async () => {
+    const to = address('afterreset');
+    await createPasswordUser(prisma, { email: to, name: 'Lina', password: GOOD }, auth);
+    const tasks = schedule();
+
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    expect(tasks).toHaveLength(1);
+    await quiet();
+    expect(await readDevMail(to)).toHaveLength(0);
+
+    await tasks[0]?.();
+    expect(await readDevMail(to)).toHaveLength(1);
+  });
+
+  it('hands the password-changed notice to after() as well', async () => {
+    const to = address('afterchanged');
+    await createPasswordUser(prisma, { email: to, name: 'Lina', password: GOOD }, auth);
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    const [mail] = await mailTo(to);
+    const token = new URL(linkIn(mail?.text ?? '')).searchParams.get('token') as string;
+    const tasks = schedule();
+
+    await auth.api.resetPassword({ body: { newPassword: 'another long passphrase 2027', token } });
+    expect(tasks).toHaveLength(1);
+    await quiet();
+    expect(await readDevMail(to)).toHaveLength(1); // only the reset link so far
+
+    await tasks[0]?.();
+    expect(await readDevMail(to)).toHaveLength(2);
+  });
+
+  it('hands both email-change mails to after()', async () => {
+    const oldAddress = address('afterold');
+    const newAddress = address('afternew');
+    await createPasswordUser(prisma, { email: oldAddress, name: 'Sara', password: GOOD }, auth);
+    const signedIn = await auth.api.signInEmail({ body: { email: oldAddress, password: GOOD }, returnHeaders: true });
+    const session = cookieHeader(signedIn.headers.getSetCookie());
+    const tasks = schedule();
+
+    await auth.api.changeEmail({ body: { newEmail: newAddress }, headers: session });
+    expect(tasks).toHaveLength(1);
+    await quiet();
+    expect(await readDevMail(oldAddress)).toHaveLength(0);
+    await tasks[0]?.();
+    const [confirm] = await readDevMail(oldAddress);
+    const token = new URL(linkIn(confirm?.text ?? '')).searchParams.get('token') as string;
+
+    await auth.api.verifyEmail({ query: { token }, headers: session });
+    expect(tasks).toHaveLength(2);
+    await quiet();
+    expect(await readDevMail(newAddress)).toHaveLength(0);
+    await tasks[1]?.();
+    expect(await readDevMail(newAddress)).toHaveLength(1);
+  });
+
+  it('starts the send itself when there is no request scope, and still delivers it to the development mail folder', async () => {
+    const to = address('noscope');
+    await createPasswordUser(prisma, { email: to, name: 'Lina', password: GOOD }, auth);
+    // The real after() throws here: this is a test, not a request.
+    expect(() => realAfter(() => undefined)).toThrow(/outside a request scope/);
+
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    expect(vi.mocked(after)).toHaveBeenCalledTimes(1);
+    const [mail] = await mailTo(to);
+    expect(mail?.subject).toBe(renderEmail('reset', 'en', { name: 'Lina', url: BASE }).subject);
+  });
+
+  it('logs a failure from the scheduled send, without the address, and does not throw', async () => {
+    const to = address('afterfail');
+    await createPasswordUser(prisma, { email: to, name: 'Lina', password: GOOD }, auth);
+    const tasks = schedule();
+    sending.failure = new Error('Email delivery failed (rate_limit_exceeded): slow down');
+
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    await expect(tasks[0]?.()).resolves.toBeUndefined();
+    const logged = vi.mocked(console.error).mock.calls.flat().join(' ');
+    expect(logged).toContain('reset');
+    expect(logged).toContain('slow down');
+    expect(logged).not.toContain(to);
   });
 });

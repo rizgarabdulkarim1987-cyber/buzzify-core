@@ -11,8 +11,8 @@ export type RateVerdict = { allowed: true } | { allowed: false; retryAfterSec: n
 
 /**
  * The Studio's limits, each applied to a key such as `signin:email:owner@example.com`. Better Auth has its own limiter,
- * but it sees only requests that arrive over HTTP; the Studio's Server Actions call `auth.api` directly and are
- * limited here.
+ * but it sees only requests that arrive over HTTP, and the Studio serves none of its sign-in routes over HTTP; the
+ * Server Actions call `auth.api` directly and are limited here.
  */
 export const RATE_RULES = {
   'signin:ip': { max: 20, windowSec: 600 },
@@ -34,39 +34,44 @@ function storedKey(key: string): string {
  * of `rule.windowSec` seconds, `rule.max` attempts fit in it, and the count starts again once it has passed. Refused
  * attempts are counted but do not move the end of the window, so retrying never extends a lock-out.
  *
- * Every check is one SQL statement, `INSERT ... ON CONFLICT DO UPDATE ... RETURNING`, so concurrent checks cannot
- * lose a count. Two requests for the same key in the same window meet at the row: the second waits for the first
- * one's row lock, then re-evaluates its update against the row the first left behind and counts on top of it, so the
- * counts are 1, 2 (never 1, 1), and exactly `max` of any number of simultaneous requests are allowed. When the old
- * window has ended, the `CASE` that restarts it is evaluated against the row as it stands once the lock is held: the
- * first request restarts the window (count 1), and the second finds a fresh window and adds to it, so the restart is
- * counted once and never twice. There is no read-then-write for another request to slip between.
+ * Two statements, each atomic on its own, and neither can lose a count:
  *
- * `now` is a parameter so tests control the clock. The driver adapter sends a `Date` as a UTC wall-clock string and the
- * column is `timestamp(3)` without a zone, so the cast to `timestamp` stores UTC whatever time zone the server runs in,
- * exactly as Prisma's own writes do.
+ * 1. `updateMany ... WHERE key AND windowStart <= cutoff SET windowStart = now, count = 0` restarts an ended window.
+ *    Postgres re-evaluates the `WHERE` against the row's latest committed version once it holds the row lock, so when
+ *    several requests find the window ended, the first restarts it and the rest, now seeing a new `windowStart`,
+ *    match nothing. The restart happens once, and it only ever zeroes a window that was over.
+ * 2. `upsert` issues one native `INSERT ... ON CONFLICT (key) DO UPDATE SET count = count + 1 RETURNING *`. The
+ *    increment is computed by the database from the row it has locked, not from a value this process read, so two
+ *    simultaneous requests get counts n and n+1 and never n and n. The row it returns is the one this request's own
+ *    increment produced, so the decision below uses the count this request was given, not a later re-read. If the row
+ *    does not exist yet, the requests that race to create it meet at the unique key: one inserts (count 1), the
+ *    others take the conflict branch and increment.
+ *
+ * A request cannot add to a window that is then restarted underneath it: its own restart check (1) runs before its
+ * increment (2), and a later restart needs `windowStart` to be a full window old. Exactly `max` of any number of
+ * simultaneous requests in one window are allowed. If the process dies between (1) and (2) the row holds count 0
+ * for a fresh window, which is harmless.
+ *
+ * `now` is a parameter so tests control the clock.
  */
 export async function checkRateLimit(
-  prisma: Pick<PrismaClient, '$queryRaw'>,
+  prisma: Pick<PrismaClient, 'authRateLimit'>,
   key: string,
   rule: RateRule,
   now: Date,
 ): Promise<RateVerdict> {
+  const id = storedKey(key);
   const cutoff = new Date(now.getTime() - rule.windowSec * 1000);
-  // Raw SQL is banned for tenant data (see eslint.config.mjs); AuthRateLimit is a global table with no tenant, and an
-  // atomic conditional restart of the window cannot be written with the query builder.
-  // eslint-disable-next-line no-restricted-properties
-  const rows = await prisma.$queryRaw<Array<{ windowStart: Date; count: number }>>`
-    INSERT INTO "AuthRateLimit" AS r ("key", "windowStart", "count")
-    VALUES (${storedKey(key)}, ${now}::timestamp, 1)
-    ON CONFLICT ("key") DO UPDATE SET
-      "windowStart" = CASE WHEN r."windowStart" <= ${cutoff}::timestamp
-                           THEN EXCLUDED."windowStart" ELSE r."windowStart" END,
-      "count" = CASE WHEN r."windowStart" <= ${cutoff}::timestamp
-                     THEN 1 ELSE r."count" + 1 END
-    RETURNING "windowStart", "count"`;
-  const row = rows[0];
-  if (!row) throw new Error('Rate limit check returned no row');
+
+  await prisma.authRateLimit.updateMany({
+    where: { key: id, windowStart: { lte: cutoff } },
+    data: { windowStart: now, count: 0 },
+  });
+  const row = await prisma.authRateLimit.upsert({
+    where: { key: id },
+    create: { key: id, windowStart: now, count: 1 },
+    update: { count: { increment: 1 } },
+  });
 
   if (row.count <= rule.max) return { allowed: true };
   const endsAt = row.windowStart.getTime() + rule.windowSec * 1000;

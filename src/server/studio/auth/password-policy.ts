@@ -7,6 +7,14 @@ export const MAX_PASSWORD_LENGTH = 128;
 
 export type PasswordProblem = 'TOO_SHORT' | 'TOO_LONG' | 'COMMON';
 
+/** The password does not meet the policy; `reason` says how. */
+export class PasswordPolicyError extends Error {
+  constructor(readonly reason: PasswordProblem) {
+    super(`The password is not acceptable: ${reason}`);
+    this.name = 'PasswordPolicyError';
+  }
+}
+
 let common: ReadonlySet<string> | undefined;
 
 /**

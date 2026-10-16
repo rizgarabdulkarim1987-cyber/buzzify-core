@@ -1,15 +1,17 @@
 import { betterAuth } from 'better-auth';
 import { APIError } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { hashPassword } from 'better-auth/crypto';
 import { nextCookies } from 'better-auth/next-js';
 import { twoFactor } from 'better-auth/plugins/two-factor';
+import { after } from 'next/server';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
 import { getPrisma } from '@/server/data/prisma';
 import { sendEmail } from '@/server/email/send';
 import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/email/templates';
 import { authEnv, type AuthEnv } from '@/server/env';
-import { MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
+import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PasswordPolicyError } from './password-policy';
 
 /** The person an email is for: the address to send to, and what to call them in it. */
 interface Recipient {
@@ -37,9 +39,20 @@ async function deliver(user: Recipient, template: EmailTemplate, params: EmailPa
   }
 }
 
-/** Sends without making the caller wait. */
-function deliverInBackground(user: Recipient, template: EmailTemplate, params: EmailParams): void {
-  void deliver(user, template, params);
+/**
+ * Sends after the response, never inside the request: a request that sends a mail answers as fast as one that does not,
+ * so the response time says nothing about whether an address has an account. `after()` also keeps a serverless
+ * function alive until the send has finished, which a floating promise does not (the platform may freeze the
+ * function the moment the response is out, and the mail is never sent). Without a request scope (tests, scripts) there
+ * is no response to wait for and `after()` throws, so the send simply starts.
+ */
+function sendAfterResponse(user: Recipient, template: EmailTemplate, params: EmailParams): void {
+  const task = () => deliver(user, template, params);
+  try {
+    after(task);
+  } catch {
+    void task();
+  }
 }
 
 /**
@@ -65,22 +78,29 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       maxPasswordLength: MAX_PASSWORD_LENGTH,
       resetPasswordTokenExpiresIn: 3600,
       revokeSessionsOnPasswordReset: true,
-      // Not awaited: the request is answered at the same speed whether or not the address belongs to a user, which
-      // would otherwise show in the response time. The link is the Studio's reset page, not Better Auth's endpoint.
+      // The link is the Studio's reset page, not Better Auth's endpoint.
       sendResetPassword: async ({ user, token }) => {
-        deliverInBackground(user, 'reset', { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
+        sendAfterResponse(user, 'reset', { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
       },
       // The password is already changed and the sessions already ended, so a mail failure must not fail the reset.
       onPasswordReset: async ({ user }) => {
-        deliverInBackground(user, 'passwordChanged', {});
+        sendAfterResponse(user, 'passwordChanged', {});
+      },
+      // The second layer of the password policy. The Studio's actions check it first and say why; this stops every route
+      // that stores a password (reset, change, set, and createPasswordUser) from storing one that fails it.
+      password: {
+        hash: async (password) => {
+          const problem = checkPasswordPolicy(password);
+          if (problem) throw new PasswordPolicyError(problem);
+          return hashPassword(password);
+        },
       },
     },
 
-    // Sent when someone changes their address: to the new one, once the old one has confirmed. Awaited: the person is
-    // signed in, so the response time shows nothing, and the request answers once the mail has left.
+    // Sent when someone changes their address: to the new one, once the old one has confirmed.
     emailVerification: {
       sendVerificationEmail: async ({ user, url }) => {
-        await deliver(user, 'verifyNewEmail', { url });
+        sendAfterResponse(user, 'verifyNewEmail', { url });
       },
     },
 
@@ -94,7 +114,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
         enabled: true,
         // To the old address, which must confirm before the new one is asked to verify.
         sendChangeEmailConfirmation: async ({ user, newEmail, url }) => {
-          await deliver(user, 'changeEmailConfirm', { newEmail, url });
+          sendAfterResponse(user, 'changeEmailConfirm', { newEmail, url });
         },
       },
     },
