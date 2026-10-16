@@ -133,7 +133,7 @@ function idMap<A extends { id: string }, B extends { id: string }>(
  * (in a deactivated category, say); those are left out, since guests could never have been offered them. Any other
  * reference that does not resolve throws.
  */
-export function writeDraftFromSnapshot(tx: Prisma.TransactionClient, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export function writeDraftFromSnapshot(tx: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
 export function writeDraftFromSnapshot(tx: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
 export async function writeDraftFromSnapshot(
   client: AnyDb | ScopedDb,

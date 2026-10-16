@@ -42,7 +42,7 @@ export type PublishOutcome =
  * Throws `PublishError` for a missing or archived menu. A suspended menu gets its revision and stays suspended; a
  * draft becomes PUBLISHED.
  */
-export function publishMenu(tx: Prisma.TransactionClient, args: PublishArgs): Promise<PublishOutcome>;
+export function publishMenu(tx: AnyDb, args: PublishArgs): Promise<PublishOutcome>;
 export function publishMenu(tx: ScopedTx, args: PublishArgs): Promise<PublishOutcome>;
 export async function publishMenu(client: AnyDb | ScopedDb, args: PublishArgs): Promise<PublishOutcome> {
   const tx = delegates(client);
