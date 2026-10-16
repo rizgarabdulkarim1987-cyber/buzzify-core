@@ -3,6 +3,7 @@ import { createPrisma } from '@/server/data/prisma';
 import { publishMenu } from '@/server/publish/publish';
 import { ATELIER } from './seed/atelier';
 import { seedMenu } from './seed/apply';
+import { seedDevUsers } from './seed/users';
 import { assertSeedValid } from './seed/validate';
 
 async function main() {
@@ -39,6 +40,9 @@ async function main() {
       const blocking = outcome.issues.filter((issue) => issue.severity === 'block');
       throw new Error(`The ${slug} seed cannot be published:\n${blocking.map((i) => JSON.stringify(i)).join('\n')}`);
     }
+
+    // Sign-in users for development: skipped without DEV_SEED_PASSWORD, refused in production.
+    await seedDevUsers(prisma, restaurant.id);
 
     console.log(
       `Seeded ${slug} (${menuId}) for ${restaurant.name}: ${ATELIER.products.length} products, ` +

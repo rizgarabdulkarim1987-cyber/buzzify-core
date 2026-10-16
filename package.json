@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:load": "vitest run --config vitest.load.config.ts",
     "test:e2e": "playwright test",
     "perf": "tsx scripts/perf.ts",
     "studio:create-admin": "tsx scripts/create-admin.ts",
@@ -25,6 +26,7 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:seed:load": "tsx prisma/seed-load.ts",
     "postinstall": "prisma generate"
   },
   "dependencies": {

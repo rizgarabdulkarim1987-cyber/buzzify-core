@@ -59,7 +59,9 @@ Stop the database with `npm run db:down`.
 | `npm run test:e2e` | Browser tests with Playwright and axe |
 | `npm run perf` | Lighthouse mobile baseline into `docs/perf/` (needs `build` and `start`) |
 | `npm run db:up` / `db:down` / `db:status` | Embedded PostgreSQL |
-| `npm run db:seed` | Reseeds ATELIER (keeps its restaurant, replaces its menu) |
+| `npm run db:seed` | Reseeds ATELIER (keeps its restaurant, replaces its menu). With `DEV_SEED_PASSWORD` set (see `.env.example`) it also creates `admin@`, `designer@` and `owner@buzzify.test` for signing in to the Studio |
+| `npm run db:seed:load` | Adds 1,000 load-test restaurants with a published menu each, and 20,000 audit rows (replaces its earlier run) |
+| `npm run test:load` | Seeds that into the test database and times the Studio's lists (p95 under 300 ms) |
 | `npm run lint` / `typecheck` | Static checks |
 
 First-time browser tests need `npx playwright install chromium`. `npm run perf` uses the Chromium that

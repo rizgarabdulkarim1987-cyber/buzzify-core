@@ -600,6 +600,9 @@ model AuditLog {
 
   @@index([restaurantId, occurredAt])
   @@index([actorId, occurredAt])
+  /// The Activity filters by one menu and by one kind of change, newest first (`listActivityRows`).
+  @@index([menuId, occurredAt])
+  @@index([action, occurredAt])
   @@index([occurredAt])
   /// The newest change to one row, which a refused save names (`updateWithVersion`).
   @@index([entityType, entityId, occurredAt])
