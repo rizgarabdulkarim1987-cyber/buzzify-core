@@ -55,3 +55,14 @@ export function checkPasswordPolicy(password: string): PasswordProblem | null {
   if (isCommonPassword(password)) return 'COMMON';
   return null;
 }
+
+const PROBLEM_MESSAGES: Record<PasswordProblem, string> = {
+  TOO_SHORT: `Use at least ${MIN_PASSWORD_LENGTH} characters`,
+  TOO_LONG: `Use at most ${MAX_PASSWORD_LENGTH} characters`,
+  COMMON: 'This password is too common. Choose one that is harder to guess',
+};
+
+/** What a form shows next to the password field for a problem `checkPasswordPolicy` found. */
+export function passwordProblemMessage(problem: PasswordProblem): string {
+  return PROBLEM_MESSAGES[problem];
+}

@@ -19,6 +19,9 @@ export const RATE_RULES = {
   'signin:email': { max: 5, windowSec: 600 },
   'totp:user': { max: 5, windowSec: 300 },
   'reset:email': { max: 3, windowSec: 3600 },
+  'reset:ip': { max: 20, windowSec: 3600 },
+  /** A signed-in person's password checks (turning two-factor on or off, new recovery codes, a password change). */
+  'reauth:user': { max: 10, windowSec: 600 },
   'invite:ip': { max: 20, windowSec: 3600 },
 } as const satisfies Record<string, RateRule>;
 

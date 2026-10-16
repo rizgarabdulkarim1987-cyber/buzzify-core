@@ -1,5 +1,5 @@
 import { betterAuth } from 'better-auth';
-import { APIError, createAuthMiddleware } from 'better-auth/api';
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { nextCookies } from 'better-auth/next-js';
 import { twoFactor } from 'better-auth/plugins/two-factor';
@@ -10,10 +10,11 @@ import { getPrisma } from '@/server/data/prisma';
 import { sendEmail } from '@/server/email/send';
 import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/email/templates';
 import { authEnv, type AuthEnv } from '@/server/env';
+import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
 import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
-/** The person an email is for: the address to send to, and what to call them in it. */
-interface Recipient {
+/** The person an email is for: the address to send to, and what to call them in it. Their `locale`, when they have one, picks the language. */
+export interface Recipient {
   email: string;
   name: string;
 }
@@ -45,7 +46,7 @@ async function deliver(user: Recipient, template: EmailTemplate, params: EmailPa
  * function the moment the response is out, and the mail is never sent). Without a request scope (tests, scripts) there
  * is no response to wait for and `after()` throws, so the send simply starts.
  */
-function sendAfterResponse(user: Recipient, template: EmailTemplate, params: EmailParams): void {
+export function sendAfterResponse(user: Recipient, template: EmailTemplate, params: EmailParams): void {
   const task = () => deliver(user, template, params);
   try {
     after(task);
@@ -79,6 +80,46 @@ const enforcePasswordPolicy = createAuthMiddleware(async (ctx) => {
 });
 
 /**
+ * What a link in an email-change message claims, read from the token without checking its signature. It is only used to
+ * decide whether the link needs a session; Better Auth verifies the token itself once the request is let through.
+ */
+function emailLinkClaims(token: unknown): { updateTo?: unknown; requestType?: unknown } {
+  const payload = typeof token === 'string' ? token.split('.')[1] : undefined;
+  if (!payload) return {};
+  try {
+    const claims: unknown = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    return typeof claims === 'object' && claims !== null ? claims : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The last link of an email change (sent to the new address) completes the change, and Better Auth 1.7.10 starts a
+ * session for whoever opens it when their browser has none: no password, no two-factor, and it has no option to turn that
+ * off (`emailVerification.autoSignInAfterVerification` governs plain address verification only, which the Studio does not
+ * use). So the link must be opened in a browser that is already signed in; any other is sent to the sign-in page, and
+ * following the link again from there completes the change. The first link of the change (sent to the old address, which
+ * asks it to confirm) starts no session and needs none.
+ */
+const emailChangeNeedsSession = {
+  id: 'studio-email-change-session',
+  hooks: {
+    before: [
+      {
+        matcher: (ctx: { path?: string }) => ctx.path === '/verify-email',
+        handler: createAuthMiddleware(async (ctx) => {
+          const claims = emailLinkClaims(ctx.query?.token);
+          if (typeof claims.updateTo !== 'string' || claims.requestType === 'change-email-confirmation') return;
+          if (await getSessionFromCtx(ctx)) return;
+          throw ctx.redirect(SIGN_IN_PATH);
+        }),
+      },
+    ],
+  },
+};
+
+/**
  * The Studio's Better Auth instance on `prisma`. Accounts are invitation-only (no public sign-up), a password needs 12
  * to 128 characters, two-factor is time-based codes with ten single-use backup codes, and Better Auth's own emails
  * (password reset, password changed, e-mail change) go out through `sendEmail` in the account's language.
@@ -103,6 +144,8 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       revokeSessionsOnPasswordReset: true,
       // The link is the Studio's reset page, not Better Auth's endpoint.
       sendResetPassword: async ({ user, token }) => {
+        // A deactivated person cannot sign in whatever their password, so there is nothing for a reset to give back.
+        if ((user as { deactivatedAt?: unknown }).deactivatedAt) return;
         sendAfterResponse(user, 'reset', { url: `${baseUrl}/studio/reset?token=${encodeURIComponent(token)}` });
       },
       // The password is already changed and the sessions already ended, so a mail failure must not fail the reset.
@@ -163,7 +206,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     },
 
     // nextCookies must come last: it warns when another plugin follows it.
-    plugins: [twoFactor({ issuer: 'Buzzify Studio', backupCodeOptions: { amount: 10 } }), nextCookies()],
+    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Studio', backupCodeOptions: { amount: 10 } }), nextCookies()],
   });
 }
 

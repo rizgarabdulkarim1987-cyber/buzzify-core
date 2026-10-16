@@ -9,7 +9,7 @@ import { cookieHeader } from '../helpers/auth';
 import { requireTestDb, resetTestData } from '../helpers/db';
 
 // `getActor` reads the session from the request's headers, which only exist inside Next. The test stands in for them.
-vi.mock('next/headers', () => ({ headers: vi.fn() }));
+vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
 
 const GOOD = 'correct horse battery staple';
 const globalForPrisma = globalThis as unknown as { __prisma?: unknown };

@@ -3,17 +3,12 @@ import { notFound, redirect } from 'next/navigation';
 import { getPrisma } from '@/server/data/prisma';
 import { getActor } from '@/server/studio/auth/actor';
 import { requestMeta, runAction, type ActionDef } from './action';
+import { SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from './paths';
+import { runPublicAction, type PublicActionDef } from './public';
 import { runQuery, runQueryForPage, type QueryDef } from './query';
 import { StudioError, type ActionResult } from './result';
 
-/** Where `query()` sends a visitor who is not signed in. */
-export const SIGN_IN_PATH = '/studio/sign-in';
-
-/**
- * Where `query()` sends a Super Admin who has not enrolled in two-factor. The page sits outside the signed-in layout,
- * whose own two-factor redirect would otherwise send it to itself.
- */
-export const TWO_FACTOR_SETUP_PATH = '/studio/setup-two-factor';
+export { SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH };
 
 /**
  * Runs an action for the current request: its signed-in actor, its address and its browser. Each export of the
@@ -23,6 +18,16 @@ export const TWO_FACTOR_SETUP_PATH = '/studio/setup-two-factor';
 export async function invoke<I, O>(def: ActionDef<I, O>, raw: unknown): Promise<ActionResult<O>> {
   const [actor, requestHeaders] = await Promise.all([getActor(), headers()]);
   return runAction(getPrisma(), actor, def, raw, requestMeta(requestHeaders));
+}
+
+/**
+ * Runs an action for a person who is not signed in (signing in, resetting a password): no actor, but the request's
+ * address, browser and headers, which the public action's rate limits and Better Auth calls read. The Server Action file
+ * forwards to this for the unauthenticated flows only.
+ */
+export async function invokePublic<I, O>(def: PublicActionDef<I, O>, raw: unknown): Promise<ActionResult<O>> {
+  const requestHeaders = await headers();
+  return runPublicAction(getPrisma(), def, raw, { ...requestMeta(requestHeaders), headers: requestHeaders });
 }
 
 /** Runs a query for the current request, for read-only Server Actions that client components call (Jump to, say). */

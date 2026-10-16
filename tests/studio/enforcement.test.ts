@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 
 /**
  * The Studio's static rules: every way in from the browser goes through the framework (`defineAction`, `defineQuery`,
- * `invoke`, `invokeQuery`, `invokePublic`, `studioRoute`), and Studio pages never hold a database client. Each rule is
- * a matcher run twice: on inline samples, so the matcher is known to tell a compliant file from a non-compliant one,
+ * `definePublicAction`, `invoke`, `invokeQuery`, `invokePublic`, `studioRoute`), and Studio pages never hold a database
+ * client. Each rule is a matcher run twice: on inline samples, so the matcher is known to tell a compliant file from a non-compliant one,
  * and on the real folders, which are empty until later tasks fill them.
  */
 
@@ -69,6 +69,7 @@ const actionsFileViolations = (source: string) => exportsNotMatching(source, ACT
 
 const DEFINE_ACTION = /export const (\w+) = defineAction\(/;
 const DEFINE_QUERY = /export const (\w+) = defineQuery\(/;
+const DEFINE_PUBLIC_ACTION = /export const (\w+) = definePublicAction\(/;
 
 // Rule 4 -------------------------------------------------------------------------------------------------------------
 
@@ -185,7 +186,7 @@ describe('Studio enforcement rules', () => {
     });
   });
 
-  describe('3. action and query modules export only definitions', () => {
+  describe('3. action, query and public action modules export only definitions', () => {
     it('accepts definitions and refuses anything else', () => {
       expect(exportsNotMatching("export const publish = defineAction({\n  name: 'menu.publish',", DEFINE_ACTION)).toEqual([]);
       expect(exportsNotMatching("export const getMenu = defineQuery({ name: 'menu.get',", DEFINE_QUERY)).toEqual([]);
@@ -196,13 +197,29 @@ describe('Studio enforcement rules', () => {
       expect(exportsNotMatching('export function helper() {}', DEFINE_QUERY)).toHaveLength(1);
     });
 
-    it('holds for src/server/studio/actions and src/server/studio/queries', () => {
+    it('accepts public action definitions in their own folder and refuses anything else', () => {
+      expect(
+        exportsNotMatching("export const signIn = definePublicAction({\n  name: 'session.signIn',", DEFINE_PUBLIC_ACTION),
+      ).toEqual([]);
+      expect(exportsNotMatching('export const signIn = defineAction({', DEFINE_PUBLIC_ACTION)).toHaveLength(1);
+      expect(exportsNotMatching('export const signIn = makePublicAction({', DEFINE_PUBLIC_ACTION)).toHaveLength(1);
+      expect(exportsNotMatching('export async function signIn(input: unknown) {}', DEFINE_PUBLIC_ACTION)).toHaveLength(1);
+      expect(exportsNotMatching('export const LIMIT = 5;', DEFINE_PUBLIC_ACTION)).toHaveLength(1);
+      // An action that needs a signed-in person is not public, and a public one is not an action.
+      expect(exportsNotMatching('export const rename = definePublicAction({', DEFINE_ACTION)).toHaveLength(1);
+      expect(exportsNotMatching('export const rename = defineAction({', DEFINE_PUBLIC_ACTION)).toHaveLength(1);
+    });
+
+    it('holds for src/server/studio/actions, src/server/studio/queries and src/server/studio/public-actions', () => {
       const offenders = [
         ...sourceFiles('src/server/studio/actions').flatMap((path) =>
           exportsNotMatching(read(path), DEFINE_ACTION).map((line) => `${path}: ${line}`),
         ),
         ...sourceFiles('src/server/studio/queries').flatMap((path) =>
           exportsNotMatching(read(path), DEFINE_QUERY).map((line) => `${path}: ${line}`),
+        ),
+        ...sourceFiles('src/server/studio/public-actions').flatMap((path) =>
+          exportsNotMatching(read(path), DEFINE_PUBLIC_ACTION).map((line) => `${path}: ${line}`),
         ),
       ];
       expect(offenders).toEqual([]);

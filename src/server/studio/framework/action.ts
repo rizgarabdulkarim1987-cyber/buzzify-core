@@ -113,7 +113,8 @@ export function requestMeta(source: Headers): RequestMeta {
   });
 }
 
-function clampMeta(meta: RequestMeta): RequestMeta {
+/** `meta` capped to what the audit log keeps. */
+export function clampMeta(meta: RequestMeta): RequestMeta {
   return { ip: String(meta.ip ?? '').slice(0, MAX_IP), userAgent: String(meta.userAgent ?? '').slice(0, MAX_USER_AGENT) };
 }
 

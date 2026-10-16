@@ -96,6 +96,8 @@ describe('RATE_RULES', () => {
       'signin:email': { max: 5, windowSec: 600 },
       'totp:user': { max: 5, windowSec: 300 },
       'reset:email': { max: 3, windowSec: 3600 },
+      'reset:ip': { max: 20, windowSec: 3600 },
+      'reauth:user': { max: 10, windowSec: 600 },
       'invite:ip': { max: 20, windowSec: 3600 },
     });
   });

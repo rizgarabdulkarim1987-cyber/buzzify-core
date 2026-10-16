@@ -12,8 +12,9 @@ import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { cookieHeader } from '../helpers/auth';
 import { requireTestDb, resetTestData } from '../helpers/db';
 
-// Server Actions and pages read the request through `headers()`, which only exists inside Next. The test stands in for it.
-vi.mock('next/headers', () => ({ headers: vi.fn() }));
+// Server Actions and pages read the request through `headers()`, which only exists inside Next. The test stands in for it;
+// without a request to answer for, `headers()` gives empty headers, as Better Auth's cookie plugin expects of it.
+vi.mock('next/headers', () => ({ headers: vi.fn(async () => new Headers()), cookies: vi.fn() }));
 
 const PASSWORD = 'correct horse battery staple';
 const ORIGIN = 'http://127.0.0.1:3100';
