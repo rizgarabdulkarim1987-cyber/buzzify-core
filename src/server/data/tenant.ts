@@ -35,6 +35,8 @@ export interface TenantInfo {
   numeralSystem: 'latn' | 'arab';
   engineConfig: EngineConfig;
   brand: BrandView;
+  /** Search and sharing text by language, as set on the menu; a language without an entry uses the name. */
+  seo: Partial<Record<Locale, { title: string; description: string }>>;
 }
 
 export { getTenant } from './public-menu';

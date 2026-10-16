@@ -3,7 +3,9 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
 import { direction, isLocale } from '@/lib/locale';
-import { resolveRoute } from '@/server/route-context';
+import { env } from '@/server/env';
+import { resolvePublicRoute } from '@/server/public-page';
+import { menuAlternates } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss } from '@/ui/brand';
 
@@ -12,10 +14,19 @@ export async function generateMetadata({
 }: {
   params: Promise<{ tenant: string; locale: string }>;
 }): Promise<Metadata> {
-  const route = await resolveRoute(await params);
-  if (!route) return { title: 'Not found' };
-  const name = route.tenant.name;
-  return { title: { default: name, template: `%s | ${name}` }, icons: { icon: iconFor(route.tenant.brand) } };
+  const resolved = await resolvePublicRoute(await params);
+  // A menu that is paused or missing (or has moved, and is about to redirect) stays out of search results.
+  if (resolved.kind === 'unavailable') return { title: resolved.name, robots: { index: false } };
+  if (resolved.kind !== 'live') return { title: 'Not found', robots: { index: false } };
+
+  const { tenant, locale } = resolved.route;
+  const seo = tenant.seo[locale];
+  return {
+    title: { default: seo?.title || tenant.name, template: `%s | ${tenant.name}` },
+    ...(seo?.description ? { description: seo.description } : {}),
+    icons: { icon: iconFor(tenant.brand) },
+    alternates: menuAlternates(env().publicOrigin, tenant, locale),
+  };
 }
 
 /**
@@ -36,10 +47,19 @@ export default async function RootLayout({
   params: Promise<{ tenant: string; locale: string }>;
 }) {
   const raw = await params;
-  const route = await resolveRoute(raw);
+  const resolved = await resolvePublicRoute(raw);
 
-  // Unknown tenant or locale: render a bare shell so the page can call notFound() with a real 404.
-  if (!route) {
+  // A paused menu: the neutral page, in the visitor's language and the platform's own colours.
+  if (resolved.kind === 'unavailable') {
+    return (
+      <html lang={resolved.locale} dir={direction(resolved.locale)} className={fontVariablesFor(resolved.locale)}>
+        <body className="bg-bg font-sans text-text antialiased">{children}</body>
+      </html>
+    );
+  }
+
+  // Unknown menu or language, or a former slug: render a bare shell so the page can answer with a real 404 or redirect.
+  if (resolved.kind !== 'live') {
     return (
       <html lang={isLocale(raw.locale) ? raw.locale : 'en'} className={fontVariablesFor(null)}>
         <body>{children}</body>
@@ -47,7 +67,7 @@ export default async function RootLayout({
     );
   }
 
-  const { tenant, locale } = route;
+  const { tenant, locale } = resolved.route;
   return (
     <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale)}>
       <head>

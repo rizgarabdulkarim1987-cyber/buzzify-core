@@ -16,6 +16,7 @@ const tenant: TenantInfo = {
   timeZone: 'Asia/Baghdad',
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
+  seo: {},
   brand: {
     logoText: 'TEST',
     theme: 'dark',

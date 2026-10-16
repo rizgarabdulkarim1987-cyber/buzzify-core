@@ -1,0 +1,155 @@
+import { expect, test as base } from '@playwright/test';
+import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
+
+/** Each test that changes a menu gets its own throwaway one, deleted afterwards whatever the outcome. */
+const test = base.extend<{ menu: TemporaryMenu }>({
+  menu: async ({}, provide) => {
+    const menu = await createTemporaryMenu();
+    try {
+      await provide(menu);
+    } finally {
+      await menu.remove();
+    }
+  },
+});
+
+test.describe('the address on a card or a QR code', () => {
+  test('/atelier opens the menu in the default language', async ({ page, request }) => {
+    const raw = await request.get('/atelier', { maxRedirects: 0 });
+    expect(raw.status()).toBe(307);
+    expect(raw.headers()['location']).toBe('/atelier/en');
+
+    await page.goto('/atelier');
+    await expect(page).toHaveURL(/\/atelier\/en$/);
+    await expect(page.getByTestId('brand')).toHaveText('ATELIER');
+  });
+
+  test('keeps the query string', async ({ page }) => {
+    await page.goto('/atelier?utm_source=card');
+    await expect(page).toHaveURL(/\/atelier\/en\?utm_source=card$/);
+  });
+
+  test.describe('with Arabic as the browser language', () => {
+    test.use({ locale: 'ar-IQ' });
+
+    test('/atelier opens the Arabic menu', async ({ page }) => {
+      await page.goto('/atelier');
+      await expect(page).toHaveURL(/\/atelier\/ar$/);
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    });
+
+    test('a table address opens the Arabic table page', async ({ page }) => {
+      await page.goto('/atelier/t/04');
+      await expect(page).toHaveURL(/\/atelier\/ar\/t\/04$/);
+      await expect(page.getByText('الطاولة 04')).toBeVisible();
+    });
+  });
+
+  test.describe('with Kurdish as the browser language', () => {
+    test.use({ locale: 'ku-IQ' });
+
+    test('/atelier opens the Sorani menu', async ({ page }) => {
+      await page.goto('/atelier');
+      await expect(page).toHaveURL(/\/atelier\/ckb$/);
+    });
+  });
+
+  test('/atelier/t/04 opens the table page in English', async ({ page }) => {
+    await page.goto('/atelier/t/04');
+    await expect(page).toHaveURL(/\/atelier\/en\/t\/04$/);
+    await expect(page.getByText('Table 04')).toBeVisible();
+  });
+
+  test('an unknown slug is a 404, with or without a language', async ({ request }) => {
+    for (const path of ['/definitely-not-a-menu', '/definitely-not-a-menu/en', '/definitely-not-a-menu/t/04']) {
+      expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404);
+    }
+  });
+});
+
+test.describe('a renamed menu', () => {
+  test('the old address answers a permanent redirect to the new one, keeping the path and query', async ({
+    menu,
+    page,
+    request,
+  }) => {
+    const renamed = await menu.rename();
+    const old = `/${menu.slug}/en/p/${menu.productSlug}?x=1`;
+
+    const raw = await request.get(old, { maxRedirects: 0 });
+    expect(raw.status()).toBe(308);
+    expect(raw.headers()['location']).toBe(`/${renamed}/en/p/${menu.productSlug}?x=1`);
+
+    await page.goto(old);
+    await expect(page).toHaveURL(new RegExp(`/${renamed}/en/p/${menu.productSlug}\\?x=1$`));
+    await expect(page.getByRole('heading', { name: 'Espresso' })).toBeVisible();
+  });
+
+  test('the old menu, table and cart addresses follow the rename too', async ({ menu, request }) => {
+    const renamed = await menu.rename();
+
+    const home = await request.get(`/${menu.slug}/ar`, { maxRedirects: 0 });
+    expect([home.status(), home.headers()['location']]).toEqual([308, `/${renamed}/ar`]);
+
+    const cart = await request.get(`/${menu.slug}/en/cart`, { maxRedirects: 0 });
+    expect([cart.status(), cart.headers()['location']]).toEqual([308, `/${renamed}/en/cart`]);
+
+    const entry = await request.get(`/${menu.slug}`, { maxRedirects: 0 });
+    expect([entry.status(), entry.headers()['location']]).toEqual([307, `/${renamed}/en`]);
+
+    const table = await request.get(`/${menu.slug}/t/9`, { maxRedirects: 0 });
+    expect([table.status(), table.headers()['location']]).toEqual([307, `/${renamed}/en/t/9`]);
+  });
+});
+
+test.describe('a suspended menu', () => {
+  test('shows the neutral page with the restaurant name, and stays out of search results', async ({ menu, page }) => {
+    await menu.suspend();
+    await page.goto(`/${menu.slug}/en`);
+
+    await expect(page.getByTestId('menu-unavailable')).toBeVisible();
+    await expect(page.getByRole('heading', { name: menu.name })).toBeVisible();
+    await expect(page.getByText('This menu is temporarily unavailable.')).toBeVisible();
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+    await expect(page.getByRole('button', { name: /Espresso/ })).toHaveCount(0);
+  });
+
+  test('speaks the visitor’s language, also on inner pages', async ({ menu, page }) => {
+    await menu.suspend();
+    await page.goto(`/${menu.slug}/ar/cart`);
+
+    await expect(page.locator('html')).toHaveAttribute('lang', 'ar');
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(page.getByText('هذه القائمة غير متاحة مؤقتًا.')).toBeVisible();
+  });
+});
+
+test.describe('search engines', () => {
+  test('a live menu names its canonical address and its translations, and is indexable', async ({ page }) => {
+    await page.goto('/atelier/ar');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:3100/atelier/ar');
+    for (const locale of ['en', 'ar', 'ckb']) {
+      await expect(page.locator(`link[rel="alternate"][hreflang="${locale}"]`)).toHaveAttribute(
+        'href',
+        `http://127.0.0.1:3100/atelier/${locale}`,
+      );
+    }
+    await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+  });
+
+  test('a product page names itself as canonical', async ({ page }) => {
+    await page.goto('/atelier/en/p/atelier-burger');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      'http://127.0.0.1:3100/atelier/en/p/atelier-burger',
+    );
+  });
+});
+
+test.describe('the root address', () => {
+  test('goes to the Studio on a development host', async ({ request }) => {
+    const response = await request.get('/', { maxRedirects: 0 });
+    expect(response.status()).toBe(307);
+    expect(new URL(response.headers()['location']!, 'http://127.0.0.1:3100').pathname).toBe('/studio');
+  });
+});

@@ -8,6 +8,7 @@ const en: Messages = {
   'menu.noResults': 'Nothing matches “{query}”. Try another word.',
   'menu.clearSearch': 'Clear search',
   'menu.categories': 'Menu categories',
+  'menu.unavailable': 'This menu is temporarily unavailable.',
   'signature.BREAKFAST': 'This morning’s pick',
   'signature.LUNCH': 'Today’s pick',
   'signature.DINNER': 'Tonight’s pick',

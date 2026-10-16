@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
 import { getTranslator } from '@/lib/messages';
-import { loadMenuView, resolveRoute } from '@/server/route-context';
+import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
+import { loadMenuView } from '@/server/route-context';
 import { ExploreApp } from '@/ui/explore/ExploreApp';
 
 export async function generateMetadata({
@@ -9,13 +9,19 @@ export async function generateMetadata({
 }: {
   params: Promise<{ tenant: string; locale: string }>;
 }): Promise<Metadata> {
-  const route = await resolveRoute(await params);
-  return { title: route ? getTranslator(route.locale)('explore.title') : 'Not found' };
+  const resolved = await resolvePublicRoute(await params);
+  return resolved.kind === 'live' ? { title: getTranslator(resolved.route.locale)('explore.title') } : {};
 }
 
-export default async function Page({ params }: { params: Promise<{ tenant: string; locale: string }> }) {
-  const route = await resolveRoute(await params);
-  if (!route) notFound();
-  const view = await loadMenuView(route);
-  return <ExploreApp view={view} />;
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string; locale: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  return withPublicMenu(await params, '/explore', searchString(await searchParams), async (route) => {
+    const view = await loadMenuView(route);
+    return <ExploreApp view={view} />;
+  });
 }

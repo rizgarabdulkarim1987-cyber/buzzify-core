@@ -8,6 +8,7 @@ const ar: Messages = {
   'menu.noResults': 'لا يوجد ما يطابق «{query}». جرّب كلمة أخرى.',
   'menu.clearSearch': 'مسح البحث',
   'menu.categories': 'أقسام القائمة',
+  'menu.unavailable': 'هذه القائمة غير متاحة مؤقتًا.',
   'signature.BREAKFAST': 'اختيار هذا الصباح',
   'signature.LUNCH': 'اختيار اليوم',
   'signature.DINNER': 'اختيار الليلة',

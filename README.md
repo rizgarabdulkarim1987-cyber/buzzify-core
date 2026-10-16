@@ -38,8 +38,10 @@ Port 3100 is used because 3000 is often taken. Other routes:
 
 | URL | Page |
 |---|---|
+| `/atelier` | Opens the menu in the browser’s language (the menu’s default language when it has none of them) |
 | `/atelier/en`, `/atelier/ar`, `/atelier/ckb` | Quick Menu |
 | `/atelier/en/t/04` | QR entry for Table 04 |
+| `/atelier/t/04` | The same, without a language: what a table’s QR code carries |
 | `/atelier/en/p/atelier-burger` | Product page |
 | `/atelier/en/cart` | Cart and order review |
 

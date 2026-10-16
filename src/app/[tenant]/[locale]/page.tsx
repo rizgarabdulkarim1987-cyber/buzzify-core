@@ -1,10 +1,16 @@
-import { notFound } from 'next/navigation';
-import { loadMenuView, resolveRoute } from '@/server/route-context';
+import { searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
+import { loadMenuView } from '@/server/route-context';
 import { MenuApp } from '@/ui/menu/MenuApp';
 
-export default async function Page({ params }: { params: Promise<{ tenant: string; locale: string }> }) {
-  const route = await resolveRoute(await params);
-  if (!route) notFound();
-  const view = await loadMenuView(route);
-  return <MenuApp view={view} />;
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ tenant: string; locale: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  return withPublicMenu(await params, '', searchString(await searchParams), async (route) => {
+    const view = await loadMenuView(route);
+    return <MenuApp view={view} />;
+  });
 }

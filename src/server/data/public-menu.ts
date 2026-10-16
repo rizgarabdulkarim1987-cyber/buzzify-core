@@ -52,6 +52,7 @@ function tenantInfo(
     numeralSystem: settings.numeralSystem,
     engineConfig: settings.engineConfig,
     brand: snapshot.brand,
+    seo: settings.seo,
   };
 }
 
