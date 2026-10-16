@@ -1,4 +1,3 @@
-import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
 import { toVisualKey } from '@/server/domain/types';
 import type {
@@ -8,9 +7,7 @@ import type {
   Daypart,
   TranslationMap,
 } from '@/server/domain/types';
-import { cached } from './cache';
-import { getPrisma } from './prisma';
-import { menuDb } from './tenant-db';
+import { delegates, type AnyDb, type ScopedDb } from './tenant-db';
 
 function translationMap(value: unknown): TranslationMap {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as TranslationMap) : {};
@@ -25,27 +22,39 @@ function ingredientMap(value: unknown): Partial<Record<Locale, string[]>> {
   return result;
 }
 
-/** Reads a menu's draft rows into the domain catalog. What guests see until publishing exists. */
-export async function loadDraftCatalog(prisma: PrismaClient, menuId: string): Promise<Catalog> {
-  const menu = await prisma.menu.findUniqueOrThrow({ where: { id: menuId } });
-  const db = menuDb(prisma, menuId);
+/**
+ * Reads a menu's draft rows into the domain catalog: what publishing freezes into a revision. Guests never see this
+ * directly; they see the live revision (`src/server/data/public-menu.ts`).
+ *
+ * Every query names the menu itself, so this works on any client, including a transaction (which cannot be scoped
+ * after the fact). The queries run one after another because a transaction has a single connection. Rows that share a
+ * sort order fall back to id order, so the same draft always loads, and hashes, the same way.
+ */
+export function loadDraftCatalog(db: AnyDb, menuId: string): Promise<Catalog>;
+export function loadDraftCatalog(db: ScopedDb, menuId: string): Promise<Catalog>;
+export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string): Promise<Catalog> {
+  const db = delegates(client);
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId } });
+  const bySortOrder = [{ sortOrder: 'asc' as const }, { id: 'asc' as const }];
 
-  const [categories, products, upsellRules, pairingRules, bundles, schedule] = await Promise.all([
-    db.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
-    db.product.findMany({
-      // Deactivating a category pulls its products from sale, not just from the headings.
-      where: { category: { isActive: true } },
-      orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
-      include: {
-        variants: { orderBy: { sortOrder: 'asc' } },
-        groups: { orderBy: { sortOrder: 'asc' }, include: { options: { orderBy: { sortOrder: 'asc' } } } },
-      },
-    }),
-    db.upsellRule.findMany({ where: { isActive: true } }),
-    db.pairingRule.findMany({ where: { isActive: true } }),
-    db.bundle.findMany({ where: { isActive: true }, include: { items: true }, orderBy: { slug: 'asc' } }),
-    db.daypartSchedule.findMany({ orderBy: { startMinute: 'asc' } }),
-  ]);
+  const categories = await db.category.findMany({ where: { menuId, isActive: true }, orderBy: { sortOrder: 'asc' } });
+  const products = await db.product.findMany({
+    // Deactivating a category pulls its products from sale, not just from the headings.
+    where: { menuId, category: { isActive: true } },
+    orderBy: [{ sortOrder: 'asc' }, { slug: 'asc' }],
+    include: {
+      variants: { orderBy: bySortOrder },
+      groups: { orderBy: bySortOrder, include: { options: { orderBy: bySortOrder } } },
+    },
+  });
+  const upsellRules = await db.upsellRule.findMany({ where: { menuId, isActive: true } });
+  const pairingRules = await db.pairingRule.findMany({ where: { menuId, isActive: true } });
+  const bundles = await db.bundle.findMany({
+    where: { menuId, isActive: true },
+    include: { items: { orderBy: { id: 'asc' } } },
+    orderBy: { slug: 'asc' },
+  });
+  const schedule = await db.daypartSchedule.findMany({ where: { menuId }, orderBy: { startMinute: 'asc' } });
 
   return {
     menuId,
@@ -143,11 +152,4 @@ export async function loadDraftCatalog(prisma: PrismaClient, menuId: string): Pr
       daysOfWeek: s.daysOfWeek,
     })),
   };
-}
-
-export function getCatalog(menuId: string): Promise<Catalog> {
-  return cached(() => loadDraftCatalog(getPrisma(), menuId), ['catalog', menuId], {
-    revalidate: 300,
-    tags: [`catalog:${menuId}`],
-  })();
 }

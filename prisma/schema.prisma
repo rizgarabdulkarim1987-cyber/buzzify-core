@@ -110,7 +110,7 @@ model Branch {
   @@index([restaurantId])
 }
 
-/// What a guest opens: one slug, one catalog, one brand. Until publishing exists the public pages read the draft.
+/// What a guest opens: one slug, one catalog, one brand. The catalog rows are the draft; guests see the live revision.
 model Menu {
   id                  String        @id @default(cuid())
   restaurantId        String

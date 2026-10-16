@@ -92,6 +92,34 @@ describe('public API', () => {
       expect(result.hasBlockingIssues).toBe(true);
     });
 
+    it('prices against the live revision, not the draft', async () => {
+      await prisma.product.update({ where: { id: burgerId }, data: { basePrice: 5000 } });
+      try {
+        const response = await post(quote, 'atelier', {
+          locale: 'en',
+          cart: { lines: [{ productId: burgerId, variantId: null, optionIds: [], quantity: 1 }], bundles: [] },
+        });
+        expect((await response.json()).quote.subtotal).toBe(900);
+      } finally {
+        await prisma.product.update({ where: { id: burgerId }, data: { basePrice: 900 } });
+      }
+    });
+
+    it('treats a hidden product as unknown at once, without a publish', async () => {
+      await prisma.product.update({ where: { id: friesId }, data: { isHidden: true } });
+      try {
+        const response = await post(quote, 'atelier', {
+          locale: 'en',
+          cart: { lines: [{ productId: friesId, variantId: null, optionIds: [], quantity: 1 }], bundles: [] },
+        });
+        const { quote: result } = await response.json();
+        expect(result.lines[0].issues[0].code).toBe('UNKNOWN_PRODUCT');
+        expect(result.subtotal).toBe(0);
+      } finally {
+        await prisma.product.update({ where: { id: friesId }, data: { isHidden: false } });
+      }
+    });
+
     it('prices a bundle at its bundle price', async () => {
       const response = await post(quote, 'atelier', {
         locale: 'en',

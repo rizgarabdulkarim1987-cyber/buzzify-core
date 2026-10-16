@@ -1,5 +1,6 @@
 import type { z } from 'zod';
-import { getTenant, type TenantInfo } from '@/server/data/tenant';
+import { getTenant } from '@/server/data/public-menu';
+import type { TenantInfo } from '@/server/data/tenant';
 import { createRateLimiter } from './rate-limit';
 
 const MAX_BODY_BYTES = 32 * 1024;

@@ -1,4 +1,4 @@
-import { getCatalog } from '@/server/data/catalog-loader';
+import { getCatalog } from '@/server/data/public-menu';
 import { buildSearchIndex } from '@/server/data/menu-view';
 import { handleTenantRequest } from '@/server/http/route';
 import { searchIndexRequestSchema } from '@/server/http/schemas';
@@ -13,7 +13,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ tenant: st
     ctx,
     { schema: searchIndexRequestSchema, route: 'search-index', limit: 30 },
     async ({ tenant, now }) => {
-      const catalog = await getCatalog(tenant.id);
+      const catalog = await getCatalog(tenant);
       return Response.json({ keys: buildSearchIndex(catalog, now) });
     },
   );

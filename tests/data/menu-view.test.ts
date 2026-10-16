@@ -6,6 +6,8 @@ import { at, IDS, makeCatalog, withProduct } from '../domain/fixtures';
 
 const tenant: TenantInfo = {
   id: 'r-test',
+  restaurantId: 'restaurant-test',
+  revisionId: 'revision-test',
   slug: 'test',
   name: 'Test',
   currency: 'USD',

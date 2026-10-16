@@ -158,3 +158,19 @@ export type ScopedClient = ReturnType<typeof scopedClient>;
 
 /** The client a `scopedClient(...).$transaction(async (tx) => ...)` callback receives. */
 export type ScopedTx = Omit<ScopedClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>;
+
+/** A scoped client or a transaction of one. */
+export type ScopedDb = ScopedClient | ScopedTx;
+
+/**
+ * The model delegates every client has: the app's client and its transactions are this type. Code that takes any
+ * client declares two overloads, one for `AnyDb` and one for `ScopedDb` (TypeScript cannot check a call against a
+ * single union of both kinds: the comparison is too deep), and works through `delegates(db)`. It cannot scope the
+ * client further, since a transaction has no `$extends`, so it names the menu in every query's `where` itself.
+ */
+export type AnyDb = Omit<Prisma.TransactionClient, '$transaction'>;
+
+/** Either kind of client, seen through the delegates they share. The two differ only in their TypeScript types. */
+export function delegates(db: AnyDb | ScopedDb): AnyDb {
+  return db as unknown as AnyDb;
+}

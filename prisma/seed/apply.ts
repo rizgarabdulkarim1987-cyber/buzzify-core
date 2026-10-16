@@ -14,8 +14,8 @@ function translations(fields: Record<string, Tri>): TranslationJson {
 }
 
 /**
- * Writes a menu's draft catalog under an existing restaurant, replacing any menu with the same slug. The demo menu is
- * PUBLISHED: until publishing exists, guests read the draft rows of a published menu.
+ * Writes a menu's draft catalog under an existing restaurant, replacing any menu with the same slug. The menu is a
+ * DRAFT: guests see it once it is published (`publishMenu`), as `prisma/seed.ts` does next.
  */
 export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantId: string): Promise<{ menuId: string }> {
   await prisma.menu.deleteMany({ where: { slug: data.restaurant.slug } });
@@ -26,7 +26,6 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
       restaurantId,
       name: r.name,
       slug: r.slug,
-      status: 'PUBLISHED',
       currency: r.currency,
       defaultLocale: r.defaultLocale,
       locales: r.locales,

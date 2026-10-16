@@ -6,6 +6,7 @@ import type { EngineConfig } from './config';
 import {
   DAYPARTS,
   LOCALES,
+  VISUAL_KEYS,
   type Catalog,
   type CatalogGroup,
   type CatalogOption,
@@ -119,7 +120,7 @@ const snapshotOption = z.object({
   costDelta: nullableNumber,
   isSuggested: z.boolean(),
   suggestPriority: z.number(),
-  visualKey: z.enum(['cheese', 'patty', 'bacon']).nullable(),
+  visualKey: z.enum(VISUAL_KEYS).nullable(),
   translations,
 });
 

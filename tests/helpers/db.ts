@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
+import { publishMenu } from '@/server/publish/publish';
 import { seedMenu } from '../../prisma/seed/apply';
 import { ATELIER } from '../../prisma/seed/atelier';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
@@ -26,7 +27,18 @@ export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.restaurant.deleteMany();
 }
 
-export async function createMenuFixture(prisma: PrismaClient, slug: string) {
+/** Publishes a menu the way the seed does, and fails the test setup if anything blocks it. */
+export async function publishFixture(prisma: PrismaClient, menuId: string, note = 'Fixture') {
+  const outcome = await prisma.$transaction((tx) => publishMenu(tx, { menuId, actorId: null, note, now: new Date() }));
+  if (!outcome.ok) throw new Error(`Fixture menu ${menuId} cannot be published: ${JSON.stringify(outcome.issues)}`);
+  return outcome;
+}
+
+/**
+ * A restaurant with one menu (one category, one product priced 300) and its slug. The menu is published unless
+ * `publish` is false, so `menu` is the row as it stands afterwards: PUBLISHED, with its live revision.
+ */
+export async function createMenuFixture(prisma: PrismaClient, slug: string, { publish = true }: { publish?: boolean } = {}) {
   const restaurant = await prisma.restaurant.create({ data: { name: `Restaurant ${slug}` } });
   const menu = await prisma.menu.create({
     data: {
@@ -52,10 +64,14 @@ export async function createMenuFixture(prisma: PrismaClient, slug: string) {
       translations: { en: { name: 'Espresso', description: 'Short and strong' } },
     },
   });
-  return { restaurant, menu, category, product };
+  if (publish) await publishFixture(prisma, menu.id);
+  return { restaurant, menu: await prisma.menu.findUniqueOrThrow({ where: { id: menu.id } }), category, product };
 }
 
-/** The ATELIER demo: its restaurant, its published menu with the full catalog, and the menu's reserved slug. */
+/**
+ * The ATELIER demo as `npm run db:seed` leaves it: its restaurant, its menu with the full catalog published as
+ * revision 1, and the menu's reserved slug.
+ */
 export async function seedAtelier(prisma: PrismaClient) {
   const restaurant = await prisma.restaurant.create({
     data: { name: ATELIER.profile.name, type: ATELIER.profile.type, city: ATELIER.profile.city, country: ATELIER.profile.country },
@@ -66,5 +82,6 @@ export async function seedAtelier(prisma: PrismaClient) {
     create: { slug: ATELIER.restaurant.slug, menuId },
     update: { menuId },
   });
+  await publishFixture(prisma, menuId, 'Seed');
   return { restaurant, menuId };
 }

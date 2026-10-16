@@ -1,4 +1,4 @@
-import { getCatalog } from '@/server/data/catalog-loader';
+import { getCatalog } from '@/server/data/public-menu';
 import { describeSuggestions } from '@/server/data/suggestion-view';
 import { buildSuggestions } from '@/server/domain';
 import { handleTenantRequest } from '@/server/http/route';
@@ -10,7 +10,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ tenant: st
     ctx,
     { schema: suggestionsRequestSchema, route: 'suggestions', limit: 90 },
     async ({ tenant, input, now }) => {
-      const catalog = await getCatalog(tenant.id);
+      const catalog = await getCatalog(tenant);
       const response = buildSuggestions(catalog, input, now, tenant.engineConfig);
       return Response.json(describeSuggestions(catalog, response, input.locale, input.cart));
     },

@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { createPrisma } from '@/server/data/prisma';
+import { publishMenu } from '@/server/publish/publish';
 import { ATELIER } from './seed/atelier';
 import { seedMenu } from './seed/apply';
 import { assertSeedValid } from './seed/validate';
@@ -30,7 +31,19 @@ async function main() {
     const slug = ATELIER.restaurant.slug;
     await prisma.menuSlug.upsert({ where: { slug }, create: { slug, menuId }, update: { menuId } });
 
-    console.log(`Seeded ${slug} (${menuId}) for ${restaurant.name}: ${ATELIER.products.length} products`);
+    // Guests see only what is published, so the demo menu goes live as revision 1.
+    const outcome = await prisma.$transaction((tx) =>
+      publishMenu(tx, { menuId, actorId: null, note: 'Seed', now: new Date() }),
+    );
+    if (!outcome.ok) {
+      const blocking = outcome.issues.filter((issue) => issue.severity === 'block');
+      throw new Error(`The ${slug} seed cannot be published:\n${blocking.map((i) => JSON.stringify(i)).join('\n')}`);
+    }
+
+    console.log(
+      `Seeded ${slug} (${menuId}) for ${restaurant.name}: ${ATELIER.products.length} products, ` +
+        `published as revision ${outcome.number} with ${outcome.warnings.length} warnings`,
+    );
   } finally {
     await prisma.$disconnect();
   }

@@ -1,6 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
+import type { PrismaClient } from '@/generated/prisma/client';
+import { validateForPublish } from '@/server/domain/publish-rules';
+import { parseSnapshot } from '@/server/domain/snapshot';
 import { ATELIER, type SeedData } from '../../prisma/seed/atelier';
 import { validateSeed } from '../../prisma/seed/validate';
+import { resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
 const clone = (): SeedData => structuredClone(ATELIER);
 
@@ -89,5 +93,28 @@ describe('validateSeed', () => {
     const data = clone();
     data.products[0]!.cost = data.products[0]!.price;
     expect(validateSeed(data).join('\n')).toMatch(/cost/i);
+  });
+});
+
+describe('seeded ATELIER (database)', () => {
+  let prisma: PrismaClient | undefined;
+
+  afterAll(async () => {
+    if (!prisma) return;
+    await resetTestData(prisma);
+    await prisma.$disconnect();
+  });
+
+  it('goes live as revision 1 with nothing blocking', async () => {
+    prisma = testPrisma();
+    await resetTestData(prisma);
+    const { menuId } = await seedAtelier(prisma);
+    const menu = await prisma.menu.findUniqueOrThrow({ where: { id: menuId }, include: { liveRevision: true } });
+    expect(menu).toMatchObject({ status: 'PUBLISHED', slug: 'atelier' });
+    expect(menu.liveRevision).toMatchObject({ number: 1, note: 'Seed', createdById: null });
+    expect(menu.liveHash).toBe(menu.draftHash);
+    const snapshot = parseSnapshot(menu.liveRevision!.snapshot);
+    expect(snapshot.catalog.products).toHaveLength(ATELIER.products.length);
+    expect(validateForPublish(snapshot).filter((issue) => issue.severity === 'block')).toEqual([]);
   });
 });

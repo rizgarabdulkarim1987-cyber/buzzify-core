@@ -1,19 +1,16 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
-import { findTenant } from '@/server/data/tenant';
+import { menuDb } from '@/server/data/tenant-db';
 import { recordEvents } from '@/server/data/events';
-import { resetTestData, seedAtelier, testPrisma } from '../helpers/db';
+import { createMenuFixture, resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
 const prisma = testPrisma();
-let restaurantId = '';
 let menuId = '';
 
 describe('data layer (database)', () => {
   beforeAll(async () => {
     await resetTestData(prisma);
-    const seeded = await seedAtelier(prisma);
-    restaurantId = seeded.restaurant.id;
-    menuId = seeded.menuId;
+    menuId = (await seedAtelier(prisma)).menuId;
   });
   afterAll(async () => {
     await resetTestData(prisma);
@@ -70,35 +67,31 @@ describe('data layer (database)', () => {
     }
   });
 
-  it('resolves a tenant by slug and by host', async () => {
-    const bySlug = await findTenant(prisma, { slug: 'atelier' });
-    expect(bySlug?.name).toBe('ATELIER');
-    expect(bySlug?.locales).toEqual(['en', 'ar', 'ckb']);
-    expect(bySlug?.brand.tokens.dark.accent).toBe('#D6BC8A');
-    const byHost = await findTenant(prisma, { host: 'atelier.localhost' });
-    expect(byHost?.id).toBe(bySlug?.id);
+  it('orders variants, groups and options that share a sort order by id', async () => {
+    const burger = await prisma.product.findFirstOrThrow({
+      where: { menuId, slug: 'atelier-burger' },
+      include: { groups: { include: { options: true } } },
+    });
+    const options = burger.groups[0]!.options;
+    try {
+      await prisma.modifierOption.updateMany({ where: { id: { in: options.map((o) => o.id) } }, data: { sortOrder: 0 } });
+      const loaded = (await loadDraftCatalog(prisma, menuId)).products.find((p) => p.id === burger.id)!;
+      expect(loaded.groups[0]!.options.map((o) => o.id)).toEqual(options.map((o) => o.id).sort());
+    } finally {
+      for (const option of options) {
+        await prisma.modifierOption.update({ where: { id: option.id }, data: { sortOrder: option.sortOrder } });
+      }
+    }
   });
 
-  it('rejects unknown and malformed tenants', async () => {
-    expect(await findTenant(prisma, { slug: 'nope' })).toBeNull();
-    expect(await findTenant(prisma, { slug: "x'; DROP TABLE" })).toBeNull();
-    expect(await findTenant(prisma, { slug: '' })).toBeNull();
-    expect(await findTenant(prisma, { host: 'unknown.example' })).toBeNull();
-  });
-
-  it('serves only a published menu of an active restaurant', async () => {
-    for (const status of ['DRAFT', 'SUSPENDED', 'ARCHIVED'] as const) {
-      await prisma.menu.update({ where: { id: menuId }, data: { status } });
-      expect(await findTenant(prisma, { slug: 'atelier' }), `menu ${status}`).toBeNull();
-      expect(await findTenant(prisma, { host: 'atelier.localhost' }), `menu ${status} by host`).toBeNull();
-    }
-    await prisma.menu.update({ where: { id: menuId }, data: { status: 'PUBLISHED' } });
-    for (const status of ['SUSPENDED', 'ARCHIVED'] as const) {
-      await prisma.restaurant.update({ where: { id: restaurantId }, data: { status } });
-      expect(await findTenant(prisma, { slug: 'atelier' }), `restaurant ${status}`).toBeNull();
-    }
-    await prisma.restaurant.update({ where: { id: restaurantId }, data: { status: 'ACTIVE' } });
-    expect(await findTenant(prisma, { slug: 'atelier' })).not.toBeNull();
+  it('reads only the menu it is given, on a scoped client and in a transaction', async () => {
+    const other = await createMenuFixture(prisma, 'loader-other');
+    const scoped = await loadDraftCatalog(menuDb(prisma, menuId), menuId);
+    expect(scoped.products).toHaveLength(24);
+    const inTx = await prisma.$transaction((tx) => loadDraftCatalog(tx, other.menu.id));
+    expect(inTx.products.map((p) => p.id)).toEqual([other.product.id]);
+    // A client scoped to another menu sees none of this one's rows.
+    expect((await loadDraftCatalog(menuDb(prisma, other.menu.id), menuId)).products).toEqual([]);
   });
 
   it('records analytics events scoped to the tenant', async () => {
