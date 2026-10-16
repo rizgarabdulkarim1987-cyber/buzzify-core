@@ -10,3 +10,5 @@ export * from './pairing';
 export * from './promotion';
 export * from './bundles';
 export * from './suggestions';
+export * from './snapshot';
+export * from './publish-rules';

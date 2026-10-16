@@ -35,6 +35,25 @@ describe('data layer (database)', () => {
     expect(burger.translations.ckb?.name).toBeTruthy();
   });
 
+  it('carries the hidden flag, dietary tags, calories and badges of a product', async () => {
+    const row = await prisma.product.findFirstOrThrow({ where: { menuId, slug: 'atelier-burger' } });
+    const plain = (await loadDraftCatalog(prisma, menuId)).products.find((p) => p.id === row.id)!;
+    expect(plain).toMatchObject({ isHidden: false, dietary: [], calories: null, badges: [] });
+    try {
+      await prisma.product.update({
+        where: { id: row.id },
+        data: { isHidden: true, dietary: ['halal'], calories: 640, badges: ['POPULAR'] },
+      });
+      const changed = (await loadDraftCatalog(prisma, menuId)).products.find((p) => p.id === row.id)!;
+      expect(changed).toMatchObject({ isHidden: true, dietary: ['halal'], calories: 640, badges: ['POPULAR'] });
+    } finally {
+      await prisma.product.update({
+        where: { id: row.id },
+        data: { isHidden: false, dietary: [], calories: null, badges: [] },
+      });
+    }
+  });
+
   it('takes the products of a deactivated category out of the catalog', async () => {
     const before = await loadDraftCatalog(prisma, menuId);
     const category = await prisma.category.findFirstOrThrow({ where: { menuId, slug: 'cold' } });

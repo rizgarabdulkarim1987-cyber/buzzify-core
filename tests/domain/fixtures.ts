@@ -1,3 +1,7 @@
+import { DEFAULT_PALETTES } from '@/lib/brand';
+import type { BrandView } from '@/server/data/tenant';
+import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
+import { buildSnapshot, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
 import type {
   Bundle,
   Catalog,
@@ -30,6 +34,7 @@ export function product(overrides: Partial<CatalogProduct> & Pick<CatalogProduct
     isSignature: false,
     isFeatured: false,
     isAvailable: true,
+    isHidden: false,
     stockCount: null,
     lowStockThreshold: null,
     dayparts: [],
@@ -40,6 +45,9 @@ export function product(overrides: Partial<CatalogProduct> & Pick<CatalogProduct
     variants: [],
     media: [],
     allergens: [],
+    dietary: [],
+    calories: null,
+    badges: [],
     ingredients: {},
     sortOrder: 0,
     ...overrides,
@@ -374,4 +382,35 @@ export function withProduct(catalog: Catalog, id: string, patch: Partial<Catalog
     ...catalog,
     products: catalog.products.map((p) => (p.id === id ? { ...p, ...patch } : p)),
   };
+}
+
+export function makeMenu(overrides: Partial<SnapshotMenu> = {}): SnapshotMenu {
+  return {
+    name: 'Main menu',
+    displayName: 'Test Cafe',
+    currency: 'USD',
+    defaultLocale: 'en',
+    locales: ['en'],
+    timeZone: 'Asia/Baghdad',
+    numeralSystem: 'latn',
+    engineConfig: DEFAULT_ENGINE_CONFIG,
+    seo: {},
+    ...overrides,
+  };
+}
+
+export function makeBrand(overrides: Partial<BrandView> = {}): BrandView {
+  return {
+    logoText: 'Test Cafe',
+    theme: 'dark',
+    motionIntensity: 'subtle',
+    railStyle: 'grains',
+    tokens: { dark: DEFAULT_PALETTES.dark, light: DEFAULT_PALETTES.light },
+    ...overrides,
+  };
+}
+
+/** The frozen form of the catalog given, or of `makeCatalog()`. */
+export function makeSnapshot(catalog: Catalog = makeCatalog(), menu: Partial<SnapshotMenu> = {}): MenuSnapshot {
+  return buildSnapshot({ menu: makeMenu(menu), brand: makeBrand(), catalog });
 }

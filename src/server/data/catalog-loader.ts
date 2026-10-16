@@ -69,6 +69,7 @@ export async function loadDraftCatalog(prisma: PrismaClient, menuId: string): Pr
       isSignature: p.isSignature,
       isFeatured: p.isFeatured,
       isAvailable: p.isAvailable,
+      isHidden: p.isHidden,
       stockCount: p.stockCount,
       lowStockThreshold: p.lowStockThreshold,
       dayparts: p.dayparts as Daypart[],
@@ -77,6 +78,9 @@ export async function loadDraftCatalog(prisma: PrismaClient, menuId: string): Pr
       translations: translationMap(p.translations),
       media: Array.isArray(p.media) ? (p.media as unknown[]) : [],
       allergens: p.allergens,
+      dietary: p.dietary,
+      calories: p.calories,
+      badges: p.badges,
       ingredients: ingredientMap(p.ingredients),
       sortOrder: p.sortOrder,
       variants: p.variants.map((v) => ({

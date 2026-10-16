@@ -60,6 +60,8 @@ export interface CatalogProduct {
   isSignature: boolean;
   isFeatured: boolean;
   isAvailable: boolean;
+  /** Pulled from the menu without a publish. `isAvailable` is the separate "sold out" state. */
+  isHidden: boolean;
   stockCount: number | null;
   lowStockThreshold: number | null;
   dayparts: Daypart[];
@@ -70,6 +72,10 @@ export interface CatalogProduct {
   variants: CatalogVariant[];
   media: unknown[]; // validated into MediaItem[] by the presentation layer
   allergens: string[];
+  dietary: string[];
+  calories: number | null;
+  /** NEW, POPULAR or RECOMMENDED. */
+  badges: string[];
   ingredients: Partial<Record<Locale, string[]>>;
   sortOrder: number;
 }
