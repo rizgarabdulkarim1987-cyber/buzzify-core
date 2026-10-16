@@ -92,6 +92,8 @@ model BrandConfig {
   theme           ThemeMode  @default(DARK)
   motionIntensity String     @default("subtle")
   navStyle        String     @default("rail")
+  /// How the category rail moves: grains, drum, flap, deck or plain (see src/lib/rail.ts).
+  railStyle       String     @default("grains")
   logoText        String
   restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 }

@@ -35,6 +35,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
           theme: data.brand.theme,
           motionIntensity: data.brand.motionIntensity,
           navStyle: data.brand.navStyle,
+          railStyle: data.brand.railStyle,
           logoText: data.brand.logoText,
         },
       },

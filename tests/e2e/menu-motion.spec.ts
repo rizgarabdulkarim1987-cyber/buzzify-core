@@ -43,7 +43,9 @@ test.describe('menu motion', () => {
   });
 
   test('the rail indicator slides to the new category instead of jumping', async ({ page }) => {
-    await page.goto('/atelier/en');
+    // The sliding underline belongs to the plain rail; the deck moves whole cards (see rail.spec.ts).
+    await page.goto('/atelier/en?rail=plain');
+    await expect(page.locator('nav[data-rail-style="plain"]')).toBeVisible();
     const links = page.getByRole('navigation', { name: /categories/i }).getByRole('link');
     await expect(page.locator('[data-rail-indicator]')).toHaveCount(1);
     // Sample the indicator's position on every frame for a moment after the tap.

@@ -15,6 +15,7 @@ import { isEmpty, itemCount as countItems } from '@/lib/cart';
 import type { Translate } from '@/lib/i18n';
 import type { Locale } from '@/lib/locale';
 import { getTranslator } from '@/lib/messages';
+import type { RailStyle } from '@/lib/rail';
 import type { QuoteView } from '@/server/data/quote-view';
 import { formatMoney } from '@/server/domain/money';
 import type { CartInput, CartLineInput } from '@/server/domain/types';
@@ -26,6 +27,7 @@ export interface TenantClientInfo {
   slug: string;
   name: string;
   logoText: string;
+  railStyle: RailStyle;
   currency: string;
   numeralSystem: 'latn' | 'arab';
   locales: Locale[];

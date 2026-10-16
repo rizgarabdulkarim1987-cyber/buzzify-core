@@ -1,4 +1,5 @@
 import type { ArtKind } from '@/lib/media';
+import type { RailStyle } from '@/lib/rail';
 import type { Daypart, VisualKey } from '@/server/domain/types';
 
 export interface Tri {
@@ -116,6 +117,7 @@ export interface SeedData {
     theme: 'DARK' | 'LIGHT';
     motionIntensity: 'none' | 'subtle' | 'expressive';
     navStyle: string;
+    railStyle: RailStyle;
     typography: { display: string; text: string; arabic: string };
     tokens: { dark: SeedPalette; light: SeedPalette };
   };
@@ -204,6 +206,7 @@ export const ATELIER: SeedData = {
     theme: 'DARK',
     motionIntensity: 'subtle',
     navStyle: 'rail',
+    railStyle: 'deck',
     typography: { display: 'Bodoni Moda', text: 'Hanken Grotesk', arabic: 'Noto Naskh Arabic' },
     tokens: {
       dark: {

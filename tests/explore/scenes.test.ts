@@ -29,9 +29,9 @@ const view = (products: MenuProductView[]): MenuView => ({
   restaurant: { slug: 't', name: 'T', currency: 'USD', numeralSystem: 'latn', locales: ['en'], defaultLocale: 'en' },
   daypart: null,
   categories: [
-    { id: 'c1', slug: 'coffee', name: 'Coffee' },
-    { id: 'c2', slug: 'plates', name: 'Plates' },
-    { id: 'c3', slug: 'cold', name: 'Cold' },
+    { id: 'c1', slug: 'coffee', name: 'Coffee', dish: 'cup' },
+    { id: 'c2', slug: 'plates', name: 'Plates', dish: 'burger' },
+    { id: 'c3', slug: 'cold', name: 'Cold', dish: 'glass' },
   ],
   products,
   signatureProductId: null,

@@ -9,11 +9,21 @@ import { useApp } from '@/ui/AppProviders';
 import { CartBar } from '@/ui/cart/CartBar';
 import { CloseIcon, SearchIcon } from '@/ui/Icons';
 import { useProductSheet } from '@/ui/product/useProductSheet';
-import { CategoryRail } from './CategoryRail';
+import type { RailStyle } from '@/lib/rail';
+import { CategoryRail, useRailStyle } from './CategoryRail';
 import { Header } from './Header';
 import { ProductRow } from './ProductRow';
 import { SignatureFeature } from './SignatureFeature';
 import { useSearchIndex } from './useSearchIndex';
+
+/** Room above a section heading when the rail jumps to it, so the heading clears the sticky rail. */
+const RAIL_ROOM: Record<RailStyle, string> = {
+  plain: 'scroll-mt-14',
+  flap: 'scroll-mt-16',
+  drum: 'scroll-mt-20',
+  deck: 'scroll-mt-28',
+  grains: 'scroll-mt-28',
+};
 
 // Loaded lazily so the menu route does not carry the sheet in its initial JavaScript.
 const ProductSheet = dynamic(() => import('@/ui/product/ProductSheet').then((module) => module.ProductSheet));
@@ -69,6 +79,7 @@ export function MenuApp({ view }: { view: MenuView }) {
   }, [categories]);
 
   const { opened, openProduct, closeProduct } = useProductSheet(view.products);
+  const railStyle = useRailStyle();
 
   return (
     <div className="mx-auto min-h-dvh max-w-2xl pb-28">
@@ -121,7 +132,12 @@ export function MenuApp({ view }: { view: MenuView }) {
           <p className="px-5 py-12 text-center text-muted">{t('menu.noResults', { query: query.trim() })}</p>
         ) : (
           categories.map((category) => (
-            <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="scroll-mt-14">
+            <section
+              key={category.id}
+              id={`cat-${category.slug}`}
+              aria-labelledby={`h-${category.slug}`}
+              className={RAIL_ROOM[railStyle]}
+            >
               <h2 id={`h-${category.slug}`} className="px-5 pt-10 pb-1 font-display text-3xl tracking-[-0.005em]">
                 {category.name}
               </h2>

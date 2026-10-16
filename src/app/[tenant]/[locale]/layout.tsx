@@ -60,6 +60,7 @@ export default async function RootLayout({
             slug: tenant.slug,
             name: tenant.name,
             logoText: tenant.brand.logoText,
+            railStyle: tenant.brand.railStyle,
             currency: tenant.currency,
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,

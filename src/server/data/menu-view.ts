@@ -1,6 +1,8 @@
 import { normalizeSearch } from '@/lib/search';
 import { LOCALES, type Locale } from '@/lib/locale';
 import { parseMedia, type MediaItem } from '@/lib/media';
+import type { RailDish } from '@/lib/rail';
+import { stageOf } from '@/lib/stage';
 import {
   daypartNow,
   orderability,
@@ -71,7 +73,7 @@ export interface MenuView {
     defaultLocale: Locale;
   };
   daypart: Daypart | null;
-  categories: Array<{ id: string; slug: string; name: string }>;
+  categories: Array<{ id: string; slug: string; name: string; dish: RailDish }>;
   products: MenuProductView[];
   signatureProductId: string | null;
 }
@@ -122,6 +124,19 @@ export function buildSearchIndex(catalog: Catalog, now: Date): Record<string, st
     if (orderability(product, current) !== 'OUT_OF_DAYPART') index[product.id] = allLocalesSearchKey(product);
   }
   return index;
+}
+
+/**
+ * The dish a category's rail entry shows: the model of its first product with a 3D stage, in menu order and
+ * whether or not that product is on the menu right now, so the rail does not change shape through the day.
+ */
+function dishOf(products: CatalogProduct[]): RailDish {
+  const ordered = [...products].sort((a, b) => a.sortOrder - b.sortOrder || a.slug.localeCompare(b.slug));
+  for (const product of ordered) {
+    const stage = stageOf(parseMedia(product.media));
+    if (stage) return stage.art;
+  }
+  return 'plate';
 }
 
 export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Locale, now: Date): MenuView {
@@ -182,6 +197,7 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
       id: category.id,
       slug: category.slug,
       name: resolveText(category.translations, 'name', locale, fallback),
+      dish: dishOf(catalog.products.filter((product) => product.categoryId === category.id)),
     })),
     products,
     signatureProductId: signature?.productId ?? null,

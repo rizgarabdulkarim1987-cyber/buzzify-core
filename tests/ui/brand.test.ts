@@ -6,6 +6,7 @@ const brand = {
   logoText: 'ATELIER',
   theme: 'dark' as const,
   motionIntensity: 'subtle' as const,
+  railStyle: 'grains' as const,
   tokens: DEFAULT_PALETTES,
 };
 

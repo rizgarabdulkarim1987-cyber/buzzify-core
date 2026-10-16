@@ -1,6 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, sanitizePalette, type Palette } from '@/lib/brand';
 import { isLocale, type Locale } from '@/lib/locale';
+import { resolveRailStyle, type RailStyle } from '@/lib/rail';
 import { resolveEngineConfig, type EngineConfig } from '@/server/domain/config';
 import { cached } from './cache';
 import { getPrisma } from './prisma';
@@ -11,6 +12,8 @@ export interface BrandView {
   logoText: string;
   theme: 'dark' | 'light';
   motionIntensity: 'none' | 'subtle' | 'expressive';
+  /** How the category rail moves; the plain rail when the restaurant has turned motion off. */
+  railStyle: RailStyle;
   tokens: { dark: Palette; light: Palette };
 }
 
@@ -56,6 +59,10 @@ export async function findTenant(
 
   const rawTokens = (row.brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const locales = row.locales.filter(isLocale);
+  const motionIntensity =
+    row.brand?.motionIntensity === 'none' || row.brand?.motionIntensity === 'expressive'
+      ? row.brand.motionIntensity
+      : 'subtle';
   return {
     id: row.id,
     slug: row.slug,
@@ -69,10 +76,8 @@ export async function findTenant(
     brand: {
       logoText: row.brand?.logoText ?? row.name,
       theme: row.brand?.theme === 'LIGHT' ? 'light' : 'dark',
-      motionIntensity:
-        row.brand?.motionIntensity === 'none' || row.brand?.motionIntensity === 'expressive'
-          ? row.brand.motionIntensity
-          : 'subtle',
+      motionIntensity,
+      railStyle: resolveRailStyle(row.brand?.railStyle, motionIntensity),
       tokens: {
         dark: sanitizePalette(rawTokens.dark, DEFAULT_PALETTES.dark),
         light: sanitizePalette(rawTokens.light, DEFAULT_PALETTES.light),

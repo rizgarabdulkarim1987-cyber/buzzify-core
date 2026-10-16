@@ -18,6 +18,7 @@ const tenant: TenantInfo = {
     logoText: 'TEST',
     theme: 'dark',
     motionIntensity: 'subtle',
+    railStyle: 'grains',
     tokens: {
       dark: { bg: '#000000', surface: '#111111', raised: '#222222', accent: '#D6BC8A', text: '#ffffff', muted: '#999999', line: '#333333', onAccent: '#000000' },
       light: { bg: '#ffffff', surface: '#ffffff', raised: '#eeeeee', accent: '#7A5F26', text: '#000000', muted: '#666666', line: '#dddddd', onAccent: '#ffffff' },
@@ -32,6 +33,22 @@ describe('buildMenuView', () => {
     const burger = view.products.find((p) => p.id === IDS.burger)!;
     expect(burger.name).toBe(IDS.burger); // fixture names equal ids
     expect(burger.groups[0]?.options.map((o) => o.name)).toEqual(['Premium cheese', 'Double patty', 'Bacon']);
+  });
+
+  it('gives each category the dish of its first product with a 3D model, or a plate', () => {
+    let catalog = withProduct(makeCatalog(), IDS.espresso, { media: [{ kind: 'art', art: 'cup', tone: '#6B4226' }] });
+    // The croissant is breakfast-only and off the menu at noon; its category still shows its dish.
+    catalog = withProduct(catalog, IDS.croissant, {
+      media: [{ kind: 'art', art: 'pastry', tone: '#C98A3A', model: 'croissant' }],
+    });
+    const view = buildMenuView(catalog, tenant, 'en', at(12));
+    expect(Object.fromEntries(view.categories.map((c) => [c.slug, c.dish]))).toEqual({
+      coffee: 'cup',
+      breakfast: 'croissant',
+      plates: 'plate',
+      patisserie: 'plate',
+      cold: 'plate',
+    });
   });
 
   it('carries what an option does to the product visually', () => {
