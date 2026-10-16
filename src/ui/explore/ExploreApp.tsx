@@ -48,27 +48,66 @@ function SceneGlow({ index, progress, tone }: { index: number; progress: MotionV
   );
 }
 
-/** The dish name set huge behind the object, outlined, drifting against the glide for depth. */
-function GiantName({ index, progress, name }: { index: number; progress: MotionValue<number>; name: string }) {
-  const opacity = useTransform(progress, (p) => sceneState(index, p).opacity);
-  const x = useTransform(progress, (p) => `${(index - p) * -34}vw`);
-  const lines = name.split(' ');
+const smooth01 = (x: number) => {
+  const t = Math.min(1, Math.max(0, x));
+  return t * t * (3 - 2 * t);
+};
+
+/**
+ * One letter of a melting name. A name melts away as its dish does: letters rise and blur out one
+ * after another when the guest scrolls past, and condense up from below when the dish arrives.
+ */
+function MeltLetter({
+  char,
+  order,
+  total,
+  index,
+  progress,
+}: {
+  char: string;
+  order: number;
+  total: number;
+  index: number;
+  progress: MotionValue<number>;
+}) {
+  const stagger = (order / Math.max(1, total)) * 0.22;
+  const amount = (p: number) => smooth01((Math.abs(index - p) - stagger) / 0.42);
+  const opacity = useTransform(progress, (p) => 1 - amount(p));
+  const transform = useTransform(progress, (p) => {
+    const a = amount(p);
+    const direction = index - p < 0 ? -1 : 1;
+    return `translate3d(0, ${(direction * a * (26 + order * 3)).toFixed(1)}px, 0) rotate(${(direction * a * (order % 2 ? 6 : -6)).toFixed(1)}deg)`;
+  });
+  const filter = useTransform(progress, (p) => `blur(${(amount(p) * 7).toFixed(1)}px)`);
   return (
-    <motion.div
-      aria-hidden="true"
-      style={{ opacity, x }}
-      className="outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] tracking-[-0.02em]"
-    >
-      {lines.map((line, i) => (
-        <span key={`${line}-${i}`} className="block">
-          {line}
-        </span>
-      ))}
-    </motion.div>
+    <motion.span style={{ opacity, transform, filter }} className="inline-block will-change-transform">
+      {char}
+    </motion.span>
   );
 }
 
-/** Without 3D, the dish's illustration glides across the same set. */
+/** The dish name set huge behind the object, outlined; it melts letter by letter between dishes. */
+function GiantName({ index, progress, name }: { index: number; progress: MotionValue<number>; name: string }) {
+  const words = name.split(' ');
+  const total = name.replace(/\s/g, '').length;
+  let order = 0;
+  return (
+    <div
+      aria-hidden="true"
+      className="outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] tracking-[-0.02em]"
+    >
+      {words.map((word, w) => (
+        <span key={`${word}-${w}`} className="block">
+          {Array.from(word).map((char, c) => (
+            <MeltLetter key={`${char}-${c}`} char={char} order={order++} total={total} index={index} progress={progress} />
+          ))}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+/** Without 3D, the dish's illustration crossfades in place, on the same plinth position. */
 function PosterScene({
   index,
   progress,
@@ -78,13 +117,12 @@ function PosterScene({
   progress: MotionValue<number>;
   scene: ExploreScene;
 }) {
-  const x = useTransform(progress, (p) => `${sceneState(index, p).x * 17}vw`);
-  const scale = useTransform(progress, (p) => sceneState(index, p).scale);
-  const opacity = useTransform(progress, (p) => (sceneState(index, p).visible ? 1 - Math.min(1, Math.abs(index - p) * 0.55) : 0));
+  const scale = useTransform(progress, (p) => 1 - 0.08 * smooth01(Math.abs(index - p) / 0.6));
+  const opacity = useTransform(progress, (p) => 1 - smooth01(Math.abs(index - p) / 0.55));
   return (
     <motion.div
       aria-hidden="true"
-      style={{ x, scale, opacity }}
+      style={{ scale, opacity }}
       className="absolute inset-x-0 top-[26dvh] mx-auto grid w-[68vw] max-w-[22rem] place-items-center"
     >
       <ProductVisual

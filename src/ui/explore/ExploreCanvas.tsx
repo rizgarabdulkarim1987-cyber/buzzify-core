@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree, type RootState } from '@react-three/fiber';
 import type { MotionValue } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { NeutralToneMapping, Vector3, type Group, type Object3D, type PerspectiveCamera } from 'three';
-import { layersFor, NO_EXTRAS, type BurgerSelection } from '@/lib/stage';
+import { layersFor, NO_EXTRAS, type BurgerSelection, type Layer } from '@/lib/stage';
 import {
   advanceTurn,
   createActivity,
@@ -18,12 +18,14 @@ import { cremaTexture, softDotTexture } from '@/ui/stage/materials';
 import { Plinth } from '@/ui/stage/Plinth';
 import { FRAMING } from '@/ui/stage/StageCanvas';
 import { installStudio } from '@/ui/stage/studio';
-import { sceneState } from './choreography';
+import { GrainField, type GrainState } from './GrainField';
+import { sampleDish, type GrainCloud } from './grains';
+import { morphState } from './morph';
 import type { ExploreScene } from './scenes';
 
 export interface ExploreCanvasProps {
   scenes: ExploreScene[];
-  /** Smoothed position in scene units; scene i is centred when this equals i. */
+  /** Smoothed position in scene units; scene i rests when this equals i. */
   progress: MotionValue<number>;
   /** What each product's chosen options do to its model. */
   selections: Record<string, BurgerSelection>;
@@ -39,157 +41,192 @@ export interface ExploreCanvasProps {
 }
 
 const FOV = 32;
-const SCENE_STAGGER = 0.09;
+/** World radius of the plinth; every dish is scaled to stand on it. */
+const PLINTH = 1.5;
+const GRAINS = 30000;
+const INTRO_SECONDS = 2.6;
 
 const jitter = (i: number, salt: number) => {
   const v = Math.sin(i * 12.9898 + salt * 78.233) * 43758.5453;
   return v - Math.floor(v);
 };
 
+/** Grains lying on the plinth like warm smoke, which rise into the first dish on arrival. */
+function smokeCloud(count: number): GrainCloud {
+  const cloud: GrainCloud = {
+    count,
+    positions: new Float32Array(count * 3),
+    normals: new Float32Array(count * 3),
+    colors: new Float32Array(count * 3),
+    alphas: new Float32Array(count).fill(1),
+  };
+  for (let i = 0; i < count; i++) {
+    const r = Math.sqrt(jitter(i, 11)) * (PLINTH - 0.05);
+    const a = jitter(i, 12) * Math.PI * 2;
+    cloud.positions[i * 3] = Math.cos(a) * r;
+    cloud.positions[i * 3 + 1] = jitter(i, 13) * 0.08;
+    cloud.positions[i * 3 + 2] = Math.sin(a) * r;
+    cloud.normals[i * 3 + 1] = 1;
+    const warm = 0.35 + jitter(i, 14) * 0.45;
+    cloud.colors[i * 3] = warm * 0.84;
+    cloud.colors[i * 3 + 1] = warm * 0.62;
+    cloud.colors[i * 3 + 2] = warm * 0.36;
+  }
+  return cloud;
+}
+
+const unitOf = (scene: ExploreScene) => PLINTH / FRAMING[scene.art].plinth;
+const keyOf = (scene: ExploreScene, layers: Layer[]) => `${scene.id}:${layers.map((layer) => layer.key).join(',')}`;
+
+function cloudFor(cache: Map<string, GrainCloud>, scene: ExploreScene, layers: Layer[]): GrainCloud {
+  const key = keyOf(scene, layers);
+  const cached = cache.get(key);
+  if (cached) return cached;
+  const cloud = sampleDish(scene.art, layers, scene.tone, GRAINS);
+  const unit = unitOf(scene);
+  for (let i = 0; i < cloud.positions.length; i++) cloud.positions[i] = cloud.positions[i]! * unit;
+  cache.set(key, cloud);
+  return cloud;
+}
+
 const SCRATCH = new Vector3();
 
-interface StepInput {
-  group: Group | null;
+interface StageFrame {
   state: RootState;
   delta: number;
-  index: number;
+  scenes: ExploreScene[];
+  layerSets: Layer[][];
   progress: MotionValue<number>;
   reduced: boolean;
   controls: StageControls;
-  /** 1 when the guest has pulled this scene apart, otherwise 0. */
-  wanted: number;
-  user: { current: number };
-  explode: { current: number };
-  idle: { current: number };
-  anchors: Map<string, Object3D>;
+  apart: Record<string, boolean> | undefined;
   labels: Record<string, HTMLElement | null> | undefined;
-  layerKeys: string[];
-  sceneId: string;
-  radius: number;
-  /** Scale that evens out the apparent size of small and large dishes on the set. */
-  unit: number;
+  turntable: Group | null;
+  solids: Array<Group | null>;
+  anchors: Array<Map<string, Object3D>>;
+  explodes: Array<{ current: number }>;
+  memory: { idle: number; user: number; introStart: number; lastResting: number | null; frames: number };
+  grains: GrainState;
+  cache: Map<string, GrainCloud>;
+  smoke: GrainCloud;
   activity: StageActivity;
 }
 
-/** One frame of one scene: where it sits on the set, how far apart its layers are, where its labels go. */
-function stepScene(input: StepInput): void {
-  const { group, state, index, progress, reduced, controls, user, explode, idle, anchors, labels, radius } = input;
-  if (!group) return;
-  const dt = Math.min(input.delta, 1 / 30);
-  const raw = progress.get();
-  const s = sceneState(index, reduced ? Math.round(raw) : raw);
-  group.visible = s.visible;
-  if (!s.visible) return;
+/** One frame of the stage: which dish is solid, where the grains are, how far apart, where labels go. */
+function stepStage(frame: StageFrame): void {
+  const { state, scenes, layerSets, reduced, controls, turntable, solids, memory, grains, activity } = frame;
+  if (!turntable || scenes.length === 0) return;
+  const dt = Math.min(frame.delta, 1 / 30);
+  const time = state.clock.elapsedTime;
+  const raw = frame.progress.get();
+  const morph = morphState(reduced ? Math.round(raw) : raw, scenes.length);
 
-  // Pulled apart, a dish steps left and shrinks a little to leave room for its labels on the right.
-  const apartAmount = user.current * s.focus;
-  group.position.set(s.x - 0.5 * apartAmount, s.y, 0);
-  group.scale.setScalar(s.scale * input.unit * (1 - 0.22 * apartAmount));
-  idle.current += reduced ? 0 : dt * 0.16 * s.focus;
-  group.rotation.y = s.rotationY + idle.current + controls.yaw * s.focus;
+  // The intro starts once the canvas has drawn its first frames and faded in, so it is seen.
+  memory.frames += 1;
+  if (memory.introStart < 0 && memory.frames >= 4) memory.introStart = time + 0.6;
+  const intro = reduced
+    ? 1
+    : memory.introStart < 0
+      ? 0
+      : Math.min(1, Math.max(0, (time - memory.introStart) / INTRO_SECONDS));
+  const resting = intro < 1 ? null : morph.resting;
 
-  // What is inside: eased toward the guest's choice, and never less than the fan of transit.
-  if (Math.abs(input.wanted - user.current) > 0.002) markBusy(input.activity, 400);
-  user.current += (input.wanted - user.current) * (1 - Math.exp(-5.5 * dt));
-  explode.current = Math.max(user.current, reduced ? 0 : s.fan);
-
-  // Pin labels to their layers while the scene is in focus and pulled apart.
-  const show = s.focus > 0.92 ? Math.min(1, user.current * 1.4) : 0;
-  const { size, camera } = state;
-  for (const key of input.layerKeys) {
-    const element = labels?.[`${input.sceneId}:${key}`];
-    if (!element) continue;
-    const anchor = anchors.get(key);
-    if (!anchor || show < 0.04) {
-      element.style.opacity = '0';
-      continue;
-    }
-    anchor.getWorldPosition(SCRATCH);
-    SCRATCH.x += (radius * 0.72 + 0.12) * s.scale * input.unit * (1 - 0.22 * apartAmount);
-    SCRATCH.project(camera);
-    const x = (SCRATCH.x * 0.5 + 0.5) * size.width;
-    const y = (-SCRATCH.y * 0.5 + 0.5) * size.height;
-    element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
-    element.style.opacity = String(show);
+  // The solid model only for the dish at rest; grains for everything in between.
+  solids.forEach((solid, i) => {
+    if (solid) solid.visible = resting === i;
+  });
+  if (intro < 1) {
+    const target = morph.resting ?? morph.from;
+    grains.from = frame.smoke;
+    grains.to = cloudFor(frame.cache, scenes[target]!, layerSets[target]!);
+    grains.mix = intro;
+    grains.visible = true;
+    markBusy(activity, 200);
+  } else if (resting === null) {
+    grains.from = cloudFor(frame.cache, scenes[morph.from]!, layerSets[morph.from]!);
+    grains.to = cloudFor(frame.cache, scenes[morph.to]!, layerSets[morph.to]!);
+    grains.mix = morph.t;
+    grains.visible = true;
+  } else {
+    grains.visible = false;
   }
-}
 
-function SceneStage({
-  scene,
-  index,
-  progress,
-  selection,
-  apart,
-  controls,
-  reduced,
-  labels,
-  activity,
-  dots,
-}: {
-  scene: ExploreScene;
-  index: number;
-  progress: MotionValue<number>;
-  selection: BurgerSelection;
-  apart: RefObject<Record<string, boolean>>;
-  controls: RefObject<StageControls>;
-  reduced: boolean;
-  labels: RefObject<Record<string, HTMLElement | null>>;
-  activity: StageActivity;
-  dots: ReturnType<typeof softDotTexture>;
-}) {
-  const group = useRef<Group>(null);
-  const user = useRef(0);
-  const explode = useRef(0);
-  const idle = useRef(0);
-  const anchors = useRef(new Map<string, Object3D>());
-
-  const { cheese, patty, bacon } = selection;
-  const layers = useMemo(
-    () => layersFor(scene.art, { cheese, patty, bacon }),
-    [scene.art, cheese, patty, bacon],
-  );
-  const crema = useMemo(() => (scene.art === 'cup' ? cremaTexture(scene.tone) : null), [scene.art, scene.tone]);
-  useEffect(() => () => crema?.dispose(), [crema]);
-
-  const register = useCallback((key: string, object: Object3D | null) => {
-    if (object) anchors.current.set(key, object);
-    else anchors.current.delete(key);
-  }, []);
-
-  const radius = FRAMING[scene.art].plinth;
-
-  useFrame((state, delta) => {
-    stepScene({
-      group: group.current,
-      state,
-      delta,
-      index,
-      progress,
-      reduced,
-      controls: controls.current,
-      wanted: apart.current?.[scene.productId] ? 1 : 0,
-      user,
-      explode,
-      idle,
-      anchors: anchors.current,
-      labels: labels.current,
-      layerKeys: layers.map((layer) => layer.key),
-      sceneId: scene.id,
-      radius,
-      unit: 1.5 / radius,
-      activity,
-    });
+  // What is inside: only the resting dish can be pulled apart; leaving a scene puts it back together.
+  if (resting !== memory.lastResting) {
+    memory.user = 0;
+    memory.lastResting = resting;
+  }
+  const scene = resting === null ? null : scenes[resting]!;
+  const wanted = scene && frame.apart?.[scene.productId] ? 1 : 0;
+  if (Math.abs(wanted - memory.user) > 0.002) markBusy(activity, 400);
+  memory.user += (wanted - memory.user) * (1 - Math.exp(-5.5 * dt));
+  frame.explodes.forEach((explode, i) => {
+    explode.current = i === resting ? memory.user : 0;
   });
 
+  // The turntable: a slow idle turn plus whatever the guest's drag adds. Pulled apart, it steps left
+  // and shrinks a little so the labels fit on the right.
+  memory.idle += reduced ? 0 : dt * 0.16;
+  turntable.rotation.y = memory.idle + controls.yaw;
+  turntable.position.x = -0.5 * memory.user;
+  turntable.scale.setScalar(1 - 0.22 * memory.user);
+
+  const { size, camera } = state;
+  scenes.forEach((each, i) => {
+    const show = i === resting ? Math.min(1, memory.user * 1.4) : 0;
+    for (const layer of layerSets[i]!) {
+      const element = frame.labels?.[`${each.id}:${layer.key}`];
+      if (!element) continue;
+      const anchor = frame.anchors[i]?.get(layer.key);
+      if (!anchor || show < 0.04) {
+        element.style.opacity = '0';
+        continue;
+      }
+      anchor.getWorldPosition(SCRATCH);
+      SCRATCH.x += (PLINTH * 0.72 + 0.12) * (1 - 0.22 * memory.user);
+      SCRATCH.project(camera);
+      const x = (SCRATCH.x * 0.5 + 0.5) * size.width;
+      const y = (-SCRATCH.y * 0.5 + 0.5) * size.height;
+      element.style.transform = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`;
+      element.style.opacity = String(show);
+    }
+  });
+}
+
+function SolidScene({
+  scene,
+  layers,
+  reduced,
+  explode,
+  anchors,
+  dots,
+  onGroup,
+}: {
+  scene: ExploreScene;
+  layers: Layer[];
+  reduced: boolean;
+  explode: { current: number };
+  anchors: Map<string, Object3D>;
+  dots: ReturnType<typeof softDotTexture>;
+  onGroup: (group: Group | null) => void;
+}) {
+  const crema = useMemo(() => (scene.art === 'cup' ? cremaTexture(scene.tone) : null), [scene.art, scene.tone]);
+  useEffect(() => () => crema?.dispose(), [crema]);
+  const register = useCallback(
+    (key: string, object: Object3D | null) => {
+      if (object) anchors.set(key, object);
+      else anchors.delete(key);
+    },
+    [anchors],
+  );
   return (
-    <group ref={group} visible={false}>
-      <Plinth radius={radius} />
+    <group ref={onGroup} scale={unitOf(scene)} visible={false}>
       <DishModel
         art={scene.art}
         layers={layers}
         tone={scene.tone}
         reveal={!reduced}
-        stagger={SCENE_STAGGER}
+        stagger={0.03}
         explode={explode}
         ambient={!reduced}
         crema={crema}
@@ -200,7 +237,7 @@ function SceneStage({
   );
 }
 
-/** Motes of dust hanging in the light across the whole set. */
+/** Motes of dust hanging in the light above the plinth. */
 function Dust({ texture }: { texture: ReturnType<typeof softDotTexture> }) {
   return (
     <ParticleField
@@ -209,8 +246,7 @@ function Dust({ texture }: { texture: ReturnType<typeof softDotTexture> }) {
       size={0.07}
       tint={[1, 0.9, 0.7]}
       update={(i, t, p) => {
-        const driftX = Math.sin(t * 0.05 + i) * 0.4;
-        p.x = (jitter(i, 1) - 0.5) * 13 + driftX;
+        p.x = (jitter(i, 1) - 0.5) * 9 + Math.sin(t * 0.05 + i) * 0.4;
         p.y = jitter(i, 2) * 3.6 + Math.sin(t * 0.09 + i * 1.7) * 0.25 - 0.2;
         p.z = (jitter(i, 3) - 0.5) * 5 - 0.5;
         p.c = (0.22 + 0.18 * Math.sin(t * 0.6 + i * 2.3)) * (0.5 + jitter(i, 4) * 0.7);
@@ -219,18 +255,20 @@ function Dust({ texture }: { texture: ReturnType<typeof softDotTexture> }) {
   );
 }
 
-function CameraRig() {
+function CameraRig({ progress, scenes, reduced }: { progress: MotionValue<number>; scenes: number; reduced: boolean }) {
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const half = Math.tan((FOV * Math.PI) / 360);
     const aspect = state.size.width / Math.max(1, state.size.height);
-    // The widest plinth must fit the width of the screen with room for its neighbours to peek in.
-    const distance = Math.min(17, Math.max(7.4, (1.62 * 1.1) / (half * aspect)));
+    const base = Math.min(17, Math.max(7.4, (1.62 * 1.1) / (half * aspect)));
+    // Lean in a little while the grains fly, so the melt fills the frame.
+    const flying = reduced ? 0 : Math.sin(Math.PI * morphState(progress.get(), scenes).t);
+    const distance = base * (1 - 0.06 * flying);
     const camera = state.camera as PerspectiveCamera;
     const ease = 1 - Math.exp(-5 * dt);
     camera.position.z += (distance - camera.position.z) * ease;
-    camera.position.y += (distance * 0.3 - camera.position.y) * ease;
-    camera.lookAt(0, 0.1 + distance * 0.02, 0);
+    camera.position.y += (base * 0.3 - camera.position.y) * ease;
+    camera.lookAt(0, 0.1 + base * 0.02, 0);
     // Shift the picture up so the dish sits above the text panel rather than behind it.
     const lift = Math.round(state.size.height * 0.13);
     if (camera.view?.offsetY !== lift || camera.view?.fullHeight !== state.size.height) {
@@ -278,7 +316,7 @@ function Driver({
   return null;
 }
 
-/** Momentum from a drag keeps coasting here; the scenes read `yaw` themselves. */
+/** Momentum from a drag keeps coasting here; the turntable reads `yaw`. */
 function Coast({ controls }: { controls: RefObject<StageControls> }) {
   useFrame((_, delta) => {
     advanceTurn(controls.current, Math.min(delta, 1 / 30), false);
@@ -299,7 +337,7 @@ function Ready({ onReady }: { onReady: () => void }) {
   return null;
 }
 
-function Set({
+function Stage({
   scenes,
   progress,
   selections,
@@ -313,6 +351,65 @@ function Set({
   const dots = useMemo(() => softDotTexture(), []);
   useEffect(() => () => dots.dispose(), [dots]);
 
+  const turntable = useRef<Group>(null);
+  const solids = useRef<Array<Group | null>>([]);
+  const [anchors] = useState(() => scenes.map(() => new Map<string, Object3D>()));
+  const [explodes] = useState(() => scenes.map(() => ({ current: 0 })));
+  const memory = useRef({ idle: 0, user: 0, introStart: -1, lastResting: null as number | null, frames: 0 });
+  const grains = useRef<GrainState>({ from: null, to: null, mix: 0, visible: false });
+  const [cache] = useState(() => new Map<string, GrainCloud>());
+  const [smoke] = useState(() => smokeCloud(GRAINS));
+
+  const layerSets = useMemo(
+    () => scenes.map((scene) => layersFor(scene.art, selections[scene.productId] ?? NO_EXTRAS)),
+    [scenes, selections],
+  );
+
+  // Sample every dish's grains while the page is idle, so a melt never waits for them.
+  useEffect(() => {
+    if (reduced) return;
+    let cancelled = false;
+    const queue = scenes.map((scene, i) => [scene, layerSets[i]!] as const);
+    const next = () => {
+      if (cancelled) return;
+      const item = queue.shift();
+      if (!item) return;
+      cloudFor(cache, item[0], item[1]);
+      schedule();
+    };
+    const schedule = () => {
+      if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(next, { timeout: 800 });
+      else window.setTimeout(next, 60);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+    };
+  }, [scenes, layerSets, cache, reduced]);
+
+  useFrame((state, delta) => {
+    stepStage({
+      state,
+      delta,
+      scenes,
+      layerSets,
+      progress,
+      reduced,
+      controls: controls.current,
+      apart: apart.current,
+      labels: labels.current,
+      turntable: turntable.current,
+      solids: solids.current,
+      anchors,
+      explodes,
+      memory: memory.current,
+      grains: grains.current,
+      cache,
+      smoke,
+      activity,
+    });
+  });
+
   return (
     <>
       <Studio />
@@ -324,31 +421,34 @@ function Set({
         shadow-mapSize={[1536, 1536]}
         shadow-camera-near={1}
         shadow-camera-far={20}
-        shadow-camera-left={-4.2}
-        shadow-camera-right={4.2}
-        shadow-camera-top={4.2}
-        shadow-camera-bottom={-4.2}
+        shadow-camera-left={-3}
+        shadow-camera-right={3}
+        shadow-camera-top={3}
+        shadow-camera-bottom={-3}
         shadow-bias={-0.0005}
         shadow-normalBias={0.025}
       />
       <directionalLight position={[-4, 3, -4]} intensity={0.9} color="#d6bc8a" />
-      {scenes.map((scene, index) => (
-        <SceneStage
-          key={scene.id}
-          scene={scene}
-          index={index}
-          progress={progress}
-          selection={selections[scene.productId] ?? NO_EXTRAS}
-          apart={apart}
-          controls={controls}
-          reduced={reduced}
-          labels={labels}
-          activity={activity}
-          dots={dots}
-        />
-      ))}
+      <Plinth radius={PLINTH} />
+      <group ref={turntable}>
+        {scenes.map((scene, i) => (
+          <SolidScene
+            key={scene.id}
+            scene={scene}
+            layers={layerSets[i]!}
+            reduced={reduced}
+            explode={explodes[i]!}
+            anchors={anchors[i]!}
+            dots={dots}
+            onGroup={(group) => {
+              solids.current[i] = group;
+            }}
+          />
+        ))}
+        {!reduced && <GrainField count={GRAINS} state={grains} />}
+      </group>
       {!reduced && <Dust texture={dots} />}
-      <CameraRig />
+      <CameraRig progress={progress} scenes={scenes.length} reduced={reduced} />
       <Driver progress={progress} controls={controls} activity={activity} />
       <Coast controls={controls} />
       <Ready onReady={onReady} />
@@ -374,7 +474,7 @@ export function ExploreCanvas({ paused, onFailure, ...rest }: ExploreCanvasProps
         });
       }}
     >
-      <Set {...rest} />
+      <Stage {...rest} />
     </Canvas>
   );
 }
