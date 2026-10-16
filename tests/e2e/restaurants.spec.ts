@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { seriousViolations } from './helpers/axe';
 import { createTemporaryMenu } from './helpers/db';
 import {
   assignMember,
@@ -31,13 +31,6 @@ async function freshPage(browser: Browser, options: { signedIn?: boolean } = {})
   return context.newPage();
 }
 
-async function seriousViolations(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  return results.violations
-    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
-}
-
 /** Opens the "Manage" menu once the page has hydrated, which a loaded machine may still be doing after the load. */
 async function openManage(page: Page, label = 'Manage') {
   const menu = page.getByRole('menu');
@@ -47,6 +40,10 @@ async function openManage(page: Page, label = 'Manage') {
   }).toPass();
 }
 
+/** Whether a guest opening the menu's address now gets the unavailable page. */
+const guestUnavailable = async (page: Page, slug: string) =>
+  (await (await page.request.get(`/${slug}/en`)).text()).includes('data-testid="menu-unavailable"');
+
 const restaurantIdOf = (page: Page) => /\/studio\/restaurants\/([^/?]+)/.exec(page.url())![1]!;
 
 test.describe('Studio restaurants @desktop', () => {
@@ -55,11 +52,13 @@ test.describe('Studio restaurants @desktop', () => {
   const people: string[] = [];
   const cleanups: Array<() => Promise<void>> = [];
 
+  // With fullyParallel, a worker runs this hook after each batch of these tests it is given, and the lists live as long
+  // as the worker: each run takes what is listed now (so nothing is removed twice), and every removal is idempotent.
   test.afterAll(async () => {
-    for (const cleanup of cleanups) await cleanup();
-    await removeStudioUsers(people);
-    await removeRestaurants(restaurants);
-    await removeRestaurantsNamed(restaurantNames);
+    for (const cleanup of cleanups.splice(0)) await cleanup();
+    await removeStudioUsers(people.splice(0));
+    await removeRestaurants(restaurants.splice(0));
+    await removeRestaurantsNamed(restaurantNames.splice(0));
   });
 
   async function made(label: string, extra: { city?: string } = {}): Promise<TestRestaurant> {
@@ -207,14 +206,16 @@ test.describe('Studio restaurants @desktop', () => {
     await dialog.getByRole('button', { name: 'Suspend' }).click();
     await expect(page.getByText('Restaurant suspended')).toBeVisible();
     await expect(page.getByText('This restaurant is suspended.')).toBeVisible();
-    expect(await (await page.request.get(`/${menu.slug}/en`)).text()).toContain('data-testid="menu-unavailable"');
+    // The cached answer is expired at once; polled as menus.spec.ts explains (a guest load racing the change), well inside
+    // the 5 minutes the address would otherwise keep its answer.
+    await expect.poll(() => guestUnavailable(page, menu.slug)).toBe(true);
 
     await openManage(page);
     await page.getByRole('menuitem', { name: 'Restore' }).click();
     await page.getByRole('dialog', { name: `Restore ${menu.name}?` }).getByRole('button', { name: 'Restore' }).click();
     await expect(page.getByText('Restaurant restored')).toBeVisible();
     await expect(page.getByText('This restaurant is suspended.')).toHaveCount(0);
-    expect(await (await page.request.get(`/${menu.slug}/en`)).text()).not.toContain('data-testid="menu-unavailable"');
+    await expect.poll(() => guestUnavailable(page, menu.slug)).toBe(false);
     await page.context().close();
   });
 

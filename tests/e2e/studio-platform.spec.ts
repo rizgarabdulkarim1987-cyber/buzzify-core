@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { seriousViolations } from './helpers/axe';
 import {
   bumpRestaurantVersion,
   createStudioUser,
@@ -13,7 +13,6 @@ import {
   superAdmin,
   uniqueClientAddress,
   uniqueEmail,
-  type SettingRow,
   type TestRestaurant,
 } from './helpers/studio';
 
@@ -27,13 +26,6 @@ import {
 async function freshPage(browser: Browser): Promise<Page> {
   const context = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() }, storageState: SUPER_ADMIN_FILE });
   return context.newPage();
-}
-
-async function seriousViolations(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  return results.violations
-    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
 /** Opens Jump to with the shortcut once the page has hydrated (before that the key does nothing, so it is pressed again). */
@@ -50,16 +42,13 @@ test.describe('Studio platform screens @desktop', () => {
   const random = Math.random().toString(36).slice(2, 8);
   const restaurants: string[] = [];
   const people: string[] = [];
-  let settingsBefore: SettingRow[] = [];
 
-  test.beforeAll(async () => {
-    settingsBefore = await platformSettingRows();
-  });
-
+  // With fullyParallel, a worker runs this hook after each batch of these tests it is given; each run takes what is
+  // listed now, and the removals are idempotent. (The platform settings are put back by the test that changes them: a
+  // snapshot taken here, in another worker, could be taken after that test's change and put it back for good.)
   test.afterAll(async () => {
-    await restorePlatformSettings(settingsBefore);
-    await removeStudioUsers(people);
-    await removeRestaurants(restaurants);
+    await removeStudioUsers(people.splice(0));
+    await removeRestaurants(restaurants.splice(0));
   });
 
   async function made(label: string): Promise<TestRestaurant> {
@@ -114,58 +103,64 @@ test.describe('Studio platform screens @desktop', () => {
 
   test('a setting is saved, persists, is refused for a word a menu uses, and shows in Activity', async ({ browser }) => {
     test.setTimeout(60_000);
-    const sender = `E2E Studio ${random}`;
-    const word = `e2e-${random}`;
-    const atelier = await menuBySlug('atelier');
-    const page = await freshPage(browser);
+    // Put back exactly as they were before this test, whatever else runs meanwhile.
+    const settingsBefore = await platformSettingRows();
+    try {
+      const sender = `E2E Studio ${random}`;
+      const word = `e2e-${random}`;
+      const atelier = await menuBySlug('atelier');
+      const page = await freshPage(browser);
 
-    await page.goto('/studio/settings');
-    await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
-    await expect(page).toHaveTitle(/Settings/);
-    expect(await seriousViolations(page)).toEqual([]);
+      await page.goto('/studio/settings');
+      await expect(page.getByRole('heading', { level: 1, name: 'Settings' })).toBeVisible();
+      await expect(page).toHaveTitle(/Settings/);
+      expect(await seriousViolations(page)).toEqual([]);
 
-    await page.getByLabel('Sender name').fill(sender);
-    await page.getByLabel('Reserved words').fill(`${word}\nCafé E2E ${random}`);
-    await page.getByRole('button', { name: 'Save settings' }).click();
-    await expect(page.getByText('Settings saved')).toBeVisible();
+      await page.getByLabel('Sender name').fill(sender);
+      await page.getByLabel('Reserved words').fill(`${word}\nCafé E2E ${random}`);
+      await page.getByRole('button', { name: 'Save settings' }).click();
+      await expect(page.getByText('Settings saved')).toBeVisible();
 
-    // What was saved is what comes back, with the words cleaned the way addresses are.
-    await page.reload();
-    await expect(page.getByLabel('Sender name')).toHaveValue(sender);
-    await expect(page.getByLabel('Reserved words')).toHaveValue(`${word}\ncafe-e2e-${random}`);
+      // What was saved is what comes back, with the words cleaned the way addresses are.
+      await page.reload();
+      await expect(page.getByLabel('Sender name')).toHaveValue(sender);
+      await expect(page.getByLabel('Reserved words')).toHaveValue(`${word}\ncafe-e2e-${random}`);
 
-    // A word that a menu already uses as its address is refused, and the menu is named.
-    await page.getByLabel('Reserved words').fill('atelier');
-    await page.getByRole('button', { name: 'Save settings' }).click();
-    const refused = page.getByLabel('Reserved words');
-    await expect(refused).toHaveAccessibleDescription(/is already the address of the menu/);
-    await expect(refused).toHaveAccessibleDescription(new RegExp(atelier.name));
-    await expect(refused).toBeFocused();
+      // A word that a menu already uses as its address is refused, and the menu is named.
+      await page.getByLabel('Reserved words').fill('atelier');
+      await page.getByRole('button', { name: 'Save settings' }).click();
+      const refused = page.getByLabel('Reserved words');
+      await expect(refused).toHaveAccessibleDescription(/is already the address of the menu/);
+      await expect(refused).toHaveAccessibleDescription(new RegExp(atelier.name));
+      await expect(refused).toBeFocused();
 
-    // The change is in the log, with who made it.
-    await page.goto('/studio/activity');
-    await expect(page.getByRole('heading', { level: 1, name: 'Activity' })).toBeVisible();
-    await page.getByLabel('Action').selectOption('settings.updated');
-    await expect(page).toHaveURL(/action=settings\.updated/);
-    const rows = page.getByRole('table').getByRole('row');
-    await expect(rows.nth(1)).toContainText('Changed the platform settings');
-    await expect(rows.nth(1)).toContainText(superAdmin().name);
-    await expect(rows.nth(1)).toContainText('Platform settings');
-    expect(await seriousViolations(page)).toEqual([]);
+      // The change is in the log, with who made it.
+      await page.goto('/studio/activity');
+      await expect(page.getByRole('heading', { level: 1, name: 'Activity' })).toBeVisible();
+      await page.getByLabel('Action').selectOption('settings.updated');
+      await expect(page).toHaveURL(/action=settings\.updated/);
+      const rows = page.getByRole('table').getByRole('row');
+      await expect(rows.nth(1)).toContainText('Changed the platform settings');
+      await expect(rows.nth(1)).toContainText(superAdmin().name);
+      await expect(rows.nth(1)).toContainText('Platform settings');
+      expect(await seriousViolations(page)).toEqual([]);
 
-    // The person who made it is found by name, and the day it was made narrows the log.
-    await page.getByLabel('Person').click();
-    await page.getByPlaceholder('Search').fill(superAdmin().name);
-    await page.getByRole('option', { name: new RegExp(superAdmin().name) }).click();
-    await expect(page).toHaveURL(/actor=/);
-    await expect(rows.nth(1)).toContainText('Changed the platform settings');
-    const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
-    await page.getByLabel('From').fill(today);
-    await expect(page).toHaveURL(new RegExp(`from=${today}`));
-    await expect(rows.nth(1)).toContainText('Changed the platform settings');
-    await page.getByLabel('Until').fill('2020-01-01');
-    await expect(page.getByText('Nothing matches these filters.')).toBeVisible();
-    await page.context().close();
+      // The person who made it is found by name, and the day it was made narrows the log.
+      await page.getByLabel('Person').click();
+      await page.getByPlaceholder('Search').fill(superAdmin().name);
+      await page.getByRole('option', { name: new RegExp(superAdmin().name) }).click();
+      await expect(page).toHaveURL(/actor=/);
+      await expect(rows.nth(1)).toContainText('Changed the platform settings');
+      const today = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Baghdad' });
+      await page.getByLabel('From').fill(today);
+      await expect(page).toHaveURL(new RegExp(`from=${today}`));
+      await expect(rows.nth(1)).toContainText('Changed the platform settings');
+      await page.getByLabel('Until').fill('2020-01-01');
+      await expect(page.getByText('Nothing matches these filters.')).toBeVisible();
+      await page.context().close();
+    } finally {
+      await restorePlatformSettings(settingsBefore);
+    }
   });
 
   test('People: the restaurant picker, links shown once, a designer assigned, an account switched off and on', async ({ browser }) => {

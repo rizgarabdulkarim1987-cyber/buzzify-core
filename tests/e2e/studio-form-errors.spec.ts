@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Locator, type Page } from '@playwright/test';
+import { seriousViolations } from './helpers/axe';
 import { createStudioUser, removeStudioUsers, totp, uniqueClientAddress } from './helpers/studio';
 
 /**
@@ -7,13 +7,6 @@ import { createStudioUser, removeStudioUsers, totp, uniqueClientAddress } from '
  * field says what is wrong, and an alert announces it, a fresh alert each time even when the words are the same. Checked
  * on the second step of signing in and on a password dialog of the account page, with axe on two-factor setup.
  */
-
-async function seriousViolations(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  return results.violations
-    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
-}
 
 /** Submits, then expects the field focused and invalid and a new alert with `message`; returns that alert's attempt. */
 async function expectAnnouncedRefusal(page: Page, submit: () => Promise<void>, field: Locator, message: string): Promise<string> {
@@ -65,8 +58,12 @@ test.describe('Studio refusals @desktop', () => {
     });
 
     await test.step('a wrong password in the new recovery codes dialog', async () => {
-      await page.getByRole('button', { name: 'New recovery codes' }).click();
+      // The account page has just loaded: a click before it has hydrated does nothing, so press again until it opens.
       const dialog = page.getByRole('dialog', { name: 'Make new recovery codes?' });
+      await expect(async () => {
+        if (!(await dialog.isVisible())) await page.getByRole('button', { name: 'New recovery codes' }).click();
+        await expect(dialog).toBeVisible({ timeout: 1000 });
+      }).toPass();
       const password = dialog.getByLabel('Your password', { exact: true });
       const confirm = dialog.getByRole('button', { name: 'Make new codes' });
 

@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
+import { parse as parseEnv } from 'dotenv';
 import * as OTPAuth from 'otpauth';
 import type { Locale } from '@/lib/locale';
 import { createPrisma } from '@/server/data/prisma';
@@ -35,9 +36,97 @@ function studioCli<T>(command: string, input: Record<string, unknown>): T {
  */
 export const SUPER_ADMIN_FILE = 'test-results/.auth/super-admin.json';
 
-/** The Super Admin the setup project made, and the key of their authenticator. */
-export function superAdmin(): StudioUser & { secret: string } {
-  return (JSON.parse(readFileSync(SUPER_ADMIN_FILE, 'utf8')) as { superAdmin: StudioUser & { secret: string } }).superAdmin;
+/**
+ * The signed-in Super Admin who reads the Studio in `locale`, saved by the setup project like SUPER_ADMIN_FILE (English is
+ * that one). The Studio speaks a signed-in person's own language, so each language needs a person of its own.
+ */
+export function superAdminFile(locale: Locale): string {
+  return locale === 'en' ? SUPER_ADMIN_FILE : `test-results/.auth/super-admin-${locale}.json`;
+}
+
+/** The Super Admin the setup project made (in `file`; the English one by default), and the key of their authenticator. */
+export function superAdmin(file = SUPER_ADMIN_FILE): StudioUser & { secret: string } {
+  return (JSON.parse(readFileSync(file, 'utf8')) as { superAdmin: StudioUser & { secret: string } }).superAdmin;
+}
+
+/** The seeded owner of ATELIER (`npm run db:seed` with DEV_SEED_PASSWORD), whom the owner suite signs in as. */
+export const SEEDED_OWNER_EMAIL = 'owner@buzzify.test';
+
+/** Where the setup project leaves the seeded owner's signed-in browser state for this run's suites. */
+export const OWNER_FILE = 'test-results/.auth/owner.json';
+
+/**
+ * The seeded owner's signed-in state kept between runs (`.data` is not committed). Their sign-ins are limited to 5 in 10
+ * minutes, and the suite is run more often than that; the setup reuses this session while the Studio still accepts it.
+ */
+export const OWNER_KEPT_FILE = '.data/e2e/owner-session.json';
+
+/**
+ * The development users' password: DEV_SEED_PASSWORD from the environment or the project's `.env`, which the seed read
+ * when it made them. Only ever typed into the sign-in form; never printed.
+ */
+export function devSeedPassword(): string {
+  const file = path.join(process.cwd(), '.env');
+  const password = process.env.DEV_SEED_PASSWORD || (existsSync(file) ? parseEnv(readFileSync(file)).DEV_SEED_PASSWORD : undefined);
+  if (!password) {
+    throw new Error('DEV_SEED_PASSWORD is not set. Set it in .env (see .env.example) and run `npm run db:seed` to make the development users.');
+  }
+  return password;
+}
+
+/** A seeded person by address, with their roles; throws, saying how to make them, when the seed has not. */
+export async function seededUser(email: string): Promise<{ userId: string; name: string; memberships: Array<{ restaurantId: string; role: string }> }> {
+  const db = prisma();
+  try {
+    const user = await db.user.findUnique({
+      where: { email },
+      select: { id: true, name: true, memberships: { select: { restaurantId: true, role: true } } },
+    });
+    if (!user) throw new Error(`${email} does not exist. Run \`npm run db:seed\` with DEV_SEED_PASSWORD set in .env.`);
+    return { userId: user.id, name: user.name, memberships: user.memberships };
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Sets the language a person reads the Studio in, as their account's setting would. */
+export async function setUserLocale(userId: string, locale: Locale): Promise<void> {
+  const db = prisma();
+  try {
+    await db.user.update({ where: { id: userId }, data: { locale } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** A restaurant's permission policy as stored, so a test that changes it can put it back (`restoreRestaurantPolicy`). */
+export async function restaurantPolicy(id: string): Promise<unknown> {
+  const db = prisma();
+  try {
+    return (await db.restaurant.findUniqueOrThrow({ where: { id }, select: { permissionPolicy: true } })).permissionPolicy;
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Puts a restaurant's permission policy back as `policy` had it. Its version moves on, as after any save. */
+export async function restoreRestaurantPolicy(id: string, policy: unknown): Promise<void> {
+  const db = prisma();
+  try {
+    await db.restaurant.update({ where: { id }, data: { permissionPolicy: policy as never, version: { increment: 1 } } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Deletes the audit rows a person's actions wrote since `since`: what a test did as a seeded person, and nothing older. */
+export async function removeAuditRowsBy(actorId: string, since: Date): Promise<void> {
+  const db = prisma();
+  try {
+    await db.auditLog.deleteMany({ where: { actorId, occurredAt: { gte: since } } });
+  } finally {
+    await db.$disconnect();
+  }
 }
 
 /** The code an authenticator app shows for `secret` (base32, 6 digits, 30 seconds). */

@@ -1,5 +1,5 @@
-import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Browser, type Page } from '@playwright/test';
+import { seriousViolations } from './helpers/axe';
 import {
   atelierRestaurant,
   createStudioUser,
@@ -19,14 +19,11 @@ import {
  * limits count each test apart from the others and from earlier runs.
  */
 
-async function freshPage(browser: Browser, options: { signedIn?: boolean; locale?: string } = {}): Promise<Page> {
+async function freshPage(browser: Browser, options: { signedIn?: boolean } = {}): Promise<Page> {
   const context = await browser.newContext({
     extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() },
     ...(options.signedIn ? { storageState: SUPER_ADMIN_FILE } : {}),
   });
-  if (options.locale) {
-    await context.addCookies([{ name: 'studio-locale', value: options.locale, url: 'http://127.0.0.1:3100/studio' }]);
-  }
   return context.newPage();
 }
 
@@ -39,13 +36,6 @@ async function switchLanguage(page: Page, group: string, language: string, dir: 
     await page.getByRole('group', { name: group }).getByRole('button', { name: language }).click();
     await expect(page.locator('html')).toHaveAttribute('dir', dir, { timeout: 2000 });
   }).toPass();
-}
-
-async function seriousViolations(page: Page): Promise<string[]> {
-  const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze();
-  return results.violations
-    .filter((violation) => violation.impact === 'serious' || violation.impact === 'critical')
-    .map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(' ')).join(' | ')}`);
 }
 
 test.describe('Studio sign-in @desktop', () => {
@@ -175,21 +165,7 @@ test.describe('Studio sign-in @desktop', () => {
     await page.context().close();
   });
 
-  for (const [locale, heading, signIn] of [
-    ['ar', 'تسجيل الدخول', 'تسجيل الدخول'],
-    ['ckb', 'چوونەژوورەوە', 'چوونەژوورەوە'],
-  ] as const) {
-    test(`the sign-in page in ${locale} is right to left and has no serious accessibility problems`, async ({ browser }) => {
-      const page = await freshPage(browser, { locale });
-      await page.goto('/studio/sign-in');
-      await expect(page.locator('html')).toHaveAttribute('lang', locale);
-      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-      await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
-      await expect(page.getByRole('button', { name: signIn, exact: true })).toBeVisible();
-      expect(await seriousViolations(page)).toEqual([]);
-      await page.context().close();
-    });
-  }
+  // The sign-in page in each language, right to left in Arabic and Sorani, is in studio-a11y.spec.ts.
 
   test('the language switch turns the signed-out pages to Arabic and back, and English passes axe', async ({ browser }) => {
     const page = await freshPage(browser);
