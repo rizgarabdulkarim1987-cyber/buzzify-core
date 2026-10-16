@@ -22,6 +22,23 @@ enum PairingSourceType {
 enum RestaurantStatus {
   ACTIVE
   SUSPENDED
+  ARCHIVED
+}
+
+enum RestaurantType {
+  CAFE
+  RESTAURANT
+  BAKERY
+  FAST_FOOD
+  FINE_DINING
+  OTHER
+}
+
+enum MenuStatus {
+  DRAFT
+  PUBLISHED
+  SUSPENDED
+  ARCHIVED
 }
 
 enum ThemeMode {
@@ -46,20 +63,82 @@ enum AnalyticsEventType {
   BUNDLE_ACCEPT
 }
 
+/// A client business. It owns branches and menus; everything a guest sees belongs to one of its menus.
 model Restaurant {
-  id            String           @id @default(cuid())
-  slug          String           @unique
-  name          String
-  currency      String           @default("USD")
-  defaultLocale String           @default("en")
-  locales       String[]
-  timezone      String
-  numeralSystem NumeralSystem    @default(LATN)
-  engineConfig  Json             @default("{}")
-  status        RestaurantStatus @default(ACTIVE)
-  createdAt     DateTime         @default(now())
+  id               String           @id @default(cuid())
+  /// Shown to staff as `BZ-0001`: the number padded to four digits.
+  clientNumber     Int              @unique @default(autoincrement())
+  name             String
+  type             RestaurantType   @default(RESTAURANT)
+  description      String           @default("")
+  address          String           @default("")
+  city             String           @default("")
+  country          String           @default("")
+  phone            String           @default("")
+  whatsapp         String           @default("")
+  /// { instagram?, facebook?, tiktok?, website? }
+  socialLinks      Json             @default("{}")
+  /// { mon: [["08:00","23:00"]], ... }
+  workingHours     Json             @default("{}")
+  status           RestaurantStatus @default(ACTIVE)
+  notes            String           @default("")
+  permissionPolicy Json             @default("{}")
+  version          Int              @default(1)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  domains         RestaurantDomain[]
+  branches Branch[]
+  menus    Menu[]
+
+  @@index([name])
+  @@index([city])
+  @@index([status])
+}
+
+model Branch {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  address      String     @default("")
+  city         String     @default("")
+  phone        String     @default("")
+  workingHours Json       @default("{}")
+  sortOrder    Int        @default(0)
+  version      Int        @default(1)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// What a guest opens: one slug, one catalog, one brand. Until publishing exists the public pages read the draft.
+model Menu {
+  id                  String        @id @default(cuid())
+  restaurantId        String
+  name                String
+  slug                String        @unique
+  status              MenuStatus    @default(DRAFT)
+  statusBeforeArchive MenuStatus?
+  liveRevisionId      String?       @unique
+  draftHash           String?
+  liveHash            String?
+  currency            String        @default("USD")
+  defaultLocale       String        @default("en")
+  locales             String[]
+  timezone            String
+  numeralSystem       NumeralSystem @default(LATN)
+  engineConfig        Json          @default("{}")
+  /// { en?: { title, description }, ar?: ..., ckb?: ... }
+  seo                 Json          @default("{}")
+  notes               String        @default("")
+  version             Int           @default(1)
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id])
+  liveRevision    MenuRevision?     @relation("LiveRevision", fields: [liveRevisionId], references: [id], onDelete: SetNull)
+  revisions       MenuRevision[]    @relation("MenuRevisions")
+  slugs           MenuSlug[]
+  domains         MenuDomain[]
   brand           BrandConfig?
   categories      Category[]
   products        Product[]
@@ -73,47 +152,83 @@ model Restaurant {
   schedule        DaypartSchedule[]
   tables          Table[]
   analyticsEvents AnalyticsEvent[]
-}
-
-model RestaurantDomain {
-  id           String     @id @default(cuid())
-  restaurantId String
-  host         String     @unique
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([name])
+}
+
+/// Every slug a menu has ever had, so a retired address is never handed to a different menu.
+model MenuSlug {
+  slug      String   @id
+  /// Null once the menu is deleted: the slug stays reserved as a tombstone.
+  menuId    String?
+  createdAt DateTime @default(now())
+  menu      Menu?    @relation(fields: [menuId], references: [id], onDelete: SetNull)
+
+  @@index([menuId])
+}
+
+model MenuRevision {
+  id            String    @id @default(cuid())
+  menuId        String
+  number        Int
+  schemaVersion Int
+  snapshot      Json
+  snapshotHash  String
+  goLiveAt      DateTime?
+  wentLiveAt    DateTime?
+  cancelledAt   DateTime?
+  createdById   String?
+  note          String    @default("")
+  createdAt     DateTime  @default(now())
+  menu          Menu      @relation("MenuRevisions", fields: [menuId], references: [id], onDelete: Cascade)
+  liveOf        Menu?     @relation("LiveRevision")
+
+  @@unique([menuId, number])
+}
+
+model MenuDomain {
+  id     String @id @default(cuid())
+  menuId String
+  host   String @unique
+  menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
 }
 
 model BrandConfig {
-  id              String     @id @default(cuid())
-  restaurantId    String     @unique
+  id              String    @id @default(cuid())
+  menuId          String    @unique
   tokens          Json
   typography      Json
-  theme           ThemeMode  @default(DARK)
-  motionIntensity String     @default("subtle")
-  navStyle        String     @default("rail")
+  theme           ThemeMode @default(DARK)
+  motionIntensity String    @default("subtle")
+  navStyle        String    @default("rail")
   /// How the category rail moves: grains, drum, flap, deck or plain (see src/lib/rail.ts).
-  railStyle       String     @default("grains")
+  railStyle       String    @default("grains")
   logoText        String
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model Category {
-  id           String     @id @default(cuid())
-  restaurantId String
+  id           String    @id @default(cuid())
+  menuId       String
   slug         String
-  sortOrder    Int        @default(0)
+  sortOrder    Int       @default(0)
   translations Json
-  isActive     Boolean    @default(true)
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  isActive     Boolean   @default(true)
+  version      Int       @default(1)
+  menu         Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
   products     Product[]
 
-  @@unique([restaurantId, slug])
+  @@unique([menuId, slug])
 }
 
 model Product {
   id                 String    @id @default(cuid())
-  restaurantId       String
+  menuId             String
   categoryId         String
   slug               String
   basePrice          Int
@@ -123,64 +238,73 @@ model Product {
   isSignature        Boolean   @default(false)
   isFeatured         Boolean   @default(false)
   isAvailable        Boolean   @default(true)
+  /// Hidden from guests without a publish; `isAvailable` is the separate "sold out" state.
+  isHidden           Boolean   @default(false)
   stockCount         Int?
   lowStockThreshold  Int?
   dayparts           Daypart[]
   hideOutsideDaypart Boolean   @default(false)
   slot               String?
   allergens          String[]
+  dietary            String[]
+  calories           Int?
+  /// NEW, POPULAR or RECOMMENDED.
+  badges             String[]
   ingredients        Json      @default("{}")
   media              Json      @default("[]")
   translations       Json
   sortOrder          Int       @default(0)
+  version            Int       @default(1)
 
-  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category     Category          @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  variants     ProductVariant[]
-  groups       ModifierGroup[]
-  upsellFrom   UpsellRule[]      @relation("UpsellSource")
-  upsellTo     UpsellRule[]      @relation("UpsellTarget")
-  pairingFrom  PairingRule[]     @relation("PairingSource")
-  pairingTo    PairingRule[]     @relation("PairingTarget")
-  bundleItems  BundleItem[]
+  menu        Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants    ProductVariant[]
+  groups      ModifierGroup[]
+  upsellFrom  UpsellRule[]     @relation("UpsellSource")
+  upsellTo    UpsellRule[]     @relation("UpsellTarget")
+  pairingFrom PairingRule[]    @relation("PairingSource")
+  pairingTo   PairingRule[]    @relation("PairingTarget")
+  bundleItems BundleItem[]
 
-  @@unique([restaurantId, slug])
-  @@index([restaurantId, categoryId])
+  @@unique([menuId, slug])
+  @@index([menuId, categoryId])
 }
 
 model ProductVariant {
-  id           String     @id @default(cuid())
-  restaurantId String
+  id           String  @id @default(cuid())
+  menuId       String
   productId    String
-  priceDelta   Int        @default(0)
+  priceDelta   Int     @default(0)
   costDelta    Int?
-  isDefault    Boolean    @default(false)
+  isDefault    Boolean @default(false)
   translations Json
-  sortOrder    Int        @default(0)
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder    Int     @default(0)
+  version      Int     @default(1)
+  menu         Menu    @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  product      Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId, productId])
+  @@index([menuId, productId])
 }
 
 model ModifierGroup {
   id           String           @id @default(cuid())
-  restaurantId String
+  menuId       String
   productId    String
   minSelect    Int              @default(0)
   maxSelect    Int              @default(1)
   translations Json
   sortOrder    Int              @default(0)
-  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  version      Int              @default(1)
+  menu         Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
   product      Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   options      ModifierOption[]
 
-  @@index([restaurantId, productId])
+  @@index([menuId, productId])
 }
 
 model ModifierOption {
   id              String        @id @default(cuid())
-  restaurantId    String
+  menuId          String
   groupId         String
   priceDelta      Int           @default(0)
   costDelta       Int?
@@ -191,31 +315,32 @@ model ModifierOption {
   visualKey       String?
   translations    Json
   sortOrder       Int           @default(0)
-  restaurant      Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  version         Int           @default(1)
+  menu            Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
   group           ModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId, groupId])
+  @@index([menuId, groupId])
 }
 
 model UpsellRule {
-  id              String     @id @default(cuid())
-  restaurantId    String
+  id              String    @id @default(cuid())
+  menuId          String
   sourceProductId String
   targetProductId String
-  priority        Int        @default(50)
+  priority        Int       @default(50)
   dayparts        Daypart[]
   translations    Json
-  isActive        Boolean    @default(true)
-  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  source          Product    @relation("UpsellSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
-  target          Product    @relation("UpsellTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
+  isActive        Boolean   @default(true)
+  menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  source          Product   @relation("UpsellSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
+  target          Product   @relation("UpsellTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId, sourceProductId])
+  @@index([menuId, sourceProductId])
 }
 
 model PairingRule {
   id               String            @id @default(cuid())
-  restaurantId     String
+  menuId           String
   sourceType       PairingSourceType
   sourceProductId  String?
   sourceCategoryId String?
@@ -224,74 +349,79 @@ model PairingRule {
   dayparts         Daypart[]
   translations     Json
   isActive         Boolean           @default(true)
-  restaurant       Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menu             Menu              @relation(fields: [menuId], references: [id], onDelete: Cascade)
   source           Product?          @relation("PairingSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
   target           Product           @relation("PairingTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId])
+  @@index([menuId])
 }
 
 model Bundle {
   id           String       @id @default(cuid())
-  restaurantId String
+  menuId       String
   slug         String
   price        Int
   dayparts     Daypart[]
   translations Json
   isActive     Boolean      @default(true)
-  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
   items        BundleItem[]
 
-  @@unique([restaurantId, slug])
+  @@unique([menuId, slug])
 }
 
 model BundleItem {
-  id           String     @id @default(cuid())
-  restaurantId String
-  bundleId     String
-  productId    String
-  variantId    String?
-  quantity     Int        @default(1)
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  bundle       Bundle     @relation(fields: [bundleId], references: [id], onDelete: Cascade)
-  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  menuId    String
+  bundleId  String
+  productId String
+  variantId String?
+  quantity  Int     @default(1)
+  menu      Menu    @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  bundle    Bundle  @relation(fields: [bundleId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId, bundleId])
+  @@index([menuId, bundleId])
 }
 
 model DaypartSchedule {
-  id           String     @id @default(cuid())
-  restaurantId String
-  daypart      Daypart
-  startMinute  Int
-  endMinute    Int
-  daysOfWeek   Int        @default(127)
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id          String  @id @default(cuid())
+  menuId      String
+  daypart     Daypart
+  startMinute Int
+  endMinute   Int
+  daysOfWeek  Int     @default(127)
+  menu        Menu    @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId])
+  @@index([menuId])
 }
 
 model Table {
-  id           String     @id @default(cuid())
-  restaurantId String
-  number       Int
-  label        String
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  menuId String
+  number Int
+  label  String
+  menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
-  @@unique([restaurantId, number])
+  @@unique([menuId, number])
 }
 
 model AnalyticsEvent {
   id                 String             @id @default(cuid())
-  restaurantId       String
+  menuId             String
   anonymousSessionId String
   type               AnalyticsEventType
   tableNumber        Int?
   productId          String?
   suggestionId       String?
+  /// Which printed QR code the guest scanned, when the menu was opened from one.
+  qrCodeId           String?
+  /// Where the guest came from: a QR code, a link or a search.
+  source             String?
   payload            Json               @default("{}")
   occurredAt         DateTime           @default(now())
-  restaurant         Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  menu               Menu               @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
-  @@index([restaurantId, type, occurredAt])
+  @@index([menuId, type, occurredAt])
+  @@index([type, occurredAt])
 }

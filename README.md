@@ -57,7 +57,7 @@ Stop the database with `npm run db:down`.
 | `npm run test:e2e` | Browser tests with Playwright and axe |
 | `npm run perf` | Lighthouse mobile baseline into `docs/perf/` (needs `build` and `start`) |
 | `npm run db:up` / `db:down` / `db:status` | Embedded PostgreSQL |
-| `npm run db:seed` | Reseeds ATELIER (replaces the restaurant) |
+| `npm run db:seed` | Reseeds ATELIER (keeps its restaurant, replaces its menu) |
 | `npm run lint` / `typecheck` | Static checks |
 
 First-time browser tests need `npx playwright install chromium`. `npm run perf` uses the Chromium that
@@ -76,14 +76,15 @@ prisma              schema, migrations, ATELIER seed
 
 - **Prices are never trusted from the browser.** The cart sends product ids, option ids and quantities. Every
   total comes from `quoteCart` on the server.
-- **Tenants are isolated by construction.** Tenant-owned tables carry `restaurantId`, all access goes through
-  `scopedDb()`, a test fails if a new model is not classified, and raw SQL is blocked by lint.
+- **Tenants are isolated by construction.** A restaurant owns menus and branches. Catalog tables carry `menuId` and
+  branches carry `restaurantId`; all access goes through `menuDb()`, `restaurantDb()` or `scopedClient()`, a test
+  fails if a new model is not classified, and raw SQL is blocked by lint.
 - **The engine is plain functions.** Anything in `src/server/domain` takes data and a clock and returns data,
   so every rule is unit-tested without a database.
 
 ### Tuning the revenue engine
 
-Per restaurant, `Restaurant.engineConfig` (JSON) overrides defaults: `upsellMaxOffers`,
+Per menu, `Menu.engineConfig` (JSON) overrides defaults: `upsellMaxOffers`,
 `upsellDeltaCapRatio`, `pairingMaxOffers`, `cartPairingMaxOffers`, and `weights`
 (`rulePriority`, `margin`, `popularity`, `priority`, `daypart`, `stockPenalty`). Values are clamped.
 Relevance is a hard gate: a recommendation must come from a rule or from the product's own options; margin only

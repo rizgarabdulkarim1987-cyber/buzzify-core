@@ -12,7 +12,7 @@ export interface BrandView {
   logoText: string;
   theme: 'dark' | 'light';
   motionIntensity: 'none' | 'subtle' | 'expressive';
-  /** How the category rail moves; the plain rail when the restaurant has turned motion off. */
+  /** How the category rail moves; the plain rail when the menu has turned motion off. */
   railStyle: RailStyle;
   tokens: { dark: Palette; light: Palette };
 }
@@ -37,7 +37,6 @@ export async function findTenant(
   prisma: PrismaClient,
   ref: { slug?: string; host?: string },
 ): Promise<TenantInfo | null> {
-  let restaurantId: string | null = null;
   let where: { slug: string } | { id: string };
 
   if (ref.slug !== undefined) {
@@ -46,16 +45,19 @@ export async function findTenant(
   } else if (ref.host !== undefined) {
     const host = ref.host.toLowerCase().split(':')[0] ?? '';
     if (!HOST.test(host)) return null;
-    const domain = await prisma.restaurantDomain.findUnique({ where: { host } });
-    restaurantId = domain?.restaurantId ?? null;
-    if (!restaurantId) return null;
-    where = { id: restaurantId };
+    const domain = await prisma.menuDomain.findUnique({ where: { host } });
+    if (!domain) return null;
+    where = { id: domain.menuId };
   } else {
     return null;
   }
 
-  const row = await prisma.restaurant.findUnique({ where, include: { brand: true } });
-  if (!row || row.status !== 'ACTIVE') return null;
+  const row = await prisma.menu.findUnique({
+    where,
+    include: { brand: true, restaurant: { select: { status: true } } },
+  });
+  // Guests see a published menu of an active restaurant. Until publishing exists they see its draft.
+  if (!row || row.status !== 'PUBLISHED' || row.restaurant.status !== 'ACTIVE') return null;
 
   const rawTokens = (row.brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const locales = row.locales.filter(isLocale);

@@ -13,14 +13,20 @@ function translations(fields: Record<string, Tri>): TranslationJson {
   return out;
 }
 
-export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Promise<{ restaurantId: string }> {
-  await prisma.restaurant.deleteMany({ where: { slug: data.restaurant.slug } });
+/**
+ * Writes a menu's draft catalog under an existing restaurant, replacing any menu with the same slug. The demo menu is
+ * PUBLISHED: until publishing exists, guests read the draft rows of a published menu.
+ */
+export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantId: string): Promise<{ menuId: string }> {
+  await prisma.menu.deleteMany({ where: { slug: data.restaurant.slug } });
 
   const r = data.restaurant;
-  const restaurant = await prisma.restaurant.create({
+  const menu = await prisma.menu.create({
     data: {
-      slug: r.slug,
+      restaurantId,
       name: r.name,
+      slug: r.slug,
+      status: 'PUBLISHED',
       currency: r.currency,
       defaultLocale: r.defaultLocale,
       locales: r.locales,
@@ -41,12 +47,12 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
       },
     },
   });
-  const restaurantId = restaurant.id;
+  const menuId = menu.id;
 
   const categoryIds = new Map<string, string>();
   for (const [index, category] of data.categories.entries()) {
     const row = await prisma.category.create({
-      data: { restaurantId, slug: category.slug, sortOrder: index, translations: translations({ name: category.name }) },
+      data: { menuId, slug: category.slug, sortOrder: index, translations: translations({ name: category.name }) },
     });
     categoryIds.set(category.slug, row.id);
   }
@@ -55,7 +61,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
   for (const [index, product] of data.products.entries()) {
     const row = await prisma.product.create({
       data: {
-        restaurantId,
+        menuId,
         categoryId: categoryIds.get(product.category) as string,
         slug: product.slug,
         basePrice: product.price,
@@ -76,7 +82,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
         sortOrder: index,
         variants: {
           create: (product.variants ?? []).map((variant, order) => ({
-            restaurantId,
+            menuId,
             priceDelta: variant.priceDelta,
             costDelta: variant.costDelta,
             isDefault: variant.isDefault ?? false,
@@ -86,14 +92,14 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
         },
         groups: {
           create: (product.groups ?? []).map((group, order) => ({
-            restaurantId,
+            menuId,
             minSelect: group.min,
             maxSelect: group.max,
             translations: translations({ name: group.name }),
             sortOrder: order,
             options: {
               create: group.options.map((option, optionOrder) => ({
-                restaurantId,
+                menuId,
                 priceDelta: option.priceDelta,
                 costDelta: option.costDelta,
                 isSuggested: option.suggested ?? false,
@@ -119,7 +125,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
     const bySource = rule.source;
     await prisma.pairingRule.create({
       data: {
-        restaurantId,
+        menuId,
         sourceType: 'product' in bySource ? 'PRODUCT' : 'CATEGORY',
         sourceProductId: 'product' in bySource ? productId(bySource.product) : null,
         sourceCategoryId: 'category' in bySource ? (categoryIds.get(bySource.category) as string) : null,
@@ -134,7 +140,7 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
   for (const rule of data.upsellRules) {
     await prisma.upsellRule.create({
       data: {
-        restaurantId,
+        menuId,
         sourceProductId: productId(rule.source),
         targetProductId: productId(rule.target),
         priority: rule.priority,
@@ -146,14 +152,14 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
   for (const bundle of data.bundles) {
     await prisma.bundle.create({
       data: {
-        restaurantId,
+        menuId,
         slug: bundle.slug,
         price: bundle.price,
         dayparts: bundle.dayparts ?? [],
         translations: translations({ name: bundle.name, description: bundle.description }),
         items: {
           create: bundle.items.map((item) => ({
-            restaurantId,
+            menuId,
             productId: productId(item.product),
             variantId: null,
             quantity: item.quantity,
@@ -164,15 +170,15 @@ export async function seedRestaurant(prisma: PrismaClient, data: SeedData): Prom
   }
 
   await prisma.daypartSchedule.createMany({
-    data: data.schedule.map((window) => ({ restaurantId, ...window })),
+    data: data.schedule.map((window) => ({ menuId, ...window })),
   });
   await prisma.table.createMany({
     data: data.tables.map((number) => ({
-      restaurantId,
+      menuId,
       number,
       label: `Table ${String(number).padStart(2, '0')}`,
     })),
   });
 
-  return { restaurantId };
+  return { menuId };
 }

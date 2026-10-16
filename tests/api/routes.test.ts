@@ -1,8 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ATELIER } from '../../prisma/seed/atelier';
-import { seedRestaurant } from '../../prisma/seed/apply';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
-import { createRestaurantFixture, resetTestData, testPrisma } from '../helpers/db';
+import { createMenuFixture, resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
 process.env.DATABASE_URL = databaseUrl(TEST_DB);
 const prisma = testPrisma();
@@ -13,7 +11,7 @@ let quote: RouteModule;
 let suggestions: RouteModule;
 let events: RouteModule;
 let searchIndex: RouteModule;
-let atelier: Awaited<ReturnType<typeof prisma.restaurant.findUniqueOrThrow>>;
+let atelier: Awaited<ReturnType<typeof prisma.menu.findUniqueOrThrow>>;
 let burgerId = '';
 let friesId = '';
 let otherTenantProductId = '';
@@ -34,17 +32,17 @@ function post(route: RouteModule, tenant: string, body: unknown, init: { raw?: s
 describe('public API', () => {
   beforeAll(async () => {
     await resetTestData(prisma);
-    await seedRestaurant(prisma, ATELIER);
-    const other = await createRestaurantFixture(prisma, 'other-cafe');
+    await seedAtelier(prisma);
+    const other = await createMenuFixture(prisma, 'other-cafe');
     otherTenantProductId = other.product.id;
-    atelier = await prisma.restaurant.findUniqueOrThrow({ where: { slug: 'atelier' } });
-    const products = await prisma.product.findMany({ where: { restaurantId: atelier.id } });
+    atelier = await prisma.menu.findUniqueOrThrow({ where: { slug: 'atelier' } });
+    const products = await prisma.product.findMany({ where: { menuId: atelier.id } });
     burgerId = products.find((p) => p.slug === 'atelier-burger')!.id;
     friesId = products.find((p) => p.slug === 'truffle-fries')!.id;
-    const bundle = await prisma.bundle.findFirstOrThrow({ where: { restaurantId: atelier.id, slug: 'burger-set' } });
+    const bundle = await prisma.bundle.findFirstOrThrow({ where: { menuId: atelier.id, slug: 'burger-set' } });
     burgerSetId = bundle.id;
     const cheese = await prisma.modifierOption.findFirstOrThrow({
-      where: { restaurantId: atelier.id, group: { productId: burgerId } },
+      where: { menuId: atelier.id, group: { productId: burgerId } },
       orderBy: { sortOrder: 'asc' },
     });
     cheeseOptionId = cheese.id;
@@ -190,7 +188,7 @@ describe('public API', () => {
     });
 
     it('finds a bundle opportunity from the cart', async () => {
-      const products = await prisma.product.findMany({ where: { restaurantId: atelier.id } });
+      const products = await prisma.product.findMany({ where: { menuId: atelier.id } });
       const idOf = (slug: string) => products.find((p) => p.slug === slug)!.id;
       const response = await post(suggestions, 'atelier', {
         context: 'cart',
@@ -221,7 +219,7 @@ describe('public API', () => {
   });
 
   describe('search index', () => {
-    it("returns every language's search text for this restaurant's menu only", async () => {
+    it("returns every language's search text for this menu only", async () => {
       const response = await post(searchIndex, 'atelier', {});
       expect(response.status).toBe(200);
       const { keys } = (await response.json()) as { keys: Record<string, string> };
@@ -245,7 +243,7 @@ describe('public API', () => {
         events: [{ type: 'MENU_VIEW' }, { type: 'PRODUCT_VIEW', productId: burgerId }],
       });
       expect(response.status).toBe(204);
-      expect(await prisma.analyticsEvent.count({ where: { restaurantId: atelier.id } })).toBe(2);
+      expect(await prisma.analyticsEvent.count({ where: { menuId: atelier.id } })).toBe(2);
     });
 
     it('rejects unknown event types and empty batches', async () => {

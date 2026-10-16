@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { getPrisma } from '@/server/data/prisma';
-import { scopedDb } from '@/server/data/tenant-db';
+import { menuDb } from '@/server/data/tenant-db';
 import { loadMenuView, resolveRoute } from '@/server/route-context';
 import { RouteTable } from '@/ui/AppProviders';
 import { MenuApp } from '@/ui/menu/MenuApp';
@@ -18,7 +18,7 @@ export default async function Page({
 
   const number = Number(raw.table);
   if (number < 1) notFound();
-  const table = await scopedDb(getPrisma(), route.tenant.id).table.findFirst({ where: { number } });
+  const table = await menuDb(getPrisma(), route.tenant.id).table.findFirst({ where: { number } });
   if (!table) notFound();
 
   const view = await loadMenuView(route);

@@ -14,10 +14,14 @@ describe('database encoding', () => {
 
   it('stores and returns Arabic and Sorani text unchanged', async () => {
     const name = 'قهوة ئێسپرێسۆ ☕ Café';
-    const created = await prisma.restaurant.create({
-      data: { slug: 'encoding-check', name, timezone: 'Asia/Baghdad', locales: ['en'] },
+    const restaurant = await prisma.restaurant.create({ data: { name, city: 'هەولێر' } });
+    const menu = await prisma.menu.create({
+      data: { restaurantId: restaurant.id, slug: 'encoding-check', name, timezone: 'Asia/Baghdad', locales: ['en'] },
     });
-    const found = await prisma.restaurant.findUniqueOrThrow({ where: { id: created.id } });
-    expect(found.name).toBe(name);
+    const foundRestaurant = await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurant.id } });
+    const foundMenu = await prisma.menu.findUniqueOrThrow({ where: { id: menu.id } });
+    expect(foundRestaurant.name).toBe(name);
+    expect(foundRestaurant.city).toBe('هەولێر');
+    expect(foundMenu.name).toBe(name);
   });
 });

@@ -25,6 +25,8 @@ export function validateSeed(data: SeedData): string[] {
   const categories = new Set(data.categories.map((c) => c.slug));
   const slugs = new Set<string>();
 
+  if (data.profile.name.trim() === '') problems.push('profile: the restaurant needs a name');
+
   for (const category of data.categories) checkTri(problems, `category ${category.slug} name`, category.name);
 
   for (const product of data.products) {

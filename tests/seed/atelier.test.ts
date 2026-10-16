@@ -21,6 +21,10 @@ describe('ATELIER seed', () => {
     }
   });
 
+  it('describes the café as a restaurant of its own', () => {
+    expect(ATELIER.profile).toMatchObject({ name: 'ATELIER', type: 'CAFE', city: 'Erbil', country: 'Iraq' });
+  });
+
   it('provides visual art for every product', () => {
     for (const product of ATELIER.products) {
       expect(product.art.length).toBeGreaterThan(0);
@@ -73,6 +77,12 @@ describe('validateSeed', () => {
     const data = clone();
     data.products.find((p) => p.slug === 'atelier-burger')!.groups![0]!.options[0]!.visualKey = 'sparkles' as never;
     expect(validateSeed(data).join('\n')).toMatch(/visualKey/);
+  });
+
+  it('flags a restaurant profile without a name', () => {
+    const data = clone();
+    data.profile.name = '  ';
+    expect(validateSeed(data).join('\n')).toMatch(/profile/i);
   });
 
   it('flags a cost at or above the price', () => {

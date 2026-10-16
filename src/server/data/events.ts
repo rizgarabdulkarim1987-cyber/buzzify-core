@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@/generated/prisma/client';
-import { scopedDb } from './tenant-db';
+import { menuDb } from './tenant-db';
 
 export const EVENT_TYPES = [
   'MENU_VIEW',
@@ -23,10 +23,10 @@ export interface EventInput {
 
 export async function recordEvents(
   prisma: PrismaClient,
-  restaurantId: string,
+  menuId: string,
   input: { anonymousSessionId: string; tableNumber: number | null; events: EventInput[] },
 ): Promise<number> {
-  const db = scopedDb(prisma, restaurantId);
+  const db = menuDb(prisma, menuId);
   const result = await db.analyticsEvent.createMany({
     data: input.events.map((event) => ({
       anonymousSessionId: input.anonymousSessionId,

@@ -1,18 +1,19 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { ATELIER } from '../../prisma/seed/atelier';
-import { seedRestaurant } from '../../prisma/seed/apply';
-import { loadCatalog } from '@/server/data/catalog-loader';
+import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import { findTenant } from '@/server/data/tenant';
 import { recordEvents } from '@/server/data/events';
-import { resetTestData, testPrisma } from '../helpers/db';
+import { resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
 const prisma = testPrisma();
 let restaurantId = '';
+let menuId = '';
 
 describe('data layer (database)', () => {
   beforeAll(async () => {
     await resetTestData(prisma);
-    restaurantId = (await seedRestaurant(prisma, ATELIER)).restaurantId;
+    const seeded = await seedAtelier(prisma);
+    restaurantId = seeded.restaurant.id;
+    menuId = seeded.menuId;
   });
   afterAll(async () => {
     await resetTestData(prisma);
@@ -20,7 +21,7 @@ describe('data layer (database)', () => {
   });
 
   it('loads the full ATELIER catalog into domain types', async () => {
-    const catalog = await loadCatalog(prisma, restaurantId);
+    const catalog = await loadDraftCatalog(prisma, menuId);
     expect(catalog.currency).toBe('USD');
     expect(catalog.timeZone).toBe('Asia/Baghdad');
     expect(catalog.products).toHaveLength(24);
@@ -35,13 +36,13 @@ describe('data layer (database)', () => {
   });
 
   it('takes the products of a deactivated category out of the catalog', async () => {
-    const before = await loadCatalog(prisma, restaurantId);
-    const category = await prisma.category.findFirstOrThrow({ where: { restaurantId, slug: 'cold' } });
+    const before = await loadDraftCatalog(prisma, menuId);
+    const category = await prisma.category.findFirstOrThrow({ where: { menuId, slug: 'cold' } });
     const inCategory = before.products.filter((p) => p.categoryId === category.id).length;
     expect(inCategory).toBeGreaterThan(0);
     try {
       await prisma.category.update({ where: { id: category.id }, data: { isActive: false } });
-      const after = await loadCatalog(prisma, restaurantId);
+      const after = await loadDraftCatalog(prisma, menuId);
       expect(after.categories.map((c) => c.slug)).not.toContain('cold');
       expect(after.products).toHaveLength(before.products.length - inCategory);
       expect(after.products.some((p) => p.categoryId === category.id)).toBe(false);
@@ -59,18 +60,30 @@ describe('data layer (database)', () => {
     expect(byHost?.id).toBe(bySlug?.id);
   });
 
-  it('rejects unknown, malformed and suspended tenants', async () => {
+  it('rejects unknown and malformed tenants', async () => {
     expect(await findTenant(prisma, { slug: 'nope' })).toBeNull();
     expect(await findTenant(prisma, { slug: "x'; DROP TABLE" })).toBeNull();
     expect(await findTenant(prisma, { slug: '' })).toBeNull();
     expect(await findTenant(prisma, { host: 'unknown.example' })).toBeNull();
-    await prisma.restaurant.update({ where: { id: restaurantId }, data: { status: 'SUSPENDED' } });
-    expect(await findTenant(prisma, { slug: 'atelier' })).toBeNull();
+  });
+
+  it('serves only a published menu of an active restaurant', async () => {
+    for (const status of ['DRAFT', 'SUSPENDED', 'ARCHIVED'] as const) {
+      await prisma.menu.update({ where: { id: menuId }, data: { status } });
+      expect(await findTenant(prisma, { slug: 'atelier' }), `menu ${status}`).toBeNull();
+      expect(await findTenant(prisma, { host: 'atelier.localhost' }), `menu ${status} by host`).toBeNull();
+    }
+    await prisma.menu.update({ where: { id: menuId }, data: { status: 'PUBLISHED' } });
+    for (const status of ['SUSPENDED', 'ARCHIVED'] as const) {
+      await prisma.restaurant.update({ where: { id: restaurantId }, data: { status } });
+      expect(await findTenant(prisma, { slug: 'atelier' }), `restaurant ${status}`).toBeNull();
+    }
     await prisma.restaurant.update({ where: { id: restaurantId }, data: { status: 'ACTIVE' } });
+    expect(await findTenant(prisma, { slug: 'atelier' })).not.toBeNull();
   });
 
   it('records analytics events scoped to the tenant', async () => {
-    const stored = await recordEvents(prisma, restaurantId, {
+    const stored = await recordEvents(prisma, menuId, {
       anonymousSessionId: 'session-12345',
       tableNumber: 4,
       events: [
@@ -79,7 +92,7 @@ describe('data layer (database)', () => {
       ],
     });
     expect(stored).toBe(2);
-    const rows = await prisma.analyticsEvent.findMany({ where: { restaurantId } });
+    const rows = await prisma.analyticsEvent.findMany({ where: { menuId } });
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.tableNumber === 4)).toBe(true);
   });

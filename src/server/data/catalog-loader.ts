@@ -10,7 +10,7 @@ import type {
 } from '@/server/domain/types';
 import { cached } from './cache';
 import { getPrisma } from './prisma';
-import { scopedDb } from './tenant-db';
+import { menuDb } from './tenant-db';
 
 function translationMap(value: unknown): TranslationMap {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as TranslationMap) : {};
@@ -25,9 +25,10 @@ function ingredientMap(value: unknown): Partial<Record<Locale, string[]>> {
   return result;
 }
 
-export async function loadCatalog(prisma: PrismaClient, restaurantId: string): Promise<Catalog> {
-  const restaurant = await prisma.restaurant.findUniqueOrThrow({ where: { id: restaurantId } });
-  const db = scopedDb(prisma, restaurantId);
+/** Reads a menu's draft rows into the domain catalog. What guests see until publishing exists. */
+export async function loadDraftCatalog(prisma: PrismaClient, menuId: string): Promise<Catalog> {
+  const menu = await prisma.menu.findUniqueOrThrow({ where: { id: menuId } });
+  const db = menuDb(prisma, menuId);
 
   const [categories, products, upsellRules, pairingRules, bundles, schedule] = await Promise.all([
     db.category.findMany({ where: { isActive: true }, orderBy: { sortOrder: 'asc' } }),
@@ -47,10 +48,10 @@ export async function loadCatalog(prisma: PrismaClient, restaurantId: string): P
   ]);
 
   return {
-    restaurantId,
-    currency: restaurant.currency,
-    timeZone: restaurant.timezone,
-    defaultLocale: isLocale(restaurant.defaultLocale) ? restaurant.defaultLocale : 'en',
+    menuId,
+    currency: menu.currency,
+    timeZone: menu.timezone,
+    defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
     categories: categories.map((c) => ({
       id: c.id,
       slug: c.slug,
@@ -140,9 +141,9 @@ export async function loadCatalog(prisma: PrismaClient, restaurantId: string): P
   };
 }
 
-export function getCatalog(restaurantId: string): Promise<Catalog> {
-  return cached(() => loadCatalog(getPrisma(), restaurantId), ['catalog', restaurantId], {
+export function getCatalog(menuId: string): Promise<Catalog> {
+  return cached(() => loadDraftCatalog(getPrisma(), menuId), ['catalog', menuId], {
     revalidate: 300,
-    tags: [`catalog:${restaurantId}`],
+    tags: [`catalog:${menuId}`],
   })();
 }

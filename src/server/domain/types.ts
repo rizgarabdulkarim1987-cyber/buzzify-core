@@ -124,7 +124,7 @@ export interface DaypartWindow {
 }
 
 export interface Catalog {
-  restaurantId: string;
+  menuId: string;
   currency: string;
   timeZone: string;
   defaultLocale: Locale;

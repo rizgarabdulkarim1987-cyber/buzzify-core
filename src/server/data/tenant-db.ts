@@ -1,6 +1,7 @@
-import type { PrismaClient } from '@/generated/prisma/client';
+import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 
-export const TENANT_SCOPED_MODELS = [
+/** Rows that belong to one menu and carry a required `menuId`. */
+export const MENU_SCOPED_MODELS = [
   'BrandConfig',
   'Category',
   'Product',
@@ -14,14 +15,25 @@ export const TENANT_SCOPED_MODELS = [
   'DaypartSchedule',
   'Table',
   'AnalyticsEvent',
+  'MenuRevision',
 ] as const;
 
-/** Looked up by host before the tenant is known, so they use the unscoped client. */
-export const UNSCOPED_LOOKUP_MODELS = ['RestaurantDomain'] as const;
+/** Rows that belong to one restaurant and carry a required `restaurantId`. */
+export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
+
+/** Looked up by slug or host before the tenant is known, so they use the unscoped client. */
+export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as const;
+
+/**
+ * Global models that reference a restaurant by design, because they are queried across restaurants (a person's
+ * memberships, say). None yet; `Membership` joins in the Studio's access-control task.
+ */
+export const CROSS_RESTAURANT_MODELS = [] as const;
 
 export const GLOBAL_MODELS = ['Restaurant'] as const;
 
-const SCOPED = new Set<string>(TENANT_SCOPED_MODELS);
+type ScopeColumn = 'menuId' | 'restaurantId';
+
 const FILTERED = new Set([
   'findMany',
   'findFirst',
@@ -40,67 +52,109 @@ const FILTERED = new Set([
 const CREATING = new Set(['create', 'createMany', 'createManyAndReturn']);
 const UPDATING = new Set(['update', 'updateMany', 'updateManyAndReturn']);
 
-/** An update may change anything except which restaurant owns the row. */
-function guardUpdate(data: unknown, restaurantId: string): unknown {
-  const row = (data ?? {}) as Record<string, unknown>;
-  if (row.restaurantId !== undefined && row.restaurantId !== restaurantId) {
-    throw new Error('Tenant mismatch: refusing to move a row to another restaurant');
-  }
-  if (row.restaurant !== undefined) {
-    throw new Error('Tenant mismatch: a scoped update may not change the owning restaurant');
-  }
-  return data;
-}
-
 type Args = Record<string, unknown> & { where?: Record<string, unknown> };
 
-function scopeWhere(args: Args, restaurantId: string): Args {
-  const where = args.where ?? {};
-  const existing = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
-  return { ...args, where: { ...where, AND: [...existing, { restaurantId }] } };
-}
+/**
+ * A Prisma extension that confines every query on `models` to rows whose `column` equals `id`: reads and writes are
+ * filtered, creates are stamped, and an update may change anything except which owner a row belongs to.
+ */
+function scopeExtension(column: ScopeColumn, models: readonly string[], id: string) {
+  if (!id) throw new Error(`Scoping by ${column} requires a value`);
+  const scoped = new Set<string>(models);
+  /** The relation field that mirrors the column: `menuId` is the foreign key of `menu`. */
+  const relation = column === 'menuId' ? 'menu' : 'restaurant';
 
-function scopeData(row: unknown, restaurantId: string): Record<string, unknown> {
-  const data = (row ?? {}) as Record<string, unknown>;
-  if (data.restaurantId !== undefined && data.restaurantId !== restaurantId) {
-    throw new Error('Tenant mismatch: refusing to write a row for another restaurant');
+  function guardUpdate(data: unknown): unknown {
+    const row = (data ?? {}) as Record<string, unknown>;
+    if (row[column] !== undefined && row[column] !== id) {
+      throw new Error(`Tenant mismatch: refusing to move a row to another ${relation}`);
+    }
+    if (row[relation] !== undefined) {
+      throw new Error(`Tenant mismatch: a scoped update may not change the owning ${relation}`);
+    }
+    return data;
   }
-  return { ...data, restaurantId };
-}
 
-export function scopedDb(prisma: PrismaClient, restaurantId: string) {
-  if (!restaurantId) throw new Error('scopedDb requires a restaurantId');
-  return prisma.$extends({
-    name: 'tenant-scope',
+  function scopeWhere(args: Args): Args {
+    const where = args.where ?? {};
+    const existing = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
+    return { ...args, where: { ...where, AND: [...existing, { [column]: id }] } };
+  }
+
+  function scopeData(row: unknown): Record<string, unknown> {
+    const data = (row ?? {}) as Record<string, unknown>;
+    if (data[column] !== undefined && data[column] !== id) {
+      throw new Error(`Tenant mismatch: refusing to write a row for another ${relation}`);
+    }
+    return { ...data, [column]: id };
+  }
+
+  return Prisma.defineExtension({
+    name: `tenant-scope:${column}`,
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
-          if (!SCOPED.has(model)) return query(args);
+          if (!scoped.has(model)) return query(args);
           const input = (args ?? {}) as Args;
           if (UPDATING.has(operation)) {
-            const scoped = scopeWhere(input, restaurantId);
-            return query({ ...scoped, data: guardUpdate(input.data, restaurantId) } as never);
+            const filtered = scopeWhere(input);
+            return query({ ...filtered, data: guardUpdate(input.data) } as never);
           }
-          if (FILTERED.has(operation)) return query(scopeWhere(input, restaurantId));
+          if (FILTERED.has(operation)) return query(scopeWhere(input));
           if (CREATING.has(operation)) {
             const data = input.data;
-            const next = Array.isArray(data)
-              ? data.map((row) => scopeData(row, restaurantId))
-              : scopeData(data, restaurantId);
+            const next = Array.isArray(data) ? data.map((row) => scopeData(row)) : scopeData(data);
             return query({ ...input, data: next });
           }
           if (operation === 'upsert') {
             return query({
-              ...scopeWhere(input, restaurantId),
-              create: scopeData(input.create, restaurantId),
-              update: guardUpdate(input.update, restaurantId),
+              ...scopeWhere(input),
+              create: scopeData(input.create),
+              update: guardUpdate(input.update),
             } as never);
           }
-          throw new Error(`Operation ${operation} is not allowed on tenant-scoped model ${model}`);
+          throw new Error(`Operation ${operation} is not allowed on ${relation}-scoped model ${model}`);
         },
       },
     },
   });
 }
 
-export type ScopedDb = ReturnType<typeof scopedDb>;
+/** A client confined to one menu's rows (and, as before, unrestricted on models that are not menu-scoped). */
+export function menuDb(prisma: PrismaClient, menuId: string) {
+  if (!menuId) throw new Error('menuDb requires a menuId');
+  return prisma.$extends(scopeExtension('menuId', MENU_SCOPED_MODELS, menuId));
+}
+
+/** A client confined to one restaurant's rows. */
+export function restaurantDb(prisma: PrismaClient, restaurantId: string) {
+  if (!restaurantId) throw new Error('restaurantDb requires a restaurantId');
+  return prisma.$extends(scopeExtension('restaurantId', RESTAURANT_SCOPED_MODELS, restaurantId));
+}
+
+export type MenuDb = ReturnType<typeof menuDb>;
+export type RestaurantDb = ReturnType<typeof restaurantDb>;
+
+/**
+ * A client confined to a menu, a restaurant, or both. Each id that is given applies its own extension, so a client
+ * given both scopes menu rows and branches in the same transaction.
+ */
+export function scopedClient(prisma: PrismaClient, scope: { menuId?: string; restaurantId?: string }) {
+  if (scope.menuId === undefined && scope.restaurantId === undefined) {
+    throw new Error('scopedClient requires a menuId or a restaurantId');
+  }
+  // A query extension leaves the client's type as it is, so every combination of scopes shares one type.
+  let client: MenuDb = prisma as never;
+  if (scope.menuId !== undefined) {
+    client = client.$extends(scopeExtension('menuId', MENU_SCOPED_MODELS, scope.menuId)) as never;
+  }
+  if (scope.restaurantId !== undefined) {
+    client = client.$extends(scopeExtension('restaurantId', RESTAURANT_SCOPED_MODELS, scope.restaurantId)) as never;
+  }
+  return client;
+}
+
+export type ScopedClient = ReturnType<typeof scopedClient>;
+
+/** The client a `scopedClient(...).$transaction(async (tx) => ...)` callback receives. */
+export type ScopedTx = Omit<ScopedClient, '$connect' | '$disconnect' | '$on' | '$transaction' | '$extends'>;

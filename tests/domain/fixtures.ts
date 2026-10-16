@@ -349,7 +349,7 @@ const bundles: Bundle[] = [
 
 export function makeCatalog(overrides: Partial<Catalog> = {}): Catalog {
   return {
-    restaurantId: 'r-test',
+    menuId: 'm-test',
     currency: 'USD',
     timeZone: 'Asia/Baghdad',
     defaultLocale: 'en',

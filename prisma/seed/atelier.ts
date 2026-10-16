@@ -1,3 +1,4 @@
+import type { RestaurantType } from '@/generated/prisma/enums';
 import type { ArtKind } from '@/lib/media';
 import type { RailStyle } from '@/lib/rail';
 import type { Daypart, VisualKey } from '@/server/domain/types';
@@ -102,6 +103,18 @@ export interface SeedPalette {
 }
 
 export interface SeedData {
+  /** The client business that owns the menu. */
+  profile: {
+    name: string;
+    type: RestaurantType;
+    city: string;
+    country: string;
+    phone: string;
+    whatsapp: string;
+    instagram: string;
+    description: string;
+  };
+  /** The menu's own settings: its slug, currency, locales and domains. The business is `profile`. */
   restaurant: {
     slug: string;
     name: string;
@@ -191,6 +204,16 @@ const REASON = {
 };
 
 export const ATELIER: SeedData = {
+  profile: {
+    name: 'ATELIER',
+    type: 'CAFE',
+    city: 'Erbil',
+    country: 'Iraq',
+    phone: '',
+    whatsapp: '',
+    instagram: '',
+    description: '',
+  },
   restaurant: {
     slug: 'atelier',
     name: 'ATELIER',

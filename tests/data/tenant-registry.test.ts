@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { GLOBAL_MODELS, TENANT_SCOPED_MODELS, UNSCOPED_LOOKUP_MODELS } from '@/server/data/tenant-db';
+import {
+  CROSS_RESTAURANT_MODELS,
+  GLOBAL_MODELS,
+  MENU_SCOPED_MODELS,
+  RESTAURANT_SCOPED_MODELS,
+  UNSCOPED_LOOKUP_MODELS,
+} from '@/server/data/tenant-db';
 
 function parseModels(schema: string): Map<string, string> {
   const models = new Map<string, string>();
@@ -13,21 +19,37 @@ function parseModels(schema: string): Map<string, string> {
 describe('tenant scoping registry', () => {
   const models = parseModels(readFileSync('prisma/schema.prisma', 'utf8'));
 
+  /** The sorted names of the models whose body matches. */
+  const names = (predicate: (body: string) => boolean): string[] =>
+    [...models.entries()]
+      .filter(([, body]) => predicate(body))
+      .map(([name]) => name)
+      .sort();
+
   it('finds the models in the schema', () => {
     expect(models.size).toBeGreaterThan(10);
   });
 
-  it('registers every model that has a restaurantId column', () => {
-    const withTenant = [...models.entries()]
-      .filter(([, body]) => /^\s*restaurantId\s+String/m.test(body))
-      .map(([name]) => name)
-      .sort();
-    const registered = [...TENANT_SCOPED_MODELS, ...UNSCOPED_LOOKUP_MODELS].sort();
-    expect(withTenant).toEqual(registered);
+  // A required column is `name String` followed by whitespace or an attribute, never `String?`.
+  it('registers every model with a required menuId column', () => {
+    const withMenu = names((body) => /^\s*menuId\s+String(?!\?)\b/m.test(body));
+    expect(withMenu).toEqual([...MENU_SCOPED_MODELS, 'MenuDomain'].sort());
+  });
+
+  it('registers every model with a required restaurantId column', () => {
+    const withRestaurant = names((body) => /^\s*restaurantId\s+String(?!\?)\b/m.test(body));
+    expect(withRestaurant).toEqual([...RESTAURANT_SCOPED_MODELS, 'Menu', ...CROSS_RESTAURANT_MODELS].sort());
   });
 
   it('classifies every model exactly once', () => {
-    const all = [...TENANT_SCOPED_MODELS, ...UNSCOPED_LOOKUP_MODELS, ...GLOBAL_MODELS].sort();
-    expect([...models.keys()].sort()).toEqual(all);
+    const all = [
+      ...MENU_SCOPED_MODELS,
+      ...RESTAURANT_SCOPED_MODELS,
+      ...UNSCOPED_LOOKUP_MODELS,
+      ...CROSS_RESTAURANT_MODELS,
+      ...GLOBAL_MODELS,
+    ];
+    expect(new Set(all).size).toBe(all.length);
+    expect([...models.keys()].sort()).toEqual([...all].sort());
   });
 });
