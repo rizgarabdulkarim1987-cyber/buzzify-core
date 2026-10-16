@@ -87,8 +87,9 @@ model Restaurant {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  branches Branch[]
-  menus    Menu[]
+  branches    Branch[]
+  menus       Menu[]
+  memberships Membership[]
 
   @@index([name])
   @@index([city])
@@ -424,4 +425,130 @@ model AnalyticsEvent {
 
   @@index([menuId, type, occurredAt])
   @@index([type, occurredAt])
+}
+
+/// The two roles held inside a restaurant. Super Admin is a flag on the user, not a role.
+enum MemberRole {
+  DESIGNER
+  OWNER
+}
+
+/// A person who signs in to the Studio (Better Auth's table). Accounts are created by invitation only.
+model User {
+  id               String       @id
+  name             String
+  /// Lower case and trimmed, unique.
+  email            String
+  emailVerified    Boolean      @default(false)
+  image            String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  twoFactorEnabled Boolean?     @default(false)
+  isSuperAdmin     Boolean      @default(false)
+  /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
+  locale           String       @default("en")
+  /// Set when the person is switched off. They keep their history but have no actor and no session.
+  deactivatedAt    DateTime?
+  sessions         Session[]
+  accounts         Account[]
+  twofactors       TwoFactor[]
+  memberships      Membership[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model TwoFactor {
+  id                      String    @id
+  secret                  String
+  backupCodes             String
+  userId                  String
+  user                    User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  verified                Boolean?  @default(true)
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+/// Better Auth's own limiter for requests that arrive over HTTP. The Studio's Server Actions use `AuthRateLimit`.
+model RateLimit {
+  id          String @id
+  key         String
+  count       Int
+  lastRequest BigInt
+
+  @@unique([key])
+  @@map("rateLimit")
+}
+
+/// The role a person holds in a restaurant. Read by user across restaurants, so it is not tenant-scoped.
+model Membership {
+  id           String     @id @default(cuid())
+  userId       String
+  restaurantId String
+  role         MemberRole
+  createdAt    DateTime   @default(now())
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, restaurantId])
+  @@index([restaurantId])
+}
+
+/// A fixed-window counter for the Studio's sign-in, two-factor, reset and invitation limits (`checkRateLimit`).
+model AuthRateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
 }

@@ -1,6 +1,6 @@
 import { mkdir, readdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { env } from '@/server/env';
+import { mailEnv } from '@/server/env';
 
 export interface Email {
   to: string;
@@ -70,7 +70,7 @@ async function sendWithResend(email: Email, apiKey: string, from: string): Promi
  * is an error, so a reset or invitation never silently goes nowhere. Production never logs a message.
  */
 export async function sendEmail(email: Email): Promise<void> {
-  const { resendApiKey, emailFrom } = env();
+  const { resendApiKey, emailFrom } = mailEnv();
   if (resendApiKey) return sendWithResend(email, resendApiKey, emailFrom);
   if (process.env.NODE_ENV === 'production') {
     throw new Error('RESEND_API_KEY is not set, so email cannot be sent in production.');

@@ -25,12 +25,22 @@ export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
 export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as const;
 
 /**
- * Global models that reference a restaurant by design, because they are queried across restaurants (a person's
- * memberships, say). None yet; `Membership` joins in the Studio's access-control task.
+ * Global models that reference a restaurant by design, because they are queried across restaurants: a person's
+ * memberships are read by user, to learn which restaurants they may open.
  */
-export const CROSS_RESTAURANT_MODELS = [] as const;
+export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
 
-export const GLOBAL_MODELS = ['Restaurant'] as const;
+/** Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits) and the Studio's rate-limit counters. */
+export const GLOBAL_MODELS = [
+  'Restaurant',
+  'User',
+  'Session',
+  'Account',
+  'Verification',
+  'TwoFactor',
+  'RateLimit',
+  'AuthRateLimit',
+] as const;
 
 type ScopeColumn = 'menuId' | 'restaurantId';
 

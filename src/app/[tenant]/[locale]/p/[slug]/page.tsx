@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { env } from '@/server/env';
+import { hostEnv } from '@/server/env';
 import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
 import { loadMenuView } from '@/server/route-context';
 import { menuAlternates } from '@/server/seo';
@@ -20,7 +20,7 @@ export async function generateMetadata({ params }: { params: Params }): Promise<
   // The product's own address is canonical, not the menu's (which the layout names).
   return {
     title: product.name,
-    alternates: menuAlternates(env().publicOrigin, route.tenant, route.locale, `/p/${encodeURIComponent(raw.slug)}`),
+    alternates: menuAlternates(hostEnv().publicOrigin, route.tenant, route.locale, `/p/${encodeURIComponent(raw.slug)}`),
   };
 }
 

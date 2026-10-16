@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
 import { direction, isLocale } from '@/lib/locale';
-import { env } from '@/server/env';
+import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
 import { menuAlternates } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
@@ -25,7 +25,7 @@ export async function generateMetadata({
     title: { default: seo?.title || tenant.name, template: `%s | ${tenant.name}` },
     ...(seo?.description ? { description: seo.description } : {}),
     icons: { icon: iconFor(tenant.brand) },
-    alternates: menuAlternates(env().publicOrigin, tenant, locale),
+    alternates: menuAlternates(hostEnv().publicOrigin, tenant, locale),
   };
 }
 

@@ -17,11 +17,21 @@ export function testPrisma(): PrismaClient {
 }
 
 /**
- * Empties every table. Menu slugs go first and on their own so that tombstones (rows whose menu is already gone,
+ * Empties every table. Accounts go first: memberships, then users (their sessions, accounts and two-factor rows follow
+ * by cascade, but are named so a schema change cannot leave one behind), then the verification and rate-limit rows
+ * that belong to no user. Menu slugs go next and on their own so that tombstones (rows whose menu is already gone,
  * `menuId` null) are removed too; deleting a menu then cascades through its catalog, revisions and domains, and
  * deleting a restaurant through its branches. Later tasks add their own models to the front of this list.
  */
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
+  await prisma.membership.deleteMany();
+  await prisma.twoFactor.deleteMany();
+  await prisma.session.deleteMany();
+  await prisma.account.deleteMany();
+  await prisma.user.deleteMany();
+  await prisma.verification.deleteMany();
+  await prisma.rateLimit.deleteMany();
+  await prisma.authRateLimit.deleteMany();
   await prisma.menuSlug.deleteMany();
   await prisma.menu.deleteMany();
   await prisma.restaurant.deleteMany();

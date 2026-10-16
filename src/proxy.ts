@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { env } from '@/server/env';
+import { hostEnv } from '@/server/env';
 import { routeHost } from '@/server/http/hosts';
 
 /**
@@ -8,7 +8,7 @@ import { routeHost } from '@/server/http/hosts';
  * network.
  */
 export function proxy(request: NextRequest) {
-  const { publicHost, studioHost, rootRedirect } = env();
+  const { publicHost, studioHost, rootRedirect } = hostEnv();
   const decision = routeHost(
     { host: request.headers.get('host') ?? '', pathname: request.nextUrl.pathname },
     { publicHost, studioHost, rootRedirect },
