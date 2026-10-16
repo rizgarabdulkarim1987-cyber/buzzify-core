@@ -66,6 +66,11 @@ export function useApp(): AppContext {
   return value;
 }
 
+/** The app context, or null outside `AppProviders` (the 404 page renders both inside the menu and in a bare shell). */
+export function useOptionalApp(): AppContext | null {
+  return useContext(Context);
+}
+
 function readTable(slug: string): number | null {
   try {
     const raw = window.localStorage.getItem(`buzzify:table:${slug}`);

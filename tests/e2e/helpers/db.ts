@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
+import type { Locale } from '@/lib/locale';
 import { createPrisma } from '@/server/data/prisma';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
-import { createMenuFixture } from '../../helpers/db';
+import { createMenuFixture, publishFixture } from '../../helpers/db';
 
 export interface TemporaryMenu {
   /** The slug the menu was created with. */
@@ -23,11 +24,16 @@ export interface TemporaryMenu {
  * status instead of ATELIER's, so tests running in parallel never see the seeded menu change. Slugs are unique per
  * call and never requested before the change, which matters: the app caches a slug's resolution for up to five
  * minutes, and nothing here can expire that cache, so a slug that had been visited would keep its old answer.
+ * `locales` limits the languages the menu offers (all three by default).
  */
-export async function createTemporaryMenu(): Promise<TemporaryMenu> {
+export async function createTemporaryMenu({ locales }: { locales?: Locale[] } = {}): Promise<TemporaryMenu> {
   const prisma = createPrisma(databaseUrl(DEV_DB));
   const slug = `e2e-${randomUUID().slice(0, 8)}`;
-  const { restaurant, menu, product } = await createMenuFixture(prisma, slug);
+  const { restaurant, menu, product } = await createMenuFixture(prisma, slug, { publish: !locales });
+  if (locales) {
+    await prisma.menu.update({ where: { id: menu.id }, data: { locales, defaultLocale: locales[0] } });
+    await publishFixture(prisma, menu.id);
+  }
 
   return {
     slug,

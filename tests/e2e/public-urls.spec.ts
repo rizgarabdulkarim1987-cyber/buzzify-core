@@ -146,6 +146,47 @@ test.describe('search engines', () => {
   });
 });
 
+test.describe('the 404 page', () => {
+  const heading = 'We couldn’t find that page';
+
+  test('leads back to the menu in the same language', async ({ page }) => {
+    await page.goto('/atelier/en/p/does-not-exist');
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    const back = page.getByRole('link', { name: 'Back to the menu' });
+    await expect(back).toHaveAttribute('href', '/atelier/en');
+    await back.click();
+    await expect(page).toHaveURL(/\/atelier\/en$/);
+    await expect(page.getByTestId('brand')).toHaveText('ATELIER');
+
+    await page.goto('/atelier/ar/t/999');
+    await expect(page.getByRole('link', { name: 'Back to the menu' })).toHaveAttribute('href', '/atelier/ar');
+  });
+
+  test('leads to the menu’s entry address when the language is unknown', async ({ page }) => {
+    await page.goto('/atelier/xx');
+    await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+    const back = page.getByRole('link', { name: 'Back to the menu' });
+    await expect(back).toHaveAttribute('href', '/atelier');
+    await back.click();
+    await expect(page).toHaveURL(/\/atelier\/en$/);
+  });
+
+  test('does not lead to a language the menu lacks', async ({ page }) => {
+    const english = await createTemporaryMenu({ locales: ['en'] });
+    try {
+      await page.goto(`/${english.slug}/ckb`);
+      await expect(page.getByRole('heading', { name: heading })).toBeVisible();
+      const back = page.getByRole('link', { name: 'Back to the menu' });
+      await expect(back).toHaveAttribute('href', `/${english.slug}`);
+      await back.click();
+      await expect(page).toHaveURL(new RegExp(`/${english.slug}/en$`));
+      await expect(page.getByRole('heading', { name: heading })).toBeHidden();
+    } finally {
+      await english.remove();
+    }
+  });
+});
+
 test.describe('the root address', () => {
   test('goes to the Studio on a development host', async ({ request }) => {
     const response = await request.get('/', { maxRedirects: 0 });

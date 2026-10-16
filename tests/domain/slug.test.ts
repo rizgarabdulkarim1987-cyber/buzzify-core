@@ -44,11 +44,15 @@ describe('validateSlug', () => {
     }
   });
 
-  it('reserves the twelve platform words', () => {
+  it('reserves the thirteen platform words', () => {
     expect([...RESERVED_SLUGS].sort()).toEqual(
-      ['_next', 'admin', 'api', 'app', 'assets', 'help', 'login', 'media', 'menu', 'static', 'studio', 'www'].sort(),
+      ['_next', 'admin', 'api', 'app', 'assets', 'auth', 'help', 'login', 'media', 'menu', 'static', 'studio', 'www'].sort(),
     );
     for (const word of RESERVED_SLUGS) expect(validateSlug(word, []).ok, word).toBe(false);
+  });
+
+  it('reserves auth, because /api/auth/* belongs to the sign-in handler and would shadow a menu’s /api/auth/quote', () => {
+    expect(validateSlug('auth', [])).toEqual({ ok: false, reason: 'RESERVED' });
   });
 });
 

@@ -7,11 +7,13 @@ export const SLUG_MAX = 48;
 
 /**
  * Words that would collide with the platform's own paths and hosts. A platform setting adds more at runtime
- * (`validateSlug`'s second argument).
+ * (`validateSlug`'s second argument). `auth` is here because `/api/auth/*` is the sign-in handler's: a menu with that
+ * slug would have its public API (`/api/auth/quote`) taken by it, and answered 404 by the proxy on the public host.
  */
 export const RESERVED_SLUGS: readonly string[] = [
   'studio',
   'api',
+  'auth',
   'admin',
   'www',
   'menu',
