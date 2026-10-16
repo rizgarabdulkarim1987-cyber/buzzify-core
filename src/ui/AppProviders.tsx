@@ -1,6 +1,5 @@
 'use client';
 
-import { MotionConfig } from 'motion/react';
 import {
   createContext,
   useCallback,
@@ -213,7 +212,7 @@ export function AppProviders({
 
   return (
     <Context.Provider value={value}>
-      <MotionConfig reducedMotion="user">{children}</MotionConfig>
+      {children}
       <div aria-live="polite" role="status" className="sr-only">
         {message}
       </div>

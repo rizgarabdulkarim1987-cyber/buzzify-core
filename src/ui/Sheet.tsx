@@ -1,6 +1,6 @@
 'use client';
 
-import { motion } from 'motion/react';
+import { domAnimation, LazyMotion, m, MotionConfig } from 'framer-motion';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 
 interface SheetProps {
@@ -43,17 +43,22 @@ export function Sheet({ labelledBy, onClose, children }: SheetProps) {
       }}
       className="m-0 mt-auto h-auto max-h-[94dvh] w-full max-w-none overflow-hidden rounded-t-2xl border-0 bg-surface p-0 text-text sm:mx-auto sm:mb-auto sm:max-w-xl sm:rounded-2xl"
     >
-      <motion.div
-        className="flex max-h-[94dvh] flex-col"
-        initial={{ y: 48 }}
-        animate={{ y: open ? 0 : 48, opacity: open ? 1 : 0 }}
-        transition={{ type: 'spring', duration: 0.36, bounce: 0.1 }}
-        onAnimationComplete={() => {
-          if (!open) onClose();
-        }}
-      >
-        {children(close)}
-      </motion.div>
+      {/* The animation library lives here, in the sheet's lazy chunk, and not in the menu's initial JavaScript. */}
+      <LazyMotion features={domAnimation}>
+        <MotionConfig reducedMotion="user">
+          <m.div
+            className="flex max-h-[94dvh] flex-col"
+            initial={{ y: 48 }}
+            animate={{ y: open ? 0 : 48, opacity: open ? 1 : 0 }}
+            transition={{ type: 'spring', duration: 0.36, bounce: 0.1 }}
+            onAnimationComplete={() => {
+              if (!open) onClose();
+            }}
+          >
+            {children(close)}
+          </m.div>
+        </MotionConfig>
+      </LazyMotion>
     </dialog>
   );
 }

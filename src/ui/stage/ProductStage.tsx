@@ -1,12 +1,12 @@
 'use client';
 
-import { useReducedMotion } from 'motion/react';
 import dynamic from 'next/dynamic';
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { layersFor, selectionFromOptions, stageOf } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
+import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { beginDrag, createControls, dragBy, endDrag, nudge, resetTurn } from './controls';
 import { deviceQualifies } from './device';
 
@@ -65,7 +65,7 @@ export function ProductStage({
   const stage = stageOf(product.media);
   const tone = stage?.tone ?? null;
   const art = stage?.art ?? 'burger';
-  const reduced = useReducedMotion() ?? false;
+  const reduced = usePrefersReducedMotion();
   const [state, setState] = useState<StageState>('poster');
   // Why the stage fell back to its illustration; shown as data-stage-reason to make failures diagnosable.
   const [reason, setReason] = useState<'device' | 'error' | 'context-lost' | null>(null);

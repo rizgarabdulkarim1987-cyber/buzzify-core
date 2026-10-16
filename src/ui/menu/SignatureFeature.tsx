@@ -1,12 +1,18 @@
 'use client';
 
-import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
+import { useEffect, useRef } from 'react';
 import { stageTone } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { Daypart } from '@/server/domain/types';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { ProductStage } from '@/ui/stage/ProductStage';
+import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+
+/** Scroll distance over which the hero stage drifts and dims, and how far it goes. */
+const DRIFT_RANGE_PX = 420;
+const DRIFT_DISTANCE_PX = 56;
+const DIM_TO = 0.3;
 
 /**
  * The signature of the hour. The object stands in a pool of light, runs edge to edge and dissolves
@@ -26,23 +32,42 @@ export function SignatureFeature({
 }) {
   const { t, money } = useApp();
   const staged = stageTone(product.media) !== null;
+  const reduced = usePrefersReducedMotion();
+  const stage = useRef<HTMLDivElement>(null);
+
   // The lit stage drifts down and dims a little as the menu scrolls over it, which gives the page depth.
-  const reduced = useReducedMotion();
-  const { scrollY } = useScroll();
-  const drift = useTransform(scrollY, [0, 420], [0, reduced ? 0 : 56]);
-  const dim = useTransform(scrollY, [0, 420], [1, reduced ? 1 : 0.3]);
+  // Written straight to the element on animation frames; with reduced motion it stays put. Hydration renders
+  // with reduced motion off (the server cannot know), so the cleanup puts the stage back at rest when the
+  // preference arrives after a scroll has already moved it.
+  useEffect(() => {
+    const element = stage.current;
+    if (!element || reduced) return;
+    let frame = 0;
+    const apply = () => {
+      frame = 0;
+      const progress = Math.min(Math.max(window.scrollY / DRIFT_RANGE_PX, 0), 1);
+      element.style.transform = progress === 0 ? '' : `translateY(${progress * DRIFT_DISTANCE_PX}px)`;
+      element.style.opacity = progress === 0 ? '' : String(1 - progress * (1 - DIM_TO));
+    };
+    const onScroll = () => {
+      if (frame === 0) frame = requestAnimationFrame(apply);
+    };
+    apply();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      cancelAnimationFrame(frame);
+      element.style.transform = '';
+      element.style.opacity = '';
+    };
+  }, [reduced]);
+
   return (
-    <motion.section
-      aria-labelledby="signature-title"
-      initial={{ opacity: 0.001, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', duration: 0.6, bounce: 0.08 }}
-      className="pt-3"
-    >
+    <section aria-labelledby="signature-title" className="rise-in pt-3">
       <p className="px-5 text-sm text-muted">{t(`signature.${daypart ?? 'NONE'}`)}</p>
-      <motion.div
+      <div
+        ref={stage}
         data-hero-stage
-        style={{ y: drift, opacity: dim }}
         className="stage-light grain relative isolate mt-1 [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_70%,transparent)]"
       >
         {staged ? (
@@ -67,7 +92,7 @@ export function SignatureFeature({
             />
           </button>
         )}
-      </motion.div>
+      </div>
       <button
         type="button"
         onClick={() => onOpen(product.id)}
@@ -82,6 +107,6 @@ export function SignatureFeature({
         {product.description && <span className="mt-3 block max-w-[30ch] text-muted">{product.description}</span>}
         <span className="mt-4 block text-lg tabular-nums text-accent">{money(product.displayPrice)}</span>
       </button>
-    </motion.section>
+    </section>
   );
 }

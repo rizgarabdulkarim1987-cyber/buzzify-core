@@ -1,6 +1,5 @@
 'use client';
 
-import { motion } from 'motion/react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
@@ -38,19 +37,18 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
             </span>
           )}
           {canQuickAdd && (
-            <motion.button
+            <button
               type="button"
-              whileTap={{ scale: 0.92 }}
               aria-label={t('product.quickAdd', { name: product.name })}
               onClick={() => {
                 addLine({ productId: product.id, variantId: null, optionIds: [], quantity: 1 });
                 track('ADD_TO_CART', { productId: product.id, payload: { source: 'quick-add' } });
                 announce(t('cart.added', { name: product.name }));
               }}
-              className="grid size-11 place-items-center rounded-full border border-accent/55 text-accent transition-colors duration-150 [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-on-accent"
+              className="grid size-11 place-items-center rounded-full border border-accent/55 text-accent transition-[color,background-color,scale] duration-150 ease-out-strong active:scale-92 [@media(hover:hover)]:hover:bg-accent [@media(hover:hover)]:hover:text-on-accent"
             >
               <PlusIcon />
-            </motion.button>
+            </button>
           )}
         </div>
       </div>
