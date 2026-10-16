@@ -20,6 +20,15 @@ const httpUrl = z
   .trim()
   .refine((value) => URL.canParse(value) && /^https?:$/.test(new URL(value).protocol), 'must be an http(s) URL');
 
+/** A bare address, or a display name followed by an address in angle brackets: what Resend accepts as `from`. */
+const sender = z
+  .string()
+  .trim()
+  .regex(
+    /^(?:[^<>@\r\n]+ <[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+)$/,
+    'must be an address such as studio@buzzify.me, or a name and address such as Buzzify Studio <studio@buzzify.me>',
+  );
+
 const schema = z.object({
   /** The host that serves public menus. Unset in development. */
   PUBLIC_MENU_HOST: host,
@@ -29,6 +38,17 @@ const schema = z.object({
   PUBLIC_MENU_ORIGIN: z.preprocess(unset, httpUrl.default('http://127.0.0.1:3100')),
   /** Where `/` on the public host sends visitors. */
   PUBLIC_ROOT_REDIRECT: z.preprocess(unset, httpUrl.default('https://buzzify.me')),
+  /** The Resend API key. Unset in development, where mail goes to `.data/mail`; production refuses to send without it. */
+  RESEND_API_KEY: z.preprocess(
+    unset,
+    z
+      .string()
+      .trim()
+      .nullish()
+      .transform((value) => value ?? null),
+  ),
+  /** The sender of every Studio email. */
+  EMAIL_FROM: z.preprocess(unset, sender.default('Buzzify Studio <studio@buzzify.me>')),
 });
 
 export interface Env {
@@ -37,6 +57,10 @@ export interface Env {
   /** No trailing slash. */
   publicOrigin: string;
   rootRedirect: string;
+  /** `null` when no key is configured. */
+  resendApiKey: string | null;
+  /** The `from` of every Studio email. */
+  emailFrom: string;
 }
 
 /** Reads the configuration from an environment. Throws a `ZodError` naming the variable when a value is malformed. */
@@ -47,6 +71,8 @@ export function parseEnv(source: Record<string, string | undefined>): Env {
     studioHost: parsed.STUDIO_HOST,
     publicOrigin: parsed.PUBLIC_MENU_ORIGIN.replace(/\/+$/, ''),
     rootRedirect: parsed.PUBLIC_ROOT_REDIRECT,
+    resendApiKey: parsed.RESEND_API_KEY,
+    emailFrom: parsed.EMAIL_FROM,
   };
 }
 

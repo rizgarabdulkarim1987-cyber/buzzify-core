@@ -8,10 +8,12 @@ describe('parseEnv', () => {
       studioHost: null,
       publicOrigin: 'http://127.0.0.1:3100',
       rootRedirect: 'https://buzzify.me',
+      resendApiKey: null,
+      emailFrom: 'Buzzify Studio <studio@buzzify.me>',
     });
   });
 
-  it('reads the four variables', () => {
+  it('reads the four routing variables', () => {
     expect(
       parseEnv({
         PUBLIC_MENU_HOST: 'menu.buzzify.me',
@@ -19,12 +21,32 @@ describe('parseEnv', () => {
         PUBLIC_MENU_ORIGIN: 'https://menu.buzzify.me',
         PUBLIC_ROOT_REDIRECT: 'https://example.com/welcome',
       }),
-    ).toEqual({
+    ).toMatchObject({
       publicHost: 'menu.buzzify.me',
       studioHost: 'studio.buzzify.me',
       publicOrigin: 'https://menu.buzzify.me',
       rootRedirect: 'https://example.com/welcome',
     });
+  });
+
+  it('reads the email key and sender', () => {
+    expect(parseEnv({ RESEND_API_KEY: ' re_abc ', EMAIL_FROM: 'Menus <menus@example.com>' })).toMatchObject({
+      resendApiKey: 're_abc',
+      emailFrom: 'Menus <menus@example.com>',
+    });
+    expect(parseEnv({ EMAIL_FROM: 'menus@example.com' })).toMatchObject({ emailFrom: 'menus@example.com' });
+  });
+
+  it('treats an empty email key or sender as unset', () => {
+    expect(parseEnv({ RESEND_API_KEY: '', EMAIL_FROM: '  ' })).toMatchObject({
+      resendApiKey: null,
+      emailFrom: 'Buzzify Studio <studio@buzzify.me>',
+    });
+  });
+
+  it('rejects a sender that is not an address, because Resend would only refuse it at send time', () => {
+    expect(() => parseEnv({ EMAIL_FROM: 'Buzzify Studio' })).toThrow();
+    expect(() => parseEnv({ EMAIL_FROM: 'Buzzify <studio@buzzify.me' })).toThrow();
   });
 
   it('treats empty and blank values as unset, lowercases hosts and drops a trailing slash from the origin', () => {
