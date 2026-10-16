@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -143,8 +144,10 @@ export function AppProviders({
     configureTracking({ slug: tenant.slug, table });
   }, [tenant.slug, table]);
 
-  // Remember a `?stage=` choice now, before any tap can replace the URL.
-  useEffect(() => {
+  // Remember a `?stage=` choice now, before any tap can replace the URL. A layout effect, because a tap made while the
+  // page was still hydrating is replayed by React right after hydration, before plain effects run: opening a dish then
+  // dropped `?stage=` from the URL first, and the choice was lost.
+  useLayoutEffect(() => {
     syncStagePreference();
   }, []);
 

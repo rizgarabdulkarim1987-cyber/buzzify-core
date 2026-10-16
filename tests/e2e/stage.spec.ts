@@ -101,6 +101,18 @@ test.describe('3D stage', () => {
     await expect(stage).toHaveAttribute('data-stage-layers', WITH_CHEESE);
   });
 
+  test('a dish opened as soon as the page has loaded keeps the ?stage=on choice', async ({ page }) => {
+    // A tap made while the page hydrates is replayed by React before plain effects run, and opening the dish replaces the
+    // address: the choice must be remembered before that (this suite's browsers start with 3D switched off). The tap
+    // lands in that moment in some runs, not every one: about one in four before the fix, as for every test here that
+    // opens a dish from the list.
+    await page.goto('/atelier/en?stage=on');
+    await page.getByTestId('product-row').filter({ hasText: 'Atelier Burger' }).getByRole('button').first().click();
+    const stage = page.getByRole('dialog').getByTestId('sheet-stage');
+    await expect(stage).toHaveAttribute('data-stage-state', 'ready', READY);
+    expect(await page.evaluate(() => localStorage.getItem('atelier:stage'))).toBe('on');
+  });
+
   test('keeps the illustration when 3D is switched off', async ({ page }) => {
     await page.goto('/atelier/en/p/atelier-burger?stage=off');
     const stage = page.getByTestId('sheet-stage');
