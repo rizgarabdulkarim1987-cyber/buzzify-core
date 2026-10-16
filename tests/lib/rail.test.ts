@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { deckPose, isRailStyle, RAIL_STYLES, railStyleFromQuery, resolveRailStyle } from '@/lib/rail';
+import {
+  deckPose,
+  drumRadius,
+  drumStep,
+  isRailStyle,
+  RAIL_STYLES,
+  railStyleFromQuery,
+  resolveRailStyle,
+} from '@/lib/rail';
 
 describe('rail styles', () => {
   it('offers grain dishes, drum, split-flap, deck and plain', () => {
@@ -83,5 +91,20 @@ describe('deckPose', () => {
     const half = deckPose(0.5, false);
     expect(half.x).toBeGreaterThan(deckPose(0, false).x);
     expect(half.x).toBeLessThan(deckPose(1, false).x);
+  });
+});
+
+describe('drum', () => {
+  it('spaces names 40 degrees apart, closer when there are too many to fit round the drum', () => {
+    expect(drumStep(5)).toBe(40);
+    expect(drumStep(12)).toBe(30);
+    expect(drumStep(0)).toBe(40);
+  });
+
+  it('sizes the drum so neighbouring names just touch', () => {
+    for (const step of [40, 30, 20]) {
+      const radius = drumRadius(step, 136);
+      expect(2 * radius * Math.sin(((step / 2) * Math.PI) / 180)).toBeCloseTo(136);
+    }
   });
 });

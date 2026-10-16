@@ -4,6 +4,9 @@ import { useSyncExternalStore } from 'react';
 import { railStyleFromQuery, type RailStyle } from '@/lib/rail';
 import { useApp } from '@/ui/AppProviders';
 import { DeckRail } from './rail/DeckRail';
+import { DrumRail } from './rail/DrumRail';
+import { FlapRail } from './rail/FlapRail';
+import { GrainsRail } from './rail/GrainsRail';
 import { PlainRail } from './rail/PlainRail';
 import type { RailProps } from './rail/types';
 
@@ -29,6 +32,12 @@ export function CategoryRail(props: RailProps) {
   switch (useRailStyle()) {
     case 'deck':
       return <DeckRail {...props} />;
+    case 'grains':
+      return <GrainsRail {...props} />;
+    case 'drum':
+      return <DrumRail {...props} />;
+    case 'flap':
+      return <FlapRail {...props} />;
     default:
       return <PlainRail {...props} />;
   }

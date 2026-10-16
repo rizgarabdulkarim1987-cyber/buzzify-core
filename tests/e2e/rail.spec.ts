@@ -112,3 +112,87 @@ test.describe('category rail: fanned deck with reduced motion', () => {
     expect(duration).toBeLessThan(0.01);
   });
 });
+
+test.describe('category rail: grain dishes', () => {
+  test('the dish forms in grains above the active category once the page is idle', async ({ page }) => {
+    await page.goto('/atelier/en?rail=grains');
+    const rail = page.locator('nav[data-rail-style="grains"]');
+    await expect(rail).toHaveAttribute('data-grains', 'live', { timeout: 15_000 });
+    // Give the first dish time to rise, then check the canvas has grains drawn on it.
+    await page.waitForTimeout(1800);
+    const lit = await page.evaluate(() => {
+      const canvas = document.querySelector('nav[data-rail-style="grains"] ~ canvas') as HTMLCanvasElement;
+      const pixels = canvas.getContext('2d')!.getImageData(0, 0, canvas.width, canvas.height).data;
+      let count = 0;
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i]! > 0) count += 1;
+      return count;
+    });
+    expect(lit).toBeGreaterThan(200);
+  });
+
+  test('tapping a category moves its dish over to it', async ({ page }) => {
+    await page.goto('/atelier/en?rail=grains');
+    const rail = page.getByRole('navigation', { name: 'Menu categories' });
+    await expect(rail).toHaveAttribute('data-grains', 'live', { timeout: 15_000 });
+    const plates = rail.getByRole('link', { name: 'Plates' });
+    await plates.click();
+    await expect(plates).toHaveAttribute('aria-current', 'true');
+  });
+});
+
+test.describe('category rail: grain dishes with reduced motion', () => {
+  test.use({ reducedMotion: 'reduce' });
+
+  test('shows a still drawing of the dish and never starts the grains', async ({ page }) => {
+    await page.goto('/atelier/en?rail=grains');
+    const rail = page.locator('nav[data-rail-style="grains"]');
+    await expect(rail.locator('[aria-current="true"] [data-dish-slot] svg')).toBeVisible();
+    await page.waitForTimeout(2500);
+    await expect(rail).toHaveAttribute('data-grains', 'still');
+  });
+});
+
+test.describe('category rail: drum', () => {
+  test('tapping the next name turns the drum to bring it to the front', async ({ page }) => {
+    await page.goto('/atelier/en?rail=drum');
+    const rail = page.getByRole('navigation', { name: 'Menu categories' });
+    await expect(rail).toHaveAttribute('data-rail-style', 'drum');
+    await stickRail(page);
+    const breakfast = rail.getByRole('link', { name: 'Breakfast' });
+    expect(Math.abs((await centreX(breakfast)) - viewportCentre(page))).toBeGreaterThan(60);
+    await breakfast.click();
+    await expect(breakfast).toHaveAttribute('aria-current', 'true');
+    await expect.poll(async () => Math.abs((await centreX(breakfast)) - viewportCentre(page))).toBeLessThan(4);
+  });
+
+  test('turns the other way in right-to-left languages', async ({ page }) => {
+    await page.goto('/atelier/ar?rail=drum');
+    const rail = page.locator('nav[data-rail-style="drum"]');
+    await expect(rail).toBeVisible();
+    const links = rail.getByRole('link');
+    expect(await centreX(links.nth(1))).toBeLessThan(await centreX(links.nth(0)));
+  });
+});
+
+test.describe('category rail: split-flap', () => {
+  test('sets the active name in tiles that land on its letters', async ({ page }) => {
+    await page.goto('/atelier/en?rail=flap');
+    const rail = page.getByRole('navigation', { name: 'Menu categories' });
+    await expect(rail).toHaveAttribute('data-rail-style', 'flap');
+    const plates = rail.getByRole('link', { name: 'Plates' });
+    await plates.click();
+    await expect(plates).toHaveAttribute('aria-current', 'true');
+    const tiles = plates.locator('[data-flap]');
+    await expect(tiles).toHaveCount(6);
+    // While the board spins the tiles show other letters; once it lands they spell the name.
+    await expect.poll(async () => (await tiles.allTextContents()).join(''), { timeout: 3000 }).toBe('Plates');
+  });
+
+  test('flips whole words in Arabic so the letters stay joined', async ({ page }) => {
+    await page.goto('/atelier/ar?rail=flap');
+    const rail = page.locator('nav[data-rail-style="flap"]');
+    const active = rail.locator('[aria-current="true"]');
+    await expect(active.locator('[data-flap]')).toHaveCount(1);
+    await expect(active.locator('[data-flap]')).toHaveText('القهوة والشاي');
+  });
+});

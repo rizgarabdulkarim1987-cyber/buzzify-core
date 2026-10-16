@@ -72,3 +72,13 @@ export function deckPose(offset: number, rtl: boolean): CardPose {
     layer: 100 - Math.round(away * 10),
   };
 }
+
+/** Degrees between neighbouring names on the drum: 40, or less when that many would not fit round it. */
+export function drumStep(count: number): number {
+  return Math.min(40, 360 / Math.max(1, count));
+}
+
+/** The drum's radius in pixels for names `width` wide, `step` degrees apart, so neighbours just touch. */
+export function drumRadius(step: number, width: number): number {
+  return width / (2 * Math.sin(((step / 2) * Math.PI) / 180));
+}
