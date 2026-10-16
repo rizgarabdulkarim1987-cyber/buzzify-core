@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { resendInvitation, revokeInvitation } from '@/app/studio/_actions/people';
 import type { InvitationRow, PersonRow } from '@/server/studio/services/people';
 import { describeFailure } from '@/studio/errors';
-import { formatDate } from '@/studio/format';
+import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { InviteLinkNote, type IssuedInvitation } from '@/studio/shell/InviteLinkNote';
 import { Button } from '@/studio/ui/Button';
@@ -49,7 +49,7 @@ function Access({ person }: { person: PersonRow }) {
       ))}
       {more > 0 && (
         <span className="text-xs text-muted" title={person.memberships.map((m) => m.restaurantName).join(', ')}>
-          +{new Intl.NumberFormat(locale).format(more)}
+          +{numberFormat(locale).format(more)}
         </span>
       )}
     </div>

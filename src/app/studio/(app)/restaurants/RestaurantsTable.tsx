@@ -4,7 +4,7 @@ import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
 import Link from 'next/link';
 import { useMemo } from 'react';
 import type { RestaurantStatus, RestaurantType } from '@/server/domain/restaurant-profile';
-import { formatDate } from '@/studio/format';
+import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { DataTable } from '@/studio/ui/DataTable';
 import { useFilterParams } from '@/studio/ui/FilterBar';
@@ -29,7 +29,7 @@ export function RestaurantsTable({ rows, sort, dir }: { rows: RestaurantRow[]; s
   const t = useT();
   const { locale } = useLocale();
   const { set } = useFilterParams();
-  const number = useMemo(() => new Intl.NumberFormat(locale), [locale]);
+  const number = useMemo(() => numberFormat(locale), [locale]);
 
   const columns = useMemo<ColumnDef<RestaurantRow, unknown>[]>(
     () => [

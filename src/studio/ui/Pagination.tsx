@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { cx } from './cx';
 
@@ -30,7 +31,7 @@ export function Pagination({ page, pageSize, total, param = 'page' }: Pagination
   const pages = Math.max(1, Math.ceil(total / pageSize));
   const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const to = Math.min(total, page * pageSize);
-  const number = new Intl.NumberFormat(locale);
+  const number = numberFormat(locale);
 
   const hrefFor = (target: number) => {
     const next = new URLSearchParams(params);

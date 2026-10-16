@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import type { Translate } from '@/lib/i18n';
+import type { Locale } from '@/lib/locale';
 import { MENU_STATUSES } from '@/server/domain/menu-status';
 import { RESTAURANT_STATUSES } from '@/server/domain/restaurant-profile';
 import { getActor } from '@/server/studio/auth/actor';
@@ -10,7 +11,7 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { myRestaurants } from '@/server/studio/queries/account';
 import { overview } from '@/server/studio/queries/overview';
 import type { AuditRow, Named } from '@/server/studio/services/activity';
-import { formatDate, formatDateTime } from '@/studio/format';
+import { formatDate, formatDateTime, numberFormat } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly, landingPath } from '@/studio/nav';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -33,9 +34,9 @@ function Tally({
   title: string;
   total: number;
   parts: ReadonlyArray<{ label: string; count: number; href: string }>;
-  locale: string;
+  locale: Locale;
 }) {
-  const number = new Intl.NumberFormat(locale);
+  const number = numberFormat(locale);
   return (
     <section aria-label={title} className="flex flex-col gap-4 rounded-lg border border-line p-5">
       <div className="flex flex-col gap-1">
@@ -146,7 +147,7 @@ export default async function OverviewPage() {
   const data = await query(overview, {});
   const restaurantTotal = RESTAURANT_STATUSES.reduce((sum, status) => sum + data.restaurants[status], 0);
   const menuTotal = MENU_STATUSES.reduce((sum, status) => sum + data.menus[status], 0);
-  const number = new Intl.NumberFormat(locale);
+  const number = numberFormat(locale);
 
   return (
     <>

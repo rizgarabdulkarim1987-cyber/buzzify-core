@@ -27,14 +27,16 @@ export function DropdownMenuContent({ className, sideOffset = 6, align = 'start'
 }
 
 export interface DropdownMenuItemProps extends ComponentProps<typeof Menu.Item> {
+  /** Shown before the label. With `asChild`, put the icon inside the child instead: this one is not used. */
   icon?: ReactNode;
   /** An action that takes something away: shown in the danger colour. */
   danger?: boolean;
 }
 
-export function DropdownMenuItem({ icon, danger, className, children, ...rest }: DropdownMenuItemProps) {
+export function DropdownMenuItem({ icon, danger, className, children, asChild, ...rest }: DropdownMenuItemProps) {
   return (
     <Menu.Item
+      asChild={asChild}
       className={cx(
         'flex h-8 cursor-pointer select-none items-center gap-2 rounded-sm px-2 outline-none',
         'data-[highlighted]:bg-hover data-[disabled]:pointer-events-none data-[disabled]:opacity-45 [&_svg]:size-4',
@@ -43,8 +45,16 @@ export function DropdownMenuItem({ icon, danger, className, children, ...rest }:
       )}
       {...rest}
     >
-      {icon}
-      {children}
+      {/* With asChild the item becomes its one child (a link): Radix cannot slot onto a list, even one with an empty
+          icon in it, and opening the menu threw. */}
+      {asChild ? (
+        children
+      ) : (
+        <>
+          {icon}
+          {children}
+        </>
+      )}
     </Menu.Item>
   );
 }

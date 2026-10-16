@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { describeUserAgent, formatDateTime } from '@/studio/format';
+import { describeUserAgent, formatDate, formatDateTime, numberFormat } from '@/studio/format';
 import { isolated } from '@/studio/ui/isolate';
 
 describe('describeUserAgent', () => {
@@ -23,6 +23,37 @@ describe('formatDateTime', () => {
     const at = '2026-10-16T16:05:00.000Z';
     expect(formatDateTime(at, 'en')).toBe('Oct 16, 2026, 7:05 PM');
     expect(formatDateTime(at, 'ar')).not.toBe(formatDateTime(at, 'en'));
+  });
+
+  // Browsers have no Sorani formatting data (Chrome formats `ckb` as American English), so Sorani is written by the
+  // Studio itself and does not depend on the runtime: the server's page and the browser's render agree.
+  it('writes Sorani dates and times itself, in CLDR’s pattern with Arabic-script digits', () => {
+    expect(formatDateTime('2026-10-16T16:05:00.000Z', 'ckb')).toBe('٢٠٢٦ تشرینی یەکەم ١٦ ٧:٠٥ د.ن');
+    expect(formatDateTime('2026-10-16T05:05:00.000Z', 'ckb')).toBe('٢٠٢٦ تشرینی یەکەم ١٦ ٨:٠٥ ب.ن');
+    // Midnight and noon in Baghdad are 12 before and after noon; the day is Baghdad's.
+    expect(formatDateTime('2026-10-15T21:00:00.000Z', 'ckb')).toBe('٢٠٢٦ تشرینی یەکەم ١٦ ١٢:٠٠ ب.ن');
+    expect(formatDateTime('2026-10-16T09:00:00.000Z', 'ckb')).toBe('٢٠٢٦ تشرینی یەکەم ١٦ ١٢:٠٠ د.ن');
+    expect(formatDate('2026-01-01T12:00:00.000Z', 'ckb')).toBe('٢٠٢٦ کانوونی دووەم ١');
+    expect(formatDate('2026-12-31T20:59:00.000Z', 'ckb')).toBe('٢٠٢٦ کانوونی یەکەم ٣١');
+    expect(formatDate('2026-12-31T21:00:00.000Z', 'ckb')).toBe('٢٠٢٧ کانوونی دووەم ١');
+  });
+
+  it('prints what Node’s own Sorani data prints, so pages rendered on the server keep their dates', () => {
+    const at = '2026-10-16T16:05:00.000Z';
+    const node = new Intl.DateTimeFormat('ckb', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Baghdad' }).format(new Date(at));
+    expect(formatDateTime(at, 'ckb')).toBe(node);
+  });
+});
+
+describe('numberFormat', () => {
+  it('gives Sorani Arabic-script digits without the runtime’s Sorani data, and leaves the other languages to Intl', () => {
+    expect(numberFormat('ckb').format(1234.5)).toBe('١٬٢٣٤٫٥');
+    // A browser formats `ckb` with English data; with the numbering system it still prints the same.
+    expect(new Intl.NumberFormat('en-US', { numberingSystem: numberFormat('ckb').resolvedOptions().numberingSystem }).format(1234.5)).toBe(
+      '١٬٢٣٤٫٥',
+    );
+    expect(numberFormat('en').format(1234.5)).toBe('1,234.5');
+    expect(numberFormat('ar').format(3)).toBe(new Intl.NumberFormat('ar').format(3));
   });
 });
 

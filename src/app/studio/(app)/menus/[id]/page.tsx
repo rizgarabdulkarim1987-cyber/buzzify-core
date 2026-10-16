@@ -8,7 +8,7 @@ import { hostEnv } from '@/server/env';
 import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { getMenu } from '@/server/studio/queries/menus';
-import { formatDateTime } from '@/studio/format';
+import { formatDateTime, numberFormat } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly } from '@/studio/nav';
 import { Alert } from '@/studio/ui/Alert';
@@ -52,7 +52,7 @@ export default async function MenuPage({ params }: { params: Promise<{ id: strin
   if (!actor) redirect(SIGN_IN_PATH);
   const t = getStudioTranslator(actor.locale);
   const menu = await loadMenu(id);
-  const number = new Intl.NumberFormat(actor.locale);
+  const number = numberFormat(actor.locale);
   const blocking = menu.issues.filter((issue) => issue.severity === 'block');
   const warnings = menu.issues.filter((issue) => issue.severity === 'warn');
   const back = isOwnerOnly(actor)

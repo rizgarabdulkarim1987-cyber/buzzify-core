@@ -10,7 +10,7 @@ import { bulkMenuAction } from '@/app/studio/_actions/menus';
 import { nextMenuStatus, type MenuStatus, type StatusAction } from '@/server/domain/menu-status';
 import type { RestaurantStatus } from '@/server/domain/restaurant-profile';
 import type { BulkAction, BulkResult, MenuSort } from '@/server/studio/services/menus';
-import { formatDate } from '@/studio/format';
+import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { useRefuse } from '@/studio/refuse';
 import { Button } from '@/studio/ui/Button';
@@ -249,7 +249,7 @@ export function MenusTable({ rows, sort, dir, origin, duplicateTargets }: MenusT
           row.original.liveRevisionNumber === null ? (
             <span className="text-muted">{t('menus.list.notLive')}</span>
           ) : (
-            <span className="tabular-nums">{t('menus.list.revision', { number: new Intl.NumberFormat(locale).format(row.original.liveRevisionNumber) })}</span>
+            <span className="tabular-nums">{t('menus.list.revision', { number: numberFormat(locale).format(row.original.liveRevisionNumber) })}</span>
           ),
       },
       {
