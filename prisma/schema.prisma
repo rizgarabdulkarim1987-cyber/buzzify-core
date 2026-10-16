@@ -90,6 +90,7 @@ model Restaurant {
   branches    Branch[]
   menus       Menu[]
   memberships Membership[]
+  invitations Invitation[]
 
   @@index([name])
   @@index([city])
@@ -453,6 +454,7 @@ model User {
   accounts         Account[]
   twofactors       TwoFactor[]
   memberships      Membership[]
+  invitationsSent  Invitation[]
 
   @@unique([email])
   @@map("user")
@@ -543,6 +545,32 @@ model Membership {
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([userId, restaurantId])
+  @@index([restaurantId])
+}
+
+/// An offer to join the Studio, sent by email and accepted from the link in it. Global: a staff invitation has no
+/// restaurant. The link's token is never stored, only its SHA-256 hash, so a copy of this table opens nothing.
+model Invitation {
+  id           String      @id @default(cuid())
+  /// Lower case and trimmed.
+  email        String
+  /// The restaurant an owner or designer invitation is for; null for a staff invitation.
+  restaurantId String?
+  /// The membership the invitation creates; null for a staff invitation.
+  role         MemberRole?
+  /// A staff invitation that makes the person a Super Admin when it is accepted.
+  asSuperAdmin Boolean     @default(false)
+  /// SHA-256 of the token, in hex.
+  tokenHash    String      @unique
+  expiresAt    DateTime
+  acceptedAt   DateTime?
+  revokedAt    DateTime?
+  invitedById  String
+  createdAt    DateTime    @default(now())
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  invitedBy    User        @relation(fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@index([email])
   @@index([restaurantId])
 }
 

@@ -17,15 +17,17 @@ export function testPrisma(): PrismaClient {
 }
 
 /**
- * Empties every table. The audit log goes first (it references nothing, so nothing removes it by cascade). Accounts
- * follow: memberships, then users (their sessions, accounts and two-factor rows follow by cascade, but are named so a
- * schema change cannot leave one behind), then the verification and rate-limit rows that belong to no user. Menu slugs
+ * Empties every table. The audit log goes first (it references nothing, so nothing removes it by cascade), then the
+ * invitations. Accounts follow: memberships, then users (their sessions, accounts and two-factor rows follow by
+ * cascade, but are named so a schema change cannot leave one behind), then the verification and rate-limit rows that
+ * belong to no user. Menu slugs
  * go next and on their own so that tombstones (rows whose menu is already gone, `menuId` null) are removed too;
  * deleting a menu then cascades through its catalog, revisions and domains, and deleting a restaurant through its
  * branches. Later tasks add their own models to the front of this list.
  */
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.auditLog.deleteMany();
+  await prisma.invitation.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.twoFactor.deleteMany();
   await prisma.session.deleteMany();

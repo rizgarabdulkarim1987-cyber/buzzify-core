@@ -16,7 +16,10 @@ import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from '.
 /** The person an email is for: the address to send to, and what to call them in it. Their `locale`, when they have one, picks the language. */
 export interface Recipient {
   email: string;
+  /** Empty when the person is not known by name yet (an invitation to a new address): the greeting is plain then. */
   name: string;
+  /** The language to write in when the recipient has no account to read it from. */
+  locale?: string;
 }
 
 /** The language of the recipient's Studio account. The `locale` column is an additional field Better Auth's `User` type does not name. */

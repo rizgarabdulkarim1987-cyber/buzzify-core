@@ -35,8 +35,10 @@ export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as cons
 export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
 
 /**
- * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, and the
- * audit log, which names restaurants and menus by id so it can be read across them and outlive them.
+ * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, the
+ * audit log, which names restaurants and menus by id so it can be read across them and outlive them, and invitations: a
+ * staff invitation has no restaurant, and an owner invitation names one only so it can be found again. A client scoped
+ * to a restaurant does not filter them, so the code that reads or writes one checks its restaurant itself.
  */
 export const GLOBAL_MODELS = [
   'Restaurant',
@@ -48,6 +50,7 @@ export const GLOBAL_MODELS = [
   'RateLimit',
   'AuthRateLimit',
   'AuditLog',
+  'Invitation',
 ] as const;
 
 /**

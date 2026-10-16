@@ -25,6 +25,9 @@ export const RATE_RULES = {
   'invite:ip': { max: 20, windowSec: 3600 },
 } as const satisfies Record<string, RateRule>;
 
+/** Requests whose address is unknown share one bucket, rather than having no per-address limit at all. */
+export const addressKey = (ip: string): string => (ip === '' ? 'unknown' : ip);
+
 /** Longer keys are stored as their hash. An email typed into a sign-in form is chosen by whoever types it. */
 const MAX_KEY_LENGTH = 200;
 

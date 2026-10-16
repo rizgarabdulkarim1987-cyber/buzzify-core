@@ -4,7 +4,7 @@ import { authFor } from '@/server/studio/auth/auth';
 import { authErrorCode, policyProblemOf } from '@/server/studio/auth/errors';
 import { emailField, isRecoveryCode, newPasswordField, signInCodeField } from '@/server/studio/auth/fields';
 import { checkPasswordPolicy, passwordProblemMessage } from '@/server/studio/auth/password-policy';
-import { RATE_RULES } from '@/server/studio/auth/rate-limit';
+import { addressKey, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { pendingTwoFactor } from '@/server/studio/auth/two-factor';
 import { normalizeEmail } from '@/server/studio/auth/users';
 import { SIGN_IN_PATH, STUDIO_HOME, TWO_FACTOR_PATH } from '@/server/studio/framework/paths';
@@ -15,9 +15,6 @@ import { StudioError } from '@/server/studio/framework/result';
  * The flows for a person who is not signed in. Each is a public action: it checks its own input and limits, and calls
  * Better Auth directly (Better Auth's HTTP routes for these flows are closed; see `auth/http.ts`).
  */
-
-/** Requests whose address is unknown share one bucket, rather than having no per-address limit at all. */
-const addressKey = (ip: string) => (ip === '' ? 'unknown' : ip);
 
 /** The one answer to a failed sign-in, whatever failed: it must not say which of the email and the password was wrong. */
 const SIGN_IN_FAILED = 'Wrong email or password';
