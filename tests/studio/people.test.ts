@@ -678,6 +678,26 @@ describe('permission policies', () => {
   });
 });
 
+describe('restaurantPolicy', () => {
+  it('gives a Super Admin the stored policy (parsed) and the version to save it against', async () => {
+    expect(dataOf(await ask(admin, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }))).toEqual({ policy: {}, version: 1 });
+    await prisma().restaurant.update({
+      where: { id: atelier.id },
+      data: { permissionPolicy: { OWNER: { grant: ['people.invite', 'menu.delete', 'no.such.key'], revoke: ['publish.now'] }, MANAGER: { grant: [] } } },
+    });
+    const read = dataOf(await ask(admin, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }));
+    expect(read.policy).toEqual({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } });
+    // What it returns is what the next save names: saving it back moves the version on.
+    expect(dataOf(await run(admin, people.setPermissionPolicy, { restaurantId: atelier.id, version: read.version, policy: read.policy })).version).toBe(read.version + 1);
+  });
+
+  it('is for those who may change permissions: not a designer, not an owner, not another restaurant', async () => {
+    for (const who of [dee, olive]) expect(codeOf(await ask(who, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await ask(bea, peopleQueries.restaurantPolicy, { restaurantId: atelier.id }))).toBe('NOT_FOUND');
+    expect(codeOf(await ask(admin, peopleQueries.restaurantPolicy, { restaurantId: 'nowhere' }))).toBe('NOT_FOUND');
+  });
+});
+
 describe('the people queries', () => {
   async function many(count: number) {
     for (let i = 0; i < count; i += 1) await person(`bulk${String(i).padStart(2, '0')}`, { name: `Bulk ${String(i).padStart(2, '0')}` });

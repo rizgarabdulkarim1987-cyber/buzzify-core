@@ -64,14 +64,36 @@ async function sendWithResend(email: Email, apiKey: string, from: string): Promi
   if (error) throw new Error(`Email delivery failed (${error.name}): ${error.message}`);
 }
 
+export interface SendOptions {
+  /**
+   * The sender's display name, from the platform settings. It replaces the name in `EMAIL_FROM`; the address never
+   * changes. Left out, the name in `EMAIL_FROM` stands.
+   */
+  senderName?: string | undefined;
+}
+
 /**
- * Sends an email. With `RESEND_API_KEY` set it goes through Resend from `EMAIL_FROM`. Without a key it is written to
- * `.data/mail/` and its subject and first link are logged, which is for development only: in production a missing key
- * is an error, so a reset or invitation never silently goes nowhere. Production never logs a message.
+ * The `from` of an email: the address of `emailFrom` with `senderName` as its display name. A name that could end the
+ * header's name early or start another header (angle brackets, quotes, @, commas, colons, backslashes, line breaks or
+ * other control characters) is not used, and the configured `from` stands: the setting is checked when it is saved, and
+ * this is the second layer.
  */
-export async function sendEmail(email: Email): Promise<void> {
+export function fromWithName(emailFrom: string, senderName: string | undefined): string {
+  const name = senderName?.trim();
+  if (!name || /[\p{Cc}<>@",;:\\]/u.test(name)) return emailFrom;
+  const address = /<([^<>\s]+)>\s*$/.exec(emailFrom)?.[1] ?? emailFrom.trim();
+  return `${name} <${address}>`;
+}
+
+/**
+ * Sends an email. With `RESEND_API_KEY` set it goes through Resend from `EMAIL_FROM` (named `options.senderName` when
+ * the platform settings give one). Without a key it is written to `.data/mail/` and its subject and first link are
+ * logged, which is for development only: in production a missing key is an error, so a reset or invitation never
+ * silently goes nowhere. Production never logs a message.
+ */
+export async function sendEmail(email: Email, options: SendOptions = {}): Promise<void> {
   const { resendApiKey, emailFrom } = mailEnv();
-  if (resendApiKey) return sendWithResend(email, resendApiKey, emailFrom);
+  if (resendApiKey) return sendWithResend(email, resendApiKey, fromWithName(emailFrom, options.senderName));
   if (process.env.NODE_ENV === 'production') {
     throw new Error('RESEND_API_KEY is not set, so email cannot be sent in production.');
   }

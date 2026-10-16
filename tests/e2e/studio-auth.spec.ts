@@ -160,13 +160,14 @@ test.describe('Studio sign-in @desktop', () => {
 
     await page.getByLabel('Password', { exact: true }).fill(uniquePassword());
     await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/studio$/);
-
-    // An owner's Studio is their restaurant: one item in the navigation, and the restaurant on the first page.
+    // An owner's Studio is their restaurant: the first page is its only menu (ATELIER has one), and the navigation has one item.
+    await expect(page).toHaveURL(/\/studio\/menus\/\w+$/);
     const nav = page.getByRole('navigation', { name: 'Studio' });
     await expect(nav.getByRole('link')).toHaveCount(1);
     await expect(nav.getByRole('link', { name: 'My restaurant' })).toHaveAttribute('href', /^\/studio\/(menus\/\w+|restaurants\/\w+\/menus)$/);
-    await expect(page.getByRole('region', { name: 'Your restaurants' }).getByRole('link', { name: new RegExp(restaurant.name) })).toBeVisible();
+    await expect(nav.getByRole('link', { name: 'My restaurant' })).toHaveAttribute('aria-current', 'page');
+    await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+    await expect(page.getByRole('link', { name: restaurant.name, exact: true }).first()).toBeVisible();
 
     // The link is spent.
     await page.goto(new URL(url).pathname);

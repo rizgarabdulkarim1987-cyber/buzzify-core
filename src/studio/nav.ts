@@ -78,6 +78,16 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
   });
 }
 
+/**
+ * Where an owner of one restaurant goes when they open the Studio: the same place their navigation item points at (their
+ * menu when it has exactly one, else the restaurant's Menus tab). Null for anyone else, and for an owner of several
+ * restaurants, who has no single place: their Overview lists the restaurants.
+ */
+export function landingPath(actor: Actor, owned: readonly OwnedRestaurant[]): string | null {
+  if (!isOwnerOnly(actor) || new Set(actor.memberships.map((m) => m.restaurantId)).size !== 1) return null;
+  return visibleNav(actor, owned)[0]?.href ?? null;
+}
+
 const within = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 /** Whether `pathname` is one of the item's pages, for marking the current item. */

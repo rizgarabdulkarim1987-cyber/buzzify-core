@@ -11,6 +11,32 @@ import { StudioError } from '@/server/studio/framework/result';
  * can supply: nobody else reaches this code.
  */
 
+/** One person as the People screen lists them: who they are, whether they are on and what they can open. */
+export interface PersonRow {
+  userId: string;
+  name: string;
+  email: string;
+  isSuperAdmin: boolean;
+  twoFactorEnabled: boolean;
+  deactivated: boolean;
+  createdAt: string;
+  memberships: Array<{ restaurantId: string; restaurantName: string; role: MemberRole }>;
+}
+
+/** An invitation as the People screen lists it (never its link or token). */
+export interface InvitationRow {
+  id: string;
+  email: string;
+  restaurantId: string | null;
+  restaurantName: string | null;
+  role: MemberRole | null;
+  asSuperAdmin: boolean;
+  status: 'pending' | 'accepted' | 'expired' | 'revoked';
+  expiresAt: string;
+  createdAt: string;
+  invitedBy: string;
+}
+
 function problem(field: string, message: string, code: 'INVALID' | 'CONFLICT' = 'INVALID'): StudioError {
   return new StudioError(code, message, { [field]: message });
 }

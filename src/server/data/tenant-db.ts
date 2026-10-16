@@ -51,6 +51,7 @@ export const GLOBAL_MODELS = [
   'AuthRateLimit',
   'AuditLog',
   'Invitation',
+  'PlatformSetting',
 ] as const;
 
 /**

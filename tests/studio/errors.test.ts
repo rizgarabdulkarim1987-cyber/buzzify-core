@@ -69,6 +69,23 @@ describe('describeFailure', () => {
     expect(describeFailure(en, 'en', { code: 'CONFLICT', message: failure.message }).message).toBe(en('error.CONFLICT'));
   });
 
+  it('names the word and the menu when a reserved word is already a menu’s address, in the person’s language', () => {
+    const fsi = String.fromCharCode(0x2068);
+    const pdi = String.fromCharCode(0x2069);
+    const failure = {
+      code: 'INVALID' as const,
+      message: 'Check the highlighted fields',
+      fields: { reservedSlugs: 'ritz is already the address of the menu Ritz Bar', inUseWord: 'ritz', inUseMenu: 'Ritz Bar' },
+    };
+    const described = describeFailure(en, 'en', failure);
+    expect(described.fields).toEqual({ reservedSlugs: `${fsi}ritz${pdi} is already the address of the menu ${fsi}Ritz Bar${pdi}, so it cannot be reserved.` });
+    // The details are not fields of the form, and Arabic never shows the server's English.
+    const arabic = describeFailure(ar, 'ar', failure);
+    expect(Object.keys(arabic.fields)).toEqual(['reservedSlugs']);
+    expect(arabic.fields.reservedSlugs).toContain('Ritz Bar');
+    expect(arabic.fields.reservedSlugs).not.toContain('address');
+  });
+
   it('shows the generic message for an unexpected failure', () => {
     expect(describeFailure(ar, 'ar', { code: 'INVALID', message: 'Something went wrong' }).message).toBe(ar('error.unexpected'));
   });

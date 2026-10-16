@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
-import type { MemberRole } from '@/server/domain/permissions';
+import { parsePolicy } from '@/server/domain/permissions';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import type { InvitationRow, PersonRow } from '@/server/studio/services/people';
 
 /**
  * Who is in the Studio and who has been invited. A Super Admin reads all of it; a restaurant's owner (or designer) whose
@@ -23,17 +24,6 @@ const targetOf = (i: { restaurantId?: string | undefined }) =>
 /** A query with no restaurant is the platform's: this refuses it for anyone who is not a Super Admin, whatever the framework let in. */
 function requirePlatformScope(ctx: QueryContext): void {
   if (ctx.restaurantId === null && ctx.scope.kind !== 'all') throw new StudioError('FORBIDDEN');
-}
-
-interface PersonRow {
-  userId: string;
-  name: string;
-  email: string;
-  isSuperAdmin: boolean;
-  twoFactorEnabled: boolean;
-  deactivated: boolean;
-  createdAt: string;
-  memberships: Array<{ restaurantId: string; restaurantName: string; role: MemberRole }>;
 }
 
 export const listPeople = defineQuery({
@@ -91,21 +81,6 @@ export const listPeople = defineQuery({
 });
 
 const STATUSES = ['pending', 'accepted', 'expired', 'revoked', 'all'] as const;
-
-type ListedStatus = Exclude<(typeof STATUSES)[number], 'all'>;
-
-interface InvitationRow {
-  id: string;
-  email: string;
-  restaurantId: string | null;
-  restaurantName: string | null;
-  role: MemberRole | null;
-  asSuperAdmin: boolean;
-  status: ListedStatus;
-  expiresAt: string;
-  createdAt: string;
-  invitedBy: string;
-}
 
 /** The invitations in a state, as a filter. An invitation is in exactly one: used beats withdrawn beats expired. */
 function inStatus(status: Exclude<(typeof STATUSES)[number], 'all'>, now: Date): Prisma.InvitationWhereInput {
@@ -201,5 +176,23 @@ export const restaurantMembers = defineQuery({
       deactivated: member.user.deactivatedAt !== null,
       since: member.createdAt.toISOString(),
     }));
+  },
+});
+
+/**
+ * A restaurant's permission policy as saved (parsed: unknown keys and never-grantable grants are gone) and the version
+ * to save a change against. Super Admins only: a client's policy is the agency's to read and change.
+ */
+export const restaurantPolicy = defineQuery({
+  name: 'people.restaurantPolicy',
+  permission: 'permissions.manage',
+  input: z.object({ restaurantId: idField }),
+  target: (i) => ({ kind: 'restaurant', restaurantId: i.restaurantId }),
+  run: async (ctx) => {
+    const restaurantId = ctx.restaurantId;
+    if (restaurantId === null) throw new Error('A restaurant query ran without a restaurant');
+    const row = await ctx.db.restaurant.findUnique({ where: { id: restaurantId }, select: { permissionPolicy: true, version: true } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    return { policy: parsePolicy(row.permissionPolicy), version: row.version };
   },
 });

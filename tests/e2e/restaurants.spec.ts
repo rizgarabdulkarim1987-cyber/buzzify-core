@@ -310,11 +310,9 @@ test.describe('Studio restaurants @desktop', () => {
     await page.getByLabel('Your name').fill('Hawre Owner');
     await page.getByLabel('Password', { exact: true }).fill(uniquePassword());
     await page.getByRole('button', { name: 'Create account' }).click();
-    await expect(page).toHaveURL(/\/studio$/);
-
-    // With no menu yet, their navigation opens the restaurant's Menus tab.
-    await page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: 'My restaurant' }).click();
+    // An owner of one restaurant lands in it: with no menu yet, on its Menus tab, which their navigation opens too.
     await expect(page).toHaveURL(new RegExp(`/studio/restaurants/${restaurant.id}/menus$`));
+    await expect(page.getByRole('navigation', { name: 'Studio' }).getByRole('link', { name: 'My restaurant' })).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('heading', { level: 1, name: restaurant.name })).toBeVisible();
     await expect(page.getByText('No menus yet')).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'Restaurant sections' });

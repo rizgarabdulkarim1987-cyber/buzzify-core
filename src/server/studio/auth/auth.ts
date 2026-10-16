@@ -10,6 +10,7 @@ import { getPrisma } from '@/server/data/prisma';
 import { sendEmail } from '@/server/email/send';
 import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/email/templates';
 import { authEnv, type AuthEnv } from '@/server/env';
+import { getPlatformSettings } from '@/server/studio/services/settings';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
 import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
@@ -28,6 +29,15 @@ function localeOf(user: object): Locale {
   return typeof value === 'string' && isLocale(value) ? value : 'en';
 }
 
+/** The sender name from the platform settings; none when they cannot be read, so a mail never waits on a setting. */
+async function platformSenderName(): Promise<string | undefined> {
+  try {
+    return (await getPlatformSettings(getPrisma())).emailSenderName;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Renders and sends one of the account emails. A failure is logged, never thrown: the template and the error go in the
  * log, but the address, the link and the token never do. (Better Auth also swallows what its callbacks throw, so
@@ -36,7 +46,7 @@ function localeOf(user: object): Locale {
 async function deliver(user: Recipient, template: EmailTemplate, params: EmailParams): Promise<void> {
   try {
     const mail = renderEmail(template, localeOf(user), { name: user.name, ...params });
-    await sendEmail({ to: user.email, ...mail });
+    await sendEmail({ to: user.email, ...mail }, { senderName: await platformSenderName() });
   } catch (error) {
     console.error(`[auth] The ${template} email was not sent: ${error instanceof Error ? error.message : String(error)}`);
   }

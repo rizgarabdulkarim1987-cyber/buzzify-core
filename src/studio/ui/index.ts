@@ -25,6 +25,7 @@ export { IconButton, type IconButtonProps } from './IconButton';
 export { Input, PasswordInput, type InputProps } from './Input';
 export { PageHeader, type PageHeaderProps } from './PageHeader';
 export { Pagination, type PaginationProps } from './Pagination';
+export { Picker, type PickerOption, type PickerProps } from './Picker';
 export { RouteTabs, type RouteTab } from './RouteTabs';
 export { Select, type SelectOption, type SelectProps } from './Select';
 export { StatusBadge, type StatusTone } from './StatusBadge';

@@ -24,6 +24,7 @@ import { isNavItemActive, type NavIcon, type NavItem } from '@/studio/nav';
 import { navigateAway } from '@/studio/navigate';
 import { cx } from '@/studio/ui/cx';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
+import { JumpTo } from './JumpTo';
 import { LanguageSwitch } from './LanguageSwitch';
 import { Wordmark } from './Wordmark';
 
@@ -53,8 +54,8 @@ function initials(name: string): string {
 }
 
 /**
- * The Studio's frame on the reading direction's start side: the product's name, the areas the person may use (the
- * current one marked with the amber edge), the language switch, and the person's own menu.
+ * The Studio's frame on the reading direction's start side: the product's name, Jump to (the button and Ctrl+K), the areas
+ * the person may use (the current one marked with the amber edge), the language switch, and the person's own menu.
  */
 export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: SidebarUser }) {
   const t = useT();
@@ -66,6 +67,10 @@ export function Sidebar({ items, user }: { items: readonly SidebarItem[]; user: 
         <Link href="/studio" className="rounded-sm">
           <Wordmark />
         </Link>
+      </div>
+
+      <div className="px-3 pb-2">
+        <JumpTo />
       </div>
 
       <nav aria-label={t('nav.label')} className="flex-1 overflow-y-auto px-3 py-2">

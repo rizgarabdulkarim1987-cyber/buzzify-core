@@ -27,6 +27,7 @@ export function testPrisma(): PrismaClient {
  */
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.auditLog.deleteMany();
+  await prisma.platformSetting.deleteMany();
   await prisma.invitation.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.twoFactor.deleteMany();

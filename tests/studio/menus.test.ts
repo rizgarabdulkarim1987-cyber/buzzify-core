@@ -11,7 +11,7 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as menuQueries from '@/server/studio/queries/menus';
-import { checkSlugAvailable } from '@/server/studio/services/menus';
+import { checkSlugAvailable, menuSlugs } from '@/server/studio/services/menus';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
@@ -20,6 +20,12 @@ import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from 
 vi.mock('@/server/data/cache', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/server/data/cache')>();
   return { ...actual, expireMenu: vi.fn(actual.expireMenu) };
+});
+
+// `menuSlugs` is read between a delete's check and its delete: the race test restores the menu from inside it.
+vi.mock('@/server/studio/services/menus', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/server/studio/services/menus')>();
+  return { ...actual, menuSlugs: vi.fn(actual.menuSlugs) };
 });
 
 const globalForPrisma = globalThis as unknown as { __prisma?: unknown };
@@ -473,6 +479,30 @@ describe('deleteMenu', () => {
     expect(failureOf(await run(admin, menus.createMenu, { restaurantId: bistro.id, name: 'Reuse', slug: 'del-menu', ...SETTINGS }))).toMatchObject({
       fields: { slug: 'This address is taken' },
     });
+  });
+});
+
+describe('deleteMenu racing a restore', () => {
+  it('answers CONFLICT and deletes nothing when the menu is restored between the check and the delete', async () => {
+    const { menu } = await publishedMenuIn(atelier.id, 'race-menu');
+    dataOf(await run(admin, menus.changeMenuStatus, { menuId: menu.id, action: 'archive' }));
+    const actual = await vi.importActual<typeof import('@/server/studio/services/menus')>('@/server/studio/services/menus');
+    vi.mocked(menuSlugs).mockImplementationOnce(async (...args: Parameters<typeof actual.menuSlugs>) => {
+      // The delete has read the menu as archived; somebody restores it now, before the delete runs.
+      await prisma().menu.update({ where: { id: menu.id }, data: { status: 'PUBLISHED', statusBeforeArchive: null } });
+      return actual.menuSlugs(...args);
+    });
+
+    vi.mocked(expireMenu).mockClear();
+    expect(failureOf(await run(admin, menus.deleteMenu, { menuId: menu.id, confirmName: menu.name })).code).toBe('CONFLICT');
+
+    // The live menu is still there, with its revision and its address, and nothing says it was deleted.
+    expect(await prisma().menu.findUniqueOrThrow({ where: { id: menu.id } })).toMatchObject({ status: 'PUBLISHED', slug: 'race-menu' });
+    expect(await prisma().menuRevision.count({ where: { menuId: menu.id } })).toBeGreaterThan(0);
+    expect(await prisma().menuSlug.findUniqueOrThrow({ where: { slug: 'race-menu' } })).toMatchObject({ menuId: menu.id });
+    expect(await prisma().auditLog.count({ where: { action: 'menu.deleted' } })).toBe(0);
+    expect(vi.mocked(expireMenu)).not.toHaveBeenCalled();
+    expect((await resolvePublicMenu('race-menu')).kind).toBe('live');
   });
 });
 

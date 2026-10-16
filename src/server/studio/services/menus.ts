@@ -5,10 +5,12 @@ import { LOCALES } from '@/lib/locale';
 import { delegates, type AnyDb, type ScopedDb } from '@/server/data/tenant-db';
 import { MENU_STATUSES, STATUS_ACTIONS } from '@/server/domain/menu-status';
 import { effectivePermissions, parsePolicy, type Permission } from '@/server/domain/permissions';
+import { currencyField, localesField, timeZoneField } from '@/server/domain/platform-settings';
 import type { PublishIssue } from '@/server/domain/publish-rules';
 import { SLUG_MAX, SLUG_MIN, validateSlug, type SlugProblem } from '@/server/domain/slug';
 import type { Actor } from '@/server/studio/auth/actor';
 import { StudioError, type ErrorCode } from '@/server/studio/framework/result';
+import { readReservedSlugs } from './settings';
 
 /**
  * Menus as the Studio makes and changes them: what it accepts for a new menu, how a slug is checked and claimed, and
@@ -36,26 +38,6 @@ export const OFFERED_TIME_ZONES = [
   'UTC',
 ] as const;
 
-/** What a new menu starts with when the person changes nothing (the platform's defaults until Settings has them). */
-export const NEW_MENU_DEFAULTS = {
-  locales: [...LOCALES],
-  defaultLocale: 'en',
-  currency: 'IQD',
-  timezone: 'Asia/Baghdad',
-  numeralSystem: 'LATN',
-} as const;
-
-const CURRENCIES = new Set(Intl.supportedValuesOf('currency'));
-
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /** A menu's name: what the Studio lists it by. Guests see the restaurant's name. */
 export const menuName = z.string().trim().min(1, 'Enter the menu name').max(120, 'Use at most 120 characters');
 
@@ -64,29 +46,21 @@ export const slugField = z.string().trim().max(200, 'This is too long');
 
 const idField = z.string().min(1).max(100);
 
-/** A new menu: its restaurant, its name and address, and the settings guests see it in. */
-export const newMenuInput = z
-  .object({
-    restaurantId: idField,
-    name: menuName,
-    slug: slugField,
-    locales: z
-      .array(z.enum(LOCALES, 'Choose one of the languages offered'))
-      .min(1, 'Choose at least one language')
-      .refine((list) => new Set(list).size === list.length, 'Choose each language once'),
-    defaultLocale: z.enum(LOCALES, 'Choose one of the languages offered'),
-    currency: z
-      .string()
-      .regex(/^[A-Z]{3}$/, 'Choose one of the currencies offered')
-      .refine((code) => CURRENCIES.has(code), 'Choose one of the currencies offered'),
-    timezone: z.string().min(1).max(64).refine(isTimeZone, 'Choose one of the time zones offered'),
-    numeralSystem: z.enum(['LATN', 'ARAB'], 'Choose one of the numeral systems offered'),
-  })
-  // With no language chosen, that is the one problem to fix; the default is checked against a list there is.
-  .refine((menu) => menu.locales.length === 0 || menu.locales.includes(menu.defaultLocale), {
-    path: ['defaultLocale'],
-    message: 'Choose the default language among the menu languages',
-  });
+/**
+ * A new menu: its restaurant, its name and address, and the settings guests see it in. A form that leaves the languages,
+ * the default language, the currency or the time zone out gets the platform's defaults (Settings); `createMenu` fills
+ * them in and checks the default language against the languages the menu ends up with.
+ */
+export const newMenuInput = z.object({
+  restaurantId: idField,
+  name: menuName,
+  slug: slugField,
+  locales: localesField.optional(),
+  defaultLocale: z.enum(LOCALES, 'Choose one of the languages offered').optional(),
+  currency: currencyField.optional(),
+  timezone: timeZoneField.optional(),
+  numeralSystem: z.enum(['LATN', 'ARAB'], 'Choose one of the numeral systems offered').default('LATN'),
+});
 
 export type NewMenuInput = z.infer<typeof newMenuInput>;
 
@@ -128,8 +102,9 @@ export type SlugAvailability = 'ok' | 'taken' | SlugProblem;
 
 /**
  * Whether `slug` can be the address of the menu `forMenuId` (null for a menu not made yet). It must follow the slug
- * rules and have no `MenuSlug` row, or have one that is that menu's own (an address it had before, which it may take
- * back). A tombstone (a deleted menu's address) and any other menu's address, current or former, are `taken`.
+ * rules, not be a reserved word (the built-in list and the platform's own), and have no `MenuSlug` row, or have one that
+ * is that menu's own (an address it had before, which it may take back). A tombstone (a deleted menu's address) and any
+ * other menu's address, current or former, are `taken`.
  *
  * `MenuSlug` is not scoped, so this works on any client, inside the transaction that claims the slug.
  */
@@ -138,6 +113,8 @@ export function checkSlugAvailable(db: ScopedDb, slug: string, forMenuId: string
 export async function checkSlugAvailable(client: AnyDb | ScopedDb, slug: string, forMenuId: string | null): Promise<SlugAvailability> {
   const rules = validateSlug(slug, []);
   if (!rules.ok) return rules.reason;
+  // The platform's own reserved words (Settings), compared as slugs are: a word on that list is never an address.
+  if ((await readReservedSlugs(delegates(client))).includes(slug)) return 'RESERVED';
   const row = await delegates(client).menuSlug.findUnique({ where: { slug }, select: { menuId: true } });
   if (!row) return 'ok';
   return forMenuId !== null && row.menuId === forMenuId ? 'ok' : 'taken';

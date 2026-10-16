@@ -172,6 +172,34 @@ describe('production', () => {
     expect(resend.send).toHaveBeenCalledWith(expect.objectContaining({ from: 'Menus <menus@example.test>' }));
   });
 
+  it('puts the platform sender name in front of the address from EMAIL_FROM', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('RESEND_API_KEY', 're_test_key');
+    vi.stubEnv('EMAIL_FROM', 'Menus <menus@example.test>');
+    resend.send.mockResolvedValue({ data: { id: 'msg_name' }, error: null, headers: null });
+    const { sendEmail } = await load();
+    await sendEmail(mail(address('named')), { senderName: 'Studio Team' });
+    expect(resend.send).toHaveBeenCalledWith(expect.objectContaining({ from: 'Studio Team <menus@example.test>' }));
+
+    // A bare address in EMAIL_FROM gets the name too.
+    vi.stubEnv('EMAIL_FROM', 'menus@example.test');
+    const second = await load();
+    await second.sendEmail(mail(address('named-bare')), { senderName: 'Studio Team' });
+    expect(resend.send).toHaveBeenLastCalledWith(expect.objectContaining({ from: 'Studio Team <menus@example.test>' }));
+  });
+
+  it('keeps the name in EMAIL_FROM when the platform has none to give, and never lets a name change the address', async () => {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('RESEND_API_KEY', 're_test_key');
+    resend.send.mockResolvedValue({ data: { id: 'msg_plain' }, error: null, headers: null });
+    const { sendEmail, fromWithName } = await load();
+    await sendEmail(mail(address('unnamed')), {});
+    expect(resend.send).toHaveBeenCalledWith(expect.objectContaining({ from: 'Buzzify Studio <studio@buzzify.me>' }));
+    // Whatever the name holds, the header stays one name and the configured address.
+    expect(fromWithName('Buzzify Studio <studio@buzzify.me>', 'Evil <x@y.z>\r\nBcc: a@b.c')).toBe('Buzzify Studio <studio@buzzify.me>');
+    expect(fromWithName('Buzzify Studio <studio@buzzify.me>', 'مطعم الاستوديو')).toBe('مطعم الاستوديو <studio@buzzify.me>');
+  });
+
   it('surfaces an error result from Resend as a thrown error without the message body', async () => {
     vi.stubEnv('NODE_ENV', 'production');
     vi.stubEnv('RESEND_API_KEY', 're_test_key');

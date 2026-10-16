@@ -218,3 +218,41 @@ export async function removeRestaurantsNamed(names: readonly string[]): Promise<
     await db.$disconnect();
   }
 }
+
+/** One row of the platform settings, as stored. */
+export interface SettingRow {
+  key: string;
+  value: unknown;
+  updatedById: string | null;
+}
+
+/** The platform settings as they are now, so a test that changes them can put them back (`restorePlatformSettings`). */
+export async function platformSettingRows(): Promise<SettingRow[]> {
+  const db = prisma();
+  try {
+    return (await db.platformSetting.findMany({ select: { key: true, value: true, updatedById: true } })) as SettingRow[];
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Puts the platform settings back as `rows` had them (none: the built-in defaults). */
+export async function restorePlatformSettings(rows: readonly SettingRow[]): Promise<void> {
+  const db = prisma();
+  try {
+    await db.platformSetting.deleteMany();
+    if (rows.length > 0) await db.platformSetting.createMany({ data: rows.map((row) => ({ ...row, value: row.value as never })) });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Moves a restaurant's version on, as another person's save would, so the next save from an open page is stale. */
+export async function bumpRestaurantVersion(id: string): Promise<void> {
+  const db = prisma();
+  try {
+    await db.restaurant.update({ where: { id }, data: { version: { increment: 1 } } });
+  } finally {
+    await db.$disconnect();
+  }
+}

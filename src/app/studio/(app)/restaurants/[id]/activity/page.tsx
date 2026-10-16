@@ -93,8 +93,8 @@ export default async function RestaurantActivityPage({
               </thead>
               <tbody>
                 {log.rows.map((row) => {
-                  const label = t(`restaurants.activity.action.${row.action}`);
-                  const known = label !== `restaurants.activity.action.${row.action}`;
+                  const label = t(`activity.action.${row.action}`);
+                  const known = label !== `activity.action.${row.action}`;
                   const details = Object.entries(row.changes)
                     .sort(([a], [b]) => rank(a) - rank(b))
                     .map(([field, change]) => ({ field, line: describeChange(t, field, change) }));

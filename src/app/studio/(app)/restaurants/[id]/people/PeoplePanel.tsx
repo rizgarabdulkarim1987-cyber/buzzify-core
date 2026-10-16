@@ -10,10 +10,10 @@ import { describeFailure } from '@/studio/errors';
 import { formatDate } from '@/studio/format';
 import { requireFields, useActionForm } from '@/studio/forms';
 import { useLocale, useT } from '@/studio/i18n';
+import { InviteLinkNote, type IssuedInvitation } from '@/studio/shell/InviteLinkNote';
 import { useRefuse } from '@/studio/refuse';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
-import { CopyButton } from '@/studio/ui/CopyButton';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { Field } from '@/studio/ui/Field';
 import { FormError } from '@/studio/ui/FormError';
@@ -37,38 +37,6 @@ export interface InvitationView {
   expiresAt: string;
 }
 
-interface Issued {
-  email: string;
-  url: string;
-}
-
-/** An invitation's link, shown once: it is stored nowhere, so this is the only time it can be copied. */
-function LinkNote({ issued, onDismiss }: { issued: Issued; onDismiss: () => void }) {
-  const t = useT();
-  return (
-    <div role="status" className="flex flex-col gap-3 rounded-md border border-line bg-surface p-4">
-      <div className="flex flex-col gap-1">
-        <p className="text-base font-medium text-text">{isolated(t('restaurants.people.linkTitle'), { email: issued.email })}</p>
-        <p className="max-w-[64ch] text-sm text-muted">{t('restaurants.people.linkBody')}</p>
-      </div>
-      <div className="flex items-center gap-2">
-        <Input
-          readOnly
-          dir="ltr"
-          value={issued.url}
-          aria-label={t('restaurants.people.linkLabel')}
-          className="font-mono text-xs"
-          onFocus={(event) => event.currentTarget.select()}
-        />
-        <CopyButton value={issued.url} size="md" variant="secondary" />
-      </div>
-      <Button variant="ghost" size="sm" className="self-start" onClick={onDismiss}>
-        {t('restaurants.people.linkDismiss')}
-      </Button>
-    </div>
-  );
-}
-
 /** Members, the form to invite an owner, and the invitations still waiting. */
 export function PeoplePanel({
   restaurantId,
@@ -87,7 +55,7 @@ export function PeoplePanel({
   const { locale } = useLocale();
   const router = useRouter();
   const refuse = useRefuse();
-  const [issued, setIssued] = useState<Issued | null>(null);
+  const [issued, setIssued] = useState<IssuedInvitation | null>(null);
   const [removing, setRemoving] = useState<MemberView | null>(null);
   const [working, startWorking] = useTransition();
 
@@ -190,7 +158,7 @@ export function PeoplePanel({
             {invite.pending ? t('restaurants.people.inviting') : t('restaurants.people.inviteSubmit')}
           </Button>
         </form>
-        {issued && <LinkNote issued={issued} onDismiss={() => setIssued(null)} />}
+        {issued && <InviteLinkNote issued={issued} onDismiss={() => setIssued(null)} />}
       </section>
 
       {invitations.length > 0 && (

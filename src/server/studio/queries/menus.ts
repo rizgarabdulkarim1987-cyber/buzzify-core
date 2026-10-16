@@ -7,12 +7,12 @@ import { loadDraftSnapshot } from '@/server/publish/draft';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
+import { getPlatformSettings } from '@/server/studio/services/settings';
 import {
   checkSlugAvailable,
   MENU_SORTS,
   menuSlugs,
   menuStatus,
-  NEW_MENU_DEFAULTS,
   OFFERED_CURRENCIES,
   OFFERED_TIME_ZONES,
   permissionsIn,
@@ -255,9 +255,11 @@ export const newMenuOptions = defineQuery({
     });
     const restaurants = found.filter((row) => permissionsIn(ctx.actor, row).has('menu.create'));
     if (!ctx.actor.isSuperAdmin && restaurants.length === 0) throw new StudioError('FORBIDDEN');
+    const { defaults } = await getPlatformSettings(ctx.db);
     return {
       restaurants: restaurants.map((row) => ({ id: row.id, name: row.name, clientId: formatClientId(row.clientNumber), clientNumber: row.clientNumber })),
-      defaults: NEW_MENU_DEFAULTS,
+      // What a new menu starts with: the platform's defaults (Settings).
+      defaults: { ...defaults, numeralSystem: 'LATN' },
       currencies: OFFERED_CURRENCIES,
       timeZones: OFFERED_TIME_ZONES,
     };

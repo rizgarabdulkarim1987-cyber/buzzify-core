@@ -22,14 +22,14 @@ export interface CommandGroup {
 export interface CommandPaletteProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Finds what matches the typed text. Called 200 ms after the last keystroke; the latest answer wins. */
+  /** Finds what matches the typed text. Called 200 ms after the last keystroke; the latest answer wins. A rejection is shown as "not available". */
   search: (query: string) => Promise<CommandGroup[]>;
 }
 
 /**
- * The shell of Jump to (Ctrl+K): a dialog with a search field and grouped results that the keyboard moves through,
- * Enter opening the highlighted one. What it searches is the caller's (`search`); the Studio's layout mounts it and
- * binds the shortcut.
+ * The shell of Jump to (Ctrl+K): a dialog with a search field and grouped results that the keyboard moves through (the
+ * arrow keys; the first result is highlighted whenever new ones arrive), Enter opening the highlighted one and Escape
+ * closing the dialog. What it searches is the caller's (`search`); the Studio's layout mounts it and binds the shortcut.
  */
 export function CommandPalette({ open, onOpenChange, search }: CommandPaletteProps) {
   const t = useT();
@@ -37,6 +37,8 @@ export function CommandPalette({ open, onOpenChange, search }: CommandPalettePro
   const [query, setQuery] = useState('');
   const [groups, setGroups] = useState<CommandGroup[]>([]);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [highlighted, setHighlighted] = useState('');
   const latest = useRef(0);
 
   useEffect(() => {
@@ -47,7 +49,16 @@ export function CommandPalette({ open, onOpenChange, search }: CommandPalettePro
       setLoading(true);
       try {
         const found = await search(text);
-        if (ticket === latest.current) setGroups(found);
+        if (ticket !== latest.current) return;
+        setFailed(false);
+        setGroups(found);
+        // New results start at their first: cmdk keeps the old highlight, which may no longer be there.
+        setHighlighted(found[0]?.results[0]?.id ?? '');
+      } catch {
+        if (ticket !== latest.current) return;
+        setFailed(true);
+        setGroups([]);
+        setHighlighted('');
       } finally {
         if (ticket === latest.current) setLoading(false);
       }
@@ -55,17 +66,29 @@ export function CommandPalette({ open, onOpenChange, search }: CommandPalettePro
     return () => clearTimeout(timer);
   }, [query, search]);
 
-  const shown = query.trim() === '' ? [] : groups;
+  const typed = query.trim() !== '';
+  const shown = typed ? groups : [];
+
+  const close = () => {
+    onOpenChange(false);
+    setQuery('');
+    setGroups([]);
+    setFailed(false);
+    setHighlighted('');
+  };
 
   return (
     <Command.Dialog
       open={open}
       onOpenChange={(next) => {
-        onOpenChange(next);
-        if (!next) setQuery('');
+        if (next) onOpenChange(true);
+        else close();
       }}
       label={t('common.jumpTo')}
       shouldFilter={false}
+      loop
+      value={highlighted}
+      onValueChange={setHighlighted}
       overlayClassName="fixed inset-0 z-40 bg-overlay"
       contentClassName="fixed inset-x-0 top-[12vh] z-50 mx-auto w-[calc(100vw-32px)] max-w-[600px] overflow-hidden rounded-lg bg-raised shadow-dialog"
     >
@@ -73,15 +96,27 @@ export function CommandPalette({ open, onOpenChange, search }: CommandPalettePro
         <Search aria-hidden className="size-4 shrink-0 text-muted" />
         <Command.Input
           value={query}
-          onValueChange={setQuery}
+          onValueChange={(next) => {
+            setQuery(next);
+            // A new text has no answer yet: the old results are not shown against it.
+            if (next.trim() === '') setGroups([]);
+          }}
           placeholder={t('common.jumpToPlaceholder')}
+          maxLength={80}
           className="h-12 w-full bg-transparent text-md text-text outline-none placeholder:text-muted"
         />
         {loading && <LoaderCircle aria-hidden className="size-4 shrink-0 animate-spin text-muted" />}
       </div>
       <Command.List className="max-h-[min(420px,60vh)] overflow-y-auto p-2">
-        {query.trim() !== '' && !loading && (
-          <Command.Empty className="px-3 py-6 text-center text-base text-muted">{t('common.jumpToEmpty')}</Command.Empty>
+        {typed && !loading && failed && (
+          <p role="status" className="px-3 py-6 text-center text-base text-danger">
+            {t('common.searchFailed')}
+          </p>
+        )}
+        {typed && !loading && !failed && (
+          <Command.Empty role="status" className="px-3 py-6 text-center text-base text-muted">
+            {t('common.jumpToEmpty')}
+          </Command.Empty>
         )}
         {shown.map((group) => (
           <Command.Group
@@ -94,15 +129,20 @@ export function CommandPalette({ open, onOpenChange, search }: CommandPalettePro
                 key={result.id}
                 value={result.id}
                 onSelect={() => {
-                  onOpenChange(false);
-                  setQuery('');
+                  close();
                   router.push(result.href);
                 }}
                 className="group flex min-h-10 cursor-pointer items-center gap-3 rounded-md px-3 py-1.5 data-[selected=true]:bg-accent-wash"
               >
                 <span className="flex min-w-0 flex-1 flex-col">
-                  <span className="truncate text-base text-text">{result.label}</span>
-                  {result.detail && <span className="truncate text-xs text-muted">{result.detail}</span>}
+                  <span dir="auto" className="truncate text-base text-text">
+                    {result.label}
+                  </span>
+                  {result.detail && (
+                    <span dir="auto" className="truncate text-xs text-muted">
+                      {result.detail}
+                    </span>
+                  )}
                 </span>
                 <CornerDownLeft aria-hidden className="hidden size-3.5 text-muted group-data-[selected=true]:block rtl:-scale-x-100" />
               </Command.Item>

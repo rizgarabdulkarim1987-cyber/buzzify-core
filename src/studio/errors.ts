@@ -102,6 +102,12 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose at least one menu': 'error.text.menusAtLeastOne',
   'Choose at most 200 menus': 'error.text.menusAtMost',
   'Each menu can be listed only once': 'error.text.menuOnce',
+
+  // Settings
+  'Enter the sender name': 'error.text.senderEnter',
+  'Use at most 60 characters': 'error.text.senderTooLong',
+  'Use letters, digits, spaces and . & ( ) - only': 'error.text.senderCharacters',
+  'Reserve at most 500 words': 'error.text.reservedTooMany',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -112,7 +118,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
@@ -144,6 +150,12 @@ export function describeFailure(t: Translate, locale: Locale, failure: StudioFai
   const fields: Record<string, string> = {};
   for (const [name, text] of Object.entries(failure.fields ?? {})) {
     if (!DETAILS.has(name)) fields[name] = say(text, 'error.field');
+  }
+  // A reserved word a menu already uses names the word and the menu, which the server's sentence has built in.
+  const word = failure.fields?.inUseWord;
+  const menu = failure.fields?.inUseMenu;
+  if (word !== undefined && menu !== undefined) {
+    fields.reservedSlugs = t('error.text.reservedInUse', { word: isolate(word), menu: isolate(menu) });
   }
   return { code: failure.code, message, fields };
 }

@@ -7,6 +7,7 @@ import { PublishError, publishMenu } from '@/server/publish/publish';
 import { defineAction, runAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
+import { getPlatformSettings } from '@/server/studio/services/settings';
 import {
   BULK_ACTIONS,
   claimSlug,
@@ -62,6 +63,16 @@ export const createMenu = defineAction({
   target: (i) => atRestaurant(i.restaurantId),
   run: async (ctx, input) => {
     const restaurantId = restaurantOf(ctx);
+    // What the form leaves out is the platform's default (Settings), and the default language must be one of the languages.
+    const defaults = (await getPlatformSettings(ctx.db)).defaults;
+    const locales = input.locales ?? defaults.locales;
+    const defaultLocale = input.defaultLocale ?? (locales.includes(defaults.defaultLocale) ? defaults.defaultLocale : locales[0]);
+    if (defaultLocale === undefined || !locales.includes(defaultLocale)) {
+      const message = 'Choose the default language among the menu languages';
+      throw new StudioError('INVALID', message, { defaultLocale: message });
+    }
+    const currency = input.currency ?? defaults.currency;
+    const timezone = input.timezone ?? defaults.timezone;
     // The menu's rows need a client scoped to it, so the transaction is scoped to the id it is about to get.
     const menuId = ctx.newId();
     await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
@@ -75,10 +86,10 @@ export const createMenu = defineAction({
             restaurantId,
             name: input.name,
             slug: input.slug,
-            locales: input.locales,
-            defaultLocale: input.defaultLocale,
-            currency: input.currency,
-            timezone: input.timezone,
+            locales,
+            defaultLocale,
+            currency,
+            timezone,
             numeralSystem: input.numeralSystem,
           },
         });
@@ -98,8 +109,8 @@ export const createMenu = defineAction({
         changes: {
           name: { before: null, after: input.name },
           slug: { before: null, after: input.slug },
-          locales: { before: null, after: input.locales },
-          currency: { before: null, after: input.currency },
+          locales: { before: null, after: locales },
+          currency: { before: null, after: currency },
         },
       });
       // A guest who tried the address before it existed left it cached as missing.
@@ -320,8 +331,11 @@ export const deleteMenu = defineAction({
       // Its addresses stay reserved as tombstones, so an old QR code never opens someone else's menu.
       const slugs = await menuSlugs(tx, menuId);
       await tx.menuSlug.updateMany({ where: { menuId }, data: { menuId: null } });
-      // Its catalog, revisions, brand kit, tables and events go with it.
-      await tx.menu.deleteMany({ where: { id: menuId } });
+      // Its catalog, revisions, brand kit, tables and events go with it. The delete itself asks for an archived menu: one
+      // restored between the read above and this line is live again, and must not be deleted from under its guests (the
+      // transaction, tombstones included, is rolled back).
+      const { count } = await tx.menu.deleteMany({ where: { id: menuId, status: 'ARCHIVED' } });
+      if (count === 0) throw new StudioError('CONFLICT');
 
       ctx.audit({
         action: 'menu.deleted',

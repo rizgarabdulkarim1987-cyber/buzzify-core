@@ -604,3 +604,13 @@ model AuditLog {
   /// The newest change to one row, which a refused save names (`updateWithVersion`).
   @@index([entityType, entityId, occurredAt])
 }
+
+/// Platform-wide settings, one row per key (`reservedSlugs`, `emailSenderName`, `defaults`; read through
+/// `getPlatformSettings`). A global model. A missing or malformed row reads as the built-in default.
+model PlatformSetting {
+  key         String   @id
+  value       Json
+  updatedAt   DateTime @updatedAt
+  /// The person who last saved it. A plain id, not a relation, so removing the person never blocks the setting.
+  updatedById String?
+}

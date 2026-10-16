@@ -151,6 +151,7 @@ export const getRestaurant = defineQuery({
         delete: can('restaurant.delete'),
         invite: can('people.invite'),
         manage: can('people.manage'),
+        permissions: can('permissions.manage'),
         audit: can('audit.view'),
       },
     };
