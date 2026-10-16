@@ -10,7 +10,7 @@ const limiters = new Map<string, ReturnType<typeof createRateLimiter>>();
  * Reads a request body up to `limit` bytes. Returns null as soon as the declared length or the bytes read
  * exceed the limit, so an oversized body is never buffered in full.
  */
-async function readBodyWithLimit(request: Request, limit: number): Promise<string | null> {
+export async function readBodyWithLimit(request: Request, limit: number): Promise<string | null> {
   const declared = Number(request.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > limit) return null;
   if (!request.body) return '';

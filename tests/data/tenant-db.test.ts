@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { menuDb, restaurantDb, scopedClient, type ScopedTx } from '@/server/data/tenant-db';
+import { globalDb, menuDb, restaurantDb, scopedClient, type ScopedTx } from '@/server/data/tenant-db';
 import { createMenuFixture, resetTestData, testPrisma } from '../helpers/db';
 
 const prisma = testPrisma();
@@ -148,6 +148,58 @@ describe('tenant scoping', () => {
 
     it('needs at least one id', () => {
       expect(() => scopedClient(prisma, {})).toThrow(/menuId or a restaurantId/);
+    });
+  });
+
+  // A client scoped to one class of rows must not serve the other class unscoped: it refuses instead (ruling R13).
+  describe('failing closed across scope classes', () => {
+    beforeEach(async () => {
+      await prisma.branch.create({ data: { restaurantId: a.restaurant.id, name: 'A branch' } });
+      await prisma.branch.create({ data: { restaurantId: b.restaurant.id, name: 'B branch' } });
+    });
+
+    it('menuDb refuses every restaurant-scoped model, for reads and writes', async () => {
+      const db = menuDb(prisma, a.menu.id);
+      await expect(db.branch.findMany()).rejects.toThrow(/Branch is restaurant-scoped/);
+      await expect(db.branch.count()).rejects.toThrow(/Branch is restaurant-scoped/);
+      await expect(db.branch.create({ data: { restaurantId: a.restaurant.id, name: 'Sneaky' } })).rejects.toThrow(
+        /Branch is restaurant-scoped/,
+      );
+      await expect(db.branch.deleteMany({})).rejects.toThrow(/Branch is restaurant-scoped/);
+      expect(await prisma.branch.count()).toBe(2);
+    });
+
+    it('restaurantDb refuses every menu-scoped model, for reads and writes', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      await expect(db.product.findMany()).rejects.toThrow(/Product is menu-scoped/);
+      await expect(db.menuRevision.findFirst()).rejects.toThrow(/MenuRevision is menu-scoped/);
+      await expect(db.category.updateMany({ data: { isActive: false } })).rejects.toThrow(/Category is menu-scoped/);
+      expect(await prisma.category.count({ where: { isActive: false } })).toBe(0);
+    });
+
+    it('scopedClient with one id refuses the other class; with both, scopes each class by its own id', async () => {
+      await expect(scopedClient(prisma, { menuId: a.menu.id }).branch.findMany()).rejects.toThrow(/restaurant-scoped/);
+      await expect(scopedClient(prisma, { restaurantId: a.restaurant.id }).product.findMany()).rejects.toThrow(/menu-scoped/);
+
+      const both = scopedClient(prisma, { menuId: a.menu.id, restaurantId: a.restaurant.id });
+      expect((await both.product.findMany()).map((p) => p.id)).toEqual([a.product.id]);
+      expect(await branchNames(both)).toEqual(['A branch']);
+    });
+
+    it('leaves global and lookup models alone', async () => {
+      const db = menuDb(prisma, a.menu.id);
+      expect(await db.restaurant.count()).toBe(2);
+      expect(await db.menu.count()).toBe(2);
+      expect(await restaurantDb(prisma, a.restaurant.id).menu.count()).toBe(2);
+    });
+
+    it('globalDb serves only global and lookup models', async () => {
+      const db = globalDb(prisma);
+      await expect(db.product.findMany()).rejects.toThrow(/Product is menu-scoped/);
+      await expect(db.branch.findMany()).rejects.toThrow(/Branch is restaurant-scoped/);
+      expect(await db.restaurant.count()).toBe(2);
+      const seen = await db.$transaction(async (tx) => tx.menu.count());
+      expect(seen).toBe(2);
     });
   });
 });

@@ -552,3 +552,27 @@ model AuthRateLimit {
   windowStart DateTime
   count       Int
 }
+
+/// Who changed what, where and when. The Studio's actions write it in the same transaction as the change. Actor,
+/// restaurant and menu are plain ids, not relations, so the history outlives the rows it describes.
+model AuditLog {
+  id           String   @id @default(cuid())
+  actorId      String?
+  restaurantId String?
+  menuId       String?
+  /// What was done, such as `restaurant.rename` or `menu.publish`.
+  action       String
+  entityType   String
+  entityId     String
+  /// `{ field: { before, after } }`, chosen by the action. Never a request body, a password or a token.
+  changes      Json     @default("{}")
+  ip           String   @default("")
+  userAgent    String   @default("")
+  occurredAt   DateTime @default(now())
+
+  @@index([restaurantId, occurredAt])
+  @@index([actorId, occurredAt])
+  @@index([occurredAt])
+  /// The newest change to one row, which a refused save names (`updateWithVersion`).
+  @@index([entityType, entityId, occurredAt])
+}

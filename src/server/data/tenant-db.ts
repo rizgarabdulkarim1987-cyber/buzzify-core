@@ -30,7 +30,10 @@ export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as cons
  */
 export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
 
-/** Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits) and the Studio's rate-limit counters. */
+/**
+ * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, and the
+ * audit log, which names restaurants and menus by id so it can be read across them and outlive them.
+ */
 export const GLOBAL_MODELS = [
   'Restaurant',
   'User',
@@ -40,9 +43,16 @@ export const GLOBAL_MODELS = [
   'TwoFactor',
   'RateLimit',
   'AuthRateLimit',
+  'AuditLog',
 ] as const;
 
 type ScopeColumn = 'menuId' | 'restaurantId';
+
+/** Which menu and which restaurant a client is confined to. A class of rows whose id is missing is refused outright. */
+interface Scope {
+  menuId?: string;
+  restaurantId?: string;
+}
 
 const FILTERED = new Set([
   'findMany',
@@ -65,12 +75,10 @@ const UPDATING = new Set(['update', 'updateMany', 'updateManyAndReturn']);
 type Args = Record<string, unknown> & { where?: Record<string, unknown> };
 
 /**
- * A Prisma extension that confines every query on `models` to rows whose `column` equals `id`: reads and writes are
- * filtered, creates are stamped, and an update may change anything except which owner a row belongs to.
+ * The guards for one scoped model: every query on it is confined to rows whose `column` equals `id`. Reads and writes
+ * are filtered, creates are stamped, and an update may change anything except which owner a row belongs to.
  */
-function scopeExtension(column: ScopeColumn, models: readonly string[], id: string) {
-  if (!id) throw new Error(`Scoping by ${column} requires a value`);
-  const scoped = new Set<string>(models);
+function confine(column: ScopeColumn, id: string) {
   /** The relation field that mirrors the column: `menuId` is the foreign key of `menu`. */
   const relation = column === 'menuId' ? 'menu' : 'restaurant';
 
@@ -99,69 +107,98 @@ function scopeExtension(column: ScopeColumn, models: readonly string[], id: stri
     return { ...data, [column]: id };
   }
 
+  return function run(model: string, operation: string, input: Args, query: (args: unknown) => Promise<unknown>) {
+    if (UPDATING.has(operation)) {
+      const filtered = scopeWhere(input);
+      return query({ ...filtered, data: guardUpdate(input.data) });
+    }
+    if (FILTERED.has(operation)) return query(scopeWhere(input));
+    if (CREATING.has(operation)) {
+      const data = input.data;
+      const next = Array.isArray(data) ? data.map((row) => scopeData(row)) : scopeData(data);
+      return query({ ...input, data: next });
+    }
+    if (operation === 'upsert') {
+      return query({
+        ...scopeWhere(input),
+        create: scopeData(input.create),
+        update: guardUpdate(input.update),
+      });
+    }
+    throw new Error(`Operation ${operation} is not allowed on ${relation}-scoped model ${model}`);
+  };
+}
+
+const MENU_SCOPED = new Set<string>(MENU_SCOPED_MODELS);
+const RESTAURANT_SCOPED = new Set<string>(RESTAURANT_SCOPED_MODELS);
+
+/**
+ * A Prisma extension that confines menu-scoped models to `scope.menuId` and restaurant-scoped models to
+ * `scope.restaurantId`, and fails closed: a scoped model whose id the scope lacks is refused, never served unscoped. So
+ * a client for one menu cannot list every restaurant's branches, and a client for one restaurant cannot list every
+ * menu's products. Global and lookup models pass through.
+ */
+function tenantScope(scope: Scope) {
+  const menu = scope.menuId === undefined ? null : confine('menuId', scope.menuId);
+  const restaurant = scope.restaurantId === undefined ? null : confine('restaurantId', scope.restaurantId);
+
   return Prisma.defineExtension({
-    name: `tenant-scope:${column}`,
+    name: 'tenant-scope',
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
-          if (!scoped.has(model)) return query(args);
           const input = (args ?? {}) as Args;
-          if (UPDATING.has(operation)) {
-            const filtered = scopeWhere(input);
-            return query({ ...filtered, data: guardUpdate(input.data) } as never);
+          const forward = query as (args: unknown) => Promise<unknown>;
+          if (MENU_SCOPED.has(model)) {
+            if (!menu) throw new Error(`Tenant scope: ${model} is menu-scoped and this client has no menu`);
+            return menu(model, operation, input, forward);
           }
-          if (FILTERED.has(operation)) return query(scopeWhere(input));
-          if (CREATING.has(operation)) {
-            const data = input.data;
-            const next = Array.isArray(data) ? data.map((row) => scopeData(row)) : scopeData(data);
-            return query({ ...input, data: next });
+          if (RESTAURANT_SCOPED.has(model)) {
+            if (!restaurant) throw new Error(`Tenant scope: ${model} is restaurant-scoped and this client has no restaurant`);
+            return restaurant(model, operation, input, forward);
           }
-          if (operation === 'upsert') {
-            return query({
-              ...scopeWhere(input),
-              create: scopeData(input.create),
-              update: guardUpdate(input.update),
-            } as never);
-          }
-          throw new Error(`Operation ${operation} is not allowed on ${relation}-scoped model ${model}`);
+          return query(args);
         },
       },
     },
   });
 }
 
-/** A client confined to one menu's rows (and, as before, unrestricted on models that are not menu-scoped). */
+/** A client confined to one menu's rows. Restaurant-scoped models are refused: use `scopedClient` with both ids. */
 export function menuDb(prisma: PrismaClient, menuId: string) {
   if (!menuId) throw new Error('menuDb requires a menuId');
-  return prisma.$extends(scopeExtension('menuId', MENU_SCOPED_MODELS, menuId));
+  return prisma.$extends(tenantScope({ menuId }));
 }
 
-/** A client confined to one restaurant's rows. */
-export function restaurantDb(prisma: PrismaClient, restaurantId: string) {
+/** A client confined to one restaurant's rows. Menu-scoped models are refused: use `scopedClient` with both ids. */
+export function restaurantDb(prisma: PrismaClient, restaurantId: string): MenuDb {
   if (!restaurantId) throw new Error('restaurantDb requires a restaurantId');
-  return prisma.$extends(scopeExtension('restaurantId', RESTAURANT_SCOPED_MODELS, restaurantId));
+  // A query extension leaves the client's type as it is, so every scope shares one type.
+  return prisma.$extends(tenantScope({ restaurantId })) as never;
 }
 
 export type MenuDb = ReturnType<typeof menuDb>;
 export type RestaurantDb = ReturnType<typeof restaurantDb>;
 
 /**
- * A client confined to a menu, a restaurant, or both. Each id that is given applies its own extension, so a client
- * given both scopes menu rows and branches in the same transaction.
+ * A client confined to a menu, a restaurant, or both. Given both, it scopes menu rows by the menu and branches by the
+ * restaurant (in the same transaction); given one, it refuses the other class of rows.
  */
-export function scopedClient(prisma: PrismaClient, scope: { menuId?: string; restaurantId?: string }) {
+export function scopedClient(prisma: PrismaClient, scope: Scope): MenuDb {
   if (scope.menuId === undefined && scope.restaurantId === undefined) {
     throw new Error('scopedClient requires a menuId or a restaurantId');
   }
-  // A query extension leaves the client's type as it is, so every combination of scopes shares one type.
-  let client: MenuDb = prisma as never;
-  if (scope.menuId !== undefined) {
-    client = client.$extends(scopeExtension('menuId', MENU_SCOPED_MODELS, scope.menuId)) as never;
-  }
-  if (scope.restaurantId !== undefined) {
-    client = client.$extends(scopeExtension('restaurantId', RESTAURANT_SCOPED_MODELS, scope.restaurantId)) as never;
-  }
-  return client;
+  if (scope.menuId === '') throw new Error('scopedClient requires a non-empty menuId');
+  if (scope.restaurantId === '') throw new Error('scopedClient requires a non-empty restaurantId');
+  return prisma.$extends(tenantScope(scope)) as never;
+}
+
+/**
+ * A client for work that belongs to no restaurant: platform settings, people, a person's own account. It serves global
+ * and lookup models and refuses every menu- and restaurant-scoped one.
+ */
+export function globalDb(prisma: PrismaClient): MenuDb {
+  return prisma.$extends(tenantScope({})) as never;
 }
 
 export type ScopedClient = ReturnType<typeof scopedClient>;
