@@ -90,8 +90,8 @@ describe('data layer (database)', () => {
     expect(scoped.products).toHaveLength(24);
     const inTx = await prisma.$transaction((tx) => loadDraftCatalog(tx, other.menu.id));
     expect(inTx.products.map((p) => p.id)).toEqual([other.product.id]);
-    // A client scoped to another menu sees none of this one's rows.
-    expect((await loadDraftCatalog(menuDb(prisma, other.menu.id), menuId)).products).toEqual([]);
+    // A client scoped to another menu sees none of this one's rows, not even its Menu row (ruling R25).
+    await expect(loadDraftCatalog(menuDb(prisma, other.menu.id), menuId)).rejects.toThrow(/No record was found|not found/i);
   });
 
   it('records analytics events scoped to the tenant', async () => {

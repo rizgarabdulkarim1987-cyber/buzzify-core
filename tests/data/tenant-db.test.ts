@@ -186,20 +186,119 @@ describe('tenant scoping', () => {
       expect(await branchNames(both)).toEqual(['A branch']);
     });
 
-    it('leaves global and lookup models alone', async () => {
-      const db = menuDb(prisma, a.menu.id);
-      expect(await db.restaurant.count()).toBe(2);
-      expect(await db.menu.count()).toBe(2);
-      expect(await restaurantDb(prisma, a.restaurant.id).menu.count()).toBe(2);
-    });
-
-    it('globalDb serves only global and lookup models', async () => {
+    it('globalDb refuses scoped models and filters nothing else', async () => {
       const db = globalDb(prisma);
       await expect(db.product.findMany()).rejects.toThrow(/Product is menu-scoped/);
       await expect(db.branch.findMany()).rejects.toThrow(/Branch is restaurant-scoped/);
       expect(await db.restaurant.count()).toBe(2);
       const seen = await db.$transaction(async (tx) => tx.menu.count());
       expect(seen).toBe(2);
+    });
+  });
+
+  // A client that carries a restaurant also confines its Restaurant row, its menus and its memberships; one that
+  // carries a menu confines that Menu row (ruling R25). The extension sees top-level queries only, so these are what
+  // keep a nested include or write inside the owner.
+  describe('confining menus, the restaurant row and memberships', () => {
+    let membershipA: { id: string };
+    let membershipB: { id: string };
+
+    beforeEach(async () => {
+      for (const id of ['user-a', 'user-b', 'user-c']) {
+        await prisma.user.create({ data: { id, name: id, email: `${id}@example.com` } });
+      }
+      membershipA = await prisma.membership.create({ data: { userId: 'user-a', restaurantId: a.restaurant.id, role: 'DESIGNER' } });
+      membershipB = await prisma.membership.create({ data: { userId: 'user-b', restaurantId: b.restaurant.id, role: 'OWNER' } });
+    });
+
+    const menuData = (slug: string) => ({ name: slug, slug, timezone: 'Asia/Baghdad', locales: ['en'] });
+
+    it("shows a restaurant's transaction only its menus, and through include only their products", async () => {
+      const seen = await restaurantDb(prisma, a.restaurant.id).$transaction(async (tx) => ({
+        menus: (await tx.menu.findMany()).map((menu) => menu.id),
+        products: (await tx.menu.findMany({ include: { products: true } })).flatMap((menu) => menu.products.map((p) => p.id)),
+        count: await tx.menu.count(),
+        byId: await tx.menu.findUnique({ where: { id: b.menu.id } }),
+      }));
+      expect(seen).toEqual({ menus: [a.menu.id], products: [a.product.id], count: 1, byId: null });
+    });
+
+    it("cannot update, delete through or re-home another restaurant's menu", async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      await expect(db.menu.update({ where: { id: b.menu.id }, data: { name: 'Hijacked' } })).rejects.toThrow();
+      expect((await db.menu.updateMany({ where: { id: b.menu.id }, data: { name: 'Hijacked' } })).count).toBe(0);
+      await expect(
+        db.menu.update({ where: { id: b.menu.id }, data: { products: { deleteMany: {} } } }),
+      ).rejects.toThrow();
+      expect((await db.menu.deleteMany({ where: { id: b.menu.id } })).count).toBe(0);
+      expect(await prisma.product.count({ where: { menuId: b.menu.id } })).toBe(1);
+      expect((await prisma.menu.findUniqueOrThrow({ where: { id: b.menu.id } })).name).toBe('Menu tenant-b');
+
+      await expect(
+        db.menu.update({ where: { id: a.menu.id }, data: { restaurantId: b.restaurant.id } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+      await expect(
+        db.menu.update({ where: { id: a.menu.id }, data: { restaurant: { connect: { id: b.restaurant.id } } } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+      expect((await prisma.menu.findUniqueOrThrow({ where: { id: a.menu.id } })).restaurantId).toBe(a.restaurant.id);
+    });
+
+    it('stamps its restaurant on a new menu and refuses one for another restaurant', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      const created = await db.menu.create({ data: menuData('tenant-a-second') as never });
+      expect(created.restaurantId).toBe(a.restaurant.id);
+      await expect(
+        db.menu.create({ data: { ...menuData('tenant-a-stolen'), restaurantId: b.restaurant.id } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+    });
+
+    it('confines the Restaurant row to its own and refuses creating one', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      expect((await db.restaurant.findMany()).map((r) => r.id)).toEqual([a.restaurant.id]);
+      await expect(db.restaurant.update({ where: { id: b.restaurant.id }, data: { name: 'Hijacked' } })).rejects.toThrow();
+      expect((await prisma.restaurant.findUniqueOrThrow({ where: { id: b.restaurant.id } })).name).toBe('Restaurant tenant-b');
+      await expect(db.restaurant.create({ data: { name: 'Another' } })).rejects.toThrow(/cannot create a Restaurant/);
+      await expect(
+        db.restaurant.update({ where: { id: a.restaurant.id }, data: { id: 'renamed-id' } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+      expect((await db.restaurant.update({ where: { id: a.restaurant.id }, data: { name: 'Alpha' } })).name).toBe('Alpha');
+    });
+
+    it('sees and writes only its own memberships', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      expect((await db.membership.findMany()).map((m) => m.userId)).toEqual(['user-a']);
+      const created = await db.membership.create({ data: { userId: 'user-c', role: 'OWNER' } as never });
+      expect(created.restaurantId).toBe(a.restaurant.id);
+      await expect(db.membership.update({ where: { id: membershipB.id }, data: { role: 'DESIGNER' } })).rejects.toThrow();
+      expect((await db.membership.deleteMany({ where: { id: membershipB.id } })).count).toBe(0);
+      await expect(
+        db.membership.update({ where: { id: membershipA.id }, data: { restaurantId: b.restaurant.id } }),
+      ).rejects.toThrow(/Tenant mismatch/);
+      expect(await prisma.membership.count({ where: { restaurantId: b.restaurant.id } })).toBe(1);
+    });
+
+    it('shows a menu-scoped client only its own Menu row and refuses creating one', async () => {
+      const db = menuDb(prisma, a.menu.id);
+      expect((await db.menu.findMany()).map((menu) => menu.id)).toEqual([a.menu.id]);
+      expect(await db.menu.findUnique({ where: { id: b.menu.id } })).toBeNull();
+      expect((await db.menu.updateMany({ data: { notes: 'touched' } })).count).toBe(1);
+      expect((await prisma.menu.findUniqueOrThrow({ where: { id: b.menu.id } })).notes).toBe('');
+      await expect(
+        db.menu.create({ data: { ...menuData('tenant-a-new'), restaurantId: a.restaurant.id } }),
+      ).rejects.toThrow(/cannot create a Menu/);
+
+      const both = scopedClient(prisma, { menuId: a.menu.id, restaurantId: a.restaurant.id });
+      expect((await both.menu.findMany()).map((menu) => menu.id)).toEqual([a.menu.id]);
+      expect((await both.restaurant.findMany()).map((r) => r.id)).toEqual([a.restaurant.id]);
+    });
+
+    it('leaves slugs, domains and users unfiltered, and Restaurant and Membership without a restaurant', async () => {
+      // What the handler must key by trusted ids itself (see ActionContext.transaction).
+      expect(await restaurantDb(prisma, a.restaurant.id).menuSlug.count()).toBe(2);
+      expect(await restaurantDb(prisma, a.restaurant.id).user.count()).toBe(3);
+      expect(await menuDb(prisma, a.menu.id).restaurant.count()).toBe(2);
+      expect(await menuDb(prisma, a.menu.id).membership.count()).toBe(2);
+      expect(await globalDb(prisma).membership.count()).toBe(2);
     });
   });
 });

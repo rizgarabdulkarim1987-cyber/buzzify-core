@@ -35,10 +35,24 @@ export interface ActionContext {
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
   /**
-   * Runs `fn` in one transaction on a client confined to the target: its menu and restaurant (a restaurant target
-   * refuses menu rows), or global rows only for platform and self targets. The audit entries queued so far are
-   * written inside it before it commits; `afterCommit` callbacks run once it has committed. A failed transaction
-   * drops the entries and callbacks queued during it. Run one transaction at a time.
+   * Runs `fn` in one transaction on a client scoped to the target (`scopedClient`, or `globalDb` for platform and self
+   * targets). What the scope filters, for top-level queries:
+   *
+   * - menu target: the menu's catalog and revisions, that one `Menu` row, and its restaurant's branches, `Restaurant`
+   *   row and memberships;
+   * - restaurant target: its branches, its `Restaurant` row, its menus and its memberships; menu-scoped models are
+   *   refused (a menu's rows need a menu target);
+   * - platform and self targets: menu- and restaurant-scoped models are refused, and nothing else is filtered.
+   *
+   * Never filtered: `MenuSlug`, `MenuDomain`, `User` and the other global models (and `Restaurant`, `Menu`,
+   * `Membership` on platform and self targets). A handler keys them by `restaurantId`/`menuId` above or by
+   * `actor.userId`, never by ids from its input. Nested writes into models the scope does not filter, and references to
+   * other rows (scalar foreign keys, nested `connect` or `set`), are the handler's to check: take such ids from rows read
+   * through `tx`. A nested `include` or write from a filtered row stays inside its owner.
+   *
+   * The audit entries queued so far are written inside the transaction before it commits; `afterCommit` callbacks run
+   * once it has committed. A failed transaction drops the entries and callbacks queued during it. Run one transaction
+   * at a time.
    */
   transaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T>;
   /** Queues an audit row for the next transaction, or for the end of the action when no transaction follows. */

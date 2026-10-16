@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CROSS_RESTAURANT_MODELS,
   GLOBAL_MODELS,
+  MENU_CONFINED_MODELS,
   MENU_SCOPED_MODELS,
+  RESTAURANT_CONFINED_MODELS,
   RESTAURANT_SCOPED_MODELS,
   UNSCOPED_LOOKUP_MODELS,
 } from '@/server/data/tenant-db';
@@ -36,9 +38,31 @@ describe('tenant scoping registry', () => {
     expect(withMenu).toEqual([...MENU_SCOPED_MODELS, 'MenuDomain'].sort());
   });
 
+  // Every model that names its restaurant is either restaurant-scoped or confined by that column in a client that carries
+  // a restaurant, so a new one cannot be served unfiltered by a restaurant's transaction without a decision here.
   it('registers every model with a required restaurantId column', () => {
     const withRestaurant = names((body) => /^\s*restaurantId\s+String(?!\?)\b/m.test(body));
-    expect(withRestaurant).toEqual([...RESTAURANT_SCOPED_MODELS, 'Menu', ...CROSS_RESTAURANT_MODELS].sort());
+    const confinedByRestaurantId = Object.entries(RESTAURANT_CONFINED_MODELS)
+      .filter(([, column]) => column === 'restaurantId')
+      .map(([model]) => model);
+    expect(withRestaurant).toEqual([...RESTAURANT_SCOPED_MODELS, ...confinedByRestaurantId].sort());
+    // Cross-restaurant models are read across restaurants with the base client, and confined in a restaurant's client.
+    for (const model of CROSS_RESTAURANT_MODELS) expect(confinedByRestaurantId).toContain(model);
+  });
+
+  it('confines only models outside the scoped classes, each by a required column it has', () => {
+    const scoped = new Set<string>([...MENU_SCOPED_MODELS, ...RESTAURANT_SCOPED_MODELS]);
+    const confined = [...Object.entries(MENU_CONFINED_MODELS), ...Object.entries(RESTAURANT_CONFINED_MODELS)];
+    expect(confined.length).toBeGreaterThan(0);
+    for (const [model, column] of confined) {
+      const body = models.get(model);
+      expect(body, `${model} is in the schema`).toBeDefined();
+      expect(scoped.has(model), `${model} is not already scoped`).toBe(false);
+      expect(new RegExp(`^\\s*${column}\\s+String(?!\\?)\\b`, 'm').test(body as string), `${model}.${column} is a required String`).toBe(true);
+    }
+    // A client's own owner row: a menu confines its Menu by id, a restaurant its Restaurant by id.
+    expect(MENU_CONFINED_MODELS).toEqual({ Menu: 'id' });
+    expect(RESTAURANT_CONFINED_MODELS.Restaurant).toBe('id');
   });
 
   it('classifies every model exactly once', () => {

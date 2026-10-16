@@ -21,12 +21,16 @@ export const MENU_SCOPED_MODELS = [
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
 export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
 
-/** Looked up by slug or host before the tenant is known, so they use the unscoped client. */
+/**
+ * Looked up by slug or host before the tenant is known, through the base client. A scoped client still confines `Menu`
+ * (`MENU_CONFINED_MODELS`, `RESTAURANT_CONFINED_MODELS`); `MenuSlug` and `MenuDomain` it serves unfiltered.
+ */
 export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as const;
 
 /**
  * Global models that reference a restaurant by design, because they are queried across restaurants: a person's
- * memberships are read by user, to learn which restaurants they may open.
+ * memberships are read by user (with the base client), to learn which restaurants they may open. A client scoped to a
+ * restaurant confines them to it (`RESTAURANT_CONFINED_MODELS`).
  */
 export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
 
@@ -46,12 +50,35 @@ export const GLOBAL_MODELS = [
   'AuditLog',
 ] as const;
 
-type ScopeColumn = 'menuId' | 'restaurantId';
+/**
+ * Models outside the scoped classes that a client carrying a `menuId` still confines, by the column named: the menu's
+ * own row, by `id`. They are served unfiltered by clients without a menu (public slug resolution uses the base client).
+ */
+export const MENU_CONFINED_MODELS: Readonly<Record<string, 'id'>> = { Menu: 'id' };
+
+/**
+ * Models outside the scoped classes that a client carrying a `restaurantId` still confines, by the column named: the
+ * restaurant's own row (by `id`), its menus and its memberships (by `restaurantId`).
+ */
+export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaurantId'>> = {
+  Restaurant: 'id',
+  Menu: 'restaurantId',
+  Membership: 'restaurantId',
+};
 
 /** Which menu and which restaurant a client is confined to. A class of rows whose id is missing is refused outright. */
 interface Scope {
   menuId?: string;
   restaurantId?: string;
+}
+
+/** How one model is confined to one owner. */
+interface Confinement {
+  owner: 'menu' | 'restaurant';
+  /** The owner's id. */
+  id: string;
+  /** The column that names the owner: `menuId` or `restaurantId`, or `id` for the owner's own row. */
+  column: 'id' | 'menuId' | 'restaurantId';
 }
 
 const FILTERED = new Set([
@@ -75,20 +102,21 @@ const UPDATING = new Set(['update', 'updateMany', 'updateManyAndReturn']);
 type Args = Record<string, unknown> & { where?: Record<string, unknown> };
 
 /**
- * The guards for one scoped model: every query on it is confined to rows whose `column` equals `id`. Reads and writes
- * are filtered, creates are stamped, and an update may change anything except which owner a row belongs to.
+ * The guard for one model and one owner, as a rewrite of the query's arguments: reads, updates and deletes are filtered
+ * to rows whose `column` equals the owner's id, creates are stamped with it, and an update may change anything except
+ * which owner a row belongs to. The owner's own row (`column` is `id`) cannot be created through the client.
  */
-function confine(column: ScopeColumn, id: string) {
-  /** The relation field that mirrors the column: `menuId` is the foreign key of `menu`. */
-  const relation = column === 'menuId' ? 'menu' : 'restaurant';
+function confine({ owner, id, column }: Confinement) {
+  /** The relation field that mirrors the column (`menuId` is the foreign key of `menu`); none for the row's own id. */
+  const relation = column === 'id' ? null : owner;
 
   function guardUpdate(data: unknown): unknown {
     const row = (data ?? {}) as Record<string, unknown>;
     if (row[column] !== undefined && row[column] !== id) {
-      throw new Error(`Tenant mismatch: refusing to move a row to another ${relation}`);
+      throw new Error(`Tenant mismatch: refusing to move a row to another ${owner}`);
     }
-    if (row[relation] !== undefined) {
-      throw new Error(`Tenant mismatch: a scoped update may not change the owning ${relation}`);
+    if (relation !== null && row[relation] !== undefined) {
+      throw new Error(`Tenant mismatch: a scoped update may not change the owning ${owner}`);
     }
     return data;
   }
@@ -99,33 +127,26 @@ function confine(column: ScopeColumn, id: string) {
     return { ...args, where: { ...where, AND: [...existing, { [column]: id }] } };
   }
 
-  function scopeData(row: unknown): Record<string, unknown> {
+  function scopeData(model: string, row: unknown): Record<string, unknown> {
+    if (column === 'id') throw new Error(`Tenant scope: a client scoped to a ${owner} cannot create a ${model}`);
     const data = (row ?? {}) as Record<string, unknown>;
     if (data[column] !== undefined && data[column] !== id) {
-      throw new Error(`Tenant mismatch: refusing to write a row for another ${relation}`);
+      throw new Error(`Tenant mismatch: refusing to write a row for another ${owner}`);
     }
     return { ...data, [column]: id };
   }
 
-  return function run(model: string, operation: string, input: Args, query: (args: unknown) => Promise<unknown>) {
-    if (UPDATING.has(operation)) {
-      const filtered = scopeWhere(input);
-      return query({ ...filtered, data: guardUpdate(input.data) });
-    }
-    if (FILTERED.has(operation)) return query(scopeWhere(input));
+  return function rewrite(model: string, operation: string, input: Args): Args {
+    if (UPDATING.has(operation)) return { ...scopeWhere(input), data: guardUpdate(input.data) };
+    if (FILTERED.has(operation)) return scopeWhere(input);
     if (CREATING.has(operation)) {
       const data = input.data;
-      const next = Array.isArray(data) ? data.map((row) => scopeData(row)) : scopeData(data);
-      return query({ ...input, data: next });
+      return { ...input, data: Array.isArray(data) ? data.map((row) => scopeData(model, row)) : scopeData(model, data) };
     }
     if (operation === 'upsert') {
-      return query({
-        ...scopeWhere(input),
-        create: scopeData(input.create),
-        update: guardUpdate(input.update),
-      });
+      return { ...scopeWhere(input), create: scopeData(model, input.create), update: guardUpdate(input.update) };
     }
-    throw new Error(`Operation ${operation} is not allowed on ${relation}-scoped model ${model}`);
+    throw new Error(`Operation ${operation} is not allowed on ${model} in a client scoped to a ${owner}`);
   };
 }
 
@@ -133,44 +154,66 @@ const MENU_SCOPED = new Set<string>(MENU_SCOPED_MODELS);
 const RESTAURANT_SCOPED = new Set<string>(RESTAURANT_SCOPED_MODELS);
 
 /**
- * A Prisma extension that confines menu-scoped models to `scope.menuId` and restaurant-scoped models to
- * `scope.restaurantId`, and fails closed: a scoped model whose id the scope lacks is refused, never served unscoped. So
- * a client for one menu cannot list every restaurant's branches, and a client for one restaurant cannot list every
- * menu's products. Global and lookup models pass through.
+ * A Prisma extension for one scope. It fails closed: a menu-scoped model needs `scope.menuId` and a restaurant-scoped
+ * model needs `scope.restaurantId`, and without it the model is refused, never served unscoped. Given a menu, it
+ * confines the menu-scoped models and the menu's own row; given a restaurant, the restaurant-scoped models, the
+ * restaurant's own row, its menus and its memberships; given both, both (a menu's client sees only that menu).
+ *
+ * It sees top-level queries only. A nested `include` or write reaches the related rows of a row it admitted, which keeps
+ * them inside the owner; models it does not confine (`MenuSlug`, `MenuDomain`, `User` and the other global models) are
+ * served unfiltered, and references to other rows (scalar foreign keys, nested `connect` or `set`) are not checked.
  */
 function tenantScope(scope: Scope) {
-  const menu = scope.menuId === undefined ? null : confine('menuId', scope.menuId);
-  const restaurant = scope.restaurantId === undefined ? null : confine('restaurantId', scope.restaurantId);
+  const rules = new Map<string, Array<ReturnType<typeof confine>>>();
+  const add = (model: string, confinement: Confinement) => {
+    rules.set(model, [...(rules.get(model) ?? []), confine(confinement)]);
+  };
+  if (scope.menuId !== undefined) {
+    const id = scope.menuId;
+    for (const model of MENU_SCOPED_MODELS) add(model, { owner: 'menu', id, column: 'menuId' });
+    for (const [model, column] of Object.entries(MENU_CONFINED_MODELS)) add(model, { owner: 'menu', id, column });
+  }
+  if (scope.restaurantId !== undefined) {
+    const id = scope.restaurantId;
+    for (const model of RESTAURANT_SCOPED_MODELS) add(model, { owner: 'restaurant', id, column: 'restaurantId' });
+    for (const [model, column] of Object.entries(RESTAURANT_CONFINED_MODELS)) add(model, { owner: 'restaurant', id, column });
+  }
 
   return Prisma.defineExtension({
     name: 'tenant-scope',
     query: {
       $allModels: {
         async $allOperations({ model, operation, args, query }) {
-          const input = (args ?? {}) as Args;
-          const forward = query as (args: unknown) => Promise<unknown>;
-          if (MENU_SCOPED.has(model)) {
-            if (!menu) throw new Error(`Tenant scope: ${model} is menu-scoped and this client has no menu`);
-            return menu(model, operation, input, forward);
+          if (MENU_SCOPED.has(model) && scope.menuId === undefined) {
+            throw new Error(`Tenant scope: ${model} is menu-scoped and this client has no menu`);
           }
-          if (RESTAURANT_SCOPED.has(model)) {
-            if (!restaurant) throw new Error(`Tenant scope: ${model} is restaurant-scoped and this client has no restaurant`);
-            return restaurant(model, operation, input, forward);
+          if (RESTAURANT_SCOPED.has(model) && scope.restaurantId === undefined) {
+            throw new Error(`Tenant scope: ${model} is restaurant-scoped and this client has no restaurant`);
           }
-          return query(args);
+          const rewrites = rules.get(model);
+          if (!rewrites) return query(args);
+          let next = (args ?? {}) as Args;
+          for (const rewrite of rewrites) next = rewrite(model, operation, next);
+          return (query as (args: unknown) => Promise<unknown>)(next);
         },
       },
     },
   });
 }
 
-/** A client confined to one menu's rows. Restaurant-scoped models are refused: use `scopedClient` with both ids. */
+/**
+ * A client confined to one menu: its menu-scoped rows and its own `Menu` row. Restaurant-scoped models are refused (use
+ * `scopedClient` with both ids); `Restaurant` and `Membership` are not filtered, since the client has no restaurant.
+ */
 export function menuDb(prisma: PrismaClient, menuId: string) {
   if (!menuId) throw new Error('menuDb requires a menuId');
   return prisma.$extends(tenantScope({ menuId }));
 }
 
-/** A client confined to one restaurant's rows. Menu-scoped models are refused: use `scopedClient` with both ids. */
+/**
+ * A client confined to one restaurant: its branches, its own `Restaurant` row (which cannot be created through it), its
+ * menus and its memberships. Menu-scoped models are refused: use `scopedClient` with both ids.
+ */
 export function restaurantDb(prisma: PrismaClient, restaurantId: string): MenuDb {
   if (!restaurantId) throw new Error('restaurantDb requires a restaurantId');
   // A query extension leaves the client's type as it is, so every scope shares one type.
@@ -181,8 +224,10 @@ export type MenuDb = ReturnType<typeof menuDb>;
 export type RestaurantDb = ReturnType<typeof restaurantDb>;
 
 /**
- * A client confined to a menu, a restaurant, or both. Given both, it scopes menu rows by the menu and branches by the
- * restaurant (in the same transaction); given one, it refuses the other class of rows.
+ * A client confined to a menu, a restaurant, or both, as `menuDb` and `restaurantDb` describe. Given both, menu rows are
+ * scoped by the menu, branches and memberships by the restaurant, and `Menu` to that one menu of that restaurant (in
+ * the same transaction); given one, it refuses the other class of scoped rows. See `tenantScope` for what it does not
+ * cover: unconfined models (`MenuSlug`, `MenuDomain`, `User`, ...) and references to other rows.
  */
 export function scopedClient(prisma: PrismaClient, scope: Scope): MenuDb {
   if (scope.menuId === undefined && scope.restaurantId === undefined) {
@@ -194,8 +239,10 @@ export function scopedClient(prisma: PrismaClient, scope: Scope): MenuDb {
 }
 
 /**
- * A client for work that belongs to no restaurant: platform settings, people, a person's own account. It serves global
- * and lookup models and refuses every menu- and restaurant-scoped one.
+ * A client for work that belongs to no restaurant: platform settings, people, a person's own account. It refuses every
+ * menu- and restaurant-scoped model and filters nothing else: `Restaurant`, `Menu`, `Membership`, `MenuSlug`,
+ * `MenuDomain`, `User` and the other global models are served across every restaurant. Code on it keys those rows by
+ * ids it trusts (the actor's own `userId`, for a person's account), never by ids from the request.
  */
 export function globalDb(prisma: PrismaClient): MenuDb {
   return prisma.$extends(tenantScope({})) as never;

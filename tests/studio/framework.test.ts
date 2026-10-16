@@ -372,6 +372,29 @@ describe('Studio action framework', () => {
       expect(errors()).toContain('Product is menu-scoped and this client has no menu');
     });
 
+    it("cannot rename another restaurant's menu through an id smuggled into a restaurant action", async () => {
+      const errors = captureErrors();
+      const renameMenu = defineAction({
+        name: 'test.menuRename',
+        permission: 'menu.settings',
+        input: z.object({ restaurantId: z.string().min(1), menuId: z.string().min(1), name: z.string().min(1) }),
+        target: atRestaurant,
+        run: (ctx, input) =>
+          ctx.transaction(async (tx) => {
+            await tx.menu.update({ where: { id: input.menuId }, data: { name: input.name } });
+          }),
+      });
+      // The actor is a designer of A, so the target check passes; the menu id names B's menu.
+      const smuggled = { restaurantId: a.restaurant.id, menuId: b.menu.id, name: 'Hijacked' };
+      expect(codeOf(await runAction(prisma, designerOfA, renameMenu, smuggled, META))).toBe('INVALID');
+      expect((await prisma.menu.findUniqueOrThrow({ where: { id: b.menu.id } })).name).toBe('Menu fw-b');
+      expect(errors()).toMatch(/Action test\.menuRename failed with PrismaClientKnownRequestError \(P2025\)/);
+
+      const own = { restaurantId: a.restaurant.id, menuId: a.menu.id, name: 'Renamed' };
+      expect(codeOf(await runAction(prisma, designerOfA, renameMenu, own, META))).toBe('OK');
+      expect((await prisma.menu.findUniqueOrThrow({ where: { id: a.menu.id } })).name).toBe('Renamed');
+    });
+
     it('requires the permission at Super Admin level on a platform target', async () => {
       const create = defineAction({
         name: 'test.createRestaurant',

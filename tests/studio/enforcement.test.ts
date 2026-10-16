@@ -74,6 +74,19 @@ const DEFINE_QUERY = /export const (\w+) = defineQuery\(/;
 
 const ROUTE_EXPORT = /export const (GET|POST) = studioRoute\(/;
 
+/** The folders the Studio host serves: its API and its pages (a `route.ts` among the pages is an endpoint too). */
+const STUDIO_ROUTE_DIRS = ['src/app/api/studio/', 'src/app/studio/'];
+
+/** A route handler the Studio host serves: any `route.*` file in those folders. */
+function isStudioRoute(path: string): boolean {
+  return STUDIO_ROUTE_DIRS.some((dir) => path.startsWith(dir)) && /^route\.\w+$/.test(posix.basename(path));
+}
+
+/** The exports of a Studio route handler that are not built with `studioRoute`; none for any other file. */
+function routeViolations(path: string, source: string): string[] {
+  return isStudioRoute(path) ? exportsNotMatching(source, ROUTE_EXPORT) : [];
+}
+
 // Rule 5 -------------------------------------------------------------------------------------------------------------
 
 /** What a module specifier names, as a repository path without extension: `@/x` and relative paths are resolved. */
@@ -197,12 +210,14 @@ describe('Studio enforcement rules', () => {
   });
 
   describe('4. Studio route handlers are built with studioRoute', () => {
+    const good = [
+      "import { studioRoute } from '@/server/studio/framework/route';",
+      "export const GET = studioRoute(menus.exportMenu, { method: 'GET' });",
+      "export const POST = studioRoute(menus.importMenu, { method: 'POST' });",
+    ].join('\n');
+    const handWritten = 'export async function GET() {\n  return Response.json(await listMenus());\n}';
+
     it('accepts GET and POST built with studioRoute and refuses anything else', () => {
-      const good = [
-        "import { studioRoute } from '@/server/studio/framework/route';",
-        "export const GET = studioRoute(menus.exportMenu, { method: 'GET' });",
-        "export const POST = studioRoute(menus.importMenu, { method: 'POST' });",
-      ].join('\n');
       expect(exportsNotMatching(good, ROUTE_EXPORT)).toEqual([]);
       expect(exportsNotMatching('export async function GET(request: Request) {}', ROUTE_EXPORT)).toHaveLength(1);
       expect(exportsNotMatching('export const PUT = studioRoute(a.b, {});', ROUTE_EXPORT)).toHaveLength(1);
@@ -210,10 +225,22 @@ describe('Studio enforcement rules', () => {
       expect(exportsNotMatching("export const dynamic = 'force-dynamic';", ROUTE_EXPORT)).toHaveLength(1);
     });
 
-    it('holds for every route.ts under src/app/api/studio', () => {
-      const offenders = sourceFiles('src/app/api/studio')
-        .filter((path) => posix.basename(path).startsWith('route.'))
-        .flatMap((path) => exportsNotMatching(read(path), ROUTE_EXPORT).map((line) => `${path}: ${line}`));
+    it('applies to route files under the Studio API and under the Studio pages', () => {
+      expect(routeViolations('src/app/api/studio/menus/[id]/export/route.ts', good)).toEqual([]);
+      expect(routeViolations('src/app/api/studio/menus/[id]/export/route.ts', handWritten)).toHaveLength(1);
+      expect(routeViolations('src/app/studio/(app)/menus/[id]/qr/route.ts', good)).toEqual([]);
+      expect(routeViolations('src/app/studio/(app)/menus/[id]/csv/route.ts', handWritten)).toHaveLength(1);
+      expect(routeViolations('src/app/studio/export/route.tsx', handWritten)).toHaveLength(1);
+      // Pages and other modules there are not route handlers, and public routes have their own handler.
+      expect(routeViolations('src/app/studio/(app)/menus/page.tsx', 'export default function Page() {}')).toEqual([]);
+      expect(routeViolations('src/app/studio/(app)/menus/router.ts', handWritten)).toEqual([]);
+      expect(routeViolations('src/app/api/[tenant]/quote/route.ts', handWritten)).toEqual([]);
+    });
+
+    it('holds for every route file under src/app/api/studio and src/app/studio', () => {
+      const offenders = [...sourceFiles('src/app/api/studio'), ...sourceFiles('src/app/studio')].flatMap((path) =>
+        routeViolations(path, read(path)).map((line) => `${path}: ${line}`),
+      );
       expect(offenders).toEqual([]);
     });
   });
