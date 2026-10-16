@@ -181,25 +181,33 @@ export async function revokeInvitation(db: AnyDb | ScopedDb, args: { invitationI
   if (count === 0) throw changedUnderfoot();
 }
 
+interface ReissuedInvitation {
+  invitationId: string;
+  url: string;
+  expiresAt: Date;
+  previousExpiresAt: Date;
+}
+
 /**
  * Gives an invitation that has not been used a new token and a new seven days, and mails the new link. The old link stops
- * working at once. An expired invitation is the usual case; a used or withdrawn one is refused.
+ * working at once. An expired invitation is the usual case; a used or withdrawn one is refused. Returns the new link for
+ * the person who asked for it (it is not stored anywhere, so this is the only time it can be shown).
  */
 export function reissueInvitation(
   db: AnyDb,
   args: { invitationId: string; now: Date },
   options?: InvitationOptions,
-): Promise<{ invitationId: string; expiresAt: Date; previousExpiresAt: Date }>;
+): Promise<ReissuedInvitation>;
 export function reissueInvitation(
   db: ScopedDb,
   args: { invitationId: string; now: Date },
   options?: InvitationOptions,
-): Promise<{ invitationId: string; expiresAt: Date; previousExpiresAt: Date }>;
+): Promise<ReissuedInvitation>;
 export async function reissueInvitation(
   db: AnyDb | ScopedDb,
   args: { invitationId: string; now: Date },
   options: InvitationOptions = {},
-): Promise<{ invitationId: string; expiresAt: Date; previousExpiresAt: Date }> {
+): Promise<ReissuedInvitation> {
   const d = delegates(db);
   const row = await d.invitation.findUnique({
     where: { id: args.invitationId },
@@ -212,14 +220,9 @@ export async function reissueInvitation(
   // Only while it is still open: a use or a withdrawal that came in between wins.
   const { count } = await d.invitation.updateMany({ where: { id: row.id, ...OPEN }, data: { tokenHash: hashToken(token), expiresAt } });
   if (count === 0) throw changedUnderfoot();
-  queueMail(options, {
-    email: row.email,
-    url: invitationUrl(token),
-    inviter: row.invitedBy,
-    restaurantName: row.restaurant?.name ?? null,
-    role: roleOf(row),
-  });
-  return { invitationId: row.id, expiresAt, previousExpiresAt: row.expiresAt };
+  const url = invitationUrl(token);
+  queueMail(options, { email: row.email, url, inviter: row.invitedBy, restaurantName: row.restaurant?.name ?? null, role: roleOf(row) });
+  return { invitationId: row.id, url, expiresAt, previousExpiresAt: row.expiresAt };
 }
 
 // Reading -------------------------------------------------------------------------------------------------------------

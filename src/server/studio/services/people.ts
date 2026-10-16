@@ -34,12 +34,25 @@ export async function assignDesigner(tx: ScopedTx, args: { restaurantId: string;
   await tx.membership.create({ data: { userId: user.id, restaurantId: args.restaurantId, role: 'DESIGNER' } });
 }
 
-/** Takes a person out of a restaurant, whatever their role there (the last owner too), and says which role it was. */
-export async function unassignMember(tx: ScopedTx, args: { restaurantId: string; userId: string }): Promise<{ role: MemberRole }> {
+/**
+ * Takes a person out of a restaurant, whatever their role there (the last owner too), and says which role it was. The
+ * invitations they sent into that restaurant that nobody has used yet are withdrawn with it: they were their word,
+ * given as a member, and would otherwise let them back in through an address they control. Their invitations to other
+ * restaurants, where they still hold the role, are left alone. The invitation table is not scoped to a restaurant, so
+ * the restaurant is named here.
+ */
+export async function unassignMember(
+  tx: ScopedTx,
+  args: { restaurantId: string; userId: string; now: Date },
+): Promise<{ role: MemberRole; revokedInvitations: number }> {
   const held = await tx.membership.findFirst({ where: { userId: args.userId, restaurantId: args.restaurantId }, select: { id: true, role: true } });
   if (!held) throw new StudioError('NOT_FOUND');
   await tx.membership.deleteMany({ where: { id: held.id } });
-  return { role: held.role };
+  const revoked = await tx.invitation.updateMany({
+    where: { invitedById: args.userId, restaurantId: args.restaurantId, acceptedAt: null, revokedAt: null },
+    data: { revokedAt: args.now },
+  });
+  return { role: held.role, revokedInvitations: revoked.count };
 }
 
 // Accounts ------------------------------------------------------------------------------------------------------------

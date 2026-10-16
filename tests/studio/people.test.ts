@@ -14,7 +14,7 @@ import type { ActionResult } from '@/server/studio/framework/result';
 import * as session from '@/server/studio/public-actions/session';
 import * as peopleQueries from '@/server/studio/queries/people';
 import { deactivatePerson } from '@/server/studio/services/people';
-import { inspectInvitation } from '@/server/studio/services/invitations';
+import { acceptInvitation, inspectInvitation } from '@/server/studio/services/invitations';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { Browser } from '../helpers/browser';
 import { requireTestDb, resetTestData } from '../helpers/db';
@@ -40,6 +40,7 @@ const failureOf = (result: ActionResult<unknown>) => {
   return result.error;
 };
 const tokenOf = (url: string) => url.slice(url.lastIndexOf('/') + 1);
+const LINK = /^http:\/\/127\.0\.0\.1:3100\/studio\/invite\/[A-Za-z0-9_-]{43}$/;
 
 interface Person {
   userId: string;
@@ -169,10 +170,18 @@ describe('who may use the people actions', () => {
 });
 
 describe('inviting', () => {
-  it('invites staff and sends the mail, without handing the link to the inviter', async () => {
+  it('invites staff, mails the link, and shows it to the inviter to send another way', async () => {
     const email = address('newbie');
     const result = dataOf(await run(admin, people.inviteStaff, { email: ` ${email.toUpperCase()} `, asSuperAdmin: true }));
-    expect(Object.keys(result)).toEqual(['invitationId']);
+    expect(Object.keys(result).sort()).toEqual(['invitationId', 'url']);
+    expect(result.url).toMatch(LINK);
+    // The link shown is the link mailed, and a token the invitation page accepts.
+    expect(await inspectInvitation(prisma(), tokenOf(result.url), new Date())).toMatchObject({ status: 'valid', role: 'SUPER_ADMIN', email });
+    expect(linkIn((await mailTo(email))[0]?.text as string)).toBe(result.url);
+    // It is kept nowhere: not in the audit log.
+    const audited = JSON.stringify(await prisma().auditLog.findMany());
+    expect(audited).not.toContain(tokenOf(result.url));
+    expect(audited).not.toContain('/studio/invite/');
     const row = await prisma().invitation.findUniqueOrThrow({ where: { id: result.invitationId } });
     expect(row).toMatchObject({ email, restaurantId: null, role: null, asSuperAdmin: true, invitedById: admin.userId, acceptedAt: null, revokedAt: null });
     const [mail] = await mailTo(email);
@@ -183,7 +192,7 @@ describe('inviting', () => {
 
   it('invites an owner of a restaurant', async () => {
     const email = address('newbie');
-    const { invitationId } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email }));
+    const { invitationId, url } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email }));
     expect(await prisma().invitation.findUniqueOrThrow({ where: { id: invitationId } })).toMatchObject({
       email,
       restaurantId: atelier.id,
@@ -191,7 +200,13 @@ describe('inviting', () => {
       asSuperAdmin: false,
       invitedById: admin.userId,
     });
+    expect(url).toMatch(LINK);
+    expect(await inspectInvitation(prisma(), tokenOf(url), new Date())).toMatchObject({ status: 'valid', role: 'OWNER', restaurantName: 'Atelier' });
+    const audited = JSON.stringify(await prisma().auditLog.findMany());
+    expect(audited).not.toContain(tokenOf(url));
+    expect(audited).not.toContain('/studio/invite/');
     const [mail] = await mailTo(email);
+    expect(linkIn(mail?.text as string)).toBe(url);
     expect(mail?.text).toContain('Restaurant: Atelier');
     expect(mail?.text).toContain('Your role: Owner');
   });
@@ -329,10 +344,15 @@ describe('revoking and resending an invitation', () => {
     expect((await inspectInvitation(prisma(), oldToken, new Date())).status).toBe('expired');
 
     const before = Date.now();
-    expect(dataOf(await run(admin, people.resendInvitation, { invitationId, restaurantId: atelier.id }))).toEqual({ invitationId });
+    const resent = dataOf(await run(admin, people.resendInvitation, { invitationId, restaurantId: atelier.id }));
+    expect(Object.keys(resent).sort()).toEqual(['invitationId', 'url']);
+    expect(resent.invitationId).toBe(invitationId);
+    expect(resent.url).toMatch(LINK);
 
     const mails = await mailTo(email, 2);
     const newToken = tokenOf(linkIn(mails[0]?.text as string));
+    // The link shown to the one who resent it is the new link, not the old one.
+    expect(tokenOf(resent.url)).toBe(newToken);
     expect(newToken).not.toBe(oldToken);
     expect((await inspectInvitation(prisma(), oldToken, new Date())).status).toBe('unknown');
     expect(await inspectInvitation(prisma(), newToken, new Date())).toMatchObject({ status: 'valid', email });
@@ -344,10 +364,10 @@ describe('revoking and resending an invitation', () => {
 
   it('writes no token, hash or link in any audit row', async () => {
     const email = address('newbie');
-    const { invitationId } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email }));
-    const first = tokenOf(linkIn((await mailTo(email))[0]?.text as string));
-    dataOf(await run(admin, people.resendInvitation, { invitationId, restaurantId: atelier.id }));
-    const second = tokenOf(linkIn((await mailTo(email, 2))[0]?.text as string));
+    const { invitationId, url } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email }));
+    const first = tokenOf(url);
+    const { url: again } = dataOf(await run(admin, people.resendInvitation, { invitationId, restaurantId: atelier.id }));
+    const second = tokenOf(again);
     dataOf(await run(admin, people.revokeInvitation, { invitationId, restaurantId: atelier.id }));
 
     const hashes = (await prisma().invitation.findMany()).map((row) => row.tokenHash);
@@ -396,6 +416,43 @@ describe('memberships', () => {
     // Someone else's membership of the other restaurant is not reachable through this one.
     expect(codeOf(await run(admin, people.unassignMember, { userId: bea.userId, restaurantId: atelier.id }))).toBe('NOT_FOUND');
     expect(await prisma().membership.count({ where: { userId: bea.userId } })).toBe(1);
+  });
+
+  it('withdraws the invitations a removed member sent into the restaurant, so they cannot come back through another address', async () => {
+    // Olive owns both restaurants, and both clients let owners invite.
+    await prisma().membership.create({ data: { userId: olive.userId, restaurantId: bistro.id, role: 'OWNER' } });
+    await grantOwnersInvite(atelier.id);
+    await grantOwnersInvite(bistro.id);
+    const mine = address('olive-other-address');
+    const toAtelier = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: mine }));
+    const toBistro = dataOf(await run(olive, people.inviteOwner, { restaurantId: bistro.id, email: address('for-bistro') }));
+    const used = dataOf(await run(olive, people.inviteOwner, { restaurantId: atelier.id, email: address('used') }));
+    await prisma().invitation.update({ where: { id: used.invitationId }, data: { acceptedAt: new Date() } });
+    const byAdmin = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address('by-admin') }));
+    expect((await inspectInvitation(prisma(), tokenOf(toAtelier.url), new Date())).status).toBe('valid');
+
+    expect(dataOf(await run(admin, people.unassignMember, { userId: olive.userId, restaurantId: atelier.id }))).toEqual({ unassigned: true });
+
+    // The invitation to the address Olive controls is dead, and accepting it makes neither an account nor a membership.
+    expect(await inspectInvitation(prisma(), tokenOf(toAtelier.url), new Date())).toEqual({ status: 'revoked' });
+    await expect(
+      acceptInvitation(prisma(), { token: tokenOf(toAtelier.url), signedInUserId: null, name: 'Olive Again', password: GOOD, now: new Date() }),
+    ).rejects.toMatchObject({ code: 'INVALID', fields: { token: expect.any(String) } });
+    expect(await prisma().user.count({ where: { email: mine } })).toBe(0);
+    expect(await prisma().membership.count({ where: { restaurantId: atelier.id, role: 'OWNER' } })).toBe(0);
+
+    // Only what she sent into Atelier that nobody had used: Bistro's (where she is still an owner), the used one and the admin's stand.
+    const byId = new Map((await prisma().invitation.findMany()).map((row) => [row.id, row]));
+    expect(byId.get(toAtelier.invitationId)?.revokedAt).toBeInstanceOf(Date);
+    expect(byId.get(toBistro.invitationId)?.revokedAt).toBeNull();
+    expect(byId.get(used.invitationId)?.revokedAt).toBeNull();
+    expect(byId.get(byAdmin.invitationId)?.revokedAt).toBeNull();
+    expect((await inspectInvitation(prisma(), tokenOf(toBistro.url), new Date())).status).toBe('valid');
+
+    // The count is in the audit row.
+    expect(await audit('membership.removed')).toMatchObject([
+      { restaurantId: atelier.id, entityId: olive.userId, changes: { role: { before: 'OWNER', after: null }, invitationsRevoked: { before: 0, after: 1 } } },
+    ]);
   });
 
   it('lets a Super Admin remove the last owner of a restaurant', async () => {
@@ -676,12 +733,19 @@ describe('the people queries', () => {
   });
 
   it('lists the invitations by status, and never their tokens', async () => {
-    const make = async (label: string) => dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address(label) })).invitationId;
+    const links: string[] = [];
+    const make = async (label: string) => {
+      const made = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: address(label) }));
+      links.push(made.url);
+      return made.invitationId;
+    };
     const pending = await make('pending');
     const expired = await make('expired');
     const revoked = await make('revoked');
     const accepted = await make('accepted');
-    const staff = dataOf(await run(admin, people.inviteStaff, { email: address('staff'), asSuperAdmin: true })).invitationId;
+    const madeStaff = dataOf(await run(admin, people.inviteStaff, { email: address('staff'), asSuperAdmin: true }));
+    links.push(madeStaff.url);
+    const staff = madeStaff.invitationId;
     await prisma().invitation.update({ where: { id: expired }, data: { expiresAt: new Date(Date.now() - 1000) } });
     await prisma().invitation.update({ where: { id: revoked }, data: { revokedAt: new Date() } });
     await prisma().invitation.update({ where: { id: accepted }, data: { acceptedAt: new Date() } });
@@ -704,6 +768,10 @@ describe('the people queries', () => {
     const json = JSON.stringify(rows);
     for (const row of await prisma().invitation.findMany()) expect(json).not.toContain(row.tokenHash);
     expect(json).not.toMatch(/tokenHash/);
+    // Nor the links that were handed out when the invitations were made: a list cannot show them again.
+    expect(links).toHaveLength(5);
+    for (const link of links) expect(json).not.toContain(tokenOf(link));
+    expect(json).not.toContain('/studio/invite/');
   });
 
   it("limits an owner's invitation list to their restaurant, with no staff invitations", async () => {

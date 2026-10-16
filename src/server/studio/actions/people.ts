@@ -13,8 +13,10 @@ import { assignDesigner as assign, changeEmail, deactivatePerson, reactivatePers
 /**
  * People, invitations and per-client permissions. Platform-wide changes (staff, accounts, who is assigned where) are
  * `people.manage`, which only Super Admins hold; an owner invites other owners only where the client's policy grants
- * `people.invite`, and only into their own restaurant. A link is only ever mailed to the invited address: no action
- * returns it, since whoever holds it can accept it. Nothing here writes a token, a hash or a password to the audit log.
+ * `people.invite`, and only into their own restaurant. The link of an invitation is mailed to the invited address, and the
+ * actions that make or renew one (inviteStaff, inviteOwner, resendInvitation) also return it to the person who just did,
+ * to send another way. It is stored nowhere, so it is shown once, and it never appears in an audit row, a log or a
+ * query. Nothing here writes a token, a hash, a link or a password to the audit log.
  */
 
 const idField = z.string().min(1).max(100);
@@ -37,7 +39,7 @@ export const inviteStaff = defineAction({
   target: () => PLATFORM,
   run: (ctx, { email, asSuperAdmin }) =>
     ctx.transaction(async (tx) => {
-      const { invitationId } = await createInvitation(
+      const { invitationId, url } = await createInvitation(
         tx,
         { email, restaurantId: null, role: null, asSuperAdmin, invitedById: ctx.actor.userId, now: new Date() },
         { afterCommit: ctx.afterCommit },
@@ -48,7 +50,7 @@ export const inviteStaff = defineAction({
         entityId: invitationId,
         changes: { email: { before: null, after: email }, asSuperAdmin: { before: null, after: asSuperAdmin } },
       });
-      return { invitationId };
+      return { invitationId, url };
     }),
 });
 
@@ -59,7 +61,7 @@ export const inviteOwner = defineAction({
   target: (i) => atRestaurant(i.restaurantId),
   run: (ctx, { email }) =>
     ctx.transaction(async (tx) => {
-      const { invitationId } = await createInvitation(
+      const { invitationId, url } = await createInvitation(
         tx,
         { email, restaurantId: restaurantOf(ctx), role: 'OWNER', asSuperAdmin: false, invitedById: ctx.actor.userId, now: new Date() },
         { afterCommit: ctx.afterCommit },
@@ -70,7 +72,7 @@ export const inviteOwner = defineAction({
         entityId: invitationId,
         changes: { email: { before: null, after: email }, role: { before: null, after: 'OWNER' } },
       });
-      return { invitationId };
+      return { invitationId, url };
     }),
 });
 
@@ -127,7 +129,7 @@ export const resendInvitation = defineAction({
         entityId: row.id,
         changes: { expiresAt: { before: issued.previousExpiresAt.toISOString(), after: issued.expiresAt.toISOString() } },
       });
-      return { invitationId: row.id };
+      return { invitationId: row.id, url: issued.url };
     }),
 });
 
@@ -158,12 +160,15 @@ export const unassignMember = defineAction({
   target: (i) => atRestaurant(i.restaurantId),
   run: (ctx, { userId }) =>
     ctx.transaction(async (tx) => {
-      const { role } = await unassign(tx, { restaurantId: restaurantOf(ctx), userId });
+      const { role, revokedInvitations } = await unassign(tx, { restaurantId: restaurantOf(ctx), userId, now: new Date() });
       ctx.audit({
         action: 'membership.removed',
         entityType: 'User',
         entityId: userId,
-        changes: { role: { before: role, after: null } },
+        changes: {
+          role: { before: role, after: null },
+          ...(revokedInvitations > 0 ? { invitationsRevoked: { before: 0, after: revokedInvitations } } : {}),
+        },
       });
       return { unassigned: true as const };
     }),
