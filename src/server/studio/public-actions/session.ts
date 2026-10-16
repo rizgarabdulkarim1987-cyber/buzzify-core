@@ -5,7 +5,7 @@ import { authErrorCode, policyProblemOf } from '@/server/studio/auth/errors';
 import { emailField, isRecoveryCode, newPasswordField, signInCodeField } from '@/server/studio/auth/fields';
 import { checkPasswordPolicy, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { RATE_RULES } from '@/server/studio/auth/rate-limit';
-import { pendingTwoFactorUser } from '@/server/studio/auth/two-factor';
+import { pendingTwoFactor } from '@/server/studio/auth/two-factor';
 import { normalizeEmail } from '@/server/studio/auth/users';
 import { SIGN_IN_PATH, STUDIO_HOME, TWO_FACTOR_PATH } from '@/server/studio/framework/paths';
 import { definePublicAction } from '@/server/studio/framework/public';
@@ -53,18 +53,24 @@ export const signIn = definePublicAction({
 export const verifyTwoFactor = definePublicAction({
   name: 'session.verifyTwoFactor',
   input: z.object({ code: signInCodeField }),
-  // Limited by the person the challenge was issued to. A request without a challenge has nothing to guess at.
+  // Limited by the person the challenge was issued to. A request without a challenge has nothing to guess at: `run`
+  // refuses it.
   rateLimit: async (_input, { prisma, headers }) => {
-    const userId = await pendingTwoFactorUser(prisma, headers);
-    return userId ? [{ key: `totp:user:${userId}`, rule: RATE_RULES['totp:user'] }] : [];
+    const challenge = await pendingTwoFactor(prisma, headers);
+    return challenge ? [{ key: `totp:user:${challenge.userId}`, rule: RATE_RULES['totp:user'] }] : [];
   },
   run: async (ctx, { code }) => {
+    // Only the second step of a sign-in. A signed-in person has none, and Better Auth would otherwise take their session
+    // for the confirmation step of setting up two-factor, which it neither limits nor audits (see `confirmTwoFactor`).
+    const challenge = await pendingTwoFactor(ctx.prisma, ctx.headers);
+    if (!challenge) throw new StudioError('UNAUTHENTICATED', CHALLENGE_ENDED);
+
     const auth = authFor(ctx.prisma);
     const recovery = isRecoveryCode(code);
-    const userId = recovery ? await pendingTwoFactorUser(ctx.prisma, ctx.headers) : null;
     try {
-      if (recovery) await auth.api.verifyBackupCode({ body: { code }, headers: ctx.headers });
-      else await auth.api.verifyTOTP({ body: { code }, headers: ctx.headers });
+      // With the challenge cookie alone, so the challenge is all Better Auth can use.
+      if (recovery) await auth.api.verifyBackupCode({ body: { code }, headers: challenge.headers });
+      else await auth.api.verifyTOTP({ body: { code }, headers: challenge.headers });
     } catch (error) {
       switch (authErrorCode(error)) {
         case 'INVALID_CODE':
@@ -80,7 +86,9 @@ export const verifyTwoFactor = definePublicAction({
       throw error;
     }
     // A recovery code is gone for good once used: the person may want to know it was.
-    if (userId) await ctx.audit(userId, { action: 'account.recovery_code_used', entityType: 'User', entityId: userId });
+    if (recovery) {
+      await ctx.audit(challenge.userId, { action: 'account.recovery_code_used', entityType: 'User', entityId: challenge.userId });
+    }
     return { next: STUDIO_HOME };
   },
 });
@@ -103,6 +111,8 @@ export const requestPasswordReset = definePublicAction({
 export const resetPassword = definePublicAction({
   name: 'session.resetPassword',
   input: z.object({ token: z.string().min(1).max(256), password: newPasswordField }),
+  // The same per-address count as asking for a reset, taken before the token is looked at, so a refusal spends nothing.
+  rateLimit: (_input, { ip }) => [{ key: `reset:ip:${addressKey(ip)}`, rule: RATE_RULES['reset:ip'] }],
   run: async (ctx, { token, password }) => {
     const problem = checkPasswordPolicy(password);
     if (problem) throw new StudioError('INVALID', undefined, { password: passwordProblemMessage(problem) });

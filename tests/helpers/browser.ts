@@ -16,6 +16,9 @@ export class Browser {
   /** Cookie values as the application set them (decoded); they are encoded again on the way out, as a browser sends them. */
   readonly jar = new Map<string, string>();
 
+  /** Names of cookies this browser sends inside double quotes (`name="value"`), which RFC 6265 allows. */
+  readonly quoted = new Set<string>();
+
   constructor(
     public ip = '198.51.100.7',
     public userAgent = 'Mozilla/5.0 (vitest browser)',
@@ -24,7 +27,9 @@ export class Browser {
   /** The headers of the next request this browser makes. */
   requestHeaders(): Headers {
     const sent = new Headers({ 'x-forwarded-for': this.ip, 'user-agent': this.userAgent });
-    const cookie = [...this.jar].map(([name, value]) => `${name}=${encodeURIComponent(value)}`).join('; ');
+    const cookie = [...this.jar]
+      .map(([name, value]) => (this.quoted.has(name) ? `${name}="${encodeURIComponent(value)}"` : `${name}=${encodeURIComponent(value)}`))
+      .join('; ');
     if (cookie) sent.set('cookie', cookie);
     return sent;
   }

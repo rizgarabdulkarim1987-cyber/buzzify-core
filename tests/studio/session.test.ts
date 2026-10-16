@@ -1,3 +1,4 @@
+import { headers } from 'next/headers';
 import * as OTPAuth from 'otpauth';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
@@ -299,6 +300,138 @@ describe('verifyTwoFactor', () => {
   });
 });
 
+describe('verifyTwoFactor is for a pending sign-in only', () => {
+  /** A user with two-factor on. */
+  async function enrolled(email: string) {
+    const { userId } = await createPasswordUser(prisma(), { email, name: email, password: GOOD });
+    return { userId, ...(await enrol(email)) };
+  }
+
+  /** A browser that has done the password step for `email` and holds the two-factor challenge. */
+  async function atTheSecondStep(email: string): Promise<Browser> {
+    const waiting = new Browser().activate();
+    expect(await signIn(email, GOOD)).toEqual({ ok: true, data: { next: '/studio/two-factor' } });
+    expect(waiting.has(CHALLENGE_COOKIE)).toBe(true);
+    return waiting;
+  }
+
+  const totpRows = () => prisma().authRateLimit.findMany({ where: { key: { startsWith: 'totp:user:' } } });
+  const refusedAsExpired = { ok: false, error: { code: 'UNAUTHENTICATED' } };
+
+  it('refuses a valid code from a signed-in browser that has begun setting up two-factor, and enables nothing', async () => {
+    const { userId } = await createPasswordUser(prisma(), { email: 'dana@example.com', name: 'Dana', password: GOOD });
+    await signIn('dana@example.com', GOOD);
+    const cookieBefore = browser.jar.get(SESSION_COOKIE);
+    const started = await getAuth().api.enableTwoFactor({ body: { password: GOOD }, headers: browser.requestHeaders() });
+    if (started.method !== 'totp') throw new Error('unexpected two-factor method');
+    const secret = new URL(started.totpURI).searchParams.get('secret') as string;
+
+    // No challenge, only a session: Better Auth would take this for the confirmation step, unlimited and unaudited.
+    expect(await invokePublic(session.verifyTwoFactor, { code: totp(secret) })).toMatchObject(refusedAsExpired);
+
+    expect((await prisma().user.findUniqueOrThrow({ where: { id: userId } })).twoFactorEnabled).toBe(false);
+    expect((await prisma().twoFactor.findFirstOrThrow({ where: { userId } })).verified).toBe(false);
+    expect(browser.jar.get(SESSION_COOKIE)).toBe(cookieBefore);
+    expect(await prisma().auditLog.count()).toBe(0);
+    expect(await totpRows()).toEqual([]);
+  });
+
+  it('gives a signed-in two-factor user no way to test codes: a right code and a wrong one get the same answer, unlimited', async () => {
+    const { secret } = await enrolled('owner@example.com');
+    browser = await atTheSecondStep('owner@example.com');
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: totp(secret) }))).toBe('OK');
+    const right = totp(secret);
+    const countedByTheSignIn = await totpRows();
+    const wrong = right === '000000' ? '000001' : '000000';
+
+    const answers = [];
+    for (let i = 0; i < 8; i += 1) answers.push(await invokePublic(session.verifyTwoFactor, { code: i % 2 ? right : wrong }));
+
+    expect(new Set(answers.map((a) => JSON.stringify(a))).size).toBe(1);
+    expect(answers[0]).toMatchObject(refusedAsExpired);
+    expect(await totpRows()).toEqual(countedByTheSignIn);
+  });
+
+  it('does not use up a recovery code sent from a signed-in browser, and audits no use of it', async () => {
+    const { backupCodes } = await enrolled('owner@example.com');
+    browser = await atTheSecondStep('owner@example.com');
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: backupCodes[1] }))).toBe('OK');
+    expect(await prisma().auditLog.count()).toBe(1);
+
+    expect(await invokePublic(session.verifyTwoFactor, { code: backupCodes[0] })).toMatchObject(refusedAsExpired);
+    expect(await prisma().auditLog.count()).toBe(1);
+
+    // The code is still good for a real sign-in.
+    browser = await atTheSecondStep('owner@example.com');
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: backupCodes[0] }))).toBe('OK');
+    expect(await prisma().auditLog.count()).toBe(2);
+  });
+
+  it('checks the challenge and not a session the browser also carries', async () => {
+    const other = await enrolled('owner@example.com');
+    const waiting = await atTheSecondStep('owner@example.com');
+    const { userId: danaId } = await createPasswordUser(prisma(), { email: 'dana@example.com', name: 'Dana', password: GOOD });
+    const dana = new Browser('203.0.113.60').activate();
+    await signIn('dana@example.com', GOOD);
+    dana.jar.set(CHALLENGE_COOKIE, waiting.jar.get(CHALLENGE_COOKIE) as string);
+    dana.activate();
+
+    expect(await invokePublic(session.verifyTwoFactor, { code: totp(other.secret) })).toEqual({ ok: true, data: { next: '/studio' } });
+
+    // Dana's session was only carried along: the code was the owner's, and the sign-in that finished is the owner's.
+    expect((await getAuth().api.getSession({ headers: dana.requestHeaders() }))?.user.id).toBe(other.userId);
+    expect((await prisma().user.findUniqueOrThrow({ where: { id: danaId } })).twoFactorEnabled).toBe(false);
+    expect((await totpRows()).map((r) => r.key)).toEqual([`totp:user:${other.userId}`]);
+  });
+
+  it('counts attempts made with a quoted challenge cookie, and still accepts the right code in it', async () => {
+    const { secret, userId } = await enrolled('owner@example.com');
+    browser = await atTheSecondStep('owner@example.com');
+    browser.quoted.add(CHALLENGE_COOKIE);
+    const right = totp(secret);
+    const wrong = right === '000000' ? '000001' : '000000';
+
+    for (let i = 0; i < 5; i += 1) expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: wrong }))).toBe('INVALID');
+
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: right }))).toBe('RATE_LIMITED');
+    expect((await prisma().authRateLimit.findUniqueOrThrow({ where: { key: `totp:user:${userId}` } })).count).toBe(6);
+    expect(browser.has(SESSION_COOKIE)).toBe(false);
+  });
+
+  it('finishes a sign-in whose challenge cookie is quoted', async () => {
+    const { secret } = await enrolled('owner@example.com');
+    browser = await atTheSecondStep('owner@example.com');
+    browser.quoted.add(CHALLENGE_COOKIE);
+
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: totp(secret) }))).toBe('OK');
+    expect(browser.has(SESSION_COOKIE)).toBe(true);
+  });
+
+  it('counts an attempt against the challenge that is checked, whichever of several challenge cookies is read', async () => {
+    const first = await enrolled('owner@example.com');
+    const firstBrowser = await atTheSecondStep('owner@example.com');
+    const second = await enrolled('other@example.com');
+    const secondBrowser = await atTheSecondStep('other@example.com');
+    const header = [firstBrowser, secondBrowser]
+      .map((b) => `${CHALLENGE_COOKIE}=${encodeURIComponent(b.jar.get(CHALLENGE_COOKIE) as string)}`)
+      .join('; ');
+    vi.mocked(headers).mockResolvedValue(new Headers({ cookie: header, 'x-forwarded-for': '198.51.100.7' }) as never);
+    const wrong = (secret: string) => (totp(secret) === '000000' ? '000001' : '000000');
+
+    for (let i = 0; i < 3; i += 1) {
+      expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: wrong(first.secret) }))).toBe('INVALID');
+    }
+
+    // One person's limit was counted, and it is the person whose challenge Better Auth checked: only their code works.
+    const counted = (await totpRows()).map((r) => [r.key, r.count]);
+    expect(counted).toHaveLength(1);
+    const [key] = counted[0] as [string, number];
+    const countedUser = [first, second].find((u) => key === `totp:user:${u.userId}`);
+    expect(countedUser).toBeDefined();
+    expect(codeOf(await invokePublic(session.verifyTwoFactor, { code: totp((countedUser as typeof first).secret) }))).toBe('OK');
+  });
+});
+
 describe('requestPasswordReset', () => {
   it('answers an unknown address like a known one, and sends nothing', async () => {
     const known = address('known');
@@ -432,6 +565,24 @@ describe('resetPassword', () => {
     });
 
     expect(codeOf(await signIn(to, GOOD))).toBe('OK');
+    expect(await invokePublic(session.resetPassword, { token, password: NEW })).toEqual({ ok: true, data: { next: '/studio/sign-in' } });
+  });
+
+  it('counts against the same per-address limit as asking for a reset, and refuses without spending the token', async () => {
+    const { to, token } = await resetToken('limited');
+    const key = 'reset:ip:198.51.100.7';
+    // The request for the link was the first count; the address has now used up its allowance.
+    expect((await prisma().authRateLimit.findUniqueOrThrow({ where: { key } })).count).toBe(1);
+    await prisma().authRateLimit.update({ where: { key }, data: { count: 20 } });
+
+    const refused = await invokePublic(session.resetPassword, { token, password: NEW });
+
+    expect(refused).toMatchObject({ ok: false, error: { code: 'RATE_LIMITED', fields: { retryAfterSec: expect.stringMatching(/^\d+$/) } } });
+    expect((await prisma().authRateLimit.findUniqueOrThrow({ where: { key } })).count).toBe(21);
+    // Nothing happened: the token is still there, the old password still works, and once the window is over it resets.
+    expect(await prisma().verification.count({ where: { identifier: `reset-password:${token}` } })).toBe(1);
+    expect(codeOf(await signIn(to, GOOD))).toBe('OK');
+    await prisma().authRateLimit.delete({ where: { key } });
     expect(await invokePublic(session.resetPassword, { token, password: NEW })).toEqual({ ok: true, data: { next: '/studio/sign-in' } });
   });
 
