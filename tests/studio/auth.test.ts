@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readdir, rm } from 'node:fs/promises';
 import path from 'node:path';
+import { APIError } from 'better-auth/api';
 import { after } from 'next/server';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readDevMail } from '@/server/email/send';
@@ -212,48 +213,114 @@ describe('creating users', () => {
   });
 });
 
-describe('the password hash', () => {
+describe('the password policy on stored passwords', () => {
+  /** What the caller of an `auth.api` call sees when it fails: the error's class, status and body code. */
+  const shape = (error: unknown) => ({
+    name: (error as Error).constructor.name,
+    status: (error as { statusCode?: number }).statusCode,
+    code: (error as { body?: { code?: string } }).body?.code,
+  });
+
+  it("leaves Better Auth's own hash alone, so a weak password can still be hashed for the timing match", async () => {
+    const ctx = await auth.$context;
+    for (const password of ['short', 'password1234', 'k'.repeat(129)]) {
+      const hash = await ctx.password.hash(password);
+      expect(hash).not.toContain(password);
+      expect(await ctx.password.verify({ hash, password })).toBe(true);
+    }
+  });
+
   it.each([
-    ['short', 'TOO_SHORT'],
-    ['password1234', 'COMMON'],
-    ['k'.repeat(129), 'TOO_LONG'],
-  ] as const)('refuses to hash the password %#, so no route can store it', async (password, reason) => {
-    const ctx = await auth.$context;
-    const error = await ctx.password.hash(password).catch((e: unknown) => e);
-    expect(error).toBeInstanceOf(PasswordPolicyError);
-    expect((error as PasswordPolicyError).reason).toBe(reason);
+    ['short'],
+    ['password1234'],
+    ['k'.repeat(129)],
+    [`${GOOD}!`],
+  ])('answers sign-in with the password %#, weak or not, the same for a known and an unknown email', async (password) => {
+    await createPasswordUser(prisma, { email: 'owner@example.com', name: 'Owner', password: GOOD }, auth);
+    const known = await auth.api.signInEmail({ body: { email: 'owner@example.com', password } }).catch((e: unknown) => e);
+    const unknown = await auth.api.signInEmail({ body: { email: 'nobody@example.com', password } }).catch((e: unknown) => e);
+
+    expect(known).toBeInstanceOf(APIError);
+    expect(unknown).toBeInstanceOf(APIError);
+    expect(shape(unknown)).toEqual(shape(known));
+    expect(shape(known).status).toBeGreaterThanOrEqual(400);
+    expect(known).not.toBeInstanceOf(PasswordPolicyError);
+    expect(unknown).not.toBeInstanceOf(PasswordPolicyError);
   });
 
-  it('hashes an acceptable password in a form that verifies', async () => {
+  it('still hashes the password for an unknown email, so a missing account costs the same time as a wrong password', async () => {
     const ctx = await auth.$context;
-    const hash = await ctx.password.hash(GOOD);
-    expect(hash).not.toContain(GOOD);
-    expect(await ctx.password.verify({ hash, password: GOOD })).toBe(true);
-    expect(await ctx.password.verify({ hash, password: `${GOOD}!` })).toBe(false);
+    const hash = vi.spyOn(ctx.password, 'hash');
+    await auth.api.signInEmail({ body: { email: 'nobody@example.com', password: 'password1234' } }).catch(() => undefined);
+    expect(hash).toHaveBeenCalledTimes(1);
   });
 
-  it("stops a reset to a common password that passed Better Auth's own length check, and keeps the old password", async () => {
+  it('refuses a reset to a common or short password with a stable code, and keeps the stored hash', async () => {
     const to = address('commonreset');
+    const { userId } = await createPasswordUser(prisma, { email: to, name: 'Omar', password: GOOD }, auth);
+    await auth.api.requestPasswordReset({ body: { email: to } });
+    const [mail] = await mailTo(to);
+    const token = new URL(linkIn(mail?.text ?? '')).searchParams.get('token') as string;
+    const before = (await prisma.account.findFirstOrThrow({ where: { userId } })).password;
+
+    for (const [newPassword, reason] of [
+      ['password1234', 'COMMON'],
+      ['short', 'TOO_SHORT'],
+      ['k'.repeat(129), 'TOO_LONG'],
+    ] as const) {
+      const error = await auth.api.resetPassword({ body: { newPassword, token } }).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(APIError);
+      expect(error).toMatchObject({ statusCode: 400, body: { code: 'PASSWORD_POLICY', reason } });
+    }
+
+    expect((await prisma.account.findFirstOrThrow({ where: { userId } })).password).toBe(before);
+    expect((await auth.api.signInEmail({ body: { email: to, password: GOOD } })).user.email).toBe(to);
+    // The token was not spent by the refusals.
+    await auth.api.resetPassword({ body: { newPassword: 'a long fresh passphrase 2027', token } });
+  });
+
+  it('refuses a password change to a common password, and keeps the stored hash', async () => {
+    const { userId } = await createPasswordUser(prisma, { email: 'owner@example.com', name: 'Owner', password: GOOD }, auth);
+    const signedIn = await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD }, returnHeaders: true });
+    const headers = cookieHeader(signedIn.headers.getSetCookie());
+    const before = (await prisma.account.findFirstOrThrow({ where: { userId } })).password;
+
+    await expect(
+      auth.api.changePassword({ body: { currentPassword: GOOD, newPassword: 'password1234' }, headers }),
+    ).rejects.toMatchObject({ statusCode: 400, body: { code: 'PASSWORD_POLICY', reason: 'COMMON' } });
+
+    expect((await prisma.account.findFirstOrThrow({ where: { userId } })).password).toBe(before);
+    expect((await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD } })).user.email).toBe('owner@example.com');
+  });
+
+  it('refuses setting a common password', async () => {
+    await createPasswordUser(prisma, { email: 'owner@example.com', name: 'Owner', password: GOOD }, auth);
+    const signedIn = await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD }, returnHeaders: true });
+    await expect(
+      auth.api.setPassword({ body: { newPassword: 'password1234' }, headers: cookieHeader(signedIn.headers.getSetCookie()) }),
+    ).rejects.toMatchObject({ statusCode: 400, body: { code: 'PASSWORD_POLICY', reason: 'COMMON' } });
+  });
+
+  it('applies to requests that come in over HTTP as well as to auth.api calls', async () => {
+    const res = await auth.handler(
+      new Request(`${BASE}/api/auth/reset-password`, {
+        method: 'POST',
+        headers: JSON_HEADERS,
+        body: JSON.stringify({ token: 'whatever', newPassword: 'password1234' }),
+      }),
+    );
+    expect(res.status).toBe(400);
+    expect(await res.json()).toMatchObject({ code: 'PASSWORD_POLICY', reason: 'COMMON' });
+  });
+
+  it('lets an acceptable password through to Better Auth', async () => {
+    const to = address('okreset');
     await createPasswordUser(prisma, { email: to, name: 'Omar', password: GOOD }, auth);
     await auth.api.requestPasswordReset({ body: { email: to } });
     const [mail] = await mailTo(to);
     const token = new URL(linkIn(mail?.text ?? '')).searchParams.get('token') as string;
-
-    await expect(auth.api.resetPassword({ body: { newPassword: 'password1234', token } })).rejects.toBeInstanceOf(PasswordPolicyError);
-    expect((await auth.api.signInEmail({ body: { email: to, password: GOOD } })).user.email).toBe(to);
-    await expect(auth.api.signInEmail({ body: { email: to, password: 'password1234' } })).rejects.toMatchObject({ statusCode: 401 });
-  });
-
-  it('stops a password change to a common password', async () => {
-    await createPasswordUser(prisma, { email: 'owner@example.com', name: 'Owner', password: GOOD }, auth);
-    const signedIn = await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD }, returnHeaders: true });
-    await expect(
-      auth.api.changePassword({
-        body: { currentPassword: GOOD, newPassword: 'password1234' },
-        headers: cookieHeader(signedIn.headers.getSetCookie()),
-      }),
-    ).rejects.toBeInstanceOf(PasswordPolicyError);
-    expect((await auth.api.signInEmail({ body: { email: 'owner@example.com', password: GOOD } })).user.email).toBe('owner@example.com');
+    await expect(auth.api.resetPassword({ body: { newPassword: 'a long fresh passphrase 2027', token } })).resolves.toBeDefined();
+    expect((await auth.api.signInEmail({ body: { email: to, password: 'a long fresh passphrase 2027' } })).user.email).toBe(to);
   });
 });
 

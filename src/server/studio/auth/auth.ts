@@ -1,7 +1,6 @@
 import { betterAuth } from 'better-auth';
-import { APIError } from 'better-auth/api';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
-import { hashPassword } from 'better-auth/crypto';
 import { nextCookies } from 'better-auth/next-js';
 import { twoFactor } from 'better-auth/plugins/two-factor';
 import { after } from 'next/server';
@@ -11,7 +10,7 @@ import { getPrisma } from '@/server/data/prisma';
 import { sendEmail } from '@/server/email/send';
 import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/email/templates';
 import { authEnv, type AuthEnv } from '@/server/env';
-import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH, PasswordPolicyError } from './password-policy';
+import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
 /** The person an email is for: the address to send to, and what to call them in it. */
 interface Recipient {
@@ -56,6 +55,30 @@ function sendAfterResponse(user: Recipient, template: EmailTemplate, params: Ema
 }
 
 /**
+ * The second layer of the password policy (the Studio's actions check it first and say why). It refuses a new password
+ * that fails `checkPasswordPolicy` before Better Auth stores it, with a 400 and a stable code: `PASSWORD_POLICY`, and
+ * the policy's reason (`TOO_SHORT`, `TOO_LONG`, `COMMON`) in `reason`.
+ *
+ * It applies to every call that carries a `newPassword`: `/reset-password`, `/change-password` and `/set-password`. It
+ * matches on the field and not on the path because `set-password` is server-only and has no path to match.
+ *
+ * It sits on these calls and not on `password.hash`: Better Auth also hashes the password it was given when a sign-in
+ * names an unknown email, to make that case take as long as a wrong password, and a hash that refused weak passwords
+ * would fail there first and fast, telling a caller which emails have accounts.
+ *
+ * `hooks.before` runs for `auth.api.*` calls as well as for HTTP requests (both go through Better Auth's one hook runner).
+ */
+const enforcePasswordPolicy = createAuthMiddleware(async (ctx) => {
+  const newPassword = (ctx.body as { newPassword?: unknown } | undefined)?.newPassword;
+  // A missing or malformed value is Better Auth's own validation to reject.
+  if (typeof newPassword !== 'string') return;
+  const reason = checkPasswordPolicy(newPassword);
+  if (reason) {
+    throw new APIError('BAD_REQUEST', { message: 'The password is not acceptable', code: 'PASSWORD_POLICY', reason });
+  }
+});
+
+/**
  * The Studio's Better Auth instance on `prisma`. Accounts are invitation-only (no public sign-up), a password needs 12
  * to 128 characters, two-factor is time-based codes with ten single-use backup codes, and Better Auth's own emails
  * (password reset, password changed, e-mail change) go out through `sendEmail` in the account's language.
@@ -85,15 +108,6 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
       // The password is already changed and the sessions already ended, so a mail failure must not fail the reset.
       onPasswordReset: async ({ user }) => {
         sendAfterResponse(user, 'passwordChanged', {});
-      },
-      // The second layer of the password policy. The Studio's actions check it first and say why; this stops every route
-      // that stores a password (reset, change, set, and createPasswordUser) from storing one that fails it.
-      password: {
-        hash: async (password) => {
-          const problem = checkPasswordPolicy(password);
-          if (problem) throw new PasswordPolicyError(problem);
-          return hashPassword(password);
-        },
       },
     },
 
@@ -131,6 +145,8 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
 
     // `disabledPaths` hides the HTTP route (404); `disableSignUp` also refuses `auth.api.signUpEmail`.
     disabledPaths: ['/sign-up/email'],
+
+    hooks: { before: enforcePasswordPolicy },
 
     databaseHooks: {
       session: {
