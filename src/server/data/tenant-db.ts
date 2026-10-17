@@ -15,6 +15,7 @@ export const MENU_SCOPED_MODELS = [
   'DaypartSchedule',
   'Table',
   'QrCode',
+  'ImportJob',
   'AnalyticsEvent',
   'MenuRevision',
 ] as const;

@@ -175,6 +175,16 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Scanners need more contrast between the code and its background': 'error.text.qrContrast',
   'Scanners need a dark code on a light background': 'error.text.qrInverted',
   'No table has a code yet': 'error.text.noTableCodes',
+  'Save the sheet as CSV UTF-8 and upload it again': 'error.text.sheetEncoding',
+  'Use at most 2,000 rows': 'error.text.sheetTooManyRows',
+  'This sheet is empty': 'error.text.sheetEmpty',
+  'This file could not be read as a CSV or Excel sheet': 'error.text.sheetUnreadable',
+  'Upload a CSV or Excel (.xlsx) file': 'error.text.sheetType',
+  'Use a file of at most 5 MB': 'error.text.sheetTooLarge',
+  'Some columns of this sheet are not right': 'error.text.sheetColumns',
+  'This import was already applied or discarded': 'error.text.importDone',
+  'The menu changed after this sheet was read. Upload it again.': 'error.text.importStale',
+  'Fix the rows marked invalid and upload the sheet again': 'error.text.importInvalidRows',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -185,7 +195,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

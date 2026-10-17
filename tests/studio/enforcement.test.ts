@@ -38,7 +38,8 @@ const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
 function exportsNotMatching(source: string, shape: RegExp): string[] {
   const sticky = new RegExp(shape.source, 'y');
   const bad: string[] = [];
-  for (const match of source.matchAll(/\bexport\b/g)) {
+  // Statements only, at the start of a line: the word inside a string or a comment (`'export.download'`) is not one.
+  for (const match of source.matchAll(/^export\b/gm)) {
     sticky.lastIndex = match.index;
     if (!sticky.test(source)) bad.push(source.slice(match.index).split('\n')[0]!.trim());
   }
@@ -212,6 +213,9 @@ describe('Studio enforcement rules', () => {
       expect(exportsNotMatching('export const getMenu = defineAction({', DEFINE_QUERY)).toHaveLength(1);
       expect(exportsNotMatching('export const publish = defineQuery({', DEFINE_ACTION)).toHaveLength(1);
       expect(exportsNotMatching('export function helper() {}', DEFINE_QUERY)).toHaveLength(1);
+      // The word in a name, a permission or a comment is not an export.
+      expect(exportsNotMatching("/** The export tab. */\nexport const download = defineAction({\n  name: 'export.download',\n  permission: 'export.run',", DEFINE_ACTION)).toEqual([]);
+      expect(exportsNotMatching("const x = 1;\nexport { x };", DEFINE_ACTION)).toHaveLength(1);
     });
 
     it('accepts public action definitions in their own folder and refuses anything else', () => {

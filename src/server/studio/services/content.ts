@@ -214,7 +214,7 @@ export function missingIn(locales: readonly Locale[], names: Partial<Record<Loca
 // Slugs ---------------------------------------------------------------------------------------------------------------
 
 /** `base`, else `base-2`, `base-3`, … whichever is not taken, cut so the suffix fits the length limit. */
-function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
+export function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
   if (!taken.has(base)) return base;
   for (let n = 2; ; n += 1) {
     const suffix = `-${n}`;
@@ -224,7 +224,7 @@ function uniqueSlug(base: string, taken: ReadonlySet<string>): string {
 }
 
 /** A slug from the English name (else the first name given), or `fallback` when it has no Latin letters or digits. */
-function slugFromNames(names: Texts, fallback: string): string {
+export function slugFromNames(names: Texts, fallback: string): string {
   const texts = present(names);
   const source = texts.en ?? Object.values(texts)[0] ?? '';
   return normalizeSlugInput(source).slice(0, SLUG_MAX).replace(/-+$/, '') || fallback;

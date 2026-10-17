@@ -85,6 +85,8 @@ interface Side {
   pendingRevisionId: string;
   /** A QR code printed for table 1. */
   qrCodeId: string;
+  /** A sheet read for an import, not applied. */
+  importJobId: string;
 }
 
 interface World {
@@ -164,6 +166,9 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
     },
   });
+  const importJob = await prisma().importJob.create({
+    data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
+  });
   const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
@@ -189,6 +194,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     revisionId: published.revisionId,
     pendingRevisionId: pending.id,
     qrCodeId: qrCode.id,
+    importJobId: importJob.id,
   };
 }
 
@@ -226,6 +232,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
       variants: await db.productVariant.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       groups: await db.modifierGroup.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      importJobs: await db.importJob.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       qrCodes: await db.qrCode.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       tables: await db.table.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
@@ -362,6 +369,25 @@ const SWEPT: Record<string, Case[]> = {
     c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, format: 'png', size: 512 })),
   ],
   'qr.downloadTables': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // Import and export
+  'import.requestUpload': [c("B's menu", (w) => ({ menuId: w.b.menuId, fileName: 'menu.csv', bytes: 10 }))],
+  'import.parse': [
+    c("B's upload, in B", (w) => ({ menuId: w.b.menuId, uploadKey: `imports/${w.b.menuId}/planted`, fileName: 'menu.csv', hideMissing: false })),
+    c("B's upload, through A", (w) => ({ menuId: w.a.menuId, uploadKey: `imports/${w.b.menuId}/planted`, fileName: 'menu.csv', hideMissing: true })),
+  ],
+  'import.apply': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'import.discard': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'import.job': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'export.download': [c("B's menu", (w) => ({ menuId: w.b.menuId, format: 'csv' }))],
   'qr.preview': [
     c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),
     c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),

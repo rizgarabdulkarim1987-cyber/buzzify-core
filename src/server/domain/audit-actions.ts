@@ -27,6 +27,8 @@ export const AUDIT_ACTIONS = [
   'qr.created',
   'qr.updated',
   'qr.deleted',
+  'menu.imported',
+  'menu.exported',
   'menu.duplicated',
   'menu.deleted',
   'category.created',
@@ -90,4 +92,5 @@ export const AUDIT_ENTITY_TYPES = [
   'MenuPrices',
   'BrandConfig',
   'QrCode',
+  'ImportJob',
 ] as const;

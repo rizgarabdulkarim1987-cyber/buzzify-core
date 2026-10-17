@@ -159,6 +159,7 @@ model Menu {
   schedule        DaypartSchedule[]
   tables          Table[]
   qrCodes         QrCode[]
+  importJobs      ImportJob[]
   analyticsEvents AnalyticsEvent[]
 
   @@index([restaurantId])
@@ -425,6 +426,33 @@ model Table {
   menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
   @@unique([menuId, number])
+}
+
+enum ImportStatus {
+  PARSED
+  APPLIED
+  DISCARDED
+  FAILED
+}
+
+/// A sheet read for an import (spec 13.2): its preview, kept until it is applied or discarded.
+model ImportJob {
+  id          String       @id @default(cuid())
+  menuId      String
+  fileName    String
+  status      ImportStatus @default(PARSED)
+  /// `ImportPreview` (src/server/domain/import-sheet.ts).
+  preview     Json
+  rowCount    Int
+  /// The draft the preview compared with: applying it to a draft that changed since is refused.
+  draftHash   String
+  hideMissing Boolean      @default(false)
+  createdById String?
+  appliedAt   DateTime?
+  createdAt   DateTime     @default(now())
+  menu        Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, createdAt])
 }
 
 /// A printed QR code: for the menu, or for one table. Its scans are menu views that carry its id.
