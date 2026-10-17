@@ -144,6 +144,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use at least the minimum': 'error.text.belowMinimum',
   'A bundle uses this size. Remove it from the bundle first.': 'error.text.sizeInBundle',
   'A bundle contains this product. Remove it from the bundle first.': 'error.text.productInBundle',
+  'Choose what to change': 'error.text.changeWhat',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

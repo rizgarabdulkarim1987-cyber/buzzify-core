@@ -29,7 +29,7 @@ export const WORKSPACE_TABS: readonly WorkspaceTab[] = [
 ];
 
 /** The tabs whose pages exist so far; each part of the workspace adds its own when it ships. */
-export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'preview']);
+export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'availability', 'preview']);
 
 /** The tabs a person sees: built, and allowed to them. */
 export function visibleTabs(permissions: ReadonlySet<Permission>, built: ReadonlySet<WorkspaceTabKey> = BUILT_TABS): WorkspaceTab[] {

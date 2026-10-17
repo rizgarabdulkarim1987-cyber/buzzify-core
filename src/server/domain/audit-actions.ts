@@ -27,6 +27,8 @@ export const AUDIT_ACTIONS = [
   'product.updated',
   'product.deleted',
   'product.moved',
+  'product.availability_changed',
+  'option.availability_changed',
   'invitation.created',
   'invitation.resent',
   'invitation.revoked',

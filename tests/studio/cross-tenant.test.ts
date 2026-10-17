@@ -79,6 +79,7 @@ interface Side {
   categoryId: string;
   productId: string;
   variantId: string;
+  optionId: string;
 }
 
 interface World {
@@ -117,6 +118,12 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   });
   const variant = await prisma().productVariant.create({
     data: { menuId: menu.id, productId: product.id, isDefault: true, translations: { en: { name: `${title} bowl` } } },
+  });
+  const group = await prisma().modifierGroup.create({
+    data: { menuId: menu.id, productId: product.id, translations: { en: { name: `${title} sides` } } },
+  });
+  const option = await prisma().modifierOption.create({
+    data: { menuId: menu.id, groupId: group.id, translations: { en: { name: `${title} bread` } } },
   });
   await publishFixture(prisma(), menu.id);
   const branch = await prisma().branch.create({ data: { restaurantId: restaurant.id, name: `${title} Riverside` } });
@@ -168,6 +175,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     categoryId: category.id,
     productId: product.id,
     variantId: variant.id,
+    optionId: option.id,
   };
 }
 
@@ -230,7 +238,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -424,6 +432,17 @@ const SWEPT: Record<string, Case[]> = {
     c("A's product into B's category", (w) => ({ menuId: w.a.menuId, productId: w.a.productId, categoryId: w.b.categoryId, index: 0 })),
   ],
   'content.tree': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+
+  // The Availability tab
+  'availability.setProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, isAvailable: false })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, isHidden: true })),
+  ],
+  'availability.setOption': [
+    c("B's option, in B", (w) => ({ menuId: w.b.menuId, optionId: w.b.optionId, isAvailable: false })),
+    c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
+  ],
+  'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'content.product': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId })),
