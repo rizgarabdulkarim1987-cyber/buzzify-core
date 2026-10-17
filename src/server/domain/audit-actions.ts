@@ -18,6 +18,7 @@ export const AUDIT_ACTIONS = [
   'menu.status_changed',
   'menu.slug_changed',
   'menu.settings_changed',
+  'brand.updated',
   'menu.duplicated',
   'menu.deleted',
   'category.created',
@@ -79,4 +80,5 @@ export const AUDIT_ENTITY_TYPES = [
   'ModifierGroup',
   'ModifierOption',
   'MenuPrices',
+  'BrandConfig',
 ] as const;

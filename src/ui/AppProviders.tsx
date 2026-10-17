@@ -28,6 +28,8 @@ export interface TenantClientInfo {
   slug: string;
   name: string;
   logoText: string;
+  /** The brand logo for the theme, shown in place of the logo text. */
+  logo?: { url: string; width: number; height: number };
   railStyle: RailStyle;
   currency: string;
   numeralSystem: 'latn' | 'arab';

@@ -61,3 +61,26 @@ describe('menuOpenGraph', () => {
     expect(menuOpenGraph('https://menu.buzzify.me', undefined)).toBeUndefined();
   });
 });
+
+describe('menuSocialImage', () => {
+  const logo = { assetId: 'l', url: '/m/l.webp', width: 600, height: 300, svg: false, rasterKey: 'r/l/webp-640.webp' };
+  const tenant = { slug: 'atelier', revisionId: 'rev1', brand: { logo }, seo: {} };
+
+  it('points a menu with a logo at its drawn image for the revision and language', async () => {
+    const { menuSocialImage } = await import('@/server/seo');
+    expect(menuSocialImage('https://menu.buzzify.me', tenant, 'ar')).toEqual({
+      images: [{ url: 'https://menu.buzzify.me/api/atelier/social-image?rev=rev1&locale=ar', width: 1200, height: 630 }],
+    });
+  });
+
+  it('gives the search image itself when the language has one, and nothing without either', async () => {
+    const { menuSocialImage } = await import('@/server/seo');
+    const image = { assetId: 'a', url: 'https://media.buzzify.me/a.webp', width: 1080, height: 567 };
+    expect(menuSocialImage('https://x.me', { ...tenant, seo: { en: { title: '', description: '', image } } }, 'en')?.images[0]).toEqual({
+      url: 'https://media.buzzify.me/a.webp',
+      width: 1080,
+      height: 567,
+    });
+    expect(menuSocialImage('https://x.me', { ...tenant, brand: {} }, 'en')).toBeUndefined();
+  });
+});

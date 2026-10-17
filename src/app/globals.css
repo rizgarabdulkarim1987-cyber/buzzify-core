@@ -36,6 +36,47 @@
   --font-text-stack: var(--font-naskh), system-ui, sans-serif;
 }
 
+/*
+ * The brand kit's other font pairs (src/lib/font-pairs.ts). `fontVariablesFor` puts `font-pair-{pair}` on the root
+ * with only the faces of the page's script, so each rule below names faces the page has. Classic is the rules above.
+ */
+:root.font-pair-cafe {
+  --font-display-stack: var(--font-fraunces), Georgia, serif;
+  --font-text-stack: var(--font-dm-sans), system-ui, sans-serif;
+}
+:root.font-pair-bakery {
+  --font-display-stack: var(--font-playfair), Georgia, serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+:root.font-pair-street {
+  --font-display-stack: var(--font-anton), Impact, sans-serif;
+  --font-text-stack: var(--font-inter), system-ui, sans-serif;
+}
+:root.font-pair-fine {
+  --font-display-stack: var(--font-cormorant), Georgia, serif;
+  --font-text-stack: var(--font-jost), system-ui, sans-serif;
+}
+:root.font-pair-modern {
+  --font-display-stack: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-text-stack: var(--font-inter), system-ui, sans-serif;
+}
+:root.font-pair-cafe:is([lang='ar'], [lang='ckb']) {
+  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
+  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
+}
+:root:is(.font-pair-bakery, .font-pair-fine):is([lang='ar'], [lang='ckb']) {
+  --font-display-stack: var(--font-naskh), 'Noto Naskh Arabic', serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+:root.font-pair-street:is([lang='ar'], [lang='ckb']) {
+  --font-display-stack: var(--font-kufi), system-ui, sans-serif;
+  --font-text-stack: var(--font-kufi), system-ui, sans-serif;
+}
+:root.font-pair-modern:is([lang='ar'], [lang='ckb']) {
+  --font-display-stack: var(--font-plex-arabic), system-ui, sans-serif;
+  --font-text-stack: var(--font-plex-arabic), system-ui, sans-serif;
+}
+
 html {
   background: var(--bg);
   color: var(--text);

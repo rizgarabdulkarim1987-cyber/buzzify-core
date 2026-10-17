@@ -4,7 +4,7 @@ import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
 import { direction } from '@/lib/locale';
 import { AppProviders } from '@/ui/AppProviders';
-import { brandCss } from '@/ui/brand';
+import { brandCss, themeLogo } from '@/ui/brand';
 import { loadPreview } from './load';
 
 export async function generateMetadata({ params }: { params: Promise<{ menuId: string; locale: string }> }): Promise<Metadata> {
@@ -22,7 +22,7 @@ export default async function PreviewRootLayout({ children, params }: { children
   const { menuId, locale: raw } = await params;
   const { locale, tenant } = await loadPreview(menuId, raw);
   return (
-    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale)}>
+    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale, tenant.brand.fontPairId)}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: brandCss(tenant.brand) }} />
       </head>
@@ -34,6 +34,7 @@ export default async function PreviewRootLayout({ children, params }: { children
             slug: tenant.slug,
             name: tenant.name,
             logoText: tenant.brand.logoText,
+            logo: themeLogo(tenant.brand),
             railStyle: tenant.brand.railStyle,
             currency: tenant.currency,
             numeralSystem: tenant.numeralSystem,

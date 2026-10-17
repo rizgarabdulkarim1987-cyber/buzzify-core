@@ -26,7 +26,13 @@ export default async function RestaurantProfilePage({ params }: { params: Promis
   if (restaurant.can.edit) {
     return (
       <div className="px-8 pb-2">
-        <EditRestaurantForm key={`${restaurant.id}:${restaurant.version}`} restaurantId={restaurant.id} version={restaurant.version} initial={restaurant} />
+        <EditRestaurantForm
+          key={`${restaurant.id}:${restaurant.version}`}
+          restaurantId={restaurant.id}
+          version={restaurant.version}
+          initial={restaurant}
+          logo={restaurant.logo}
+        />
       </div>
     );
   }

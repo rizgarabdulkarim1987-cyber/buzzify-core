@@ -83,6 +83,8 @@ model Restaurant {
   status           RestaurantStatus @default(ACTIVE)
   notes            String           @default("")
   permissionPolicy Json             @default("{}")
+  /// The restaurant's logo in its media library; a new menu starts its brand kit with it.
+  logoAssetId      String?
   version          Int              @default(1)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -216,6 +218,15 @@ model BrandConfig {
   /// How the category rail moves: grains, drum, flap, deck or plain (see src/lib/rail.ts).
   railStyle       String    @default("grains")
   logoText        String
+  /// The logo from the media library (the restaurant's or the shared one), and one for a dark theme when it differs.
+  logoAssetId     String?
+  logoDarkAssetId String?
+  /// An uploaded favicon, or the logo's rendered PNGs when faviconFromLogo; with neither, the accent mark.
+  faviconAssetId  String?
+  faviconFromLogo Boolean   @default(false)
+  /// One of the curated pairs in src/lib/font-pairs.ts.
+  fontPairId      String    @default("classic")
+  version         Int       @default(1)
   menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 

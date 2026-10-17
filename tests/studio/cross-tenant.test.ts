@@ -270,6 +270,20 @@ const ONLY_FORBIDDEN: Expectation = { kind: 'refused', codes: ['FORBIDDEN'] };
 
 const c = (label: string, input: (w: World) => unknown, expectation: Expectation = REFUSED): Case => ({ label, input, expect: expectation });
 
+/** A brand kit as the Brand tab saves it. */
+const brandKit = () => ({
+  version: 1,
+  theme: 'dark',
+  palette: { bg: '#0e0e0f', surface: '#1b1a19', raised: '#2a2826', accent: '#d6bc8a', text: '#ede8df', muted: '#a7a096', line: '#3a3633', onAccent: '#0e0e0f' },
+  logoAssetId: null,
+  logoDarkAssetId: null,
+  favicon: { kind: 'none' },
+  fontPairId: 'classic',
+  railStyle: 'grains',
+  motionIntensity: 'subtle',
+  logoText: 'Planted',
+});
+
 /** A menu's settings as the Settings tab saves them (version 1 is stale for a published menu, which the checks precede). */
 const menuSettings = () => ({
   version: 1,
@@ -311,6 +325,17 @@ const SWEPT: Record<string, Case[]> = {
   'menus.create': [c("in B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', slug: 'planted-menu' }))],
   'menus.publish': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // The Brand tab
+  'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'brand.update': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...brandKit() })),
+    c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),
+    c("B's favicon, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), favicon: { kind: 'asset', assetId: w.b.assetId } })),
+  ],
+  'brand.suggestFromLogo': [
+    c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
+    c("B's logo, through A", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, theme: 'light' })),
+  ],
   'menus.updateSettings': [
     c("B's menu", (w) => ({ menuId: w.b.menuId, ...menuSettings() })),
     c("B's image, through A", (w) => ({ menuId: w.a.menuId, ...menuSettings(), seo: { en: { title: 'Planted', description: '', imageAssetId: w.b.assetId } } })),
@@ -363,7 +388,10 @@ const SWEPT: Record<string, Case[]> = {
   ],
 
   // Restaurants and branches
-  'restaurants.update': [c('B', (w) => ({ restaurantId: w.b.restaurantId, version: 1, name: 'Hijacked', type: 'RESTAURANT' }))],
+  'restaurants.update': [
+    c('B', (w) => ({ restaurantId: w.b.restaurantId, version: 1, name: 'Hijacked', type: 'RESTAURANT' })),
+    c("B's logo, through A", (w) => ({ restaurantId: w.a.restaurantId, version: 1, name: 'Shared Alpha Kitchen', type: 'RESTAURANT', logoAssetId: w.b.assetId })),
+  ],
   'restaurants.setStatus': [c('B', (w) => ({ restaurantId: w.b.restaurantId, status: 'SUSPENDED' }))],
   'restaurants.delete': [c('B', (w) => ({ restaurantId: w.b.restaurantId, confirmName: w.b.restaurantName }))],
   'restaurants.createBranch': [c('in B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted' }))],

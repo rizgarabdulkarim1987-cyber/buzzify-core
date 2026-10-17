@@ -153,6 +153,15 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use at most 2,000 characters': 'error.text.notesTooLong',
   'Use at least one unit': 'error.text.stepTooSmall',
   'Confirm the new currency: every price is converted': 'error.text.currencyConfirm',
+  'Use a colour such as #1A1A1A': 'error.text.colourFormat',
+  'Choose one of the themes offered': 'error.text.themeChoose',
+  'Choose one of the font pairs offered': 'error.text.fontPairChoose',
+  'Choose one of the rail styles offered': 'error.text.railChoose',
+  'Choose one of the motion levels offered': 'error.text.motionChoose',
+  'Enter the name shown in place of a logo': 'error.text.logoTextEnter',
+  'This picture could not be read. Upload it again.': 'error.text.pictureUnreadable',
+  'Some text would be hard to read on these colours': 'error.text.paletteContrast',
+  'Choose a logo first': 'error.text.logoFirst',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

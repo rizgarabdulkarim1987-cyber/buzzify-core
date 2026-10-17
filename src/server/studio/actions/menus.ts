@@ -79,7 +79,7 @@ export const createMenu = defineAction({
     // The menu's rows need a client scoped to it, so the transaction is scoped to the id it is about to get.
     const menuId = ctx.newId();
     await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
-      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } });
+      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true, logoAssetId: true } });
       if (!restaurant) throw new StudioError('NOT_FOUND');
       await requireSlugAvailable(tx, input.slug, null);
       try {
@@ -101,7 +101,8 @@ export const createMenu = defineAction({
         throw error;
       }
       await claimSlug(tx, input.slug, menuId);
-      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name) } });
+      // The restaurant's logo starts the new menu's brand kit.
+      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name), logoAssetId: restaurant.logoAssetId } });
       await tx.daypartSchedule.createMany({ data: DEFAULT_SCHEDULE.map((window) => ({ menuId, ...window })) });
       await refreshDraftHash(tx, menuId);
 

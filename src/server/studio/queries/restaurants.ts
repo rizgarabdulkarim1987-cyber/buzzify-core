@@ -7,6 +7,9 @@ import { StudioError } from '@/server/studio/framework/result';
 import { restaurantActivityRows } from '@/server/studio/services/activity';
 import { profileOf, seesAgencyNotes } from '@/server/studio/services/restaurants';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
+import type { AssetVariants } from '@/server/media/process';
+import { getStorage } from '@/server/storage/storage';
+import { thumbKey } from '@/server/studio/services/media';
 
 /**
  * What the Restaurants screens read. The list is a platform read: every restaurant for a Super Admin, and for anyone
@@ -133,6 +136,10 @@ export const getRestaurant = defineQuery({
     if (!row) throw new StudioError('NOT_FOUND');
     const profile = profileOf(row);
     const can = (key: Permission) => ctx.permissions.has(key);
+    // The logo, from the restaurant's library or the shared one, as a thumbnail for the form.
+    const logoAsset = row.logoAssetId
+      ? await ctx.db.mediaAsset.findFirst({ where: { id: row.logoAssetId, OR: [{ restaurantId }, { restaurantId: null }] }, select: { id: true, kind: true, variants: true } })
+      : null;
     return {
       id: row.id,
       clientId: formatClientId(row.clientNumber),
@@ -140,6 +147,7 @@ export const getRestaurant = defineQuery({
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
       status: row.status,
+      logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,
       version: row.version,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

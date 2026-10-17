@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import type { ReactNode } from 'react';
+import { ImagePlus, Trash2 } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { createRestaurant, updateRestaurant } from '@/app/studio/_actions/restaurants';
 import {
@@ -15,9 +16,11 @@ import {
 } from '@/server/domain/restaurant-profile';
 import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
+import { MediaPicker } from '@/studio/media/MediaPicker';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { FormError } from '@/studio/ui/FormError';
+import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
@@ -225,11 +228,24 @@ export function CreateRestaurantForm() {
  * refuses, the form says who and when, and "Reload" brings in their version (the page gives the form a new key with it,
  * which starts the form again).
  */
-export function EditRestaurantForm({ restaurantId, version, initial }: { restaurantId: string; version: number; initial: ProfileValues }) {
+export function EditRestaurantForm({
+  restaurantId,
+  version,
+  initial,
+  logo: initialLogo = null,
+}: {
+  restaurantId: string;
+  version: number;
+  initial: ProfileValues;
+  /** The restaurant's logo; a new menu starts its brand kit with it. */
+  logo?: { assetId: string; thumbUrl: string } | null;
+}) {
   const t = useT();
   const router = useRouter();
   const withNotes = initial.notes !== null;
-  const form = useActionForm((values) => updateRestaurant({ restaurantId, version, ...profileOf(values, withNotes) }), {
+  const [logo, setLogo] = useState(initialLogo);
+  const [picking, setPicking] = useState(false);
+  const form = useActionForm((values) => updateRestaurant({ restaurantId, version, ...profileOf(values, withNotes), logoAssetId: logo?.assetId ?? null }), {
     keep: KEPT,
     onSuccess: () => {
       toast.success(t('restaurants.form.saved'));
@@ -240,6 +256,30 @@ export function EditRestaurantForm({ restaurantId, version, initial }: { restaur
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
       <ProfileFields form={form} initial={initial} withNotes={withNotes} />
+      <Section id="logo" title={t('restaurants.form.logo')} intro={t('restaurants.form.logoIntro')}>
+        <div className="flex items-center gap-4">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a library thumbnail
+            <img src={logo.thumbUrl} alt="" className="h-16 w-32 rounded-md border border-line bg-surface object-contain p-1" />
+          ) : (
+            <span className="flex h-16 w-32 items-center justify-center rounded-md border border-dashed border-line-strong text-xs text-muted">
+              {t('restaurants.form.noLogo')}
+            </span>
+          )}
+          <div className="flex gap-1">
+            <Button size="sm" icon={<ImagePlus aria-hidden />} onClick={() => setPicking(true)}>
+              {t('restaurants.form.chooseLogo')}
+            </Button>
+            {logo && <IconButton size="sm" icon={<Trash2 aria-hidden />} label={t('restaurants.form.removeLogo')} onClick={() => setLogo(null)} />}
+          </div>
+        </div>
+      </Section>
+      <MediaPicker
+        open={picking}
+        onOpenChange={setPicking}
+        restaurantId={restaurantId}
+        onPick={([first]) => first && setLogo({ assetId: first.assetId, thumbUrl: first.thumbUrl })}
+      />
       <SaveBar
         form={form}
         reload={

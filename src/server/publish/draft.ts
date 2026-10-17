@@ -1,13 +1,15 @@
 import type { BrandConfig, Menu, Prisma } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
 import { isLocale, type Locale } from '@/lib/locale';
-import { resolveRailStyle } from '@/lib/rail';
+import { DEFAULT_FONT_PAIR, isFontPairId } from '@/lib/font-pairs';
+import { isRailStyle, resolveRailStyle } from '@/lib/rail';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
-import type { BrandView } from '@/server/data/tenant';
+import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
+import type { AssetVariants } from '@/server/media/process';
 import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -68,11 +70,41 @@ function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
 }
 
 /** The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. */
-function brandView(brand: BrandConfig | null, displayName: string): BrandView {
+/** The library assets a brand kit names: its logos, and the asset its favicon is drawn from. */
+function brandAssetIds(brand: BrandConfig | null): string[] {
+  if (!brand) return [];
+  const favicon = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
+  return [brand.logoAssetId, brand.logoDarkAssetId, favicon].filter((id): id is string => id !== null);
+}
+
+/** A logo as guests get it: where to load it, its size, and a raster rendition for drawing it on the server. */
+function brandImage(asset: ResolvableAsset | undefined, mediaUrl: (key: string) => string): BrandImage | undefined {
+  return asset ? { assetId: asset.id, ...assetImage(asset, mediaUrl) } : undefined;
+}
+
+/** The favicon PNGs of an asset: those rendered for it, or an icon file as it is. Nothing for an asset without them. */
+function brandFavicon(asset: ResolvableAsset | undefined, mediaUrl: (key: string) => string): BrandFavicon | undefined {
+  if (!asset) return undefined;
+  const variants = asset.variants as unknown as AssetVariants;
+  const keys = variants.favicon ?? (asset.kind === 'ICON' ? { '32': variants.original, '180': variants.original, '512': variants.original } : null);
+  if (!keys) return undefined;
+  return { assetId: asset.id, png32: mediaUrl(keys['32']), png180: mediaUrl(keys['180']), png512: mediaUrl(keys['512']) };
+}
+
+/**
+ * The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. The
+ * fields the 2b kit added are left out when unused (the classic pair, no logo), so such a menu hashes as before.
+ */
+function brandView(
+  brand: BrandConfig | null,
+  displayName: string,
+  assets: ReadonlyMap<string, ResolvableAsset> = new Map(),
+  mediaUrl: (key: string) => string = (key) => key,
+): BrandView {
   const tokens = (brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const motionIntensity =
     brand?.motionIntensity === 'none' || brand?.motionIntensity === 'expressive' ? brand.motionIntensity : 'subtle';
-  return {
+  const view: BrandView = {
     logoText: brand?.logoText ?? displayName,
     theme: brand?.theme === 'LIGHT' ? 'light' : 'dark',
     motionIntensity,
@@ -81,6 +113,40 @@ function brandView(brand: BrandConfig | null, displayName: string): BrandView {
       dark: sanitizePalette(tokens.dark, DEFAULT_PALETTES.dark),
       light: sanitizePalette(tokens.light, DEFAULT_PALETTES.light),
     },
+  };
+  if (!brand) return view;
+  if (isFontPairId(brand.fontPairId) && brand.fontPairId !== DEFAULT_FONT_PAIR) view.fontPairId = brand.fontPairId;
+  // With motion off the rail is plain; the style the brand chose is kept, so turning motion back on brings it back.
+  if (isRailStyle(brand.railStyle) && brand.railStyle !== view.railStyle) view.railChoice = brand.railStyle;
+  const logo = brandImage(brand.logoAssetId ? assets.get(brand.logoAssetId) : undefined, mediaUrl);
+  if (logo) view.logo = logo;
+  const logoDark = brandImage(brand.logoDarkAssetId ? assets.get(brand.logoDarkAssetId) : undefined, mediaUrl);
+  if (logoDark) view.logoDark = logoDark;
+  const faviconId = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
+  const favicon = brandFavicon(faviconId ? assets.get(faviconId) : undefined, mediaUrl);
+  if (favicon) view.favicon = favicon;
+  return view;
+}
+
+/**
+ * The `BrandConfig` fields a snapshot's brand kit is written back as (restoring a revision, duplicating a menu): the
+ * rail style the brand chose, the pair, and the assets, through `assetMap` when they were copied to another library.
+ * A favicon drawn from the logo is stored as just that.
+ */
+export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<string, string>) {
+  const mapped = (id: string | undefined) => (id === undefined ? null : (assetMap?.get(id) ?? id));
+  const fromLogo = brand.favicon !== undefined && brand.logo !== undefined && brand.favicon.assetId === brand.logo.assetId;
+  return {
+    tokens: json(brand.tokens),
+    theme: brand.theme === 'light' ? ('LIGHT' as const) : ('DARK' as const),
+    motionIntensity: brand.motionIntensity,
+    railStyle: brand.railChoice ?? brand.railStyle,
+    logoText: brand.logoText,
+    fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR,
+    logoAssetId: mapped(brand.logo?.assetId),
+    logoDarkAssetId: mapped(brand.logoDark?.assetId),
+    faviconAssetId: fromLogo ? null : mapped(brand.favicon?.assetId),
+    faviconFromLogo: fromLogo,
   };
 }
 
@@ -103,18 +169,19 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const seo = seoMap(menu.seo);
   const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
   const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
-  if (productAssets.length + seoAssets.length > 0) {
-    const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets]);
-    const mediaUrl = (key: string) => getStorage().publicUrl(key);
-    catalog.products = catalog.products.map((product) => ({
-      ...product,
-      media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
-    }));
-    settings.seo = resolveSeo(seo, assets, mediaUrl);
-  } else {
+  const brandAssets = brandAssetIds(brand);
+  if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
   }
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
+  const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
+  const mediaUrl = (key: string) => getStorage().publicUrl(key);
+  catalog.products = catalog.products.map((product) => ({
+    ...product,
+    media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
+  }));
+  settings.seo = resolveSeo(seo, assets, mediaUrl);
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog });
 }
 
 /**
@@ -209,17 +276,12 @@ export async function writeDraftFromSnapshot(
   await tx.category.deleteMany({ where });
   await tx.daypartSchedule.deleteMany({ where });
 
-  const brandFields = {
-    tokens: json(brand.tokens),
-    theme: brand.theme === 'light' ? ('LIGHT' as const) : ('DARK' as const),
-    motionIntensity: brand.motionIntensity,
-    railStyle: brand.railStyle,
-    logoText: brand.logoText,
-  };
+  // The kit's version moves, so a Brand tab opened before cannot save over what was written.
+  const brandFields = brandRowFromSnapshot(brand, assetMap);
   await tx.brandConfig.upsert({
     where: { menuId },
     create: { menuId, typography: {}, ...brandFields },
-    update: brandFields,
+    update: { ...brandFields, version: { increment: 1 } },
   });
 
   const categories =

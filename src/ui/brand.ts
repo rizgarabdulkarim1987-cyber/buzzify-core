@@ -14,3 +14,9 @@ export function brandCss(brand: BrandView): string {
   const light = sanitizePalette(brand.tokens.light, DEFAULT_PALETTES.light);
   return `html:root{${declarations(dark)}color-scheme:dark}html:root[data-theme='light']{${declarations(light)}color-scheme:light}`;
 }
+
+/** The logo for the theme guests see: the dark one on a dark theme when there is one, else the logo, else none. */
+export function themeLogo(brand: BrandView): { url: string; width: number; height: number } | undefined {
+  const logo = brand.theme === 'dark' ? (brand.logoDark ?? brand.logo) : brand.logo;
+  return logo ? { url: logo.url, width: logo.width, height: logo.height } : undefined;
+}

@@ -66,9 +66,14 @@ export const createRestaurant = defineAction({
 export const updateRestaurant = defineAction({
   name: 'restaurants.update',
   permission: 'restaurant.edit',
-  input: restaurantInput.extend({ restaurantId: idField, version: versionField }),
+  input: restaurantInput.extend({
+    restaurantId: idField,
+    version: versionField,
+    // The restaurant's logo in its library (or the shared one); left out, it stays as it is.
+    logoAssetId: z.string().regex(/^[A-Za-z0-9_-]{1,64}$/).nullable().optional(),
+  }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: async (ctx, { version, ...fields }) => {
+  run: async (ctx, { version, logoAssetId, ...fields }) => {
     const saved = await ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       const input = pickProfile(fields);
@@ -77,10 +82,16 @@ export const updateRestaurant = defineAction({
       const before = profileOf(row);
       // The agency's notes are not the client's to read, so an owner's save cannot write them either.
       const next = { ...input, notes: seesAgencyNotes(ctx.actor, restaurantId) ? input.notes : before.notes };
-      const changes = changedFields(before, next);
+      const changes: Record<string, { before: unknown; after: unknown }> = changedFields(before, next);
+      const logoChanged = logoAssetId !== undefined && logoAssetId !== row.logoAssetId;
+      if (logoChanged && logoAssetId !== null && !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId }, select: { id: true } }))) {
+        throw new StudioError('NOT_FOUND');
+      }
+      if (logoChanged) changes.logoAssetId = { before: row.logoAssetId, after: logoAssetId };
       if (Object.keys(changes).length === 0) return { version: row.version, menuIds: [] };
 
-      await updateWithVersion(tx.restaurant, { id: restaurantId, version, data: profileData(next), entityType: 'Restaurant' }, tx);
+      const data = { ...profileData(next), ...(logoChanged ? { logoAssetId } : {}) };
+      await updateWithVersion(tx.restaurant, { id: restaurantId, version, data, entityType: 'Restaurant' }, tx);
       ctx.audit({ action: 'restaurant.updated', entityType: 'Restaurant', entityId: restaurantId, changes });
       // Guests see the restaurant's name on every menu (it is part of the published snapshot), so a new name is a change
       // to each menu's draft; nothing else in the profile reaches a menu.

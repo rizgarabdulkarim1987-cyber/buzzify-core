@@ -40,6 +40,18 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
     select: { id: true, name: true },
     orderBy: [{ name: 'asc' }, { id: 'asc' }],
   });
+  // Brand kits: a logo, a dark-theme logo, or the file a favicon is drawn from.
+  const kits = await db.brandConfig.findMany({
+    where: { menu: menuFilter, OR: [{ logoAssetId: asset.id }, { logoDarkAssetId: asset.id }, { faviconAssetId: asset.id }] },
+    select: { menuId: true, logoAssetId: true, logoDarkAssetId: true, faviconAssetId: true, menu: { select: { name: true } } },
+    orderBy: [{ menu: { name: 'asc' } }],
+  });
+  // Restaurants that show it as their logo (and give it to each new menu).
+  const restaurants = await db.restaurant.findMany({
+    where: { logoAssetId: asset.id, ...(asset.restaurantId === null ? {} : { id: asset.restaurantId }) },
+    select: { name: true },
+    orderBy: [{ name: 'asc' }],
+  });
   const revisions = await db.menuRevision.findMany({
     where: { menu: menuFilter, assetIds: { has: asset.id } },
     select: { number: true, menuId: true, menu: { select: { name: true } } },
@@ -55,6 +67,17 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
         label: productLabel(product),
       })),
       ...seoMenus.map((menu) => ({ menuId: menu.id, menuName: menu.name, where: 'seo' as const, label: menu.name })),
+      ...kits.flatMap((kit) =>
+        ([
+          [kit.logoAssetId, 'logo'],
+          [kit.logoDarkAssetId, 'logoDark'],
+          [kit.faviconAssetId, 'favicon'],
+        ] as const)
+          .filter(([id]) => id === asset.id)
+          .map(([, where]) => ({ menuId: kit.menuId, menuName: kit.menu.name, where, label: kit.menu.name })),
+      ),
+      // A restaurant is not a menu: its entries have no menu id.
+      ...restaurants.map((restaurant) => ({ menuId: '', menuName: restaurant.name, where: 'restaurant' as const, label: restaurant.name })),
     ],
     revisions: revisions.map((revision) => ({ menuId: revision.menuId, menuName: revision.menu.name, number: revision.number })),
   };
@@ -62,5 +85,5 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
 
 /** The menus whose draft shows an asset: their draft hash changes when the asset's alt text or files do. */
 export function menusUsingInDraft(usage: AssetUsage): string[] {
-  return [...new Set(usage.drafts.map((use) => use.menuId))];
+  return [...new Set(usage.drafts.filter((use) => use.menuId !== '').map((use) => use.menuId))];
 }
