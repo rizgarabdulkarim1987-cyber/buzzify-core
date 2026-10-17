@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { seriousViolations } from './helpers/axe';
+import { expectGuestView } from './helpers/guest';
 import { menuBySlug, removeMenus, removeRestaurants, removeRestaurantsNamed, SUPER_ADMIN_FILE, uniqueClientAddress } from './helpers/studio';
 
 /**
@@ -24,19 +25,6 @@ async function manage(page: Page, item: string) {
     await expect(menu).toBeVisible({ timeout: 1000 });
   }).toPass();
   await menu.getByRole('menuitem', { name: item }).click();
-}
-
-/**
- * Opens `path` as a guest until `testId` shows. A change the Studio makes expires the address's cached answer at once,
- * so the first load normally shows it; in one full run under load a guest page loaded right after "Menu restored" still
- * had the answer from before (not reproduced in 58 suspend and restore cycles since), so the guest reloads until it
- * shows, for at most 15 seconds: without the expiry the old answer would stay for the 5 minutes the address is cached.
- */
-async function guestSees(guest: Page, path: string, testId: string) {
-  await expect(async () => {
-    await guest.goto(path);
-    await expect(guest.getByTestId(testId)).toBeVisible({ timeout: 1000 });
-  }).toPass({ timeout: 15_000 });
 }
 
 test.describe('Studio menus @desktop', () => {
@@ -143,13 +131,12 @@ test.describe('Studio menus @desktop', () => {
     await manage(page, 'Suspend');
     await page.getByRole('dialog', { name: `Suspend ${name}?` }).getByRole('button', { name: 'Suspend' }).click();
     await expect(page.getByText('Menu suspended')).toBeVisible();
-    await guestSees(guest, `/${renamed}/en`, 'menu-unavailable');
+    await expectGuestView(guest, `/${renamed}/en`, 'unavailable');
     await manage(page, 'Restore');
     await page.getByRole('dialog', { name: `Restore ${name}?` }).getByRole('button', { name: 'Restore' }).click();
     await expect(page.getByText('Menu restored')).toBeVisible();
-    await guestSees(guest, `/${renamed}/en`, 'brand');
+    await expectGuestView(guest, `/${renamed}/en`, 'menu');
     await expect(guest.getByTestId('brand')).toHaveText('ATELIER');
-    await expect(guest.getByTestId('menu-unavailable')).toHaveCount(0);
     await guest.context().close();
 
     // Archived, then deleted with its name typed exactly.

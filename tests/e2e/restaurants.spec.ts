@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { seriousViolations } from './helpers/axe';
+import { expectGuestView } from './helpers/guest';
 import { createTemporaryMenu } from './helpers/db';
 import {
   assignMember,
@@ -39,10 +40,6 @@ async function openManage(page: Page, label = 'Manage') {
     await expect(menu).toBeVisible({ timeout: 1000 });
   }).toPass();
 }
-
-/** Whether a guest opening the menu's address now gets the unavailable page. */
-const guestUnavailable = async (page: Page, slug: string) =>
-  (await (await page.request.get(`/${slug}/en`)).text()).includes('data-testid="menu-unavailable"');
 
 const restaurantIdOf = (page: Page) => /\/studio\/restaurants\/([^/?]+)/.exec(page.url())![1]!;
 
@@ -194,6 +191,7 @@ test.describe('Studio restaurants @desktop', () => {
     const menu = await createTemporaryMenu();
     cleanups.push(() => menu.remove());
     const page = await freshPage(browser, { signedIn: true });
+    const guest = await freshPage(browser);
 
     // Visit the public page first, so the slug is in the cache the change has to expire.
     expect((await page.request.get(`/${menu.slug}/en`)).ok()).toBe(true);
@@ -206,16 +204,17 @@ test.describe('Studio restaurants @desktop', () => {
     await dialog.getByRole('button', { name: 'Suspend' }).click();
     await expect(page.getByText('Restaurant suspended')).toBeVisible();
     await expect(page.getByText('This restaurant is suspended.')).toBeVisible();
-    // The cached answer is expired at once; polled as menus.spec.ts explains (a guest load racing the change), well inside
-    // the 5 minutes the address would otherwise keep its answer.
-    await expect.poll(() => guestUnavailable(page, menu.slug)).toBe(true);
+    // The address's cached answer is expired with the change: the guest's next load shows it.
+    await expectGuestView(guest, `/${menu.slug}/en`, 'unavailable');
 
     await openManage(page);
     await page.getByRole('menuitem', { name: 'Restore' }).click();
     await page.getByRole('dialog', { name: `Restore ${menu.name}?` }).getByRole('button', { name: 'Restore' }).click();
     await expect(page.getByText('Restaurant restored')).toBeVisible();
     await expect(page.getByText('This restaurant is suspended.')).toHaveCount(0);
-    await expect.poll(() => guestUnavailable(page, menu.slug)).toBe(false);
+    await expectGuestView(guest, `/${menu.slug}/en`, 'menu');
+    await expect(guest.getByTestId('product-row').filter({ hasText: 'Espresso' }).first()).toBeVisible();
+    await guest.context().close();
     await page.context().close();
   });
 
