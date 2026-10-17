@@ -41,6 +41,13 @@ describe('r2Storage', () => {
     expect(headers).toEqual({ 'content-type': 'image/png' });
   });
 
+  it('signs an upload slot without a checksum, which the browser’s file could never match', async () => {
+    // The SDK otherwise signs the CRC32 of an empty body (AAAAAA==) into the URL, and R2 refuses every real file sent to it.
+    const { url } = await r2Storage(CONFIG, fakeClient()).presignPut('uploads/r1/u1', { contentType: 'image/png', contentLength: 1234, expiresInSec: 300 });
+    const params = [...new URL(url).searchParams.keys()].map((name) => name.toLowerCase());
+    expect(params.filter((name) => name.includes('checksum'))).toEqual([]);
+  });
+
   it('signs a download that saves under its file name', async () => {
     const url = new URL(await r2Storage(CONFIG, fakeClient()).presignGet('exports/m1/e1/menu.csv', { fileName: 'Atelier menu.csv', expiresInSec: 300 }));
     expect(url.pathname).toBe('/bucket/exports/m1/e1/menu.csv');
