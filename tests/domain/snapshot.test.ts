@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
+import atelier2a from './fixtures/atelier-snapshot-2a.json';
 import {
   buildSnapshot,
   parseSnapshot,
+  snapshotAssetIds,
   snapshotHash,
   toCatalog,
   type LiveOverlay,
@@ -253,5 +255,82 @@ describe('toCatalog', () => {
     const bySortOrder = <T extends { sortOrder: number; id: string }>(list: T[]) =>
       [...list].sort((a, b) => a.sortOrder - b.sortOrder || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     expect(c.products).toEqual(bySortOrder(catalog.products));
+  });
+});
+
+describe('2b additions', () => {
+  // Written by 2a's code (Task 3, step 1): the ATELIER draft as 2a published it, and the hash 2a computed for it.
+  const fixture = atelier2a as { snapshot: unknown; hash: string };
+
+  const logo = {
+    assetId: 'asset-logo',
+    url: 'https://media.example.com/r/r1/abc/webp-640.webp',
+    width: 640,
+    height: 320,
+    svg: false,
+    rasterKey: 'r/r1/abc/webp-640.webp',
+  };
+  const favicon = { assetId: 'asset-logo', png32: '/m/f32.png', png180: '/m/f180.png', png512: '/m/f512.png' };
+  const seoImage = { assetId: 'asset-seo', url: '/api/dev-media/r/r1/def/webp-1080.webp', width: 1080, height: 566 };
+  const libraryImage = {
+    kind: 'image',
+    url: '/api/dev-media/r/r1/ghi/webp-1080.webp',
+    alt: 'Espresso',
+    width: 1200,
+    height: 800,
+    assetId: 'asset-photo',
+  };
+
+  const rich = () =>
+    buildSnapshot({
+      menu: makeMenu({ seo: { en: { title: 'T', description: 'D', image: seoImage } } }),
+      brand: makeBrand({ fontPairId: 'cafe', railChoice: 'drum', railStyle: 'plain', motionIntensity: 'none', logo, logoDark: logo, favicon }),
+      catalog: withProduct(catalog, IDS.burger, { media: [libraryImage] }),
+    });
+
+  it('reads a snapshot published before 2b and hashes it as it was', () => {
+    const parsed = parseSnapshot(fixture.snapshot);
+    expect(snapshotHash(parsed)).toBe(fixture.hash);
+    // Nothing is added on the way in: no defaults, no undefined keys.
+    expect(JSON.parse(JSON.stringify(parsed))).toEqual(fixture.snapshot);
+  });
+
+  it('leaves unused 2b fields out of the snapshot and the hash', () => {
+    const plain = buildSnapshot({ menu, brand, catalog });
+    expect(Object.keys(plain.brand).sort()).toEqual(['logoText', 'motionIntensity', 'railStyle', 'theme', 'tokens']);
+    expect(snapshotHash(parseSnapshot(JSON.parse(JSON.stringify(plain))))).toBe(snapshotHash(snapshot));
+  });
+
+  it('changes the hash when a logo is set', () => {
+    const withLogo = buildSnapshot({ menu, brand: makeBrand({ logo }), catalog });
+    expect(snapshotHash(withLogo)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it('round-trips logos, favicon, font pair, rail choice and SEO images through JSON', () => {
+    const s = rich();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+  });
+
+  it.each(['javascript:alert(1)', '//evil.example/logo.png', 'http://media.example.com/logo.png'])(
+    'refuses a logo whose url is %s',
+    (url) => {
+      const s = JSON.parse(JSON.stringify(rich()));
+      s.brand.logo.url = url;
+      expect(() => parseSnapshot(s)).toThrow();
+    },
+  );
+
+  it('refuses an unknown font pair', () => {
+    const s = JSON.parse(JSON.stringify(rich()));
+    s.brand.fontPairId = 'comic';
+    expect(() => parseSnapshot(s)).toThrow();
+  });
+
+  it('lists every asset a snapshot uses, once, sorted', () => {
+    expect(snapshotAssetIds(rich())).toEqual(['asset-logo', 'asset-photo', 'asset-seo']);
+    expect(snapshotAssetIds(snapshot)).toEqual([]);
+    expect(snapshotAssetIds(parseSnapshot(fixture.snapshot))).toEqual([]);
   });
 });

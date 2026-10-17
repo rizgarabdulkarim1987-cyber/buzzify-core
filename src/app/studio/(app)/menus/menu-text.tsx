@@ -20,7 +20,11 @@ export const languageName = (t: Translate, code: string) => (isLocale(code) ? t(
  * name every item has, whatever the language); a message for the entity's kind is used when there is one.
  */
 export function issueText(t: Translate, issue: PublishIssue): string {
-  const params = { name: issue.entity?.slug ?? '', language: issue.locale ? languageName(t, issue.locale) : '' };
+  const params = {
+    name: issue.entity?.slug ?? '',
+    language: issue.locale ? languageName(t, issue.locale) : '',
+    ratio: issue.pair ? issue.pair.ratio.toFixed(2) : '',
+  };
   const specific = issue.entity ? `menus.issue.${issue.code}.${issue.entity.type}` : null;
   if (specific && t(specific) !== specific) return t(specific, params);
   return t(`menus.issue.${issue.code}`, params);

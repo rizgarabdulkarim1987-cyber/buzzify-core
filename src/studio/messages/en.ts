@@ -707,6 +707,9 @@ const en: Messages = {
   'menus.issue.MISSING_TRANSLATION.category': 'Category {name} has no name in {language}',
   'menus.issue.MISSING_TRANSLATION.product': 'Product {name} has no name in {language}',
   'menus.issue.NO_IMAGE': 'Product {name} has no image',
+  'menus.issue.LOW_CONTRAST': 'Text in the brand colours is hard to read ({ratio}:1; it needs 4.5:1)',
+  'menus.issue.MISSING_ASSET': 'A product uses a library image that no longer exists',
+  'menus.issue.MISSING_ASSET.product': 'Product {name} uses a library image that no longer exists',
 
   // Menus: publishing
   'menus.publish': 'Publish',

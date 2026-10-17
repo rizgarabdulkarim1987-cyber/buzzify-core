@@ -1,10 +1,45 @@
 import type { Palette } from '@/lib/brand';
+import type { FontPairId } from '@/lib/font-pairs';
 import type { Locale } from '@/lib/locale';
 import type { RailStyle } from '@/lib/rail';
 import type { EngineConfig } from '@/server/domain/config';
 
 export type { Palette };
 
+/** A social preview image from the media library, resolved at publish. */
+export interface SeoImage {
+  assetId: string;
+  url: string;
+  width: number;
+  height: number;
+}
+
+/** Search and sharing text by language, with an optional social preview image. */
+export type SeoText = Partial<Record<Locale, { title: string; description: string; image?: SeoImage }>>;
+
+/** A brand logo from the media library, resolved at publish. */
+export interface BrandImage {
+  assetId: string;
+  url: string;
+  width: number;
+  height: number;
+  svg: boolean;
+  /** The storage key of a raster rendition, for drawing it on the server (social image, QR codes). */
+  rasterKey: string;
+}
+
+/** The brand's favicon, as PNGs at the three sizes browsers ask for. */
+export interface BrandFavicon {
+  assetId: string;
+  png32: string;
+  png180: string;
+  png512: string;
+}
+
+/**
+ * The brand kit as guests get it. The optional fields arrived with the brand kit (2b) and are left out when unused, so
+ * a menu that uses none of them hashes exactly as it did before.
+ */
 export interface BrandView {
   logoText: string;
   theme: 'dark' | 'light';
@@ -12,6 +47,14 @@ export interface BrandView {
   /** How the category rail moves; the plain rail when the menu has turned motion off. */
   railStyle: RailStyle;
   tokens: { dark: Palette; light: Palette };
+  /** The font pair; absent means `classic`. */
+  fontPairId?: FontPairId;
+  /** The rail style the brand chose, kept only when turning motion off made `railStyle` plain and they differ. */
+  railChoice?: RailStyle;
+  logo?: BrandImage;
+  /** The logo for a dark theme, when it has its own. */
+  logoDark?: BrandImage;
+  favicon?: BrandFavicon;
 }
 
 /**
@@ -36,7 +79,7 @@ export interface TenantInfo {
   engineConfig: EngineConfig;
   brand: BrandView;
   /** Search and sharing text by language, as set on the menu; a language without an entry uses the name. */
-  seo: Partial<Record<Locale, { title: string; description: string }>>;
+  seo: SeoText;
 }
 
 export { getTenant } from './public-menu';

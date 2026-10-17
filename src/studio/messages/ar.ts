@@ -728,6 +728,9 @@ const ar: Messages = {
   'menus.issue.MISSING_TRANSLATION.category': 'الفئة {name} بلا اسم باللغة {language}',
   'menus.issue.MISSING_TRANSLATION.product': 'المنتج {name} بلا اسم باللغة {language}',
   'menus.issue.NO_IMAGE': 'المنتج {name} بلا صورة',
+  'menus.issue.LOW_CONTRAST': 'يصعب قراءة النص بألوان العلامة ({ratio}:1؛ المطلوب 4.5:1)',
+  'menus.issue.MISSING_ASSET': 'منتج يستخدم صورة من المكتبة لم تعد موجودة',
+  'menus.issue.MISSING_ASSET.product': 'المنتج {name} يستخدم صورة من المكتبة لم تعد موجودة',
 
   // Menus: publishing
   'menus.publish': 'نشر',

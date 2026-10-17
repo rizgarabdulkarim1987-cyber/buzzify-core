@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { ATELIER, type SeedData, type Tri } from '../../prisma/seed/atelier';
 import { LOCALES } from '@/lib/locale';
 import { validateForPublish, type PublishIssue } from '@/server/domain/publish-rules';
-import { buildSnapshot, type MenuSnapshot } from '@/server/domain/snapshot';
+import { DEFAULT_PALETTES, type Palette } from '@/lib/brand';
+import { buildSnapshot, parseSnapshot, type MenuSnapshot } from '@/server/domain/snapshot';
+import fixture2a from './fixtures/atelier-snapshot-2a.json';
 import type { Catalog, CatalogGroup, CatalogProduct, TranslationMap } from '@/server/domain/types';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
@@ -446,3 +448,49 @@ function atelierSnapshot(): MenuSnapshot {
     catalog: atelierCatalog(data),
   });
 }
+
+describe('2b rules', () => {
+  const withPalette = (palette: Partial<Palette>, theme: 'light' | 'dark' = 'light') =>
+    buildSnapshot({
+      menu: makeMenu(),
+      brand: makeBrand({ theme, tokens: { dark: DEFAULT_PALETTES.dark, light: { ...DEFAULT_PALETTES.light, ...palette } } }),
+      catalog: pictured(),
+    });
+
+  it('blocks publishing when text on the background is below 4.5:1', () => {
+    expect(issues(withPalette({ text: '#777777', bg: '#FFFFFF' }))).toContainEqual({
+      code: 'LOW_CONTRAST',
+      severity: 'block',
+      pair: { foreground: 'text', background: 'bg', ratio: 4.48 },
+    });
+  });
+
+  it('reports one issue per failing pair and none for a weak accent alone', () => {
+    const lowMuted = issues(withPalette({ muted: '#999999' })).filter((i) => i.code === 'LOW_CONTRAST');
+    expect(lowMuted.map((i) => i.pair && `${i.pair.foreground}/${i.pair.background}`)).toEqual(['muted/bg', 'muted/surface']);
+    expect(issues(withPalette({ accent: '#E8D9B0' })).filter((i) => i.code === 'LOW_CONTRAST')).toEqual([]);
+  });
+
+  it('checks only the palette of the theme guests see', () => {
+    // The light palette is broken, but guests see the dark one.
+    expect(issues(withPalette({ text: '#EEEEEE' }, 'dark')).filter((i) => i.code === 'LOW_CONTRAST')).toEqual([]);
+    expect(blocking(withPalette({ text: '#EEEEEE' }, 'light')).map((i) => i.code)).toContain('LOW_CONTRAST');
+  });
+
+  it('blocks a library image that could not be resolved', () => {
+    const snapshot = buildSnapshot({
+      menu: makeMenu(),
+      brand: makeBrand(),
+      catalog: withProduct(pictured(), IDS.burger, { media: [{ kind: 'asset', assetId: 'a1' }] }),
+    });
+    expect(issues(snapshot)).toContainEqual({
+      code: 'MISSING_ASSET',
+      severity: 'block',
+      entity: { type: 'product', id: IDS.burger, slug: expect.any(String) },
+    });
+  });
+
+  it('finds nothing blocking in the ATELIER snapshot 2a published', () => {
+    expect(validateForPublish(parseSnapshot((fixture2a as { snapshot: unknown }).snapshot)).filter((i) => i.severity === 'block')).toEqual([]);
+  });
+});

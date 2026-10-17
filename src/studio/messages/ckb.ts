@@ -711,6 +711,9 @@ const ckb: Messages = {
   'menus.issue.MISSING_TRANSLATION.category': 'پۆلی {name} ناوی بە {language} نییە',
   'menus.issue.MISSING_TRANSLATION.product': 'بەرهەمی {name} ناوی بە {language} نییە',
   'menus.issue.NO_IMAGE': 'بەرهەمی {name} وێنەی نییە',
+  'menus.issue.LOW_CONTRAST': 'دەق بە ڕەنگەکانی براند بە ئاستەم دەخوێندرێتەوە ({ratio}:1؛ پێویستە 4.5:1 بێت)',
+  'menus.issue.MISSING_ASSET': 'بەرهەمێک وێنەیەکی کتێبخانە بەکاردەهێنێت کە ئیتر نەماوە',
+  'menus.issue.MISSING_ASSET.product': 'بەرهەمی {name} وێنەیەکی کتێبخانە بەکاردەهێنێت کە ئیتر نەماوە',
 
   // Menus: publishing
   'menus.publish': 'بڵاوکردنەوە',
