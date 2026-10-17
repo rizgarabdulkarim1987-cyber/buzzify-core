@@ -1,6 +1,9 @@
 import type { NextConfig } from 'next';
 
 const config: NextConfig = {
+  // Hostinger runs Next.js's self-contained server (it reads the PORT it is given); `npm run build:host` sets this.
+  // Local builds stay regular so `npm run start` keeps working.
+  ...(process.env.BUILD_TARGET === 'standalone' ? { output: 'standalone' as const } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   // The end-to-end tests load the dev server through 127.0.0.1 rather than localhost.

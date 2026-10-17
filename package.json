@@ -28,6 +28,7 @@
     "db:seed": "prisma db seed",
     "db:seed:load": "tsx prisma/seed-load.ts",
     "vercel-build": "tsx scripts/check-env.ts && prisma generate && prisma migrate deploy && next build",
+    "build:host": "tsx scripts/check-env.ts && prisma migrate deploy && BUILD_TARGET=standalone next build --webpack",
     "postinstall": "prisma generate"
   },
   "dependencies": {
@@ -82,6 +83,7 @@
     "@axe-core/playwright": "4.14.0",
     "@fontsource/hanken-grotesk": "5.3.0",
     "@fontsource/noto-naskh-arabic": "5.3.0",
+    "@neon/config": "1.9.2",
     "@playwright/test": "1.64.1",
     "@tailwindcss/postcss": "4.3.3",
     "@types/fontkit": "2.0.9",

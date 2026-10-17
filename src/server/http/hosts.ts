@@ -49,7 +49,7 @@ function isHost(requestHost: string, configured: string | null): boolean {
  * Studio origin beside the menus. In development and previews the hosts are not both set, and every other host serves
  * everything. Pure, so the proxy that applies it needs no database and no network.
  */
-export function routeHost(req: { host: string; pathname: string }, cfg: HostConfig): HostDecision {
+export function routeHost(req: { host: string; pathname: string; search?: string }, cfg: HostConfig): HostDecision {
   const { pathname } = req;
 
   // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
@@ -65,6 +65,11 @@ export function routeHost(req: { host: string; pathname: string }, cfg: HostConf
     if (STUDIO_ONLY.some((prefix) => within(pathname, prefix))) return NOT_FOUND;
     if (pathname === '/') return { action: 'redirect', to: cfg.rootRedirect };
     return NEXT;
+  }
+
+  // People type `www.` in front of the menus' address; send them to the address itself, keeping what they asked for.
+  if (cfg.publicHost && !cfg.publicHost.includes(':') && isHost(req.host, `www.${cfg.publicHost}`)) {
+    return { action: 'redirect', to: `https://${normalizeHost(cfg.publicHost)}${pathname}${req.search ?? ''}` };
   }
 
   if (cfg.production && cfg.publicHost && cfg.studioHost) return NOT_FOUND;
