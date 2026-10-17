@@ -2,7 +2,9 @@ import 'dotenv/config';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
 import { publishMenu } from '@/server/publish/publish';
-import { ATELIER } from './seed/atelier';
+import { ATELIER, type SeedData } from './seed/atelier';
+import { HOT_BRICK } from './seed/hot-brick';
+import { RIVERLIGHT } from './seed/riverlight';
 import { seedMenu } from './seed/apply';
 import { assertLocalDatabase } from './seed/local-database';
 import { seedDevUsers } from './seed/users';
@@ -13,7 +15,7 @@ import { assertSeedValid } from './seed/validate';
  * that `.env.example` publishes, and that file turns it on once it is copied to `.env`, so it must never reach a
  * production database or a hosted one:
  * - in production with `DEV_SEED_PASSWORD` set the whole seed stops (a deploy that has it set is wrong, whichever way it
- *   got there); with it unset the demo menu is seeded and the users are skipped;
+ *   got there); with it unset the demo menus are seeded and the users are skipped;
  * - anywhere else the users need `DATABASE_URL` to point at this machine (or `ALLOW_REMOTE_DEV_SEED=1`). The demo menu
  *   alone, with `DEV_SEED_PASSWORD` unset, is not restricted to a host.
  * Returns whether the development users are to be seeded.
@@ -36,7 +38,7 @@ function checkDevUsers(): boolean {
 }
 
 /**
- * A reseed replaces the demo menu that has the address now. The address's row outlives the menu (a deleted menu's
+ * A reseed replaces the demo menu that has the address now (for each demo menu). The address's row outlives the menu (a deleted menu's
  * addresses stay reserved for good, so an old QR code never opens another menu), so it is checked before anything is
  * written: once the demo menu was deleted, or moved to another address that `/atelier` now redirects to, the seed
  * refuses rather than give the address to a new menu.
@@ -58,52 +60,63 @@ async function checkSlugIsOurs(prisma: PrismaClient, slug: string): Promise<void
   }
 }
 
+/** The demo menus, each under its own restaurant: ATELIER (with the development users), then the two 2b added. */
+const DEMOS: readonly SeedData[] = [ATELIER, RIVERLIGHT, HOT_BRICK];
+
+/** Finds the demo's restaurant by name (a reseed keeps it, and so its client number), or creates it. */
+async function demoRestaurant(prisma: PrismaClient, { profile }: SeedData) {
+  return (
+    (await prisma.restaurant.findFirst({ where: { name: profile.name }, orderBy: { createdAt: 'asc' } })) ??
+    (await prisma.restaurant.create({
+      data: {
+        name: profile.name,
+        type: profile.type,
+        description: profile.description,
+        city: profile.city,
+        country: profile.country,
+        phone: profile.phone,
+        whatsapp: profile.whatsapp,
+        socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
+      },
+    }))
+  );
+}
+
+/** Seeds one demo menu under its restaurant and publishes it as revision 1 (guests see only what is published). */
+async function seedDemo(prisma: PrismaClient, data: SeedData): Promise<{ restaurantId: string }> {
+  const restaurant = await demoRestaurant(prisma, data);
+  const { menuId } = await seedMenu(prisma, data, restaurant.id);
+  // The slug is reserved for good: the row outlives the menu, so a reseed points the same slug at the new menu (the
+  // checks before anything was written made sure it was the address of the demo menu just replaced).
+  const slug = data.restaurant.slug;
+  await prisma.menuSlug.upsert({ where: { slug }, create: { slug, menuId }, update: { menuId } });
+
+  const outcome = await prisma.$transaction((tx) => publishMenu(tx, { menuId, actorId: null, note: 'Seed', now: new Date() }));
+  if (!outcome.ok) {
+    const blocking = outcome.issues.filter((issue) => issue.severity === 'block');
+    throw new Error(`The ${slug} seed cannot be published:\n${blocking.map((i) => JSON.stringify(i)).join('\n')}`);
+  }
+  console.log(
+    `Seeded ${slug} (${menuId}) for ${restaurant.name}: ${data.products.length} products, ` +
+      `published as revision ${outcome.number} with ${outcome.warnings.length} warnings`,
+  );
+  return { restaurantId: restaurant.id };
+}
+
 async function main() {
-  assertSeedValid(ATELIER);
+  for (const demo of DEMOS) assertSeedValid(demo);
   const withDevUsers = checkDevUsers();
   const prisma = createPrisma();
   try {
-    await checkSlugIsOurs(prisma, ATELIER.restaurant.slug);
-    const { profile } = ATELIER;
-    // Reseeding replaces the menu but keeps the restaurant (and so its client number), found by name.
-    const restaurant =
-      (await prisma.restaurant.findFirst({ where: { name: profile.name }, orderBy: { createdAt: 'asc' } })) ??
-      (await prisma.restaurant.create({
-        data: {
-          name: profile.name,
-          type: profile.type,
-          description: profile.description,
-          city: profile.city,
-          country: profile.country,
-          phone: profile.phone,
-          whatsapp: profile.whatsapp,
-          socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
-        },
-      }));
+    // Every address is checked before anything is written, so a refusal leaves all three menus as they were.
+    for (const demo of DEMOS) await checkSlugIsOurs(prisma, demo.restaurant.slug);
+    const atelier = await seedDemo(prisma, ATELIER);
+    await seedDemo(prisma, RIVERLIGHT);
+    await seedDemo(prisma, HOT_BRICK);
 
-    const { menuId } = await seedMenu(prisma, ATELIER, restaurant.id);
-    // The slug is reserved for good: the row outlives the menu, so a reseed points the same slug at the new menu (the
-    // check above made sure it was the address of the demo menu just replaced, not a deleted or moved menu's).
-    const slug = ATELIER.restaurant.slug;
-    await prisma.menuSlug.upsert({ where: { slug }, create: { slug, menuId }, update: { menuId } });
-
-    // Guests see only what is published, so the demo menu goes live as revision 1.
-    const outcome = await prisma.$transaction((tx) =>
-      publishMenu(tx, { menuId, actorId: null, note: 'Seed', now: new Date() }),
-    );
-    if (!outcome.ok) {
-      const blocking = outcome.issues.filter((issue) => issue.severity === 'block');
-      throw new Error(`The ${slug} seed cannot be published:\n${blocking.map((i) => JSON.stringify(i)).join('\n')}`);
-    }
-
-    // Sign-in users for development: skipped without DEV_SEED_PASSWORD, and never in production.
-    if (withDevUsers) await seedDevUsers(prisma, restaurant.id);
+    // Sign-in users for development, on ATELIER: skipped without DEV_SEED_PASSWORD, and never in production.
+    if (withDevUsers) await seedDevUsers(prisma, atelier.restaurantId);
     else console.log('Development users skipped (production).');
-
-    console.log(
-      `Seeded ${slug} (${menuId}) for ${restaurant.name}: ${ATELIER.products.length} products, ` +
-        `published as revision ${outcome.number} with ${outcome.warnings.length} warnings`,
-    );
   } finally {
     await prisma.$disconnect();
   }

@@ -1,4 +1,5 @@
 import type { RestaurantType } from '@/generated/prisma/enums';
+import type { FontPairId } from '@/lib/font-pairs';
 import type { ArtKind } from '@/lib/media';
 import type { RailStyle } from '@/lib/rail';
 import type { Daypart, VisualKey } from '@/server/domain/types';
@@ -62,6 +63,10 @@ export interface SeedProduct {
   description: Tri;
   ingredients: TriList;
   allergens: string[];
+  /** DIETARY_TAGS keys (src/lib/product-tags.ts), where true of the product. */
+  dietary?: string[];
+  /** BADGES keys: NEW, POPULAR or RECOMMENDED. */
+  badges?: string[];
   groups?: SeedGroup[];
   variants?: SeedVariant[];
 }
@@ -131,6 +136,8 @@ export interface SeedData {
     motionIntensity: 'none' | 'subtle' | 'expressive';
     navStyle: string;
     railStyle: RailStyle;
+    /** The brand kit's font pair; `typography` names its faces. */
+    fontPairId: FontPairId;
     typography: { display: string; text: string; arabic: string };
     tokens: { dark: SeedPalette; light: SeedPalette };
   };
@@ -230,6 +237,7 @@ export const ATELIER: SeedData = {
     motionIntensity: 'subtle',
     navStyle: 'rail',
     railStyle: 'deck',
+    fontPairId: 'classic',
     typography: { display: 'Bodoni Moda', text: 'Hanken Grotesk', arabic: 'Noto Naskh Arabic' },
     tokens: {
       dark: {

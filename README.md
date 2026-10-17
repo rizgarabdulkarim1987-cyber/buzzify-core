@@ -1,8 +1,9 @@
 # Buzzify Menu Studio
 
 A multi-tenant digital menu and revenue platform for cafés and restaurants. Guests open a restaurant's published menu on
-their phone; the team runs restaurants, menus and people in the **Studio**. The repository is demonstrated with the
-fictional luxury café ATELIER.
+their phone; the team runs restaurants, menus and people in the **Studio**. The repository is demonstrated with three
+fictional places: the luxury café ATELIER, Riverlight Coffee (a light, English-first café) and Hot Brick Burgers (a dark,
+Sorani-first burger place priced in dinars).
 
 > The Arabic and Sorani text in the seed data, the public menu and the Studio interface is machine-drafted. Have a native
 > speaker review it before real customers or staff see it.
@@ -48,11 +49,11 @@ npm install
 cp .env.example .env # Windows PowerShell: Copy-Item .env.example .env
 npm run db:up        # starts PostgreSQL on 127.0.0.1:54329 (data in .data/, git-ignored)
 npm run db:migrate   # creates the schema from the migrations
-npm run db:seed      # loads ATELIER, and the development sign-in users (see below)
+npm run db:seed      # loads the three demo menus, and the development sign-in users (see below)
 npm run dev          # http://localhost:3100/atelier/en/t/04
 ```
 
-Port 3100 is used because 3000 is often taken. Public routes:
+Port 3100 is used because 3000 is often taken. The other demo menus open at `/riverlight` and `/hot-brick`. Public routes:
 
 | URL | Page |
 |---|---|
@@ -109,7 +110,7 @@ works, and backups. A deploy first checks the production environment and lists e
 | `npm run perf` | Lighthouse mobile baseline into `docs/perf/` (needs `build` and `start`) |
 | `npm run db:up` / `db:down` / `db:status` | Embedded PostgreSQL |
 | `npm run db:migrate` / `db:deploy` | Create and apply migrations in development / apply the existing ones |
-| `npm run db:seed` | Reseeds ATELIER (keeps its restaurant, replaces its menu). With `DEV_SEED_PASSWORD` set it also creates the development users above (only on a local database, never in production; a loopback tunnel to a remote database cannot be detected, so do not run it with one open) |
+| `npm run db:seed` | Reseeds the demo menus `atelier`, `riverlight` and `hot-brick` (each keeps its restaurant and gets its menu replaced, published as revision 1). With `DEV_SEED_PASSWORD` set it also creates the development users above (only on a local database, never in production; a loopback tunnel to a remote database cannot be detected, so do not run it with one open) |
 | `npm run db:seed:load` | Opt-in tooling, local databases only: adds load-test restaurants with a published menu each (1,000 of them, a sizing assumption for the Studio’s lists, not data you need) and 20,000 audit rows, replacing its earlier run |
 | `npm run studio:create-admin` | Creates the first Super Admin: asks for a name, email and password in the terminal (never shown, never stored in the clear), and refuses when one exists unless `--force` is given. It prints which database it will change before it asks anything |
 | `npm run lint` / `typecheck` | Static checks |

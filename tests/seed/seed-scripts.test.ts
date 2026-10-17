@@ -54,13 +54,19 @@ afterAll(async () => {
 });
 
 describe('npm run db:seed', () => {
-  it('seeds ATELIER and the development users on this machine', async () => {
+  it('seeds the three demo menus and the development users on this machine', async () => {
     const { code, out } = run('prisma/seed.ts', { DEV_SEED_PASSWORD: PASSWORD });
 
     expect(code, out).toBe(0);
     expect(out).toContain('Development users: created');
     expect(out).not.toContain(PASSWORD);
     expect((await atelier())?.liveRevisionId).toEqual(expect.any(String));
+    // Each under its own restaurant, published.
+    const demos = await prisma.menu.findMany({ where: { slug: { in: ['riverlight', 'hot-brick'] } }, select: { slug: true, liveRevisionId: true, restaurant: { select: { name: true } } }, orderBy: { slug: 'asc' } });
+    expect(demos).toEqual([
+      { slug: 'hot-brick', liveRevisionId: expect.any(String), restaurant: { name: 'Hot Brick Burgers' } },
+      { slug: 'riverlight', liveRevisionId: expect.any(String), restaurant: { name: 'Riverlight Coffee' } },
+    ]);
     expect(await prisma.user.count()).toBe(3);
   });
 
@@ -113,13 +119,15 @@ describe('npm run db:seed', () => {
     const menu = await atelier();
     await prisma.menu.update({ where: { id: menu!.id }, data: { slug: 'atelier-cafe' } });
     await prisma.menuSlug.create({ data: { slug: 'atelier-cafe', menuId: menu!.id } });
+    const before = await prisma.menu.findMany({ select: { id: true }, orderBy: { id: 'asc' } });
 
     const { code, out } = run('prisma/seed.ts', {});
 
     expect(code).toBe(1);
     expect(out).toContain('atelier-cafe');
     expect(await prisma.menuSlug.findUniqueOrThrow({ where: { slug: 'atelier' } })).toMatchObject({ menuId: menu!.id });
-    expect(await prisma.menu.count()).toBe(1);
+    // Refused before anything was written: the other demo menus were not replaced either.
+    expect(await prisma.menu.findMany({ select: { id: true }, orderBy: { id: 'asc' } })).toEqual(before);
   });
 
   it('replaces the demo menu when it is run again while the menu exists', async () => {
