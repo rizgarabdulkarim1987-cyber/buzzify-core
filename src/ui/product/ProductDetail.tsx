@@ -28,7 +28,7 @@ interface Props {
 }
 
 export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Props) {
-  const { t, money, addLine, announce, cart, dismissed, dismiss, locale, tenant } = useApp();
+  const { t, money, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -213,6 +213,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         )}
       </div>
 
+      {!preview && (
       <div className="border-t border-line bg-surface px-5 py-4">
         {!canAdd && orderable && <p className="mb-3 text-sm text-accent">{t('product.makeChoices')}</p>}
         <div className="flex items-center gap-3">
@@ -248,6 +249,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -215,6 +215,8 @@ export const getMenu = defineQuery({
       /** What publishing now would say: the blocking problems and the warnings, in the order of the menu. */
       issues: validateForPublish(snapshot),
       duplicateTargets: restaurants.map((row) => ({ id: row.id, name: row.name, clientId: formatClientId(row.clientNumber) })),
+      /** Every permission the reader holds at this menu, for the workspace's tabs (`visibleTabs`). */
+      permissions: [...ctx.permissions].sort(),
       /** What the reader may do here, for showing or hiding the controls; the actions check it again. */
       can: {
         publish: can('publish.now'),

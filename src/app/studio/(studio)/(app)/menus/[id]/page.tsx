@@ -1,37 +1,21 @@
-import { ChevronLeft, ExternalLink } from 'lucide-react';
-import type { Metadata } from 'next';
-import Link from 'next/link';
+import { ExternalLink } from 'lucide-react';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { cache } from 'react';
-import { hostEnv } from '@/server/env';
 import { getActor } from '@/server/studio/auth/actor';
-import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
-import { getMenu } from '@/server/studio/queries/menus';
+import { SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { formatDateTime, numberFormat } from '@/studio/format';
 import { liveStateKeys } from '@/studio/menu-live';
 import { getStudioTranslator } from '@/studio/messages';
-import { isOwnerOnly } from '@/studio/nav';
-import { Alert } from '@/studio/ui/Alert';
 import { buttonClasses } from '@/studio/ui/Button';
 import { CopyButton } from '@/studio/ui/CopyButton';
 import { isolated } from '@/studio/ui/isolate';
-import { PageHeader } from '@/studio/ui/PageHeader';
-import { StatusBadge } from '@/studio/ui/StatusBadge';
-import { issueText, languageName, MenuStatusBadge } from '../menu-text';
-import { MenuActions } from './MenuActions';
-
-/** The menu of the page's address, read once per request for the page and its title. */
-const loadMenu = cache((menuId: string) => query(getMenu, { menuId }));
-
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
-  return { title: (await loadMenu((await params).id)).name };
-}
+import { issueText, languageName } from '../menu-text';
+import { loadMenu } from './load';
 
 /** One part of the page: its heading on the start side, what it says beside it. */
 function Section({ id, title, intro, children }: { id: string; title: string; intro?: string; children: ReactNode }) {
   return (
-    <section aria-labelledby={id} className="grid gap-x-12 gap-y-3 border-t border-line py-6 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
+    <section aria-labelledby={id} className="grid gap-x-12 gap-y-3 border-t border-line py-6 first:border-t-0 xl:grid-cols-[minmax(0,15rem)_minmax(0,1fr)]">
       <div className="flex flex-col gap-1">
         <h2 id={id} className="text-md font-semibold text-text">
           {title}
@@ -44,8 +28,8 @@ function Section({ id, title, intro, children }: { id: string; title: string; in
 }
 
 /**
- * A menu: where guests find it, what they see now, what stands in the way of publishing the draft, and its settings.
- * Publishing and everything done to the menu as a whole sit in the header. The editing workspace comes later.
+ * The Content tab, for now the menu's overview: where guests find it, what they see now, what stands in the way of
+ * publishing the draft, and its settings. The workspace's frame (layout.tsx) carries publishing and the menu's actions.
  */
 export default async function MenuPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -63,56 +47,9 @@ export default async function MenuPage({ params }: { params: Promise<{ id: strin
     hasLiveRevision: menu.liveRevision !== null,
     unpublished: menu.unpublished,
   });
-  const back = isOwnerOnly(actor)
-    ? { href: `/studio/restaurants/${menu.restaurant.id}/menus`, label: menu.restaurant.name }
-    : { href: '/studio/menus', label: t('menus.title') };
 
   return (
     <>
-      <PageHeader
-        above={
-          <Link href={back.href} className="inline-flex w-fit items-center gap-1 text-sm text-muted transition-colors hover:text-text">
-            <ChevronLeft aria-hidden className="size-4 rtl:-scale-x-100" />
-            {back.label}
-          </Link>
-        }
-        title={menu.name}
-        description={
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <Link href={`/studio/restaurants/${menu.restaurant.id}`} className="text-text underline-offset-2 hover:underline">
-              {menu.restaurant.name}
-            </Link>
-            <span dir="ltr" className="font-mono text-sm">
-              {menu.restaurant.clientId}
-            </span>
-            <MenuStatusBadge status={menu.status} t={t} />
-            {menu.unpublished && <StatusBadge>{t('menus.unpublished')}</StatusBadge>}
-          </span>
-        }
-        actions={
-          <MenuActions
-            menu={{
-              id: menu.id,
-              name: menu.name,
-              slug: menu.slug,
-              status: menu.status,
-              statusBeforeArchive: menu.statusBeforeArchive,
-              version: menu.version,
-              restaurantId: menu.restaurant.id,
-              hasLiveRevision: menu.liveRevision !== null,
-            }}
-            can={menu.can}
-            duplicateTargets={menu.duplicateTargets}
-            origin={hostEnv().publicOrigin}
-          />
-        }
-      />
-
-      <div className="flex flex-col gap-3 px-8">
-        {(menu.status === 'SUSPENDED' || menu.status === 'ARCHIVED') && <Alert tone="neutral">{t(`menus.notice.${menu.status}`)}</Alert>}
-        {menu.restaurant.status !== 'ACTIVE' && <Alert tone="neutral">{t(`menus.notice.restaurant.${menu.restaurant.status}`)}</Alert>}
-      </div>
-
       <div className="flex max-w-6xl flex-col px-8 pb-10 pt-3">
         <Section id="menu-address" title={t('menus.address.title')} intro={t('menus.address.intro')}>
           <div className="flex flex-wrap items-center gap-2">

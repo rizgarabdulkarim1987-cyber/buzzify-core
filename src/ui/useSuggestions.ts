@@ -14,12 +14,12 @@ export interface SuggestionsBody {
 
 /** Fetches suggestions, keeping the previous answer on screen while a new one loads. */
 export function useSuggestions(body: SuggestionsBody | null): { data: SuggestionsView | null } {
-  const { tenant, locale } = useApp();
+  const { tenant, locale, preview } = useApp();
   const [data, setData] = useState<SuggestionsView | null>(null);
   const payload = body ? JSON.stringify({ ...body, locale }) : null;
 
   useEffect(() => {
-    if (!payload) return;
+    if (!payload || preview) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -38,7 +38,7 @@ export function useSuggestions(body: SuggestionsBody | null): { data: Suggestion
       clearTimeout(timer);
       controller.abort();
     };
-  }, [payload, tenant.slug]);
+  }, [payload, tenant.slug, preview]);
 
   return { data: payload ? data : null };
 }

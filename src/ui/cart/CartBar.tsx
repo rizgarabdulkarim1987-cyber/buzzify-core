@@ -3,8 +3,8 @@
 import { useApp } from '@/ui/AppProviders';
 
 export function CartBar() {
-  const { itemCount, quote, quoting, money, t, href } = useApp();
-  if (itemCount === 0) return null;
+  const { itemCount, quote, quoting, money, t, href, preview } = useApp();
+  if (itemCount === 0 || preview) return null;
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">

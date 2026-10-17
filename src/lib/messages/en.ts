@@ -94,6 +94,7 @@ const en: Messages = {
   'menu.dietary.HALAL': 'Halal',
   'menu.dietary.CONTAINS_NUTS': 'Contains nuts',
   'menu.calories': '{count} kcal',
+  'preview.banner': 'Preview of unpublished changes. Ordering is off.',
   'daypart.BREAKFAST': 'Breakfast',
   'daypart.LUNCH': 'Lunch',
   'daypart.DINNER': 'Dinner',

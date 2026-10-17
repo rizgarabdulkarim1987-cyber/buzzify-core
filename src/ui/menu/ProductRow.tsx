@@ -7,9 +7,9 @@ import { ProductVisual } from '@/ui/art/ProductVisual';
 import { PlusIcon } from '@/ui/Icons';
 
 export function ProductRow({ product, onOpen }: { product: MenuProductView; onOpen: (id: string) => void }) {
-  const { t, money, addLine, announce } = useApp();
+  const { t, money, addLine, announce, preview } = useApp();
   const orderable = product.orderState === 'OK';
-  const canQuickAdd = orderable && !product.needsChoices;
+  const canQuickAdd = orderable && !product.needsChoices && !preview;
 
   return (
     <li

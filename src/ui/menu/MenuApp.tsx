@@ -29,9 +29,9 @@ const RAIL_ROOM: Record<RailStyle, string> = {
 const ProductSheet = dynamic(() => import('@/ui/product/ProductSheet').then((module) => module.ProductSheet));
 
 export function MenuApp({ view }: { view: MenuView }) {
-  const { t, tenant } = useApp();
+  const { t, tenant, preview } = useApp();
   const [query, setQuery] = useState('');
-  const { keys: searchKeys, load: loadSearchIndex } = useSearchIndex(tenant.slug);
+  const { keys: searchKeys, load: loadSearchIndex } = useSearchIndex(tenant.slug, !preview);
   const [activeId, setActiveId] = useState<string | null>(view.categories[0]?.id ?? null);
 
   useEffect(() => {

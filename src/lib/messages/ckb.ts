@@ -94,6 +94,7 @@ const ckb: Messages = {
   'menu.dietary.HALAL': 'حەلاڵ',
   'menu.dietary.CONTAINS_NUTS': 'گوێزی تێدایە',
   'menu.calories': '{count} کالۆری',
+  'preview.banner': 'پێشبینینی گۆڕانکارییە بڵاونەکراوەکان. داواکردن ڕاگیراوە.',
   'daypart.BREAKFAST': 'نانی بەیانی',
   'daypart.LUNCH': 'نانی نیوەڕۆ',
   'daypart.DINNER': 'نانی ئێوارە',

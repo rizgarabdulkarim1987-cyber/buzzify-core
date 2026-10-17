@@ -33,7 +33,8 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
   return parseSnapshot(revision.snapshot);
 }
 
-function tenantInfo(
+/** A menu as guests get it, from one of its snapshots: the live revision's, or (for the Studio's preview) the draft's. */
+export function tenantInfo(
   menu: { id: string; slug: string; restaurantId: string },
   revisionId: string,
   snapshot: MenuSnapshot,
