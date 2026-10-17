@@ -1,30 +1,57 @@
 import type { BrandConfig, Menu, Prisma } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
-import { isLocale } from '@/lib/locale';
-import { resolveRailStyle } from '@/lib/rail';
+import { isLocale, type Locale } from '@/lib/locale';
+import { DEFAULT_FONT_PAIR, isFontPairId } from '@/lib/font-pairs';
+import { isRailStyle, resolveRailStyle } from '@/lib/rail';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
-import type { BrandView } from '@/server/data/tenant';
+import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
+import type { AssetVariants } from '@/server/media/process';
+import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Reading the draft
 // ---------------------------------------------------------------------------------------------------------------------
 
-function seoMap(value: unknown): SnapshotMenu['seo'] {
-  const seo: SnapshotMenu['seo'] = {};
+/** A language's search text as `Menu.seo` holds it: the image is a library asset, resolved when the snapshot is built. */
+type DraftSeo = Partial<Record<Locale, { title: string; description: string; imageAssetId?: string }>>;
+
+/** `Menu.seo` read defensively: languages with a title or a description, and the asset of their image. */
+export function seoMap(value: unknown): DraftSeo {
+  const seo: DraftSeo = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return seo;
   for (const [locale, entry] of Object.entries(value)) {
     if (!isLocale(locale) || !entry || typeof entry !== 'object') continue;
-    const { title, description } = entry as Record<string, unknown>;
-    if (typeof title !== 'string' && typeof description !== 'string') continue;
+    const { title, description, imageAssetId } = entry as Record<string, unknown>;
+    if (typeof title !== 'string' && typeof description !== 'string' && typeof imageAssetId !== 'string') continue;
     seo[locale] = {
       title: typeof title === 'string' ? title : '',
       description: typeof description === 'string' ? description : '',
+      ...(typeof imageAssetId === 'string' && imageAssetId !== '' ? { imageAssetId } : {}),
     };
   }
   return seo;
+}
+
+/**
+ * The search text guests' pages carry, each image resolved from the library. An image whose asset is gone (or is not
+ * the restaurant's or shared) is left out: the title and description still apply.
+ */
+function resolveSeo(seo: DraftSeo, assets: ReadonlyMap<string, ResolvableAsset>, mediaUrl: (key: string) => string): SnapshotMenu['seo'] {
+  const resolved: SnapshotMenu['seo'] = {};
+  for (const [locale, entry] of Object.entries(seo) as Array<[Locale, NonNullable<DraftSeo[Locale]>]>) {
+    const asset = entry.imageAssetId ? assets.get(entry.imageAssetId) : undefined;
+    const image = asset ? assetImage(asset, mediaUrl) : null;
+    resolved[locale] = {
+      title: entry.title,
+      description: entry.description,
+      ...(image ? { image: { assetId: asset!.id, url: image.url, width: image.width, height: image.height } } : {}),
+    };
+  }
+  return resolved;
 }
 
 function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
@@ -38,16 +65,46 @@ function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
     timeZone: menu.timezone,
     numeralSystem: menu.numeralSystem === 'ARAB' ? 'arab' : 'latn',
     engineConfig: resolveEngineConfig(menu.engineConfig),
-    seo: seoMap(menu.seo),
+    seo: {},
   };
 }
 
 /** The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. */
-function brandView(brand: BrandConfig | null, displayName: string): BrandView {
+/** The library assets a brand kit names: its logos, and the asset its favicon is drawn from. */
+function brandAssetIds(brand: BrandConfig | null): string[] {
+  if (!brand) return [];
+  const favicon = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
+  return [brand.logoAssetId, brand.logoDarkAssetId, favicon].filter((id): id is string => id !== null);
+}
+
+/** A logo as guests get it: where to load it, its size, and a raster rendition for drawing it on the server. */
+function brandImage(asset: ResolvableAsset | undefined, mediaUrl: (key: string) => string): BrandImage | undefined {
+  return asset ? { assetId: asset.id, ...assetImage(asset, mediaUrl) } : undefined;
+}
+
+/** The favicon PNGs of an asset: those rendered for it, or an icon file as it is. Nothing for an asset without them. */
+function brandFavicon(asset: ResolvableAsset | undefined, mediaUrl: (key: string) => string): BrandFavicon | undefined {
+  if (!asset) return undefined;
+  const variants = asset.variants as unknown as AssetVariants;
+  const keys = variants.favicon ?? (asset.kind === 'ICON' ? { '32': variants.original, '180': variants.original, '512': variants.original } : null);
+  if (!keys) return undefined;
+  return { assetId: asset.id, png32: mediaUrl(keys['32']), png180: mediaUrl(keys['180']), png512: mediaUrl(keys['512']) };
+}
+
+/**
+ * The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. The
+ * fields the 2b kit added are left out when unused (the classic pair, no logo), so such a menu hashes as before.
+ */
+function brandView(
+  brand: BrandConfig | null,
+  displayName: string,
+  assets: ReadonlyMap<string, ResolvableAsset> = new Map(),
+  mediaUrl: (key: string) => string = (key) => key,
+): BrandView {
   const tokens = (brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const motionIntensity =
     brand?.motionIntensity === 'none' || brand?.motionIntensity === 'expressive' ? brand.motionIntensity : 'subtle';
-  return {
+  const view: BrandView = {
     logoText: brand?.logoText ?? displayName,
     theme: brand?.theme === 'LIGHT' ? 'light' : 'dark',
     motionIntensity,
@@ -56,6 +113,40 @@ function brandView(brand: BrandConfig | null, displayName: string): BrandView {
       dark: sanitizePalette(tokens.dark, DEFAULT_PALETTES.dark),
       light: sanitizePalette(tokens.light, DEFAULT_PALETTES.light),
     },
+  };
+  if (!brand) return view;
+  if (isFontPairId(brand.fontPairId) && brand.fontPairId !== DEFAULT_FONT_PAIR) view.fontPairId = brand.fontPairId;
+  // With motion off the rail is plain; the style the brand chose is kept, so turning motion back on brings it back.
+  if (isRailStyle(brand.railStyle) && brand.railStyle !== view.railStyle) view.railChoice = brand.railStyle;
+  const logo = brandImage(brand.logoAssetId ? assets.get(brand.logoAssetId) : undefined, mediaUrl);
+  if (logo) view.logo = logo;
+  const logoDark = brandImage(brand.logoDarkAssetId ? assets.get(brand.logoDarkAssetId) : undefined, mediaUrl);
+  if (logoDark) view.logoDark = logoDark;
+  const faviconId = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
+  const favicon = brandFavicon(faviconId ? assets.get(faviconId) : undefined, mediaUrl);
+  if (favicon) view.favicon = favicon;
+  return view;
+}
+
+/**
+ * The `BrandConfig` fields a snapshot's brand kit is written back as (restoring a revision, duplicating a menu): the
+ * rail style the brand chose, the pair, and the assets, through `assetMap` when they were copied to another library.
+ * A favicon drawn from the logo is stored as just that.
+ */
+export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<string, string>) {
+  const mapped = (id: string | undefined) => (id === undefined ? null : (assetMap?.get(id) ?? id));
+  const fromLogo = brand.favicon !== undefined && brand.logo !== undefined && brand.favicon.assetId === brand.logo.assetId;
+  return {
+    tokens: json(brand.tokens),
+    theme: brand.theme === 'light' ? ('LIGHT' as const) : ('DARK' as const),
+    motionIntensity: brand.motionIntensity,
+    railStyle: brand.railChoice ?? brand.railStyle,
+    logoText: brand.logoText,
+    fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR,
+    logoAssetId: mapped(brand.logo?.assetId),
+    logoDarkAssetId: mapped(brand.logoDark?.assetId),
+    faviconAssetId: fromLogo ? null : mapped(brand.favicon?.assetId),
+    faviconFromLogo: fromLogo,
   };
 }
 
@@ -72,7 +163,25 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
   const displayName = menu.restaurant.name;
-  return buildSnapshot({ menu: snapshotMenu(menu, displayName), brand: brandView(brand, displayName), catalog });
+  const settings = snapshotMenu(menu, displayName);
+
+  // Library photos become the URLs guests load, so the revision never needs the library again.
+  const seo = seoMap(menu.seo);
+  const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
+  const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
+  const brandAssets = brandAssetIds(brand);
+  if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
+    settings.seo = resolveSeo(seo, new Map(), (key) => key);
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
+  }
+  const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
+  const mediaUrl = (key: string) => getStorage().publicUrl(key);
+  catalog.products = catalog.products.map((product) => ({
+    ...product,
+    media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
+  }));
+  settings.seo = resolveSeo(seo, assets, mediaUrl);
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog });
 }
 
 /**
@@ -133,12 +242,23 @@ function idMap<A extends { id: string }, B extends { id: string }>(
  * (in a deactivated category, say); those are left out, since guests could never have been offered them. Any other
  * reference that does not resolve throws.
  */
-export function writeDraftFromSnapshot(tx: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
-export function writeDraftFromSnapshot(tx: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export function writeDraftFromSnapshot(
+  tx: AnyDb,
+  menuId: string,
+  snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
+): Promise<void>;
+export function writeDraftFromSnapshot(
+  tx: ScopedTx,
+  menuId: string,
+  snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
+): Promise<void>;
 export async function writeDraftFromSnapshot(
   client: AnyDb | ScopedDb,
   menuId: string,
   snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
 ): Promise<void> {
   const tx = delegates(client);
   const { catalog, brand } = snapshot;
@@ -156,17 +276,12 @@ export async function writeDraftFromSnapshot(
   await tx.category.deleteMany({ where });
   await tx.daypartSchedule.deleteMany({ where });
 
-  const brandFields = {
-    tokens: json(brand.tokens),
-    theme: brand.theme === 'light' ? ('LIGHT' as const) : ('DARK' as const),
-    motionIntensity: brand.motionIntensity,
-    railStyle: brand.railStyle,
-    logoText: brand.logoText,
-  };
+  // The kit's version moves, so a Brand tab opened before cannot save over what was written.
+  const brandFields = brandRowFromSnapshot(brand, assetMap);
   await tx.brandConfig.upsert({
     where: { menuId },
     create: { menuId, typography: {}, ...brandFields },
-    update: brandFields,
+    update: { ...brandFields, version: { increment: 1 } },
   });
 
   const categories =
@@ -206,7 +321,8 @@ export async function writeDraftFromSnapshot(
             calories: p.calories,
             badges: p.badges,
             ingredients: json(p.ingredients),
-            media: json(p.media),
+            // Library photos go back to the assets they came from (copies of them, for another restaurant).
+            media: json(draftMediaFromSnapshot(p.media, assetMap)),
             translations: json(p.translations),
             sortOrder: p.sortOrder,
           })),
@@ -360,6 +476,225 @@ export async function writeDraftFromSnapshot(
       })),
     });
   }
+
+  await refreshDraftHash(tx, menuId);
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Restoring a revision into the draft
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The next version of a row that existed (its old version plus one), or 1 for a row the restore brings back. */
+const nextVersion = (versions: ReadonlyMap<string, number>, id: string) => (versions.get(id) ?? 0) + 1;
+
+/**
+ * Makes a revision the draft again (2a follow-ups 1 and 3): every catalog row is recreated with the snapshot's own ids,
+ * so the draft's hash is the revision's and links to products keep working. What guests see changing live stays as it
+ * is now: a product that was sold out or hidden, its stock, an option sold out. Every version moves on (a row the
+ * revision brings back starts at 1), so an editor opened before cannot save over the restore. The menu's settings
+ * that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
+ */
+export function restoreDraftFromSnapshot(db: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export function restoreDraftFromSnapshot(db: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId: string, snapshot: MenuSnapshot): Promise<void> {
+  const tx = delegates(client);
+  const { catalog, brand, menu } = snapshot;
+  const where = { menuId };
+
+  // What is live now and how far each row's version has come, read before the rows go.
+  const products = await tx.product.findMany({ where, select: { id: true, version: true, isAvailable: true, isHidden: true, stockCount: true } });
+  const options = await tx.modifierOption.findMany({ where, select: { id: true, version: true, isAvailable: true } });
+  const categories = await tx.category.findMany({ where, select: { id: true, version: true } });
+  const variantRows = await tx.productVariant.findMany({ where, select: { id: true, version: true } });
+  const groupRows = await tx.modifierGroup.findMany({ where, select: { id: true, version: true } });
+  const versions = new Map<string, number>(
+    [...products, ...options, ...categories, ...variantRows, ...groupRows].map((row) => [row.id, row.version] as const),
+  );
+  const productLive = new Map(products.map((row) => [row.id, row]));
+  const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
+
+  // Children before parents, so nothing relies on a cascade.
+  await tx.bundleItem.deleteMany({ where });
+  await tx.bundle.deleteMany({ where });
+  await tx.upsellRule.deleteMany({ where });
+  await tx.pairingRule.deleteMany({ where });
+  await tx.modifierOption.deleteMany({ where });
+  await tx.modifierGroup.deleteMany({ where });
+  await tx.productVariant.deleteMany({ where });
+  await tx.product.deleteMany({ where });
+  await tx.category.deleteMany({ where });
+  await tx.daypartSchedule.deleteMany({ where });
+
+  if (catalog.categories.length > 0) {
+    await tx.category.createMany({
+      data: catalog.categories.map((c) => ({
+        id: c.id,
+        menuId,
+        slug: c.slug,
+        sortOrder: c.sortOrder,
+        translations: json(c.translations),
+        version: nextVersion(versions, c.id),
+      })),
+    });
+  }
+  if (catalog.products.length > 0) {
+    await tx.product.createMany({
+      data: catalog.products.map((p) => {
+        const live = productLive.get(p.id);
+        return {
+          id: p.id,
+          menuId,
+          categoryId: p.categoryId,
+          slug: p.slug,
+          basePrice: p.basePrice,
+          cost: p.cost,
+          popularity: p.popularity,
+          priority: p.priority,
+          isSignature: p.isSignature,
+          isFeatured: p.isFeatured,
+          lowStockThreshold: p.lowStockThreshold,
+          dayparts: p.dayparts,
+          hideOutsideDaypart: p.hideOutsideDaypart,
+          slot: p.slot,
+          allergens: p.allergens,
+          dietary: p.dietary,
+          calories: p.calories,
+          badges: p.badges,
+          ingredients: json(p.ingredients),
+          media: json(draftMediaFromSnapshot(p.media)),
+          translations: json(p.translations),
+          sortOrder: p.sortOrder,
+          isAvailable: live?.isAvailable ?? true,
+          isHidden: live?.isHidden ?? false,
+          stockCount: live?.stockCount ?? null,
+          version: nextVersion(versions, p.id),
+        };
+      }),
+    });
+  }
+  const variants = catalog.products.flatMap((p) => p.variants.map((v, index) => ({ v, productId: p.id, sortOrder: index })));
+  if (variants.length > 0) {
+    await tx.productVariant.createMany({
+      data: variants.map(({ v, productId, sortOrder }) => ({
+        id: v.id,
+        menuId,
+        productId,
+        priceDelta: v.priceDelta,
+        costDelta: v.costDelta,
+        isDefault: v.isDefault,
+        translations: json(v.translations),
+        sortOrder,
+        version: nextVersion(versions, v.id),
+      })),
+    });
+  }
+  const groups = catalog.products.flatMap((p) => p.groups.map((g, index) => ({ g, productId: p.id, sortOrder: index })));
+  if (groups.length > 0) {
+    await tx.modifierGroup.createMany({
+      data: groups.map(({ g, productId, sortOrder }) => ({
+        id: g.id,
+        menuId,
+        productId,
+        minSelect: g.minSelect,
+        maxSelect: g.maxSelect,
+        translations: json(g.translations),
+        sortOrder,
+        version: nextVersion(versions, g.id),
+      })),
+    });
+  }
+  const optionRows = groups.flatMap(({ g }) => g.options.map((o, index) => ({ o, groupId: g.id, sortOrder: index })));
+  if (optionRows.length > 0) {
+    await tx.modifierOption.createMany({
+      data: optionRows.map(({ o, groupId, sortOrder }) => ({
+        id: o.id,
+        menuId,
+        groupId,
+        priceDelta: o.priceDelta,
+        costDelta: o.costDelta,
+        isSuggested: o.isSuggested,
+        suggestPriority: o.suggestPriority,
+        visualKey: o.visualKey,
+        translations: json(o.translations),
+        sortOrder,
+        isAvailable: optionLive.get(o.id) ?? true,
+        version: nextVersion(versions, o.id),
+      })),
+    });
+  }
+  if (catalog.upsellRules.length > 0) {
+    await tx.upsellRule.createMany({
+      data: catalog.upsellRules.map((r) => ({
+        id: r.id,
+        menuId,
+        sourceProductId: r.sourceProductId,
+        targetProductId: r.targetProductId,
+        priority: r.priority,
+        dayparts: r.dayparts,
+        translations: json(r.translations),
+      })),
+    });
+  }
+  if (catalog.pairingRules.length > 0) {
+    await tx.pairingRule.createMany({
+      data: catalog.pairingRules.map((r) => ({
+        id: r.id,
+        menuId,
+        sourceType: r.sourceType,
+        sourceProductId: r.sourceProductId,
+        sourceCategoryId: r.sourceCategoryId,
+        targetProductId: r.targetProductId,
+        weight: r.weight,
+        dayparts: r.dayparts,
+        translations: json(r.translations),
+      })),
+    });
+  }
+  if (catalog.bundles.length > 0) {
+    await tx.bundle.createMany({
+      data: catalog.bundles.map((b) => ({ id: b.id, menuId, slug: b.slug, price: b.price, dayparts: b.dayparts, translations: json(b.translations) })),
+    });
+    await tx.bundleItem.createMany({
+      data: catalog.bundles.flatMap((b) => b.items.map((item) => ({ menuId, bundleId: b.id, ...item }))),
+    });
+  }
+  if (catalog.schedule.length > 0) {
+    await tx.daypartSchedule.createMany({
+      data: catalog.schedule.map((window) => ({
+        menuId,
+        daypart: window.daypart,
+        startMinute: window.startMinute,
+        endMinute: window.endMinute,
+        daysOfWeek: window.daysOfWeek,
+      })),
+    });
+  }
+
+  const brandFields = brandRowFromSnapshot(brand);
+  await tx.brandConfig.upsert({
+    where: { menuId },
+    create: { menuId, typography: {}, ...brandFields },
+    update: { ...brandFields, version: { increment: 1 } },
+  });
+
+  // The settings the snapshot holds; the search images go back to their assets.
+  const seo: Record<string, { title: string; description: string; imageAssetId?: string }> = {};
+  for (const [locale, entry] of Object.entries(menu.seo)) {
+    if (entry) seo[locale] = { title: entry.title, description: entry.description, ...(entry.image ? { imageAssetId: entry.image.assetId } : {}) };
+  }
+  await tx.menu.update({
+    where: { id: menuId },
+    data: {
+      currency: menu.currency,
+      defaultLocale: menu.defaultLocale,
+      locales: menu.locales,
+      timezone: menu.timeZone,
+      numeralSystem: menu.numeralSystem === 'arab' ? 'ARAB' : 'LATN',
+      engineConfig: json(menu.engineConfig),
+      seo: json(seo),
+      version: { increment: 1 },
+    },
+  });
 
   await refreshDraftHash(tx, menuId);
 }

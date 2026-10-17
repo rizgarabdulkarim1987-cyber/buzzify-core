@@ -16,12 +16,12 @@ export interface RouteTab {
  * reached with Back. The current one carries the amber marker and `aria-current="page"`. Tabs a person may not use are
  * left out by the caller, never shown disabled.
  */
-export function RouteTabs({ tabs, label }: { tabs: readonly RouteTab[]; label: string }) {
+export function RouteTabs({ tabs, label, className }: { tabs: readonly RouteTab[]; label: string; className?: string }) {
   const pathname = usePathname();
   const isCurrent = (tab: RouteTab) => (tab.exact ? pathname === tab.href : pathname === tab.href || pathname.startsWith(`${tab.href}/`));
 
   return (
-    <nav aria-label={label} className="border-b border-line">
+    <nav aria-label={label} className={cx('border-b border-line', className)}>
       <ul className="-mb-px flex gap-6 overflow-x-auto">
         {tabs.map((tab) => {
           const current = isCurrent(tab);

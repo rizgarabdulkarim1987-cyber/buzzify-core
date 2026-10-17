@@ -27,3 +27,40 @@ export function menuAlternates(
 export function menuCanonical(origin: string, tenant: { slug: string }, locale: Locale): { canonical: string } {
   return { canonical: `${origin}/${tenant.slug}/${locale}` };
 }
+
+/**
+ * The Open Graph image of a page in one language: the menu's search image for it, at an absolute address (a link
+ * preview is fetched by another site, which cannot resolve a path), or nothing when the language has none.
+ */
+export function menuOpenGraph(
+  origin: string,
+  seo: { title: string; description: string; image?: { url: string; width: number; height: number } } | undefined,
+): { images: Array<{ url: string; width: number; height: number }> } | undefined {
+  if (!seo?.image) return undefined;
+  const { url, width, height } = seo.image;
+  return { images: [{ url: new URL(url, origin).toString(), width, height }] };
+}
+
+/**
+ * The Open Graph image of a public page: the search image of its language when there is one (linked directly, so a
+ * crawler needs no redirect), else, for a menu with a logo, the logo drawn on the theme's background for this revision
+ * (`/api/{slug}/social-image`), else nothing.
+ */
+export function menuSocialImage(
+  origin: string,
+  tenant: {
+    slug: string;
+    revisionId: string;
+    brand: { logo?: unknown; logoDark?: unknown };
+    seo: Partial<Record<Locale, { title: string; description: string; image?: { url: string; width: number; height: number } }>>;
+  },
+  locale: Locale,
+): { images: Array<{ url: string; width: number; height: number }> } | undefined {
+  const own = menuOpenGraph(origin, tenant.seo[locale]);
+  if (own) return own;
+  if (!tenant.brand.logo && !tenant.brand.logoDark) return undefined;
+  const url = new URL(`/api/${tenant.slug}/social-image`, origin);
+  url.searchParams.set('rev', tenant.revisionId);
+  url.searchParams.set('locale', locale);
+  return { images: [{ url: url.toString(), width: 1200, height: 630 }] };
+}

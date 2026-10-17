@@ -1,6 +1,7 @@
 import { normalizeSearch } from '@/lib/search';
 import { LOCALES, type Locale } from '@/lib/locale';
 import { parseMedia, type MediaItem } from '@/lib/media';
+import { isBadge, isDietaryTag, type Badge, type DietaryTag } from '@/lib/product-tags';
 import type { RailDish } from '@/lib/rail';
 import { stageOf } from '@/lib/stage';
 import {
@@ -56,6 +57,13 @@ export interface MenuProductView {
   orderState: Orderability;
   isSignature: boolean;
   media: MediaItem[];
+  // Each of these is left out when empty: every product of every menu page carries its view, and the menu page has to
+  // arrive in the first round trip (docs/perf), so nothing is sent for what a product does not have.
+  /** Quiet labels on the product's row. */
+  badges?: Badge[];
+  dietary?: DietaryTag[];
+  /** Kilocalories of the default size, when the restaurant gave them. */
+  calories?: number;
   allergens: string[];
   ingredients: string[];
   searchKey: string;
@@ -126,6 +134,22 @@ export function buildSearchIndex(catalog: Catalog, now: Date): Record<string, st
   return index;
 }
 
+/** The badges, dietary tags and calories a product has, leaving out what it has none of. */
+function productTags(product: CatalogProduct): Pick<MenuProductView, 'badges' | 'dietary' | 'calories'> {
+  const badges = product.badges.filter(isBadge);
+  const dietary = product.dietary.filter(isDietaryTag);
+  return {
+    ...(badges.length > 0 ? { badges } : {}),
+    ...(dietary.length > 0 ? { dietary } : {}),
+    ...(product.calories !== null ? { calories: product.calories } : {}),
+  };
+}
+
+/** A library photo's alt text in the page's language, falling back to the one it was published with. */
+function localizeMedia(media: MediaItem[], locale: Locale): MediaItem[] {
+  return media.map((item) => (item.kind === 'image' && item.alts?.[locale] ? { ...item, alt: item.alts[locale] } : item));
+}
+
 /**
  * The dish a category's rail entry shows: the model of its first product with a 3D stage, in menu order and
  * whether or not that product is on the menu right now, so the rail does not change shape through the day.
@@ -162,7 +186,8 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
         needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),
         orderState: orderability(product, current),
         isSignature: product.isSignature,
-        media: parseMedia(product.media),
+        media: localizeMedia(parseMedia(product.media), locale),
+        ...productTags(product),
         allergens: product.allergens,
         ingredients,
         searchKey: pageSearchKey(product.slug, name, description, ingredients),

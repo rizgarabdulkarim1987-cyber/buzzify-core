@@ -28,6 +28,8 @@ export interface TenantClientInfo {
   slug: string;
   name: string;
   logoText: string;
+  /** The brand logo for the theme, shown in place of the logo text. */
+  logo?: { url: string; width: number; height: number };
   railStyle: RailStyle;
   currency: string;
   numeralSystem: 'latn' | 'arab';
@@ -57,6 +59,8 @@ export interface AppContext {
   dismiss(id: string): void;
   announce(message: string): void;
   claimTable(table: number): void;
+  /** The Studio's preview of a draft: nothing is ordered, priced, suggested or counted. */
+  preview: boolean;
 }
 
 const Context = createContext<AppContext | null>(null);
@@ -88,13 +92,20 @@ function writeTable(slug: string, table: number): void {
 export function AppProviders({
   tenant,
   locale,
+  preview = false,
+  previewRevision,
   children,
 }: {
   tenant: TenantClientInfo;
   locale: Locale;
+  /** Renders a draft in the Studio: no tracking, quotes, suggestions or search index, and no ordering. */
+  preview?: boolean;
+  /** A preview of a published revision rather than of the draft: its number, for the banner. */
+  previewRevision?: number;
   children: ReactNode;
 }) {
-  const [store] = useState<CartStore>(() => createCartStore(`buzzify:cart:${tenant.slug}`));
+  // A preview keeps its own (always empty) cart, so a guest cart of the same menu in this browser never shows in it.
+  const [store] = useState<CartStore>(() => createCartStore(`buzzify:${preview ? 'preview-cart' : 'cart'}:${tenant.slug}`));
 
   const cart = useStore(store, (state) => state.cart);
   const dismissed = useStore(store, (state) => state.dismissed);
@@ -136,8 +147,8 @@ export function AppProviders({
   }, [store, applyTable, tenant.slug]);
 
   useEffect(() => {
-    configureTracking({ slug: tenant.slug, table });
-  }, [tenant.slug, table]);
+    if (!preview) configureTracking({ slug: tenant.slug, table });
+  }, [tenant.slug, table, preview]);
 
   // Remember a `?stage=` choice now, before any tap can replace the URL. A layout effect, because a tap made while the
   // page was still hydrating is replayed by React right after hydration, before plain effects run: opening a dish then
@@ -151,7 +162,7 @@ export function AppProviders({
   const requestKey = useMemo(() => (isEmpty(cart) ? null : JSON.stringify({ locale, cart })), [cart, locale]);
 
   useEffect(() => {
-    if (!hydrated || requestKey === null) return;
+    if (preview || !hydrated || requestKey === null) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
@@ -174,7 +185,7 @@ export function AppProviders({
       clearTimeout(timer);
       controller.abort();
     };
-  }, [hydrated, requestKey, tenant.slug]);
+  }, [preview, hydrated, requestKey, tenant.slug]);
 
   const quote = requestKey !== null && resolved ? resolved.quote : null;
   const quoting = hydrated && requestKey !== null && resolved?.key !== requestKey;
@@ -211,12 +222,18 @@ export function AppProviders({
       dismiss: (id) => store.getState().dismiss(id),
       announce: setMessage,
       claimTable,
+      preview,
     }),
-    [tenant, locale, table, t, money, href, cart, quote, quoting, quoteError, hydrated, dismissed, store, claimTable],
+    [tenant, locale, table, t, money, href, cart, quote, quoting, quoteError, hydrated, dismissed, store, claimTable, preview],
   );
 
   return (
     <Context.Provider value={value}>
+      {preview && (
+        <p className="sticky top-0 z-30 bg-text px-4 py-2 text-center text-sm text-bg" role="note">
+          {previewRevision === undefined ? t('preview.banner') : t('preview.bannerRevision', { number: previewRevision })}
+        </p>
+      )}
       {children}
       <div aria-live="polite" role="status" className="sr-only">
         {message}

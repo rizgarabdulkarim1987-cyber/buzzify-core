@@ -25,8 +25,10 @@ import { devMail } from '../helpers/mail';
  * the audit log about B, may change.
  *
  * Every definition must have an entry in exactly one of the three tables below: a new action or query without one fails
- * the first test. A's client policy grants every grantable permission to both roles, so a refusal in B is never owed to a
- * permission A's people lack.
+ * the first test. A's client policy grants every grantable permission to both roles, so for the definitions in `SWEPT` a
+ * refusal in B is never owed to a permission A's people lack: it is the tenant check. The definitions in `PLATFORM_ONLY`
+ * need a permission no client policy can grant (`NEVER_GRANTABLE`), so their refusal is the permission check, and this
+ * sweep cannot tell from it whether the tenant check would also have held; their own tests cover what a Super Admin may do.
  */
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
@@ -73,6 +75,18 @@ interface Side {
   ownerEmail: string;
   designerId: string;
   invitationId: string;
+  assetId: string;
+  categoryId: string;
+  productId: string;
+  variantId: string;
+  optionId: string;
+  /** The live revision, and one waiting to go live. */
+  revisionId: string;
+  pendingRevisionId: string;
+  /** A QR code printed for table 1. */
+  qrCodeId: string;
+  /** A sheet read for an import, not applied. */
+  importJobId: string;
 }
 
 interface World {
@@ -106,10 +120,23 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   });
   await prisma().menuSlug.create({ data: { slug, menuId: menu.id } });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'mains', translations: { en: { name: `${title} mains` } } } });
-  await prisma().product.create({
+  const product = await prisma().product.create({
     data: { menuId: menu.id, categoryId: category.id, slug: `${label}-stew`, basePrice: 900, translations: { en: { name: `${title} stew`, description: 'Slow' } } },
   });
-  await publishFixture(prisma(), menu.id);
+  const variant = await prisma().productVariant.create({
+    data: { menuId: menu.id, productId: product.id, isDefault: true, translations: { en: { name: `${title} bowl` } } },
+  });
+  const group = await prisma().modifierGroup.create({
+    data: { menuId: menu.id, productId: product.id, translations: { en: { name: `${title} sides` } } },
+  });
+  const option = await prisma().modifierOption.create({
+    data: { menuId: menu.id, groupId: group.id, translations: { en: { name: `${title} bread` } } },
+  });
+  const published = await publishFixture(prisma(), menu.id);
+  const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
+  const pending = await prisma().menuRevision.create({
+    data: { menuId: menu.id, number: 2, schemaVersion: live.schemaVersion, snapshot: live.snapshot as object, snapshotHash: live.snapshotHash, goLiveAt: new Date(Date.now() + 86_400_000) },
+  });
   const branch = await prisma().branch.create({ data: { restaurantId: restaurant.id, name: `${title} Riverside` } });
   const owner = await person(`${label}-owner`, `${title} Owner`);
   const designer = await person(`${label}-designer`, `${title} Designer`);
@@ -125,6 +152,24 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       invitedById: adminId,
     },
   });
+  // A file in the restaurant's media library.
+  const asset = await prisma().mediaAsset.create({
+    data: {
+      restaurantId: restaurant.id,
+      kind: 'IMAGE',
+      storageKey: `r/${restaurant.id}/${label}hash`,
+      contentHash: `${label}hash`,
+      mime: 'image/png',
+      bytes: 10,
+      storedBytes: 30,
+      alt: { en: `${title} logo` },
+      variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
+    },
+  });
+  const importJob = await prisma().importJob.create({
+    data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
+  });
+  const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -141,6 +186,15 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     ownerEmail: owner.email,
     designerId: designer.id,
     invitationId: invitation.id,
+    assetId: asset.id,
+    categoryId: category.id,
+    productId: product.id,
+    variantId: variant.id,
+    optionId: option.id,
+    revisionId: published.revisionId,
+    pendingRevisionId: pending.id,
+    qrCodeId: qrCode.id,
+    importJobId: importJob.id,
   };
 }
 
@@ -175,6 +229,12 @@ async function snapshotOfB(w: World): Promise<unknown> {
       brand: await db.brandConfig.findMany({ where: { menuId: { in: menuIds } } }),
       categories: await db.category.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       products: await db.product.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      variants: await db.productVariant.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      groups: await db.modifierGroup.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      importJobs: await db.importJob.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      qrCodes: await db.qrCode.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      tables: await db.table.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       branches: await db.branch.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
       memberships: await db.membership.findMany({ where: { OR: [{ restaurantId: b.restaurantId }, { userId: { in: people } }] }, orderBy: { id: 'asc' } }),
@@ -191,6 +251,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
         orderBy: { id: 'asc' },
       }),
       platformSettings: await db.platformSetting.findMany({ orderBy: { key: 'asc' } }),
+      media: await db.mediaAsset.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
     }),
   );
 }
@@ -199,7 +260,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -231,11 +292,142 @@ const ONLY_FORBIDDEN: Expectation = { kind: 'refused', codes: ['FORBIDDEN'] };
 
 const c = (label: string, input: (w: World) => unknown, expectation: Expectation = REFUSED): Case => ({ label, input, expect: expectation });
 
+/** A brand kit as the Brand tab saves it. */
+const brandKit = () => ({
+  version: 1,
+  theme: 'dark',
+  palette: { bg: '#0e0e0f', surface: '#1b1a19', raised: '#2a2826', accent: '#d6bc8a', text: '#ede8df', muted: '#a7a096', line: '#3a3633', onAccent: '#0e0e0f' },
+  logoAssetId: null,
+  logoDarkAssetId: null,
+  favicon: { kind: 'none' },
+  fontPairId: 'classic',
+  railStyle: 'grains',
+  motionIntensity: 'subtle',
+  logoText: 'Planted',
+});
+
+/** A QR code's style as the QR tab saves it. */
+const qrStyle = () => ({ foreground: '#000000', background: '#FFFFFF', logo: false, frameText: 'Planted' });
+
+/** A menu's settings as the Settings tab saves them (version 1 is stale for a published menu, which the checks precede). */
+const menuSettings = () => ({
+  version: 1,
+  name: 'Planted',
+  locales: ['en'],
+  defaultLocale: 'en',
+  currency: 'USD',
+  timezone: 'Asia/Baghdad',
+  numeralSystem: 'LATN',
+  seo: {},
+  notes: '',
+  priceStep: null,
+});
+
+/** A whole product as the Content tab's drawer saves it, with the given product and category. */
+const productSave = (menuId: string, productId: string, categoryId: string) => ({
+  menuId,
+  productId,
+  version: 1,
+  slug: 'planted',
+  categoryId,
+  names: { en: 'Planted' },
+  descriptions: {},
+  price: 900,
+  isSignature: false,
+  isFeatured: false,
+  allergens: [],
+  dietary: [],
+  badges: [],
+  calories: null,
+  media: [],
+  variants: [],
+  groups: [],
+});
+
 /** Definitions that act on, or read, restaurants and menus: each is run against B. */
 const SWEPT: Record<string, Case[]> = {
   // Menus
   'menus.create': [c("in B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', slug: 'planted-menu' }))],
   'menus.publish': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // The Brand tab
+  'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // QR codes
+  'qr.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'qr.create': [c("in B's menu", (w) => ({ menuId: w.b.menuId, label: 'Planted', tableNumber: 40 }))],
+  'qr.createForTables': [c("in B's menu", (w) => ({ menuId: w.b.menuId, from: 40, to: 42 }))],
+  'qr.update': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, version: 1, label: 'Planted', style: qrStyle() })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, version: 1, label: 'Planted', style: qrStyle() })),
+  ],
+  'qr.delete': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId })),
+  ],
+  'qr.download': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, format: 'svg' })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, format: 'png', size: 512 })),
+  ],
+  'qr.downloadTables': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // Import and export
+  'import.requestUpload': [c("B's menu", (w) => ({ menuId: w.b.menuId, fileName: 'menu.csv', bytes: 10 }))],
+  'import.parse': [
+    c("B's upload, in B", (w) => ({ menuId: w.b.menuId, uploadKey: `imports/${w.b.menuId}/planted`, fileName: 'menu.csv', hideMissing: false })),
+    c("B's upload, through A", (w) => ({ menuId: w.a.menuId, uploadKey: `imports/${w.b.menuId}/planted`, fileName: 'menu.csv', hideMissing: true })),
+  ],
+  'import.apply': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'import.discard': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'import.job': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
+  'export.download': [c("B's menu", (w) => ({ menuId: w.b.menuId, format: 'csv' }))],
+  'qr.preview': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),
+  ],
+  'qr.applyStyle': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId })),
+  ],
+  // Revisions
+  'revisions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId, page: 1 }))],
+  'revisions.view': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId, locale: 'en' })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId, locale: 'en' })),
+  ],
+  'revisions.rollback': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId })),
+  ],
+  'revisions.restore': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId, expectedDraftHash: null })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId, expectedDraftHash: null })),
+  ],
+  'revisions.schedule': [c("B's menu", (w) => ({ menuId: w.b.menuId, goLiveAt: new Date(Date.now() + 3_600_000).toISOString(), replacePending: true }))],
+  'revisions.cancelSchedule': [
+    c("B's pending revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.pendingRevisionId })),
+    c("B's pending revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.pendingRevisionId })),
+  ],
+  'brand.update': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...brandKit() })),
+    c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),
+    c("B's favicon, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), favicon: { kind: 'asset', assetId: w.b.assetId } })),
+  ],
+  'brand.suggestFromLogo': [
+    c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
+    c("B's logo, through A", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, theme: 'light' })),
+  ],
+  'menus.updateSettings': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...menuSettings() })),
+    c("B's image, through A", (w) => ({ menuId: w.a.menuId, ...menuSettings(), seo: { en: { title: 'Planted', description: '', imageAssetId: w.b.assetId } } })),
+  ],
   'menus.changeStatus': [
     c("suspends B's menu", (w) => ({ menuId: w.b.menuId, action: 'suspend' })),
     c("archives B's menu", (w) => ({ menuId: w.b.menuId, action: 'archive' })),
@@ -284,7 +476,10 @@ const SWEPT: Record<string, Case[]> = {
   ],
 
   // Restaurants and branches
-  'restaurants.update': [c('B', (w) => ({ restaurantId: w.b.restaurantId, version: 1, name: 'Hijacked', type: 'RESTAURANT' }))],
+  'restaurants.update': [
+    c('B', (w) => ({ restaurantId: w.b.restaurantId, version: 1, name: 'Hijacked', type: 'RESTAURANT' })),
+    c("B's logo, through A", (w) => ({ restaurantId: w.a.restaurantId, version: 1, name: 'Shared Alpha Kitchen', type: 'RESTAURANT', logoAssetId: w.b.assetId })),
+  ],
   'restaurants.setStatus': [c('B', (w) => ({ restaurantId: w.b.restaurantId, status: 'SUSPENDED' }))],
   'restaurants.delete': [c('B', (w) => ({ restaurantId: w.b.restaurantId, confirmName: w.b.restaurantName }))],
   'restaurants.createBranch': [c('in B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted' }))],
@@ -302,8 +497,114 @@ const SWEPT: Record<string, Case[]> = {
     c("A's and B's branches, through A", (w) => ({ restaurantId: w.a.restaurantId, order: [w.a.branchId, w.b.branchId] })),
   ],
 
+  // Media
+  'media.requestUpload': [c('into B', (w) => ({ restaurantId: w.b.restaurantId, fileName: 'p.png', mime: 'image/png', bytes: 10 }))],
+  'media.finalize': [
+    c("B's upload, in B", (w) => ({ restaurantId: w.b.restaurantId, uploadKey: `uploads/${w.b.restaurantId}/planted` })),
+    c("B's upload, through A", (w) => ({ restaurantId: w.a.restaurantId, uploadKey: `uploads/${w.b.restaurantId}/planted` })),
+    c('a shared upload, through A', (w) => ({ restaurantId: w.a.restaurantId, uploadKey: 'uploads/shared/planted' })),
+  ],
+  'media.update': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] })),
+  ],
+  'media.delete': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId })),
+  ],
+  'media.usage': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId })),
+  ],
+  'media.list': [
+    c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
+    c("B's library alone", (w) => ({ restaurantId: w.b.restaurantId, own: true })),
+    c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+    c('the shared library', () => ({}), SCOPED),
+  ],
+
+  // The shared library is the platform's: `media.manage` there is a Super Admin's alone, whatever a restaurant grants.
+  'media.requestSharedUpload': [c('a shared upload', () => ({ fileName: 'p.png', mime: 'image/png', bytes: 10 }))],
+  'media.finalizeShared': [c("B's upload as shared", (w) => ({ uploadKey: `uploads/${w.b.restaurantId}/planted` }))],
+  'media.updateShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] }))],
+  'media.deleteShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId }))],
+  'media.sharedUsage': [c("B's asset", (w) => ({ assetId: w.b.assetId }))],
+
+  // The Content tab
+  'content.createCategory': [c("in B's menu", (w) => ({ menuId: w.b.menuId, names: { en: 'Planted' } }))],
+  'content.updateCategory': [
+    c("B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, version: 1, names: { en: 'Planted' }, slug: 'planted', isActive: false })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, version: 1, names: { en: 'Planted' }, slug: 'planted', isActive: false })),
+  ],
+  'content.deleteCategory': [
+    c("B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, version: 1 })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, version: 1 })),
+  ],
+  'content.reorderCategories': [
+    c("B's categories, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.categoryId] })),
+    c("A's and B's categories, through A", (w) => ({ menuId: w.a.menuId, order: [w.a.categoryId, w.b.categoryId] })),
+  ],
+  'content.createProduct': [
+    c("in B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, names: { en: 'Planted' }, price: 100 })),
+    c("in B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, names: { en: 'Planted' }, price: 100 })),
+  ],
+  'content.saveProduct': [
+    c("B's product, in B", (w) => productSave(w.b.menuId, w.b.productId, w.b.categoryId)),
+    c("B's product, through A", (w) => productSave(w.a.menuId, w.b.productId, w.a.categoryId)),
+    c("A's product into B's category", (w) => productSave(w.a.menuId, w.a.productId, w.b.categoryId)),
+    c("A's product with B's size", (w) => ({
+      ...productSave(w.a.menuId, w.a.productId, w.a.categoryId),
+      variants: [{ id: w.b.variantId, version: 1, names: { en: 'Planted' }, priceDelta: 0, isDefault: true }],
+    })),
+    c("A's product with B's picture", (w) => ({ ...productSave(w.a.menuId, w.a.productId, w.a.categoryId), media: [{ kind: 'asset', assetId: w.b.assetId }] })),
+  ],
+  'content.deleteProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1 })),
+  ],
+  'content.moveProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, categoryId: w.b.categoryId, index: 0 })),
+    c("B's product into A's category", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, categoryId: w.a.categoryId, index: 0 })),
+    c("A's product into B's category", (w) => ({ menuId: w.a.menuId, productId: w.a.productId, categoryId: w.b.categoryId, index: 0 })),
+  ],
+  'content.tree': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+
+  // The Availability tab
+  'availability.setProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, isAvailable: false })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, isHidden: true })),
+  ],
+  'availability.setOption': [
+    c("B's option, in B", (w) => ({ menuId: w.b.menuId, optionId: w.b.optionId, isAvailable: false })),
+    c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
+  ],
+  'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+
+  // The Prices tab
+  'prices.set': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, target: { kind: 'product', id: w.b.productId, version: 1 }, price: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, target: { kind: 'product', id: w.b.productId, version: 1 }, price: 1 })),
+    c("B's size, through A", (w) => ({ menuId: w.a.menuId, target: { kind: 'variant', id: w.b.variantId, version: 1 }, price: 1 })),
+  ],
+  'prices.grid': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'prices.previewBulk': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...{ selection: {}, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+    c("B's products, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { productIds: [w.b.productId] }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { categoryId: w.b.categoryId }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+  ],
+  'prices.applyBulk': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...{ selection: {}, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+    c("B's products, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { productIds: [w.b.productId] }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { categoryId: w.b.categoryId }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+  ],
+  'content.product': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId })),
+  ],
+
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'preview.draft': [c("B's draft", (w) => ({ menuId: w.b.menuId, locale: 'en' }))],
   'menus.slugAvailability': [c("for B's menu", (w) => ({ slug: 'some-new-address', menuId: w.b.menuId }))],
   'people.listPeople': [
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
@@ -335,6 +636,7 @@ const SWEPT: Record<string, Case[]> = {
     c("in B's city", () => ({ city: 'Bravoville' }), SCOPED),
   ],
   'menus.newOptions': [c('the restaurants to create in', () => ({}), SHOWS_OWN)],
+  'media.libraries': [c('the libraries to manage', () => ({}), SHOWS_OWN)],
   'overview.get': [c('the overview', () => ({}), SCOPED)],
   'restaurants.list': [
     c('every restaurant', () => ({}), SHOWS_OWN),

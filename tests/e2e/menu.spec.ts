@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test';
+import sharp from 'sharp';
+import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
 
 test.describe('Quick Menu', () => {
   test('shows the menu immediately without any interaction', async ({ page }) => {
@@ -91,5 +93,47 @@ test.describe('Quick Menu', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(page.getByRole('searchbox', { name: 'ابحث في القائمة' })).toBeVisible();
     await expect(page.getByRole('button', { name: /برغر أتيليه/ }).first()).toBeVisible();
+  });
+});
+
+test.describe('Product details from the Studio', () => {
+  let menu: TemporaryMenu;
+
+  test.beforeAll(async () => {
+    const photo = await sharp({ create: { width: 1200, height: 800, channels: 3, background: '#B4532A' } }).jpeg().toBuffer();
+    menu = await createTemporaryMenu({
+      product: { badges: ['NEW'], dietary: ['VEGAN'], calories: 320, photo: new Uint8Array(photo), alt: { en: 'A red espresso cup', ar: 'فنجان إسبريسو أحمر' } },
+    });
+  });
+
+  test.afterAll(async () => {
+    await menu?.remove();
+  });
+
+  test('shows the badge on the row, in the page language', async ({ page }) => {
+    await page.goto(`/${menu.slug}/en`);
+    await expect(page.getByTestId('product-row').getByText('New', { exact: true })).toBeVisible();
+    await page.goto(`/${menu.slug}/ar`);
+    await expect(page.getByTestId('product-row').getByText('جديد', { exact: true })).toBeVisible();
+  });
+
+  test('lists dietary tags and calories on the product page', async ({ page }) => {
+    await page.goto(`/${menu.slug}/en/p/${menu.productSlug}`);
+    await expect(page.getByText('Vegan', { exact: true })).toBeVisible();
+    await expect(page.getByText('320 kcal')).toBeVisible();
+  });
+
+  test('loads the library photo as AVIF or WebP at the width it needs, with its alt text', async ({ page }) => {
+    await page.goto(`/${menu.slug}/en`);
+    const picture = page.getByTestId('product-row').locator('picture').first();
+    await expect(picture.locator('source[type="image/avif"]')).toHaveAttribute('srcset', /avif-320\.avif 320w/);
+    const image = picture.locator('img');
+    await expect(image).toHaveAttribute('srcset', /webp-640\.webp 640w/);
+    await expect(image).toHaveAttribute('loading', 'lazy');
+    // The file really loads from the media route: a broken URL would leave it at zero width.
+    await expect.poll(() => image.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+
+    await page.goto(`/${menu.slug}/ar/p/${menu.productSlug}`);
+    await expect(page.locator('picture img').first()).toHaveAttribute('alt', 'فنجان إسبريسو أحمر');
   });
 });

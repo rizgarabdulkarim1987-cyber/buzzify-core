@@ -16,7 +16,19 @@ export function Header({ current = 'menu', overlay = false }: { current?: 'menu'
         <div className="min-w-0">
           <h1 className="font-display text-[1.65rem] tracking-[0.16em] text-text">
             <a href={href()} data-testid="brand" className="flex min-h-11 items-center">
-              {tenant.logoText}
+              {tenant.logo ? (
+                // The brand's own logo, named by its text; a library file already sized for the screen.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={tenant.logo.url}
+                  alt={tenant.logoText}
+                  width={tenant.logo.width}
+                  height={tenant.logo.height}
+                  className="h-10 w-auto max-w-[14rem] object-contain object-left rtl:object-right"
+                />
+              ) : (
+                tenant.logoText
+              )}
             </a>
           </h1>
           {table !== null && (

@@ -1,0 +1,2978 @@
+{
+  "snapshot": {
+    "schemaVersion": 1,
+    "menu": {
+      "name": "ATELIER",
+      "displayName": "ATELIER",
+      "currency": "USD",
+      "defaultLocale": "en",
+      "locales": [
+        "en",
+        "ar",
+        "ckb"
+      ],
+      "timeZone": "Asia/Baghdad",
+      "numeralSystem": "latn",
+      "engineConfig": {
+        "upsellMaxOffers": 3,
+        "upsellDeltaCapRatio": 0.75,
+        "pairingMaxOffers": 3,
+        "cartPairingMaxOffers": 2,
+        "weights": {
+          "rulePriority": 0.45,
+          "margin": 0.25,
+          "popularity": 0.2,
+          "priority": 0.1,
+          "daypart": 0.2,
+          "stockPenalty": 0.15
+        }
+      },
+      "seo": {}
+    },
+    "brand": {
+      "logoText": "ATELIER",
+      "theme": "dark",
+      "motionIntensity": "subtle",
+      "railStyle": "deck",
+      "tokens": {
+        "dark": {
+          "bg": "#0E0E0F",
+          "surface": "#1B1A19",
+          "raised": "#2A2826",
+          "accent": "#D6BC8A",
+          "text": "#EDE8DF",
+          "muted": "#A7A096",
+          "line": "#3A3633",
+          "onAccent": "#0E0E0F"
+        },
+        "light": {
+          "bg": "#F7F5F1",
+          "surface": "#FFFFFF",
+          "raised": "#EFEBE4",
+          "accent": "#7A5F26",
+          "text": "#1B1A19",
+          "muted": "#6B655D",
+          "line": "#D9D3C9",
+          "onAccent": "#FFFFFF"
+        }
+      }
+    },
+    "catalog": {
+      "currency": "USD",
+      "timeZone": "Asia/Baghdad",
+      "defaultLocale": "en",
+      "categories": [
+        {
+          "id": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "coffee-tea",
+          "sortOrder": 0,
+          "translations": {
+            "ar": {
+              "name": "القهوة والشاي"
+            },
+            "en": {
+              "name": "Coffee & Tea"
+            },
+            "ckb": {
+              "name": "قاوە و چا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhs7x0005x8uo44t10nc8",
+          "slug": "breakfast",
+          "sortOrder": 1,
+          "translations": {
+            "ar": {
+              "name": "الفطور"
+            },
+            "en": {
+              "name": "Breakfast"
+            },
+            "ckb": {
+              "name": "نانی بەیانی"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "plates",
+          "sortOrder": 2,
+          "translations": {
+            "ar": {
+              "name": "الأطباق الرئيسية"
+            },
+            "en": {
+              "name": "Plates"
+            },
+            "ckb": {
+              "name": "خواردنی سەرەکی"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhs7z0007x8uogu14jnyx",
+          "slug": "patisserie",
+          "sortOrder": 3,
+          "translations": {
+            "ar": {
+              "name": "الحلويات"
+            },
+            "en": {
+              "name": "Pâtisserie"
+            },
+            "ckb": {
+              "name": "شیرینی"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhs810008x8uojqihjdit",
+          "slug": "cold",
+          "sortOrder": 4,
+          "translations": {
+            "ar": {
+              "name": "المشروبات الباردة"
+            },
+            "en": {
+              "name": "Cold & Sparkling"
+            },
+            "ckb": {
+              "name": "خواردنەوە ساردەکان"
+            }
+          }
+        }
+      ],
+      "products": [
+        {
+          "id": "cmvcfhs840009x8uoj435wm2c",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "espresso",
+          "basePrice": 300,
+          "cost": 45,
+          "popularity": 80,
+          "priority": 40,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "إسبريسو",
+              "description": "جرعة قصيرة ومركّزة من مزيجنا الخاص."
+            },
+            "en": {
+              "name": "Espresso",
+              "description": "A short, concentrated shot of our house blend."
+            },
+            "ckb": {
+              "name": "ئێسپرێسۆ",
+              "description": "شۆتێکی کورت و خەست لە تێکەڵەی تایبەتی ئێمە."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#6B4A2F"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "قهوة"
+            ],
+            "en": [
+              "Coffee"
+            ],
+            "ckb": [
+              "قاوە"
+            ]
+          },
+          "sortOrder": 0,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs87000ax8uov08ciuk2",
+              "productId": "cmvcfhs840009x8uoj435wm2c",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "إضافات"
+                },
+                "en": {
+                  "name": "Extras"
+                },
+                "ckb": {
+                  "name": "زیادەکراوەکان"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs89000bx8uohomui72z",
+                  "groupId": "cmvcfhs87000ax8uov08ciuk2",
+                  "priceDelta": 100,
+                  "costDelta": 20,
+                  "isSuggested": true,
+                  "suggestPriority": 60,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "جرعة إضافية",
+                      "effect": "جرعة ثانية من الإسبريسو"
+                    },
+                    "en": {
+                      "name": "Extra shot",
+                      "effect": "A second shot of espresso"
+                    },
+                    "ckb": {
+                      "name": "شۆتی زیادە",
+                      "effect": "شۆتێکی دووەمی ئێسپرێسۆ"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs8g000cx8uohnl5yu70",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "flat-white",
+          "basePrice": 450,
+          "cost": 90,
+          "popularity": 85,
+          "priority": 60,
+          "isSignature": true,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "فلات وايت",
+              "description": "حليب مبخّر ناعم فوق إسبريسو مزدوج."
+            },
+            "en": {
+              "name": "Flat White",
+              "description": "Silky steamed milk over a double espresso."
+            },
+            "ckb": {
+              "name": "فلات وایت",
+              "description": "شیری بەرزکراوەی نەرم لەسەر ئێسپرێسۆی دووجار."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#8A6A4B"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "إسبريسو",
+              "حليب"
+            ],
+            "en": [
+              "Espresso",
+              "Milk"
+            ],
+            "ckb": [
+              "ئێسپرێسۆ",
+              "شیر"
+            ]
+          },
+          "sortOrder": 1,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs8g000dx8uoottozosx",
+              "productId": "cmvcfhs8g000cx8uohnl5yu70",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "الحليب"
+                },
+                "en": {
+                  "name": "Milk"
+                },
+                "ckb": {
+                  "name": "شیر"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8h000ex8uof02l240d",
+                  "groupId": "cmvcfhs8g000dx8uoottozosx",
+                  "priceDelta": 50,
+                  "costDelta": 15,
+                  "isSuggested": true,
+                  "suggestPriority": 40,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب الشوفان",
+                      "effect": "كريمي نباتي بحلاوة خفيفة"
+                    },
+                    "en": {
+                      "name": "Oat milk",
+                      "effect": "Creamy, plant-based, lightly sweet"
+                    },
+                    "ckb": {
+                      "name": "شیری جۆ",
+                      "effect": "کرێمی و ڕووەکی و کەمێک شیرین"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs8h000fx8uov700hw26",
+                  "groupId": "cmvcfhs8g000dx8uoottozosx",
+                  "priceDelta": 50,
+                  "costDelta": 20,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب اللوز"
+                    },
+                    "en": {
+                      "name": "Almond milk"
+                    },
+                    "ckb": {
+                      "name": "شیری بادەم"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "cmvcfhs8h000gx8uokf7l7y38",
+              "productId": "cmvcfhs8g000cx8uohnl5yu70",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "إضافات"
+                },
+                "en": {
+                  "name": "Extras"
+                },
+                "ckb": {
+                  "name": "زیادەکراوەکان"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8i000hx8uo6d6cw6z8",
+                  "groupId": "cmvcfhs8h000gx8uokf7l7y38",
+                  "priceDelta": 100,
+                  "costDelta": 20,
+                  "isSuggested": true,
+                  "suggestPriority": 60,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "جرعة إضافية",
+                      "effect": "جرعة ثانية من الإسبريسو"
+                    },
+                    "en": {
+                      "name": "Extra shot",
+                      "effect": "A second shot of espresso"
+                    },
+                    "ckb": {
+                      "name": "شۆتی زیادە",
+                      "effect": "شۆتێکی دووەمی ئێسپرێسۆ"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs8m000ix8uo09021aeg",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "cappuccino",
+          "basePrice": 450,
+          "cost": 85,
+          "popularity": 78,
+          "priority": 50,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "كابتشينو",
+              "description": "إسبريسو تحت طبقة كثيفة من الرغوة المخملية."
+            },
+            "en": {
+              "name": "Cappuccino",
+              "description": "Espresso under a thick cap of velvety foam."
+            },
+            "ckb": {
+              "name": "کاپوچینۆ",
+              "description": "ئێسپرێسۆ لەژێر چینێکی خەستی کەفی نەرم."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#9B7653"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "إسبريسو",
+              "حليب"
+            ],
+            "en": [
+              "Espresso",
+              "Milk"
+            ],
+            "ckb": [
+              "ئێسپرێسۆ",
+              "شیر"
+            ]
+          },
+          "sortOrder": 2,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs8m000jx8uocgwj67bt",
+              "productId": "cmvcfhs8m000ix8uo09021aeg",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "الحليب"
+                },
+                "en": {
+                  "name": "Milk"
+                },
+                "ckb": {
+                  "name": "شیر"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8n000kx8uolo40xpea",
+                  "groupId": "cmvcfhs8m000jx8uocgwj67bt",
+                  "priceDelta": 50,
+                  "costDelta": 15,
+                  "isSuggested": true,
+                  "suggestPriority": 40,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب الشوفان",
+                      "effect": "كريمي نباتي بحلاوة خفيفة"
+                    },
+                    "en": {
+                      "name": "Oat milk",
+                      "effect": "Creamy, plant-based, lightly sweet"
+                    },
+                    "ckb": {
+                      "name": "شیری جۆ",
+                      "effect": "کرێمی و ڕووەکی و کەمێک شیرین"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs8n000lx8uoyb8fcqtp",
+                  "groupId": "cmvcfhs8m000jx8uocgwj67bt",
+                  "priceDelta": 50,
+                  "costDelta": 20,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب اللوز"
+                    },
+                    "en": {
+                      "name": "Almond milk"
+                    },
+                    "ckb": {
+                      "name": "شیری بادەم"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "cmvcfhs8o000mx8uov8y2xyum",
+              "productId": "cmvcfhs8m000ix8uo09021aeg",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "إضافات"
+                },
+                "en": {
+                  "name": "Extras"
+                },
+                "ckb": {
+                  "name": "زیادەکراوەکان"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8p000nx8uodbtgpmfv",
+                  "groupId": "cmvcfhs8o000mx8uov8y2xyum",
+                  "priceDelta": 100,
+                  "costDelta": 20,
+                  "isSuggested": true,
+                  "suggestPriority": 60,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "جرعة إضافية",
+                      "effect": "جرعة ثانية من الإسبريسو"
+                    },
+                    "en": {
+                      "name": "Extra shot",
+                      "effect": "A second shot of espresso"
+                    },
+                    "ckb": {
+                      "name": "شۆتی زیادە",
+                      "effect": "شۆتێکی دووەمی ئێسپرێسۆ"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs8s000ox8uoxw0q6qzg",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "cortado",
+          "basePrice": 400,
+          "cost": 80,
+          "popularity": 55,
+          "priority": 40,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "كورتادو",
+              "description": "كميات متساوية من الإسبريسو والحليب الدافئ."
+            },
+            "en": {
+              "name": "Cortado",
+              "description": "Equal parts espresso and warm milk."
+            },
+            "ckb": {
+              "name": "کۆرتادۆ",
+              "description": "بڕی یەکسان ئێسپرێسۆ و شیری گەرم."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#7A5A3F"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "إسبريسو",
+              "حليب"
+            ],
+            "en": [
+              "Espresso",
+              "Milk"
+            ],
+            "ckb": [
+              "ئێسپرێسۆ",
+              "شیر"
+            ]
+          },
+          "sortOrder": 3,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs8t000px8uodwn6p9lu",
+              "productId": "cmvcfhs8s000ox8uoxw0q6qzg",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "الحليب"
+                },
+                "en": {
+                  "name": "Milk"
+                },
+                "ckb": {
+                  "name": "شیر"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8t000qx8uo5srkiioz",
+                  "groupId": "cmvcfhs8t000px8uodwn6p9lu",
+                  "priceDelta": 50,
+                  "costDelta": 15,
+                  "isSuggested": true,
+                  "suggestPriority": 40,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب الشوفان",
+                      "effect": "كريمي نباتي بحلاوة خفيفة"
+                    },
+                    "en": {
+                      "name": "Oat milk",
+                      "effect": "Creamy, plant-based, lightly sweet"
+                    },
+                    "ckb": {
+                      "name": "شیری جۆ",
+                      "effect": "کرێمی و ڕووەکی و کەمێک شیرین"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs8t000rx8uob61p5vv2",
+                  "groupId": "cmvcfhs8t000px8uodwn6p9lu",
+                  "priceDelta": 50,
+                  "costDelta": 20,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب اللوز"
+                    },
+                    "en": {
+                      "name": "Almond milk"
+                    },
+                    "ckb": {
+                      "name": "شیری بادەم"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs8x000sx8uojmkw2xoe",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "matcha-latte",
+          "basePrice": 550,
+          "cost": 140,
+          "popularity": 62,
+          "priority": 70,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "ماتشا لاتيه",
+              "description": "ماتشا مطحونة على الحجر مخفوقة مع حليب مبخّر."
+            },
+            "en": {
+              "name": "Matcha Latte",
+              "description": "Stone-ground matcha whisked with steamed milk."
+            },
+            "ckb": {
+              "name": "ماچا لاتە",
+              "description": "ماچای ئاش‌کراو بە بەرد لەگەڵ شیری بەرزکراوە."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#7F9A5E"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "ماتشا",
+              "حليب"
+            ],
+            "en": [
+              "Matcha",
+              "Milk"
+            ],
+            "ckb": [
+              "ماچا",
+              "شیر"
+            ]
+          },
+          "sortOrder": 4,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs8x000tx8uok5ng0g76",
+              "productId": "cmvcfhs8x000sx8uojmkw2xoe",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "الحليب"
+                },
+                "en": {
+                  "name": "Milk"
+                },
+                "ckb": {
+                  "name": "شیر"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs8y000ux8uo7dvqzqtb",
+                  "groupId": "cmvcfhs8x000tx8uok5ng0g76",
+                  "priceDelta": 50,
+                  "costDelta": 15,
+                  "isSuggested": true,
+                  "suggestPriority": 40,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب الشوفان",
+                      "effect": "كريمي نباتي بحلاوة خفيفة"
+                    },
+                    "en": {
+                      "name": "Oat milk",
+                      "effect": "Creamy, plant-based, lightly sweet"
+                    },
+                    "ckb": {
+                      "name": "شیری جۆ",
+                      "effect": "کرێمی و ڕووەکی و کەمێک شیرین"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs8y000vx8uo8h9h3yrn",
+                  "groupId": "cmvcfhs8x000tx8uok5ng0g76",
+                  "priceDelta": 50,
+                  "costDelta": 20,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "حليب اللوز"
+                    },
+                    "en": {
+                      "name": "Almond milk"
+                    },
+                    "ckb": {
+                      "name": "شیری بادەم"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs91000wx8uohxnt51ks",
+          "categoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "slug": "earl-grey",
+          "basePrice": 350,
+          "cost": 40,
+          "popularity": 45,
+          "priority": 30,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "شاي إيرل غراي",
+              "description": "شاي أسود معطّر بالبرغموت، يُقدَّم في إبريق."
+            },
+            "en": {
+              "name": "Earl Grey",
+              "description": "Black tea scented with bergamot, served in a pot."
+            },
+            "ckb": {
+              "name": "چای ئێرل گرەی",
+              "description": "چایی ڕەش بۆنخۆشکراو بە بێرگاموت، لە قوریەکدا."
+            }
+          },
+          "media": [
+            {
+              "art": "cup",
+              "kind": "art",
+              "tone": "#B58B4C"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "شاي أسود",
+              "برغموت"
+            ],
+            "en": [
+              "Black tea",
+              "Bergamot"
+            ],
+            "ckb": [
+              "چایی ڕەش",
+              "بێرگاموت"
+            ]
+          },
+          "sortOrder": 5,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs94000xx8uop6bg4zte",
+          "categoryId": "cmvcfhs7x0005x8uo44t10nc8",
+          "slug": "croissant",
+          "basePrice": 350,
+          "cost": 80,
+          "popularity": 85,
+          "priority": 60,
+          "isSignature": true,
+          "isFeatured": false,
+          "lowStockThreshold": 8,
+          "dayparts": [
+            "BREAKFAST"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "BAKERY",
+          "translations": {
+            "ar": {
+              "name": "كرواسون بالزبدة",
+              "description": "عجينة مورّقة بالزبدة الخالصة، تُخبز كل صباح."
+            },
+            "en": {
+              "name": "Croissant au beurre",
+              "description": "Laminated all-butter pastry, baked each morning."
+            },
+            "ckb": {
+              "name": "کرواسانی کەرە",
+              "description": "هەویری چین‌چین بە کەرەی خاڵیس، هەموو بەیانییەک دەکرێتە فڕن."
+            }
+          },
+          "media": [
+            {
+              "art": "pastry",
+              "kind": "art",
+              "tone": "#C98F4A",
+              "model": "croissant"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "زبدة",
+              "طحين",
+              "حليب"
+            ],
+            "en": [
+              "Butter",
+              "Flour",
+              "Milk"
+            ],
+            "ckb": [
+              "کەرە",
+              "ئارد",
+              "شیر"
+            ]
+          },
+          "sortOrder": 6,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs97000yx8uoxszswknh",
+          "categoryId": "cmvcfhs7x0005x8uo44t10nc8",
+          "slug": "avocado-toast",
+          "basePrice": 900,
+          "cost": 260,
+          "popularity": 70,
+          "priority": 55,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "BREAKFAST",
+            "LUNCH"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "توست الأفوكادو",
+              "description": "خبز العجين المخمّر مع أفوكادو مهروس وليمون ورقائق الفلفل الحار."
+            },
+            "en": {
+              "name": "Avocado Toast",
+              "description": "Sourdough, smashed avocado, lime and chilli flakes."
+            },
+            "ckb": {
+              "name": "تۆستی ئەڤۆکادۆ",
+              "description": "نانی هەویری ترش لەگەڵ ئەڤۆکادۆی کوتراو، لیمۆ و پەلی بیبەری تیژ."
+            }
+          },
+          "media": [
+            {
+              "art": "plate",
+              "kind": "art",
+              "tone": "#7C9B5A"
+            }
+          ],
+          "allergens": [
+            "gluten"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "خبز العجين المخمّر",
+              "أفوكادو",
+              "ليمون",
+              "فلفل حار"
+            ],
+            "en": [
+              "Sourdough",
+              "Avocado",
+              "Lime",
+              "Chilli"
+            ],
+            "ckb": [
+              "نانی هەویری ترش",
+              "ئەڤۆکادۆ",
+              "لیمۆ",
+              "بیبەری تیژ"
+            ]
+          },
+          "sortOrder": 7,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs97000zx8uor7x86mn6",
+              "productId": "cmvcfhs97000yx8uoxszswknh",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "إضافة"
+                },
+                "en": {
+                  "name": "Add"
+                },
+                "ckb": {
+                  "name": "زیادە بکە"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs980010x8uogtvizjuk",
+                  "groupId": "cmvcfhs97000zx8uor7x86mn6",
+                  "priceDelta": 150,
+                  "costDelta": 40,
+                  "isSuggested": true,
+                  "suggestPriority": 65,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "بيضة مسلوقة",
+                      "effect": "بيضة واحدة مسلوقة طرية"
+                    },
+                    "en": {
+                      "name": "Poached egg",
+                      "effect": "One soft poached egg"
+                    },
+                    "ckb": {
+                      "name": "هێلکەی کوڵاو",
+                      "effect": "یەک هێلکەی نەرمی کوڵاو"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs9b0011x8uooog5d2kf",
+          "categoryId": "cmvcfhs7x0005x8uo44t10nc8",
+          "slug": "shakshuka",
+          "basePrice": 1050,
+          "cost": 240,
+          "popularity": 68,
+          "priority": 60,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "BREAKFAST",
+            "LUNCH"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "شكشوكة",
+              "description": "بيض مخبوز في صلصة الطماطم والفلفل المتبّلة، مع خبز دافئ."
+            },
+            "en": {
+              "name": "Shakshuka",
+              "description": "Eggs baked in spiced tomato and pepper sauce, with warm bread."
+            },
+            "ckb": {
+              "name": "شەکشوکە",
+              "description": "هێلکەی فڕنکراو لە سۆسی تەماتە و بیبەری بەهاراتکراو، لەگەڵ نانی گەرم."
+            }
+          },
+          "media": [
+            {
+              "art": "plate",
+              "kind": "art",
+              "tone": "#B5432F"
+            }
+          ],
+          "allergens": [
+            "egg",
+            "gluten"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "بيض",
+              "طماطم",
+              "فلفل",
+              "خبز"
+            ],
+            "en": [
+              "Eggs",
+              "Tomato",
+              "Pepper",
+              "Bread"
+            ],
+            "ckb": [
+              "هێلکە",
+              "تەماتە",
+              "بیبەر",
+              "نان"
+            ]
+          },
+          "sortOrder": 8,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs9e0012x8uolh35myzi",
+          "categoryId": "cmvcfhs7x0005x8uo44t10nc8",
+          "slug": "granola-bowl",
+          "basePrice": 800,
+          "cost": 190,
+          "popularity": 52,
+          "priority": 45,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "BREAKFAST"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "وعاء الغرانولا",
+              "description": "غرانولا منزلية الصنع مع لبن وفاكهة موسمية وعسل."
+            },
+            "en": {
+              "name": "Granola Bowl",
+              "description": "House granola, yoghurt, seasonal fruit and honey."
+            },
+            "ckb": {
+              "name": "قاپی گرانۆلا",
+              "description": "گرانۆلای ماڵی لەگەڵ ماست، میوەی وەرز و هەنگوین."
+            }
+          },
+          "media": [
+            {
+              "art": "bowl",
+              "kind": "art",
+              "tone": "#C9A86A"
+            }
+          ],
+          "allergens": [
+            "milk",
+            "nuts",
+            "gluten"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "غرانولا",
+              "لبن",
+              "فاكهة",
+              "عسل"
+            ],
+            "en": [
+              "Granola",
+              "Yoghurt",
+              "Fruit",
+              "Honey"
+            ],
+            "ckb": [
+              "گرانۆلا",
+              "ماست",
+              "میوە",
+              "هەنگوین"
+            ]
+          },
+          "sortOrder": 9,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs9i0013x8uo345ekylc",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "atelier-burger",
+          "basePrice": 900,
+          "cost": 310,
+          "popularity": 75,
+          "priority": 70,
+          "isSignature": true,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "LUNCH",
+            "DINNER"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "برغر أتيليه",
+              "description": "لحم بقري معتّق، خبز بريوش، مخلل منزلي وصلصة خاصة."
+            },
+            "en": {
+              "name": "Atelier Burger",
+              "description": "Dry-aged beef, brioche bun, house pickles and sauce."
+            },
+            "ckb": {
+              "name": "بەرگەری ئاتەلیە",
+              "description": "گۆشتی مانگای پیرکراو، نانی بریۆش، تورشی ماڵی و سۆسی تایبەت."
+            }
+          },
+          "media": [
+            {
+              "art": "burger",
+              "kind": "art",
+              "tone": "#A5662F"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "egg",
+            "milk",
+            "mustard"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "لحم بقري",
+              "بريوش",
+              "مخلل",
+              "صلصة خاصة"
+            ],
+            "en": [
+              "Beef",
+              "Brioche",
+              "Pickles",
+              "House sauce"
+            ],
+            "ckb": [
+              "گۆشتی مانگا",
+              "بریۆش",
+              "تورشی",
+              "سۆسی تایبەت"
+            ]
+          },
+          "sortOrder": 10,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs9i0014x8uo3ffx1qn5",
+              "productId": "cmvcfhs9i0013x8uo345ekylc",
+              "minSelect": 0,
+              "maxSelect": 2,
+              "translations": {
+                "ar": {
+                  "name": "اجعلها على ذوقك"
+                },
+                "en": {
+                  "name": "Make it yours"
+                },
+                "ckb": {
+                  "name": "بە دڵی خۆت بیکە"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs9i0015x8uoui04kvjx",
+                  "groupId": "cmvcfhs9i0014x8uo3ffx1qn5",
+                  "priceDelta": 100,
+                  "costDelta": 35,
+                  "isSuggested": true,
+                  "suggestPriority": 70,
+                  "visualKey": "cheese",
+                  "translations": {
+                    "ar": {
+                      "name": "جبنة فاخرة",
+                      "effect": "شيدر معتّق مذاب"
+                    },
+                    "en": {
+                      "name": "Premium cheese",
+                      "effect": "Aged cheddar, melted"
+                    },
+                    "ckb": {
+                      "name": "پەنیری تایبەت",
+                      "effect": "چێدەری پیرکراوی تواوە"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9i0016x8uo5gsomb8m",
+                  "groupId": "cmvcfhs9i0014x8uo3ffx1qn5",
+                  "priceDelta": 300,
+                  "costDelta": 160,
+                  "isSuggested": true,
+                  "suggestPriority": 85,
+                  "visualKey": "patty",
+                  "translations": {
+                    "ar": {
+                      "name": "قرصان من اللحم",
+                      "effect": "قرص لحم ثانٍ بوزن ١٤٠ غ"
+                    },
+                    "en": {
+                      "name": "Double patty",
+                      "effect": "A second 140 g beef patty"
+                    },
+                    "ckb": {
+                      "name": "دوو پارچە گۆشت",
+                      "effect": "پارچەیەکی دووەمی گۆشت ١٤٠ گرام"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9i0017x8uou0gm9z8y",
+                  "groupId": "cmvcfhs9i0014x8uo3ffx1qn5",
+                  "priceDelta": 150,
+                  "costDelta": 60,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": "bacon",
+                  "translations": {
+                    "ar": {
+                      "name": "لحم مقدد"
+                    },
+                    "en": {
+                      "name": "Bacon"
+                    },
+                    "ckb": {
+                      "name": "باکۆن"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs9l0018x8uojiyy5et0",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "wagyu-burger",
+          "basePrice": 1300,
+          "cost": 590,
+          "popularity": 58,
+          "priority": 65,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "DINNER"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "برغر واغيو",
+              "description": "قرص لحم واغيو مع شيدر معتّق ومايونيز الكمأة على خبز بريوش محمّص."
+            },
+            "en": {
+              "name": "Wagyu Burger",
+              "description": "Wagyu beef patty, aged cheddar and truffle mayo on toasted brioche."
+            },
+            "ckb": {
+              "name": "بەرگەری واگیو",
+              "description": "پارچەی گۆشتی واگیو لەگەڵ چێدەری پیرکراو و مایۆنیزی ترۆفڵ لەسەر بریۆشی برژاو."
+            }
+          },
+          "media": [
+            {
+              "art": "burger",
+              "kind": "art",
+              "tone": "#7D4A25"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "egg",
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "لحم واغيو",
+              "شيدر",
+              "مايونيز الكمأة",
+              "بريوش"
+            ],
+            "en": [
+              "Wagyu beef",
+              "Cheddar",
+              "Truffle mayo",
+              "Brioche"
+            ],
+            "ckb": [
+              "گۆشتی واگیو",
+              "چێدەر",
+              "مایۆنیزی ترۆفڵ",
+              "بریۆش"
+            ]
+          },
+          "sortOrder": 11,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs9o0019x8uod0x6kqtz",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "truffle-pasta",
+          "basePrice": 1550,
+          "cost": 420,
+          "popularity": 66,
+          "priority": 72,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "LUNCH",
+            "DINNER"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "تاليتيلي بالكمأة",
+              "description": "معكرونة بيض طازجة بزبدة الكمأة السوداء والبارميزان."
+            },
+            "en": {
+              "name": "Truffle Tagliatelle",
+              "description": "Fresh egg pasta, black truffle butter and parmesan."
+            },
+            "ckb": {
+              "name": "تاگلیاتێلی ترۆفڵ",
+              "description": "پاستای هێلکەی تازە لەگەڵ کەرەی ترۆفڵی ڕەش و پارمیزان."
+            }
+          },
+          "media": [
+            {
+              "art": "plate",
+              "kind": "art",
+              "tone": "#D8C39A"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "egg",
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "معكرونة بيض",
+              "كمأة سوداء",
+              "زبدة",
+              "بارميزان"
+            ],
+            "en": [
+              "Egg pasta",
+              "Black truffle",
+              "Butter",
+              "Parmesan"
+            ],
+            "ckb": [
+              "پاستای هێلکە",
+              "ترۆفڵی ڕەش",
+              "کەرە",
+              "پارمیزان"
+            ]
+          },
+          "sortOrder": 12,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs9o001ax8uoweh3z22m",
+              "productId": "cmvcfhs9o0019x8uod0x6kqtz",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "إضافة"
+                },
+                "en": {
+                  "name": "Add"
+                },
+                "ckb": {
+                  "name": "زیادە بکە"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs9p001bx8uojg1pzols",
+                  "groupId": "cmvcfhs9o001ax8uoweh3z22m",
+                  "priceDelta": 400,
+                  "costDelta": 160,
+                  "isSuggested": true,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "دجاج مشوي",
+                      "effect": "شرائح صدر دجاج مشوي"
+                    },
+                    "en": {
+                      "name": "Grilled chicken",
+                      "effect": "Sliced grilled chicken breast"
+                    },
+                    "ckb": {
+                      "name": "مریشکی برژاو",
+                      "effect": "پارچە سنگی مریشکی برژاو"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9p001cx8uo5cvoao4m",
+                  "groupId": "cmvcfhs9o001ax8uoweh3z22m",
+                  "priceDelta": 350,
+                  "costDelta": 150,
+                  "isSuggested": true,
+                  "suggestPriority": 60,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "بوراتا",
+                      "effect": "حبّة بوراتا كاملة تُمزَّق فوق الطبق"
+                    },
+                    "en": {
+                      "name": "Burrata",
+                      "effect": "A whole burrata, torn over the top"
+                    },
+                    "ckb": {
+                      "name": "بوراتا",
+                      "effect": "بوراتایەکی تەواو لەسەر خواردنەکە"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs9s001dx8uoe66j755z",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "ribeye",
+          "basePrice": 2800,
+          "cost": 1150,
+          "popularity": 55,
+          "priority": 60,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [
+            "DINNER"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "MAIN",
+          "translations": {
+            "ar": {
+              "name": "ريب آي ٢٥٠ غ",
+              "description": "ريب آي مشوي على الفحم مع زبدة نخاع العظم."
+            },
+            "en": {
+              "name": "Ribeye 250 g",
+              "description": "Ribeye grilled over charcoal with bone-marrow butter."
+            },
+            "ckb": {
+              "name": "ڕیب‌ئای ٢٥٠ گرام",
+              "description": "ڕیب‌ئای برژاو لەسەر خەڵووز لەگەڵ کەرەی مۆخی ئێسقان."
+            }
+          },
+          "media": [
+            {
+              "art": "plate",
+              "kind": "art",
+              "tone": "#5C3524"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "ريب آي",
+              "زبدة نخاع العظم",
+              "ملح البحر"
+            ],
+            "en": [
+              "Ribeye",
+              "Bone-marrow butter",
+              "Sea salt"
+            ],
+            "ckb": [
+              "ڕیب‌ئای",
+              "کەرەی مۆخی ئێسقان",
+              "خوێی دەریا"
+            ]
+          },
+          "sortOrder": 13,
+          "variants": [],
+          "groups": [
+            {
+              "id": "cmvcfhs9t001ex8uo6xmjbowt",
+              "productId": "cmvcfhs9s001dx8uoe66j755z",
+              "minSelect": 1,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "درجة النضج"
+                },
+                "en": {
+                  "name": "Doneness"
+                },
+                "ckb": {
+                  "name": "پلەی پێگەیشتن"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs9t001fx8uo6dbm7i1w",
+                  "groupId": "cmvcfhs9t001ex8uo6xmjbowt",
+                  "priceDelta": 0,
+                  "costDelta": 0,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "نادج"
+                    },
+                    "en": {
+                      "name": "Rare"
+                    },
+                    "ckb": {
+                      "name": "خاو"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9t001gx8uomh5y34a9",
+                  "groupId": "cmvcfhs9t001ex8uo6xmjbowt",
+                  "priceDelta": 0,
+                  "costDelta": 0,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "متوسط النضج قليلاً"
+                    },
+                    "en": {
+                      "name": "Medium rare"
+                    },
+                    "ckb": {
+                      "name": "ناوەندی خاو"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9t001hx8uo19btjt2n",
+                  "groupId": "cmvcfhs9t001ex8uo6xmjbowt",
+                  "priceDelta": 0,
+                  "costDelta": 0,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "متوسط"
+                    },
+                    "en": {
+                      "name": "Medium"
+                    },
+                    "ckb": {
+                      "name": "ناوەند"
+                    }
+                  }
+                },
+                {
+                  "id": "cmvcfhs9t001ix8uox3p60fr9",
+                  "groupId": "cmvcfhs9t001ex8uo6xmjbowt",
+                  "priceDelta": 0,
+                  "costDelta": 0,
+                  "isSuggested": false,
+                  "suggestPriority": 50,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "ناضج جيدًا"
+                    },
+                    "en": {
+                      "name": "Well done"
+                    },
+                    "ckb": {
+                      "name": "باش برژاو"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "cmvcfhs9t001jx8uot4nxw5ox",
+              "productId": "cmvcfhs9s001dx8uoe66j755z",
+              "minSelect": 0,
+              "maxSelect": 1,
+              "translations": {
+                "ar": {
+                  "name": "الصلصة"
+                },
+                "en": {
+                  "name": "Sauce"
+                },
+                "ckb": {
+                  "name": "سۆس"
+                }
+              },
+              "options": [
+                {
+                  "id": "cmvcfhs9u001kx8uoex3e1o0e",
+                  "groupId": "cmvcfhs9t001jx8uot4nxw5ox",
+                  "priceDelta": 150,
+                  "costDelta": 40,
+                  "isSuggested": true,
+                  "suggestPriority": 55,
+                  "visualKey": null,
+                  "translations": {
+                    "ar": {
+                      "name": "صلصة الفلفل الأسود",
+                      "effect": "صلصة كريمة بالفلفل المجروش"
+                    },
+                    "en": {
+                      "name": "Peppercorn sauce",
+                      "effect": "Cracked pepper cream sauce"
+                    },
+                    "ckb": {
+                      "name": "سۆسی بیبەری ڕەش",
+                      "effect": "سۆسی کرێمی بیبەری کوتراو"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhs9w001lx8uosrbue3ep",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "caesar-salad",
+          "basePrice": 1000,
+          "cost": 280,
+          "popularity": 48,
+          "priority": 40,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "STARTER",
+          "translations": {
+            "ar": {
+              "name": "سلطة سيزر",
+              "description": "خس صغير مع بارميزان وقطع خبز محمّصة وصلصة الأنشوجة."
+            },
+            "en": {
+              "name": "Caesar Salad",
+              "description": "Little gem, parmesan, sourdough croutons and anchovy dressing."
+            },
+            "ckb": {
+              "name": "زەڵاتەی سیزەر",
+              "description": "کاهووی بچووک لەگەڵ پارمیزان، پارچە نانی برژاو و سۆسی ئەنچۆڤی."
+            }
+          },
+          "media": [
+            {
+              "art": "bowl",
+              "kind": "art",
+              "tone": "#8DAA6A"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "milk",
+            "fish",
+            "egg"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "خس صغير",
+              "بارميزان",
+              "خبز محمّص",
+              "أنشوجة"
+            ],
+            "en": [
+              "Little gem",
+              "Parmesan",
+              "Croutons",
+              "Anchovy"
+            ],
+            "ckb": [
+              "کاهووی بچووک",
+              "پارمیزان",
+              "نانی برژاو",
+              "ئەنچۆڤی"
+            ]
+          },
+          "sortOrder": 14,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhs9y001mx8uok64j75cb",
+          "categoryId": "cmvcfhs7y0006x8uooqlykz3i",
+          "slug": "truffle-fries",
+          "basePrice": 550,
+          "cost": 120,
+          "popularity": 70,
+          "priority": 55,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "SIDE",
+          "translations": {
+            "ar": {
+              "name": "بطاطس بالكمأة",
+              "description": "بطاطس مقطّعة يدويًا مع زيت الكمأة وبارميزان مبشور."
+            },
+            "en": {
+              "name": "Truffle Fries",
+              "description": "Hand-cut fries, truffle oil and grated parmesan."
+            },
+            "ckb": {
+              "name": "پەتاتەی سووربەکراوی ترۆفڵ",
+              "description": "پەتاتەی بە دەست بڕاو لەگەڵ زەیتی ترۆفڵ و پارمیزانی ڕنراو."
+            }
+          },
+          "media": [
+            {
+              "art": "plate",
+              "kind": "art",
+              "tone": "#D9B45A"
+            }
+          ],
+          "allergens": [
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "بطاطس",
+              "زيت الكمأة",
+              "بارميزان"
+            ],
+            "en": [
+              "Potato",
+              "Truffle oil",
+              "Parmesan"
+            ],
+            "ckb": [
+              "پەتاتە",
+              "زەیتی ترۆفڵ",
+              "پارمیزان"
+            ]
+          },
+          "sortOrder": 15,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsa0001nx8uocsbuonti",
+          "categoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "slug": "tarte-citron",
+          "basePrice": 650,
+          "cost": 170,
+          "popularity": 60,
+          "priority": 55,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DESSERT",
+          "translations": {
+            "ar": {
+              "name": "تارت الليمون",
+              "description": "عجينة هشّة بالزبدة وكريمة الليمون وميرنغ محروق."
+            },
+            "en": {
+              "name": "Tarte au Citron",
+              "description": "Buttery shortcrust, lemon curd and torched meringue."
+            },
+            "ckb": {
+              "name": "تارتی لیمۆ",
+              "description": "هەویری کەرەیی، کرێمی لیمۆ و مرینگی سووتێنراو."
+            }
+          },
+          "media": [
+            {
+              "art": "pastry",
+              "kind": "art",
+              "tone": "#E5D06A"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "egg",
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "عجينة بالزبدة",
+              "ليمون",
+              "ميرنغ"
+            ],
+            "en": [
+              "Butter pastry",
+              "Lemon",
+              "Meringue"
+            ],
+            "ckb": [
+              "هەویری کەرە",
+              "لیمۆ",
+              "مرینگ"
+            ]
+          },
+          "sortOrder": 16,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsa3001ox8uos0o0zghm",
+          "categoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "slug": "mille-feuille",
+          "basePrice": 800,
+          "cost": 230,
+          "popularity": 64,
+          "priority": 70,
+          "isSignature": true,
+          "isFeatured": false,
+          "lowStockThreshold": 4,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DESSERT",
+          "translations": {
+            "ar": {
+              "name": "ميل فوي بالفستق",
+              "description": "عجينة مورّقة مكرمَلة مع كريمة الفستق وفتات الفستق."
+            },
+            "en": {
+              "name": "Pistachio Mille-feuille",
+              "description": "Caramelised puff pastry, pistachio cream, crushed pistachio."
+            },
+            "ckb": {
+              "name": "میلفۆیی فستق",
+              "description": "هەویری چین‌چینی کاراملکراو لەگەڵ کرێمی فستق و پارچەی فستق."
+            }
+          },
+          "media": [
+            {
+              "art": "pastry",
+              "kind": "art",
+              "tone": "#9DB07A",
+              "model": "millefeuille"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "milk",
+            "egg",
+            "nuts"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "عجينة مورّقة",
+              "فستق",
+              "كريمة"
+            ],
+            "en": [
+              "Puff pastry",
+              "Pistachio",
+              "Cream"
+            ],
+            "ckb": [
+              "هەویری چین‌چین",
+              "فستق",
+              "کرێم"
+            ]
+          },
+          "sortOrder": 17,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsa7001px8uo3ob1bnt9",
+          "categoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "slug": "chocolate-fondant",
+          "basePrice": 850,
+          "cost": 210,
+          "popularity": 72,
+          "priority": 60,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": 4,
+          "dayparts": [
+            "DINNER",
+            "LATE_NIGHT"
+          ],
+          "hideOutsideDaypart": false,
+          "slot": "DESSERT",
+          "translations": {
+            "ar": {
+              "name": "فوندان الشوكولاتة",
+              "description": "كيك الشوكولاتة الداكنة الدافئ بقلب سائل."
+            },
+            "en": {
+              "name": "Chocolate Fondant",
+              "description": "Warm dark-chocolate cake with a molten centre."
+            },
+            "ckb": {
+              "name": "فۆندانی چکلێت",
+              "description": "کێکی چکلێتی تاریکی گەرم بە ناوەڕاستێکی تواوە."
+            }
+          },
+          "media": [
+            {
+              "art": "pastry",
+              "kind": "art",
+              "tone": "#4A2C21"
+            }
+          ],
+          "allergens": [
+            "gluten",
+            "egg",
+            "milk"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "شوكولاتة داكنة",
+              "زبدة",
+              "بيض"
+            ],
+            "en": [
+              "Dark chocolate",
+              "Butter",
+              "Eggs"
+            ],
+            "ckb": [
+              "چکلێتی تاریک",
+              "کەرە",
+              "هێلکە"
+            ]
+          },
+          "sortOrder": 18,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsaa001qx8uoun9sg2rg",
+          "categoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "slug": "basque-cheesecake",
+          "basePrice": 750,
+          "cost": 190,
+          "popularity": 66,
+          "priority": 50,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DESSERT",
+          "translations": {
+            "ar": {
+              "name": "تشيز كيك باسك",
+              "description": "تشيز كيك بوجه محروق وقلب كريمي."
+            },
+            "en": {
+              "name": "Basque Cheesecake",
+              "description": "Burnt-top cheesecake, creamy in the centre."
+            },
+            "ckb": {
+              "name": "چیزکێکی باسک",
+              "description": "چیزکێک بە سەرووی سووتاو و ناوەڕاستی کرێمی."
+            }
+          },
+          "media": [
+            {
+              "art": "pastry",
+              "kind": "art",
+              "tone": "#C88A4B"
+            }
+          ],
+          "allergens": [
+            "milk",
+            "egg"
+          ],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "جبنة كريمية",
+              "كريمة",
+              "بيض"
+            ],
+            "en": [
+              "Cream cheese",
+              "Cream",
+              "Eggs"
+            ],
+            "ckb": [
+              "پەنیری کرێمی",
+              "کرێم",
+              "هێلکە"
+            ]
+          },
+          "sortOrder": 19,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsac001rx8uoid3zo6p0",
+          "categoryId": "cmvcfhs810008x8uojqihjdit",
+          "slug": "cold-brew",
+          "basePrice": 500,
+          "cost": 90,
+          "popularity": 60,
+          "priority": 50,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "قهوة باردة",
+              "description": "منقوعة لمدة ١٨ ساعة، تُقدَّم مع الثلج."
+            },
+            "en": {
+              "name": "Cold Brew",
+              "description": "Steeped for 18 hours, served over ice."
+            },
+            "ckb": {
+              "name": "قاوەی ساردی دەرهێنراو",
+              "description": "بۆ ١٨ کاتژمێر هەڵکێشراوە، لەگەڵ سەهۆڵ پێشکەش دەکرێت."
+            }
+          },
+          "media": [
+            {
+              "art": "glass",
+              "kind": "art",
+              "tone": "#3D2A1E"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "قهوة",
+              "ماء"
+            ],
+            "en": [
+              "Coffee",
+              "Water"
+            ],
+            "ckb": [
+              "قاوە",
+              "ئاو"
+            ]
+          },
+          "sortOrder": 20,
+          "variants": [
+            {
+              "id": "cmvcfhsad001sx8uo6wo6sq3w",
+              "productId": "cmvcfhsac001rx8uoid3zo6p0",
+              "priceDelta": 0,
+              "costDelta": 0,
+              "isDefault": true,
+              "translations": {
+                "ar": {
+                  "name": "عادي ٣٥٠ مل"
+                },
+                "en": {
+                  "name": "Regular 350 ml"
+                },
+                "ckb": {
+                  "name": "ئاسایی ٣٥٠ مل"
+                }
+              }
+            },
+            {
+              "id": "cmvcfhsad001tx8uo87d4vw1f",
+              "productId": "cmvcfhsac001rx8uoid3zo6p0",
+              "priceDelta": 150,
+              "costDelta": 40,
+              "isDefault": false,
+              "translations": {
+                "ar": {
+                  "name": "كبير ٥٠٠ مل"
+                },
+                "en": {
+                  "name": "Large 500 ml"
+                },
+                "ckb": {
+                  "name": "گەورە ٥٠٠ مل"
+                }
+              }
+            }
+          ],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsag001ux8uo00hgb9js",
+          "categoryId": "cmvcfhs810008x8uojqihjdit",
+          "slug": "yuzu-lemonade",
+          "basePrice": 550,
+          "cost": 110,
+          "popularity": 58,
+          "priority": 65,
+          "isSignature": true,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "عصير اليوزو بالليمون",
+              "description": "يوزو وليمون وقليل من العسل مع الثلج."
+            },
+            "en": {
+              "name": "Yuzu Lemonade",
+              "description": "Yuzu, lemon and a little honey, over ice."
+            },
+            "ckb": {
+              "name": "لیمۆنادەی یوزو",
+              "description": "یوزو و لیمۆ و کەمێک هەنگوین لەگەڵ سەهۆڵ."
+            }
+          },
+          "media": [
+            {
+              "art": "glass",
+              "kind": "art",
+              "tone": "#E8D96A"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "يوزو",
+              "ليمون",
+              "عسل"
+            ],
+            "en": [
+              "Yuzu",
+              "Lemon",
+              "Honey"
+            ],
+            "ckb": [
+              "یوزو",
+              "لیمۆ",
+              "هەنگوین"
+            ]
+          },
+          "sortOrder": 21,
+          "variants": [
+            {
+              "id": "cmvcfhsag001vx8uo81r0q395",
+              "productId": "cmvcfhsag001ux8uo00hgb9js",
+              "priceDelta": 0,
+              "costDelta": 0,
+              "isDefault": true,
+              "translations": {
+                "ar": {
+                  "name": "عادي ٣٥٠ مل"
+                },
+                "en": {
+                  "name": "Regular 350 ml"
+                },
+                "ckb": {
+                  "name": "ئاسایی ٣٥٠ مل"
+                }
+              }
+            },
+            {
+              "id": "cmvcfhsag001wx8uocffatql8",
+              "productId": "cmvcfhsag001ux8uo00hgb9js",
+              "priceDelta": 150,
+              "costDelta": 35,
+              "isDefault": false,
+              "translations": {
+                "ar": {
+                  "name": "كبير ٥٠٠ مل"
+                },
+                "en": {
+                  "name": "Large 500 ml"
+                },
+                "ckb": {
+                  "name": "گەورە ٥٠٠ مل"
+                }
+              }
+            }
+          ],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsai001xx8uo5okxfyx6",
+          "categoryId": "cmvcfhs810008x8uojqihjdit",
+          "slug": "orange-juice",
+          "basePrice": 500,
+          "cost": 130,
+          "popularity": 62,
+          "priority": 50,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "عصير برتقال طازج",
+              "description": "يُعصر عند الطلب من برتقال كامل."
+            },
+            "en": {
+              "name": "Fresh Orange Juice",
+              "description": "Pressed to order from whole oranges."
+            },
+            "ckb": {
+              "name": "شەربەتی پرتەقاڵی تازە",
+              "description": "لەکاتی داواکاری لە پرتەقاڵی تەواو دەگوشرێت."
+            }
+          },
+          "media": [
+            {
+              "art": "glass",
+              "kind": "art",
+              "tone": "#E58A2E"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "برتقال"
+            ],
+            "en": [
+              "Orange"
+            ],
+            "ckb": [
+              "پرتەقاڵ"
+            ]
+          },
+          "sortOrder": 22,
+          "variants": [],
+          "groups": []
+        },
+        {
+          "id": "cmvcfhsaj001yx8uobfu409mv",
+          "categoryId": "cmvcfhs810008x8uojqihjdit",
+          "slug": "sparkling-water",
+          "basePrice": 300,
+          "cost": 60,
+          "popularity": 55,
+          "priority": 40,
+          "isSignature": false,
+          "isFeatured": false,
+          "lowStockThreshold": null,
+          "dayparts": [],
+          "hideOutsideDaypart": false,
+          "slot": "DRINK",
+          "translations": {
+            "ar": {
+              "name": "مياه غازية ٥٠٠ مل",
+              "description": "مياه معدنية باردة بفقاعات ناعمة."
+            },
+            "en": {
+              "name": "Sparkling Water 500 ml",
+              "description": "Chilled mineral water with fine bubbles."
+            },
+            "ckb": {
+              "name": "ئاوی گازدار ٥٠٠ مل",
+              "description": "ئاوی کانزایی سارد بە بلقی ورد."
+            }
+          },
+          "media": [
+            {
+              "art": "glass",
+              "kind": "art",
+              "tone": "#CFE3E6"
+            }
+          ],
+          "allergens": [],
+          "dietary": [],
+          "calories": null,
+          "badges": [],
+          "ingredients": {
+            "ar": [
+              "مياه معدنية"
+            ],
+            "en": [
+              "Mineral water"
+            ],
+            "ckb": [
+              "ئاوی کانزایی"
+            ]
+          },
+          "sortOrder": 23,
+          "variants": [],
+          "groups": []
+        }
+      ],
+      "upsellRules": [
+        {
+          "id": "cmvcfhsb0002jx8uok23wt999",
+          "sourceProductId": "cmvcfhs9i0013x8uo345ekylc",
+          "targetProductId": "cmvcfhs9l0018x8uojiyy5et0",
+          "priority": 80,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "pitch": "برغر واغيو",
+              "effect": "قرص لحم واغيو ومايونيز الكمأة على خبز بريوش محمّص"
+            },
+            "en": {
+              "pitch": "Wagyu burger",
+              "effect": "Wagyu beef patty and truffle mayo on a toasted brioche bun"
+            },
+            "ckb": {
+              "pitch": "بەرگەری واگیو",
+              "effect": "پارچەی گۆشتی واگیو و مایۆنیزی ترۆفڵ لەسەر بریۆشی برژاو"
+            }
+          }
+        }
+      ],
+      "pairingRules": [
+        {
+          "id": "cmvcfhsal001zx8uovayll1jo",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9i0013x8uo345ekylc",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs9y001mx8uok64j75cb",
+          "weight": 90,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "مقرمشة ومملّحة، الرفيق الكلاسيكي"
+            },
+            "en": {
+              "reason": "Crisp and salted, the classic partner"
+            },
+            "ckb": {
+              "reason": "کرچ و سویر، هاوەڵی کلاسیکی"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsam0020x8uo3rnbh06i",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9i0013x8uo345ekylc",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsag001ux8uo00hgb9js",
+          "weight": 70,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "شيء بارد ومنعش بجانبه"
+            },
+            "en": {
+              "reason": "Something cold and bright alongside"
+            },
+            "ckb": {
+              "reason": "شتێکی ساردی تازە لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsan0021x8uo9kt9jsye",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9i0013x8uo345ekylc",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsaj001yx8uobfu409mv",
+          "weight": 50,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "فقاعات نقيّة تنعش الذوق"
+            },
+            "en": {
+              "reason": "Clean bubbles to reset the palate"
+            },
+            "ckb": {
+              "reason": "بلقی پاک بۆ تازەکردنەوەی تامەکە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsao0022x8uotknep44s",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9l0018x8uojiyy5et0",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs9y001mx8uok64j75cb",
+          "weight": 90,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "مقرمشة ومملّحة، الرفيق الكلاسيكي"
+            },
+            "en": {
+              "reason": "Crisp and salted, the classic partner"
+            },
+            "ckb": {
+              "reason": "کرچ و سویر، هاوەڵی کلاسیکی"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsap0023x8uole2g8u35",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9l0018x8uojiyy5et0",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsaj001yx8uobfu409mv",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "فقاعات نقيّة تنعش الذوق"
+            },
+            "en": {
+              "reason": "Clean bubbles to reset the palate"
+            },
+            "ckb": {
+              "reason": "بلقی پاک بۆ تازەکردنەوەی تامەکە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsap0024x8uoas9sd5fi",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9s001dx8uoe66j755z",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs9y001mx8uok64j75cb",
+          "weight": 85,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "طبق جانبي يليق بالستيك"
+            },
+            "en": {
+              "reason": "A side that stands up to the steak"
+            },
+            "ckb": {
+              "reason": "لایەنێک کە لەگەڵ ستەیکەکە دەگونجێت"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsaq0025x8uoa5jrljf0",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9s001dx8uoe66j755z",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsag001ux8uo00hgb9js",
+          "weight": 50,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "شيء بارد ومنعش بجانبه"
+            },
+            "en": {
+              "reason": "Something cold and bright alongside"
+            },
+            "ckb": {
+              "reason": "شتێکی ساردی تازە لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsar0026x8uot337ies6",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9o0019x8uod0x6kqtz",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs9w001lx8uosrbue3ep",
+          "weight": 80,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "بداية مقرمشة قبل المعكرونة"
+            },
+            "en": {
+              "reason": "A crisp start before the pasta"
+            },
+            "ckb": {
+              "reason": "دەستپێکێکی کرچ پێش پاستاکە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsas0027x8uopns4471a",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9o0019x8uod0x6kqtz",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsa0001nx8uocsbuonti",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "ختام منعش للوجبة"
+            },
+            "en": {
+              "reason": "A bright finish to the meal"
+            },
+            "ckb": {
+              "reason": "کۆتاییەکی تازە بۆ ژەمەکە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsat0028x8uoedm5elwf",
+          "sourceType": "CATEGORY",
+          "sourceProductId": null,
+          "sourceCategoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "targetProductId": "cmvcfhs94000xx8uop6bg4zte",
+          "weight": 85,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "يتناغم مع قهوتك"
+            },
+            "en": {
+              "reason": "Pairs with your coffee"
+            },
+            "ckb": {
+              "reason": "لەگەڵ قاوەکەت دەگونجێت"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsau0029x8uoh5crz8iq",
+          "sourceType": "CATEGORY",
+          "sourceProductId": null,
+          "sourceCategoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "targetProductId": "cmvcfhsa0001nx8uocsbuonti",
+          "weight": 55,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "شيء حلو معها"
+            },
+            "en": {
+              "reason": "Something sweet with it"
+            },
+            "ckb": {
+              "reason": "شتێکی شیرین لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsau002ax8uoips6c6hj",
+          "sourceType": "CATEGORY",
+          "sourceProductId": null,
+          "sourceCategoryId": "cmvcfhs7w0004x8uoe9tlpbjr",
+          "targetProductId": "cmvcfhsaa001qx8uoun9sg2rg",
+          "weight": 50,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "شيء حلو معها"
+            },
+            "en": {
+              "reason": "Something sweet with it"
+            },
+            "ckb": {
+              "reason": "شتێکی شیرین لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsav002bx8uoc8a9an1k",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs840009x8uoj435wm2c",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsa7001px8uo3ob1bnt9",
+          "weight": 70,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "الشوكولاتة الداكنة تناسب الإسبريسو"
+            },
+            "en": {
+              "reason": "Dark chocolate suits a short espresso"
+            },
+            "ckb": {
+              "reason": "چکلێتی تاریک لەگەڵ ئێسپرێسۆ دەگونجێت"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsav002cx8uocxxargp2",
+          "sourceType": "CATEGORY",
+          "sourceProductId": null,
+          "sourceCategoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "targetProductId": "cmvcfhs8g000cx8uohnl5yu70",
+          "weight": 70,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "قهوة تناسبها"
+            },
+            "en": {
+              "reason": "A coffee to go with it"
+            },
+            "ckb": {
+              "reason": "قاوەیەک بۆ لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsaw002dx8uosr2ni4x1",
+          "sourceType": "CATEGORY",
+          "sourceProductId": null,
+          "sourceCategoryId": "cmvcfhs7z0007x8uogu14jnyx",
+          "targetProductId": "cmvcfhs840009x8uoj435wm2c",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "قهوة تناسبها"
+            },
+            "en": {
+              "reason": "A coffee to go with it"
+            },
+            "ckb": {
+              "reason": "قاوەیەک بۆ لەگەڵیدا"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsax002ex8uoj30cvll8",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9b0011x8uooog5d2kf",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsai001xx8uo5okxfyx6",
+          "weight": 65,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "عصير طازج مع البيض"
+            },
+            "en": {
+              "reason": "Fresh juice with your eggs"
+            },
+            "ckb": {
+              "reason": "شەربەتی تازە لەگەڵ هێلکەکان"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsax002fx8uof3evtiun",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9b0011x8uooog5d2kf",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs8g000cx8uohnl5yu70",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "فلات وايت يناسبها"
+            },
+            "en": {
+              "reason": "A flat white goes well with it"
+            },
+            "ckb": {
+              "reason": "فلات وایت لەگەڵیدا باشە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsay002gx8uo07aij9sw",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs97000yx8uoxszswknh",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhs8g000cx8uohnl5yu70",
+          "weight": 70,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "فلات وايت يناسبها"
+            },
+            "en": {
+              "reason": "A flat white goes well with it"
+            },
+            "ckb": {
+              "reason": "فلات وایت لەگەڵیدا باشە"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsay002hx8uoz79ewn9x",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs97000yx8uoxszswknh",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsai001xx8uo5okxfyx6",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "عصير طازج مع البيض"
+            },
+            "en": {
+              "reason": "Fresh juice with your eggs"
+            },
+            "ckb": {
+              "reason": "شەربەتی تازە لەگەڵ هێلکەکان"
+            }
+          }
+        },
+        {
+          "id": "cmvcfhsaz002ix8uo0bvrr443",
+          "sourceType": "PRODUCT",
+          "sourceProductId": "cmvcfhs9e0012x8uolh35myzi",
+          "sourceCategoryId": null,
+          "targetProductId": "cmvcfhsai001xx8uo5okxfyx6",
+          "weight": 60,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "reason": "عصير طازج مع البيض"
+            },
+            "en": {
+              "reason": "Fresh juice with your eggs"
+            },
+            "ckb": {
+              "reason": "شەربەتی تازە لەگەڵ هێلکەکان"
+            }
+          }
+        }
+      ],
+      "bundles": [
+        {
+          "id": "cmvcfhsb2002kx8uoenwt21er",
+          "slug": "breakfast-set",
+          "price": 1150,
+          "dayparts": [
+            "BREAKFAST"
+          ],
+          "translations": {
+            "ar": {
+              "name": "باقة الفطور",
+              "description": "كرواسون وفلات وايت وعصير برتقال طازج"
+            },
+            "en": {
+              "name": "Breakfast set",
+              "description": "Croissant, flat white and fresh orange juice"
+            },
+            "ckb": {
+              "name": "پاکێجی نانی بەیانی",
+              "description": "کرواسان، فلات وایت و شەربەتی پرتەقاڵی تازە"
+            }
+          },
+          "items": [
+            {
+              "productId": "cmvcfhs94000xx8uop6bg4zte",
+              "variantId": null,
+              "quantity": 1
+            },
+            {
+              "productId": "cmvcfhs8g000cx8uohnl5yu70",
+              "variantId": null,
+              "quantity": 1
+            },
+            {
+              "productId": "cmvcfhsai001xx8uo5okxfyx6",
+              "variantId": null,
+              "quantity": 1
+            }
+          ]
+        },
+        {
+          "id": "cmvcfhsbe002ox8uoac1gud3q",
+          "slug": "burger-set",
+          "price": 1550,
+          "dayparts": [],
+          "translations": {
+            "ar": {
+              "name": "وجبة البرغر",
+              "description": "برغر أتيليه وبطاطس بالكمأة ومياه غازية"
+            },
+            "en": {
+              "name": "Burger set",
+              "description": "Atelier burger, truffle fries and sparkling water"
+            },
+            "ckb": {
+              "name": "پاکێجی بەرگەر",
+              "description": "بەرگەری ئاتەلیە، پەتاتەی ترۆفڵ و ئاوی گازدار"
+            }
+          },
+          "items": [
+            {
+              "productId": "cmvcfhs9i0013x8uo345ekylc",
+              "variantId": null,
+              "quantity": 1
+            },
+            {
+              "productId": "cmvcfhs9y001mx8uok64j75cb",
+              "variantId": null,
+              "quantity": 1
+            },
+            {
+              "productId": "cmvcfhsaj001yx8uobfu409mv",
+              "variantId": null,
+              "quantity": 1
+            }
+          ]
+        }
+      ],
+      "schedule": [
+        {
+          "daypart": "BREAKFAST",
+          "startMinute": 420,
+          "endMinute": 660,
+          "daysOfWeek": 127
+        },
+        {
+          "daypart": "LUNCH",
+          "startMinute": 660,
+          "endMinute": 960,
+          "daysOfWeek": 127
+        },
+        {
+          "daypart": "DINNER",
+          "startMinute": 960,
+          "endMinute": 1320,
+          "daysOfWeek": 127
+        },
+        {
+          "daypart": "LATE_NIGHT",
+          "startMinute": 1320,
+          "endMinute": 180,
+          "daysOfWeek": 127
+        }
+      ]
+    }
+  },
+  "hash": "bad2b38dc7b206a948e8fbd8c405498461e2729312f9d5b262259796c3796f8f"
+}

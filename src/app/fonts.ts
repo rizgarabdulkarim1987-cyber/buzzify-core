@@ -1,5 +1,6 @@
 import { Hanken_Grotesk, Noto_Naskh_Arabic } from 'next/font/google';
 import localFont from 'next/font/local';
+import { DEFAULT_FONT_PAIR, type FontPairId } from '@/lib/font-pairs';
 import type { Locale } from '@/lib/locale';
 
 /*
@@ -37,11 +38,143 @@ export const naskh = Noto_Naskh_Arabic({
   preload: false,
 });
 
+/*
+ * The other brand kit pairs (src/lib/font-pairs.ts), self-hosted from their fontsource packages: one 400 file per face
+ * and script. An Arabic-script face gets no metric fallback: a local font standing in for it (Arial has Arabic letters on
+ * Windows) would be drawn first while it loads.
+ */
+export const fraunces = localFont({
+  src: '../../node_modules/@fontsource/fraunces/files/fraunces-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-fraunces',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const dmSans = localFont({
+  src: '../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-dm-sans',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const vazirmatn = localFont({
+  src: '../../node_modules/@fontsource/vazirmatn/files/vazirmatn-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-vazirmatn',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+export const playfair = localFont({
+  src: '../../node_modules/@fontsource/playfair-display/files/playfair-display-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-playfair',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const nunitoSans = localFont({
+  src: '../../node_modules/@fontsource/nunito-sans/files/nunito-sans-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-nunito-sans',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const anton = localFont({
+  src: '../../node_modules/@fontsource/anton/files/anton-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-anton',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const inter = localFont({
+  src: '../../node_modules/@fontsource/inter/files/inter-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-inter',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const kufi = localFont({
+  src: '../../node_modules/@fontsource/noto-kufi-arabic/files/noto-kufi-arabic-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-kufi',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+export const cormorant = localFont({
+  src: '../../node_modules/@fontsource/cormorant-garamond/files/cormorant-garamond-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-cormorant',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const jost = localFont({
+  src: '../../node_modules/@fontsource/jost/files/jost-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-jost',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const spaceGrotesk = localFont({
+  src: '../../node_modules/@fontsource/space-grotesk/files/space-grotesk-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-space-grotesk',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const plexArabic = localFont({
+  src: '../../node_modules/@fontsource/ibm-plex-sans-arabic/files/ibm-plex-sans-arabic-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-plex-arabic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+
+/** The faces of each pair: its two Latin faces, and its Arabic-script face for Arabic and Sorani pages. */
+const PAIR_FACES: Record<FontPairId, { latin: ReadonlyArray<{ variable: string }>; arabic: { variable: string } }> = {
+  classic: { latin: [bodoni, hanken], arabic: naskh },
+  cafe: { latin: [fraunces, dmSans], arabic: vazirmatn },
+  bakery: { latin: [playfair, nunitoSans], arabic: naskh },
+  street: { latin: [anton, inter], arabic: kufi },
+  fine: { latin: [cormorant, jost], arabic: naskh },
+  modern: { latin: [spaceGrotesk, inter], arabic: plexArabic },
+};
+
 /**
  * Only the variables a locale uses are attached, so an English page never references the Arabic family and
- * an Arabic or Sorani page never references the Latin ones, and the browser downloads only what it renders.
+ * an Arabic or Sorani page never references the Latin ones, and the browser downloads only what it renders. The class
+ * `font-pair-{pair}` points the stacks in globals.css at the pair's faces.
  */
-export function fontVariablesFor(locale: Locale | null): string {
-  if (locale === 'ar' || locale === 'ckb') return naskh.variable;
-  return `${bodoni.variable} ${hanken.variable}`;
+export function fontVariablesFor(locale: Locale | null, pair: FontPairId = DEFAULT_FONT_PAIR): string {
+  const faces = PAIR_FACES[pair];
+  const variables = locale === 'ar' || locale === 'ckb' ? [faces.arabic.variable] : faces.latin.map((face) => face.variable);
+  return `${variables.join(' ')} font-pair-${pair}`;
+}
+
+/** Every face of every pair, for the Studio's Brand tab, where each pair's sample is drawn in its own type. */
+export function allPairFontVariables(): string {
+  const faces = new Set(Object.values(PAIR_FACES).flatMap((pair) => [...pair.latin, pair.arabic]));
+  return [...faces].map((face) => face.variable).join(' ');
 }

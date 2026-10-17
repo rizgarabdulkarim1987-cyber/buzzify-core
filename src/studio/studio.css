@@ -39,6 +39,10 @@
   --s-mono: ui-monospace, 'SFMono-Regular', 'Cascadia Mono', Menlo, Consolas, monospace;
 }
 
+[dir='rtl'] {
+  --s-sheet-from: -24px;
+}
+
 /* Arabic and Sorani interfaces lead with the Arabic-script face; each face only covers its own script (fonts.ts). */
 .s-script-arabic {
   --s-font: var(--font-studio-arabic), var(--font-studio-latin), system-ui, sans-serif;
@@ -105,6 +109,8 @@
   --animate-spin: spin 0.9s linear infinite;
   --animate-dialog-in: dialog-in 160ms var(--ease-out);
   --animate-overlay-in: overlay-in 160ms var(--ease-out);
+  /* A side sheet comes in from the edge it sits on: the end of the line in either direction. */
+  --animate-sheet-in: sheet-in 200ms var(--ease-out);
 
   @keyframes spin {
     to {
@@ -122,6 +128,19 @@
       opacity: 0;
     }
   }
+  @keyframes sheet-in {
+    from {
+      opacity: 0;
+      transform: translateX(var(--s-sheet-from, 24px));
+    }
+  }
+}
+
+/* The ground under a picture that may be transparent (a logo, an icon): a faint check, so white and clear differ. */
+@utility studio-checker {
+  background-color: var(--s-surface);
+  background-image: conic-gradient(var(--s-hover) 25%, transparent 0 50%, var(--s-hover) 0 75%, transparent 0);
+  background-size: 16px 16px;
 }
 
 @layer base {

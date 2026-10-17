@@ -46,12 +46,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 /**
  * Whether a POST comes from the Studio's own pages. Browsers send `Origin` with every cross-origin POST, and it must
- * name the host the request was made to (as Next checks for Server Actions). A request without one is not a browser's
- * cross-site request.
+ * name the host the request was made to (as Next checks for Server Actions). A request without one is served only when
+ * its body is JSON: a cross-site form can post text or form data without an `Origin` in some browsers and after some
+ * redirects, but it cannot send `application/json` without a preflight the Studio never answers.
  */
 function sameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin');
-  if (origin === null) return true;
+  if (origin === null) {
+    const type = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();
+    return type === 'application/json';
+  }
   if (!URL.canParse(origin)) return false;
   const host =
     request.headers.get('x-forwarded-host')?.split(',')[0]?.trim() || request.headers.get('host') || new URL(request.url).host;

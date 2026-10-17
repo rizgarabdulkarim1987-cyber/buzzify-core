@@ -1,7 +1,9 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
+import { FONT_PAIR_IDS } from '@/lib/font-pairs';
+import { isSafeMediaUrl } from '@/lib/media';
 import { RAIL_STYLES } from '@/lib/rail';
-import type { BrandView } from '@/server/data/tenant';
+import type { BrandView, SeoText } from '@/server/data/tenant';
 import type { EngineConfig } from './config';
 import {
   DAYPARTS,
@@ -28,7 +30,8 @@ export interface SnapshotMenu {
   timeZone: string;
   numeralSystem: 'latn' | 'arab';
   engineConfig: EngineConfig;
-  seo: Partial<Record<Locale, { title: string; description: string }>>;
+  /** A language's SEO image arrived in 2b and is left out when unset. */
+  seo: SeoText;
 }
 
 /** An option as published: its availability is live, so it is not part of what publishing freezes. */
@@ -67,6 +70,18 @@ const daypart = z.enum(DAYPARTS);
 const translations = z.partialRecord(locale, z.record(z.string(), z.string()));
 const nullableNumber = z.number().nullable();
 
+/** A URL guests' browsers load: same-origin or https, as `parseMedia` allows. */
+const safeUrl = z.string().refine(isSafeMediaUrl, 'Not a safe URL');
+const storageKey = z
+  .string()
+  .regex(/^[a-z0-9][a-z0-9/_.-]*$/)
+  .refine((key) => !key.includes('..'), 'Not a storage key');
+const size = z.number().int().positive();
+
+const seoImage = z.object({ assetId: z.string(), url: safeUrl, width: size, height: size });
+const brandImage = z.object({ assetId: z.string(), url: safeUrl, width: size, height: size, svg: z.boolean(), rasterKey: storageKey });
+const brandFavicon = z.object({ assetId: z.string(), png32: safeUrl, png180: safeUrl, png512: safeUrl });
+
 const palette = z.object({
   bg: z.string(),
   surface: z.string(),
@@ -102,7 +117,7 @@ const snapshotMenu = z.object({
   timeZone: z.string(),
   numeralSystem: z.enum(['latn', 'arab']),
   engineConfig,
-  seo: z.partialRecord(locale, z.object({ title: z.string(), description: z.string() })),
+  seo: z.partialRecord(locale, z.object({ title: z.string(), description: z.string(), image: seoImage.optional() })),
 });
 
 const brandView = z.object({
@@ -111,6 +126,11 @@ const brandView = z.object({
   motionIntensity: z.enum(['none', 'subtle', 'expressive']),
   railStyle: z.enum(RAIL_STYLES),
   tokens: z.object({ dark: palette, light: palette }),
+  fontPairId: z.enum(FONT_PAIR_IDS).optional(),
+  railChoice: z.enum(RAIL_STYLES).optional(),
+  logo: brandImage.optional(),
+  logoDark: brandImage.optional(),
+  favicon: brandFavicon.optional(),
 });
 
 const snapshotOption = z.object({
@@ -351,4 +371,26 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
     bundles: catalog.bundles.filter((bundle) => bundle.items.every((item) => isShown(item.productId))),
     schedule: catalog.schedule,
   };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// The library assets a snapshot uses
+// ---------------------------------------------------------------------------------------------------------------------
+
+/**
+ * Every media library asset a snapshot names, once each and sorted: its products' photos, the brand's logos and favicon,
+ * and the SEO images. Stored on the revision (`MenuRevision.assetIds`), so an asset in use is never deleted.
+ */
+export function snapshotAssetIds(snapshot: MenuSnapshot): string[] {
+  const ids = new Set<string>();
+  for (const product of snapshot.catalog.products) {
+    for (const entry of product.media) {
+      const assetId = (entry as { assetId?: unknown } | null)?.assetId;
+      if (typeof assetId === 'string') ids.add(assetId);
+    }
+  }
+  const { logo, logoDark, favicon } = snapshot.brand;
+  for (const image of [logo, logoDark, favicon]) if (image) ids.add(image.assetId);
+  for (const entry of Object.values(snapshot.menu.seo)) if (entry?.image) ids.add(entry.image.assetId);
+  return [...ids].sort(compare);
 }

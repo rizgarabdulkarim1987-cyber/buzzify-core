@@ -26,6 +26,8 @@ export function testPrisma(): PrismaClient {
  * branches. Later tasks add their own models to the front of this list.
  */
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
+  // Shared library assets belong to no restaurant, so no cascade removes them.
+  await prisma.mediaAsset.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.platformSetting.deleteMany();
   await prisma.invitation.deleteMany();

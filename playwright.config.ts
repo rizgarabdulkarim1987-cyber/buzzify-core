@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { E2E_CRON_SECRET } from './tests/e2e/helpers/cron';
 
 /** The suites that start software WebGL (the 3D stage). They run one test at a time; see the `webgl` project. */
 const WEBGL_SUITES = /(stage|explore|motion)\.spec\.ts$/;
@@ -63,5 +64,8 @@ export default defineConfig({
     url: 'http://127.0.0.1:3100/atelier/en',
     reuseExistingServer: true,
     timeout: 120_000,
+    // The scheduler's endpoint answers only with a secret; the revisions suite calls it with this one. A dev server
+    // started by hand needs the same CRON_SECRET for that suite.
+    env: { CRON_SECRET: E2E_CRON_SECRET },
   },
 });

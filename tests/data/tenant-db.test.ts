@@ -196,6 +196,76 @@ describe('tenant scoping', () => {
     });
   });
 
+  // A restaurant's media library sits beside the shared one: a restaurant reads both and writes only its own; a client
+  // without a restaurant (a menu's alone, or the platform's) reads and writes the shared library only.
+  describe('the media library: restaurant or shared', () => {
+    const asset = (restaurantId: string | null, contentHash: string) => ({
+      restaurantId,
+      kind: 'IMAGE' as const,
+      storageKey: `${restaurantId ? `r/${restaurantId}` : 'shared'}/${contentHash}`,
+      contentHash,
+      mime: 'image/png',
+      bytes: 10,
+      storedBytes: 30,
+    });
+    let ownA: string;
+    let ownB: string;
+    let shared: string;
+
+    beforeEach(async () => {
+      ownA = (await prisma.mediaAsset.create({ data: asset(a.restaurant.id, 'aaa') })).id;
+      ownB = (await prisma.mediaAsset.create({ data: asset(b.restaurant.id, 'bbb') })).id;
+      shared = (await prisma.mediaAsset.create({ data: asset(null, 'sss') })).id;
+    });
+
+    it("lets a restaurant read its own and the shared assets, never another restaurant's", async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      expect((await db.mediaAsset.findMany({ orderBy: { contentHash: 'asc' } })).map((m) => m.id)).toEqual([ownA, shared]);
+      expect(await db.mediaAsset.findUnique({ where: { id: ownB } })).toBeNull();
+      expect(await db.mediaAsset.count()).toBe(2);
+    });
+
+    it('lets a restaurant change and delete only its own assets', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      expect((await db.mediaAsset.updateMany({ where: { id: shared }, data: { folder: 'mine now' } })).count).toBe(0);
+      expect((await db.mediaAsset.deleteMany({ where: { id: { in: [shared, ownB] } } })).count).toBe(0);
+      expect((await db.mediaAsset.updateMany({ where: { id: ownA }, data: { folder: 'Drinks' } })).count).toBe(1);
+      expect(await prisma.mediaAsset.count()).toBe(3);
+    });
+
+    it('stamps a new asset with its restaurant and refuses a shared or foreign one', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      const made = await db.mediaAsset.create({ data: { ...asset(a.restaurant.id, 'new'), restaurantId: undefined } as never });
+      expect(made.restaurantId).toBe(a.restaurant.id);
+      await expect(db.mediaAsset.create({ data: asset(null, 'x1') })).rejects.toThrow(/Tenant/);
+      await expect(db.mediaAsset.create({ data: asset(b.restaurant.id, 'x2') })).rejects.toThrow(/Tenant/);
+      await expect(
+        db.mediaAsset.upsert({ where: { id: ownA }, create: asset(a.restaurant.id, 'x3'), update: { folder: 'x' } }),
+      ).rejects.toThrow(/not allowed/);
+    });
+
+    it('cannot move an asset into another library through update data', async () => {
+      const db = restaurantDb(prisma, a.restaurant.id);
+      await expect(db.mediaAsset.update({ where: { id: ownA }, data: { restaurantId: null } })).rejects.toThrow(/Tenant/);
+      await expect(db.mediaAsset.update({ where: { id: ownA }, data: { restaurantId: b.restaurant.id } })).rejects.toThrow(/Tenant/);
+    });
+
+    it('shows a client without a restaurant only the shared library, and stamps its new assets shared', async () => {
+      for (const db of [globalDb(prisma), menuDb(prisma, a.menu.id)]) {
+        expect((await db.mediaAsset.findMany()).map((m) => m.id)).toEqual([shared]);
+        expect((await db.mediaAsset.updateMany({ where: { id: ownA }, data: { folder: 'x' } })).count).toBe(0);
+      }
+      const made = await globalDb(prisma).mediaAsset.create({ data: { ...asset(null, 'g1'), restaurantId: undefined } as never });
+      expect(made.restaurantId).toBeNull();
+      await expect(globalDb(prisma).mediaAsset.create({ data: asset(a.restaurant.id, 'g2') })).rejects.toThrow(/Tenant/);
+    });
+
+    it('scopes a menu and restaurant client by the restaurant', async () => {
+      const both = scopedClient(prisma, { menuId: a.menu.id, restaurantId: a.restaurant.id });
+      expect((await both.mediaAsset.findMany({ orderBy: { contentHash: 'asc' } })).map((m) => m.id)).toEqual([ownA, shared]);
+    });
+  });
+
   // A client that carries a restaurant also confines its Restaurant row, its menus and its memberships; one that
   // carries a menu confines that Menu row (ruling R25). The extension sees top-level queries only, so these are what
   // keep a nested include or write from them inside the owner, as long as it does not pass through a global model.

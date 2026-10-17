@@ -37,6 +37,18 @@ export function numberFormat(locale: Locale, options: Intl.NumberFormatOptions =
   return new Intl.NumberFormat(locale, locale === 'ckb' ? { numberingSystem: 'arab', ...options } : options);
 }
 
+/** A size in bytes as people read it: `820 B`, `12.4 KB`, `3.1 MB` (powers of 1,024), in the interface's digits. */
+export function formatBytes(bytes: number, locale: Locale): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) {
+    value /= 1024;
+    unit += 1;
+  }
+  return `${numberFormat(locale, { maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value)} ${units[unit]}`;
+}
+
 /** The calendar fields of `iso` on the Studio's clock, from a format every runtime has. */
 function studioClock(iso: string): { year: number; month: number; day: number; hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-US', {

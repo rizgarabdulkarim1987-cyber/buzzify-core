@@ -125,3 +125,26 @@ test.describe('font downloads', () => {
     expect(bytes).toBeLessThan(70 * 1024);
   });
 });
+
+// The demo menus each use their brand's font pair (next/font/local names a family after its export in src/app/fonts.ts).
+test.describe('font downloads of a menu with its own font pair', () => {
+  test('Riverlight in English downloads only Fraunces and DM Sans, under 45 KB', async ({ page }) => {
+    const fonts = await fontDownloads(page, '/riverlight/en');
+    expect(families(fonts)).toEqual(['dmSans', 'fraunces']);
+    expect(fonts.reduce((sum, font) => sum + font.bytes, 0)).toBeLessThan(45 * 1024);
+  });
+
+  test('Riverlight in Arabic downloads only Vazirmatn, under 70 KB', async ({ page }) => {
+    const fonts = await fontDownloads(page, '/riverlight/ar');
+    expect(families(fonts)).toEqual(['vazirmatn']);
+    expect(fonts.reduce((sum, font) => sum + font.bytes, 0)).toBeLessThan(70 * 1024);
+  });
+
+  test('Hot Brick in English downloads only Anton and Inter', async ({ page }) => {
+    expect(families(await fontDownloads(page, '/hot-brick/en'))).toEqual(['anton', 'inter']);
+  });
+
+  test('Hot Brick in Sorani downloads only Noto Kufi Arabic', async ({ page }) => {
+    expect(families(await fontDownloads(page, '/hot-brick/ckb'))).toEqual(['kufi']);
+  });
+});

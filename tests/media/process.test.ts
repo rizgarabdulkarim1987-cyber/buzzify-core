@@ -1,0 +1,191 @@
+import { createHash } from 'node:crypto';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import sharp from 'sharp';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { faviconFiles, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
+import { folderStorage } from '@/server/storage/folder';
+import type { Storage } from '@/server/storage/storage';
+
+const jpeg = (width: number, height: number) =>
+  sharp({ create: { width, height, channels: 3, background: '#C8261C' } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
+const png = (width: number, height: number) =>
+  sharp({ create: { width, height, channels: 4, background: { r: 20, g: 80, b: 200, alpha: 1 } } }).png().toBuffer().then((b) => new Uint8Array(b));
+
+/** A picture of random pixels: the worst case for a placeholder's size. */
+async function noise(width: number, height: number): Promise<Uint8Array> {
+  const raw = Buffer.alloc(width * height * 3);
+  for (let i = 0; i < raw.length; i++) raw[i] = Math.floor(Math.random() * 256);
+  return new Uint8Array(await sharp(raw, { raw: { width, height, channels: 3 } }).png().toBuffer());
+}
+
+function prepared(result: Awaited<ReturnType<typeof prepareAsset>>): PreparedAsset {
+  if (!result.ok) throw new Error(`refused: ${result.reason}`);
+  return result.asset;
+}
+
+const variantNames = (asset: PreparedAsset) =>
+  asset.files.map((file) => file.variant).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
+
+const fileOf = (asset: PreparedAsset, variant: string) => asset.files.find((file) => file.variant === variant)!;
+
+describe('prepareAsset', () => {
+  it('makes AVIF and WebP at 320, 640 and 1080 for a 1200 px photo, never upscaled', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(1200, 800)));
+    expect(variantNames(asset)).toEqual(['avif-320', 'avif-640', 'avif-1080', 'original', 'webp-320', 'webp-640', 'webp-1080']);
+    expect(asset).toMatchObject({ kind: 'IMAGE', mime: 'image/jpeg', width: 1200, height: 800 });
+    expect((await sharp(fileOf(asset, 'webp-640').body).metadata()).width).toBe(640);
+    expect((await sharp(fileOf(asset, 'avif-1080').body).metadata()).format).toBe('heif');
+    expect(fileOf(asset, 'original').ext).toBe('jpg');
+  });
+
+  it('makes all four widths for a large photo, and one pair at its own width for a small one', async () => {
+    expect(variantNames(prepared(await prepareAsset(await jpeg(2400, 1600))))).toEqual([
+      'avif-320',
+      'avif-640',
+      'avif-1080',
+      'avif-1600',
+      'original',
+      'webp-320',
+      'webp-640',
+      'webp-1080',
+      'webp-1600',
+    ]);
+    const small = prepared(await prepareAsset(await png(200, 100)));
+    expect(variantNames(small)).toEqual(['avif-200', 'original', 'webp-200']);
+  });
+
+  it('drops EXIF metadata and applies its orientation', async () => {
+    const turned = await sharp({ create: { width: 400, height: 200, channels: 3, background: '#336699' } })
+      .jpeg()
+      .withMetadata({ orientation: 6 })
+      .withExif({ IFD0: { Copyright: 'Secret Owner', Artist: 'Someone' } })
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(turned)));
+    // Orientation 6 is a quarter turn: the picture stands upright as 200 × 400.
+    expect(asset).toMatchObject({ width: 200, height: 400 });
+    for (const file of asset.files.filter((f) => f.variant !== 'original')) {
+      const meta = await sharp(file.body).metadata();
+      expect(meta.exif).toBeUndefined();
+      expect(meta.orientation ?? 1).toBe(1);
+    }
+    // The original is stored re-encoded without its metadata too: a phone photo can carry the place it was taken.
+    expect((await sharp(fileOf(asset, 'original').body).metadata()).exif).toBeUndefined();
+  });
+
+  it('treats a PNG named .jpg as the PNG it is', async () => {
+    const asset = prepared(await prepareAsset(await png(400, 300)));
+    expect(asset.mime).toBe('image/png');
+    expect(fileOf(asset, 'original').ext).toBe('png');
+  });
+
+  it('refuses a 1 × 20,000 image, and one too wide for its height, as DIMENSIONS', async () => {
+    expect(await prepareAsset(await png(1, 20_000))).toEqual({ ok: false, reason: 'DIMENSIONS' });
+    expect(await prepareAsset(await png(900, 100))).toEqual({ ok: false, reason: 'DIMENSIONS' });
+    expect((await prepareAsset(await png(800, 100))).ok).toBe(true);
+  });
+
+  it('refuses bytes sharp cannot read as UNREADABLE, and what is not an allowed type as TYPE', async () => {
+    const broken = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4, 5, 6, 7, 8]);
+    expect(await prepareAsset(broken)).toEqual({ ok: false, reason: 'UNREADABLE' });
+    expect(await prepareAsset(new TextEncoder().encode('<!doctype html><svg/>'))).toEqual({ ok: false, reason: 'TYPE' });
+    expect(await prepareAsset(new TextEncoder().encode('GIF89a......'))).toEqual({ ok: false, reason: 'TYPE' });
+  });
+
+  it('refuses 15 MB plus one byte as SIZE without decoding it', async () => {
+    const big = new Uint8Array(15_728_641);
+    big.set([0xff, 0xd8, 0xff, 0xe0]);
+    expect(await prepareAsset(big)).toEqual({ ok: false, reason: 'SIZE' });
+  });
+
+  it('keeps the placeholder under 1,024 characters, even for noise in the tallest allowed shape', async () => {
+    for (const picture of [await jpeg(1200, 800), await noise(400, 3200), await noise(1600, 200)]) {
+      const { placeholder } = prepared(await prepareAsset(picture));
+      expect(placeholder).toMatch(/^data:image\/webp;base64,/);
+      expect(placeholder.length).toBeLessThanOrEqual(1024);
+    }
+  });
+
+  it('hashes the bytes as uploaded', async () => {
+    const input = await jpeg(500, 500);
+    expect(prepared(await prepareAsset(input)).contentHash).toBe(createHash('sha256').update(input).digest('hex'));
+  });
+
+  it('stores a sanitized SVG with two WebP renderings', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><script>x()</script><rect width="300" height="100" fill="#123456"/></svg>';
+    const asset = prepared(await prepareAsset(new TextEncoder().encode(svg)));
+    expect(asset).toMatchObject({ kind: 'SVG', mime: 'image/svg+xml', width: 300, height: 100 });
+    expect(variantNames(asset)).toEqual(['original', 'webp-320', 'webp-640']);
+    expect(new TextDecoder().decode(fileOf(asset, 'original').body)).not.toContain('<script');
+    expect((await sharp(fileOf(asset, 'webp-640').body).metadata()).width).toBe(640);
+  });
+
+  it('refuses an SVG that has no size as SVG_UNSAFE', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"><rect width="1" height="1"/></svg>';
+    expect(await prepareAsset(new TextEncoder().encode(svg))).toEqual({ ok: false, reason: 'SVG_UNSAFE' });
+  });
+
+  it('stores an icon as it is, sized from its first entry', async () => {
+    const image = await png(32, 32);
+    const header = Buffer.alloc(22);
+    header.writeUInt16LE(0, 0);
+    header.writeUInt16LE(1, 2);
+    header.writeUInt16LE(1, 4);
+    header.writeUInt8(32, 6);
+    header.writeUInt8(32, 7);
+    header.writeUInt16LE(1, 10);
+    header.writeUInt16LE(32, 12);
+    header.writeUInt32LE(image.length, 14);
+    header.writeUInt32LE(22, 18);
+    const ico = new Uint8Array(Buffer.concat([header, image]));
+    const asset = prepared(await prepareAsset(ico));
+    expect(asset).toMatchObject({ kind: 'ICON', mime: 'image/x-icon', width: 32, height: 32, placeholder: '' });
+    expect(asset.files).toEqual([{ variant: 'original', ext: 'ico', contentType: 'image/x-icon', body: ico }]);
+  });
+});
+
+describe('storeAsset', () => {
+  let dir: string;
+  let storage: Storage;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), 'buzzify-store-'));
+    storage = folderStorage(dir, '/api/dev-media', 'store-asset-test-secret-long-enough-for-hmac');
+  });
+
+  afterEach(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('writes every file under the restaurant and the content hash, cached forever, and counts the bytes', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(700, 400)));
+    const stored = await storeAsset(storage, { restaurantId: 'cr1' }, asset);
+    expect(stored.storageKey).toBe(`r/cr1/${asset.contentHash}`);
+    expect(stored.variants).toEqual({
+      original: `r/cr1/${asset.contentHash}/original.jpg`,
+      avif: { '320': `r/cr1/${asset.contentHash}/avif-320.avif`, '640': `r/cr1/${asset.contentHash}/avif-640.avif` },
+      webp: { '320': `r/cr1/${asset.contentHash}/webp-320.webp`, '640': `r/cr1/${asset.contentHash}/webp-640.webp` },
+    });
+    expect(stored.storedBytes).toBe(asset.files.reduce((sum, file) => sum + file.body.length, 0));
+    expect(await storage.head(stored.variants.webp!['320']!)).toEqual({ bytes: fileOf(asset, 'webp-320').body.length, contentType: 'image/webp' });
+  });
+
+  it('writes a shared asset under shared/', async () => {
+    const asset = prepared(await prepareAsset(await png(100, 100)));
+    expect((await storeAsset(storage, { restaurantId: null }, asset)).storageKey).toBe(`shared/${asset.contentHash}`);
+  });
+});
+
+describe('faviconFiles', () => {
+  it('draws a square PNG at 32, 180 and 512 px from a wide logo', async () => {
+    const files = await faviconFiles({ kind: 'IMAGE', original: await png(300, 100) });
+    for (const size of ['32', '180', '512'] as const) {
+      const meta = await sharp(files[size]).metadata();
+      expect(meta).toMatchObject({ format: 'png', width: Number(size), height: Number(size), hasAlpha: true });
+    }
+  });
+
+  it('draws one from an SVG logo', async () => {
+    const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>');
+    expect((await sharp((await faviconFiles({ kind: 'SVG', original: svg }))['180']).metadata()).width).toBe(180);
+  });
+});

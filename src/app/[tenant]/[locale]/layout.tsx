@@ -3,11 +3,12 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
 import { direction, isLocale } from '@/lib/locale';
+import type { BrandView } from '@/server/data/tenant';
 import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
-import { menuCanonical } from '@/server/seo';
+import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
-import { brandCss } from '@/ui/brand';
+import { brandCss, themeLogo } from '@/ui/brand';
 
 export async function generateMetadata({
   params,
@@ -21,12 +22,15 @@ export async function generateMetadata({
 
   const { tenant, locale } = resolved.route;
   const seo = tenant.seo[locale];
+  const openGraph = menuSocialImage(hostEnv().publicOrigin, tenant, locale);
   return {
     title: { default: seo?.title || tenant.name, template: `%s | ${tenant.name}` },
     ...(seo?.description ? { description: seo.description } : {}),
-    icons: { icon: iconFor(tenant.brand) },
+    icons: iconsFor(tenant.brand),
     // Every page canonicalizes to the menu's home; the home and product pages add their translations themselves.
     alternates: menuCanonical(hostEnv().publicOrigin, tenant, locale),
+    // The search image of the page's language, or the logo drawn for link previews.
+    ...(openGraph ? { openGraph } : {}),
   };
 }
 
@@ -38,6 +42,15 @@ function iconFor(brand: { theme: 'dark' | 'light'; tokens: Record<'dark' | 'ligh
   const accent = brand.tokens[brand.theme].accent;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="${accent}"/></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/** The brand's favicon (a 32 px icon, and the 180 px one an iPhone keeps on its home screen), else the accent mark. */
+function iconsFor(brand: BrandView): NonNullable<Metadata['icons']> {
+  if (!brand.favicon) return { icon: iconFor(brand) };
+  return {
+    icon: [{ url: brand.favicon.png32, sizes: '32x32', type: 'image/png' }],
+    apple: [{ url: brand.favicon.png180, sizes: '180x180', type: 'image/png' }],
+  };
 }
 
 export default async function RootLayout({
@@ -70,7 +83,7 @@ export default async function RootLayout({
 
   const { tenant, locale } = resolved.route;
   return (
-    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale)}>
+    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale, tenant.brand.fontPairId)}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: brandCss(tenant.brand) }} />
       </head>
@@ -81,6 +94,7 @@ export default async function RootLayout({
             slug: tenant.slug,
             name: tenant.name,
             logoText: tenant.brand.logoText,
+            logo: themeLogo(tenant.brand),
             railStyle: tenant.brand.railStyle,
             currency: tenant.currency,
             numeralSystem: tenant.numeralSystem,

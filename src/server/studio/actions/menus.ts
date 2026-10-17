@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { expireMenu } from '@/server/data/cache';
 import { nextMenuStatus } from '@/server/domain/menu-status';
+import { snapshotAssetIds } from '@/server/domain/snapshot';
+import { COPYABLE, copyAssetsForMenu } from '@/server/media/copy';
 import { loadDraftSnapshot, refreshDraftHash, writeDraftFromSnapshot } from '@/server/publish/draft';
 import { PublishError, publishMenu } from '@/server/publish/publish';
 import { defineAction, runAction, type ActionContext } from '@/server/studio/framework/action';
@@ -23,6 +25,8 @@ import {
   slugRefusal,
   statusAction,
 } from '@/server/studio/services/menus';
+import { settingsFields, updateSettings as saveSettings } from '@/server/studio/services/menu-settings';
+import { pendingSchedule } from '@/server/publish/revisions';
 
 /**
  * Menus: creating one in a restaurant, publishing it, changing its status and its address, duplicating and deleting it,
@@ -76,7 +80,7 @@ export const createMenu = defineAction({
     // The menu's rows need a client scoped to it, so the transaction is scoped to the id it is about to get.
     const menuId = ctx.newId();
     await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
-      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true } });
+      const restaurant = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { name: true, logoAssetId: true } });
       if (!restaurant) throw new StudioError('NOT_FOUND');
       await requireSlugAvailable(tx, input.slug, null);
       try {
@@ -98,7 +102,8 @@ export const createMenu = defineAction({
         throw error;
       }
       await claimSlug(tx, input.slug, menuId);
-      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name) } });
+      // The restaurant's logo starts the new menu's brand kit.
+      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name), logoAssetId: restaurant.logoAssetId } });
       await tx.daypartSchedule.createMany({ data: DEFAULT_SCHEDULE.map((window) => ({ menuId, ...window })) });
       await refreshDraftHash(tx, menuId);
 
@@ -151,7 +156,8 @@ export const publish = defineAction({
       });
       const slugs = await menuSlugs(tx, menuId);
       ctx.afterCommit(() => expireMenu(slugs, menuId));
-      return { revisionId: outcome.revisionId, number: outcome.number, warnings: outcome.warnings };
+      // A revision scheduled for later still goes live at its time; the person is told it is waiting.
+      return { revisionId: outcome.revisionId, number: outcome.number, warnings: outcome.warnings, pendingSchedule: await pendingSchedule(tx, menuId) };
     }),
 });
 
@@ -248,7 +254,11 @@ export const duplicateMenu = defineAction({
       const brand = await tx.brandConfig.findUnique({ where: { menuId: sourceId } });
       const tables = await tx.table.findMany({ orderBy: { number: 'asc' }, select: { number: true, label: true } });
       const snapshot = await loadDraftSnapshot(tx, sourceId);
-      return { menu, brand, tables, snapshot };
+      // Into another restaurant, the library assets the menu shows go with it as that restaurant's own copies; they are
+      // read here, on the source's side, which the target's transaction cannot read.
+      const assetIds = restaurantId === ctx.restaurantId ? [] : snapshotAssetIds(snapshot);
+      const assets = assetIds.length === 0 ? [] : await tx.mediaAsset.findMany({ where: { id: { in: assetIds } }, select: COPYABLE });
+      return { menu, brand, tables, snapshot, assets };
     });
 
     const menuId = ctx.newId();
@@ -291,7 +301,8 @@ export const duplicateMenu = defineAction({
         });
       }
       // New ids for every row and every reference; the draft hash is computed at the end.
-      await writeDraftFromSnapshot(tx, menuId, source.snapshot);
+      const assetMap = source.assets.length === 0 ? undefined : await copyAssetsForMenu(tx, { assets: source.assets, toRestaurantId: restaurantId });
+      await writeDraftFromSnapshot(tx, menuId, source.snapshot, assetMap);
       if (source.tables.length > 0) await tx.table.createMany({ data: source.tables.map((table) => ({ menuId, ...table })) });
 
       ctx.audit({
@@ -383,4 +394,14 @@ export const bulkMenuAction = defineAction({
     }
     return { results };
   },
+});
+
+// Settings ------------------------------------------------------------------------------------------------------------
+
+export const updateSettings = defineAction({
+  name: 'menus.updateSettings',
+  permission: 'menu.settings',
+  input: z.object({ menuId: idField, ...settingsFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => saveSettings(ctx, input),
 });

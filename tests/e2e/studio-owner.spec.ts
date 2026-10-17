@@ -87,6 +87,59 @@ test.describe('Studio as an owner @desktop', () => {
     await page.context().close();
   });
 
+  test('the owner works on what guests see now: their tabs, an item sold out at once, and no going back', async ({ browser }) => {
+    const atelier = await menuBySlug('atelier');
+    const page = await pageAs(browser, OWNER_FILE);
+    await page.goto(`/studio/menus/${atelier.id}`);
+    const tabs = page.getByRole('navigation', { name: 'Menu workspace' });
+    await expect(tabs.getByRole('link')).toHaveText(['Content', 'Prices', 'Availability', 'Revisions', 'Preview']);
+    // The tabs they do not have are not there to open either.
+    for (const tab of ['brand', 'settings', 'qr', 'data']) {
+      expect((await page.goto(`/studio/menus/${atelier.id}/${tab}`))?.status(), tab).toBe(404);
+    }
+
+    // Earl Grey (which no other suite reads) goes sold out with no publish, and comes back the same way.
+    await page.goto(`/studio/menus/${atelier.id}/availability`);
+    const soldOut = page.getByRole('switch', { name: 'Sold out: Earl Grey' });
+    const guest = await browser.newPage();
+    const row = () => guest.getByTestId('product-row').filter({ hasText: 'Earl Grey' }).first();
+    await expect(soldOut).not.toBeChecked();
+    try {
+      const saved = page.waitForResponse((response) => response.request().method() === 'POST' && response.request().headers()['next-action'] !== undefined);
+      await soldOut.click();
+      await saved;
+      await expect(soldOut).toBeChecked();
+      await guest.goto('/atelier/en');
+      // Guests read a product switched off as unavailable ("Sold out" is for a stock count that ran out).
+      await expect(row()).toContainText('Unavailable right now');
+    } finally {
+      if (await soldOut.isChecked()) {
+        const saved = page.waitForResponse((response) => response.request().method() === 'POST' && response.request().headers()['next-action'] !== undefined);
+        await soldOut.click();
+        await saved;
+      }
+    }
+    await guest.goto('/atelier/en');
+    await expect(row()).not.toContainText('Unavailable right now');
+    await guest.close();
+
+    // Revisions without going back, restoring or scheduling: those are for a designer or a Super Admin.
+    await page.goto(`/studio/menus/${atelier.id}/revisions`);
+    const history = page.getByRole('table', { name: 'Revisions of the menu' });
+    await expect(history.getByRole('row').nth(1)).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Roll back' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Restore to draft' })).toHaveCount(0);
+    // The Manage menu, when the owner has one at all, offers no scheduling.
+    const manage = page.getByRole('button', { name: 'Manage' });
+    if ((await manage.count()) > 0) {
+      await manage.click();
+      await expect(page.getByRole('menu')).toBeVisible();
+      await expect(page.getByRole('menuitem', { name: 'Schedule publish…' })).toHaveCount(0);
+      await page.keyboard.press('Escape');
+    }
+    await page.context().close();
+  });
+
   test('the owner publishes ATELIER, until a Super Admin switches publishing off for its owners', async ({ browser }) => {
     test.setTimeout(60_000);
     const restaurant = await atelierRestaurant();
@@ -106,7 +159,7 @@ test.describe('Studio as an owner @desktop', () => {
       await expect(done).toBeVisible();
       const warnings = page.getByRole('dialog', { name: /^Published as revision \d+$/ });
       if (await warnings.isVisible()) await warnings.getByRole('button', { name: 'Close' }).last().click();
-      await expect(page.getByText(`Published by ${owner.name}`)).toBeVisible();
+      await expect(page.getByText(new RegExp(`^Live: revision \\d+, .+, by ${owner.name}$`))).toBeVisible();
 
       // A Super Admin takes publishing away from ATELIER's owners on its People tab.
       await admin.goto(`/studio/restaurants/${restaurant.id}/people`);

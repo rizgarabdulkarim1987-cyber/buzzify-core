@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="120" height="80" viewBox="0 0 120 80" onload="alert('svg onload')">
+  <script>alert('svg script')</script>
+  <rect width="120" height="80" fill="#1b1a19"/>
+  <circle cx="60" cy="40" r="24" fill="#d6bc8a" onclick="alert('click')"/>
+  <foreignObject width="10" height="10"><div xmlns="http://www.w3.org/1999/xhtml">x</div></foreignObject>
+</svg>

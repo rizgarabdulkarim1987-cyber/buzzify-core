@@ -53,6 +53,8 @@ export const eventsRequestSchema = z.object({
         type: z.enum(EVENT_TYPES),
         productId: id.optional(),
         suggestionId: z.string().max(128).optional(),
+        /** The printed QR code a menu view came from (`?qr=` on the address it opened). */
+        qrCodeId: z.string().min(1).max(64).optional(),
         payload: z.record(z.string(), z.unknown()).default({}),
       }),
     )

@@ -1,3 +1,4 @@
+import { paletteProblems } from '@/lib/palette';
 import type { MenuSnapshot } from './snapshot';
 import type { Locale, TranslationMap } from './types';
 
@@ -8,7 +9,9 @@ export type PublishIssueCode =
   | 'UNSATISFIABLE_GROUP'
   | 'BROKEN_REFERENCE'
   | 'MISSING_TRANSLATION'
-  | 'NO_IMAGE';
+  | 'NO_IMAGE'
+  | 'LOW_CONTRAST'
+  | 'MISSING_ASSET';
 
 export interface PublishIssue {
   code: PublishIssueCode;
@@ -16,6 +19,8 @@ export interface PublishIssue {
   severity: 'block' | 'warn';
   entity?: { type: 'category' | 'product' | 'group' | 'rule' | 'bundle'; id: string; slug?: string };
   locale?: Locale;
+  /** For `LOW_CONTRAST`: the two palette colours and how much they contrast. */
+  pair?: { foreground: string; background: string; ratio: number };
 }
 
 function hasName(translations: TranslationMap, locale: Locale): boolean {
@@ -38,6 +43,17 @@ export function validateForPublish(snapshot: MenuSnapshot): PublishIssue[] {
 
   if (catalog.products.length === 0) issues.push({ code: 'EMPTY_MENU', severity: 'block' });
 
+  // Body text guests cannot read blocks the publish (spec 12); a weak accent is the brand tab's warning, not a block.
+  // Only the palette of the theme guests are shown counts.
+  for (const problem of paletteProblems(snapshot.brand.tokens[snapshot.brand.theme])) {
+    if (problem.severity !== 'block') continue;
+    issues.push({
+      code: 'LOW_CONTRAST',
+      severity: 'block',
+      pair: { foreground: problem.foreground, background: problem.background, ratio: problem.ratio },
+    });
+  }
+
   for (const category of catalog.categories) {
     const entity = { type: 'category' as const, id: category.id, slug: category.slug };
     if (!usedCategoryIds.has(category.id)) issues.push({ code: 'EMPTY_CATEGORY', severity: 'block', entity });
@@ -53,6 +69,10 @@ export function validateForPublish(snapshot: MenuSnapshot): PublishIssue[] {
     if (product.basePrice <= 0) issues.push({ code: 'NO_PRICE', severity: 'block', entity });
     if (!categoryIds.has(product.categoryId)) issues.push({ code: 'BROKEN_REFERENCE', severity: 'block', entity });
     if (product.media.length === 0) issues.push({ code: 'NO_IMAGE', severity: 'warn', entity });
+    // A library photo that could not be resolved (its asset is gone, or belongs elsewhere) would show nothing.
+    for (const entry of product.media) {
+      if ((entry as { kind?: unknown } | null)?.kind === 'asset') issues.push({ code: 'MISSING_ASSET', severity: 'block', entity });
+    }
     for (const locale of menu.locales) {
       if (!hasName(product.translations, locale)) {
         issues.push({ code: 'MISSING_TRANSLATION', severity: 'warn', entity, locale });

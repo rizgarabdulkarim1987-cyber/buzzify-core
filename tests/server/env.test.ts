@@ -5,7 +5,9 @@ import {
   mailEnv,
   parseAuthEnv,
   parseHostEnv,
+  parseCronEnv,
   parseMailEnv,
+  parseStorageEnv,
 } from '@/server/env';
 
 const SECRET = 'x'.repeat(32);
@@ -174,5 +176,46 @@ describe('the cached readers', () => {
     expect(() => fresh.authEnv()).toThrow(/BETTER_AUTH_URL/);
     // A failed section is retried (and fails again) rather than caching a half-built value.
     expect(() => fresh.mailEnv()).toThrow(/EMAIL_FROM/);
+  });
+});
+
+describe('parseStorageEnv', () => {
+  const r2 = { R2_ACCOUNT_ID: 'acc', R2_ACCESS_KEY_ID: 'key', R2_SECRET_ACCESS_KEY: 'secret', R2_BUCKET: 'bucket' };
+
+  it('uses the development folder when R2 is not configured', () => {
+    expect(parseStorageEnv({})).toEqual({ kind: 'folder', dir: '.data/media', publicUrl: '/api/dev-media' });
+    expect(parseStorageEnv({ MEDIA_LOCAL_DIR: '/tmp/m', MEDIA_PUBLIC_URL: 'http://127.0.0.1:3100/api/dev-media/' })).toEqual({
+      kind: 'folder',
+      dir: '/tmp/m',
+      publicUrl: 'http://127.0.0.1:3100/api/dev-media',
+    });
+  });
+
+  it('uses R2 when all four of its variables are set', () => {
+    expect(parseStorageEnv({ ...r2, MEDIA_PUBLIC_URL: 'https://media.buzzify.me' })).toEqual({
+      kind: 'r2',
+      accountId: 'acc',
+      accessKeyId: 'key',
+      secretAccessKey: 'secret',
+      bucket: 'bucket',
+      publicUrl: 'https://media.buzzify.me',
+    });
+  });
+
+  it('names the R2 variables that are missing when only some are set', () => {
+    expect(() => parseStorageEnv({ R2_ACCOUNT_ID: 'acc', R2_BUCKET: 'bucket' })).toThrow(/R2_ACCESS_KEY_ID.*R2_SECRET_ACCESS_KEY/);
+  });
+
+  it('refuses the development folder in production', () => {
+    expect(() => parseStorageEnv({ NODE_ENV: 'production' })).toThrow(/R2/);
+  });
+});
+
+describe('parseCronEnv', () => {
+  it('reads the cron secret, which must be long', () => {
+    expect(parseCronEnv({})).toEqual({ secret: null });
+    expect(parseCronEnv({ CRON_SECRET: '  ' })).toEqual({ secret: null });
+    expect(parseCronEnv({ CRON_SECRET: SECRET })).toEqual({ secret: SECRET });
+    expect(() => parseCronEnv({ CRON_SECRET: 'short' })).toThrow('CRON_SECRET');
   });
 });

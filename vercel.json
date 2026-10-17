@@ -1,4 +1,5 @@
 {
   "regions": ["fra1"],
-  "buildCommand": "npm run vercel-build"
+  "buildCommand": "npm run vercel-build",
+  "crons": [{ "path": "/api/cron/publish", "schedule": "* * * * *" }]
 }

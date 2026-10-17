@@ -3,7 +3,7 @@ import type { Locale } from '@/lib/locale';
 import { getStudioTranslator } from '@/studio/messages';
 import { seriousViolations } from './helpers/axe';
 import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
-import { menuBySlug, superAdmin, superAdminFile, uniqueClientAddress } from './helpers/studio';
+import { hideDevTools, menuBySlug, superAdmin, superAdminFile, uniqueClientAddress } from './helpers/studio';
 
 /**
  * The Studio in each of its languages: axe (WCAG 2.0 and 2.1, A and AA) on the sign-in page and on the pages a Super
@@ -169,6 +169,81 @@ test.describe('Studio accessibility @desktop', () => {
       await page.keyboard.press('Escape');
       await expect(items).toBeHidden();
       await expect(actions).toBeFocused();
+      await page.context().close();
+    });
+
+    test(`every workspace tab, the product drawer, the Schedule dialog and the Media page in ${locale}`, async ({ browser }) => {
+      test.setTimeout(120_000);
+      const menu = await createTemporaryMenu();
+      temporary.push(menu);
+      const { name } = await menuBySlug(menu.slug);
+      const page = await signedIn(browser, locale);
+      await hideDevTools(page.context());
+      for (const tab of ['', '/prices', '/availability', '/brand', '/settings', '/qr', '/data', '/revisions', '/preview']) {
+        const path = `/studio/menus/${menu.menuId}${tab}`;
+        await page.goto(path);
+        await expectDirection(page, locale);
+        await expect(page.getByRole('heading', { level: 1, name }), path).toBeVisible();
+        expect(await seriousViolations(page), `${path} in ${locale}`).toEqual([]);
+      }
+
+      // The product drawer keeps focus inside while it is open, and gives it back to the product's row when it closes.
+      await page.goto(`/studio/menus/${menu.menuId}`);
+      const product = page.getByRole('button', { name: 'Espresso', exact: true });
+      await product.click();
+      const drawer = page.getByRole('dialog', { name: 'Espresso', exact: true });
+      await expect(drawer).toBeVisible();
+      expect(await seriousViolations(page), `the drawer in ${locale}`).toEqual([]);
+      for (let presses = 0; presses < 40; presses++) {
+        await page.keyboard.press('Tab');
+        expect(await drawer.evaluate((element) => element.contains(document.activeElement)), `Tab ${presses + 1}`).toBe(true);
+      }
+      await page.keyboard.press('Escape');
+      await expect(drawer).toBeHidden();
+      await expect(product).toBeFocused();
+
+      // The Schedule dialog, from the Manage menu.
+      await page.getByRole('button', { name: t('menus.manage') }).click();
+      await page.getByRole('menuitem', { name: t('schedule.open') }).click();
+      const schedule = page.getByRole('dialog', { name: t('schedule.title') });
+      await expect(schedule).toBeVisible();
+      expect(await seriousViolations(page), `the Schedule dialog in ${locale}`).toEqual([]);
+      await page.keyboard.press('Escape');
+      await expect(schedule).toBeHidden();
+
+      await page.goto('/studio/media');
+      await expectDirection(page, locale);
+      await expect(page.getByRole('heading', { level: 1, name: t('media.library.title') })).toBeVisible();
+      expect(await seriousViolations(page), `the Media page in ${locale}`).toEqual([]);
+      await page.context().close();
+    });
+
+    test(`the category tree reorders from the keyboard in ${locale}`, async ({ browser }) => {
+      const menu = await createTemporaryMenu();
+      temporary.push(menu);
+      const page = await signedIn(browser, locale);
+      await hideDevTools(page.context());
+      await page.goto(`/studio/menus/${menu.menuId}`);
+      await page.getByRole('button', { name: t('content.addCategory') }).first().click();
+      const add = page.getByRole('dialog', { name: t('content.addCategoryTitle') });
+      await add.getByLabel(t('content.inLanguage', { field: t('content.name'), language: t('menus.language.en') })).fill('Cold drinks');
+      await add.getByRole('button', { name: t('content.addCategory') }).click();
+      const categories = page.getByRole('list', { name: t('content.categories') });
+      await expect(categories.getByRole('heading', { level: 2 })).toHaveText(['Coffee', 'Cold drinks']);
+
+      // Picked up with Space, moved with the arrow, dropped with Space: each key waits for the step before it to land.
+      const handle = page.getByRole('button', { name: t('content.reorder', { name: 'Cold drinks' }) });
+      await handle.focus();
+      await page.keyboard.press('Space');
+      await expect(handle).toHaveAttribute('aria-pressed', 'true');
+      await page.keyboard.press('ArrowUp');
+      await expect(page.locator('[id^="DndLiveRegion"]')).toHaveText(t('content.dnd.over', { name: 'Cold drinks', position: 1, count: 2 }));
+      const saved = page.waitForResponse((response) => response.request().method() === 'POST' && response.request().headers()['next-action'] !== undefined);
+      await page.keyboard.press('Space');
+      await expect(categories.getByRole('heading', { level: 2 })).toHaveText(['Cold drinks', 'Coffee']);
+      await saved;
+      await page.reload();
+      await expect(categories.getByRole('heading', { level: 2 })).toHaveText(['Cold drinks', 'Coffee']);
       await page.context().close();
     });
 

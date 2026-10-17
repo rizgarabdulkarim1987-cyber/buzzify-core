@@ -5,8 +5,9 @@ This guide takes the app from this repository to a live site:
 - **`https://studio.buzzify.me`** is the Studio, where your team signs in.
 - **`https://menu.buzzify.me/<address>`** is where guests open a published menu.
 
-Both are the same app on **Vercel**. The data lives in a **Neon** database (PostgreSQL), and sign-in and
-invitation emails go out through **Resend**.
+Both are the same app on **Vercel**. The data lives in a **Neon** database (PostgreSQL), sign-in and invitation emails
+go out through **Resend**, and pictures, logos and downloads are kept in **Cloudflare R2**, served from
+**`https://media.buzzify.me`**.
 
 You create every account and you type every secret yourself. Nothing secret belongs in this repository,
 which is public, in a chat, or in an email. Keep each value in a password manager as you go.
@@ -16,13 +17,14 @@ Plan for one to two hours, plus waiting for DNS (the internet's address book) to
 ## Before you start
 
 1. **Check the current prices** on each provider's pricing page before you sign up: [Vercel](https://vercel.com/pricing),
-   [Neon](https://neon.com/pricing) and [Resend](https://resend.com/pricing). Prices and free allowances change, so this
+   [Neon](https://neon.com/pricing), [Resend](https://resend.com/pricing) and [Cloudflare R2](https://developers.cloudflare.com/r2/pricing/). Prices and free allowances change, so this
    guide does not quote any. Vercel's free Hobby plan is for personal, non-commercial projects; a business site needs the
-   **Pro** plan.
-2. **The code must be on the `main` branch of the GitHub repository.** Vercel deploys `main` as the live site. The Studio
-   work lives on the `studio-core` branch until it is merged, so open a pull request from `studio-core` into `main` on
-   GitHub and merge it first.
-3. **You need access to the DNS settings of `buzzify.me`** (at your domain registrar or wherever its records are kept).
+   **Pro** plan, which scheduled publishing needs too (Vercel Cron runs every minute only on Pro).
+2. **The code must be on the `main` branch of the GitHub repository.** Vercel deploys `main` as the live site. Work on
+   another branch reaches the site once it is merged into `main`.
+3. **You need access to the DNS settings of `buzzify.me`** (at your domain registrar or wherever its records are kept),
+   and to know whether they are on Cloudflare: R2 serves files on your own address only for a domain whose DNS Cloudflare
+   holds (step 3b).
 4. **A computer with this repository** and Node.js 22.19 or newer, with `npm install` already run. You use it once, in
    step 7, to create the first administrator.
 
@@ -45,6 +47,13 @@ step 4. Where each comes from is explained in the steps; the table repeats them 
 | `PUBLIC_MENU_HOST` | `menu.buzzify.me` |
 | `STUDIO_HOST` | `studio.buzzify.me` |
 | `PUBLIC_MENU_ORIGIN` | `https://menu.buzzify.me` |
+
+| `R2_ACCOUNT_ID` | Your Cloudflare account's ID (step 3b) |
+| `R2_ACCESS_KEY_ID` | The access key of an R2 token limited to the bucket |
+| `R2_SECRET_ACCESS_KEY` | That token's secret |
+| `R2_BUCKET` | `buzzify-media` |
+| `MEDIA_PUBLIC_URL` | `https://media.buzzify.me` |
+| `CRON_SECRET` | A long random secret the scheduler sends with every call (step 3c) |
 
 Two more are optional and have sensible defaults: `EMAIL_FROM` and `PUBLIC_ROOT_REDIRECT`.
 
@@ -99,6 +108,63 @@ The result is a line of 44 characters. Copy it straight into your password manag
 later.** If it changes, everyone is signed out and the saved two-factor codes can no longer be read (see "Changing
 `BETTER_AUTH_SECRET`" under Day to day, before you ever do it). Never reuse it anywhere else.
 
+## Step 3b. Cloudflare R2: pictures and downloads
+
+Pictures, logos, QR code downloads and spreadsheets are kept in an R2 bucket. Browsers send them to it and fetch them from
+it directly, through links that work for a few minutes, so a 15 MB photo never passes through Vercel (whose functions
+accept at most 4.5 MB).
+
+1. **First decide where `buzzify.me`'s DNS lives.** R2 serves a bucket on your own address (here `media.buzzify.me`) only
+   when the domain's DNS is on Cloudflare. If it already is, go on. If it is elsewhere, either move the domain's
+   nameservers to Cloudflare (the free plan is enough; Cloudflare copies the existing records, check that every one came
+   across before you switch), or serve the files from a different domain whose DNS Cloudflare holds and use that address
+   wherever this guide says `media.buzzify.me`. R2's own `r2.dev` address is rate-limited and meant for testing; do not
+   use it for guests.
+2. In the Cloudflare dashboard open **R2 Object Storage** and subscribe to it (it asks for a payment method even for the free
+   allowance).
+3. **Create bucket:** name `buzzify-media`, location **Automatic** (or Eastern Europe, near Frankfurt), storage class
+   **Standard**.
+4. **Its address:** open the bucket, then **Settings, Public access, Custom Domains, Connect Domain**, and enter
+   `media.buzzify.me`. Cloudflare adds the DNS record by itself. Wait until it shows **Active**. Leave the `r2.dev` address
+   **disabled**.
+5. **Uploads from the Studio (CORS):** in the bucket's **Settings, CORS policy**, choose **Add CORS policy** and paste:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://studio.buzzify.me"],
+       "AllowedMethods": ["PUT", "GET"],
+       "AllowedHeaders": ["content-type", "content-length"],
+       "MaxAgeSeconds": 3600
+     }
+   ]
+   ```
+
+6. **Cleanup rules:** in the bucket's **Settings, Object lifecycle rules**, add three rules, each deleting objects **1 day**
+   after they were uploaded: one for the prefix `uploads/`, one for `imports/` and one for `exports/`. These folders hold
+   files on their way somewhere (a picture before it is checked, a spreadsheet before it is read, a download after it was
+   handed out); everything else in the bucket is kept.
+7. **The app's key:** on the R2 overview page choose **Manage API tokens**, then **Create Account API token**. Give it the
+   permission **Object Read & Write**, choose **Apply to specific buckets only** and pick `buzzify-media`, and leave the
+   expiry at **Forever**. Copy the **Access Key ID** and the **Secret Access Key** into your password manager: the secret is
+   shown only once. Your **Account ID** is on the R2 overview page.
+
+You now have `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` (`buzzify-media`) and
+`MEDIA_PUBLIC_URL` (`https://media.buzzify.me`, without a slash at the end).
+
+## Step 3c. The scheduler's secret
+
+A publish can be scheduled for a time on the menu's clock. Every minute Vercel Cron calls the app's
+`/api/cron/publish` (the repository's `vercel.json` sets this up), which makes every revision whose time has come live.
+Each call carries `CRON_SECRET`, and the app refuses any call without it. Make it the way you made the sign-in secret,
+as a **different** value:
+
+```bash
+openssl rand -base64 32
+```
+
+Keep it in your password manager. Vercel sends it with each call by itself once the variable is set (step 4).
+
 ## Step 4. Vercel: the project
 
 1. Sign up at [vercel.com](https://vercel.com) with the GitHub account that owns the repository, and choose the **Pro**
@@ -123,9 +189,15 @@ later.** If it changes, everyone is signed out and the saved two-factor codes ca
    | `PUBLIC_MENU_HOST` | `menu.buzzify.me` (no `https://`) |
    | `STUDIO_HOST` | `studio.buzzify.me` (no `https://`) |
    | `PUBLIC_MENU_ORIGIN` | `https://menu.buzzify.me` |
+   | `R2_ACCOUNT_ID` | the account ID from step 3b |
+   | `R2_ACCESS_KEY_ID` | the access key from step 3b |
+   | `R2_SECRET_ACCESS_KEY` | the secret access key from step 3b |
+   | `R2_BUCKET` | `buzzify-media` |
+   | `MEDIA_PUBLIC_URL` | `https://media.buzzify.me` |
+   | `CRON_SECRET` | the secret from step 3c |
 
    If Vercel lets you mark a variable as a **Secret** (hidden after saving), do that for `DATABASE_URL`,
-   `DIRECT_DATABASE_URL`, `BETTER_AUTH_SECRET` and `RESEND_API_KEY`.
+   `DIRECT_DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `R2_SECRET_ACCESS_KEY` and `CRON_SECRET`.
 
    Add `EMAIL_FROM` only if you want a different sender than the default `Buzzify Studio <studio@buzzify.me>`, and
    `PUBLIC_ROOT_REDIRECT` only to send visitors of `https://menu.buzzify.me/` somewhere other than `https://buzzify.me`.
@@ -176,6 +248,9 @@ addresses above, also when Vercel's **Visit** button offers the `.vercel.app` on
    If the log shows neither the settings check nor the migrations, see "If something goes wrong" below.
 3. When it is ready, `https://studio.buzzify.me` opens the sign-in page. There is nobody who can sign in yet: that is
    step 7.
+4. **The scheduler:** open **Settings, Cron Jobs**. It lists `/api/cron/publish`, every minute. **View Logs** beside it
+   shows each run; a run answers `{"activated":0}` when nothing was due. A `401` there means `CRON_SECRET` is missing or
+   different in the Production environment.
 
 ## Step 7. Create the first administrator (Super Admin)
 
@@ -232,11 +307,11 @@ with it when it ends.
    phone.
 3. From now on, signing in asks for your password and then a code from the app.
 
-## Step 9. Optional: load the ATELIER demo menu
+## Step 9. Optional: load the demo menus
 
-The repository contains a fictional café, ATELIER, with a full menu. It is the quickest way to see a real menu online, and
-until the menu editor arrives (milestone 2b) it is the only way to get a menu with dishes in it: a menu created in the Studio
-starts empty, and an empty menu cannot be published. You will also use it in step 10.
+The repository contains three fictional places with full menus: the café ATELIER (`/atelier`), Riverlight Coffee
+(`/riverlight`) and Hot Brick Burgers (`/hot-brick`, in Sorani first and priced in dinars). They are the quickest way to
+see real menus online, and each is published as revision 1.
 
 Run this **once**, on your own computer, aimed at the live database, like step 7 (and the same way: the commands ask for
 the direct address). First make sure the demo accounts are not switched on: open the `.env` file in the repository and, if
@@ -259,20 +334,21 @@ Git Bash:
 ( read -rsp 'Direct address: ' DATABASE_URL; echo; export DATABASE_URL; npm run db:seed; unset DATABASE_URL )
 ```
 
-Expect a line that begins `Seeded atelier` and says it was published as revision 1, and a line saying the development users
-were skipped. Then `https://menu.buzzify.me/atelier` shows the menu.
+Expect three lines that begin `Seeded atelier`, `Seeded riverlight` and `Seeded hot-brick`, each published as revision 1,
+and a line saying the development users were skipped. Then `https://menu.buzzify.me/atelier`, `/riverlight` and
+`/hot-brick` show the menus.
 
-Running it again later does not add a second demo: it replaces the ATELIER menu with a fresh copy (its revisions and any
-changes made to it in the Studio are lost). Once the ATELIER menu has been deleted in the Studio, or moved to another
-address, the command refuses and changes nothing: `/atelier` stays reserved for good.
+Running it again later does not add second copies: it replaces each demo menu with a fresh one (its revisions and any
+changes made to it in the Studio are lost). Once a demo menu has been deleted in the Studio, or moved to another address,
+the command refuses and changes nothing at all: that address stays reserved for good.
 
 - If the script refuses and says `DEV_SEED_PASSWORD` is set or that the database is not on this machine, it did what it is
   for: nothing was written. Comment out `DEV_SEED_PASSWORD` in `.env` and run it again. **Do not set
   `ALLOW_REMOTE_DEV_SEED=1`** to get past it: that would create the three test accounts, with the published password,
   in your live database.
-- ATELIER is a public page at `https://menu.buzzify.me/atelier`. When real clients arrive, remove it in the Studio: open
-  All menus, then ATELIER, then Manage, Archive, then Manage, Delete menu; then delete the ATELIER restaurant. Its address
-  stays reserved for good, so no other menu can take it.
+- The demo menus are public pages. When real clients arrive, remove each in the Studio: open All menus, then the menu,
+  then Manage, Archive, then Manage, Delete menu; then delete its restaurant. Its address stays reserved for good, so no
+  other menu can take it.
 
 ## Step 10. Check that it works
 
@@ -287,11 +363,9 @@ administrator session.
 4. `https://menu.buzzify.me/` sends you to `https://buzzify.me` (or to `PUBLIC_ROOT_REDIRECT` if you set it).
 5. **Create a restaurant:** Restaurants, then New restaurant. Enter a name, a type and a city, and press Create restaurant.
 6. **Create a menu:** All menus, then New menu. Choose that restaurant and enter a name and an address (the part after
-   `menu.buzzify.me/`). It is a draft with no dishes, and Publish will say it cannot be published yet, which is expected until
-   the menu editor arrives.
-7. **Publish:** this needs the ATELIER demo from step 9. Open All menus, then ATELIER, then Manage, then Duplicate. Give the
-   copy a name and an address (for example `test-cafe`), choose your new restaurant, and press Duplicate. On the copy press
-   Publish, then Publish again to confirm. It says "Published as revision 1".
+   `menu.buzzify.me/`, for example `test-cafe`). It opens on its Content tab, empty.
+7. **Fill it and publish:** on Content add a category and a dish with a price (or import a spreadsheet on Import and export).
+   Press Publish, then Publish again to confirm. It says "Published as revision 1".
 8. **Open it as a guest:** `https://menu.buzzify.me/test-cafe` (your address) shows the menu. Try the same address with
    `/ar` and `/ckb` on the end for Arabic and Sorani.
 9. **Invite an owner:** open your new restaurant, then its People tab, then Invite an owner. Use an email address you can
@@ -304,7 +378,14 @@ administrator session.
     then delete the test restaurant. The test owner's account stays: deactivate it under People. The test menu's address
     stays reserved.
 
-If all eleven pass, the platform is live.
+12. **Pictures:** open **Media**, choose the test restaurant's library, and upload a photo of about 15 MB (the most the
+    library takes). It is sent, then finished in well under a minute, and shows in the grid. Choose it and **Open the
+    file**: its address starts with `https://media.buzzify.me/`. Upload the same photo from a phone too, if you like.
+13. **A scheduled publish:** on the test menu change a price, then **Manage, Schedule publish…** and choose a time two
+    minutes ahead. Revisions shows it waiting. Within a minute of that time the guest page shows the new price and
+    Revisions shows it live. (Schedule a publish only when it matters: cancelling it, on Revisions, is fine too.)
+
+If all thirteen pass, the platform is live.
 
 ## Day to day
 
@@ -409,6 +490,12 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | `PUBLIC_MENU_HOST` | yes | You | `menu.buzzify.me` |
 | `STUDIO_HOST` | yes | You | `studio.buzzify.me` |
 | `PUBLIC_MENU_ORIGIN` | yes | You | `https://menu.buzzify.me` |
+| `R2_ACCOUNT_ID` | yes | Cloudflare, R2 overview | 32 hexadecimal characters |
+| `R2_ACCESS_KEY_ID` | yes | Cloudflare, R2 API token | 32 characters |
+| `R2_SECRET_ACCESS_KEY` | yes | Cloudflare, R2 API token (shown once) | 64 characters |
+| `R2_BUCKET` | yes | You, step 3b | `buzzify-media` |
+| `MEDIA_PUBLIC_URL` | yes | You, step 3b | `https://media.buzzify.me` |
+| `CRON_SECRET` | yes | You, step 3c | 32 or more characters |
 | `EMAIL_FROM` | no | You | `Buzzify Studio <studio@buzzify.me>` (the default) |
 | `PUBLIC_ROOT_REDIRECT` | no | You | `https://buzzify.me` (the default) |
 | `DEV_SEED_PASSWORD` | never in production | | |

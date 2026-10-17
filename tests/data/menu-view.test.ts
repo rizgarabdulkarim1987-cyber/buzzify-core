@@ -147,3 +147,38 @@ describe('buildMenuView', () => {
     expect(view.products.find((p) => p.id === IDS.fries)?.media).toEqual([{ kind: 'art', art: 'plate', tone: '#D9B45A' }]);
   });
 });
+
+describe('2b product fields', () => {
+  it('carries badges, dietary tags and calories', () => {
+    const catalog = withProduct(makeCatalog(), IDS.burger, { badges: ['NEW', 'POPULAR'], dietary: ['HALAL', 'SPICY'], calories: 640 });
+    const burger = buildMenuView(catalog, tenant, 'en', at(12)).products.find((p) => p.id === IDS.burger)!;
+    expect(burger).toMatchObject({ badges: ['NEW', 'POPULAR'], dietary: ['HALAL', 'SPICY'], calories: 640 });
+    const espresso = buildMenuView(catalog, tenant, 'en', at(12)).products.find((p) => p.id === IDS.espresso)!;
+    // Nothing is sent for what a product does not have.
+    expect(espresso).not.toHaveProperty('badges');
+    expect(espresso).not.toHaveProperty('dietary');
+    expect(espresso).not.toHaveProperty('calories');
+  });
+
+  it('leaves out a tag the menu does not know', () => {
+    const catalog = withProduct(makeCatalog(), IDS.burger, { badges: ['NEW', 'SPONSORED'], dietary: ['KETO', 'VEGAN'] });
+    expect(buildMenuView(catalog, tenant, 'en', at(12)).products.find((p) => p.id === IDS.burger)).toMatchObject({ badges: ['NEW'], dietary: ['VEGAN'] });
+  });
+
+  it('gives a library photo the alt text of the page language, else the default one', () => {
+    const photo = {
+      kind: 'image',
+      url: '/api/dev-media/r/r1/abc/webp-1080.webp',
+      alt: 'Burger',
+      alts: { en: 'Burger', ar: 'برغر' },
+      width: 1200,
+      height: 800,
+    };
+    const catalog = withProduct(makeCatalog(), IDS.burger, { media: [photo] });
+    const altIn = (locale: 'en' | 'ar' | 'ckb') =>
+      (buildMenuView(catalog, tenant, locale, at(12)).products.find((p) => p.id === IDS.burger)!.media[0] as { alt: string }).alt;
+    expect(altIn('ar')).toBe('برغر');
+    expect(altIn('en')).toBe('Burger');
+    expect(altIn('ckb')).toBe('Burger');
+  });
+});

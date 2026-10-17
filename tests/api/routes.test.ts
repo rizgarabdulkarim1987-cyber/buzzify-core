@@ -274,6 +274,19 @@ describe('public API', () => {
       expect(await prisma.analyticsEvent.count({ where: { menuId: atelier.id } })).toBe(2);
     });
 
+    it('keeps the QR code a menu view came from, when it is one of the menu’s codes', async () => {
+      const code = await prisma.qrCode.create({ data: { menuId: atelier.id, label: 'Door', tableNumber: 9 } });
+      const response = await post(events, 'atelier', {
+        anonymousSessionId: 'session-qr-route',
+        tableNumber: 9,
+        events: [{ type: 'MENU_VIEW', qrCodeId: code.id }],
+      });
+      expect(response.status).toBe(204);
+      expect(await prisma.analyticsEvent.findFirstOrThrow({ where: { anonymousSessionId: 'session-qr-route' } })).toMatchObject({ qrCodeId: code.id, source: 'qr' });
+      const long = await post(events, 'atelier', { anonymousSessionId: 'session-qr-route', events: [{ type: 'MENU_VIEW', qrCodeId: 'x'.repeat(65) }] });
+      expect(long.status).toBe(400);
+    });
+
     it('rejects unknown event types and empty batches', async () => {
       const bad = await post(events, 'atelier', { anonymousSessionId: 'session-abcdef12', events: [{ type: 'HACK' }] });
       expect(bad.status).toBe(400);

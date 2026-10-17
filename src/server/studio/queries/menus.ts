@@ -18,6 +18,8 @@ import {
   permissionsIn,
   slugField,
 } from '@/server/studio/services/menus';
+import { settingsView } from '@/server/studio/services/menu-settings';
+import { pendingSchedule } from '@/server/publish/revisions';
 
 /**
  * What the menu screens read. All Menus is a platform read limited to the restaurants the person belongs to (every one
@@ -210,11 +212,15 @@ export const getMenu = defineQuery({
         ? { number: live.number, wentLiveAt: (live.wentLiveAt ?? live.createdAt).toISOString(), publishedBy: publisher?.name ?? null }
         : null,
       unpublished: menu.liveHash !== null && menu.draftHash !== menu.liveHash,
+      /** The revision waiting to go live by schedule, if any. */
+      pendingSchedule: await pendingSchedule(ctx.db, menu.id),
       publicUrl: publicUrl(menu.slug),
       formerSlugs: slugs.filter((slug) => slug !== menu.slug),
       /** What publishing now would say: the blocking problems and the warnings, in the order of the menu. */
       issues: validateForPublish(snapshot),
       duplicateTargets: restaurants.map((row) => ({ id: row.id, name: row.name, clientId: formatClientId(row.clientNumber) })),
+      /** Every permission the reader holds at this menu, for the workspace's tabs (`visibleTabs`). */
+      permissions: [...ctx.permissions].sort(),
       /** What the reader may do here, for showing or hiding the controls; the actions check it again. */
       can: {
         publish: can('publish.now'),
@@ -223,6 +229,8 @@ export const getMenu = defineQuery({
         duplicate: can('menu.duplicate'),
         duplicateElsewhere: can('menu.duplicate') && ctx.actor.isSuperAdmin,
         delete: can('menu.delete'),
+        schedule: can('publish.schedule'),
+        rollback: can('publish.rollback'),
       },
     };
   },
@@ -263,5 +271,17 @@ export const newMenuOptions = defineQuery({
       currencies: OFFERED_CURRENCIES,
       timeZones: OFFERED_TIME_ZONES,
     };
+  },
+});
+
+/** A menu's settings as the Settings tab edits them. */
+export const settings = defineQuery({
+  name: 'menus.settings',
+  permission: 'menu.settings',
+  input: z.object({ menuId: idField }),
+  target: (i) => ({ kind: 'menu', menuId: i.menuId }),
+  run: (ctx) => {
+    if (ctx.menuId === null || ctx.restaurantId === null) throw new Error('A menu query ran without a menu');
+    return settingsView(ctx.db, ctx.menuId, ctx.restaurantId);
   },
 });

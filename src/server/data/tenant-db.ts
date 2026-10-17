@@ -14,12 +14,21 @@ export const MENU_SCOPED_MODELS = [
   'BundleItem',
   'DaypartSchedule',
   'Table',
+  'QrCode',
+  'ImportJob',
   'AnalyticsEvent',
   'MenuRevision',
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
 export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
+
+/**
+ * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
+ * A client carrying a restaurant reads that restaurant's rows and the shared ones and writes only its own; any other
+ * client (a menu's alone, or the platform's) reads and writes the shared rows only.
+ */
+export const RESTAURANT_OR_SHARED_MODELS = ['MediaAsset'] as const;
 
 /**
  * Looked up by slug or host before the tenant is known, through the base client. A scoped client still confines `Menu`
@@ -160,6 +169,57 @@ function confine({ owner, id, column }: Confinement) {
   };
 }
 
+const READING = new Set(['findMany', 'findFirst', 'findFirstOrThrow', 'findUnique', 'findUniqueOrThrow', 'count', 'aggregate', 'groupBy']);
+const WRITING = new Set(['update', 'updateMany', 'updateManyAndReturn', 'delete', 'deleteMany']);
+
+/**
+ * The guard for a restaurant-or-shared model (`RESTAURANT_OR_SHARED_MODELS`) in a client whose restaurant is `owner`,
+ * or null for a client without one. Reads see the owner's rows and the shared ones; updates and deletes reach the
+ * owner's rows only (the shared ones, for a client without a restaurant); creates are stamped with the owner; no write
+ * may move a row to another library, and `upsert` is refused (its create and update would need different filters).
+ */
+function confineToLibrary(owner: string | null) {
+  const label = owner === null ? 'the shared library' : 'a restaurant';
+
+  function guardData(data: unknown): void {
+    const row = (data ?? {}) as Record<string, unknown>;
+    if (row.restaurantId !== undefined && row.restaurantId !== owner) {
+      throw new Error(`Tenant mismatch: refusing to move a row out of ${label}`);
+    }
+    if (row.restaurant !== undefined) throw new Error('Tenant mismatch: a scoped write may not change the owning restaurant');
+  }
+
+  function scopeData(row: unknown): Record<string, unknown> {
+    const data = (row ?? {}) as Record<string, unknown>;
+    if (data.restaurantId !== undefined && data.restaurantId !== owner) {
+      throw new Error(`Tenant mismatch: refusing to write a row for another library than ${label}`);
+    }
+    if (data.restaurant !== undefined) throw new Error('Tenant mismatch: a scoped write may not set the owning restaurant');
+    return { ...data, restaurantId: owner };
+  }
+
+  const where = (args: Args, filter: Record<string, unknown>): Args => {
+    const current = args.where ?? {};
+    const existing = current.AND === undefined ? [] : Array.isArray(current.AND) ? current.AND : [current.AND];
+    return { ...args, where: { ...current, AND: [...existing, filter] } };
+  };
+  const readable = owner === null ? { restaurantId: null } : { OR: [{ restaurantId: owner }, { restaurantId: null }] };
+  const writable = { restaurantId: owner };
+
+  return function rewrite(model: string, operation: string, input: Args): Args {
+    if (READING.has(operation)) return where(input, readable);
+    if (WRITING.has(operation)) {
+      if (UPDATING.has(operation)) guardData(input.data);
+      return where(input, writable);
+    }
+    if (CREATING.has(operation)) {
+      const data = input.data;
+      return { ...input, data: Array.isArray(data) ? data.map(scopeData) : scopeData(data) };
+    }
+    throw new Error(`Operation ${operation} is not allowed on ${model} in a scoped client`);
+  };
+}
+
 const MENU_SCOPED = new Set<string>(MENU_SCOPED_MODELS);
 const RESTAURANT_SCOPED = new Set<string>(RESTAURANT_SCOPED_MODELS);
 
@@ -191,6 +251,9 @@ function tenantScope(scope: Scope) {
     for (const model of RESTAURANT_SCOPED_MODELS) add(model, { owner: 'restaurant', id, column: 'restaurantId' });
     for (const [model, column] of Object.entries(RESTAURANT_CONFINED_MODELS)) add(model, { owner: 'restaurant', id, column });
   }
+  // Every scoped client confines the media library: to the restaurant and the shared rows, or to the shared rows alone.
+  const library = confineToLibrary(scope.restaurantId ?? null);
+  for (const model of RESTAURANT_OR_SHARED_MODELS) rules.set(model, [library]);
 
   return Prisma.defineExtension({
     name: 'tenant-scope',

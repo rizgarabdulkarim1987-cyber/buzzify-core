@@ -12,6 +12,7 @@ import { recentActivityRows, type AuditRow } from './activity';
 export const UNPUBLISHED_LIMIT = 10;
 export const RECENT_ACTIVITY_LIMIT = 10;
 const DAY_MS = 24 * 60 * 60 * 1000;
+const SCHEDULED_LIMIT = 10;
 
 export interface UnpublishedMenu {
   menuId: string;
@@ -20,13 +21,26 @@ export interface UnpublishedMenu {
   updatedAt: string;
 }
 
+/** A revision waiting to go live. */
+export interface ScheduledRevision {
+  menuId: string;
+  menuName: string;
+  restaurantName: string;
+  number: number;
+  goLiveAt: string;
+}
+
 export interface OverviewData {
   restaurants: Record<RestaurantStatus, number>;
   menus: Record<MenuStatus, number>;
   /** The menus with changes guests do not see yet, the most recently changed first. */
   unpublished: UnpublishedMenu[];
+  /** The next revisions to go live by schedule, soonest first. */
+  scheduled: ScheduledRevision[];
   /** Menu views (`MENU_VIEW` events) in the last 7 days. */
   viewsLast7Days: number;
+  /** Bytes the libraries within the scope keep in storage (every rendition); the shared library counts for Super Admins. */
+  storageBytes: number;
   /** The newest audit rows; null for a reader who may not read the audit log. */
   recentActivity: AuditRow[] | null;
 }
@@ -40,7 +54,8 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
   const menuWhere: Prisma.MenuWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
   const since = new Date((options.now ?? new Date()).getTime() - 7 * DAY_MS);
 
-  const [restaurantCounts, menuCounts, unpublished, views, recentActivity] = await Promise.all([
+  const mediaWhere: Prisma.MediaAssetWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
+  const [restaurantCounts, menuCounts, unpublished, scheduled, views, recentActivity, storage] = await Promise.all([
     db.restaurant.groupBy({ by: ['status'], where: restaurantWhere, _count: { _all: true } }),
     db.menu.groupBy({ by: ['status'], where: menuWhere, _count: { _all: true } }),
     // The draft's hash differs from the live one (a menu never published has no live hash, and nothing to differ from).
@@ -50,8 +65,15 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
       take: UNPUBLISHED_LIMIT,
       select: { id: true, name: true, updatedAt: true, restaurant: { select: { name: true } } },
     }),
+    db.menuRevision.findMany({
+      where: { menu: { AND: [menuWhere, { status: { not: 'ARCHIVED' } }] }, goLiveAt: { not: null }, wentLiveAt: null, cancelledAt: null },
+      orderBy: [{ goLiveAt: 'asc' }, { id: 'asc' }],
+      take: SCHEDULED_LIMIT,
+      select: { number: true, goLiveAt: true, menu: { select: { id: true, name: true, restaurant: { select: { name: true } } } } },
+    }),
     db.analyticsEvent.count({ where: { type: 'MENU_VIEW', occurredAt: { gte: since }, menu: menuWhere } }),
     options.activity ? recentActivityRows(db, RECENT_ACTIVITY_LIMIT) : null,
+    db.mediaAsset.aggregate({ where: mediaWhere, _sum: { storedBytes: true } }),
   ]);
 
   const restaurants = zeroed(RESTAURANT_STATUSES);
@@ -68,7 +90,15 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
       restaurantName: menu.restaurant.name,
       updatedAt: menu.updatedAt.toISOString(),
     })),
+    scheduled: scheduled.map((revision) => ({
+      menuId: revision.menu.id,
+      menuName: revision.menu.name,
+      restaurantName: revision.menu.restaurant.name,
+      number: revision.number,
+      goLiveAt: revision.goLiveAt!.toISOString(),
+    })),
     viewsLast7Days: views,
+    storageBytes: storage._sum.storedBytes ?? 0,
     recentActivity,
   };
 }

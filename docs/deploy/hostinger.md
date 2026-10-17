@@ -3,10 +3,11 @@
 Public menus are served at `https://buzzify-menu.online/<menu-address>` and the Studio at
 `https://studio.buzzify-menu.online/studio`. Both are the same Node.js app on the Hostinger website
 `buzzify-menu.online`; `studio.buzzify-menu.online` is an alias (parked domain) of it. The database is Neon
-(PostgreSQL) and email goes through Resend, because the hosting plan only offers MySQL databases.
+(PostgreSQL) and email goes through Resend, because the hosting plan only offers MySQL databases. Pictures, logos and
+downloads are kept in Cloudflare R2, and a cron job calls the scheduler that makes scheduled publishes live.
 
 `docs/deploy/production.md` describes the Vercel setup. Its sections on Neon, Resend, the first Super Admin, the
-optional ATELIER seed, backups and changing the auth secret apply here too.
+optional demo seed, R2 (step 3b), backups and changing the auth secret apply here too.
 
 ## How a deploy works
 
@@ -35,7 +36,7 @@ Already set (not secret):
 | `BETTER_AUTH_URL` | `https://studio.buzzify-menu.online` |
 | `EMAIL_FROM` | `Buzzify Studio <studio@buzzify-menu.online>` |
 
-You add these four yourself in hPanel (never paste them into a chat, an email or a file in the repository):
+You add these four yourself in hPanel (and the six of "Pictures and scheduled publishing" below) (never paste them into a chat, an email or a file in the repository):
 
 | Name | Where it comes from |
 |---|---|
@@ -53,16 +54,69 @@ the build cannot connect, remove that part.
    for the table above.
 2. **Resend:** create a free account, add the domain `buzzify-menu.online`, and share the DNS records Resend shows
    (they are not secret) so they can be added in Hostinger's DNS; then press Verify in Resend. Create an API key.
-3. **Hostinger:** add the four variables above.
-4. **Deploy:** start the Node.js build from GitHub (`main`, build script `build:host`). Watch the log: it must show the
+3. **R2 and the scheduler:** follow "Pictures and scheduled publishing" below.
+4. **Hostinger:** add the four variables above and the six from that section.
+5. **Deploy:** start the Node.js build from GitHub (`main`, build script `build:host`). Watch the log: it must show the
    settings check passing, `prisma migrate deploy`, and `next build`.
-5. **First Super Admin:** on your computer, in the project folder, follow step 7 of `docs/deploy/production.md`
+6. **First Super Admin:** on your computer, in the project folder, follow step 7 of `docs/deploy/production.md`
    (`npm run studio:create-admin` with `DATABASE_URL` set to the Neon **direct** address for that one command).
-6. **ATELIER demo (once):** follow step 9 of `docs/deploy/production.md` (`npm run db:seed` with the direct address
-   and `DEV_SEED_PASSWORD` not set).
-7. **Sign in:** open `https://studio.buzzify-menu.online/studio`, sign in, and set up the authenticator app.
-8. **Check:** `https://buzzify-menu.online/atelier` shows the demo menu; `https://buzzify-menu.online/` goes to
+7. **The demo menus (once):** follow step 9 of `docs/deploy/production.md` (`npm run db:seed` with the direct address
+   and `DEV_SEED_PASSWORD` not set). It loads ATELIER, Riverlight Coffee and Hot Brick Burgers, each published.
+8. **Sign in:** open `https://studio.buzzify-menu.online/studio`, sign in, and set up the authenticator app.
+9. **Check:** `https://buzzify-menu.online/atelier`, `/riverlight` and `/hot-brick` show the demo menus; `https://buzzify-menu.online/` goes to
    buzzify.me; `https://buzzify-menu.online/studio` answers 404 (the Studio lives only on the studio address).
+
+## Pictures and scheduled publishing (needed from the menu workspace on)
+
+The menu workspace keeps pictures, logos, QR code downloads and spreadsheets in **Cloudflare R2**, and makes scheduled
+publishes live when a scheduler calls the app every minute. From the release that brings the workspace, **a build stops
+at the settings check until the six settings below are in hPanel**, so add them before you deploy that release.
+
+### R2: the bucket
+
+Follow step 3b of `docs/deploy/production.md` with these differences:
+
+- **The files' address.** R2 serves a bucket on your own address only for a domain whose DNS Cloudflare holds, and
+  `buzzify-menu.online`'s DNS is at Hostinger. Choose one before you start:
+  1. move the domain's nameservers to Cloudflare (free plan; check that every record Hostinger had, the site's and
+     Resend's included, came across before switching), then connect `media.buzzify-menu.online` to the bucket; or
+  2. keep the DNS at Hostinger and serve the files from a domain whose DNS is on Cloudflare (a second domain, or
+     `buzzify.me` if it is there), such as `media.buzzify.me`.
+
+  R2's own `r2.dev` address is rate-limited and meant for testing; do not use it for guests. Whatever address you choose
+  is `MEDIA_PUBLIC_URL`.
+- **CORS:** the allowed origin is the Studio's address here, `https://studio.buzzify-menu.online`.
+
+### The scheduler
+
+Hostinger has no Vercel Cron, so something else calls `https://studio.buzzify-menu.online/api/cron/publish` every minute
+with the secret. Either:
+
+- **hPanel → Advanced → Cron Jobs → Custom**, every minute (`* * * * *`), with this command, your secret in place of
+  `SECRET` (the command is kept in your hPanel, not in the repository):
+
+  ```bash
+  curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/publish
+  ```
+
+- or an external scheduler that can send a header (cron-job.org, for example): a GET of the same address every minute
+  with the header `Authorization: Bearer SECRET`.
+
+Each call answers `{"activated":0}` when nothing was due, and `401` when the secret is missing or wrong.
+
+### The six settings
+
+| Name | Value |
+|---|---|
+| `R2_ACCOUNT_ID` | Cloudflare → R2 overview → Account ID |
+| `R2_ACCESS_KEY_ID` | the R2 API token's access key (limited to the bucket) |
+| `R2_SECRET_ACCESS_KEY` | that token's secret (shown once) |
+| `R2_BUCKET` | `buzzify-media` |
+| `MEDIA_PUBLIC_URL` | the files' address chosen above, such as `https://media.buzzify-menu.online` |
+| `CRON_SECRET` | run `openssl rand -base64 32` on your computer (a different value from `BETTER_AUTH_SECRET`) |
+
+Then deploy, and run checks 12 and 13 of step 10 in `docs/deploy/production.md` (a 15 MB photo uploaded in Media, and a
+publish scheduled two minutes ahead going live), on this site's addresses.
 
 ## Neon from the command line
 

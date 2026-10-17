@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test';
-import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
+import { createTableQrCode, createTemporaryMenu, qrScans, type TemporaryMenu } from './helpers/db';
 
 /** Each test that changes a menu gets its own throwaway one, deleted afterwards whatever the outcome. */
 const test = base.extend<{ menu: TemporaryMenu }>({
@@ -64,6 +64,21 @@ test.describe('the address on a card or a QR code', () => {
     for (const path of ['/definitely-not-a-menu', '/definitely-not-a-menu/en', '/definitely-not-a-menu/t/04']) {
       expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404);
     }
+  });
+});
+
+test.describe('a scanned QR code', () => {
+  test('keeps its id through the language redirect, counts the scan, and leaves the address clean', async ({ menu, page, request }) => {
+    const code = await createTableQrCode(menu.menuId, 7);
+    const raw = await request.get(`/${menu.slug}/t/7?qr=${code}`, { maxRedirects: 0 });
+    expect(raw.headers()['location']).toBe(`/${menu.slug}/en/t/7?qr=${code}`);
+
+    const sent = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith(`/api/${menu.slug}/events`));
+    await page.goto(`/${menu.slug}/t/7?qr=${code}`);
+    await expect(page).toHaveURL(new RegExp(`/${menu.slug}/en/t/7$`));
+    const view = (await sent).postDataJSON().events.find((event: { type: string }) => event.type === 'MENU_VIEW');
+    expect(view).toMatchObject({ qrCodeId: code });
+    await expect.poll(() => qrScans(code)).toBe(1);
   });
 });
 

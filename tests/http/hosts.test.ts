@@ -129,3 +129,10 @@ describe('routeHost host matching', () => {
     expect(routeHost({ host: STUDIO, pathname: '/studio' }, same)).toEqual(NEXT);
   });
 });
+
+describe('routeHost for the scheduler', () => {
+  it.each([STUDIO, PUBLIC, 'buzzify-preview.vercel.app'])('lets /api/cron/publish through on %s, in production too', (host) => {
+    expect(routeHost({ host, pathname: '/api/cron/publish' }, cfg)).toEqual(NEXT);
+    expect(routeHost({ host, pathname: '/api/cron/publish' }, { ...cfg, production: true })).toEqual(NEXT);
+  });
+});

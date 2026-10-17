@@ -239,3 +239,52 @@ describe('draft snapshots', () => {
     expect(stripIds(await loadDraftSnapshot(prisma, target))).toEqual(stripIds(source));
   });
 });
+
+describe('library images in a written draft', () => {
+  it('writes a resolved image back as its asset, through a map of copied assets when one is given', async () => {
+    const { draftMediaFromSnapshot } = await import('@/server/media/resolve');
+    const image = { kind: 'image', url: '/x/webp-1080.webp', alt: 'A', width: 10, height: 10, assetId: 'old' };
+    const art = { kind: 'art', art: 'cup', tone: '#123456' };
+    const external = { kind: 'image', url: 'https://cdn.example.com/a.jpg', alt: 'B', width: 1, height: 1 };
+    expect(draftMediaFromSnapshot([image, art, external])).toEqual([{ kind: 'asset', assetId: 'old' }, art, external]);
+    expect(draftMediaFromSnapshot([image], new Map([['old', 'new']]))).toEqual([{ kind: 'asset', assetId: 'new' }]);
+  });
+});
+
+describe('the brand kit written back from a snapshot', () => {
+  const palette = { bg: '#000000', surface: '#111111', raised: '#222222', accent: '#d6bc8a', text: '#ffffff', muted: '#bbbbbb', line: '#333333', onAccent: '#000000' };
+  const base = { logoText: 'Atelier', theme: 'dark' as const, motionIntensity: 'none' as const, railStyle: 'plain' as const, tokens: { dark: palette, light: palette } };
+  const image = (assetId: string) => ({ assetId, url: `/m/${assetId}.webp`, width: 600, height: 300, svg: false, rasterKey: `r/${assetId}/webp-640.webp` });
+
+  it('keeps the rail choice, the pair and the assets, through a map of copied assets', async () => {
+    const { brandRowFromSnapshot } = await import('@/server/publish/draft');
+    const row = brandRowFromSnapshot(
+      { ...base, railChoice: 'drum', fontPairId: 'cafe', logo: image('logo'), logoDark: image('dark'), favicon: { assetId: 'logo', png32: 'a', png180: 'b', png512: 'c' } },
+      new Map([['logo', 'logo-copy']]),
+    );
+    expect(row).toMatchObject({
+      railStyle: 'drum',
+      fontPairId: 'cafe',
+      logoAssetId: 'logo-copy',
+      logoDarkAssetId: 'dark',
+      faviconAssetId: null,
+      faviconFromLogo: true,
+      theme: 'DARK',
+      motionIntensity: 'none',
+      logoText: 'Atelier',
+    });
+  });
+
+  it('writes a kit without the 2b fields as the classic pair, without assets', async () => {
+    const { brandRowFromSnapshot } = await import('@/server/publish/draft');
+    expect(brandRowFromSnapshot(base)).toMatchObject({ railStyle: 'plain', fontPairId: 'classic', logoAssetId: null, logoDarkAssetId: null, faviconAssetId: null, faviconFromLogo: false });
+  });
+
+  it('keeps an uploaded favicon of its own', async () => {
+    const { brandRowFromSnapshot } = await import('@/server/publish/draft');
+    expect(brandRowFromSnapshot({ ...base, logo: image('logo'), favicon: { assetId: 'icon', png32: 'a', png180: 'b', png512: 'c' } })).toMatchObject({
+      faviconAssetId: 'icon',
+      faviconFromLogo: false,
+    });
+  });
+});

@@ -1,8 +1,39 @@
 import { randomUUID } from 'node:crypto';
 import type { Locale } from '@/lib/locale';
+import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
+import { prepareAsset, storeAsset } from '@/server/media/process';
+import { getStorage } from '@/server/storage/storage';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
 import { createMenuFixture, publishFixture } from '../../helpers/db';
+
+/**
+ * A photo in a restaurant's media library, made and stored the way an upload is (in the development folder the app
+ * serves media from), so a menu that shows it loads real files. Answers the asset's id.
+ */
+async function storePhoto(prisma: PrismaClient, restaurantId: string, bytes: Uint8Array, alt: Partial<Record<Locale, string>>): Promise<string> {
+  const prepared = await prepareAsset(bytes);
+  if (!prepared.ok) throw new Error(`The test photo was refused: ${prepared.reason}`);
+  const { asset } = prepared;
+  const stored = await storeAsset(getStorage(), { restaurantId }, asset);
+  const row = await prisma.mediaAsset.create({
+    data: {
+      restaurantId,
+      kind: asset.kind,
+      storageKey: stored.storageKey,
+      contentHash: asset.contentHash,
+      mime: asset.mime,
+      bytes: asset.bytes,
+      storedBytes: stored.storedBytes,
+      width: asset.width,
+      height: asset.height,
+      variants: stored.variants as object,
+      placeholder: asset.placeholder,
+      alt,
+    },
+  });
+  return row.id;
+}
 
 /** The ids of the products of the menu that has the seeded `atelier` address now. */
 export async function atelierProductIds(): Promise<string[]> {
@@ -17,6 +48,8 @@ export async function atelierProductIds(): Promise<string[]> {
 }
 
 export interface TemporaryMenu {
+  /** The menu's id, for its Studio pages. */
+  menuId: string;
   /** The slug the menu was created with. */
   slug: string;
   /** The menu's name as guests see it (its restaurant's). */
@@ -44,16 +77,30 @@ export interface TemporaryMenu {
  * minutes, and nothing here can expire that cache, so a slug that had been visited would keep its old answer.
  * `locales` limits the languages the menu offers (all three by default).
  */
-export async function createTemporaryMenu({ locales }: { locales?: Locale[] } = {}): Promise<TemporaryMenu> {
+export async function createTemporaryMenu({
+  locales,
+  product: extras,
+}: {
+  locales?: Locale[];
+  /** What its one product also carries: tags, calories, and a photo stored in the media library. */
+  product?: { badges?: string[]; dietary?: string[]; calories?: number; photo?: Uint8Array; alt?: Partial<Record<Locale, string>> };
+} = {}): Promise<TemporaryMenu> {
   const prisma = createPrisma(databaseUrl(DEV_DB));
   const slug = `e2e-${randomUUID().slice(0, 8)}`;
-  const { restaurant, menu, product } = await createMenuFixture(prisma, slug, { publish: !locales });
-  if (locales) {
-    await prisma.menu.update({ where: { id: menu.id }, data: { locales, defaultLocale: locales[0] } });
-    await publishFixture(prisma, menu.id);
+  const changed = Boolean(locales || extras);
+  const { restaurant, menu, product } = await createMenuFixture(prisma, slug, { publish: !changed });
+  if (locales) await prisma.menu.update({ where: { id: menu.id }, data: { locales, defaultLocale: locales[0] } });
+  if (extras) {
+    const media = extras.photo ? [{ kind: 'asset', assetId: await storePhoto(prisma, restaurant.id, extras.photo, extras.alt ?? {}) }] : [];
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { badges: extras.badges ?? [], dietary: extras.dietary ?? [], calories: extras.calories ?? null, media },
+    });
   }
+  if (changed) await publishFixture(prisma, menu.id);
 
   return {
+    menuId: menu.id,
     slug,
     name: restaurant.name,
     restaurantId: restaurant.id,
@@ -87,4 +134,52 @@ export async function createTemporaryMenu({ locales }: { locales?: Locale[] } = 
       }
     },
   };
+}
+
+/** Moves a menu's revision waiting to go live a minute into the past, so the next scheduler run makes it live. */
+export async function makeScheduleDue(menuId: string): Promise<void> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    const { count } = await prisma.menuRevision.updateMany({
+      where: { menuId, goLiveAt: { not: null }, wentLiveAt: null, cancelledAt: null },
+      data: { goLiveAt: new Date(Date.now() - 60_000) },
+    });
+    if (count !== 1) throw new Error(`Expected one pending revision of ${menuId}, found ${count}`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** A printed code for table `number` of the menu, with the table, as the QR tab makes it; answers the code's id. */
+export async function createTableQrCode(menuId: string, number: number): Promise<string> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    await prisma.table.upsert({ where: { menuId_number: { menuId, number } }, create: { menuId, number, label: `Table ${number}` }, update: {} });
+    return (await prisma.qrCode.create({ data: { menuId, label: `Table ${number}`, tableNumber: number } })).id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** The scans recorded for a code: menu views that carry its id. */
+export async function qrScans(qrCodeId: string): Promise<number> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    return await prisma.analyticsEvent.count({ where: { qrCodeId, type: 'MENU_VIEW', source: 'qr' } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Puts the restaurant's newest library picture on the menu's product, as the Content tab would; answers its id. */
+export async function useNewestAssetInProduct(menuId: string): Promise<string> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    const menu = await prisma.menu.findUniqueOrThrow({ where: { id: menuId }, select: { restaurantId: true } });
+    const asset = await prisma.mediaAsset.findFirstOrThrow({ where: { restaurantId: menu.restaurantId, kind: 'IMAGE' }, orderBy: { createdAt: 'desc' } });
+    await prisma.product.updateMany({ where: { menuId }, data: { media: [{ kind: 'asset', assetId: asset.id }] } });
+    return asset.id;
+  } finally {
+    await prisma.$disconnect();
+  }
 }
