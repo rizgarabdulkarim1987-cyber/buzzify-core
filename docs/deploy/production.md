@@ -157,6 +157,11 @@ first deploy you can see it under **Settings, Functions**.
    itself, the company site, alone.
 3. Wait until Vercel shows both domains as configured. It then issues the security certificates (the padlock) by itself.
 
+Vercel also gives the project an address of its own, such as `https://buzzify-menu.vercel.app` (and one per deploy). In
+production that address answers a plain "Not found" for every page, on purpose: only `studio.buzzify.me` and
+`menu.buzzify.me` serve the app, so there is never a second address for the Studio next to the menus. Use the two
+addresses above, also when Vercel's **Visit** button offers the `.vercel.app` one.
+
 ## Step 6. Deploy
 
 1. In the Vercel project open **Deployments**. If the first deploy ran before the variables were complete, open the latest
@@ -178,21 +183,34 @@ Accounts are by invitation only, so the very first one is made from a terminal. 
 the live database, **once**. It needs the tables from step 6, so deploy first.
 
 You point the command at Neon by setting `DATABASE_URL` for that one command, using the **direct** address
-(`DIRECT_DATABASE_URL`) from step 1.
+(`DIRECT_DATABASE_URL`) from step 1. The address contains the database password, so it is never typed into the command
+itself: terminals keep a history of the commands you type, in a file on your computer (Git Bash writes `~/.bash_history`
+when the window closes; PowerShell writes `ConsoleHost_history.txt` as you go). Instead the commands below ask for the
+address, you paste it at the prompt (PowerShell shows it as asterisks, Git Bash shows nothing: that is expected), and
+press Enter.
 
-In **PowerShell** (use single quotes around the address, in case it contains a `$`):
+In **PowerShell**, paste this whole block at once:
 
 ```powershell
-$env:DATABASE_URL = 'PASTE-THE-DIRECT-ADDRESS-HERE'
-npm run studio:create-admin
-Remove-Item Env:DATABASE_URL
+try {
+  $env:DATABASE_URL = [System.Net.NetworkCredential]::new('', (Read-Host 'Direct address' -AsSecureString)).Password
+  npm run studio:create-admin
+} finally {
+  Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+}
 ```
 
 In **Git Bash**:
 
 ```bash
-DATABASE_URL='PASTE-THE-DIRECT-ADDRESS-HERE' npm run studio:create-admin
+( read -rsp 'Direct address: ' DATABASE_URL; echo; export DATABASE_URL; npm run studio:create-admin; unset DATABASE_URL )
 ```
+
+What you paste at the prompt goes into the variable and nowhere else: it is not part of a command, so it is not saved in
+the history (PowerShell's history records only what you type at its own prompt, not what `Read-Host` reads), and the
+screen shows it only as asterisks or not at all. The variable lives only as long as the command: PowerShell's `finally`
+removes it even if you press Ctrl+C, and in Git Bash the parentheses run everything in a sub-shell that takes the variable
+with it when it ends.
 
 1. The script's first line says which database it will change, for example
    `Database: ep-quiet-sun-123456.eu-central-1.aws.neon.tech/neondb`. **Check that this is your Neon host.** If it says
@@ -201,7 +219,9 @@ DATABASE_URL='PASTE-THE-DIRECT-ADDRESS-HERE' npm run studio:create-admin
    twice. The password is not shown on screen and goes to the database only as a hash.
 3. It ends with `Created the Super Admin …`, followed by a line with a `127.0.0.1` address. Ignore that address: the script
    cannot know your live one. Use `https://studio.buzzify.me`.
-4. Close the terminal window so the address does not linger in it.
+4. Nothing else to clean up: the address was never in a command or readable on screen, and the variable is already
+   gone. (Closing the window would not have helped with a command that held it: that is when Git Bash saves its
+   history.)
 
 ## Step 8. Sign in and set up two-factor
 
@@ -218,26 +238,33 @@ The repository contains a fictional café, ATELIER, with a full menu. It is the 
 until the menu editor arrives (milestone 2b) it is the only way to get a menu with dishes in it: a menu created in the Studio
 starts empty, and an empty menu cannot be published. You will also use it in step 10.
 
-Run this on your own computer, aimed at the live database, like step 7. First make sure the demo accounts are not switched
-on: open the `.env` file in the repository and, if it has a line starting `DEV_SEED_PASSWORD`, put a `#` in front of it for
-now.
+Run this **once**, on your own computer, aimed at the live database, like step 7 (and the same way: the commands ask for
+the direct address). First make sure the demo accounts are not switched on: open the `.env` file in the repository and, if
+it has a line starting `DEV_SEED_PASSWORD`, put a `#` in front of it for now.
 
-PowerShell:
+PowerShell, the whole block at once:
 
 ```powershell
-$env:DATABASE_URL = 'PASTE-THE-DIRECT-ADDRESS-HERE'
-npm run db:seed
-Remove-Item Env:DATABASE_URL
+try {
+  $env:DATABASE_URL = [System.Net.NetworkCredential]::new('', (Read-Host 'Direct address' -AsSecureString)).Password
+  npm run db:seed
+} finally {
+  Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue
+}
 ```
 
 Git Bash:
 
 ```bash
-DATABASE_URL='PASTE-THE-DIRECT-ADDRESS-HERE' npm run db:seed
+( read -rsp 'Direct address: ' DATABASE_URL; echo; export DATABASE_URL; npm run db:seed; unset DATABASE_URL )
 ```
 
 Expect a line that begins `Seeded atelier` and says it was published as revision 1, and a line saying the development users
 were skipped. Then `https://menu.buzzify.me/atelier` shows the menu.
+
+Running it again later does not add a second demo: it replaces the ATELIER menu with a fresh copy (its revisions and any
+changes made to it in the Studio are lost). Once the ATELIER menu has been deleted in the Studio, or moved to another
+address, the command refuses and changes nothing: `/atelier` stays reserved for good.
 
 - If the script refuses and says `DEV_SEED_PASSWORD` is set or that the database is not on this machine, it did what it is
   for: nothing was written. Comment out `DEV_SEED_PASSWORD` in `.env` and run it again. **Do not set
@@ -255,7 +282,8 @@ administrator session.
 1. `https://studio.buzzify.me` opens the sign-in page with a valid padlock.
 2. Sign in as the Super Admin. After the password it asks for the code from your authenticator app, then shows Overview.
 3. `https://menu.buzzify.me/studio` shows a plain "Not found", and so does `https://studio.buzzify.me/atelier`. Each address
-   serves only its own half of the app.
+   serves only its own half of the app. The project's own Vercel address (Settings, Domains lists it, such as
+   `https://buzzify-menu.vercel.app/studio`) shows the same plain "Not found": that is by design (step 5).
 4. `https://menu.buzzify.me/` sends you to `https://buzzify.me` (or to `PUBLIC_ROOT_REDIRECT` if you set it).
 5. **Create a restaurant:** Restaurants, then New restaurant. Enter a name, a type and a city, and press Create restaurant.
 6. **Create a menu:** All menus, then New menu. Choose that restaurant and enter a name and an address (the part after
@@ -350,6 +378,7 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | Invitation or reset emails do not arrive | In Resend, check the domain shows **Verified** and read its Logs. `EMAIL_FROM` must be an address on the verified domain. The Studio also shows the invitation link right after you send it |
 | `menu.buzzify.me/<address>` is a 404 | The menu is not published, or it is suspended or archived. Open it in the Studio and check its status |
 | Every page on one host is a 404 | `PUBLIC_MENU_HOST` or `STUDIO_HOST` has a typo, or includes `https://` |
+| Every page on the `.vercel.app` address is a 404 | By design: in production only the two hosts serve the app (step 5). Open `https://studio.buzzify.me` or `https://menu.buzzify.me` |
 | `studio:create-admin` says a table does not exist | Deploy first (step 6): the tables are made by the deploy |
 
 ## Safety rules
