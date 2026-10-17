@@ -108,6 +108,17 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use at most 60 characters': 'error.text.senderTooLong',
   'Use letters, digits, spaces and . & ( ) - only': 'error.text.senderCharacters',
   'Reserve at most 500 words': 'error.text.reservedTooMany',
+
+  // The media library
+  'Use a JPEG, PNG, WebP, AVIF, SVG or ICO file': 'media.refusal.TYPE',
+  'Use a file of at most 15 MB': 'media.refusal.SIZE',
+  'Use a picture at most 10,000 pixels on a side and at most 8 times longer than it is wide': 'media.refusal.DIMENSIONS',
+  'This file could not be read as a picture': 'media.refusal.UNREADABLE',
+  'This SVG has no size or nothing that can be drawn safely': 'media.refusal.SVG_UNSAFE',
+  'Use at most 250 characters': 'error.text.altTooLong',
+  'Use at most 40 characters': 'error.text.tagTooLong',
+  'Use at most 20 tags': 'error.text.tagsTooMany',
+  'This file is used by a menu; remove it there first': 'error.text.mediaInUse',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

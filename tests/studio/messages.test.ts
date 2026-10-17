@@ -128,6 +128,7 @@ describe('server texts', () => {
     'A menu action ran without a menu',
     'A menu action ran without a restaurant',
     'A menu query ran without a menu',
+    'A media action ran without a restaurant',
     'An audit entry names a restaurant other than its target',
     'Super Admin',
   ]);
