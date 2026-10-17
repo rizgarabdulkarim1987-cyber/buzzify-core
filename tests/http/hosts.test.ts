@@ -72,6 +72,18 @@ describe('routeHost on any other host in production', () => {
     },
   );
 
+  it('sends www. on the public host to the public host, keeping the path and query', () => {
+    expect(routeHost({ host: 'www.menu.buzzify.me', pathname: '/atelier/en', search: '?qr=7' }, production)).toEqual({
+      action: 'redirect',
+      to: 'https://menu.buzzify.me/atelier/en?qr=7',
+    });
+    expect(routeHost({ host: 'WWW.menu.buzzify.me:443', pathname: '/' }, production)).toEqual({
+      action: 'redirect',
+      to: 'https://menu.buzzify.me/',
+    });
+    expect(routeHost({ host: 'www.studio.buzzify.me', pathname: '/studio' }, production)).toEqual(NOT_FOUND);
+  });
+
   it('still serves the two configured hosts as before', () => {
     expect(routeHost({ host: STUDIO, pathname: '/studio' }, production)).toEqual(NEXT);
     expect(routeHost({ host: STUDIO, pathname: '/' }, production)).toEqual({ action: 'redirect', to: '/studio' });
