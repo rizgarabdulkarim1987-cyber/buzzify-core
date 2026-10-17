@@ -76,6 +76,9 @@ interface Side {
   designerId: string;
   invitationId: string;
   assetId: string;
+  categoryId: string;
+  productId: string;
+  variantId: string;
 }
 
 interface World {
@@ -109,8 +112,11 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   });
   await prisma().menuSlug.create({ data: { slug, menuId: menu.id } });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'mains', translations: { en: { name: `${title} mains` } } } });
-  await prisma().product.create({
+  const product = await prisma().product.create({
     data: { menuId: menu.id, categoryId: category.id, slug: `${label}-stew`, basePrice: 900, translations: { en: { name: `${title} stew`, description: 'Slow' } } },
+  });
+  const variant = await prisma().productVariant.create({
+    data: { menuId: menu.id, productId: product.id, isDefault: true, translations: { en: { name: `${title} bowl` } } },
   });
   await publishFixture(prisma(), menu.id);
   const branch = await prisma().branch.create({ data: { restaurantId: restaurant.id, name: `${title} Riverside` } });
@@ -159,6 +165,9 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     designerId: designer.id,
     invitationId: invitation.id,
     assetId: asset.id,
+    categoryId: category.id,
+    productId: product.id,
+    variantId: variant.id,
   };
 }
 
@@ -193,6 +202,9 @@ async function snapshotOfB(w: World): Promise<unknown> {
       brand: await db.brandConfig.findMany({ where: { menuId: { in: menuIds } } }),
       categories: await db.category.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       products: await db.product.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      variants: await db.productVariant.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      groups: await db.modifierGroup.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       branches: await db.branch.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
       memberships: await db.membership.findMany({ where: { OR: [{ restaurantId: b.restaurantId }, { userId: { in: people } }] }, orderBy: { id: 'asc' } }),
@@ -218,7 +230,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -249,6 +261,27 @@ const SHOWS_OWN: Expectation = { kind: 'scoped', showsOwn: true };
 const ONLY_FORBIDDEN: Expectation = { kind: 'refused', codes: ['FORBIDDEN'] };
 
 const c = (label: string, input: (w: World) => unknown, expectation: Expectation = REFUSED): Case => ({ label, input, expect: expectation });
+
+/** A whole product as the Content tab's drawer saves it, with the given product and category. */
+const productSave = (menuId: string, productId: string, categoryId: string) => ({
+  menuId,
+  productId,
+  version: 1,
+  slug: 'planted',
+  categoryId,
+  names: { en: 'Planted' },
+  descriptions: {},
+  price: 900,
+  isSignature: false,
+  isFeatured: false,
+  allergens: [],
+  dietary: [],
+  badges: [],
+  calories: null,
+  media: [],
+  variants: [],
+  groups: [],
+});
 
 /** Definitions that act on, or read, restaurants and menus: each is run against B. */
 const SWEPT: Record<string, Case[]> = {
@@ -352,6 +385,49 @@ const SWEPT: Record<string, Case[]> = {
   'media.updateShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] }))],
   'media.deleteShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId }))],
   'media.sharedUsage': [c("B's asset", (w) => ({ assetId: w.b.assetId }))],
+
+  // The Content tab
+  'content.createCategory': [c("in B's menu", (w) => ({ menuId: w.b.menuId, names: { en: 'Planted' } }))],
+  'content.updateCategory': [
+    c("B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, version: 1, names: { en: 'Planted' }, slug: 'planted', isActive: false })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, version: 1, names: { en: 'Planted' }, slug: 'planted', isActive: false })),
+  ],
+  'content.deleteCategory': [
+    c("B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, version: 1 })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, version: 1 })),
+  ],
+  'content.reorderCategories': [
+    c("B's categories, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.categoryId] })),
+    c("A's and B's categories, through A", (w) => ({ menuId: w.a.menuId, order: [w.a.categoryId, w.b.categoryId] })),
+  ],
+  'content.createProduct': [
+    c("in B's category, in B", (w) => ({ menuId: w.b.menuId, categoryId: w.b.categoryId, names: { en: 'Planted' }, price: 100 })),
+    c("in B's category, through A", (w) => ({ menuId: w.a.menuId, categoryId: w.b.categoryId, names: { en: 'Planted' }, price: 100 })),
+  ],
+  'content.saveProduct': [
+    c("B's product, in B", (w) => productSave(w.b.menuId, w.b.productId, w.b.categoryId)),
+    c("B's product, through A", (w) => productSave(w.a.menuId, w.b.productId, w.a.categoryId)),
+    c("A's product into B's category", (w) => productSave(w.a.menuId, w.a.productId, w.b.categoryId)),
+    c("A's product with B's size", (w) => ({
+      ...productSave(w.a.menuId, w.a.productId, w.a.categoryId),
+      variants: [{ id: w.b.variantId, version: 1, names: { en: 'Planted' }, priceDelta: 0, isDefault: true }],
+    })),
+    c("A's product with B's picture", (w) => ({ ...productSave(w.a.menuId, w.a.productId, w.a.categoryId), media: [{ kind: 'asset', assetId: w.b.assetId }] })),
+  ],
+  'content.deleteProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, version: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, version: 1 })),
+  ],
+  'content.moveProduct': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, categoryId: w.b.categoryId, index: 0 })),
+    c("B's product into A's category", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, categoryId: w.a.categoryId, index: 0 })),
+    c("A's product into B's category", (w) => ({ menuId: w.a.menuId, productId: w.a.productId, categoryId: w.b.categoryId, index: 0 })),
+  ],
+  'content.tree': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'content.product': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId })),
+  ],
 
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],

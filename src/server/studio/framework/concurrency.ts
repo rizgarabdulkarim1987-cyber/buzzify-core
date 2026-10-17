@@ -37,9 +37,39 @@ export async function updateWithVersion(
     data: { ...args.data, version: { increment: 1 } },
   } as never);
   if (count > 0) return;
+  throw await refusal(delegate, args, tx);
+}
 
+/** A delegate that can delete rows by id and version (`tx.category`, `tx.product`, ...). */
+export interface DeletableDelegate {
+  deleteMany(args: never): PromiseLike<{ count: number }>;
+  findFirst(args: never): PromiseLike<unknown>;
+}
+
+/**
+ * Deletes the row only if it is still at `version`. Otherwise nothing is deleted and it throws as `updateWithVersion`
+ * does: `CONFLICT` with who changed the row last, or `NOT_FOUND`.
+ */
+export function deleteWithVersion(delegate: DeletableDelegate, args: Omit<VersionedUpdate, 'data'>, tx: ScopedTx): Promise<void>;
+export function deleteWithVersion(delegate: DeletableDelegate, args: Omit<VersionedUpdate, 'data'>, tx: AnyDb): Promise<void>;
+export async function deleteWithVersion(
+  delegate: DeletableDelegate,
+  args: Omit<VersionedUpdate, 'data'>,
+  tx: AnyDb | ScopedDb,
+): Promise<void> {
+  const { count } = await delegate.deleteMany({ where: { id: args.id, version: args.version } } as never);
+  if (count > 0) return;
+  throw await refusal(delegate, args, tx);
+}
+
+/** Why a versioned write found nothing to write: the row is gone or outside the scope, or someone moved it on. */
+async function refusal(
+  delegate: Pick<VersionedDelegate, 'findFirst'>,
+  args: Pick<VersionedUpdate, 'id' | 'entityType'>,
+  tx: AnyDb | ScopedDb,
+): Promise<StudioError> {
   const row = await delegate.findFirst({ where: { id: args.id }, select: { id: true } } as never);
-  if (!row) throw new StudioError('NOT_FOUND');
+  if (!row) return new StudioError('NOT_FOUND');
 
   const db = delegates(tx);
   const last = await db.auditLog.findFirst({
@@ -47,9 +77,9 @@ export async function updateWithVersion(
     orderBy: { occurredAt: 'desc' },
     select: { actorId: true, occurredAt: true },
   });
-  if (!last) throw new StudioError('CONFLICT');
+  if (!last) return new StudioError('CONFLICT');
   const actor = last.actorId ? await db.user.findUnique({ where: { id: last.actorId }, select: { name: true } }) : null;
-  throw new StudioError('CONFLICT', undefined, {
+  return new StudioError('CONFLICT', undefined, {
     ...(actor ? { changedBy: actor.name } : {}),
     changedAt: last.occurredAt.toISOString(),
   });

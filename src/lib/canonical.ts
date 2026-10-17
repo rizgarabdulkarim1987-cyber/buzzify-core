@@ -22,7 +22,7 @@ export function canonicalSet<T extends string>(values: readonly string[], order:
 }
 
 /**
- * Free-text tags (allergens): trimmed, empty ones dropped, a repeat that differs only in letter case dropped (the first
+ * Free-text tags (a library asset's tags): trimmed, empty ones dropped, a repeat that differs only in letter case dropped (the first
  * spelling is kept), and sorted by code unit.
  */
 export function canonicalStrings(values: readonly string[]): string[] {

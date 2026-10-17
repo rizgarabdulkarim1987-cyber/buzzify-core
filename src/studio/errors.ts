@@ -119,6 +119,31 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use at most 40 characters': 'error.text.tagTooLong',
   'Use at most 20 tags': 'error.text.tagsTooMany',
   'This file is used by a menu; remove it there first': 'error.text.mediaInUse',
+
+  // Content
+  'Use at most 1,000 characters': 'error.text.descriptionTooLong',
+  'This picture cannot be used': 'error.text.pictureUnusable',
+  'Use 0 or more': 'error.text.zeroOrMore',
+  'Use at least 1': 'error.text.atLeastOne',
+  'Use at most 50 options': 'error.text.optionsTooMany',
+  'Use at most 50 ingredients': 'error.text.ingredientsTooMany',
+  'Enter a price of zero or more': 'error.text.priceNegative',
+  'This price is too high': 'error.text.priceTooHigh',
+  'This makes the price below zero': 'error.text.priceBelowZero',
+  'Choose from the allergens offered': 'error.text.allergenChoose',
+  'Choose from the tags offered': 'error.text.dietaryChoose',
+  'Choose from the badges offered': 'error.text.badgeChoose',
+  'Enter a number from 0 to 20,000': 'error.text.caloriesRange',
+  'Use at most 12 pictures': 'error.text.picturesTooMany',
+  'Use at most 20 sizes': 'error.text.sizesTooMany',
+  'Use at most 20 option groups': 'error.text.groupsTooMany',
+  'Move or delete its products first': 'error.text.categoryHasProducts',
+  'The categories changed while you were editing. Reload to see them.': 'error.text.categoriesChanged',
+  'Choose exactly one default size': 'error.text.sizeDefaultOne',
+  'Use at most the number of options': 'error.text.aboveOptions',
+  'Use at least the minimum': 'error.text.belowMinimum',
+  'A bundle uses this size. Remove it from the bundle first.': 'error.text.sizeInBundle',
+  'A bundle contains this product. Remove it from the bundle first.': 'error.text.productInBundle',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

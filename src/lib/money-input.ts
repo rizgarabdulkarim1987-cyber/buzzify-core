@@ -10,7 +10,7 @@ export function minorUnitDigits(currency: string): number {
 }
 
 /** The largest amount the Studio accepts, in minor units. */
-const MAX_MINOR = 1_000_000_000;
+export const MAX_MINOR = 1_000_000_000;
 
 export type PriceInputProblem = 'EMPTY' | 'NOT_A_NUMBER' | 'NEGATIVE' | 'TOO_PRECISE' | 'TOO_LARGE';
 
