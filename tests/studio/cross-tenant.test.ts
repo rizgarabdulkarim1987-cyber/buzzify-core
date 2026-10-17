@@ -308,7 +308,7 @@ const SWEPT: Record<string, Case[]> = {
   'people.listPeople': [
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
     c('everyone, on the platform', () => ({})),
-    c("A's people, searching for B's", () => ({ restaurantId: undefined, q: 'bravo' })),
+    c("everyone, on the platform, searching for B's", () => ({ q: 'bravo' })),
     c("A's people", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
     c("A's people, searching for B's owner", (w) => ({ restaurantId: w.a.restaurantId, q: w.b.ownerEmail }), SCOPED),
   ],
