@@ -80,6 +80,9 @@ interface Side {
   productId: string;
   variantId: string;
   optionId: string;
+  /** The live revision, and one waiting to go live. */
+  revisionId: string;
+  pendingRevisionId: string;
 }
 
 interface World {
@@ -125,7 +128,11 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   const option = await prisma().modifierOption.create({
     data: { menuId: menu.id, groupId: group.id, translations: { en: { name: `${title} bread` } } },
   });
-  await publishFixture(prisma(), menu.id);
+  const published = await publishFixture(prisma(), menu.id);
+  const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
+  const pending = await prisma().menuRevision.create({
+    data: { menuId: menu.id, number: 2, schemaVersion: live.schemaVersion, snapshot: live.snapshot as object, snapshotHash: live.snapshotHash, goLiveAt: new Date(Date.now() + 86_400_000) },
+  });
   const branch = await prisma().branch.create({ data: { restaurantId: restaurant.id, name: `${title} Riverside` } });
   const owner = await person(`${label}-owner`, `${title} Owner`);
   const designer = await person(`${label}-designer`, `${title} Designer`);
@@ -176,6 +183,8 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     productId: product.id,
     variantId: variant.id,
     optionId: option.id,
+    revisionId: published.revisionId,
+    pendingRevisionId: pending.id,
   };
 }
 
@@ -238,7 +247,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -327,6 +336,25 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // Revisions
+  'revisions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId, page: 1 }))],
+  'revisions.view': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId, locale: 'en' })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId, locale: 'en' })),
+  ],
+  'revisions.rollback': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId })),
+  ],
+  'revisions.restore': [
+    c("B's revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.revisionId, expectedDraftHash: null })),
+    c("B's revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.revisionId, expectedDraftHash: null })),
+  ],
+  'revisions.schedule': [c("B's menu", (w) => ({ menuId: w.b.menuId, goLiveAt: new Date(Date.now() + 3_600_000).toISOString(), replacePending: true }))],
+  'revisions.cancelSchedule': [
+    c("B's pending revision, in B", (w) => ({ menuId: w.b.menuId, revisionId: w.b.pendingRevisionId })),
+    c("B's pending revision, through A", (w) => ({ menuId: w.a.menuId, revisionId: w.b.pendingRevisionId })),
+  ],
   'brand.update': [
     c("B's menu", (w) => ({ menuId: w.b.menuId, ...brandKit() })),
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),

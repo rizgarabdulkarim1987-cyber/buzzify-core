@@ -19,6 +19,7 @@ import {
   slugField,
 } from '@/server/studio/services/menus';
 import { settingsView } from '@/server/studio/services/menu-settings';
+import { pendingSchedule } from '@/server/publish/revisions';
 
 /**
  * What the menu screens read. All Menus is a platform read limited to the restaurants the person belongs to (every one
@@ -211,6 +212,8 @@ export const getMenu = defineQuery({
         ? { number: live.number, wentLiveAt: (live.wentLiveAt ?? live.createdAt).toISOString(), publishedBy: publisher?.name ?? null }
         : null,
       unpublished: menu.liveHash !== null && menu.draftHash !== menu.liveHash,
+      /** The revision waiting to go live by schedule, if any. */
+      pendingSchedule: await pendingSchedule(ctx.db, menu.id),
       publicUrl: publicUrl(menu.slug),
       formerSlugs: slugs.filter((slug) => slug !== menu.slug),
       /** What publishing now would say: the blocking problems and the warnings, in the order of the menu. */

@@ -196,6 +196,8 @@ model MenuRevision {
   liveOf        Menu?     @relation("LiveRevision")
 
   @@unique([menuId, number])
+  /// The scheduler looks for revisions whose time to go live has come.
+  @@index([goLiveAt])
 }
 
 model MenuDomain {

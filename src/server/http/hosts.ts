@@ -52,6 +52,9 @@ function isHost(requestHost: string, configured: string | null): boolean {
 export function routeHost(req: { host: string; pathname: string }, cfg: HostConfig): HostDecision {
   const { pathname } = req;
 
+  // The platform's scheduler calls these on whatever host the deployment has; each checks its own secret.
+  if (within(pathname, '/api/cron')) return NEXT;
+
   if (isHost(req.host, cfg.studioHost)) {
     if (pathname === '/') return { action: 'redirect', to: '/studio' };
     if (pathname === '/favicon.ico' || STUDIO_SERVES.some((prefix) => within(pathname, prefix))) return NEXT;

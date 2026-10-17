@@ -479,3 +479,222 @@ export async function writeDraftFromSnapshot(
 
   await refreshDraftHash(tx, menuId);
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Restoring a revision into the draft
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The next version of a row that existed (its old version plus one), or 1 for a row the restore brings back. */
+const nextVersion = (versions: ReadonlyMap<string, number>, id: string) => (versions.get(id) ?? 0) + 1;
+
+/**
+ * Makes a revision the draft again (2a follow-ups 1 and 3): every catalog row is recreated with the snapshot's own ids,
+ * so the draft's hash is the revision's and links to products keep working. What guests see changing live stays as it
+ * is now: a product that was sold out or hidden, its stock, an option sold out. Every version moves on (a row the
+ * revision brings back starts at 1), so an editor opened before cannot save over the restore. The menu's settings
+ * that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
+ */
+export function restoreDraftFromSnapshot(db: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export function restoreDraftFromSnapshot(db: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId: string, snapshot: MenuSnapshot): Promise<void> {
+  const tx = delegates(client);
+  const { catalog, brand, menu } = snapshot;
+  const where = { menuId };
+
+  // What is live now and how far each row's version has come, read before the rows go.
+  const products = await tx.product.findMany({ where, select: { id: true, version: true, isAvailable: true, isHidden: true, stockCount: true } });
+  const options = await tx.modifierOption.findMany({ where, select: { id: true, version: true, isAvailable: true } });
+  const categories = await tx.category.findMany({ where, select: { id: true, version: true } });
+  const variantRows = await tx.productVariant.findMany({ where, select: { id: true, version: true } });
+  const groupRows = await tx.modifierGroup.findMany({ where, select: { id: true, version: true } });
+  const versions = new Map<string, number>(
+    [...products, ...options, ...categories, ...variantRows, ...groupRows].map((row) => [row.id, row.version] as const),
+  );
+  const productLive = new Map(products.map((row) => [row.id, row]));
+  const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
+
+  // Children before parents, so nothing relies on a cascade.
+  await tx.bundleItem.deleteMany({ where });
+  await tx.bundle.deleteMany({ where });
+  await tx.upsellRule.deleteMany({ where });
+  await tx.pairingRule.deleteMany({ where });
+  await tx.modifierOption.deleteMany({ where });
+  await tx.modifierGroup.deleteMany({ where });
+  await tx.productVariant.deleteMany({ where });
+  await tx.product.deleteMany({ where });
+  await tx.category.deleteMany({ where });
+  await tx.daypartSchedule.deleteMany({ where });
+
+  if (catalog.categories.length > 0) {
+    await tx.category.createMany({
+      data: catalog.categories.map((c) => ({
+        id: c.id,
+        menuId,
+        slug: c.slug,
+        sortOrder: c.sortOrder,
+        translations: json(c.translations),
+        version: nextVersion(versions, c.id),
+      })),
+    });
+  }
+  if (catalog.products.length > 0) {
+    await tx.product.createMany({
+      data: catalog.products.map((p) => {
+        const live = productLive.get(p.id);
+        return {
+          id: p.id,
+          menuId,
+          categoryId: p.categoryId,
+          slug: p.slug,
+          basePrice: p.basePrice,
+          cost: p.cost,
+          popularity: p.popularity,
+          priority: p.priority,
+          isSignature: p.isSignature,
+          isFeatured: p.isFeatured,
+          lowStockThreshold: p.lowStockThreshold,
+          dayparts: p.dayparts,
+          hideOutsideDaypart: p.hideOutsideDaypart,
+          slot: p.slot,
+          allergens: p.allergens,
+          dietary: p.dietary,
+          calories: p.calories,
+          badges: p.badges,
+          ingredients: json(p.ingredients),
+          media: json(draftMediaFromSnapshot(p.media)),
+          translations: json(p.translations),
+          sortOrder: p.sortOrder,
+          isAvailable: live?.isAvailable ?? true,
+          isHidden: live?.isHidden ?? false,
+          stockCount: live?.stockCount ?? null,
+          version: nextVersion(versions, p.id),
+        };
+      }),
+    });
+  }
+  const variants = catalog.products.flatMap((p) => p.variants.map((v, index) => ({ v, productId: p.id, sortOrder: index })));
+  if (variants.length > 0) {
+    await tx.productVariant.createMany({
+      data: variants.map(({ v, productId, sortOrder }) => ({
+        id: v.id,
+        menuId,
+        productId,
+        priceDelta: v.priceDelta,
+        costDelta: v.costDelta,
+        isDefault: v.isDefault,
+        translations: json(v.translations),
+        sortOrder,
+        version: nextVersion(versions, v.id),
+      })),
+    });
+  }
+  const groups = catalog.products.flatMap((p) => p.groups.map((g, index) => ({ g, productId: p.id, sortOrder: index })));
+  if (groups.length > 0) {
+    await tx.modifierGroup.createMany({
+      data: groups.map(({ g, productId, sortOrder }) => ({
+        id: g.id,
+        menuId,
+        productId,
+        minSelect: g.minSelect,
+        maxSelect: g.maxSelect,
+        translations: json(g.translations),
+        sortOrder,
+        version: nextVersion(versions, g.id),
+      })),
+    });
+  }
+  const optionRows = groups.flatMap(({ g }) => g.options.map((o, index) => ({ o, groupId: g.id, sortOrder: index })));
+  if (optionRows.length > 0) {
+    await tx.modifierOption.createMany({
+      data: optionRows.map(({ o, groupId, sortOrder }) => ({
+        id: o.id,
+        menuId,
+        groupId,
+        priceDelta: o.priceDelta,
+        costDelta: o.costDelta,
+        isSuggested: o.isSuggested,
+        suggestPriority: o.suggestPriority,
+        visualKey: o.visualKey,
+        translations: json(o.translations),
+        sortOrder,
+        isAvailable: optionLive.get(o.id) ?? true,
+        version: nextVersion(versions, o.id),
+      })),
+    });
+  }
+  if (catalog.upsellRules.length > 0) {
+    await tx.upsellRule.createMany({
+      data: catalog.upsellRules.map((r) => ({
+        id: r.id,
+        menuId,
+        sourceProductId: r.sourceProductId,
+        targetProductId: r.targetProductId,
+        priority: r.priority,
+        dayparts: r.dayparts,
+        translations: json(r.translations),
+      })),
+    });
+  }
+  if (catalog.pairingRules.length > 0) {
+    await tx.pairingRule.createMany({
+      data: catalog.pairingRules.map((r) => ({
+        id: r.id,
+        menuId,
+        sourceType: r.sourceType,
+        sourceProductId: r.sourceProductId,
+        sourceCategoryId: r.sourceCategoryId,
+        targetProductId: r.targetProductId,
+        weight: r.weight,
+        dayparts: r.dayparts,
+        translations: json(r.translations),
+      })),
+    });
+  }
+  if (catalog.bundles.length > 0) {
+    await tx.bundle.createMany({
+      data: catalog.bundles.map((b) => ({ id: b.id, menuId, slug: b.slug, price: b.price, dayparts: b.dayparts, translations: json(b.translations) })),
+    });
+    await tx.bundleItem.createMany({
+      data: catalog.bundles.flatMap((b) => b.items.map((item) => ({ menuId, bundleId: b.id, ...item }))),
+    });
+  }
+  if (catalog.schedule.length > 0) {
+    await tx.daypartSchedule.createMany({
+      data: catalog.schedule.map((window) => ({
+        menuId,
+        daypart: window.daypart,
+        startMinute: window.startMinute,
+        endMinute: window.endMinute,
+        daysOfWeek: window.daysOfWeek,
+      })),
+    });
+  }
+
+  const brandFields = brandRowFromSnapshot(brand);
+  await tx.brandConfig.upsert({
+    where: { menuId },
+    create: { menuId, typography: {}, ...brandFields },
+    update: { ...brandFields, version: { increment: 1 } },
+  });
+
+  // The settings the snapshot holds; the search images go back to their assets.
+  const seo: Record<string, { title: string; description: string; imageAssetId?: string }> = {};
+  for (const [locale, entry] of Object.entries(menu.seo)) {
+    if (entry) seo[locale] = { title: entry.title, description: entry.description, ...(entry.image ? { imageAssetId: entry.image.assetId } : {}) };
+  }
+  await tx.menu.update({
+    where: { id: menuId },
+    data: {
+      currency: menu.currency,
+      defaultLocale: menu.defaultLocale,
+      locales: menu.locales,
+      timezone: menu.timeZone,
+      numeralSystem: menu.numeralSystem === 'arab' ? 'ARAB' : 'LATN',
+      engineConfig: json(menu.engineConfig),
+      seo: json(seo),
+      version: { increment: 1 },
+    },
+  });
+
+  await refreshDraftHash(tx, menuId);
+}

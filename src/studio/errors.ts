@@ -162,6 +162,11 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This picture could not be read. Upload it again.': 'error.text.pictureUnreadable',
   'Some text would be hard to read on these colours': 'error.text.paletteContrast',
   'Choose a logo first': 'error.text.logoFirst',
+  'This revision was never live, so the menu cannot go back to it': 'error.text.neverLive',
+  'This revision is already live': 'error.text.alreadyLive',
+  'Choose a time at least a minute from now': 'error.text.timeTooSoon',
+  'Choose a time within a year': 'error.text.timeTooFar',
+  'Another revision is already scheduled': 'error.text.alreadyScheduled',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -172,7 +177,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

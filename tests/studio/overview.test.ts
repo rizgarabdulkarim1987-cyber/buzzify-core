@@ -144,6 +144,22 @@ describe('overview', () => {
     expect(page.slice(2).map((entry) => entry.menuId)).toEqual([...ids].reverse().slice(0, 8));
   });
 
+  it('lists the pending schedules within the scope, soonest first', async () => {
+    const mine = await menuIn(atelier.id, 'ov-sched-mine');
+    const theirs = await menuIn(bistro.id, 'ov-sched-theirs');
+    const soon = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const later = new Date(Date.now() + 5 * 60 * 60 * 1000);
+    const pending = (menuId: string, number: number, goLiveAt: Date) =>
+      prisma().menuRevision.create({ data: { menuId, number, schemaVersion: 1, snapshot: {}, snapshotHash: 'h', goLiveAt } });
+    await pending(mine.id, 2, later);
+    await pending(theirs.id, 2, soon);
+    await prisma().menuRevision.create({ data: { menuId: mine.id, number: 3, schemaVersion: 1, snapshot: {}, snapshotHash: 'h', goLiveAt: soon, cancelledAt: new Date() } });
+
+    const own = dataOf(await ask(designer, overviewQueries.overview)).scheduled;
+    expect(own).toEqual([{ menuId: mine.id, menuName: mine.name, restaurantName: 'Atelier', number: 2, goLiveAt: later.toISOString() }]);
+    expect(dataOf(await ask(admin, overviewQueries.overview)).scheduled.map((entry) => entry.menuId)).toEqual([theirs.id, mine.id]);
+  });
+
   it('counts menu views of the last 7 days in the reader scope, and nothing else', async () => {
     const mine = await menuIn(atelier.id, 'ov-views-mine');
     const theirs = await menuIn(bistro.id, 'ov-views-theirs');

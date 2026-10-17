@@ -1,0 +1,29 @@
+import { timingSafeEqual } from 'node:crypto';
+import { getPrisma } from '@/server/data/prisma';
+import { parseCronEnv } from '@/server/env';
+import { activateDueRevisions } from '@/server/publish/revisions';
+
+/** One run makes up to 100 revisions live; a minute is plenty, and the next run picks up the rest. */
+export const maxDuration = 60;
+
+const NO_STORE = { 'cache-control': 'no-store' };
+
+/** Whether the request carries the scheduler's secret, compared in constant time. */
+function authorized(header: string | null, secret: string): boolean {
+  const expected = Buffer.from(`Bearer ${secret}`);
+  const given = Buffer.from(header ?? '');
+  return given.length === expected.length && timingSafeEqual(given, expected);
+}
+
+/**
+ * Scheduled publishing (spec 10.6): the platform's scheduler calls this every minute with `CRON_SECRET`, and every
+ * revision whose time has come goes live. Without a configured secret it does nothing at all.
+ */
+export async function GET(request: Request) {
+  // Read on each call (it is one variable): a secret set or rotated in the platform applies to the next run.
+  const { secret } = parseCronEnv(process.env);
+  if (!secret) return new Response('Scheduled publishing is not configured', { status: 503, headers: NO_STORE });
+  if (!authorized(request.headers.get('authorization'), secret)) return new Response('Unauthorized', { status: 401, headers: NO_STORE });
+  const result = await activateDueRevisions(getPrisma(), new Date());
+  return Response.json(result, { headers: NO_STORE });
+}

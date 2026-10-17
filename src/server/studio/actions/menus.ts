@@ -26,6 +26,7 @@ import {
   statusAction,
 } from '@/server/studio/services/menus';
 import { settingsFields, updateSettings as saveSettings } from '@/server/studio/services/menu-settings';
+import { pendingSchedule } from '@/server/publish/revisions';
 
 /**
  * Menus: creating one in a restaurant, publishing it, changing its status and its address, duplicating and deleting it,
@@ -155,7 +156,8 @@ export const publish = defineAction({
       });
       const slugs = await menuSlugs(tx, menuId);
       ctx.afterCommit(() => expireMenu(slugs, menuId));
-      return { revisionId: outcome.revisionId, number: outcome.number, warnings: outcome.warnings };
+      // A revision scheduled for later still goes live at its time; the person is told it is waiting.
+      return { revisionId: outcome.revisionId, number: outcome.number, warnings: outcome.warnings, pendingSchedule: await pendingSchedule(tx, menuId) };
     }),
 });
 

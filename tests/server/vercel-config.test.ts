@@ -22,8 +22,9 @@ describe('vercel.json', () => {
     expect(scripts['vercel-build']).toBeDefined();
   });
 
-  it('has nothing else yet: the cron job arrives with milestone 2b', () => {
-    expect(Object.keys(vercel).sort()).toEqual(['buildCommand', 'regions']);
+  it('runs the scheduled-publishing job every minute, and has nothing else', () => {
+    expect(Object.keys(vercel).sort()).toEqual(['buildCommand', 'crons', 'regions']);
+    expect(vercel.crons).toEqual([{ path: '/api/cron/publish', schedule: '* * * * *' }]);
   });
 });
 
