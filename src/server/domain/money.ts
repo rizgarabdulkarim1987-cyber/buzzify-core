@@ -1,13 +1,13 @@
+import { minorUnitDigits } from '@/lib/money-input';
 import type { Locale } from './types';
+
+// One definition for the server and the Studio's browser code (`src/lib/money-input.ts`).
+export { minorUnitDigits };
 
 // Sorani uses Arabic-Iraq conventions for numbers and currency. Node and Chromium ship different
 // "ckb" data (US$ 9.00 on the server, $9.00 in the browser), which breaks hydration, whereas "ar-IQ"
 // is formatted identically by both.
 const LOCALE_TAG: Record<Locale, string> = { en: 'en-US', ar: 'ar-IQ', ckb: 'ar-IQ' };
-
-export function minorUnitDigits(currency: string): number {
-  return new Intl.NumberFormat('en', { style: 'currency', currency }).resolvedOptions().maximumFractionDigits ?? 2;
-}
 
 export function formatMoney(
   amount: number,
