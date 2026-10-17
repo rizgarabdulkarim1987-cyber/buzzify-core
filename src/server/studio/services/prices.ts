@@ -240,6 +240,19 @@ export function applyBulk(
     for (const variant of plan.variants) {
       await tx.productVariant.updateMany({ where: { id: variant.id }, data: { priceDelta: variant.priceDelta, version: { increment: 1 } } });
     }
+    // One row per price that moved as well, so a stale save of that product or size names who made the change.
+    const movedProducts = new Set(plan.products.map((product) => product.id));
+    const movedVariants = new Set(plan.variants.map((variant) => variant.id));
+    for (const row of plan.rows) {
+      const moved = row.variantId === null ? movedProducts.has(row.productId) : movedVariants.has(row.variantId);
+      if (!moved) continue;
+      ctx.audit({
+        action: 'price.changed',
+        entityType: row.variantId === null ? 'Product' : 'ProductVariant',
+        entityId: row.variantId ?? row.productId,
+        changes: { price: { before: row.oldPrice, after: row.newPrice } },
+      });
+    }
     const changed = plan.products.length + plan.variants.length;
     ctx.audit({
       action: 'prices.bulk_changed',

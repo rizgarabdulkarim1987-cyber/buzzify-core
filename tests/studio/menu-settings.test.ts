@@ -5,6 +5,7 @@ import { assetUsage } from '@/server/media/usage';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import * as content from '@/server/studio/actions/content';
 import * as menus from '@/server/studio/actions/menus';
+import * as prices from '@/server/studio/actions/prices';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery } from '@/server/studio/framework/query';
@@ -160,6 +161,23 @@ describe('menu settings', () => {
       groups: [],
     };
     expect(failureOf(await run(content.saveProduct, stale)).code).toBe('CONFLICT');
+  });
+
+  it('names who changed the currency, not who edited the price before it', async () => {
+    await prisma().user.create({ data: { id: 'owner-a', name: 'Alpha Owner', email: 'owner-a@example.com' } });
+    await prisma().membership.create({ data: { userId: 'owner-a', restaurantId: a.restaurant.id, role: 'OWNER' } });
+    const owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    const set = (target: Record<string, unknown>, price: number) => runAction(prisma(), owner, prices.set, { menuId: a.menu.id, target, price }, META);
+    const product = dataOf(await set({ kind: 'product', id: a.product.id, version: 1 }, 500));
+    const variant = dataOf(await set({ kind: 'variant', id: variantId, version: 1 }, 700));
+    dataOf(await run(menus.updateSettings, await settings({ currency: 'IQD', confirmCurrencyChange: true })));
+
+    expect(failureOf(await set({ kind: 'product', id: a.product.id, version: product.version }, 9))).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Alpha Designer' } });
+    expect(failureOf(await set({ kind: 'variant', id: variantId, version: variant.version }, 9))).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Alpha Designer' } });
+    expect(await prisma().auditLog.findFirstOrThrow({ where: { action: 'price.changed', actorId: 'designer-a', entityId: variantId } })).toMatchObject({
+      entityType: 'ProductVariant',
+      changes: { price: { before: 700, after: 7 } },
+    });
   });
 
   it('refuses a stale save of the settings', async () => {

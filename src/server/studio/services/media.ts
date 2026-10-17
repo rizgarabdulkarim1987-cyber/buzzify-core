@@ -227,9 +227,20 @@ export async function deleteAssetRow(ctx: ActionContext, library: Library, asset
     ctx.audit({ action: 'media.deleted', entityType: 'MediaAsset', entityId: assetId, changes: { kind: { before: row.kind, after: null } } });
   });
 
-  const others = await ctx.db.mediaAsset.count({ where: { storageKey: row.storageKey } });
-  if (others === 0) await getStorage().delete(fileKeys(row.variants as unknown as AssetVariants));
+  await deleteUnsharedFiles(ctx.db, [row]);
   return { deleted: true };
+}
+
+/**
+ * Deletes the files of assets whose rows are gone: an asset deleted from its library, or every asset of a deleted
+ * restaurant. A folder another asset still names (a copy for another restaurant) stays.
+ */
+export async function deleteUnsharedFiles(db: ActionContext['db'], assets: ReadonlyArray<{ storageKey: string; variants: unknown }>): Promise<void> {
+  const folders = new Map(assets.map((asset) => [asset.storageKey, asset.variants as AssetVariants]));
+  for (const [storageKey, variants] of folders) {
+    if ((await db.mediaAsset.count({ where: { storageKey } })) > 0) continue;
+    await getStorage().delete(fileKeys(variants));
+  }
 }
 
 // Listing -------------------------------------------------------------------------------------------------------------

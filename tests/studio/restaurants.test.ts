@@ -1,3 +1,6 @@
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
 import { expireMenu } from '@/server/data/cache';
@@ -14,6 +17,7 @@ import * as menuQueries from '@/server/studio/queries/menus';
 import * as overviewQueries from '@/server/studio/queries/overview';
 import * as restaurantQueries from '@/server/studio/queries/restaurants';
 import { branchInput, restaurantInput } from '@/server/studio/services/restaurants';
+import { getStorage } from '@/server/storage/storage';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
@@ -642,6 +646,31 @@ describe('deleteRestaurant', () => {
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'restaurant.deleted' } });
     expect(audit).toMatchObject({ actorId: admin.userId, restaurantId: bistro.id, entityType: 'Restaurant', entityId: bistro.id });
     expect(audit.changes).toMatchObject({ name: { before: 'Bistro Mazo', after: null }, memberships: { before: 1, after: 0 }, invitations: { before: 1, after: 0 } });
+  });
+
+  it('deletes the files of its pictures, keeping those another restaurant’s asset still names', async () => {
+    vi.stubEnv('MEDIA_LOCAL_DIR', mkdtempSync(join(tmpdir(), 'buzzify-restaurant-delete-')));
+    vi.stubEnv('MEDIA_PUBLIC_URL', '/api/dev-media');
+    const storage = getStorage();
+    async function picture(restaurantId: string, storageKey: string) {
+      const files = { original: `${storageKey}/original.png`, webp: { '320': `${storageKey}/webp-320.webp` } };
+      await storage.put(files.original, new Uint8Array([1]), { contentType: 'image/png', cacheControl: 'no-store' });
+      await storage.put(files.webp['320'], new Uint8Array([2]), { contentType: 'image/webp', cacheControl: 'no-store' });
+      const contentHash = storageKey.split('/').at(-1)!;
+      await prisma().mediaAsset.create({ data: { restaurantId, kind: 'IMAGE', storageKey, contentHash, mime: 'image/png', bytes: 1, storedBytes: 2, variants: files } });
+      return files;
+    }
+    const own = await picture(bistro.id, `r/${bistro.id}/own`);
+    const shared = await picture(bistro.id, `r/${atelier.id}/shared`);
+    await picture(atelier.id, `r/${atelier.id}/shared`);
+
+    dataOf(await run(admin, restaurants.deleteRestaurant, { restaurantId: bistro.id, confirmName: 'Bistro Mazo' }));
+
+    expect(await prisma().mediaAsset.count({ where: { restaurantId: bistro.id } })).toBe(0);
+    expect(await storage.head(own.original)).toBeNull();
+    expect(await storage.head(own.webp['320'])).toBeNull();
+    expect(await storage.head(shared.original)).not.toBeNull();
+    expect(await storage.head(shared.webp['320'])).not.toBeNull();
   });
 
   it('is refused while the restaurant has any menu, archived ones included', async () => {

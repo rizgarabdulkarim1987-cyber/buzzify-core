@@ -4,6 +4,7 @@ import { getCatalog, getTenant } from '@/server/data/public-menu';
 import { effectivePermissions } from '@/server/domain/permissions';
 import { snapshotHash } from '@/server/domain/snapshot';
 import { loadDraftSnapshot } from '@/server/publish/draft';
+import * as availability from '@/server/studio/actions/availability';
 import * as content from '@/server/studio/actions/content';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -180,6 +181,16 @@ describe('products', () => {
       fields: { changedBy: 'Alpha Owner' },
     });
     expect((await prisma().product.findUniqueOrThrow({ where: { id: a.product.id } })).translations).toMatchObject({ en: { name: 'Ristretto' } });
+  });
+
+  it('names who changed the product, not who sold it out since', async () => {
+    const stale = await drawer();
+    dataOf(await run(owner, content.saveProduct, await drawer({ names: { en: 'Ristretto' } })));
+    dataOf(await run(designer, availability.setProduct, { menuId: a.menu.id, productId: a.product.id, isAvailable: false }));
+    expect(failureOf(await run(designer, content.saveProduct, { ...stale, names: { en: 'Lungo' } }))).toMatchObject({
+      code: 'CONFLICT',
+      fields: { changedBy: 'Alpha Owner' },
+    });
   });
 
   it('refuses a stale save after a bulk write moved the version', async () => {

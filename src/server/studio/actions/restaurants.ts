@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { expireMenu } from '@/server/data/cache';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
-import { StudioError } from '@/server/studio/framework/result';
+import { describeError, StudioError } from '@/server/studio/framework/result';
+import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
   arrangeBranches,
@@ -143,9 +144,11 @@ export const deleteRestaurant = defineAction({
   permission: 'restaurant.delete',
   input: z.object({ restaurantId: idField, confirmName: z.string().max(200) }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { confirmName }) =>
-    ctx.transaction(async (tx) => {
-      const restaurantId = restaurantOf(ctx);
+  run: async (ctx, { confirmName }) => {
+    const restaurantId = restaurantOf(ctx);
+    const pictures = await ctx.transaction(async (tx) => {
+      // Read before the deletion cascades to them: their files go once it has committed.
+      const assets = await tx.mediaAsset.findMany({ where: { restaurantId }, select: { storageKey: true, variants: true } });
       const removed = await removeRestaurant(tx, { restaurantId, confirmName });
       ctx.audit({
         action: 'restaurant.deleted',
@@ -158,8 +161,16 @@ export const deleteRestaurant = defineAction({
           ...(removed.branches > 0 ? { branches: { before: removed.branches, after: 0 } } : {}),
         },
       });
-      return { deleted: true as const };
-    }),
+      return assets;
+    });
+    try {
+      await deleteUnsharedFiles(ctx.db, pictures);
+    } catch (error) {
+      // The restaurant is gone either way; files left behind are only storage, and the log says which restaurant.
+      console.error(`[studio] Deleting the files of restaurant ${restaurantId} failed with ${describeError(error)}`);
+    }
+    return { deleted: true as const };
+  },
 });
 
 // Branches ------------------------------------------------------------------------------------------------------------

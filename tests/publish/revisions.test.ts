@@ -7,6 +7,7 @@ import { loadDraftSnapshot, refreshDraftHash } from '@/server/publish/draft';
 import { activateDueRevisions, cancelSchedule, restoreDraftFromSnapshot, RevisionError, rollbackMenu, scheduleRevision } from '@/server/publish/revisions';
 import * as content from '@/server/studio/actions/content';
 import * as menus from '@/server/studio/actions/menus';
+import * as prices from '@/server/studio/actions/prices';
 import * as revisions from '@/server/studio/actions/revisions';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -164,6 +165,26 @@ describe('restore to draft', () => {
       groups: [],
     };
     expect(failureOf(await run(content.saveProduct, stale)).code).toBe('CONFLICT');
+  });
+
+  it('names who restored, not who edited the row before the restore', async () => {
+    await prisma().user.create({ data: { id: 'owner-a', name: 'Alpha Owner', email: 'owner-a@example.com' } });
+    await prisma().membership.create({ data: { userId: 'owner-a', restaurantId: a.restaurant.id, role: 'OWNER' } });
+    const owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    const asOwner = <I, O>(def: ActionDef<I, O>, input: unknown) => runAction(prisma(), owner, def, input, META);
+    const category = await prisma().category.findUniqueOrThrow({ where: { id: a.category.id } });
+    const renamed = { menuId: a.menu.id, categoryId: category.id, names: { en: 'Hot drinks' }, slug: category.slug, isActive: true };
+    const categoryVersion = dataOf(await asOwner(content.updateCategory, { ...renamed, version: category.version })).version;
+    const product = await prisma().product.findUniqueOrThrow({ where: { id: a.product.id } });
+    const reprice = (version: number, price: number) => asOwner(prices.set, { menuId: a.menu.id, target: { kind: 'product', id: product.id, version }, price });
+    const productVersion = dataOf(await reprice(product.version, 700)).version;
+    dataOf(await run(revisions.restore, { menuId: a.menu.id, revisionId: r1.id, expectedDraftHash: (await menuRow()).draftHash }));
+
+    expect(failureOf(await reprice(productVersion, 800))).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Alpha Designer' } });
+    expect(failureOf(await asOwner(content.updateCategory, { ...renamed, version: categoryVersion }))).toMatchObject({
+      code: 'CONFLICT',
+      fields: { changedBy: 'Alpha Designer' },
+    });
   });
 
   it('restores through the action only into the draft that was read', async () => {

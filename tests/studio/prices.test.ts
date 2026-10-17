@@ -122,6 +122,25 @@ describe('bulk price changes', () => {
     expect(failureOf(await run(content.saveProduct, stale)).code).toBe('CONFLICT');
   });
 
+  it('names who applied the bulk change, not who edited the row before it', async () => {
+    await prisma().user.create({ data: { id: 'designer-a', name: 'Alpha Designer', email: 'designer-a@example.com' } });
+    await prisma().membership.create({ data: { userId: 'designer-a', restaurantId: a.restaurant.id, role: 'DESIGNER' } });
+    const designer = (await loadActor(prisma(), 'designer-a')) as Actor;
+    const product = dataOf(await run(prices.set, { menuId: a.menu.id, target: { kind: 'product', id: latte.id, version: 1 }, price: 460 }, designer));
+    const variant = dataOf(await run(prices.set, { menuId: a.menu.id, target: { kind: 'variant', id: latte.variantId, version: 1 }, price: 570 }, designer));
+    const { draftHash } = dataOf(await preview());
+    dataOf(await run(prices.applyBulk, { menuId: a.menu.id, selection: {}, operation: tenPercent, includeVariants: true, expectedDraftHash: draftHash }));
+
+    const staleProduct = await run(prices.set, { menuId: a.menu.id, target: { kind: 'product', id: latte.id, version: product.version }, price: 480 }, designer);
+    expect(failureOf(staleProduct)).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Alpha Owner' } });
+    const staleVariant = await run(prices.set, { menuId: a.menu.id, target: { kind: 'variant', id: latte.variantId, version: variant.version }, price: 580 }, designer);
+    expect(failureOf(staleVariant)).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Alpha Owner' } });
+    expect(await prisma().auditLog.findFirstOrThrow({ where: { action: 'price.changed', actorId: 'owner-a', entityId: latte.variantId } })).toMatchObject({
+      entityType: 'ProductVariant',
+      changes: { price: { before: 570, after: 625 } },
+    });
+  });
+
   it('refuses to apply when the draft changed after the preview', async () => {
     const { draftHash } = dataOf(await preview());
     dataOf(await run(content.createCategory, { menuId: a.menu.id, names: { en: 'Tea' } }));

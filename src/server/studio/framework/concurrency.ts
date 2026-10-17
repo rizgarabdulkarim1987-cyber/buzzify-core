@@ -62,18 +62,30 @@ export async function deleteWithVersion(
   throw await refusal(delegate, args, tx);
 }
 
-/** Why a versioned write found nothing to write: the row is gone or outside the scope, or someone moved it on. */
+/** Audit actions that write a row without moving its version (sold out, hidden): they never explain a conflict. */
+const KEEPS_VERSION = ['product.availability_changed', 'option.availability_changed'];
+
+/** The catalog's rows. Restoring a revision moves every one of their versions and files one audit row, on the menu. */
+const CATALOG = new Set(['Category', 'Product', 'ProductVariant', 'ModifierGroup', 'ModifierOption']);
+
+/**
+ * Why a versioned write found nothing to write: the row is gone or outside the scope, or someone moved it on. Who moved
+ * it is the newest audit row that moves its version: its own, or a restore of its menu.
+ */
 async function refusal(
   delegate: Pick<VersionedDelegate, 'findFirst'>,
   args: Pick<VersionedUpdate, 'id' | 'entityType'>,
   tx: AnyDb | ScopedDb,
 ): Promise<StudioError> {
-  const row = await delegate.findFirst({ where: { id: args.id }, select: { id: true } } as never);
+  const catalog = CATALOG.has(args.entityType);
+  const select = catalog ? { id: true, menuId: true } : { id: true };
+  const row = (await delegate.findFirst({ where: { id: args.id }, select } as never)) as { menuId?: string } | null;
   if (!row) return new StudioError('NOT_FOUND');
 
   const db = delegates(tx);
+  const restored = row.menuId ? [{ entityType: 'Menu', entityId: row.menuId, action: 'menu.restored_to_draft' }] : [];
   const last = await db.auditLog.findFirst({
-    where: { entityType: args.entityType, entityId: args.id },
+    where: { OR: [{ entityType: args.entityType, entityId: args.id, action: { notIn: KEEPS_VERSION } }, ...restored] },
     orderBy: { occurredAt: 'desc' },
     select: { actorId: true, occurredAt: true },
   });
