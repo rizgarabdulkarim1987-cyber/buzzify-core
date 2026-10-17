@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
 import { publishMenu } from '@/server/publish/publish';
 import { ATELIER } from './seed/atelier';
@@ -34,11 +35,35 @@ function checkDevUsers(): boolean {
   return !production;
 }
 
+/**
+ * A reseed replaces the demo menu that has the address now. The address's row outlives the menu (a deleted menu's
+ * addresses stay reserved for good, so an old QR code never opens another menu), so it is checked before anything is
+ * written: once the demo menu was deleted, or moved to another address that `/atelier` now redirects to, the seed
+ * refuses rather than give the address to a new menu.
+ */
+async function checkSlugIsOurs(prisma: PrismaClient, slug: string): Promise<void> {
+  const entry = await prisma.menuSlug.findUnique({ where: { slug }, select: { menuId: true, menu: { select: { slug: true } } } });
+  if (!entry) return;
+  if (entry.menuId === null || entry.menu === null) {
+    throw new Error(
+      `The address ${slug} belonged to a menu that was deleted, and stays reserved for good so its old links and QR ` +
+        'codes never open another menu. The demo menu is not seeded again. Nothing was changed.',
+    );
+  }
+  if (entry.menu.slug !== slug) {
+    throw new Error(
+      `The address ${slug} now redirects to the menu at ${entry.menu.slug}, and stays reserved for it. The demo menu is ` +
+        'not seeded again. Nothing was changed.',
+    );
+  }
+}
+
 async function main() {
   assertSeedValid(ATELIER);
   const withDevUsers = checkDevUsers();
   const prisma = createPrisma();
   try {
+    await checkSlugIsOurs(prisma, ATELIER.restaurant.slug);
     const { profile } = ATELIER;
     // Reseeding replaces the menu but keeps the restaurant (and so its client number), found by name.
     const restaurant =
@@ -57,7 +82,8 @@ async function main() {
       }));
 
     const { menuId } = await seedMenu(prisma, ATELIER, restaurant.id);
-    // The slug is reserved for good: the row outlives the menu, so a reseed points the same slug at the new menu.
+    // The slug is reserved for good: the row outlives the menu, so a reseed points the same slug at the new menu (the
+    // check above made sure it was the address of the demo menu just replaced, not a deleted or moved menu's).
     const slug = ATELIER.restaurant.slug;
     await prisma.menuSlug.upsert({ where: { slug }, create: { slug, menuId }, update: { menuId } });
 

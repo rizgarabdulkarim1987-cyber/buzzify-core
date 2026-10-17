@@ -89,6 +89,49 @@ describe('npm run db:seed', () => {
     expect(await prisma.user.count()).toBe(0);
   });
 
+  it('refuses to bring back the atelier address once its menu was deleted, before it writes anything', async () => {
+    expect(run('prisma/seed.ts', {}).code).toBe(0);
+    // Deleted in the Studio: the address stays reserved as a tombstone, and the restaurant may stay too.
+    const menu = await atelier();
+    await prisma.menuSlug.updateMany({ where: { menuId: menu!.id }, data: { menuId: null } });
+    await prisma.menu.delete({ where: { id: menu!.id } });
+    const restaurants = await prisma.restaurant.count();
+
+    const { code, out } = run('prisma/seed.ts', {});
+
+    expect(code).toBe(1);
+    expect(out).toContain('atelier');
+    expect(out).toMatch(/reserved/);
+    expect(await atelier()).toBeNull();
+    expect(await prisma.menuSlug.findUniqueOrThrow({ where: { slug: 'atelier' } })).toMatchObject({ menuId: null });
+    expect(await prisma.restaurant.count()).toBe(restaurants);
+  });
+
+  it('refuses to take the atelier address from a menu that now goes by another one', async () => {
+    expect(run('prisma/seed.ts', {}).code).toBe(0);
+    // The demo menu moved to a new address in the Studio; /atelier redirects to it for good.
+    const menu = await atelier();
+    await prisma.menu.update({ where: { id: menu!.id }, data: { slug: 'atelier-cafe' } });
+    await prisma.menuSlug.create({ data: { slug: 'atelier-cafe', menuId: menu!.id } });
+
+    const { code, out } = run('prisma/seed.ts', {});
+
+    expect(code).toBe(1);
+    expect(out).toContain('atelier-cafe');
+    expect(await prisma.menuSlug.findUniqueOrThrow({ where: { slug: 'atelier' } })).toMatchObject({ menuId: menu!.id });
+    expect(await prisma.menu.count()).toBe(1);
+  });
+
+  it('replaces the demo menu when it is run again while the menu exists', async () => {
+    expect(run('prisma/seed.ts', {}).code).toBe(0);
+    const first = await atelier();
+    const { code, out } = run('prisma/seed.ts', {});
+    expect(code, out).toBe(0);
+    const second = await atelier();
+    expect(second?.id).not.toBe(first?.id);
+    expect(await prisma.menuSlug.findUniqueOrThrow({ where: { slug: 'atelier' } })).toMatchObject({ menuId: second?.id });
+  });
+
   it('refuses a database on another host while DEV_SEED_PASSWORD is set, before it writes or connects, naming the host only', async () => {
     const { code, out } = run('prisma/seed.ts', { DATABASE_URL: HOSTED, DEV_SEED_PASSWORD: PASSWORD });
 
