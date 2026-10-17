@@ -236,6 +236,26 @@ describe('invoke, query and studioRoute', () => {
       expect((await post('[1, 2]', designerSession)).status).toBe(400);
     });
 
+    it('refuses a POST with no Origin unless its body is JSON', async () => {
+      const send = (contentType: string) =>
+        POST(
+          new Request(`${ORIGIN}/api/studio/rename`, {
+            method: 'POST',
+            body: JSON.stringify({ restaurantId: alpha, name: `Alpha ${contentType.length}` }),
+            headers: requestHeaders(designerSession, { 'content-type': contentType }),
+          }),
+          noParams,
+        );
+      // A cross-site form can send text/plain without an Origin header (older browsers, some redirects); it is refused.
+      const plain = await send('text/plain');
+      expect(plain.status).toBe(403);
+      expect(await plain.json()).toMatchObject({ error: { code: 'FORBIDDEN' } });
+      expect((await getPrisma().restaurant.findUniqueOrThrow({ where: { id: alpha } })).name).toBe('Alpha');
+      // JSON cannot be sent across sites without a preflight, so a script or a test without Origin is served.
+      const json = await send('application/json; charset=utf-8');
+      expect(json.status).toBe(200);
+    });
+
     it('refuses to serve an action over GET or a request with the wrong method', async () => {
       expect(() => studioRoute(renameRestaurant, { method: 'GET' })).toThrow(/POST/);
       const res = await POST(new Request(`${ORIGIN}/api/studio/rename`, { headers: requestHeaders(designerSession) }), noParams);

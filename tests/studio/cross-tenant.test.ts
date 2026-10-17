@@ -25,8 +25,10 @@ import { devMail } from '../helpers/mail';
  * the audit log about B, may change.
  *
  * Every definition must have an entry in exactly one of the three tables below: a new action or query without one fails
- * the first test. A's client policy grants every grantable permission to both roles, so a refusal in B is never owed to a
- * permission A's people lack.
+ * the first test. A's client policy grants every grantable permission to both roles, so for the definitions in `SWEPT` a
+ * refusal in B is never owed to a permission A's people lack: it is the tenant check. The definitions in `PLATFORM_ONLY`
+ * need a permission no client policy can grant (`NEVER_GRANTABLE`), so their refusal is the permission check, and this
+ * sweep cannot tell from it whether the tenant check would also have held; their own tests cover what a Super Admin may do.
  */
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));

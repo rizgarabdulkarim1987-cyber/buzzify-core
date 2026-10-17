@@ -73,7 +73,8 @@ const DEFINE_PUBLIC_ACTION = /export const (\w+) = definePublicAction\(/;
 
 // Rule 4 -------------------------------------------------------------------------------------------------------------
 
-const ROUTE_EXPORT = /export const (GET|POST) = studioRoute\(/;
+/** GET and POST built with `studioRoute`, plus the two segment settings a heavy handler needs (sharp's time, Node.js). */
+const ROUTE_EXPORT = /export const (?:(?:GET|POST) = studioRoute\(|maxDuration = \d+;|runtime = 'nodejs';)/;
 
 /** The folders the Studio host serves: its API and its pages (a `route.ts` among the pages is an endpoint too). */
 const STUDIO_ROUTE_DIRS = ['src/app/api/studio/', 'src/app/studio/'];
@@ -86,6 +87,22 @@ function isStudioRoute(path: string): boolean {
 /** The exports of a Studio route handler that are not built with `studioRoute`; none for any other file. */
 function routeViolations(path: string, source: string): string[] {
   return isStudioRoute(path) ? exportsNotMatching(source, ROUTE_EXPORT) : [];
+}
+
+// Rule 6 -------------------------------------------------------------------------------------------------------------
+
+const STUDIO_API_DIR = 'src/app/api/studio/';
+
+/**
+ * Whether a file under the Studio API has a dot in a folder or file name other than `route.ts`. The proxy's matcher skips
+ * every path with a dot (it takes them for static files), so such a route would be served on any host without the host
+ * rules (2a follow-up 5). Downloads are chosen with a field (`?format=csv`), never an extension in the path.
+ */
+function dottedStudioPath(path: string): boolean {
+  if (!path.startsWith(STUDIO_API_DIR)) return false;
+  const segments = path.slice(STUDIO_API_DIR.length).split('/');
+  const file = segments.pop() ?? '';
+  return segments.some((segment) => segment.includes('.')) || !/^route\.(ts|tsx)$/.test(file);
 }
 
 // Rule 5 -------------------------------------------------------------------------------------------------------------
@@ -242,6 +259,14 @@ describe('Studio enforcement rules', () => {
       expect(exportsNotMatching("export const dynamic = 'force-dynamic';", ROUTE_EXPORT)).toHaveLength(1);
     });
 
+    it('also accepts a time limit and the Node.js runtime, and nothing else of the kind', () => {
+      expect(exportsNotMatching(`${good}\nexport const maxDuration = 60;`, ROUTE_EXPORT)).toEqual([]);
+      expect(exportsNotMatching(`${good}\nexport const runtime = 'nodejs';`, ROUTE_EXPORT)).toEqual([]);
+      expect(exportsNotMatching("export const dynamic = 'force-static';", ROUTE_EXPORT)).toHaveLength(1);
+      expect(exportsNotMatching("export const runtime = 'edge';", ROUTE_EXPORT)).toHaveLength(1);
+      expect(exportsNotMatching('export const maxDuration = compute();', ROUTE_EXPORT)).toHaveLength(1);
+    });
+
     it('applies to route files under the Studio API and under the Studio pages', () => {
       expect(routeViolations('src/app/api/studio/menus/[id]/export/route.ts', good)).toEqual([]);
       expect(routeViolations('src/app/api/studio/menus/[id]/export/route.ts', handWritten)).toHaveLength(1);
@@ -259,6 +284,22 @@ describe('Studio enforcement rules', () => {
         routeViolations(path, read(path)).map((line) => `${path}: ${line}`),
       );
       expect(offenders).toEqual([]);
+    });
+  });
+
+  describe('6. no path under the Studio API has a dot (the proxy skips dotted paths)', () => {
+    it('flags a dotted folder or file and accepts route.ts', () => {
+      expect(dottedStudioPath('src/app/api/studio/menus/[menuId]/export.csv/route.ts')).toBe(true);
+      expect(dottedStudioPath('src/app/api/studio/media/v1.2/route.ts')).toBe(true);
+      expect(dottedStudioPath('src/app/api/studio/media/helpers.server.ts')).toBe(true);
+      expect(dottedStudioPath('src/app/api/studio/media/finalize/route.ts')).toBe(false);
+      expect(dottedStudioPath('src/app/api/studio/menus/[menuId]/export/route.ts')).toBe(false);
+      // Only the Studio API: public routes and Studio pages are served by other rules.
+      expect(dottedStudioPath('src/app/api/[tenant]/search.index/route.ts')).toBe(false);
+    });
+
+    it('holds for every file under src/app/api/studio', () => {
+      expect(sourceFiles('src/app/api/studio').filter(dottedStudioPath)).toEqual([]);
     });
   });
 
