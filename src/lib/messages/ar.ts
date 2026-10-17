@@ -106,6 +106,7 @@ const ar: Messages = {
   'menu.dietary.CONTAINS_NUTS': 'يحتوي على مكسرات',
   'menu.calories': '{count} سعرة حرارية',
   'preview.banner': 'معاينة لتغييرات غير منشورة. الطلب متوقف.',
+  'preview.bannerRevision': 'معاينة المراجعة {number}. الطلب متوقف.',
   'daypart.BREAKFAST': 'الفطور',
   'daypart.LUNCH': 'الغداء',
   'daypart.DINNER': 'العشاء',

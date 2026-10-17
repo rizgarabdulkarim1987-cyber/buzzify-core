@@ -29,7 +29,7 @@ export const list = defineQuery({
   target: (i) => atMenu(i.menuId),
   run: async (ctx, { page }) => {
     const menuId = menuOf(ctx);
-    const menu = await ctx.db.menu.findUnique({ where: { id: menuId }, select: { liveRevisionId: true, timezone: true } });
+    const menu = await ctx.db.menu.findUnique({ where: { id: menuId }, select: { liveRevisionId: true, timezone: true, draftHash: true } });
     if (!menu) throw new StudioError('NOT_FOUND');
     const [rows, total] = await Promise.all([
       ctx.db.menuRevision.findMany({
@@ -64,6 +64,8 @@ export const list = defineQuery({
       pending: await pendingSchedule(ctx.db, menuId),
       total,
       timezone: menu.timezone,
+      /** The draft as the page was read, for a restore to apply only to it. */
+      draftHash: menu.draftHash,
     };
   },
 });
@@ -73,16 +75,16 @@ export const view = defineQuery({
   permission: 'view',
   input: z.object({ menuId: idField, revisionId: idField, locale: z.enum(LOCALES) }),
   target: (i) => atMenu(i.menuId),
-  run: async (ctx, { revisionId, locale }): Promise<{ tenant: TenantInfo; view: MenuView }> => {
+  run: async (ctx, { revisionId, locale }): Promise<{ number: number; tenant: TenantInfo; view: MenuView }> => {
     const menuId = menuOf(ctx);
     const menu = await ctx.db.menu.findUnique({ where: { id: menuId }, select: { id: true, slug: true, restaurantId: true } });
-    const revision = await ctx.db.menuRevision.findFirst({ where: { id: revisionId, menuId }, select: { id: true, snapshot: true } });
+    const revision = await ctx.db.menuRevision.findFirst({ where: { id: revisionId, menuId }, select: { id: true, number: true, snapshot: true } });
     if (!menu || !revision) throw new StudioError('NOT_FOUND');
     const snapshot = parseSnapshot(revision.snapshot);
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
     // Today's live switches over the revision: what guests would get if the menu went back to it now.
     const catalog = toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id));
     const tenant = tenantInfo(menu, revision.id, snapshot);
-    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
+    return { number: revision.number, tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
   },
 });

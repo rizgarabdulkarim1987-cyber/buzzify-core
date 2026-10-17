@@ -137,6 +137,8 @@ export default async function MenuWorkspaceLayout({ children, params }: { childr
                 version: menu.version,
                 restaurantId: menu.restaurant.id,
                 hasLiveRevision: menu.liveRevision !== null,
+                timezone: menu.timezone,
+                pendingSchedule: menu.pendingSchedule,
               }}
               can={menu.can}
               duplicateTargets={menu.duplicateTargets}

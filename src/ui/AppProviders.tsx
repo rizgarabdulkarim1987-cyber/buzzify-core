@@ -93,12 +93,15 @@ export function AppProviders({
   tenant,
   locale,
   preview = false,
+  previewRevision,
   children,
 }: {
   tenant: TenantClientInfo;
   locale: Locale;
   /** Renders a draft in the Studio: no tracking, quotes, suggestions or search index, and no ordering. */
   preview?: boolean;
+  /** A preview of a published revision rather than of the draft: its number, for the banner. */
+  previewRevision?: number;
   children: ReactNode;
 }) {
   // A preview keeps its own (always empty) cart, so a guest cart of the same menu in this browser never shows in it.
@@ -228,7 +231,7 @@ export function AppProviders({
     <Context.Provider value={value}>
       {preview && (
         <p className="sticky top-0 z-30 bg-text px-4 py-2 text-center text-sm text-bg" role="note">
-          {t('preview.banner')}
+          {previewRevision === undefined ? t('preview.banner') : t('preview.bannerRevision', { number: previewRevision })}
         </p>
       )}
       {children}

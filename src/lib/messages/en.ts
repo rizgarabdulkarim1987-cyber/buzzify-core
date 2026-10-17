@@ -103,6 +103,7 @@ const en: Messages = {
   'menu.dietary.CONTAINS_NUTS': 'Contains nuts',
   'menu.calories': '{count} kcal',
   'preview.banner': 'Preview of unpublished changes. Ordering is off.',
+  'preview.bannerRevision': 'Preview of revision {number}. Ordering is off.',
   'daypart.BREAKFAST': 'Breakfast',
   'daypart.LUNCH': 'Lunch',
   'daypart.DINNER': 'Dinner',

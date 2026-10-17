@@ -135,3 +135,17 @@ export async function createTemporaryMenu({
     },
   };
 }
+
+/** Moves a menu's revision waiting to go live a minute into the past, so the next scheduler run makes it live. */
+export async function makeScheduleDue(menuId: string): Promise<void> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    const { count } = await prisma.menuRevision.updateMany({
+      where: { menuId, goLiveAt: { not: null }, wentLiveAt: null, cancelledAt: null },
+      data: { goLiveAt: new Date(Date.now() - 60_000) },
+    });
+    if (count !== 1) throw new Error(`Expected one pending revision of ${menuId}, found ${count}`);
+  } finally {
+    await prisma.$disconnect();
+  }
+}

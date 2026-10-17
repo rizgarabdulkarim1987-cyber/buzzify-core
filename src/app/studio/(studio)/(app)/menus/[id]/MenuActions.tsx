@@ -1,6 +1,6 @@
 'use client';
 
-import { Archive, ChevronDown, CirclePause, CirclePlay, Files, Link2, Send, Trash2 } from 'lucide-react';
+import { CalendarClock, Archive, ChevronDown, CirclePause, CirclePlay, Files, Link2, Send, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -22,6 +22,7 @@ import { Textarea } from '@/studio/ui/Textarea';
 import { DuplicateDialog, type DuplicateTarget } from '../DuplicateDialog';
 import { issueText } from '../menu-text';
 import { SlugField } from '../SlugField';
+import { ScheduleDialog } from '@/studio/workspace/ScheduleDialog';
 
 export interface MenuActionsProps {
   menu: {
@@ -33,8 +34,12 @@ export interface MenuActionsProps {
     version: number;
     restaurantId: string;
     hasLiveRevision: boolean;
+    /** The menu's own clock, for scheduling. */
+    timezone: string;
+    /** The revision waiting to go live, if any. */
+    pendingSchedule: { number: number; goLiveAt: string } | null;
   };
-  can: { publish: boolean; status: boolean; settings: boolean; duplicate: boolean; delete: boolean };
+  can: { publish: boolean; status: boolean; settings: boolean; duplicate: boolean; delete: boolean; schedule: boolean };
   duplicateTargets: readonly DuplicateTarget[];
   origin: string;
 }
@@ -88,7 +93,12 @@ function PublishDialog({ menuId, name, suspended, onClose }: { menuId: string; n
       }
       router.refresh();
       if (result.data.warnings.length === 0) {
-        toast.success(t('menus.publish.done', { number: result.data.number }));
+        // A revision scheduled for later still goes live at its time: say so, so it does not come as a surprise.
+        toast.success(
+          result.data.pendingSchedule
+            ? t('menus.publish.doneSchedulePending', { number: result.data.number, pending: result.data.pendingSchedule.number })
+            : t('menus.publish.done', { number: result.data.number }),
+        );
         onClose();
       } else {
         setState({ phase: 'published', number: result.data.number, warnings: result.data.warnings });
@@ -125,15 +135,16 @@ function PublishDialog({ menuId, name, suspended, onClose }: { menuId: string; n
   }
 
   if (state.phase === 'published') {
+    // The publish is done: closing need not wait for the page to finish refreshing behind the dialog.
     return (
       <Dialog
         open
         width="md"
-        onOpenChange={(open) => !open && close()}
+        onOpenChange={(open) => !open && onClose()}
         title={t('menus.publish.done', { number: state.number })}
         description={t('menus.publish.warningsBody')}
         footer={
-          <Button variant="primary" onClick={close}>
+          <Button variant="primary" onClick={onClose}>
             {t('common.close')}
           </Button>
         }
@@ -205,7 +216,13 @@ export function ChangeSlugDialog({
   );
 }
 
-type Open = { kind: 'publish' } | { kind: 'status'; action: StatusAction } | { kind: 'slug' } | { kind: 'duplicate' } | { kind: 'delete' };
+type Open =
+  | { kind: 'publish' }
+  | { kind: 'schedule' }
+  | { kind: 'status'; action: StatusAction }
+  | { kind: 'slug' }
+  | { kind: 'duplicate' }
+  | { kind: 'delete' };
 
 /**
  * What can be done to the menu as a whole: publish it, change its status, change its address, duplicate it and (for a
@@ -224,7 +241,8 @@ export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActions
       )
     : [];
   const deletable = can.delete && menu.status === 'ARCHIVED';
-  const managed = statusActions.length > 0 || can.settings || can.duplicate || deletable;
+  const schedulable = can.schedule && menu.status !== 'ARCHIVED';
+  const managed = schedulable || statusActions.length > 0 || can.settings || can.duplicate || deletable;
   const statusAction = open?.kind === 'status' ? open.action : null;
 
   return (
@@ -242,6 +260,14 @@ export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActions
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
+            {schedulable && (
+              <>
+                <DropdownMenuItem icon={<CalendarClock aria-hidden />} onSelect={() => setOpen({ kind: 'schedule' })}>
+                  {t('schedule.open')}
+                </DropdownMenuItem>
+                {(statusActions.length > 0 || can.settings || can.duplicate) && <DropdownMenuSeparator />}
+              </>
+            )}
             {statusActions.map((action) => (
               <DropdownMenuItem key={action} icon={STATUS_ICONS[action]} onSelect={() => setOpen({ kind: 'status', action })}>
                 {t(`menus.${action}`)}
@@ -271,6 +297,7 @@ export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActions
       )}
 
       {open?.kind === 'publish' && <PublishDialog menuId={menu.id} name={menu.name} suspended={menu.status === 'SUSPENDED'} onClose={close} />}
+      {open?.kind === 'schedule' && <ScheduleDialog menuId={menu.id} timezone={menu.timezone} pending={menu.pendingSchedule} onClose={close} />}
 
       <ConfirmDialog
         open={statusAction !== null}

@@ -241,6 +241,39 @@ export default async function OverviewPage() {
               </section>
 
               {data.recentActivity && <RecentActivity rows={data.recentActivity} t={t} locale={locale} />}
+
+              {data.scheduled.length > 0 && (
+                <section aria-labelledby="scheduled-title" className="flex min-w-0 flex-col gap-3">
+                  <div className="flex flex-col gap-1">
+                    <h2 id="scheduled-title" className="text-md font-semibold text-text">
+                      {t('overview.scheduled.title')}
+                    </h2>
+                    <p className="text-sm text-muted">{t('overview.scheduled.intro')}</p>
+                  </div>
+                  <ul className="divide-y divide-line border-y border-line">
+                    {data.scheduled.map((entry) => (
+                      <li key={`${entry.menuId}:${entry.number}`}>
+                        <Link
+                          href={`/studio/menus/${entry.menuId}/revisions`}
+                          className="flex items-center justify-between gap-4 px-1 py-2.5 transition-colors hover:bg-surface"
+                        >
+                          <span className="flex min-w-0 flex-col">
+                            <span dir="auto" className="truncate text-base font-medium text-text">
+                              {entry.menuName}
+                            </span>
+                            <span dir="auto" className="truncate text-sm text-muted">
+                              {entry.restaurantName} · {t('overview.scheduled.revision', { number: number.format(entry.number) })}
+                            </span>
+                          </span>
+                          <time dateTime={entry.goLiveAt} className="shrink-0 whitespace-nowrap text-sm text-text">
+                            {formatDateTime(entry.goLiveAt, locale)}
+                          </time>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           </>
         )}

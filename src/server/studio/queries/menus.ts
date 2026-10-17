@@ -229,6 +229,8 @@ export const getMenu = defineQuery({
         duplicate: can('menu.duplicate'),
         duplicateElsewhere: can('menu.duplicate') && ctx.actor.isSuperAdmin,
         delete: can('menu.delete'),
+        schedule: can('publish.schedule'),
+        rollback: can('publish.rollback'),
       },
     };
   },
