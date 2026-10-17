@@ -48,6 +48,8 @@ export async function atelierProductIds(): Promise<string[]> {
 }
 
 export interface TemporaryMenu {
+  /** The menu's id, for its Studio pages. */
+  menuId: string;
   /** The slug the menu was created with. */
   slug: string;
   /** The menu's name as guests see it (its restaurant's). */
@@ -98,6 +100,7 @@ export async function createTemporaryMenu({
   if (changed) await publishFixture(prisma, menu.id);
 
   return {
+    menuId: menu.id,
     slug,
     name: restaurant.name,
     restaurantId: restaurant.id,

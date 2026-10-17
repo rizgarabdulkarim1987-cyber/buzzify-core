@@ -106,7 +106,7 @@ test.describe('Studio as an owner @desktop', () => {
       await expect(done).toBeVisible();
       const warnings = page.getByRole('dialog', { name: /^Published as revision \d+$/ });
       if (await warnings.isVisible()) await warnings.getByRole('button', { name: 'Close' }).last().click();
-      await expect(page.getByText(`Published by ${owner.name}`)).toBeVisible();
+      await expect(page.getByText(new RegExp(`^Live: revision \\d+, .+, by ${owner.name}$`))).toBeVisible();
 
       // A Super Admin takes publishing away from ATELIER's owners on its People tab.
       await admin.goto(`/studio/restaurants/${restaurant.id}/people`);

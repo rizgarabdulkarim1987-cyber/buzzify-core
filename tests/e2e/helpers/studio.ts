@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { parse as parseEnv } from 'dotenv';
+import type { BrowserContext } from '@playwright/test';
 import * as OTPAuth from 'otpauth';
 import type { Locale } from '@/lib/locale';
 import { createPrisma } from '@/server/data/prisma';
@@ -344,4 +345,17 @@ export async function bumpRestaurantVersion(id: string): Promise<void> {
   } finally {
     await db.$disconnect();
   }
+}
+
+/**
+ * Hides Next's development tools (its button and issue badge) in a browser context. They exist only under `next dev`,
+ * which the suites run against, and sit in the bottom-left corner: in Arabic and Sorani that is where a side sheet's
+ * buttons end up, and the tools would take their clicks.
+ */
+export async function hideDevTools(context: BrowserContext): Promise<void> {
+  await context.addInitScript(() => {
+    const style = document.createElement('style');
+    style.textContent = 'nextjs-portal { display: none !important; }';
+    document.addEventListener('DOMContentLoaded', () => document.head.append(style));
+  });
 }

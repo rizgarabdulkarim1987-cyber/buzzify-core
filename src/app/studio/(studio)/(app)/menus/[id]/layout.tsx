@@ -13,6 +13,7 @@ import { isOwnerOnly } from '@/studio/nav';
 import { Alert } from '@/studio/ui/Alert';
 import { buttonClasses } from '@/studio/ui/Button';
 import { CopyButton } from '@/studio/ui/CopyButton';
+import { isolated } from '@/studio/ui/isolate';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { RouteTabs } from '@/studio/ui/RouteTabs';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
@@ -69,10 +70,18 @@ export default async function MenuWorkspaceLayout({ children, params }: { childr
             <MenuStatusBadge status={menu.status} t={t} />
             <span className="text-sm">
               {menu.liveRevision
-                ? t('workspace.live', {
-                    number: number.format(menu.liveRevision.number),
-                    date: formatDateTime(menu.liveRevision.wentLiveAt, actor.locale),
-                  })
+                ? menu.liveRevision.publishedBy
+                  ? isolated(
+                      t('workspace.liveBy', {
+                        number: number.format(menu.liveRevision.number),
+                        date: formatDateTime(menu.liveRevision.wentLiveAt, actor.locale),
+                      }),
+                      { name: menu.liveRevision.publishedBy },
+                    )
+                  : t('workspace.live', {
+                      number: number.format(menu.liveRevision.number),
+                      date: formatDateTime(menu.liveRevision.wentLiveAt, actor.locale),
+                    })
                 : t('workspace.notLive')}
             </span>
             <span className="inline-flex items-center gap-1">
@@ -87,6 +96,19 @@ export default async function MenuWorkspaceLayout({ children, params }: { childr
               </a>
               <CopyButton value={menu.publicUrl} />
             </span>
+            {menu.formerSlugs.length > 0 && (
+              <span className="text-sm text-muted">
+                {t('menus.address.former')}{' '}
+                {menu.formerSlugs.map((slug, index) => (
+                  <span key={slug}>
+                    {index > 0 && ', '}
+                    <bdi dir="ltr" className="font-mono">
+                      /{slug}
+                    </bdi>
+                  </span>
+                ))}
+              </span>
+            )}
           </span>
         }
       />

@@ -80,7 +80,7 @@ test.describe('Studio menus @desktop', () => {
     expect(menuId).not.toBe(atelier.id);
     menuIds.push(menuId);
     await expect(page.getByRole('link', { name: restaurantName, exact: true })).toBeVisible();
-    await expect(page.getByText('Not published yet.')).toBeVisible();
+    await expect(page.getByText('Not published yet', { exact: true })).toBeVisible();
     // After a client-side navigation the title follows the page; axe checks it.
     await expect(page).toHaveTitle(new RegExp(name));
     expect(await seriousViolations(page)).toEqual([]);
@@ -91,7 +91,7 @@ test.describe('Studio menus @desktop', () => {
     await expect(page.getByText('Published as revision 1').first()).toBeVisible();
     const warnings = page.getByRole('dialog', { name: 'Published as revision 1' });
     if (await warnings.isVisible()) await warnings.getByRole('button', { name: 'Close' }).last().click();
-    await expect(page.getByText('Revision 1', { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Live: revision 1, /)).toBeVisible();
     const guest = await browser.newPage();
     await guest.goto(`/${slug}/en`);
     await expect(guest.getByTestId('brand')).toHaveText('ATELIER');
