@@ -416,12 +416,12 @@ describe('getRestaurant', () => {
     });
     expect(asAdmin.clientId).toMatch(/^BZ-\d{4,}$/);
     expect(asAdmin.workingHours.sat).toEqual([['10:00', '23:30']]);
-    expect(asAdmin.can).toEqual({ edit: true, status: true, delete: true, invite: true, manage: true, permissions: true, audit: true });
+    expect(asAdmin.can).toEqual({ edit: true, status: true, delete: true, invite: true, manage: true, permissions: true, audit: true, media: true });
 
     const asDesigner = dataOf(await ask(designerOfAtelier, restaurantQueries.getRestaurant, { restaurantId: atelier.id }));
-    expect(asDesigner.can).toEqual({ edit: true, status: false, delete: false, invite: false, manage: false, permissions: false, audit: false });
+    expect(asDesigner.can).toEqual({ edit: true, status: false, delete: false, invite: false, manage: false, permissions: false, audit: false, media: true });
     const asOwner = dataOf(await ask(ownerOfAtelier, restaurantQueries.getRestaurant, { restaurantId: atelier.id }));
-    expect(asOwner.can).toEqual({ edit: false, status: false, delete: false, invite: false, manage: false, permissions: false, audit: false });
+    expect(asOwner.can).toEqual({ edit: false, status: false, delete: false, invite: false, manage: false, permissions: false, audit: false, media: false });
   });
 
   it('keeps the agency notes from the client owner', async () => {
