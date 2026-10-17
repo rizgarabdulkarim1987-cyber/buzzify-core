@@ -46,6 +46,10 @@ export function r2Storage(config: R2Config, client?: S3Like): Storage {
     credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
     // Path-style addressing keeps the bucket in the path, which R2's account endpoint expects.
     forcePathStyle: true,
+    // Checksums only where an operation requires one. The SDK's default would sign the CRC32 of an empty body into each
+    // upload slot, and R2 refuses every real file the browser sends to it.
+    requestChecksumCalculation: 'WHEN_REQUIRED',
+    responseChecksumValidation: 'WHEN_REQUIRED',
   });
   const send = (command: unknown) => (client ?? (s3 as unknown as S3Like)).send(command);
   const Bucket = config.bucket;
