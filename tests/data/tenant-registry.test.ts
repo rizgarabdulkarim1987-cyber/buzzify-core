@@ -6,6 +6,7 @@ import {
   MENU_CONFINED_MODELS,
   MENU_SCOPED_MODELS,
   RESTAURANT_CONFINED_MODELS,
+  RESTAURANT_OR_SHARED_MODELS,
   RESTAURANT_SCOPED_MODELS,
   UNSCOPED_LOOKUP_MODELS,
 } from '@/server/data/tenant-db';
@@ -50,6 +51,13 @@ describe('tenant scoping registry', () => {
     for (const model of CROSS_RESTAURANT_MODELS) expect(confinedByRestaurantId).toContain(model);
   });
 
+  // An optional restaurantId is either a library that a restaurant shares with the platform, or a global row that names
+  // a restaurant only to be found again (the audit log, a staff invitation has none).
+  it('registers every model with an optional restaurantId column', () => {
+    const withOptional = names((body) => /^\s*restaurantId\s+String\?/m.test(body));
+    expect(withOptional).toEqual([...RESTAURANT_OR_SHARED_MODELS, 'AuditLog', 'Invitation'].sort());
+  });
+
   it('confines only models outside the scoped classes, each by a required column it has', () => {
     const scoped = new Set<string>([...MENU_SCOPED_MODELS, ...RESTAURANT_SCOPED_MODELS]);
     const confined = [...Object.entries(MENU_CONFINED_MODELS), ...Object.entries(RESTAURANT_CONFINED_MODELS)];
@@ -69,6 +77,7 @@ describe('tenant scoping registry', () => {
     const all = [
       ...MENU_SCOPED_MODELS,
       ...RESTAURANT_SCOPED_MODELS,
+      ...RESTAURANT_OR_SHARED_MODELS,
       ...UNSCOPED_LOOKUP_MODELS,
       ...CROSS_RESTAURANT_MODELS,
       ...GLOBAL_MODELS,

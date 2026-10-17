@@ -5,6 +5,9 @@ const config: NextConfig = {
   poweredByHeader: false,
   // The end-to-end tests load the dev server through 127.0.0.1 rather than localhost.
   allowedDevOrigins: ['127.0.0.1'],
+  // jsdom (the window DOMPurify sanitizes SVG uploads in) reads its own files at run time, so it stays a Node module
+  // rather than being bundled. sharp is on Next's own list already.
+  serverExternalPackages: ['jsdom'],
   experimental: {
     // Turbopack's production chunker merges chunks smaller than this (unminified bytes; the default is 50,000). With the
     // Studio's routes in the same build, the defaults cut the framework code every page loads first into one more file,

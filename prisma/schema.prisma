@@ -91,6 +91,7 @@ model Restaurant {
   menus       Menu[]
   memberships Membership[]
   invitations Invitation[]
+  mediaAssets MediaAsset[]
 
   @@index([name])
   @@index([city])
@@ -616,4 +617,52 @@ model PlatformSetting {
   updatedAt   DateTime @updatedAt
   /// The person who last saved it. A plain id, not a relation, so removing the person never blocks the setting.
   updatedById String?
+}
+
+/** What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is. */
+enum MediaKind {
+  IMAGE
+  SVG
+  ICON
+}
+
+/**
+ * A file in a media library (spec 11): a restaurant's own, or the shared library when `restaurantId` is null. A
+ * restaurant's client reads its own and the shared assets and writes only its own (`RESTAURANT_OR_SHARED_MODELS`). The
+ * files live in storage under `storageKey`; a copy for another restaurant (a duplicated menu) is a new row pointing at the
+ * same files, so they are deleted only when no row names them.
+ */
+model MediaAsset {
+  id           String      @id @default(cuid())
+  /// Null for the shared library.
+  restaurantId String?
+  kind         MediaKind
+  /// The storage folder the files live in: `r/{restaurantId}/{contentHash}` or `shared/{contentHash}`.
+  storageKey   String
+  /// SHA-256 of the file as uploaded, in hex: the same file uploaded twice to one library is one asset.
+  contentHash  String
+  mime         String
+  /// The size of the upload.
+  bytes        Int
+  /// Every file written for it: the original and all its variants.
+  storedBytes  Int
+  width        Int?
+  height       Int?
+  /// `{ original, avif?: { "320": key, ... }, webp?: { ... }, favicon?: { "32": key, "180": key, "512": key } }`.
+  variants     Json        @default("{}")
+  /// A tiny blurred WebP as a data URI; empty for icons.
+  placeholder  String      @default("")
+  /// `{ en?, ar?, ckb? }`.
+  alt          Json        @default("{}")
+  folder       String      @default("")
+  tags         String[]
+  /// A plain id, not a relation, so removing the person never removes the file.
+  uploadedById String?
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, contentHash])
+  @@index([restaurantId, folder])
+  @@index([storageKey])
 }
