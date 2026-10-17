@@ -19,6 +19,13 @@ const NAMES = [
   'STUDIO_HOST',
   'PUBLIC_MENU_ORIGIN',
   'PUBLIC_ROOT_REDIRECT',
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET',
+  'MEDIA_PUBLIC_URL',
+  'MEDIA_LOCAL_DIR',
+  'CRON_SECRET',
   'DEV_SEED_PASSWORD',
 ];
 
@@ -31,6 +38,12 @@ const complete = {
   PUBLIC_MENU_HOST: 'menu.buzzify.me',
   STUDIO_HOST: 'studio.buzzify.me',
   PUBLIC_MENU_ORIGIN: 'https://menu.buzzify.me',
+  R2_ACCOUNT_ID: 'hunter2-account',
+  R2_ACCESS_KEY_ID: 'hunter2-access-key',
+  R2_SECRET_ACCESS_KEY: 'hunter2-secret-access-key',
+  R2_BUCKET: 'buzzify-media',
+  MEDIA_PUBLIC_URL: 'https://media.buzzify.me',
+  CRON_SECRET: 'hunter2-cron-secret-made-up-and-long-enough',
 };
 
 /** Runs the script with the checked variables set to exactly `env`: whatever this machine has set is cleared first. */

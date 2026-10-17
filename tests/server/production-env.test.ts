@@ -11,6 +11,12 @@ const complete = {
   PUBLIC_MENU_HOST: 'menu.buzzify.me',
   STUDIO_HOST: 'studio.buzzify.me',
   PUBLIC_MENU_ORIGIN: 'https://menu.buzzify.me',
+  R2_ACCOUNT_ID: 'made-up-account',
+  R2_ACCESS_KEY_ID: 'made-up-access-key',
+  R2_SECRET_ACCESS_KEY: 'made-up-secret-access-key',
+  R2_BUCKET: 'buzzify-media',
+  MEDIA_PUBLIC_URL: 'https://media.buzzify.me',
+  CRON_SECRET: 'made-up-cron-secret-that-is-32-chars-or-more',
 };
 
 /** The problems found in `complete` with some variables replaced (`undefined` removes one). Empty when it is fine. */
@@ -47,6 +53,12 @@ describe('checkProductionEnv', () => {
       'PUBLIC_MENU_HOST',
       'STUDIO_HOST',
       'PUBLIC_MENU_ORIGIN',
+      'R2_ACCOUNT_ID',
+      'R2_ACCESS_KEY_ID',
+      'R2_SECRET_ACCESS_KEY',
+      'R2_BUCKET',
+      'MEDIA_PUBLIC_URL',
+      'CRON_SECRET',
     ]);
   });
 
@@ -107,6 +119,15 @@ describe('checkProductionEnv', () => {
     expect(named(problemsWith({ DIRECT_DATABASE_URL: complete.DATABASE_URL }))).toEqual(['DIRECT_DATABASE_URL']);
   });
 
+  it('needs the media storage and the cron secret', () => {
+    expect(named(problemsWith({ R2_BUCKET: undefined, CRON_SECRET: undefined }))).toEqual(['R2_BUCKET', 'CRON_SECRET']);
+    expect(named(problemsWith({ MEDIA_PUBLIC_URL: 'http://media.buzzify.me' }))).toEqual(['MEDIA_PUBLIC_URL']);
+    expect(named(problemsWith({ MEDIA_PUBLIC_URL: '/api/dev-media' }))).toEqual(['MEDIA_PUBLIC_URL']);
+    expect(named(problemsWith({ CRON_SECRET: 'short' }))).toEqual(['CRON_SECRET']);
+    // The development folder is never production storage.
+    expect(named(problemsWith({ MEDIA_LOCAL_DIR: '.data/media' }))).toEqual(['MEDIA_LOCAL_DIR']);
+  });
+
   it('reports malformed values of the optional variables too', () => {
     expect(named(problemsWith({ EMAIL_FROM: 'Buzzify Studio' }))).toEqual(['EMAIL_FROM']);
     expect(named(problemsWith({ PUBLIC_ROOT_REDIRECT: 'javascript:alert(1)' }))).toEqual(['PUBLIC_ROOT_REDIRECT']);
@@ -134,6 +155,13 @@ describe('checkProductionEnv', () => {
       STUDIO_HOST: 'studio.buzzify.me/hunter2',
       PUBLIC_MENU_ORIGIN: 'hunter2-origin',
       PUBLIC_ROOT_REDIRECT: 'hunter2-redirect',
+      R2_ACCOUNT_ID: 'hunter2-account',
+      R2_ACCESS_KEY_ID: '',
+      R2_SECRET_ACCESS_KEY: 'hunter2-r2-secret',
+      R2_BUCKET: 'hunter2-bucket',
+      MEDIA_PUBLIC_URL: 'http://hunter2-media.example.com',
+      MEDIA_LOCAL_DIR: 'hunter2-dir',
+      CRON_SECRET: 'hunter2-short',
       DEV_SEED_PASSWORD: 'hunter2-seed-password',
     };
     const result = checkProductionEnv(wrong);
@@ -151,6 +179,10 @@ describe('checkProductionEnv', () => {
       'STUDIO_HOST',
       'PUBLIC_MENU_ORIGIN',
       'PUBLIC_ROOT_REDIRECT',
+      'R2_ACCESS_KEY_ID',
+      'MEDIA_PUBLIC_URL',
+      'MEDIA_LOCAL_DIR',
+      'CRON_SECRET',
       'DEV_SEED_PASSWORD',
     ]);
   });

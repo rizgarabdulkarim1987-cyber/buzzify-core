@@ -189,6 +189,90 @@ export function parseAuthEnv(source: Source): AuthEnv {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Media storage
+// ---------------------------------------------------------------------------------------------------------------------
+
+const R2_VARIABLES = ['R2_ACCOUNT_ID', 'R2_ACCESS_KEY_ID', 'R2_SECRET_ACCESS_KEY', 'R2_BUCKET'] as const;
+
+const optionalText = z.preprocess(
+  unset,
+  z
+    .string()
+    .trim()
+    .nullish()
+    .transform((value) => value ?? null),
+);
+
+const storageSchema = z.object({
+  R2_ACCOUNT_ID: optionalText,
+  R2_ACCESS_KEY_ID: optionalText,
+  R2_SECRET_ACCESS_KEY: optionalText,
+  R2_BUCKET: optionalText,
+  /** Where stored files are served from: the bucket's custom domain, or the development route. */
+  MEDIA_PUBLIC_URL: optionalText,
+  /** The development folder files are kept in. */
+  MEDIA_LOCAL_DIR: optionalText,
+});
+
+export type StorageEnv =
+  | { kind: 'r2'; accountId: string; accessKeyId: string; secretAccessKey: string; bucket: string; publicUrl: string }
+  | { kind: 'folder'; dir: string; publicUrl: string };
+
+const DEVELOPMENT_MEDIA_URL = '/api/dev-media';
+const DEVELOPMENT_MEDIA_DIR = '.data/media';
+
+/**
+ * Reads where media is stored. Cloudflare R2 when all four of its variables are set; none of them means the
+ * development folder, which production refuses; some but not all is a mistake, and the missing ones are named.
+ */
+export function parseStorageEnv(source: Source): StorageEnv {
+  const parsed = storageSchema.parse(source);
+  const set = R2_VARIABLES.filter((name) => parsed[name] !== null);
+  const publicUrl = parsed.MEDIA_PUBLIC_URL?.replace(/\/+$/, '');
+  if (set.length === R2_VARIABLES.length) {
+    if (!publicUrl) throw new Error('MEDIA_PUBLIC_URL must be set to the address R2 files are served on, such as https://media.buzzify.me.');
+    return {
+      kind: 'r2',
+      accountId: parsed.R2_ACCOUNT_ID!,
+      accessKeyId: parsed.R2_ACCESS_KEY_ID!,
+      secretAccessKey: parsed.R2_SECRET_ACCESS_KEY!,
+      bucket: parsed.R2_BUCKET!,
+      publicUrl,
+    };
+  }
+  if (set.length > 0) {
+    const missing = R2_VARIABLES.filter((name) => parsed[name] === null);
+    throw new Error(`R2 is only partly configured: set ${missing.join(', ')} as well, or unset the others.`);
+  }
+  if (source.NODE_ENV === 'production') {
+    throw new Error('Media storage needs R2 in production: set R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY and R2_BUCKET.');
+  }
+  return { kind: 'folder', dir: parsed.MEDIA_LOCAL_DIR ?? DEVELOPMENT_MEDIA_DIR, publicUrl: publicUrl ?? DEVELOPMENT_MEDIA_URL };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Scheduled publishing
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Vercel sends it as a bearer token with every cron request; anyone without it is refused. */
+const MIN_CRON_SECRET_LENGTH = 32;
+
+export interface CronEnv {
+  /** `null` when none is configured: the cron route then refuses every call. */
+  secret: string | null;
+}
+
+export function parseCronEnv(source: Source): CronEnv {
+  const value = unset(source.CRON_SECRET);
+  if (typeof value !== 'string') return { secret: null };
+  const secret = value.trim();
+  if (secret.length < MIN_CRON_SECRET_LENGTH) {
+    throw new Error(`CRON_SECRET must be at least ${MIN_CRON_SECRET_LENGTH} characters (openssl rand -base64 32).`);
+  }
+  return { secret };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // The production check
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -206,6 +290,13 @@ const CHECKED_VARIABLES = [
   'STUDIO_HOST',
   'PUBLIC_MENU_ORIGIN',
   'PUBLIC_ROOT_REDIRECT',
+  'R2_ACCOUNT_ID',
+  'R2_ACCESS_KEY_ID',
+  'R2_SECRET_ACCESS_KEY',
+  'R2_BUCKET',
+  'MEDIA_PUBLIC_URL',
+  'MEDIA_LOCAL_DIR',
+  'CRON_SECRET',
   'DEV_SEED_PASSWORD',
 ] as const;
 
@@ -287,6 +378,24 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   if (!publicOrigin) report('PUBLIC_MENU_ORIGIN', 'is not set (the address public menus are served on, such as https://menu.buzzify.me)');
   else if (!isHttps(publicOrigin)) report('PUBLIC_MENU_ORIGIN', 'must start with https://');
 
+  const r2 = [
+    ['R2_ACCOUNT_ID', 'the account ID shown on the R2 page of Cloudflare'],
+    ['R2_ACCESS_KEY_ID', 'the access key of an R2 API token limited to the bucket'],
+    ['R2_SECRET_ACCESS_KEY', 'the secret of that R2 API token'],
+    ['R2_BUCKET', 'the name of the R2 bucket media is stored in'],
+  ] as const;
+  for (const [name, what] of r2) if (!text(name)) report(name, `is not set (${what})`);
+
+  const mediaUrl = text('MEDIA_PUBLIC_URL');
+  if (!mediaUrl) report('MEDIA_PUBLIC_URL', 'is not set (the address the bucket is served on, such as https://media.buzzify.me)');
+  else if (!isHttps(mediaUrl)) report('MEDIA_PUBLIC_URL', 'must start with https://');
+
+  if (text('MEDIA_LOCAL_DIR')) report('MEDIA_LOCAL_DIR', 'must not be set in production; media is stored in R2');
+
+  const cronSecret = text('CRON_SECRET');
+  if (!cronSecret) report('CRON_SECRET', 'is not set (generate one with: openssl rand -base64 32)');
+  else if (cronSecret.length < MIN_CRON_SECRET_LENGTH) report('CRON_SECRET', `must be at least ${MIN_CRON_SECRET_LENGTH} characters`);
+
   if (text('DEV_SEED_PASSWORD')) {
     report('DEV_SEED_PASSWORD', 'must not be set in production; it creates users whose password is published in .env.example');
   }
@@ -331,3 +440,9 @@ export const mailEnv = lazy(parseMailEnv);
 
 /** The sign-in secret and URL. */
 export const authEnv = lazy(parseAuthEnv);
+
+/** Where media is stored: R2, or the development folder. */
+export const storageEnv = lazy(parseStorageEnv);
+
+/** The secret the scheduled-publishing cron sends. */
+export const cronEnv = lazy(parseCronEnv);
