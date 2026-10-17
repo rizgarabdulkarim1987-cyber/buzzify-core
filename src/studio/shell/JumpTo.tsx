@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from '
 import { jump } from '@/app/studio/_actions/search';
 import { useT } from '@/studio/i18n';
 import { CommandPalette, type CommandGroup } from '@/studio/ui/CommandPalette';
+import { isJumpShortcut } from './jump-shortcut';
 
 /** The most Jump to asks the server to match (the server refuses more). */
 const MAX_TYPED = 80;
@@ -36,7 +37,7 @@ export function JumpTo() {
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+      if (isJumpShortcut(event)) {
         // The browser's own Ctrl+K focuses its search field.
         event.preventDefault();
         if (open) setOpen(false);
