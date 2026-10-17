@@ -1,5 +1,18 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
+import { stageOf } from '@/lib/stage';
+import { ATELIER } from '../../prisma/seed/atelier';
+
+/**
+ * The ATELIER dishes with a 3D model, by English name, from the seed's own data (the media `seedMenu` writes for each).
+ * Which one the hero shows depends on the daypart, so a test of the hero reads this rather than a list kept by hand.
+ */
+const STAGED_DISHES = new Set(
+  ATELIER.products
+    .filter((product) => stageOf([{ kind: 'art', art: product.art, tone: product.tone, ...(product.model ? { model: product.model } : {}) }]))
+    .map((product) => product.name.en),
+);
+const ALL_DISHES = new Set(ATELIER.products.map((product) => product.name.en));
 
 const PLAIN = 'bun-bottom,lettuce,tomato,patty,pickles,bun-top';
 const WITH_CHEESE = 'bun-bottom,lettuce,tomato,patty,cheese,pickles,bun-top';
@@ -29,10 +42,11 @@ test.describe('3D stage', () => {
 
   test('the hero keeps its illustration until the live stage is ready, when its dish has a stage', async ({ page }) => {
     await page.goto('/atelier/en?stage=on');
-    // The signature changes with the daypart. Burgers and coffee cups have a stage; pastries do not yet.
-    const title = (await page.locator('#signature-title').textContent()) ?? '';
+    // The signature changes with the daypart, so whether it has a stage comes from the seed's data, at any hour.
+    const title = ((await page.locator('#signature-title').textContent()) ?? '').trim();
+    expect(ALL_DISHES, `the signature "${title}" is one of ATELIER's dishes`).toContain(title);
     const hero = page.getByTestId('hero-stage');
-    if (/Burger|White|Espresso|Cappuccino|Cortado|Matcha|Earl Grey/.test(title)) {
+    if (STAGED_DISHES.has(title)) {
       await expect(hero).toHaveAttribute('data-stage-state', 'ready', READY);
       await expect(hero.locator('canvas')).toHaveCount(1);
       await expect(hero).toHaveAttribute('role', 'img');
