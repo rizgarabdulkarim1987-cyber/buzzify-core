@@ -7,6 +7,7 @@ const prisma = testPrisma();
 
 let withPublicMenu: typeof import('@/server/public-page').withPublicMenu;
 let resolvePublicRoute: typeof import('@/server/public-page').resolvePublicRoute;
+let backToMenuHref: typeof import('@/server/public-page').backToMenuHref;
 let MenuUnavailable: typeof import('@/ui/MenuUnavailable').MenuUnavailable;
 
 /** What Next's `notFound()` and `permanentRedirect()` throw, read through the digest the framework itself reads. */
@@ -25,6 +26,11 @@ beforeAll(async () => {
   await resetTestData(prisma);
 
   await createMenuFixture(prisma, 'live-cafe');
+
+  // Live, in English only.
+  const solo = await createMenuFixture(prisma, 'solo-cafe', { publish: false });
+  await prisma.menu.update({ where: { id: solo.menu.id }, data: { locales: ['en'] } });
+  await publishFixture(prisma, solo.menu.id);
 
   const renamed = await createMenuFixture(prisma, 'old-cafe');
   await prisma.menu.update({ where: { id: renamed.menu.id }, data: { slug: 'new-cafe' } });
@@ -45,7 +51,7 @@ beforeAll(async () => {
   await publishFixture(prisma, english.menu.id);
   await prisma.menu.update({ where: { id: english.menu.id }, data: { status: 'SUSPENDED' } });
 
-  ({ withPublicMenu, resolvePublicRoute } = await import('@/server/public-page'));
+  ({ withPublicMenu, resolvePublicRoute, backToMenuHref } = await import('@/server/public-page'));
   ({ MenuUnavailable } = await import('@/ui/MenuUnavailable'));
 });
 
@@ -140,5 +146,26 @@ describe('withPublicMenu', () => {
         throw new Error('boom');
       }),
     ).rejects.toThrow('boom');
+  });
+});
+
+describe('backToMenuHref', () => {
+  it('leads to a live menu’s home in the language of the page', async () => {
+    expect(await backToMenuHref('/live-cafe/ar/p/does-not-exist')).toBe('/live-cafe/ar');
+    expect(await backToMenuHref('/live-cafe/ckb/t/999')).toBe('/live-cafe/ckb');
+    expect(await backToMenuHref('/solo-cafe/en')).toBe('/solo-cafe/en');
+  });
+
+  it('leads to the menu’s entry address when the menu did not render in that language', async () => {
+    expect(await backToMenuHref('/live-cafe/xx')).toBe('/live-cafe');
+    expect(await backToMenuHref('/solo-cafe/ckb/cart')).toBe('/solo-cafe');
+    expect(await backToMenuHref('/paused-cafe/en')).toBe('/paused-cafe');
+    expect(await backToMenuHref('/nope/en')).toBe('/nope');
+  });
+
+  it('leads to / when the path holds no usable slug, or is unknown', async () => {
+    for (const path of [null, '', '/', '/Live-Cafe/en', '/%2Fevil.com/en', '/-x/en', '//evil.com/en']) {
+      expect(await backToMenuHref(path), String(path)).toBe('/');
+    }
   });
 });

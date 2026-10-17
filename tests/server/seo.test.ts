@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { menuAlternates } from '@/server/seo';
+import { menuAlternates, menuCanonical } from '@/server/seo';
 
 describe('menuAlternates', () => {
   const tenant = { slug: 'atelier', locales: ['en', 'ar', 'ckb'] as const };
@@ -31,5 +31,13 @@ describe('menuAlternates', () => {
 
   it('only lists the languages the menu offers', () => {
     expect(Object.keys(menuAlternates('https://x.me', { slug: 'cafe', locales: ['ar'] }, 'ar').languages)).toEqual(['ar']);
+  });
+});
+
+describe('menuCanonical', () => {
+  it('names the menu’s home in the language, and no translations', () => {
+    expect(menuCanonical('https://menu.buzzify.me', { slug: 'atelier' }, 'ckb')).toEqual({
+      canonical: 'https://menu.buzzify.me/atelier/ckb',
+    });
   });
 });

@@ -61,6 +61,23 @@ export async function withPublicMenu(
   }
 }
 
+/** A path segment that could be a menu's slug (the same test the 404 page's link always made). */
+const SLUG_SEGMENT = /^[a-z0-9][a-z0-9-]*$/;
+
+/**
+ * Where the 404 page's "Back to the menu" leads, from the path the visitor asked for (`REQUEST_PATH_HEADER`, or null
+ * when the proxy did not see the request). Inside a live menu: its home in the visitor's language. When the menu did
+ * not render (a language it lacks, an unknown language, a paused menu, or no such menu): its entry address `/{slug}`,
+ * which picks a language the menu has (or answers 404 again). With no usable slug: `/`. Only these three shapes come
+ * out, whatever the path holds.
+ */
+export async function backToMenuHref(pathname: string | null): Promise<string> {
+  const [, tenant = '', locale = ''] = (pathname ?? '').split('/');
+  if (!SLUG_SEGMENT.test(tenant)) return '/';
+  const resolved = await resolvePublicRoute({ tenant, locale });
+  return resolved.kind === 'live' ? `/${resolved.route.tenant.slug}/${resolved.route.locale}` : `/${tenant}`;
+}
+
 /** What a page's `searchParams` holds. */
 export type SearchParams = Record<string, string | string[] | undefined>;
 

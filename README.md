@@ -230,8 +230,16 @@ What keeps the menu's first load small, and the tests that hold it there:
   components.
 - The page carries search text in its own language only; the other languages load from
   `POST /api/[tenant]/search-index` the first time the search box is used.
+- The 404 page (`src/app/[tenant]/[locale]/not-found.tsx`) has no client code: Next renders it with every menu page,
+  so anything it imports is in every page's first scripts. Its link back is a plain anchor whose address the server
+  works out from the path the proxy passes on.
+- Only the menu's home and product pages list their translations (`hreflang`); the table's entry page, the cart and
+  explore name just the canonical, which keeps the table's page inside the first round trip.
+- `next.config.ts` merges small chunks (`experimental.turbopackChunking.minChunkSize`): with the Studio's routes in
+  the same build, the default split the framework into one more file and cost the menu 150 ms of LCP
+  (`docs/perf/baseline-2026-10-17-studio-core-2a.md`, "After the fix").
 - `npm run perf` reports initial script (requested before the largest paint) separately from script loaded
-  afterwards, and the verdicts for both goals.
+  afterwards, the verdicts for both goals, and whether the HTML document fits in the first round trip (14,600 bytes).
 
 ### Measured cost of the 3D stage
 

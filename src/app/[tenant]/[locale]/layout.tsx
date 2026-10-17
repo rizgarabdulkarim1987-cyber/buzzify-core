@@ -5,7 +5,7 @@ import { fontVariablesFor } from '@/app/fonts';
 import { direction, isLocale } from '@/lib/locale';
 import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
-import { menuAlternates } from '@/server/seo';
+import { menuCanonical } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss } from '@/ui/brand';
 
@@ -25,7 +25,8 @@ export async function generateMetadata({
     title: { default: seo?.title || tenant.name, template: `%s | ${tenant.name}` },
     ...(seo?.description ? { description: seo.description } : {}),
     icons: { icon: iconFor(tenant.brand) },
-    alternates: menuAlternates(hostEnv().publicOrigin, tenant, locale),
+    // Every page canonicalizes to the menu's home; the home and product pages add their translations themselves.
+    alternates: menuCanonical(hostEnv().publicOrigin, tenant, locale),
   };
 }
 

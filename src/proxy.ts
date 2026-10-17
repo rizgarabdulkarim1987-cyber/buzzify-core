@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { hostEnv } from '@/server/env';
 import { routeHost } from '@/server/http/hosts';
+import { REQUEST_PATH_HEADER } from '@/server/http/request-path';
 
 /**
  * Host routing for the one deployment that serves public menus and the Studio (`routeHost` has the rules). It runs
  * before every page and API request, so it reads only the request and the cached environment: no database, no
- * network.
+ * network. A request it lets through carries its path in `REQUEST_PATH_HEADER`, for the 404 page's link back.
  */
 export function proxy(request: NextRequest) {
   const { publicHost, studioHost, rootRedirect } = hostEnv();
@@ -19,8 +20,12 @@ export function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL(decision.to, request.url));
     case 'notFound':
       return new Response('Not found', { status: 404, headers: { 'content-type': 'text/plain' } });
-    case 'next':
-      return NextResponse.next();
+    case 'next': {
+      // `set`, not `append`: whatever the browser sent under this name is replaced.
+      const headers = new Headers(request.headers);
+      headers.set(REQUEST_PATH_HEADER, request.nextUrl.pathname);
+      return NextResponse.next({ request: { headers } });
+    }
   }
 }
 

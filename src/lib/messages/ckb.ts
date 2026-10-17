@@ -8,7 +8,6 @@ const ckb: Messages = {
   'menu.noResults': 'هیچ شتێک لەگەڵ «{query}» ناگونجێت. وشەیەکی تر تاقی بکەرەوە.',
   'menu.clearSearch': 'سڕینەوەی گەڕان',
   'menu.categories': 'بەشەکانی مینیوو',
-  'menu.unavailable': 'ئەم مینیوویە بۆ ماوەیەکی کاتی بەردەست نییە.',
   'signature.BREAKFAST': 'هەڵبژاردەی ئەم بەیانییە',
   'signature.LUNCH': 'هەڵبژاردەی ئەمڕۆ',
   'signature.DINNER': 'هەڵبژاردەی ئەمشەو',

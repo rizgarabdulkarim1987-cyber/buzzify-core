@@ -137,13 +137,28 @@ test.describe('search engines', () => {
     await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
   });
 
-  test('a product page names itself as canonical', async ({ page }) => {
+  test('a product page names itself as canonical, and its translations', async ({ page }) => {
     await page.goto('/atelier/en/p/atelier-burger');
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href',
       'http://127.0.0.1:3100/atelier/en/p/atelier-burger',
     );
+    await expect(page.locator('link[rel="alternate"][hreflang="ckb"]')).toHaveAttribute(
+      'href',
+      'http://127.0.0.1:3100/atelier/ckb/p/atelier-burger',
+    );
   });
+
+  // The table's page is what a diner's phone opens from the QR code: every byte of it counts (it has to arrive in the
+  // first round trip), so it and the other inner pages name the menu's home as canonical and list no translations.
+  for (const path of ['/atelier/en/t/04', '/atelier/en/cart', '/atelier/en/explore']) {
+    test(`${path} names the menu’s home as canonical, without translations`, async ({ page }) => {
+      await page.goto(path);
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:3100/atelier/en');
+      await expect(page.locator('link[rel="alternate"]')).toHaveCount(0);
+      await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+    });
+  }
 });
 
 test.describe('the 404 page', () => {

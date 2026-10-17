@@ -52,9 +52,19 @@ for (const request of requests) {
 }
 const SCRIPT_GOAL_KB = 120;
 
+// The page's HTML, as transferred (headers included). A new connection delivers about 14,600 bytes (10 segments of
+// 1,460) in its first round trip; a document past that costs a second one, 150 ms on this profile, before anything
+// paints. The table's entry page (/t/NN) sits closest to the line.
+const documentBytes: number = requests.find((request) => request.resourceType === 'Document')?.transferSize ?? 0;
+const FIRST_ROUND_TRIP_BYTES = 14_600;
+
 const date = new Date().toISOString().slice(0, 10);
 const verdict = lcp <= 2500 ? 'met' : 'not met';
 const scriptVerdict = initialScriptBytes / 1024 <= SCRIPT_GOAL_KB ? 'met' : 'not met';
+const documentVerdict =
+  documentBytes <= FIRST_ROUND_TRIP_BYTES
+    ? `fits, ${FIRST_ROUND_TRIP_BYTES - documentBytes} bytes to spare`
+    : `does not fit, ${documentBytes - FIRST_ROUND_TRIP_BYTES} bytes over`;
 const report = `# Performance baseline ${date}${label ? ` (${label})` : ''}
 
 Measured with Lighthouse ${lhr.lighthouseVersion} against \`${url}\` using the default mobile profile
@@ -70,11 +80,14 @@ Measured with Lighthouse ${lhr.lighthouseVersion} against \`${url}\` using the d
 | Initial script transfer | ${kb(initialScriptBytes)} |
 | All script transfer (including loaded later) | ${kb(script?.transferSize)} (${script?.requestCount ?? 0} requests) |
 | Font transfer | ${kb(font?.transferSize)} |
+| HTML document transfer | ${documentBytes.toLocaleString('en-US')} bytes |
 | Total transfer size | ${kb(total?.transferSize)} |
 
 **LCP target (under 2.5 s): ${verdict}.**
 
 **Initial script target (${SCRIPT_GOAL_KB} KB): ${scriptVerdict}.**
+
+**HTML document in the first round trip (${FIRST_ROUND_TRIP_BYTES.toLocaleString('en-US')} bytes): ${documentVerdict}.**
 
 A single run can land either side of a threshold; compare the median of several runs before calling it.
 
