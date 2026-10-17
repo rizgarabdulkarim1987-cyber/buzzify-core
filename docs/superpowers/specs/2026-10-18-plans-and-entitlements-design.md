@@ -14,9 +14,11 @@ backgrounds to be uploaded, motion graphic, 3D model, style, control on everythi
 
 This project builds the machinery for that, and gates the features that exist today:
 
-- three **plans** (Basic, Pro, Premium) whose contents a Super Admin can change from the Studio;
-- a restaurant's **plan**, set by a Super Admin, with optional **extras** for that one restaurant (a feature switched
-  on or off, a limit raised or lowered);
+- three **plans** (Basic, Pro, Premium) whose contents the platform owner can change from the Studio;
+- a restaurant's **plan**, set by the platform owner, with optional **extras** for that one restaurant (a feature
+  switched on or off, a limit raised or lowered);
+- one **platform owner**: the user, the only person who sells. No one else (no other Super Admin, designer or staff
+  member) can change a plan or a restaurant's plan (section 2.1);
 - one **entitlement check** that every current and future feature asks: "may this restaurant use feature X?";
 - **locked features shown with an upgrade hint** in the Studio, never an error;
 - a **guest menu that respects the plan**: a feature the plan does not include never shows to guests, and a downgrade
@@ -35,21 +37,38 @@ roles, the client's policy, `effectivePermissions`; checked by `defineAction` an
 |---|---|---|
 | About | a person in a restaurant | the restaurant |
 | Decided by | role defaults and the client's policy | the restaurant's plan and its extras |
-| Changed by | Super Admin on the People tab | Super Admin on the new Plan tab |
+| Changed by | Super Admin on the People tab | the platform owner only, on the new Plan tab |
 | Refusal | `FORBIDDEN` (the control is hidden) | `UPGRADE_REQUIRED` (the control shows, locked, with a hint) |
 | Applies to guests | no | yes |
 
 A Studio action runs only when both hold. The permission is checked first, so someone who may not use a tool never
-sees an upgrade hint for it. Entitlements are about the restaurant, so they apply to Super Admins too: a Super Admin
-designing a Basic restaurant's menu cannot switch on a Pro feature for it, but their hint offers "Change plan" instead
-of "Contact us", and one click takes them to the Plan tab.
+sees an upgrade hint for it. Entitlements are about the restaurant, so they apply to Super Admins too, the platform
+owner included: designing a Basic restaurant's menu, nobody can switch on a Pro feature for it. The platform owner's
+hint offers "Change plan" instead of the WhatsApp button, and one click takes them to the Plan tab.
+
+### 2.1 The platform owner
+
+The user's words: "I want to sell by myself, I don't want anyone else on my behalf." When asked, they chose: only they
+change plans (no employee, designer or other admin), and the upgrade button reaches their own WhatsApp.
+
+- Exactly one account is the **platform owner**. It is a Super Admin (with two-factor, as every Super Admin).
+- Only the platform owner may: set a restaurant's plan, extras and note; edit the plans (names, features, limits); set
+  the WhatsApp number the upgrade button opens. Every other Super Admin sees all of it, read-only.
+- Who it is: the migration makes the **first Super Admin ever created** the platform owner. On the live site that is
+  the account the user made in step 7 of `docs/deploy/production.md`. On a new database, `npm run studio:create-admin`
+  makes the first Super Admin the owner; the dev seed makes `admin@buzzify.test` the owner.
+- The database holds at most one owner (a unique index on the flag when it is true).
+- Nobody else can take it over through the Studio: no one but the platform owner may deactivate the platform owner,
+  change their email, or take away their Super Admin status.
+- Moving it to another account has no Studio screen. A terminal script (`npm run studio:set-platform-owner`, run like
+  `studio:create-admin`) moves it, for a handover or for recovery if the account is lost.
 
 ## 3. Goals, non-goals, anti-goals
 
 Goals:
 
 - One resolver for entitlements, pure and tested, used by the Studio framework, the guest menu and every later project.
-- Plans whose names, features and limits a Super Admin edits in the Studio without a developer.
+- Plans whose names, features and limits the platform owner edits in the Studio without a developer.
 - Per-restaurant extras, so a deal ("Basic, plus the 3D dishes") needs no new plan.
 - Locked features visible in the Studio with a clear upgrade hint in English, Arabic and Sorani.
 - Downgrades that lose nothing: stored choices stay, guests see a fallback at once, and upgrading again restores them.
@@ -103,7 +122,7 @@ the signature dish (drawn in 2D without `immersive.stage`). Section 13 says why 
 
 ### 4.2 Keys reserved for later projects
 
-Each later project asks for its key; the plan shown is where it starts, and the Super Admin can move it. Until a
+Each later project asks for its key; the plan shown is where it starts, and the platform owner can move it. Until a
 feature is built its switch does nothing.
 
 | Project | Key | Feature | Starts in |
@@ -133,7 +152,7 @@ A later project may add keys of its own; these are the starting list, not a ceil
 ### 4.3 Plan names
 
 English Basic, Pro, Premium; Arabic الأساسية، الاحترافية، المميزة; Sorani to be written with the other Sorani
-strings. The Super Admin can rename each plan in each language. The internal keys (`BASIC`, `PRO`, `PREMIUM`) never
+strings. The platform owner can rename each plan in each language. The internal keys (`BASIC`, `PRO`, `PREMIUM`) never
 change.
 
 ## 5. Data
@@ -142,13 +161,14 @@ change.
 - `Restaurant.plan PlanTier @default(BASIC)`.
 - `Restaurant.planExtras Json @default("{}")`: `{ features?: { [key]: boolean }, limits?: { [key]: number | null } }`,
   the changes from the plan for this one restaurant. A key absent means "as the plan says".
-- `Restaurant.planNote String @default("")`: the Super Admin's note (what was agreed, paid until when). Only Super
-  Admins see it.
+- `Restaurant.planNote String @default("")`: the platform owner's note (what was agreed, paid until when). Only Super
+  Admins see it; only the platform owner changes it.
+- `User.isPlatformOwner Boolean @default(false)`, true on at most one account (section 2.1).
 - Platform setting `plans` (a row in `PlatformSetting`, read with the other settings): for each tier, its names by
   language, `features: { [key]: boolean }` and `limits: { [key]: number | null }`. A key it does not hold takes the
   default from the code catalog (section 4), so a feature that ships later starts where section 4.2 says.
-- Platform setting `upgradeContact`: a WhatsApp number and an email address, both optional. The upgrade hint offers
-  whichever is set.
+- Platform setting `upgradeWhatsApp`: the platform owner's own WhatsApp number, which the upgrade button opens. Until
+  it is set, the hint shows its text without the button.
 - The migration sets **every existing restaurant to Premium**, so nothing any guest sees today changes. New
   restaurants get the plan chosen when they are created (Basic is preselected).
 - Stored JSON is untrusted, as `parsePolicy` treats the permission policy: unknown keys are dropped, malformed parts
@@ -184,8 +204,11 @@ Nothing else decides what a restaurant has.
 - **A locked choice may be kept, never newly made.** After a downgrade, saving the Brand tab with the drum rail it
   already had (to change a colour, say) is accepted; choosing drum anew is refused. The comparison is with what is
   stored.
-- A new permission key, `plan.manage`, never grantable, so only Super Admins hold it: it sets a restaurant's plan,
-  extras and note. Editing the plans themselves uses the existing `platform.settings`.
+- A new permission key, `plans.manage`, held by the platform owner and no one else: never grantable by a client
+  policy, and left out of what `effectivePermissions` gives every other Super Admin. It covers a restaurant's plan,
+  extras and note, the plans themselves and the WhatsApp number.
+- The actor carries `isPlatformOwner`. The People actions refuse, for anyone but the platform owner, to deactivate the
+  platform owner, change their email or take away their Super Admin status.
 - New menus start with the best rail the plan allows (grains, else deck, else plain), so a Basic restaurant never
   opens a brand kit full of locked choices it did not make.
 - Copies follow the same two rules:
@@ -203,24 +226,24 @@ Nothing else decides what a restaurant has.
 
 Everyone who can open the restaurant sees it. It shows the plan's name; what is included, grouped by area, each
 feature with a tick or a lock and "In Pro" or "In Premium"; usage against the limits ("Menus: 1 of 1", "Media: 320 MB
-of 500 MB"); and the upgrade hint of 8.3 for whoever is looking (an owner gets the WhatsApp button, with a ready
-message naming the restaurant and the plan, and the email button).
+of 500 MB"); and the upgrade hint of 8.3.
 
-A Super Admin also gets the controls: the plan (three choices), each feature's extra ("As the plan", "On", "Off"),
+The platform owner also gets the controls: the plan (three choices), each feature's extra ("As the plan", "On", "Off"),
 each limit's extra (a number, no limit, or as the plan), and the note. Before a save that takes something away, a
 confirmation lists what guests will stop seeing and which limits the restaurant will be over. Every save is in the
 audit log with what changed.
 
-### 8.2 Settings: Plans (Super Admin)
+### 8.2 Settings: Plans (the platform owner; other Super Admins read it)
 
 The plans side by side: each plan's name in three languages; every feature as a switch per plan, the reserved ones
-under "Coming later" marked "not built yet"; every limit as a number or no limit; the upgrade contact. Saving changes
+under "Coming later" marked "not built yet"; every limit as a number or no limit; the WhatsApp number. Saving changes
 every restaurant on those plans at once; it is in the audit log.
 
 ### 8.3 Locks where the features are
 
-One upgrade hint component everywhere: a lock, "Part of Pro", and the buttons of 8.1 (or "Change plan" for a Super
-Admin; "Ask a Super Admin to change this restaurant's plan" for a designer).
+One upgrade hint component everywhere: a lock, "Part of Pro", and a WhatsApp button that opens a chat with the
+platform owner's number, with a ready message naming the restaurant, the feature and the plan. Owners, designers and
+other Super Admins all get that button; the platform owner gets "Change plan" instead.
 
 - **Brand:** locked font pairs, rail styles and the expressive level show with a lock and cannot be chosen. A stored
   choice the plan no longer includes is marked "Guests see Plain until the plan includes Drum".
@@ -283,7 +306,10 @@ and the user moves any of them on the Plan tab when they want to.
 - The guest menu: fallbacks, the Explore redirect, the stage off, smart selling off, the cache expired on a plan
   change.
 - The migration: existing restaurants on Premium.
-- End to end: a Super Admin moves ATELIER to Basic; guests see the plain rail and no Explore, `/explore` redirects,
+- The platform owner: only they hold `plans.manage`; another Super Admin is refused every plan action and cannot
+  deactivate the owner, change their email or remove their Super Admin status; the migration and `create-admin` pick
+  the first Super Admin; at most one owner.
+- End to end: the platform owner moves ATELIER to Basic; guests see the plain rail and no Explore, `/explore` redirects,
   the Brand tab shows the locks; moving it back restores everything.
 - The full suite stays green.
 
@@ -299,9 +325,10 @@ and the user moves any of them on the Plan tab when they want to.
    (fonts, rails, motion, branded QR, scheduling, smart selling).
 5. **Limits:** 1 / 3 / unlimited menus; 500 MB / 2 GB / 10 GB of media.
 6. **The WhatsApp button (Project 6) starts in Basic**, because restaurants here live on WhatsApp.
-7. **No payment in the app**; the Super Admin sets plans by hand and records deals in the note.
-8. **The upgrade hint contacts Buzzify** by WhatsApp or email, as set in Settings.
-9. **Super Admins follow the restaurant's plan too**, with a shortcut to change it.
+7. **No payment in the app**; the platform owner sets plans by hand and records deals in the note.
+8. **The platform owner is the first Super Admin ever created**, and moving it needs the terminal script. (That only
+   the user changes plans, and that the upgrade button opens their own WhatsApp, are the user's decisions.)
+9. **Super Admins follow the restaurant's plan too**; the platform owner gets a shortcut to change it.
 10. **Scheduled publishes made before a downgrade still happen.**
 11. **The 3D stage key covers every 3D dish outside Explore**, the signature dish at the top of the menu included, so
     Basic and Pro menus open on 2D dish art and the 3D look stays Premium's.
