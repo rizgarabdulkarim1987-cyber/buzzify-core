@@ -198,7 +198,7 @@ describe('tenant scoping', () => {
 
   // A client that carries a restaurant also confines its Restaurant row, its menus and its memberships; one that
   // carries a menu confines that Menu row (ruling R25). The extension sees top-level queries only, so these are what
-  // keep a nested include or write inside the owner.
+  // keep a nested include or write from them inside the owner, as long as it does not pass through a global model.
   describe('confining menus, the restaurant row and memberships', () => {
     let membershipA: { id: string };
     let membershipB: { id: string };
@@ -221,6 +221,16 @@ describe('tenant scoping', () => {
         byId: await tx.menu.findUnique({ where: { id: b.menu.id } }),
       }));
       expect(seen).toEqual({ menus: [a.menu.id], products: [a.product.id], count: 1, byId: null });
+    });
+
+    it('does not follow a nested include through a global model: that leaves the restaurant, as tenantScope says', async () => {
+      // The person in A also works in B. Their membership in A is confined; the include through User is not.
+      await prisma.membership.create({ data: { userId: 'user-a', restaurantId: b.restaurant.id, role: 'OWNER' } });
+      const reached = await restaurantDb(prisma, a.restaurant.id).$transaction(async (tx) => {
+        const rows = await tx.membership.findMany({ include: { user: { include: { memberships: true } } } });
+        return rows.flatMap((row) => row.user.memberships.map((membership) => membership.restaurantId));
+      });
+      expect(reached).toContain(b.restaurant.id);
     });
 
     it("cannot update, delete through or re-home another restaurant's menu", async () => {

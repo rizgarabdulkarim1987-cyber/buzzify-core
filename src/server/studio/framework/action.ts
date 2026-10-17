@@ -61,7 +61,11 @@ export interface ActionContext {
    * `Membership` on platform and self targets). A handler keys them by `restaurantId`/`menuId` above or by
    * `actor.userId`, never by ids from its input. Nested writes into models the scope does not filter, and references to
    * other rows (scalar foreign keys, nested `connect` or `set`), are the handler's to check: take such ids from rows read
-   * through `tx`. A nested `include` or write from a filtered row stays inside its owner.
+   * through `tx`. The scope filters top-level queries only: a nested `include`, `select` or write follows its relation
+   * unfiltered. From a filtered row, a relation to rows the owner holds (a menu's products, a restaurant's branches)
+   * stays inside the owner because their foreign keys name it; one that passes through an unfiltered model does not
+   * (`membership` → `user` → `memberships` reaches the person's other restaurants), so never nest through a global model
+   * back into restaurant or menu rows.
    *
    * The audit entries queued so far are written inside the transaction before it commits; `afterCommit` callbacks run
    * once it has committed. A failed transaction drops the entries and callbacks queued during it. Run one transaction

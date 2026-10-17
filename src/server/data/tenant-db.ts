@@ -169,9 +169,12 @@ const RESTAURANT_SCOPED = new Set<string>(RESTAURANT_SCOPED_MODELS);
  * confines the menu-scoped models and the menu's own row; given a restaurant, the restaurant-scoped models, the
  * restaurant's own row, its menus and its memberships; given both, both (a menu's client sees only that menu).
  *
- * It sees top-level queries only. A nested `include` or write reaches the related rows of a row it admitted, which keeps
- * them inside the owner; models it does not confine (`MenuSlug`, `MenuDomain`, `User` and the other global models) are
- * served unfiltered, and references to other rows (scalar foreign keys, nested `connect` or `set`) are not checked.
+ * It sees top-level queries only: a nested `include`, `select` or write follows its relation from a row it admitted,
+ * unfiltered. A relation to rows the owner holds (a menu's products, a restaurant's branches or memberships) stays inside
+ * the owner, since their foreign keys name it; a relation through a model it does not confine leaves it
+ * (`membership` → `user` → `memberships` reaches the person's memberships in every restaurant). Models it does not confine (`MenuSlug`, `MenuDomain`, `User` and the other global
+ * models) are served unfiltered, and references to other rows (scalar foreign keys, nested `connect` or `set`) are not
+ * checked.
  */
 function tenantScope(scope: Scope) {
   const rules = new Map<string, Array<ReturnType<typeof confine>>>();
