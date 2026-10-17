@@ -96,16 +96,18 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 ```
 
 The result is a line of 44 characters. Copy it straight into your password manager. **Do not lose it and do not change it
-later.** If it changes, everyone is signed out and every saved two-factor code stops working. Never reuse it anywhere else.
+later.** If it changes, everyone is signed out and the saved two-factor codes can no longer be read (see "Changing
+`BETTER_AUTH_SECRET`" under Day to day, before you ever do it). Never reuse it anywhere else.
 
 ## Step 4. Vercel: the project
 
 1. Sign up at [vercel.com](https://vercel.com) with the GitHub account that owns the repository, and choose the **Pro**
    plan (see "Before you start").
 2. **Add New, then Project.** Import the `buzzify-menu` repository. Vercel recognises it as a Next.js app.
-3. Open **Build and Output Settings** on the same screen:
-   - **Build Command**: switch **Override** on and enter `npm run vercel-build`. That command first checks the settings,
-     then updates the database, then builds the app. Leave the other fields as they are.
+3. Leave **Build and Output Settings** on the same screen as they are, **Build Command** included. The repository's
+   `vercel.json` tells Vercel to build with `npm run vercel-build`, which first checks the settings, then updates the
+   database, then builds the app, and `vercel.json` takes precedence over that field. (If you ever switched **Override**
+   on for the Build Command, switch it off again, so that one place decides.)
 4. Open **Environment Variables** and add these, one by one, with the values you collected. (You can also add them after
    the project exists, under **Settings, Environment Variables**.) Each must apply to the **Production** environment only:
    untick Preview and Development, or edit the variable afterwards if Vercel ticked them for you. This matters: every deploy
@@ -165,6 +167,8 @@ first deploy you can see it under **Settings, Functions**.
    2. Prisma applying the migrations to Neon and ending with `All migrations have been successfully applied`. This builds
       all the tables. It runs on every deploy and applies only what is new.
    3. The Next.js build finishing.
+
+   If the log shows neither the settings check nor the migrations, see "If something goes wrong" below.
 3. When it is ready, `https://studio.buzzify.me` opens the sign-in page. There is nobody who can sign in yet: that is
    step 7.
 
@@ -286,9 +290,45 @@ open the project in the Neon console and look for **Backup & Restore** (or **Res
 restore into a **new branch** first and look at it, instead of rewinding the live one. A rewind also rewinds accounts,
 sessions and everything published since. Try this once before you need it.
 
-**Changing a secret.** To replace the database password or the Resend key, change it at the provider, update the variable in
-Vercel, and redeploy: a variable change only applies to deploys made after it. Leave `BETTER_AUTH_SECRET` alone unless it
-leaked, and expect that everyone must sign in again and set up two-factor again if you do.
+**Changing the database password or the Resend key.** Change it at the provider, update the variable in Vercel, and
+redeploy: a variable change only applies to deploys made after it.
+
+**Changing `BETTER_AUTH_SECRET`: only if it leaked.** Do not change it for any other reason. It does two jobs. It signs the
+sign-in cookies, and it locks (encrypts) every person's two-factor key and recovery codes in the database. A new secret
+cannot open what the old one locked, and the Studio has no screen that resets someone else's two-factor (a Super Admin
+cannot even turn their own off). So after a change:
+
+- Everyone is signed out. Passwords, restaurants and menus are untouched, and people who never turned two-factor on simply
+  sign in with their password.
+- Everyone who had two-factor on still passes the password step, then fails: the code is refused, and so is every recovery
+  code, because the Studio can no longer read what was saved. That includes the only Super Admin, so without the recovery
+  below you would be locked out of the Studio.
+
+Before you change it, make sure you can do the recovery: you can sign in to the Neon console and open the **SQL Editor** for
+this project, and `npm run studio:create-admin` works on your computer (step 7). Pick a quiet moment and recover straight
+after.
+
+1. Make a new secret as in step 3 and save it in your password manager, next to the old one. Replace `BETTER_AUTH_SECRET` in
+   Vercel with it, then redeploy.
+2. In the Neon console open the **SQL Editor**, choose the production database (the name at the end of your
+   `DIRECT_DATABASE_URL`, usually `neondb`) and run these two statements:
+
+   ```sql
+   DELETE FROM "twoFactor";
+   UPDATE "user" SET "twoFactorEnabled" = false;
+   ```
+
+   They remove the unreadable two-factor records of everybody, and change nothing else. Switching the flag off alone is not
+   enough: the saved records have to go as well.
+3. Everyone signs in with their password. A Super Admin is taken straight to the two-factor setup: a new QR code and new
+   recovery codes, as in step 8. Designers and owners can switch two-factor on again under Account.
+
+If you cannot use the SQL Editor, you can still get back in with a second Super Admin. Run step 7 again as
+`npm run studio:create-admin -- --force`, with an email address nobody has used. Keep the `--` before `--force`: without it
+npm keeps the flag for itself and the script refuses, because a Super Admin already exists. The new person signs in with
+their password and sets up two-factor, which is then stored under the new secret. That gives you a working administrator and
+nothing more: it does not reset anyone else. The others stay locked out until the SQL above clears them, or until you
+deactivate them (People) and invite them again with different email addresses.
 
 **Upgrading Next.js.** `src/server/data/cache.ts` works around a timing mismatch inside Next.js 16.4.1, which could
 otherwise make guests keep seeing the old menu for a moment after a change is published. After a Next.js upgrade, run
@@ -303,7 +343,7 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | What you see | What to do |
 |---|---|
 | The build log lists variables after "The production environment is not ready" | Fix each named variable in Vercel (Settings, Environment Variables) and redeploy. The line says what is wrong with it |
-| The build log has no "production environment is complete" line | Vercel did not run `npm run vercel-build`. Set **Build Command, Override** to `npm run vercel-build` (step 4) and redeploy |
+| The build log shows no settings check and no `prisma migrate deploy` | The commit that was built does not have the `buildCommand` line in `vercel.json` (it must be on `main`, see "Before you start"). The Build Command field in the dashboard does not decide this, `vercel.json` does. Merge the current code into `main` and redeploy |
 | The migration step cannot connect to the database | `DIRECT_DATABASE_URL` must be the direct address (no `-pooler` in the host), with `?sslmode=require`. If it has `&channel_binding=require`, remove that part. Neon may also be waking from idle: redeploy |
 | A domain stays "Invalid configuration" | Compare your DNS record with what Vercel shows. Remove other `A`, `AAAA` or `CNAME` records on that same name, and turn off any DNS proxy |
 | The sign-in page loads but signing in fails | `BETTER_AUTH_URL` must be exactly the address you are using, `https://studio.buzzify.me` |
