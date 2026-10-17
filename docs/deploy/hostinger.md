@@ -61,6 +61,18 @@ the build cannot connect, remove that part.
 8. **Check:** `https://buzzify-menu.online/atelier` shows the demo menu; `https://buzzify-menu.online/` goes to
    buzzify.me; `https://buzzify-menu.online/studio` answers 404 (the Studio lives only on the studio address).
 
+## Neon from the command line
+
+The project is linked to the Neon project `buzzify-menu` (`delicate-pond-39271154`, Frankfurt), branch `production`.
+`neon.ts` declares what the branches get (Postgres only, and a 7-day expiry for new development branches); the link
+itself is in the git-ignored `.neon` file. After `npm i -g neon` and `neon login`:
+
+- `neon deploy --no-env-pull` applies `neon.ts`. Leave out `--no-env-pull` only if you want your local `.env` to point
+  at Neon instead of the embedded development database.
+- `neon env pull --file <somewhere outside the repository> -e DATABASE_URL,DATABASE_URL_UNPOOLED` fetches the two
+  connection strings: `DATABASE_URL` is the pooled one, `DATABASE_URL_UNPOOLED` the direct one that goes into
+  `DIRECT_DATABASE_URL` here.
+
 ## Later deploys
 
 Push to `main`, then start a new build in Hostinger (or turn on automatic deployment for the repository). Changing a
