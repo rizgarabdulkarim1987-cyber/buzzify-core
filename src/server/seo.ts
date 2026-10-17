@@ -27,3 +27,16 @@ export function menuAlternates(
 export function menuCanonical(origin: string, tenant: { slug: string }, locale: Locale): { canonical: string } {
   return { canonical: `${origin}/${tenant.slug}/${locale}` };
 }
+
+/**
+ * The Open Graph image of a page in one language: the menu's search image for it, at an absolute address (a link
+ * preview is fetched by another site, which cannot resolve a path), or nothing when the language has none.
+ */
+export function menuOpenGraph(
+  origin: string,
+  seo: { title: string; description: string; image?: { url: string; width: number; height: number } } | undefined,
+): { images: Array<{ url: string; width: number; height: number }> } | undefined {
+  if (!seo?.image) return undefined;
+  const { url, width, height } = seo.image;
+  return { images: [{ url: new URL(url, origin).toString(), width, height }] };
+}

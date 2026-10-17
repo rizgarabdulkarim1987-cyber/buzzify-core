@@ -171,7 +171,15 @@ function PublishDialog({ menuId, name, suspended, onClose }: { menuId: string; n
 }
 
 /** A new address for the menu, checked as it is typed. The version it was opened at is what it changes from. */
-function ChangeSlugDialog({ menu, origin, onClose }: { menu: MenuActionsProps['menu']; origin: string; onClose: () => void }) {
+export function ChangeSlugDialog({
+  menu,
+  origin,
+  onClose,
+}: {
+  menu: Pick<MenuActionsProps['menu'], 'id' | 'name' | 'slug' | 'version'>;
+  origin: string;
+  onClose: () => void;
+}) {
   const t = useT();
   const router = useRouter();
   const refuse = useRefuse();

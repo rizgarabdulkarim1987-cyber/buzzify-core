@@ -18,6 +18,7 @@ import {
   permissionsIn,
   slugField,
 } from '@/server/studio/services/menus';
+import { settingsView } from '@/server/studio/services/menu-settings';
 
 /**
  * What the menu screens read. All Menus is a platform read limited to the restaurants the person belongs to (every one
@@ -265,5 +266,17 @@ export const newMenuOptions = defineQuery({
       currencies: OFFERED_CURRENCIES,
       timeZones: OFFERED_TIME_ZONES,
     };
+  },
+});
+
+/** A menu's settings as the Settings tab edits them. */
+export const settings = defineQuery({
+  name: 'menus.settings',
+  permission: 'menu.settings',
+  input: z.object({ menuId: idField }),
+  target: (i) => ({ kind: 'menu', menuId: i.menuId }),
+  run: (ctx) => {
+    if (ctx.menuId === null || ctx.restaurantId === null) throw new Error('A menu query ran without a menu');
+    return settingsView(ctx.db, ctx.menuId, ctx.restaurantId);
   },
 });

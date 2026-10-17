@@ -1,32 +1,55 @@
 import type { BrandConfig, Menu, Prisma } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
-import { isLocale } from '@/lib/locale';
+import { isLocale, type Locale } from '@/lib/locale';
 import { resolveRailStyle } from '@/lib/rail';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import type { BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
-import { draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia } from '@/server/media/resolve';
+import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Reading the draft
 // ---------------------------------------------------------------------------------------------------------------------
 
-function seoMap(value: unknown): SnapshotMenu['seo'] {
-  const seo: SnapshotMenu['seo'] = {};
+/** A language's search text as `Menu.seo` holds it: the image is a library asset, resolved when the snapshot is built. */
+type DraftSeo = Partial<Record<Locale, { title: string; description: string; imageAssetId?: string }>>;
+
+/** `Menu.seo` read defensively: languages with a title or a description, and the asset of their image. */
+export function seoMap(value: unknown): DraftSeo {
+  const seo: DraftSeo = {};
   if (!value || typeof value !== 'object' || Array.isArray(value)) return seo;
   for (const [locale, entry] of Object.entries(value)) {
     if (!isLocale(locale) || !entry || typeof entry !== 'object') continue;
-    const { title, description } = entry as Record<string, unknown>;
-    if (typeof title !== 'string' && typeof description !== 'string') continue;
+    const { title, description, imageAssetId } = entry as Record<string, unknown>;
+    if (typeof title !== 'string' && typeof description !== 'string' && typeof imageAssetId !== 'string') continue;
     seo[locale] = {
       title: typeof title === 'string' ? title : '',
       description: typeof description === 'string' ? description : '',
+      ...(typeof imageAssetId === 'string' && imageAssetId !== '' ? { imageAssetId } : {}),
     };
   }
   return seo;
+}
+
+/**
+ * The search text guests' pages carry, each image resolved from the library. An image whose asset is gone (or is not
+ * the restaurant's or shared) is left out: the title and description still apply.
+ */
+function resolveSeo(seo: DraftSeo, assets: ReadonlyMap<string, ResolvableAsset>, mediaUrl: (key: string) => string): SnapshotMenu['seo'] {
+  const resolved: SnapshotMenu['seo'] = {};
+  for (const [locale, entry] of Object.entries(seo) as Array<[Locale, NonNullable<DraftSeo[Locale]>]>) {
+    const asset = entry.imageAssetId ? assets.get(entry.imageAssetId) : undefined;
+    const image = asset ? assetImage(asset, mediaUrl) : null;
+    resolved[locale] = {
+      title: entry.title,
+      description: entry.description,
+      ...(image ? { image: { assetId: asset!.id, url: image.url, width: image.width, height: image.height } } : {}),
+    };
+  }
+  return resolved;
 }
 
 function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
@@ -40,7 +63,7 @@ function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
     timeZone: menu.timezone,
     numeralSystem: menu.numeralSystem === 'ARAB' ? 'arab' : 'latn',
     engineConfig: resolveEngineConfig(menu.engineConfig),
-    seo: seoMap(menu.seo),
+    seo: {},
   };
 }
 
@@ -77,14 +100,19 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const settings = snapshotMenu(menu, displayName);
 
   // Library photos become the URLs guests load, so the revision never needs the library again.
-  const assetIds = catalog.products.flatMap((product) => mediaAssetIds(product.media));
-  if (assetIds.length > 0) {
-    const assets = await loadAssets(db, menu.restaurantId, assetIds);
+  const seo = seoMap(menu.seo);
+  const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
+  const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
+  if (productAssets.length + seoAssets.length > 0) {
+    const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets]);
     const mediaUrl = (key: string) => getStorage().publicUrl(key);
     catalog.products = catalog.products.map((product) => ({
       ...product,
       media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
     }));
+    settings.seo = resolveSeo(seo, assets, mediaUrl);
+  } else {
+    settings.seo = resolveSeo(seo, new Map(), (key) => key);
   }
   return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
 }

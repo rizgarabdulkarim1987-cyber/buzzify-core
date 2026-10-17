@@ -1,5 +1,5 @@
 import type { Prisma } from '@/generated/prisma/client';
-import { isLocale } from '@/lib/locale';
+import { isLocale, LOCALES } from '@/lib/locale';
 import type { AnyDb } from '@/server/data/tenant-db';
 
 /** Where an asset is used: menus whose draft shows it, and revisions that show it to guests (or once did). */
@@ -34,6 +34,12 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
     select: { slug: true, translations: true, menuId: true, menu: { select: { name: true } } },
     orderBy: [{ menu: { name: 'asc' } }, { sortOrder: 'asc' }, { slug: 'asc' }],
   });
+  // A menu's search image, in any of its languages.
+  const seoMenus = await db.menu.findMany({
+    where: { ...menuFilter, OR: LOCALES.map((locale) => ({ seo: { path: [locale, 'imageAssetId'], equals: asset.id } })) },
+    select: { id: true, name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  });
   const revisions = await db.menuRevision.findMany({
     where: { menu: menuFilter, assetIds: { has: asset.id } },
     select: { number: true, menuId: true, menu: { select: { name: true } } },
@@ -41,12 +47,15 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
   });
 
   return {
-    drafts: products.map((product) => ({
-      menuId: product.menuId,
-      menuName: product.menu.name,
-      where: 'product' as const,
-      label: productLabel(product),
-    })),
+    drafts: [
+      ...products.map((product) => ({
+        menuId: product.menuId,
+        menuName: product.menu.name,
+        where: 'product' as const,
+        label: productLabel(product),
+      })),
+      ...seoMenus.map((menu) => ({ menuId: menu.id, menuName: menu.name, where: 'seo' as const, label: menu.name })),
+    ],
     revisions: revisions.map((revision) => ({ menuId: revision.menuId, menuName: revision.menu.name, number: revision.number })),
   };
 }

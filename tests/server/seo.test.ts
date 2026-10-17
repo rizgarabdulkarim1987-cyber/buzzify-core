@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { menuAlternates, menuCanonical } from '@/server/seo';
+import { menuAlternates, menuCanonical, menuOpenGraph } from '@/server/seo';
 
 describe('menuAlternates', () => {
   const tenant = { slug: 'atelier', locales: ['en', 'ar', 'ckb'] as const };
@@ -39,5 +39,25 @@ describe('menuCanonical', () => {
     expect(menuCanonical('https://menu.buzzify.me', { slug: 'atelier' }, 'ckb')).toEqual({
       canonical: 'https://menu.buzzify.me/atelier/ckb',
     });
+  });
+});
+
+describe('menuOpenGraph', () => {
+  const image = { assetId: 'a1', url: '/api/dev-media/r/x/1080.webp', width: 1200, height: 630 };
+
+  it('gives the image of the page’s language, at an absolute address', () => {
+    expect(menuOpenGraph('http://127.0.0.1:3100', { title: 'Menu', description: '', image })).toEqual({
+      images: [{ url: 'http://127.0.0.1:3100/api/dev-media/r/x/1080.webp', width: 1200, height: 630 }],
+    });
+  });
+
+  it('keeps an image already on another host as it is', () => {
+    const r2 = { ...image, url: 'https://media.buzzify.me/r/x/1080.webp' };
+    expect(menuOpenGraph('https://menu.buzzify.me', { title: '', description: '', image: r2 })?.images[0]!.url).toBe('https://media.buzzify.me/r/x/1080.webp');
+  });
+
+  it('gives nothing without an image', () => {
+    expect(menuOpenGraph('https://menu.buzzify.me', { title: 'Menu', description: '' })).toBeUndefined();
+    expect(menuOpenGraph('https://menu.buzzify.me', undefined)).toBeUndefined();
   });
 });

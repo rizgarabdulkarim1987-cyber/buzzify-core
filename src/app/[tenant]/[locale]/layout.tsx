@@ -5,7 +5,7 @@ import { fontVariablesFor } from '@/app/fonts';
 import { direction, isLocale } from '@/lib/locale';
 import { hostEnv } from '@/server/env';
 import { resolvePublicRoute } from '@/server/public-page';
-import { menuCanonical } from '@/server/seo';
+import { menuCanonical, menuOpenGraph } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss } from '@/ui/brand';
 
@@ -21,12 +21,15 @@ export async function generateMetadata({
 
   const { tenant, locale } = resolved.route;
   const seo = tenant.seo[locale];
+  const openGraph = menuOpenGraph(hostEnv().publicOrigin, seo);
   return {
     title: { default: seo?.title || tenant.name, template: `%s | ${tenant.name}` },
     ...(seo?.description ? { description: seo.description } : {}),
     icons: { icon: iconFor(tenant.brand) },
     // Every page canonicalizes to the menu's home; the home and product pages add their translations themselves.
     alternates: menuCanonical(hostEnv().publicOrigin, tenant, locale),
+    // The search image of the page's language, for link previews; a generated one comes with the brand kit.
+    ...(openGraph ? { openGraph } : {}),
   };
 }
 

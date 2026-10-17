@@ -35,3 +35,7 @@ export async function bulkMenuAction(input: unknown) {
 export async function slugAvailability(input: unknown) {
   return invokeQuery(menuQueries.slugAvailability, input);
 }
+
+export async function updateMenuSettings(input: unknown) {
+  return invoke(menus.updateSettings, input);
+}

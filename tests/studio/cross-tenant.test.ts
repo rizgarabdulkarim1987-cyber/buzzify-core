@@ -270,6 +270,20 @@ const ONLY_FORBIDDEN: Expectation = { kind: 'refused', codes: ['FORBIDDEN'] };
 
 const c = (label: string, input: (w: World) => unknown, expectation: Expectation = REFUSED): Case => ({ label, input, expect: expectation });
 
+/** A menu's settings as the Settings tab saves them (version 1 is stale for a published menu, which the checks precede). */
+const menuSettings = () => ({
+  version: 1,
+  name: 'Planted',
+  locales: ['en'],
+  defaultLocale: 'en',
+  currency: 'USD',
+  timezone: 'Asia/Baghdad',
+  numeralSystem: 'LATN',
+  seo: {},
+  notes: '',
+  priceStep: null,
+});
+
 /** A whole product as the Content tab's drawer saves it, with the given product and category. */
 const productSave = (menuId: string, productId: string, categoryId: string) => ({
   menuId,
@@ -296,6 +310,11 @@ const SWEPT: Record<string, Case[]> = {
   // Menus
   'menus.create': [c("in B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', slug: 'planted-menu' }))],
   'menus.publish': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'menus.updateSettings': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...menuSettings() })),
+    c("B's image, through A", (w) => ({ menuId: w.a.menuId, ...menuSettings(), seo: { en: { title: 'Planted', description: '', imageAssetId: w.b.assetId } } })),
+  ],
   'menus.changeStatus': [
     c("suspends B's menu", (w) => ({ menuId: w.b.menuId, action: 'suspend' })),
     c("archives B's menu", (w) => ({ menuId: w.b.menuId, action: 'archive' })),

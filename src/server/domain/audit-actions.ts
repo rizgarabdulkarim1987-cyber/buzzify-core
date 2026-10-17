@@ -17,6 +17,7 @@ export const AUDIT_ACTIONS = [
   'menu.published',
   'menu.status_changed',
   'menu.slug_changed',
+  'menu.settings_changed',
   'menu.duplicated',
   'menu.deleted',
   'category.created',

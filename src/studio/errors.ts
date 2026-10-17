@@ -148,6 +148,11 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use a percentage above -100': 'error.text.percentAbove',
   'Use at most 1,000%': 'error.text.percentAtMost',
   'Some prices would fall to zero or below. Change the amount.': 'error.text.pricesNotPositive',
+  'Use at most 70 characters': 'error.text.seoTitleTooLong',
+  'Use at most 200 characters': 'error.text.seoDescriptionTooLong',
+  'Use at most 2,000 characters': 'error.text.notesTooLong',
+  'Use at least one unit': 'error.text.stepTooSmall',
+  'Confirm the new currency: every price is converted': 'error.text.currencyConfirm',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

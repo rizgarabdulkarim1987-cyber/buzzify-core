@@ -25,6 +25,7 @@ import {
   slugRefusal,
   statusAction,
 } from '@/server/studio/services/menus';
+import { settingsFields, updateSettings as saveSettings } from '@/server/studio/services/menu-settings';
 
 /**
  * Menus: creating one in a restaurant, publishing it, changing its status and its address, duplicating and deleting it,
@@ -390,4 +391,14 @@ export const bulkMenuAction = defineAction({
     }
     return { results };
   },
+});
+
+// Settings ------------------------------------------------------------------------------------------------------------
+
+export const updateSettings = defineAction({
+  name: 'menus.updateSettings',
+  permission: 'menu.settings',
+  input: z.object({ menuId: idField, ...settingsFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => saveSettings(ctx, input),
 });
