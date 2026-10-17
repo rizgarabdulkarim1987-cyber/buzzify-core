@@ -145,6 +145,9 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'A bundle uses this size. Remove it from the bundle first.': 'error.text.sizeInBundle',
   'A bundle contains this product. Remove it from the bundle first.': 'error.text.productInBundle',
   'Choose what to change': 'error.text.changeWhat',
+  'Use a percentage above -100': 'error.text.percentAbove',
+  'Use at most 1,000%': 'error.text.percentAtMost',
+  'Some prices would fall to zero or below. Change the amount.': 'error.text.pricesNotPositive',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

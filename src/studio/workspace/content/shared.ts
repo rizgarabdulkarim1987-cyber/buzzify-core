@@ -55,3 +55,13 @@ export function formatDeltaInput(minor: number, currency: string): string {
   const text = formatPriceInput(minor, currency);
   return minor > 0 ? `+${text}` : text;
 }
+
+/** A typed percentage (`10`, `-5`, `7.5`, `+12.5%`) in basis points: 1000 for 10%. At most two decimals. */
+export function parsePercentInput(text: string): { ok: true; basisPoints: number } | { ok: false; reason: PriceInputProblem } {
+  const trimmed = text.trim().replace(/%$/, '').trim();
+  const negative = /^[-−]/.test(trimmed);
+  // Two decimals and Arabic-Indic digits, as a price in a two-decimal currency reads them: 7.5 is 750.
+  const parsed = parsePriceInput(trimmed.replace(/^[-+−]\s*/, ''), 'USD');
+  if (!parsed.ok) return parsed;
+  return { ok: true, basisPoints: negative ? -parsed.minor : parsed.minor };
+}

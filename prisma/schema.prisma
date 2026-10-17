@@ -129,6 +129,8 @@ model Menu {
   locales             String[]
   timezone            String
   numeralSystem       NumeralSystem @default(LATN)
+  /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
+  priceStep           Int?
   engineConfig        Json          @default("{}")
   /// { en?: { title, description }, ar?: ..., ckb?: ... }
   seo                 Json          @default("{}")

@@ -29,6 +29,8 @@ export const AUDIT_ACTIONS = [
   'product.moved',
   'product.availability_changed',
   'option.availability_changed',
+  'price.changed',
+  'prices.bulk_changed',
   'invitation.created',
   'invitation.resent',
   'invitation.revoked',
@@ -75,4 +77,5 @@ export const AUDIT_ENTITY_TYPES = [
   'ProductVariant',
   'ModifierGroup',
   'ModifierOption',
+  'MenuPrices',
 ] as const;

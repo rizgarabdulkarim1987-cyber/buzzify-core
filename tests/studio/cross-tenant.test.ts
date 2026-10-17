@@ -443,6 +443,24 @@ const SWEPT: Record<string, Case[]> = {
     c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
   ],
   'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+
+  // The Prices tab
+  'prices.set': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, target: { kind: 'product', id: w.b.productId, version: 1 }, price: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, target: { kind: 'product', id: w.b.productId, version: 1 }, price: 1 })),
+    c("B's size, through A", (w) => ({ menuId: w.a.menuId, target: { kind: 'variant', id: w.b.variantId, version: 1 }, price: 1 })),
+  ],
+  'prices.grid': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'prices.previewBulk': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...{ selection: {}, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+    c("B's products, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { productIds: [w.b.productId] }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { categoryId: w.b.categoryId }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true } })),
+  ],
+  'prices.applyBulk': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, ...{ selection: {}, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+    c("B's products, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { productIds: [w.b.productId] }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...{ selection: { categoryId: w.b.categoryId }, operation: { kind: 'percent', basisPoints: 1000 }, includeVariants: true }, expectedDraftHash: '' })),
+  ],
   'content.product': [
     c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId })),
     c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId })),
