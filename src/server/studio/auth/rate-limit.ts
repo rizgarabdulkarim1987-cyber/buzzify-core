@@ -23,6 +23,8 @@ export const RATE_RULES = {
   /** A signed-in person's password checks (turning two-factor on or off, new recovery codes, a password change). */
   'reauth:user': { max: 10, windowSec: 600 },
   'invite:ip': { max: 20, windowSec: 3600 },
+  /** Attempts to accept one invitation, from any address: the invitation stands for the account it makes. */
+  'invite:token': { max: 10, windowSec: 3600 },
 } as const satisfies Record<string, RateRule>;
 
 /** Requests whose address is unknown share one bucket, rather than having no per-address limit at all. */

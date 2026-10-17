@@ -99,6 +99,7 @@ describe('RATE_RULES', () => {
       'reset:ip': { max: 20, windowSec: 3600 },
       'reauth:user': { max: 10, windowSec: 600 },
       'invite:ip': { max: 20, windowSec: 3600 },
+      'invite:token': { max: 10, windowSec: 3600 },
     });
   });
 });

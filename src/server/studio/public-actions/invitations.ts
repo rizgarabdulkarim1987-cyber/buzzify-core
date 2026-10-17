@@ -5,7 +5,7 @@ import { addressKey, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { describeError } from '@/server/studio/framework/result';
 import { SIGN_IN_PATH, STUDIO_HOME } from '@/server/studio/framework/paths';
 import { definePublicAction } from '@/server/studio/framework/public';
-import { acceptInvitation, inspectInvitation } from '@/server/studio/services/invitations';
+import { acceptInvitation, hashToken, inspectInvitation } from '@/server/studio/services/invitations';
 
 /**
  * The two steps of an invitation for a person who may not have an account yet: opening the link, and accepting. The
@@ -17,6 +17,16 @@ const tokenField = z.string().min(1).max(256);
 
 /** Both calls count against the same limit, taken before the token is looked at. */
 const limit = (_input: unknown, { ip }: { ip: string }) => [{ key: `invite:ip:${addressKey(ip)}`, rule: RATE_RULES['invite:ip'] }];
+
+/**
+ * Accepting also counts against the invitation itself (spec 8: per address and per account; the invitation is the
+ * account-to-be), so attempts spread over many addresses still meet a limit. The key holds the token's hash, never the
+ * token, and is computed from the typed value alone, so it says nothing about whether such an invitation exists.
+ */
+const acceptLimit = (input: { token: string }, request: { ip: string }) => [
+  ...limit(input, request),
+  { key: `invite:token:${hashToken(input.token)}`, rule: RATE_RULES['invite:token'] },
+];
 
 export const getInvitation = definePublicAction({
   name: 'invitation.get',
@@ -33,7 +43,7 @@ export const acceptInvitationAction = definePublicAction({
     name: z.string().max(200).optional(),
     password: newPasswordField.optional(),
   }),
-  rateLimit: limit,
+  rateLimit: acceptLimit,
   run: async (ctx, { token, name, password }) => {
     const auth = authFor(ctx.prisma);
     // Whoever is signed in to this browser: an existing account may only accept an invitation addressed to it.

@@ -4,6 +4,7 @@ import type { Permission } from '@/server/domain/permissions';
 import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { restaurantActivityRows } from '@/server/studio/services/activity';
 import { profileOf, seesAgencyNotes } from '@/server/studio/services/restaurants';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
 
@@ -202,46 +203,17 @@ export const restaurantMenus = defineQuery({
   },
 });
 
-type Changes = Record<string, { before: unknown; after: unknown }>;
-
-function readChanges(json: unknown): Changes {
-  if (typeof json !== 'object' || json === null || Array.isArray(json)) return {};
-  return json as Changes;
-}
-
+/**
+ * The restaurant's own Activity: the rows the platform's Activity shows, filed under this restaurant, with the names of
+ * the fields each change touched. Like Activity, it never returns what a change held.
+ */
 export const restaurantActivity = defineQuery({
   name: 'restaurants.activity',
   permission: 'audit.view',
   input: z.object({ restaurantId: idField, page: pageField }),
   target: (i) => atRestaurant(i.restaurantId),
   run: async (ctx, { page }) => {
-    const where = { restaurantId: restaurantOf(ctx) };
-    const [total, found] = await Promise.all([
-      ctx.db.auditLog.count({ where }),
-      ctx.db.auditLog.findMany({
-        where,
-        orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
-        skip: (page - 1) * ACTIVITY_PAGE_SIZE,
-        take: ACTIVITY_PAGE_SIZE,
-        select: { id: true, action: true, entityType: true, entityId: true, actorId: true, changes: true, occurredAt: true },
-      }),
-    ]);
-    const actorIds = [...new Set(found.map((row) => row.actorId).filter((id): id is string => id !== null))];
-    const people = actorIds.length > 0 ? await ctx.db.user.findMany({ where: { id: { in: actorIds } }, select: { id: true, name: true } }) : [];
-    const names = new Map(people.map((person) => [person.id, person.name]));
-    return {
-      rows: found.map((row) => ({
-        id: row.id,
-        action: row.action,
-        entityType: row.entityType,
-        entityId: row.entityId,
-        actor: row.actorId ? (names.get(row.actorId) ?? null) : null,
-        occurredAt: row.occurredAt.toISOString(),
-        changes: readChanges(row.changes),
-      })),
-      total,
-      page,
-      pageSize: ACTIVITY_PAGE_SIZE,
-    };
+    const { total, rows } = await restaurantActivityRows(ctx.db, { restaurantId: restaurantOf(ctx), page, pageSize: ACTIVITY_PAGE_SIZE });
+    return { rows, total, page, pageSize: ACTIVITY_PAGE_SIZE };
   },
 });

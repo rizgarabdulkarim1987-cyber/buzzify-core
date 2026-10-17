@@ -3,6 +3,7 @@ import type { Prisma } from '@/generated/prisma/client';
 import { parsePolicy } from '@/server/domain/permissions';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { literal } from '@/server/studio/services/list-filters';
 import type { InvitationRow, PersonRow } from '@/server/studio/services/people';
 
 /**
@@ -40,7 +41,8 @@ export const listPeople = defineQuery({
     const restaurantId = ctx.restaurantId;
     const where: Prisma.UserWhereInput = {
       ...(restaurantId !== null ? { memberships: { some: { restaurantId } } } : {}),
-      ...(q ? { OR: [{ name: { contains: q, mode: 'insensitive' } }, { email: { contains: q.toLowerCase() } }] } : {}),
+      // A typed % or _ is looked for as itself (`literal`), as in every other search.
+      ...(q ? { OR: [{ name: { contains: literal(q), mode: 'insensitive' } }, { email: { contains: literal(q.toLowerCase()) } }] } : {}),
     };
     const [total, users] = await Promise.all([
       ctx.db.user.count({ where }),

@@ -1,6 +1,5 @@
 import { History } from 'lucide-react';
 import type { Metadata } from 'next';
-import type { ReactNode } from 'react';
 import { redirect } from 'next/navigation';
 import type { Translate } from '@/lib/i18n';
 import { getActor } from '@/server/studio/auth/actor';
@@ -17,45 +16,20 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return tabMetadata((await params).id, 'activity');
 }
 
-const MAX_SHOWN = 60;
-
-/** What a change put in a field, short enough for a table cell; null for what is too long or not plain text. */
-function shown(t: Translate, field: string, value: unknown): string | null {
-  if (value === null || value === undefined || value === '') return null;
-  // A status or a type is stored as a code; the person reads it in words.
-  if (typeof value === 'string' && field === 'status') return t(`status.${value.toLowerCase()}`);
-  if (typeof value === 'string' && field === 'type') return t(`restaurants.type.${value}`);
-  if (typeof value === 'string') return value.length <= MAX_SHOWN ? value : null;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
-  return null;
-}
-
 /** The order a person reads a change's fields in: the profile's own order. The log's JSON does not keep one. */
 const FIELD_ORDER = ['name', 'type', 'description', 'address', 'city', 'country', 'phone', 'whatsapp', 'socialLinks', 'workingHours', 'notes', 'status', 'order'];
-/** Phone numbers read left to right whatever the page's language; other values take the direction of their own words. */
-const DIRECTION: Record<string, "ltr" | "auto"> = { phone: 'ltr', whatsapp: 'ltr' };
 const rank = (field: string) => (FIELD_ORDER.includes(field) ? FIELD_ORDER.indexOf(field) : FIELD_ORDER.length);
 
-/**
- * A change as one line: the field, and for a short text what it became (and what it was, when it was something). The
- * values are the person's own words, so each keeps its own reading direction, and the arrow turns with the line's.
- */
-function describeChange(t: Translate, field: string, change: { before: unknown; after: unknown }): ReactNode {
+/** A field a change touched, by its name in the person's language (its code when the Studio has no name for it). */
+function fieldLabel(t: Translate, field: string): string {
   const key = `restaurants.field.${field}`;
-  const label = t(key) === key ? field : t(key);
-  const before = shown(t, field, change.before);
-  const after = shown(t, field, change.after);
-  if (before === null && after === null) return label;
-  if (before === null) return <>{label}: <bdi dir={(DIRECTION[field] ?? 'auto')}>{after}</bdi></>;
-  return (
-    <>
-      {label}: <bdi dir={(DIRECTION[field] ?? 'auto')}>{before}</bdi> <span aria-hidden className="inline-block rtl:-scale-x-100">→</span>{' '}
-      <bdi dir={(DIRECTION[field] ?? 'auto')}>{after ?? t('restaurants.summary.notSet')}</bdi>
-    </>
-  );
+  return t(key) === key ? field : t(key);
 }
 
-/** Who did what to this restaurant and when, newest first. Only people who may see the activity log have this tab. */
+/**
+ * Who did what to this restaurant and when, newest first, and which fields each change touched. What the fields held is
+ * not shown, as on the Activity screen. Only people who may see the activity log have this tab.
+ */
 export default async function RestaurantActivityPage({
   params,
   searchParams,
@@ -95,13 +69,17 @@ export default async function RestaurantActivityPage({
                 {log.rows.map((row) => {
                   const label = t(`activity.action.${row.action}`);
                   const known = label !== `activity.action.${row.action}`;
-                  const details = Object.entries(row.changes)
-                    .sort(([a], [b]) => rank(a) - rank(b))
-                    .map(([field, change]) => ({ field, line: describeChange(t, field, change) }));
+                  const details = [...row.fields].sort((a, b) => rank(a) - rank(b)).map((field) => ({ field, line: fieldLabel(t, field) }));
                   return (
                     <tr key={row.id} className="border-b border-line align-top">
                       <td className="whitespace-nowrap px-3 py-2.5 text-muted first:ps-4">{formatDateTime(row.occurredAt, actor.locale)}</td>
-                      <td className="px-3 py-2.5">{row.actor ? isolated('{name}', { name: row.actor }) : <span className="text-muted">{t('restaurants.activity.system')}</span>}</td>
+                      <td className="px-3 py-2.5">
+                        {row.actor ? (
+                          isolated('{name}', { name: row.actor.name ?? t('activity.deleted') })
+                        ) : (
+                          <span className="text-muted">{t('restaurants.activity.system')}</span>
+                        )}
+                      </td>
                       <td className="px-3 py-2.5 font-medium text-text">
                         {known ? label : <span dir="ltr" className="font-mono text-xs">{row.action}</span>}
                       </td>

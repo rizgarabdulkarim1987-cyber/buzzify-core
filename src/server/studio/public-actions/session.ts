@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { authFor } from '@/server/studio/auth/auth';
 import { authErrorCode, policyProblemOf } from '@/server/studio/auth/errors';
 import { emailField, isRecoveryCode, newPasswordField, signInCodeField } from '@/server/studio/auth/fields';
-import { checkPasswordPolicy, passwordProblemMessage } from '@/server/studio/auth/password-policy';
+import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { addressKey, RATE_RULES } from '@/server/studio/auth/rate-limit';
 import { pendingTwoFactor } from '@/server/studio/auth/two-factor';
 import { normalizeEmail } from '@/server/studio/auth/users';
@@ -33,6 +33,9 @@ export const signIn = definePublicAction({
     { key: `signin:email:${normalizeEmail(input.email)}`, rule: RATE_RULES['signin:email'] },
   ],
   run: async ({ prisma, headers }, { email, password }) => {
+    // No account can have a longer one (the policy caps it), and Better Auth refuses it with an error of its own: it is
+    // a wrong password like any other, counted above.
+    if (password.length > MAX_PASSWORD_LENGTH) throw new StudioError('INVALID', SIGN_IN_FAILED);
     try {
       const result = await authFor(prisma).api.signInEmail({ body: { email: normalizeEmail(email), password }, headers });
       // The password was right, and the account has two-factor: Better Auth has set the challenge cookie instead of a session.

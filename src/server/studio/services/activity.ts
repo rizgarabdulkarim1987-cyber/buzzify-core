@@ -121,6 +121,41 @@ export async function listActivityRows(db: PrismaClient, filters: ActivityFilter
   return { total, rows: await describeRows(db, found) };
 }
 
+/** One row of a restaurant's own log: an Activity row, with the names of the fields the change touched. */
+export interface RestaurantAuditRow extends AuditRow {
+  /** The fields of the change, such as `name` or `city`; never what they held. */
+  fields: string[];
+}
+
+/** The names of the fields in a row's `changes`, whatever was stored there. */
+function fieldNames(changes: unknown): string[] {
+  return typeof changes === 'object' && changes !== null && !Array.isArray(changes) ? Object.keys(changes) : [];
+}
+
+/**
+ * A restaurant's own log, newest first, for its Activity tab: the rows Activity shows (`ROW_SELECT`, named by
+ * `describeRows`), each with the names of the fields it changed. The values are read only to list their names and never
+ * leave this function: no Studio read returns what a change held.
+ */
+export async function restaurantActivityRows(
+  db: PrismaClient,
+  args: { restaurantId: string; page: number; pageSize: number },
+): Promise<{ total: number; rows: RestaurantAuditRow[] }> {
+  const where = { restaurantId: args.restaurantId };
+  const [total, found] = await Promise.all([
+    db.auditLog.count({ where }),
+    db.auditLog.findMany({
+      where,
+      orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }],
+      skip: (args.page - 1) * args.pageSize,
+      take: args.pageSize,
+      select: { ...ROW_SELECT, changes: true },
+    }),
+  ]);
+  const described = await describeRows(db, found);
+  return { total, rows: described.map((row, index) => ({ ...row, fields: fieldNames(found[index]!.changes) })) };
+}
+
 /** The newest rows of the whole log, for the Overview. */
 export async function recentActivityRows(db: PrismaClient, limit: number): Promise<AuditRow[]> {
   const found = await db.auditLog.findMany({ orderBy: [{ occurredAt: 'desc' }, { id: 'desc' }], take: limit, select: ROW_SELECT });

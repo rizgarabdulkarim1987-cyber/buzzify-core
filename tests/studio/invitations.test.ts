@@ -529,6 +529,28 @@ describe('the public actions', () => {
     expect(codeOf(await invokePublic(invitationActions.getInvitation, { token: 'guess-0' }))).toBe('OK');
   });
 
+  it('also limits the attempts to accept one invitation, from whatever address they come, and stores no token', async () => {
+    const { token } = await inviteOwnerByMail(address('olive'));
+    // Ten refused attempts, each from its own address, so no address limit is reached.
+    for (let i = 0; i < 10; i += 1) {
+      new Browser(`198.51.100.${100 + i}`, 'prober').activate();
+      expect(codeOf(await invokePublic(invitationActions.acceptInvitationAction, { token, name: 'Olive', password: 'short' }))).toBe('INVALID');
+    }
+    new Browser('198.51.100.120', 'prober').activate();
+    const refused = failureOf(await invokePublic(invitationActions.acceptInvitationAction, { token, name: 'Olive', password: GOOD }));
+    expect(refused).toMatchObject({ code: 'RATE_LIMITED', fields: { retryAfterSec: expect.stringMatching(/^\d+$/) } });
+    expect(await prisma().user.count({ where: { email: address('olive') } })).toBe(0);
+
+    // The counter is keyed by the token's hash; neither the token nor anything that opens the invitation is stored.
+    const keys = (await prisma().authRateLimit.findMany({ select: { key: true } })).map((row) => row.key);
+    expect(keys).toContain(`invite:token:${sha256(token)}`);
+    expect(JSON.stringify(keys)).not.toContain(token);
+    // Another invitation is not affected, and opening the link is not limited by it.
+    const other = await inviteOwnerByMail(address('bea'));
+    expect(codeOf(await invokePublic(invitationActions.acceptInvitationAction, { token: other.token, name: 'Bea', password: GOOD }))).toBe('OK');
+    expect(codeOf(await invokePublic(invitationActions.getInvitation, { token }))).toBe('OK');
+  });
+
   it('falls back to the sign-in page when the new person cannot be signed in', async () => {
     const email = address('olive');
     const { token } = await inviteOwnerByMail(email);

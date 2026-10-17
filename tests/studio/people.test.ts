@@ -731,6 +731,15 @@ describe('the people queries', () => {
     expect(dataOf(await ask(admin, peopleQueries.listPeople, {})).page).toBe(1);
   });
 
+  it('searches for a typed % or _ as itself, as every other search does', async () => {
+    await person('percent', { name: 'Fifty % Off' });
+    for (const q of ['%', '_']) {
+      const found = dataOf(await ask(admin, peopleQueries.listPeople, { q, page: 1 })).rows.map((r) => r.name);
+      expect(found, q).toEqual(q === '%' ? ['Fifty % Off'] : []);
+    }
+    expect(dataOf(await ask(admin, peopleQueries.listPeople, { q: 'fifty _ off', page: 1 })).rows).toEqual([]);
+  });
+
   it('shows an owner with people.invite the members of their restaurant, and no one else', async () => {
     // Dee also works at the other restaurant: the owner sees Dee, but not that.
     await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: bistro.id });

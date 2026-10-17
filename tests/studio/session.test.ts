@@ -121,6 +121,19 @@ describe('signIn', () => {
     expect(await prisma().session.count()).toBe(0);
   });
 
+  it('answers a password longer than any account can have like a wrong one, without logging an error, and counts it', async () => {
+    await createPasswordUser(prisma(), { email: 'owner@example.com', name: 'Owner', password: GOOD });
+    const wrong = await signIn('owner@example.com', `${GOOD}!`);
+    const logged = vi.mocked(console.error).mock.calls.length;
+
+    expect(await signIn('owner@example.com', 'x'.repeat(129))).toEqual(wrong);
+    expect(await signIn('owner@example.com', 'x'.repeat(1024))).toEqual(wrong);
+    // 128 characters is the longest a password can be, and is checked like any other.
+    expect(await signIn('owner@example.com', 'x'.repeat(128))).toEqual(wrong);
+    expect(vi.mocked(console.error).mock.calls.length).toBe(logged);
+    expect(await prisma().authRateLimit.findUniqueOrThrow({ where: { key: 'signin:email:owner@example.com' } })).toMatchObject({ count: 4 });
+  });
+
   it('counts every attempt, wrong or right, against the address and the email, using the normalized email', async () => {
     await createPasswordUser(prisma(), { email: 'owner@example.com', name: 'Owner', password: GOOD });
 

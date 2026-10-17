@@ -795,9 +795,13 @@ describe('restaurantActivity', () => {
     const page = dataOf(await ask(admin, restaurantQueries.restaurantActivity, { restaurantId: id }));
     expect(page.total).toBe(3);
     expect(page.rows.map((row) => row.action)).toEqual(['branch.created', 'restaurant.updated', 'restaurant.created']);
-    expect(page.rows[0]).toMatchObject({ actor: 'Sam Admin', entityType: 'Branch' });
+    expect(page.rows[0]).toMatchObject({ actor: { id: admin.userId, name: 'Sam Admin' }, entityType: 'Branch', restaurant: { id, name: 'Activity Place' } });
     expect(page).toMatchObject({ page: 1, pageSize: 25 });
-    expect(page.rows[1]!.changes).toMatchObject({ city: { before: '', after: 'Zakho' } });
+    // Which fields a change touched, and never what they held: one policy with Activity.
+    expect(page.rows[1]!.fields).toEqual(['city']);
+    expect([...page.rows[2]!.fields].sort()).toEqual(['name', 'type']);
+    expect(page.rows.every((row) => !('changes' in row))).toBe(true);
+    expect(JSON.stringify(page)).not.toContain('Zakho');
   });
 
   it('pages the log', async () => {
