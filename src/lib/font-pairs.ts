@@ -36,3 +36,13 @@ export const FONT_PAIRS: Record<FontPairId, FontPair> = {
   fine: { label: 'Fine dining', display: 'Cormorant Garamond', text: 'Jost', arabic: 'Noto Naskh Arabic' },
   modern: { label: 'Modern', display: 'Space Grotesk', text: 'Inter', arabic: 'IBM Plex Sans Arabic' },
 };
+
+/** The CSS variables `src/app/fonts.ts` gives each pair's faces, for drawing a pair's samples in the Studio. */
+export const FONT_PAIR_VARIABLES: Record<FontPairId, { display: string; text: string; arabic: string }> = {
+  classic: { display: '--font-bodoni', text: '--font-hanken', arabic: '--font-naskh' },
+  cafe: { display: '--font-fraunces', text: '--font-dm-sans', arabic: '--font-vazirmatn' },
+  bakery: { display: '--font-playfair', text: '--font-nunito-sans', arabic: '--font-naskh' },
+  street: { display: '--font-anton', text: '--font-inter', arabic: '--font-kufi' },
+  fine: { display: '--font-cormorant', text: '--font-jost', arabic: '--font-naskh' },
+  modern: { display: '--font-space-grotesk', text: '--font-inter', arabic: '--font-plex-arabic' },
+};

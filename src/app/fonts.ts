@@ -172,3 +172,9 @@ export function fontVariablesFor(locale: Locale | null, pair: FontPairId = DEFAU
   const variables = locale === 'ar' || locale === 'ckb' ? [faces.arabic.variable] : faces.latin.map((face) => face.variable);
   return `${variables.join(' ')} font-pair-${pair}`;
 }
+
+/** Every face of every pair, for the Studio's Brand tab, where each pair's sample is drawn in its own type. */
+export function allPairFontVariables(): string {
+  const faces = new Set(Object.values(PAIR_FACES).flatMap((pair) => [...pair.latin, pair.arabic]));
+  return [...faces].map((face) => face.variable).join(' ');
+}
