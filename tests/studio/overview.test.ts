@@ -174,6 +174,20 @@ describe('overview', () => {
     expect(dataOf(await ask(admin, overviewQueries.overview)).viewsLast7Days).toBe(3);
   });
 
+  it('adds up the storage the reader’s libraries use, the shared library for Super Admins only', async () => {
+    const asset = (restaurantId: string | null, storedBytes: number, hash: string) =>
+      prisma().mediaAsset.create({
+        data: { restaurantId, kind: 'IMAGE', storageKey: `r/${hash}`, contentHash: hash, mime: 'image/png', bytes: 1, storedBytes, variants: { original: `r/${hash}/original.png` } },
+      });
+    await asset(atelier.id, 1_000, 'ov-a1');
+    await asset(atelier.id, 500, 'ov-a2');
+    await asset(bistro.id, 7_000, 'ov-b1');
+    await asset(null, 300, 'ov-s1');
+
+    expect(dataOf(await ask(designer, overviewQueries.overview)).storageBytes).toBe(1_500);
+    expect(dataOf(await ask(admin, overviewQueries.overview)).storageBytes).toBe(8_800);
+  });
+
   it('shows recent activity to a reader who may read the audit log, and null to everyone else', async () => {
     const menu = await menuIn(atelier.id, 'ov-activity');
     await prisma().auditLog.createMany({

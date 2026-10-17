@@ -3,6 +3,7 @@
 import {
   Activity,
   ChevronsUpDown,
+  Images,
   LayoutDashboard,
   LogOut,
   Settings,
@@ -32,6 +33,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   overview: LayoutDashboard,
   restaurants: Store,
   menus: UtensilsCrossed,
+  media: Images,
   people: Users,
   activity: Activity,
   settings: Settings,

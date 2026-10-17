@@ -39,6 +39,8 @@ export interface OverviewData {
   scheduled: ScheduledRevision[];
   /** Menu views (`MENU_VIEW` events) in the last 7 days. */
   viewsLast7Days: number;
+  /** Bytes the libraries within the scope keep in storage (every rendition); the shared library counts for Super Admins. */
+  storageBytes: number;
   /** The newest audit rows; null for a reader who may not read the audit log. */
   recentActivity: AuditRow[] | null;
 }
@@ -52,7 +54,8 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
   const menuWhere: Prisma.MenuWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
   const since = new Date((options.now ?? new Date()).getTime() - 7 * DAY_MS);
 
-  const [restaurantCounts, menuCounts, unpublished, scheduled, views, recentActivity] = await Promise.all([
+  const mediaWhere: Prisma.MediaAssetWhereInput = scope.kind === 'all' ? {} : { restaurantId: { in: scope.ids } };
+  const [restaurantCounts, menuCounts, unpublished, scheduled, views, recentActivity, storage] = await Promise.all([
     db.restaurant.groupBy({ by: ['status'], where: restaurantWhere, _count: { _all: true } }),
     db.menu.groupBy({ by: ['status'], where: menuWhere, _count: { _all: true } }),
     // The draft's hash differs from the live one (a menu never published has no live hash, and nothing to differ from).
@@ -70,6 +73,7 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
     }),
     db.analyticsEvent.count({ where: { type: 'MENU_VIEW', occurredAt: { gte: since }, menu: menuWhere } }),
     options.activity ? recentActivityRows(db, RECENT_ACTIVITY_LIMIT) : null,
+    db.mediaAsset.aggregate({ where: mediaWhere, _sum: { storedBytes: true } }),
   ]);
 
   const restaurants = zeroed(RESTAURANT_STATUSES);
@@ -94,6 +98,7 @@ export async function loadOverview(db: PrismaClient, scope: ActorScope, options:
       goLiveAt: revision.goLiveAt!.toISOString(),
     })),
     viewsLast7Days: views,
+    storageBytes: storage._sum.storedBytes ?? 0,
     recentActivity,
   };
 }

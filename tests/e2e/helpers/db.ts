@@ -170,3 +170,16 @@ export async function qrScans(qrCodeId: string): Promise<number> {
     await prisma.$disconnect();
   }
 }
+
+/** Puts the restaurant's newest library picture on the menu's product, as the Content tab would; answers its id. */
+export async function useNewestAssetInProduct(menuId: string): Promise<string> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    const menu = await prisma.menu.findUniqueOrThrow({ where: { id: menuId }, select: { restaurantId: true } });
+    const asset = await prisma.mediaAsset.findFirstOrThrow({ where: { restaurantId: menu.restaurantId, kind: 'IMAGE' }, orderBy: { createdAt: 'desc' } });
+    await prisma.product.updateMany({ where: { menuId }, data: { media: [{ kind: 'asset', assetId: asset.id }] } });
+    return asset.id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}

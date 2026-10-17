@@ -11,7 +11,7 @@ import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { myRestaurants } from '@/server/studio/queries/account';
 import { overview } from '@/server/studio/queries/overview';
 import type { AuditRow, Named } from '@/server/studio/services/activity';
-import { formatDate, formatDateTime, numberFormat } from '@/studio/format';
+import { formatBytes, formatDate, formatDateTime, numberFormat } from '@/studio/format';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly, landingPath } from '@/studio/nav';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -168,7 +168,7 @@ export default async function OverviewPage() {
           />
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
               <Tally
                 title={t('overview.restaurants')}
                 total={restaurantTotal}
@@ -193,6 +193,13 @@ export default async function OverviewPage() {
                 <h2 className="text-sm font-medium text-muted">{t('overview.views')}</h2>
                 <p className="text-3xl font-semibold tabular-nums text-text">{number.format(data.viewsLast7Days)}</p>
                 <p className="text-sm text-muted">{t('overview.viewsPeriod')}</p>
+              </section>
+              <section aria-label={t('overview.storage')} className="flex flex-col gap-1 rounded-lg border border-line p-5">
+                <h2 className="text-sm font-medium text-muted">{t('overview.storage')}</h2>
+                <p className="text-3xl font-semibold tabular-nums text-text">{formatBytes(data.storageBytes, locale)}</p>
+                <Link href="/studio/media" className="w-fit text-sm text-muted underline-offset-2 transition-colors hover:text-text hover:underline">
+                  {t('overview.storageLink')}
+                </Link>
               </section>
             </div>
 

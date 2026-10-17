@@ -3,6 +3,7 @@ import { assetUsage, type AssetUsage } from '@/server/media/usage';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { assetIdField, listLibrary } from '@/server/studio/services/media';
+import { permissionsIn } from '@/server/studio/services/menus';
 
 /**
  * Reading the media library. A member of a restaurant sees its library with the shared one beside it (to pick photos
@@ -22,9 +23,33 @@ export const listMedia = defineQuery({
     tag: z.string().trim().max(40).optional(),
     q: z.string().trim().max(100).optional(),
     page: pageField,
+    /** The restaurant's own assets only, without the shared ones beside them. */
+    own: z.boolean().optional(),
   }),
   target: (i) => (i.restaurantId ? ({ kind: 'restaurant', restaurantId: i.restaurantId } as const) : ({ kind: 'platform' } as const)),
   run: (ctx, input) => listLibrary(ctx.db, { restaurantId: ctx.restaurantId }, input),
+});
+
+/**
+ * The libraries a person may manage: the restaurants where they hold `media.manage`, and whether they may change the
+ * shared one (Super Admins). The Media page offers these.
+ */
+export const libraries = defineQuery({
+  name: 'media.libraries',
+  permission: 'view',
+  input: z.object({}),
+  target: () => ({ kind: 'platform' }),
+  run: async (ctx) => {
+    const found = await ctx.db.restaurant.findMany({
+      where: ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { id: true, name: true, permissionPolicy: true },
+    });
+    return {
+      restaurants: found.filter((row) => permissionsIn(ctx.actor, row).has('media.manage')).map((row) => ({ id: row.id, name: row.name })),
+      sharedEditable: ctx.actor.isSuperAdmin,
+    };
+  },
 });
 
 export const usage = defineQuery({

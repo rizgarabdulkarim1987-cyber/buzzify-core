@@ -518,6 +518,7 @@ const SWEPT: Record<string, Case[]> = {
   ],
   'media.list': [
     c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
+    c("B's library alone", (w) => ({ restaurantId: w.b.restaurantId, own: true })),
     c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
     c('the shared library', () => ({}), SCOPED),
   ],
@@ -635,6 +636,7 @@ const SWEPT: Record<string, Case[]> = {
     c("in B's city", () => ({ city: 'Bravoville' }), SCOPED),
   ],
   'menus.newOptions': [c('the restaurants to create in', () => ({}), SHOWS_OWN)],
+  'media.libraries': [c('the libraries to manage', () => ({}), SHOWS_OWN)],
   'overview.get': [c('the overview', () => ({}), SCOPED)],
   'restaurants.list': [
     c('every restaurant', () => ({}), SHOWS_OWN),

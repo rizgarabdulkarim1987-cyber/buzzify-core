@@ -184,6 +184,34 @@ describe('the library', () => {
     expect(dataOf(await ask(ownerOfA, mediaQueries.listMedia, {})).rows.map((r) => r.id)).toEqual([shared]);
   });
 
+  it('lists one library alone, with what the details panel shows and the storage it uses', async () => {
+    const own = dataOf((await upload(designerOfA, a.restaurant.id, await photo('#111111'))).result).assetId;
+    const sharedSlot = dataOf(await run(admin, media.requestSharedUpload, { fileName: 's.png', mime: 'image/png', bytes: 10 }));
+    await storage.put(sharedSlot.uploadKey, await photo('#222222'), { contentType: 'image/png', cacheControl: 'no-store' });
+    const shared = dataOf(await run(admin, media.finalizeShared, { uploadKey: sharedSlot.uploadKey })).assetId;
+
+    const listed = dataOf(await ask(designerOfA, mediaQueries.listMedia, { restaurantId: a.restaurant.id, own: true }));
+    expect(listed.rows.map((row) => row.id)).toEqual([own]);
+    expect(listed.rows[0]).toMatchObject({ mime: 'image/png', width: 700, height: 400, previewUrl: expect.stringMatching(/webp-640\.webp$/), originalUrl: expect.stringMatching(/original\.png$/) });
+    const row = await prisma().mediaAsset.findUniqueOrThrow({ where: { id: own } });
+    expect(listed.storageBytes).toBe(row.storedBytes);
+    const sharedOnly = dataOf(await ask(admin, mediaQueries.listMedia, {}));
+    expect(sharedOnly.rows.map((entry) => entry.id)).toEqual([shared]);
+    expect(sharedOnly.storageBytes).toBe((await prisma().mediaAsset.findUniqueOrThrow({ where: { id: shared } })).storedBytes);
+  });
+
+  it('names the libraries a person may manage: their restaurants, and the shared one, editable by Super Admins', async () => {
+    const libraries = dataOf(await ask(designerOfA, mediaQueries.libraries, {}));
+    expect(libraries).toEqual({ restaurants: [{ id: a.restaurant.id, name: a.restaurant.name }], sharedEditable: false });
+    const all = dataOf(await ask(admin, mediaQueries.libraries, {}));
+    expect(all.restaurants.map((entry) => entry.id).sort()).toEqual([a.restaurant.id, b.restaurant.id].sort());
+    expect(all.sharedEditable).toBe(true);
+    // A client that takes the library from its designers leaves them none to manage; an owner has none by default.
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { DESIGNER: { grant: [], revoke: ['media.manage'] } } } });
+    expect(dataOf(await ask(designerOfA, mediaQueries.libraries, {})).restaurants).toEqual([]);
+    expect(dataOf(await ask(ownerOfA, mediaQueries.libraries, {})).restaurants).toEqual([]);
+  });
+
   it('refuses to delete an asset a draft or a revision uses, and lists where', async () => {
     const { assetId } = dataOf((await upload(designerOfA, a.restaurant.id, await photo())).result);
     await useInProduct(a.product.id, assetId);

@@ -248,6 +248,12 @@ export interface MediaRow {
   shared: boolean;
   version: number;
   bytes: number;
+  mime: string;
+  /** A larger picture for the details panel: the 640 px WebP, or the file itself for an SVG or an icon. */
+  previewUrl: string;
+  /** The file as it was uploaded (an SVG as sanitized). */
+  originalUrl: string;
+  createdAt: string;
 }
 
 /** The URL of an asset's small picture: its 320 px WebP, or the file itself for an SVG or an icon. */
@@ -256,21 +262,33 @@ export function thumbKey(kind: string, variants: AssetVariants): string {
   return variants.original;
 }
 
-/** A page of a library: a restaurant's assets with the shared ones, or the shared library alone. */
+/** The URL of an asset's larger picture: its 640 px WebP (else its widest), or the file itself for an SVG or an icon. */
+function previewKey(kind: string, variants: AssetVariants): string {
+  if (kind !== 'IMAGE') return variants.original;
+  const widths = Object.keys(variants.webp ?? {}).map(Number).sort((a, b) => a - b);
+  const width = widths.filter((w) => w <= 640).at(-1) ?? widths[0];
+  return width === undefined ? variants.original : variants.webp![String(width)]!;
+}
+
+/**
+ * A page of a library: a restaurant's assets with the shared ones (for picking), its own alone (`own`, for managing),
+ * or the shared library alone. `storageBytes` is what the library itself keeps in storage.
+ */
 export async function listLibrary(
   db: ActionContext['db'],
   library: Library,
-  input: { folder?: string; tag?: string; q?: string; page: number },
-): Promise<{ rows: MediaRow[]; folders: string[]; tags: string[]; total: number }> {
+  input: { folder?: string; tag?: string; q?: string; page: number; own?: boolean },
+): Promise<{ rows: MediaRow[]; folders: string[]; tags: string[]; total: number; storageBytes: number }> {
+  const own: Prisma.MediaAssetWhereInput = { restaurantId: library.restaurantId };
   const scope: Prisma.MediaAssetWhereInput =
-    library.restaurantId === null ? { restaurantId: null } : { OR: [{ restaurantId: library.restaurantId }, { restaurantId: null }] };
+    library.restaurantId === null || input.own ? own : { OR: [{ restaurantId: library.restaurantId }, { restaurantId: null }] };
   const filters: Prisma.MediaAssetWhereInput[] = [scope];
   if (input.folder !== undefined) filters.push({ folder: input.folder });
   if (input.tag) filters.push({ tags: { has: input.tag.toLowerCase() } });
   if (input.q) filters.push({ OR: [{ folder: { contains: input.q, mode: 'insensitive' } }, { tags: { has: input.q.toLowerCase() } }] });
   const where: Prisma.MediaAssetWhereInput = { AND: filters };
 
-  const [rows, total, folders, tagged] = await Promise.all([
+  const [rows, total, folders, tagged, stored] = await Promise.all([
     db.mediaAsset.findMany({
       where,
       orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -280,6 +298,7 @@ export async function listLibrary(
     db.mediaAsset.count({ where }),
     db.mediaAsset.findMany({ where: { AND: [scope, { folder: { not: '' } }] }, distinct: ['folder'], select: { folder: true }, orderBy: { folder: 'asc' } }),
     db.mediaAsset.findMany({ where: scope, select: { tags: true }, take: 2000 }),
+    db.mediaAsset.aggregate({ where: own, _sum: { storedBytes: true } }),
   ]);
 
   const storage = getStorage();
@@ -296,9 +315,14 @@ export async function listLibrary(
       shared: row.restaurantId === null,
       version: row.version,
       bytes: row.bytes,
+      mime: row.mime,
+      previewUrl: storage.publicUrl(previewKey(row.kind, row.variants as unknown as AssetVariants)),
+      originalUrl: storage.publicUrl((row.variants as unknown as AssetVariants).original),
+      createdAt: row.createdAt.toISOString(),
     })),
     folders: folders.map((row) => row.folder),
     tags: canonicalStrings(tagged.flatMap((row) => row.tags)),
     total,
+    storageBytes: stored._sum.storedBytes ?? 0,
   };
 }

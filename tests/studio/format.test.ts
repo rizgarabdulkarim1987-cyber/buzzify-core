@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
-import { describeUserAgent, formatDate, formatDateTime, numberFormat } from '@/studio/format';
+import { describeUserAgent, formatBytes, formatDate, formatDateTime, numberFormat } from '@/studio/format';
 import { isolated } from '@/studio/ui/isolate';
 
 describe('describeUserAgent', () => {
@@ -61,5 +61,14 @@ describe('isolated', () => {
   it('fills placeholders with text set apart from the sentence, and leaves the rest as it is', () => {
     const html = renderToStaticMarkup(isolated('Signed in as {email} at {place}.', { email: 'a@b.test' }));
     expect(html).toBe('Signed in as <bdi>a@b.test</bdi> at {place}.');
+  });
+});
+
+describe('formatBytes', () => {
+  it('writes a size in the unit people read, in the interface’s digits', () => {
+    expect(formatBytes(820, 'en')).toBe('820 B');
+    expect(formatBytes(12_700, 'en')).toBe('12.4 KB');
+    expect(formatBytes(3_250_000, 'en')).toBe('3.1 MB');
+    expect(formatBytes(3_250_000, 'ckb')).toBe('٣٫١ MB');
   });
 });

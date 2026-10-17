@@ -136,6 +136,13 @@
   }
 }
 
+/* The ground under a picture that may be transparent (a logo, an icon): a faint check, so white and clear differ. */
+@utility studio-checker {
+  background-color: var(--s-surface);
+  background-image: conic-gradient(var(--s-hover) 25%, transparent 0 50%, var(--s-hover) 0 75%, transparent 0);
+  background-size: 16px 16px;
+}
+
 @layer base {
   html {
     background: var(--s-bg);

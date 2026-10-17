@@ -1,6 +1,6 @@
 'use client';
 
-import { FileDown, FileSpreadsheet, FileUp, Radio, Upload } from 'lucide-react';
+import { ArrowRight, FileDown, FileSpreadsheet, FileUp, Radio, Upload } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useId, useRef, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -376,9 +376,7 @@ function Preview({
                           <span dir="auto" className="text-muted line-through decoration-line-strong">
                             {shown(change, 'before')}
                           </span>
-                          <span aria-hidden className="text-muted rtl:-scale-x-100">
-                            →
-                          </span>
+                          <ArrowRight aria-hidden className="size-3.5 shrink-0 self-center text-muted rtl:-scale-x-100" />
                           <span dir="auto" className="text-text">
                             {shown(change, 'after')}
                           </span>

@@ -162,6 +162,7 @@ export const getRestaurant = defineQuery({
         manage: can('people.manage'),
         permissions: can('permissions.manage'),
         audit: can('audit.view'),
+        media: can('media.manage'),
       },
     };
   },
