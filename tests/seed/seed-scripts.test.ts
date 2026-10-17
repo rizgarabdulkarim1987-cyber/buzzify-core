@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@/generated/prisma/client';
-import { databaseUrl, TEST_DB } from '../../scripts/db-config';
+import { databaseUrl, DB_PORT, TEST_DB } from '../../scripts/db-config';
 import { requireTestDb, resetTestData, testPrisma } from '../helpers/db';
 
 /**
@@ -186,7 +186,7 @@ describe('npm run db:seed:load', () => {
     const { code, out } = run('prisma/seed-load.ts', {}, ['5']);
 
     expect(code, out).toBe(0);
-    expect(out).toContain(`Database: 127.0.0.1:54329/${TEST_DB}`);
+    expect(out).toContain(`Database: 127.0.0.1:${DB_PORT}/${TEST_DB}`);
     expect(out).toContain('Seeded 5 restaurants');
     expect(await prisma.menu.count()).toBe(5);
   });
