@@ -1,6 +1,7 @@
 import { z } from 'zod';
-import type { Prisma } from '@/generated/prisma/client';
+import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import type { ScopedTx } from '@/server/data/tenant-db';
+import { refreshDraftHash } from '@/server/publish/draft';
 import {
   emptyWorkingHours,
   MAX_RANGES_PER_DAY,
@@ -13,7 +14,7 @@ import {
   type SocialLinks,
 } from '@/server/domain/restaurant-profile';
 import type { Actor } from '@/server/studio/auth/actor';
-import { StudioError } from '@/server/studio/framework/result';
+import { describeError, StudioError } from '@/server/studio/framework/result';
 
 export { formatClientId, parseClientId } from '@/server/domain/restaurant-profile';
 
@@ -226,6 +227,29 @@ export async function menuAddresses(tx: ScopedTx): Promise<Array<{ menuId: strin
   if (menus.length === 0) return [];
   const slugs = await tx.menuSlug.findMany({ where: { menuId: { in: menus.map((menu) => menu.id) } }, select: { slug: true, menuId: true } });
   return menus.map((menu) => ({ menuId: menu.id, slugs: slugs.filter((entry) => entry.menuId === menu.id).map((entry) => entry.slug) }));
+}
+
+/**
+ * Recomputes the draft hash of each menu (`refreshDraftHash`) after a change to its restaurant that guests see: the
+ * restaurant's name is part of every menu's snapshot, so a rename is an unpublished change of each of them until it is
+ * published. Run it with the application's client once the change has committed: a restaurant's client cannot read a
+ * menu's rows.
+ *
+ * Each menu is refreshed in a transaction that takes the menu's row lock before it reads, so refreshes after two renames
+ * in quick succession run one after the other, and the later one reads the later name. A menu deleted meanwhile is
+ * skipped. A failure is logged and does not stop the others: the change itself has committed.
+ */
+export async function refreshDraftHashes(prisma: PrismaClient, menuIds: readonly string[]): Promise<void> {
+  for (const menuId of menuIds) {
+    try {
+      await prisma.$transaction(async (tx) => {
+        const { count } = await tx.menu.updateMany({ where: { id: menuId }, data: { draftHash: null } });
+        if (count > 0) await refreshDraftHash(tx, menuId);
+      });
+    } catch (error) {
+      console.error(`[studio] Refreshing the draft hash of menu ${menuId} failed with ${describeError(error)}`);
+    }
+  }
 }
 
 /**

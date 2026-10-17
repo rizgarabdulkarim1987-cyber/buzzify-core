@@ -9,6 +9,7 @@ import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { getMenu } from '@/server/studio/queries/menus';
 import { formatDateTime, numberFormat } from '@/studio/format';
+import { liveStateKeys } from '@/studio/menu-live';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly } from '@/studio/nav';
 import { Alert } from '@/studio/ui/Alert';
@@ -55,6 +56,13 @@ export default async function MenuPage({ params }: { params: Promise<{ id: strin
   const number = numberFormat(actor.locale);
   const blocking = menu.issues.filter((issue) => issue.severity === 'block');
   const warnings = menu.issues.filter((issue) => issue.severity === 'warn');
+  // What guests get at the address now, and how the draft compares with the live revision.
+  const liveState = liveStateKeys({
+    status: menu.status,
+    restaurantStatus: menu.restaurant.status,
+    hasLiveRevision: menu.liveRevision !== null,
+    unpublished: menu.unpublished,
+  });
   const back = isOwnerOnly(actor)
     ? { href: `/studio/restaurants/${menu.restaurant.id}/menus`, label: menu.restaurant.name }
     : { href: '/studio/menus', label: t('menus.title') };
@@ -154,7 +162,7 @@ export default async function MenuPage({ params }: { params: Promise<{ id: strin
                   <span className="text-muted"> · {isolated(t('menus.live.by'), { name: menu.liveRevision.publishedBy })}</span>
                 )}
               </p>
-              <p className="text-sm text-muted">{menu.unpublished ? t('menus.live.unpublished') : t('menus.live.upToDate')}</p>
+              <p className="text-sm text-muted">{liveState.map((key) => t(key)).join(' ')}</p>
             </>
           ) : (
             <p className="text-base text-muted">{t('menus.live.none')}</p>

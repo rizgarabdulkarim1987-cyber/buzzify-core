@@ -3,16 +3,19 @@ import { getPrisma } from '@/server/data/prisma';
 import { expireMenu } from '@/server/data/cache';
 import { resolvePublicMenu } from '@/server/data/public-menu';
 import { formatClientId, parseClientId } from '@/server/domain/restaurant-profile';
+import * as menuActions from '@/server/studio/actions/menus';
 import * as restaurants from '@/server/studio/actions/restaurants';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import type { ActionDef } from '@/server/studio/framework/action';
 import { runAction } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
+import * as menuQueries from '@/server/studio/queries/menus';
+import * as overviewQueries from '@/server/studio/queries/overview';
 import * as restaurantQueries from '@/server/studio/queries/restaurants';
 import { branchInput, restaurantInput } from '@/server/studio/services/restaurants';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
-import { createMenuFixture, requireTestDb, resetTestData } from '../helpers/db';
+import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
 // Restaurants' cached menus are expired after a status change; the real function is a no-op outside Next, so the test
 // watches the calls and lets them through.
@@ -472,6 +475,21 @@ describe('updateRestaurant', () => {
     expect(await prisma().auditLog.count({ where: { action: 'restaurant.updated' } })).toBe(1);
   });
 
+  it('names who last edited the profile in a refusal, not who changed the status or the branch order since', async () => {
+    dataOf(await run(admin, restaurants.updateRestaurant, { restaurantId: atelier.id, version: 1, ...profile({ name: 'By Sam' }) }));
+    // Neither of these moves the profile's version.
+    const rita = await person('rita', 'Rita Root', [], true);
+    dataOf(await run(rita, restaurants.setRestaurantStatus, { restaurantId: atelier.id, status: 'SUSPENDED' }));
+    const ids: string[] = [];
+    for (const name of ['A', 'B']) ids.push(dataOf(await run(admin, restaurants.createBranch, { restaurantId: atelier.id, name })).branchId);
+    dataOf(await run(designerOfAtelier, restaurants.reorderBranches, { restaurantId: atelier.id, order: [...ids].reverse() }));
+
+    const stale = failureOf(await run(designerOfAtelier, restaurants.updateRestaurant, { restaurantId: atelier.id, version: 1, ...profile({ name: 'By Dee' }) }));
+    expect(stale).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'Sam Admin' } });
+    expect(await prisma().auditLog.findFirstOrThrow({ where: { action: 'restaurant.status_changed' } })).toMatchObject({ entityType: 'RestaurantStatus', entityId: atelier.id });
+    expect(await prisma().auditLog.findFirstOrThrow({ where: { action: 'branch.reordered' } })).toMatchObject({ entityType: 'BranchOrder', entityId: atelier.id });
+  });
+
   it('does not write, version or audit when nothing changed', async () => {
     const result = await run(designerOfAtelier, restaurants.updateRestaurant, { restaurantId: atelier.id, version: 1, ...profile() });
     expect(dataOf(result)).toEqual({ version: 1 });
@@ -501,6 +519,44 @@ describe('updateRestaurant', () => {
     const row = await prisma().restaurant.findUniqueOrThrow({ where: { id: atelier.id } });
     expect(row).toMatchObject({ name: 'Owner edit', notes: 'Late payer' });
   });
+
+  it('marks every menu of the restaurant as changed when its name changes, since guests see the name, until it is published', async () => {
+    const first = await createMenuFixture(prisma(), 'rename-first');
+    const restaurantId = first.restaurant.id;
+    // A second published menu of the same restaurant, and a menu of another restaurant.
+    const second = await prisma().menu.create({ data: { restaurantId, name: 'Second', slug: 'rename-second', locales: ['en'], timezone: 'Asia/Baghdad' } });
+    await prisma().menuSlug.create({ data: { slug: 'rename-second', menuId: second.id } });
+    const category = await prisma().category.create({ data: { menuId: second.id, slug: 'tea', translations: { en: { name: 'Tea' } } } });
+    await prisma().product.create({
+      data: { menuId: second.id, categoryId: category.id, slug: 'rename-tea', basePrice: 200, translations: { en: { name: 'Tea', description: 'Hot' } } },
+    });
+    await publishFixture(prisma(), second.id);
+    const other = await createMenuFixture(prisma(), 'rename-other');
+
+    const unpublished = async (menuId: string) => dataOf(await ask(admin, menuQueries.getMenu, { menuId })).unpublished;
+    const listed = async () => dataOf(await ask(admin, menuQueries.listMenus, { unpublished: true })).rows.map((row) => row.id).sort();
+    const onOverview = async () => dataOf(await ask(admin, overviewQueries.overview, {})).unpublished.map((row) => row.menuId).sort();
+    const profileOf = (name: string) => ({ restaurantId, name, type: 'RESTAURANT', city: 'Zakho' });
+
+    // A field guests do not see leaves the menus as they were.
+    dataOf(await run(admin, restaurants.updateRestaurant, { ...profileOf(first.restaurant.name), version: 1 }));
+    expect(await listed()).toEqual([]);
+
+    dataOf(await run(admin, restaurants.updateRestaurant, { ...profileOf('Renamed Place'), version: 2 }));
+    expect(await unpublished(first.menu.id)).toBe(true);
+    expect(await unpublished(second.id)).toBe(true);
+    expect(await unpublished(other.menu.id)).toBe(false);
+    // All Menus' filter and the Overview's list say so too.
+    expect(await listed()).toEqual([first.menu.id, second.id].sort());
+    expect(await onOverview()).toEqual([first.menu.id, second.id].sort());
+
+    // Publishing shows guests the new name, and that menu is current again; the other is still waiting.
+    dataOf(await run(admin, menuActions.publish, { menuId: first.menu.id }));
+    expect(await unpublished(first.menu.id)).toBe(false);
+    expect(await unpublished(second.id)).toBe(true);
+    const live = await resolvePublicMenu('rename-first');
+    expect(live.kind === 'live' ? live.tenant.name : live.kind).toBe('Renamed Place');
+  });
 });
 
 describe('setRestaurantStatus', () => {
@@ -525,7 +581,7 @@ describe('setRestaurantStatus', () => {
       { status: { before: 'SUSPENDED', after: 'ARCHIVED' } },
       { status: { before: 'ARCHIVED', after: 'ACTIVE' } },
     ]);
-    expect(audits[0]).toMatchObject({ actorId: admin.userId, restaurantId, entityType: 'Restaurant', entityId: restaurantId });
+    expect(audits[0]).toMatchObject({ actorId: admin.userId, restaurantId, entityType: 'RestaurantStatus', entityId: restaurantId });
   });
 
   it('expires the cache of every slug of every menu the restaurant has, once the change has committed', async () => {
@@ -677,7 +733,7 @@ describe('branches', () => {
     expect(dataOf(await run(admin, restaurants.reorderBranches, { restaurantId: atelier.id, order: [b] })).order).toEqual([b, c, a]);
     const logged = await audits('branch.reordered');
     expect(logged).toHaveLength(2);
-    expect(logged[0]).toMatchObject({ restaurantId: atelier.id, entityType: 'Restaurant', entityId: atelier.id });
+    expect(logged[0]).toMatchObject({ restaurantId: atelier.id, entityType: 'BranchOrder', entityId: atelier.id });
     expect(logged[0]!.changes).toMatchObject({ order: { before: [a, b, c], after: [c, a, b] } });
   });
 

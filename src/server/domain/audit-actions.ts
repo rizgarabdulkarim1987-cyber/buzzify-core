@@ -44,4 +44,15 @@ export const AUDIT_ACTIONS = [
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 /** The kinds of row the audit log names (its `entityType`), each with a label (`activity.entity.<type>`). */
-export const AUDIT_ENTITY_TYPES = ['Restaurant', 'Branch', 'Menu', 'MenuStatus', 'User', 'Invitation', 'Session', 'PlatformSetting'] as const;
+export const AUDIT_ENTITY_TYPES = [
+  'Restaurant',
+  'RestaurantStatus',
+  'Branch',
+  'BranchOrder',
+  'Menu',
+  'MenuStatus',
+  'User',
+  'Invitation',
+  'Session',
+  'PlatformSetting',
+] as const;

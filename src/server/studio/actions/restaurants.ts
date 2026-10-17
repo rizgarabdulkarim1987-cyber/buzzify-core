@@ -15,6 +15,7 @@ import {
   pickProfile,
   profileData,
   profileOf,
+  refreshDraftHashes,
   removeRestaurant,
   restaurantInput,
   restaurantStatus,
@@ -67,8 +68,8 @@ export const updateRestaurant = defineAction({
   permission: 'restaurant.edit',
   input: restaurantInput.extend({ restaurantId: idField, version: versionField }),
   target: (i) => atRestaurant(i.restaurantId),
-  run: (ctx, { version, ...fields }) =>
-    ctx.transaction(async (tx) => {
+  run: async (ctx, { version, ...fields }) => {
+    const saved = await ctx.transaction(async (tx) => {
       const restaurantId = restaurantOf(ctx);
       const input = pickProfile(fields);
       const row = await tx.restaurant.findUnique({ where: { id: restaurantId } });
@@ -77,12 +78,20 @@ export const updateRestaurant = defineAction({
       // The agency's notes are not the client's to read, so an owner's save cannot write them either.
       const next = { ...input, notes: seesAgencyNotes(ctx.actor, restaurantId) ? input.notes : before.notes };
       const changes = changedFields(before, next);
-      if (Object.keys(changes).length === 0) return { version: row.version };
+      if (Object.keys(changes).length === 0) return { version: row.version, menuIds: [] };
 
       await updateWithVersion(tx.restaurant, { id: restaurantId, version, data: profileData(next), entityType: 'Restaurant' }, tx);
       ctx.audit({ action: 'restaurant.updated', entityType: 'Restaurant', entityId: restaurantId, changes });
-      return { version: version + 1 };
-    }),
+      // Guests see the restaurant's name on every menu (it is part of the published snapshot), so a new name is a change
+      // to each menu's draft; nothing else in the profile reaches a menu.
+      const menuIds = 'name' in changes ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
+      return { version: version + 1, menuIds };
+    });
+    // Once the rename has committed, and before answering, so the page the person opens next already says the menus
+    // have unpublished changes. The restaurant's client cannot read menu rows, so this uses the application's client.
+    await refreshDraftHashes(ctx.db, saved.menuIds);
+    return { version: saved.version };
+  },
 });
 
 export const setRestaurantStatus = defineAction({
@@ -99,9 +108,11 @@ export const setRestaurantStatus = defineAction({
 
       // The status is not a field of the profile form, so it does not move the profile's version.
       await tx.restaurant.update({ where: { id: restaurantId }, data: { status } });
+      // Filed apart from the profile, whose version this does not move, so a refused profile save names who last edited
+      // the profile rather than who last changed the status.
       ctx.audit({
         action: 'restaurant.status_changed',
-        entityType: 'Restaurant',
+        entityType: 'RestaurantStatus',
         entityId: restaurantId,
         changes: { status: { before: row.status, after: status } },
       });
@@ -212,7 +223,9 @@ export const reorderBranches = defineAction({
       const restaurantId = restaurantOf(ctx);
       const { before, after } = await arrangeBranches(tx, order);
       if (JSON.stringify(before) !== JSON.stringify(after)) {
-        ctx.audit({ action: 'branch.reordered', entityType: 'Restaurant', entityId: restaurantId, changes: { order: { before, after } } });
+        // The order of the restaurant's branches, filed apart from the profile and from each branch (a reorder moves no
+        // version), so a refused save of either names who changed that row.
+        ctx.audit({ action: 'branch.reordered', entityType: 'BranchOrder', entityId: restaurantId, changes: { order: { before, after } } });
       }
       return { order: after };
     }),

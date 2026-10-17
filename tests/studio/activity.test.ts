@@ -259,6 +259,15 @@ describe('the audit action labels', () => {
     expect(new Set(AUDIT_ACTIONS).size).toBe(AUDIT_ACTIONS.length);
   });
 
+  it('lists every kind of entity the Studio code files a row under', () => {
+    const written = new Set<string>();
+    for (const file of sources(path.join(process.cwd(), 'src', 'server', 'studio'))) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/\bentityType: '([A-Za-z]+)'/g)) written.add(match[1]!);
+    }
+    expect(written).toContain('RestaurantStatus');
+    expect([...written].filter((type) => !(AUDIT_ENTITY_TYPES as readonly string[]).includes(type))).toEqual([]);
+  });
+
   it('has a label for every action and every kind of entity, in every language', () => {
     for (const locale of LOCALES) {
       const missing = [
