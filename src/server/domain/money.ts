@@ -9,6 +9,13 @@ export { minorUnitDigits };
 // is formatted identically by both.
 const LOCALE_TAG: Record<Locale, string> = { en: 'en-US', ar: 'ar-IQ', ckb: 'ar-IQ' };
 
+/** A whole number (calories, say) in the menu's numerals, grouped as the language groups them. */
+export function formatCount(value: number, locale: Locale = 'en', numerals: 'latn' | 'arab' = 'latn'): string {
+  const wanted = `${LOCALE_TAG[locale]}-u-nu-${numerals}`;
+  const tag = Intl.NumberFormat.supportedLocalesOf([wanted]).length > 0 ? wanted : `en-US-u-nu-${numerals}`;
+  return new Intl.NumberFormat(tag, { maximumFractionDigits: 0 }).format(value);
+}
+
 export function formatMoney(
   amount: number,
   currency: string,

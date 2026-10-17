@@ -5,6 +5,7 @@ import { unitPriceFromMenu } from '@/lib/menu-price';
 import { stageTone } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
+import { formatCount } from '@/server/domain/money';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
@@ -27,7 +28,7 @@ interface Props {
 }
 
 export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Props) {
-  const { t, money, addLine, announce, cart, dismissed, dismiss } = useApp();
+  const { t, money, addLine, announce, cart, dismissed, dismiss, locale, tenant } = useApp();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -109,6 +110,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
             name={product.name}
             slug={`${product.slug}-detail`}
             priority
+            placeholder
             sizes="(min-width: 640px) 576px, 100vw"
             className="aspect-[16/10] w-full"
           />
@@ -198,6 +200,16 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
           <p className="mt-4 text-sm text-muted">
             {t('product.allergens')}: {product.allergens.map((key) => t(`allergen.${key}`)).join(', ')}
           </p>
+        )}
+        {(product.dietary || product.calories !== undefined) && (
+          <ul className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-sm text-muted" aria-label={t('menu.dietary.label')}>
+            {product.dietary?.map((tag) => (
+              <li key={tag}>{t(`menu.dietary.${tag}`)}</li>
+            ))}
+            {product.calories !== undefined && (
+              <li className="tabular-nums">{t('menu.calories', { count: formatCount(product.calories, locale, tenant.numeralSystem) })}</li>
+            )}
+          </ul>
         )}
       </div>
 

@@ -23,6 +23,15 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
           className="block w-full text-start transition-transform duration-150 ease-out-strong active:scale-[0.985]"
         >
           <span className="block font-display text-xl leading-snug">{product.name}</span>
+          {product.badges && (
+            <span className="mt-1 flex flex-wrap gap-1.5">
+              {product.badges.map((badge) => (
+                <span key={badge} className="rounded-full border border-line px-2 py-px text-xs text-muted">
+                  {t(`menu.badge.${badge}`)}
+                </span>
+              ))}
+            </span>
+          )}
           {product.description && (
             <span className="mt-1.5 line-clamp-2 block max-w-[34ch] text-sm leading-relaxed text-muted">
               {product.description}

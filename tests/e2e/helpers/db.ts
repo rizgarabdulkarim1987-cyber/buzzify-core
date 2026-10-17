@@ -1,8 +1,39 @@
 import { randomUUID } from 'node:crypto';
 import type { Locale } from '@/lib/locale';
+import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
+import { prepareAsset, storeAsset } from '@/server/media/process';
+import { getStorage } from '@/server/storage/storage';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
 import { createMenuFixture, publishFixture } from '../../helpers/db';
+
+/**
+ * A photo in a restaurant's media library, made and stored the way an upload is (in the development folder the app
+ * serves media from), so a menu that shows it loads real files. Answers the asset's id.
+ */
+async function storePhoto(prisma: PrismaClient, restaurantId: string, bytes: Uint8Array, alt: Partial<Record<Locale, string>>): Promise<string> {
+  const prepared = await prepareAsset(bytes);
+  if (!prepared.ok) throw new Error(`The test photo was refused: ${prepared.reason}`);
+  const { asset } = prepared;
+  const stored = await storeAsset(getStorage(), { restaurantId }, asset);
+  const row = await prisma.mediaAsset.create({
+    data: {
+      restaurantId,
+      kind: asset.kind,
+      storageKey: stored.storageKey,
+      contentHash: asset.contentHash,
+      mime: asset.mime,
+      bytes: asset.bytes,
+      storedBytes: stored.storedBytes,
+      width: asset.width,
+      height: asset.height,
+      variants: stored.variants as object,
+      placeholder: asset.placeholder,
+      alt,
+    },
+  });
+  return row.id;
+}
 
 /** The ids of the products of the menu that has the seeded `atelier` address now. */
 export async function atelierProductIds(): Promise<string[]> {
@@ -44,14 +75,27 @@ export interface TemporaryMenu {
  * minutes, and nothing here can expire that cache, so a slug that had been visited would keep its old answer.
  * `locales` limits the languages the menu offers (all three by default).
  */
-export async function createTemporaryMenu({ locales }: { locales?: Locale[] } = {}): Promise<TemporaryMenu> {
+export async function createTemporaryMenu({
+  locales,
+  product: extras,
+}: {
+  locales?: Locale[];
+  /** What its one product also carries: tags, calories, and a photo stored in the media library. */
+  product?: { badges?: string[]; dietary?: string[]; calories?: number; photo?: Uint8Array; alt?: Partial<Record<Locale, string>> };
+} = {}): Promise<TemporaryMenu> {
   const prisma = createPrisma(databaseUrl(DEV_DB));
   const slug = `e2e-${randomUUID().slice(0, 8)}`;
-  const { restaurant, menu, product } = await createMenuFixture(prisma, slug, { publish: !locales });
-  if (locales) {
-    await prisma.menu.update({ where: { id: menu.id }, data: { locales, defaultLocale: locales[0] } });
-    await publishFixture(prisma, menu.id);
+  const changed = Boolean(locales || extras);
+  const { restaurant, menu, product } = await createMenuFixture(prisma, slug, { publish: !changed });
+  if (locales) await prisma.menu.update({ where: { id: menu.id }, data: { locales, defaultLocale: locales[0] } });
+  if (extras) {
+    const media = extras.photo ? [{ kind: 'asset', assetId: await storePhoto(prisma, restaurant.id, extras.photo, extras.alt ?? {}) }] : [];
+    await prisma.product.update({
+      where: { id: product.id },
+      data: { badges: extras.badges ?? [], dietary: extras.dietary ?? [], calories: extras.calories ?? null, media },
+    });
   }
+  if (changed) await publishFixture(prisma, menu.id);
 
   return {
     slug,
