@@ -5,7 +5,8 @@ their phone; the team runs restaurants, menus and people in the **Studio**. The 
 fictional places: the luxury café ATELIER, Riverlight Coffee (a light, English-first café) and Hot Brick Burgers (a dark,
 Sorani-first burger place priced in dinars).
 
-> The Arabic and Sorani text in the seed data, the public menu and the Studio interface is machine-drafted. Have a native
+> The Arabic and Sorani text in the seed data (ATELIER, Riverlight Coffee and Hot Brick Burgers), the public menu and the
+> Studio interface (the menu workspace included) is machine-drafted. Have a native
 > speaker review it before real customers or staff see it.
 
 ## What works
@@ -21,7 +22,7 @@ Sorani-first burger place priced in dinars).
 - Only what has been published is shown. Guests never see a draft
 - Tenant-isolated PostgreSQL data access and an analytics event feed
 
-**The Studio** (`/studio`, for the team; milestone 2a)
+**The Studio** (`/studio`, for the team; milestones 2a and 2b)
 
 - Accounts by invitation only, with password sign-in, reset, sessions you can see and end, and two-factor sign-in
   (required for Super Admins)
@@ -31,11 +32,44 @@ Sorani-first burger place priced in dinars).
   and the same for many at once), People (invitations, permission switches, deactivate), Activity (the audit log)
   and Settings (platform defaults)
 - The whole Studio in English, Arabic and Sorani, with right-to-left layout
+- **The menu workspace**, one tab per job, each shown only to those allowed it:
+  - **Content:** categories (reordered by drag or from the keyboard) and products in a drawer: names and descriptions
+    in each language, price, sizes, option groups, pictures, ingredients, allergens, dietary tags and badges
+  - **Prices:** every price in one grid, and bulk changes by a percentage or an amount with rounding, previewed first
+  - **Availability:** sold out and hidden, live for guests at once without a publish
+  - **Brand:** palettes checked for contrast as you pick them, presets, logos (light and dark), a favicon, six font pairs
+    and the rail and motion styles, with a live sample
+  - **Settings:** languages, currency (prices converted), rounding step, time zone, SEO texts and image
+  - **QR codes:** for the menu or per table, styled (colours checked for scanners, the logo, a line of text below),
+    downloaded as SVG or PNG, every table's code in one ZIP, scans counted
+  - **Import and export:** the draft as CSV or Excel, and a sheet back in, previewed row by row before it is applied
+  - **Revisions:** go back to an earlier revision, restore one into the draft, schedule a publish on the menu's clock
+  - **Preview:** the draft on a phone and a desktop, in each language
+- **Media library** (`/studio/media` and each restaurant's Media tab): uploads checked by their bytes (SVGs sanitised),
+  renditions in WebP and AVIF, folders, tags, alt text in three languages, where each picture is used, and the storage
+  used
 
-Not in this release: the menu editor (content, prices, availability, brand kit, QR codes, import and export, revisions,
-scheduled publishing, image storage; milestone 2b), table PIN verification, order submission, cashier and kitchen
-screens, tax and service charge. A menu created in the Studio starts empty and cannot be published yet; duplicate
-ATELIER to get one with dishes in it. See `docs/superpowers/specs`.
+Not in this release: table PIN verification, order submission, cashier and kitchen screens, tax and service charge.
+See `docs/superpowers/specs`.
+
+### The spreadsheet format
+
+Import and export use the same twenty columns, in this order (an export is a valid import; a template with the header
+row alone is on the Import and export tab):
+
+```
+category_slug,category_en,category_ar,category_ckb,product_slug,name_en,name_ar,name_ckb,description_en,description_ar,description_ckb,price,available,featured,signature,badges,dietary,allergens,calories,sort
+```
+
+Only `category_slug`, `name_en` and `price` are required; a column the sheet leaves out is left as it is. Prices are in
+the menu currency's major unit as people write them (`4.50`, `6000`, `6,000`, `٦٠٠٠`); yes/no columns take
+`yes`/`no`, `true`/`false` or `1`/`0`; badges, dietary tags and allergens are lists separated by `|`. A row finds its
+product by `product_slug`, else by its English name within the category. CSV must be UTF-8 (Excel: Save As, CSV UTF-8).
+For example:
+
+```
+coffee,Coffee,,,flat-white,Flat white,فلات وايت,فلات وایت,Silky microfoam,,,3.75,yes,yes,no,POPULAR,VEGETARIAN,milk,120,1
+```
 
 ## Requirements
 
@@ -84,6 +118,17 @@ first sign-in: scan the QR code with an authenticator app and keep the recovery 
 (invitations, resets) are written to `.data/mail/` instead of being sent, and the subject and first link are logged, so
 an invitation link can be opened straight from the log.
 
+**Media in development:** uploads are kept in `.data/media` (git-ignored) and served by the development-only route
+`/api/dev-media`, which also accepts the browser's signed uploads; it answers 404 in production, where the files live in
+Cloudflare R2.
+
+**Scheduled publishing in development:** nothing calls the scheduler by itself. Set `CRON_SECRET` in `.env`, restart
+`npm run dev`, and run it by hand once a scheduled time has passed (it makes due revisions live and answers how many):
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://127.0.0.1:3100/api/cron/publish
+```
+
 These users and their password exist for local development only. The password is public (it is written in
 `.env.example`), so the seed refuses to create them in production or in a database that is not on this machine. Real
 accounts come from invitations; the first Super Admin on a hosted database is created with `npm run studio:create-admin`
@@ -95,9 +140,9 @@ accounts come from invitations; the first Super Admin on a hosted database is cr
 
 ## Putting it online
 
-The deployment guide, `docs/deploy/production.md`, takes you step by step through Vercel, Neon (PostgreSQL) and Resend
-(email): accounts, DNS, every environment variable, the first deploy, creating the first Super Admin, a checklist that it
-works, and backups. A deploy first checks the production environment and lists everything missing or wrong at once.
+The deployment guide, `docs/deploy/production.md`, takes you step by step through Vercel, Neon (PostgreSQL), Resend
+(email), Cloudflare R2 (pictures and downloads) and the scheduler that makes scheduled publishes live: accounts, DNS,
+every environment variable, the first deploy, creating the first Super Admin, a checklist that it works, and backups. A deploy first checks the production environment and lists everything missing or wrong at once.
 
 ## Scripts
 

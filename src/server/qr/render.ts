@@ -21,21 +21,27 @@ const LOGO_SHARE = 0.2;
 /** The frame text's em size, in user units, before it is shrunk to fit the code's width. */
 const FRAME_EM = 56;
 
-/** The fonts the frame text is drawn with: the Studio's own, read from their packages (traced into the build). */
-const FONT_FILES = {
-  arabic: 'node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2',
-  latin: 'node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2',
-} as const;
+type Script = 'arabic' | 'latin';
+
+/**
+ * The file of a font the frame text is drawn with: the Studio's own, read from its package. Each read names its path in
+ * full, so the build traces those two files alone (a path picked at run time makes it trace the whole project).
+ */
+function readFont(script: Script): Buffer {
+  return script === 'arabic'
+    ? readFileSync(join(process.cwd(), 'node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2'))
+    : readFileSync(join(process.cwd(), 'node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2'));
+}
 
 const ARABIC_SCRIPT = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 
-const fonts = new Map<keyof typeof FONT_FILES, fontkit.Font>();
+const fonts = new Map<Script, fontkit.Font>();
 
-function fontFor(script: keyof typeof FONT_FILES): fontkit.Font {
+function fontFor(script: Script): fontkit.Font {
   let font = fonts.get(script);
   if (!font) {
     // The variable font's default instance: fontkit cannot make another instance of a WOFF2 file.
-    font = fontkit.create(readFileSync(join(process.cwd(), FONT_FILES[script]))) as fontkit.Font;
+    font = fontkit.create(readFont(script)) as fontkit.Font;
     fonts.set(script, font);
   }
   return font;
