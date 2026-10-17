@@ -190,13 +190,27 @@ describe('creating an invitation', () => {
     const email = address('olive');
     const { url } = await inviteOwnerByMail(email);
     const [mail] = await mailTo(email);
-    const expected = renderEmail('invite', 'ar', { url, inviter: 'admin person', restaurant: 'Atelier', role: 'Owner' });
+    const expected = renderEmail('invite', 'ar', { url, inviter: 'admin person', restaurant: 'Atelier', role: 'OWNER' });
     expect(mail?.subject).toBe(expected.subject);
     expect(mail?.html).toContain('lang="ar"');
+    // The role too: in Arabic, not in English.
+    expect(mail?.text).toBe(expected.text);
+    expect(mail?.text).toContain('دورك: ⁨مالك⁩');
+    expect(mail?.text).not.toMatch(/Owner/);
 
     // The new account starts in the same language, so the Studio matches the mail that brought the person to it.
     const { userId } = await acceptInvitation(prisma(), { token: tokenOf(url), signedInUserId: null, name: 'Olive', password: GOOD, now: new Date() });
     expect((await prisma().user.findUniqueOrThrow({ where: { id: userId } })).locale).toBe('ar');
+  });
+
+  it('names the role in Sorani in a Sorani mail, for a Super Admin invitation too', async () => {
+    await prisma().user.update({ where: { id: admin.userId }, data: { locale: 'ckb' } });
+    const email = address('root');
+    dataOf(await run(admin, people.inviteStaff, { email, asSuperAdmin: true }));
+    const [mail] = await mailTo(email);
+    expect(mail?.html).toContain('lang="ckb"');
+    expect(mail?.text).toContain('بەڕێوەبەری باڵا');
+    expect(mail?.text).not.toMatch(/Super Admin|Owner|Designer/);
   });
 
   it('treats invitation emails case-insensitively', async () => {

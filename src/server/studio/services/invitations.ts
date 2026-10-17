@@ -3,6 +3,7 @@ import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { isLocale } from '@/lib/locale';
 import { delegates, type AnyDb, type ScopedDb } from '@/server/data/tenant-db';
 import type { MemberRole } from '@/server/domain/permissions';
+import type { InvitedRole } from '@/server/email/templates';
 import { authEnv } from '@/server/env';
 import { sendAfterResponse } from '@/server/studio/auth/auth';
 import { checkPasswordPolicy, PasswordPolicyError, passwordProblemMessage } from '@/server/studio/auth/password-policy';
@@ -21,15 +22,11 @@ const MAX_NAME_LENGTH = 120;
 
 export type InvitationStatus = 'valid' | 'expired' | 'used' | 'revoked' | 'unknown';
 
-/** What accepting grants: a role in a restaurant, Super Admin, or an account with no restaurants (staff to assign later). */
-export type InvitationRole = MemberRole | 'SUPER_ADMIN' | 'DESIGNER_STAFF';
-
-const ROLE_LABELS: Record<InvitationRole, string> = {
-  OWNER: 'Owner',
-  DESIGNER: 'Designer',
-  SUPER_ADMIN: 'Super Admin',
-  DESIGNER_STAFF: 'Designer',
-};
+/**
+ * What accepting grants: a role in a restaurant, Super Admin, or an account with no restaurants (staff to assign later).
+ * The mail names it in its own language (`renderEmail`).
+ */
+export type InvitationRole = InvitedRole;
 
 function roleOf(row: { asSuperAdmin: boolean; role: MemberRole | null }): InvitationRole {
   if (row.asSuperAdmin) return 'SUPER_ADMIN';
@@ -84,7 +81,7 @@ function queueMail(
       url: mail.url,
       inviter: mail.inviter.name,
       ...(mail.restaurantName ? { restaurant: mail.restaurantName } : {}),
-      role: ROLE_LABELS[mail.role],
+      role: mail.role,
     });
   (options.afterCommit ?? ((fn) => fn()))(send);
 }

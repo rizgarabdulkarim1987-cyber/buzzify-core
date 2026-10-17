@@ -5,6 +5,22 @@ import { getStudioTranslator } from '@/studio/messages';
 
 export type EmailTemplate = 'invite' | 'reset' | 'changeEmailConfirm' | 'verifyNewEmail' | 'emailChanged' | 'passwordChanged';
 
+/** What accepting an invitation makes the person: a role in a restaurant, Super Admin, or staff with no restaurant yet. */
+export type InvitedRole = 'OWNER' | 'DESIGNER' | 'SUPER_ADMIN' | 'DESIGNER_STAFF';
+
+/** The Studio's name for each role (`role.*`), which the mail shows in its own language. Staff are designers. */
+const ROLE_KEYS: Record<InvitedRole, string> = {
+  OWNER: 'role.OWNER',
+  DESIGNER: 'role.DESIGNER',
+  SUPER_ADMIN: 'role.SUPER_ADMIN',
+  DESIGNER_STAFF: 'role.DESIGNER',
+};
+
+/** The role's name in the mail's language; undefined for a value that is not one of the roles, which is left out. */
+function roleName(t: Translate, role: unknown): string | undefined {
+  return typeof role === 'string' && Object.hasOwn(ROLE_KEYS, role) ? t(ROLE_KEYS[role as InvitedRole]) : undefined;
+}
+
 export interface EmailParams {
   /** The recipient's name. The greeting is plain without it. */
   name?: string;
@@ -14,8 +30,8 @@ export interface EmailParams {
   inviter?: string;
   /** The restaurant an invitation is for. */
   restaurant?: string;
-  /** The role an invitation grants, as a label to show. */
-  role?: string;
+  /** The role an invitation grants. The mail names it in its own language. */
+  role?: InvitedRole;
   /** The address an email change is to: required by `changeEmailConfirm` and `emailChanged`. */
   newEmail?: string;
 }
@@ -63,7 +79,10 @@ function webAddress(template: EmailTemplate, value: string | undefined): string 
   return url;
 }
 
-function build(template: EmailTemplate, t: Translate, p: EmailParams, isolate: (value: string) => string): Content {
+/** The parameters as `build` reads them: the role is already a name in the mail's language. */
+type BuildParams = Omit<EmailParams, 'role'> & { role?: string };
+
+function build(template: EmailTemplate, t: Translate, p: BuildParams, isolate: (value: string) => string): Content {
   const name = p.name ? isolate(p.name) : undefined;
   const greeting = name ? t('email.greeting', { name }) : t('email.greetingNoName');
   const subject = t(`email.${template}.subject`);
@@ -194,12 +213,12 @@ function renderText(content: Content, footer: string): string {
  */
 export function renderEmail(template: EmailTemplate, locale: Locale, params: EmailParams): Omit<Email, 'to'> {
   const t = getStudioTranslator(locale);
-  const clean: EmailParams = {
+  const clean: BuildParams = {
     name: plain(params.name),
     url: params.url?.trim(),
     inviter: plain(params.inviter),
     restaurant: plain(params.restaurant),
-    role: plain(params.role),
+    role: roleName(t, params.role),
     newEmail: plain(params.newEmail),
   };
   // Inside right-to-left text, a name or address written in another script would pull the punctuation around it out of

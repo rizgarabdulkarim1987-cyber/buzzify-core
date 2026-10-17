@@ -11,7 +11,7 @@ const PARAMS = {
   url: URL_WITH_TOKEN,
   inviter: 'Omar',
   restaurant: 'Olive & Fig',
-  role: 'Owner',
+  role: 'OWNER' as const,
   newEmail: 'new.address@example.test',
 };
 const EMAIL_KEYS = Object.keys(STUDIO_MESSAGES.en).filter((key) => key.startsWith('email.'));
@@ -39,6 +39,36 @@ describe('renderEmail', () => {
       expect(body).toContain('Olive & Fig');
       expect(body).toContain('Owner');
     }
+  });
+
+  it('names the role of an invitation in the language of the mail, never in English inside Arabic or Sorani', () => {
+    const roles = [
+      ['OWNER', 'role.OWNER'],
+      ['DESIGNER', 'role.DESIGNER'],
+      // A staff invitation makes a designer with no restaurant yet.
+      ['DESIGNER_STAFF', 'role.DESIGNER'],
+      ['SUPER_ADMIN', 'role.SUPER_ADMIN'],
+    ] as const;
+    for (const locale of LOCALES) {
+      for (const [role, key] of roles) {
+        const mail = renderEmail('invite', locale, { ...PARAMS, role });
+        const label = STUDIO_MESSAGES[locale][key]!;
+        expect(mail.text, `${locale} ${role}`).toContain(label);
+        expect(mail.html, `${locale} ${role}`).toContain(label);
+        expect(mail.text, `${locale} ${role}`).not.toContain(role);
+        if (locale !== 'en') {
+          for (const body of [mail.text, mail.html]) expect(body, `${locale} ${role}`).not.toMatch(/Owner|Designer|Super Admin/);
+        }
+      }
+    }
+    expect(renderEmail('invite', 'ar', PARAMS).text).toContain('مالك');
+    expect(renderEmail('invite', 'ckb', PARAMS).text).toContain('خاوەن');
+  });
+
+  it('leaves out a role it does not know rather than printing it', () => {
+    const mail = renderEmail('invite', 'ar', { ...PARAMS, role: 'Chef' as never });
+    expect(mail.text).not.toContain('Chef');
+    expect(mail.text).not.toContain(STUDIO_MESSAGES.ar['email.invite.role']!.split('{')[0]!.trim());
   });
 
   it.each(LOCALES.flatMap((locale) => TEMPLATES.map((template) => [template, locale] as const)))(
@@ -91,7 +121,8 @@ describe('renderEmail', () => {
       name: '<script>alert(1)</script>',
       inviter: '<img src=x onerror=alert(2)>',
       restaurant: '"><b>Bistro</b>',
-      role: "O'Wner <i>",
+      // Not a role the mail knows, so it is left out (see above); the escaping of the others still applies.
+      role: "O'Wner <i>" as never,
       newEmail: 'a<b>@example.test',
       url: 'https://studio.example.test/a?x=1&y="2"',
     };
