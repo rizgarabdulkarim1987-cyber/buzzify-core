@@ -1,7 +1,7 @@
 import type { Prisma } from '@/generated/prisma/client';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { validateForPublish, type PublishIssue } from '@/server/domain/publish-rules';
-import { SNAPSHOT_SCHEMA_VERSION, snapshotHash } from '@/server/domain/snapshot';
+import { SNAPSHOT_SCHEMA_VERSION, snapshotAssetIds, snapshotHash } from '@/server/domain/snapshot';
 import { loadDraftSnapshot } from './draft';
 
 export type PublishErrorCode = 'ARCHIVED' | 'NOT_FOUND';
@@ -74,6 +74,7 @@ export async function publishMenu(client: AnyDb | ScopedDb, args: PublishArgs): 
       wentLiveAt: now,
       createdById: actorId,
       note,
+      assetIds: snapshotAssetIds(snapshot),
     },
     select: { id: true },
   });

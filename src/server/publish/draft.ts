@@ -7,6 +7,8 @@ import type { BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import { draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia } from '@/server/media/resolve';
+import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Reading the draft
@@ -72,7 +74,19 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
   const displayName = menu.restaurant.name;
-  return buildSnapshot({ menu: snapshotMenu(menu, displayName), brand: brandView(brand, displayName), catalog });
+  const settings = snapshotMenu(menu, displayName);
+
+  // Library photos become the URLs guests load, so the revision never needs the library again.
+  const assetIds = catalog.products.flatMap((product) => mediaAssetIds(product.media));
+  if (assetIds.length > 0) {
+    const assets = await loadAssets(db, menu.restaurantId, assetIds);
+    const mediaUrl = (key: string) => getStorage().publicUrl(key);
+    catalog.products = catalog.products.map((product) => ({
+      ...product,
+      media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
+    }));
+  }
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
 }
 
 /**
@@ -133,12 +147,23 @@ function idMap<A extends { id: string }, B extends { id: string }>(
  * (in a deactivated category, say); those are left out, since guests could never have been offered them. Any other
  * reference that does not resolve throws.
  */
-export function writeDraftFromSnapshot(tx: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
-export function writeDraftFromSnapshot(tx: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
+export function writeDraftFromSnapshot(
+  tx: AnyDb,
+  menuId: string,
+  snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
+): Promise<void>;
+export function writeDraftFromSnapshot(
+  tx: ScopedTx,
+  menuId: string,
+  snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
+): Promise<void>;
 export async function writeDraftFromSnapshot(
   client: AnyDb | ScopedDb,
   menuId: string,
   snapshot: MenuSnapshot,
+  assetMap?: ReadonlyMap<string, string>,
 ): Promise<void> {
   const tx = delegates(client);
   const { catalog, brand } = snapshot;
@@ -206,7 +231,8 @@ export async function writeDraftFromSnapshot(
             calories: p.calories,
             badges: p.badges,
             ingredients: json(p.ingredients),
-            media: json(p.media),
+            // Library photos go back to the assets they came from (copies of them, for another restaurant).
+            media: json(draftMediaFromSnapshot(p.media, assetMap)),
             translations: json(p.translations),
             sortOrder: p.sortOrder,
           })),

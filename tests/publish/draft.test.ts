@@ -239,3 +239,14 @@ describe('draft snapshots', () => {
     expect(stripIds(await loadDraftSnapshot(prisma, target))).toEqual(stripIds(source));
   });
 });
+
+describe('library images in a written draft', () => {
+  it('writes a resolved image back as its asset, through a map of copied assets when one is given', async () => {
+    const { draftMediaFromSnapshot } = await import('@/server/media/resolve');
+    const image = { kind: 'image', url: '/x/webp-1080.webp', alt: 'A', width: 10, height: 10, assetId: 'old' };
+    const art = { kind: 'art', art: 'cup', tone: '#123456' };
+    const external = { kind: 'image', url: 'https://cdn.example.com/a.jpg', alt: 'B', width: 1, height: 1 };
+    expect(draftMediaFromSnapshot([image, art, external])).toEqual([{ kind: 'asset', assetId: 'old' }, art, external]);
+    expect(draftMediaFromSnapshot([image], new Map([['old', 'new']]))).toEqual([{ kind: 'asset', assetId: 'new' }]);
+  });
+});

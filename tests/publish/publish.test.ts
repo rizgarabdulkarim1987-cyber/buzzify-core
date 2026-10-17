@@ -141,3 +141,95 @@ describe('publishMenu', () => {
     expect(parseSnapshot(revision.snapshot).catalog.products).toHaveLength(1);
   });
 });
+
+describe('library images at publish', () => {
+  let a: Awaited<ReturnType<typeof createMenuFixture>>;
+  let b: Awaited<ReturnType<typeof createMenuFixture>>;
+  const HASH = 'f'.repeat(64);
+
+  /** An asset row with the variants a 1200 × 800 photo gets (the files themselves are not needed to resolve it). */
+  async function asset(restaurantId: string | null, alt: Record<string, string> = { en: 'Espresso', ar: 'إسبريسو' }) {
+    const folder = `${restaurantId ? `r/${restaurantId}` : 'shared'}/${HASH}`;
+    const widths = ['320', '640', '1080'];
+    return prisma.mediaAsset.create({
+      data: {
+        restaurantId,
+        kind: 'IMAGE',
+        storageKey: folder,
+        contentHash: HASH,
+        mime: 'image/jpeg',
+        bytes: 1000,
+        storedBytes: 5000,
+        width: 1200,
+        height: 800,
+        placeholder: 'data:image/webp;base64,UklGRhIAAABXRUJQVlA4TAYAAAAvAAAAAA==',
+        alt,
+        variants: {
+          original: `${folder}/original.jpg`,
+          avif: Object.fromEntries(widths.map((w) => [w, `${folder}/avif-${w}.avif`])),
+          webp: Object.fromEntries(widths.map((w) => [w, `${folder}/webp-${w}.webp`])),
+        },
+      },
+    });
+  }
+
+  const useAsset = (productId: string, assetId: string) =>
+    prisma.product.update({ where: { id: productId }, data: { media: [{ kind: 'asset', assetId }] } });
+
+  beforeEach(async () => {
+    await resetTestData(prisma);
+    a = await createMenuFixture(prisma, 'images-a', { publish: false });
+    b = await createMenuFixture(prisma, 'images-b', { publish: false });
+  });
+
+  it('resolves a library image into the snapshot with its variants and alt texts', async () => {
+    const photo = await asset(a.restaurant.id);
+    await useAsset(a.product.id, photo.id);
+    const out = await publish(a.menu.id);
+    expect(out.ok).toBe(true);
+    const revision = await prisma.menuRevision.findFirstOrThrow({ where: { menuId: a.menu.id } });
+    const [image] = parseSnapshot(revision.snapshot).catalog.products[0]!.media;
+    const folder = `/api/dev-media/r/${a.restaurant.id}/${HASH}`;
+    expect(image).toEqual({
+      kind: 'image',
+      url: `${folder}/webp-1080.webp`,
+      alt: 'Espresso',
+      alts: { en: 'Espresso', ar: 'إسبريسو' },
+      width: 1200,
+      height: 800,
+      srcset: {
+        avif: `${folder}/avif-320.avif 320w, ${folder}/avif-640.avif 640w, ${folder}/avif-1080.avif 1080w`,
+        webp: `${folder}/webp-320.webp 320w, ${folder}/webp-640.webp 640w, ${folder}/webp-1080.webp 1080w`,
+      },
+      placeholder: photo.placeholder,
+      assetId: photo.id,
+    });
+  });
+
+  it('records the assets a revision uses', async () => {
+    const photo = await asset(a.restaurant.id);
+    await useAsset(a.product.id, photo.id);
+    const out = await publish(a.menu.id);
+    if (!out.ok) throw new Error('blocked');
+    expect((await prisma.menuRevision.findUniqueOrThrow({ where: { id: out.revisionId } })).assetIds).toEqual([photo.id]);
+  });
+
+  it('leaves an unknown asset unresolved, so publishing is blocked', async () => {
+    await prisma.product.update({ where: { id: a.product.id }, data: { media: [{ kind: 'asset', assetId: 'gone' }] } });
+    const out = await publish(a.menu.id);
+    expect(out).toMatchObject({ ok: false, issues: expect.arrayContaining([expect.objectContaining({ code: 'MISSING_ASSET' })]) });
+    expect(await prisma.menuRevision.count({ where: { menuId: a.menu.id } })).toBe(0);
+  });
+
+  it("never resolves another restaurant's asset", async () => {
+    const theirs = await asset(b.restaurant.id);
+    await useAsset(a.product.id, theirs.id);
+    expect((await publish(a.menu.id)).ok).toBe(false);
+  });
+
+  it('resolves a shared asset for any restaurant', async () => {
+    const shared = await asset(null);
+    await useAsset(a.product.id, shared.id);
+    expect((await publish(a.menu.id)).ok).toBe(true);
+  });
+});

@@ -29,6 +29,9 @@ export const AUDIT_ACTIONS = [
   'user.reactivated',
   'user.email_changed',
   'settings.updated',
+  'media.uploaded',
+  'media.updated',
+  'media.deleted',
   'account.password_changed',
   'account.password_reset',
   'account.email_change_requested',
@@ -55,4 +58,5 @@ export const AUDIT_ENTITY_TYPES = [
   'Invitation',
   'Session',
   'PlatformSetting',
+  'MediaAsset',
 ] as const;

@@ -185,6 +185,8 @@ model MenuRevision {
   cancelledAt   DateTime?
   createdById   String?
   note          String    @default("")
+  /// The media library assets the snapshot shows, so an asset in use by any revision is never deleted.
+  assetIds      String[]  @default([])
   createdAt     DateTime  @default(now())
   menu          Menu      @relation("MenuRevisions", fields: [menuId], references: [id], onDelete: Cascade)
   liveOf        Menu?     @relation("LiveRevision")

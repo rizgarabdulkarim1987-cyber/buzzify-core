@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { expireMenu } from '@/server/data/cache';
 import { nextMenuStatus } from '@/server/domain/menu-status';
+import { snapshotAssetIds } from '@/server/domain/snapshot';
+import { COPYABLE, copyAssetsForMenu } from '@/server/media/copy';
 import { loadDraftSnapshot, refreshDraftHash, writeDraftFromSnapshot } from '@/server/publish/draft';
 import { PublishError, publishMenu } from '@/server/publish/publish';
 import { defineAction, runAction, type ActionContext } from '@/server/studio/framework/action';
@@ -248,7 +250,11 @@ export const duplicateMenu = defineAction({
       const brand = await tx.brandConfig.findUnique({ where: { menuId: sourceId } });
       const tables = await tx.table.findMany({ orderBy: { number: 'asc' }, select: { number: true, label: true } });
       const snapshot = await loadDraftSnapshot(tx, sourceId);
-      return { menu, brand, tables, snapshot };
+      // Into another restaurant, the library assets the menu shows go with it as that restaurant's own copies; they are
+      // read here, on the source's side, which the target's transaction cannot read.
+      const assetIds = restaurantId === ctx.restaurantId ? [] : snapshotAssetIds(snapshot);
+      const assets = assetIds.length === 0 ? [] : await tx.mediaAsset.findMany({ where: { id: { in: assetIds } }, select: COPYABLE });
+      return { menu, brand, tables, snapshot, assets };
     });
 
     const menuId = ctx.newId();
@@ -291,7 +297,8 @@ export const duplicateMenu = defineAction({
         });
       }
       // New ids for every row and every reference; the draft hash is computed at the end.
-      await writeDraftFromSnapshot(tx, menuId, source.snapshot);
+      const assetMap = source.assets.length === 0 ? undefined : await copyAssetsForMenu(tx, { assets: source.assets, toRestaurantId: restaurantId });
+      await writeDraftFromSnapshot(tx, menuId, source.snapshot, assetMap);
       if (source.tables.length > 0) await tx.table.createMany({ data: source.tables.map((table) => ({ menuId, ...table })) });
 
       ctx.audit({

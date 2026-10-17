@@ -75,6 +75,7 @@ interface Side {
   ownerEmail: string;
   designerId: string;
   invitationId: string;
+  assetId: string;
 }
 
 interface World {
@@ -127,6 +128,20 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       invitedById: adminId,
     },
   });
+  // A file in the restaurant's media library.
+  const asset = await prisma().mediaAsset.create({
+    data: {
+      restaurantId: restaurant.id,
+      kind: 'IMAGE',
+      storageKey: `r/${restaurant.id}/${label}hash`,
+      contentHash: `${label}hash`,
+      mime: 'image/png',
+      bytes: 10,
+      storedBytes: 30,
+      alt: { en: `${title} logo` },
+      variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
+    },
+  });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -143,6 +158,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     ownerEmail: owner.email,
     designerId: designer.id,
     invitationId: invitation.id,
+    assetId: asset.id,
   };
 }
 
@@ -193,6 +209,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
         orderBy: { id: 'asc' },
       }),
       platformSettings: await db.platformSetting.findMany({ orderBy: { key: 'asc' } }),
+      media: await db.mediaAsset.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
     }),
   );
 }
@@ -201,7 +218,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -303,6 +320,38 @@ const SWEPT: Record<string, Case[]> = {
     c("B's branch, through A", (w) => ({ restaurantId: w.a.restaurantId, order: [w.b.branchId] })),
     c("A's and B's branches, through A", (w) => ({ restaurantId: w.a.restaurantId, order: [w.a.branchId, w.b.branchId] })),
   ],
+
+  // Media
+  'media.requestUpload': [c('into B', (w) => ({ restaurantId: w.b.restaurantId, fileName: 'p.png', mime: 'image/png', bytes: 10 }))],
+  'media.finalize': [
+    c("B's upload, in B", (w) => ({ restaurantId: w.b.restaurantId, uploadKey: `uploads/${w.b.restaurantId}/planted` })),
+    c("B's upload, through A", (w) => ({ restaurantId: w.a.restaurantId, uploadKey: `uploads/${w.b.restaurantId}/planted` })),
+    c('a shared upload, through A', (w) => ({ restaurantId: w.a.restaurantId, uploadKey: 'uploads/shared/planted' })),
+  ],
+  'media.update': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] })),
+  ],
+  'media.delete': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId })),
+  ],
+  'media.usage': [
+    c("B's asset, in B", (w) => ({ restaurantId: w.b.restaurantId, assetId: w.b.assetId })),
+    c("B's asset, through A", (w) => ({ restaurantId: w.a.restaurantId, assetId: w.b.assetId })),
+  ],
+  'media.list': [
+    c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
+    c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+    c('the shared library', () => ({}), SCOPED),
+  ],
+
+  // The shared library is the platform's: `media.manage` there is a Super Admin's alone, whatever a restaurant grants.
+  'media.requestSharedUpload': [c('a shared upload', () => ({ fileName: 'p.png', mime: 'image/png', bytes: 10 }))],
+  'media.finalizeShared': [c("B's upload as shared", (w) => ({ uploadKey: `uploads/${w.b.restaurantId}/planted` }))],
+  'media.updateShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId, version: 1, alt: {}, folder: 'x', tags: [] }))],
+  'media.deleteShared': [c("B's asset as shared", (w) => ({ assetId: w.b.assetId }))],
+  'media.sharedUsage': [c("B's asset", (w) => ({ assetId: w.b.assetId }))],
 
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
