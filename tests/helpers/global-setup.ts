@@ -18,7 +18,9 @@ export default async function setup() {
     await admin.end();
     execSync('npx prisma migrate deploy', {
       stdio: 'inherit',
-      env: { ...process.env, DATABASE_URL: databaseUrl(TEST_DB) },
+      // `prisma.config.ts` prefers DIRECT_DATABASE_URL (the migration connection in production). A shell that has it set
+      // must never send the tests' migrations to that database, so it is blanked here.
+      env: { ...process.env, DATABASE_URL: databaseUrl(TEST_DB), DIRECT_DATABASE_URL: '' },
     });
   } catch (error) {
     process.env.TEST_DB_UNAVAILABLE = error instanceof Error ? error.message : String(error);

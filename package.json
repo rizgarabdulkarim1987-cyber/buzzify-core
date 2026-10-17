@@ -27,6 +27,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
     "db:seed:load": "tsx prisma/seed-load.ts",
+    "vercel-build": "tsx scripts/check-env.ts && prisma generate && prisma migrate deploy && next build",
     "postinstall": "prisma generate"
   },
   "dependencies": {
