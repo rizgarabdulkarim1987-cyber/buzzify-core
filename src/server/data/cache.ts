@@ -5,14 +5,63 @@ function inNextRuntime(): boolean {
   return Boolean(process.env.NEXT_RUNTIME);
 }
 
-/** Uses the Next.js data cache inside the Next runtime and calls straight through elsewhere (tests, scripts). */
+/**
+ * When this process last expired each tag, by the system clock. `updateTag` does not by itself guarantee that the next
+ * read misses, for two reasons:
+ *
+ * - Next stamps the expiry with `Date.now()` but treats the tag as expired only once
+ *   `performance.timeOrigin + performance.now()` has reached that stamp (`areTagsExpired`). In a long-running server the
+ *   two clocks drift apart: time synchronisation slews the system clock, not the monotonic one. Measured on a
+ *   development machine, they drifted by about 11 ms a minute, and the dev server served the old answer for the first
+ *   140 to 200 ms after every change ("Menu suspended" shown, the guest still saw the menu).
+ * - A read that queried the database before the change committed can store its answer after the expiry. The entry is
+ *   then newer than the expiry, and it is served until it revalidates, for up to 5 minutes.
+ *
+ * So every cached answer carries the time its database read started. An answer read before this process last expired
+ * one of its tags is not used: the read goes to the database. Kept for longer than any of these entries can live, on
+ * `globalThis`: Server Actions and pages are bundled apart, and each bundle has its own copy of this module.
+ */
+const globalForCache = globalThis as unknown as { __buzzifyTagExpiries?: Map<string, number> };
+const expiredAt = (globalForCache.__buzzifyTagExpiries ??= new Map<string, number>());
+const EXPIRY_MEMORY_MS = 10 * 60_000;
+
+function forgetOldExpiries(now: number): void {
+  for (const [tag, at] of expiredAt) if (now - at > EXPIRY_MEMORY_MS) expiredAt.delete(tag);
+}
+
+/** Whether something read at `readAt` may predate a change this process has expired one of `tags` for. */
+function readBeforeExpiry(readAt: number, tags: readonly string[]): boolean {
+  return tags.some((tag) => (expiredAt.get(tag) ?? -Infinity) >= readAt);
+}
+
+/** A cached answer and the time (system clock) its database read started. */
+interface Stamped<T> {
+  readAt: number;
+  value: T;
+}
+
+/**
+ * Uses the Next.js data cache inside the Next runtime and calls straight through elsewhere (tests, scripts). An answer
+ * read before one of its tags was last expired here goes back to the database (see `expiredAt`).
+ */
 export function cached<T>(
   fn: () => Promise<T>,
   keyParts: string[],
   options: { revalidate: number | false; tags: string[] },
 ): () => Promise<T> {
   if (!inNextRuntime()) return fn;
-  return unstable_cache(fn, keyParts, options);
+  const read = unstable_cache(
+    async (): Promise<Stamped<T>> => {
+      const readAt = Date.now();
+      return { readAt, value: await fn() };
+    },
+    keyParts,
+    options,
+  );
+  return async () => {
+    const answer = await read();
+    return readBeforeExpiry(answer.readAt, options.tags) ? fn() : answer.value;
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -44,6 +93,9 @@ export function cachedSlugResolution<T>(slug: string, load: () => Promise<T>): P
 
 function expire(tag: string): void {
   if (!inNextRuntime()) return;
+  const now = Date.now();
+  forgetOldExpiries(now);
+  expiredAt.set(tag, now);
   try {
     // In a Server Action the next read waits for fresh data, so the person who made the change sees it at once.
     updateTag(tag);
