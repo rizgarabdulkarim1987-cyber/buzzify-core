@@ -3,7 +3,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /**
  * What Hostinger is told to do. Its Node.js build runs `npm run build:host` and serves Next.js's standalone server, so
- * that script must check the settings and migrate the database before it builds a standalone app.
+ * that script must check the settings and migrate the database before it builds a standalone app. It builds with
+ * webpack: Turbopack runs PostCSS in helper Node processes that connect back to it over 127.0.0.1, and on Hostinger's
+ * build machines they exit before connecting, which fails every build.
  */
 
 const scripts = (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: Record<string, string> }).scripts;
@@ -11,10 +13,10 @@ const scripts = (JSON.parse(readFileSync('package.json', 'utf8')) as { scripts: 
 describe('the build:host script', () => {
   const steps = scripts['build:host']!.split('&&').map((step) => step.trim());
 
-  it('checks the environment first, then migrates, and builds a standalone server last', () => {
+  it('checks the environment first, then migrates, and builds a standalone server with webpack last', () => {
     expect(steps[0]).toBe('tsx scripts/check-env.ts');
     expect(steps).toContain('prisma migrate deploy');
-    expect(steps.at(-1)).toBe('BUILD_TARGET=standalone next build');
+    expect(steps.at(-1)).toBe('BUILD_TARGET=standalone next build --webpack');
     expect(steps.indexOf('prisma migrate deploy')).toBeLessThan(steps.length - 1);
   });
 });

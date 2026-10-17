@@ -14,7 +14,10 @@ Hostinger clones `main` from GitHub, runs `npm install`, then `npm run build:hos
 
 1. `tsx scripts/check-env.ts` stops the deploy and names every missing or wrong setting.
 2. `prisma migrate deploy` updates the database (it uses `DIRECT_DATABASE_URL`).
-3. `BUILD_TARGET=standalone next build` builds Next.js's self-contained server, which Hostinger runs on its own port.
+3. `BUILD_TARGET=standalone next build --webpack` builds Next.js's self-contained server, which Hostinger runs on its own
+   port. It uses webpack, not Turbopack: Turbopack runs PostCSS in helper Node processes that connect back to it over
+   127.0.0.1, and on Hostinger's build machines they exit before connecting (`node process exited before we could
+   connect to it`), which failed every build. Local development and `npm run build` still use Turbopack.
 
 Build settings on Hostinger: Node.js 22, framework Next.js, output directory `.next`, build script `build:host`,
 package manager npm, source GitHub `rizgarabdulkarim1987-cyber/buzzify-menu`, branch `main`.
