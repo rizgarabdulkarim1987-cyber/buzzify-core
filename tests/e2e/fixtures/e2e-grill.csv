@@ -1,0 +1,13 @@
+﻿category_slug,category_en,category_ar,category_ckb,product_slug,name_en,name_ar,name_ckb,description_en,price,available,featured,signature,badges,dietary,allergens,calories,sort
+burgers,Burgers,برغر,بەرگەر,smash-burger,Smash burger,سماش برغر,سماش بەرگەر,Two smashed patties and cheddar,"9,000",yes,yes,yes,POPULAR,HALAL,gluten|milk|sesame,780,1
+burgers,Burgers,برغر,بەرگەر,chicken-burger,Chicken burger,برغر دجاج,بەرگەری مریشک,Crisp chicken and slaw,"8,500",yes,no,no,,HALAL,gluten|egg,690,2
+burgers,Burgers,برغر,بەرگەر,mushroom-burger,Mushroom burger,برغر الفطر,بەرگەری قارچک,Beef with mushrooms and Swiss,"10,000",yes,no,no,NEW,HALAL,gluten|milk,820,3
+burgers,Burgers,برغر,بەرگەر,veggie-burger,Veggie burger,برغر نباتي,بەرگەری ڕووەکی,Chickpea patty and herbs,"7,500",yes,no,no,,VEGETARIAN,gluten,560,4
+sides,Sides,أطباق جانبية,لاتەنیشت,fries,Fries,بطاطا مقلية,پەتاتەی سوورکراو,Salted skin-on fries,"3,000",yes,no,no,,VEGAN,,420,1
+sides,Sides,أطباق جانبية,لاتەنیشت,onion-rings,Onion rings,حلقات البصل,ئەڵقەی پیاز,Thick cut and crisp,"4,000",yes,no,no,,VEGETARIAN,gluten,380,2
+sides,Sides,أطباق جانبية,لاتەنیشت,coleslaw,Coleslaw,سلطة الملفوف,زەڵاتەی کەلەم,Cabbage and carrot in a light dressing,"2,500",yes,no,no,,VEGETARIAN,egg,150,3
+sides,Sides,أطباق جانبية,لاتەنیشت,loaded-fries,Loaded fries,بطاطا محمّلة,پەتاتەی پڕکراو,Fries under cheese sauce,"5,500",yes,no,no,,VEGETARIAN|SPICY,milk,640,4
+drinks,Drinks,مشروبات,خواردنەوە,ayran,Ayran,عيران,دۆ,Cold salted yogurt,"1,000",yes,no,no,,VEGETARIAN,milk,90,1
+drinks,Drinks,مشروبات,خواردنەوە,cola,Cola,كولا,کۆلا,Ice cold,"1,000",yes,no,no,,VEGAN,,140,2
+drinks,Drinks,مشروبات,خواردنەوە,lemon-mint,Lemon and mint,ليمون بالنعناع,لیمۆ و پونگ,Fresh lemon with mint,"2,500",yes,no,no,RECOMMENDED,VEGAN,,110,3
+drinks,Drinks,مشروبات,خواردنەوە,water,Water,ماء,ئاو,Still mineral water,750,yes,no,no,,VEGAN,,0,4

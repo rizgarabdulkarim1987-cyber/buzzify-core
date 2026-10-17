@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import { ImportExport } from '@/studio/workspace/ImportExport';
 import { loadMenu, tabMetadata } from '../load';
 
@@ -14,6 +15,8 @@ export default async function DataPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
   const menu = await loadMenu(id);
   const permissions = new Set(menu.permissions);
+  // Like the tab, the page is there only for someone who may import or export.
+  if (!permissions.has('import.run') && !permissions.has('export.run')) notFound();
   return (
     <ImportExport
       menuId={id}

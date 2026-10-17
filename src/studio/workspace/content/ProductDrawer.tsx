@@ -90,6 +90,9 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
   const [discarding, setDiscarding] = useState(false);
   const [picking, setPicking] = useState(false);
   const [upload, setUpload] = useState<PendingUpload | null>(null);
+  // What had focus when the drawer opened (the product's row): Radix gives focus back only to its own trigger, and the
+  // drawer is opened from the list, so on close focus goes back here, where the person left off.
+  const [opener] = useState(() => (typeof document === 'undefined' ? null : (document.activeElement as HTMLElement | null)));
   const [saving, startSaving] = useTransition();
   const [, startLoading] = useTransition();
   const body = useRef<HTMLDivElement>(null);
@@ -195,6 +198,12 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
         <RadixDialog.Overlay className="fixed inset-0 z-40 bg-overlay data-[state=open]:animate-overlay-in" />
         <RadixDialog.Content
           aria-describedby={undefined}
+          onCloseAutoFocus={(event) => {
+            if (opener?.isConnected && opener !== document.body) {
+              event.preventDefault();
+              opener.focus();
+            }
+          }}
           className={cx(
             'fixed inset-y-0 end-0 z-50 flex w-[min(860px,100vw)] flex-col bg-raised shadow-dialog outline-none',
             'data-[state=open]:animate-sheet-in',
