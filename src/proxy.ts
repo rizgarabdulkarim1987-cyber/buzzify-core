@@ -12,7 +12,7 @@ export function proxy(request: NextRequest) {
   const { publicHost, studioHost, rootRedirect } = hostEnv();
   const decision = routeHost(
     { host: request.headers.get('host') ?? '', pathname: request.nextUrl.pathname },
-    { publicHost, studioHost, rootRedirect },
+    { publicHost, studioHost, rootRedirect, production: process.env.NODE_ENV === 'production' },
   );
 
   switch (decision.action) {

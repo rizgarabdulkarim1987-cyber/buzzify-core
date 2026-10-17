@@ -5,6 +5,8 @@ export interface HostConfig {
   studioHost: string | null;
   /** Where `/` on the public host goes: the company site. */
   rootRedirect: string;
+  /** Whether this is a production deployment (`NODE_ENV` is `production`). */
+  production: boolean;
 }
 
 export type HostDecision = { action: 'next' } | { action: 'redirect'; to: string } | { action: 'notFound' };
@@ -40,8 +42,12 @@ function isHost(requestHost: string, configured: string | null): boolean {
 
 /**
  * Which of the two hosts a request belongs to, and what to do with the path. One deployment serves both: the Studio
- * keeps its `/studio` prefix everywhere, public menus live at `/{slug}/...`, and any other host (development,
- * previews) serves everything. Pure, so the proxy that applies it needs no database and no network.
+ * keeps its `/studio` prefix everywhere, and public menus live at `/{slug}/...`.
+ *
+ * Any other host depends on where this runs. In production with both hosts configured it answers 404: the two hosts
+ * are the only origins, and another name for the same deployment (its `.vercel.app` address, say) would be a second
+ * Studio origin beside the menus. In development and previews the hosts are not both set, and every other host serves
+ * everything. Pure, so the proxy that applies it needs no database and no network.
  */
 export function routeHost(req: { host: string; pathname: string }, cfg: HostConfig): HostDecision {
   const { pathname } = req;
@@ -58,6 +64,7 @@ export function routeHost(req: { host: string; pathname: string }, cfg: HostConf
     return NEXT;
   }
 
+  if (cfg.production && cfg.publicHost && cfg.studioHost) return NOT_FOUND;
   if (pathname === '/') return { action: 'redirect', to: '/studio' };
   return NEXT;
 }

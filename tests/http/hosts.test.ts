@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { routeHost } from '@/server/http/hosts';
 
-const cfg = { publicHost: 'menu.buzzify.me', studioHost: 'studio.buzzify.me', rootRedirect: 'https://buzzify.me' };
+const cfg = { publicHost: 'menu.buzzify.me', studioHost: 'studio.buzzify.me', rootRedirect: 'https://buzzify.me', production: false };
 const NEXT = { action: 'next' } as const;
 const NOT_FOUND = { action: 'notFound' } as const;
 const STUDIO = 'studio.buzzify.me';
@@ -60,6 +60,38 @@ describe('routeHost on any other host (development and previews)', () => {
   );
 });
 
+describe('routeHost on any other host in production', () => {
+  const production = { ...cfg, production: true };
+
+  it.each(['buzzify-menu.vercel.app', 'buzzify-menu-git-main-team.vercel.app', '76.76.21.21', 'localhost:3100', ''])(
+    'answers 404 on %j for every path, so the two hosts are the only origins of the Studio and the menus',
+    (host) => {
+      for (const pathname of ['/', '/studio', '/studio/sign-in', '/api/auth/session', '/api/studio/export', '/atelier/en', '/_next/static/a.js']) {
+        expect(routeHost({ host, pathname }, production), `${host}${pathname}`).toEqual(NOT_FOUND);
+      }
+    },
+  );
+
+  it('still serves the two configured hosts as before', () => {
+    expect(routeHost({ host: STUDIO, pathname: '/studio' }, production)).toEqual(NEXT);
+    expect(routeHost({ host: STUDIO, pathname: '/' }, production)).toEqual({ action: 'redirect', to: '/studio' });
+    expect(routeHost({ host: 'menu.buzzify.me:443', pathname: '/atelier/en' }, production)).toEqual(NEXT);
+    expect(routeHost({ host: PUBLIC, pathname: '/studio' }, production)).toEqual(NOT_FOUND);
+  });
+
+  it('serves every host when the hosts are not both configured (a preview, or a production build run locally)', () => {
+    for (const hosts of [
+      { publicHost: null, studioHost: null },
+      { publicHost: 'menu.buzzify.me', studioHost: null },
+      { publicHost: null, studioHost: 'studio.buzzify.me' },
+    ]) {
+      const partial = { ...production, ...hosts };
+      expect(routeHost({ host: 'preview-123.vercel.app', pathname: '/studio' }, partial)).toEqual(NEXT);
+      expect(routeHost({ host: 'preview-123.vercel.app', pathname: '/' }, partial)).toEqual({ action: 'redirect', to: '/studio' });
+    }
+  });
+});
+
 describe('routeHost host matching', () => {
   it('ignores case, a port and a trailing dot', () => {
     expect(routeHost({ host: 'STUDIO.Buzzify.me', pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: '/studio' });
@@ -75,7 +107,7 @@ describe('routeHost host matching', () => {
   });
 
   it('treats every host as "other" when neither is configured', () => {
-    const none = { publicHost: null, studioHost: null, rootRedirect: 'https://buzzify.me' };
+    const none = { publicHost: null, studioHost: null, rootRedirect: 'https://buzzify.me', production: false };
     expect(routeHost({ host: PUBLIC, pathname: '/' }, none)).toEqual({ action: 'redirect', to: '/studio' });
     expect(routeHost({ host: STUDIO, pathname: '/studio' }, none)).toEqual(NEXT);
   });

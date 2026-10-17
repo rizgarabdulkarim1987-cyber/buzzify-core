@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { REQUEST_PATH_HEADER } from '@/server/http/request-path';
 import { proxy } from '@/proxy';
 
@@ -25,5 +25,34 @@ describe('proxy', () => {
   it('keeps the request’s other headers', () => {
     const response = proxy(new NextRequest('http://127.0.0.1:3100/atelier/en', { headers: { 'accept-language': 'ar' } }));
     expect(forwarded(response)['accept-language']).toBe('ar');
+  });
+});
+
+describe('proxy in production with both hosts configured', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.resetModules();
+  });
+
+  /** The proxy as a production deployment loads it: the host configuration is read once, from these variables. */
+  async function productionProxy() {
+    vi.stubEnv('NODE_ENV', 'production');
+    vi.stubEnv('PUBLIC_MENU_HOST', 'menu.buzzify.me');
+    vi.stubEnv('STUDIO_HOST', 'studio.buzzify.me');
+    vi.resetModules();
+    return (await import('@/proxy')).proxy;
+  }
+
+  it('answers 404 on the deployment’s own vercel.app address, and serves the two hosts', async () => {
+    const run = await productionProxy();
+    for (const url of ['https://buzzify-menu.vercel.app/studio/sign-in', 'https://buzzify-menu.vercel.app/atelier/en']) {
+      const response = run(new NextRequest(url, { headers: { host: new URL(url).host } }));
+      expect(response.status, url).toBe(404);
+    }
+    const studio = run(new NextRequest('https://studio.buzzify.me/studio/sign-in', { headers: { host: 'studio.buzzify.me' } }));
+    expect(studio.status).toBe(200);
+    expect(forwarded(studio)[REQUEST_PATH_HEADER]).toBe('/studio/sign-in');
+    const menu = run(new NextRequest('https://menu.buzzify.me/atelier/en', { headers: { host: 'menu.buzzify.me' } }));
+    expect(menu.status).toBe(200);
   });
 });
