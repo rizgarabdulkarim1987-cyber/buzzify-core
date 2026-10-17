@@ -75,6 +75,29 @@ describe('analytics tracking', () => {
     expect(lastBody().events).toHaveLength(2);
   });
 
+  it('sends the QR code the menu was opened from with the first menu view, then takes it out of the address', () => {
+    const replaceState = vi.fn();
+    vi.stubGlobal('location', { href: 'https://menu.example.test/atelier/en/t/4?qr=cmvcode0001&utm_source=print#top' });
+    vi.stubGlobal('history', { state: { key: 1 }, replaceState });
+    configureTracking({ slug: 'atelier', table: 4 });
+    track('MENU_VIEW', {}, { once: true });
+    track('PRODUCT_VIEW', { productId: 'p1' });
+    flushTracking();
+    const [view, product] = lastBody().events;
+    expect(view).toMatchObject({ type: 'MENU_VIEW', qrCodeId: 'cmvcode0001' });
+    expect(product.qrCodeId).toBeUndefined();
+    expect(replaceState).toHaveBeenCalledWith({ key: 1 }, '', '/atelier/en/t/4?utm_source=print#top');
+  });
+
+  it('ignores a qr parameter that is not a code id, so the batch is not refused', () => {
+    vi.stubGlobal('location', { href: `https://menu.example.test/atelier/en?qr=${'x'.repeat(65)}` });
+    vi.stubGlobal('history', { state: null, replaceState: vi.fn() });
+    configureTracking({ slug: 'atelier', table: null });
+    track('MENU_VIEW', {}, { once: true });
+    flushTracking();
+    expect(lastBody().events[0].qrCodeId).toBeUndefined();
+  });
+
   it('never throws when the network fails', async () => {
     fetchMock.mockImplementationOnce(() => Promise.reject(new Error('offline')));
     configureTracking({ slug: 'atelier', table: null });

@@ -20,8 +20,8 @@ function hexOf([r, g, b]: Rgb): string {
   return `#${[r, g, b].map((channel) => Math.round(channel).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
-/** WCAG 2 relative luminance of an sRGB colour. */
-function luminance(hex: string): number {
+/** WCAG 2 relative luminance of an sRGB colour, from 0 (black) to 1 (white). */
+export function luminance(hex: string): number {
   const [r, g, b] = rgbOf(hex).map((channel) => {
     const c = channel / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;

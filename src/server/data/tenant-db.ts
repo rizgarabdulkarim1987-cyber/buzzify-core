@@ -14,6 +14,7 @@ export const MENU_SCOPED_MODELS = [
   'BundleItem',
   'DaypartSchedule',
   'Table',
+  'QrCode',
   'AnalyticsEvent',
   'MenuRevision',
 ] as const;

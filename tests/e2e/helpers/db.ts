@@ -149,3 +149,24 @@ export async function makeScheduleDue(menuId: string): Promise<void> {
     await prisma.$disconnect();
   }
 }
+
+/** A printed code for table `number` of the menu, with the table, as the QR tab makes it; answers the code's id. */
+export async function createTableQrCode(menuId: string, number: number): Promise<string> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    await prisma.table.upsert({ where: { menuId_number: { menuId, number } }, create: { menuId, number, label: `Table ${number}` }, update: {} });
+    return (await prisma.qrCode.create({ data: { menuId, label: `Table ${number}`, tableNumber: number } })).id;
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** The scans recorded for a code: menu views that carry its id. */
+export async function qrScans(qrCodeId: string): Promise<number> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    return await prisma.analyticsEvent.count({ where: { qrCodeId, type: 'MENU_VIEW', source: 'qr' } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}

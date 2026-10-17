@@ -158,6 +158,7 @@ model Menu {
   bundleItems     BundleItem[]
   schedule        DaypartSchedule[]
   tables          Table[]
+  qrCodes         QrCode[]
   analyticsEvents AnalyticsEvent[]
 
   @@index([restaurantId])
@@ -424,6 +425,23 @@ model Table {
   menu   Menu   @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
   @@unique([menuId, number])
+}
+
+/// A printed QR code: for the menu, or for one table. Its scans are menu views that carry its id.
+model QrCode {
+  id          String   @id @default(cuid())
+  menuId      String
+  label       String
+  /// The table it opens, or null for a code that opens the menu itself.
+  tableNumber Int?
+  /// Colours, logo and frame text (`QrStyle` in src/server/domain/qr.ts).
+  style       Json     @default("{}")
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  menu        Menu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, tableNumber])
+  @@index([menuId])
 }
 
 model AnalyticsEvent {

@@ -83,6 +83,8 @@ interface Side {
   /** The live revision, and one waiting to go live. */
   revisionId: string;
   pendingRevisionId: string;
+  /** A QR code printed for table 1. */
+  qrCodeId: string;
 }
 
 interface World {
@@ -162,6 +164,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
     },
   });
+  const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -185,6 +188,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     optionId: option.id,
     revisionId: published.revisionId,
     pendingRevisionId: pending.id,
+    qrCodeId: qrCode.id,
   };
 }
 
@@ -222,6 +226,8 @@ async function snapshotOfB(w: World): Promise<unknown> {
       variants: await db.productVariant.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       groups: await db.modifierGroup.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      qrCodes: await db.qrCode.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      tables: await db.table.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       branches: await db.branch.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
       memberships: await db.membership.findMany({ where: { OR: [{ restaurantId: b.restaurantId }, { userId: { in: people } }] }, orderBy: { id: 'asc' } }),
@@ -293,6 +299,9 @@ const brandKit = () => ({
   logoText: 'Planted',
 });
 
+/** A QR code's style as the QR tab saves it. */
+const qrStyle = () => ({ foreground: '#000000', background: '#FFFFFF', logo: false, frameText: 'Planted' });
+
 /** A menu's settings as the Settings tab saves them (version 1 is stale for a published menu, which the checks precede). */
 const menuSettings = () => ({
   version: 1,
@@ -336,6 +345,31 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // QR codes
+  'qr.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'qr.create': [c("in B's menu", (w) => ({ menuId: w.b.menuId, label: 'Planted', tableNumber: 40 }))],
+  'qr.createForTables': [c("in B's menu", (w) => ({ menuId: w.b.menuId, from: 40, to: 42 }))],
+  'qr.update': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, version: 1, label: 'Planted', style: qrStyle() })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, version: 1, label: 'Planted', style: qrStyle() })),
+  ],
+  'qr.delete': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId })),
+  ],
+  'qr.download': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, format: 'svg' })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, format: 'png', size: 512 })),
+  ],
+  'qr.downloadTables': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'qr.preview': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId, style: qrStyle() })),
+  ],
+  'qr.applyStyle': [
+    c("B's code, in B", (w) => ({ menuId: w.b.menuId, qrCodeId: w.b.qrCodeId })),
+    c("B's code, through A", (w) => ({ menuId: w.a.menuId, qrCodeId: w.b.qrCodeId })),
+  ],
   // Revisions
   'revisions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId, page: 1 }))],
   'revisions.view': [

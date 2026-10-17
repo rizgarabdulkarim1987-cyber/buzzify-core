@@ -8,6 +8,14 @@ const config: NextConfig = {
   // jsdom (the window DOMPurify sanitizes SVG uploads in) reads its own files at run time, so it stays a Node module
   // rather than being bundled. sharp is on Next's own list already.
   serverExternalPackages: ['jsdom'],
+  // A QR code's frame text is drawn as outlines from these two fonts, read from disk at run time (src/server/qr/render.ts),
+  // which the build's file tracing cannot see.
+  outputFileTracingIncludes: {
+    '/studio/**': [
+      './node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2',
+      './node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2',
+    ],
+  },
   experimental: {
     // Turbopack's production chunker merges chunks smaller than this (unminified bytes; the default is 50,000). With the
     // Studio's routes in the same build, the defaults cut the framework code every page loads first into one more file,

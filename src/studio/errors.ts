@@ -167,6 +167,14 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose a time at least a minute from now': 'error.text.timeTooSoon',
   'Choose a time within a year': 'error.text.timeTooFar',
   'Another revision is already scheduled': 'error.text.alreadyScheduled',
+  'Enter a name for the code': 'error.text.qrLabelEnter',
+  'Choose a table from 1 to 999': 'error.text.tableRange',
+  'This table already has a code': 'error.text.tableHasCode',
+  'The last table comes after the first': 'error.text.tableOrder',
+  'Make at most 200 codes at once': 'error.text.qrTooMany',
+  'Scanners need more contrast between the code and its background': 'error.text.qrContrast',
+  'Scanners need a dark code on a light background': 'error.text.qrInverted',
+  'No table has a code yet': 'error.text.noTableCodes',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

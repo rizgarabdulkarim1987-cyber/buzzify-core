@@ -9,10 +9,12 @@ interface QueuedEvent {
   type: EventType;
   productId?: string;
   suggestionId?: string;
+  qrCodeId?: string;
   payload: Record<string, unknown>;
 }
 
 let config: Config | null = null;
+let qrRead = false;
 let queue: QueuedEvent[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let memorySession: string | null = null;
@@ -66,6 +68,27 @@ export function configureTracking(next: Config): void {
   }
 }
 
+const QR_CODE_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+/**
+ * The printed QR code this page was opened from (`?qr=`), once per page load: the parameter is then taken out of the
+ * address, so a reload, a shared link or a bookmark does not count as another scan.
+ */
+function scannedCode(): string | undefined {
+  if (qrRead) return undefined;
+  qrRead = true;
+  try {
+    const url = new URL(location.href);
+    const code = url.searchParams.get('qr');
+    if (code === null) return undefined;
+    url.searchParams.delete('qr');
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+    return QR_CODE_ID.test(code) ? code : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function track(
   type: EventType,
   data: { productId?: string; suggestionId?: string; payload?: Record<string, unknown> } = {},
@@ -77,7 +100,8 @@ export function track(
     if (seen.has(key)) return;
     seen.add(key);
   }
-  queue.push({ type, productId: data.productId, suggestionId: data.suggestionId, payload: data.payload ?? {} });
+  const qrCodeId = type === 'MENU_VIEW' ? scannedCode() : undefined;
+  queue.push({ type, productId: data.productId, suggestionId: data.suggestionId, ...(qrCodeId ? { qrCodeId } : {}), payload: data.payload ?? {} });
   // A child component's effect runs before the provider that configures tracking, so wait for it.
   if (!config) return;
   if (queue.length >= 10) flushTracking();
@@ -86,6 +110,7 @@ export function track(
 
 export function resetTrackingForTests(): void {
   config = null;
+  qrRead = false;
   queue = [];
   seen.clear();
   memorySession = null;
