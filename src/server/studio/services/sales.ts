@@ -3,6 +3,7 @@ import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig, salesSettings, type SalesSettings } from '@/server/domain/config';
+import { localDate } from '@/server/domain/offers';
 import { DAYPARTS, PROMOTION_KINDS, type Daypart, type PromotionKind } from '@/server/domain/types';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
@@ -132,6 +133,7 @@ export const settingsFields = {
   upsellMaxOffers: z.number().int().min(1, 'Use 1 to 5').max(5, 'Use 1 to 5'),
   pairingMaxOffers: z.number().int().min(1, 'Use 1 to 5').max(5, 'Use 1 to 5'),
   upsellDeltaCapRatio: z.number().min(0.25, 'Use 25% to 200%').max(2, 'Use 25% to 200%'),
+  cartPairingMaxOffers: z.number().int().min(1, 'Use 1 to 5').max(5, 'Use 1 to 5'),
   mealCategoryIds: z.array(idField).max(100),
 };
 export type SettingsSave = z.infer<z.ZodObject<typeof settingsFields>>;
@@ -184,6 +186,9 @@ export function saveUpgrade(ctx: ActionContext, input: UpgradeSave): Promise<{ i
   return editDraft(ctx, async (tx, menuId) => {
     await requireProduct(tx, input.sourceProductId);
     await requireProduct(tx, input.targetProductId);
+    // The row being edited must be this menu's own before anything else is said about it.
+    const editing = input.ruleId === undefined ? null : await tx.upsellRule.findFirst({ where: { id: input.ruleId } });
+    if (input.ruleId !== undefined && !editing) throw new StudioError('NOT_FOUND');
     const twin = await tx.upsellRule.findFirst({
       where: { sourceProductId: input.sourceProductId, targetProductId: input.targetProductId, ...(input.ruleId ? { id: { not: input.ruleId } } : {}) },
       select: { id: true },
@@ -202,7 +207,7 @@ export function saveUpgrade(ctx: ActionContext, input: UpgradeSave): Promise<{ i
       ctx.audit({ action: 'upgrade.created', entityType: 'UpsellRule', entityId: row.id, changes: { ...changed({ pitch: [null, present(input.pitch)] }), source: { before: null, after: fields.sourceProductId }, target: { before: null, after: fields.targetProductId } } });
       return { id: row.id, version: 1 };
     }
-    const row = await tx.upsellRule.findFirst({ where: { id: input.ruleId } });
+    const row = editing;
     if (!row) throw new StudioError('NOT_FOUND');
     const translations = withTexts(row.translations, { pitch: input.pitch, effect: input.effect });
     await updateWithVersion(tx.upsellRule, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'UpsellRule' }, tx);
@@ -245,6 +250,8 @@ export function savePairing(ctx: ActionContext, input: PairingSave): Promise<{ i
     if (input.source.kind === 'PRODUCT') await requireProduct(tx, input.source.id);
     else await requireCategory(tx, input.source.id);
     await requireProduct(tx, input.targetProductId);
+    const editing = input.ruleId === undefined ? null : await tx.pairingRule.findFirst({ where: { id: input.ruleId } });
+    if (input.ruleId !== undefined && !editing) throw new StudioError('NOT_FOUND');
     const twin = await tx.pairingRule.findFirst({
       where: {
         sourceType: input.source.kind,
@@ -270,7 +277,7 @@ export function savePairing(ctx: ActionContext, input: PairingSave): Promise<{ i
       ctx.audit({ action: 'pairing.created', entityType: 'PairingRule', entityId: row.id, changes: { source: { before: null, after: input.source }, target: { before: null, after: fields.targetProductId } } });
       return { id: row.id, version: 1 };
     }
-    const row = await tx.pairingRule.findFirst({ where: { id: input.ruleId } });
+    const row = editing;
     if (!row) throw new StudioError('NOT_FOUND');
     const translations = withTexts(row.translations, { reason: input.reason });
     await updateWithVersion(tx.pairingRule, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'PairingRule' }, tx);
@@ -538,6 +545,7 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
       before.upsellMaxOffers === input.upsellMaxOffers &&
       before.pairingMaxOffers === input.pairingMaxOffers &&
       before.upsellDeltaCapRatio === input.upsellDeltaCapRatio &&
+      before.cartPairingMaxOffers === input.cartPairingMaxOffers &&
       JSON.stringify(mealBefore) === JSON.stringify([...categoryIds].sort());
     if (unchanged) return { version: input.version };
 
@@ -546,6 +554,7 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
       upsellMaxOffers: input.upsellMaxOffers,
       pairingMaxOffers: input.pairingMaxOffers,
       upsellDeltaCapRatio: input.upsellDeltaCapRatio,
+      cartPairingMaxOffers: input.cartPairingMaxOffers,
       sales: { ...sales },
     };
     await updateWithVersion(tx.menu, { id: menuId, version: input.version, data: { engineConfig }, entityType: 'Menu' }, tx);
@@ -562,6 +571,7 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
         upsellMaxOffers: [before.upsellMaxOffers, input.upsellMaxOffers],
         pairingMaxOffers: [before.pairingMaxOffers, input.pairingMaxOffers],
         upsellDeltaCapRatio: [before.upsellDeltaCapRatio, input.upsellDeltaCapRatio],
+        cartPairingMaxOffers: [before.cartPairingMaxOffers, input.cartPairingMaxOffers],
         mealCategories: [mealBefore, [...categoryIds].sort()],
       }),
     });
@@ -571,22 +581,26 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
 
 export interface SalesSettingsView extends SalesSettings {
   version: number;
+  defaultLocale: Locale;
   upsellMaxOffers: number;
   pairingMaxOffers: number;
   upsellDeltaCapRatio: number;
+  cartPairingMaxOffers: number;
   categories: Array<{ id: string; names: Names; completesMeal: boolean }>;
 }
 
 export async function salesSettingsView(db: QueryContext['db'], menuId: string): Promise<SalesSettingsView> {
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true } });
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true, defaultLocale: true } });
   const categories = await db.category.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, translations: true, completesMeal: true } });
   const config = resolveEngineConfig(menu.engineConfig);
   return {
     ...salesSettings(config),
     version: menu.version,
+    defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
     upsellMaxOffers: config.upsellMaxOffers,
     pairingMaxOffers: config.pairingMaxOffers,
     upsellDeltaCapRatio: config.upsellDeltaCapRatio,
+    cartPairingMaxOffers: config.cartPairingMaxOffers,
     categories: categories.map((category) => ({ id: category.id, names: textsOf(category.translations, 'name'), completesMeal: category.completesMeal })),
   };
 }
@@ -596,6 +610,8 @@ export async function salesSettingsView(db: QueryContext['db'], menuId: string):
 export interface SalesRules {
   locales: Locale[];
   defaultLocale: Locale;
+  /** The menu's time zone, which every offer's dates and hours are read in. */
+  timeZone: string;
   currency: string;
   numeralSystem: string;
   products: Array<{
@@ -657,11 +673,17 @@ export interface SalesRules {
     text: Names;
     isActive: boolean;
     sortOrder: number;
+    /** Its end date has passed in the menu's time zone: guests no longer see it. */
+    ended: boolean;
   }>;
 }
 
-export async function salesRules(db: QueryContext['db'], menuId: string): Promise<SalesRules> {
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true } });
+export async function salesRules(db: QueryContext['db'], menuId: string, now: Date = new Date()): Promise<SalesRules> {
+  const menu = await db.menu.findUniqueOrThrow({
+    where: { id: menuId },
+    select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true, timezone: true },
+  });
+  const today = localDate(now, menu.timezone);
   const categories = await db.category.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, translations: true } });
   const products = await db.product.findMany({
     where: { menuId },
@@ -684,6 +706,7 @@ export async function salesRules(db: QueryContext['db'], menuId: string): Promis
   return {
     locales: menu.locales.filter(isLocale),
     defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
+    timeZone: menu.timezone,
     currency: menu.currency,
     numeralSystem: menu.numeralSystem,
     categories: categories.map((category) => ({ id: category.id, names: textsOf(category.translations, 'name') })),
@@ -749,6 +772,7 @@ export async function salesRules(db: QueryContext['db'], menuId: string): Promis
       text: textsOf(offer.translations, 'text'),
       isActive: offer.isActive,
       sortOrder: offer.sortOrder,
+      ended: offer.endsOn !== null && offer.endsOn < today,
     })),
   };
 }

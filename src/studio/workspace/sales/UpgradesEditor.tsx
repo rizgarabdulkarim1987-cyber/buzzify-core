@@ -95,7 +95,7 @@ export function UpgradesEditor({ menuId, rules }: { menuId: string; rules: Rules
             const title = (
               <span className="inline-flex flex-wrap items-center gap-1.5">
                 {dish(rule.sourceProductId)}
-                <ArrowRight aria-label={t('sales.upgrades.to')} className="size-4 text-muted rtl:-scale-x-100" />
+                <ArrowRight role="img" aria-label={t('sales.upgrades.to')} className="size-4 text-muted rtl:-scale-x-100" />
                 {dish(rule.targetProductId)}
               </span>
             );

@@ -386,8 +386,19 @@ describe('offers', () => {
         text: { en: 'Twenty percent off lattes and cakes' },
         isActive: true,
         sortOrder: 0,
+        ended: expect.any(Boolean),
       },
     ]);
+  });
+
+  it('says which offers have passed their end date, in the menu’s time zone, and names that time zone', async () => {
+    const day = (offset: number) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+    const past = dataOf(await run(sales.saveOffer, offer({ startsOn: day(-10), endsOn: day(-3) })));
+    const coming = dataOf(await run(sales.saveOffer, offer({ startsOn: day(-3), endsOn: day(3) })));
+    const open = dataOf(await run(sales.saveOffer, offer({ startsOn: null, endsOn: null })));
+    const read = dataOf(await rules());
+    expect(Object.fromEntries(read.offers.map((o) => [o.id, o.ended]))).toEqual({ [past.id]: true, [coming.id]: false, [open.id]: false });
+    expect(read.timeZone).toBe('Asia/Baghdad');
   });
 });
 
@@ -403,13 +414,14 @@ describe('sales settings', () => {
       upsellMaxOffers: 2,
       pairingMaxOffers: 4,
       upsellDeltaCapRatio: 1.5,
+      cartPairingMaxOffers: 2,
       mealCategoryIds: [cakes],
       ...overrides,
     });
 
   it('reads the defaults while nothing is saved', async () => {
     const read = dataOf(await settings());
-    expect(read).toMatchObject({ priceStyle: 'symbol', showMostOrdered: true, showLowStock: true, upsellMaxOffers: 3, pairingMaxOffers: 3, upsellDeltaCapRatio: 0.75 });
+    expect(read).toMatchObject({ priceStyle: 'symbol', showMostOrdered: true, showLowStock: true, upsellMaxOffers: 3, pairingMaxOffers: 3, upsellDeltaCapRatio: 0.75, cartPairingMaxOffers: 2, defaultLocale: 'en' });
     expect(read.categories).toEqual([
       { id: a.category.id, names: { en: 'Coffee' }, completesMeal: false },
       { id: cakes, names: { en: 'Cakes' }, completesMeal: false },
@@ -432,7 +444,9 @@ describe('sales settings', () => {
     expect(menu.draftHash).not.toBe(menu.liveHash);
     expect(dataOf(await settings())).toMatchObject({ priceStyle: 'plain', showMostOrdered: false, upsellMaxOffers: 2 });
 
-    dataOf(await save({ mealCategoryIds: [a.category.id] }));
+    dataOf(await save({ cartPairingMaxOffers: 4 }));
+    expect((await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).engineConfig).toMatchObject({ cartPairingMaxOffers: 4 });
+    dataOf(await save({ cartPairingMaxOffers: 4, mealCategoryIds: [a.category.id] }));
     expect((await prisma().category.findMany({ where: { menuId: a.menu.id }, orderBy: { sortOrder: 'asc' } })).map((c) => c.completesMeal)).toEqual([true, false]);
     expect(await auditActions()).toContain('menu.sales_settings_changed');
   });

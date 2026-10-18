@@ -81,7 +81,11 @@ export function SalesOverview({ menuId, view }: { menuId: string; view: View }) 
                     <span className="text-sm text-muted">{t(`sales.advice.${advice.code}.why`)}</span>
                     {about.length > 0 && <span className="text-sm text-text">{about.join(' · ')}</span>}
                   </div>
-                  <Link href={`${base}${FIX_PATH[advice.code]}`} className="shrink-0 text-sm font-medium text-text underline underline-offset-4 hover:text-muted">
+                  <Link
+                    href={`${base}${FIX_PATH[advice.code]}`}
+                    aria-label={t('sales.overview.fixOne', { what: t(`sales.advice.${advice.code}`) })}
+                    className="shrink-0 text-sm font-medium text-text underline underline-offset-4 hover:text-muted"
+                  >
                     {t('sales.overview.fix')}
                   </Link>
                 </li>

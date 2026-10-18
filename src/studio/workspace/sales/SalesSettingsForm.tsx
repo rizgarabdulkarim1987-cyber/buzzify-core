@@ -53,7 +53,7 @@ function SwitchRow({
 /** The Sales tab's Settings: the labels guests see, the categories that complete a meal, and how much the menu suggests. */
 export function SalesSettingsForm({ menuId, view }: { menuId: string; view: View }) {
   const t = useT();
-  const name = useNamer('en');
+  const name = useNamer(view.defaultLocale);
   const { pending, errors, save } = useSave();
   const [form, setForm] = useState({
     priceStyle: view.priceStyle,
@@ -62,6 +62,7 @@ export function SalesSettingsForm({ menuId, view }: { menuId: string; view: View
     upsellMaxOffers: view.upsellMaxOffers,
     pairingMaxOffers: view.pairingMaxOffers,
     upsellDeltaCapRatio: view.upsellDeltaCapRatio,
+    cartPairingMaxOffers: view.cartPairingMaxOffers,
     mealCategoryIds: view.categories.filter((category) => category.completesMeal).map((category) => category.id),
   });
   const change = (patch: Partial<typeof form>) => setForm((current) => ({ ...current, ...patch }));
@@ -131,12 +132,15 @@ export function SalesSettingsForm({ menuId, view }: { menuId: string; view: View
       </FormSection>
 
       <FormSection id="sales-limits" title={t('sales.settings.limits')} intro={t('sales.settings.limitsIntro')}>
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('sales.settings.upgradesShown')} error={errors.upsellMaxOffers}>
             <Select options={counts} value={String(form.upsellMaxOffers)} onChange={(event) => change({ upsellMaxOffers: Number(event.target.value) })} />
           </Field>
           <Field label={t('sales.settings.pairingsShown')} error={errors.pairingMaxOffers}>
             <Select options={counts} value={String(form.pairingMaxOffers)} onChange={(event) => change({ pairingMaxOffers: Number(event.target.value) })} />
+          </Field>
+          <Field label={t('sales.settings.cartPairingsShown')} error={errors.cartPairingMaxOffers}>
+            <Select options={counts} value={String(form.cartPairingMaxOffers)} onChange={(event) => change({ cartPairingMaxOffers: Number(event.target.value) })} />
           </Field>
           <Field label={t('sales.settings.cap')} hint={t('sales.settings.capHint')} error={errors.upsellDeltaCapRatio}>
             <Select options={capOptions} value={String(form.upsellDeltaCapRatio)} onChange={(event) => change({ upsellDeltaCapRatio: Number(event.target.value) })} />

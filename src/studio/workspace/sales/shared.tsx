@@ -170,10 +170,13 @@ export function RuleRow({
   onDelete,
   readOnly,
   extra,
+  stateLabel,
 }: {
   title: ReactNode;
   details: ReactNode;
   isActive: boolean;
+  /** A state that says more than on or off, such as an offer past its end date. */
+  stateLabel?: string;
   editLabel: string;
   deleteLabel: string;
   onEdit: () => void;
@@ -188,7 +191,7 @@ export function RuleRow({
         <span className="text-base font-medium text-text">{title}</span>
         <span className="text-sm text-muted">{details}</span>
       </div>
-      <StatusBadge tone={isActive ? 'success' : 'neutral'}>{isActive ? t('sales.on') : t('sales.off')}</StatusBadge>
+      <StatusBadge tone={isActive && !stateLabel ? 'success' : 'neutral'}>{stateLabel ?? (isActive ? t('sales.on') : t('sales.off'))}</StatusBadge>
       {extra}
       {!readOnly && (
         <span className="flex items-center gap-1">

@@ -44,6 +44,11 @@ interface OfferDraft {
 const ALL_DAYS = 127;
 const DAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 
+/** Western digits for Arabic-Indic and Persian ones, so a number typed on an Arabic keyboard reads. */
+function latinDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+}
+
 const clock = (minute: number | null) => (minute === null ? '' : `${String(Math.floor(minute / 60)).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`);
 function minuteOf(text: string): number | null {
   const match = /^(\d{2}):(\d{2})$/.exec(text);
@@ -124,7 +129,8 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
 
   const submit = () => {
     if (!draft) return;
-    const percent = draft.kind === 'DISCOUNT' ? (/^\d{1,2}$/.test(draft.percent.trim()) ? Number(draft.percent.trim()) : Number.NaN) : null;
+    const typed = latinDigits(draft.percent.trim());
+    const percent = draft.kind === 'DISCOUNT' ? (/^\d{1,2}$/.test(typed) ? Number(typed) : Number.NaN) : null;
     if (percent !== null && Number.isNaN(percent)) {
       setErrors({ percentOff: t('sales.offers.percentRange') });
       return;
@@ -194,6 +200,7 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
                 </>
               }
               isActive={offer.isActive}
+              stateLabel={offer.isActive && offer.ended ? t('sales.offers.ended') : undefined}
               editLabel={t('sales.offers.editOne', { name: name(offer.title) })}
               deleteLabel={t('sales.offers.deleteOne', { name: name(offer.title) })}
               onEdit={() => open(draftOf(offer))}
@@ -223,7 +230,7 @@ export function OffersEditor({ menuId, rules, canPrice }: { menuId: string; rule
         open={draft !== null}
         onOpenChange={(next) => !next && setDraft(null)}
         title={draft?.offerId ? t('sales.offers.editTitle') : t('sales.offers.addTitle')}
-        description={t('sales.offers.dialogIntro')}
+        description={t('sales.offers.dialogIntro', { zone: rules.timeZone })}
         width="md"
         footer={
           <>

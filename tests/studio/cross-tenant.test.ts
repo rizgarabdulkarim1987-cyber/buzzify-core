@@ -385,6 +385,7 @@ const salesSettings = (mealCategoryIds: string[]) => ({
   upsellMaxOffers: 3,
   pairingMaxOffers: 3,
   upsellDeltaCapRatio: 0.75,
+  cartPairingMaxOffers: 2,
   mealCategoryIds,
 });
 
