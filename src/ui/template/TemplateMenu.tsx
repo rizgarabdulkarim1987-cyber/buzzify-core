@@ -10,6 +10,7 @@ import type { MenuProductView, MenuView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
 import { CartBar } from '@/ui/cart/CartBar';
+import { MotionSlot } from '@/ui/menu/MotionSlot';
 import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
@@ -178,7 +179,12 @@ export function TemplateMenu({
     });
 
   const { layout } = design;
-  const animated = design.scene.mode !== 'static' && !reduced;
+  // The Motion tab's motions (spec 2026-10-18-template-motions-design.md, section 2): the top of the menu behind the
+  // header and hero, and a band over a category's heading. A template shows its dish of the hour in its hero's own
+  // picture, so the signature place is the classic menu's alone.
+  const heroMotion = view.motions.hero;
+  const placed = heroMotion !== undefined || Object.keys(view.motions.categories).length > 0;
+  const animated = (design.scene.mode !== 'static' || placed) && !reduced;
   // Only validated colours reach the page's own background (the root's colour shows around the menu).
   const page = HEX.test(design.palette.bg) && HEX.test(design.palette.text) ? `html,body{background:${design.palette.bg};color:${design.palette.text}}` : '';
 
@@ -198,6 +204,10 @@ export function TemplateMenu({
           <a href="#menu" className="tpl-skip">
             {t('menu.skip')}
           </a>
+          {heroMotion && (
+            // Veiled by the page colour at the scene's own overlay (at least 0.4), so the title and prices in front read.
+            <MotionSlot place="backdrop" motion={heroMotion} paused={motionPaused} veil={Math.max(design.scene.overlay, 0.4)} />
+          )}
           <TemplateHeader />
           {query.trim() === '' && <Hero kind={layout.hero} tagline={tagline} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
@@ -225,6 +235,9 @@ export function TemplateMenu({
               ) : (
                 categories.map((category, index) => (
                   <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
+                    {view.motions.categories[category.id] && (
+                      <MotionSlot place="category" motion={view.motions.categories[category.id]!} paused={motionPaused} className="mb-2" />
+                    )}
                     <div tabIndex={-1} data-heading className="outline-none">
                       <SectionHeading id={`h-${category.slug}`} name={category.name} index={index} style={layout.heading} />
                     </div>
