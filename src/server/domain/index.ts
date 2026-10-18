@@ -9,6 +9,8 @@ export * from './pricing';
 export * from './upsell';
 export * from './pairing';
 export * from './meal';
+export * from './engineering';
+export * from './advisor';
 export * from './promotion';
 export * from './bundles';
 export * from './suggestions';
