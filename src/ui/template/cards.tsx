@@ -1,12 +1,13 @@
 'use client';
 
 import type { CSSProperties, ReactNode } from 'react';
+import { unitPriceFromMenu } from '@/lib/menu-price';
 import { mix, readableOn } from '@/lib/templates/palette';
 import type { CardKind } from '@/lib/templates/types';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from './context';
-import { Badges, Description, FavoriteButton, Price, ProductMedia, QuickAction, SoldOut, useAvailability } from './parts';
+import { Badges, CardNote, Description, FavoriteButton, Price, ProductMedia, QuickAction, useAvailability } from './parts';
 
 /**
  * How one product is shown in its category (spec 5, card kinds). Every card opens the product from its name, a real
@@ -24,10 +25,11 @@ function OpenName({ product, className = '', children }: { product: MenuProductV
 
 /** A product's sizes as chips that open it with that size chosen (the café's quick customization). */
 function VariantChips({ product, max = 4, prices = false }: { product: MenuProductView; max?: number; prices?: boolean }) {
-  const { money, t } = useApp();
+  const { price, t } = useApp();
   const { openProduct } = useTemplate();
   if (product.variants.length < 2) return null;
-  const base = product.displayPrice - (product.variants.find((variant) => variant.isDefault)?.priceDelta ?? 0);
+  // Each size at what it costs now, a live discount included.
+  const sizePrice = (variantId: string) => price(unitPriceFromMenu(product, variantId, []));
   return (
     <span className="relative z-[2] mt-2 flex flex-wrap gap-1.5" role="group" aria-label={t('product.size')}>
       {product.variants.slice(0, max).map((variant) => (
@@ -36,10 +38,10 @@ function VariantChips({ product, max = 4, prices = false }: { product: MenuProdu
           type="button"
           onClick={() => openProduct(product.id, variant.id)}
           className="tpl-chip tpl-chip-small"
-          aria-label={`${product.name}: ${variant.name}${prices ? `, ${money(base + variant.priceDelta)}` : ''}`}
+          aria-label={`${product.name}: ${variant.name}${prices ? `, ${sizePrice(variant.id)}` : ''}`}
         >
           {variant.name}
-          {prices && <span className="tabular-nums text-(--muted)">{money(base + variant.priceDelta)}</span>}
+          {prices && <span className="tabular-nums text-(--muted)">{sizePrice(variant.id)}</span>}
         </button>
       ))}
     </span>
@@ -57,7 +59,7 @@ function RowCard({ product }: { product: MenuProductView }) {
         </div>
         <Badges product={product} className="mt-1.5" />
         <Description product={product} className="mt-1.5 max-w-[46ch] text-sm leading-relaxed" />
-        <SoldOut product={product} className="mt-1.5 block" />
+        <CardNote product={product} className="mt-1.5 block" />
       </div>
       <div className="flex flex-col items-center gap-2.5">
         <ProductMedia product={product} className="size-[72px]" sizes="72px" />
@@ -76,7 +78,7 @@ function PlateCard({ product }: { product: MenuProductView }) {
         <Description product={product} className="mt-1.5 max-w-[36ch] text-sm leading-relaxed" />
         <div className="mt-2 flex min-h-11 items-center gap-4">
           <Price product={product} />
-          <SoldOut product={product} />
+          <CardNote product={product} />
           <QuickAction product={product} className="relative z-[2]" />
         </div>
       </div>
@@ -100,7 +102,7 @@ function PhotoCard({ product }: { product: MenuProductView }) {
         <Badges product={product} className="mt-1.5" />
         <Description product={product} className="mt-1.5 text-sm leading-relaxed" />
         <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-2">
-          <SoldOut product={product} />
+          <CardNote product={product} />
           <QuickAction product={product} className="relative z-[2] ms-auto" />
         </div>
       </div>
@@ -118,6 +120,7 @@ function IngredientCard({ product }: { product: MenuProductView }) {
           <OpenName product={product} className="tpl-display tpl-name min-w-0" />
           <Price product={product} className="shrink-0" />
         </div>
+        <Badges product={product} salesOnly className="mt-1.5" />
         <Description product={product} className="mt-1.5 text-sm leading-relaxed" />
         {product.ingredients.length > 0 && (
           <ul className="mt-3 flex flex-wrap gap-1.5" aria-label={t('product.ingredients')}>
@@ -136,7 +139,7 @@ function IngredientCard({ product }: { product: MenuProductView }) {
           </ul>
         )}
         <div className="mt-auto flex min-h-11 items-center justify-between gap-3 pt-2">
-          <SoldOut product={product} />
+          <CardNote product={product} />
           <QuickAction product={product} className="relative z-[2] ms-auto" />
         </div>
       </div>
@@ -150,9 +153,10 @@ function CompactCard({ product }: { product: MenuProductView }) {
       <ProductMedia product={product} className="size-16" sizes="64px" />
       <div className="min-w-0">
         <OpenName product={product} className="tpl-display tpl-name-sm block" />
+        <Badges product={product} salesOnly className="mt-1" />
         <Description product={product} lines={1} className="mt-0.5 text-sm" />
         <VariantChips product={product} max={3} />
-        <SoldOut product={product} className="mt-1 block" />
+        <CardNote product={product} className="mt-1 block" />
       </div>
       <div className="flex flex-col items-end gap-2">
         <Price product={product} className="text-sm" />
@@ -172,7 +176,8 @@ function GalleryCard({ product }: { product: MenuProductView }) {
       </div>
       <OpenName product={product} className="tpl-display tpl-name-sm mt-2.5 line-clamp-2" />
       <Price product={product} className="mt-1 text-sm" />
-      <SoldOut product={product} className="mt-0.5" />
+      <Badges product={product} salesOnly className="mt-1.5" />
+      <CardNote product={product} className="mt-0.5" />
     </li>
   );
 }
@@ -184,9 +189,10 @@ function IsolatedCard({ product }: { product: MenuProductView }) {
         <ProductMedia product={product} rounded={false} className="mx-auto aspect-square w-[78%] bg-transparent!" />
       </div>
       <OpenName product={product} className="tpl-display tpl-name mt-4 text-center" />
+      <Badges product={product} salesOnly className="mt-1.5 justify-center" />
       <Description product={product} className="mt-1.5 max-w-[30ch] text-sm" />
       <Price product={product} className="mt-2" />
-      <SoldOut product={product} className="mt-1" />
+      <CardNote product={product} className="mt-1" />
       <QuickAction product={product} variant="label" className="relative z-[2] mt-3" />
     </li>
   );
@@ -202,15 +208,16 @@ function ListCard({ product }: { product: MenuProductView }) {
       {product.media[0]?.kind === 'image' && <ProductMedia product={product} className="size-12 shrink-0" sizes="48px" />}
       <div className="min-w-0 flex-1">
         <OpenName product={product} className="tpl-display tpl-name-sm block" />
+        <Badges product={product} salesOnly className="my-1" />
         <Description product={product} lines={1} className="text-sm" />
         {daily && (
           <span className="mt-1 flex items-center gap-1.5 text-sm text-(--muted)">
             <span aria-hidden className={`size-2 rounded-full ${orderable ? 'bg-(--accent)' : 'border border-(--muted)'}`} />
             {orderable ? t('tpl.available') : null}
-            <SoldOut product={product} />
+            <CardNote product={product} />
           </span>
         )}
-        {!daily && <SoldOut product={product} />}
+        {!daily && <CardNote product={product} />}
       </div>
       <Price product={product} className="shrink-0 text-sm" />
       <QuickAction product={product} className="relative z-[2] shrink-0" />
@@ -234,7 +241,8 @@ function FlavorCard({ product, index }: { product: MenuProductView; index: numbe
       <ProductMedia product={product} rounded={false} className="tpl-scoop size-[58%] rounded-full bg-transparent!" sizes="140px" />
       <OpenName product={product} className="tpl-display tpl-name-sm mt-3 text-center text-(--tile-text)" />
       <Price product={product} className="mt-1 text-sm text-(--tile-text)!" />
-      <SoldOut product={product} className="mt-0.5 text-(--tile-text)!" />
+      <Badges product={product} salesOnly className="mt-1.5 justify-center" />
+      <CardNote product={product} className="mt-0.5 text-(--tile-text)!" />
       <QuickAction product={product} className="absolute bottom-2.5 end-2.5 z-[2]" />
       <FavoriteButton product={product} className="absolute end-1 top-1 z-[2] text-(--tile-text)!" />
     </li>
@@ -255,7 +263,7 @@ function OversizedCard({ product }: { product: MenuProductView }) {
         <VariantChips product={product} prices />
         <div className="mt-3 flex min-h-12 items-center justify-between gap-3">
           <Price product={product} className="text-lg" />
-          <SoldOut product={product} />
+          <CardNote product={product} />
           <QuickAction product={product} variant="label" className="relative z-[2]" />
         </div>
       </div>
@@ -273,11 +281,12 @@ function CakeCard({ product }: { product: MenuProductView }) {
       </div>
       <OpenName product={product} className="tpl-display tpl-name-sm mt-3 line-clamp-2" />
       {sizes && <span className="mt-0.5 line-clamp-1 text-xs text-(--muted)">{sizes}</span>}
+      <Badges product={product} salesOnly className="mt-1.5" />
       <div className="mt-1.5 flex items-center justify-between gap-2">
         <Price product={product} className="text-sm" />
         <QuickAction product={product} className="relative z-[2]" />
       </div>
-      <SoldOut product={product} />
+      <CardNote product={product} />
     </li>
   );
 }
@@ -291,10 +300,11 @@ function DrinkCard({ product }: { product: MenuProductView }) {
           <OpenName product={product} className="tpl-display tpl-name-sm min-w-0" />
           <Price product={product} className="shrink-0 text-sm" />
         </div>
+        <Badges product={product} salesOnly className="mt-1" />
         <Description product={product} lines={1} className="mt-0.5 text-sm" />
         <VariantChips product={product} prices />
         <div className="flex items-center justify-between gap-2">
-          <SoldOut product={product} />
+          <CardNote product={product} />
           {product.variants.length < 2 && <QuickAction product={product} className="relative z-[2] ms-auto mt-2" />}
         </div>
       </div>

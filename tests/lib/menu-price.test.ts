@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { optionExtraFromMenu, unitPriceFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
+import { lowestPriceFromMenu, optionExtraFromMenu, unitPriceFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
 import { buildMenuView } from '@/server/data/menu-view';
 import type { TenantInfo } from '@/server/data/tenant';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
@@ -138,5 +138,46 @@ describe('unitPriceFromMenu', () => {
     expect(unitPriceFromMenu(burger, null, [IDS.optCheese, IDS.optDouble])).toBe(1300);
     const shown = view.products.find((p) => p.id === 'p-discount')!;
     expect(unitPriceFromMenu(shown, null, ['o-neg'])).toBe(0);
+  });
+});
+
+describe('lowestPriceFromMenu', () => {
+  const twenty = {
+    id: 'twenty',
+    kind: 'DISCOUNT' as const,
+    percentOff: 20,
+    productIds: [IDS.coldBrew],
+    categoryIds: [],
+    startsOn: null,
+    endsOn: null,
+    startMinute: null,
+    endMinute: null,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: {},
+    sortOrder: 0,
+  };
+  // Cold brew served large by default (500 + 150), so its regular size (500) is the cheaper one.
+  const largeFirst = makeCatalog().products.map((p) =>
+    p.id === IDS.coldBrew ? { ...p, variants: p.variants.map((v) => ({ ...v, isDefault: v.id === IDS.varLarge })) } : p,
+  );
+  const coldIn = (promotions: (typeof twenty)[]) =>
+    buildMenuView(makeCatalog({ products: largeFirst, promotions }), tenant, 'en', at(12)).products.find((p) => p.id === IDS.coldBrew)!;
+
+  it('is the cheapest size with no options, at its regular price when nothing is discounted', () => {
+    const cold = coldIn([]);
+    expect(cold.displayPrice).toBe(650);
+    expect(lowestPriceFromMenu(cold)).toEqual({ price: 500, regular: 500 });
+  });
+
+  it('is the cheapest size now and before the discount while one is live', () => {
+    const cold = coldIn([twenty]);
+    expect(cold.displayPrice).toBe(520);
+    expect(lowestPriceFromMenu(cold)).toEqual({ price: 400, regular: 500 });
+  });
+
+  it('is the dish’s own price when it comes in one size', () => {
+    const burger = buildMenuView(makeCatalog(), tenant, 'en', at(12)).products.find((p) => p.id === IDS.burger)!;
+    expect(lowestPriceFromMenu(burger)).toEqual({ price: burger.displayPrice, regular: burger.displayPrice });
   });
 });

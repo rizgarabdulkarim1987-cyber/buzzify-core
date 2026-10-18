@@ -34,6 +34,15 @@ export function variantExtraFromMenu(product: PricedView, variantId: string | nu
   return unitPriceFromMenu(product, variantId, selected) - unitPriceFromMenu(product, baseVariantId, selected);
 }
 
+/** The lowest price the dish is ordered at with no options (its cheapest size): now, and before any discount. */
+export function lowestPriceFromMenu(product: PricedView): { price: number; regular: number } {
+  const sizes = product.variants.length < 2 ? [null] : product.variants.map((variant) => variant.id);
+  return {
+    price: Math.min(...sizes.map((id) => unitPriceFromMenu(product, id, []))),
+    regular: Math.min(...sizes.map((id) => regularPriceFromMenu(product, id, []))),
+  };
+}
+
 /** Mirrors the server's `unitPrice`: the regular price, before any discount. */
 export function regularPriceFromMenu(
   product: Pick<MenuProductView, 'basePrice' | 'groups' | 'variants'>,

@@ -1,6 +1,7 @@
 'use client';
 
 import { useId, useMemo, useState, type CSSProperties } from 'react';
+import { unitPriceFromMenu } from '@/lib/menu-price';
 import { mix } from '@/lib/templates/palette';
 import type { HeroKind } from '@/lib/templates/types';
 import type { MenuProductView } from '@/server/data/menu-view';
@@ -8,7 +9,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { ForwardIcon } from '@/ui/Icons';
 import { useTemplate, type MenuCategory } from './context';
-import { Description, Price, ProductMedia, SoldOut, useAvailability } from './parts';
+import { CardNote, Description, Price, ProductMedia, useAvailability } from './parts';
 
 /**
  * The top of a template menu (spec 5, hero kinds). Each kind keeps the categories and the first products within the
@@ -57,7 +58,7 @@ function EditorialHero() {
         <Description product={product} className="mt-3 max-w-[34ch] leading-relaxed" />
         <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-3">
           <Price product={product} className="text-lg" />
-          <SoldOut product={product} />
+          <CardNote product={product} />
           <ViewButton product={product} className="tpl-button-ghost" />
         </div>
         <PickCaption className="mt-3" />
@@ -119,7 +120,7 @@ function ArchHero() {
       <Description product={product} className="mt-3 max-w-[32ch] leading-relaxed" />
       <div className="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
         <Price product={product} className="text-lg" />
-        <SoldOut product={product} />
+        <CardNote product={product} />
         <ViewButton product={product} className="tpl-button-ghost" />
       </div>
     </section>
@@ -160,9 +161,8 @@ function ChaptersHero() {
 function SpotlightHero() {
   const product = useLead();
   const { openProduct } = useTemplate();
-  const { money, t } = useApp();
+  const { price, t } = useApp();
   if (!product) return null;
-  const base = product.displayPrice - (product.variants.find((variant) => variant.isDefault)?.priceDelta ?? 0);
   return (
     <section aria-labelledby="hero-title" className="tpl-hero tpl-spotlight relative overflow-hidden px-(--gutter)">
       <div className="grid items-center gap-6 md:grid-cols-[1fr_1.1fr]">
@@ -180,7 +180,7 @@ function SpotlightHero() {
                 <li key={variant.id}>
                   <button type="button" onClick={() => openProduct(product.id, variant.id)} className="tpl-chip">
                     {variant.name}
-                    <span className="tabular-nums text-(--muted)">{money(base + variant.priceDelta)}</span>
+                    <span className="tabular-nums text-(--muted)">{price(unitPriceFromMenu(product, variant.id, []))}</span>
                   </button>
                 </li>
               ))}
@@ -188,7 +188,7 @@ function SpotlightHero() {
           )}
           <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Price product={product} className="text-xl" />
-            <SoldOut product={product} />
+            <CardNote product={product} />
             <ViewButton product={product} />
           </div>
           <PickCaption className="mt-3" />

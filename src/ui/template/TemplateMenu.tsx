@@ -15,7 +15,7 @@ import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { ProductList } from './cards';
-import { FilterBar, InfoSection, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
+import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
 import { Hero } from './heroes';
@@ -201,6 +201,7 @@ export function TemplateMenu({
           <TemplateHeader />
           {query.trim() === '' && <Hero kind={layout.hero} tagline={tagline} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
+          {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">
             <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />
             <FilterBar

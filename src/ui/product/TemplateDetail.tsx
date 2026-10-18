@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, type ReactNode } from 'react';
+import { optionExtraFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
 import { stageTone } from '@/lib/stage';
 import type { DetailKind, OptionStyle } from '@/lib/templates/types';
 import type { MenuProductView } from '@/server/data/menu-view';
@@ -11,6 +12,7 @@ import { ProductVisual } from '@/ui/art/ProductVisual';
 import { CloseIcon, HeartIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { RollingMoney } from '@/ui/RollingMoney';
 import { ProductStage } from '@/ui/stage/ProductStage';
+import { Badges, CardNote, Price } from '@/ui/template/parts';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionChoices } from './OptionChoices';
 import { PairingList } from './PairingList';
@@ -79,7 +81,6 @@ function Choices({ product, choice, style, only }: { product: MenuProductView; c
   const { t } = useApp();
   const blocks: ReactNode[] = [];
   if (product.variants.length > 1) {
-    const base = product.variants.find((variant) => variant.isDefault)?.priceDelta ?? 0;
     blocks.push(
       <OptionChoices
         key="sizes"
@@ -88,7 +89,12 @@ function Choices({ product, choice, style, only }: { product: MenuProductView; c
         min={1}
         max={1}
         selected={choice.effectiveVariant ? [choice.effectiveVariant] : []}
-        items={product.variants.map((variant) => ({ id: variant.id, name: variant.name, priceDelta: variant.priceDelta - base }))}
+        // What each adds now, a live discount included, against the default size.
+        items={product.variants.map((variant) => ({
+          id: variant.id,
+          name: variant.name,
+          priceDelta: variantExtraFromMenu(product, variant.id, choice.defaultVariant, choice.selected),
+        }))}
         onToggle={choice.chooseVariant}
       />,
     );
@@ -102,7 +108,19 @@ function Choices({ product, choice, style, only }: { product: MenuProductView; c
         min={group.minSelect}
         max={group.maxSelect}
         selected={choice.selected}
-        items={group.options.map((option) => ({ id: option.id, name: option.name, effect: option.effect, priceDelta: option.priceDelta, disabled: !option.isAvailable }))}
+        items={group.options.map((option) => ({
+          id: option.id,
+          name: option.name,
+          effect: option.effect,
+          priceDelta: optionExtraFromMenu(
+            product,
+            choice.variantId,
+            choice.selected,
+            group.options.map((entry) => entry.id),
+            option.id,
+          ),
+          disabled: !option.isAvailable,
+        }))}
         onToggle={(id) => choice.toggle(group.id, id)}
       />,
     );
@@ -111,7 +129,7 @@ function Choices({ product, choice, style, only }: { product: MenuProductView; c
 }
 
 function Suggestions({ product, choice, onSwitch }: { product: MenuProductView; choice: ProductChoice; onSwitch: (id: string) => void }) {
-  const { cart, dismissed, dismiss, addLine, announce, t } = useApp();
+  const { cart, dismissed, dismiss, addLine, announce, t, price } = useApp();
   const body = useMemo(
     () => ({ context: 'product' as const, product: { productId: product.id, variantId: choice.variantId, optionIds: choice.selected }, cart, dismissedIds: dismissed }),
     [product.id, choice.variantId, choice.selected, cart, dismissed],
@@ -129,6 +147,7 @@ function Suggestions({ product, choice, onSwitch }: { product: MenuProductView; 
       />
       <PairingList
         offers={data?.pairings ?? []}
+        formatPrice={price}
         onAdd={(offer) => {
           addLine({ productId: offer.productId, variantId: null, optionIds: [], quantity: 1 });
           track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
@@ -178,7 +197,7 @@ function AddBar({ product, choice, onAdded, label }: { product: MenuProductView;
 }
 
 function Header({ product, titleId, favorite, onFavorite }: { product: MenuProductView; titleId: string; favorite: boolean; onFavorite: () => void }) {
-  const { t, money } = useApp();
+  const { t } = useApp();
   return (
     <>
       <div className="flex items-start justify-between gap-3">
@@ -195,18 +214,16 @@ function Header({ product, titleId, favorite, onFavorite }: { product: MenuProdu
           <HeartIcon filled={favorite} />
         </button>
       </div>
-      {product.badges && (
-        <p className="mt-2 flex flex-wrap gap-1.5">
-          {product.badges.map((badge) => (
-            <span key={badge} className="tpl-badge">
-              {t(`menu.badge.${badge}`)}
-            </span>
-          ))}
-        </p>
-      )}
+      <Badges product={product} className="mt-2" />
       {product.description && <p className="mt-2 max-w-prose leading-relaxed text-(--muted)">{product.description}</p>}
-      <p className="mt-3 text-lg tabular-nums text-(--accent-ink)">{money(product.displayPrice)}</p>
-      {product.orderState !== 'OK' && <p className="mt-2 text-(--accent-ink)">{t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}</p>}
+      <p className="mt-3 text-lg">
+        <Price product={product} lowest={false} />
+      </p>
+      {product.orderState === 'OK' ? (
+        <CardNote product={product} className="mt-1 block" />
+      ) : (
+        <p className="mt-2 text-(--accent-ink)">{t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}</p>
+      )}
     </>
   );
 }
@@ -245,7 +262,7 @@ function Detail({ props, close }: { props: TemplateDetailProps; close: () => voi
 
 /** One choice at a time: sizes, then each group, then a summary to add from (a sundae builder). */
 function Steps({ props, close }: { props: TemplateDetailProps; close: () => void }) {
-  const { t, money } = useApp();
+  const { t, price } = useApp();
   const { product, optionStyle, canOrder, initialVariantId, favorite, onFavorite, onSwitch } = props;
   const choice = useProductChoice(product, initialVariantId);
   const total = (product.variants.length > 1 ? 1 : 0) + product.groups.length;
@@ -285,7 +302,7 @@ function Steps({ props, close }: { props: TemplateDetailProps; close: () => void
                 <section className="mt-6">
                   <h3 className="tpl-display text-lg">{t('tpl.summary')}</h3>
                   <p className="mt-1 text-(--muted)">{chosenNames.length > 0 ? chosenNames.join(' · ') : t('tpl.nothingChosen')}</p>
-                  <p className="mt-2 tabular-nums text-(--accent-ink)">{money(choice.unit)}</p>
+                  <p className="mt-2 tabular-nums text-(--accent-ink)">{price(choice.unit)}</p>
                 </section>
               )}
               <div className="mt-6 flex items-center justify-between gap-3">
