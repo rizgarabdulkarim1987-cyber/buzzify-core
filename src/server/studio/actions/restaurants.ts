@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { expireMenu } from '@/server/data/cache';
+import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
@@ -51,18 +52,20 @@ const MENU_FIELDS = new Set(['name', 'address', 'city', 'phone', 'whatsapp', 'ma
 export const createRestaurant = defineAction({
   name: 'restaurants.create',
   permission: 'restaurant.create',
-  input: restaurantInput,
+  // The plan is the platform owner's to choose; from anyone else it is ignored and the restaurant starts on Basic.
+  input: restaurantInput.extend({ plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered').optional() }),
   target: () => PLATFORM,
-  run: (ctx, input) =>
+  run: (ctx, { plan: chosen, ...input }) =>
     ctx.transaction(async (tx) => {
-      const created = await tx.restaurant.create({ data: profileData(input), select: { id: true } });
+      const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
+      const created = await tx.restaurant.create({ data: { ...profileData(input), plan }, select: { id: true } });
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
         action: 'restaurant.created',
         entityType: 'Restaurant',
         entityId: created.id,
         restaurantId: created.id,
-        changes: addedFields(input),
+        changes: { ...addedFields(input), plan: { before: null, after: plan } },
       });
       return { restaurantId: created.id };
     }),

@@ -130,6 +130,23 @@ itself is in the git-ignored `.neon` file. After `npm i -g neon` and `neon login
   connection strings: `DATABASE_URL` is the pooled one, `DATABASE_URL_UNPOOLED` the direct one that goes into
   `DIRECT_DATABASE_URL` here.
 
+## Plans (once, after the deploy that brings them)
+
+That deploy's migration puts every restaurant, the demos included, on **Premium**, so guests see no change, and makes
+your Super Admin account (the oldest active one) the **platform owner**: the only account that changes plans.
+
+1. **Your WhatsApp number:** open `https://studio.buzzify-menu.online/studio/settings/plans`, type your number with the
+   country code under **Your WhatsApp number** (for example `+964 750 123 4567`), and press **Save plans**. Until it is
+   set, a locked feature shows which plan has it but no WhatsApp button.
+2. **What each plan includes** is on the same page: names in three languages, and a switch per feature and plan.
+   "Coming later" lists the features of the next projects, so you can decide now where each will start.
+3. **A restaurant's plan:** Restaurants → the restaurant → **Plan** tab → choose the plan → **Save plan**. When it takes
+   features away, a window lists what guests stop seeing; confirm it. Guests see the change at once, without a publish,
+   and nothing is deleted: moving back brings everything back.
+4. **Handing the business over** (or getting it back when the owner's account is lost): on your computer, in the project
+   folder, run `npm run studio:set-platform-owner` with `DATABASE_URL` set to the Neon **direct** address for that one
+   command, like the first Super Admin. It asks for the new owner's email and changes nothing until you type `yes`.
+
 ## Later deploys
 
 Push to `main`, then start a new build in Hostinger (or turn on automatic deployment for the repository). Changing a

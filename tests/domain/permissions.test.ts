@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   NEVER_GRANTABLE,
+  OWNER_ONLY_PERMISSIONS,
   PERMISSIONS,
   PLATFORM_PERMISSIONS,
   ROLE_DEFAULTS,
@@ -36,7 +37,7 @@ const EXPECTED: Record<MemberRole, Permission[]> = {
 };
 
 describe('permission keys', () => {
-  it('lists the 27 keys of spec 9.1, in the spec order and without duplicates', () => {
+  it('lists the 27 keys of spec 9.1 in the spec order, then plans.manage, without duplicates', () => {
     expect(PERMISSIONS).toEqual([
       'restaurant.create',
       'restaurant.edit',
@@ -65,9 +66,10 @@ describe('permission keys', () => {
       'permissions.manage',
       'audit.view',
       'platform.settings',
+      'plans.manage',
     ]);
     expect(new Set(PERMISSIONS).size).toBe(PERMISSIONS.length);
-    expect(PERMISSIONS).toHaveLength(27);
+    expect(PERMISSIONS).toHaveLength(28);
   });
 
   it('lists the keys that can never be granted, and the ones only Super Admins hold at platform level', () => {
@@ -80,6 +82,7 @@ describe('permission keys', () => {
         'permissions.manage',
         'audit.view',
         'platform.settings',
+        'plans.manage',
       ].sort(),
     );
     expect([...PLATFORM_PERMISSIONS].sort()).toEqual(
@@ -107,15 +110,27 @@ describe('role defaults', () => {
     },
   );
 
-  it('gives Super Admins every key', () => {
+  it('gives Super Admins every key but the platform owner’s', () => {
     const all = effectivePermissions({ isSuperAdmin: true, role: null, policy: {} });
-    expect(all.size).toBe(PERMISSIONS.length);
-    for (const permission of PERMISSIONS) expect(all.has(permission)).toBe(true);
+    expect(all.size).toBe(PERMISSIONS.length - 1);
+    for (const permission of PERMISSIONS) expect(all.has(permission)).toBe(permission !== 'plans.manage');
+    expect(OWNER_ONLY_PERMISSIONS).toEqual(['plans.manage']);
+  });
+
+  it('gives the platform owner every key, plans.manage included', () => {
+    expect(effectivePermissions({ isSuperAdmin: true, isPlatformOwner: true, role: null, policy: {} }).size).toBe(PERMISSIONS.length);
+  });
+
+  it('never gives plans.manage without Super Admin, nor through a policy', () => {
+    expect(effectivePermissions({ isSuperAdmin: false, isPlatformOwner: true, role: 'DESIGNER', policy: {} }).has('plans.manage')).toBe(false);
+    expect(parsePolicy({ DESIGNER: { grant: ['plans.manage'], revoke: [] } }).DESIGNER?.grant).toEqual([]);
+    const unparsed = { DESIGNER: { grant: ['plans.manage' as Permission], revoke: [] } };
+    expect(effectivePermissions({ isSuperAdmin: false, role: 'DESIGNER', policy: unparsed }).has('plans.manage')).toBe(false);
   });
 
   it('gives Super Admins every key whatever the client policy revokes', () => {
     const policy = parsePolicy({ OWNER: { grant: [], revoke: ['publish.now'] }, DESIGNER: { grant: [], revoke: ['content.edit'] } });
-    expect(effectivePermissions({ isSuperAdmin: true, role: 'OWNER', policy }).size).toBe(PERMISSIONS.length);
+    expect(effectivePermissions({ isSuperAdmin: true, role: 'OWNER', policy }).size).toBe(PERMISSIONS.length - 1);
   });
 
   it('gives nothing without a role', () => {

@@ -84,6 +84,13 @@ model Restaurant {
   status           RestaurantStatus @default(ACTIVE)
   notes            String           @default("")
   permissionPolicy Json             @default("{}")
+  /// What the restaurant has bought. The default is for rows that existed before plans (they keep every feature); the
+  /// Studio always writes a plan when it creates a restaurant.
+  plan             PlanTier         @default(PREMIUM)
+  /// Features switched on or off for this restaurant beyond its plan: `{ features: { [key]: boolean } }`.
+  planExtras       Json             @default("{}")
+  /// The platform owner's note on the deal (what was agreed, paid until when). Only Super Admins read it.
+  planNote         String           @default("")
   /// The restaurant's logo in its media library; a new menu starts its brand kit with it.
   logoAssetId      String?
   /// A link to the restaurant on a map (https), shown on template menus that show the address.
@@ -104,6 +111,14 @@ model Restaurant {
   @@index([name])
   @@index([city])
   @@index([status])
+  @@index([plan])
+}
+
+/// The plans a restaurant can be on (src/server/domain/entitlements.ts).
+enum PlanTier {
+  BASIC
+  PRO
+  PREMIUM
 }
 
 model Branch {
@@ -163,6 +178,7 @@ model Menu {
   bundles         Bundle[]
   bundleItems     BundleItem[]
   schedule        DaypartSchedule[]
+  motions         MenuMotion[]
   tables          Table[]
   qrCodes         QrCode[]
   importJobs      ImportJob[]
@@ -256,8 +272,34 @@ model Category {
   version      Int       @default(1)
   menu         Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
   products     Product[]
+  motions      MenuMotion[]
 
   @@unique([menuId, slug])
+}
+
+/// A motion from the library at a place on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md). Part of
+/// the draft; published with the revision. Only the motions service writes rows, the slot and the category together.
+model MenuMotion {
+  id         String    @id @default(cuid())
+  menuId     String
+  /// `hero`, `signature`, or `category:<categoryId>`: one motion per place. It carries the uniqueness, since two null
+  /// categories are different to PostgreSQL.
+  slot       String
+  /// The category whose heading it plays over (category places only); deleting the category deletes the motion.
+  categoryId String?
+  /// A motion id from the library's catalog (src/motion/catalog).
+  motionId   String
+  /// The motion's params other than text, resolved.
+  params     Json
+  /// For each text param, its text by language.
+  texts      Json      @default("{}")
+  version    Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  menu       Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, slot])
+  @@index([categoryId])
 }
 
 model Product {
@@ -522,6 +564,9 @@ model User {
   updatedAt        DateTime     @updatedAt
   twoFactorEnabled Boolean?     @default(false)
   isSuperAdmin     Boolean      @default(false)
+  /// The one account that sells: only it changes plans. At most one row is true (a partial unique index in the
+  /// migration), and it counts only while the person is a Super Admin.
+  isPlatformOwner  Boolean      @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
   locale           String       @default("en")
   /// Set when the person is switched off. They keep their history but have no actor and no session.

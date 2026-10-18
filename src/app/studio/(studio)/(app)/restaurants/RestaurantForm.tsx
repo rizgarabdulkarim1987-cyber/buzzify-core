@@ -5,6 +5,7 @@ import { ImagePlus, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { createRestaurant, updateRestaurant } from '@/app/studio/_actions/restaurants';
+import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import {
   emptyWorkingHours,
   readWorkingHours,
@@ -205,20 +206,33 @@ function SaveBar({ form, reload, children }: { form: ActionForm<unknown>; reload
   );
 }
 
-/** The form for a new restaurant. On success it opens the restaurant. */
-export function CreateRestaurantForm() {
+/**
+ * The form for a new restaurant. On success it opens the restaurant. `planNames` is given to the platform owner, who
+ * chooses the plan here (Basic preselected); anyone else's new restaurant starts on Basic.
+ */
+export function CreateRestaurantForm({ planNames = null }: { planNames?: Record<PlanTier, string> | null }) {
   const t = useT();
   const router = useRouter();
-  const form = useActionForm((values) => createRestaurant(profileOf(values, true)), {
-    keep: KEPT,
-    onSuccess: ({ restaurantId }) => {
-      toast.success(t('restaurants.form.created'));
-      router.push(`/studio/restaurants/${restaurantId}`);
+  const form = useActionForm(
+    (values) => createRestaurant({ ...profileOf(values, true), ...(planNames && values.plan ? { plan: values.plan } : {}) }),
+    {
+      keep: KEPT,
+      onSuccess: ({ restaurantId }) => {
+        toast.success(t('restaurants.form.created'));
+        router.push(`/studio/restaurants/${restaurantId}`);
+      },
     },
-  });
+  );
 
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
+      {planNames && (
+        <div className="max-w-xs pb-6">
+          <Field label={t('restaurants.form.plan')} hint={t('restaurants.form.planHint')} error={form.errors.plan}>
+            <Select name="plan" defaultValue="BASIC" options={PLAN_TIERS.map((tier) => ({ value: tier, label: planNames[tier] }))} />
+          </Field>
+        </div>
+      )}
       <ProfileFields form={form} initial={BLANK} withNotes />
       <SaveBar form={form}>
         <Button type="submit" variant="primary" pending={form.pending}>

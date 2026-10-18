@@ -41,6 +41,7 @@ export default async function PreviewRootLayout({ children, params }: { children
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
           }}
         >
           {children}

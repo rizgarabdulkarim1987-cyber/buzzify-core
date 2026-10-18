@@ -1,22 +1,26 @@
 import sharp from 'sharp';
 import { z } from 'zod';
-import type { MediaAsset, Prisma, PrismaClient } from '@/generated/prisma/client';
+import type { BrandConfig, MediaAsset, Prisma, PrismaClient } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, HEX, sanitizePalette, type Palette } from '@/lib/brand';
 import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, isFontPairId, type FontPairId } from '@/lib/font-pairs';
 import { dominantColors, paletteProblems, suggestPalettes, type PaletteProblem } from '@/lib/palette';
 import { isRailStyle, RAIL_STYLES, type RailStyle } from '@/lib/rail';
 import { isTemplateId, TEMPLATES } from '@/lib/templates';
 import { MEDIA_MAX_BYTES } from '@/server/domain/media-type';
+import type { FeatureKey } from '@/server/domain/entitlements';
+import { brandChoiceLock, type BrandChoices, type Motion } from '@/server/domain/plan-choices';
 import { FAVICON_SIZES, faviconFiles, type AssetVariants } from '@/server/media/process';
 import { loadAssets } from '@/server/media/resolve';
 import { assetKey, IMMUTABLE_CACHE } from '@/server/storage/keys';
 import { getStorage } from '@/server/storage/storage';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
+import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { PICTURE_KINDS } from '@/server/media/kinds';
 import { editDraft } from './draft-edit';
 import { thumbKey } from './media';
+import type { UpgradeInfo } from './plans';
 
 /**
  * The brand kit (spec 12): the palette of each theme, the logos, the favicon, the font pair, the rail and the motion. It
@@ -129,6 +133,8 @@ export async function updateBrand(ctx: ActionContext, input: BrandInput): Promis
       const menu = await tx.menu.findFirst({ where: { id: menuId }, select: { restaurant: { select: { name: true } } } });
       row = await tx.brandConfig.create({ data: { menuId, tokens: DEFAULT_PALETTES as unknown as Prisma.InputJsonObject, typography: {}, logoText: menu?.restaurant.name ?? input.logoText } });
     }
+    // A choice the plan locks may be kept, never newly made: what the row holds already is compared with what is sent.
+    requireChoices(ctx, storedChoices(row), { fontPairId: input.fontPairId, railStyle: input.railStyle, motionIntensity: input.motionIntensity });
     const tokens = (row.tokens ?? {}) as { dark?: unknown; light?: unknown };
     const nextTokens = {
       dark: sanitizePalette(tokens.dark, DEFAULT_PALETTES.dark),
@@ -170,6 +176,25 @@ export async function updateBrand(ctx: ActionContext, input: BrandInput): Promis
   });
 }
 
+// The plan -------------------------------------------------------------------------------------------------------------
+
+/** The choices a brand row holds, as the Brand tab shows them (the defaults where the row has none it knows). */
+export function storedChoices(row: Pick<BrandConfig, 'fontPairId' | 'railStyle' | 'motionIntensity'> | null): BrandChoices {
+  const motion = row?.motionIntensity === 'none' || row?.motionIntensity === 'expressive' ? row.motionIntensity : 'subtle';
+  return {
+    fontPairId: row && isFontPairId(row.fontPairId) ? row.fontPairId : DEFAULT_FONT_PAIR,
+    railStyle: row && isRailStyle(row.railStyle) ? row.railStyle : 'grains',
+    motionIntensity: motion,
+  };
+}
+
+/** Refuses, with the upgrade hint's details, a save that newly chooses something the restaurant's plan locks. */
+function requireChoices(ctx: ActionContext, stored: BrandChoices, next: BrandChoices): void {
+  if (ctx.plan === null) throw new Error('The brand kit is saved on a menu, whose restaurant has a plan');
+  const locked = brandChoiceLock(next, stored, ctx.plan.entitlements);
+  if (locked) requireFeature(ctx.plan, locked);
+}
+
 // Reading -------------------------------------------------------------------------------------------------------------
 
 export interface BrandKitView {
@@ -188,6 +213,17 @@ export interface BrandKitView {
   restaurantId: string;
   /** The template the menu is drawn with, by name; its colours, type and motion are then the Design tab's. */
   templateName: string | null;
+}
+
+/** What the restaurant's plan offers the Brand tab, and what guests get in place of a stored choice it does not include. */
+export interface BrandPlanView {
+  fontPairs: FontPairId[];
+  rails: RailStyle[];
+  motions: Motion[];
+  /** The features whose stored choice guests do not see on this plan. */
+  hidden: FeatureKey[];
+  guestSees: BrandChoices;
+  upgrade: UpgradeInfo;
 }
 
 /** The kit as the Brand tab edits it, with thumbnails of its logos and favicon. */

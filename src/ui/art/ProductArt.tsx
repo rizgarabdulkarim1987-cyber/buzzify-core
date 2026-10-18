@@ -115,6 +115,35 @@ const SHAPES: Record<ArtKind, (tone: string, ids: Ids) => ReactNode> = {
 };
 
 /**
+ * The still life's dish without its ground: for the motion library (src/motion), which sets a dish over a background
+ * of its own and lets light, blur or shadow play behind it.
+ */
+export function ProductCutout({ kind, tone, uid, className }: { kind: ArtKind; tone: string; uid: string; className?: string }) {
+  const ids: Ids = { metal: `${uid}-metal`, glass: `${uid}-glass`, shade: `${uid}-shade` };
+  return (
+    <svg viewBox="0 0 200 200" aria-hidden="true" className={className}>
+      <defs>
+        <linearGradient id={ids.metal} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#F2E4C4" />
+          <stop offset=".5" stopColor="#D6BC8A" />
+          <stop offset="1" stopColor="#8F7648" />
+        </linearGradient>
+        <linearGradient id={ids.glass} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#fff" stopOpacity=".28" />
+          <stop offset=".5" stopColor="#fff" stopOpacity=".06" />
+          <stop offset="1" stopColor="#fff" stopOpacity=".2" />
+        </linearGradient>
+        <linearGradient id={ids.shade} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000" stopOpacity=".35" />
+        </linearGradient>
+      </defs>
+      {SHAPES[kind](tone, ids)}
+    </svg>
+  );
+}
+
+/**
  * Art-directed placeholder still life. Real photography replaces it through the product's media list. Its backdrop is
  * the classic menu's charcoal unless a template sets `--art-bg-from`, `--art-bg-to` and `--art-bg-opacity` (0 drops it, so
  * the drawing stands on the card's own colour).

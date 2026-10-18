@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import { getTranslator } from '@/lib/messages';
 import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
 import { loadMenuView } from '@/server/route-context';
@@ -20,7 +21,10 @@ export default async function Page({
   params: Promise<{ tenant: string; locale: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  return withPublicMenu(await params, '/explore', searchString(await searchParams), async (route) => {
+  const search = searchString(await searchParams);
+  return withPublicMenu(await params, '/explore', search, async (route) => {
+    // Without Explore in the restaurant's plan, an old link or bookmark opens the menu itself rather than a dead page.
+    if (!route.tenant.features.explore) redirect(`/${route.tenant.slug}/${route.locale}${search}`);
     const view = await loadMenuView(route);
     return <ExploreApp view={view} />;
   });

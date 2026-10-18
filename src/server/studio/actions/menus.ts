@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { expireMenu } from '@/server/data/cache';
+import { allows } from '@/server/domain/entitlements';
 import { nextMenuStatus } from '@/server/domain/menu-status';
+import { bestRail, clampBrandChoices } from '@/server/domain/plan-choices';
 import { snapshotAssetIds } from '@/server/domain/snapshot';
 import { COPYABLE, copyAssetsForMenu } from '@/server/media/copy';
 import { loadDraftSnapshot, refreshDraftHash, writeDraftFromSnapshot } from '@/server/publish/draft';
@@ -10,6 +12,8 @@ import { defineAction, runAction, type ActionContext } from '@/server/studio/fra
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import { getPlatformSettings } from '@/server/studio/services/settings';
+import { storedChoices } from '@/server/studio/services/brand';
+import { entitlementsFor } from '@/server/data/plans';
 import {
   BULK_ACTIONS,
   claimSlug,
@@ -102,8 +106,10 @@ export const createMenu = defineAction({
         throw error;
       }
       await claimSlug(tx, input.slug, menuId);
-      // The restaurant's logo starts the new menu's brand kit.
-      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name), logoAssetId: restaurant.logoAssetId } });
+      // The restaurant's logo starts the new menu's brand kit, on the best rail its plan allows, so nothing in a new kit
+      // is locked.
+      const railStyle = ctx.plan ? bestRail(ctx.plan.entitlements) : undefined;
+      await tx.brandConfig.create({ data: { menuId, ...defaultBrand(restaurant.name), logoAssetId: restaurant.logoAssetId, ...(railStyle ? { railStyle } : {}) } });
       await tx.daypartSchedule.createMany({ data: DEFAULT_SCHEDULE.map((window) => ({ menuId, ...window })) });
       await refreshDraftHash(tx, menuId);
 
@@ -261,6 +267,15 @@ export const duplicateMenu = defineAction({
       return { menu, brand, tables, snapshot, assets };
     });
 
+    // What the restaurant the copy lands in has bought: the target's own plan, or (a Super Admin copying elsewhere) that
+    // restaurant's.
+    if (ctx.plan === null) throw new Error('menus.duplicate ran without a plan');
+    const destination =
+      restaurantId === ctx.restaurantId
+        ? ctx.plan.entitlements
+        : await entitlementsFor(ctx.db, restaurantId).catch(() => {
+            throw new StudioError('NOT_FOUND');
+          });
     const menuId = ctx.newId();
     await ctx.transactionIn({ restaurantId, menuId }, async (tx) => {
       await requireSlugAvailable(tx, input.slug, null);
@@ -304,6 +319,15 @@ export const duplicateMenu = defineAction({
       const assetMap = source.assets.length === 0 ? undefined : await copyAssetsForMenu(tx, { assets: source.assets, toRestaurantId: restaurantId });
       await writeDraftFromSnapshot(tx, menuId, source.snapshot, assetMap);
       if (source.tables.length > 0) await tx.table.createMany({ data: source.tables.map((table) => ({ menuId, ...table })) });
+      // A copy is a new menu: its kit starts within the plan of the restaurant it lands in, as a new menu's does, and
+      // it takes the motions only where that plan includes them.
+      const copied = await tx.brandConfig.findFirst({ where: { menuId } });
+      if (copied) {
+        const within = clampBrandChoices(storedChoices(copied), destination);
+        await tx.brandConfig.update({ where: { id: copied.id }, data: within });
+      }
+      if (!allows(destination, 'design.menuMotions')) await tx.menuMotion.deleteMany({ where: { menuId } });
+      await refreshDraftHash(tx, menuId);
 
       ctx.audit({
         action: 'menu.duplicated',

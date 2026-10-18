@@ -101,6 +101,7 @@ export default async function RootLayout({
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
           }}
         >
           {children}

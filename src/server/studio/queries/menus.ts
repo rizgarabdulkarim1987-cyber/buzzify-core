@@ -1,12 +1,14 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { hostEnv } from '@/server/env';
+import { allows } from '@/server/domain/entitlements';
 import { validateForPublish } from '@/server/domain/publish-rules';
 import { formatClientId, parseClientId } from '@/server/domain/restaurant-profile';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { createdBetween, dateField, literal } from '@/server/studio/services/list-filters';
+import { upgradeInfo } from '@/server/studio/services/plans';
 import { getPlatformSettings } from '@/server/studio/services/settings';
 import {
   checkSlugAvailable,
@@ -232,6 +234,9 @@ export const getMenu = defineQuery({
         schedule: can('publish.schedule'),
         rollback: can('publish.rollback'),
       },
+      /** The upgrade hint the Schedule entry shows instead of its dialog, when the plan has no scheduled publishing. */
+      scheduleUpgrade:
+        can('publish.schedule') && ctx.plan !== null && !allows(ctx.plan.entitlements, 'publish.scheduling') ? await upgradeInfo(ctx.db, ctx) : null,
     };
   },
 });

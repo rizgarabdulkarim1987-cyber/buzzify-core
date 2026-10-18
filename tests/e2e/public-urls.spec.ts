@@ -1,5 +1,6 @@
 import { expect, test as base } from '@playwright/test';
 import { createTableQrCode, createTemporaryMenu, qrScans, type TemporaryMenu } from './helpers/db';
+import { E2E_ORIGIN } from './helpers/origin';
 
 /** Each test that changes a menu gets its own throwaway one, deleted afterwards whatever the outcome. */
 const test = base.extend<{ menu: TemporaryMenu }>({
@@ -142,11 +143,11 @@ test.describe('a suspended menu', () => {
 test.describe('search engines', () => {
   test('a live menu names its canonical address and its translations, and is indexable', async ({ page }) => {
     await page.goto('/atelier/ar');
-    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:3100/atelier/ar');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${E2E_ORIGIN}/atelier/ar`);
     for (const locale of ['en', 'ar', 'ckb']) {
       await expect(page.locator(`link[rel="alternate"][hreflang="${locale}"]`)).toHaveAttribute(
         'href',
-        `http://127.0.0.1:3100/atelier/${locale}`,
+        `${E2E_ORIGIN}/atelier/${locale}`,
       );
     }
     await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
@@ -156,11 +157,11 @@ test.describe('search engines', () => {
     await page.goto('/atelier/en/p/atelier-burger');
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
       'href',
-      'http://127.0.0.1:3100/atelier/en/p/atelier-burger',
+      `${E2E_ORIGIN}/atelier/en/p/atelier-burger`,
     );
     await expect(page.locator('link[rel="alternate"][hreflang="ckb"]')).toHaveAttribute(
       'href',
-      'http://127.0.0.1:3100/atelier/ckb/p/atelier-burger',
+      `${E2E_ORIGIN}/atelier/ckb/p/atelier-burger`,
     );
   });
 
@@ -169,7 +170,7 @@ test.describe('search engines', () => {
   for (const path of ['/atelier/en/t/04', '/atelier/en/cart', '/atelier/en/explore']) {
     test(`${path} names the menu’s home as canonical, without translations`, async ({ page }) => {
       await page.goto(path);
-      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', 'http://127.0.0.1:3100/atelier/en');
+      await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', `${E2E_ORIGIN}/atelier/en`);
       await expect(page.locator('link[rel="alternate"]')).toHaveCount(0);
       await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
     });
@@ -221,6 +222,6 @@ test.describe('the root address', () => {
   test('goes to the Studio on a development host', async ({ request }) => {
     const response = await request.get('/', { maxRedirects: 0 });
     expect(response.status()).toBe(307);
-    expect(new URL(response.headers()['location']!, 'http://127.0.0.1:3100').pathname).toBe('/studio');
+    expect(new URL(response.headers()['location']!, E2E_ORIGIN).pathname).toBe('/studio');
   });
 });

@@ -3,6 +3,7 @@
 import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table';
 import Link from 'next/link';
 import { useMemo } from 'react';
+import type { PlanTier } from '@/server/domain/entitlements';
 import type { RestaurantStatus, RestaurantType } from '@/server/domain/restaurant-profile';
 import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
@@ -18,6 +19,7 @@ export interface RestaurantRow {
   type: RestaurantType;
   city: string;
   status: RestaurantStatus;
+  plan: PlanTier;
   menuCount: number;
   createdAt: string;
 }
@@ -25,7 +27,17 @@ export interface RestaurantRow {
 const SORTABLE: readonly string[] = ['name', 'city', 'createdAt'] satisfies SortKey[];
 
 /** The restaurants of one page. The server sorted them; a click on a header only asks for another sort in the address. */
-export function RestaurantsTable({ rows, sort, dir }: { rows: RestaurantRow[]; sort: SortKey; dir: 'asc' | 'desc' }) {
+export function RestaurantsTable({
+  rows,
+  sort,
+  dir,
+  planNames,
+}: {
+  rows: RestaurantRow[];
+  sort: SortKey;
+  dir: 'asc' | 'desc';
+  planNames: Record<PlanTier, string>;
+}) {
   const t = useT();
   const { locale } = useLocale();
   const { set } = useFilterParams();
@@ -76,6 +88,13 @@ export function RestaurantsTable({ rows, sort, dir }: { rows: RestaurantRow[]; s
         cell: ({ row }) => <RestaurantStatusBadge status={row.original.status} t={t} />,
       },
       {
+        id: 'plan',
+        accessorKey: 'plan',
+        header: t('restaurants.column.plan'),
+        enableSorting: false,
+        cell: ({ row }) => <span className="whitespace-nowrap text-text">{planNames[row.original.plan]}</span>,
+      },
+      {
         id: 'menuCount',
         accessorKey: 'menuCount',
         header: t('restaurants.list.menus'),
@@ -92,7 +111,7 @@ export function RestaurantsTable({ rows, sort, dir }: { rows: RestaurantRow[]; s
         cell: ({ row }) => <span className="whitespace-nowrap text-muted">{formatDate(row.original.createdAt, locale)}</span>,
       },
     ],
-    [t, locale, number],
+    [t, locale, number, planNames],
   );
 
   const sorting: SortingState = [{ id: sort, desc: dir === 'desc' }];

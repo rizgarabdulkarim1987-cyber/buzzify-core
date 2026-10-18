@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { allowedFontPairs, allowedMotions, allowedRails, clampBrandChoices, hiddenChoices } from '@/server/domain/plan-choices';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
-import { brandKit, paletteSuggestions } from '@/server/studio/services/brand';
+import { brandKit, paletteSuggestions, type BrandPlanView } from '@/server/studio/services/brand';
+import { upgradeInfo } from '@/server/studio/services/plans';
 import { idField } from '@/server/studio/services/content';
 
 /** What the Brand tab reads: the kit, and palettes suggested from a logo. */
@@ -17,9 +19,24 @@ export const get = defineQuery({
   permission: 'brand.edit',
   input: z.object({ menuId: idField }),
   target: (i) => atMenu(i.menuId),
-  run: (ctx) => {
+  run: async (ctx) => {
     const { menuId, restaurantId } = placeOf(ctx);
-    return brandKit(ctx.db, menuId, restaurantId);
+    if (ctx.plan === null) throw new Error('brand.get ran without a plan');
+    const [kit, upgrade] = await Promise.all([brandKit(ctx.db, menuId, restaurantId), upgradeInfo(ctx.db, ctx)]);
+    const { entitlements } = ctx.plan;
+    const chosen = { fontPairId: kit.fontPairId, railStyle: kit.railStyle, motionIntensity: kit.motionIntensity };
+    return {
+      ...kit,
+      // What the plan offers, and which of the kit's choices guests do not see on it (kept, never lost).
+      plan: {
+        fontPairs: allowedFontPairs(entitlements),
+        rails: allowedRails(entitlements),
+        motions: allowedMotions(entitlements),
+        hidden: hiddenChoices(chosen, entitlements),
+        guestSees: clampBrandChoices(chosen, entitlements),
+        upgrade,
+      } satisfies BrandPlanView,
+    };
   },
 });
 

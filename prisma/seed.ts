@@ -9,6 +9,7 @@ import { NOOR } from './seed/noor';
 import { ONDA } from './seed/onda';
 import { RIVERLIGHT } from './seed/riverlight';
 import { seedMenu } from './seed/apply';
+import { demoRestaurant } from './seed/demo-restaurant';
 import { assertLocalDatabase } from './seed/local-database';
 import { seedDevUsers } from './seed/users';
 import { assertSeedValid } from './seed/validate';
@@ -85,28 +86,6 @@ function selectedDemos(argv: readonly string[]): readonly SeedData[] {
     );
   }
   return DEMOS.filter((demo) => slugs.includes(demo.restaurant.slug));
-}
-
-/** Finds the demo's restaurant by name (a reseed keeps it, and so its client number), or creates it. */
-async function demoRestaurant(prisma: PrismaClient, { profile }: SeedData) {
-  return (
-    (await prisma.restaurant.findFirst({ where: { name: profile.name }, orderBy: { createdAt: 'asc' } })) ??
-    (await prisma.restaurant.create({
-      data: {
-        name: profile.name,
-        type: profile.type,
-        description: profile.description,
-        city: profile.city,
-        country: profile.country,
-        phone: profile.phone,
-        whatsapp: profile.whatsapp,
-        socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
-        address: profile.address ?? '',
-        mapUrl: profile.mapUrl ?? '',
-        workingHours: profile.workingHours ?? {},
-      },
-    }))
-  );
 }
 
 /** Seeds one demo menu under its restaurant and publishes it as revision 1 (guests see only what is published). */

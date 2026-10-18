@@ -4,10 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { faviconFiles, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
+import { VISUALLY_LOSSLESS } from '@/server/media/compress';
+import { faviconFiles, IMAGE_WIDTHS, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
+import { similarity } from '@/server/media/similarity';
 import { folderStorage } from '@/server/storage/folder';
 import type { Storage } from '@/server/storage/storage';
 import { buildGlb, buildMp4 } from '../helpers/scene-files';
+import { photoLike } from './photo-like';
 
 const jpeg = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#C8261C' } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
@@ -144,6 +147,113 @@ describe('prepareAsset', () => {
     expect(asset).toMatchObject({ kind: 'ICON', mime: 'image/x-icon', width: 32, height: 32, placeholder: '' });
     expect(asset.files).toEqual([{ variant: 'original', ext: 'ico', contentType: 'image/x-icon', body: ico }]);
   });
+});
+
+describe('prepareAsset: smart compression', () => {
+  /** A photo as a phone uploads it: a photo-like picture saved as a high-quality JPEG. */
+  const photo = async (width: number, height: number) => sharp(await photoLike(width, height)).jpeg({ quality: 92 }).toBuffer();
+
+  /** What the fixed settings stored: the original at full size (JPEG 90), AVIF 55 and WebP 75 at each width. */
+  async function legacyBytes(source: Buffer): Promise<number> {
+    let total = (await sharp(source).jpeg({ quality: 90 }).toBuffer()).length;
+    const { width = 0 } = await sharp(source).metadata();
+    for (const w of IMAGE_WIDTHS.filter((each) => each <= width)) {
+      total += (await sharp(source).resize({ width: w }).avif({ quality: 55, effort: 4 }).toBuffer()).length;
+      total += (await sharp(source).resize({ width: w }).webp({ quality: 75 }).toBuffer()).length;
+    }
+    return total;
+  }
+
+  it('caps the original at 2560 px on its long side, keeping the aspect ratio', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(4000, 3000)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([2560, 1920]);
+    expect([asset.width, asset.height]).toEqual([2560, 1920]);
+  });
+
+  it('caps a portrait photo by its height', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(3024, 4032)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([1920, 2560]);
+    expect([asset.width, asset.height]).toEqual([1920, 2560]);
+  });
+
+  it('never enlarges a photo under 2560 px', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(1200, 800)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([1200, 800]);
+  });
+
+  it('keeps every file visually the same as its source', async () => {
+    const source = await photo(2400, 1600);
+    const asset = prepared(await prepareAsset(new Uint8Array(source)));
+    for (const file of asset.files) {
+      const width = file.variant === 'original' ? asset.width! : Number(file.variant.split('-')[1]);
+      expect(await similarity(source, file.body, width), file.variant).toBeGreaterThanOrEqual(VISUALLY_LOSSLESS);
+    }
+  });
+
+  it('keeps a PNG logo transparent', async () => {
+    const mark = await sharp({ create: { width: 300, height: 150, channels: 4, background: '#c8261c' } }).png().toBuffer();
+    const logo = await sharp({ create: { width: 900, height: 450, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: mark, left: 300, top: 150 }])
+      .png()
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(logo)));
+    const original = sharp(fileOf(asset, 'original').body);
+    expect((await original.metadata()).hasAlpha).toBe(true);
+    const { data } = await original.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(data[3]).toBe(0);
+  });
+
+  it('keeps a flat transparent logo as a palette when that looks the same and is smaller', async () => {
+    const mark = await sharp({ create: { width: 400, height: 160, channels: 4, background: '#c8261c' } })
+      .composite([{ input: await sharp({ create: { width: 200, height: 60, channels: 4, background: '#f4900c' } }).png().toBuffer(), left: 100, top: 50 }])
+      .png()
+      .toBuffer();
+    // The hidden colour of the transparent area is not white, as many design tools leave it.
+    const logo = await sharp({ create: { width: 1200, height: 600, channels: 4, background: { r: 76, g: 105, b: 113, alpha: 0 } } })
+      .composite([{ input: mark, left: 400, top: 220 }])
+      .png()
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(logo)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect(meta.isPalette).toBe(true);
+    expect(meta.hasAlpha).toBe(true);
+    expect(await similarity(logo, fileOf(asset, 'original').body, 1200)).toBeGreaterThanOrEqual(VISUALLY_LOSSLESS);
+  });
+
+  it('stores fewer bytes than the fixed settings did for a photo-like image', async () => {
+    const source = await photo(2400, 1600);
+    const now = prepared(await prepareAsset(new Uint8Array(source))).files.reduce((sum, file) => sum + file.body.length, 0);
+    const before = await legacyBytes(source);
+    console.info(`stored bytes for a 2400 × 1600 photo-like image: ${before} before, ${now} now`);
+    expect(now).toBeLessThan(before);
+  });
+
+  it('processes the largest upload allowed (a 50 MP AVIF) well inside the 60 s route on two threads, as on a small host', async () => {
+    const big = await sharp(await photoLike(2000, 1500)).resize(8160, 6120).png().toBuffer();
+    const source = await sharp(big).avif({ quality: 60, effort: 2 }).toBuffer();
+    const threads = sharp.concurrency();
+    sharp.concurrency(2);
+    try {
+      const started = performance.now();
+      prepared(await prepareAsset(new Uint8Array(source)));
+      // Decoded once to a 2560 px master and searched within 25 s: about 20 s here, where every try used to decode it.
+      expect((performance.now() - started) / 1000).toBeLessThan(40);
+    } finally {
+      sharp.concurrency(threads);
+    }
+  }, 180_000);
+
+  it('processes a 12 MP photo in under 10 s', async () => {
+    const source = await photo(4000, 3000);
+    const started = performance.now();
+    prepared(await prepareAsset(new Uint8Array(source)));
+    const seconds = (performance.now() - started) / 1000;
+    console.info(`a 12 MP photo-like image took ${seconds.toFixed(1)} s`);
+    expect(seconds).toBeLessThan(10);
+  }, 60_000);
 });
 
 describe('storeAsset', () => {

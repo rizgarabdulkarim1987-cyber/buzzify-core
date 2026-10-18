@@ -1,9 +1,12 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
+import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
+import { clampBrandView, guestFeatures } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
-import { cachedLiveOverlay, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
+import { cachedLiveOverlay, cachedPlans, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
 import { loadOverlay } from './live';
+import { entitlementsOf, readPlansSetting } from './plans';
 import { getPrisma } from './prisma';
 import { menuDb } from './tenant-db';
 import type { TenantInfo } from './tenant';
@@ -33,11 +36,16 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
   return parseSnapshot(revision.snapshot);
 }
 
-/** A menu as guests get it, from one of its snapshots: the live revision's, or (for the Studio's preview) the draft's. */
+/**
+ * A menu as guests get it, from one of its snapshots (the live revision's, or for the Studio's preview the draft's) and
+ * its restaurant's entitlements: the brand kit with the plan's fallbacks applied and the guest features it may show. The
+ * snapshot itself is not changed, so a plan never touches a revision or its hash.
+ */
 export function tenantInfo(
   menu: { id: string; slug: string; restaurantId: string },
   revisionId: string,
   snapshot: MenuSnapshot,
+  entitlements: Entitlements,
 ): TenantInfo {
   const settings = snapshot.menu;
   return {
@@ -52,8 +60,10 @@ export function tenantInfo(
     timeZone: settings.timeZone,
     numeralSystem: settings.numeralSystem,
     engineConfig: settings.engineConfig,
-    brand: snapshot.brand,
+    brand: clampBrandView(snapshot.brand, entitlements),
     seo: settings.seo,
+    features: guestFeatures(entitlements),
+    motions: allows(entitlements, 'design.menuMotions') ? (snapshot.motions ?? []) : [],
   };
 }
 
@@ -73,7 +83,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           status: true,
           restaurantId: true,
           liveRevisionId: true,
-          restaurant: { select: { status: true } },
+          restaurant: { select: { status: true, plan: true, planExtras: true } },
         },
       },
     },
@@ -90,8 +100,18 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
     return { kind: 'unavailable', name: displayName, defaultLocale, locales };
   }
 
-  const tenant = tenantInfo(menu, menu.liveRevisionId, snapshot);
+  // The plan is read live, like the statuses: a change of plan reaches guests without a publish.
+  const plans = await livePlans(prisma);
+  const tenant = tenantInfo(menu, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
   return menu.slug === slug ? { kind: 'live', tenant } : { kind: 'redirect', slug: menu.slug, tenant };
+}
+
+/**
+ * The plans for the guest pages, from the data cache (at most 5 minutes old; `expirePlans` expires them). The cache
+ * keeps the stored setting, which is JSON, and the plans are parsed from it on every read.
+ */
+export async function livePlans(prisma: PrismaClient): Promise<Plans> {
+  return parsePlans(await cachedPlans(() => readPlansSetting(prisma)));
 }
 
 /** What a public slug opens, from the data cache (at most 5 minutes old; `expireMenu` expires it). */
@@ -119,5 +139,8 @@ export async function getCatalog(tenant: TenantInfo): Promise<Catalog> {
     cachedRevisionSnapshot(menuId, revisionId, () => loadRevisionSnapshot(getPrisma(), menuId, revisionId)),
     cachedLiveOverlay(menuId, () => loadOverlay(menuDb(getPrisma(), menuId), menuId)),
   ]);
-  return toCatalog(menuId, snapshot, overlay);
+  const catalog = toCatalog(menuId, snapshot, overlay);
+  // Without smart selling there are no offers, pairings or bundles: suggestions are empty, and a bundle already in a
+  // cart is priced as one that is no longer offered.
+  return tenant.features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
 }

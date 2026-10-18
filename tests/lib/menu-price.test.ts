@@ -17,6 +17,7 @@ const tenant = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   brand: { logoText: 'R', theme: 'dark', motionIntensity: 'subtle', tokens: {} },
+  motions: [],
 } as unknown as TenantInfo;
 
 describe('unitPriceFromMenu', () => {

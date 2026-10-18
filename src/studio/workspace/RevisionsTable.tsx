@@ -7,8 +7,10 @@ import { toast } from 'sonner';
 import { cancelScheduledPublish, restoreRevision, rollbackRevision } from '@/app/studio/_actions/revisions';
 import type { Locale } from '@/lib/locale';
 import { formatInZone } from '@/server/domain/schedule-time';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import { numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { useRefuse } from '@/studio/refuse';
 
 import { Button, buttonClasses } from '@/studio/ui/Button';
@@ -38,6 +40,8 @@ export interface RevisionsTableProps {
   draftHash: string | null;
   canRollback: boolean;
   canSchedule: boolean;
+  /** Set when the person may schedule but the plan has no scheduled publishing: the tab shows the hint. */
+  scheduleUpgrade: UpgradeInfo | null;
 }
 
 const TONES: Record<RevisionRow['state'], StatusTone> = { live: 'success', past: 'neutral', scheduled: 'ink', cancelled: 'neutral' };
@@ -49,7 +53,7 @@ type Confirm = { kind: 'rollback' | 'restore'; row: RevisionRow } | { kind: 'can
  * when, on the menu's clock. A past revision can go live again at once (Roll back) or come back as the draft to work
  * from (Restore to draft, which replaces unpublished changes); each is confirmed first.
  */
-export function RevisionsTable({ menuId, defaultLocale, rows, pending, timezone, draftHash, canRollback, canSchedule }: RevisionsTableProps) {
+export function RevisionsTable({ menuId, defaultLocale, rows, pending, timezone, draftHash, canRollback, canSchedule, scheduleUpgrade }: RevisionsTableProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -68,6 +72,15 @@ export function RevisionsTable({ menuId, defaultLocale, rows, pending, timezone,
 
   return (
     <div className="flex max-w-5xl flex-col gap-6 px-8 pb-10 pt-6">
+      {scheduleUpgrade && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-line px-4 py-3">
+          <span className="inline-flex items-center gap-2 text-sm font-medium text-text">
+            <CalendarClock aria-hidden className="size-4 shrink-0" />
+            {t('revisions.scheduleLocked')}
+          </span>
+          <UpgradeHint feature="publish.scheduling" info={scheduleUpgrade} />
+        </div>
+      )}
       {pending && (
         <section aria-labelledby="pending-title" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-line bg-accent-wash px-4 py-3">
           <div className="flex items-start gap-3">

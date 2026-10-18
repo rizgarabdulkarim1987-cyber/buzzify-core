@@ -3,7 +3,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { getCatalog, resolvePublicMenu } from '@/server/data/public-menu';
 import { snapshotHash } from '@/server/domain/snapshot';
 import { loadDraftSnapshot } from '@/server/publish/draft';
-import { LOAD_CITIES, loadSlug, seedLoad } from '../../prisma/seed/load';
+import { LOAD_CITIES, loadRestaurantName, loadSlug, seedLoad } from '../../prisma/seed/load';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, resetTestData, testPrisma } from '../helpers/db';
 
@@ -63,6 +63,13 @@ describe('seedLoad', () => {
     expect(first.menus).toEqual([expect.objectContaining({ slug: 'load-0001', status: 'PUBLISHED' })]);
     expect(await prisma.restaurant.findFirstOrThrow({ where: { name: 'Load Test 0002' } })).toMatchObject({ type: 'CAFE', city: LOAD_CITIES[1] });
     expect(new Set((await prisma.restaurant.findMany()).map((r) => r.city))).toEqual(new Set(LOAD_CITIES));
+  });
+
+  it('spreads the restaurants over the three plans in turn', async () => {
+    await seedLoad(prisma, COUNT);
+    const plans = [];
+    for (const n of [1, 2, 3, 4, 5]) plans.push((await prisma.restaurant.findFirstOrThrow({ where: { name: loadRestaurantName(n) } })).plan);
+    expect(plans).toEqual(['BASIC', 'PRO', 'PREMIUM', 'BASIC', 'PRO']);
   });
 
   it('gives two restaurants Arabic names, for the search tests', async () => {

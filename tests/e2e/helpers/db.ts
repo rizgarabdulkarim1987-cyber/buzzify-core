@@ -4,6 +4,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { createPrisma } from '@/server/data/prisma';
 import { prepareAsset, storeAsset } from '@/server/media/process';
 import { getStorage } from '@/server/storage/storage';
+import { DEMO_PLANS } from '../../../prisma/seed/demo-restaurant';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
 import { createMenuFixture, publishFixture } from '../../helpers/db';
 
@@ -42,6 +43,24 @@ export async function atelierProductIds(): Promise<string[]> {
     const menu = await prisma.menu.findUnique({ where: { slug: 'atelier' }, select: { products: { select: { id: true } } } });
     if (!menu) throw new Error('There is no ATELIER menu. Run `npm run db:seed`.');
     return menu.products.map((product) => product.id);
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Puts the demo restaurants on the plans a fresh seed gives them (`DEMO_PLANS`), whatever an earlier seed or a person
+ * left, and answers whether any had to move (the app then serves the old plan until its cache of the address expires).
+ */
+export async function putDemosOnTheirPlans(): Promise<boolean> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    let moved = false;
+    for (const [name, plan] of Object.entries(DEMO_PLANS)) {
+      const { count } = await prisma.restaurant.updateMany({ where: { name, plan: { not: plan } }, data: { plan } });
+      moved ||= count > 0;
+    }
+    return moved;
   } finally {
     await prisma.$disconnect();
   }

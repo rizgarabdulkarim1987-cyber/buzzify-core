@@ -53,8 +53,15 @@ Sorani-first burger place priced in dinars).
   - **Revisions:** go back to an earlier revision, restore one into the draft, schedule a publish on the menu's clock
   - **Preview:** the draft on a phone and a desktop, in each language
 - **Media library** (`/studio/media` and each restaurant's Media tab): uploads checked by their bytes (SVGs sanitised),
-  renditions in WebP and AVIF, folders, tags, alt text in three languages, where each picture is used, and the storage
+  renditions in WebP and AVIF, each compressed to the smallest file that still looks the same as the upload (a
+  similarity check per picture), folders, tags, alt text in three languages, where each picture is used, and the storage
   used
+- **Plans:** Basic, Pro and Premium decide which features a restaurant's menus may use (finer design, Explore and the 3D
+  dishes, scheduled publishing, smart selling), never how many menus or pictures it has. The platform owner, one Super
+  Admin, sets each restaurant's plan on its Plan tab (with per-restaurant extras and a private note) and decides what each
+  plan includes, its names and the WhatsApp number in Settings → Plans. Anyone else sees a locked feature with the plan
+  that has it and a button that opens a WhatsApp chat with the owner, never an error. Guests get only what the plan
+  includes, at once and without a republish; a downgrade keeps every saved choice, so moving back brings it all back
 
 Not in this release: table PIN verification, order submission, cashier and kitchen screens, tax and service charge.
 See `docs/superpowers/specs`.
@@ -121,7 +128,10 @@ and a session belongs to one of the two.
 | `owner@buzzify.test` | Owner of ATELIER |
 
 All three sign in with the password in your `.env` as `DEV_SEED_PASSWORD`. A Super Admin must set up two-factor on the
-first sign-in: scan the QR code with an authenticator app and keep the recovery codes. Emails the Studio sends
+first sign-in: scan the QR code with an authenticator app and keep the recovery codes. `admin@buzzify.test` is the
+platform owner (the one who changes plans) when the database has none yet. A fresh seed puts ATELIER on Premium,
+Riverlight Coffee on Pro and Hot Brick Burgers on Basic, so the three plans can be seen side by side; a reseed leaves a
+demo restaurant's plan as it is. Emails the Studio sends
 (invitations, resets) are written to `.data/mail/` instead of being sent, and the subject and first link are logged, so
 an invitation link can be opened straight from the log.
 
@@ -167,9 +177,13 @@ every environment variable, the first deploy, creating the first Super Admin, a 
 | `npm run studio:create-admin` | Creates the first Super Admin: asks for a name, email and password in the terminal (never shown, never stored in the clear), and refuses when one exists unless `--force` is given. It prints which database it will change before it asks anything |
 | `npm run studio:template -- <address> <template|classic> [--apply]` | Draws a menu with a template preset (or back to classic) and republishes it; without `--apply` it only says what it would do, and it refuses a menu with unpublished changes |
 | `npm run studio:thumbnails` | Redraws the Design tab's gallery thumbnails (`public/templates/*.webp`) from the demo menus through the Studio preview, signed in as the temporary Super Admin the e2e setup creates and removes. `THUMBNAILS_BASE_URL` points it at another dev server |
+| `npm run studio:set-platform-owner` | Moves the platform owner (who changes plans) to another active Super Admin, for a handover or when the owner's account is lost. Asks for the email, shows who holds it now, and changes nothing until you type yes. The Studio has no screen for it on purpose |
+| `npm run media:calibrate -- <folder>` | Opt-in tooling: scores the photos in a folder at each quality, to check the similarity threshold uploads are compressed to |
 | `npm run lint` / `typecheck` | Static checks |
 
-First-time browser tests need `npx playwright install chromium`. `npm run perf` uses the Chromium that
+First-time browser tests need `npx playwright install chromium`. They use the dev server on port 3100 (and reuse one
+already running there); when another checkout's server has 3100, run them with `E2E_PORT=3120` (any free port) and they
+start their own. `npm run perf` uses the Chromium that
 Playwright installed; set `CHROME_PATH` to use another Chrome if that binary will not launch.
 
 ## How it is built

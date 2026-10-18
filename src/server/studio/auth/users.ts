@@ -37,7 +37,7 @@ function isUniqueViolation(error: unknown): boolean {
  */
 export async function createPasswordUser(
   prisma: PrismaClient,
-  args: { email: string; name: string; password: string; isSuperAdmin?: boolean; locale?: Locale },
+  args: { email: string; name: string; password: string; isSuperAdmin?: boolean; isPlatformOwner?: boolean; locale?: Locale },
   auth: Auth = authFor(prisma),
 ): Promise<{ userId: string }> {
   const problem = checkPasswordPolicy(args.password);
@@ -55,6 +55,7 @@ export async function createPasswordUser(
         name: args.name.trim(),
         emailVerified: true,
         isSuperAdmin: args.isSuperAdmin ?? false,
+        isPlatformOwner: args.isPlatformOwner ?? false,
         locale: args.locale ?? 'en',
       },
       { method: 'admin' },

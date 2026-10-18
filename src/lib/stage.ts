@@ -28,6 +28,15 @@ export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone:
   return art ? { art, tone: first.tone, ...(first.scan ? { scan: first.scan } : {}) } : null;
 }
 
+/**
+ * Whether the product page draws the 3D stage. A real photo wins there, so guests choosing sizes and options see the
+ * dish as it is; the model stands in only where there is no photo. The menu's signature feature and Explore stage the
+ * model either way.
+ */
+export function stagesOnProductPage(media: ReadonlyArray<MediaItem>): boolean {
+  return stageOf(media) !== null && !media.some((item) => item.kind === 'image');
+}
+
 /** The art colour when a product's media can be shown as a 3D stage, otherwise null. */
 export function stageTone(media: ReadonlyArray<MediaItem>): string | null {
   return stageOf(media)?.tone ?? null;
