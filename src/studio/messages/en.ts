@@ -1,5 +1,6 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/en';
+import menuMotions from './menu-motions/en';
 
 const en: Messages = {
   // Shared words of the interface
@@ -1855,6 +1856,8 @@ const en: Messages = {
   'preview.hiddenTitle': 'Guests on this plan don’t see',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
   ...motion,
+  // The Motion tab of a menu (menu-motions/en.ts)
+  ...menuMotions,
 };
 
 export default en;

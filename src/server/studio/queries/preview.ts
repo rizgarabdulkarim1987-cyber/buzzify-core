@@ -46,7 +46,7 @@ export const planNote = defineQuery({
   run: async (ctx) => {
     if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
     const snapshot = await loadDraftSnapshot(ctx.db, ctx.menuId);
-    const hidden = hiddenFromGuests(snapshot.brand, snapshot.catalog, ctx.plan.entitlements);
+    const hidden = hiddenFromGuests(snapshot.brand, snapshot.catalog, ctx.plan.entitlements, snapshot.motions ?? []);
     return { hidden, upgrade: hidden.length > 0 ? await upgradeInfo(ctx.db, ctx) : null };
   },
 });

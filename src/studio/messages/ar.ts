@@ -1,6 +1,7 @@
 // Machine-drafted Arabic. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ar';
+import menuMotions from './menu-motions/ar';
 
 const ar: Messages = {
   // Shared words of the interface
@@ -1884,6 +1885,8 @@ const ar: Messages = {
   'preview.hiddenTitle': 'ضيوف هذه الباقة لا يرون',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ar.ts)
   ...motion,
+  // The Motion tab of a menu (menu-motions/ar.ts)
+  ...menuMotions,
 };
 
 export default ar;

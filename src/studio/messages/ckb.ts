@@ -1,6 +1,7 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ckb';
+import menuMotions from './menu-motions/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -1860,6 +1861,8 @@ const ckb: Messages = {
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)
   ...motion,
+  // The Motion tab of a menu (menu-motions/ckb.ts)
+  ...menuMotions,
 };
 
 export default ckb;
