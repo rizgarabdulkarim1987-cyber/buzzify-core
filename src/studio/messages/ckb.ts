@@ -304,6 +304,8 @@ const ckb: Messages = {
   'error.conflictBy': '{name} لە {time} ئەمەی گۆڕی. بۆ بینینی گۆڕانکارییەکانی دووبارە باری بکەرەوە.',
   'error.conflictAt': 'کەسێکی تر لە {time} ئەمەی گۆڕی. بۆ بینینی گۆڕانکارییەکانی دووبارە باری بکەرەوە.',
   'error.RATE_LIMITED': 'هەوڵی زۆر. دواتر دووبارە هەوڵ بدەرەوە.',
+  'error.UPGRADE_REQUIRED': 'ئەمە بەشێکە لە پاکێجی {plan}.',
+  'error.upgradeGeneric': 'ئەمە لە پاکێجی ئەم چێشتخانەیەدا نییە.',
   'error.retryIn_one': 'هەوڵی زۆر. دوای {count} خولەک دووبارە هەوڵ بدەرەوە.',
   'error.retryIn_other': 'هەوڵی زۆر. دوای {count} خولەک دووبارە هەوڵ بدەرەوە.',
   'error.unexpected': 'هەڵەیەک ڕوویدا. دووبارە هەوڵ بدەرەوە.',

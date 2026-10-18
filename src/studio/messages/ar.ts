@@ -307,6 +307,8 @@ const ar: Messages = {
   'error.conflictBy': 'غيّر {name} هذا في {time}. أعد التحميل لرؤية تغييراته.',
   'error.conflictAt': 'غيّره شخص آخر في {time}. أعد التحميل لرؤية تغييراته.',
   'error.RATE_LIMITED': 'محاولات كثيرة جدًا. حاول مرة أخرى لاحقًا.',
+  'error.UPGRADE_REQUIRED': 'هذه الميزة في الباقة {plan}.',
+  'error.upgradeGeneric': 'هذه الميزة ليست في باقة هذا المطعم.',
   'error.retryIn_zero': 'محاولات كثيرة جدًا. حاول مرة أخرى بعد قليل.',
   'error.retryIn_one': 'محاولات كثيرة جدًا. حاول مرة أخرى بعد دقيقة.',
   'error.retryIn_two': 'محاولات كثيرة جدًا. حاول مرة أخرى بعد دقيقتين.',

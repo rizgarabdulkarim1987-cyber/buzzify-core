@@ -300,6 +300,8 @@ const en: Messages = {
   'error.conflictBy': 'Changed by {name} on {time}. Reload to see their changes.',
   'error.conflictAt': 'Changed by someone else on {time}. Reload to see their changes.',
   'error.RATE_LIMITED': 'Too many attempts. Try again later.',
+  'error.UPGRADE_REQUIRED': 'This is part of the {plan} plan.',
+  'error.upgradeGeneric': 'This isn’t part of this restaurant’s plan.',
   'error.retryIn_one': 'Too many attempts. Try again in {count} minute.',
   'error.retryIn_other': 'Too many attempts. Try again in {count} minutes.',
   'error.unexpected': 'Something went wrong. Try again.',

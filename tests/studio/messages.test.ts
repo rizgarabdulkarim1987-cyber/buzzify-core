@@ -22,6 +22,7 @@ const ERROR_CODES = Object.keys({
   INVALID: true,
   CONFLICT: true,
   RATE_LIMITED: true,
+  UPGRADE_REQUIRED: true,
 } satisfies Record<ErrorCode, true>) as ErrorCode[];
 
 describe('studio messages', () => {

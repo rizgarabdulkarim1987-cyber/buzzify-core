@@ -7,6 +7,13 @@ const en = getStudioTranslator('en');
 const ar = getStudioTranslator('ar');
 
 describe('describeFailure', () => {
+  it('names the lowest plan with a feature the restaurant lacks, in the reader’s language', () => {
+    const failure = { code: 'UPGRADE_REQUIRED' as const, message: 'This is not part of this restaurant’s plan', upgrade: { feature: 'qr.branded' as const, plan: 'PRO' as const } };
+    expect(describeFailure(en, 'en', failure).message).toBe('This is part of the Pro plan.');
+    expect(describeFailure(ar, 'ar', failure).message).toBe('هذه الميزة في الباقة الاحترافية.');
+    expect(describeFailure(en, 'en', { ...failure, upgrade: { feature: 'qr.branded', plan: null } }).message).toBe('This isn’t part of this restaurant’s plan.');
+  });
+
   it('shows a refusal in the catalog wording, not the server English', () => {
     const failure = { code: 'INVALID' as const, message: 'Wrong email or password' };
     expect(describeFailure(en, 'en', failure).message).toBe('Wrong email or password');
