@@ -12,6 +12,7 @@ import { useProductSheet } from '@/ui/product/useProductSheet';
 import type { RailStyle } from '@/lib/rail';
 import { CategoryRail, useRailStyle } from './CategoryRail';
 import { Header } from './Header';
+import { MotionSlot } from './MotionSlot';
 import { ProductRow } from './ProductRow';
 import { SignatureFeature } from './SignatureFeature';
 import { useSearchIndex } from './useSearchIndex';
@@ -90,6 +91,7 @@ export function MenuApp({ view }: { view: MenuView }) {
         {t('menu.skip')}
       </a>
       <Header />
+      {view.motions.hero && <MotionSlot place="hero" motion={view.motions.hero} />}
 
       <div className="px-5 pb-3">
         <label className="relative block">
@@ -122,7 +124,13 @@ export function MenuApp({ view }: { view: MenuView }) {
       </div>
 
       {query.trim() === '' && signature && (
-        <SignatureFeature product={signature} daypart={view.daypart} onOpen={openProduct} covered={opened !== undefined} />
+        <SignatureFeature
+          product={signature}
+          daypart={view.daypart}
+          onOpen={openProduct}
+          covered={opened !== undefined}
+          motion={view.motions.signature}
+        />
       )}
 
       <CategoryRail categories={categories.length > 0 ? categories : view.categories} activeId={activeId} />
@@ -131,23 +139,31 @@ export function MenuApp({ view }: { view: MenuView }) {
         {visible.length === 0 ? (
           <p className="px-5 py-12 text-center text-muted">{t('menu.noResults', { query: query.trim() })}</p>
         ) : (
-          categories.map((category) => (
-            <section
-              key={category.id}
-              id={`cat-${category.slug}`}
-              aria-labelledby={`h-${category.slug}`}
-              className={RAIL_ROOM[railStyle]}
-            >
-              <h2 id={`h-${category.slug}`} className="px-5 pt-10 pb-1 font-display text-3xl tracking-[-0.005em]">
-                {category.name}
-              </h2>
-              <ul>
-                {(byCategory.get(category.id) ?? []).map((product) => (
-                  <ProductRow key={product.id} product={product} onOpen={openProduct} />
-                ))}
-              </ul>
-            </section>
-          ))
+          categories.map((category) => {
+            const motion = view.motions.categories[category.id];
+            return (
+              <section
+                key={category.id}
+                id={`cat-${category.slug}`}
+                aria-labelledby={`h-${category.slug}`}
+                className={RAIL_ROOM[railStyle]}
+              >
+                {/* A placed motion is a band above the heading, which sits on the band's faded lower edge. */}
+                {motion && <MotionSlot place="category" motion={motion} className="mt-6" />}
+                <h2
+                  id={`h-${category.slug}`}
+                  className={`px-5 pb-1 font-display text-3xl tracking-[-0.005em] ${motion ? 'relative -mt-6' : 'pt-10'}`}
+                >
+                  {category.name}
+                </h2>
+                <ul>
+                  {(byCategory.get(category.id) ?? []).map((product) => (
+                    <ProductRow key={product.id} product={product} onOpen={openProduct} />
+                  ))}
+                </ul>
+              </section>
+            );
+          })
         )}
       </main>
 
