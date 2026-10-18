@@ -33,6 +33,8 @@ export const FEATURES = [
   { key: 'selling.smart', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'immersive.explore', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
   { key: 'immersive.stage', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
+  // Motions from the library at places on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md).
+  { key: 'design.menuMotions', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
   { key: 'design.premiumTemplates', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundImage', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundVideo', area: 'design', status: 'reserved', project: 2, startsIn: 'PREMIUM' },

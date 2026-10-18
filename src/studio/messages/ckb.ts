@@ -1813,6 +1813,7 @@ const ckb: Messages = {
   'plans.feature.selling.smart': 'فرۆشتنی زیرەک: بەرزکردنەوە و پێشنیار و سێت',
   'plans.feature.immersive.explore': 'دۆخی گەڕان',
   'plans.feature.immersive.stage': 'خواردنی سێ ڕەهەندی',
+  'plans.feature.design.menuMotions': 'جووڵەکان لەسەر مێنیو',
   'plans.feature.design.premiumTemplates': 'قاڵبە تایبەتەکان',
   'plans.feature.design.backgroundImage': 'وێنەی باکگراوند',
   'plans.feature.design.backgroundVideo': 'ڤیدیۆی باکگراوند',

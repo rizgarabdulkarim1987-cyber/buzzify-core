@@ -94,9 +94,9 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: false, stage: false, smartSelling: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: false, stage: false, smartSelling: true, rails: ['drum', 'flap', 'deck', 'plain'] });
-    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, smartSelling: true, rails: [...RAIL_STYLES] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: false, stage: false, smartSelling: false, motions: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: false, stage: false, smartSelling: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, smartSelling: true, motions: true, rails: [...RAIL_STYLES] });
   });
 });
 
@@ -151,5 +151,13 @@ describe('what the Preview tab says guests on the plan do not see', () => {
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([
       'immersive.explore',
     ]);
+  });
+
+  it('names the menu’s motions when the plan leaves them out, and only when it has some', () => {
+    const catalog = { ...noSelling, products: [] };
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [{}])).toEqual(['immersive.explore', 'design.menuMotions']);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [])).toEqual(['immersive.explore']);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC)).toEqual(['immersive.explore']);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, PRO, [{}])).toEqual(['immersive.explore']);
   });
 });

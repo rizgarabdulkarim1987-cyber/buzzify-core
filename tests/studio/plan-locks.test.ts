@@ -170,7 +170,7 @@ describe('plans lock what a restaurant may choose', () => {
       await setPlan(a.restaurant.id, 'BASIC');
       const { tenant } = dataOf(await runQuery(prisma(), designer, previewQueries.draft, { menuId: a.menu.id, locale: 'en' }));
       expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
-      expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, rails: ['plain'] });
+      expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, motions: false, rails: ['plain'] });
     });
 
     it('names what guests on the plan do not see, with the hint’s data, and nothing on a plan that has it all', async () => {

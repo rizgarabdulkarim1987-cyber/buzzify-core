@@ -1837,6 +1837,7 @@ const ar: Messages = {
   'plans.feature.selling.smart': 'البيع الذكي: الترقيات والاقتراحات والوجبات',
   'plans.feature.immersive.explore': 'وضع الاستكشاف',
   'plans.feature.immersive.stage': 'الأطباق ثلاثية الأبعاد',
+  'plans.feature.design.menuMotions': 'حركات على المنيو',
   'plans.feature.design.premiumTemplates': 'القوالب المميزة',
   'plans.feature.design.backgroundImage': 'صورة خلفية',
   'plans.feature.design.backgroundVideo': 'فيديو خلفية',

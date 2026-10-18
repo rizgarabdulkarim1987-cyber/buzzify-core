@@ -1808,6 +1808,7 @@ const en: Messages = {
   'plans.feature.selling.smart': 'Smart selling: upgrades, pairings and sets',
   'plans.feature.immersive.explore': 'Explore mode',
   'plans.feature.immersive.stage': '3D dishes',
+  'plans.feature.design.menuMotions': 'Motions on the menu',
   'plans.feature.design.premiumTemplates': 'Premium templates',
   'plans.feature.design.backgroundImage': 'Background image',
   'plans.feature.design.backgroundVideo': 'Background video',
