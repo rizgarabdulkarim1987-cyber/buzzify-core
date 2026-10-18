@@ -30,6 +30,35 @@ describe('similarity', () => {
     expect(await similarity(logo, flattened, 400)).toBeLessThan(0.9);
   });
 
+  /** A logo: a detailed mark on a transparent canvas whose hidden colour is `hidden`. */
+  async function logoOn(hidden: { r: number; g: number; b: number }, mark?: Buffer) {
+    const art = mark ?? (await sharp(await photoLike(120, 60)).ensureAlpha(1).png().toBuffer());
+    return sharp({ create: { width: 480, height: 240, channels: 4, background: { ...hidden, alpha: 0 } } })
+      .composite([{ input: art, left: 180, top: 90 }])
+      .png()
+      .toBuffer();
+  }
+
+  it('ignores the colour hidden under full transparency', async () => {
+    const white = await logoOn({ r: 255, g: 255, b: 255 });
+    const teal = await logoOn({ r: 76, g: 105, b: 113 });
+    expect(await similarity(white, teal, 480)).toBeGreaterThan(0.999);
+  });
+
+  it('does not let a transparent area hide damage to what is visible', async () => {
+    const mark = await sharp(await photoLike(120, 60)).ensureAlpha(1).png().toBuffer();
+    const source = await logoOn({ r: 0, g: 0, b: 0 }, mark);
+    const damaged = await logoOn({ r: 0, g: 0, b: 0 }, await sharp(mark).blur(3).png().toBuffer());
+    expect(await similarity(source, damaged, 480)).toBeLessThan(0.9);
+  });
+
+  it('reads an image given as raw pixels like the same image encoded', async () => {
+    const photo = await photoLike(320, 240);
+    const { data, info } = await sharp(photo).raw().toBuffer({ resolveWithObject: true });
+    const raw = { data, width: info.width, height: info.height, channels: info.channels as 3 };
+    expect(await similarity(raw, photo, 320)).toBeCloseTo(1, 6);
+  });
+
   it('keeps the image’s proportions when only a width is given', async () => {
     const { luma } = await planesOf(await photoLike(800, 600), 400);
     expect([luma.width, luma.height]).toEqual([400, 300]);

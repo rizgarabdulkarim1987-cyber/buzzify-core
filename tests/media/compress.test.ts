@@ -41,7 +41,43 @@ describe('searchQuality', () => {
     expect(found.quality).toBe(QUALITY.jpeg.floor);
   });
 
-  it('keeps the bounds the spec sets', () => {
-    expect(QUALITY).toEqual({ jpeg: { floor: 60, ceiling: 92 }, webp: { floor: 55, ceiling: 92 }, avif: { floor: 35, ceiling: 75 } });
+  it('encodes only the starting quality, the one used before, once the deadline has passed', async () => {
+    const source = await photoLike(320, 240);
+    const tried: number[] = [];
+    const encode = (quality: number) => {
+      tried.push(quality);
+      return sharp(source).webp({ quality }).toBuffer();
+    };
+    const found = await searchQuality({ source, width: 320, bounds: QUALITY.webp, encode, deadline: Date.now() - 1 });
+    expect(tried).toEqual([QUALITY.webp.start]);
+    expect(found.quality).toBe(QUALITY.webp.start);
+  });
+
+  it('starts at the starting quality, then tries the bound on the side it points to', async () => {
+    const source = await photoLike(640, 480);
+    const tried: number[] = [];
+    const encode = (quality: number) => {
+      tried.push(quality);
+      return sharp(source).jpeg({ quality, mozjpeg: true }).toBuffer();
+    };
+    await searchQuality({ source, width: 640, bounds: QUALITY.jpeg, encode });
+    expect(tried[0]).toBe(QUALITY.jpeg.start);
+    // A photo passes at the starting quality, so the next try is the floor.
+    expect(tried[1]).toBe(QUALITY.jpeg.floor);
+  });
+
+  it('never returns a quality above the ceiling given, even when it starts there', async () => {
+    const source = await photoLike(320, 240);
+    const bounds = { floor: 40, start: 60, ceiling: 60 };
+    const found = await searchQuality({ source, width: 320, bounds, encode: (quality) => sharp(source).avif({ quality }).toBuffer(), threshold: 0.99999 });
+    expect(found.quality).toBe(60);
+  });
+
+  it('keeps the bounds the spec sets, starting each at the quality used before', () => {
+    expect(QUALITY).toEqual({
+      jpeg: { floor: 60, start: 85, ceiling: 92 },
+      webp: { floor: 55, start: 75, ceiling: 92 },
+      avif: { floor: 35, start: 55, ceiling: 75 },
+    });
   });
 });

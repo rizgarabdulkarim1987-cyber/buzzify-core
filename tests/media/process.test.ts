@@ -205,6 +205,23 @@ describe('prepareAsset: smart compression', () => {
     expect(data[3]).toBe(0);
   });
 
+  it('keeps a flat transparent logo as a palette when that looks the same and is smaller', async () => {
+    const mark = await sharp({ create: { width: 400, height: 160, channels: 4, background: '#c8261c' } })
+      .composite([{ input: await sharp({ create: { width: 200, height: 60, channels: 4, background: '#f4900c' } }).png().toBuffer(), left: 100, top: 50 }])
+      .png()
+      .toBuffer();
+    // The hidden colour of the transparent area is not white, as many design tools leave it.
+    const logo = await sharp({ create: { width: 1200, height: 600, channels: 4, background: { r: 76, g: 105, b: 113, alpha: 0 } } })
+      .composite([{ input: mark, left: 400, top: 220 }])
+      .png()
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(logo)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect(meta.isPalette).toBe(true);
+    expect(meta.hasAlpha).toBe(true);
+    expect(await similarity(logo, fileOf(asset, 'original').body, 1200)).toBeGreaterThanOrEqual(VISUALLY_LOSSLESS);
+  });
+
   it('stores fewer bytes than the fixed settings did for a photo-like image', async () => {
     const source = await photo(2400, 1600);
     const now = prepared(await prepareAsset(new Uint8Array(source))).files.reduce((sum, file) => sum + file.body.length, 0);
@@ -212,6 +229,21 @@ describe('prepareAsset: smart compression', () => {
     console.info(`stored bytes for a 2400 × 1600 photo-like image: ${before} before, ${now} now`);
     expect(now).toBeLessThan(before);
   });
+
+  it('processes the largest upload allowed (a 50 MP AVIF) well inside the 60 s route on two threads, as on a small host', async () => {
+    const big = await sharp(await photoLike(2000, 1500)).resize(8160, 6120).png().toBuffer();
+    const source = await sharp(big).avif({ quality: 60, effort: 2 }).toBuffer();
+    const threads = sharp.concurrency();
+    sharp.concurrency(2);
+    try {
+      const started = performance.now();
+      prepared(await prepareAsset(new Uint8Array(source)));
+      // Decoded once to a 2560 px master and searched within 25 s: about 20 s here, where every try used to decode it.
+      expect((performance.now() - started) / 1000).toBeLessThan(40);
+    } finally {
+      sharp.concurrency(threads);
+    }
+  }, 180_000);
 
   it('processes a 12 MP photo in under 10 s', async () => {
     const source = await photo(4000, 3000);
