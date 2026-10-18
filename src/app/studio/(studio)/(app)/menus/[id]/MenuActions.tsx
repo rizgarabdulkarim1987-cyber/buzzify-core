@@ -22,7 +22,9 @@ import { Textarea } from '@/studio/ui/Textarea';
 import { DuplicateDialog, type DuplicateTarget } from '../DuplicateDialog';
 import { issueText } from '../menu-text';
 import { SlugField } from '../SlugField';
-import { ScheduleDialog } from '@/studio/workspace/ScheduleDialog';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
+import { LockMark } from '@/studio/plans/UpgradeHint';
+import { ScheduleDialog, ScheduleLocked } from '@/studio/workspace/ScheduleDialog';
 
 export interface MenuActionsProps {
   menu: {
@@ -40,6 +42,8 @@ export interface MenuActionsProps {
     pendingSchedule: { number: number; goLiveAt: string } | null;
   };
   can: { publish: boolean; status: boolean; settings: boolean; duplicate: boolean; delete: boolean; schedule: boolean };
+  /** Set when the plan has no scheduled publishing: the Schedule entry shows this hint instead of its dialog. */
+  scheduleUpgrade: UpgradeInfo | null;
   duplicateTargets: readonly DuplicateTarget[];
   origin: string;
 }
@@ -228,7 +232,7 @@ type Open =
  * What can be done to the menu as a whole: publish it, change its status, change its address, duplicate it and (for a
  * Super Admin, once it is archived) delete it. Only what the person may do, and what its status allows, is offered.
  */
-export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActionsProps) {
+export function MenuActions({ menu, can, scheduleUpgrade, duplicateTargets, origin }: MenuActionsProps) {
   const t = useT();
   const router = useRouter();
   const refuse = useRefuse();
@@ -264,6 +268,7 @@ export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActions
               <>
                 <DropdownMenuItem icon={<CalendarClock aria-hidden />} onSelect={() => setOpen({ kind: 'schedule' })}>
                   {t('schedule.open')}
+                  {scheduleUpgrade && <LockMark feature="publish.scheduling" info={scheduleUpgrade} />}
                 </DropdownMenuItem>
                 {(statusActions.length > 0 || can.settings || can.duplicate) && <DropdownMenuSeparator />}
               </>
@@ -297,7 +302,12 @@ export function MenuActions({ menu, can, duplicateTargets, origin }: MenuActions
       )}
 
       {open?.kind === 'publish' && <PublishDialog menuId={menu.id} name={menu.name} suspended={menu.status === 'SUSPENDED'} onClose={close} />}
-      {open?.kind === 'schedule' && <ScheduleDialog menuId={menu.id} timezone={menu.timezone} pending={menu.pendingSchedule} onClose={close} />}
+      {open?.kind === 'schedule' &&
+        (scheduleUpgrade ? (
+          <ScheduleLocked upgrade={scheduleUpgrade} onClose={close} />
+        ) : (
+          <ScheduleDialog menuId={menu.id} timezone={menu.timezone} pending={menu.pendingSchedule} onClose={close} />
+        ))}
 
       <ConfirmDialog
         open={statusAction !== null}

@@ -4,7 +4,8 @@ import { BRAND_PRESETS, paletteProblems } from '@/lib/palette';
 import { validateForPublish } from '@/server/domain/publish-rules';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import { seedMenu } from '../../prisma/seed/apply';
-import type { SeedData } from '../../prisma/seed/atelier';
+import { ATELIER, type SeedData } from '../../prisma/seed/atelier';
+import { demoRestaurant } from '../../prisma/seed/demo-restaurant';
 import { HOT_BRICK } from '../../prisma/seed/hot-brick';
 import { RIVERLIGHT } from '../../prisma/seed/riverlight';
 import { validateSeed } from '../../prisma/seed/validate';
@@ -26,6 +27,19 @@ const DEMOS: Array<[string, SeedData]> = [
   ['Riverlight Coffee', RIVERLIGHT],
   ['Hot Brick Burgers', HOT_BRICK],
 ];
+
+describe('the demo restaurants', () => {
+  it('puts the three demos on the three plans, and leaves a demo that exists on its plan', async () => {
+    await resetTestData(prisma);
+    const plans = [];
+    for (const demo of [ATELIER, RIVERLIGHT, HOT_BRICK]) plans.push((await demoRestaurant(prisma, demo)).plan);
+    expect(plans).toEqual(['PREMIUM', 'PRO', 'BASIC']);
+
+    const hotBrick = await prisma.restaurant.findFirstOrThrow({ where: { name: HOT_BRICK.profile.name } });
+    await prisma.restaurant.update({ where: { id: hotBrick.id }, data: { plan: 'PREMIUM' } });
+    expect(await demoRestaurant(prisma, HOT_BRICK)).toMatchObject({ id: hotBrick.id, plan: 'PREMIUM' });
+  });
+});
 
 describe.each(DEMOS)('%s', (name, seed) => {
   it('passes every integrity check', () => {

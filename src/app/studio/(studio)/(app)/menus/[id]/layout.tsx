@@ -141,6 +141,7 @@ export default async function MenuWorkspaceLayout({ children, params }: { childr
                 pendingSchedule: menu.pendingSchedule,
               }}
               can={menu.can}
+              scheduleUpgrade={menu.scheduleUpgrade}
               duplicateTargets={menu.duplicateTargets}
               origin={hostEnv().publicOrigin}
             />

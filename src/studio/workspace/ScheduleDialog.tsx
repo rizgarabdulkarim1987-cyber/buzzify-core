@@ -7,9 +7,11 @@ import { issueText } from '@/app/studio/(studio)/(app)/menus/menu-text';
 import { schedulePublish } from '@/app/studio/_actions/revisions';
 import type { PublishIssue } from '@/server/domain/publish-rules';
 import { utcToZonedLocal, zonedLocalToUtc } from '@/server/domain/schedule-time';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import { describeFailure } from '@/studio/errors';
 import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { Dialog } from '@/studio/ui/Dialog';
@@ -24,6 +26,23 @@ export interface ScheduleDialogProps {
   /** The revision already waiting, which a new schedule replaces. */
   pending: { number: number; goLiveAt: string } | null;
   onClose: () => void;
+}
+
+/** What the Schedule entry opens when the restaurant's plan has no scheduled publishing: the hint, not the form. */
+export function ScheduleLocked({ upgrade, onClose }: { upgrade: UpgradeInfo; onClose: () => void }) {
+  const t = useT();
+  return (
+    <Dialog
+      open
+      onOpenChange={(open) => !open && onClose()}
+      title={t('schedule.title')}
+      description={t('schedule.intro')}
+      width="md"
+      footer={<Button onClick={onClose}>{t('common.close')}</Button>}
+    >
+      <UpgradeHint feature="publish.scheduling" info={upgrade} />
+    </Dialog>
+  );
 }
 
 /**

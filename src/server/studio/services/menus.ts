@@ -91,6 +91,7 @@ export function permissionsIn(actor: Actor, restaurant: { id: string; permission
   const membership = actor.memberships.find((m) => m.restaurantId === restaurant.id);
   return effectivePermissions({
     isSuperAdmin: actor.isSuperAdmin,
+    isPlatformOwner: actor.isPlatformOwner,
     role: membership?.role ?? null,
     policy: parsePolicy(restaurant.permissionPolicy),
   });

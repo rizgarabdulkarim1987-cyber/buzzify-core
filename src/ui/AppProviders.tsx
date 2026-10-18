@@ -35,6 +35,8 @@ export interface TenantClientInfo {
   numeralSystem: 'latn' | 'arab';
   locales: Locale[];
   defaultLocale: Locale;
+  /** What the restaurant's plan lets these pages show: Explore, the 3D dish, and the rails `?rail=` may preview. */
+  features: { explore: boolean; stage: boolean; rails: RailStyle[] };
 }
 
 export interface AppContext {

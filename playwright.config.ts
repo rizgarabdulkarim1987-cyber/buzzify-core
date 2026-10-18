@@ -1,5 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 import { E2E_CRON_SECRET } from './tests/e2e/helpers/cron';
+import { E2E_ORIGIN, E2E_PORT } from './tests/e2e/helpers/origin';
 
 /** The suites that start software WebGL (the 3D stage). They run one test at a time; see the `webgl` project. */
 const WEBGL_SUITES = /(stage|explore|motion)\.spec\.ts$/;
@@ -15,13 +16,13 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:3100',
+    baseURL: E2E_ORIGIN,
     trace: 'retain-on-failure',
     // The 3D stage has its own suite (stage.spec.ts, which opts back in with ?stage=on). Every other suite
     // tests menu, cart and pricing behaviour and should not depend on how fast software WebGL starts.
     storageState: {
       cookies: [],
-      origins: [{ origin: 'http://127.0.0.1:3100', localStorage: [{ name: 'atelier:stage', value: 'off' }] }],
+      origins: [{ origin: E2E_ORIGIN, localStorage: [{ name: 'atelier:stage', value: 'off' }] }],
     },
   },
   projects: [
@@ -60,12 +61,14 @@ export default defineConfig({
     { name: 'desktop', use: { ...devices['Desktop Chrome'] }, grep: /@desktop/, dependencies: ['studio setup'] },
   ],
   webServer: {
-    command: 'npm run dev',
-    url: 'http://127.0.0.1:3100/atelier/en',
+    // On 3100 (`npm run dev`), or on E2E_PORT when another checkout's dev server has 3100; the menus' canonical links and
+    // sign-in then use that address too.
+    command: E2E_PORT === 3100 ? 'npm run dev' : `npx next dev -p ${E2E_PORT}`,
+    url: `${E2E_ORIGIN}/atelier/en`,
     reuseExistingServer: true,
     timeout: 120_000,
     // The scheduler's endpoint answers only with a secret; the revisions suite calls it with this one. A dev server
     // started by hand needs the same CRON_SECRET for that suite.
-    env: { CRON_SECRET: E2E_CRON_SECRET },
+    env: { CRON_SECRET: E2E_CRON_SECRET, ...(E2E_PORT === 3100 ? {} : { PUBLIC_MENU_ORIGIN: E2E_ORIGIN, BETTER_AUTH_URL: E2E_ORIGIN }) },
   },
 });

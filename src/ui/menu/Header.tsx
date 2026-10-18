@@ -37,7 +37,8 @@ export function Header({ current = 'menu', overlay = false }: { current?: 'menu'
         </div>
         <LanguageSwitch />
       </div>
-      <ModeSwitch current={current} />
+      {/* Explore is the plan's to give: without it there is one way to browse, so no switch. */}
+      {tenant.features.explore && <ModeSwitch current={current} />}
     </header>
   );
 }

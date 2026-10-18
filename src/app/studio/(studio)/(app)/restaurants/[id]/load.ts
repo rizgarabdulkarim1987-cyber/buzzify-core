@@ -12,7 +12,7 @@ import { requestStudioLocale } from '@/studio/request-locale';
 export const loadRestaurant = cache((restaurantId: string) => query(getRestaurant, { restaurantId }));
 
 /** The tab's title for the browser: the tab and the restaurant, so several open tabs can be told apart. */
-export async function tabMetadata(restaurantId: string, tab: 'branches' | 'menus' | 'media' | 'people' | 'activity'): Promise<Metadata> {
+export async function tabMetadata(restaurantId: string, tab: 'branches' | 'menus' | 'media' | 'people' | 'activity' | 'plan'): Promise<Metadata> {
   const [t, restaurant] = [getStudioTranslator(await requestStudioLocale()), await loadRestaurant(restaurantId)];
   return { title: `${t(`restaurants.tabs.${tab}`)} · ${restaurant.name}` };
 }

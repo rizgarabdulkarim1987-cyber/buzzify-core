@@ -83,6 +83,13 @@ model Restaurant {
   status           RestaurantStatus @default(ACTIVE)
   notes            String           @default("")
   permissionPolicy Json             @default("{}")
+  /// What the restaurant has bought. The default is for rows that existed before plans (they keep every feature); the
+  /// Studio always writes a plan when it creates a restaurant.
+  plan             PlanTier         @default(PREMIUM)
+  /// Features switched on or off for this restaurant beyond its plan: `{ features: { [key]: boolean } }`.
+  planExtras       Json             @default("{}")
+  /// The platform owner's note on the deal (what was agreed, paid until when). Only Super Admins read it.
+  planNote         String           @default("")
   /// The restaurant's logo in its media library; a new menu starts its brand kit with it.
   logoAssetId      String?
   version          Int              @default(1)
@@ -98,6 +105,14 @@ model Restaurant {
   @@index([name])
   @@index([city])
   @@index([status])
+  @@index([plan])
+}
+
+/// The plans a restaurant can be on (src/server/domain/entitlements.ts).
+enum PlanTier {
+  BASIC
+  PRO
+  PREMIUM
 }
 
 model Branch {
@@ -510,6 +525,9 @@ model User {
   updatedAt        DateTime     @updatedAt
   twoFactorEnabled Boolean?     @default(false)
   isSuperAdmin     Boolean      @default(false)
+  /// The one account that sells: only it changes plans. At most one row is true (a partial unique index in the
+  /// migration), and it counts only while the person is a Super Admin.
+  isPlatformOwner  Boolean      @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
   locale           String       @default("en")
   /// Set when the person is switched off. They keep their history but have no actor and no session.

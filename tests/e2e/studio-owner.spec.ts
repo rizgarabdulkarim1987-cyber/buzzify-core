@@ -68,7 +68,7 @@ test.describe('Studio as an owner @desktop', () => {
     await page.goto(`/studio/restaurants/${restaurant.id}`);
     await expect(page.getByRole('heading', { level: 1, name: restaurant.name })).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'Restaurant sections' });
-    await expect(tabs.getByRole('link')).toHaveText(['Profile', 'Branches', 'Menus']);
+    await expect(tabs.getByRole('link')).toHaveText(['Profile', 'Branches', 'Menus', 'Plan']);
     await expect(page.getByRole('button', { name: 'Manage' })).toHaveCount(0);
 
     // The platform's pages, and everything of the other restaurant, are not found.

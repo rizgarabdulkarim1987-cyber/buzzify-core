@@ -1,5 +1,6 @@
 'use client';
 
+import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import { RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
@@ -9,7 +10,7 @@ import { Select } from '@/studio/ui/Select';
 import { LIST_PARAMS } from './list-params';
 
 /** The list's filters. Each one is a parameter of the address, which the page reads, so a filtered list can be bookmarked and shared. */
-export function RestaurantFilters({ cities }: { cities: readonly string[] }) {
+export function RestaurantFilters({ cities, planNames }: { cities: readonly string[]; planNames: Record<PlanTier, string> }) {
   const t = useT();
   const { params, set } = useFilterParams();
   const city = params.get('city') ?? '';
@@ -47,6 +48,13 @@ export function RestaurantFilters({ cities }: { cities: readonly string[] }) {
             { value: '', label: t('restaurants.filter.allStatuses') },
             ...RESTAURANT_STATUSES.map((status) => ({ value: status, label: t(`status.${status.toLowerCase()}`) })),
           ]}
+        />
+      </Field>
+      <Field label={t('restaurants.filter.plan')} hideLabel className="w-36">
+        <Select
+          value={params.get('plan') ?? ''}
+          onChange={(event) => set({ plan: event.target.value || null })}
+          options={[{ value: '', label: t('restaurants.filter.allPlans') }, ...PLAN_TIERS.map((tier) => ({ value: tier, label: planNames[tier] }))]}
         />
       </Field>
       <div role="group" aria-label={t('restaurants.filter.created')} className="flex items-center gap-1.5">

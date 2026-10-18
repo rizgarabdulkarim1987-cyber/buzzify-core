@@ -14,6 +14,8 @@ const STATUS: Record<ErrorCode, number> = {
   INVALID: 400,
   CONFLICT: 409,
   RATE_LIMITED: 429,
+  // Allowed for the person but not on this restaurant's plan: a refusal, like a permission, not a missing payment.
+  UPGRADE_REQUIRED: 403,
 };
 
 /** The same limit Next puts on a Server Action's body. */

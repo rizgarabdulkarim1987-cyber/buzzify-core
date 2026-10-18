@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { menuDb } from '@/server/data/tenant-db';
+import type { Entitlements } from '@/server/domain/entitlements';
+import { guestQrStyle, isBrandedQr, qrStyleLock } from '@/server/domain/plan-choices';
 import { parseQrStyle, QR_FRAME_MAX, qrStyleProblem, qrTargetUrl, type QrStyle, type QrStyleProblem } from '@/server/domain/qr';
 import { hostEnv } from '@/server/env';
 import { assetImage, loadAssets } from '@/server/media/resolve';
@@ -10,6 +12,7 @@ import { exportKey } from '@/server/storage/keys';
 import { getStorage } from '@/server/storage/storage';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
+import { requireFeature, type PlanAccess } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { getStudioTranslator } from '@/studio/messages';
 
@@ -54,6 +57,11 @@ function menuOf(ctx: { menuId: string | null }): string {
 function restaurantOf(ctx: { restaurantId: string | null }): string {
   if (ctx.restaurantId === null) throw new Error('A menu action ran without a restaurant');
   return ctx.restaurantId;
+}
+
+function planOf(ctx: { plan: PlanAccess | null }): PlanAccess {
+  if (ctx.plan === null) throw new Error('A menu action ran without its restaurant’s plan');
+  return ctx.plan;
 }
 
 /** A table's default name, in the language of the person who makes it ("Table 7"). */
@@ -111,6 +119,9 @@ export async function updateQrCode(
   return ctx.transaction(async (tx) => {
     const before = await tx.qrCode.findFirst({ where: { id: input.qrCodeId }, select: { label: true, style: true } });
     if (!before) throw new StudioError('NOT_FOUND');
+    // Brand colours and the logo may be kept by a code that had them, never newly given on a plan without them.
+    const locked = qrStyleLock(input.style, parseQrStyle(before.style), planOf(ctx).entitlements);
+    if (locked) requireFeature(planOf(ctx), locked);
     await updateWithVersion(tx.qrCode, { id: input.qrCodeId, version: input.version, data: { label: input.label, style: { ...input.style } }, entityType: 'QrCode' }, tx);
     const changes: Record<string, { before: unknown; after: unknown }> = {};
     if (before.label !== input.label) changes.label = { before: before.label, after: input.label };
@@ -129,6 +140,8 @@ export async function applyQrStyle(ctx: ActionContext, input: { qrCodeId: string
     const source = await tx.qrCode.findFirst({ where: { id: input.qrCodeId }, select: { style: true } });
     if (!source) throw new StudioError('NOT_FOUND');
     const style = parseQrStyle(source.style);
+    // Giving the other codes this look is a new choice for them.
+    if (isBrandedQr(style)) requireFeature(planOf(ctx), 'qr.branded');
     const others = await tx.qrCode.findMany({ where: { id: { not: input.qrCodeId } }, select: { id: true, style: true } });
     let updated = 0;
     for (const code of others) {
@@ -196,7 +209,8 @@ export async function downloadQrCode(
   const code = await menuDb(ctx.db, menuId).qrCode.findFirst({ where: { id: input.qrCodeId } });
   if (!code) throw new StudioError('NOT_FOUND');
   const slug = await menuSlug(ctx.db, menuId);
-  const style = parseQrStyle(code.style);
+  // Drawn as the plan allows: a code that kept brand colours after a downgrade downloads black on white.
+  const style = guestQrStyle(parseQrStyle(code.style), planOf(ctx).entitlements);
   const svg = await renderQr({
     url: qrTargetUrl(hostEnv().publicOrigin, slug, code),
     style,
@@ -220,12 +234,14 @@ export async function downloadTableCodes(ctx: ActionContext): Promise<{ url: str
   if (codes.length === 0) throw new StudioError('NOT_FOUND', 'No table has a code yet');
   const slug = await menuSlug(ctx.db, menuId);
   const origin = hostEnv().publicOrigin;
-  const logo = codes.some((code) => parseQrStyle(code.style).logo) ? await brandLogoBytes(ctx.db, menuId, restaurantOf(ctx)) : null;
+  const { entitlements } = planOf(ctx);
+  const drawn = (code: { style: unknown }) => guestQrStyle(parseQrStyle(code.style), entitlements);
+  const logo = codes.some((code) => drawn(code).logo) ? await brandLogoBytes(ctx.db, menuId, restaurantOf(ctx)) : null;
   const files: Array<{ name: string; body: Uint8Array }> = [];
   const rows = ['table,label,url'];
   for (const code of codes) {
     const url = qrTargetUrl(origin, slug, code);
-    const svg = await renderQr({ url, style: parseQrStyle(code.style), logo });
+    const svg = await renderQr({ url, style: drawn(code), logo });
     const base = fileBase(slug, code);
     files.push({ name: `${base}.svg`, body: new TextEncoder().encode(svg) }, { name: `${base}.png`, body: await qrPng(svg, 1024) });
     rows.push([String(code.tableNumber), csvCell(code.label), url].join(','));
@@ -259,16 +275,26 @@ export interface QrCodesView {
 
 const previewLogo = (logo: Awaited<ReturnType<typeof brandLogoAsset>>) => (logo ? { href: logo.url, width: logo.width, height: logo.height } : null);
 
-/** A code drawn in a style that is not saved yet, for the QR tab's preview while the style is chosen. */
-export async function previewQrCode(db: PrismaClient, menuId: string, restaurantId: string, input: { qrCodeId: string; style: QrStyle }): Promise<{ svg: string }> {
+/** A code drawn in a style that is not saved yet, for the QR tab's preview while the style is chosen, as the plan draws it. */
+export async function previewQrCode(
+  db: PrismaClient,
+  menuId: string,
+  restaurantId: string,
+  entitlements: Entitlements,
+  input: { qrCodeId: string; style: QrStyle },
+): Promise<{ svg: string }> {
   const code = await menuDb(db, menuId).qrCode.findFirst({ where: { id: input.qrCodeId }, select: { id: true, tableNumber: true } });
   if (!code) throw new StudioError('NOT_FOUND');
-  const [slug, logo] = await Promise.all([menuSlug(db, menuId), input.style.logo ? brandLogoAsset(db, menuId, restaurantId) : null]);
-  return { svg: previewQr({ url: qrTargetUrl(hostEnv().publicOrigin, slug, code), style: input.style, logo: previewLogo(logo) }) };
+  const style = guestQrStyle(input.style, entitlements);
+  const [slug, logo] = await Promise.all([menuSlug(db, menuId), style.logo ? brandLogoAsset(db, menuId, restaurantId) : null]);
+  return { svg: previewQr({ url: qrTargetUrl(hostEnv().publicOrigin, slug, code), style, logo: previewLogo(logo) }) };
 }
 
-/** The menu's codes, the menu's own first and then by table, each drawn and with its scans of the last 30 days. */
-export async function listQrCodes(db: PrismaClient, menuId: string, restaurantId: string): Promise<QrCodesView> {
+/**
+ * The menu's codes, the menu's own first and then by table, each drawn as the plan allows (its saved style is kept, so
+ * moving up a plan brings its colours back) and with its scans of the last 30 days.
+ */
+export async function listQrCodes(db: PrismaClient, menuId: string, restaurantId: string, entitlements: Entitlements): Promise<QrCodesView> {
   const scoped = menuDb(db, menuId);
   const [codes, slug, logo, scans] = await Promise.all([
     scoped.qrCode.findMany({ orderBy: [{ tableNumber: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }] }),
@@ -296,7 +322,7 @@ export async function listQrCodes(db: PrismaClient, menuId: string, restaurantId
         style,
         version: code.version,
         url,
-        svg: previewQr({ url, style, logo: image }),
+        svg: previewQr({ url, style: guestQrStyle(style, entitlements), logo: image }),
         scans30d: counts.get(code.id) ?? 0,
       };
     }),

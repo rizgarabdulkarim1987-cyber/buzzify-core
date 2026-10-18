@@ -7,7 +7,9 @@ import { platformSettings } from '@/server/studio/queries/settings';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
+import { RouteTabs } from '@/studio/ui/RouteTabs';
 import { SettingsForm } from './SettingsForm';
+import { settingsTabs } from './tabs';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('settings.title') };
@@ -22,7 +24,11 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader title={t('settings.title')} description={t('settings.description')} />
+      <PageHeader
+        title={t('settings.title')}
+        description={t('settings.description')}
+        below={<RouteTabs tabs={settingsTabs(t)} label={t('settings.tabs.label')} />}
+      />
       <div className="px-8 pb-2">
         <SettingsForm
           // A save changes what the form starts from, so it starts again from what was saved.

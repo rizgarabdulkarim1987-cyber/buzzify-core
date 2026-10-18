@@ -3,6 +3,7 @@ import type { Locale } from '@/lib/locale';
 import { getStudioTranslator } from '@/studio/messages';
 import { seriousViolations } from './helpers/axe';
 import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
+import { E2E_ORIGIN } from './helpers/origin';
 import { hideDevTools, menuBySlug, superAdmin, superAdminFile, uniqueClientAddress } from './helpers/studio';
 
 /**
@@ -91,7 +92,7 @@ test.describe('Studio accessibility @desktop', () => {
 
     test(`the sign-in page in ${locale}`, async ({ browser }) => {
       const context = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() } });
-      await context.addCookies([{ name: 'studio-locale', value: locale, url: 'http://127.0.0.1:3100/studio' }]);
+      await context.addCookies([{ name: 'studio-locale', value: locale, url: `${E2E_ORIGIN}/studio` }]);
       const page = await context.newPage();
       await page.goto('/studio/sign-in');
       await expectDirection(page, locale);
