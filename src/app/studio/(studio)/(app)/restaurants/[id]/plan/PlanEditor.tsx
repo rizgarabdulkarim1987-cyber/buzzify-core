@@ -5,8 +5,17 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { setRestaurantPlan } from '@/app/studio/_actions/plans';
-import { PLAN_TIERS, type FeatureArea, type FeatureKey, type PlanTier } from '@/server/domain/entitlements';
-import type { PlanTabFeature, PlanTabView } from '@/server/studio/services/plans';
+import {
+  allows,
+  effectiveEntitlements,
+  featuresLost,
+  PLAN_TIERS,
+  type FeatureArea,
+  type FeatureKey,
+  type PlanExtras,
+  type PlanTier,
+} from '@/server/domain/entitlements';
+import type { PlanTabView } from '@/server/studio/services/plans';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { UpgradeAction } from '@/studio/plans/UpgradeHint';
@@ -30,11 +39,9 @@ interface Draft {
   note: string;
 }
 
-/** Whether the restaurant would have `feature` with `draft`: its extra when it has one, else its plan. */
-function has(feature: PlanTabFeature, draft: Draft): boolean {
-  const extra = draft.extras[feature.key] ?? 'plan';
-  return extra === 'plan' ? feature.plans.includes(draft.plan) : extra === 'on';
-}
+/** The draft's extras as the resolver and the save take them: on or off, and "as the plan" left out. */
+const extrasOf = (draft: Draft): PlanExtras =>
+  Object.fromEntries(Object.entries(draft.extras).flatMap(([key, extra]) => (extra === 'plan' ? [] : [[key, extra === 'on']])));
 
 /**
  * The Plan tab (spec 8.1): the plan, each live feature with whether this restaurant has it, and for the platform owner
@@ -55,10 +62,16 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
   const [attempt, setAttempt] = useState(0);
   const [confirming, setConfirming] = useState(false);
 
-  const saved = { plan: view.plan, extras: initial.extras, note: initial.note };
-  const lost = view.features.filter((feature) => has(feature, saved) && !has(feature, draft));
+  // What the restaurant has now and would have with the draft, by the same resolver every check on the server asks.
+  const plans = useMemo(
+    () => ({ features: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, new Set(view.planFeatures[tier])])) as Record<PlanTier, Set<FeatureKey>> }),
+    [view],
+  );
+  const now = effectiveEntitlements({ plan: initial.plan, plans, extras: extrasOf(initial) });
+  const next = effectiveEntitlements({ plan: draft.plan, plans, extras: extrasOf(draft) });
+  const lost = featuresLost(now, next);
   const dirty = JSON.stringify(draft) !== JSON.stringify(initial);
-  const lockedCount = view.features.filter((feature) => !has(feature, saved)).length;
+  const firstLocked = view.features.find((feature) => !allows(now, feature.key));
 
   const change = (next: Partial<Draft>) => {
     setDraft((current) => ({ ...current, ...next }));
@@ -68,10 +81,7 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
   /** Saves the draft; the refusal, in the person's language, when there is one. */
   const send = async (): Promise<DescribedFailure | null> => {
     setAttempt((count) => count + 1);
-    const extras = Object.fromEntries(
-      Object.entries(draft.extras).flatMap(([key, extra]) => (extra === 'plan' ? [] : [[key, extra === 'on']])),
-    );
-    const result = await setRestaurantPlan({ restaurantId, plan: draft.plan, extras, note: draft.note });
+    const result = await setRestaurantPlan({ restaurantId, plan: draft.plan, extras: extrasOf(draft), note: draft.note });
     if (!result.ok) {
       const refused = describeFailure(t, locale, result.error);
       setFailure(refused);
@@ -158,7 +168,7 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
                   </th>
                 </tr>
                 {rows.map((feature) => {
-                  const on = has(feature, draft);
+                  const on = allows(next, feature.key);
                   const name = t(`plans.feature.${feature.key}`);
                   return (
                     <tr key={feature.key} className="border-b border-line">
@@ -202,10 +212,10 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
         </table>
       </div>
 
-      {!view.canEdit && lockedCount > 0 && (
+      {!view.canEdit && firstLocked && (
         // Anyone but the owner can ask for what the restaurant does not have: the first locked feature names the plan.
         <div className="flex flex-wrap items-center gap-3">
-          <UpgradeAction feature={view.features.find((feature) => !has(feature, saved))!.key} info={view.upgrade} />
+          <UpgradeAction feature={firstLocked.key} info={view.upgrade} />
         </div>
       )}
 
@@ -241,8 +251,8 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
           <div className="flex flex-col gap-2">
             <p>{t('plans.confirmBody')}</p>
             <ul className="list-disc ps-5">
-              {lost.map((feature) => (
-                <li key={feature.key}>{t(`plans.feature.${feature.key}`)}</li>
+              {lost.map((key) => (
+                <li key={key}>{t(`plans.feature.${key}`)}</li>
               ))}
             </ul>
           </div>

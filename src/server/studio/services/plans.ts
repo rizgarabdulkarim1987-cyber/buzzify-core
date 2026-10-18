@@ -36,14 +36,14 @@ export interface PlanTabFeature {
   /** The extra for this restaurant: on, off, or null for "as the plan". */
   extra: boolean | null;
   lowestPlan: PlanTier | null;
-  /** Every plan that includes it, for showing what another plan would change before it is saved. */
-  plans: PlanTier[];
 }
 
 /** What the Plan tab shows (`plans.forRestaurant`). */
 export interface PlanTabView {
   plan: PlanTier;
   planNames: Record<PlanTier, string>;
+  /** Every feature each plan includes, in catalog order: the resolver shows what another plan would change before a save. */
+  planFeatures: Record<PlanTier, FeatureKey[]>;
   /** The live features, in catalog order. */
   features: PlanTabFeature[];
   /** The platform owner's note: for Super Admins only, null for everyone else. */

@@ -165,7 +165,7 @@ export interface Entitlements {
 }
 
 /** A restaurant's features: its plan's, with its extras laid over them (an extra wins over the plan). */
-export function effectiveEntitlements(args: { plan: PlanTier; plans: Plans; extras: PlanExtras }): Entitlements {
+export function effectiveEntitlements(args: { plan: PlanTier; plans: Pick<Plans, 'features'>; extras: PlanExtras }): Entitlements {
   const features = new Set<FeatureKey>(args.plans.features[args.plan]);
   for (const key of FEATURE_KEYS) {
     const extra = args.extras[key];

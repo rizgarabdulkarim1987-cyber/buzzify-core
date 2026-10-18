@@ -109,6 +109,15 @@ describe('plans', () => {
     expect(dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: null, canEdit: false });
   });
 
+  it('gives the Plan tab every feature each plan holds, as the platform owner set them', async () => {
+    dataOf(await act(owner, plans.updatePlans, { plans: { BASIC: { features: { 'immersive.explore': true } }, PREMIUM: { features: { 'qr.branded': false } } }, whatsapp: '' }));
+    const tab = dataOf(await read(owner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
+    expect(tab.planFeatures.BASIC).toEqual(['immersive.explore', 'contact.whatsapp']);
+    expect(tab.planFeatures.PRO).toContain('qr.branded');
+    expect(tab.planFeatures.PREMIUM).toContain('immersive.stage');
+    expect(tab.planFeatures.PREMIUM).not.toContain('qr.branded');
+  });
+
   it('changes what a plan holds for every restaurant on it, and keeps the WhatsApp number as digits', async () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'BASIC', extras: {}, note: '' });
     const names = { en: 'Starter', ar: 'البداية', ckb: 'دەستپێک' };

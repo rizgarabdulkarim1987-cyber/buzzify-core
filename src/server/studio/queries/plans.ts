@@ -1,5 +1,15 @@
 import { z } from 'zod';
-import { allows, FEATURES, lowestPlanWith, parseExtras, PLAN_TIERS, plansToStore } from '@/server/domain/entitlements';
+import {
+  allows,
+  FEATURE_KEYS,
+  FEATURES,
+  lowestPlanWith,
+  parseExtras,
+  PLAN_TIERS,
+  plansToStore,
+  type FeatureKey,
+  type PlanTier,
+} from '@/server/domain/entitlements';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { readPlans, readUpgradeWhatsApp } from '@/server/data/plans';
@@ -24,6 +34,10 @@ export const restaurantPlan = defineQuery({
     return {
       plan: row.plan,
       planNames: upgrade.planNames,
+      planFeatures: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, FEATURE_KEYS.filter((key) => plans.features[tier].has(key))])) as Record<
+        PlanTier,
+        FeatureKey[]
+      >,
       features: FEATURES.filter((feature) => feature.status === 'live').map((feature) => ({
         key: feature.key,
         area: feature.area,
@@ -31,7 +45,6 @@ export const restaurantPlan = defineQuery({
         inPlan: plans.features[row.plan].has(feature.key),
         extra: extras[feature.key] ?? null,
         lowestPlan: lowestPlanWith(plans, feature.key),
-        plans: PLAN_TIERS.filter((tier) => plans.features[tier].has(feature.key)),
       })),
       note: ctx.actor.isSuperAdmin ? row.planNote : null,
       canEdit: ctx.permissions.has('plans.manage'),
