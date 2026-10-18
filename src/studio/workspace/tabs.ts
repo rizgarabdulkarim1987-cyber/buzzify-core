@@ -5,7 +5,7 @@ import type { Permission } from '@/server/domain/permissions';
  * needs (`view`: anyone who may open the menu), and is hidden, never disabled, otherwise (spec 10.1).
  */
 
-export type WorkspaceTabKey = 'content' | 'prices' | 'availability' | 'brand' | 'settings' | 'qr' | 'data' | 'revisions' | 'preview';
+export type WorkspaceTabKey = 'content' | 'prices' | 'availability' | 'sales' | 'brand' | 'settings' | 'qr' | 'data' | 'revisions' | 'preview';
 
 export interface WorkspaceTab {
   key: WorkspaceTabKey;
@@ -20,6 +20,8 @@ export const WORKSPACE_TABS: readonly WorkspaceTab[] = [
   { key: 'content', path: '', labelKey: 'workspace.tab.content', needs: ['content.edit'] },
   { key: 'prices', path: '/prices', labelKey: 'workspace.tab.prices', needs: ['content.prices', 'prices.bulk'] },
   { key: 'availability', path: '/availability', labelKey: 'workspace.tab.availability', needs: ['content.availability'] },
+  // The sales tools (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4).
+  { key: 'sales', path: '/sales', labelKey: 'workspace.tab.sales', needs: ['content.edit'] },
   { key: 'brand', path: '/brand', labelKey: 'workspace.tab.brand', needs: ['brand.edit'] },
   { key: 'settings', path: '/settings', labelKey: 'workspace.tab.settings', needs: ['menu.settings'] },
   { key: 'qr', path: '/qr', labelKey: 'workspace.tab.qr', needs: ['qr.manage'] },
@@ -29,7 +31,7 @@ export const WORKSPACE_TABS: readonly WorkspaceTab[] = [
 ];
 
 /** The tabs whose pages exist so far; each part of the workspace adds its own when it ships. */
-export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'prices', 'availability', 'brand', 'settings', 'qr', 'data', 'revisions', 'preview']);
+export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'prices', 'availability', 'sales', 'brand', 'settings', 'qr', 'data', 'revisions', 'preview']);
 
 /** The tabs a person sees: built, and allowed to them. */
 export function visibleTabs(permissions: ReadonlySet<Permission>, built: ReadonlySet<WorkspaceTabKey> = BUILT_TABS): WorkspaceTab[] {

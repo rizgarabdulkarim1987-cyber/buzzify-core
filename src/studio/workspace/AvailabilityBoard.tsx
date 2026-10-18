@@ -64,7 +64,7 @@ function StockField({ menuId, product, productName }: { menuId: string; product:
   const fewLeft = left !== null && left > 0 && product.lowStockThreshold !== null && left <= product.lowStockThreshold;
   return (
     <span className="flex flex-col gap-0.5">
-      <label className="flex items-center gap-2 text-sm text-text">
+      <label className="flex items-center gap-2 whitespace-nowrap text-sm text-text">
         {t('availability.stock')}
         <Input
           value={text}

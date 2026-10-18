@@ -1,9 +1,13 @@
 import { z } from 'zod';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
-import { salesRules, salesSettingsView } from '@/server/studio/services/sales';
+import { upgradeInfo, type UpgradeInfo } from '@/server/studio/services/plans';
+import { salesRules, salesSettingsView, type SalesRules, type SalesSettingsView } from '@/server/studio/services/sales';
 
-/** What the Sales tab reads (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). */
+/**
+ * What the Sales tab reads (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). Each answer carries what the
+ * restaurant's plan includes, so a page shows the way to upgrade beside a tool the plan leaves out.
+ */
 
 const atMenu = (menuId: string) => ({ kind: 'menu', menuId }) as const;
 
@@ -18,7 +22,10 @@ export const rules = defineQuery({
   permission: 'content.edit',
   input: z.object({ menuId: idField }),
   target: (i) => atMenu(i.menuId),
-  run: (ctx) => salesRules(ctx.db, menuOf(ctx)),
+  run: async (ctx): Promise<SalesRules & { upgrade: UpgradeInfo }> => {
+    const [read, upgrade] = await Promise.all([salesRules(ctx.db, menuOf(ctx)), upgradeInfo(ctx.db, ctx)]);
+    return { ...read, upgrade };
+  },
 });
 
 /** The menu's sales settings and its categories, marked when they complete a meal. */
@@ -27,5 +34,8 @@ export const settings = defineQuery({
   permission: 'content.edit',
   input: z.object({ menuId: idField }),
   target: (i) => atMenu(i.menuId),
-  run: (ctx) => salesSettingsView(ctx.db, menuOf(ctx)),
+  run: async (ctx): Promise<SalesSettingsView & { upgrade: UpgradeInfo }> => {
+    const [read, upgrade] = await Promise.all([salesSettingsView(ctx.db, menuOf(ctx)), upgradeInfo(ctx.db, ctx)]);
+    return { ...read, upgrade };
+  },
 });
