@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
-import { salesRules } from '@/server/studio/services/sales';
+import { salesRules, salesSettingsView } from '@/server/studio/services/sales';
 
 /** What the Sales tab reads (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). */
 
@@ -19,4 +19,13 @@ export const rules = defineQuery({
   input: z.object({ menuId: idField }),
   target: (i) => atMenu(i.menuId),
   run: (ctx) => salesRules(ctx.db, menuOf(ctx)),
+});
+
+/** The menu's sales settings and its categories, marked when they complete a meal. */
+export const settings = defineQuery({
+  name: 'sales.settings',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx) => salesSettingsView(ctx.db, menuOf(ctx)),
 });

@@ -1671,6 +1671,8 @@ const ar: Messages = {
   'error.text.offerTimesSame': 'اجعل وقت الانتهاء مختلفًا عن وقت البدء',
   'error.text.offerTitle': 'أدخل عنوانًا باللغة الرئيسية للقائمة',
   'error.text.offersChanged': 'تغيّرت العروض أثناء تعديلك. أعد التحميل لتراها.',
+  'error.text.oneToFive': 'استخدم من 1 إلى 5',
+  'error.text.upsellCapRange': 'استخدم من 25% إلى 200%',
   'error.text.caloriesRange': 'أدخل رقمًا من 0 إلى 20,000',
   'error.text.picturesTooMany': 'استخدم 12 صورة على الأكثر',
   'error.text.sizesTooMany': 'استخدم 20 حجمًا على الأكثر',

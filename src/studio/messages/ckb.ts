@@ -1646,6 +1646,8 @@ const ckb: Messages = {
   'error.text.offerTimesSame': 'کاتی کۆتایی جیاواز لە کاتی دەستپێک دابنێ',
   'error.text.offerTitle': 'ناونیشانێک بە زمانی سەرەکی مینیوەکە بنووسە',
   'error.text.offersChanged': 'ئۆفەرەکان گۆڕان لە کاتی دەستکاریکردنت. دووبارە باری بکەرەوە بۆ بینینیان.',
+  'error.text.oneToFive': '1 تا 5 بەکاربهێنە',
+  'error.text.upsellCapRange': '25% تا 200% بەکاربهێنە',
   'error.text.caloriesRange': 'ژمارەیەک لە 0 تا 20,000 بنووسە',
   'error.text.picturesTooMany': 'زۆرترین 12 وێنە بەکاربهێنە',
   'error.text.sizesTooMany': 'زۆرترین 20 قەبارە بەکاربهێنە',

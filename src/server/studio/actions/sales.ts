@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import * as sales from '@/server/studio/services/sales';
-import { offerFields, pairingFields, sameOfferRef, sameRef, sameSetRef, setFields, upgradeFields, versionField } from '@/server/studio/services/sales';
+import { offerFields, pairingFields, sameOfferRef, sameRef, sameSetRef, setFields, settingsFields, upgradeFields, versionField } from '@/server/studio/services/sales';
 
 /**
  * The Sales tab's changes to a menu's draft (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). All need
@@ -91,6 +91,17 @@ export const deleteOffer = defineAction({
   input: z.object({ menuId: idField, offerId: idField, version: versionField }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => sales.deleteOffer(ctx, input),
+});
+
+// Settings ------------------------------------------------------------------------------------------------------------
+
+/** The labels and limits apply only as far as the plan includes them; saving them is open to every plan. */
+export const saveSettings = defineAction({
+  name: 'sales.saveSettings',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...settingsFields }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.saveSalesSettings(ctx, input),
 });
 
 export const reorderOffers = defineAction({

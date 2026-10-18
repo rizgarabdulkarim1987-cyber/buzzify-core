@@ -38,3 +38,7 @@ export async function deleteOffer(input: unknown) {
 export async function reorderOffers(input: unknown) {
   return invoke(sales.reorderOffers, input);
 }
+
+export async function saveSalesSettings(input: unknown) {
+  return invoke(sales.saveSettings, input);
+}

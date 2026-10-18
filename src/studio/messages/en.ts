@@ -1642,6 +1642,8 @@ const en: Messages = {
   'error.text.offerTimesSame': 'End at a different time than the start',
   'error.text.offerTitle': 'Enter a title in the main language of the menu',
   'error.text.offersChanged': 'The offers changed while you were editing. Reload to see them.',
+  'error.text.oneToFive': 'Use 1 to 5',
+  'error.text.upsellCapRange': 'Use 25% to 200%',
   'error.text.caloriesRange': 'Enter a number from 0 to 20,000',
   'error.text.picturesTooMany': 'Use at most 12 pictures',
   'error.text.sizesTooMany': 'Use at most 20 sizes',

@@ -346,6 +346,60 @@ describe('offers', () => {
   });
 });
 
+describe('sales settings', () => {
+  const settings = () => runQuery(prisma(), owner, salesQueries.settings, { menuId: a.menu.id });
+  const save = async (overrides: Record<string, unknown> = {}) =>
+    run(sales.saveSettings, {
+      menuId: a.menu.id,
+      version: (await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).version,
+      priceStyle: 'plain',
+      showMostOrdered: false,
+      showLowStock: true,
+      upsellMaxOffers: 2,
+      pairingMaxOffers: 4,
+      upsellDeltaCapRatio: 1.5,
+      mealCategoryIds: [cakes],
+      ...overrides,
+    });
+
+  it('reads the defaults while nothing is saved', async () => {
+    const read = dataOf(await settings());
+    expect(read).toMatchObject({ priceStyle: 'symbol', showMostOrdered: true, showLowStock: true, upsellMaxOffers: 3, pairingMaxOffers: 3, upsellDeltaCapRatio: 0.75 });
+    expect(read.categories).toEqual([
+      { id: a.category.id, names: { en: 'Coffee' }, completesMeal: false },
+      { id: cakes, names: { en: 'Cakes' }, completesMeal: false },
+    ]);
+    expect(read.version).toBe((await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).version);
+  });
+
+  it('saves the settings into the engine settings, keeping the weights, and marks the meal categories', async () => {
+    await prisma().menu.update({ where: { id: a.menu.id }, data: { engineConfig: { weights: { margin: 0.9 } } } });
+    dataOf(await save());
+    const menu = await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } });
+    expect(menu.engineConfig).toMatchObject({
+      weights: { margin: 0.9 },
+      upsellMaxOffers: 2,
+      pairingMaxOffers: 4,
+      upsellDeltaCapRatio: 1.5,
+      sales: { priceStyle: 'plain', showMostOrdered: false, showLowStock: true },
+    });
+    expect((await prisma().category.findUniqueOrThrow({ where: { id: cakes } })).completesMeal).toBe(true);
+    expect(menu.draftHash).not.toBe(menu.liveHash);
+    expect(dataOf(await settings())).toMatchObject({ priceStyle: 'plain', showMostOrdered: false, upsellMaxOffers: 2 });
+
+    dataOf(await save({ mealCategoryIds: [a.category.id] }));
+    expect((await prisma().category.findMany({ where: { menuId: a.menu.id }, orderBy: { sortOrder: 'asc' } })).map((c) => c.completesMeal)).toEqual([true, false]);
+    expect(await auditActions()).toContain('menu.sales_settings_changed');
+  });
+
+  it('refuses a stale version, a category of another menu and limits out of range', async () => {
+    expect(failureOf(await save({ version: 999 })).code).toBe('CONFLICT');
+    expect(failureOf(await save({ mealCategoryIds: [b.category.id] })).code).toBe('NOT_FOUND');
+    expect(failureOf(await save({ upsellMaxOffers: 6 })).fields).toHaveProperty('upsellMaxOffers');
+    expect(failureOf(await save({ upsellDeltaCapRatio: 3 })).fields).toHaveProperty('upsellDeltaCapRatio');
+  });
+});
+
 describe('the rules the Sales tab reads', () => {
   it('lists the dishes, categories and both kinds of rule with their texts', async () => {
     const up = dataOf(await run(sales.saveUpgrade, upgrade()));

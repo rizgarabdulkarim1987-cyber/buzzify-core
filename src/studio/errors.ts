@@ -169,6 +169,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'End at a different time than the start': 'error.text.offerTimesSame',
   'Enter a title in the main language of the menu': 'error.text.offerTitle',
   'The offers changed while you were editing. Reload to see them.': 'error.text.offersChanged',
+  'Use 1 to 5': 'error.text.oneToFive',
+  'Use 25% to 200%': 'error.text.upsellCapRange',
   'Use at most the number of options': 'error.text.aboveOptions',
   'Use at least the minimum': 'error.text.belowMinimum',
   'A bundle uses this size. Remove it from the bundle first.': 'error.text.sizeInBundle',

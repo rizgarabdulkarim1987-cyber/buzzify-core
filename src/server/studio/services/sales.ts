@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { ScopedTx } from '@/server/data/tenant-db';
+import { resolveEngineConfig, salesSettings, type SalesSettings } from '@/server/domain/config';
 import { DAYPARTS, PROMOTION_KINDS, type Daypart, type PromotionKind } from '@/server/domain/types';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
@@ -122,6 +123,18 @@ export const offerFields = {
 export type OfferSave = z.infer<z.ZodObject<typeof offerFields>>;
 export const sameOfferRef = (row: { offerId?: string | undefined; version?: number | undefined }) =>
   (row.offerId === undefined) === (row.version === undefined);
+
+export const settingsFields = {
+  version: versionField,
+  priceStyle: z.enum(['symbol', 'plain']),
+  showMostOrdered: z.boolean(),
+  showLowStock: z.boolean(),
+  upsellMaxOffers: z.number().int().min(1, 'Use 1 to 5').max(5, 'Use 1 to 5'),
+  pairingMaxOffers: z.number().int().min(1, 'Use 1 to 5').max(5, 'Use 1 to 5'),
+  upsellDeltaCapRatio: z.number().min(0.25, 'Use 25% to 200%').max(2, 'Use 25% to 200%'),
+  mealCategoryIds: z.array(idField).max(100),
+};
+export type SettingsSave = z.infer<z.ZodObject<typeof settingsFields>>;
 
 // Shared --------------------------------------------------------------------------------------------------------------
 
@@ -468,6 +481,73 @@ export function reorderOffers(ctx: ActionContext, input: { order: string[] }): P
     }
     return { reordered: true };
   });
+}
+
+// Settings ------------------------------------------------------------------------------------------------------------
+
+/**
+ * Saves the menu's sales settings at the version the person read: the labels guests see and how many suggestions they
+ * get go into the engine settings (keeping what this does not set, such as the weights); the categories that complete
+ * a meal are marked on the categories, which moves none of their versions.
+ */
+export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Promise<{ version: number }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const menu = await tx.menu.findFirstOrThrow({ where: { id: menuId }, select: { engineConfig: true } });
+    const categoryIds = [...new Set(input.mealCategoryIds)];
+    if ((await tx.category.count({ where: { id: { in: categoryIds } } })) !== categoryIds.length) throw new StudioError('NOT_FOUND');
+
+    const stored = (menu.engineConfig && typeof menu.engineConfig === 'object' && !Array.isArray(menu.engineConfig) ? menu.engineConfig : {}) as Record<string, unknown>;
+    const before = resolveEngineConfig(stored);
+    const sales: SalesSettings = { priceStyle: input.priceStyle, showMostOrdered: input.showMostOrdered, showLowStock: input.showLowStock };
+    const engineConfig = {
+      ...stored,
+      upsellMaxOffers: input.upsellMaxOffers,
+      pairingMaxOffers: input.pairingMaxOffers,
+      upsellDeltaCapRatio: input.upsellDeltaCapRatio,
+      sales: { ...sales },
+    };
+    await updateWithVersion(tx.menu, { id: menuId, version: input.version, data: { engineConfig }, entityType: 'Menu' }, tx);
+
+    const mealBefore = (await tx.category.findMany({ where: { completesMeal: true }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id);
+    await tx.category.updateMany({ where: { id: { notIn: categoryIds } }, data: { completesMeal: false } });
+    if (categoryIds.length > 0) await tx.category.updateMany({ where: { id: { in: categoryIds } }, data: { completesMeal: true } });
+
+    ctx.audit({
+      action: 'menu.sales_settings_changed',
+      entityType: 'Menu',
+      entityId: menuId,
+      changes: changed({
+        sales: [salesSettings(before), sales],
+        upsellMaxOffers: [before.upsellMaxOffers, input.upsellMaxOffers],
+        pairingMaxOffers: [before.pairingMaxOffers, input.pairingMaxOffers],
+        upsellDeltaCapRatio: [before.upsellDeltaCapRatio, input.upsellDeltaCapRatio],
+        mealCategories: [mealBefore, [...categoryIds].sort()],
+      }),
+    });
+    return { version: input.version + 1 };
+  });
+}
+
+export interface SalesSettingsView extends SalesSettings {
+  version: number;
+  upsellMaxOffers: number;
+  pairingMaxOffers: number;
+  upsellDeltaCapRatio: number;
+  categories: Array<{ id: string; names: Names; completesMeal: boolean }>;
+}
+
+export async function salesSettingsView(db: QueryContext['db'], menuId: string): Promise<SalesSettingsView> {
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true } });
+  const categories = await db.category.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, translations: true, completesMeal: true } });
+  const config = resolveEngineConfig(menu.engineConfig);
+  return {
+    ...salesSettings(config),
+    version: menu.version,
+    upsellMaxOffers: config.upsellMaxOffers,
+    pairingMaxOffers: config.pairingMaxOffers,
+    upsellDeltaCapRatio: config.upsellDeltaCapRatio,
+    categories: categories.map((category) => ({ id: category.id, names: textsOf(category.translations, 'name'), completesMeal: category.completesMeal })),
+  };
 }
 
 // What the Sales tab reads ----------------------------------------------------------------------------------------------
