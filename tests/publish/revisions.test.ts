@@ -305,3 +305,30 @@ describe('the revision list', () => {
   });
 });
 
+
+describe('restoring the sales tools', () => {
+  it('brings back a promotion and a rule with their own ids and moves their versions on', async () => {
+    const promotion = await prisma().promotion.create({
+      data: { menuId: a.menu.id, kind: 'DISCOUNT', percentOff: 15, productIds: [a.product.id], translations: { en: { title: 'Happy hour' } } },
+    });
+    const other = await prisma().product.create({ data: { menuId: a.menu.id, categoryId: a.category.id, slug: 'latte', basePrice: 450, translations: { en: { name: 'Latte' } } } });
+    const rule = await prisma().upsellRule.create({ data: { menuId: a.menu.id, sourceProductId: a.product.id, targetProductId: other.id, translations: {} } });
+    await refreshDraftHash(prisma(), a.menu.id);
+    const snapshot = await loadDraftSnapshot(prisma(), a.menu.id);
+
+    await prisma().promotion.update({ where: { id: promotion.id }, data: { percentOff: 30, version: 4 } });
+    await prisma().$transaction((tx) => restoreDraftFromSnapshot(tx, a.menu.id, snapshot));
+
+    expect(await prisma().promotion.findUniqueOrThrow({ where: { id: promotion.id } })).toMatchObject({ percentOff: 15, version: 5 });
+    expect(await prisma().upsellRule.findUniqueOrThrow({ where: { id: rule.id } })).toMatchObject({ version: 2 });
+    expect(snapshotHash(await loadDraftSnapshot(prisma(), a.menu.id))).toBe(snapshotHash(snapshot));
+  });
+
+  it('keeps an old menu up to date: a publish before the sales tools still matches its draft', async () => {
+    // r1 was published by the fixture before any sales field existed in its rows.
+    await refreshDraftHash(prisma(), a.menu.id);
+    const menu = await menuRow();
+    expect(menu.draftHash).toBe(menu.liveHash);
+    expect(r1.snapshot).not.toHaveProperty('catalog.promotions');
+  });
+});

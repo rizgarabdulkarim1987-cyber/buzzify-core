@@ -9,6 +9,8 @@ import {
   type LiveOverlay,
   type MenuSnapshot,
 } from '@/server/domain/snapshot';
+import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
+import type { CatalogPromotion } from '@/server/domain/types';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
 const menu = makeMenu();
@@ -183,7 +185,7 @@ describe('toCatalog', () => {
   it('carries the menu settings and the catalog structure over', () => {
     const c = toCatalog('m1', snapshot, NO_OVERLAY);
     expect(c).toMatchObject({ currency: 'USD', timeZone: 'Asia/Baghdad', defaultLocale: 'en' });
-    expect(c.categories).toEqual(snapshot.catalog.categories);
+    expect(c.categories).toEqual(catalog.categories);
     expect(c.schedule).toEqual(snapshot.catalog.schedule);
     expect(c.pairingRules).toEqual(snapshot.catalog.pairingRules);
     expect(c.products.find((p) => p.id === IDS.burger)).toMatchObject({
@@ -332,5 +334,83 @@ describe('2b additions', () => {
     expect(snapshotAssetIds(rich())).toEqual(['asset-logo', 'asset-photo', 'asset-seo']);
     expect(snapshotAssetIds(snapshot)).toEqual([]);
     expect(snapshotAssetIds(parseSnapshot(fixture.snapshot))).toEqual([]);
+  });
+});
+
+describe('sales additions', () => {
+  const offer: CatalogPromotion = {
+    id: 'promo-hh',
+    kind: 'DISCOUNT',
+    percentOff: 20,
+    productIds: [IDS.burger, IDS.fries],
+    categoryIds: ['cat-coffee'],
+    startsOn: '2026-10-01',
+    endsOn: null,
+    startMinute: 1020,
+    endMinute: 1140,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: { en: { title: 'Happy hour', text: 'Twenty percent off' } },
+    sortOrder: 0,
+  };
+  const sales = { priceStyle: 'plain', showMostOrdered: false, showLowStock: true } as const;
+  const rich = () =>
+    buildSnapshot({
+      menu: makeMenu({ engineConfig: { ...DEFAULT_ENGINE_CONFIG, sales } }),
+      brand,
+      catalog: {
+        ...withProduct(catalog, IDS.burger, { serves: 2 }),
+        categories: catalog.categories.map((c) => (c.id === 'cat-cold' ? { ...c, completesMeal: true } : c)),
+        promotions: [offer],
+      },
+    });
+
+  it('leaves unused sales fields out of the snapshot', () => {
+    const json = JSON.parse(JSON.stringify(buildSnapshot({ menu, brand, catalog })));
+    expect('promotions' in json.catalog).toBe(false);
+    expect(json.catalog.products.filter((p: object) => 'serves' in p)).toEqual([]);
+    expect(json.catalog.categories.filter((c: object) => 'completesMeal' in c)).toEqual([]);
+    expect('sales' in json.menu.engineConfig).toBe(false);
+  });
+
+  it('round-trips offers, serves, meal categories and sales settings through JSON', () => {
+    const s = rich();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+    expect(parsed.catalog.promotions).toEqual([offer]);
+    expect(parsed.menu.engineConfig.sales).toEqual(sales);
+  });
+
+  it('changes the hash when a dish serves two', () => {
+    const serving = buildSnapshot({ menu, brand, catalog: withProduct(catalog, IDS.burger, { serves: 2 }) });
+    expect(snapshotHash(serving)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it('gives a catalog published without them the defaults', () => {
+    const c = toCatalog('m-test', snapshot, NO_OVERLAY);
+    expect(c.promotions).toEqual([]);
+    expect(c.products.every((p) => p.serves === null)).toBe(true);
+    expect(c.categories.every((category) => category.completesMeal === false)).toBe(true);
+  });
+
+  it('carries offers, serves and meal categories into the catalog', () => {
+    const c = toCatalog('m-test', rich(), NO_OVERLAY);
+    expect(c.promotions).toEqual([offer]);
+    expect(c.products.find((p) => p.id === IDS.burger)?.serves).toBe(2);
+    expect(c.categories.find((category) => category.id === 'cat-cold')?.completesMeal).toBe(true);
+  });
+
+  it('takes a hidden dish out of every offer and drops an offer left with nothing', () => {
+    const lone: CatalogPromotion = { ...offer, id: 'promo-lone', productIds: [IDS.burger], categoryIds: [] };
+    const s = buildSnapshot({ menu, brand, catalog: { ...catalog, promotions: [offer, lone] } });
+    const c = toCatalog('m-test', s, { products: { [IDS.burger]: { isAvailable: true, isHidden: true, stockCount: null } }, options: {} });
+    expect(c.promotions).toEqual([{ ...offer, productIds: [IDS.fries] }]);
+  });
+
+  it('refuses an offer of an unknown kind', () => {
+    const s = JSON.parse(JSON.stringify(rich()));
+    s.catalog.promotions[0].kind = 'FREEBIE';
+    expect(() => parseSnapshot(s)).toThrow();
   });
 });

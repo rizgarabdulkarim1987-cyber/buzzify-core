@@ -288,3 +288,55 @@ describe('the brand kit written back from a snapshot', () => {
     });
   });
 });
+
+describe('sales fields in a written draft', () => {
+  it("copies an offer onto the copy's own dishes and categories, and drops ids that did not come across", async () => {
+    await resetTestData(prisma);
+    const seeded = await seedAtelier(prisma);
+    const source = await loadDraftSnapshot(prisma, seeded.menuId);
+    const [first, second] = source.catalog.products;
+    const category = source.catalog.categories[0]!;
+    source.catalog.promotions = [
+      {
+        id: 'promo-src',
+        kind: 'SPECIAL',
+        percentOff: null,
+        productIds: [first!.id, 'gone-product'],
+        categoryIds: [category.id],
+        startsOn: '2026-10-01',
+        endsOn: '2026-10-31',
+        startMinute: null,
+        endMinute: null,
+        daysOfWeek: 62,
+        roundTo: 5,
+        translations: { en: { title: 'Chef special' } },
+        sortOrder: 0,
+      },
+      { id: 'promo-empty', kind: 'SPECIAL', percentOff: null, productIds: ['gone'], categoryIds: [], startsOn: null, endsOn: null, startMinute: null, endMinute: null, daysOfWeek: 127, roundTo: 5, translations: {}, sortOrder: 1 },
+    ];
+    source.catalog.products = source.catalog.products.map((p) => (p.id === second!.id ? { ...p, serves: 3 } : p));
+    source.catalog.categories = source.catalog.categories.map((c) => (c.id === category.id ? { ...c, completesMeal: true } : c));
+
+    const target = await prisma.menu.create({
+      data: { restaurantId: seeded.restaurant.id, name: 'Sales copy', slug: 'sales-copy', currency: 'USD', defaultLocale: 'en', locales: ['en'], timezone: 'Asia/Baghdad' },
+    });
+    await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, target.id, source));
+
+    const copy = await loadDraftSnapshot(prisma, target.id);
+    const copiedFirst = copy.catalog.products.find((p) => p.slug === first!.slug)!;
+    const copiedCategory = copy.catalog.categories.find((c) => c.slug === category.slug)!;
+    expect(copy.catalog.promotions).toHaveLength(1);
+    expect(copy.catalog.promotions?.[0]).toMatchObject({
+      kind: 'SPECIAL',
+      productIds: [copiedFirst.id],
+      categoryIds: [copiedCategory.id],
+      startsOn: '2026-10-01',
+      endsOn: '2026-10-31',
+      daysOfWeek: 62,
+      translations: { en: { title: 'Chef special' } },
+    });
+    expect(copy.catalog.promotions?.[0]?.id).not.toBe('promo-src');
+    expect(copy.catalog.products.find((p) => p.slug === second!.slug)?.serves).toBe(3);
+    expect(copiedCategory.completesMeal).toBe(true);
+  });
+});

@@ -1,4 +1,5 @@
 import { isLocale, type Locale } from '@/lib/locale';
+import { menuPriceStep } from '@/server/domain/bulk-prices';
 import { toVisualKey } from '@/server/domain/types';
 import type {
   Catalog,
@@ -54,7 +55,9 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
     include: { items: { orderBy: { id: 'asc' } } },
     orderBy: { slug: 'asc' },
   });
+  const promotions = await db.promotion.findMany({ where: { menuId, isActive: true }, orderBy: bySortOrder });
   const schedule = await db.daypartSchedule.findMany({ where: { menuId }, orderBy: { startMinute: 'asc' } });
+  const roundTo = menuPriceStep(menu);
 
   return {
     menuId,
@@ -66,6 +69,7 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       slug: c.slug,
       sortOrder: c.sortOrder,
       translations: translationMap(c.translations),
+      completesMeal: c.completesMeal,
     })),
     products: products.map<CatalogProduct>((p) => ({
       id: p.id,
@@ -89,6 +93,7 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       allergens: p.allergens,
       dietary: p.dietary,
       calories: p.calories,
+      serves: p.serves,
       badges: p.badges,
       ingredients: ingredientMap(p.ingredients),
       sortOrder: p.sortOrder,
@@ -144,6 +149,21 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       dayparts: b.dayparts as Daypart[],
       translations: translationMap(b.translations),
       items: b.items.map((i) => ({ productId: i.productId, variantId: i.variantId, quantity: i.quantity })),
+    })),
+    promotions: promotions.map((p) => ({
+      id: p.id,
+      kind: p.kind,
+      percentOff: p.percentOff,
+      productIds: p.productIds,
+      categoryIds: p.categoryIds,
+      startsOn: p.startsOn,
+      endsOn: p.endsOn,
+      startMinute: p.startMinute,
+      endMinute: p.endMinute,
+      daysOfWeek: p.daysOfWeek,
+      roundTo,
+      translations: translationMap(p.translations),
+      sortOrder: p.sortOrder,
     })),
     schedule: schedule.map((s) => ({
       daypart: s.daypart as Daypart,

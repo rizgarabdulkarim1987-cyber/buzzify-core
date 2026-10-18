@@ -74,6 +74,8 @@ export interface CatalogProduct {
   allergens: string[];
   dietary: string[];
   calories: number | null;
+  /** How many people the dish is for, from 2; null for one. */
+  serves: number | null;
   /** NEW, POPULAR or RECOMMENDED. */
   badges: string[];
   ingredients: Partial<Record<Locale, string[]>>;
@@ -85,6 +87,8 @@ export interface CatalogCategory {
   slug: string;
   sortOrder: number;
   translations: TranslationMap; // name
+  /** The cart suggests one of its dishes when the order has none ("complete your meal"). */
+  completesMeal: boolean;
 }
 
 export interface UpsellRule {
@@ -122,6 +126,34 @@ export interface Bundle {
   items: BundleItem[];
 }
 
+export const PROMOTION_KINDS = ['SPECIAL', 'DISCOUNT'] as const;
+export type PromotionKind = (typeof PROMOTION_KINDS)[number];
+
+/**
+ * A timed offer (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1): a highlight (SPECIAL) or a percentage
+ * off (DISCOUNT) for the dishes and categories it names, while it is live.
+ */
+export interface CatalogPromotion {
+  id: string;
+  kind: PromotionKind;
+  /** DISCOUNT only: 5 to 90. */
+  percentOff: number | null;
+  productIds: string[];
+  categoryIds: string[];
+  /** Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive; null is open-ended. */
+  startsOn: string | null;
+  endsOn: string | null;
+  /** A daily window in minutes after local midnight, or both null for all day; it wraps past midnight when end <= start. */
+  startMinute: number | null;
+  endMinute: number | null;
+  /** Bit 0 is Sunday. */
+  daysOfWeek: number;
+  /** The menu's price step, frozen at publish: a discounted price rounds to it. */
+  roundTo: number;
+  translations: TranslationMap; // title, text
+  sortOrder: number;
+}
+
 export interface DaypartWindow {
   daypart: Daypart;
   startMinute: number;
@@ -139,6 +171,7 @@ export interface Catalog {
   upsellRules: UpsellRule[];
   pairingRules: PairingRule[];
   bundles: Bundle[];
+  promotions: CatalogPromotion[];
   schedule: DaypartWindow[];
 }
 

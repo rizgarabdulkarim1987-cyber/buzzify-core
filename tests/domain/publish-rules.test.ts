@@ -96,7 +96,7 @@ describe('validateForPublish', () => {
       const catalog = pictured();
       const withEmpty = {
         ...catalog,
-        categories: [...catalog.categories, { id: 'cat-empty', slug: 'empty', sortOrder: 9, translations: { en: { name: 'Empty' } } }],
+        categories: [...catalog.categories, { id: 'cat-empty', slug: 'empty', sortOrder: 9, translations: { en: { name: 'Empty' } }, completesMeal: false }],
       };
       expect(issues(makeSnapshot(withEmpty))).toContainEqual({
         code: 'EMPTY_CATEGORY',
@@ -349,6 +349,7 @@ function atelierCatalog(data: SeedData): Catalog {
       allergens: p.allergens,
       dietary: [],
       calories: null,
+      serves: null,
       badges: [],
       ingredients: p.ingredients,
       sortOrder: index,
@@ -394,6 +395,7 @@ function atelierCatalog(data: SeedData): Catalog {
       slug: c.slug,
       sortOrder: index,
       translations: translations({ name: c.name }),
+      completesMeal: false,
     })),
     products,
     upsellRules: data.upsellRules.map((r, index) => ({
@@ -422,6 +424,7 @@ function atelierCatalog(data: SeedData): Catalog {
       translations: translations({ name: b.name, description: b.description }),
       items: b.items.map((i) => ({ productId: productId(i.product), variantId: null, quantity: i.quantity })),
     })),
+    promotions: [],
     schedule: data.schedule,
   };
 }

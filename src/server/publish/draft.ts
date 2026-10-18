@@ -8,6 +8,7 @@ import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import type { CatalogPromotion } from '@/server/domain/types';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
 import { getStorage } from '@/server/storage/storage';
@@ -269,6 +270,7 @@ export async function writeDraftFromSnapshot(
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
   await tx.pairingRule.deleteMany({ where });
+  await tx.promotion.deleteMany({ where });
   await tx.modifierOption.deleteMany({ where });
   await tx.modifierGroup.deleteMany({ where });
   await tx.productVariant.deleteMany({ where });
@@ -292,6 +294,7 @@ export async function writeDraftFromSnapshot(
             menuId,
             slug: c.slug,
             sortOrder: c.sortOrder,
+            completesMeal: c.completesMeal ?? false,
             translations: json(c.translations),
           })),
           select: { id: true, slug: true },
@@ -319,6 +322,7 @@ export async function writeDraftFromSnapshot(
             allergens: p.allergens,
             dietary: p.dietary,
             calories: p.calories,
+            serves: p.serves ?? null,
             badges: p.badges,
             ingredients: json(p.ingredients),
             // Library photos go back to the assets they came from (copies of them, for another restaurant).
@@ -465,6 +469,21 @@ export async function writeDraftFromSnapshot(
     });
   }
 
+  // An offer keeps the dishes and categories that came across; one left naming nothing is not written.
+  const promotions = (catalog.promotions ?? []).flatMap((p) => {
+    const productIdsHere = p.productIds.flatMap((id) => {
+      const mapped = productIds.get(id);
+      return mapped === undefined ? [] : [mapped];
+    });
+    const categoryIdsHere = p.categoryIds.flatMap((id) => {
+      const mapped = categoryIds.get(id);
+      return mapped === undefined ? [] : [mapped];
+    });
+    if (productIdsHere.length + categoryIdsHere.length === 0) return [];
+    return [{ ...promotionRow(p), menuId, productIds: productIdsHere, categoryIds: categoryIdsHere }];
+  });
+  if (promotions.length > 0) await tx.promotion.createMany({ data: promotions });
+
   if (catalog.schedule.length > 0) {
     await tx.daypartSchedule.createMany({
       data: catalog.schedule.map((window) => ({
@@ -478,6 +497,21 @@ export async function writeDraftFromSnapshot(
   }
 
   await refreshDraftHash(tx, menuId);
+}
+
+/** A promotion's own columns, as a snapshot holds them (its menu and ids are the caller's). */
+function promotionRow(p: CatalogPromotion) {
+  return {
+    kind: p.kind,
+    percentOff: p.percentOff,
+    startsOn: p.startsOn,
+    endsOn: p.endsOn,
+    startMinute: p.startMinute,
+    endMinute: p.endMinute,
+    daysOfWeek: p.daysOfWeek,
+    translations: json(p.translations),
+    sortOrder: p.sortOrder,
+  };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -507,8 +541,14 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   const categories = await tx.category.findMany({ where, select: { id: true, version: true } });
   const variantRows = await tx.productVariant.findMany({ where, select: { id: true, version: true } });
   const groupRows = await tx.modifierGroup.findMany({ where, select: { id: true, version: true } });
+  const upsellRows = await tx.upsellRule.findMany({ where, select: { id: true, version: true } });
+  const pairingRows = await tx.pairingRule.findMany({ where, select: { id: true, version: true } });
+  const bundleRows = await tx.bundle.findMany({ where, select: { id: true, version: true } });
+  const promotionRows = await tx.promotion.findMany({ where, select: { id: true, version: true } });
   const versions = new Map<string, number>(
-    [...products, ...options, ...categories, ...variantRows, ...groupRows].map((row) => [row.id, row.version] as const),
+    [...products, ...options, ...categories, ...variantRows, ...groupRows, ...upsellRows, ...pairingRows, ...bundleRows, ...promotionRows].map(
+      (row) => [row.id, row.version] as const,
+    ),
   );
   const productLive = new Map(products.map((row) => [row.id, row]));
   const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
@@ -518,6 +558,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
   await tx.pairingRule.deleteMany({ where });
+  await tx.promotion.deleteMany({ where });
   await tx.modifierOption.deleteMany({ where });
   await tx.modifierGroup.deleteMany({ where });
   await tx.productVariant.deleteMany({ where });
@@ -532,6 +573,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         menuId,
         slug: c.slug,
         sortOrder: c.sortOrder,
+        completesMeal: c.completesMeal ?? false,
         translations: json(c.translations),
         version: nextVersion(versions, c.id),
       })),
@@ -559,6 +601,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
           allergens: p.allergens,
           dietary: p.dietary,
           calories: p.calories,
+          serves: p.serves ?? null,
           badges: p.badges,
           ingredients: json(p.ingredients),
           media: json(draftMediaFromSnapshot(p.media)),
@@ -632,6 +675,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         priority: r.priority,
         dayparts: r.dayparts,
         translations: json(r.translations),
+        version: nextVersion(versions, r.id),
       })),
     });
   }
@@ -647,15 +691,36 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         weight: r.weight,
         dayparts: r.dayparts,
         translations: json(r.translations),
+        version: nextVersion(versions, r.id),
       })),
     });
   }
   if (catalog.bundles.length > 0) {
     await tx.bundle.createMany({
-      data: catalog.bundles.map((b) => ({ id: b.id, menuId, slug: b.slug, price: b.price, dayparts: b.dayparts, translations: json(b.translations) })),
+      data: catalog.bundles.map((b) => ({
+        id: b.id,
+        menuId,
+        slug: b.slug,
+        price: b.price,
+        dayparts: b.dayparts,
+        translations: json(b.translations),
+        version: nextVersion(versions, b.id),
+      })),
     });
     await tx.bundleItem.createMany({
       data: catalog.bundles.flatMap((b) => b.items.map((item) => ({ menuId, bundleId: b.id, ...item }))),
+    });
+  }
+  if (catalog.promotions && catalog.promotions.length > 0) {
+    await tx.promotion.createMany({
+      data: catalog.promotions.map((p) => ({
+        ...promotionRow(p),
+        id: p.id,
+        menuId,
+        productIds: p.productIds,
+        categoryIds: p.categoryIds,
+        version: nextVersion(versions, p.id),
+      })),
     });
   }
   if (catalog.schedule.length > 0) {
