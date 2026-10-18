@@ -8,6 +8,7 @@ export * from './offers';
 export * from './pricing';
 export * from './upsell';
 export * from './pairing';
+export * from './meal';
 export * from './promotion';
 export * from './bundles';
 export * from './suggestions';

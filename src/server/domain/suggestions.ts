@@ -1,6 +1,7 @@
 import { detectBundleOpportunities, type BundleOpportunity } from './bundles';
 import { daypartNow } from './catalog';
 import type { EngineConfig } from './config';
+import { suggestMealCompletions, type MealOffer } from './meal';
 import { suggestPairings, type PairingOffer } from './pairing';
 import { pickSignature } from './promotion';
 import { suggestUpsells, type UpsellOffer } from './upsell';
@@ -26,6 +27,8 @@ export interface SuggestionsResponse {
   upgrades: UpsellOffer[];
   pairings: PairingOffer[];
   bundles: BundleOpportunity[];
+  /** "Complete your meal", in the cart only. */
+  meal: MealOffer[];
 }
 
 export function buildSuggestions(
@@ -40,6 +43,7 @@ export function buildSuggestions(
     upgrades: [],
     pairings: [],
     bundles: [],
+    meal: [],
   };
 
   if (request.context === 'menu') {
@@ -89,5 +93,13 @@ export function buildSuggestions(
     maxOffers: config.cartPairingMaxOffers,
   });
   response.bundles = detectBundleOpportunities(catalog, request.cart, now);
+  response.meal = suggestMealCompletions(
+    catalog,
+    request.cart,
+    request.dismissedIds,
+    now,
+    config,
+    response.pairings.map((offer) => offer.productId),
+  );
   return response;
 }
