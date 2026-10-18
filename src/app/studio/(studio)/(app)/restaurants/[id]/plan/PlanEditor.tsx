@@ -113,26 +113,32 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
       </div>
 
       {view.canEdit && (
-        <fieldset className="flex flex-col gap-2">
+        // Native radios under one legend: one tab stop, the arrow keys move between the plans, and the group is named once.
+        <fieldset disabled={saving} className="flex flex-col gap-2">
           <legend className="mb-2 text-sm font-medium text-text">{t('plans.choose')}</legend>
-          <div role="radiogroup" aria-label={t('plans.choose')} className="inline-flex w-fit rounded-md border border-line-strong bg-raised p-0.5">
+          <div className="inline-flex w-fit rounded-md border border-line-strong bg-raised p-0.5">
             {PLAN_TIERS.map((tier) => {
               const chosen = draft.plan === tier;
               return (
-                <button
+                <label
                   key={tier}
-                  type="button"
-                  role="radio"
-                  aria-checked={chosen}
-                  disabled={saving}
-                  onClick={() => change({ plan: tier })}
                   className={cx(
-                    'h-8 min-w-24 rounded-[5px] px-3 text-sm font-medium transition-colors duration-150',
+                    'relative flex h-8 min-w-24 items-center justify-center rounded-[5px] px-3 text-sm font-medium transition-colors duration-150',
+                    'has-focus-visible:outline-2 has-focus-visible:outline-offset-2 has-focus-visible:outline-accent',
                     chosen ? 'bg-ink text-on-ink' : 'text-text hover:bg-hover',
                   )}
                 >
+                  {/* The radio itself covers its segment, unseen, so a click anywhere on the segment lands on it. */}
+                  <input
+                    type="radio"
+                    name="plan"
+                    value={tier}
+                    checked={chosen}
+                    onChange={() => change({ plan: tier })}
+                    className="absolute inset-0 cursor-pointer appearance-none rounded-[5px] opacity-0 disabled:cursor-not-allowed"
+                  />
                   {view.planNames[tier]}
-                </button>
+                </label>
               );
             })}
           </div>

@@ -20,7 +20,7 @@ async function signedIn(browser: Browser): Promise<Page> {
 
 async function choosePlan(page: Page, restaurantId: string, plan: string) {
   await page.goto(`/studio/restaurants/${restaurantId}/plan`);
-  await page.getByRole('radiogroup', { name: en('plans.choose') }).getByRole('radio', { name: plan }).click();
+  await page.getByRole('group', { name: en('plans.choose') }).getByRole('radio', { name: plan }).check();
   await page.getByRole('button', { name: en('plans.save') }).click();
 }
 
@@ -74,5 +74,16 @@ test.describe('plans @desktop', () => {
     await expect(page.getByText(en('plans.saved'))).toBeVisible();
     await guest.goto(`/${menu.slug}/en`);
     await expect(explore).toBeVisible();
+  });
+
+  test('the plan picker is one group of radios that the arrow keys move through', async ({ browser }) => {
+    const page = await signedIn(browser);
+    await page.goto(`/studio/restaurants/${menu.restaurantId}/plan`);
+    const group = page.getByRole('group', { name: en('plans.choose') });
+    await expect(group.getByRole('radio', { name: 'Premium' })).toBeChecked();
+    await group.getByRole('radio', { name: 'Premium' }).focus();
+    await page.keyboard.press('ArrowLeft');
+    await expect(group.getByRole('radio', { name: 'Pro' })).toBeChecked();
+    await expect(group.getByRole('radio', { name: 'Pro' })).toBeFocused();
   });
 });
