@@ -12,11 +12,15 @@ Buzzify sells digital menus to restaurants and wants to sell them in tiers: a ch
 dearer plans that unlock the features that make Buzzify stand out (the user's words: "templates to be selected,
 backgrounds to be uploaded, motion graphic, 3D model, style, control on everything ... make these as privileges").
 
+**Plans sell quality, never quantity.** The user, on seeing a draft that limited menus and media by plan: "the plans
+should only be for getting finer menus, not buying plans to get more menus". So a plan never limits how many menus,
+products, languages or files a restaurant has; it only decides which features its menus get.
+
 This project builds the machinery for that, and gates the features that exist today:
 
 - three **plans** (Basic, Pro, Premium) whose contents the platform owner can change from the Studio;
 - a restaurant's **plan**, set by the platform owner, with optional **extras** for that one restaurant (a feature
-  switched on or off, a limit raised or lowered);
+  switched on or off beyond its plan);
 - one **platform owner**: the user, the only person who sells. No one else (no other Super Admin, designer or staff
   member) can change a plan or a restaurant's plan (section 2.1);
 - one **entitlement check** that every current and future feature asks: "may this restaurant use feature X?";
@@ -52,7 +56,7 @@ The user's words: "I want to sell by myself, I don't want anyone else on my beha
 change plans (no employee, designer or other admin), and the upgrade button reaches their own WhatsApp.
 
 - Exactly one account is the **platform owner**. It is a Super Admin (with two-factor, as every Super Admin).
-- Only the platform owner may: set a restaurant's plan, extras and note; edit the plans (names, features, limits); set
+- Only the platform owner may: set a restaurant's plan, extras and note; edit the plans (names, features); set
   the WhatsApp number the upgrade button opens. Every other Super Admin sees all of it, read-only.
 - Who it is: the migration makes the **first Super Admin ever created** the platform owner. On the live site that is
   the account the user made in step 7 of `docs/deploy/production.md`. On a new database, `npm run studio:create-admin`
@@ -68,7 +72,7 @@ change plans (no employee, designer or other admin), and the upgrade button reac
 Goals:
 
 - One resolver for entitlements, pure and tested, used by the Studio framework, the guest menu and every later project.
-- Plans whose names, features and limits the platform owner edits in the Studio without a developer.
+- Plans whose names and features the platform owner edits in the Studio without a developer.
 - Per-restaurant extras, so a deal ("Basic, plus the 3D dishes") needs no new plan.
 - Locked features visible in the Studio with a clear upgrade hint in English, Arabic and Sorani.
 - Downgrades that lose nothing: stored choices stay, guests see a fallback at once, and upgrading again restores them.
@@ -80,6 +84,7 @@ Non-goals (this project):
   field on the Plan tab records it.
 - Changing who may do what. Permissions, roles and policies stay as they are.
 - Adding or removing plans. There are always three; their names and contents are editable.
+- Limits of any kind by plan: menus, products, languages, media storage. Plans hold feature switches only.
 - Building any feature of Projects 2 to 6. Only their keys are reserved.
 
 Anti-goals (a failure even if everything else works):
@@ -109,16 +114,10 @@ A switch is on (✓) or off (–) in each plan. Each row says what guests and th
 Explore draws its own 3D scene, which belongs to `immersive.explore`: a restaurant given Explore without the stage (an
 extra can do that) gets the whole of Explore.
 
-Limits are numbers; "no limit" is a value too.
-
-| Key | What it limits | Basic | Pro | Premium |
-|---|---|---|---|---|
-| `limits.menus` | menus a restaurant can have (any status) | 1 | 3 | no limit |
-| `limits.storageMb` | the restaurant's media library | 500 MB | 2 GB | 10 GB |
-
-Every plan keeps: unlimited products and categories, all three languages, the brand colours and logo, QR codes and
-table codes, spreadsheet import and export, bulk prices, availability, revisions and rollback, the Studio preview, and
-the signature dish (drawn in 2D without `immersive.stage`). Section 13 says why these stay open.
+Every plan keeps, with no limit set by the plan, as many menus, products, categories and media files as the restaurant
+needs (the user's decision, section 1). Every plan also keeps all three languages, the brand colours and logo, QR codes
+and table codes, spreadsheet import and export, bulk prices, availability, revisions and rollback, the Studio preview,
+and the signature dish (drawn in 2D without `immersive.stage`). Section 13 says why these stay open.
 
 ### 4.2 Keys reserved for later projects
 
@@ -159,32 +158,31 @@ change.
 
 - `enum PlanTier { BASIC PRO PREMIUM }`.
 - `Restaurant.plan PlanTier @default(BASIC)`.
-- `Restaurant.planExtras Json @default("{}")`: `{ features?: { [key]: boolean }, limits?: { [key]: number | null } }`,
-  the changes from the plan for this one restaurant. A key absent means "as the plan says".
+- `Restaurant.planExtras Json @default("{}")`: `{ features?: { [key]: boolean } }`, the switches this one restaurant
+  has on or off beyond its plan. A key absent means "as the plan says".
 - `Restaurant.planNote String @default("")`: the platform owner's note (what was agreed, paid until when). Only Super
   Admins see it; only the platform owner changes it.
 - `User.isPlatformOwner Boolean @default(false)`, true on at most one account (section 2.1).
 - Platform setting `plans` (a row in `PlatformSetting`, read with the other settings): for each tier, its names by
-  language, `features: { [key]: boolean }` and `limits: { [key]: number | null }`. A key it does not hold takes the
+  language and `features: { [key]: boolean }`. A key it does not hold takes the
   default from the code catalog (section 4), so a feature that ships later starts where section 4.2 says.
 - Platform setting `upgradeWhatsApp`: the platform owner's own WhatsApp number, which the upgrade button opens. Until
   it is set, the hint shows its text without the button.
 - The migration sets **every existing restaurant to Premium**, so nothing any guest sees today changes. New
   restaurants get the plan chosen when they are created (Basic is preselected).
 - Stored JSON is untrusted, as `parsePolicy` treats the permission policy: unknown keys are dropped, malformed parts
-  read as "as the plan says", a limit must be a whole number from 0 up (or null for no limit).
+  read as "as the plan says", and a value that is not `true` or `false` is ignored.
 
 ## 6. The resolver
 
 A pure module, `src/server/domain/entitlements.ts`, next to `permissions.ts` and in its style:
 
-- the catalog: every key, its area (Design, 3D, Publishing, Selling, Limits, Coming later), whether it is a switch or
-  a limit, whether it is live or reserved (with its project), and its default in each plan;
+- the catalog: every key, its area (Design, 3D, Publishing, Selling, Coming later), whether it is live or reserved
+  (with its project), and its default in each plan;
 - `parsePlans(json)` and `parseExtras(json)` for the stored JSON;
-- `effectiveEntitlements({ plan, plans, extras })`: the restaurant's switches and limits, the plan's values with the
-  extras laid over them (an extra wins);
-- `allows(entitlements, key)`, `limitOf(entitlements, key)`, and `lowestPlanWith(plans, key)` for the hint ("Part of
-  Pro");
+- `effectiveEntitlements({ plan, plans, extras })`: the restaurant's switches, the plan's values with the extras laid
+  over them (an extra wins);
+- `allows(entitlements, key)` and `lowestPlanWith(plans, key)` for the hint ("Part of Pro");
 - the fallbacks of section 4.1, one function per kind of choice, used by the guest menu, the preview and the Studio
   alike: the rail style (grains needs `immersive.stage`; drum, flap and deck need `design.railStyles`; a style not
   allowed becomes deck when the animated rails are allowed, else plain), the font pair, the motion level, the QR
@@ -214,7 +212,7 @@ Nothing else decides what a restaurant has.
 - Copies follow the same two rules:
   - **Duplicating a menu** makes a new menu, so its brand starts within the plan of the restaurant it lands in: a
     locked font pair becomes Classic, a locked rail the best allowed, expressive motion subtle. Duplicating into another
-    restaurant (a Super Admin's move) checks that restaurant's plan and menu limit, not the source's.
+    restaurant (a Super Admin's move) follows that restaurant's plan, not the source's.
   - **Restoring a revision to the draft, and rolling back**, bring back what that revision held, as a kept choice: guests
     see the fallbacks and the Brand tab marks them.
   - **Applying one QR code's style to others** is a new choice for those codes, so a branded style is refused on a plan
@@ -225,18 +223,16 @@ Nothing else decides what a restaurant has.
 ### 8.1 The Plan tab (new, on each restaurant)
 
 Everyone who can open the restaurant sees it. It shows the plan's name; what is included, grouped by area, each
-feature with a tick or a lock and "In Pro" or "In Premium"; usage against the limits ("Menus: 1 of 1", "Media: 320 MB
-of 500 MB"); and the upgrade hint of 8.3.
+feature with a tick or a lock and "In Pro" or "In Premium"; and the upgrade hint of 8.3.
 
 The platform owner also gets the controls: the plan (three choices), each feature's extra ("As the plan", "On", "Off"),
-each limit's extra (a number, no limit, or as the plan), and the note. Before a save that takes something away, a
-confirmation lists what guests will stop seeing and which limits the restaurant will be over. Every save is in the
-audit log with what changed.
+and the note. Before a save that takes something away, a confirmation lists what guests will stop seeing. Every save
+is in the audit log with what changed.
 
 ### 8.2 Settings: Plans (the platform owner; other Super Admins read it)
 
 The plans side by side: each plan's name in three languages; every feature as a switch per plan, the reserved ones
-under "Coming later" marked "not built yet"; every limit as a number or no limit; the WhatsApp number. Saving changes
+under "Coming later" marked "not built yet"; the WhatsApp number. Saving changes
 every restaurant on those plans at once; it is in the audit log.
 
 ### 8.3 Locks where the features are
@@ -249,9 +245,6 @@ other Super Admins all get that button; the platform owner gets "Change plan" in
   choice the plan no longer includes is marked "Guests see Plain until the plan includes Drum".
 - **QR codes:** colours and the logo switch are locked; frame text stays.
 - **Revisions:** "Schedule" shows the hint; publishing now works as before.
-- **Menus:** at the limit, "New menu" and "Duplicate" show "Your plan includes 1 menu" and the hint.
-- **Media:** the storage meter shows the limit; an upload that would pass it is refused with the hint; deleting
-  always works.
 - **Preview:** shows exactly what guests get, with a note listing what the plan hides from them.
 - **Restaurants list:** a Plan column and a plan filter. **New restaurant:** a plan choice.
 
@@ -284,8 +277,6 @@ Every new string in English, Arabic and Sorani, as the rest of the Studio.
 - Guests see the fallbacks at once, on the same address.
 - Upgrading again brings the stored choices back by itself.
 - Publishing is never blocked by the plan: a draft holding locked choices publishes, and guests see the fallbacks.
-- Over the menu limit: every menu stays published and editable; no new menu or duplicate until under it.
-- Over the storage limit: nothing is deleted; uploads wait until the library is under it.
 - Publishes scheduled before the downgrade still go live; new ones cannot be made; existing ones can be cancelled.
 - QR codes download plain after a downgrade, and printed codes keep working (they are only addresses).
 
@@ -298,11 +289,11 @@ and the user moves any of them on the Plan tab when they want to.
 
 ## 12. Testing
 
-- The resolver: defaults, stored plans, extras, malformed and unknown keys, no-limit values, `lowestPlanWith`, each
-  fallback.
+- The resolver: defaults, stored plans, extras, malformed and unknown keys, `lowestPlanWith`, each fallback.
 - The framework: `feature` on actions and queries, `UPGRADE_REQUIRED` after `FORBIDDEN`, `checkDefinition` refusing
   unknown keys and platform targets.
-- Each gated action: refused when locked, a kept choice accepted, each limit at and over its value.
+- Each gated action: refused when locked, a kept choice accepted.
+- Nothing counts: a Basic restaurant can still create menus and upload media as before.
 - The guest menu: fallbacks, the Explore redirect, the stage off, smart selling off, the cache expired on a plan
   change.
 - The migration: existing restaurants on Premium.
@@ -323,7 +314,7 @@ and the user moves any of them on the Plan tab when they want to.
    availability (daily work).
 4. **Premium is the 3D plan** (Explore, the 3D dish, the melting-dish rail); **Pro is the design and selling plan**
    (fonts, rails, motion, branded QR, scheduling, smart selling).
-5. **Limits:** 1 / 3 / unlimited menus; 500 MB / 2 GB / 10 GB of media.
+5. **No limits by plan** (the user's decision): plans sell finer menus, never more menus or more storage.
 6. **The WhatsApp button (Project 6) starts in Basic**, because restaurants here live on WhatsApp.
 7. **No payment in the app**; the platform owner sets plans by hand and records deals in the note.
 8. **The platform owner is the first Super Admin ever created**, and moving it needs the terminal script. (That only
