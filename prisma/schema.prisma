@@ -171,6 +171,7 @@ model Menu {
   pairingRules    PairingRule[]
   bundles         Bundle[]
   bundleItems     BundleItem[]
+  promotions      Promotion[]
   schedule        DaypartSchedule[]
   tables          Table[]
   qrCodes         QrCode[]
@@ -250,15 +251,17 @@ model BrandConfig {
 }
 
 model Category {
-  id           String    @id @default(cuid())
-  menuId       String
-  slug         String
-  sortOrder    Int       @default(0)
-  translations Json
-  isActive     Boolean   @default(true)
-  version      Int       @default(1)
-  menu         Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  products     Product[]
+  id            String    @id @default(cuid())
+  menuId        String
+  slug          String
+  sortOrder     Int       @default(0)
+  translations  Json
+  isActive      Boolean   @default(true)
+  /// The cart suggests one of its dishes when the order has none ("complete your meal").
+  completesMeal Boolean   @default(false)
+  version       Int       @default(1)
+  menu          Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  products      Product[]
 
   @@unique([menuId, slug])
 }
@@ -285,6 +288,8 @@ model Product {
   allergens          String[]
   dietary            String[]
   calories           Int?
+  /// How many people the dish is for, from 2; null for one.
+  serves             Int?
   /// NEW, POPULAR or RECOMMENDED.
   badges             String[]
   ingredients        Json      @default("{}")
@@ -368,6 +373,7 @@ model UpsellRule {
   dayparts        Daypart[]
   translations    Json
   isActive        Boolean   @default(true)
+  version         Int       @default(1)
   menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
   source          Product   @relation("UpsellSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
   target          Product   @relation("UpsellTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
@@ -386,6 +392,7 @@ model PairingRule {
   dayparts         Daypart[]
   translations     Json
   isActive         Boolean           @default(true)
+  version          Int               @default(1)
   menu             Menu              @relation(fields: [menuId], references: [id], onDelete: Cascade)
   source           Product?          @relation("PairingSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
   target           Product           @relation("PairingTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
@@ -401,6 +408,7 @@ model Bundle {
   dayparts     Daypart[]
   translations Json
   isActive     Boolean      @default(true)
+  version      Int          @default(1)
   menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
   items        BundleItem[]
 
@@ -419,6 +427,41 @@ model BundleItem {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([menuId, bundleId])
+}
+
+enum PromotionKind {
+  /// A highlight (today's special, a limited-time dish) that changes no price.
+  SPECIAL
+  /// A percentage off its dishes while it is live (a happy hour).
+  DISCOUNT
+}
+
+/// A timed offer on some dishes or categories (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1).
+model Promotion {
+  id           String        @id @default(cuid())
+  menuId       String
+  kind         PromotionKind
+  /// DISCOUNT only: 5 to 90.
+  percentOff   Int?
+  productIds   String[]
+  categoryIds  String[]
+  /// Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive; null is open-ended.
+  startsOn     String?
+  endsOn       String?
+  /// A daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
+  startMinute  Int?
+  endMinute    Int?
+  /// Bit 0 is Sunday, as `DaypartSchedule.daysOfWeek`.
+  daysOfWeek   Int           @default(127)
+  /// { en: { title, text }, ar: ..., ckb: ... }
+  translations Json
+  isActive     Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  menu         Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
 }
 
 model DaypartSchedule {
@@ -700,7 +743,9 @@ model PlatformSetting {
   updatedById String?
 }
 
-/** What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is. */
+/**
+ * What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is.
+ */
 enum MediaKind {
   IMAGE
   SVG
