@@ -1,6 +1,8 @@
 'use client';
 
+import { localDigits } from '@/lib/digits';
 import type { MenuOfferView, MenuProductView } from '@/server/data/menu-view';
+import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 
 /**
@@ -13,12 +15,14 @@ const PILL = 'rounded-full border px-2 py-px text-xs';
 
 /** The dish's sales labels, as quiet pills beside its other badges. */
 export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice'> }) {
-  const { t } = useApp();
+  const { t, tenant } = useApp();
   return (
     <>
       {product.special && <span className={`${PILL} border-accent/55 text-accent`}>{product.special}</span>}
       {product.regularPrice !== undefined && product.percentOff && (
-        <span className={`${PILL} border-accent bg-accent font-medium tabular-nums text-on-accent`}>{t('menu.percentOff', { percent: product.percentOff })}</span>
+        <span className={`${PILL} border-accent bg-accent font-medium tabular-nums text-on-accent`}>
+          {t('menu.percentOff', { percent: localDigits(String(product.percentOff), tenant.numeralSystem) })}
+        </span>
       )}
       {product.mostOrdered && <span className={`${PILL} border-line text-muted`}>{t('menu.mostOrdered')}</span>}
     </>
@@ -51,12 +55,16 @@ export function SalePrice({ product, className }: { product: Pick<MenuProductVie
 
 /** "For 4 · 2.50 each" and "Only 3 left": what a guest may want to know before choosing. */
 export function SalesFacts({ product }: { product: Pick<MenuProductView, 'serves' | 'fewLeft' | 'displayPrice'> }) {
-  const { t, price } = useApp();
+  const { t, price, locale, tenant } = useApp();
   if (!product.serves && !product.fewLeft) return null;
+  // `count` picks the language's plural form; `n` is the number as the menu writes its digits.
+  const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   return (
     <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
-      {product.serves && <span>{t('menu.serves', { count: product.serves, price: price(Math.round(product.displayPrice / product.serves)) })}</span>}
-      {product.fewLeft && <span className="text-accent">{t('menu.fewLeft', { count: product.fewLeft })}</span>}
+      {product.serves && (
+        <span>{t('menu.serves', { count: product.serves, n: n(product.serves), price: price(Math.round(product.displayPrice / product.serves)) })}</span>
+      )}
+      {product.fewLeft && <span className="text-accent">{t('menu.fewLeft', { count: product.fewLeft, n: n(product.fewLeft) })}</span>}
     </span>
   );
 }
@@ -71,7 +79,8 @@ function weekdayOf(date: string): number {
  * never a banner that moves or counts down.
  */
 export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
-  const { t } = useApp();
+  const { t, tenant } = useApp();
+  const digits = (text: string) => localDigits(text, tenant.numeralSystem);
   if (offers.length === 0) return null;
   return (
     <section aria-label={t('offers.label')} className="px-5 pb-2 pt-1">
@@ -82,7 +91,7 @@ export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
               <p className="font-display text-lg leading-snug">
                 {offer.title}
                 {offer.percentOff !== null && (
-                  <span className="ms-2 align-[0.1em] text-sm tabular-nums text-accent">{t('menu.percentOff', { percent: offer.percentOff })}</span>
+                  <span className="ms-2 align-[0.1em] text-sm tabular-nums text-accent">{t('menu.percentOff', { percent: digits(String(offer.percentOff)) })}</span>
                 )}
               </p>
               {offer.text && <p className="mt-0.5 text-sm text-muted">{offer.text}</p>}
@@ -90,7 +99,7 @@ export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
             {offer.endsAt && (
               <p className="shrink-0 text-sm tabular-nums text-muted">
                 {'time' in offer.endsAt
-                  ? t('offers.untilTime', { time: offer.endsAt.time })
+                  ? t('offers.untilTime', { time: digits(offer.endsAt.time) })
                   : t('offers.untilDay', { day: t(`offers.weekday.${weekdayOf(offer.endsAt.date)}`) })}
               </p>
             )}
