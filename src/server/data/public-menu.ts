@@ -140,6 +140,8 @@ export async function getCatalog(tenant: TenantInfo): Promise<Catalog> {
   ]);
   const catalog = toCatalog(menuId, snapshot, overlay);
   // Without smart selling there are no offers, pairings or bundles: suggestions are empty, and a bundle already in a
-  // cart is priced as one that is no longer offered.
-  return tenant.features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
+  // cart is priced as one that is no longer offered. Without timed offers there are no specials or discounts, so every
+  // price is the regular one.
+  const selling = tenant.features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
+  return tenant.features.offers ? selling : { ...selling, promotions: [] };
 }

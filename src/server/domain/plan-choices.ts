@@ -175,11 +175,16 @@ export function hiddenFromGuests(
   return hidden;
 }
 
-/** What the guest pages may show: Explore, the 3D stage, smart selling, and the rails `?rail=` may preview. */
+/**
+ * What the guest pages may show: Explore, the 3D stage, smart selling, timed offers, the labels drawn from guest data
+ * and stock, and the rails `?rail=` may preview.
+ */
 export interface GuestFeatures {
   explore: boolean;
   stage: boolean;
   smartSelling: boolean;
+  offers: boolean;
+  socialProof: boolean;
   rails: RailStyle[];
 }
 
@@ -188,6 +193,8 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     explore: allows(entitlements, 'immersive.explore'),
     stage: allows(entitlements, 'immersive.stage'),
     smartSelling: allows(entitlements, 'selling.smart'),
+    offers: allows(entitlements, 'selling.offers'),
+    socialProof: allows(entitlements, 'selling.socialProof'),
     rails: allowedRails(entitlements),
   };
 }

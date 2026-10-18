@@ -6,15 +6,22 @@ import type { RailDish } from '@/lib/rail';
 import { stageOf } from '@/lib/stage';
 import {
   daypartNow,
+  discountFor,
+  liveOffers,
+  localDate,
   orderability,
   pickSignature,
+  priceOf,
   resolveText,
-  unitPrice,
+  salesSettings,
+  specialFor,
   type Catalog,
   type CatalogGroup,
   type CatalogProduct,
+  type CatalogPromotion,
   type Daypart,
   type Orderability,
+  type PromotionKind,
   type VisualKey,
 } from '@/server/domain';
 import type { TenantInfo } from './tenant';
@@ -64,11 +71,35 @@ export interface MenuProductView {
   dietary?: DietaryTag[];
   /** Kilocalories of the default size, when the restaurant gave them. */
   calories?: number;
+  // The sales tools (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.3), each left out when it does not apply.
+  /** The regular price, only while a discount makes `displayPrice` lower. */
+  regularPrice?: number;
+  /** The live discount and the step its prices round to, for the live total of the product's choices. */
+  percentOff?: number;
+  roundTo?: number;
+  /** The title of a live special that names the dish. */
+  special?: string;
+  /** Among the menu's most ordered dishes, from real guest data. */
+  mostOrdered?: true;
+  /** Portions left today, when at or below the dish's threshold. */
+  fewLeft?: number;
+  /** How many people the dish is for. */
+  serves?: number;
   allergens: string[];
   ingredients: string[];
   searchKey: string;
   groups: MenuGroupView[];
   variants: MenuVariantView[];
+}
+
+/** A live offer as the menu's strip shows it, with when it ends (today's closing time, or a date within a week). */
+export interface MenuOfferView {
+  id: string;
+  kind: PromotionKind;
+  title: string;
+  text: string;
+  percentOff: number | null;
+  endsAt: { time: string } | { date: string } | null;
 }
 
 export interface MenuView {
@@ -84,6 +115,24 @@ export interface MenuView {
   categories: Array<{ id: string; slug: string; name: string; dish: RailDish }>;
   products: MenuProductView[];
   signatureProductId: string | null;
+  /** `plain` shows prices without the currency symbol. */
+  priceStyle: 'symbol' | 'plain';
+  offers: MenuOfferView[];
+}
+
+const DAY_MS = 86_400_000;
+/** An offer ending on a date says so only when that date is this close. */
+const ENDS_SOON_DAYS = 7;
+
+const clock = (minute: number) => `${String(Math.floor(minute / 60) % 24).padStart(2, '0')}:${String(minute % 60).padStart(2, '0')}`;
+
+function endsAt(offer: CatalogPromotion, now: Date, timeZone: string): MenuOfferView['endsAt'] {
+  if (offer.startMinute !== null && offer.endMinute !== null) return { time: clock(offer.endMinute) };
+  if (offer.endsOn !== null) {
+    const days = (Date.parse(`${offer.endsOn}T00:00:00Z`) - Date.parse(`${localDate(now, timeZone)}T00:00:00Z`)) / DAY_MS;
+    if (days < ENDS_SOON_DAYS) return { date: offer.endsOn };
+  }
+  return null;
 }
 
 function mapGroup(group: CatalogGroup, locale: Locale, fallback: Locale): MenuGroupView {
@@ -163,9 +212,28 @@ function dishOf(products: CatalogProduct[]): RailDish {
   return 'plate';
 }
 
-export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Locale, now: Date): MenuView {
+export function buildMenuView(
+  catalog: Catalog,
+  tenant: TenantInfo,
+  locale: Locale,
+  now: Date,
+  extras: { mostOrdered?: readonly string[] } = {},
+): MenuView {
   const fallback = catalog.defaultLocale;
   const current = daypartNow(catalog, now);
+  const live = liveOffers(catalog, now);
+  const sales = salesSettings(tenant.engineConfig);
+  const socialProof = tenant.features.socialProof;
+  const mostOrdered = new Set(socialProof && sales.showMostOrdered ? (extras.mostOrdered ?? []) : []);
+  const fewLeft = (product: CatalogProduct): number | null =>
+    socialProof &&
+    sales.showLowStock &&
+    product.stockCount !== null &&
+    product.stockCount > 0 &&
+    product.lowStockThreshold !== null &&
+    product.stockCount <= product.lowStockThreshold
+      ? product.stockCount
+      : null;
   const categoryOrder = new Map(catalog.categories.map((category, index) => [category.id, index]));
   const sortOrder = new Map(catalog.products.map((product) => [product.id, product.sortOrder]));
 
@@ -175,6 +243,10 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
       const name = resolveText(product.translations, 'name', locale, fallback);
       const description = resolveText(product.translations, 'description', locale, fallback);
       const ingredients = product.ingredients[locale] ?? product.ingredients[fallback] ?? product.ingredients.en ?? [];
+      const price = priceOf(product, null, [], live);
+      const discount = discountFor(product, live);
+      const special = specialFor(product, live);
+      const left = fewLeft(product);
       return {
         id: product.id,
         slug: product.slug,
@@ -182,7 +254,13 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
         name,
         description,
         basePrice: product.basePrice,
-        displayPrice: unitPrice(product, null, []).price,
+        displayPrice: price.price,
+        ...(price.price < price.regular ? { regularPrice: price.regular } : {}),
+        ...(discount ? { percentOff: discount.percent, roundTo: discount.roundTo } : {}),
+        ...(special ? { special: resolveText(special.translations, 'title', locale, fallback) } : {}),
+        ...(mostOrdered.has(product.id) ? { mostOrdered: true as const } : {}),
+        ...(left !== null ? { fewLeft: left } : {}),
+        ...(product.serves !== null ? { serves: product.serves } : {}),
         needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),
         orderState: orderability(product, current),
         isSignature: product.isSignature,
@@ -226,5 +304,14 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
     })),
     products,
     signatureProductId: signature?.productId ?? null,
+    priceStyle: sales.priceStyle,
+    offers: live.map((offer) => ({
+      id: offer.id,
+      kind: offer.kind,
+      title: resolveText(offer.translations, 'title', locale, fallback),
+      text: resolveText(offer.translations, 'text', locale, fallback),
+      percentOff: offer.kind === 'DISCOUNT' ? offer.percentOff : null,
+      endsAt: endsAt(offer, now, catalog.timeZone),
+    })),
   };
 }

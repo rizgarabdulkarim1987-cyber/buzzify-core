@@ -8,7 +8,7 @@ import type { Catalog, CatalogProduct, CatalogPromotion } from './types';
  */
 
 /** The local date `YYYY-MM-DD` in `timeZone`. */
-function localDate(now: Date, timeZone: string): string {
+export function localDate(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat('en-CA', { timeZone, year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
 }
 

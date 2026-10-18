@@ -1,7 +1,18 @@
 import type { MenuProductView } from '@/server/data/menu-view';
+import { salePrice } from '@/server/domain/offers';
 
-/** Mirrors the server's `unitPrice` for display. The cart always uses the server quote. */
+/** Mirrors the server's `priceOf` for display, a live discount included. The cart always uses the server quote. */
 export function unitPriceFromMenu(
+  product: Pick<MenuProductView, 'basePrice' | 'groups' | 'variants' | 'percentOff' | 'roundTo'>,
+  variantId: string | null,
+  optionIds: readonly string[],
+): number {
+  const regular = regularPriceFromMenu(product, variantId, optionIds);
+  return product.percentOff ? salePrice(regular, product.percentOff, product.roundTo ?? 1) : regular;
+}
+
+/** Mirrors the server's `unitPrice`: the regular price, before any discount. */
+export function regularPriceFromMenu(
   product: Pick<MenuProductView, 'basePrice' | 'groups' | 'variants'>,
   variantId: string | null,
   optionIds: readonly string[],

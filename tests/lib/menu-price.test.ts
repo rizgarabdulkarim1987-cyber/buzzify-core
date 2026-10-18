@@ -3,7 +3,8 @@ import { unitPriceFromMenu } from '@/lib/menu-price';
 import { buildMenuView } from '@/server/data/menu-view';
 import type { TenantInfo } from '@/server/data/tenant';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
-import { unitPrice } from '@/server/domain/catalog';
+import { priceOf, unitPrice } from '@/server/domain/catalog';
+import { liveOffers } from '@/server/domain/offers';
 import { at, IDS, makeCatalog, product } from '../domain/fixtures';
 
 const tenant = {
@@ -16,6 +17,7 @@ const tenant = {
   timeZone: 'Asia/Baghdad',
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, rails: [] },
   brand: { logoText: 'R', theme: 'dark', motionIntensity: 'subtle', tokens: {} },
 } as unknown as TenantInfo;
 
@@ -60,6 +62,39 @@ describe('unitPriceFromMenu', () => {
           expect(unitPriceFromMenu(shown, variantId, optionIds), `${source.id} ${variantId} ${optionIds}`).toBe(
             unitPrice(source, variantId, optionIds).price,
           );
+        }
+      }
+    }
+  });
+
+  it('matches the server sale price for every product, variant and option during a discount', () => {
+    const offers = makeCatalog({
+      products: catalog.products,
+      promotions: [
+        {
+          id: 'all-plates',
+          kind: 'DISCOUNT',
+          percentOff: 15,
+          productIds: [IDS.coldBrew],
+          categoryIds: ['cat-plates'],
+          startsOn: null,
+          endsOn: null,
+          startMinute: null,
+          endMinute: null,
+          daysOfWeek: 127,
+          roundTo: 25,
+          translations: {},
+          sortOrder: 0,
+        },
+      ],
+    });
+    const discounted = buildMenuView(offers, tenant, 'en', at(12));
+    const live = liveOffers(offers, at(12));
+    for (const source of offers.products) {
+      const shown = discounted.products.find((p) => p.id === source.id)!;
+      for (const variantId of [null, ...source.variants.map((v) => v.id)]) {
+        for (const optionIds of [[], ...source.groups.flatMap((g) => g.options.map((o) => [o.id]))]) {
+          expect(unitPriceFromMenu(shown, variantId, optionIds), `${source.id} ${variantId} ${optionIds}`).toBe(priceOf(source, variantId, optionIds, live).price);
         }
       }
     }
