@@ -207,6 +207,17 @@ describe('sets', () => {
     expect(failureOf(await run(sales.saveSet, set({ slug: 'coffee-and-cake' }))).fields).toHaveProperty('slug');
   });
 
+  it('without the right to set prices, never changes what a set holds, when it shows, or removes it', async () => {
+    const saved = dataOf(await run(sales.saveSet, set()));
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
+    owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    const edit = (overrides: Record<string, unknown>) => run(sales.saveSet, set({ bundleId: saved.id, version: 1, slug: 'coffee-and-cake', ...overrides }));
+    expect(failureOf(await edit({ items: [{ productId: a.product.id, variantId: null, quantity: 1 }, { productId: cake, variantId: null, quantity: 2 }], price: 700 })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ isActive: false })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ dayparts: ['LUNCH'] })).code).toBe('FORBIDDEN');
+    expect(failureOf(await run(sales.deleteSet, { menuId: a.menu.id, bundleId: saved.id, version: 1 })).code).toBe('FORBIDDEN');
+  });
+
   it('lets an owner without the right to set prices rename a set but not price it', async () => {
     const saved = dataOf(await run(sales.saveSet, set()));
     await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
@@ -320,6 +331,23 @@ describe('offers', () => {
     await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { plan: 'BASIC' } });
     owner = (await loadActor(prisma(), 'owner-a')) as Actor;
     expect(failureOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null }))).code).toBe('UPGRADE_REQUIRED');
+  });
+
+  it('without the right to set prices, edits only the words of a discount and never removes one', async () => {
+    const discount = dataOf(await run(sales.saveOffer, offer()));
+    const special = dataOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null, title: { en: 'Chef special' } })));
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
+    owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    const edit = (overrides: Record<string, unknown>) => run(sales.saveOffer, offer({ offerId: discount.id, version: 1, ...overrides }));
+    expect(failureOf(await edit({ categoryIds: [cakes, a.category.id] })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ productIds: [latte, a.product.id] })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ startsOn: null, endsOn: null })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ startMinute: null, endMinute: null })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ daysOfWeek: 1 })).code).toBe('FORBIDDEN');
+    expect(failureOf(await edit({ isActive: false })).code).toBe('FORBIDDEN');
+    dataOf(await edit({ title: { en: 'Golden hour' } }));
+    expect(failureOf(await run(sales.deleteOffer, { menuId: a.menu.id, offerId: discount.id, version: 2 })).code).toBe('FORBIDDEN');
+    dataOf(await run(sales.deleteOffer, { menuId: a.menu.id, offerId: special.id, version: 1 }));
   });
 
   it('reads every offer in its order', async () => {

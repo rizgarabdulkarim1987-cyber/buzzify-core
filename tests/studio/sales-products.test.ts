@@ -101,9 +101,15 @@ describe('the sales fields of a product', () => {
     dataOf(await run(content.saveProduct, await drawer({ serves: 3 })));
   });
 
+  it('saves a product whose stored priority is not one of the three levels, leaving it as it was', async () => {
+    await prisma().product.update({ where: { id: a.product.id }, data: { priority: 60 } });
+    dataOf(await run(content.saveProduct, await drawer({ names: { en: 'Ristretto' } })));
+    expect(await prisma().product.findUniqueOrThrow({ where: { id: a.product.id } })).toMatchObject({ priority: 60, translations: { en: { name: 'Ristretto' } } });
+  });
+
   it('refuses a dish for one and promotion levels it does not offer', async () => {
     expect(failureOf(await run(content.saveProduct, await drawer({ serves: 1 }))).fields).toHaveProperty('serves');
-    expect(failureOf(await run(content.saveProduct, await drawer({ priority: 60 }))).fields).toHaveProperty('priority');
+    expect(failureOf(await run(content.saveProduct, await drawer({ priority: 120 }))).fields).toHaveProperty('priority');
   });
 });
 

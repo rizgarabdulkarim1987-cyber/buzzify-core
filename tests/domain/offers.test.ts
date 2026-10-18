@@ -103,7 +103,12 @@ describe('salePrice', () => {
     expect(salePrice(1250, 20, 250)).toBe(1000);
     expect(salePrice(300, 15, 5)).toBe(255);
     expect(salePrice(12_250, 15, 250)).toBe(10_500);
-    expect(salePrice(1000, 5, 250)).toBe(1000);
+  });
+
+  it('never lets the step cancel a live discount: it rounds to minor units instead', () => {
+    expect(salePrice(1000, 5, 250)).toBe(950);
+    expect(salePrice(1250, 10, 250)).toBe(1125);
+    expect(salePrice(2000, 5, 250)).toBe(1900);
   });
 
   it('falls back to minor units when the step is larger than the sale price', () => {

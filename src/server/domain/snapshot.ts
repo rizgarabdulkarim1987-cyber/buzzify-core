@@ -381,8 +381,8 @@ const LIVE_DEFAULT = { isAvailable: true, isHidden: false, stockCount: null } as
 /**
  * The catalog guests are served: the frozen snapshot with today's live state laid over it. Ids the overlay does not
  * mention are available, not hidden and not counted. A hidden product is removed along with every bundle that contains
- * it and every rule that has it as its source or its target; it leaves every promotion, and a promotion left naming
- * nothing goes.
+ * it and every rule that has it as its source or its target; it leaves every promotion, as does any dish or category
+ * the snapshot does not have, and a promotion left naming nothing goes.
  */
 export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveOverlay): Catalog {
   const { catalog } = snapshot;
@@ -390,6 +390,9 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
 
   const hidden = new Set(catalog.products.filter((p) => live(p.id).isHidden).map((p) => p.id));
   const isShown = (productId: string) => !hidden.has(productId);
+  // An offer names only what the catalog guests are served has: a dish shown, a category published.
+  const offeredProducts = new Set(catalog.products.filter((p) => isShown(p.id)).map((p) => p.id));
+  const offeredCategories = new Set(catalog.categories.map((c) => c.id));
 
   return {
     menuId,
@@ -419,7 +422,11 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
     ),
     bundles: catalog.bundles.filter((bundle) => bundle.items.every((item) => isShown(item.productId))),
     promotions: (catalog.promotions ?? [])
-      .map((promotion) => ({ ...promotion, productIds: promotion.productIds.filter(isShown) }))
+      .map((promotion) => ({
+        ...promotion,
+        productIds: promotion.productIds.filter((id) => offeredProducts.has(id)),
+        categoryIds: promotion.categoryIds.filter((id) => offeredCategories.has(id)),
+      }))
       .filter((promotion) => promotion.productIds.length + promotion.categoryIds.length > 0),
     schedule: catalog.schedule,
   };

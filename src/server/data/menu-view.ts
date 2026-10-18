@@ -314,7 +314,10 @@ export function buildMenuView(
     products,
     signatureProductId: signature?.productId ?? null,
     priceStyle: sales.priceStyle,
-    offers: live.map((offer) => ({
+    // Only offers on a dish guests can see now: an offer on dishes all out of their hours says nothing true.
+    offers: live
+      .filter((offer) => products.some((product) => offer.productIds.includes(product.id) || offer.categoryIds.includes(product.categoryId)))
+      .map((offer) => ({
       id: offer.id,
       kind: offer.kind,
       title: resolveText(offer.translations, 'title', locale, fallback),

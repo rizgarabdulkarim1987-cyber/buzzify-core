@@ -69,13 +69,14 @@ export function specialFor(product: CatalogProduct, live: readonly CatalogPromot
 }
 
 /**
- * A regular price with `percent` off, rounded to the nearest `roundTo` (the menu's price step) and never above the
- * regular price. When the step is larger than the sale price itself, it rounds to the currency's minor unit instead.
+ * A regular price with `percent` off, rounded to the nearest `roundTo` (the menu's price step). When that rounding would
+ * take the whole discount away (back to the regular price), or the step is larger than the sale price itself, it rounds
+ * to the currency's minor unit instead: a live discount always lowers the price it advertises.
  */
 export function salePrice(regular: number, percent: number, roundTo: number): number {
   const raw = (regular * (100 - percent)) / 100;
   const step = roundTo > 0 ? roundTo : 1;
   const stepped = Math.round(raw / step) * step;
-  const price = stepped === 0 && raw > 0 ? Math.round(raw) : stepped;
+  const price = (stepped === 0 && raw > 0) || (stepped >= regular && raw < regular) ? Math.round(raw) : stepped;
   return Math.min(regular, Math.max(0, price));
 }

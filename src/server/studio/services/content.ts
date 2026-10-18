@@ -101,7 +101,8 @@ export const productSaveFields = {
   // The sales tools' fields (docs/superpowers/specs/2026-10-18-sales-tools-design.md, goal 3). A save that leaves one
   // out keeps what the product has.
   cost: priceField.nullable().optional(),
-  priority: z.union([z.literal(50), z.literal(75), z.literal(100)], 'Choose normal, high or top').optional(),
+  // The drawer offers normal, high and top (50, 75, 100); a product saved before keeps whatever it holds (0 to 100).
+  priority: z.number().int().min(0, 'Choose normal, high or top').max(100, 'Choose normal, high or top').optional(),
   serves: z.number().int().min(2, 'Use 2 to 20 people').max(20, 'Use 2 to 20 people').nullable().optional(),
   lowStockThreshold: z.number().int().min(1, 'Use 1 to 999').max(999, 'Use 1 to 999').nullable().optional(),
 };

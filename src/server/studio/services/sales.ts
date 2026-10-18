@@ -331,7 +331,18 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
 
       const row = await tx.bundle.findFirst({ where: { id: input.bundleId }, include: { items: { orderBy: { id: 'asc' } } } });
       if (!row) throw new StudioError('NOT_FOUND');
-      if (row.price !== input.price) requirePrices(ctx);
+      // A set is a lower price for its dishes: its price, its dishes and when it shows are all price decisions. Only its
+      // name and description are words.
+      const itemsKey = (list: ReadonlyArray<{ productId: string; variantId: string | null; quantity: number }>) =>
+        JSON.stringify(list.map((item) => [item.productId, item.variantId, item.quantity]).sort());
+      if (
+        row.price !== input.price ||
+        itemsKey(row.items) !== itemsKey(items) ||
+        JSON.stringify(row.dayparts) !== JSON.stringify(fields.dayparts) ||
+        row.isActive !== fields.isActive
+      ) {
+        requirePrices(ctx);
+      }
       const slug = input.slug ?? row.slug;
       if (slug !== row.slug && (await taken(slug, row.id))) throw slugTaken();
       const translations = withTexts(row.translations, { name: input.names, description: input.descriptions });
@@ -362,6 +373,7 @@ export function saveSet(ctx: ActionContext, input: SetSave): Promise<{ id: strin
 }
 
 export function deleteSet(ctx: ActionContext, input: { bundleId: string; version: number }): Promise<{ deleted: true }> {
+  requirePrices(ctx);
   return editDraft(ctx, async (tx) => {
     const row = await tx.bundle.findFirst({ where: { id: input.bundleId } });
     if (!row) throw new StudioError('NOT_FOUND');
@@ -426,7 +438,13 @@ export function saveOffer(ctx: ActionContext, input: OfferSave): Promise<{ id: s
 
     const row = await tx.promotion.findFirst({ where: { id: input.offerId } });
     if (!row) throw new StudioError('NOT_FOUND');
-    if (row.kind !== fields.kind || row.percentOff !== fields.percentOff) requirePrices(ctx);
+    // A discount's reach (its dishes, dates, hours, days and whether it runs) is as much a price decision as its
+    // percentage; only its title and text are words. A special changes no price, unless it becomes a discount.
+    const reachChanged =
+      JSON.stringify([row.productIds, row.categoryIds, row.startsOn, row.endsOn, row.startMinute, row.endMinute, row.daysOfWeek, row.isActive]) !==
+      JSON.stringify([fields.productIds, fields.categoryIds, fields.startsOn, fields.endsOn, fields.startMinute, fields.endMinute, fields.daysOfWeek, fields.isActive]);
+    const discount = row.kind === 'DISCOUNT' || fields.kind === 'DISCOUNT';
+    if (row.kind !== fields.kind || row.percentOff !== fields.percentOff || (discount && reachChanged)) requirePrices(ctx);
     const translations = withTexts(row.translations, { title: input.title, text: input.text });
     await updateWithVersion(tx.promotion, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'Promotion' }, tx);
     ctx.audit({
@@ -456,6 +474,8 @@ export function deleteOffer(ctx: ActionContext, input: { offerId: string; versio
   return editDraft(ctx, async (tx) => {
     const row = await tx.promotion.findFirst({ where: { id: input.offerId } });
     if (!row) throw new StudioError('NOT_FOUND');
+    // Removing a discount raises prices: a price decision.
+    if (row.kind === 'DISCOUNT') requirePrices(ctx);
     await deleteWithVersion(tx.promotion, { id: row.id, version: input.version, entityType: 'Promotion' }, tx);
     ctx.audit({ action: 'offer.deleted', entityType: 'Promotion', entityId: row.id, changes: { title: { before: textsOf(row.translations, 'title'), after: null } } });
     return { deleted: true };

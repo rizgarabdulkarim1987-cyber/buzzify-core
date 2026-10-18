@@ -408,6 +408,13 @@ describe('sales additions', () => {
     expect(c.promotions).toEqual([{ ...offer, productIds: [IDS.fries] }]);
   });
 
+  it('keeps only the dishes and categories the published catalog has, and drops an offer left with none', () => {
+    const stale: CatalogPromotion = { ...offer, id: 'promo-stale', productIds: ['gone-dish'], categoryIds: ['gone-category'] };
+    const mixed: CatalogPromotion = { ...offer, id: 'promo-mixed', productIds: [IDS.burger, 'gone-dish'], categoryIds: ['cat-coffee', 'gone-category'] };
+    const c = toCatalog('m-test', buildSnapshot({ menu, brand, catalog: { ...catalog, promotions: [stale, mixed] } }), NO_OVERLAY);
+    expect(c.promotions).toEqual([{ ...mixed, productIds: [IDS.burger], categoryIds: ['cat-coffee'] }]);
+  });
+
   it('refuses an offer of an unknown kind', () => {
     const s = JSON.parse(JSON.stringify(rich()));
     s.catalog.promotions[0].kind = 'FREEBIE';

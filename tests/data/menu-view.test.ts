@@ -197,6 +197,15 @@ describe('the sales tools on the menu', () => {
     expect(view.products.find((p) => p.id === IDS.espresso)).not.toHaveProperty('special');
   });
 
+  it('never lists an offer whose dishes guests cannot see right now', () => {
+    const breakfastOnly = withProduct(makeCatalog({ promotions: [offer({ productIds: [IDS.croissant], startMinute: null, endMinute: null })] }), IDS.croissant, {
+      dayparts: ['BREAKFAST'],
+      hideOutsideDaypart: true,
+    });
+    expect(buildMenuView(breakfastOnly, tenant, 'en', at(18)).offers).toEqual([]);
+    expect(buildMenuView(breakfastOnly, tenant, 'en', at(8)).offers.map((o) => o.id)).toEqual(['hh']);
+  });
+
   it('marks the most ordered dishes only when the menu shows them and the plan includes it', () => {
     const extras = { mostOrdered: [IDS.burger] };
     expect(burgerOf(buildMenuView(makeCatalog(), tenant, 'en', at(12), extras)).mostOrdered).toBe(true);

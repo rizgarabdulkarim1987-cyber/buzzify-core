@@ -40,6 +40,13 @@ describe('bundles: offers', () => {
     expect(detectBundleOpportunities(makeCatalog({ promotions: [burgerOff(30)] }), meal, at(12)).map((o) => o.bundleId)).not.toContain('b-burger-meal');
   });
 
+  it('never charges more for a set in the cart than its dishes cost now', () => {
+    // With the burger at 50% off the dishes cost 450 + 550 + 300 = 1300, below the set's 1500.
+    const quote = quoteCart(makeCatalog({ promotions: [burgerOff(50)] }), { lines: [], bundles: [{ bundleId: 'b-burger-meal', quantity: 2 }] }, at(12));
+    expect(quote.bundles[0]).toMatchObject({ unitPrice: 1300, lineTotal: 2600, individualTotal: 1300, savings: 0 });
+    expect(quote.subtotal).toBe(2600);
+  });
+
   it('never discounts a set itself, and shows its saving against the sale prices', () => {
     const quote = quoteCart(makeCatalog({ promotions: [burgerOff(10)] }), { lines: [], bundles: [{ bundleId: 'b-burger-meal', quantity: 1 }] }, at(12));
     expect(quote.bundles[0]).toMatchObject({ unitPrice: 1500, individualTotal: 1660, savings: 160 });

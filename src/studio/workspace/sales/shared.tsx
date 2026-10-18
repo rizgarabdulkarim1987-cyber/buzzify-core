@@ -152,10 +152,7 @@ export function DishSelect({
   );
 }
 
-/** The level (normal 50, high 75, top 100) nearest to a stored priority or weight, which older rules may hold as any number. */
-export function strengthLevel(value: number): 50 | 75 | 100 {
-  return value >= 88 ? 100 : value >= 63 ? 75 : 50;
-}
+export { strengthLevel } from './levels';
 
 /** Normal, high or top, for an upgrade's priority or a pairing's strength. */
 export function strengthOptions(t: (key: string) => string): SelectOption[] {

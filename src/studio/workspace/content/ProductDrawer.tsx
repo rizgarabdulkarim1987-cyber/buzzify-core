@@ -27,6 +27,7 @@ import { displayName, newKey, type Names } from './shared';
 import { TagFields } from './TagFields';
 import { TranslationFields } from './TranslationFields';
 import { VariantsEditor } from './VariantsEditor';
+import { strengthLevel } from '../sales/levels';
 
 export interface ProductDrawerProps {
   menuId: string;
@@ -447,7 +448,7 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                     <Field label={t('content.priority.label')} hint={t('content.priority.hint')} error={errors.priority}>
                       <Select
                         options={[50, 75, 100].map((level) => ({ value: String(level), label: t(`content.priority.${level}`) }))}
-                        value={String(draft.priority)}
+                        value={String(strengthLevel(draft.priority))}
                         onChange={(event) => change({ priority: Number(event.target.value) })}
                       />
                     </Field>

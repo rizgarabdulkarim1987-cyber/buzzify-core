@@ -173,13 +173,16 @@ function quoteBundle(
   }
 
   const individualTotal = bundleIndividualTotal(bundle, products, live) ?? 0;
-  const savings = Math.max(0, individualTotal - bundle.price);
+  // A set in the cart never costs more than its dishes do now: an offer that starts after it was added can make them
+  // cheaper than the set.
+  const price = individualTotal > 0 ? Math.min(bundle.price, individualTotal) : bundle.price;
+  const savings = Math.max(0, individualTotal - price);
   return {
     index,
     bundleId: bundle.id,
     quantity: input.quantity,
-    unitPrice: bundle.price,
-    lineTotal: issues.length === 0 && quantityOk ? bundle.price * input.quantity : 0,
+    unitPrice: price,
+    lineTotal: issues.length === 0 && quantityOk ? price * input.quantity : 0,
     individualTotal,
     savings,
     issues,
