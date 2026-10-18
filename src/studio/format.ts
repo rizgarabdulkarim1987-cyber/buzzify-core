@@ -49,10 +49,10 @@ export function formatBytes(bytes: number, locale: Locale): string {
   return `${numberFormat(locale, { maximumFractionDigits: unit === 0 ? 0 : 1 }).format(value)} ${units[unit]}`;
 }
 
-/** The calendar fields of `iso` on the Studio's clock, from a format every runtime has. */
-function studioClock(iso: string): { year: number; month: number; day: number; hour: number; minute: number } {
+/** The calendar fields of `iso` on a clock, from a format every runtime has. */
+function clock(iso: string, timeZone: string): { year: number; month: number; day: number; hour: number; minute: number } {
   const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: STUDIO_TIME_ZONE,
+    timeZone,
     year: 'numeric',
     month: 'numeric',
     day: 'numeric',
@@ -65,24 +65,27 @@ function studioClock(iso: string): { year: number; month: number; day: number; h
 }
 
 /** CLDR's Sorani medium date, "y MMM d": ٢٠٢٦ تشرینی یەکەم ١٦. */
-function soraniDate(iso: string): string {
-  const { year, month, day } = studioClock(iso);
+function soraniDate(iso: string, timeZone: string): string {
+  const { year, month, day } = clock(iso, timeZone);
   const digits = numberFormat('ckb', { useGrouping: false });
   return `${digits.format(year)} ${SORANI_MONTHS[month - 1]} ${digits.format(day)}`;
 }
 
 /** CLDR's Sorani medium date and short time, "y MMM d h:mm a": ٢٠٢٦ تشرینی یەکەم ١٦ ٧:٠٥ د.ن. */
-function soraniDateTime(iso: string): string {
-  const { hour, minute } = studioClock(iso);
+function soraniDateTime(iso: string, timeZone: string): string {
+  const { hour, minute } = clock(iso, timeZone);
   const digits = numberFormat('ckb', { useGrouping: false });
   const minutes = numberFormat('ckb', { minimumIntegerDigits: 2 });
-  return `${soraniDate(iso)} ${digits.format(hour % 12 || 12)}:${minutes.format(minute)} ${SORANI_DAY_PERIODS[hour < 12 ? 0 : 1]}`;
+  return `${soraniDate(iso, timeZone)} ${digits.format(hour % 12 || 12)}:${minutes.format(minute)} ${SORANI_DAY_PERIODS[hour < 12 ? 0 : 1]}`;
 }
 
-/** A date and time in the interface language: "Oct 16, 2026, 7:05 PM" in English, Arabic-script digits in Sorani. */
-export function formatDateTime(iso: string, locale: Locale): string {
-  if (locale === 'ckb') return soraniDateTime(iso);
-  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone: STUDIO_TIME_ZONE }).format(new Date(iso));
+/**
+ * A date and time in the interface language: "Oct 16, 2026, 7:05 PM" in English, Arabic-script digits in Sorani. On the
+ * Studio's clock, or on `timeZone` when one is given: a menu states its revisions and schedule on its own clock.
+ */
+export function formatDateTime(iso: string, locale: Locale, timeZone: string = STUDIO_TIME_ZONE): string {
+  if (locale === 'ckb') return soraniDateTime(iso, timeZone);
+  return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeStyle: 'short', timeZone }).format(new Date(iso));
 }
 
 const BROWSERS: ReadonlyArray<[RegExp, string]> = [
@@ -113,6 +116,6 @@ export function describeUserAgent(userAgent: string): { browser: string | null; 
 
 /** A date in the interface language ("Oct 16, 2026" in English), on the Studio calendar: the same day for everyone reading it. */
 export function formatDate(iso: string, locale: Locale): string {
-  if (locale === 'ckb') return soraniDate(iso);
+  if (locale === 'ckb') return soraniDate(iso, STUDIO_TIME_ZONE);
   return new Intl.DateTimeFormat(locale, { dateStyle: 'medium', timeZone: STUDIO_TIME_ZONE }).format(new Date(iso));
 }

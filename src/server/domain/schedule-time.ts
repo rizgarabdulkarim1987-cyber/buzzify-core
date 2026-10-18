@@ -1,8 +1,6 @@
-import type { Locale } from '@/lib/locale';
-
 /**
  * Times for scheduled publishing: the person picks a wall-clock time in the menu's own time zone, the server stores the
- * instant (spec 10.6).
+ * instant (spec 10.6). The Studio writes such an instant for people with formatDateTime (src/studio/format.ts).
  */
 
 const LOCAL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
@@ -55,16 +53,6 @@ export function zonedLocalToUtc(local: string, timeZone: string): Date {
     if (wallClock(instant, timeZone) >= local) return new Date(instant);
   }
   return new Date(candidates.at(-1)!);
-}
-
-/** An instant as the menu's clock shows it, in the reader's language: "Nov 1, 2026, 9:00 AM". */
-export function formatInZone(date: Date, timeZone: string, locale: Locale): string {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    ...(locale === 'ckb' ? { numberingSystem: 'arab' } : {}),
-  }).format(date);
 }
 
 /** An instant as the value of a `datetime-local` field in the zone: `YYYY-MM-DDTHH:mm`. */

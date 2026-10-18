@@ -6,8 +6,9 @@ import { toast } from 'sonner';
 import { issueText } from '@/app/studio/(studio)/(app)/menus/menu-text';
 import { schedulePublish } from '@/app/studio/_actions/revisions';
 import type { PublishIssue } from '@/server/domain/publish-rules';
-import { formatInZone, utcToZonedLocal, zonedLocalToUtc } from '@/server/domain/schedule-time';
+import { utcToZonedLocal, zonedLocalToUtc } from '@/server/domain/schedule-time';
 import { describeFailure } from '@/studio/errors';
+import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
@@ -97,7 +98,7 @@ export function ScheduleDialog({ menuId, timezone, pending: initialPending, onCl
       >
         {pending && (
           <Alert tone="neutral">
-            {t('schedule.pending', { number: pending.number, time: formatInZone(new Date(pending.goLiveAt), timezone, locale) })}
+            {t('schedule.pending', { number: pending.number, time: formatDateTime(pending.goLiveAt, locale, timezone) })}
           </Alert>
         )}
         {problem && !problem.field && (
