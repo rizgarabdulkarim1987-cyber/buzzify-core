@@ -121,6 +121,8 @@ export interface MenuView {
 }
 
 const DAY_MS = 86_400_000;
+/** How many of an offer's dishes and categories its line names when it has no text of its own. */
+const OFFER_SUBJECTS_SHOWN = 3;
 /** An offer ending on a date says so only when that date is this close. */
 const ENDS_SOON_DAYS = 7;
 
@@ -285,6 +287,13 @@ export function buildMenuView(
         a.slug.localeCompare(b.slug),
     );
 
+  const productNames = new Map(catalog.products.map((product) => [product.id, resolveText(product.translations, 'name', locale, fallback)]));
+  const categoryNames = new Map(catalog.categories.map((category) => [category.id, resolveText(category.translations, 'name', locale, fallback)]));
+  const offerSubjects = (offer: CatalogPromotion) =>
+    [...offer.categoryIds.map((id) => categoryNames.get(id)), ...offer.productIds.map((id) => productNames.get(id))]
+      .filter((name): name is string => Boolean(name))
+      .slice(0, OFFER_SUBJECTS_SHOWN)
+      .join(', ');
   const signature = pickSignature(catalog, now, tenant.engineConfig);
   return {
     restaurant: {
@@ -309,7 +318,8 @@ export function buildMenuView(
       id: offer.id,
       kind: offer.kind,
       title: resolveText(offer.translations, 'title', locale, fallback),
-      text: resolveText(offer.translations, 'text', locale, fallback),
+      // An offer without its own text names what it is on, so a guest knows where to look.
+      text: resolveText(offer.translations, 'text', locale, fallback) || offerSubjects(offer),
       percentOff: offer.kind === 'DISCOUNT' ? offer.percentOff : null,
       endsAt: endsAt(offer, now, catalog.timeZone),
     })),

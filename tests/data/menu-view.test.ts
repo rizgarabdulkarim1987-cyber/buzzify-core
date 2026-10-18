@@ -190,8 +190,8 @@ describe('the sales tools on the menu', () => {
     const view = buildMenuView(makeCatalog({ promotions: [offer(), special, autumn, ended] }), tenant, 'en', at(18));
     expect(view.offers).toEqual([
       { id: 'hh', kind: 'DISCOUNT', title: 'Happy hour', text: 'Burgers for less', percentOff: 20, endsAt: { time: '19:00' } },
-      { id: 'sp', kind: 'SPECIAL', title: 'Chef special', text: '', percentOff: null, endsAt: { date: '2026-10-17' } },
-      { id: 'far', kind: 'SPECIAL', title: 'Autumn', text: '', percentOff: null, endsAt: null },
+      { id: 'sp', kind: 'SPECIAL', title: 'Chef special', text: IDS.burger, percentOff: null, endsAt: { date: '2026-10-17' } },
+      { id: 'far', kind: 'SPECIAL', title: 'Autumn', text: IDS.fries, percentOff: null, endsAt: null },
     ]);
     expect(burgerOf(view).special).toBe('Chef special');
     expect(view.products.find((p) => p.id === IDS.espresso)).not.toHaveProperty('special');

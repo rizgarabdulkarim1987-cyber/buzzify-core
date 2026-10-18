@@ -191,6 +191,22 @@ export function CartView() {
             onDismiss={(offer) => dismiss(offer.suggestionId)}
           />
 
+          <PairingList
+            offers={data?.meal ?? []}
+            title={t('meal.title')}
+            headingId="meal-title"
+            onAdd={(offer) => {
+              addLine({ productId: offer.productId, variantId: null, optionIds: [], quantity: 1 });
+              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              announce(t('cart.added', { name: offer.name }));
+            }}
+            onChoose={(offer) => {
+              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              window.location.assign(href(`/p/${offer.slug}`));
+            }}
+            onDismiss={(offer) => dismiss(offer.suggestionId)}
+          />
+
           <section className="mt-8 border-t border-line pt-4" aria-labelledby="review-title">
             <div className="flex items-baseline justify-between">
               <h2 className="font-display text-xl">{t('cart.subtotal')}</h2>

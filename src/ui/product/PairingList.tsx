@@ -7,16 +7,24 @@ import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { CloseIcon } from '@/ui/Icons';
 
-export function PairingList({
+/** A suggested dish card: a pairing, or a dish that would complete the meal. */
+export type SuggestedDish = Pick<PairingView, 'suggestionId' | 'productId' | 'slug' | 'name' | 'price' | 'media' | 'needsChoices'> & { reason?: string };
+
+export function PairingList<T extends SuggestedDish>({
   offers,
   onAdd,
   onChoose,
   onDismiss,
+  title,
+  headingId = 'pairing-title',
 }: {
-  offers: PairingView[];
-  onAdd: (offer: PairingView) => void;
-  onChoose: (offer: PairingView) => void;
-  onDismiss: (offer: PairingView) => void;
+  offers: T[];
+  onAdd: (offer: T) => void;
+  onChoose: (offer: T) => void;
+  onDismiss: (offer: T) => void;
+  /** The list's heading; "Perfect pairing" unless said otherwise. */
+  title?: string;
+  headingId?: string;
 }) {
   const { t, money } = useApp();
 
@@ -28,9 +36,9 @@ export function PairingList({
 
   if (offers.length === 0) return null;
   return (
-    <section aria-labelledby="pairing-title" className="mt-8">
-      <h3 id="pairing-title" className="font-display text-lg">
-        {t('pairing.title')}
+    <section aria-labelledby={headingId} className="mt-8">
+      <h3 id={headingId} className="font-display text-lg">
+        {title ?? t('pairing.title')}
       </h3>
       <ul className="mt-1">
         {offers.map((offer) => (

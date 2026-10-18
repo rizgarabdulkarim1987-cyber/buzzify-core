@@ -16,6 +16,7 @@ import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
 import { PairingList } from './PairingList';
 import { UpgradeOffers } from './UpgradeOffers';
+import { hasSalesPills, SalePrice, SalesFacts, SalesPills } from '@/ui/menu/SalesLabels';
 
 interface Props {
   product: MenuProductView;
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Props) {
-  const { t, money, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
+  const { t, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -133,7 +134,19 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
           {product.name}
         </Heading>
         {product.description && <p className="mt-2 max-w-prose text-muted">{product.description}</p>}
-        <p className="mt-3 text-lg tabular-nums text-accent">{money(product.displayPrice)}</p>
+        {hasSalesPills(product) && (
+          <p className="mt-2 flex flex-wrap gap-1.5">
+            <SalesPills product={product} />
+          </p>
+        )}
+        <p className="mt-3">
+          <SalePrice product={product} className="text-lg tabular-nums text-accent" />
+        </p>
+        {orderable && (
+          <p className="mt-1">
+            <SalesFacts product={product} />
+          </p>
+        )}
         {!orderable && (
           <p className="mt-3 text-accent">
             {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}

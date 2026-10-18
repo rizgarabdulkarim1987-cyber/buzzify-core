@@ -37,6 +37,8 @@ export interface TenantClientInfo {
   defaultLocale: Locale;
   /** What the restaurant's plan lets these pages show: Explore, the 3D dish, and the rails `?rail=` may preview. */
   features: { explore: boolean; stage: boolean; rails: RailStyle[] };
+  /** `plain` shows the menu's prices without the currency symbol (the cart keeps it). */
+  priceStyle: 'symbol' | 'plain';
 }
 
 export interface AppContext {
@@ -45,6 +47,8 @@ export interface AppContext {
   table: number | null;
   t: Translate;
   money(amount: number): string;
+  /** A price on the menu and dish pages, in the menu's price style. */
+  price(amount: number): string;
   href(path?: string): string;
   cart: CartInput;
   itemCount: number;
@@ -122,6 +126,10 @@ export function AppProviders({
   const money = useCallback(
     (amount: number) => formatMoney(amount, tenant.currency, locale, tenant.numeralSystem),
     [tenant.currency, tenant.numeralSystem, locale],
+  );
+  const price = useCallback(
+    (amount: number) => formatMoney(amount, tenant.currency, locale, tenant.numeralSystem, { symbol: tenant.priceStyle !== 'plain' }),
+    [tenant.currency, tenant.numeralSystem, tenant.priceStyle, locale],
   );
   const href = useCallback((path = '') => `/${tenant.slug}/${locale}${path}`, [tenant.slug, locale]);
 
@@ -208,6 +216,7 @@ export function AppProviders({
       table,
       t,
       money,
+      price,
       href,
       cart,
       itemCount: countItems(cart),
@@ -226,7 +235,7 @@ export function AppProviders({
       claimTable,
       preview,
     }),
-    [tenant, locale, table, t, money, href, cart, quote, quoting, quoteError, hydrated, dismissed, store, claimTable, preview],
+    [tenant, locale, table, t, money, price, href, cart, quote, quoting, quoteError, hydrated, dismissed, store, claimTable, preview],
   );
 
   return (

@@ -8,6 +8,7 @@ import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { ProductStage } from '@/ui/stage/ProductStage';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { SalePrice } from './SalesLabels';
 
 /** Scroll distance over which the hero stage drifts and dims, and how far it goes. */
 const DRIFT_RANGE_PX = 420;
@@ -30,7 +31,7 @@ export function SignatureFeature({
   /** True while the product sheet is open over the hero, so the 3D stage can rest. */
   covered?: boolean;
 }) {
-  const { t, money, tenant } = useApp();
+  const { t, tenant } = useApp();
   // The 3D dish is the plan's to give; without it the dish art is shown, as on a device without WebGL.
   const staged = tenant.features.stage && stageTone(product.media) !== null;
   const reduced = usePrefersReducedMotion();
@@ -106,7 +107,9 @@ export function SignatureFeature({
           {product.name}
         </span>
         {product.description && <span className="mt-3 block max-w-[30ch] text-muted">{product.description}</span>}
-        <span className="mt-4 block text-lg tabular-nums text-accent">{money(product.displayPrice)}</span>
+        <span className="mt-4 block">
+          <SalePrice product={product} className="text-lg tabular-nums text-accent" />
+        </span>
       </button>
     </section>
   );

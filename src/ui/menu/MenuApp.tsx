@@ -13,6 +13,7 @@ import type { RailStyle } from '@/lib/rail';
 import { CategoryRail, useRailStyle } from './CategoryRail';
 import { Header } from './Header';
 import { ProductRow } from './ProductRow';
+import { OfferStrip } from './SalesLabels';
 import { SignatureFeature } from './SignatureFeature';
 import { useSearchIndex } from './useSearchIndex';
 
@@ -120,6 +121,8 @@ export function MenuApp({ view }: { view: MenuView }) {
           )}
         </label>
       </div>
+
+      {query.trim() === '' && <OfferStrip offers={view.offers} />}
 
       {query.trim() === '' && signature && (
         <SignatureFeature product={signature} daypart={view.daypart} onOpen={openProduct} covered={opened !== undefined} />

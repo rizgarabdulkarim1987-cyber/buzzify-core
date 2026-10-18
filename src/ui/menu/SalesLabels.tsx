@@ -1,0 +1,102 @@
+'use client';
+
+import type { MenuOfferView, MenuProductView } from '@/server/data/menu-view';
+import { useApp } from '@/ui/AppProviders';
+
+/**
+ * What the sales tools add to a dish wherever it is shown (docs/superpowers/specs/2026-10-18-sales-tools-design.md,
+ * 6.3). Every label comes from real data: a live special or discount, the menu's most ordered dishes, a real count of
+ * portions left. Nothing here is a timer or a claim the restaurant did not make.
+ */
+
+const PILL = 'rounded-full border px-2 py-px text-xs';
+
+/** The dish's sales labels, as quiet pills beside its other badges. */
+export function SalesPills({ product }: { product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'percentOff' | 'regularPrice'> }) {
+  const { t } = useApp();
+  return (
+    <>
+      {product.special && <span className={`${PILL} border-accent/55 text-accent`}>{product.special}</span>}
+      {product.regularPrice !== undefined && product.percentOff && (
+        <span className={`${PILL} border-accent bg-accent font-medium tabular-nums text-on-accent`}>{t('menu.percentOff', { percent: product.percentOff })}</span>
+      )}
+      {product.mostOrdered && <span className={`${PILL} border-line text-muted`}>{t('menu.mostOrdered')}</span>}
+    </>
+  );
+}
+
+/** Whether the dish has any sales label to show. */
+export function hasSalesPills(product: Pick<MenuProductView, 'special' | 'mostOrdered' | 'regularPrice'>): boolean {
+  return Boolean(product.special || product.mostOrdered || product.regularPrice !== undefined);
+}
+
+/**
+ * The dish's price: the price guests pay now, in the menu's price style, and during a discount the regular price
+ * crossed out beside it. `className` styles the price guests pay.
+ */
+export function SalePrice({ product, className }: { product: Pick<MenuProductView, 'displayPrice' | 'regularPrice'>; className: string }) {
+  const { t, price } = useApp();
+  return (
+    <span className="inline-flex items-baseline gap-2">
+      <span className={className}>{price(product.displayPrice)}</span>
+      {product.regularPrice !== undefined && (
+        <s className="text-sm tabular-nums text-muted decoration-1">
+          <span className="sr-only">{t('menu.regularPrice', { price: price(product.regularPrice) })}</span>
+          <span aria-hidden>{price(product.regularPrice)}</span>
+        </s>
+      )}
+    </span>
+  );
+}
+
+/** "For 4 · 2.50 each" and "Only 3 left": what a guest may want to know before choosing. */
+export function SalesFacts({ product }: { product: Pick<MenuProductView, 'serves' | 'fewLeft' | 'displayPrice'> }) {
+  const { t, price } = useApp();
+  if (!product.serves && !product.fewLeft) return null;
+  return (
+    <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
+      {product.serves && <span>{t('menu.serves', { count: product.serves, price: price(Math.round(product.displayPrice / product.serves)) })}</span>}
+      {product.fewLeft && <span className="text-accent">{t('menu.fewLeft', { count: product.fewLeft })}</span>}
+    </span>
+  );
+}
+
+/** The day of the week (Monday first, as the menu's schedule numbers days) of a `YYYY-MM-DD` date. */
+function weekdayOf(date: string): number {
+  return (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
+}
+
+/**
+ * The live offers above the menu: each with its title, its text and when it ends today or this week. A quiet list,
+ * never a banner that moves or counts down.
+ */
+export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
+  const { t } = useApp();
+  if (offers.length === 0) return null;
+  return (
+    <section aria-label={t('offers.label')} className="px-5 pb-2 pt-1">
+      <ul className="border-y border-line">
+        {offers.map((offer) => (
+          <li key={offer.id} className="flex items-baseline justify-between gap-4 border-b border-line py-3 last:border-b-0">
+            <div className="min-w-0">
+              <p className="font-display text-lg leading-snug">
+                {offer.title}
+                {offer.percentOff !== null && (
+                  <span className="ms-2 align-[0.1em] text-sm tabular-nums text-accent">{t('menu.percentOff', { percent: offer.percentOff })}</span>
+                )}
+              </p>
+              {offer.text && <p className="mt-0.5 text-sm text-muted">{offer.text}</p>}
+            </div>
+            {offer.endsAt && (
+              <p className="shrink-0 text-sm tabular-nums text-muted">
+                {'time' in offer.endsAt
+                  ? t('offers.untilTime', { time: offer.endsAt.time })
+                  : t('offers.untilDay', { day: t(`offers.weekday.${weekdayOf(offer.endsAt.date)}`) })}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
