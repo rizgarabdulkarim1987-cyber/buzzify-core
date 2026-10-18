@@ -5,6 +5,7 @@ import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } f
 import { loadMenuView } from '@/server/route-context';
 import { menuAlternates } from '@/server/seo';
 import { ProductPage } from '@/ui/product/ProductPage';
+import { TemplateMenu } from '@/ui/template/TemplateMenu';
 
 type Params = Promise<{ tenant: string; locale: string; slug: string }>;
 
@@ -30,6 +31,9 @@ export default async function Page({ params, searchParams }: { params: Params; s
     const view = await loadMenuView(route);
     const product = view.products.find((candidate) => candidate.slug === raw.slug);
     if (!product) notFound();
+    // A template menu opens the product in its own surface over the menu.
+    const { design } = route.tenant.brand;
+    if (design) return <TemplateMenu view={view} design={design} initialProductId={product.id} />;
     return <ProductPage product={product} view={view} />;
   });
 }

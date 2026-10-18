@@ -43,6 +43,8 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
           railStyle: data.brand.railStyle,
           fontPairId: data.brand.fontPairId,
           logoText: data.brand.logoText,
+          templateId: data.brand.templateId ?? null,
+          design: (data.brand.design ?? {}) as Record<string, unknown> as never,
         },
       },
     },

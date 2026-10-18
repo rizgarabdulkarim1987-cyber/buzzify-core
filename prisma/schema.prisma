@@ -32,6 +32,7 @@ enum RestaurantType {
   FAST_FOOD
   FINE_DINING
   OTHER
+  ICE_CREAM
 }
 
 enum MenuStatus {
@@ -85,15 +86,20 @@ model Restaurant {
   permissionPolicy Json             @default("{}")
   /// The restaurant's logo in its media library; a new menu starts its brand kit with it.
   logoAssetId      String?
+  /// A link to the restaurant on a map (https), shown on template menus that show the address.
+  mapUrl           String           @default("")
+  /// Whether template menus show "Powered by Buzzify". Only a Super Admin changes it.
+  showPoweredBy    Boolean          @default(true)
   version          Int              @default(1)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  branches    Branch[]
-  menus       Menu[]
-  memberships Membership[]
-  invitations Invitation[]
-  mediaAssets MediaAsset[]
+  branches        Branch[]
+  menus           Menu[]
+  memberships     Membership[]
+  invitations     Invitation[]
+  mediaAssets     MediaAsset[]
+  designTemplates DesignTemplate[]
 
   @@index([name])
   @@index([city])
@@ -212,26 +218,32 @@ model MenuDomain {
 }
 
 model BrandConfig {
-  id              String    @id @default(cuid())
-  menuId          String    @unique
-  tokens          Json
-  typography      Json
-  theme           ThemeMode @default(DARK)
-  motionIntensity String    @default("subtle")
-  navStyle        String    @default("rail")
+  id               String    @id @default(cuid())
+  menuId           String    @unique
+  tokens           Json
+  typography       Json
+  theme            ThemeMode @default(DARK)
+  motionIntensity  String    @default("subtle")
+  navStyle         String    @default("rail")
   /// How the category rail moves: grains, drum, flap, deck or plain (see src/lib/rail.ts).
-  railStyle       String    @default("grains")
-  logoText        String
+  railStyle        String    @default("grains")
+  logoText         String
   /// The logo from the media library (the restaurant's or the shared one), and one for a dark theme when it differs.
-  logoAssetId     String?
-  logoDarkAssetId String?
+  logoAssetId      String?
+  logoDarkAssetId  String?
   /// An uploaded favicon, or the logo's rendered PNGs when faviconFromLogo; with neither, the accent mark.
-  faviconAssetId  String?
-  faviconFromLogo Boolean   @default(false)
+  faviconAssetId   String?
+  faviconFromLogo  Boolean   @default(false)
   /// One of the curated pairs in src/lib/font-pairs.ts.
-  fontPairId      String    @default("classic")
-  version         Int       @default(1)
-  menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  fontPairId       String    @default("classic")
+  /// The template preset the menu is drawn with (src/lib/templates); null keeps the classic menu.
+  templateId       String?
+  /// What the business changed from its template: `DesignOverrides`, only the fields it changed.
+  design           Json      @default("{}")
+  /// The custom template last applied, when the design came from one (for the Studio only).
+  customTemplateId String?
+  version          Int       @default(1)
+  menu             Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model Category {
@@ -682,7 +694,9 @@ model PlatformSetting {
   updatedById String?
 }
 
-/** What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is. */
+/**
+ * What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is.
+ */
 enum MediaKind {
   IMAGE
   SVG
@@ -728,4 +742,28 @@ model MediaAsset {
   @@index([restaurantId, contentHash])
   @@index([restaurantId, folder])
   @@index([storageKey])
+}
+
+/**
+ * A saved design: a template preset and the overrides on top of it, to apply to other menus (spec
+ * 2026-10-18-template-studio-design.md, 4.3). A restaurant's own, or shared across the platform when `restaurantId` is
+ * null (saved by a Super Admin). Applying one copies its overrides into the menu's brand kit; later edits stay apart.
+ */
+model DesignTemplate {
+  id           String      @id @default(cuid())
+  /// Null for a template shared across the platform.
+  restaurantId String?
+  name         String
+  /// The preset it starts from (src/lib/templates).
+  basePresetId String
+  /// `DesignOverrides`.
+  overrides    Json        @default("{}")
+  /// A plain id, not a relation, so removing the person never removes the template.
+  createdById  String?
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
 }

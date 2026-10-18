@@ -1,0 +1,379 @@
+'use client';
+
+import { ArrowLeft, Copy, ExternalLink, RotateCcw, Save, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
+import { toast } from 'sonner';
+import { applyDesign, deleteDesign, resetDesign, saveDesign, setPoweredBy, updateDesign } from '@/app/studio/_actions/design';
+import { LOCALE_NAMES, type Locale } from '@/lib/locale';
+import { TEMPLATES, type DesignOverrides } from '@/lib/templates';
+import type { DesignView, SavedDesign } from '@/server/studio/services/design';
+import { describeFailure } from '@/studio/errors';
+import { useLocale, useT } from '@/studio/i18n';
+import { Button, buttonClasses } from '@/studio/ui/Button';
+import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
+import { cx } from '@/studio/ui/cx';
+import { Dialog } from '@/studio/ui/Dialog';
+import { Field } from '@/studio/ui/Field';
+import { IconButton } from '@/studio/ui/IconButton';
+import { Input } from '@/studio/ui/Input';
+import { Switch } from '@/studio/ui/Switch';
+import { Customizer, paletteBlocked } from './Customizer';
+import { Gallery, type GallerySelection } from './Gallery';
+
+const DEVICES = {
+  phone: { width: 390, height: 844 },
+  tablet: { width: 834, height: 1112 },
+  desktop: { width: 1280, height: 800 },
+} as const;
+type Device = keyof typeof DEVICES;
+
+/** The business's settings that carry over from one template to another (as the server keeps them). */
+function contentOnly(overrides: DesignOverrides): DesignOverrides {
+  const { featured, promo, info, ordering } = overrides;
+  return { ...(featured ? { featured } : {}), ...(promo !== undefined ? { promo } : {}), ...(info ? { info } : {}), ...(ordering ? { ordering } : {}) };
+}
+
+/**
+ * The menu drawn as guests will see it, in a device frame at the device's size, scaled to fit. The frame loads the
+ * draft preview with the template asked for; unsaved changes reach it as messages, so it redraws without reloading.
+ */
+function PreviewFrame({ src, device, title, message }: { src: string; device: Device; title: string; message: unknown }) {
+  const box = useRef<HTMLDivElement>(null);
+  const frame = useRef<HTMLIFrameElement>(null);
+  const [scale, setScale] = useState(0.5);
+  const size = DEVICES[device];
+  const latest = useRef(message);
+
+  useEffect(() => {
+    const element = box.current;
+    if (!element) return;
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) setScale(Math.min(1, entry.contentRect.width / size.width, (window.innerHeight - 220) / size.height));
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [size.width, size.height]);
+
+  // The frame says when it is ready; it then gets the latest design, and every change after that.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent<{ type?: string }>) => {
+      if (event.origin !== window.location.origin || event.source !== frame.current?.contentWindow) return;
+      if (event.data?.type === 'buzzify:preview-ready') frame.current?.contentWindow?.postMessage(latest.current, window.location.origin);
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+  useEffect(() => {
+    latest.current = message;
+    const timer = setTimeout(() => frame.current?.contentWindow?.postMessage(message, window.location.origin), 120);
+    return () => clearTimeout(timer);
+  }, [message]);
+
+  return (
+    <div ref={box} dir="ltr" className="w-full">
+      <div className="relative mx-auto overflow-hidden rounded-xl border border-line bg-surface shadow-sm" style={{ width: size.width * scale, height: size.height * scale }}>
+        <iframe ref={frame} src={src} title={title} className="absolute left-0 top-0 origin-top-left border-0 bg-white" style={{ width: size.width, height: size.height, transform: `scale(${scale})` }} />
+      </div>
+    </div>
+  );
+}
+
+/**
+ * The Design tab: choose a template from the gallery and preview it on the menu's own products, apply it, customize it
+ * with the preview following every change, reset it, and save designs to reuse. Applying and saving change the draft
+ * only; guests see the design once the menu is published.
+ */
+export function DesignStudio({ menuId, state, customizing = false }: { menuId: string; state: DesignView; customizing?: boolean }) {
+  const t = useT();
+  const { locale: studioLocale } = useLocale();
+  const router = useRouter();
+  const current: GallerySelection = state.templateId ?? 'classic';
+  const [selected, setSelected] = useState<GallerySelection>(current);
+  const [mode, setModeState] = useState<'gallery' | 'customize'>(customizing ? 'customize' : 'gallery');
+  // The view is kept in the address, so a save (which reloads the tab's data) stays where the person was.
+  const setMode = (next: 'gallery' | 'customize') => {
+    setModeState(next);
+    const url = new URL(window.location.href);
+    if (next === 'customize') url.searchParams.set('customize', '1');
+    else url.searchParams.delete('customize');
+    window.history.replaceState(null, '', url);
+  };
+  const [overrides, setOverrides] = useState<DesignOverrides>(state.overrides);
+  const [device, setDevice] = useState<Device>('phone');
+  const [locale, setLocale] = useState<Locale>(state.defaultLocale);
+  const [saving, startSaving] = useTransition();
+  const [poweredBy, setPoweredByState] = useState(state.showPoweredBy);
+  const [poweredByPending, startPoweredBy] = useTransition();
+  const [naming, setNaming] = useState<null | 'menu' | GallerySelection>(null);
+  const [name, setName] = useState('');
+  const [shared, setShared] = useState(false);
+  const [deleting, setDeleting] = useState<SavedDesign | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const dirty = JSON.stringify(overrides) !== JSON.stringify(state.overrides);
+  const preset = state.templateId ? TEMPLATES[state.templateId] : null;
+  const blocked = preset ? paletteBlocked(preset, overrides) : false;
+  const previewTemplate = mode === 'customize' ? current : selected;
+  const message = useMemo(
+    () => ({
+      type: 'buzzify:design',
+      templateId: previewTemplate === 'classic' ? null : previewTemplate,
+      overrides: previewTemplate === current ? overrides : contentOnly(overrides),
+    }),
+    [previewTemplate, current, overrides],
+  );
+  const src = `/studio/preview/${menuId}/${locale}?template=${previewTemplate}`;
+  const label = (selection: GallerySelection) => (selection === 'classic' ? t('design.classic') : TEMPLATES[selection].name);
+
+  const fail = useCallback(
+    (error: Parameters<typeof describeFailure>[2]): void => {
+      toast.error(describeFailure(t, studioLocale, error).message);
+    },
+    [t, studioLocale],
+  );
+
+  const apply = () =>
+    startSaving(async () => {
+      const choice = selected === 'classic' ? { kind: 'classic' as const } : { kind: 'preset' as const, templateId: selected };
+      const result = await applyDesign({ menuId, version: state.version, choice });
+      if (!result.ok) return fail(result.error);
+      toast.success(t('design.applied'));
+      router.refresh();
+    });
+
+  const applySaved = (design: SavedDesign) =>
+    startSaving(async () => {
+      const result = await applyDesign({ menuId, version: state.version, choice: { kind: 'custom', customTemplateId: design.id } });
+      if (!result.ok) return fail(result.error);
+      toast.success(t('design.applied'));
+      router.refresh();
+    });
+
+  const save = () =>
+    startSaving(async () => {
+      const result = await updateDesign({ menuId, version: state.version, overrides });
+      if (!result.ok) return fail(result.error);
+      toast.success(t('design.saved'));
+      router.refresh();
+    });
+
+  const reset = async (): Promise<true | { message: string }> => {
+    const result = await resetDesign({ menuId, version: state.version });
+    if (!result.ok) return { message: describeFailure(t, studioLocale, result.error).message };
+    toast.success(t('design.resetDone'));
+    router.refresh();
+    return true;
+  };
+
+  const saveAs = () =>
+    startSaving(async () => {
+      const from = naming === 'menu' ? 'menu' : naming;
+      if (!from || from === 'classic') return;
+      const result = await saveDesign({ menuId, name, shared, from });
+      if (!result.ok) return fail(result.error);
+      setNaming(null);
+      setName('');
+      toast.success(t('design.custom.saved'));
+      router.refresh();
+    });
+
+  const remove = async (): Promise<true | { message: string }> => {
+    if (!deleting) return true;
+    const result = await deleteDesign({ menuId, id: deleting.id });
+    if (!result.ok) return { message: describeFailure(t, studioLocale, result.error).message };
+    toast.success(t('design.custom.deleted'));
+    router.refresh();
+    return true;
+  };
+
+  const togglePoweredBy = (show: boolean) =>
+    startPoweredBy(async () => {
+      const result = await setPoweredBy({ restaurantId: state.restaurantId, show });
+      if (!result.ok) return fail(result.error);
+      setPoweredByState(show);
+      toast.success(t('design.poweredBySaved'));
+      router.refresh();
+    });
+
+  return (
+    <div className="grid gap-x-8 gap-y-6 px-8 pb-12 pt-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)]">
+      <div className="flex min-w-0 flex-col gap-6">
+        {mode === 'gallery' ? (
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <h2 className="text-md font-semibold text-text">{t('design.gallery.title')}</h2>
+                <p className="max-w-[65ch] text-sm text-muted">{t('design.gallery.intro')}</p>
+              </div>
+            </div>
+            <div className="sticky top-12 z-10 -mx-2 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg/95 px-3 py-2">
+              <span className="me-auto text-sm text-text">
+                <span className="text-muted">{t('design.selected')} </span>
+                <strong className="font-semibold">{label(selected)}</strong>
+                {selected === current && <span className="text-muted"> · {t('design.current')}</span>}
+              </span>
+              {selected !== current && (
+                <Button variant="primary" pending={saving} onClick={apply}>
+                  {selected === 'classic' ? t('design.applyClassic') : t('design.apply')}
+                </Button>
+              )}
+              {selected === current && current !== 'classic' && (
+                <Button variant="primary" icon={<SlidersHorizontal aria-hidden />} onClick={() => setMode('customize')}>
+                  {t('design.customize')}
+                </Button>
+              )}
+              {selected !== 'classic' && (
+                <Button
+                  icon={<Copy aria-hidden />}
+                  onClick={() => {
+                    setNaming(selected);
+                    setName(`${label(selected)} · ${t('design.copy')}`);
+                  }}
+                >
+                  {t('design.duplicate')}
+                </Button>
+              )}
+            </div>
+            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} />
+            <section aria-labelledby="design-saved" className="flex flex-col gap-3 border-t border-line pt-6">
+              <h2 id="design-saved" className="text-md font-semibold text-text">
+                {t('design.custom.title')}
+              </h2>
+              {state.saved.length === 0 ? (
+                <p className="text-sm text-muted">{t('design.custom.none')}</p>
+              ) : (
+                <ul className="divide-y divide-line rounded-lg border border-line">
+                  {state.saved.map((design) => (
+                    <li key={design.id} className="flex flex-wrap items-center gap-3 px-3 py-2.5">
+                      <span className="me-auto flex flex-col">
+                        <span className="text-sm font-medium text-text">
+                          {design.name}
+                          {state.customTemplateId === design.id && <span className="text-muted"> · {t('design.current')}</span>}
+                        </span>
+                        <span className="text-xs text-muted">
+                          {t('design.custom.basedOn', { name: TEMPLATES[design.basePresetId].name })} · {t(design.shared ? 'design.custom.shared' : 'design.custom.own')}
+                        </span>
+                      </span>
+                      <Button size="sm" pending={saving} onClick={() => applySaved(design)}>
+                        {t('design.custom.apply')}
+                      </Button>
+                      {(!design.shared || state.superAdmin) && <IconButton size="sm" icon={<Trash2 aria-hidden />} label={t('design.custom.delete', { name: design.name })} onClick={() => setDeleting(design)} />}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
+        ) : (
+          preset && (
+            <>
+              <div className="sticky top-12 z-10 -mx-2 flex flex-wrap items-center gap-2 rounded-lg border border-line bg-bg/95 px-3 py-2">
+                <Button variant="ghost" icon={<ArrowLeft aria-hidden className="rtl:-scale-x-100" />} onClick={() => setMode('gallery')}>
+                  {t('design.backToGallery')}
+                </Button>
+                <span className="me-auto text-sm text-text">
+                  <strong className="font-semibold">{preset.name}</strong>
+                  {dirty && <span className="text-muted"> · {t('design.unsaved')}</span>}
+                </span>
+                <Button icon={<RotateCcw aria-hidden />} onClick={() => setConfirmReset(true)}>
+                  {t('design.reset')}
+                </Button>
+                <Button
+                  onClick={() => {
+                    setNaming('menu');
+                    setName(`${preset.name} · ${t('design.custom.mine')}`);
+                  }}
+                >
+                  {t('design.saveAsCustom')}
+                </Button>
+                {dirty && (
+                  <Button variant="ghost" onClick={() => setOverrides(state.overrides)}>
+                    {t('design.discard')}
+                  </Button>
+                )}
+                <Button variant="primary" icon={<Save aria-hidden />} pending={saving} disabled={!dirty || blocked} onClick={save}>
+                  {t('design.save')}
+                </Button>
+              </div>
+              <Customizer preset={preset} state={state} overrides={overrides} onChange={setOverrides} poweredBy={poweredBy} poweredByPending={poweredByPending} onPoweredBy={togglePoweredBy} />
+            </>
+          )
+        )}
+      </div>
+
+      <aside aria-label={t('design.preview.title')} className="flex flex-col gap-3 xl:sticky xl:top-14 xl:self-start">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div role="group" aria-label={t('design.preview.device')} className="inline-flex rounded-md border border-line p-0.5">
+            {(Object.keys(DEVICES) as Device[]).map((value) => (
+              <button key={value} type="button" aria-pressed={device === value} onClick={() => setDevice(value)} className={cx('h-7 rounded-sm px-3 text-sm transition-colors', device === value ? 'bg-text text-bg' : 'text-muted hover:text-text')}>
+                {t(`design.preview.${value}`)}
+              </button>
+            ))}
+          </div>
+          <div role="group" aria-label={t('design.preview.language')} className="inline-flex rounded-md border border-line p-0.5">
+            {state.locales.map((code) => (
+              <button key={code} type="button" lang={code} aria-pressed={locale === code} onClick={() => setLocale(code)} className={cx('h-7 rounded-sm px-2.5 text-sm transition-colors', locale === code ? 'bg-text text-bg' : 'text-muted hover:text-text')}>
+                {LOCALE_NAMES[code]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <PreviewFrame key={`${src}-${device}`} src={src} device={device} title={t('design.preview.frameTitle', { template: label(previewTemplate), size: t(`design.preview.${device}`) })} message={message} />
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-muted">{t('design.preview.note')}</p>
+          <a href={src} target="_blank" rel="noopener noreferrer" className={buttonClasses('secondary', 'sm')}>
+            <ExternalLink aria-hidden />
+            {t('design.preview.newTab')}
+          </a>
+        </div>
+      </aside>
+
+      <Dialog open={naming !== null} onOpenChange={(open) => !open && setNaming(null)} title={naming === 'menu' ? t('design.saveAsCustom') : t('design.duplicate')} description={t('design.custom.intro')}>
+        <form
+          noValidate
+          className="flex flex-col gap-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (name.trim()) saveAs();
+          }}
+        >
+          <Field label={t('design.custom.name')}>
+            <Input value={name} maxLength={60} onChange={(event) => setName(event.target.value)} autoFocus />
+          </Field>
+          {state.superAdmin && (
+            <label className="flex items-center justify-between gap-3 text-sm text-text">
+              {t('design.custom.shareAll')}
+              <Switch checked={shared} onCheckedChange={setShared} />
+            </label>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button onClick={() => setNaming(null)}>{t('common.cancel')}</Button>
+            <Button type="submit" variant="primary" pending={saving} disabled={!name.trim()}>
+              {t('design.custom.create')}
+            </Button>
+          </div>
+        </form>
+      </Dialog>
+
+      <ConfirmDialog
+        open={confirmReset}
+        onOpenChange={setConfirmReset}
+        title={t('design.resetTitle')}
+        body={t('design.resetBody')}
+        confirmLabel={t('design.reset')}
+        tone="primary"
+        onConfirm={reset}
+      />
+      <ConfirmDialog
+        open={deleting !== null}
+        onOpenChange={(open) => !open && setDeleting(null)}
+        title={t('design.custom.deleteTitle')}
+        body={deleting ? t('design.custom.deleteBody', { name: deleting.name }) : ''}
+        confirmLabel={t('design.custom.deleteConfirm')}
+        tone="danger"
+        onConfirm={remove}
+      />
+    </div>
+  );
+}

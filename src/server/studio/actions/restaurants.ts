@@ -44,6 +44,9 @@ function restaurantOf(ctx: ActionContext): string {
 
 // The restaurant ------------------------------------------------------------------------------------------------------
 
+/** The profile fields a menu shows guests: the name on every menu, the rest on template menus (spec 2026-10-18, 4.3). */
+const MENU_FIELDS = new Set(['name', 'address', 'city', 'phone', 'whatsapp', 'mapUrl', 'socialLinks', 'workingHours']);
+
 export const createRestaurant = defineAction({
   name: 'restaurants.create',
   permission: 'restaurant.create',
@@ -94,9 +97,10 @@ export const updateRestaurant = defineAction({
       const data = { ...profileData(next), ...(logoChanged ? { logoAssetId } : {}) };
       await updateWithVersion(tx.restaurant, { id: restaurantId, version, data, entityType: 'Restaurant' }, tx);
       ctx.audit({ action: 'restaurant.updated', entityType: 'Restaurant', entityId: restaurantId, changes });
-      // Guests see the restaurant's name on every menu (it is part of the published snapshot), so a new name is a change
-      // to each menu's draft; nothing else in the profile reaches a menu.
-      const menuIds = 'name' in changes ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
+      // Guests see the restaurant's name on every menu, and a template menu shows its details too (both are part of the
+      // published snapshot), so a change to any of them is a change to each menu's draft.
+      const shown = Object.keys(changes).some((field) => MENU_FIELDS.has(field));
+      const menuIds = shown ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
       return { version: version + 1, menuIds };
     });
     // Once the rename has committed, and before answering, so the page the person opens next already says the menus

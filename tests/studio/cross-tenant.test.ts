@@ -87,6 +87,8 @@ interface Side {
   qrCodeId: string;
   /** A sheet read for an import, not applied. */
   importJobId: string;
+  /** A design the restaurant saved from a template preset. */
+  designTemplateId: string;
 }
 
 interface World {
@@ -170,6 +172,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
   });
   const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
+  const designTemplate = await prisma().designTemplate.create({ data: { restaurantId: restaurant.id, name: `${title} house look`, basePresetId: 'kyoto-ink', overrides: {} } });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -195,6 +198,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pendingRevisionId: pending.id,
     qrCodeId: qrCode.id,
     importJobId: importJob.id,
+    designTemplateId: designTemplate.id,
   };
 }
 
@@ -420,6 +424,20 @@ const SWEPT: Record<string, Case[]> = {
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),
     c("B's favicon, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), favicon: { kind: 'asset', assetId: w.b.assetId } })),
   ],
+  // Template designs
+  'design.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'design.apply': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, choice: { kind: 'preset', templateId: 'copper-roast' } })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, version: 1, choice: { kind: 'custom', customTemplateId: w.b.designTemplateId } })),
+  ],
+  'design.update': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, overrides: { paletteId: 'crema' } }))],
+  'design.reset': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1 }))],
+  'design.save': [c("B's menu", (w) => ({ menuId: w.b.menuId, name: 'Planted', shared: false, from: 'copper-roast' }))],
+  'design.delete': [
+    c("B's saved design, in B", (w) => ({ menuId: w.b.menuId, id: w.b.designTemplateId })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, id: w.b.designTemplateId })),
+  ],
+  'design.poweredBy': [c('B', (w) => ({ restaurantId: w.b.restaurantId, show: false }))],
   'brand.suggestFromLogo': [
     c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, theme: 'light' })),

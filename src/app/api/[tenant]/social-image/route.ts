@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { guestPalette, guestTheme } from '@/lib/guest-brand';
 import { isLocale } from '@/lib/locale';
 import { getTenant } from '@/server/data/public-menu';
 import { getStorage } from '@/server/storage/storage';
@@ -33,13 +34,13 @@ export async function GET(request: Request, ctx: { params: Promise<{ tenant: str
   if (image) return new Response(null, { status: 302, headers: { location: image.url, 'cache-control': 'public, max-age=3600' } });
 
   const { brand } = tenant;
-  const logo = brand.theme === 'dark' ? (brand.logoDark ?? brand.logo) : brand.logo;
+  const logo = guestTheme(brand) === 'dark' ? (brand.logoDark ?? brand.logo) : brand.logo;
   if (!logo) return notFound();
   const file = await getStorage().get(logo.rasterKey, LOGO_MAX_BYTES);
   if (!file) return notFound();
 
   const fitted = await sharp(Buffer.from(file.bytes)).resize(LOGO_BOX.width, LOGO_BOX.height, { fit: 'inside' }).png().toBuffer();
-  const png = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: brand.tokens[brand.theme].bg } })
+  const png = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 4, background: guestPalette(brand).bg } })
     .composite([{ input: fitted, gravity: 'center' }])
     .png()
     .toBuffer();

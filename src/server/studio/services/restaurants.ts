@@ -82,6 +82,8 @@ export const restaurantInput = z.object({
   country: text(200),
   phone,
   whatsapp: phone,
+  /** A link to the restaurant on a map, shown with the address on template menus. */
+  mapUrl: link,
   socialLinks: z.object({ instagram: link, facebook: link, tiktok: link, website: link }).default({ instagram: '', facebook: '', tiktok: '', website: '' }),
   workingHours,
   notes: text(5000),
@@ -120,8 +122,8 @@ export type Profile = RestaurantInput;
 
 /** The profile fields of an input that carries more (the restaurant and version an update names). */
 export function pickProfile(input: Profile): Profile {
-  const { name, type, description, address, city, country, phone, whatsapp, socialLinks, workingHours, notes } = input;
-  return { name, type, description, address, city, country, phone, whatsapp, socialLinks, workingHours, notes };
+  const { name, type, description, address, city, country, phone, whatsapp, mapUrl, socialLinks, workingHours, notes } = input;
+  return { name, type, description, address, city, country, phone, whatsapp, mapUrl, socialLinks, workingHours, notes };
 }
 
 interface ProfileRow {
@@ -133,6 +135,7 @@ interface ProfileRow {
   country: string;
   phone: string;
   whatsapp: string;
+  mapUrl: string;
   socialLinks: unknown;
   workingHours: unknown;
   notes: string;
@@ -149,6 +152,7 @@ export function profileOf(row: ProfileRow): Profile {
     country: row.country,
     phone: row.phone,
     whatsapp: row.whatsapp,
+    mapUrl: row.mapUrl,
     socialLinks: readSocialLinks(row.socialLinks),
     workingHours: readWorkingHours(row.workingHours),
     notes: row.notes,
@@ -171,6 +175,7 @@ export function profileData(profile: Profile) {
     country: profile.country,
     phone: profile.phone,
     whatsapp: profile.whatsapp,
+    mapUrl: profile.mapUrl,
     socialLinks: storedLinks(profile.socialLinks),
     workingHours: profile.workingHours as Prisma.InputJsonObject,
     notes: profile.notes,

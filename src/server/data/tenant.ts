@@ -2,6 +2,7 @@ import type { Palette } from '@/lib/brand';
 import type { FontPairId } from '@/lib/font-pairs';
 import type { Locale } from '@/lib/locale';
 import type { RailStyle } from '@/lib/rail';
+import type { MenuDesign } from '@/lib/templates/types';
 import type { EngineConfig } from '@/server/domain/config';
 
 export type { Palette };
@@ -55,6 +56,11 @@ export interface BrandView {
   /** The logo for a dark theme, when it has its own. */
   logoDark?: BrandImage;
   favicon?: BrandFavicon;
+  /**
+   * The template the menu is drawn with, resolved at publish (src/lib/templates). Absent for the classic menu, whose
+   * snapshot therefore hashes exactly as before templates existed.
+   */
+  design?: MenuDesign;
 }
 
 /**

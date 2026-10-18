@@ -4,6 +4,9 @@ import { E2E_CRON_SECRET } from './tests/e2e/helpers/cron';
 /** The suites that start software WebGL (the 3D stage). They run one test at a time; see the `webgl` project. */
 const WEBGL_SUITES = /(stage|explore|motion)\.spec\.ts$/;
 
+/** The dev server the suites run against; `E2E_BASE_URL` points them at another (a worktree's server on its own port). */
+const BASE_URL = process.env.E2E_BASE_URL ?? 'http://127.0.0.1:3100';
+
 export default defineConfig({
   testDir: 'tests/e2e',
   timeout: 30_000,
@@ -15,13 +18,13 @@ export default defineConfig({
   retries: 0,
   reporter: [['list']],
   use: {
-    baseURL: 'http://127.0.0.1:3100',
+    baseURL: BASE_URL,
     trace: 'retain-on-failure',
     // The 3D stage has its own suite (stage.spec.ts, which opts back in with ?stage=on). Every other suite
     // tests menu, cart and pricing behaviour and should not depend on how fast software WebGL starts.
     storageState: {
       cookies: [],
-      origins: [{ origin: 'http://127.0.0.1:3100', localStorage: [{ name: 'atelier:stage', value: 'off' }] }],
+      origins: [{ origin: BASE_URL, localStorage: [{ name: 'atelier:stage', value: 'off' }] }],
     },
   },
   projects: [
@@ -61,7 +64,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
-    url: 'http://127.0.0.1:3100/atelier/en',
+    url: `${BASE_URL}/atelier/en`,
     reuseExistingServer: true,
     timeout: 120_000,
     // The scheduler's endpoint answers only with a secret; the revisions suite calls it with this one. A dev server

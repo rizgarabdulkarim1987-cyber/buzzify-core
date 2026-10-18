@@ -1,11 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { FONT_PAIRS } from '@/lib/font-pairs';
 import { BRAND_PRESETS, paletteProblems } from '@/lib/palette';
+import { TEMPLATES } from '@/lib/templates';
 import { validateForPublish } from '@/server/domain/publish-rules';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import { seedMenu } from '../../prisma/seed/apply';
 import type { SeedData } from '../../prisma/seed/atelier';
 import { HOT_BRICK } from '../../prisma/seed/hot-brick';
+import { MAISON } from '../../prisma/seed/maison';
+import { NOOR } from '../../prisma/seed/noor';
+import { ONDA } from '../../prisma/seed/onda';
 import { RIVERLIGHT } from '../../prisma/seed/riverlight';
 import { validateSeed } from '../../prisma/seed/validate';
 import { requireTestDb, resetTestData, testPrisma } from '../helpers/db';
@@ -25,6 +29,9 @@ afterAll(async () => {
 const DEMOS: Array<[string, SeedData]> = [
   ['Riverlight Coffee', RIVERLIGHT],
   ['Hot Brick Burgers', HOT_BRICK],
+  ['Maison Lumière (Demo)', MAISON],
+  ['Gelateria Onda (Demo)', ONDA],
+  ['Noor Dining (Demo)', NOOR],
 ];
 
 describe.each(DEMOS)('%s', (name, seed) => {
@@ -107,5 +114,86 @@ describe('Hot Brick Burgers', () => {
     }
     const fries = HOT_BRICK.products.find((product) => product.slug === 'fries')!;
     expect(fries.variants!.length).toBeGreaterThanOrEqual(2);
+  });
+});
+
+const BUSINESS_OF = { BAKERY: 'bakery', ICE_CREAM: 'icecream', RESTAURANT: 'restaurant' } as const;
+
+describe.each([MAISON, ONDA, NOOR])('$profile.name, a template demo', (seed) => {
+  it('says it is a demonstration, in its name, its address and its description', () => {
+    expect(seed.profile.name).toMatch(/\(Demo\)$/);
+    expect(seed.restaurant.name).toBe(seed.profile.name);
+    expect(seed.restaurant.slug).toMatch(/-demo$/);
+    expect(seed.profile.description).toMatch(/Not a real business/);
+    expect(seed.brand.design?.promo?.title.en).toBe('Demonstration menu');
+  });
+
+  it('is drawn with a template made for its kind of business', () => {
+    const preset = TEMPLATES[seed.brand.templateId!];
+    expect(preset.business).toBe(BUSINESS_OF[seed.profile.type as keyof typeof BUSINESS_OF]);
+  });
+
+  it('publishes its template into the snapshot', async () => {
+    const restaurant = await prisma.restaurant.create({ data: { name: `${seed.profile.name} snapshot`, type: seed.profile.type } });
+    const { menuId } = await seedMenu(prisma, { ...seed, restaurant: { ...seed.restaurant, slug: `${seed.restaurant.slug}-snapshot` } }, restaurant.id);
+    const snapshot = await loadDraftSnapshot(prisma, menuId);
+    expect(snapshot.brand.design?.templateId).toBe(seed.brand.templateId);
+  });
+});
+
+describe('Maison Lumière (Demo)', () => {
+  it('sells its cakes by size, with one default, and lets the guest choose a sponge and a filling', () => {
+    const cakes = MAISON.products.filter((product) => product.category === 'celebration');
+    expect(cakes.length).toBeGreaterThan(0);
+    for (const cake of cakes) {
+      expect(cake.variants!.filter((variant) => variant.isDefault), cake.slug).toHaveLength(1);
+      expect(cake.variants!.map((variant) => variant.name.en).join(' '), cake.slug).toMatch(/serves/);
+    }
+    const custom = MAISON.products.find((product) => product.slug === 'celebration-cake')!;
+    expect(custom.groups!.every((group) => group.min === 1 && group.max === 1)).toBe(true);
+  });
+});
+
+describe('Gelateria Onda (Demo)', () => {
+  it('prices its scoops by count, asks cup or cone once, and caps toppings at three', () => {
+    const gelato = ONDA.products.filter((product) => product.category === 'gelato' || product.category === 'sorbetto');
+    for (const flavour of gelato) {
+      expect(flavour.variants!.map((variant) => variant.priceDelta), flavour.slug).toEqual([0, 150, 275]);
+      const [cupOrCone, toppings] = flavour.groups!;
+      expect(cupOrCone).toMatchObject({ min: 1, max: 1 });
+      expect(toppings).toMatchObject({ min: 0, max: 3 });
+    }
+  });
+
+  it('keeps its sorbets vegan and dairy free, with no whipped cream to add', () => {
+    const sorbets = ONDA.products.filter((product) => product.category === 'sorbetto');
+    expect(sorbets.length).toBeGreaterThan(0);
+    for (const sorbet of sorbets) {
+      expect(sorbet.dietary, sorbet.slug).toEqual(expect.arrayContaining(['VEGAN', 'DAIRY_FREE']));
+      expect(sorbet.allergens, sorbet.slug).toEqual([]);
+      expect(sorbet.groups!.flatMap((group) => group.options).some((option) => option.name.en === 'Whipped cream'), sorbet.slug).toBe(false);
+    }
+  });
+
+  it('builds a sundae from two or three flavours and one sauce', () => {
+    const sundae = ONDA.products.find((product) => product.slug === 'build-a-sundae')!;
+    expect(sundae.groups!.map((group) => [group.name.en, group.min, group.max])).toEqual([
+      ['Flavours', 2, 3],
+      ['Sauce', 1, 1],
+      ['Toppings', 0, 3],
+    ]);
+  });
+});
+
+describe('Noor Dining (Demo)', () => {
+  it('prices its ribeye by weight and asks for doneness and a side', () => {
+    const ribeye = NOOR.products.find((product) => product.slug === 'ribeye')!;
+    expect(ribeye.variants!.map((variant) => variant.name.en)).toEqual(['300 g', '400 g', '500 g']);
+    expect(ribeye.variants!.filter((variant) => variant.isDefault)).toHaveLength(1);
+    expect(ribeye.groups!.map((group) => [group.name.en, group.min, group.max])).toEqual([
+      ['Doneness', 1, 1],
+      ['Side', 1, 1],
+      ['Sauce', 0, 2],
+    ]);
   });
 });

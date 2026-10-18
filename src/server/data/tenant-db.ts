@@ -28,7 +28,7 @@ export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
  * A client carrying a restaurant reads that restaurant's rows and the shared ones and writes only its own; any other
  * client (a menu's alone, or the platform's) reads and writes the shared rows only.
  */
-export const RESTAURANT_OR_SHARED_MODELS = ['MediaAsset'] as const;
+export const RESTAURANT_OR_SHARED_MODELS = ['MediaAsset', 'DesignTemplate'] as const;
 
 /**
  * Looked up by slug or host before the tenant is known, through the base client. A scoped client still confines `Menu`

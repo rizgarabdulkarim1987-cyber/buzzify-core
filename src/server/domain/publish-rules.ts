@@ -1,4 +1,5 @@
 import { paletteProblems } from '@/lib/palette';
+import { designPaletteProblems } from '@/lib/templates/palette';
 import type { MenuSnapshot } from './snapshot';
 import type { Locale, TranslationMap } from './types';
 
@@ -44,8 +45,10 @@ export function validateForPublish(snapshot: MenuSnapshot): PublishIssue[] {
   if (catalog.products.length === 0) issues.push({ code: 'EMPTY_MENU', severity: 'block' });
 
   // Body text guests cannot read blocks the publish (spec 12); a weak accent is the brand tab's warning, not a block.
-  // Only the palette of the theme guests are shown counts.
-  for (const problem of paletteProblems(snapshot.brand.tokens[snapshot.brand.theme])) {
+  // Only the palette guests are shown counts: the template's when the menu has one, else the kit's theme.
+  const design = snapshot.brand.design;
+  const problems = design ? designPaletteProblems(design.palette) : paletteProblems(snapshot.brand.tokens[snapshot.brand.theme]);
+  for (const problem of problems) {
     if (problem.severity !== 'block') continue;
     issues.push({
       code: 'LOW_CONTRAST',

@@ -2,6 +2,7 @@ import type { RestaurantType } from '@/generated/prisma/enums';
 import type { FontPairId } from '@/lib/font-pairs';
 import type { ArtKind } from '@/lib/media';
 import type { RailStyle } from '@/lib/rail';
+import type { DesignOverrides, TemplateId } from '@/lib/templates/types';
 import type { Daypart, VisualKey } from '@/server/domain/types';
 
 export interface Tri {
@@ -118,6 +119,10 @@ export interface SeedData {
     whatsapp: string;
     instagram: string;
     description: string;
+    /** Shown in a template menu's details, when the template shows them. */
+    address?: string;
+    mapUrl?: string;
+    workingHours?: Partial<Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', Array<[string, string]>>>;
   };
   /** The menu's own settings: its slug, currency, locales and domains. The business is `profile`. */
   restaurant: {
@@ -140,6 +145,9 @@ export interface SeedData {
     fontPairId: FontPairId;
     typography: { display: string; text: string; arabic: string };
     tokens: { dark: SeedPalette; light: SeedPalette };
+    /** A template preset the demo is drawn with (src/lib/templates), and what it changes from it. */
+    templateId?: TemplateId;
+    design?: DesignOverrides;
   };
   categories: Array<{ slug: string; name: Tri }>;
   products: SeedProduct[];

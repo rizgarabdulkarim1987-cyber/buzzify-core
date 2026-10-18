@@ -12,9 +12,10 @@ import { useApp } from '@/ui/AppProviders';
  * `pushed` records that the sheet itself added the /p/{slug} history entry. The router may replace
  * history.state at any time, so closing must not depend on reading it back.
  */
-export function useProductSheet(products: MenuProductView[], homePath = '') {
+export function useProductSheet(products: MenuProductView[], homePath = '', initialId: string | null = null) {
   const { href } = useApp();
-  const [openId, setOpenId] = useState<string | null>(null);
+  // A product page opened from its own address starts with the product open; closing it replaces the address with the menu's.
+  const [openId, setOpenId] = useState<string | null>(initialId);
   const pushed = useRef(false);
 
   const openProduct = (id: string, replace = false) => {

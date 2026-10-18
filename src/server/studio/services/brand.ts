@@ -5,6 +5,7 @@ import { DEFAULT_PALETTES, HEX, sanitizePalette, type Palette } from '@/lib/bran
 import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, isFontPairId, type FontPairId } from '@/lib/font-pairs';
 import { dominantColors, paletteProblems, suggestPalettes, type PaletteProblem } from '@/lib/palette';
 import { isRailStyle, RAIL_STYLES, type RailStyle } from '@/lib/rail';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
 import { MEDIA_MAX_BYTES } from '@/server/domain/media-type';
 import { FAVICON_SIZES, faviconFiles, type AssetVariants } from '@/server/media/process';
 import { loadAssets } from '@/server/media/resolve';
@@ -184,6 +185,8 @@ export interface BrandKitView {
   motionIntensity: 'none' | 'subtle' | 'expressive';
   logoText: string;
   restaurantId: string;
+  /** The template the menu is drawn with, by name; its colours, type and motion are then the Design tab's. */
+  templateName: string | null;
 }
 
 /** The kit as the Brand tab edits it, with thumbnails of its logos and favicon. */
@@ -214,6 +217,7 @@ export async function brandKit(db: PrismaClient, menuId: string, restaurantId: s
     motionIntensity: motion,
     logoText: row?.logoText ?? menu.restaurant.name,
     restaurantId,
+    templateName: row && isTemplateId(row.templateId) ? TEMPLATES[row.templateId].name : null,
   };
 }
 

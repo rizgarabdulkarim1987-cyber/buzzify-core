@@ -9,6 +9,8 @@ import {
   type LiveOverlay,
   type MenuSnapshot,
 } from '@/server/domain/snapshot';
+import { TEMPLATES } from '@/lib/templates';
+import { resolveDesign } from '@/lib/templates/resolve';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
 const menu = makeMenu();
@@ -332,5 +334,46 @@ describe('2b additions', () => {
     expect(snapshotAssetIds(rich())).toEqual(['asset-logo', 'asset-photo', 'asset-seo']);
     expect(snapshotAssetIds(snapshot)).toEqual([]);
     expect(snapshotAssetIds(parseSnapshot(fixture.snapshot))).toEqual([]);
+  });
+});
+
+describe('template designs', () => {
+  const withDesign = (): MenuSnapshot => {
+    const design = resolveDesign(
+      TEMPLATES['gelato-riviera'],
+      { featured: { slugs: ['latte'] }, promo: { title: { en: 'Two scoops' }, body: {}, terms: { en: 'Weekdays only' } } },
+      {
+        details: {
+          address: '9 Shore Road',
+          city: 'Duhok',
+          phone: '+964 750 111 2222',
+          whatsapp: '',
+          mapUrl: 'https://maps.example.com/x',
+          socialLinks: { instagram: 'https://instagram.com/gelato' },
+          workingHours: { fri: [['12:00', '23:30']] },
+        },
+        poweredBy: true,
+      },
+    );
+    return buildSnapshot({ menu, brand: { ...brand, design }, catalog });
+  };
+
+  it('round-trips a design through JSON and keeps its hash', () => {
+    const s = withDesign();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+    expect(snapshotHash(s)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it.each([
+    ['a map link that is not https', (s: MenuSnapshot) => ((s.brand.design!.info as Record<string, unknown>).mapUrl = 'javascript:alert(1)')],
+    ['a colour that is not a colour', (s: MenuSnapshot) => ((s.brand.design!.palette as unknown as Record<string, string>).bg = 'url(x)')],
+    ['an unknown template', (s: MenuSnapshot) => ((s.brand.design as unknown as Record<string, string>).templateId = 'comic')],
+    ['an unknown card kind', (s: MenuSnapshot) => ((s.brand.design!.layout as unknown as Record<string, string>).card = 'marquee')],
+  ])('refuses %s', (_, spoil) => {
+    const s = JSON.parse(JSON.stringify(withDesign())) as MenuSnapshot;
+    spoil(s);
+    expect(() => parseSnapshot(s)).toThrow();
   });
 });

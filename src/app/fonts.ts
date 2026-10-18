@@ -152,6 +152,172 @@ export const plexArabic = localFont({
   adjustFontFallback: false,
 });
 
+/*
+ * The template presets' faces (src/lib/templates), self-hosted the same way: one 400 file per face and script.
+ */
+export const gilda = localFont({
+  src: '../../node_modules/@fontsource/gilda-display/files/gilda-display-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-gilda',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const bellefair = localFont({
+  src: '../../node_modules/@fontsource/bellefair/files/bellefair-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-bellefair',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const manrope = localFont({
+  src: '../../node_modules/@fontsource/manrope/files/manrope-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-manrope',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const marcellus = localFont({
+  src: '../../node_modules/@fontsource/marcellus/files/marcellus-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-marcellus',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const shippori = localFont({
+  src: '../../node_modules/@fontsource/shippori-mincho/files/shippori-mincho-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-shippori',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const dmSerif = localFont({
+  src: '../../node_modules/@fontsource/dm-serif-display/files/dm-serif-display-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-dm-serif',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const outfit = localFont({
+  src: '../../node_modules/@fontsource/outfit/files/outfit-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-outfit',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const youngSerif = localFont({
+  src: '../../node_modules/@fontsource/young-serif/files/young-serif-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-young-serif',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const caslon = localFont({
+  src: '../../node_modules/@fontsource/libre-caslon-text/files/libre-caslon-text-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-caslon',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const instrument = localFont({
+  src: '../../node_modules/@fontsource/instrument-serif/files/instrument-serif-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-instrument',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const gloock = localFont({
+  src: '../../node_modules/@fontsource/gloock/files/gloock-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-gloock',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Times New Roman',
+});
+export const sora = localFont({
+  src: '../../node_modules/@fontsource/sora/files/sora-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-sora',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const unbounded = localFont({
+  src: '../../node_modules/@fontsource/unbounded/files/unbounded-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-unbounded',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const bricolage = localFont({
+  src: '../../node_modules/@fontsource/bricolage-grotesque/files/bricolage-grotesque-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-bricolage',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const fredoka = localFont({
+  src: '../../node_modules/@fontsource/fredoka/files/fredoka-latin-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-fredoka',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: 'Arial',
+});
+export const mada = localFont({
+  src: '../../node_modules/@fontsource/mada/files/mada-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-mada',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+export const reemKufi = localFont({
+  src: '../../node_modules/@fontsource/reem-kufi/files/reem-kufi-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-reem-kufi',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+export const zain = localFont({
+  src: '../../node_modules/@fontsource/zain/files/zain-arabic-400-normal.woff2',
+  weight: '400',
+  style: 'normal',
+  variable: '--font-zain',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+});
+
 /** The faces of each pair: its two Latin faces, and its Arabic-script face for Arabic and Sorani pages. */
 const PAIR_FACES: Record<FontPairId, { latin: ReadonlyArray<{ variable: string }>; arabic: { variable: string } }> = {
   classic: { latin: [bodoni, hanken], arabic: naskh },
@@ -160,6 +326,23 @@ const PAIR_FACES: Record<FontPairId, { latin: ReadonlyArray<{ variable: string }
   street: { latin: [anton, inter], arabic: kufi },
   fine: { latin: [cormorant, jost], arabic: naskh },
   modern: { latin: [spaceGrotesk, inter], arabic: plexArabic },
+  marble: { latin: [gilda, manrope], arabic: mada },
+  palace: { latin: [marcellus, jost], arabic: naskh },
+  souk: { latin: [marcellus, dmSans], arabic: reemKufi },
+  ink: { latin: [shippori, manrope], arabic: naskh },
+  riviera: { latin: [dmSerif, outfit], arabic: vazirmatn },
+  botanical: { latin: [youngSerif, nunitoSans], arabic: vazirmatn },
+  pearl: { latin: [caslon, manrope], arabic: naskh },
+  studio: { latin: [instrument, manrope], arabic: mada },
+  ritual: { latin: [instrument, outfit], arabic: mada },
+  terra: { latin: [gloock, dmSans], arabic: vazirmatn },
+  nordic: { latin: [sora, manrope], arabic: mada },
+  neon: { latin: [unbounded, sora], arabic: zain },
+  cocoa: { latin: [dmSerif, jost], arabic: naskh },
+  gelato: { latin: [fredoka, nunitoSans], arabic: zain },
+  pop: { latin: [bricolage, outfit], arabic: zain },
+  rose: { latin: [bellefair, nunitoSans], arabic: naskh },
+  cloud: { latin: [outfit, nunitoSans], arabic: mada },
 };
 
 /**

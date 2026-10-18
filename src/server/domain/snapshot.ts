@@ -5,6 +5,7 @@ import { isSafeMediaUrl } from '@/lib/media';
 import { RAIL_STYLES } from '@/lib/rail';
 import type { BrandView, SeoText } from '@/server/data/tenant';
 import type { EngineConfig } from './config';
+import { menuDesignSchema } from './design-schema';
 import {
   DAYPARTS,
   LOCALES,
@@ -131,6 +132,7 @@ const brandView = z.object({
   logo: brandImage.optional(),
   logoDark: brandImage.optional(),
   favicon: brandFavicon.optional(),
+  design: menuDesignSchema.optional(),
 });
 
 const snapshotOption = z.object({

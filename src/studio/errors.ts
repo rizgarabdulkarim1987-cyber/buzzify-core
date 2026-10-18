@@ -168,6 +168,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose a time within a year': 'error.text.timeTooFar',
   'Another revision is already scheduled': 'error.text.alreadyScheduled',
   'Enter a name for the code': 'error.text.qrLabelEnter',
+  'Enter a name': 'error.text.designNameEnter',
+  'Choose a template first.': 'error.text.templateFirst',
   'Choose a table from 1 to 999': 'error.text.tableRange',
   'This table already has a code': 'error.text.tableHasCode',
   'The last table comes after the first': 'error.text.tableOrder',
