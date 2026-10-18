@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  bagLayers,
   burgerLayers,
   croissantLayers,
   cupLayers,
@@ -12,6 +13,7 @@ import {
   qualifiesFor3D,
   selectionFromOptions,
   stageOf,
+  stagesOnProductPage,
   stageTone,
 } from '@/lib/stage';
 
@@ -131,6 +133,41 @@ describe('the glass, the croissant and the mille-feuille', () => {
   });
 });
 
+describe('the loaded chip bag', () => {
+  it('fills the bag with chips, the meat, the vegetables, jalapeños and cheese sauce on top', () => {
+    expect(bagLayers('chicken').map((l) => l.key)).toEqual(['bag', 'chips', 'chicken', 'veg', 'jalapeno', 'sauce']);
+    expect(bagLayers('beef').map((l) => l.key)).toEqual(['bag', 'chips', 'beef', 'veg', 'jalapeno', 'sauce']);
+  });
+
+  it('stands the bag on the disc and heaps everything else in and above its open top', () => {
+    const [bag, ...filling] = bagLayers('chicken');
+    expect(bag!.y - bag!.height / 2).toBeCloseTo(0, 9);
+    const rim = bag!.y + bag!.height / 2;
+    for (const layer of filling) {
+      expect(layer.y, layer.key).toBeGreaterThan(rim - 0.1);
+      expect(layer.y + layer.height / 2, layer.key).toBeGreaterThan(rim);
+    }
+  });
+
+  it('draws the chicken bag and the beef bag as two models', () => {
+    expect(layersFor('bagchicken', none)).toEqual(bagLayers('chicken'));
+    expect(layersFor('bagbeef', none)).toEqual(bagLayers('beef'));
+  });
+
+  it('keeps the bag on the plinth and lifts each filling higher than the one below it', () => {
+    const layers = bagLayers('beef');
+    const offsets = layers.map((layer) => explodeOffset('bagbeef', layers, layer.key));
+    expect(offsets[0]).toBe(0);
+    for (let i = 1; i < offsets.length; i++) expect(offsets[i]!, layers[i]!.key).toBeGreaterThan(offsets[i - 1]!);
+  });
+
+  it('pulls the filling apart far enough that no two parts, or their labels, end up level', () => {
+    const layers = bagLayers('chicken');
+    const apart = layers.map((layer) => layer.y + explodeOffset('bagchicken', layers, layer.key));
+    for (let i = 1; i < apart.length; i++) expect(apart[i]! - apart[i - 1]!, layers[i]!.key).toBeGreaterThan(0.15);
+  });
+});
+
 describe('explodeOffset', () => {
   it('spreads a stack upward from its base: the bottom stays on the plinth, the top rises, in order', () => {
     const layers = burgerLayers({ cheese: true, patty: true, bacon: false });
@@ -171,10 +208,47 @@ describe('stageOf', () => {
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'croissant' }])?.art).toBe('croissant');
   });
 
+  it('finds the model behind a photo, so the photo stays the picture and the model draws the 3D stage', () => {
+    const photo = { kind: 'image' as const, url: '/a.jpg', alt: 'a', width: 1, height: 1 };
+    expect(stageOf([photo, { kind: 'art', art: 'bowl', tone: '#E89A2C', model: 'bagchicken' }])).toEqual({
+      art: 'bagchicken',
+      tone: '#E89A2C',
+    });
+    expect(stageTone([photo, { kind: 'art', art: 'bowl', tone: '#E89A2C', model: 'bagbeef' }])).toBe('#E89A2C');
+  });
+
+  it('carries a scanned model that draws in place of the drawn one', () => {
+    expect(stageOf([{ kind: 'art', art: 'bowl', tone: '#E89A2C', model: 'bagchicken', scan: '/api/assets/models/bag.glb' }])).toEqual({
+      art: 'bagchicken',
+      tone: '#E89A2C',
+      scan: '/api/assets/models/bag.glb',
+    });
+  });
+
   it('has no stage for art without a model, or for a model it does not know', () => {
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A' }])).toBeNull();
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'teapot' }])).toBeNull();
     expect(stageOf([{ kind: 'image', url: '/a.jpg', alt: 'a', width: 1, height: 1 }])).toBeNull();
+  });
+});
+
+describe('stagesOnProductPage', () => {
+  const photo = { kind: 'image' as const, url: '/bag.webp', alt: 'Bag', width: 800, height: 800 };
+  const art = { kind: 'art' as const, art: 'bowl' as const, tone: '#E89A2C', model: 'bagbeef', scan: '/api/assets/models/bag.glb' };
+
+  it('shows guests choosing sizes and options the real photo, and keeps the 3D model for the menu and Explore', () => {
+    expect(stagesOnProductPage([photo, art])).toBe(false);
+    expect(stageOf([photo, art])?.art).toBe('bagbeef');
+  });
+
+  it('draws the 3D model where there is no photo to show instead', () => {
+    expect(stagesOnProductPage([art])).toBe(true);
+    expect(stagesOnProductPage([{ kind: 'art', art: 'burger', tone: '#A5662F' }])).toBe(true);
+  });
+
+  it('has nothing to draw without a model', () => {
+    expect(stagesOnProductPage([photo])).toBe(false);
+    expect(stagesOnProductPage([])).toBe(false);
   });
 });
 
@@ -208,6 +282,8 @@ describe('isStageArt', () => {
   it('knows which art kinds have a 3D stage', () => {
     expect(isStageArt('burger')).toBe(true);
     expect(isStageArt('cup')).toBe(true);
+    expect(isStageArt('bagchicken')).toBe(true);
+    expect(isStageArt('bagbeef')).toBe(true);
     expect(isStageArt('plate')).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { BufferGeometry, Color, MathUtils, Mesh, Vector3 } from 'three';
+import { BufferGeometry, Color, MathUtils, Mesh, Vector2, Vector3 } from 'three';
 import { MeshSurfaceSampler } from 'three/examples/jsm/math/MeshSurfaceSampler.js';
 import type { Layer, LayerKind, StageArt } from '@/lib/stage';
 import { makeLayerGeometry } from '@/ui/stage/stage-parts';
@@ -17,7 +17,7 @@ export interface GrainCloud {
 }
 
 /** How many grains a part gets relative to its area: big see-through or flat parts need fewer. */
-const WEIGHT: Partial<Record<LayerKind, number>> = { glass: 0.35, saucer: 0.6, lemon: 0.7, liquid: 0.8 };
+const WEIGHT: Partial<Record<LayerKind, number>> = { glass: 0.35, saucer: 0.6, lemon: 0.7, liquid: 0.8, bag: 0.7 };
 /** How opaque a part's grains are. */
 const ALPHA: Partial<Record<LayerKind, number>> = { glass: 0.22, ice: 0.7, liquid: 0.92 };
 
@@ -52,6 +52,39 @@ function surfaceArea(geometry: BufferGeometry): number {
     total += b.sub(a).cross(c.sub(a)).length() / 2;
   }
   return total;
+}
+
+/** Writes a colour, 0 to 1 per channel, for a point of a texture given by its UV. */
+export type TextureColour = (u: number, v: number, out: { r: number; g: number; b: number }) => void;
+
+/**
+ * A scanned dish as grains: points spread over its surface by area, each coloured by its texture where it lands, so the
+ * cloud melts into the scan as it really looks. `geometry` is in the dish's own units, already placed on the plinth.
+ */
+export function sampleSurface(geometry: BufferGeometry, count: number, colourAt: TextureColour, seed = 7): GrainCloud {
+  const cloud: GrainCloud = {
+    count,
+    positions: new Float32Array(count * 3),
+    normals: new Float32Array(count * 3),
+    colors: new Float32Array(count * 3),
+    alphas: new Float32Array(count).fill(1),
+  };
+  const sampler = new MeshSurfaceSampler(new Mesh(geometry));
+  (sampler as unknown as { setRandomGenerator(next: () => number): void }).setRandomGenerator(mulberry32(seed));
+  sampler.build();
+  const position = new Vector3();
+  const normal = new Vector3();
+  const uv = new Vector2();
+  const colour = { r: 1, g: 1, b: 1 };
+  for (let k = 0; k < count; k++) {
+    sampler.sample(position, normal, undefined, uv);
+    normal.normalize();
+    colourAt(uv.x, uv.y, colour);
+    cloud.positions.set([position.x, position.y, position.z], k * 3);
+    cloud.normals.set([normal.x, normal.y, normal.z], k * 3);
+    cloud.colors.set([colour.r, colour.g, colour.b], k * 3);
+  }
+  return cloud;
 }
 
 export function sampleDish(art: StageArt, layers: readonly Layer[], tone: string, count: number, seed = 7): GrainCloud {

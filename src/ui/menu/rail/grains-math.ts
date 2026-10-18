@@ -8,7 +8,16 @@ import type { RailDish } from '@/lib/rail';
  * Dishes stand on y = 0 with a footprint of about one unit; the rail scales them to a few dozen pixels.
  */
 
-export const RAIL_DISHES = ['burger', 'cup', 'glass', 'croissant', 'millefeuille', 'plate'] as const satisfies readonly RailDish[];
+export const RAIL_DISHES = [
+  'burger',
+  'cup',
+  'glass',
+  'croissant',
+  'millefeuille',
+  'bagchicken',
+  'bagbeef',
+  'plate',
+] as const satisfies readonly RailDish[];
 
 export interface DishCloud {
   count: number;
@@ -225,12 +234,40 @@ const PLATE: Part[] = [
   [0.4, (random) => disc(random, 0.1, 0.78, rgb('#efe0bd'))],
 ];
 
+/** A blue chip bag, chips standing out of its mouth, the meat, peppers and cheese sauce heaped on top. */
+const loadedBag = (meat: Rgb): Part[] => [
+  [
+    5,
+    (random) => {
+      const t = random();
+      const across = random() * 2 - 1;
+      const depth = 0.04 + 0.26 * Math.sqrt(t);
+      const side = random() < 0.5 ? -1 : 1;
+      const front = side > 0 && across < -0.1 && t > 0.15 && t < 0.75;
+      return [across * 0.62, t * 0.76, side * depth * Math.sqrt(1 - across * across), front && random() < 0.5 ? rgb('#f08c22') : rgb('#2346d6')];
+    },
+  ],
+  [
+    2.5,
+    (random) => {
+      const a = random() * TAU;
+      return [Math.cos(a) * 0.5 * random(), 0.76 + random() * 0.3, Math.sin(a) * 0.24 * random(), rgb('#f08c22')];
+    },
+  ],
+  [1.5, (random) => [(random() * 2 - 1) * 0.42, 0.92 + random() * 0.14, (random() * 2 - 1) * 0.18, meat]],
+  [0.6, (random) => [(random() * 2 - 1) * 0.4, 1.04 + random() * 0.05, (random() * 2 - 1) * 0.16, rgb('#f7b733')]],
+  [0.4, (random) => [(random() * 2 - 1) * 0.45, 0.98 + random() * 0.08, (random() * 2 - 1) * 0.2, rgb('#7fb03a')]],
+  [0.3, (random) => [(random() * 2 - 1) * 0.4, 1.0 + random() * 0.08, (random() * 2 - 1) * 0.18, rgb('#d42a1e')]],
+];
+
 const SHAPES: Record<RailDish, Part[]> = {
   cup: CUP,
   croissant: CROISSANT,
   burger: BURGER,
   millefeuille: MILLEFEUILLE,
   glass: GLASS,
+  bagchicken: loadedBag(rgb('#d29a5a')),
+  bagbeef: loadedBag(rgb('#5c3220')),
   plate: PLATE,
 };
 

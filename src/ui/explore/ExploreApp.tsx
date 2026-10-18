@@ -12,6 +12,7 @@ import {
   type MotionValue,
 } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { hasJoiningScript, meltPieces } from '@/lib/joining';
 import { unitPriceFromMenu } from '@/lib/menu-price';
 import { layersFor, selectionFromOptions, NO_EXTRAS, type BurgerSelection } from '@/lib/stage';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
@@ -86,20 +87,25 @@ function MeltLetter({
   );
 }
 
-/** The dish name set huge behind the object, outlined; it melts letter by letter between dishes. */
+/**
+ * The dish name set huge behind the object, outlined; it melts letter by letter between dishes. Arabic and Sorani
+ * melt in runs of joined letters instead, so every letter keeps the shape it has in the word.
+ */
 function GiantName({ index, progress, name }: { index: number; progress: MotionValue<number>; name: string }) {
-  const words = name.split(' ');
-  const total = name.replace(/\s/g, '').length;
+  const words = name.split(' ').map(meltPieces);
+  const total = words.reduce((count, pieces) => count + pieces.length, 0);
+  // Letter-spacing pulls joined letters apart in some browsers.
+  const tracking = hasJoiningScript(name) ? 'tracking-normal' : 'tracking-[-0.02em]';
   let order = 0;
   return (
     <div
       aria-hidden="true"
-      className="outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] tracking-[-0.02em]"
+      className={`outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] ${tracking}`}
     >
-      {words.map((word, w) => (
-        <span key={`${word}-${w}`} className="block">
-          {Array.from(word).map((char, c) => (
-            <MeltLetter key={`${char}-${c}`} char={char} order={order++} total={total} index={index} progress={progress} />
+      {words.map((pieces, w) => (
+        <span key={`${pieces.join('')}-${w}`} className="block">
+          {pieces.map((piece, c) => (
+            <MeltLetter key={`${piece}-${c}`} char={piece} order={order++} total={total} index={index} progress={progress} />
           ))}
         </span>
       ))}
@@ -200,12 +206,14 @@ function ScenePanel({
   );
   const canAdd = product.orderState === 'OK' && !product.needsChoices;
   const titleId = `${scene.id}-title`;
-  const hasParts = scene.art !== 'croissant';
+  // A croissant is one piece, and a scan is one mesh: neither comes apart.
+  const hasParts = scene.art !== 'croissant' && !scene.scan;
 
   return (
     <motion.section
       aria-labelledby={titleId}
       data-stage-layers={layerKeys}
+      data-explore-panel
       inert={!active}
       aria-hidden={!active}
       style={{ opacity, y }}
@@ -314,6 +322,27 @@ export function ExploreApp({ view }: { view: MenuView }) {
   const controls = useRef<StageControls>(createControls());
   const labels = useRef<Record<string, HTMLElement | null>>({});
   const press = useRef<{ lastX: number; lastT: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  // The screen between the header and the tallest text panel, where the dish must stay. Measured from layout, which
+  // ignores the panels' scroll-driven transforms, so it holds still while the guest scrolls.
+  const band = useRef<{ top: number; bottom: number } | null>(null);
+  useEffect(() => {
+    const stage = stageRef.current;
+    const header = headerRef.current;
+    if (!stage || !header) return;
+    const panels = Array.from(stage.querySelectorAll<HTMLElement>('[data-explore-panel]'));
+    const measure = () => {
+      const bottom = Math.min(stage.clientHeight, ...panels.map((panel) => panel.offsetTop));
+      band.current = { top: header.offsetTop + header.offsetHeight, bottom };
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    observer.observe(header);
+    panels.forEach((panel) => observer.observe(panel));
+    return () => observer.disconnect();
+  }, [count]);
 
   const { opened, openProduct, closeProduct } = useProductSheet(view.products, '/explore');
 
@@ -411,7 +440,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
 
   return (
     <>
-      <div className="fixed inset-0 overflow-hidden bg-bg" data-testid="explore-stage" data-explore-mode={mode}>
+      <div ref={stageRef} className="fixed inset-0 overflow-hidden bg-bg" data-testid="explore-stage" data-explore-mode={mode}>
         {scenes.map((scene, index) => (
           <SceneGlow key={scene.id} index={index} progress={progress} tone={scene.tone} />
         ))}
@@ -462,6 +491,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
               reduced={reduced}
               paused={false}
               labels={labels}
+              band={band}
               onReady={() => setMode((current) => (current === 'loading' ? 'ready' : current))}
               onFailure={() => setMode('unavailable')}
             />
@@ -488,7 +518,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
           )}
         </div>
 
-        <div className="relative z-10">
+        <div ref={headerRef} className="relative z-10">
           <Header current="explore" overlay />
         </div>
 

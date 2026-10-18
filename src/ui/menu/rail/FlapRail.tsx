@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { direction } from '@/lib/locale';
+import { hasJoiningScript } from '@/lib/joining';
 import { useApp } from '@/ui/AppProviders';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { flipBoard } from './flap';
@@ -16,9 +16,7 @@ const CELL =
  * letters spin and land one after another like a departures board.
  */
 export function FlapRail({ categories, activeId }: RailProps) {
-  const { t, locale } = useApp();
-  // Joined scripts flip whole words: splitting them into letters would break the letters' joins.
-  const letters = direction(locale) === 'ltr';
+  const { t } = useApp();
   const reduced = usePrefersReducedMotion();
   const rail = useRef<HTMLElement>(null);
   useCentreActive(rail, activeId, reduced);
@@ -54,7 +52,8 @@ export function FlapRail({ categories, activeId }: RailProps) {
           >
             {current ? (
               <span aria-hidden="true" className="flex gap-px text-[1.0625rem]" style={{ perspective: '320px' }}>
-                {letters ? (
+                {/* Joined scripts flip whole words, whatever the page's language: letters apart lose their joins. */}
+                {!hasJoiningScript(category.name) ? (
                   [...category.name].map((char, index) =>
                     char === ' ' ? (
                       <span key={index} className="w-1.5" />
