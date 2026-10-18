@@ -1,4 +1,5 @@
-import { daypartNow, inDaypart, orderability, productMap, unitPrice } from './catalog';
+import { daypartNow, inDaypart, orderability, priceOf, productMap } from './catalog';
+import { liveOffers } from './offers';
 import {
   MAX_QUANTITY,
   type Bundle,
@@ -7,6 +8,7 @@ import {
   type CartLineInput,
   type Catalog,
   type CatalogProduct,
+  type CatalogPromotion,
   type Daypart,
 } from './types';
 
@@ -69,6 +71,7 @@ function validQuantity(quantity: number): boolean {
 function quoteLine(
   products: Map<string, CatalogProduct>,
   current: Daypart | null,
+  live: readonly CatalogPromotion[],
   input: CartLineInput,
   index: number,
 ): QuoteLine {
@@ -118,17 +121,18 @@ function quoteLine(
     if (picked > group.maxSelect) issues.push({ code: 'GROUP_MAX', productId, groupId: group.id });
   }
 
-  const price = unitPrice(product, input.variantId, validOptionIds).price;
+  const price = priceOf(product, input.variantId, validOptionIds, live).price;
   const lineTotal = issues.length === 0 && quantityOk ? price * input.quantity : 0;
   return { ...base, unitPrice: price, lineTotal, issues };
 }
 
-function bundleIndividualTotal(bundle: Bundle, products: Map<string, CatalogProduct>): number | null {
+/** What a set's items cost bought one by one, at their prices now (offers included). A set itself is never discounted. */
+function bundleIndividualTotal(bundle: Bundle, products: Map<string, CatalogProduct>, live: readonly CatalogPromotion[]): number | null {
   let total = 0;
   for (const item of bundle.items) {
     const product = products.get(item.productId);
     if (!product) return null;
-    total += unitPrice(product, item.variantId, []).price * item.quantity;
+    total += priceOf(product, item.variantId, [], live).price * item.quantity;
   }
   return total;
 }
@@ -137,6 +141,7 @@ function quoteBundle(
   bundles: Map<string, Bundle>,
   products: Map<string, CatalogProduct>,
   current: Daypart | null,
+  live: readonly CatalogPromotion[],
   input: CartBundleInput,
   index: number,
 ): QuoteBundleLine {
@@ -167,7 +172,7 @@ function quoteBundle(
     if (state !== 'OK') issues.push({ code: state, bundleId: bundle.id, productId: product.id });
   }
 
-  const individualTotal = bundleIndividualTotal(bundle, products) ?? 0;
+  const individualTotal = bundleIndividualTotal(bundle, products, live) ?? 0;
   const savings = Math.max(0, individualTotal - bundle.price);
   return {
     index,
@@ -185,9 +190,10 @@ export function quoteCart(catalog: Catalog, cart: CartInput, now: Date): Quote {
   const products = productMap(catalog);
   const bundleById = new Map(catalog.bundles.map((bundle) => [bundle.id, bundle]));
   const current = daypartNow(catalog, now);
+  const live = liveOffers(catalog, now);
 
-  const lines = cart.lines.map((input, index) => quoteLine(products, current, input, index));
-  const bundles = cart.bundles.map((input, index) => quoteBundle(bundleById, products, current, input, index));
+  const lines = cart.lines.map((input, index) => quoteLine(products, current, live, input, index));
+  const bundles = cart.bundles.map((input, index) => quoteBundle(bundleById, products, current, live, input, index));
   const subtotal =
     lines.reduce((sum, line) => sum + line.lineTotal, 0) + bundles.reduce((sum, line) => sum + line.lineTotal, 0);
   const hasBlockingIssues = lines.some((l) => l.issues.length > 0) || bundles.some((b) => b.issues.length > 0);

@@ -146,7 +146,7 @@ export interface CatalogPromotion {
   /** A daily window in minutes after local midnight, or both null for all day; it wraps past midnight when end <= start. */
   startMinute: number | null;
   endMinute: number | null;
-  /** Bit 0 is Sunday. */
+  /** Bit 0 is Monday, as in the daypart schedule. */
   daysOfWeek: number;
   /** The menu's price step, frozen at publish: a discounted price rounds to it. */
   roundTo: number;

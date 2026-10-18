@@ -91,7 +91,7 @@ One migration:
 - `enum PromotionKind { SPECIAL DISCOUNT }` and `model Promotion`: `menuId`, `kind`, `percentOff Int?` (DISCOUNT only,
   5 to 90), `productIds String[]`, `categoryIds String[]`, `startsOn String?` and `endsOn String?` (local dates,
   `YYYY-MM-DD`, inclusive), `startMinute Int?` and `endMinute Int?` (a daily window in the menu's time zone; may wrap
-  past midnight), `daysOfWeek Int @default(127)` (bit 0 Sunday, as `DaypartSchedule`), `translations Json` (`title`,
+  past midnight), `daysOfWeek Int @default(127)` (bit 0 Monday, as `DaypartSchedule`), `translations Json` (`title`,
   `text`), `isActive`, `sortOrder`, `version`.
 - `Menu.engineConfig.sales` (optional JSON): `{ priceStyle: 'symbol' | 'plain', showMostOrdered: boolean,
   showLowStock: boolean }`, defaults `symbol`, `true`, `true`, resolved at read time and absent until set.

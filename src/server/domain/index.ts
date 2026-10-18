@@ -4,6 +4,7 @@ export * from './money';
 export * from './translate';
 export * from './schedule';
 export * from './catalog';
+export * from './offers';
 export * from './pricing';
 export * from './upsell';
 export * from './pairing';

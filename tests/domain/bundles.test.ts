@@ -13,6 +13,39 @@ const line = (productId: string, quantity = 1, optionIds: string[] = []): CartLi
   quantity,
 });
 
+describe('bundles: offers', () => {
+  const burgerOff = (percentOff: number) => ({
+    id: `burger-${percentOff}`,
+    kind: 'DISCOUNT' as const,
+    percentOff,
+    productIds: [IDS.burger],
+    categoryIds: [],
+    startsOn: null,
+    endsOn: null,
+    startMinute: null,
+    endMinute: null,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: {},
+    sortOrder: 0,
+  });
+  const meal: CartInput = {
+    lines: [IDS.burger, IDS.fries, IDS.sparkling].map((productId) => ({ productId, variantId: null, optionIds: [], quantity: 1 })),
+    bundles: [],
+  };
+
+  it('compares a set with the sale prices of its items and stops offering it when it is no longer cheaper', () => {
+    // 900 + 550 + 300 = 1750 against 1500; with the burger at 630 the items cost 1480.
+    expect(detectBundleOpportunities(makeCatalog({ promotions: [burgerOff(10)] }), meal, at(12)).map((o) => o.bundleId)).toContain('b-burger-meal');
+    expect(detectBundleOpportunities(makeCatalog({ promotions: [burgerOff(30)] }), meal, at(12)).map((o) => o.bundleId)).not.toContain('b-burger-meal');
+  });
+
+  it('never discounts a set itself, and shows its saving against the sale prices', () => {
+    const quote = quoteCart(makeCatalog({ promotions: [burgerOff(10)] }), { lines: [], bundles: [{ bundleId: 'b-burger-meal', quantity: 1 }] }, at(12));
+    expect(quote.bundles[0]).toMatchObject({ unitPrice: 1500, individualTotal: 1660, savings: 160 });
+  });
+});
+
 describe('compareBundle', () => {
   it('reports the real saving against the live sum of items', () => {
     const bundle = catalog.bundles.find((b) => b.id === 'b-burger-meal')!;

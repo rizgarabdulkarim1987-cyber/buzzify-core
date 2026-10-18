@@ -451,7 +451,7 @@ model Promotion {
   /// A daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
   startMinute  Int?
   endMinute    Int?
-  /// Bit 0 is Sunday, as `DaypartSchedule.daysOfWeek`.
+  /// Bit 0 is Monday, as `DaypartSchedule.daysOfWeek`.
   daysOfWeek   Int           @default(127)
   /// { en: { title, text }, ar: ..., ckb: ... }
   translations Json

@@ -1,5 +1,6 @@
-import { daypartNow, defaultVariant, inDaypart, orderability, productMap, unitPrice } from './catalog';
+import { daypartNow, defaultVariant, inDaypart, orderability, priceOf, productMap } from './catalog';
 import type { EngineConfig } from './config';
+import { liveOffers } from './offers';
 import { resolveText } from './translate';
 import type { Catalog, Locale, TranslationMap } from './types';
 
@@ -55,7 +56,11 @@ export function suggestUpsells(input: UpsellInput): UpsellOffer[] {
 
   const text = (map: TranslationMap, field: string) => resolveText(map, field, locale, catalog.defaultLocale);
   const chosen = new Set(input.optionIds);
-  const base = unitPrice(product, input.variantId, input.optionIds);
+  const live = liveOffers(catalog, now);
+  const base = priceOf(product, input.variantId, input.optionIds, live);
+  // What the guest's choice would cost with this change, at today's prices (offers included).
+  const withOption = (optionId: string) => priceOf(product, input.variantId, [...input.optionIds, optionId], live).price - base.price;
+  const withVariant = (variantId: string) => priceOf(product, variantId, input.optionIds, live).price - base.price;
   const cap = Math.round(base.price * config.upsellDeltaCapRatio);
   const candidates: Candidate[] = [];
 
@@ -69,7 +74,7 @@ export function suggestUpsells(input: UpsellInput): UpsellOffer[] {
         refId: option.id,
         title: text(option.translations, 'name'),
         effect: text(option.translations, 'effect') || null,
-        priceDelta: option.priceDelta,
+        priceDelta: withOption(option.id),
         costDelta: option.costDelta,
         rulePriority: option.suggestPriority,
         popularity: product.popularity,
@@ -89,7 +94,7 @@ export function suggestUpsells(input: UpsellInput): UpsellOffer[] {
       refId: variant.id,
       title: text(variant.translations, 'name'),
       effect: null,
-      priceDelta: variant.priceDelta - currentDelta,
+      priceDelta: withVariant(variant.id),
       costDelta: variant.costDelta !== null && currentCost !== null ? variant.costDelta - currentCost : null,
       rulePriority: 50,
       popularity: product.popularity,
@@ -100,7 +105,7 @@ export function suggestUpsells(input: UpsellInput): UpsellOffer[] {
     if (rule.sourceProductId !== product.id || !inDaypart(rule.dayparts, current)) continue;
     const target = products.get(rule.targetProductId);
     if (!target || orderability(target, current) !== 'OK' || !inDaypart(target.dayparts, current)) continue;
-    const targetPrice = unitPrice(target, null, []);
+    const targetPrice = priceOf(target, null, [], live);
     candidates.push({
       kind: 'SWAP',
       refId: target.id,

@@ -1,10 +1,12 @@
-import { daypartNow, defaultVariant, inDaypart, orderability, productMap, unitPrice } from './catalog';
+import { daypartNow, defaultVariant, inDaypart, orderability, priceOf, productMap } from './catalog';
+import { liveOffers } from './offers';
 import {
   MAX_QUANTITY,
   type Bundle,
   type CartInput,
   type Catalog,
   type CatalogProduct,
+  type CatalogPromotion,
 } from './types';
 
 export interface BundleComparison {
@@ -24,13 +26,14 @@ export interface BundleOpportunity {
   savings: number;
 }
 
-export function compareBundle(catalog: Catalog, bundle: Bundle): BundleComparison | null {
+/** A set against its items bought one by one, at their regular prices or, given the live offers, at their prices now. */
+export function compareBundle(catalog: Catalog, bundle: Bundle, live: readonly CatalogPromotion[] = []): BundleComparison | null {
   const products = productMap(catalog);
   let individualTotal = 0;
   for (const item of bundle.items) {
     const product = products.get(item.productId);
     if (!product) return null;
-    individualTotal += unitPrice(product, item.variantId, []).price * item.quantity;
+    individualTotal += priceOf(product, item.variantId, [], live).price * item.quantity;
   }
   const savings = Math.max(0, individualTotal - bundle.price);
   return { bundleId: bundle.id, individualTotal, bundlePrice: bundle.price, savings, isDeal: savings > 0 };
@@ -71,13 +74,14 @@ function fullSets(catalog: Catalog, bundle: Bundle, available: Map<string, numbe
 
 export function detectBundleOpportunities(catalog: Catalog, cart: CartInput, now: Date): BundleOpportunity[] {
   const current = daypartNow(catalog, now);
+  const live = liveOffers(catalog, now);
   const products = productMap(catalog);
   const available = availability(catalog, cart);
   const found: BundleOpportunity[] = [];
 
   for (const bundle of catalog.bundles) {
     if (!inDaypart(bundle.dayparts, current)) continue;
-    const comparison = compareBundle(catalog, bundle);
+    const comparison = compareBundle(catalog, bundle, live);
     if (!comparison || !comparison.isDeal) continue;
     const orderable = bundle.items.every((item) => {
       const product = products.get(item.productId);
