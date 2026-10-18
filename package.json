@@ -17,6 +17,7 @@
     "test:load": "vitest run --config vitest.load.config.ts",
     "test:e2e": "playwright test",
     "perf": "tsx scripts/perf.ts",
+    "media:calibrate": "tsx scripts/media-calibrate.ts",
     "studio:create-admin": "tsx scripts/create-admin.ts",
     "db:up": "tsx scripts/db.ts up",
     "db:down": "tsx scripts/db.ts down",
