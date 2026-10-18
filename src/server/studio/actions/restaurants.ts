@@ -4,6 +4,7 @@ import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
+import { PICTURE_KINDS } from '@/server/media/kinds';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -44,6 +45,9 @@ function restaurantOf(ctx: ActionContext): string {
 }
 
 // The restaurant ------------------------------------------------------------------------------------------------------
+
+/** The profile fields a menu shows guests: the name on every menu, the rest on template menus (spec 2026-10-18, 4.3). */
+const MENU_FIELDS = new Set(['name', 'address', 'city', 'phone', 'whatsapp', 'mapUrl', 'socialLinks', 'workingHours']);
 
 export const createRestaurant = defineAction({
   name: 'restaurants.create',
@@ -88,7 +92,11 @@ export const updateRestaurant = defineAction({
       const next = { ...input, notes: seesAgencyNotes(ctx.actor, restaurantId) ? input.notes : before.notes };
       const changes: Record<string, { before: unknown; after: unknown }> = changedFields(before, next);
       const logoChanged = logoAssetId !== undefined && logoAssetId !== row.logoAssetId;
-      if (logoChanged && logoAssetId !== null && !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId }, select: { id: true } }))) {
+      if (
+        logoChanged &&
+        logoAssetId !== null &&
+        !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId, kind: { in: [...PICTURE_KINDS] } }, select: { id: true } }))
+      ) {
         throw new StudioError('NOT_FOUND');
       }
       if (logoChanged) changes.logoAssetId = { before: row.logoAssetId, after: logoAssetId };
@@ -97,9 +105,10 @@ export const updateRestaurant = defineAction({
       const data = { ...profileData(next), ...(logoChanged ? { logoAssetId } : {}) };
       await updateWithVersion(tx.restaurant, { id: restaurantId, version, data, entityType: 'Restaurant' }, tx);
       ctx.audit({ action: 'restaurant.updated', entityType: 'Restaurant', entityId: restaurantId, changes });
-      // Guests see the restaurant's name on every menu (it is part of the published snapshot), so a new name is a change
-      // to each menu's draft; nothing else in the profile reaches a menu.
-      const menuIds = 'name' in changes ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
+      // Guests see the restaurant's name on every menu, and a template menu shows its details too (both are part of the
+      // published snapshot), so a change to any of them is a change to each menu's draft.
+      const shown = Object.keys(changes).some((field) => MENU_FIELDS.has(field));
+      const menuIds = shown ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
       return { version: version + 1, menuIds };
     });
     // Once the rename has committed, and before answering, so the page the person opens next already says the menus

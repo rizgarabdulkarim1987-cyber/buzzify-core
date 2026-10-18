@@ -1,0 +1,227 @@
+import { definePreset } from '../define';
+
+/** Café and coffee shop presets, 11 to 18 of the brief. */
+
+export const copperRoast = definePreset({
+  id: 'copper-roast',
+  number: 11,
+  name: 'Copper Roast',
+  business: 'cafe',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#30211C', text: '#F2E7D8', accent: '#B77D50' },
+  alternatives: [
+    { id: 'ristretto', name: 'Ristretto', seed: { bg: '#1F1512', text: '#F1E5D4', accent: '#C98B5A' } },
+    { id: 'crema', name: 'Crema', seed: { bg: '#F2E7D8', text: '#30211C', accent: '#8A5A35' } },
+    { id: 'copper-blue', name: 'Copper blue', seed: { bg: '#1C2228', text: '#EFE6D9', accent: '#C08457' } },
+  ],
+  type: { fontPairId: 'cafe', scale: 1.02 },
+  layout: {
+    hero: 'spotlight',
+    nav: 'pills',
+    card: 'drink',
+    detail: 'sheet',
+    options: 'chips',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'rule',
+  },
+});
+
+export const creamStudio = definePreset({
+  id: 'cream-studio',
+  number: 12,
+  name: 'Cream Studio',
+  business: 'cafe',
+  tags: ['light', 'minimal'],
+  seed: { bg: '#F6F0E6', text: '#3B2F28', accent: '#544238', raised: '#E9DFD2', line: '#D8CBBB' },
+  alternatives: [
+    { id: 'oat', name: 'Oat', seed: { bg: '#F2EBDD', text: '#3A3029', accent: '#6E5544' } },
+    { id: 'mocha-evening', name: 'Mocha evening', seed: { bg: '#2A221D', text: '#F3ECE2', accent: '#CDB8A1' } },
+    { id: 'porcelain', name: 'Porcelain', seed: { bg: '#FAF8F4', text: '#2F2925', accent: '#7A6352' } },
+  ],
+  type: { fontPairId: 'studio', scale: 1.04 },
+  layout: {
+    hero: 'compact',
+    nav: 'segmented',
+    card: 'gallery',
+    detail: 'sheet',
+    options: 'chips',
+    imageRatio: 'portrait',
+    density: 'airy',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'motion', intensity: 0.5 },
+});
+
+export const matchaRitual = definePreset({
+  id: 'matcha-ritual',
+  number: 13,
+  name: 'Matcha Ritual',
+  business: 'cafe',
+  tags: ['light', 'minimal'],
+  seed: { bg: '#F3F0E3', text: '#34452F', accent: '#6D8252' },
+  alternatives: [
+    { id: 'ceremony', name: 'Ceremony', seed: { bg: '#E8EBDA', text: '#2D3B28', accent: '#5C7244' } },
+    { id: 'night-tea', name: 'Night tea', seed: { bg: '#1E2A1C', text: '#EEF0E2', accent: '#A3B886' } },
+    { id: 'hojicha', name: 'Hojicha', seed: { bg: '#F2EADF', text: '#3D3027', accent: '#8A6A48' } },
+  ],
+  type: { fontPairId: 'ritual', scale: 1.04 },
+  layout: {
+    hero: 'chapters',
+    nav: 'tiles',
+    card: 'compact',
+    detail: 'drawer',
+    options: 'chips',
+    imageRatio: 'circle',
+    density: 'airy',
+    corners: 'pill',
+    shadow: 'none',
+    heading: 'seal',
+  },
+  scene: { intensity: 0.5, speed: 0.8 },
+});
+
+export const midnightEspresso = definePreset({
+  id: 'midnight-espresso',
+  number: 14,
+  name: 'Midnight Espresso',
+  business: 'cafe',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#18232C', text: '#EDE7DD', accent: '#B78462' },
+  alternatives: [
+    { id: 'after-hours', name: 'After hours', seed: { bg: '#11181F', text: '#EEE8DE', accent: '#C9946E' } },
+    { id: 'steel', name: 'Steel', seed: { bg: '#22272C', text: '#EDEAE4', accent: '#B8A08A' } },
+    { id: 'milk-light', name: 'Milk light', seed: { bg: '#EDE7DD', text: '#18232C', accent: '#8C5C3E' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0, tracking: -0.02 },
+  layout: {
+    hero: 'spotlight',
+    nav: 'underline',
+    card: 'list',
+    detail: 'card',
+    options: 'chips',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'outline',
+  },
+  scene: { intensity: 0.55 },
+});
+
+export const terraCafe = definePreset({
+  id: 'terra-cafe',
+  number: 15,
+  name: 'Terra Café',
+  business: 'cafe',
+  tags: ['light', 'cinematic'],
+  seed: { bg: '#E7D5BF', text: '#44342C', accent: '#B56F52', surface: '#F1E6D7', card: '#F4EBDF' },
+  alternatives: [
+    { id: 'adobe-night', name: 'Adobe night', seed: { bg: '#2B201B', text: '#EEDFCB', accent: '#D08A6C' } },
+    { id: 'limewash', name: 'Limewash', seed: { bg: '#F3EBDF', text: '#3E2F27', accent: '#A45F43' } },
+    { id: 'ochre', name: 'Ochre', seed: { bg: '#E9D9B8', text: '#3F3125', accent: '#9C5B2E' } },
+  ],
+  type: { fontPairId: 'terra', scale: 1.02 },
+  layout: {
+    hero: 'arch',
+    nav: 'pills',
+    card: 'photo',
+    detail: 'page',
+    options: 'chips',
+    imageRatio: 'arch',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'arch',
+  },
+});
+
+export const nordicBrew = definePreset({
+  id: 'nordic-brew',
+  number: 16,
+  name: 'Nordic Brew',
+  business: 'cafe',
+  tags: ['light', 'minimal'],
+  seed: { bg: '#F4F3EF', text: '#2C3336', accent: '#525D62', raised: '#E6E9E2' },
+  alternatives: [
+    { id: 'fjord', name: 'Fjord', seed: { bg: '#E9EEF0', text: '#22292D', accent: '#3F5964' } },
+    { id: 'moss', name: 'Moss', seed: { bg: '#EEF0EA', text: '#262C24', accent: '#5D6B55' } },
+    { id: 'polar-night', name: 'Polar night', seed: { bg: '#1D2226', text: '#EEF0EE', accent: '#A9B6A1' } },
+  ],
+  type: { fontPairId: 'nordic', scale: 0.98, tracking: -0.01 },
+  layout: {
+    hero: 'compact',
+    nav: 'underline',
+    card: 'compact',
+    detail: 'sheet',
+    options: 'chips',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'motion', intensity: 0.45 },
+});
+
+export const neonNoir = definePreset({
+  id: 'neon-noir',
+  number: 17,
+  name: 'Neon Noir',
+  business: 'cafe',
+  tags: ['dark', 'cinematic', 'playful'],
+  seed: { bg: '#111018', text: '#EEEDF6', accent: '#9671DE' },
+  alternatives: [
+    { id: 'mint-circuit', name: 'Mint circuit', seed: { bg: '#0E1416', text: '#EAF6F3', accent: '#87D6C6' } },
+    { id: 'ultraviolet', name: 'Ultraviolet', seed: { bg: '#15102A', text: '#F0ECFA', accent: '#B08CFF' } },
+    { id: 'graphite', name: 'Graphite', seed: { bg: '#1A1A1E', text: '#EDEDF0', accent: '#7FC8BA' } },
+  ],
+  type: { fontPairId: 'neon', scale: 0.96, tracking: -0.01 },
+  layout: {
+    hero: 'carousel',
+    nav: 'chips',
+    card: 'gallery',
+    detail: 'card',
+    options: 'chips',
+    imageRatio: 'portrait',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'lifted',
+    heading: 'outline',
+  },
+  scene: { intensity: 0.6, overlay: 0.2 },
+});
+
+export const galleryBlanc = definePreset({
+  id: 'gallery-blanc',
+  number: 18,
+  name: 'Gallery Blanc',
+  business: 'cafe',
+  tags: ['light', 'minimal'],
+  seed: { bg: '#FAFAF8', text: '#242424', accent: '#9C3D2E' },
+  alternatives: [
+    { id: 'cobalt-accent', name: 'Cobalt accent', seed: { bg: '#FAFAF8', text: '#242424', accent: '#2F4FA2' } },
+    { id: 'sage-accent', name: 'Sage accent', seed: { bg: '#FAFAF8', text: '#242424', accent: '#4E6B57' } },
+    { id: 'noir-gallery', name: 'Noir gallery', seed: { bg: '#141414', text: '#F2F2EF', accent: '#E0C9A6' } },
+  ],
+  type: { fontPairId: 'classic', scale: 1.04, tracking: -0.01 },
+  layout: {
+    hero: 'pedestal',
+    nav: 'index',
+    card: 'isolated',
+    detail: 'page',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'airy',
+    corners: 'none',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'motion', intensity: 0.45 },
+});
+
+export const CAFE_PRESETS = [copperRoast, creamStudio, matchaRitual, midnightEspresso, terraCafe, nordicBrew, neonNoir, galleryBlanc];

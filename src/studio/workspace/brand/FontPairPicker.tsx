@@ -10,7 +10,7 @@ import { cx } from '@/studio/ui/cx';
 export const face = (variable: string, generic: 'serif' | 'sans-serif' = 'serif') => `var(${variable}), ${generic}`;
 
 /**
- * The six font pairs, each a choice drawn in its own faces: a Latin heading and line, and the same in Arabic script.
+ * The font pairs, each a choice drawn in its own faces: a Latin heading and line, and the same in Arabic script.
  * The page attaches every pair's faces (`allPairFontVariables`), so each sample shows as guests would see it. A pair the
  * restaurant's plan does not include is shown with a lock and cannot be chosen, unless it is the one already saved.
  */

@@ -110,6 +110,11 @@ A switch is on (✓) or off (–) in each plan. Each row says what guests and th
 | `selling.smart` | upgrade offers, pairings and bundles shown to guests | none are shown | – | ✓ | ✓ |
 | `immersive.explore` | Explore mode | the menu only | – | – | ✓ |
 | `immersive.stage` | every 3D dish outside Explore: on product pages, in the signature dish at the top of the menu, and in the melting-dish (grains) rail | the 2D dish art the stage already shows on devices without WebGL; the closest rail allowed | – | – | ✓ |
+| `design.backgroundAnimation` | a Lottie animation as a template menu's background | the template's own scene | – | ✓ | ✓ |
+| `design.backgroundVideo` | a video as a template menu's background | the template's own scene | – | – | ✓ |
+| `immersive.models3d` | a 3D model (GLB) as a template menu's background; models per dish later (project 4) | the template's own scene | – | – | ✓ |
+
+The last three were added with scene files (`2026-10-18-scene-files-plans-design.md`).
 
 Explore draws its own 3D scene, which belongs to `immersive.explore`: a restaurant given Explore without the stage (an
 extra can do that) gets the whole of Explore.
@@ -128,14 +133,12 @@ feature is built its switch does nothing.
 |---|---|---|---|
 | 2 | `design.premiumTemplates` | templates beyond the standard ones | Pro |
 | 2 | `design.backgroundImage` | an uploaded background image | Pro |
-| 2 | `design.backgroundVideo` | an uploaded background video | Premium |
 | 2 | `design.motionPresets` | motion presets | Pro |
 | 3 | `guest.moodPicker` | "What are you in the mood for" | Pro |
 | 3 | `guest.livingPhotos` | living photos (tilt parallax, steam, sheen) | Premium |
 | 3 | `guest.stories` | restaurant stories | Pro |
 | 3 | `guest.occasionMoods` | time-of-day and occasion moods (Ramadan, Newroz, Eid) | Pro |
 | 3 | `guest.drinkMatch` | drink-and-dish match | Pro |
-| 4 | `immersive.models3d` | uploaded 3D models (GLB) per dish | Premium |
 | 4 | `immersive.ar` | AR on the table | Premium |
 | 5 | `ordering.tableBasket` | order together at the table | Premium |
 | 6 | `table.callWaiter` | call the waiter, ask for the bill | Pro |

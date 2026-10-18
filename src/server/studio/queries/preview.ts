@@ -6,7 +6,7 @@ import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
 import { hiddenFromGuests, servedCatalog } from '@/server/domain/plan-choices';
 import { toCatalog } from '@/server/domain/snapshot';
-import { loadDraftSnapshot } from '@/server/publish/draft';
+import { loadDraftSnapshot, type DesignContext } from '@/server/publish/draft';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { upgradeInfo } from '@/server/studio/services/plans';
@@ -24,7 +24,7 @@ export const draft = defineQuery({
   permission: 'view',
   input: z.object({ menuId: idField, locale: z.enum(LOCALES) }),
   target: (i) => ({ kind: 'menu', menuId: i.menuId }),
-  run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView }> => {
+  run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView; designContext: DesignContext }> => {
     if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
     const menu = await ctx.db.menu.findUnique({ where: { id: ctx.menuId }, select: { id: true, slug: true, restaurantId: true } });
     if (!menu) throw new StudioError('NOT_FOUND');
@@ -33,7 +33,13 @@ export const draft = defineQuery({
     // As guests on the restaurant's plan would see it.
     const tenant = tenantInfo(menu, 'draft', snapshot, ctx.plan.entitlements);
     const catalog = servedCatalog(toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id)), tenant.features);
-    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
+    // The restaurant's side of a template, so the Design tab can preview any template with the business's details.
+    const restaurant = await ctx.db.restaurant.findUniqueOrThrow({
+      where: { id: menu.restaurantId },
+      select: { address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true },
+    });
+    const { showPoweredBy, ...details } = restaurant;
+    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()), designContext: { details, showPoweredBy } };
   },
 });
 
@@ -46,7 +52,7 @@ export const planNote = defineQuery({
   run: async (ctx) => {
     if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
     const snapshot = await loadDraftSnapshot(ctx.db, ctx.menuId);
-    const hidden = hiddenFromGuests(snapshot.brand, snapshot.catalog, ctx.plan.entitlements);
+    const hidden = hiddenFromGuests(snapshot.brand, snapshot.catalog, ctx.plan.entitlements, snapshot.motions ?? []);
     return { hidden, upgrade: hidden.length > 0 ? await upgradeInfo(ctx.db, ctx) : null };
   },
 });

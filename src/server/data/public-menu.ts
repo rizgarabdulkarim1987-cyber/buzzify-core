@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
-import { parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
+import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
@@ -63,6 +63,7 @@ export function tenantInfo(
     brand: clampBrandView(snapshot.brand, entitlements),
     seo: settings.seo,
     features: guestFeatures(entitlements),
+    motions: allows(entitlements, 'design.menuMotions') ? (snapshot.motions ?? []) : [],
   };
 }
 

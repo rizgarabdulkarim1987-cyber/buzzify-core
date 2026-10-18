@@ -3,6 +3,7 @@ import '@/app/globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
+import { guestFontPair, guestPalette, guestTheme } from '@/lib/guest-brand';
 import { direction, isLocale } from '@/lib/locale';
 import type { BrandView } from '@/server/data/tenant';
 import { hostEnv } from '@/server/env';
@@ -39,8 +40,8 @@ export async function generateMetadata({
  * A small accent-coloured mark in the restaurant's own colour, as a data URI. Without any icon link a browser
  * asks the server for /favicon.ico, which is a 404 and a wasted connection while the page is loading.
  */
-function iconFor(brand: { theme: 'dark' | 'light'; tokens: Record<'dark' | 'light', { accent: string }> }): string {
-  const accent = brand.tokens[brand.theme].accent;
+function iconFor(brand: BrandView): string {
+  const accent = guestPalette(brand).accent;
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><circle cx="16" cy="16" r="12" fill="${accent}"/></svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
@@ -84,7 +85,7 @@ export default async function RootLayout({
 
   const { tenant, locale } = resolved.route;
   return (
-    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale, tenant.brand.fontPairId)}>
+    <html lang={locale} dir={direction(locale)} data-theme={guestTheme(tenant.brand)} className={fontVariablesFor(locale, guestFontPair(tenant.brand))}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: brandCss(tenant.brand) }} />
       </head>

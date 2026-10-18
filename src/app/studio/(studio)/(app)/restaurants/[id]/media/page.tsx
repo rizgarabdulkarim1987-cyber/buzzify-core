@@ -22,6 +22,6 @@ export default async function RestaurantMediaPage({ params, searchParams }: { pa
   const folder = one(filters.folder);
   const tag = one(filters.tag);
   const q = one(filters.q);
-  const list = await query(listMedia, { restaurantId: id, own: true, page, ...(folder ? { folder } : {}), ...(tag ? { tag } : {}), ...(q ? { q } : {}) });
+  const list = await query(listMedia, { restaurantId: id, own: true, kinds: 'all', page, ...(folder ? { folder } : {}), ...(tag ? { tag } : {}), ...(q ? { q } : {}) });
   return <MediaLibrary restaurantId={id} editable libraries={[]} list={list} page={page} pageSize={MEDIA_PAGE_SIZE} />;
 }

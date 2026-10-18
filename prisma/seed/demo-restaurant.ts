@@ -26,6 +26,9 @@ export async function demoRestaurant(prisma: PrismaClient, { profile }: SeedData
         phone: profile.phone,
         whatsapp: profile.whatsapp,
         socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
+        address: profile.address ?? '',
+        mapUrl: profile.mapUrl ?? '',
+        workingHours: profile.workingHours ?? {},
         plan: DEMO_PLANS[profile.name] ?? 'PREMIUM',
       },
     }))

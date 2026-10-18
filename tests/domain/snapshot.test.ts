@@ -11,6 +11,8 @@ import {
 } from '@/server/domain/snapshot';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
 import type { CatalogPromotion } from '@/server/domain/types';
+import { TEMPLATES } from '@/lib/templates';
+import { resolveDesign } from '@/lib/templates/resolve';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
 const menu = makeMenu();
@@ -418,6 +420,79 @@ describe('sales additions', () => {
   it('refuses an offer of an unknown kind', () => {
     const s = JSON.parse(JSON.stringify(rich()));
     s.catalog.promotions[0].kind = 'FREEBIE';
+    expect(() => parseSnapshot(s)).toThrow();
+  });
+});
+
+describe('template designs', () => {
+  const withDesign = (): MenuSnapshot => {
+    const design = resolveDesign(
+      TEMPLATES['gelato-riviera'],
+      { featured: { slugs: ['latte'] }, promo: { title: { en: 'Two scoops' }, body: {}, terms: { en: 'Weekdays only' } } },
+      {
+        details: {
+          address: '9 Shore Road',
+          city: 'Duhok',
+          phone: '+964 750 111 2222',
+          whatsapp: '',
+          mapUrl: 'https://maps.example.com/x',
+          socialLinks: { instagram: 'https://instagram.com/gelato' },
+          workingHours: { fri: [['12:00', '23:30']] },
+        },
+        poweredBy: true,
+      },
+    );
+    return buildSnapshot({ menu, brand: { ...brand, design }, catalog });
+  };
+
+  it('round-trips a design through JSON and keeps its hash', () => {
+    const s = withDesign();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+    expect(snapshotHash(s)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it.each([
+    ['a map link that is not https', (s: MenuSnapshot) => ((s.brand.design!.info as Record<string, unknown>).mapUrl = 'javascript:alert(1)')],
+    ['a colour that is not a colour', (s: MenuSnapshot) => ((s.brand.design!.palette as unknown as Record<string, string>).bg = 'url(x)')],
+    ['an unknown template', (s: MenuSnapshot) => ((s.brand.design as unknown as Record<string, string>).templateId = 'comic')],
+    ['an unknown card kind', (s: MenuSnapshot) => ((s.brand.design!.layout as unknown as Record<string, string>).card = 'marquee')],
+  ])('refuses %s', (_, spoil) => {
+    const s = JSON.parse(JSON.stringify(withDesign())) as MenuSnapshot;
+    spoil(s);
+    expect(() => parseSnapshot(s)).toThrow();
+  });
+
+  const withMedia = (media: NonNullable<MenuSnapshot['brand']['design']>['media']): MenuSnapshot => {
+    const s = withDesign();
+    return buildSnapshot({ menu, brand: { ...s.brand, design: { ...s.brand.design!, media } }, catalog });
+  };
+  const video = {
+    kind: 'video' as const,
+    assetId: 'asset-video',
+    url: '/api/dev-media/r/x/abc/original.mp4',
+    width: 1080,
+    height: 1920,
+    poster: { url: '/api/dev-media/r/x/abc/poster-webp-640.webp', srcset: '/api/dev-media/r/x/abc/poster-webp-320.webp 320w', placeholder: 'data:image/webp;base64,AAAA' },
+  };
+
+  it('keeps a scene file through JSON, and names it among the assets the revision uses', () => {
+    const s = withMedia(video);
+    expect(parseSnapshot(JSON.parse(JSON.stringify(s)))).toEqual(s);
+    expect(snapshotAssetIds(s)).toEqual(['asset-video']);
+    const model = withMedia({ kind: 'model', assetId: 'asset-model', url: 'https://media.example.com/r/x/m/original.glb', framing: { scale: 1, x: 0, y: 0, turn: 0 } });
+    expect(parseSnapshot(JSON.parse(JSON.stringify(model)))).toEqual(model);
+  });
+
+  it.each([
+    ['a scene file over plain http', { ...video, url: 'http://example.com/a.mp4' }],
+    ['a scene file by script URL', { ...video, url: 'javascript:alert(1)' }],
+    ['a poster that is not a safe URL', { ...video, poster: { ...video.poster, url: '//evil.example.com/p.webp' } }],
+    ['an unknown kind', { ...video, kind: 'flash' }],
+  ])('refuses %s', (_, media) => {
+    const s = JSON.parse(JSON.stringify(withMedia(video))) as MenuSnapshot;
+    (s.brand.design as unknown as Record<string, unknown>).media = media;
     expect(() => parseSnapshot(s)).toThrow();
   });
 });

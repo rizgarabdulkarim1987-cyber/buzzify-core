@@ -253,6 +253,47 @@ describe('draft snapshots', () => {
     }
   });
 
+  it('gives a classic menu no design, so its hash is what it was before templates', async () => {
+    const snapshot = await loadDraftSnapshot(prisma, atelierMenuId);
+    expect(snapshot.brand.design).toBeUndefined();
+    expect(Object.keys(snapshot.brand)).not.toContain('design');
+  });
+
+  it('resolves a template menu with its overrides and the restaurant details it shows', async () => {
+    const target = await emptyMenu();
+    const source = await loadDraftSnapshot(prisma, atelierMenuId);
+    await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, target, source));
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { address: '1 Gold Street', city: 'Erbil', phone: '+964 750 000 0000', mapUrl: 'https://maps.example.com/atelier', showPoweredBy: false },
+    });
+    const overrides = { paletteId: 'smoke', layout: { card: 'gallery' }, featured: { slugs: ['atelier-burger'] }, info: { phone: false }, ordering: 'none' };
+    await prisma.brandConfig.update({ where: { menuId: target }, data: { templateId: 'obsidian-gold', design: overrides } });
+    try {
+      const snapshot = await loadDraftSnapshot(prisma, target);
+      const design = snapshot.brand.design!;
+      expect(design.templateId).toBe('obsidian-gold');
+      expect(design.layout.card).toBe('gallery');
+      expect(design.palette.bg).toBe('#1A1816');
+      expect(design.featured.slugs).toEqual(['atelier-burger']);
+      expect(design.ordering).toBe('none');
+      expect(design.poweredBy).toBe(false);
+      expect(design.info).toEqual({ address: '1 Gold Street, Erbil', mapUrl: 'https://maps.example.com/atelier' });
+      expect(design.source).toEqual({ templateVersion: 1, overrides });
+      // The kit's own palette is kept for the classic menu.
+      expect(snapshot.brand.tokens).toEqual(source.brand.tokens);
+
+      // Restoring or duplicating writes back the template and exactly the stored overrides.
+      const copy = await emptyMenu();
+      await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, copy, snapshot));
+      const row = await prisma.brandConfig.findUniqueOrThrow({ where: { menuId: copy } });
+      expect(row).toMatchObject({ templateId: 'obsidian-gold', design: overrides, customTemplateId: null });
+      expect(stripIds(await loadDraftSnapshot(prisma, copy))).toEqual(stripIds(snapshot));
+    } finally {
+      await prisma.restaurant.update({ where: { id: restaurantId }, data: { address: '', city: '', phone: '', mapUrl: '', showPoweredBy: true } });
+    }
+  });
+
   it('writes through a transaction scoped to the target menu', async () => {
     const target = await emptyMenu();
     const source = await loadDraftSnapshot(prisma, atelierMenuId);

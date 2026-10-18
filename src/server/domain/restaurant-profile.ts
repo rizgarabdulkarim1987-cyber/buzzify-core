@@ -4,7 +4,7 @@
  * client, so they cannot take these from the generated enums).
  */
 
-export const RESTAURANT_TYPES = ['CAFE', 'RESTAURANT', 'BAKERY', 'FAST_FOOD', 'FINE_DINING', 'OTHER'] as const;
+export const RESTAURANT_TYPES = ['CAFE', 'RESTAURANT', 'BAKERY', 'ICE_CREAM', 'FAST_FOOD', 'FINE_DINING', 'OTHER'] as const;
 export type RestaurantType = (typeof RESTAURANT_TYPES)[number];
 
 export const RESTAURANT_STATUSES = ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const;

@@ -20,8 +20,8 @@ const live = (tier: PlanTier) =>
   [...defaultPlans().features[tier]].filter((key) => FEATURES.find((feature) => feature.key === key)!.status === 'live');
 
 describe('the feature catalog', () => {
-  it('lists the eleven live features first, in the spec’s order', () => {
-    expect(FEATURE_KEYS.slice(0, 11)).toEqual([
+  it('lists the fifteen live features first, in the specs’ order', () => {
+    expect(FEATURE_KEYS.slice(0, 15)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
@@ -33,9 +33,13 @@ describe('the feature catalog', () => {
       'selling.insights',
       'immersive.explore',
       'immersive.stage',
+      'design.menuMotions',
+      'design.backgroundAnimation',
+      'design.backgroundVideo',
+      'immersive.models3d',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(11);
-    expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(19);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(15);
+    expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(17);
   });
 
   it('knows its own keys and nothing else', () => {
@@ -56,8 +60,19 @@ describe('the feature catalog', () => {
       'selling.offers',
       'selling.socialProof',
       'selling.insights',
+      'design.menuMotions',
+      'design.backgroundAnimation',
     ]);
-    expect(live('PREMIUM')).toHaveLength(11);
+    expect(live('PREMIUM')).toHaveLength(15);
+  });
+
+  it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
+    const plans = defaultPlans();
+    expect(plans.features.BASIC.has('design.backgroundAnimation')).toBe(false);
+    expect(plans.features.PRO.has('design.backgroundAnimation')).toBe(true);
+    expect(plans.features.PREMIUM.has('design.backgroundAnimation')).toBe(true);
+    expect(plans.features.PRO.has('immersive.models3d')).toBe(false);
+    expect(plans.features.PREMIUM.has('immersive.models3d')).toBe(true);
   });
 
   it('starts each reserved feature in its plan and every plan above', () => {
@@ -140,7 +155,7 @@ describe('a restaurant’s entitlements', () => {
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 11));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 15));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });

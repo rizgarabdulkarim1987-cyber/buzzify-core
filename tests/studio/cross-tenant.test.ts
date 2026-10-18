@@ -76,6 +76,8 @@ interface Side {
   designerId: string;
   invitationId: string;
   assetId: string;
+  /** A GLB model in the restaurant's library. */
+  sceneAssetId: string;
   categoryId: string;
   productId: string;
   variantId: string;
@@ -93,6 +95,8 @@ interface Side {
   pairingId: string;
   setId: string;
   offerId: string;
+  /** A design the restaurant saved from a template preset. */
+  designTemplateId: string;
 }
 
 interface World {
@@ -185,10 +189,24 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
     },
   });
+  // A scene file (Template Studio stage 2), which a menu of the restaurant may draw as its background.
+  const sceneAsset = await prisma().mediaAsset.create({
+    data: {
+      restaurantId: restaurant.id,
+      kind: 'MODEL',
+      storageKey: `r/${restaurant.id}/${label}scene`,
+      contentHash: `${label}scene`,
+      mime: 'model/gltf-binary',
+      bytes: 10,
+      storedBytes: 10,
+      variants: { original: `r/${restaurant.id}/${label}scene/original.glb` },
+    },
+  });
   const importJob = await prisma().importJob.create({
     data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
   });
   const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
+  const designTemplate = await prisma().designTemplate.create({ data: { restaurantId: restaurant.id, name: `${title} house look`, basePresetId: 'kyoto-ink', overrides: {} } });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -206,6 +224,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     designerId: designer.id,
     invitationId: invitation.id,
     assetId: asset.id,
+    sceneAssetId: sceneAsset.id,
     categoryId: category.id,
     productId: product.id,
     variantId: variant.id,
@@ -219,6 +238,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pairingId: pairing.id,
     setId: set.id,
     offerId: offer.id,
+    designTemplateId: designTemplate.id,
   };
 }
 
@@ -288,7 +308,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.sceneAssetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -435,6 +455,13 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // The Motion tab
+  'motions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'motions.save': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', motionId: 'golden-particles', params: {}, texts: {}, version: null })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, place: 'category', categoryId: w.b.categoryId, motionId: 'coffee-steam', params: {}, texts: {}, version: null })),
+  ],
+  'motions.remove': [c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', version: 1 }))],
   // Plans: the tab reads B's plan; the change is the platform owner's alone, so anyone else is refused before B is found
   'plans.forRestaurant': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId }))],
   'plans.setRestaurantPlan': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, plan: 'BASIC', extras: {}, note: 'Planted' }))],
@@ -506,6 +533,23 @@ const SWEPT: Record<string, Case[]> = {
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),
     c("B's favicon, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), favicon: { kind: 'asset', assetId: w.b.assetId } })),
   ],
+  // Template designs
+  'design.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'design.apply': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, choice: { kind: 'preset', templateId: 'copper-roast' } })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, version: 1, choice: { kind: 'custom', customTemplateId: w.b.designTemplateId } })),
+  ],
+  'design.update': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, overrides: { paletteId: 'crema' } })),
+    c("B's scene file, through A", (w) => ({ menuId: w.a.menuId, version: 1, overrides: { sceneAsset: { assetId: w.b.sceneAssetId } } })),
+  ],
+  'design.reset': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1 }))],
+  'design.save': [c("B's menu", (w) => ({ menuId: w.b.menuId, name: 'Planted', shared: false, from: 'copper-roast' }))],
+  'design.delete': [
+    c("B's saved design, in B", (w) => ({ menuId: w.b.menuId, id: w.b.designTemplateId })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, id: w.b.designTemplateId })),
+  ],
+  'design.poweredBy': [c('B', (w) => ({ restaurantId: w.b.restaurantId, show: false }))],
   'brand.suggestFromLogo': [
     c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, theme: 'light' })),
@@ -605,7 +649,9 @@ const SWEPT: Record<string, Case[]> = {
   'media.list': [
     c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
     c("B's library alone", (w) => ({ restaurantId: w.b.restaurantId, own: true })),
+    c("B's scene files", (w) => ({ restaurantId: w.b.restaurantId, kinds: 'scene' })),
     c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+    c("A's scene files", (w) => ({ restaurantId: w.a.restaurantId, kinds: 'all' }), SHOWS_OWN),
     c('the shared library', () => ({}), SCOPED),
   ],
 

@@ -19,6 +19,7 @@ const tenant = {
   engineConfig: DEFAULT_ENGINE_CONFIG,
   features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, rails: [] },
   brand: { logoText: 'R', theme: 'dark', motionIntensity: 'subtle', tokens: {} },
+  motions: [],
 } as unknown as TenantInfo;
 
 describe('unitPriceFromMenu', () => {

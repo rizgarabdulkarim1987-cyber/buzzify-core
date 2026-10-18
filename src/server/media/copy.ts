@@ -4,7 +4,23 @@ import type { ScopedTx } from '@/server/data/tenant-db';
 /** What a copy of an asset needs from the original, read on the side of the restaurant that owns it. */
 export type CopyableAsset = Pick<
   MediaAsset,
-  'id' | 'restaurantId' | 'kind' | 'storageKey' | 'contentHash' | 'mime' | 'bytes' | 'storedBytes' | 'width' | 'height' | 'variants' | 'placeholder' | 'alt' | 'folder' | 'tags'
+  | 'id'
+  | 'restaurantId'
+  | 'kind'
+  | 'storageKey'
+  | 'contentHash'
+  | 'mime'
+  | 'bytes'
+  | 'storedBytes'
+  | 'width'
+  | 'height'
+  | 'durationMs'
+  | 'meta'
+  | 'variants'
+  | 'placeholder'
+  | 'alt'
+  | 'folder'
+  | 'tags'
 >;
 
 export const COPYABLE = {
@@ -18,6 +34,8 @@ export const COPYABLE = {
   storedBytes: true,
   width: true,
   height: true,
+  durationMs: true,
+  meta: true,
   variants: true,
   placeholder: true,
   alt: true,
@@ -60,6 +78,8 @@ export async function copyAssetsForMenu(
         storedBytes: asset.storedBytes,
         width: asset.width,
         height: asset.height,
+        durationMs: asset.durationMs,
+        meta: asset.meta as Prisma.InputJsonValue,
         variants: asset.variants as Prisma.InputJsonValue,
         placeholder: asset.placeholder,
         alt: asset.alt as Prisma.InputJsonValue,
