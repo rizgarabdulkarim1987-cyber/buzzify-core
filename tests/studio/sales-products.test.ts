@@ -94,6 +94,13 @@ describe('the sales fields of a product', () => {
     expect(await prisma().product.findUniqueOrThrow({ where: { id: a.product.id } })).toMatchObject({ cost: 90, serves: 2 });
   });
 
+  it('audits clearing a cost as a change', async () => {
+    dataOf(await run(content.saveProduct, await drawer({ cost: 90 })));
+    dataOf(await run(content.saveProduct, await drawer({ cost: null })));
+    const last = await prisma().auditLog.findFirstOrThrow({ where: { action: 'product.updated' }, orderBy: { occurredAt: 'desc' } });
+    expect(last.changes).toMatchObject({ cost: { before: 90, after: null } });
+  });
+
   it('needs the right to set prices to change a cost', async () => {
     await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
     owner = (await loadActor(prisma(), 'owner-a')) as Actor;

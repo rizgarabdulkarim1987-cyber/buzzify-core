@@ -626,7 +626,7 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
         dietary: [product.dietary, dietary],
         badges: [product.badges, badges],
         calories: [product.calories, input.calories],
-        cost: [product.cost, input.cost ?? product.cost],
+        cost: [product.cost, input.cost === undefined ? product.cost : input.cost],
         priority: [product.priority, input.priority ?? product.priority],
         serves: [product.serves, input.serves === undefined ? product.serves : input.serves],
         lowStockThreshold: [product.lowStockThreshold, input.lowStockThreshold === undefined ? product.lowStockThreshold : input.lowStockThreshold],

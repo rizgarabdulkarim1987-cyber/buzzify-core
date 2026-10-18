@@ -1860,6 +1860,7 @@ const en: Messages = {
   'error.text.daypartChoose': 'Choose from the times of day offered',
   'error.text.upgradeSameDish': 'Choose a different dish to offer',
   'error.text.upgradeExists': 'This upgrade already exists',
+  'error.text.pairingExists': 'This pairing already exists',
   'error.text.pairingSameDish': 'Choose a different dish to suggest',
   'error.text.quantityRange': 'Use 1 to 10',
   'error.text.setTooFew': 'Put at least two dishes in a set',

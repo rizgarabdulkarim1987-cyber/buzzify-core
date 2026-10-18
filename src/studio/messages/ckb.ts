@@ -1864,6 +1864,7 @@ const ckb: Messages = {
   'error.text.daypartChoose': 'لە کاتەکانی ڕۆژی پێشکەشکراو هەڵبژێرە',
   'error.text.upgradeSameDish': 'خواردنێکی تر هەڵبژێرە بۆ پێشکەشکردن',
   'error.text.upgradeExists': 'ئەم بەرزکردنەوەیە پێشتر هەیە',
+  'error.text.pairingExists': 'ئەم پێشنیارە پێشتر هەیە',
   'error.text.pairingSameDish': 'خواردنێکی تر هەڵبژێرە بۆ پێشنیارکردن',
   'error.text.quantityRange': '1 تا 10 بەکاربهێنە',
   'error.text.setTooFew': 'لانیکەم دوو خواردن بخەرە سێتەکەوە',

@@ -1889,6 +1889,7 @@ const ar: Messages = {
   'error.text.daypartChoose': 'اختر من أوقات اليوم المعروضة',
   'error.text.upgradeSameDish': 'اختر طبقًا آخر لتعرضه',
   'error.text.upgradeExists': 'هذه الترقية موجودة بالفعل',
+  'error.text.pairingExists': 'هذا الاقتراح موجود بالفعل',
   'error.text.pairingSameDish': 'اختر طبقًا آخر لتقترحه',
   'error.text.quantityRange': 'استخدم من 1 إلى 10',
   'error.text.setTooFew': 'ضع طبقين على الأقل في الوجبة المجمّعة',

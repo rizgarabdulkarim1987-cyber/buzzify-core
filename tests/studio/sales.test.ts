@@ -161,6 +161,12 @@ describe('pairing rules', () => {
     expect(await auditActions()).toEqual(expect.arrayContaining(['pairing.created', 'pairing.updated', 'pairing.deleted']));
   });
 
+  it('refuses a second pairing between the same source and dish', async () => {
+    dataOf(await run(sales.savePairing, pairing()));
+    expect(failureOf(await run(sales.savePairing, pairing())).fields).toHaveProperty('targetProductId');
+    dataOf(await run(sales.savePairing, pairing({ source: { kind: 'PRODUCT', id: latte } })));
+  });
+
   it('refuses a dish paired with itself and a category of another menu', async () => {
     expect(failureOf(await run(sales.savePairing, pairing({ source: { kind: 'PRODUCT', id: cake } }))).fields).toHaveProperty('targetProductId');
     expect(failureOf(await run(sales.savePairing, pairing({ source: { kind: 'CATEGORY', id: b.category.id } }))).code).toBe('NOT_FOUND');
@@ -333,6 +339,17 @@ describe('offers', () => {
     expect(failureOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null }))).code).toBe('UPGRADE_REQUIRED');
   });
 
+  it('stores the dishes and categories of an offer in a fixed order, so choosing them again changes nothing', async () => {
+    const forward = [latte, cake].sort();
+    const saved = dataOf(await run(sales.saveOffer, offer({ productIds: [...forward].reverse(), categoryIds: [cakes, a.category.id] })));
+    const row = await prisma().promotion.findUniqueOrThrow({ where: { id: saved.id } });
+    expect(row.productIds).toEqual(forward);
+    expect(row.categoryIds).toEqual([cakes, a.category.id].sort());
+    const hash = (await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).draftHash;
+    dataOf(await run(sales.saveOffer, offer({ offerId: saved.id, version: 1, productIds: forward, categoryIds: [a.category.id, cakes] })));
+    expect((await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).draftHash).toBe(hash);
+  });
+
   it('without the right to set prices, edits only the words of a discount and never removes one', async () => {
     const discount = dataOf(await run(sales.saveOffer, offer()));
     const special = dataOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null, title: { en: 'Chef special' } })));
@@ -418,6 +435,16 @@ describe('sales settings', () => {
     dataOf(await save({ mealCategoryIds: [a.category.id] }));
     expect((await prisma().category.findMany({ where: { menuId: a.menu.id }, orderBy: { sortOrder: 'asc' } })).map((c) => c.completesMeal)).toEqual([true, false]);
     expect(await auditActions()).toContain('menu.sales_settings_changed');
+  });
+
+  it('writes nothing when the settings are saved unchanged', async () => {
+    dataOf(await save());
+    const before = await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } });
+    const audits = await prisma().auditLog.count({ where: { action: 'menu.sales_settings_changed' } });
+    expect(dataOf(await save())).toEqual({ version: before.version });
+    const after = await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } });
+    expect([after.version, after.draftHash]).toEqual([before.version, before.draftHash]);
+    expect(await prisma().auditLog.count({ where: { action: 'menu.sales_settings_changed' } })).toBe(audits);
   });
 
   it('refuses a stale version, a category of another menu and limits out of range', async () => {

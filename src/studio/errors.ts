@@ -152,6 +152,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose from the times of day offered': 'error.text.daypartChoose',
   'Choose a different dish to offer': 'error.text.upgradeSameDish',
   'This upgrade already exists': 'error.text.upgradeExists',
+  'This pairing already exists': 'error.text.pairingExists',
   'Choose a different dish to suggest': 'error.text.pairingSameDish',
   'Use 1 to 10': 'error.text.quantityRange',
   'Put at least two dishes in a set': 'error.text.setTooFew',

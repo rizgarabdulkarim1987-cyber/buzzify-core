@@ -245,6 +245,16 @@ export function savePairing(ctx: ActionContext, input: PairingSave): Promise<{ i
     if (input.source.kind === 'PRODUCT') await requireProduct(tx, input.source.id);
     else await requireCategory(tx, input.source.id);
     await requireProduct(tx, input.targetProductId);
+    const twin = await tx.pairingRule.findFirst({
+      where: {
+        sourceType: input.source.kind,
+        ...(input.source.kind === 'PRODUCT' ? { sourceProductId: input.source.id } : { sourceCategoryId: input.source.id }),
+        targetProductId: input.targetProductId,
+        ...(input.ruleId ? { id: { not: input.ruleId } } : {}),
+      },
+      select: { id: true },
+    });
+    if (twin) throw new StudioError('INVALID', undefined, { targetProductId: 'This pairing already exists' });
 
     const fields = {
       sourceType: input.source.kind,
@@ -409,8 +419,9 @@ export function saveOffer(ctx: ActionContext, input: OfferSave): Promise<{ id: s
     const problems = offerProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
     if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
 
-    const productIds = [...new Set(input.productIds)];
-    const categoryIds = [...new Set(input.categoryIds)];
+    // In a fixed order, so choosing the same dishes again never looks like an unpublished change.
+    const productIds = [...new Set(input.productIds)].sort();
+    const categoryIds = [...new Set(input.categoryIds)].sort();
     if ((await tx.product.count({ where: { id: { in: productIds } } })) !== productIds.length) throw new StudioError('NOT_FOUND');
     if ((await tx.category.count({ where: { id: { in: categoryIds } } })) !== categoryIds.length) throw new StudioError('NOT_FOUND');
 
@@ -519,6 +530,17 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
     const stored = (menu.engineConfig && typeof menu.engineConfig === 'object' && !Array.isArray(menu.engineConfig) ? menu.engineConfig : {}) as Record<string, unknown>;
     const before = resolveEngineConfig(stored);
     const sales: SalesSettings = { priceStyle: input.priceStyle, showMostOrdered: input.showMostOrdered, showLowStock: input.showLowStock };
+    const mealBefore = (await tx.category.findMany({ where: { completesMeal: true }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id);
+
+    // Saved unchanged: nothing is written, so the draft does not look changed and no audit row says it was.
+    const unchanged =
+      JSON.stringify(salesSettings(before)) === JSON.stringify(sales) &&
+      before.upsellMaxOffers === input.upsellMaxOffers &&
+      before.pairingMaxOffers === input.pairingMaxOffers &&
+      before.upsellDeltaCapRatio === input.upsellDeltaCapRatio &&
+      JSON.stringify(mealBefore) === JSON.stringify([...categoryIds].sort());
+    if (unchanged) return { version: input.version };
+
     const engineConfig = {
       ...stored,
       upsellMaxOffers: input.upsellMaxOffers,
@@ -528,7 +550,6 @@ export function saveSalesSettings(ctx: ActionContext, input: SettingsSave): Prom
     };
     await updateWithVersion(tx.menu, { id: menuId, version: input.version, data: { engineConfig }, entityType: 'Menu' }, tx);
 
-    const mealBefore = (await tx.category.findMany({ where: { completesMeal: true }, select: { id: true }, orderBy: { id: 'asc' } })).map((row) => row.id);
     await tx.category.updateMany({ where: { id: { notIn: categoryIds } }, data: { completesMeal: false } });
     if (categoryIds.length > 0) await tx.category.updateMany({ where: { id: { in: categoryIds } }, data: { completesMeal: true } });
 
