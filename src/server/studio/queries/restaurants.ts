@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { PLAN_TIERS } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
 import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -40,6 +41,7 @@ export const listRestaurants = defineQuery({
     city: z.string().trim().max(200).optional(),
     type: z.enum(RESTAURANT_TYPES).optional(),
     status: z.enum(RESTAURANT_STATUSES).optional(),
+    plan: z.enum(PLAN_TIERS).optional(),
     createdFrom: dateField.optional(),
     createdTo: dateField.optional(),
     sort: z.enum(['name', 'createdAt', 'city']).default('name'),
@@ -66,6 +68,7 @@ export const listRestaurants = defineQuery({
     if (input.city) filters.push({ city: { equals: input.city, mode: 'insensitive' } });
     if (input.type) filters.push({ type: input.type });
     if (input.status) filters.push({ status: input.status });
+    if (input.plan) filters.push({ plan: input.plan });
     const created = createdBetween(input.createdFrom, input.createdTo);
     if (created) filters.push({ createdAt: created });
     const where: Prisma.RestaurantWhereInput = { AND: filters };
@@ -85,6 +88,7 @@ export const listRestaurants = defineQuery({
           type: true,
           city: true,
           status: true,
+          plan: true,
           createdAt: true,
           _count: { select: { menus: true } },
         },
@@ -101,6 +105,7 @@ export const listRestaurants = defineQuery({
         type: row.type,
         city: row.city,
         status: row.status,
+        plan: row.plan,
         menuCount: row._count.menus,
         createdAt: row.createdAt.toISOString(),
       })),
@@ -147,6 +152,7 @@ export const getRestaurant = defineQuery({
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
       status: row.status,
+      plan: row.plan,
       logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,
       version: row.version,
       createdAt: row.createdAt.toISOString(),

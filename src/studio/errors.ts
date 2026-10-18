@@ -61,6 +61,11 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This person already has access to this restaurant': 'error.text.personHasAccess',
   'This person already has an account. Assign them to a client instead': 'error.text.personHasAccount',
   'Only the platform owner can change this account': 'error.text.platformOwnerOnly',
+
+  // Plans
+  'Choose one of the plans offered': 'error.text.planChoose',
+  'Enter the plan’s name': 'error.text.planName',
+  'Enter the number with its country code, digits only': 'error.text.whatsappDigits',
   'This person is already a Super Admin': 'error.text.personIsSuperAdmin',
   'There must always be one active Super Admin': 'error.text.lastSuperAdmin',
   'This account is already deactivated': 'error.text.alreadyDeactivated',
