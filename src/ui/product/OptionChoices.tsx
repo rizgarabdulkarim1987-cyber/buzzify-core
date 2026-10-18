@@ -27,7 +27,7 @@ export function OptionChoices({
   max: number;
   onToggle: (id: string) => void;
 }) {
-  const { t, money } = useApp();
+  const { t, price } = useApp();
   const name = useId();
   if (style === 'list') return <OptionGroup title={title} items={items} selected={selected} min={min} max={max} onToggle={onToggle} />;
 
@@ -66,7 +66,7 @@ export function OptionChoices({
               {item.priceDelta !== 0 && (
                 <span className="shrink-0 text-sm tabular-nums text-(--muted)">
                   {item.priceDelta > 0 ? '+' : ''}
-                  {money(item.priceDelta)}
+                  {price(item.priceDelta)}
                 </span>
               )}
             </label>

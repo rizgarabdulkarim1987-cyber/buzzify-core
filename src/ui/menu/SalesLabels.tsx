@@ -74,12 +74,24 @@ function weekdayOf(date: string): number {
   return (new Date(`${date}T12:00:00Z`).getUTCDay() + 6) % 7;
 }
 
+/** When a live offer ends, in words ("Until 19:00", "Until Friday"); null when it does not end soon. */
+export function useOfferEnd(): (offer: MenuOfferView) => string | null {
+  const { t, tenant } = useApp();
+  return (offer) => {
+    if (!offer.endsAt) return null;
+    return 'time' in offer.endsAt
+      ? t('offers.untilTime', { time: localDigits(offer.endsAt.time, tenant.numeralSystem) })
+      : t('offers.untilDay', { day: t(`offers.weekday.${weekdayOf(offer.endsAt.date)}`) });
+  };
+}
+
 /**
  * The live offers above the menu: each with its title, its text and when it ends today or this week. A quiet list,
  * never a banner that moves or counts down.
  */
 export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
   const { t, tenant } = useApp();
+  const endOf = useOfferEnd();
   const digits = (text: string) => localDigits(text, tenant.numeralSystem);
   if (offers.length === 0) return null;
   return (
@@ -96,13 +108,7 @@ export function OfferStrip({ offers }: { offers: MenuOfferView[] }) {
               </p>
               {offer.text && <p className="mt-0.5 text-sm text-muted">{offer.text}</p>}
             </div>
-            {offer.endsAt && (
-              <p className="shrink-0 text-sm tabular-nums text-muted">
-                {'time' in offer.endsAt
-                  ? t('offers.untilTime', { time: digits(offer.endsAt.time) })
-                  : t('offers.untilDay', { day: t(`offers.weekday.${weekdayOf(offer.endsAt.date)}`) })}
-              </p>
-            )}
+            {offer.endsAt && <p className="shrink-0 text-sm tabular-nums text-muted">{endOf(offer)}</p>}
           </li>
         ))}
       </ul>

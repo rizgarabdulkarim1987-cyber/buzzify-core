@@ -1,12 +1,15 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { localDigits } from '@/lib/digits';
 import { DIETARY_TAGS, type DietaryTag } from '@/lib/product-tags';
 import type { BusinessInfo, LocalText, Promotion } from '@/lib/templates/types';
+import type { MenuOfferView } from '@/server/data/menu-view';
 import { DAYS } from '@/server/domain/restaurant-profile';
 import { useApp } from '@/ui/AppProviders';
 import { CameraIcon, ChatIcon, ClockIcon, CloseIcon, GlobeIcon, PauseIcon, PhoneIcon, PinIcon, PlayIcon, SearchIcon } from '@/ui/Icons';
 import { LanguageSwitch } from '@/ui/LanguageSwitch';
+import { useOfferEnd } from '@/ui/menu/SalesLabels';
 
 /** The pieces around a template menu's products: header, search, filters, an offer, the place's details, the footer. */
 
@@ -135,6 +138,38 @@ export function PromoCard({ promo }: { promo: Promotion }) {
         {body && <p className="mt-1.5 max-w-[48ch] text-(--muted)">{body}</p>}
         <p className="mt-3 text-sm text-(--muted)">{t('tpl.offerTerms', { terms })}</p>
       </div>
+    </section>
+  );
+}
+
+/** The live offers from the Sales tab (specials and discounts), each with when it ends, in the template's own voice. */
+export function OfferList({ offers }: { offers: MenuOfferView[] }) {
+  const { t, tenant } = useApp();
+  const endOf = useOfferEnd();
+  if (offers.length === 0) return null;
+  return (
+    <section aria-label={t('offers.label')} className="px-(--gutter)">
+      <ul className="tpl-offers">
+        {offers.map((offer) => {
+          const ends = endOf(offer);
+          return (
+            <li key={offer.id} className="flex items-baseline justify-between gap-4">
+              <div className="min-w-0">
+                <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1">
+                  <span className="tpl-display tpl-name">{offer.title}</span>
+                  {offer.percentOff !== null && (
+                    <span className="tpl-badge tpl-badge-sale tabular-nums">
+                      {t('menu.percentOff', { percent: localDigits(String(offer.percentOff), tenant.numeralSystem) })}
+                    </span>
+                  )}
+                </p>
+                {offer.text && <p className="mt-1 max-w-[48ch] text-sm text-(--muted)">{offer.text}</p>}
+              </div>
+              {ends && <p className="shrink-0 text-sm tabular-nums text-(--muted)">{ends}</p>}
+            </li>
+          );
+        })}
+      </ul>
     </section>
   );
 }
