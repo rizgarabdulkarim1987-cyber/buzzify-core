@@ -1,4 +1,4 @@
-import { similarity } from './similarity';
+import { referenceOf, similarityTo } from './similarity';
 
 /**
  * Choosing how hard to compress one image (spec: smart image compression): the lowest quality whose result a person
@@ -39,7 +39,7 @@ export interface Found {
 
 /**
  * The lowest whole quality within `bounds` whose output scores at least `threshold` against `source` (both seen at
- * `width` pixels wide), with at most `maxTries` encodes. The floor is tried first (a plain picture often passes there),
+ * `width` pixels wide), with at most `maxTries` encodes (5 by default). The floor is tried first (a plain picture often passes there),
  * then the ceiling (a picture that fails even there gets the ceiling), then a binary search between them. With too few
  * tries for an exact answer, the lowest passing quality tried is returned.
  */
@@ -53,12 +53,14 @@ export async function searchQuality(args: {
 }): Promise<Found> {
   const { source, width, bounds, encode } = args;
   const threshold = args.threshold ?? VISUALLY_LOSSLESS;
-  const maxTries = Math.max(2, args.maxTries ?? 6);
+  // Five tries find the quality to within about 4 steps, and keep a 12 MP photo's upload within a few seconds.
+  const maxTries = Math.max(2, args.maxTries ?? 5);
   let tries = 0;
+  const reference = await referenceOf(source, width);
   const attempt = async (quality: number): Promise<Found> => {
     tries++;
     const body = await encode(quality);
-    return { quality, body, score: await similarity(source, body, width) };
+    return { quality, body, score: await similarityTo(reference, body) };
   };
 
   const floor = await attempt(bounds.floor);

@@ -41,6 +41,45 @@ describe('similarity', () => {
     expect(await similarity(source, rendition, 600)).toBeGreaterThan(0.995);
   });
 
+  it('agrees with a plain window-by-window SSIM on planes of awkward sizes', () => {
+    const plane = (width: number, height: number, seed: number) => {
+      const data = new Uint8Array(width * height);
+      let state = seed;
+      for (let i = 0; i < data.length; i++) data[i] = (state = (state * 1103515245 + 12345) % 2 ** 31) % 256;
+      return { data, width, height };
+    };
+    const naive = (a: ReturnType<typeof plane>, b: ReturnType<typeof plane>) => {
+      const [C1, C2] = [(0.01 * 255) ** 2, (0.03 * 255) ** 2];
+      let total = 0;
+      let count = 0;
+      for (let top = 0; top + 8 <= a.height; top += 4) {
+        for (let left = 0; left + 8 <= a.width; left += 4) {
+          let [sa, sb, saa, sbb, sab] = [0, 0, 0, 0, 0];
+          for (let y = top; y < top + 8; y++) {
+            for (let x = left; x < left + 8; x++) {
+              const [va, vb] = [a.data[y * a.width + x]!, b.data[y * a.width + x]!];
+              sa += va;
+              sb += vb;
+              saa += va * va;
+              sbb += vb * vb;
+              sab += va * vb;
+            }
+          }
+          const [ma, mb] = [sa / 64, sb / 64];
+          const [va, vb, cov] = [saa / 64 - ma * ma, sbb / 64 - mb * mb, sab / 64 - ma * mb];
+          total += ((2 * ma * mb + C1) * (2 * cov + C2)) / ((ma * ma + mb * mb + C1) * (va + vb + C2));
+          count++;
+        }
+      }
+      return total / count;
+    };
+    for (const [width, height] of [[37, 29], [64, 48], [41, 8]] as const) {
+      const a = plane(width, height, 1);
+      const b = { ...plane(width, height, 2), data: a.data.map((v, i) => (i % 3 === 0 ? 255 - v : v)) };
+      expect(ssim(a, b)).toBeCloseTo(naive(a, b), 10);
+    }
+  });
+
   it('refuses planes of different sizes', () => {
     expect(() => ssim({ data: new Uint8Array(4), width: 2, height: 2 }, { data: new Uint8Array(9), width: 3, height: 3 })).toThrow();
   });

@@ -4,13 +4,17 @@ import type { MediaKind } from '@/generated/prisma/client';
 import { MEDIA_MAX_BYTES, sniffMediaType, type MediaMime } from '@/server/domain/media-type';
 import { assetFolder, assetKey, IMMUTABLE_CACHE } from '@/server/storage/keys';
 import type { Storage } from '@/server/storage/storage';
+import { QUALITY, searchQuality, VISUALLY_LOSSLESS, type QualityBounds } from './compress';
+import { similarity } from './similarity';
 import { sanitizeSvg } from './svg';
 
 /**
  * Turning an upload into a library asset (spec 11): its real type from its bytes, its hash, and its variants. Photos
  * lose their metadata (a phone photo can carry where it was taken), stand upright, and are made into AVIF and WebP at
- * the widths the menu asks for, never larger than they are. SVGs are sanitized and also drawn as WebP for the places
- * that need pixels (favicons, social images, QR codes). Icons are kept as they are.
+ * the widths the menu asks for, never larger than they are. Each file is compressed as far as it can be without a
+ * person seeing a difference (`searchQuality`), and the original is kept at most 2560 px on its long side. SVGs are
+ * sanitized and also drawn as WebP for the places that need pixels (favicons, social images, QR codes). Icons are kept
+ * as they are.
  */
 
 export type MediaRefusal = 'TYPE' | 'SIZE' | 'DIMENSIONS' | 'UNREADABLE' | 'SVG_UNSAFE';
@@ -61,18 +65,82 @@ const RASTER_EXT: Record<'image/jpeg' | 'image/png' | 'image/webp' | 'image/avif
 
 const toBytes = (buffer: Buffer) => new Uint8Array(buffer.buffer, buffer.byteOffset, buffer.byteLength);
 
-/** The original again, in its own format, without its metadata. */
-function reencode(image: Sharp, mime: keyof typeof RASTER_EXT): Sharp {
+/** The original's longest side: more than any screen shows a menu photo at, and enough for an A4 print. */
+export const ORIGINAL_MAX_SIDE = 2560;
+
+/** Variants wider than this use the quality searched at a narrower width, since a picture scores higher the larger it is. */
+const WIDEST_SEARCHED = 1080;
+
+/** The original's stored size: the upright photo, its long side at most `ORIGINAL_MAX_SIDE`, never enlarged. */
+function storedSize(width: number, height: number): { width: number; height: number } {
+  const scale = Math.min(1, ORIGINAL_MAX_SIDE / Math.max(width, height));
+  return { width: Math.round(width * scale), height: Math.round(height * scale) };
+}
+
+/**
+ * The original again, in its own format, at its stored size and without its metadata, as small as it can be while it
+ * still looks the same: JPEG through mozjpeg, WebP and AVIF at a searched quality, PNG losslessly at the strongest
+ * settings, or as a palette when that is smaller and passes the same check.
+ */
+async function compressOriginal(bytes: Uint8Array, mime: keyof typeof RASTER_EXT, size: { width: number; height: number }): Promise<Buffer> {
+  const resized = () => sharp(bytes, INPUT).rotate().resize({ width: size.width, height: size.height, fit: 'fill' });
+  const search = async (bounds: QualityBounds, encode: (quality: number) => Promise<Buffer>) =>
+    (await searchQuality({ source: bytes, width: size.width, bounds, encode })).body;
   switch (mime) {
     case 'image/jpeg':
-      return image.jpeg({ quality: 90 });
-    case 'image/png':
-      return image.png();
+      return search(QUALITY.jpeg, (quality) => resized().jpeg({ quality, mozjpeg: true }).toBuffer());
     case 'image/webp':
-      return image.webp({ quality: 90 });
+      return search(QUALITY.webp, (quality) => resized().webp({ quality }).toBuffer());
     case 'image/avif':
-      return image.avif({ quality: 70 });
+      return search(QUALITY.avif, (quality) => resized().avif({ quality, effort: 4 }).toBuffer());
+    case 'image/png': {
+      // sharp's PNG `effort` belongs to the palette (it turns the palette on), so the lossless file is made without it.
+      const lossless = await resized().png({ compressionLevel: 9, adaptiveFiltering: true }).toBuffer();
+      // Effort 4 quantizes a 5 MP picture in under 2 s; 10 saves a further fifth at seven times the time.
+      const palette = await resized().png({ palette: true, compressionLevel: 9, effort: 4 }).toBuffer();
+      const keepsLook = palette.length < lossless.length && (await similarity(bytes, palette, size.width)) >= VISUALLY_LOSSLESS;
+      return keepsLook ? palette : lossless;
+    }
   }
+}
+
+/**
+ * The AVIF and WebP variants at `widths` (ascending), each at a searched quality. The search runs at the narrowest width
+ * and at the widest up to 1080 px; every width takes the quality found at the nearest searched width at or below it,
+ * which is enough for it because a picture shown larger scores higher at the same quality.
+ */
+async function variantFiles(bytes: Uint8Array, widths: readonly number[]): Promise<PreparedFile[]> {
+  const narrowest = widths[0]!;
+  const searched = [...new Set([narrowest, [...widths].reverse().find((w) => w <= WIDEST_SEARCHED) ?? narrowest])];
+  const resized = (width: number) => sharp(bytes, INPUT).rotate().resize({ width, withoutEnlargement: true });
+  const formats = [
+    { ext: 'avif', bounds: QUALITY.avif, encode: (width: number, quality: number) => resized(width).avif({ quality, effort: 4 }).toBuffer() },
+    { ext: 'webp', bounds: QUALITY.webp, encode: (width: number, quality: number) => resized(width).webp({ quality }).toBuffer() },
+  ] as const;
+
+  // The formats run side by side, like the original and the variants.
+  const bodies = new Map<string, Buffer>();
+  await Promise.all(
+    formats.map(async (format) => {
+      const found = new Map<number, { quality: number; body: Buffer }>();
+      for (const width of searched) {
+        found.set(width, await searchQuality({ source: bytes, width, bounds: format.bounds, encode: (quality) => format.encode(width, quality) }));
+      }
+      for (const width of widths) {
+        const base = [...searched].reverse().find((w) => w <= width) ?? narrowest;
+        const hit = found.get(base)!;
+        bodies.set(`${format.ext}-${width}`, base === width ? hit.body : await format.encode(width, hit.quality));
+      }
+    }),
+  );
+  return widths.flatMap((width) =>
+    formats.map((format) => ({
+      variant: `${format.ext}-${width}`,
+      ext: format.ext,
+      contentType: `image/${format.ext}`,
+      body: toBytes(bodies.get(`${format.ext}-${width}`)!),
+    })),
+  );
 }
 
 /** A tiny blurred WebP that stands in while the photo loads, at most 1,024 characters (smaller when it would be more). */
@@ -118,17 +186,12 @@ async function prepareRaster(bytes: Uint8Array, mime: keyof typeof RASTER_EXT): 
   }
 
   try {
-    const upright = () => sharp(bytes, INPUT).rotate();
     const widths: number[] = IMAGE_WIDTHS.filter((w) => w <= width);
     if (widths.length === 0) widths.push(width);
-    const files: PreparedFile[] = [
-      { variant: 'original', ext: RASTER_EXT[mime], contentType: mime, body: toBytes(await reencode(upright(), mime).toBuffer()) },
-    ];
-    for (const w of widths) {
-      const resized = () => upright().resize({ width: w, withoutEnlargement: true });
-      files.push({ variant: `avif-${w}`, ext: 'avif', contentType: 'image/avif', body: toBytes(await resized().avif({ quality: 55, effort: 4 }).toBuffer()) });
-      files.push({ variant: `webp-${w}`, ext: 'webp', contentType: 'image/webp', body: toBytes(await resized().webp({ quality: 75 }).toBuffer()) });
-    }
+    const stored = storedSize(width, height);
+    // The two run side by side: sharp encodes on its own threads while the other side compares.
+    const [original, variants] = await Promise.all([compressOriginal(bytes, mime, stored), variantFiles(bytes, widths)]);
+    const files: PreparedFile[] = [{ variant: 'original', ext: RASTER_EXT[mime], contentType: mime, body: toBytes(original) }, ...variants];
     return {
       ok: true,
       asset: {
@@ -136,8 +199,8 @@ async function prepareRaster(bytes: Uint8Array, mime: keyof typeof RASTER_EXT): 
         mime,
         contentHash: createHash('sha256').update(bytes).digest('hex'),
         bytes: bytes.length,
-        width,
-        height,
+        width: stored.width,
+        height: stored.height,
         placeholder: await placeholderOf(bytes),
         files,
       },
