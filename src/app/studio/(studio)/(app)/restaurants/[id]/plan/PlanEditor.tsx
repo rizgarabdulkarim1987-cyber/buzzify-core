@@ -253,23 +253,20 @@ export function PlanEditor({ restaurantId, view }: { restaurantId: string; view:
         open={confirming}
         onOpenChange={setConfirming}
         title={t('plans.confirmTitle', { restaurant: view.upgrade.restaurantName })}
-        body={
-          <div className="flex flex-col gap-2">
-            <p>{t('plans.confirmBody')}</p>
-            <ul className="list-disc ps-5">
-              {lost.map((key) => (
-                <li key={key}>{t(`plans.feature.${key}`)}</li>
-              ))}
-            </ul>
-          </div>
-        }
+        body={t('plans.confirmBody')}
         confirmLabel={t('plans.save')}
         tone="danger"
         onConfirm={async () => {
           const refused = await send();
           return refused === null ? true : { message: refused.message };
         }}
-      />
+      >
+        <ul className="list-disc ps-5 text-base text-text">
+          {lost.map((key) => (
+            <li key={key}>{t(`plans.feature.${key}`)}</li>
+          ))}
+        </ul>
+      </ConfirmDialog>
     </section>
   );
 }
