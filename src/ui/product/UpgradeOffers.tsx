@@ -14,7 +14,7 @@ export function UpgradeOffers({
   offers: UpsellOffer[];
   onAccept: (offer: UpsellOffer) => void;
 }) {
-  const { t, money } = useApp();
+  const { t, price } = useApp();
 
   useEffect(() => {
     for (const offer of offers) {
@@ -35,10 +35,10 @@ export function UpgradeOffers({
               <p>{offer.title}</p>
               {offer.effect && <p className="text-sm text-muted">{offer.effect}</p>}
               <p className="text-sm text-muted tabular-nums">
-                {t('upgrade.becomes', { amount: money(offer.resultingTotal) })}
+                {t('upgrade.becomes', { amount: price(offer.resultingTotal) })}
               </p>
             </div>
-            <span className="shrink-0 text-sm tabular-nums">+{money(offer.priceDelta)}</span>
+            <span className="shrink-0 text-sm tabular-nums">+{price(offer.priceDelta)}</span>
             <button
               type="button"
               onClick={() => {

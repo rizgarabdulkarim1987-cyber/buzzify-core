@@ -15,6 +15,32 @@ function cart(...lines: CartLineInput[]): CartInput {
 }
 const codes = (issues: { code: string }[]) => issues.map((i) => i.code);
 
+describe('quoteCart: offers', () => {
+  const happyHour = {
+    id: 'hh',
+    kind: 'DISCOUNT' as const,
+    percentOff: 20,
+    productIds: ['p-deal'],
+    categoryIds: [],
+    startsOn: null,
+    endsOn: null,
+    startMinute: 17 * 60,
+    endMinute: 19 * 60,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: {},
+    sortOrder: 0,
+  };
+  const catalog = makeCatalog({ products: [product({ id: 'p-deal', basePrice: 1000 })], promotions: [happyHour] });
+  const cart: CartInput = { lines: [{ productId: 'p-deal', variantId: null, optionIds: [], quantity: 2 }], bundles: [] };
+
+  it('charges the sale price while the offer is live and the regular price after it ends', () => {
+    expect(quoteCart(catalog, cart, at(18)).lines[0]).toMatchObject({ unitPrice: 800, lineTotal: 1600 });
+    expect(quoteCart(catalog, cart, at(18)).subtotal).toBe(1600);
+    expect(quoteCart(catalog, cart, at(19)).subtotal).toBe(2000);
+  });
+});
+
 describe('quoteCart: pricing', () => {
   it('prices a plain line from the catalog, ignoring any client price', () => {
     const quote = quoteCart(catalog, cart(line({ productId: IDS.burger, quantity: 2 })), noon);

@@ -171,6 +171,7 @@ function catalogFor(menuId: string): Catalog {
     allergens: [],
     dietary: [],
     calories: null,
+    serves: null,
     badges: [],
     ingredients: {},
     sortOrder: index,
@@ -180,11 +181,12 @@ function catalogFor(menuId: string): Catalog {
     currency: 'IQD',
     timeZone: 'Asia/Baghdad',
     defaultLocale: 'en',
-    categories: [{ id: categoryId, slug: SHAPE.category.slug, sortOrder: 0, translations: translations(SHAPE.category.name, 'name') }],
+    categories: [{ id: categoryId, slug: SHAPE.category.slug, sortOrder: 0, translations: translations(SHAPE.category.name, 'name'), completesMeal: false }],
     products,
     upsellRules: [],
     pairingRules: [],
     bundles: [],
+    promotions: [],
     schedule: [],
   };
 }

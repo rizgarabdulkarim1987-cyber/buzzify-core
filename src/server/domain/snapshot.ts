@@ -10,11 +10,14 @@ import { cleanMotion, slotOf, type SnapshotMotion } from './menu-motions';
 import {
   DAYPARTS,
   LOCALES,
+  PROMOTION_KINDS,
   VISUAL_KEYS,
   type Catalog,
+  type CatalogCategory,
   type CatalogGroup,
   type CatalogOption,
   type CatalogProduct,
+  type CatalogPromotion,
   type Locale,
 } from './types';
 
@@ -43,12 +46,24 @@ export interface SnapshotGroup extends Omit<CatalogGroup, 'options'> {
   options: SnapshotOption[];
 }
 
-/** A product as published: whether it is available, hidden or in stock changes without a publish. */
-export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 'stockCount' | 'groups'> & {
+/**
+ * A product as published: whether it is available, hidden or in stock changes without a publish. `serves` arrived with
+ * the sales tools and is left out for a dish for one, so menus published before keep their hash.
+ */
+export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 'stockCount' | 'groups' | 'serves'> & {
   groups: SnapshotGroup[];
+  serves?: number;
 };
 
-export type SnapshotCatalog = Omit<Catalog, 'menuId' | 'products'> & { products: SnapshotProduct[] };
+/** A category as published; `completesMeal` is left out unless it is set. */
+export type SnapshotCategory = Omit<CatalogCategory, 'completesMeal'> & { completesMeal?: true };
+
+/** The catalog as published; `promotions` is left out when the menu has none. */
+export type SnapshotCatalog = Omit<Catalog, 'menuId' | 'products' | 'categories' | 'promotions'> & {
+  categories: SnapshotCategory[];
+  products: SnapshotProduct[];
+  promotions?: CatalogPromotion[];
+};
 
 export interface MenuSnapshot {
   schemaVersion: 1;
@@ -110,6 +125,9 @@ const engineConfig = z.object({
     daypart: z.number(),
     stockPenalty: z.number(),
   }),
+  sales: z
+    .object({ priceStyle: z.enum(['symbol', 'plain']), showMostOrdered: z.boolean(), showLowStock: z.boolean() })
+    .optional(),
 });
 
 const snapshotMenu = z.object({
@@ -188,8 +206,25 @@ const snapshotProduct = z.object({
   allergens: z.array(z.string()),
   dietary: z.array(z.string()),
   calories: nullableNumber,
+  serves: z.number().optional(),
   badges: z.array(z.string()),
   ingredients: z.partialRecord(locale, z.array(z.string())),
+  sortOrder: z.number(),
+});
+
+const snapshotPromotion = z.object({
+  id: z.string(),
+  kind: z.enum(PROMOTION_KINDS),
+  percentOff: nullableNumber,
+  productIds: z.array(z.string()),
+  categoryIds: z.array(z.string()),
+  startsOn: z.string().nullable(),
+  endsOn: z.string().nullable(),
+  startMinute: nullableNumber,
+  endMinute: nullableNumber,
+  daysOfWeek: z.number(),
+  roundTo: z.number(),
+  translations,
   sortOrder: z.number(),
 });
 
@@ -197,7 +232,9 @@ const snapshotCatalog = z.object({
   currency: z.string(),
   timeZone: z.string(),
   defaultLocale: locale,
-  categories: z.array(z.object({ id: z.string(), slug: z.string(), sortOrder: z.number(), translations })),
+  categories: z.array(
+    z.object({ id: z.string(), slug: z.string(), sortOrder: z.number(), translations, completesMeal: z.literal(true).optional() }),
+  ),
   products: z.array(snapshotProduct),
   upsellRules: z.array(
     z.object({
@@ -231,6 +268,7 @@ const snapshotCatalog = z.object({
       items: z.array(z.object({ productId: z.string(), variantId: z.string().nullable(), quantity: z.number() })),
     }),
   ),
+  promotions: z.array(snapshotPromotion).optional(),
   schedule: z.array(
     z.object({ daypart, startMinute: z.number(), endMinute: z.number(), daysOfWeek: z.number() }),
   ),
@@ -294,10 +332,16 @@ function omit<T extends object, K extends keyof T>(value: T, ...keys: K[]): Omit
   return copy as Omit<T, K>;
 }
 
+function freezeCategory(category: CatalogCategory): SnapshotCategory {
+  const frozen = omit(category, 'completesMeal');
+  return category.completesMeal ? { ...frozen, completesMeal: true } : frozen;
+}
+
 function freezeProduct(product: CatalogProduct): SnapshotProduct {
-  const frozen = omit(product, 'isAvailable', 'isHidden', 'stockCount');
+  const frozen = omit(product, 'isAvailable', 'isHidden', 'stockCount', 'serves');
   return {
     ...frozen,
+    ...(product.serves !== null ? { serves: product.serves } : {}),
     groups: product.groups.map((group) => ({
       ...group,
       options: group.options.map((option): SnapshotOption => omit(option, 'isAvailable')),
@@ -307,10 +351,12 @@ function freezeProduct(product: CatalogProduct): SnapshotProduct {
 
 /**
  * Freezes a draft into the form publishing stores: the live fields (availability, hidden, stock) are dropped and every
- * list gets a fixed order, so the same menu always hashes the same. Categories and products go by sort order, then id;
- * rules by id; bundles by slug, then id; the schedule by start. Variants, groups and options have no sort order of their
- * own in the catalog (the loader already puts them in the editor's order), so they keep the order they came in. The
- * menu's motions are cleaned and go by slot (`placedMotions`); without any, the snapshot has no `motions` key.
+ * list gets a fixed order, so the same menu always hashes the same. Categories, products and promotions go by sort
+ * order, then id; rules by id; bundles by slug, then id; the schedule by start. What the sales tools added is left out
+ * while unused (no promotions, a dish for one, a category that completes no meal). Variants, groups and options have no
+ * sort order of their own in the catalog (the loader already puts them in the editor's order), so they keep the order
+ * they came in. The menu's motions are cleaned and go by slot (`placedMotions`); without any, the snapshot has no
+ * `motions` key.
  */
 export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; catalog: Catalog; motions?: readonly unknown[] }): MenuSnapshot {
   const { catalog } = input;
@@ -323,11 +369,12 @@ export function buildSnapshot(input: { menu: SnapshotMenu; brand: BrandView; cat
       currency: catalog.currency,
       timeZone: catalog.timeZone,
       defaultLocale: catalog.defaultLocale,
-      categories: [...catalog.categories].sort(bySortOrderThenId),
+      categories: [...catalog.categories].sort(bySortOrderThenId).map(freezeCategory),
       products: [...catalog.products].sort(bySortOrderThenId).map(freezeProduct),
       upsellRules: [...catalog.upsellRules].sort(byId),
       pairingRules: [...catalog.pairingRules].sort(byId),
       bundles: [...catalog.bundles].sort((a, b) => compare(a.slug, b.slug) || compare(a.id, b.id)),
+      ...(catalog.promotions.length > 0 ? { promotions: [...catalog.promotions].sort(bySortOrderThenId) } : {}),
       schedule: [...catalog.schedule].sort(
         (a, b) => compare(a.startMinute, b.startMinute) || compare(a.daypart, b.daypart),
       ),
@@ -366,7 +413,8 @@ const LIVE_DEFAULT = { isAvailable: true, isHidden: false, stockCount: null } as
 /**
  * The catalog guests are served: the frozen snapshot with today's live state laid over it. Ids the overlay does not
  * mention are available, not hidden and not counted. A hidden product is removed along with every bundle that contains
- * it and every rule that has it as its source or its target.
+ * it and every rule that has it as its source or its target; it leaves every promotion, as does any dish or category
+ * the snapshot does not have, and a promotion left naming nothing goes.
  */
 export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveOverlay): Catalog {
   const { catalog } = snapshot;
@@ -374,19 +422,23 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
 
   const hidden = new Set(catalog.products.filter((p) => live(p.id).isHidden).map((p) => p.id));
   const isShown = (productId: string) => !hidden.has(productId);
+  // An offer names only what the catalog guests are served has: a dish shown, a category published.
+  const offeredProducts = new Set(catalog.products.filter((p) => isShown(p.id)).map((p) => p.id));
+  const offeredCategories = new Set(catalog.categories.map((c) => c.id));
 
   return {
     menuId,
     currency: catalog.currency,
     timeZone: catalog.timeZone,
     defaultLocale: catalog.defaultLocale,
-    categories: catalog.categories,
+    categories: catalog.categories.map((c) => ({ ...c, completesMeal: c.completesMeal ?? false })),
     products: catalog.products
       .filter((p) => isShown(p.id))
       .map<CatalogProduct>((p) => {
         const { isAvailable, isHidden, stockCount } = live(p.id);
         return {
           ...p,
+          serves: p.serves ?? null,
           isAvailable,
           isHidden,
           stockCount,
@@ -401,6 +453,13 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
       (rule) => isShown(rule.targetProductId) && (rule.sourceProductId === null || isShown(rule.sourceProductId)),
     ),
     bundles: catalog.bundles.filter((bundle) => bundle.items.every((item) => isShown(item.productId))),
+    promotions: (catalog.promotions ?? [])
+      .map((promotion) => ({
+        ...promotion,
+        productIds: promotion.productIds.filter((id) => offeredProducts.has(id)),
+        categoryIds: promotion.categoryIds.filter((id) => offeredCategories.has(id)),
+      }))
+      .filter((promotion) => promotion.productIds.length + promotion.categoryIds.length > 0),
     schedule: catalog.schedule,
   };
 }

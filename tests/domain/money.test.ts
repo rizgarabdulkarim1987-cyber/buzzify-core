@@ -12,6 +12,12 @@ describe('money', () => {
     expect(formatMoney(0, 'USD', 'en')).toBe('$0.00');
   });
 
+  it('formats a price without the currency symbol when asked', () => {
+    expect(formatMoney(1250, 'USD', 'en', 'latn', { symbol: false })).toBe('12.50');
+    expect(formatMoney(12500, 'IQD', 'en', 'latn', { symbol: false })).toBe('12,500');
+    expect(formatMoney(1250, 'USD', 'ar', 'arab', { symbol: false })).not.toMatch(/US|\$/);
+  });
+
   it('formats IQD without decimals', () => {
     const text = formatMoney(15000, 'IQD', 'en');
     expect(text).toMatch(/15,000/);

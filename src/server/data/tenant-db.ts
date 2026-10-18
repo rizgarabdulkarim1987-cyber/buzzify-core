@@ -12,6 +12,7 @@ export const MENU_SCOPED_MODELS = [
   'PairingRule',
   'Bundle',
   'BundleItem',
+  'Promotion',
   'DaypartSchedule',
   'MenuMotion',
   'Table',

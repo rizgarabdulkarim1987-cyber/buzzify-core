@@ -109,3 +109,44 @@ describe('data layer (database)', () => {
     expect(rows.every((row) => row.tableNumber === 4)).toBe(true);
   });
 });
+
+describe('sales fields in the draft catalog (database)', () => {
+  let fixture: Awaited<ReturnType<typeof createMenuFixture>>;
+  beforeAll(async () => {
+    await resetTestData(prisma);
+    fixture = await createMenuFixture(prisma, 'loader-sales', { publish: false });
+  });
+  afterAll(async () => {
+    await resetTestData(prisma);
+  });
+
+  it("reads active promotions in order with the menu's price step, serves and meal categories", async () => {
+    const { menu, category, product } = fixture;
+    await prisma.product.update({ where: { id: product.id }, data: { serves: 4 } });
+    await prisma.category.update({ where: { id: category.id }, data: { completesMeal: true } });
+    const base = { menuId: menu.id, kind: 'DISCOUNT' as const, percentOff: 20, productIds: [product.id], translations: { en: { title: 'Happy hour' } } };
+    await prisma.promotion.create({ data: { ...base, id: 'promo-b', sortOrder: 1 } });
+    await prisma.promotion.create({ data: { ...base, id: 'promo-a', sortOrder: 0, categoryIds: [category.id], startMinute: 1020, endMinute: 1140 } });
+    await prisma.promotion.create({ data: { ...base, id: 'promo-off', sortOrder: 2, isActive: false } });
+
+    const catalog = await loadDraftCatalog(prisma, menu.id);
+    expect(catalog.promotions.map((p) => p.id)).toEqual(['promo-a', 'promo-b']);
+    expect(catalog.promotions[0]).toEqual({
+      id: 'promo-a',
+      kind: 'DISCOUNT',
+      percentOff: 20,
+      productIds: [product.id],
+      categoryIds: [category.id],
+      startsOn: null,
+      endsOn: null,
+      startMinute: 1020,
+      endMinute: 1140,
+      daysOfWeek: 127,
+      roundTo: 5,
+      translations: { en: { title: 'Happy hour' } },
+      sortOrder: 0,
+    });
+    expect(catalog.products[0]?.serves).toBe(4);
+    expect(catalog.categories[0]?.completesMeal).toBe(true);
+  });
+});

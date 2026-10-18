@@ -20,14 +20,17 @@ const live = (tier: PlanTier) =>
   [...defaultPlans().features[tier]].filter((key) => FEATURES.find((feature) => feature.key === key)!.status === 'live');
 
 describe('the feature catalog', () => {
-  it('lists the twelve live features first, in the specs’ order', () => {
-    expect(FEATURE_KEYS.slice(0, 12)).toEqual([
+  it('lists the fifteen live features first, in the specs’ order', () => {
+    expect(FEATURE_KEYS.slice(0, 15)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
       'qr.branded',
       'publish.scheduling',
       'selling.smart',
+      'selling.offers',
+      'selling.socialProof',
+      'selling.insights',
       'immersive.explore',
       'immersive.stage',
       'design.menuMotions',
@@ -35,7 +38,7 @@ describe('the feature catalog', () => {
       'design.backgroundVideo',
       'immersive.models3d',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(12);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(15);
     expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(17);
   });
 
@@ -54,10 +57,13 @@ describe('the feature catalog', () => {
       'qr.branded',
       'publish.scheduling',
       'selling.smart',
+      'selling.offers',
+      'selling.socialProof',
+      'selling.insights',
       'design.menuMotions',
       'design.backgroundAnimation',
     ]);
-    expect(live('PREMIUM')).toHaveLength(12);
+    expect(live('PREMIUM')).toHaveLength(15);
   });
 
   it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
@@ -149,7 +155,7 @@ describe('a restaurant’s entitlements', () => {
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 12));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 15));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });

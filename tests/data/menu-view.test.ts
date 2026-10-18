@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildMenuView, buildSearchIndex } from '@/server/data/menu-view';
 import type { TenantInfo } from '@/server/data/tenant';
-import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
+import { DEFAULT_ENGINE_CONFIG, DEFAULT_SALES_SETTINGS, type SalesSettings } from '@/server/domain/config';
+import type { CatalogPromotion } from '@/server/domain/types';
 import { at, IDS, makeCatalog, withProduct } from '../domain/fixtures';
 
 const tenant: TenantInfo = {
@@ -17,7 +18,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, motions: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   motions: [],
   brand: {
     logoText: 'TEST',
@@ -147,6 +148,91 @@ describe('buildMenuView', () => {
     });
     const view = buildMenuView(catalog, tenant, 'en', at(12));
     expect(view.products.find((p) => p.id === IDS.fries)?.media).toEqual([{ kind: 'art', art: 'plate', tone: '#D9B45A' }]);
+  });
+});
+
+describe('the sales tools on the menu', () => {
+  const offer = (overrides: Partial<CatalogPromotion> = {}): CatalogPromotion => ({
+    id: 'hh',
+    kind: 'DISCOUNT',
+    percentOff: 20,
+    productIds: [IDS.burger],
+    categoryIds: [],
+    startsOn: null,
+    endsOn: null,
+    startMinute: 17 * 60,
+    endMinute: 19 * 60,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: { en: { title: 'Happy hour', text: 'Burgers for less' } },
+    sortOrder: 0,
+    ...overrides,
+  });
+  const burgerOf = (view: ReturnType<typeof buildMenuView>) => view.products.find((p) => p.id === IDS.burger)!;
+  const withSales = (sales: Partial<SalesSettings>, features: Partial<TenantInfo['features']> = {}): TenantInfo => ({
+    ...tenant,
+    engineConfig: { ...DEFAULT_ENGINE_CONFIG, sales: { ...DEFAULT_SALES_SETTINGS, ...sales } },
+    features: { ...tenant.features, ...features },
+  });
+
+  it('shows the sale price beside the regular one during a discount, and neither after it', () => {
+    const catalog = makeCatalog({ promotions: [offer()] });
+    expect(burgerOf(buildMenuView(catalog, tenant, 'en', at(18)))).toMatchObject({ displayPrice: 720, regularPrice: 900, percentOff: 20, roundTo: 5 });
+    const after = burgerOf(buildMenuView(catalog, tenant, 'en', at(20)));
+    expect(after.displayPrice).toBe(900);
+    expect(after).not.toHaveProperty('regularPrice');
+    expect(after).not.toHaveProperty('percentOff');
+  });
+
+  it('lists the live offers in order with when they end, and names a special on its dishes', () => {
+    const special = offer({ id: 'sp', kind: 'SPECIAL', percentOff: null, startMinute: null, endMinute: null, endsOn: '2026-10-17', translations: { en: { title: 'Chef special' } } });
+    const autumn = offer({ id: 'far', kind: 'SPECIAL', percentOff: null, productIds: [IDS.fries], startMinute: null, endMinute: null, endsOn: '2026-12-31', sortOrder: 2, translations: { en: { title: 'Autumn' } } });
+    const ended = offer({ id: 'gone', endsOn: '2026-10-01' });
+    const view = buildMenuView(makeCatalog({ promotions: [offer(), special, autumn, ended] }), tenant, 'en', at(18));
+    expect(view.offers).toEqual([
+      { id: 'hh', kind: 'DISCOUNT', title: 'Happy hour', text: 'Burgers for less', percentOff: 20, endsAt: { time: '19:00' } },
+      { id: 'sp', kind: 'SPECIAL', title: 'Chef special', text: IDS.burger, percentOff: null, endsAt: { date: '2026-10-17' } },
+      { id: 'far', kind: 'SPECIAL', title: 'Autumn', text: IDS.fries, percentOff: null, endsAt: null },
+    ]);
+    expect(burgerOf(view).special).toBe('Chef special');
+    expect(view.products.find((p) => p.id === IDS.espresso)).not.toHaveProperty('special');
+  });
+
+  it('never lists an offer whose dishes guests cannot see right now', () => {
+    const breakfastOnly = withProduct(makeCatalog({ promotions: [offer({ productIds: [IDS.croissant], startMinute: null, endMinute: null })] }), IDS.croissant, {
+      dayparts: ['BREAKFAST'],
+      hideOutsideDaypart: true,
+    });
+    expect(buildMenuView(breakfastOnly, tenant, 'en', at(18)).offers).toEqual([]);
+    expect(buildMenuView(breakfastOnly, tenant, 'en', at(8)).offers.map((o) => o.id)).toEqual(['hh']);
+  });
+
+  it('marks the most ordered dishes only when the menu shows them and the plan includes it', () => {
+    const extras = { mostOrdered: [IDS.burger] };
+    expect(burgerOf(buildMenuView(makeCatalog(), tenant, 'en', at(12), extras)).mostOrdered).toBe(true);
+    expect(view(makeCatalog(), withSales({ showMostOrdered: false }), extras)).not.toHaveProperty('mostOrdered');
+    expect(view(makeCatalog(), withSales({}, { socialProof: false }), extras)).not.toHaveProperty('mostOrdered');
+    expect(view(makeCatalog(), tenant)).not.toHaveProperty('mostOrdered');
+
+    function view(catalog: ReturnType<typeof makeCatalog>, t: TenantInfo, e = {}) {
+      return burgerOf(buildMenuView(catalog, t, 'en', at(12), e));
+    }
+  });
+
+  it('says how few are left only from a real count at or below the threshold', () => {
+    const low = withProduct(makeCatalog(), IDS.burger, { stockCount: 3, lowStockThreshold: 5 });
+    expect(burgerOf(buildMenuView(low, tenant, 'en', at(12))).fewLeft).toBe(3);
+    expect(burgerOf(buildMenuView(withProduct(low, IDS.burger, { stockCount: 6 }), tenant, 'en', at(12)))).not.toHaveProperty('fewLeft');
+    expect(burgerOf(buildMenuView(withProduct(low, IDS.burger, { lowStockThreshold: null }), tenant, 'en', at(12)))).not.toHaveProperty('fewLeft');
+    expect(burgerOf(buildMenuView(low, withSales({ showLowStock: false }), 'en', at(12)))).not.toHaveProperty('fewLeft');
+    expect(burgerOf(buildMenuView(low, withSales({}, { socialProof: false }), 'en', at(12)))).not.toHaveProperty('fewLeft');
+  });
+
+  it('carries how many a dish serves, and the menu’s price style', () => {
+    expect(burgerOf(buildMenuView(withProduct(makeCatalog(), IDS.burger, { serves: 4 }), tenant, 'en', at(12))).serves).toBe(4);
+    expect(burgerOf(buildMenuView(makeCatalog(), tenant, 'en', at(12)))).not.toHaveProperty('serves');
+    expect(buildMenuView(makeCatalog(), tenant, 'en', at(12)).priceStyle).toBe('symbol');
+    expect(buildMenuView(makeCatalog(), withSales({ priceStyle: 'plain' }), 'en', at(12)).priceStyle).toBe('plain');
   });
 });
 

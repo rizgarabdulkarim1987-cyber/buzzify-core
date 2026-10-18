@@ -4,7 +4,7 @@ import { loadOverlay } from '@/server/data/live';
 import { buildMenuView, type MenuView } from '@/server/data/menu-view';
 import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
-import { hiddenFromGuests } from '@/server/domain/plan-choices';
+import { hiddenFromGuests, servedCatalog } from '@/server/domain/plan-choices';
 import { toCatalog } from '@/server/domain/snapshot';
 import { loadDraftSnapshot, type DesignContext } from '@/server/publish/draft';
 import { defineQuery } from '@/server/studio/framework/query';
@@ -30,9 +30,9 @@ export const draft = defineQuery({
     if (!menu) throw new StudioError('NOT_FOUND');
     const snapshot = await loadDraftSnapshot(ctx.db, menu.id);
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
-    const catalog = toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id));
     // As guests on the restaurant's plan would see it.
     const tenant = tenantInfo(menu, 'draft', snapshot, ctx.plan.entitlements);
+    const catalog = servedCatalog(toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id)), tenant.features);
     // The restaurant's side of a template, so the Design tab can preview any template with the business's details.
     const restaurant = await ctx.db.restaurant.findUniqueOrThrow({
       where: { id: menu.restaurantId },

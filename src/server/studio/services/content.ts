@@ -98,6 +98,13 @@ export const productSaveFields = {
   media: z.array(mediaEntry).max(12, 'Use at most 12 pictures'),
   variants: z.array(variantInput).max(20, 'Use at most 20 sizes'),
   groups: z.array(groupInput).max(20, 'Use at most 20 option groups'),
+  // The sales tools' fields (docs/superpowers/specs/2026-10-18-sales-tools-design.md, goal 3). A save that leaves one
+  // out keeps what the product has.
+  cost: priceField.nullable().optional(),
+  // The drawer offers normal, high and top (50, 75, 100); a product saved before keeps whatever it holds (0 to 100).
+  priority: z.number().int().min(0, 'Choose normal, high or top').max(100, 'Choose normal, high or top').optional(),
+  serves: z.number().int().min(2, 'Use 2 to 20 people').max(20, 'Use 2 to 20 people').nullable().optional(),
+  lowStockThreshold: z.number().int().min(1, 'Use 1 to 999').max(999, 'Use 1 to 999').nullable().optional(),
 };
 export type ProductSave = z.infer<z.ZodObject<typeof productSaveFields>>;
 
@@ -149,6 +156,13 @@ export interface ProductEditing {
   dietary: DietaryTag[];
   badges: Badge[];
   calories: number | null;
+  /** What one costs the restaurant to make, in minor units, or null when not entered. */
+  cost: number | null;
+  /** How strongly the menu promotes it: 50 normal, 75 high, 100 top. */
+  priority: number;
+  serves: number | null;
+  /** "Only a few left" shows at or below this many portions left. */
+  lowStockThreshold: number | null;
   media: Array<{ value: DraftMediaItem; thumbUrl: string | null }>;
   variants: Array<{ id: string; version: number; names: Names; priceDelta: number; isDefault: boolean }>;
   groups: Array<{
@@ -166,7 +180,7 @@ export interface ProductEditing {
 // Texts ---------------------------------------------------------------------------------------------------------------
 
 /** The texts with something in them, in the languages' order. */
-function present(values: Texts | undefined): Partial<Record<Locale, string>> {
+export function present(values: Texts | undefined): Partial<Record<Locale, string>> {
   const result: Partial<Record<Locale, string>> = {};
   for (const locale of LOCALES) {
     const value = values?.[locale]?.trim();
@@ -190,7 +204,7 @@ export function textsOf(translations: unknown, field: string): Partial<Record<Lo
  * The translations with `fields` written in: each given field replaces its value in every language (a language left
  * out loses it), other fields stay. A language left with nothing is dropped.
  */
-function withTexts(translations: unknown, fields: Record<string, Texts | undefined>): Prisma.InputJsonObject {
+export function withTexts(translations: unknown, fields: Record<string, Texts | undefined>): Prisma.InputJsonObject {
   const before = (translations ?? {}) as TranslationMap;
   const after: Record<string, Record<string, string>> = {};
   for (const locale of LOCALES) {
@@ -239,6 +253,22 @@ async function claimingSlug<T>(write: () => Promise<T>): Promise<T> {
   } catch (error) {
     if (isUniqueViolation(error)) throw slugTaken();
     throw error;
+  }
+}
+
+// Offers --------------------------------------------------------------------------------------------------------------
+
+/**
+ * Takes a dish or a category that is going out of every offer that names it, moving each offer's version on; an offer
+ * left naming nothing is deleted, as it could never show again.
+ */
+async function dropFromOffers(tx: ScopedTx, field: 'productIds' | 'categoryIds', id: string): Promise<void> {
+  const offers = await tx.promotion.findMany({ where: { [field]: { has: id } }, select: { id: true, productIds: true, categoryIds: true } });
+  for (const offer of offers) {
+    const productIds = offer.productIds.filter((entry) => entry !== id);
+    const categoryIds = offer.categoryIds.filter((entry) => entry !== id);
+    if (productIds.length + categoryIds.length === 0) await tx.promotion.deleteMany({ where: { id: offer.id } });
+    else await tx.promotion.updateMany({ where: { id: offer.id }, data: { productIds, categoryIds, version: { increment: 1 } } });
   }
 }
 
@@ -303,6 +333,9 @@ export function deleteCategory(ctx: ActionContext, input: { categoryId: string; 
       throw new StudioError('INVALID', 'Move or delete its products first');
     }
     await deleteWithVersion(tx.category, { id: row.id, version: input.version, entityType: 'Category' }, tx);
+    await dropFromOffers(tx, 'categoryIds', row.id);
+    // A pairing names its source category by id alone, so nothing else removes the pairings of a category that goes.
+    await tx.pairingRule.deleteMany({ where: { sourceCategoryId: row.id } });
     ctx.audit({
       action: 'category.deleted',
       entityType: 'Category',
@@ -371,10 +404,10 @@ export function createProduct(
   });
 }
 
-type Changes = Record<string, { before: unknown; after: unknown }>;
+export type Changes = Record<string, { before: unknown; after: unknown }>;
 
 /** The pairs whose two sides differ, for an audit row. */
-function changed(pairs: Record<string, [unknown, unknown]>): Changes {
+export function changed(pairs: Record<string, [unknown, unknown]>): Changes {
   const changes: Changes = {};
   for (const [field, [before, after]] of Object.entries(pairs)) {
     if (JSON.stringify(before) !== JSON.stringify(after)) changes[field] = { before, after };
@@ -457,6 +490,7 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
 
     const pricesChange =
       input.price !== product.basePrice ||
+      (input.cost !== undefined && input.cost !== product.cost) ||
       variants.some(({ input: v, row }) => (row ? v.priceDelta !== row.priceDelta : v.priceDelta !== 0)) ||
       groups.some(({ options }) => options.some(({ input: o, row }) => (row ? o.priceDelta !== row.priceDelta : o.priceDelta !== 0)));
     if (pricesChange) requirePrices(ctx);
@@ -502,6 +536,10 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
             calories: input.calories,
             media: input.media as Prisma.InputJsonArray,
             ...(ingredients === undefined ? {} : { ingredients }),
+            ...(input.cost === undefined ? {} : { cost: input.cost }),
+            ...(input.priority === undefined ? {} : { priority: input.priority }),
+            ...(input.serves === undefined ? {} : { serves: input.serves }),
+            ...(input.lowStockThreshold === undefined ? {} : { lowStockThreshold: input.lowStockThreshold }),
           },
           entityType: 'Product',
         },
@@ -588,6 +626,10 @@ export function saveProduct(ctx: ActionContext, input: ProductSave): Promise<Sav
         dietary: [product.dietary, dietary],
         badges: [product.badges, badges],
         calories: [product.calories, input.calories],
+        cost: [product.cost, input.cost === undefined ? product.cost : input.cost],
+        priority: [product.priority, input.priority ?? product.priority],
+        serves: [product.serves, input.serves === undefined ? product.serves : input.serves],
+        lowStockThreshold: [product.lowStockThreshold, input.lowStockThreshold === undefined ? product.lowStockThreshold : input.lowStockThreshold],
         media: [mediaSummary(product.media), mediaSummary(input.media)],
         ...(ingredients === undefined ? {} : { ingredients: [product.ingredients, ingredients] }),
         sizes: [
@@ -628,6 +670,7 @@ export function deleteProduct(ctx: ActionContext, input: { productId: string; ve
       throw new StudioError('INVALID', 'A bundle contains this product. Remove it from the bundle first.');
     }
     await deleteWithVersion(tx.product, { id: row.id, version: input.version, entityType: 'Product' }, tx);
+    await dropFromOffers(tx, 'productIds', row.id);
     ctx.audit({
       action: 'product.deleted',
       entityType: 'Product',

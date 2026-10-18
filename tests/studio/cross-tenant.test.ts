@@ -89,6 +89,12 @@ interface Side {
   qrCodeId: string;
   /** A sheet read for an import, not applied. */
   importJobId: string;
+  /** A second dish, and the sales rules between the two (docs/superpowers/plans/2026-10-18-sales-tools.md). */
+  sideProductId: string;
+  upgradeId: string;
+  pairingId: string;
+  setId: string;
+  offerId: string;
   /** A design the restaurant saved from a template preset. */
   designTemplateId: string;
 }
@@ -136,6 +142,19 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   const option = await prisma().modifierOption.create({
     data: { menuId: menu.id, groupId: group.id, translations: { en: { name: `${title} bread` } } },
   });
+  const sideDish = await prisma().product.create({
+    data: { menuId: menu.id, categoryId: category.id, slug: `${label}-salad`, basePrice: 500, sortOrder: 1, translations: { en: { name: `${title} salad`, description: 'Fresh' } } },
+  });
+  const upgrade = await prisma().upsellRule.create({ data: { menuId: menu.id, sourceProductId: product.id, targetProductId: sideDish.id, translations: {} } });
+  const pairing = await prisma().pairingRule.create({ data: { menuId: menu.id, sourceType: 'CATEGORY', sourceCategoryId: category.id, targetProductId: sideDish.id, translations: {} } });
+  const set = await prisma().bundle.create({ data: { menuId: menu.id, slug: `${label}-set`, price: 1000, translations: { en: { name: `${title} set` } } } });
+  await prisma().bundleItem.createMany({
+    data: [
+      { menuId: menu.id, bundleId: set.id, productId: product.id },
+      { menuId: menu.id, bundleId: set.id, productId: sideDish.id },
+    ],
+  });
+  const offer = await prisma().promotion.create({ data: { menuId: menu.id, kind: 'SPECIAL', productIds: [product.id], translations: { en: { title: `${title} special` } } } });
   const published = await publishFixture(prisma(), menu.id);
   const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
   const pending = await prisma().menuRevision.create({
@@ -214,6 +233,11 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pendingRevisionId: pending.id,
     qrCodeId: qrCode.id,
     importJobId: importJob.id,
+    sideProductId: sideDish.id,
+    upgradeId: upgrade.id,
+    pairingId: pairing.id,
+    setId: set.id,
+    offerId: offer.id,
     designTemplateId: designTemplate.id,
   };
 }
@@ -254,6 +278,10 @@ async function snapshotOfB(w: World): Promise<unknown> {
       options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       importJobs: await db.importJob.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       qrCodes: await db.qrCode.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      upgrades: await db.upsellRule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      pairings: await db.pairingRule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      sets: await db.bundle.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' }, include: { items: { orderBy: { id: 'asc' } } } }),
+      offers: await db.promotion.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       tables: await db.table.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       branches: await db.branch.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
@@ -324,6 +352,61 @@ const brandKit = () => ({
   railStyle: 'grains',
   motionIntensity: 'subtle',
   logoText: 'Planted',
+});
+
+/** The Sales tab's saves, between the dishes and categories given. */
+const upgradeSave = (sourceProductId: string, targetProductId: string) => ({
+  sourceProductId,
+  targetProductId,
+  pitch: { en: 'Planted' },
+  effect: {},
+  priority: 50,
+  dayparts: [],
+  isActive: true,
+});
+const pairingSave = (categoryId: string, targetProductId: string) => ({
+  source: { kind: 'CATEGORY', id: categoryId },
+  targetProductId,
+  reason: { en: 'Planted' },
+  weight: 50,
+  dayparts: [],
+  isActive: true,
+});
+const setSave = (first: string, second: string) => ({
+  names: { en: 'Planted' },
+  descriptions: {},
+  price: 1,
+  items: [
+    { productId: first, variantId: null, quantity: 1 },
+    { productId: second, variantId: null, quantity: 1 },
+  ],
+  dayparts: [],
+  isActive: true,
+});
+const offerSave = (productIds: string[], categoryIds: string[]) => ({
+  kind: 'SPECIAL',
+  percentOff: null,
+  productIds,
+  categoryIds,
+  startsOn: null,
+  endsOn: null,
+  startMinute: null,
+  endMinute: null,
+  daysOfWeek: 127,
+  title: { en: 'Planted' },
+  text: {},
+  isActive: true,
+});
+const salesSettings = (mealCategoryIds: string[]) => ({
+  version: 1,
+  priceStyle: 'plain',
+  showMostOrdered: true,
+  showLowStock: true,
+  upsellMaxOffers: 3,
+  pairingMaxOffers: 3,
+  upsellDeltaCapRatio: 0.75,
+  cartPairingMaxOffers: 2,
+  mealCategoryIds,
 });
 
 /** A QR code's style as the QR tab saves it. */
@@ -628,6 +711,60 @@ const SWEPT: Record<string, Case[]> = {
     c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
   ],
   'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'availability.setStock': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, stockCount: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, stockCount: 1 })),
+  ],
+
+  // The Sales tab
+  'sales.rules': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.overview': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.saveUpgrade': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
+    c("B's dishes, through A", (w) => ({ menuId: w.a.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.upgradeId, version: 1, ...upgradeSave(w.a.sideProductId, w.a.productId) })),
+  ],
+  'sales.deleteUpgrade': [
+    c("B's rule, in B", (w) => ({ menuId: w.b.menuId, ruleId: w.b.upgradeId, version: 1 })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.upgradeId, version: 1 })),
+  ],
+  'sales.savePairing': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...pairingSave(w.b.categoryId, w.b.sideProductId) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...pairingSave(w.b.categoryId, w.a.sideProductId) })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.pairingId, version: 1, ...pairingSave(w.a.categoryId, w.a.sideProductId) })),
+  ],
+  'sales.deletePairing': [
+    c("B's rule, in B", (w) => ({ menuId: w.b.menuId, ruleId: w.b.pairingId, version: 1 })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.pairingId, version: 1 })),
+  ],
+  'sales.saveSet': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...setSave(w.b.productId, w.b.sideProductId) })),
+    c("B's dishes, through A", (w) => ({ menuId: w.a.menuId, ...setSave(w.b.productId, w.b.sideProductId) })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, bundleId: w.b.setId, version: 1, ...setSave(w.a.productId, w.a.sideProductId) })),
+  ],
+  'sales.deleteSet': [
+    c("B's set, in B", (w) => ({ menuId: w.b.menuId, bundleId: w.b.setId, version: 1 })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, bundleId: w.b.setId, version: 1 })),
+  ],
+  'sales.saveOffer': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...offerSave([w.b.productId], []) })),
+    c("B's dish, through A", (w) => ({ menuId: w.a.menuId, ...offerSave([w.b.productId], []) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...offerSave([], [w.b.categoryId]) })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, offerId: w.b.offerId, version: 1, ...offerSave([w.a.productId], []) })),
+  ],
+  'sales.deleteOffer': [
+    c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: w.b.offerId, version: 1 })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, offerId: w.b.offerId, version: 1 })),
+  ],
+  'sales.reorderOffers': [
+    c("B's offers, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.offerId] })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, order: [w.b.offerId] })),
+  ],
+  'sales.saveSettings': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...salesSettings([]) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...salesSettings([w.b.categoryId]) })),
+  ],
 
   // The Prices tab
   'prices.set': [

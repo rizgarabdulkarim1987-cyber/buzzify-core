@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
 import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
-import { clampBrandView, guestFeatures } from '@/server/domain/plan-choices';
+import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
 import { cachedLiveOverlay, cachedPlans, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
@@ -139,8 +139,5 @@ export async function getCatalog(tenant: TenantInfo): Promise<Catalog> {
     cachedRevisionSnapshot(menuId, revisionId, () => loadRevisionSnapshot(getPrisma(), menuId, revisionId)),
     cachedLiveOverlay(menuId, () => loadOverlay(menuDb(getPrisma(), menuId), menuId)),
   ]);
-  const catalog = toCatalog(menuId, snapshot, overlay);
-  // Without smart selling there are no offers, pairings or bundles: suggestions are empty, and a bundle already in a
-  // cart is priced as one that is no longer offered.
-  return tenant.features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
+  return servedCatalog(toCatalog(menuId, snapshot, overlay), tenant.features);
 }

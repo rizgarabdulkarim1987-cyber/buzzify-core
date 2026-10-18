@@ -1,3 +1,4 @@
+import { salesSettings } from '@/server/domain/config';
 import '@/app/globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
@@ -44,6 +45,7 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
             features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
+            priceStyle: salesSettings(tenant.engineConfig).priceStyle,
           }}
         >
           {children}

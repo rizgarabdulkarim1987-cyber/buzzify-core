@@ -31,6 +31,11 @@ export const FEATURES = [
   { key: 'qr.branded', area: 'design', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'publish.scheduling', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'selling.smart', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
+  // The sales tools (docs/superpowers/specs/2026-10-18-sales-tools-design.md): timed offers, the labels drawn from real
+  // guest data and stock, and the Sales tab's insights.
+  { key: 'selling.offers', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
+  { key: 'selling.socialProof', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
+  { key: 'selling.insights', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'immersive.explore', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
   { key: 'immersive.stage', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
   // Motions from the library at places on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md).

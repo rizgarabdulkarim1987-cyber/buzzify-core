@@ -168,6 +168,10 @@ export const product = defineQuery({
       dietary: row.dietary as DietaryTag[],
       badges: row.badges as Badge[],
       calories: row.calories,
+      cost: row.cost,
+      priority: row.priority,
+      serves: row.serves,
+      lowStockThreshold: row.lowStockThreshold,
       media: media.map((value) => ({ value, thumbUrl: thumb(value) })),
       variants: row.variants.map((variant) => ({
         id: variant.id,

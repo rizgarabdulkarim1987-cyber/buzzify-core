@@ -6,6 +6,7 @@ import type { SceneMedia } from '@/lib/templates/types';
 import type { BrandView } from '@/server/data/tenant';
 import { allows, type Entitlements, type FeatureKey } from './entitlements';
 import { DEFAULT_QR_STYLE, type QrStyle } from './qr';
+import type { Catalog } from './types';
 
 /**
  * Choices a plan can lock (spec: plans and entitlements, section 6): which font pairs, rails, motion levels and QR looks
@@ -194,6 +195,7 @@ export function hiddenFromGuests(
     upsellRules: readonly unknown[];
     pairingRules: readonly unknown[];
     bundles: readonly unknown[];
+    promotions?: readonly unknown[];
   },
   entitlements: Entitlements,
   motions: readonly unknown[] = [],
@@ -214,15 +216,32 @@ export function hiddenFromGuests(
   );
   const selling = upgradable || catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
   if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
+  if (!allows(entitlements, 'selling.offers') && (catalog.promotions?.length ?? 0) > 0) hidden.push('selling.offers');
   if (!allows(entitlements, 'design.menuMotions') && motions.length > 0) hidden.push('design.menuMotions');
   return hidden;
 }
 
-/** What the guest pages may show: Explore, the 3D stage, smart selling, the menu's motions, and the rails `?rail=` may preview. */
+/**
+ * The catalog as the restaurant's plan serves it to guests. Without smart selling there are no upgrades, pairings or
+ * sets: suggestions are empty, and a set already in a cart is priced as one that is no longer offered. Without timed
+ * offers there are no specials or discounts, so every price is the regular one. The public pages and the Studio's
+ * previews both read the catalog through this.
+ */
+export function servedCatalog(catalog: Catalog, features: Pick<GuestFeatures, 'smartSelling' | 'offers'>): Catalog {
+  const selling = features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
+  return features.offers ? selling : { ...selling, promotions: [] };
+}
+
+/**
+ * What the guest pages may show: Explore, the 3D stage, smart selling, timed offers, the labels drawn from guest data
+ * and stock, the menu's motions, and the rails `?rail=` may preview.
+ */
 export interface GuestFeatures {
   explore: boolean;
   stage: boolean;
   smartSelling: boolean;
+  offers: boolean;
+  socialProof: boolean;
   motions: boolean;
   rails: RailStyle[];
 }
@@ -232,6 +251,8 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     explore: allows(entitlements, 'immersive.explore'),
     stage: allows(entitlements, 'immersive.stage'),
     smartSelling: allows(entitlements, 'selling.smart'),
+    offers: allows(entitlements, 'selling.offers'),
+    socialProof: allows(entitlements, 'selling.socialProof'),
     motions: allows(entitlements, 'design.menuMotions'),
     rails: allowedRails(entitlements),
   };

@@ -6,16 +6,22 @@ const ALL_BUILT = new Set(WORKSPACE_TABS.map((tab) => tab.key));
 const keys = (tabs: WorkspaceTab[]) => tabs.map((tab) => tab.key);
 
 describe('the menu workspace tabs', () => {
-  it('lists the tabs of spec 10.3 in order, Design (template studio) before Brand and Motion after it, Content at the menu address itself', () => {
-    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'design', 'brand', 'motion', 'settings', 'qr', 'data', 'revisions', 'preview']);
+  it('lists the tabs in order (spec 10.3 and the Sales tab), Design (template studio) before Brand and Motion after it, Content at the menu address itself', () => {
+    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'settings', 'qr', 'data', 'revisions', 'preview']);
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'motion')).toMatchObject({ path: '/motion', needs: ['brand.edit'] });
     expect(WORKSPACE_TABS[0]!.path).toBe('');
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'preview')!.path).toBe('/preview');
   });
 
-  it('shows an owner Content, Prices, Availability, Revisions and Preview', () => {
+  it('shows an owner Content, Prices, Availability, Sales, Revisions and Preview', () => {
     const owner = effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy: {} });
-    expect(keys(visibleTabs(owner, ALL_BUILT))).toEqual(['content', 'prices', 'availability', 'revisions', 'preview']);
+    expect(keys(visibleTabs(owner, ALL_BUILT))).toEqual(['content', 'prices', 'availability', 'sales', 'revisions', 'preview']);
+  });
+
+  it('hides Sales without content.edit', () => {
+    const noEdit = effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy: parsePolicy({ OWNER: { grant: [], revoke: ['content.edit'] } }) });
+    expect(keys(visibleTabs(noEdit, ALL_BUILT))).not.toContain('sales');
+    expect(WORKSPACE_TABS.find((tab) => tab.key === 'sales')!.path).toBe('/sales');
   });
 
   it('shows a designer every tab, and hides Design, Brand and Motion when the client revokes brand.edit', () => {

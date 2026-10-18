@@ -31,7 +31,7 @@ describe('what guests get on each plan', () => {
   it('serves every feature on Premium, as before plans', async () => {
     const tenant = (await getTenant('guest-plans'))!;
     expect(tenant.brand).toMatchObject({ railStyle: 'drum', motionIntensity: 'expressive', fontPairId: 'fine' });
-    expect(tenant.features).toEqual({ explore: true, stage: true, smartSelling: true, motions: true, rails: [...RAIL_STYLES] });
+    expect(tenant.features).toEqual({ explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
   });
 
   it('serves a Basic menu with the fallbacks and the guest features off, without touching its revision', async () => {
@@ -40,8 +40,18 @@ describe('what guests get on each plan', () => {
     const tenant = (await getTenant('guest-plans'))!;
     expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
     expect(tenant.brand.fontPairId).toBeUndefined();
-    expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, motions: false, rails: ['plain'] });
+    expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
     expect(await prisma.menu.findUniqueOrThrow({ where: { id: a.menu.id }, select: { liveRevisionId: true, liveHash: true, draftHash: true } })).toEqual(before);
+  });
+
+  it('serves timed offers only on a plan with them: without, every price is the regular one', async () => {
+    await prisma.promotion.create({
+      data: { menuId: a.menu.id, kind: 'DISCOUNT', percentOff: 50, productIds: [a.product.id], translations: { en: { title: 'Half price' } } },
+    });
+    await publishFixture(prisma, a.menu.id);
+    expect((await getCatalog((await getTenant('guest-plans'))!)).promotions).toHaveLength(1);
+    await setPlan(a.restaurant.id, 'BASIC');
+    expect((await getCatalog((await getTenant('guest-plans'))!)).promotions).toEqual([]);
   });
 
   it('serves the deck on Pro for a menu that chose the melting dish', async () => {

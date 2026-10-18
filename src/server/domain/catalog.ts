@@ -1,5 +1,6 @@
+import { discountFor, salePrice } from './offers';
 import { currentDaypart } from './schedule';
-import type { Catalog, CatalogProduct, Daypart } from './types';
+import type { Catalog, CatalogProduct, CatalogPromotion, Daypart } from './types';
 
 export type Orderability = 'OK' | 'UNAVAILABLE' | 'OUT_OF_STOCK' | 'OUT_OF_DAYPART';
 
@@ -61,4 +62,19 @@ export function unitPrice(
     }
   }
   return { price: Math.max(0, price), cost };
+}
+
+/**
+ * What one unit costs a guest with the live offers: the sale price during a discount, else the regular price. Every
+ * price a guest is shown or charged comes from here (the quote, the menu, upgrades, sets), so they always agree.
+ */
+export function priceOf(
+  product: CatalogProduct,
+  variantId: string | null,
+  optionIds: readonly string[],
+  live: readonly CatalogPromotion[],
+): { price: number; regular: number; cost: number | null } {
+  const { price: regular, cost } = unitPrice(product, variantId, optionIds);
+  const discount = discountFor(product, live);
+  return { price: discount ? salePrice(regular, discount.percent, discount.roundTo) : regular, regular, cost };
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { unitPriceFromMenu } from '@/lib/menu-price';
+import { optionExtraFromMenu, unitPriceFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
 import { stagesOnProductPage } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
@@ -16,6 +16,7 @@ import { useSuggestions } from '@/ui/useSuggestions';
 import { OptionGroup } from './OptionGroup';
 import { PairingList } from './PairingList';
 import { UpgradeOffers } from './UpgradeOffers';
+import { hasSalesPills, SalePrice, SalesFacts, SalesPills } from '@/ui/menu/SalesLabels';
 
 interface Props {
   product: MenuProductView;
@@ -28,7 +29,7 @@ interface Props {
 }
 
 export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Props) {
-  const { t, money, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
+  const { t, price, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -133,7 +134,19 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
           {product.name}
         </Heading>
         {product.description && <p className="mt-2 max-w-prose text-muted">{product.description}</p>}
-        <p className="mt-3 text-lg tabular-nums text-accent">{money(product.displayPrice)}</p>
+        {hasSalesPills(product) && (
+          <p className="mt-2 flex flex-wrap gap-1.5">
+            <SalesPills product={product} />
+          </p>
+        )}
+        <p className="mt-3">
+          <SalePrice product={product} className="text-lg tabular-nums text-accent" />
+        </p>
+        {orderable && (
+          <p className="mt-1">
+            <SalesFacts product={product} />
+          </p>
+        )}
         {!orderable && (
           <p className="mt-3 text-accent">
             {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}
@@ -149,7 +162,8 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
             items={product.variants.map((variant) => ({
               id: variant.id,
               name: variant.name,
-              priceDelta: variant.priceDelta - (product.variants.find((v) => v.isDefault)?.priceDelta ?? 0),
+              // What it adds now, a live discount included, against the default size.
+              priceDelta: variantExtraFromMenu(product, variant.id, defaultVariant, selected),
             }))}
             onToggle={(id) => setVariantId(id === defaultVariant ? null : id)}
           />
@@ -166,7 +180,13 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
               id: option.id,
               name: option.name,
               effect: option.effect,
-              priceDelta: option.priceDelta,
+              priceDelta: optionExtraFromMenu(
+                product,
+                variantId,
+                selected,
+                group.options.map((entry) => entry.id),
+                option.id,
+              ),
               disabled: !option.isAvailable,
             }))}
             onToggle={(id) => toggle(group.id, id)}
@@ -178,13 +198,14 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         {orderable && (
           <PairingList
             offers={data?.pairings ?? []}
+            formatPrice={price}
             onAdd={(offer) => {
               addLine({ productId: offer.productId, variantId: null, optionIds: [], quantity: 1 });
               track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
               announce(t('cart.added', { name: offer.name }));
             }}
             onChoose={(offer) => {
-              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
               onSwitch(offer.productId);
             }}
             onDismiss={(offer) => dismiss(offer.suggestionId)}
