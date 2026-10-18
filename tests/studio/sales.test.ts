@@ -7,8 +7,9 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as salesQueries from '@/server/studio/queries/sales';
+import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
-import { createMenuFixture, requireTestDb, resetTestData } from '../helpers/db';
+import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
 const prisma = () => getPrisma();
 const META = { ip: '203.0.113.7', userAgent: 'vitest' };
@@ -236,6 +237,112 @@ describe('sets', () => {
       },
     ]);
     expect(read.products.find((p) => p.id === a.product.id)?.variants).toEqual([]);
+  });
+});
+
+const offer = (overrides: Record<string, unknown> = {}) => ({
+  menuId: a.menu.id,
+  kind: 'DISCOUNT',
+  percentOff: 20,
+  productIds: [latte],
+  categoryIds: [cakes],
+  startsOn: '2026-10-01',
+  endsOn: '2026-10-31',
+  startMinute: 17 * 60,
+  endMinute: 19 * 60,
+  daysOfWeek: 127,
+  title: { en: 'Happy hour', ar: 'الساعة السعيدة' },
+  text: { en: 'Twenty percent off lattes and cakes' },
+  isActive: true,
+  ...overrides,
+});
+
+describe('offers', () => {
+  it('schedules a happy hour that the published menu carries', async () => {
+    const saved = dataOf(await run(sales.saveOffer, offer()));
+    expect(await prisma().promotion.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({
+      kind: 'DISCOUNT',
+      percentOff: 20,
+      productIds: [latte],
+      categoryIds: [cakes],
+      startsOn: '2026-10-01',
+      endsOn: '2026-10-31',
+      startMinute: 1020,
+      endMinute: 1140,
+      daysOfWeek: 127,
+      translations: { en: { title: 'Happy hour', text: 'Twenty percent off lattes and cakes' }, ar: { title: 'الساعة السعيدة' } },
+      sortOrder: 0,
+    });
+    await publishFixture(prisma(), a.menu.id);
+    const revision = await prisma().menuRevision.findFirstOrThrow({ where: { menuId: a.menu.id }, orderBy: { number: 'desc' } });
+    expect((revision.snapshot as { catalog: { promotions?: Array<{ id: string; roundTo: number }> } }).catalog.promotions).toMatchObject([{ id: saved.id, roundTo: 5 }]);
+    expect(await auditActions()).toContain('offer.created');
+  });
+
+  it('edits, reorders and deletes offers', async () => {
+    const first = dataOf(await run(sales.saveOffer, offer()));
+    const second = dataOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null, title: { en: 'Chef special' } })));
+    expect((await prisma().promotion.findUniqueOrThrow({ where: { id: second.id } })).sortOrder).toBe(1);
+    dataOf(await run(sales.saveOffer, offer({ offerId: first.id, version: 1, percentOff: 30, isActive: false })));
+    expect(await prisma().promotion.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({ percentOff: 30, isActive: false, version: 2 });
+    dataOf(await run(sales.reorderOffers, { menuId: a.menu.id, order: [second.id, first.id] }));
+    expect((await loadDraftCatalog(prisma(), a.menu.id)).promotions.map((p) => p.id)).toEqual([second.id]);
+    expect((await prisma().promotion.findMany({ orderBy: { sortOrder: 'asc' } })).map((p) => p.id)).toEqual([second.id, first.id]);
+    dataOf(await run(sales.deleteOffer, { menuId: a.menu.id, offerId: first.id, version: 2 }));
+    expect(await prisma().promotion.count()).toBe(1);
+    expect(await auditActions()).toEqual(expect.arrayContaining(['offer.updated', 'offer.reordered', 'offer.deleted']));
+  });
+
+  it.each([
+    ['no dish and no category', { productIds: [], categoryIds: [] }, 'productIds'],
+    ['a discount without a percentage', { percentOff: null }, 'percentOff'],
+    ['a discount of 95%', { percentOff: 95 }, 'percentOff'],
+    ['a special with a percentage', { kind: 'SPECIAL', percentOff: 10 }, 'percentOff'],
+    ['an end before the start', { startsOn: '2026-10-10', endsOn: '2026-10-09' }, 'endsOn'],
+    ['a start time without an end', { endMinute: null }, 'endMinute'],
+    ['the same start and end time', { endMinute: 17 * 60 }, 'endMinute'],
+    ['no day of the week', { daysOfWeek: 0 }, 'daysOfWeek'],
+    ['no title in the main language', { title: { ar: 'عرض' } }, 'title'],
+    ['a date that does not exist', { startsOn: '2026-02-30' }, 'startsOn'],
+  ])('refuses %s', async (_label, overrides, field) => {
+    expect(failureOf(await run(sales.saveOffer, offer(overrides))).fields).toHaveProperty(field);
+  });
+
+  it('refuses a dish of another menu', async () => {
+    expect(failureOf(await run(sales.saveOffer, offer({ productIds: [b.product.id] }))).code).toBe('NOT_FOUND');
+  });
+
+  it('needs the right to set prices for a discount, not for a special, and offers in the plan', async () => {
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
+    owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    expect(failureOf(await run(sales.saveOffer, offer())).code).toBe('FORBIDDEN');
+    dataOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null })));
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { plan: 'BASIC' } });
+    owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    expect(failureOf(await run(sales.saveOffer, offer({ kind: 'SPECIAL', percentOff: null }))).code).toBe('UPGRADE_REQUIRED');
+  });
+
+  it('reads every offer in its order', async () => {
+    const saved = dataOf(await run(sales.saveOffer, offer()));
+    expect(dataOf(await rules()).offers).toEqual([
+      {
+        id: saved.id,
+        version: 1,
+        kind: 'DISCOUNT',
+        percentOff: 20,
+        productIds: [latte],
+        categoryIds: [cakes],
+        startsOn: '2026-10-01',
+        endsOn: '2026-10-31',
+        startMinute: 1020,
+        endMinute: 1140,
+        daysOfWeek: 127,
+        title: { en: 'Happy hour', ar: 'الساعة السعيدة' },
+        text: { en: 'Twenty percent off lattes and cakes' },
+        isActive: true,
+        sortOrder: 0,
+      },
+    ]);
   });
 });
 

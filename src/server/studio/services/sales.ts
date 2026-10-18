@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { canonicalSet } from '@/lib/canonical';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { ScopedTx } from '@/server/data/tenant-db';
-import { DAYPARTS, type Daypart } from '@/server/domain/types';
+import { DAYPARTS, PROMOTION_KINDS, type Daypart, type PromotionKind } from '@/server/domain/types';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { deleteWithVersion, updateWithVersion } from '@/server/studio/framework/concurrency';
 import type { QueryContext } from '@/server/studio/framework/query';
@@ -90,6 +90,38 @@ export const setFields = {
 export type SetSave = z.infer<z.ZodObject<typeof setFields>>;
 export const sameSetRef = (row: { bundleId?: string | undefined; version?: number | undefined }) =>
   (row.bundleId === undefined) === (row.version === undefined);
+
+const DATE_SHAPE = /^\d{4}-\d{2}-\d{2}$/;
+/** A real calendar date written `YYYY-MM-DD`. */
+function isDate(value: string): boolean {
+  if (!DATE_SHAPE.test(value)) return false;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+const dateField = z.string().refine(isDate, 'Use a date such as 2026-10-31').nullable();
+const minuteField = z.number().int().min(0, 'Choose a time of day').max(1439, 'Choose a time of day').nullable();
+export const PERCENT_OFF_MIN = 5;
+export const PERCENT_OFF_MAX = 90;
+
+export const offerFields = {
+  offerId: idField.optional(),
+  version: versionField.optional(),
+  kind: z.enum(PROMOTION_KINDS),
+  percentOff: z.number().int().min(PERCENT_OFF_MIN, 'Use 5% to 90% off').max(PERCENT_OFF_MAX, 'Use 5% to 90% off').nullable(),
+  productIds: z.array(idField).max(500),
+  categoryIds: z.array(idField).max(100),
+  startsOn: dateField,
+  endsOn: dateField,
+  startMinute: minuteField,
+  endMinute: minuteField,
+  daysOfWeek: z.number().int().min(1, 'Choose at least one day').max(127, 'Choose at least one day'),
+  title: namesField,
+  text: namesField,
+  isActive: z.boolean(),
+};
+export type OfferSave = z.infer<z.ZodObject<typeof offerFields>>;
+export const sameOfferRef = (row: { offerId?: string | undefined; version?: number | undefined }) =>
+  (row.offerId === undefined) === (row.version === undefined);
 
 // Shared --------------------------------------------------------------------------------------------------------------
 
@@ -327,6 +359,117 @@ export function deleteSet(ctx: ActionContext, input: { bundleId: string; version
   });
 }
 
+// Offers --------------------------------------------------------------------------------------------------------------
+
+/** What an offer's fields cannot state alone, as per-field messages; empty when it may be saved. */
+function offerProblems(input: OfferSave, defaultLocale: Locale): Record<string, string> {
+  const fields: Record<string, string> = {};
+  if (input.productIds.length + input.categoryIds.length === 0) fields.productIds = 'Choose at least one dish or category';
+  if (input.kind === 'DISCOUNT' && input.percentOff === null) fields.percentOff = 'Use 5% to 90% off';
+  if (input.kind === 'SPECIAL' && input.percentOff !== null) fields.percentOff = 'A special changes no price: leave the discount empty';
+  if (input.startsOn !== null && input.endsOn !== null && input.endsOn < input.startsOn) fields.endsOn = 'End on or after the start date';
+  if ((input.startMinute === null) !== (input.endMinute === null)) fields.endMinute = 'Give both a start and an end time, or neither';
+  else if (input.startMinute !== null && input.startMinute === input.endMinute) fields.endMinute = 'End at a different time than the start';
+  if (!present(input.title)[defaultLocale]) fields.title = 'Enter a title in the main language of the menu';
+  return fields;
+}
+
+/**
+ * Creates an offer (a special, or a discount while it is live), or saves one at the version the person read. A
+ * discount is a price decision: it needs `content.prices`, and so does turning a discount into a special or back.
+ */
+export function saveOffer(ctx: ActionContext, input: OfferSave): Promise<{ id: string; version: number }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const menu = await tx.menu.findFirstOrThrow({ where: { id: menuId }, select: { defaultLocale: true } });
+    const problems = offerProblems(input, isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en');
+    if (Object.keys(problems).length > 0) throw new StudioError('INVALID', undefined, problems);
+
+    const productIds = [...new Set(input.productIds)];
+    const categoryIds = [...new Set(input.categoryIds)];
+    if ((await tx.product.count({ where: { id: { in: productIds } } })) !== productIds.length) throw new StudioError('NOT_FOUND');
+    if ((await tx.category.count({ where: { id: { in: categoryIds } } })) !== categoryIds.length) throw new StudioError('NOT_FOUND');
+
+    const fields = {
+      kind: input.kind as PromotionKind,
+      percentOff: input.kind === 'DISCOUNT' ? input.percentOff : null,
+      productIds,
+      categoryIds,
+      startsOn: input.startsOn,
+      endsOn: input.endsOn,
+      startMinute: input.startMinute,
+      endMinute: input.endMinute,
+      daysOfWeek: input.daysOfWeek,
+      isActive: input.isActive,
+    };
+    if (input.offerId === undefined || input.version === undefined) {
+      if (fields.kind === 'DISCOUNT') requirePrices(ctx);
+      const last = await tx.promotion.aggregate({ _max: { sortOrder: true } });
+      const sortOrder = last._max.sortOrder === null ? 0 : last._max.sortOrder + 1;
+      const translations = withTexts({}, { title: input.title, text: input.text });
+      const row = await tx.promotion.create({ data: { menuId, ...fields, sortOrder, translations }, select: { id: true } });
+      ctx.audit({ action: 'offer.created', entityType: 'Promotion', entityId: row.id, changes: { title: { before: null, after: present(input.title) }, kind: { before: null, after: fields.kind }, percentOff: { before: null, after: fields.percentOff } } });
+      return { id: row.id, version: 1 };
+    }
+
+    const row = await tx.promotion.findFirst({ where: { id: input.offerId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    if (row.kind !== fields.kind || row.percentOff !== fields.percentOff) requirePrices(ctx);
+    const translations = withTexts(row.translations, { title: input.title, text: input.text });
+    await updateWithVersion(tx.promotion, { id: row.id, version: input.version, data: { ...fields, translations }, entityType: 'Promotion' }, tx);
+    ctx.audit({
+      action: 'offer.updated',
+      entityType: 'Promotion',
+      entityId: row.id,
+      changes: changed({
+        title: [textsOf(row.translations, 'title'), present(input.title)],
+        text: [textsOf(row.translations, 'text'), present(input.text)],
+        kind: [row.kind, fields.kind],
+        percentOff: [row.percentOff, fields.percentOff],
+        productIds: [row.productIds, fields.productIds],
+        categoryIds: [row.categoryIds, fields.categoryIds],
+        startsOn: [row.startsOn, fields.startsOn],
+        endsOn: [row.endsOn, fields.endsOn],
+        startMinute: [row.startMinute, fields.startMinute],
+        endMinute: [row.endMinute, fields.endMinute],
+        daysOfWeek: [row.daysOfWeek, fields.daysOfWeek],
+        isActive: [row.isActive, fields.isActive],
+      }),
+    });
+    return { id: row.id, version: input.version + 1 };
+  });
+}
+
+export function deleteOffer(ctx: ActionContext, input: { offerId: string; version: number }): Promise<{ deleted: true }> {
+  return editDraft(ctx, async (tx) => {
+    const row = await tx.promotion.findFirst({ where: { id: input.offerId } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    await deleteWithVersion(tx.promotion, { id: row.id, version: input.version, entityType: 'Promotion' }, tx);
+    ctx.audit({ action: 'offer.deleted', entityType: 'Promotion', entityId: row.id, changes: { title: { before: textsOf(row.translations, 'title'), after: null } } });
+    return { deleted: true };
+  });
+}
+
+/** Puts the menu's offers in the order given, which must name each of them once. A reorder moves no version. */
+export function reorderOffers(ctx: ActionContext, input: { order: string[] }): Promise<{ reordered: true }> {
+  return editDraft(ctx, async (tx, menuId) => {
+    const rows = await tx.promotion.findMany({ select: { id: true, sortOrder: true }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
+    const ids = new Set(rows.map((row) => row.id));
+    if (input.order.some((id) => !ids.has(id))) throw new StudioError('NOT_FOUND');
+    if (input.order.length !== rows.length || new Set(input.order).size !== rows.length) {
+      throw new StudioError('INVALID', 'The offers changed while you were editing. Reload to see them.');
+    }
+    const current = new Map(rows.map((row) => [row.id, row.sortOrder]));
+    for (const [index, id] of input.order.entries()) {
+      if (current.get(id) !== index) await tx.promotion.updateMany({ where: { id }, data: { sortOrder: index } });
+    }
+    const before = rows.map((row) => row.id);
+    if (JSON.stringify(before) !== JSON.stringify(input.order)) {
+      ctx.audit({ action: 'offer.reordered', entityType: 'PromotionOrder', entityId: menuId, changes: { order: { before, after: input.order } } });
+    }
+    return { reordered: true };
+  });
+}
+
 // What the Sales tab reads ----------------------------------------------------------------------------------------------
 
 export interface SalesRules {
@@ -377,6 +520,23 @@ export interface SalesRules {
     /** What the set's dishes cost bought one by one, at their regular prices now. */
     itemsTotal: number;
   }>;
+  offers: Array<{
+    id: string;
+    version: number;
+    kind: PromotionKind;
+    percentOff: number | null;
+    productIds: string[];
+    categoryIds: string[];
+    startsOn: string | null;
+    endsOn: string | null;
+    startMinute: number | null;
+    endMinute: number | null;
+    daysOfWeek: number;
+    title: Names;
+    text: Names;
+    isActive: boolean;
+    sortOrder: number;
+  }>;
 }
 
 export async function salesRules(db: QueryContext['db'], menuId: string): Promise<SalesRules> {
@@ -396,6 +556,7 @@ export async function salesRules(db: QueryContext['db'], menuId: string): Promis
   const upgrades = await db.upsellRule.findMany({ where: { menuId }, orderBy: { id: 'asc' } });
   const pairings = await db.pairingRule.findMany({ where: { menuId }, orderBy: { id: 'asc' } });
   const sets = await db.bundle.findMany({ where: { menuId }, orderBy: [{ slug: 'asc' }, { id: 'asc' }], include: { items: { orderBy: { id: 'asc' } } } });
+  const offers = await db.promotion.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }] });
   const order = new Map(categories.map((category, index) => [category.id, index]));
   const priced = new Map(products.map((product) => [product.id, product]));
 
@@ -451,6 +612,23 @@ export async function salesRules(db: QueryContext['db'], menuId: string): Promis
         itemsTotal: itemsTotalOf(items, priced),
       };
     }),
+    offers: offers.map((offer) => ({
+      id: offer.id,
+      version: offer.version,
+      kind: offer.kind,
+      percentOff: offer.percentOff,
+      productIds: offer.productIds,
+      categoryIds: offer.categoryIds,
+      startsOn: offer.startsOn,
+      endsOn: offer.endsOn,
+      startMinute: offer.startMinute,
+      endMinute: offer.endMinute,
+      daysOfWeek: offer.daysOfWeek,
+      title: textsOf(offer.translations, 'title'),
+      text: textsOf(offer.translations, 'text'),
+      isActive: offer.isActive,
+      sortOrder: offer.sortOrder,
+    })),
   };
 }
 

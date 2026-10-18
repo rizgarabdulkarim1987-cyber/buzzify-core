@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import * as sales from '@/server/studio/services/sales';
-import { pairingFields, sameRef, sameSetRef, setFields, upgradeFields, versionField } from '@/server/studio/services/sales';
+import { offerFields, pairingFields, sameOfferRef, sameRef, sameSetRef, setFields, upgradeFields, versionField } from '@/server/studio/services/sales';
 
 /**
  * The Sales tab's changes to a menu's draft (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). All need
@@ -70,4 +70,34 @@ export const deleteSet = defineAction({
   input: z.object({ menuId: idField, bundleId: idField, version: versionField }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => sales.deleteSet(ctx, input),
+});
+
+// Offers --------------------------------------------------------------------------------------------------------------
+
+/** A discount, or a change to one, also needs `content.prices`, which the service checks. */
+export const saveOffer = defineAction({
+  name: 'sales.saveOffer',
+  permission: 'content.edit',
+  feature: 'selling.offers',
+  input: z.object({ menuId: idField, ...offerFields }).refine(sameOfferRef),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.saveOffer(ctx, input),
+});
+
+export const deleteOffer = defineAction({
+  name: 'sales.deleteOffer',
+  permission: 'content.edit',
+  feature: 'selling.offers',
+  input: z.object({ menuId: idField, offerId: idField, version: versionField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.deleteOffer(ctx, input),
+});
+
+export const reorderOffers = defineAction({
+  name: 'sales.reorderOffers',
+  permission: 'content.edit',
+  feature: 'selling.offers',
+  input: z.object({ menuId: idField, order: z.array(idField).max(200) }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.reorderOffers(ctx, input),
 });

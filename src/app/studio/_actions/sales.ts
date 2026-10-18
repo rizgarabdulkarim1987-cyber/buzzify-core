@@ -26,3 +26,15 @@ export async function saveSet(input: unknown) {
 export async function deleteSet(input: unknown) {
   return invoke(sales.deleteSet, input);
 }
+
+export async function saveOffer(input: unknown) {
+  return invoke(sales.saveOffer, input);
+}
+
+export async function deleteOffer(input: unknown) {
+  return invoke(sales.deleteOffer, input);
+}
+
+export async function reorderOffers(input: unknown) {
+  return invoke(sales.reorderOffers, input);
+}
