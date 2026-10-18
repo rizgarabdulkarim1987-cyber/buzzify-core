@@ -178,7 +178,7 @@ describe('draft snapshots', () => {
   it('carries the demo’s sales tools: a happy hour and a special, meal categories and a dish to share', async () => {
     const { catalog } = await loadDraftSnapshot(prisma, atelierMenuId);
     expect(catalog.promotions?.map((p) => [p.kind, p.percentOff, p.startMinute, p.endMinute])).toEqual([
-      ['DISCOUNT', 20, 17 * 60, 19 * 60],
+      ['DISCOUNT', 20, 15 * 60, 17 * 60],
       ['SPECIAL', null, null, null],
     ]);
     expect(catalog.categories.filter((c) => c.completesMeal).map((c) => c.slug)).toEqual(['patisserie', 'cold']);

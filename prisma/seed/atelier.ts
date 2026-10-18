@@ -1002,13 +1002,14 @@ export const ATELIER: SeedData = {
   ],
   promotions: [
     {
+      // On the pastries, which no set holds and the end-to-end suites never price, so their totals hold at any hour.
       kind: 'DISCOUNT',
       percentOff: 20,
-      categories: ['cold'],
-      startMinute: 17 * 60,
-      endMinute: 19 * 60,
-      title: t('Golden hour', 'الساعة الذهبية', 'کاتژمێری زێڕین'),
-      text: t('20% off every cold drink', 'خصم 20% على كل المشروبات الباردة', '20% داشکاندن لە هەموو خواردنەوە ساردەکان'),
+      categories: ['patisserie'],
+      startMinute: 15 * 60,
+      endMinute: 17 * 60,
+      title: t('Afternoon sweets', 'حلويات العصر', 'شیرینی عەسر'),
+      text: t('20% off every pastry', 'خصم 20% على كل الحلويات', '20% داشکاندن لە هەموو شیرینییەکان'),
     },
     {
       kind: 'SPECIAL',
