@@ -14,6 +14,7 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as brandQueries from '@/server/studio/queries/brand';
+import * as previewQueries from '@/server/studio/queries/preview';
 import * as qrQueries from '@/server/studio/queries/qr';
 import * as revisionQueries from '@/server/studio/queries/revisions';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
@@ -157,6 +158,16 @@ describe('plans lock what a restaurant may choose', () => {
       dataOf(await run(qr.create, { menuId: a.menu.id, label: 'Bar' }));
       await setPlan(a.restaurant.id, 'BASIC');
       expect(failureOf(await run(qr.applyStyle, { menuId: a.menu.id, qrCodeId: id })).upgrade).toEqual({ feature: 'qr.branded', plan: 'PRO' });
+    });
+  });
+
+  describe('the preview', () => {
+    it('shows the draft as guests on the restaurant’s plan would see it', async () => {
+      dataOf(await run(brand.update, await kit({ railStyle: 'drum', motionIntensity: 'expressive' })));
+      await setPlan(a.restaurant.id, 'BASIC');
+      const { tenant } = dataOf(await runQuery(prisma(), designer, previewQueries.draft, { menuId: a.menu.id, locale: 'en' }));
+      expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
+      expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, rails: ['plain'] });
     });
   });
 

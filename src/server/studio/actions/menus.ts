@@ -12,7 +12,7 @@ import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import { getPlatformSettings } from '@/server/studio/services/settings';
 import { storedChoices } from '@/server/studio/services/brand';
-import { entitlementsFor } from '@/server/studio/services/plans';
+import { entitlementsFor } from '@/server/data/plans';
 import {
   BULK_ACTIONS,
   claimSlug,

@@ -23,13 +23,14 @@ export const draft = defineQuery({
   input: z.object({ menuId: idField, locale: z.enum(LOCALES) }),
   target: (i) => ({ kind: 'menu', menuId: i.menuId }),
   run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView }> => {
-    if (ctx.menuId === null) throw new Error('A menu query ran without a menu');
+    if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
     const menu = await ctx.db.menu.findUnique({ where: { id: ctx.menuId }, select: { id: true, slug: true, restaurantId: true } });
     if (!menu) throw new StudioError('NOT_FOUND');
     const snapshot = await loadDraftSnapshot(ctx.db, menu.id);
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
     const catalog = toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id));
-    const tenant = tenantInfo(menu, 'draft', snapshot);
+    // As guests on the restaurant's plan would see it.
+    const tenant = tenantInfo(menu, 'draft', snapshot, ctx.plan.entitlements);
     return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
   },
 });

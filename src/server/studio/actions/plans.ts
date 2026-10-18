@@ -5,7 +5,7 @@ import { extrasToStore, parseExtras, parsePlans, PLAN_NAME_MAX, PLAN_TIERS, plan
 import { LOCALES } from '@/lib/locale';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
-import { PLANS_SETTING, readPlans, readUpgradeWhatsApp, UPGRADE_WHATSAPP_SETTING } from '@/server/studio/services/plans';
+import { PLANS_SETTING, readPlans, readUpgradeWhatsApp, UPGRADE_WHATSAPP_SETTING } from '@/server/data/plans';
 import { menuAddresses } from '@/server/studio/services/restaurants';
 
 /**

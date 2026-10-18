@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { allows, FEATURES, lowestPlanWith, parseExtras, PLAN_TIERS, plansToStore } from '@/server/domain/entitlements';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
-import { readPlans, readUpgradeWhatsApp, upgradeInfo, type PlanTabView } from '@/server/studio/services/plans';
+import { readPlans, readUpgradeWhatsApp } from '@/server/data/plans';
+import { upgradeInfo, type PlanTabView } from '@/server/studio/services/plans';
 
 /** The Plan tab and Settings → Plans (spec: plans and entitlements, sections 8.1 and 8.2). */
 

@@ -3,7 +3,7 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { allows, isFeatureKey, lowestPlanWith, type FeatureKey, type PlanTier } from '@/server/domain/entitlements';
 import { effectivePermissions, parsePolicy, PERMISSIONS, type Permission } from '@/server/domain/permissions';
 import type { Actor } from '@/server/studio/auth/actor';
-import { entitlementsOf, readPlans } from '@/server/studio/services/plans';
+import { entitlementsOf, readPlans } from '@/server/data/plans';
 import type { PlanAccess } from './plan';
 import { failure, invalidInput, type StudioFailure } from './result';
 

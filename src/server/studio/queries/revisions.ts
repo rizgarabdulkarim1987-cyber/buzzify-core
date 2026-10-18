@@ -89,7 +89,8 @@ export const view = defineQuery({
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
     // Today's live switches over the revision: what guests would get if the menu went back to it now.
     const catalog = toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id));
-    const tenant = tenantInfo(menu, revision.id, snapshot);
+    if (ctx.plan === null) throw new Error('A menu query ran without a menu');
+    const tenant = tenantInfo(menu, revision.id, snapshot, ctx.plan.entitlements);
     return { number: revision.number, tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
   },
 });

@@ -42,6 +42,7 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
           }}
         >
           {children}
