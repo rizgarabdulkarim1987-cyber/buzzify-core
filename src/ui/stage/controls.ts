@@ -58,6 +58,17 @@ export function advanceTurn(controls: StageControls, deltaSeconds: number, idleT
   return controls.yaw;
 }
 
+const SWAY_RADIANS = 0.6;
+const SWAY_SECONDS = 13;
+
+/**
+ * The idle motion for a dish whose back is not worth showing (a scan with only its front made well): it rocks to and
+ * fro around its front instead of turning all the way round. Added to what the guest's dragging gives.
+ */
+export function swayYaw(seconds: number): number {
+  return SWAY_RADIANS * Math.sin((2 * Math.PI * seconds) / SWAY_SECONDS);
+}
+
 export function beginDrag(controls: StageControls): void {
   controls.dragging = true;
   controls.velocity = 0;

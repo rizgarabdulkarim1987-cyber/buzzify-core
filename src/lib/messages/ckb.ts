@@ -142,6 +142,13 @@ const ckb: Messages = {
   'layer.liquid': 'یوزو و لیمۆ و هەنگوین',
   'layer.lemon': 'ئەستێرەی لیمۆ',
   'layer.croissant': 'هەویری کەرەی چین چین',
+  'layer.bag': 'کیسەی چیپس',
+  'layer.chips': 'چیپسی تۆرتیلا',
+  'layer.chicken': 'مریشکی برژاو',
+  'layer.beef': 'گۆشتی بەهاراتکراو',
+  'layer.veg': 'کاهوو و بیبەر',
+  'layer.jalapeno': 'هالاپینۆ',
+  'layer.sauce': 'سۆسی پەنیر',
 };
 
 export default ckb;

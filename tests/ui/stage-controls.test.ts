@@ -10,6 +10,7 @@ import {
   needsFullRate,
   nudge,
   resetTurn,
+  swayYaw,
 } from '@/ui/stage/controls';
 
 describe('turning', () => {
@@ -74,5 +75,15 @@ describe('frame rate', () => {
     markBusy(activity, 1000);
     expect(needsFullRate(controls, activity, performance.now())).toBe(true);
     expect(needsFullRate(controls, activity, performance.now() + 5000)).toBe(false);
+  });
+});
+
+describe('swaying', () => {
+  it('rocks a dish whose back is not worth showing to and fro around its front, never turning it away', () => {
+    const angles = Array.from({ length: 400 }, (_, i) => swayYaw(i * 0.1));
+    expect(Math.max(...angles.map(Math.abs))).toBeLessThanOrEqual(0.62);
+    expect(Math.max(...angles)).toBeGreaterThan(0.5);
+    expect(Math.min(...angles)).toBeLessThan(-0.5);
+    expect(swayYaw(0)).toBe(0);
   });
 });

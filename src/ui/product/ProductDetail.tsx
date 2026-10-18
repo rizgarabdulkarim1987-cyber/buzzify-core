@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { unitPriceFromMenu } from '@/lib/menu-price';
-import { stageTone } from '@/lib/stage';
+import { stagesOnProductPage } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
 import { formatCount } from '@/server/domain/money';
@@ -35,7 +35,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
 
   const orderable = product.orderState === 'OK';
   // The 3D dish is the plan's to give; without it the dish art is shown, as on a device without WebGL.
-  const staged = tenant.features.stage && stageTone(product.media) !== null;
+  const staged = tenant.features.stage && stagesOnProductPage(product.media);
   const unit = unitPriceFromMenu(product, variantId, selected);
   const missing = product.groups.filter(
     (group) => group.minSelect > group.options.filter((option) => selected.includes(option.id)).length,

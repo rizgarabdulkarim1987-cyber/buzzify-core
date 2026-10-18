@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import {
   AdditiveBlending,
   BufferGeometry,
+  CapsuleGeometry,
   Float32BufferAttribute,
   InstancedMesh,
   MathUtils,
@@ -13,15 +14,18 @@ import {
   Vector3,
   type CanvasTexture,
   type Group,
+  type Mesh,
 } from 'three';
 import { explodeOffset, type Layer, type StageArt } from '@/lib/stage';
 import { isTransparentKind, LayerMaterial, renderOrderOf } from './materials';
+import { loadScan, scanFitFor, scanIfLoaded, type LoadedScan } from './scan';
 import {
   CUP_RIM,
   SAUCER_RIM,
   domeHeight,
   makeLayerGeometry,
   makeSesame,
+  sauceDrips,
 } from './stage-parts';
 
 const ENTER_HEIGHT = 1.5;
@@ -211,6 +215,107 @@ function Sesame({ count = 64 }: { count?: number }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Chip bag bits
+// ---------------------------------------------------------------------------------------------
+
+const isBag = (art: StageArt) => art === 'bagchicken' || art === 'bagbeef';
+
+/**
+ * Cheese sauce running over the front rim of the bag: each drip slowly lengthens down the foil, then draws
+ * back, out of step with the others. Still, at half length, when motion is off.
+ */
+function SauceDrips({ animate }: { animate: boolean }) {
+  const geometry = useMemo(() => {
+    const capsule = new CapsuleGeometry(0.034, 0.1, 6, 14);
+    // Hang from the rim: the top of the drip is its origin, so stretching it pulls it downward.
+    capsule.translate(0, -0.05, 0);
+    return capsule;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const spots = useMemo(() => sauceDrips(), []);
+  const meshes = useRef<Array<Mesh | null>>([]);
+
+  useFrame(({ clock }) => {
+    meshes.current.forEach((mesh, i) => {
+      if (!mesh) return;
+      let stretch = 0.5;
+      if (animate) {
+        const cycle = (clock.elapsedTime * 0.2 + i * 0.37) % 1;
+        stretch = cycle < 0.72 ? MathUtils.smootherstep(cycle / 0.72, 0, 1) : 1 - MathUtils.smoothstep((cycle - 0.72) / 0.28, 0, 1);
+      }
+      const thin = 1 - 0.22 * stretch;
+      mesh.scale.set(thin, 0.4 + 1.2 * stretch, thin);
+    });
+  });
+
+  return (
+    <>
+      {spots.map(([x, y, z], i) => (
+        <mesh
+          key={i}
+          ref={(mesh) => {
+            meshes.current[i] = mesh;
+          }}
+          geometry={geometry}
+          position={[x, y, z]}
+          castShadow
+        >
+          <meshPhysicalMaterial color="#f4a21f" roughness={0.24} clearcoat={0.9} clearcoatRoughness={0.15} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// A scanned dish
+// ---------------------------------------------------------------------------------------------
+
+/** The scan once it has loaded, or null while the drawn model stands in. A failed load keeps the drawn model. */
+function useScan(url: string | undefined, layers: Layer[]): LoadedScan | null {
+  const [scan, setScan] = useState<LoadedScan | null>(() => (url ? scanIfLoaded(url) : null));
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    loadScan(url, scanFitFor(layers)).then(
+      (result) => {
+        if (!cancelled) setScan(result);
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+    // The fit is taken from the layers the first time only, so a later change of layers does not reload the file.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+  return url ? scan : null;
+}
+
+/** Draws a scan, dropping it in with a spring and a small squash the way a layer lands. */
+function ScanMesh({ scan, reveal }: { scan: LoadedScan; reveal: boolean }) {
+  const group = useRef<Group>(null);
+  const object = useMemo(() => scan.object.clone(), [scan]);
+  const motion = useRef({ y: reveal ? ENTER_HEIGHT * 0.6 : 0, velocity: 0 });
+  useFrame((_, delta) => {
+    const target = group.current;
+    if (!target) return;
+    const dt = Math.min(delta, 1 / 30);
+    const m = motion.current;
+    m.velocity += (-m.y * 170 - m.velocity * 16) * dt;
+    m.y += m.velocity * dt;
+    const squash = 1 - Math.min(0.08, Math.abs(m.velocity) * 0.012);
+    target.position.y = m.y;
+    target.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+  });
+  return (
+    <group ref={group}>
+      <primitive object={object} />
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
 // One layer
 // ---------------------------------------------------------------------------------------------
 
@@ -220,6 +325,7 @@ function LayerMesh({
   crema,
   offset,
   explode,
+  ambient,
   register,
 }: {
   item: Item;
@@ -228,6 +334,8 @@ function LayerMesh({
   /** Vertical travel at full explode. */
   offset: number;
   explode?: RefObject<number>;
+  /** Whether parts of the layer may move on their own, like sauce running. */
+  ambient: boolean;
   register?: (key: string, object: Object3D | null) => void;
 }) {
   const group = useRef<Group>(null);
@@ -279,6 +387,7 @@ function LayerMesh({
         <LayerMaterial kind={kind} tone={tone} crema={crema} />
       </mesh>
       {kind === 'bun-top' && <Sesame />}
+      {kind === 'sauce' && <SauceDrips animate={ambient} />}
       {kind === 'saucer' && (
         <mesh position={[0, SAUCER_RIM.y - 0.002, 0]} rotation-x={Math.PI / 2}>
           <torusGeometry args={[SAUCER_RIM.radius, 0.0085, 8, 128]} />
@@ -316,6 +425,8 @@ export interface DishModelProps {
   dots: CanvasTexture | null;
   /** Lets a caller find a layer in the scene, to pin a label to it. */
   register?: (key: string, object: Object3D | null) => void;
+  /** A scanned dish (`.glb`) drawn in place of the layers once loaded; the layers stand in until then. */
+  scan?: string;
 }
 
 /**
@@ -334,7 +445,9 @@ export function DishModel({
   crema,
   dots,
   register,
+  scan,
 }: DishModelProps) {
+  const scanned = useScan(scan, layers);
   const [items, setItems] = useState<Item[]>(() => initialItems(layers, reveal, stagger));
   const [seen, setSeen] = useState(layers);
   if (seen !== layers) {
@@ -353,18 +466,23 @@ export function DishModel({
 
   return (
     <group>
-      {items.map((item) => (
-        <LayerMesh
-          key={item.layer.key}
-          item={item}
-          tone={tone}
-          crema={crema}
-          offset={explodeOffset(art, layers, item.layer.key)}
-          explode={explode}
-          register={register}
-        />
-      ))}
+      <group visible={!scanned}>
+        {items.map((item) => (
+          <LayerMesh
+            key={item.layer.key}
+            item={item}
+            tone={tone}
+            crema={crema}
+            offset={explodeOffset(art, layers, item.layer.key)}
+            explode={explode}
+            ambient={ambient}
+            register={register}
+          />
+        ))}
+      </group>
+      {scanned && <ScanMesh scan={scanned} reveal={reveal} />}
       {ambient && art === 'cup' && <Steam texture={dots} origin={[0, top + 0.05, 0]} />}
+      {ambient && isBag(art) && <Steam texture={dots} origin={[0, top - 0.06, 0]} />}
       {ambient && art === 'glass' && <Bubbles texture={dots} origin={[0, 0, 0]} />}
     </group>
   );

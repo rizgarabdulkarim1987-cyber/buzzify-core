@@ -12,6 +12,8 @@ export interface ExploreScene {
   art: StageArt;
   /** The dish's art colour, which also tints the scene's light. */
   tone: string;
+  /** A scanned dish drawn in place of the model once loaded; it cannot be pulled apart. */
+  scan?: string;
   product: MenuProductView;
 }
 
@@ -40,6 +42,7 @@ export function buildScenes(view: MenuView): ExploreScene[] {
       categoryName: category.name,
       art: stage.art,
       tone: stage.tone,
+      ...(stage.scan ? { scan: stage.scan } : {}),
       product: star,
     });
   }

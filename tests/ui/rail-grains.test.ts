@@ -5,7 +5,7 @@ const flight = (): Flight => ({ x: 0, y: 0, z: 0, e: 0, s: 0 });
 
 describe('dishCloud', () => {
   it('draws every dish, including the plate used when a category has no 3D model', () => {
-    expect(RAIL_DISHES).toEqual(['burger', 'cup', 'glass', 'croissant', 'millefeuille', 'plate']);
+    expect(RAIL_DISHES).toEqual(['burger', 'cup', 'glass', 'croissant', 'millefeuille', 'bagchicken', 'bagbeef', 'plate']);
   });
 
   it('gives exactly the asked number of grains, the same every time', () => {
