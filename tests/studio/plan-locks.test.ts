@@ -162,6 +162,20 @@ describe('plans lock what a restaurant may choose', () => {
       await setPlan(a.restaurant.id, 'BASIC');
       expect(failureOf(await run(qr.applyStyle, { menuId: a.menu.id, qrCodeId: id })).upgrade).toEqual({ feature: 'qr.branded', plan: 'PRO' });
     });
+
+    it('lets a downgraded code go back to black on white a part at a time, and then share its look', async () => {
+      const kept = { ...BRANDED, background: '#FFF8E7' };
+      const { id } = dataOf(await run(qr.create, { menuId: a.menu.id, label: 'Door' }));
+      dataOf(await run(qr.update, { menuId: a.menu.id, qrCodeId: id, version: 1, label: 'Door', style: kept }));
+      dataOf(await run(qr.create, { menuId: a.menu.id, label: 'Bar' }));
+      await setPlan(a.restaurant.id, 'BASIC');
+      dataOf(await run(qr.update, { menuId: a.menu.id, qrCodeId: id, version: 2, label: 'Door', style: { ...kept, background: '#FFFFFF' } }));
+      expect(failureOf(await run(qr.update, { menuId: a.menu.id, qrCodeId: id, version: 3, label: 'Door', style: { ...kept, foreground: '#222222' } })).code).toBe(
+        'UPGRADE_REQUIRED',
+      );
+      dataOf(await run(qr.update, { menuId: a.menu.id, qrCodeId: id, version: 3, label: 'Door', style: PLAIN }));
+      expect(dataOf(await run(qr.applyStyle, { menuId: a.menu.id, qrCodeId: id }))).toEqual({ updated: 1 });
+    });
   });
 
   describe('the preview', () => {

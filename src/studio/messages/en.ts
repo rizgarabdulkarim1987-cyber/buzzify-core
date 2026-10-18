@@ -1848,6 +1848,7 @@ const en: Messages = {
   'brand.lockedChoice': 'Guests see {fallback} until the plan includes {choice}.',
   'qr.lockedStyle': 'Brand colours and the logo',
   'qr.lockedKept': 'This code prints in black on white, without the logo, until the plan includes them.',
+  'qr.resetPlain': 'Reset to black on white',
   'revisions.scheduleLocked': 'Scheduled publishing',
   'preview.hiddenTitle': 'Guests on this plan don’t see',
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { Download, FileArchive, Layers, Plus, QrCode, Trash2 } from 'lucide-react';
+import { Download, FileArchive, Layers, Plus, QrCode, RotateCcw, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -17,7 +17,7 @@ import {
 import { HEX } from '@/lib/brand';
 import { contrastRatio } from '@/lib/palette';
 import { isBrandedQr } from '@/server/domain/plan-choices';
-import { QR_FRAME_MAX, QR_MIN_CONTRAST, qrStyleProblem, type QrStyle } from '@/server/domain/qr';
+import { DEFAULT_QR_STYLE, QR_FRAME_MAX, QR_MIN_CONTRAST, qrStyleProblem, type QrStyle } from '@/server/domain/qr';
 import type { UpgradeInfo } from '@/server/studio/services/plans';
 import type { QrCodeView, QrCodesView } from '@/server/studio/services/qr';
 import { describeFailure } from '@/studio/errors';
@@ -401,6 +401,17 @@ function CodeEditor({
           <div className="flex max-w-xl flex-col gap-1.5 rounded-md bg-surface px-3 py-2.5">
             <span className="text-sm font-medium text-text">{t('qr.lockedStyle')}</span>
             {isBrandedQr(code.style) && <p className="text-sm text-muted">{t('qr.lockedKept')}</p>}
+            {/* The colours and logo kept from a higher plan can always be given up; saving it is the usual Save. */}
+            {isBrandedQr(style) && (
+              <Button
+                size="sm"
+                icon={<RotateCcw aria-hidden />}
+                className="self-start"
+                onClick={() => setStyle((current) => ({ ...current, foreground: DEFAULT_QR_STYLE.foreground, background: DEFAULT_QR_STYLE.background, logo: false }))}
+              >
+                {t('qr.resetPlain')}
+              </Button>
+            )}
             <UpgradeHint feature="qr.branded" info={upgrade} />
           </div>
         )}

@@ -155,6 +155,16 @@ export async function createTemporaryMenu({
   };
 }
 
+/** A printed QR code for the menu, in the look given; it goes when the menu does. */
+export async function addQrCode(menuId: string, label: string, style: { foreground: string; background: string; logo: boolean; frameText: string }): Promise<void> {
+  const prisma = createPrisma(databaseUrl(DEV_DB));
+  try {
+    await prisma.qrCode.create({ data: { menuId, label, style } });
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 /** Moves a menu's revision waiting to go live a minute into the past, so the next scheduler run makes it live. */
 export async function makeScheduleDue(menuId: string): Promise<void> {
   const prisma = createPrisma(databaseUrl(DEV_DB));

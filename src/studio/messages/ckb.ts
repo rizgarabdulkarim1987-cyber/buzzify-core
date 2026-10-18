@@ -1853,6 +1853,7 @@ const ckb: Messages = {
   'brand.lockedChoice': 'میوانەکان {fallback} دەبینن تا پاکێجەکە {choice} لەخۆ بگرێت.',
   'qr.lockedStyle': 'ڕەنگەکانی ڕێستۆران و لۆگۆ',
   'qr.lockedKept': 'ئەم کۆدە بە ڕەش لەسەر سپی و بێ لۆگۆ چاپ دەکرێت تا پاکێجەکە ئەوانە لەخۆ بگرێت.',
+  'qr.resetPlain': 'گەڕاندنەوە بۆ ڕەش لەسەر سپی',
   'revisions.scheduleLocked': 'خشتەکردنی بڵاوکردنەوە',
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
 };
