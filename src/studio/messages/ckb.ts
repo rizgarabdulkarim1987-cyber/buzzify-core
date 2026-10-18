@@ -1,5 +1,6 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -44,6 +45,7 @@ const ckb: Messages = {
   'nav.restaurants': 'ڕێستۆرانەکان',
   'nav.menus': 'هەموو مینیوەکان',
   'nav.media': 'میدیا',
+  'nav.motion': 'جووڵە',
   'nav.people': 'کەسەکان',
   'nav.activity': 'چالاکی',
   'nav.settings': 'ڕێکخستنەکان',
@@ -1758,6 +1760,8 @@ const ckb: Messages = {
   'email.passwordChanged.intro': 'وشەی نهێنی هەژمارەکەت لە Buzzify Studio ئێستا گۆڕدرا.',
   'email.passwordChanged.warning':
     'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، ئێستا وشەی نهێنییەکەت دووبارە ڕێکبخەرەوە و پەیوەندی بە بەڕێوەبەری Buzzify Studio بکە.',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)
+  ...motion,
 };
 
 export default ckb;

@@ -1,4 +1,5 @@
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/en';
 
 const en: Messages = {
   // Shared words of the interface
@@ -43,6 +44,7 @@ const en: Messages = {
   'nav.restaurants': 'Restaurants',
   'nav.menus': 'All menus',
   'nav.media': 'Media',
+  'nav.motion': 'Motion',
   'nav.people': 'People',
   'nav.activity': 'Activity',
   'nav.settings': 'Settings',
@@ -1753,6 +1755,8 @@ const en: Messages = {
   'email.passwordChanged.intro': 'The password of your Buzzify Studio account was just changed.',
   'email.passwordChanged.warning':
     'If you did not make this change, reset your password now and contact your Buzzify Studio administrator.',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
+  ...motion,
 };
 
 export default en;

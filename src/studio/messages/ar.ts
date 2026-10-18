@@ -1,5 +1,6 @@
 // Machine-drafted Arabic. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/ar';
 
 const ar: Messages = {
   // Shared words of the interface
@@ -44,6 +45,7 @@ const ar: Messages = {
   'nav.restaurants': 'المطاعم',
   'nav.menus': 'كل القوائم',
   'nav.media': 'الوسائط',
+  'nav.motion': 'الحركة',
   'nav.people': 'الأشخاص',
   'nav.activity': 'النشاط',
   'nav.settings': 'الإعدادات',
@@ -1782,6 +1784,8 @@ const ar: Messages = {
   'email.passwordChanged.intro': 'تم تغيير كلمة مرور حسابك في Buzzify Studio قبل قليل.',
   'email.passwordChanged.warning':
     'إذا لم تكن أنت من أجرى هذا التغيير، فأعد تعيين كلمة المرور الآن وتواصل مع مسؤول Buzzify Studio.',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ar.ts)
+  ...motion,
 };
 
 export default ar;
