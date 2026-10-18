@@ -28,8 +28,10 @@ import {
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { DEFAULT_FRAMING, FRAMING_RANGES, MAX_FEATURED, overriddenPalette, SCALE_RANGE, SCENE_RANGES, TEXT_LIMITS, TRACKING_RANGE } from '@/lib/templates/resolve';
 import type { ModelFraming, SceneMedia } from '@/lib/templates/types';
-import type { DesignView } from '@/server/studio/services/design';
+import { sceneFeature } from '@/server/domain/plan-choices';
+import type { DesignPlanView, DesignView } from '@/server/studio/services/design';
 import { useT } from '@/studio/i18n';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { cx } from '@/studio/ui/cx';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
@@ -212,12 +214,15 @@ function LayoutPanel({ preset, overrides, onChange }: { preset: TemplatePreset; 
 /**
  * The business's own background file (stage 2): the template's scene, or a model, video or Lottie animation from the
  * library. Choosing one moves the mode to where it plays (3D for a model; a moving mode for a video or an animation).
+ * A file the plan lacks, kept from before, stays (and plays in the preview) with a line on what guests get instead.
  */
 function SceneFile({
   restaurantId,
   scene,
   overrides,
   media,
+  plan,
+  stored,
   onChange,
   onPick,
 }: {
@@ -225,6 +230,9 @@ function SceneFile({
   scene: SceneSettings;
   overrides: DesignOverrides;
   media: SceneMedia | null;
+  plan: DesignPlanView;
+  /** The file the saved design names. */
+  stored: string | null;
   onChange: Change;
   onPick: (media: SceneMedia) => void;
 }) {
@@ -267,6 +275,12 @@ function SceneFile({
         </div>
       </div>
       {chosen && <p className="text-xs text-muted">{t(`design.motion.fileHint.${chosen.kind}`)}</p>}
+      {chosen && !plan.sceneKinds.includes(chosen.kind) && (
+        <div className="flex flex-col gap-2">
+          <p className="max-w-[65ch] text-sm text-muted">{t('design.motion.fileLocked', { feature: t(`plans.feature.${sceneFeature(chosen.kind)}`) })}</p>
+          <UpgradeHint feature={sceneFeature(chosen.kind)} info={plan.upgrade} />
+        </div>
+      )}
       {chosen?.kind === 'model' && (
         <div className="grid gap-4 sm:grid-cols-2">
           {(Object.keys(FRAMING_RANGES) as Array<keyof ModelFraming>).map((key) => (
@@ -283,7 +297,16 @@ function SceneFile({
           ))}
         </div>
       )}
-      <ScenePicker open={picking} onOpenChange={setPicking} restaurantId={restaurantId} current={overrides.sceneAsset?.assetId ?? null} onPick={pick} />
+      <ScenePicker
+        open={picking}
+        onOpenChange={setPicking}
+        restaurantId={restaurantId}
+        current={overrides.sceneAsset?.assetId ?? null}
+        stored={stored}
+        allowed={plan.sceneKinds}
+        upgrade={plan.upgrade}
+        onPick={pick}
+      />
     </div>
   );
 }
@@ -292,14 +315,14 @@ function MotionPanel({
   preset,
   overrides,
   onChange,
-  restaurantId,
+  state,
   sceneMedia,
   onPickScene,
 }: {
   preset: TemplatePreset;
   overrides: DesignOverrides;
   onChange: Change;
-  restaurantId: string;
+  state: DesignView;
   sceneMedia: SceneMedia | null;
   onPickScene: (media: SceneMedia) => void;
 }) {
@@ -309,7 +332,16 @@ function MotionPanel({
   const percent = (v: number) => `${Math.round(v * 100)}%`;
   return (
     <Panel id="design-motion" title={t('design.section.motion')} intro={t('design.motion.intro')}>
-      <SceneFile restaurantId={restaurantId} scene={scene} overrides={overrides} media={sceneMedia} onChange={onChange} onPick={onPickScene} />
+      <SceneFile
+        restaurantId={state.restaurantId}
+        scene={scene}
+        overrides={overrides}
+        media={sceneMedia}
+        plan={state.plan}
+        stored={state.overrides.sceneAsset?.assetId ?? null}
+        onChange={onChange}
+        onPick={onPickScene}
+      />
       <Segmented
         label={t('design.motion.mode')}
         value={scene.mode}
@@ -468,7 +500,7 @@ export function Customizer(props: {
       <PalettePanel preset={preset} overrides={overrides} onChange={onChange} />
       <TypePanel preset={preset} overrides={overrides} onChange={onChange} />
       <LayoutPanel preset={preset} overrides={overrides} onChange={onChange} />
-      <MotionPanel preset={preset} overrides={overrides} onChange={onChange} restaurantId={state.restaurantId} sceneMedia={props.sceneMedia} onPickScene={props.onPickScene} />
+      <MotionPanel preset={preset} overrides={overrides} onChange={onChange} state={state} sceneMedia={props.sceneMedia} onPickScene={props.onPickScene} />
       <FeaturedPanel state={state} overrides={overrides} onChange={onChange} />
       <DetailsPanel state={state} overrides={overrides} onChange={onChange} poweredBy={props.poweredBy} poweredByPending={props.poweredByPending} onPoweredBy={props.onPoweredBy} />
     </div>

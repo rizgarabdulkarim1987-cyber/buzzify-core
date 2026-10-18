@@ -2,6 +2,7 @@ import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, type FontPairId } from '@/lib/font-pa
 import { parseMedia } from '@/lib/media';
 import { RAIL_STYLES, type RailStyle } from '@/lib/rail';
 import { stageTone } from '@/lib/stage';
+import type { SceneMedia } from '@/lib/templates/types';
 import type { BrandView } from '@/server/data/tenant';
 import { allows, type Entitlements, type FeatureKey } from './entitlements';
 import { DEFAULT_QR_STYLE, type QrStyle } from './qr';
@@ -77,6 +78,38 @@ export function isBrandedQr(style: QrStyle): boolean {
   );
 }
 
+/** A template menu's own background file, by kind (spec: scene files and plans). */
+export type SceneFileKind = SceneMedia['kind'];
+
+const SCENE_FEATURES: Readonly<Record<SceneFileKind, FeatureKey>> = {
+  model: 'immersive.models3d',
+  video: 'design.backgroundVideo',
+  lottie: 'design.backgroundAnimation',
+};
+
+/** The feature a background file of this kind needs. */
+export function sceneFeature(kind: SceneFileKind): FeatureKey {
+  return SCENE_FEATURES[kind];
+}
+
+/** The kinds of background file the plan allows: model, video, Lottie. */
+export function allowedSceneKinds(entitlements: Entitlements): SceneFileKind[] {
+  return (['model', 'video', 'lottie'] as const).filter((kind) => allows(entitlements, sceneFeature(kind)));
+}
+
+/**
+ * The feature a save would need for choosing a new background file the plan locks, or null. The file already stored
+ * is kept, whatever the plan; choosing none needs nothing.
+ */
+export function sceneChoiceLock(
+  next: { assetId: string; kind: SceneFileKind } | null,
+  storedAssetId: string | null,
+  entitlements: Entitlements,
+): FeatureKey | null {
+  if (next === null || next.assetId === storedAssetId) return null;
+  return allows(entitlements, sceneFeature(next.kind)) ? null : sceneFeature(next.kind);
+}
+
 /** The style a code is drawn in: as chosen, or black on white without the logo on a plan without branded codes. */
 export function guestQrStyle(style: QrStyle, entitlements: Entitlements): QrStyle {
   if (allows(entitlements, 'qr.branded') || !isBrandedQr(style)) return style;
@@ -85,7 +118,8 @@ export function guestQrStyle(style: QrStyle, entitlements: Entitlements): QrStyl
 
 /**
  * The brand kit as guests on this plan get it: motion first, then the rail (plain when motion is off, as
- * `resolveRailStyle` has it), then the font pair (left out when it is the classic one). The view given is not changed.
+ * `resolveRailStyle` has it), then the font pair (left out when it is the classic one), then the template's background
+ * file (left out when the plan lacks its kind, so the template's own scene plays). The view given is not changed.
  */
 export function clampBrandView(view: BrandView, entitlements: Entitlements): BrandView {
   const motionIntensity = guestMotion(view.motionIntensity, entitlements);
@@ -94,6 +128,11 @@ export function clampBrandView(view: BrandView, entitlements: Entitlements): Bra
   const clamped: BrandView = { ...view, motionIntensity, railStyle };
   if (fontPairId === DEFAULT_FONT_PAIR) delete clamped.fontPairId;
   else clamped.fontPairId = fontPairId;
+  const media = view.design?.media;
+  if (view.design && media && !allows(entitlements, sceneFeature(media.kind))) {
+    clamped.design = { ...view.design };
+    delete clamped.design.media;
+  }
   return clamped;
 }
 
@@ -141,8 +180,8 @@ export function hiddenChoices(stored: BrandChoices, entitlements: Entitlements):
 
 /**
  * What a menu would show guests that this plan leaves out, in the order the Preview tab lists it: the brand's choices
- * guests do not see, then Explore, the 3D stage when a product has a stage, smart selling when the menu has offers,
- * pairings or bundles, and motions when the menu places any.
+ * guests do not see, the template's background file, then Explore, the 3D stage when a product has a stage, smart
+ * selling when the menu has offers, pairings or bundles, and motions when the menu places any.
  */
 export function hiddenFromGuests(
   brand: BrandView,
@@ -161,6 +200,8 @@ export function hiddenFromGuests(
 ): FeatureKey[] {
   const stored = { fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR, railStyle: brand.railStyle, motionIntensity: brand.motionIntensity };
   const hidden = hiddenChoices(stored, entitlements);
+  const media = brand.design?.media;
+  if (media && !allows(entitlements, sceneFeature(media.kind))) hidden.push(sceneFeature(media.kind));
   if (!allows(entitlements, 'immersive.explore')) hidden.push('immersive.explore');
   if (!allows(entitlements, 'immersive.stage') && catalog.products.some((product) => stageTone(parseMedia(product.media)) !== null)) {
     hidden.push('immersive.stage');

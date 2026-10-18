@@ -1,9 +1,10 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { parseOverrides } from '@/lib/templates/resolve';
 import { expireMenu } from '@/server/data/cache';
 import { allows } from '@/server/domain/entitlements';
 import { nextMenuStatus } from '@/server/domain/menu-status';
-import { bestRail, clampBrandChoices } from '@/server/domain/plan-choices';
+import { bestRail, clampBrandChoices, sceneFeature } from '@/server/domain/plan-choices';
 import { snapshotAssetIds } from '@/server/domain/snapshot';
 import { COPYABLE, copyAssetsForMenu } from '@/server/media/copy';
 import { loadDraftSnapshot, refreshDraftHash, writeDraftFromSnapshot } from '@/server/publish/draft';
@@ -320,11 +321,16 @@ export const duplicateMenu = defineAction({
       await writeDraftFromSnapshot(tx, menuId, source.snapshot, assetMap);
       if (source.tables.length > 0) await tx.table.createMany({ data: source.tables.map((table) => ({ menuId, ...table })) });
       // A copy is a new menu: its kit starts within the plan of the restaurant it lands in, as a new menu's does, and
-      // it takes the motions only where that plan includes them.
+      // it takes the motions only where that plan includes them. A background file that plan lacks stays behind in the
+      // design (the file itself is copied like any other): guests of the copy get the template's own scene.
       const copied = await tx.brandConfig.findFirst({ where: { menuId } });
       if (copied) {
         const within = clampBrandChoices(storedChoices(copied), destination);
-        await tx.brandConfig.update({ where: { id: copied.id }, data: within });
+        const media = source.snapshot.brand.design?.media;
+        const design = parseOverrides(copied.design);
+        const dropScene = media !== undefined && design.sceneAsset !== undefined && !allows(destination, sceneFeature(media.kind));
+        if (dropScene) delete design.sceneAsset;
+        await tx.brandConfig.update({ where: { id: copied.id }, data: { ...within, ...(dropScene ? { design: json(design) } : {}) } });
       }
       if (!allows(destination, 'design.menuMotions')) await tx.menuMotion.deleteMany({ where: { menuId } });
       await refreshDraftHash(tx, menuId);

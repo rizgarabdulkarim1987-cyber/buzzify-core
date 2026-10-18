@@ -77,6 +77,16 @@ test.describe('a video', () => {
     expect(await page.locator('canvas').count()).toBe(0);
   });
 
+  test('gives guests the template’s own scene on a plan without background video', async ({ page }) => {
+    // The same file under a restaurant on Pro (spec 2026-10-18-scene-files-plans-design.md, 4.1).
+    await page.goto(menu('lockedVideo'));
+    await expect(layer(page)).toHaveAttribute('data-plan', /^(motion|3d|poster)$/);
+    await page.waitForTimeout(IDLE);
+    await expect(layer(page)).not.toHaveAttribute('data-plan', /^video/);
+    expect(await page.locator('video').count()).toBe(0);
+    expect(await layer(page).locator('[data-file="video"]').count()).toBe(0);
+  });
+
   test('falls back to the template’s motion when it fails', async ({ page }) => {
     await page.goto(menu('video', '?scene=fail'));
     await expect(layer(page)).toHaveAttribute('data-plan', 'motion');

@@ -6,14 +6,18 @@ import { isTemplateId, TEMPLATE_IDS, TEMPLATES, type DesignOverrides, type Templ
 import type { SceneMedia } from '@/lib/templates/types';
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
-import { SCENE_KINDS } from '@/server/media/kinds';
+import { allows, type Entitlements, type FeatureKey } from '@/server/domain/entitlements';
+import { allowedSceneKinds, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
+import { isSceneKind, SCENE_KINDS, SCENE_MEDIA_KIND } from '@/server/media/kinds';
 import { loadAssets } from '@/server/media/resolve';
 import { sceneMediaOf } from '@/server/media/scene';
 import { getStorage } from '@/server/storage/storage';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
+import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { editDraft } from './draft-edit';
+import type { UpgradeInfo } from './plans';
 import { refreshDraftHashes } from './restaurants';
 
 /**
@@ -63,13 +67,23 @@ export interface SavedDesign {
   shared: boolean;
 }
 
+/** What the restaurant's plan offers the Design tab's background file (spec: scene files and plans, 5.4). */
+export interface DesignPlanView {
+  /** The kinds of file the plan lets the business choose. */
+  sceneKinds: SceneFileKind[];
+  /** The stored file's feature when the plan lacks it (kept, but guests get the template's scene); else null. */
+  lockedScene: FeatureKey | null;
+  upgrade: UpgradeInfo;
+}
+
 export interface DesignView {
   /** The brand kit's version, which every save of the design sends back. */
   version: number;
   templateId: TemplateId | null;
   overrides: DesignOverrides;
-  /** The scene file the overrides name, resolved for the live preview; null when there is none. */
+  /** The scene file the overrides name, resolved for the live preview (even when the plan locks it); null when none. */
   sceneMedia: SceneMedia | null;
+  plan: DesignPlanView;
   customTemplateId: string | null;
   saved: SavedDesign[];
   /** The menu's products, for choosing what to feature: slug and name in the menu's default language. */
@@ -90,7 +104,13 @@ function nameOf(translations: unknown, locale: Locale): string {
   return all[locale]?.name || all.en?.name || Object.values(all).find((entry) => entry?.name)?.name || '';
 }
 
-export async function designState(db: PrismaClient, menuId: string, restaurantId: string, superAdmin: boolean): Promise<DesignView> {
+export async function designState(
+  db: PrismaClient,
+  menuId: string,
+  restaurantId: string,
+  superAdmin: boolean,
+  plan: { entitlements: Entitlements; upgrade: UpgradeInfo },
+): Promise<DesignView> {
   const menu = await db.menu.findUnique({
     where: { id: menuId },
     select: {
@@ -111,11 +131,17 @@ export async function designState(db: PrismaClient, menuId: string, restaurantId
   const hours = (r.workingHours ?? {}) as Record<string, unknown>;
   const overrides = parseOverrides(menu.brand?.design);
   const scene = await usableSceneAsset(db, restaurantId, overrides.sceneAsset);
+  const sceneKind = scene && isSceneKind(scene.kind) ? SCENE_MEDIA_KIND[scene.kind] : null;
   return {
     version: menu.brand?.version ?? 1,
     templateId: isTemplateId(menu.brand?.templateId) ? menu.brand.templateId : null,
     overrides,
     sceneMedia: scene ? sceneMediaOf(scene, (key) => getStorage().publicUrl(key), overrides.sceneAsset?.framing) : null,
+    plan: {
+      sceneKinds: allowedSceneKinds(plan.entitlements),
+      lockedScene: sceneKind && !allows(plan.entitlements, sceneFeature(sceneKind)) ? sceneFeature(sceneKind) : null,
+      upgrade: plan.upgrade,
+    },
     customTemplateId: menu.brand?.customTemplateId ?? null,
     saved: saved
       .filter((entry) => isTemplateId(entry.basePresetId))
@@ -176,10 +202,13 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
   // A saved design's background file comes along only if this restaurant may use it; otherwise every later save of the
   // design would be refused for a file the business never chose here.
   const savedLook = saved ? lookOnly(parseOverrides(saved.overrides)) : {};
-  if (savedLook.sceneAsset && !(await usableSceneAsset(ctx.db, restaurantId, savedLook.sceneAsset))) delete savedLook.sceneAsset;
+  const savedScene = await usableSceneAsset(ctx.db, restaurantId, savedLook.sceneAsset);
+  if (!savedScene) delete savedLook.sceneAsset;
   return editDraft(ctx, async (tx, menuId) => {
     const row = await brandRow(tx, menuId);
     const current = parseOverrides(row.design);
+    // Likewise a file the plan locks, unless it is the one the menu already has.
+    if (sceneLock(ctx, savedScene, current.sceneAsset?.assetId ?? null)) delete savedLook.sceneAsset;
     const next =
       input.choice.kind === 'preset'
         ? { templateId: input.choice.templateId, design: row.templateId === input.choice.templateId ? current : contentOnly(current), customTemplateId: null }
@@ -204,19 +233,33 @@ async function usableSceneAsset(db: ActionContext['db'], restaurantId: string, c
 }
 
 /**
- * Saves the business's overrides of its template, refusing colours text cannot be read on and a scene file the
- * restaurant may not use (another restaurant's, a picture, or none at all: `NOT_FOUND` either way).
+ * The feature the restaurant's plan lacks for newly choosing this scene file instead of the stored one, or null (spec:
+ * scene files and plans, 4.2). The stored file is kept whatever the plan.
+ */
+function sceneLock(ctx: ActionContext, asset: { id: string; kind: string } | null, storedAssetId: string | null): FeatureKey | null {
+  if (ctx.plan === null) throw new Error('A design is saved on a menu, whose restaurant has a plan');
+  const next = asset && isSceneKind(asset.kind) ? { assetId: asset.id, kind: SCENE_MEDIA_KIND[asset.kind] } : null;
+  return sceneChoiceLock(next, storedAssetId, ctx.plan.entitlements);
+}
+
+/**
+ * Saves the business's overrides of its template, refusing colours text cannot be read on, a scene file the restaurant
+ * may not use (another restaurant's, a picture, or none at all: `NOT_FOUND` either way), and a newly chosen one its
+ * plan lacks (`UPGRADE_REQUIRED`).
  */
 export async function updateDesign(ctx: ActionContext, input: { version: number; overrides: Record<string, unknown> }): Promise<{ version: number }> {
   const overrides = parseOverrides(input.overrides);
   const restaurantId = ctx.restaurantId;
   if (restaurantId === null) throw new Error('A menu action ran without a restaurant');
-  if (overrides.sceneAsset && !(await usableSceneAsset(ctx.db, restaurantId, overrides.sceneAsset))) throw new StudioError('NOT_FOUND');
+  const scene = await usableSceneAsset(ctx.db, restaurantId, overrides.sceneAsset);
+  if (overrides.sceneAsset && !scene) throw new StudioError('NOT_FOUND');
   return editDraft(ctx, async (tx, menuId) => {
     const row = await brandRow(tx, menuId);
     if (!isTemplateId(row.templateId)) throw new StudioError('INVALID', 'Choose a template first.');
-    refuseUnreadable(row.templateId, overrides);
     const before = parseOverrides(row.design);
+    const locked = sceneLock(ctx, scene, before.sceneAsset?.assetId ?? null);
+    if (locked) requireFeature(ctx.plan, locked);
+    refuseUnreadable(row.templateId, overrides);
     await updateWithVersion(tx.brandConfig, { id: row.id, version: input.version, data: { design: json(overrides) }, entityType: 'BrandConfig' }, tx);
     const changed = [...new Set([...Object.keys(before), ...Object.keys(overrides)])].filter(
       (key) => JSON.stringify(before[key as keyof DesignOverrides]) !== JSON.stringify(overrides[key as keyof DesignOverrides]),

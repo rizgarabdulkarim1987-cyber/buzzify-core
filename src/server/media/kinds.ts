@@ -1,4 +1,5 @@
 import type { MediaKind } from '@/generated/prisma/client';
+import type { SceneMedia } from '@/lib/templates/types';
 
 /**
  * The library's two families of files. Pictures are what products, logos, favicons and search images show; scene files
@@ -11,3 +12,6 @@ export const SCENE_KINDS = ['MODEL', 'VIDEO', 'LOTTIE'] as const satisfies reado
 export type SceneKind = (typeof SCENE_KINDS)[number];
 
 export const isSceneKind = (kind: string): kind is SceneKind => (SCENE_KINDS as readonly string[]).includes(kind);
+
+/** A library kind as a menu's scene file names it (`SceneMedia.kind`). */
+export const SCENE_MEDIA_KIND: Readonly<Record<SceneKind, SceneMedia['kind']>> = { MODEL: 'model', VIDEO: 'video', LOTTIE: 'lottie' };

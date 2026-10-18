@@ -4,7 +4,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MediaKind } from '@/generated/prisma/client';
+import { entitlementsFor } from '@/server/data/plans';
 import { getPrisma } from '@/server/data/prisma';
+import { tenantInfo } from '@/server/data/public-menu';
+import type { PlanTier } from '@/server/domain/entitlements';
+import { parseSnapshot } from '@/server/domain/snapshot';
 import { brandRowFromSnapshot, loadDraftSnapshot } from '@/server/publish/draft';
 import * as design from '@/server/studio/actions/design';
 import * as media from '@/server/studio/actions/media';
@@ -15,6 +19,7 @@ import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as designQueries from '@/server/studio/queries/design';
 import * as mediaQueries from '@/server/studio/queries/media';
+import * as previewQueries from '@/server/studio/queries/preview';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 
@@ -60,7 +65,7 @@ async function update(next: Record<string, unknown>, actor: Actor = designer) {
 }
 
 /** A library row of a kind, its files named as the library names them (nothing needs to be in storage). */
-async function asset(restaurantId: string | null, kind: MediaKind, seed = kind): Promise<string> {
+async function asset(restaurantId: string | null, kind: MediaKind, seed: string = kind): Promise<string> {
   const hash = createHash('sha256').update(`${restaurantId}-${seed}`).digest('hex');
   const folder = `${restaurantId === null ? 'shared' : `r/${restaurantId}`}/${hash}`;
   const variants =
@@ -219,6 +224,109 @@ describe('publishing a scene file', () => {
     const copy = await prisma().mediaAsset.findUniqueOrThrow({ where: { id: copied.sceneAsset!.assetId } });
     const original = await prisma().mediaAsset.findUniqueOrThrow({ where: { id: own } });
     expect(copy).toMatchObject({ restaurantId: b.restaurant.id, kind: 'LOTTIE', storageKey: original.storageKey });
+  });
+});
+
+describe('a plan without the file’s feature (spec 2026-10-18-scene-files-plans-design.md)', () => {
+  const onPlan = (plan: PlanTier, restaurantId = a.restaurant.id) => prisma().restaurant.update({ where: { id: restaurantId }, data: { plan } });
+  const shared = (name: string, assetId: string) =>
+    prisma().designTemplate.create({ data: { restaurantId: null, name, basePresetId: 'obsidian-gold', overrides: { sceneAsset: { assetId } } } });
+
+  it('refuses a newly chosen video or model on Pro, naming the feature and the plan that has it, and takes a Lottie file', async () => {
+    await onPlan('PRO');
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO') } }))).toMatchObject({
+      code: 'UPGRADE_REQUIRED',
+      upgrade: { feature: 'design.backgroundVideo', plan: 'PREMIUM' },
+    });
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(null, 'MODEL') } }))).toMatchObject({
+      code: 'UPGRADE_REQUIRED',
+      upgrade: { feature: 'immersive.models3d', plan: 'PREMIUM' },
+    });
+    expect((await overrides()).sceneAsset).toBeUndefined();
+    const lottie = await asset(a.restaurant.id, 'LOTTIE');
+    dataOf(await update({ sceneAsset: { assetId: lottie } }));
+    expect((await overrides()).sceneAsset).toEqual({ assetId: lottie });
+  });
+
+  it('refuses a Lottie file on Basic, and still answers another restaurant’s file with NOT_FOUND', async () => {
+    await onPlan('BASIC');
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'LOTTIE') } }))).toMatchObject({
+      code: 'UPGRADE_REQUIRED',
+      upgrade: { feature: 'design.backgroundAnimation', plan: 'PRO' },
+    });
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(b.restaurant.id, 'VIDEO') } })).code).toBe('NOT_FOUND');
+  });
+
+  it('keeps a file stored before a downgrade through other changes, and refuses another locked one', async () => {
+    const video = await asset(a.restaurant.id, 'VIDEO');
+    dataOf(await update({ sceneAsset: { assetId: video } }));
+    await onPlan('PRO');
+    dataOf(await update({ sceneAsset: { assetId: video }, paletteId: 'smoke' }));
+    expect(await overrides()).toMatchObject({ sceneAsset: { assetId: video }, paletteId: 'smoke' });
+    expect(failureOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO', 'second') } })).code).toBe('UPGRADE_REQUIRED');
+
+    await onPlan('PREMIUM');
+    const model = await asset(a.restaurant.id, 'MODEL');
+    dataOf(await update({ sceneAsset: { assetId: model } }));
+    await onPlan('PRO');
+    dataOf(await update({ sceneAsset: { assetId: model, framing: { scale: 1.5, turn: 30 } } }));
+    expect((await overrides()).sceneAsset).toEqual({ assetId: model, framing: { scale: 1.5, turn: 30 } });
+  });
+
+  it('tells the Design tab which kinds the plan allows and that the stored file is locked', async () => {
+    dataOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO') } }));
+    expect((await state()).plan).toEqual({ sceneKinds: ['model', 'video', 'lottie'], lockedScene: null, upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }) });
+    await onPlan('PRO');
+    expect((await state()).plan).toEqual({ sceneKinds: ['lottie'], lockedScene: 'design.backgroundVideo', upgrade: expect.objectContaining({ restaurantId: a.restaurant.id }) });
+    // The live preview still gets the file itself.
+    expect((await state()).sceneMedia).toMatchObject({ kind: 'video' });
+  });
+
+  it('lists the locked file in the Preview tab’s plan note', async () => {
+    dataOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO') } }));
+    await onPlan('PRO');
+    const note = dataOf(await ask(designer, previewQueries.planNote, { menuId: a.menu.id }));
+    expect(note.hidden).toContain('design.backgroundVideo');
+  });
+
+  it('applies a saved design without a file the plan locks, and the design saves afterwards', async () => {
+    await onPlan('PRO');
+    dataOf(await apply({ kind: 'custom', customTemplateId: (await shared('Platform video', await asset(null, 'VIDEO'))).id }));
+    expect((await overrides()).sceneAsset).toBeUndefined();
+
+    await onPlan('BASIC');
+    dataOf(await apply({ kind: 'custom', customTemplateId: (await shared('Platform dots', await asset(null, 'LOTTIE'))).id }));
+    expect((await overrides()).sceneAsset).toBeUndefined();
+    dataOf(await update({ paletteId: 'smoke' }));
+  });
+
+  it('leaves a locked file out of a copy, in another restaurant or the same one, and still copies the file', async () => {
+    const video = await asset(a.restaurant.id, 'VIDEO');
+    dataOf(await update({ sceneAsset: { assetId: video } }));
+    await onPlan('PRO', b.restaurant.id);
+    const elsewhere = dataOf(await run(admin, menuActions.duplicateMenu, { menuId: a.menu.id, name: 'Copy', slug: 'scene-copy-b', targetRestaurantId: b.restaurant.id }));
+    expect(((await prisma().brandConfig.findUniqueOrThrow({ where: { menuId: elsewhere.menuId } })).design as Record<string, unknown>).sceneAsset).toBeUndefined();
+    expect(await prisma().mediaAsset.count({ where: { restaurantId: b.restaurant.id, kind: 'VIDEO' } })).toBe(1);
+
+    await onPlan('PRO');
+    const here = dataOf(await run(admin, menuActions.duplicateMenu, { menuId: a.menu.id, name: 'Copy', slug: 'scene-copy-a' }));
+    expect(((await prisma().brandConfig.findUniqueOrThrow({ where: { menuId: here.menuId } })).design as Record<string, unknown>).sceneAsset).toBeUndefined();
+    // The source keeps its own choice.
+    expect((await overrides()).sceneAsset).toEqual({ assetId: video });
+  });
+
+  it('serves a published menu without the file after a downgrade, with the revision untouched', async () => {
+    dataOf(await update({ sceneAsset: { assetId: await asset(a.restaurant.id, 'VIDEO') } }));
+    const { revisionId } = await publishFixture(prisma(), a.menu.id);
+    const before = await prisma().menuRevision.findUniqueOrThrow({ where: { id: revisionId } });
+    const guests = async () => tenantInfo(a.menu, revisionId, parseSnapshot(before.snapshot), await entitlementsFor(prisma(), a.restaurant.id)).brand.design;
+
+    expect((await guests())?.media).toMatchObject({ kind: 'video' });
+    await onPlan('PRO');
+    expect(await guests()).toMatchObject({ templateId: 'obsidian-gold' });
+    expect((await guests())?.media).toBeUndefined();
+    const after = await prisma().menuRevision.findUniqueOrThrow({ where: { id: revisionId } });
+    expect(after.snapshotHash).toBe(before.snapshotHash);
   });
 });
 

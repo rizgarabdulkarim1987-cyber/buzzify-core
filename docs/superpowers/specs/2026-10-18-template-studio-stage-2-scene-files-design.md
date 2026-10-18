@@ -7,6 +7,8 @@ Builds on: `2026-10-18-template-studio-design.md` (stage 2 of its stages table),
 `2026-10-16-studio-core-design.md` (spec 11)
 Brief: the main session's stage-2 task: "an asset library for scene media (GLB models, short videos, Lottie animations)
 that template presets and businesses can use as their background scene"
+Plans: which plan includes each kind of file, and what guests and the Studio do without it, are in
+`2026-10-18-scene-files-plans-design.md`.
 
 ## 1. Intent
 
