@@ -1013,7 +1013,8 @@ export const ATELIER: SeedData = {
     {
       kind: 'SPECIAL',
       products: ['wagyu-burger'],
-      title: t('Chef’s choice this week', 'اختيار الشيف هذا الأسبوع', 'هەڵبژاردەی چێشتلێنەر ئەم هەفتەیە'),
+      // No end date, so no time is claimed: the demo never says "this week" forever.
+      title: t('Chef’s choice', 'اختيار الشيف', 'هەڵبژاردەی چێشتلێنەر'),
     },
   ],
   mealCategories: ['patisserie', 'cold'],

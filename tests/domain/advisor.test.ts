@@ -76,6 +76,24 @@ describe('adviseMenu', () => {
     expect(find(withMeat, 'VEGETARIAN_SECTION')).toBeUndefined();
   });
 
+  it('never calls desserts or drinks a vegetarian section', () => {
+    const base = tidy();
+    const sweet = (id: string, slot: string | null = 'DESSERT'): CatalogProduct => ({
+      ...product({ id, categoryId: 'cat-sweet', dietary: ['VEGETARIAN'], slot }),
+      media: [photo],
+      translations: { en: { name: id, description: 'd' } },
+    });
+    const sweets = { id: 'cat-sweet', slug: 'sweet', sortOrder: 9, translations: { en: { name: 'Sweet' } }, completesMeal: false };
+    const desserts = { ...base, categories: [...base.categories, sweets], products: [...base.products, sweet('s1'), sweet('s2'), sweet('s3', 'DRINK')] };
+    expect(find(desserts, 'VEGETARIAN_SECTION')).toBeUndefined();
+    const marked = {
+      ...base,
+      categories: [...base.categories, { ...sweets, completesMeal: true }],
+      products: [...base.products, sweet('s1', null), sweet('s2', null), sweet('s3', null)],
+    };
+    expect(find(marked, 'VEGETARIAN_SECTION')).toBeUndefined();
+  });
+
   it('names a dish with exactly two sizes', () => {
     const sized = makeCatalog().products.find((p) => p.id === IDS.coldBrew)!;
     expect(find(withProduct(tidy(), IDS.coldBrew, { variants: sized.variants }), 'TWO_SIZES')?.productIds).toEqual([IDS.coldBrew]);

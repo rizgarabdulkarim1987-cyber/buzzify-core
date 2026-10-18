@@ -42,6 +42,8 @@ function described(product: CatalogProduct, locale: Locale): boolean {
 }
 
 const meatFree = (product: CatalogProduct) => product.dietary.includes('VEGETARIAN') || product.dietary.includes('VEGAN');
+/** Desserts and drinks are meat-free by nature: a category of them is never a separate vegetarian section. */
+const SWEET_OR_DRINK = new Set(['DESSERT', 'DRINK']);
 
 export function adviseMenu(catalog: Catalog, locales: readonly Locale[]): Advice[] {
   const { products, categories } = catalog;
@@ -58,6 +60,7 @@ export function adviseMenu(catalog: Catalog, locales: readonly Locale[]): Advice
       categoryIds: ids(
         categories.filter((c) => {
           const dishes = inCategory(c.id);
+          if (c.completesMeal || dishes.every((dish) => dish.slot !== null && SWEET_OR_DRINK.has(dish.slot))) return false;
           return dishes.length >= VEGETARIAN_SECTION_MIN && dishes.every(meatFree);
         }),
       ),
