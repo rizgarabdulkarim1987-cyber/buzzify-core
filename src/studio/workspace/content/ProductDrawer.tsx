@@ -431,6 +431,40 @@ export function ProductDrawer({ menuId, restaurantId, productId, name, tree, can
                     </label>
                   </div>
                 </Section>
+
+                <Section title={t('content.selling.heading')} hint={t('content.selling.intro')}>
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label={t('content.cost.label')} hint={canPrice ? t('content.cost.hint', { currency }) : t('content.price.locked')} error={errors.cost} optional>
+                      <Input
+                        value={draft.cost}
+                        inputMode="decimal"
+                        dir="ltr"
+                        disabled={!canPrice}
+                        onChange={(event) => change({ cost: event.target.value })}
+                        className="tabular-nums"
+                      />
+                    </Field>
+                    <Field label={t('content.priority.label')} hint={t('content.priority.hint')} error={errors.priority}>
+                      <Select
+                        options={[50, 75, 100].map((level) => ({ value: String(level), label: t(`content.priority.${level}`) }))}
+                        value={String(draft.priority)}
+                        onChange={(event) => change({ priority: Number(event.target.value) })}
+                      />
+                    </Field>
+                    <Field label={t('content.serves.label')} hint={t('content.serves.hint')} error={errors.serves} optional>
+                      <Input value={draft.serves} inputMode="numeric" dir="ltr" onChange={(event) => change({ serves: event.target.value })} className="tabular-nums" />
+                    </Field>
+                    <Field label={t('content.lowStock.label')} hint={t('content.lowStock.hint')} error={errors.lowStockThreshold} optional>
+                      <Input
+                        value={draft.lowStockThreshold}
+                        inputMode="numeric"
+                        dir="ltr"
+                        onChange={(event) => change({ lowStockThreshold: event.target.value })}
+                        className="tabular-nums"
+                      />
+                    </Field>
+                  </div>
+                </Section>
               </div>
             )}
           </div>

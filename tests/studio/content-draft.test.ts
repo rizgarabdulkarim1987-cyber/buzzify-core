@@ -18,6 +18,10 @@ const PRODUCT: ProductEditing = {
   dietary: [],
   badges: [],
   calories: null,
+  cost: null,
+  priority: 50,
+  serves: null,
+  lowStockThreshold: null,
   media: [],
   variants: [{ id: 'v1', version: 2, names: { en: 'Large' }, priceDelta: 100, isDefault: true }],
   groups: [
@@ -84,7 +88,27 @@ describe('the drawer draft', () => {
             options: [{ id: 'o1', version: 1, names: { en: 'Oat milk' }, priceDelta: -50, isSuggested: true }],
           },
         ],
+        cost: null,
+        priority: 50,
+        serves: null,
+        lowStockThreshold: null,
       },
+    });
+  });
+
+  it('reads the sales fields as typed: a cost, how much to promote, how many it serves, when it runs low', () => {
+    const draft = draftOf({ ...PRODUCT, cost: 90, priority: 75, serves: 4, lowStockThreshold: 3 }, 'USD');
+    expect(draft).toMatchObject({ cost: '0.90', priority: 75, serves: '4', lowStockThreshold: '3' });
+    const result = toSave({ ...draft, cost: '1.20', serves: '', lowStockThreshold: '٥' }, BASE);
+    expect(result.ok && result.save).toMatchObject({ cost: 120, priority: 75, serves: null, lowStockThreshold: 5 });
+    expect(toSave({ ...draft, cost: '' }, BASE)).toMatchObject({ ok: true, save: { cost: null } });
+  });
+
+  it('names a cost, a number of people and a threshold it cannot read', () => {
+    const draft = { ...draftOf(PRODUCT, 'USD'), cost: 'lots', serves: '1', lowStockThreshold: '0' };
+    expect(toSave(draft, BASE)).toEqual({
+      ok: false,
+      errors: { cost: 'content.price.notANumber', serves: 'content.serves.range', lowStockThreshold: 'content.lowStock.range' },
     });
   });
 

@@ -35,6 +35,22 @@ export async function setProductAvailability(
   return result;
 }
 
+/** How many portions of a product are left today, or null for not counted. A product at 0 is out of stock for guests. */
+export async function setProductStock(ctx: ActionContext, input: { productId: string; stockCount: number | null }): Promise<{ stockCount: number | null }> {
+  const menuId = menuOf(ctx);
+  const result = await ctx.transaction(async (tx) => {
+    const row = await tx.product.findFirst({ where: { id: input.productId }, select: { id: true, stockCount: true } });
+    if (!row) throw new StudioError('NOT_FOUND');
+    await tx.product.updateMany({ where: { id: row.id }, data: { stockCount: input.stockCount } });
+    if (row.stockCount !== input.stockCount) {
+      ctx.audit({ action: 'product.stock_changed', entityType: 'Product', entityId: row.id, changes: { stockCount: { before: row.stockCount, after: input.stockCount } } });
+    }
+    return { stockCount: input.stockCount };
+  });
+  ctx.afterCommit(() => expireLive(menuId));
+  return result;
+}
+
 export async function setOptionAvailability(ctx: ActionContext, input: { optionId: string; isAvailable: boolean }): Promise<{ isAvailable: boolean }> {
   const menuId = menuOf(ctx);
   const result = await ctx.transaction(async (tx) => {
@@ -66,6 +82,9 @@ export interface AvailabilityBoard {
       names: Names;
       isAvailable: boolean;
       isHidden: boolean;
+      /** Portions left today, or null when not counted. */
+      stockCount: number | null;
+      lowStockThreshold: number | null;
       groups: Array<{ id: string; names: Names; options: Array<{ id: string; names: Names; isAvailable: boolean }> }>;
     }>;
   }>;
@@ -87,6 +106,8 @@ export async function availabilityBoard(db: ActionContext['db'], menuId: string)
       translations: true,
       isAvailable: true,
       isHidden: true,
+      stockCount: true,
+      lowStockThreshold: true,
       groups: {
         orderBy: ORDER,
         select: { id: true, translations: true, options: { orderBy: ORDER, select: { id: true, translations: true, isAvailable: true } } },
@@ -106,6 +127,8 @@ export async function availabilityBoard(db: ActionContext['db'], menuId: string)
           names: textsOf(product.translations, 'name'),
           isAvailable: product.isAvailable,
           isHidden: product.isHidden,
+          stockCount: product.stockCount,
+          lowStockThreshold: product.lowStockThreshold,
           groups: product.groups.map((group) => ({
             id: group.id,
             names: textsOf(group.translations, 'name'),

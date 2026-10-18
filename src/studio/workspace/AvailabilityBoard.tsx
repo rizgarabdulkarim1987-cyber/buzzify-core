@@ -1,9 +1,9 @@
 'use client';
 
 import { Radio } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
-import { setOptionAvailability, setProductAvailability } from '@/app/studio/_actions/availability';
+import { setOptionAvailability, setProductAvailability, setProductStock } from '@/app/studio/_actions/availability';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { AvailabilityBoard as Board } from '@/server/studio/services/availability';
 import { describeFailure } from '@/studio/errors';
@@ -12,6 +12,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { Input } from '@/studio/ui/Input';
 import { Switch } from '@/studio/ui/Switch';
 import { displayName } from './content/shared';
 
@@ -20,6 +21,70 @@ type Product = Board['categories'][number]['products'][number];
 
 /** A switch's value as the person last set it, until the server's next answer replaces the board. */
 type Overrides = Record<string, boolean>;
+
+/** Western digits for Arabic-Indic and Persian ones, so a count typed on an Arabic keyboard reads. */
+function latinDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+}
+
+/**
+ * How many portions of a product are left today, saved live when the field is left or Enter is pressed. Empty means
+ * not counted; 0 shows the product sold out to guests.
+ */
+function StockField({ menuId, product, productName }: { menuId: string; product: Product; productName: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const initial = product.stockCount === null ? '' : String(product.stockCount);
+  const [text, setText] = useState(initial);
+  const [saved, setSaved] = useState(initial);
+  const [pending, startTransition] = useTransition();
+
+  const save = () => {
+    const typed = latinDigits(text.trim());
+    if (typed === saved) return;
+    const count = typed === '' ? null : /^\d{1,4}$/.test(typed) ? Number(typed) : Number.NaN;
+    if (Number.isNaN(count)) {
+      toast.error(t('availability.stock.range'));
+      setText(saved);
+      return;
+    }
+    startTransition(async () => {
+      const result = await setProductStock({ menuId, productId: product.id, stockCount: count });
+      if (result.ok) {
+        setSaved(typed);
+        setText(typed);
+      } else {
+        setText(saved);
+        toast.error(describeFailure(t, locale, result.error).message);
+      }
+    });
+  };
+
+  const left = saved === '' ? null : Number(saved);
+  const fewLeft = left !== null && left > 0 && product.lowStockThreshold !== null && left <= product.lowStockThreshold;
+  return (
+    <span className="flex flex-col gap-0.5">
+      <label className="flex items-center gap-2 text-sm text-text">
+        {t('availability.stock')}
+        <Input
+          value={text}
+          inputMode="numeric"
+          dir="ltr"
+          placeholder="—"
+          disabled={pending}
+          aria-label={t('availability.stockLabel', { name: productName })}
+          onChange={(event) => setText(event.target.value)}
+          onBlur={save}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') save();
+          }}
+          className="h-8 w-20 tabular-nums"
+        />
+      </label>
+      {fewLeft && <span className="text-xs text-muted">{t('availability.stock.fewLeft', { count: numberFormat(locale).format(left) })}</span>}
+    </span>
+  );
+}
 
 /**
  * The Availability tab (spec 10.3): sold out and hidden for each product, sold out for each option, live at once. A
@@ -109,6 +174,7 @@ export function AvailabilityBoard({ menuId, board }: { menuId: string; board: Bo
                           }
                         />
                       </label>
+                      <StockField menuId={menuId} product={product} productName={productName} />
                       <label className="flex items-center gap-2 text-sm text-text">
                         {t('availability.hidden')}
                         <Switch

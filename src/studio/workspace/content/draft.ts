@@ -56,6 +56,11 @@ export interface ProductDraft {
   media: MediaDraft[];
   variants: VariantDraft[];
   groups: GroupDraft[];
+  /** The sales fields: what one costs to make (a price, typed), how much to promote it, how many it serves, when it runs low. */
+  cost: string;
+  priority: number;
+  serves: string;
+  lowStockThreshold: string;
 }
 
 const ref = (row: { id: string; version: number }) => ({ key: row.id, id: row.id, version: row.version });
@@ -92,6 +97,10 @@ export function draftOf(product: ProductEditing, currency: string): ProductDraft
         isSuggested: option.isSuggested,
       })),
     })),
+    cost: product.cost === null ? '' : formatPriceInput(product.cost, currency),
+    priority: product.priority,
+    serves: product.serves === null ? '' : String(product.serves),
+    lowStockThreshold: product.lowStockThreshold === null ? '' : String(product.lowStockThreshold),
   };
 }
 
@@ -131,6 +140,23 @@ export function toSave(
   if (draft.calories.trim() !== '') {
     calories = wholeNumber(draft.calories);
     if (calories === null || calories > 20_000) errors.calories = 'content.calories.range';
+  }
+
+  let cost: number | null = null;
+  if (draft.cost.trim() !== '') {
+    const parsed = parsePriceInput(draft.cost, base.currency);
+    if (parsed.ok) cost = parsed.minor;
+    else errors.cost = PRICE_PROBLEM_KEYS[parsed.reason];
+  }
+  let serves: number | null = null;
+  if (draft.serves.trim() !== '') {
+    serves = wholeNumber(draft.serves);
+    if (serves === null || serves < 2 || serves > 20) errors.serves = 'content.serves.range';
+  }
+  let lowStockThreshold: number | null = null;
+  if (draft.lowStockThreshold.trim() !== '') {
+    lowStockThreshold = wholeNumber(draft.lowStockThreshold);
+    if (lowStockThreshold === null || lowStockThreshold < 1 || lowStockThreshold > 999) errors.lowStockThreshold = 'content.lowStock.range';
   }
 
   const variants = draft.variants.map((variant, index) => {
@@ -188,6 +214,10 @@ export function toSave(
       media: draft.media.map((entry) => entry.value),
       variants,
       groups,
+      cost,
+      priority: draft.priority,
+      serves,
+      lowStockThreshold,
     },
   };
 }
