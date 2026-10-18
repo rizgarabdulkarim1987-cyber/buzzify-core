@@ -18,6 +18,7 @@
     "test:e2e": "playwright test",
     "perf": "tsx scripts/perf.ts",
     "studio:create-admin": "tsx scripts/create-admin.ts",
+    "studio:stage-models": "tsx scripts/set-stage-models.ts",
     "db:up": "tsx scripts/db.ts up",
     "db:down": "tsx scripts/db.ts down",
     "db:start": "tsx scripts/db.ts start",
