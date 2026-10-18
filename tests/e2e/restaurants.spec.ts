@@ -284,7 +284,8 @@ test.describe('Studio restaurants @desktop', () => {
     await page.getByRole('link', { name: mine.name }).click();
     await expect(page.getByRole('heading', { level: 1, name: mine.name })).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'أقسام المطعم' });
-    await expect(tabs.getByRole('link')).toHaveText(['الملف', 'الفروع', 'القوائم', 'الوسائط']);
+    // Everyone who may open a restaurant reads its plan.
+    await expect(tabs.getByRole('link')).toHaveText(['الملف', 'الفروع', 'القوائم', 'الباقة', 'الوسائط']);
     // A designer edits the profile but neither suspends nor deletes.
     await expect(page.getByRole('button', { name: 'إدارة' })).toHaveCount(0);
     await expect(page.getByRole('button', { name: 'حفظ', exact: true })).toBeVisible();
@@ -316,7 +317,7 @@ test.describe('Studio restaurants @desktop', () => {
     await expect(page.getByRole('heading', { level: 1, name: restaurant.name })).toBeVisible();
     await expect(page.getByText('No menus yet')).toBeVisible();
     const tabs = page.getByRole('navigation', { name: 'Restaurant sections' });
-    await expect(tabs.getByRole('link')).toHaveText(['Profile', 'Branches', 'Menus']);
+    await expect(tabs.getByRole('link')).toHaveText(['Profile', 'Branches', 'Menus', 'Plan']);
     await expect(page.getByRole('button', { name: 'Manage' })).toHaveCount(0);
 
     await tabs.getByRole('link', { name: 'Profile' }).click();
