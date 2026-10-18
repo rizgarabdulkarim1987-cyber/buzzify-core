@@ -147,7 +147,11 @@ export function hiddenChoices(stored: BrandChoices, entitlements: Entitlements):
 export function hiddenFromGuests(
   brand: BrandView,
   catalog: {
-    products: ReadonlyArray<{ media: unknown[] }>;
+    products: ReadonlyArray<{
+      media: unknown[];
+      groups: ReadonlyArray<{ options: ReadonlyArray<{ isSuggested: boolean }> }>;
+      variants: ReadonlyArray<{ priceDelta: number }>;
+    }>;
     upsellRules: readonly unknown[];
     pairingRules: readonly unknown[];
     bundles: readonly unknown[];
@@ -160,7 +164,13 @@ export function hiddenFromGuests(
   if (!allows(entitlements, 'immersive.stage') && catalog.products.some((product) => stageTone(parseMedia(product.media)) !== null)) {
     hidden.push('immersive.stage');
   }
-  const selling = catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
+  // Upgrades come from rules, suggested options and bigger sizes; pairings and sets from their rules.
+  const upgradable = catalog.products.some(
+    (product) =>
+      product.groups.some((group) => group.options.some((option) => option.isSuggested)) ||
+      new Set(product.variants.map((variant) => variant.priceDelta)).size > 1,
+  );
+  const selling = upgradable || catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
   if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
   return hidden;
 }

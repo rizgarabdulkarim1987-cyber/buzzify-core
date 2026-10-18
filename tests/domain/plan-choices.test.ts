@@ -17,6 +17,7 @@ import {
   guestQrStyle,
   guestRail,
   hiddenChoices,
+  hiddenFromGuests,
   isBrandedQr,
   qrStyleLock,
   type BrandChoices,
@@ -128,5 +129,27 @@ describe('locks on choices', () => {
     expect(hiddenChoices(stored, BASIC)).toEqual(['design.fontPairs', 'design.railStyles', 'design.expressiveMotion']);
     expect(hiddenChoices({ ...stored, railStyle: 'grains' }, PRO)).toEqual(['immersive.stage']);
     expect(hiddenChoices(stored, PREMIUM)).toEqual([]);
+  });
+});
+
+describe('what the Preview tab says guests on the plan do not see', () => {
+  const noSelling = { upsellRules: [], pairingRules: [], bundles: [] };
+  const product = (groups: Array<{ options: Array<{ isSuggested: boolean }> }> = [], variants: Array<{ priceDelta: number }> = []) => ({
+    media: [],
+    groups,
+    variants,
+  });
+  const PLAIN_VIEW: BrandView = { ...VIEW, railStyle: 'plain', motionIntensity: 'subtle' };
+
+  it('counts a suggested option or a bigger size as smart selling, which offers them as upgrades', () => {
+    const suggested = product([{ options: [{ isSuggested: true }] }]);
+    const sizes = product([], [{ priceDelta: 0 }, { priceDelta: 150 }]);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, PRO)).toEqual(['immersive.explore']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [sizes] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
+    // One size, or sizes at one price, offer nothing to upgrade to.
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([
+      'immersive.explore',
+    ]);
   });
 });
