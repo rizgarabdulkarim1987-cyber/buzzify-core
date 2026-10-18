@@ -219,6 +219,7 @@ export function ProductStage({
                 paused={paused}
                 variant={variant}
                 model={art}
+                {...(stage?.scan ? { scan: stage.scan } : {})}
                 controls={controls}
                 onReady={() => setState((current) => (current === 'loading' ? 'ready' : current))}
                 onFailure={() => {

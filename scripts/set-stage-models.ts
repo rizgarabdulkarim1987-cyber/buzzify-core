@@ -5,11 +5,11 @@ import { describeDatabase } from './database-target';
 import { applyStageModels, planStageModels, type StageModelRule } from './stage-models';
 
 /**
- * `npm run studio:stage-models -- <menu-address> <category>=<model>[@<signature>] ... [--media-url=<url>] [--apply]`
+ * `npm run studio:stage-models -- <menu-address> <category>=<model>[+<scan>][@<signature>] ... [--media-url=<url>] [--apply]`
  *
  * Shows what it would change, and changes it and republishes the menu with `--apply`, for example:
  *
- *   npm run studio:stage-models -- zhamitos chicken=bagchicken@Small meat=bagbeef@Small --apply
+ *   npm run studio:stage-models -- zhamitos chicken=bagchicken+/api/assets/models/zhamitos-chicken-919dee01.glb@Small meat=bagbeef@Small --apply
  *
  * Publishing turns library photos into the addresses guests load, so against the live database it needs the address
  * the bucket is served on (`MEDIA_PUBLIC_URL`, or `--media-url`). Without the right one the rebuilt menu would differ
@@ -17,11 +17,12 @@ import { applyStageModels, planStageModels, type StageModelRule } from './stage-
  */
 
 function parseRule(argument: string): StageModelRule {
-  const match = /^([^=]+)=([a-z]+)(?:@(.+))?$/.exec(argument);
-  if (!match) throw new Error(`"${argument}" is not <category>=<model>[@<signature>]`);
-  const [, category, model, signature] = match;
+  const match = /^([^=]+)=([a-z]+)(?:\+([^@]+))?(?:@(.+))?$/.exec(argument);
+  if (!match) throw new Error(`"${argument}" is not <category>=<model>[+<scan>][@<signature>]`);
+  const [, category, model, scan, signature] = match;
   if (!isStageArt(model!)) throw new Error(`"${model}" is not a 3D model`);
-  return { category: category!.trim(), model, ...(signature ? { signature: signature.trim() } : {}) };
+  if (scan && !/^\/api\/assets\/models\/[a-z0-9-]+\.glb$/.test(scan)) throw new Error(`"${scan}" is not /api/assets/models/<file>.glb`);
+  return { category: category!.trim(), model, ...(scan ? { scan } : {}), ...(signature ? { signature: signature.trim() } : {}) };
 }
 
 async function main(): Promise<void> {
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
     for (const product of plan.products) {
       const changes = [
         product.addModel ? `add ${product.model}` : `has ${product.model}`,
+        product.setScan ? `scan ${product.setScan}` : '',
         product.signature.before !== product.signature.after ? 'make signature' : product.signature.after ? 'signature' : '',
       ].filter(Boolean);
       console.log(`  ${product.category} / ${product.name} (${product.slug}): ${changes.join(', ')}`);

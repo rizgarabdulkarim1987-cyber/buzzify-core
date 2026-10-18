@@ -216,6 +216,14 @@ describe('stageOf', () => {
     expect(stageTone([photo, { kind: 'art', art: 'bowl', tone: '#E89A2C', model: 'bagbeef' }])).toBe('#E89A2C');
   });
 
+  it('carries a scanned model that draws in place of the drawn one', () => {
+    expect(stageOf([{ kind: 'art', art: 'bowl', tone: '#E89A2C', model: 'bagchicken', scan: '/api/assets/models/bag.glb' }])).toEqual({
+      art: 'bagchicken',
+      tone: '#E89A2C',
+      scan: '/api/assets/models/bag.glb',
+    });
+  });
+
   it('has no stage for art without a model, or for a model it does not know', () => {
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A' }])).toBeNull();
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'teapot' }])).toBeNull();

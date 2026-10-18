@@ -20,8 +20,18 @@ export interface ImageItem {
   assetId?: string;
 }
 
+export interface ArtItem {
+  kind: 'art';
+  art: ArtKind;
+  tone: string;
+  /** Which 3D model draws this art, when the art kind alone is ambiguous. */
+  model?: string;
+  /** A scanned or modelled dish (a `.glb` file) drawn in place of the model once it has loaded; the model stands in until then. */
+  scan?: string;
+}
+
 export type MediaItem =
-  | { kind: 'art'; art: ArtKind; tone: string; /** Which 3D model draws this art, when the art kind alone is ambiguous. */ model?: string }
+  | ArtItem
   | ImageItem
   | { kind: 'video'; url: string; poster: string }
   | { kind: 'model3d'; url: string; poster: string };
@@ -79,7 +89,8 @@ export function parseMedia(raw: unknown): MediaItem[] {
     if (v.kind === 'art') {
       if ((ART_KINDS as readonly unknown[]).includes(v.art) && typeof v.tone === 'string' && /^#[0-9a-fA-F]{6}$/.test(v.tone)) {
         const model = typeof v.model === 'string' && /^[a-z]{2,24}$/.test(v.model) ? v.model : undefined;
-        items.push({ kind: 'art', art: v.art as ArtKind, tone: v.tone, ...(model ? { model } : {}) });
+        const scan = isSafeMediaUrl(v.scan) && /\.glb$/i.test(v.scan.split(/[?#]/)[0]!) ? v.scan : undefined;
+        items.push({ kind: 'art', art: v.art as ArtKind, tone: v.tone, ...(model ? { model } : {}), ...(scan ? { scan } : {}) });
       }
     } else if (v.kind === 'image') {
       if (isSafeMediaUrl(v.url) && typeof v.alt === 'string' && Number.isFinite(v.width) && Number.isFinite(v.height)) {

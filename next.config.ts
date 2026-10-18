@@ -18,6 +18,8 @@ const config: NextConfig = {
       './node_modules/@fontsource-variable/noto-sans-arabic/files/noto-sans-arabic-arabic-wght-normal.woff2',
       './node_modules/@fontsource-variable/hanken-grotesk/files/hanken-grotesk-latin-wght-normal.woff2',
     ],
+    // The 3D models are read from disk by their route (src/app/api/assets/models/[file]/route.ts).
+    '/api/assets/models/[file]': ['./src/assets/models/*.glb'],
   },
   experimental: {
     // Turbopack's production chunker merges chunks smaller than this (unminified bytes; the default is 50,000). With the

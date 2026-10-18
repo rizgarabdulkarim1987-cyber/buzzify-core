@@ -9,6 +9,7 @@ import {
   createActivity,
   markBusy,
   needsFullRate,
+  swayYaw,
   type StageActivity,
   type StageControls,
 } from './controls';
@@ -30,6 +31,8 @@ export interface StageCanvasProps {
   variant: 'hero' | 'sheet';
   /** Which model is drawn; it decides the plinth size and the camera angle. */
   model: StageArt;
+  /** A scanned dish drawn in place of the model once loaded. Only its front is made well, so it sways rather than turns. */
+  scan?: string;
   controls: RefObject<StageControls>;
   /** Called once, after the first frames have been drawn. */
   onReady: () => void;
@@ -60,6 +63,7 @@ function Rig({
   variant,
   model,
   idleTurn,
+  sway,
   controls,
   children,
 }: {
@@ -67,13 +71,19 @@ function Rig({
   variant: 'hero' | 'sheet';
   model: StageArt;
   idleTurn: boolean;
+  /** Rock to and fro around the front instead of turning all the way round. */
+  sway: boolean;
   controls: RefObject<StageControls>;
   children: React.ReactNode;
 }) {
   const spin = useRef<Group>(null);
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
-    if (spin.current) spin.current.rotation.y = advanceTurn(controls.current, dt, idleTurn);
+    if (spin.current) {
+      spin.current.rotation.y = sway
+        ? advanceTurn(controls.current, dt, false) + (idleTurn ? swayYaw(state.clock.elapsedTime) : 0)
+        : advanceTurn(controls.current, dt, idleTurn);
+    }
     // Fit the plinth to the frame's width and the model to its height, whichever needs more room.
     const framing = FRAMING[model];
     const half = Math.tan((FOV * Math.PI) / 360);
@@ -136,6 +146,7 @@ function Scene({
   idleTurn,
   variant,
   model,
+  scan,
   controls,
   onReady,
 }: Omit<StageCanvasProps, 'paused' | 'onFailure'>) {
@@ -179,7 +190,7 @@ function Scene({
       />
       <directionalLight position={[-3.2, 2.2, -3]} intensity={0.9} color="#d6bc8a" />
       <Plinth radius={framing.plinth} />
-      <Rig height={height} variant={variant} model={model} idleTurn={idleTurn} controls={controls}>
+      <Rig height={height} variant={variant} model={model} idleTurn={idleTurn} sway={Boolean(scan)} controls={controls}>
         <DishModel
           art={model}
           layers={layers}
@@ -189,6 +200,7 @@ function Scene({
           ambient={idleTurn}
           crema={crema}
           dots={dots}
+          {...(scan ? { scan } : {})}
         />
       </Rig>
       <FrameDriver controls={controls} activity={activity} />

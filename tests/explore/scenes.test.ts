@@ -76,6 +76,13 @@ describe('buildScenes', () => {
     ] as MenuProductView['media'];
     const scenes = buildScenes(view([product({ id: 'bag', categoryId: 'c2', isSignature: true, media })]));
     expect(scenes.map((s) => s.art)).toEqual(['bagchicken']);
+    expect(scenes[0]?.scan).toBeUndefined();
+  });
+
+  it('passes a scanned model on to the scene', () => {
+    const media = [{ kind: 'art', art: 'bowl', tone: '#e89a2c', model: 'bagchicken', scan: '/api/assets/models/bag.glb' }] as MenuProductView['media'];
+    const scenes = buildScenes(view([product({ id: 'bag', categoryId: 'c2', isSignature: true, media })]));
+    expect(scenes[0]?.scan).toBe('/api/assets/models/bag.glb');
   });
 
   it('takes the first signature of a category and ignores sold-out dishes that cannot be ordered', () => {

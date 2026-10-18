@@ -77,6 +77,22 @@ describe('stage models', () => {
     expect(audit.filter((a) => a.action === 'menu.published')).toHaveLength(1);
   });
 
+  it('names a scanned model on the art, and adds one to art that has none yet', async () => {
+    const { menuId } = await bagShop();
+    await applyStageModels(prisma, await planStageModels(prisma, 'bags', RULES), { now: new Date() });
+    const scan = '/api/assets/models/bag-1a2b.glb';
+    const plan = await planStageModels(prisma, 'bags', [{ category: 'chicken', model: 'bagchicken', scan }]);
+    expect(plan.products.filter((p) => p.setScan).map((p) => p.slug).sort()).toEqual(['c-0', 'c-1', 'c-2', 'c-3']);
+    expect(plan.products.some((p) => p.addModel)).toBe(false);
+    await applyStageModels(prisma, plan, { now: new Date() });
+
+    const small = await prisma.product.findFirstOrThrow({ where: { menuId, slug: 'c-0' } });
+    expect(small.media).toEqual([PHOTO, { kind: 'art', art: 'bowl', tone: '#F0A13A', model: 'bagchicken', scan }]);
+    expect(small.isSignature).toBe(true);
+    const beef = await prisma.product.findFirstOrThrow({ where: { menuId, slug: 'm-0' } });
+    expect(JSON.stringify(beef.media)).not.toContain('scan');
+  });
+
   it('adds nothing a second time', async () => {
     await bagShop();
     await applyStageModels(prisma, await planStageModels(prisma, 'bags', RULES), { now: new Date() });

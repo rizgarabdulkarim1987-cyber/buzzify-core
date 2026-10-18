@@ -10,6 +10,7 @@ import {
   createActivity,
   markBusy,
   needsFullRate,
+  swayYaw,
   type StageActivity,
   type StageControls,
 } from '@/ui/stage/controls';
@@ -17,10 +18,11 @@ import { DishModel, ParticleField } from '@/ui/stage/DishModel';
 import { cremaTexture, softDotTexture } from '@/ui/stage/materials';
 import { Plinth } from '@/ui/stage/Plinth';
 import { FRAMING } from '@/ui/stage/StageCanvas';
+import { loadScan, scanFitFor, scanIfLoaded } from '@/ui/stage/scan';
 import { installStudio } from '@/ui/stage/studio';
 import { cameraHeight, fitStage, lookHeight } from './framing';
 import { GrainField, type GrainState } from './GrainField';
-import { sampleDish, type GrainCloud } from './grains';
+import { sampleDish, sampleSurface, type GrainCloud } from './grains';
 import { morphState } from './morph';
 import type { ExploreScene } from './scenes';
 
@@ -79,13 +81,16 @@ function smokeCloud(count: number): GrainCloud {
 }
 
 const unitOf = (scene: ExploreScene) => PLINTH / FRAMING[scene.art].plinth;
-const keyOf = (scene: ExploreScene, layers: Layer[]) => `${scene.id}:${layers.map((layer) => layer.key).join(',')}`;
+const keyOf = (scene: ExploreScene, layers: Layer[], scanned: boolean) =>
+  `${scene.id}:${scanned ? 'scan' : layers.map((layer) => layer.key).join(',')}`;
 
+/** A dish's grains: over its scan once that has loaded, over its drawn layers until then. */
 function cloudFor(cache: Map<string, GrainCloud>, scene: ExploreScene, layers: Layer[]): GrainCloud {
-  const key = keyOf(scene, layers);
+  const scan = scene.scan ? scanIfLoaded(scene.scan) : null;
+  const key = keyOf(scene, layers, scan !== null);
   const cached = cache.get(key);
   if (cached) return cached;
-  const cloud = sampleDish(scene.art, layers, scene.tone, GRAINS);
+  const cloud = scan ? sampleSurface(scan.surface, GRAINS, scan.colourAt) : sampleDish(scene.art, layers, scene.tone, GRAINS);
   const unit = unitOf(scene);
   for (let i = 0; i < cloud.positions.length; i++) cloud.positions[i] = cloud.positions[i]! * unit;
   cache.set(key, cloud);
@@ -108,7 +113,7 @@ interface StageFrame {
   solids: Array<Group | null>;
   anchors: Array<Map<string, Object3D>>;
   explodes: Array<{ current: number }>;
-  memory: { idle: number; user: number; introStart: number; lastResting: number | null; frames: number };
+  memory: { idle: number; user: number; sway: number; introStart: number; lastResting: number | null; frames: number };
   grains: GrainState;
   cache: Map<string, GrainCloud>;
   smoke: GrainCloud;
@@ -170,7 +175,12 @@ function stepStage(frame: StageFrame): void {
   // The turntable: a slow idle turn plus whatever the guest's drag adds. Pulled apart, it steps left
   // and shrinks a little so the labels fit on the right.
   memory.idle += reduced ? 0 : dt * 0.16;
-  turntable.rotation.y = memory.idle + controls.yaw;
+  // A scanned dish only has a good front: it rocks around it instead, blended in and out so nothing jumps.
+  const swaying = scenes[resting ?? morph.to]?.scan ? 1 : 0;
+  memory.sway += (swaying - memory.sway) * (1 - Math.exp(-2.5 * dt));
+  const rock = reduced ? 0 : swayYaw(time);
+  const toFront = Math.atan2(Math.sin(rock - memory.idle), Math.cos(rock - memory.idle));
+  turntable.rotation.y = memory.idle + toFront * memory.sway + controls.yaw;
   turntable.position.x = -0.5 * memory.user;
   turntable.scale.setScalar(1 - 0.22 * memory.user);
 
@@ -235,6 +245,7 @@ function SolidScene({
         crema={crema}
         dots={dots}
         register={register}
+        {...(scene.scan ? { scan: scene.scan } : {})}
       />
     </group>
   );
@@ -392,7 +403,7 @@ function Stage({
   const solids = useRef<Array<Group | null>>([]);
   const [anchors] = useState(() => scenes.map(() => new Map<string, Object3D>()));
   const [explodes] = useState(() => scenes.map(() => ({ current: 0 })));
-  const memory = useRef({ idle: 0, user: 0, introStart: -1, lastResting: null as number | null, frames: 0 });
+  const memory = useRef({ idle: 0, user: 0, sway: 0, introStart: -1, lastResting: null as number | null, frames: 0 });
   const grains = useRef<GrainState>({ from: null, to: null, mix: 0, visible: false });
   const [cache] = useState(() => new Map<string, GrainCloud>());
   const [smoke] = useState(() => smokeCloud(GRAINS));
@@ -421,6 +432,14 @@ function Stage({
     const at = (i: number) => heights[i]!.whole + (heights[i]!.apart - heights[i]!.whole) * (i === morph.resting ? user : 0);
     return at(morph.from) + (at(morph.to) - at(morph.from)) * morph.t;
   }, [heights, progress, scenes.length]);
+
+  // Fetch the scans at once: until one arrives its drawn model and grains stand in, and a melt picks the scan's grains
+  // up on its next frame.
+  useEffect(() => {
+    scenes.forEach((scene, i) => {
+      if (scene.scan) void loadScan(scene.scan, scanFitFor(layerSets[i]!)).catch(() => undefined);
+    });
+  }, [scenes, layerSets]);
 
   // Sample every dish's grains while the page is idle, so a melt never waits for them.
   useEffect(() => {

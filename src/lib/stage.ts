@@ -20,12 +20,12 @@ const DEFAULT_MODEL: Partial<Record<string, StageArt>> = { burger: 'burger', cup
  * The model and colour when a product's media can be shown as a 3D stage, otherwise null. The first art entry
  * decides, wherever it sits: a photo can come first, so it stays the product's picture while the art draws the stage.
  */
-export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone: string } | null {
+export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone: string; scan?: string } | null {
   const first = media.find((item): item is Extract<MediaItem, { kind: 'art' }> => item.kind === 'art');
   if (!first) return null;
   const named = first.model && isStageArt(first.model) ? first.model : undefined;
   const art = named ?? DEFAULT_MODEL[first.art];
-  return art ? { art, tone: first.tone } : null;
+  return art ? { art, tone: first.tone, ...(first.scan ? { scan: first.scan } : {}) } : null;
 }
 
 /** The art colour when a product's media can be shown as a 3D stage, otherwise null. */

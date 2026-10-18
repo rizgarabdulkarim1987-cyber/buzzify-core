@@ -200,7 +200,8 @@ function ScenePanel({
   );
   const canAdd = product.orderState === 'OK' && !product.needsChoices;
   const titleId = `${scene.id}-title`;
-  const hasParts = scene.art !== 'croissant';
+  // A croissant is one piece, and a scan is one mesh: neither comes apart.
+  const hasParts = scene.art !== 'croissant' && !scene.scan;
 
   return (
     <motion.section

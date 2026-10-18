@@ -16,6 +16,8 @@ export interface StageModelRule {
   /** The category's slug or name in any language; a part of one, when only one category has it. */
   category: string;
   model: StageArt;
+  /** A scanned dish to draw in place of the model (`/api/assets/models/<file>.glb`). */
+  scan?: string;
   /** The product to make the category's signature: its slug or name in any language. */
   signature?: string;
 }
@@ -32,6 +34,8 @@ export interface StageModelPlan {
     category: string;
     model: StageArt;
     addModel: boolean;
+    /** The scan to name on the model's art entry, when it names another or none. */
+    setScan: string | null;
     media: unknown[];
     signature: { before: boolean; after: boolean };
   }>;
@@ -93,14 +97,17 @@ export async function planStageModels(prisma: PrismaClient, slug: string, rules:
 
     for (const product of inCategory) {
       const media = Array.isArray(product.media) ? (product.media as unknown[]) : [];
-      const has = media.some((item) => (item as { kind?: unknown; model?: unknown })?.kind === 'art' && (item as { model?: unknown }).model === rule.model);
+      const art = media.find((item) => (item as { kind?: unknown })?.kind === 'art' && (item as { model?: unknown }).model === rule.model) as
+        | { scan?: unknown }
+        | undefined;
       plan.push({
         id: product.id,
         slug: product.slug,
         name: nameOf(product.translations, product.slug),
         category: label,
         model: rule.model,
-        addModel: !has,
+        addModel: !art,
+        setScan: rule.scan && art?.scan !== rule.scan ? rule.scan : null,
         media,
         signature: { before: product.isSignature, after: product.id === signatureId ? true : product.isSignature },
       });
@@ -127,15 +134,23 @@ export async function applyStageModels(
   return prisma.$transaction(async (tx) => {
     const before = await tx.menu.findUniqueOrThrow({ where: { id: plan.menuId }, select: { liveRevision: { select: { number: true } } } });
     for (const product of plan.products) {
-      if (!product.addModel && product.signature.before === product.signature.after) continue;
-      const entry = { kind: 'art', art: ART[product.model].art, tone: ART[product.model].tone, model: product.model };
-      const media = product.addModel ? [...product.media, entry] : product.media;
+      if (!product.addModel && !product.setScan && product.signature.before === product.signature.after) continue;
+      const scan = product.setScan ? { scan: product.setScan } : {};
+      const entry = { kind: 'art', art: ART[product.model].art, tone: ART[product.model].tone, model: product.model, ...scan };
+      const media = product.addModel
+        ? [...product.media, entry]
+        : product.media.map((item) =>
+            (item as { kind?: unknown; model?: unknown })?.kind === 'art' && (item as { model?: unknown }).model === product.model
+              ? { ...(item as object), ...scan }
+              : item,
+          );
       await tx.product.update({
         where: { id: product.id },
         data: { media: media as Prisma.InputJsonArray, isSignature: product.signature.after, version: { increment: 1 } },
       });
       const changes: Record<string, { before: unknown; after: unknown }> = {};
       if (product.addModel) changes.media = { before: product.media.length, after: media.length };
+      if (product.setScan) changes.scan = { before: null, after: product.setScan };
       if (product.signature.before !== product.signature.after) changes.isSignature = product.signature;
       await tx.auditLog.create({
         data: { restaurantId: plan.restaurantId, menuId: plan.menuId, action: 'product.updated', entityType: 'Product', entityId: product.id, changes: changes as Prisma.InputJsonObject },

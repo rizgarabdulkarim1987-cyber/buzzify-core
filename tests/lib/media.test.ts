@@ -17,6 +17,15 @@ describe('parseMedia', () => {
     ]);
   });
 
+  it('keeps a scanned model on art when it is a .glb at a safe address, and drops any other', () => {
+    const art = { kind: 'art', art: 'bowl', tone: '#F0A13A', model: 'bagchicken' };
+    expect(parseMedia([{ ...art, scan: '/api/assets/models/bag-1a2b.glb' }])).toEqual([{ ...art, scan: '/api/assets/models/bag-1a2b.glb' }]);
+    expect(parseMedia([{ ...art, scan: 'https://cdn.example.com/bag.glb' }])[0]).toHaveProperty('scan');
+    for (const scan of ['javascript:alert(1)', '//evil.example/bag.glb', '/api/assets/models/bag.png', 42]) {
+      expect(parseMedia([{ ...art, scan }]), String(scan)).toEqual([art]);
+    }
+  });
+
   it('accepts images with safe URLs', () => {
     const image = { kind: 'image', url: '/media/atelier/espresso.jpg', alt: 'Espresso', width: 800, height: 600 };
     expect(parseMedia([image])).toEqual([image]);

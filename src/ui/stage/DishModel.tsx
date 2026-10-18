@@ -18,6 +18,7 @@ import {
 } from 'three';
 import { explodeOffset, type Layer, type StageArt } from '@/lib/stage';
 import { isTransparentKind, LayerMaterial, renderOrderOf } from './materials';
+import { loadScan, scanFitFor, scanIfLoaded, type LoadedScan } from './scan';
 import {
   CUP_RIM,
   SAUCER_RIM,
@@ -267,6 +268,54 @@ function SauceDrips({ animate }: { animate: boolean }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// A scanned dish
+// ---------------------------------------------------------------------------------------------
+
+/** The scan once it has loaded, or null while the drawn model stands in. A failed load keeps the drawn model. */
+function useScan(url: string | undefined, layers: Layer[]): LoadedScan | null {
+  const [scan, setScan] = useState<LoadedScan | null>(() => (url ? scanIfLoaded(url) : null));
+  useEffect(() => {
+    if (!url) return;
+    let cancelled = false;
+    loadScan(url, scanFitFor(layers)).then(
+      (result) => {
+        if (!cancelled) setScan(result);
+      },
+      () => undefined,
+    );
+    return () => {
+      cancelled = true;
+    };
+    // The fit is taken from the layers the first time only, so a later change of layers does not reload the file.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [url]);
+  return url ? scan : null;
+}
+
+/** Draws a scan, dropping it in with a spring and a small squash the way a layer lands. */
+function ScanMesh({ scan, reveal }: { scan: LoadedScan; reveal: boolean }) {
+  const group = useRef<Group>(null);
+  const object = useMemo(() => scan.object.clone(), [scan]);
+  const motion = useRef({ y: reveal ? ENTER_HEIGHT * 0.6 : 0, velocity: 0 });
+  useFrame((_, delta) => {
+    const target = group.current;
+    if (!target) return;
+    const dt = Math.min(delta, 1 / 30);
+    const m = motion.current;
+    m.velocity += (-m.y * 170 - m.velocity * 16) * dt;
+    m.y += m.velocity * dt;
+    const squash = 1 - Math.min(0.08, Math.abs(m.velocity) * 0.012);
+    target.position.y = m.y;
+    target.scale.set(1 / Math.sqrt(squash), squash, 1 / Math.sqrt(squash));
+  });
+  return (
+    <group ref={group}>
+      <primitive object={object} />
+    </group>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
 // One layer
 // ---------------------------------------------------------------------------------------------
 
@@ -376,6 +425,8 @@ export interface DishModelProps {
   dots: CanvasTexture | null;
   /** Lets a caller find a layer in the scene, to pin a label to it. */
   register?: (key: string, object: Object3D | null) => void;
+  /** A scanned dish (`.glb`) drawn in place of the layers once loaded; the layers stand in until then. */
+  scan?: string;
 }
 
 /**
@@ -394,7 +445,9 @@ export function DishModel({
   crema,
   dots,
   register,
+  scan,
 }: DishModelProps) {
+  const scanned = useScan(scan, layers);
   const [items, setItems] = useState<Item[]>(() => initialItems(layers, reveal, stagger));
   const [seen, setSeen] = useState(layers);
   if (seen !== layers) {
@@ -413,18 +466,21 @@ export function DishModel({
 
   return (
     <group>
-      {items.map((item) => (
-        <LayerMesh
-          key={item.layer.key}
-          item={item}
-          tone={tone}
-          crema={crema}
-          offset={explodeOffset(art, layers, item.layer.key)}
-          explode={explode}
-          ambient={ambient}
-          register={register}
-        />
-      ))}
+      <group visible={!scanned}>
+        {items.map((item) => (
+          <LayerMesh
+            key={item.layer.key}
+            item={item}
+            tone={tone}
+            crema={crema}
+            offset={explodeOffset(art, layers, item.layer.key)}
+            explode={explode}
+            ambient={ambient}
+            register={register}
+          />
+        ))}
+      </group>
+      {scanned && <ScanMesh scan={scanned} reveal={reveal} />}
       {ambient && art === 'cup' && <Steam texture={dots} origin={[0, top + 0.05, 0]} />}
       {ambient && isBag(art) && <Steam texture={dots} origin={[0, top - 0.06, 0]} />}
       {ambient && art === 'glass' && <Bubbles texture={dots} origin={[0, 0, 0]} />}
