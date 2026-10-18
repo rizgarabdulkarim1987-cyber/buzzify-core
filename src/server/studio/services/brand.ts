@@ -5,6 +5,7 @@ import { DEFAULT_PALETTES, HEX, sanitizePalette, type Palette } from '@/lib/bran
 import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, isFontPairId, type FontPairId } from '@/lib/font-pairs';
 import { dominantColors, paletteProblems, suggestPalettes, type PaletteProblem } from '@/lib/palette';
 import { isRailStyle, RAIL_STYLES, type RailStyle } from '@/lib/rail';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
 import { MEDIA_MAX_BYTES } from '@/server/domain/media-type';
 import type { FeatureKey } from '@/server/domain/entitlements';
 import { brandChoiceLock, type BrandChoices, type Motion } from '@/server/domain/plan-choices';
@@ -16,6 +17,7 @@ import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
+import { PICTURE_KINDS } from '@/server/media/kinds';
 import { editDraft } from './draft-edit';
 import { thumbKey } from './media';
 import type { UpgradeInfo } from './plans';
@@ -117,7 +119,7 @@ export async function updateBrand(ctx: ActionContext, input: BrandInput): Promis
   const ids = [input.logoAssetId, input.logoDarkAssetId, faviconId].filter((id): id is string => id !== null);
   if (ids.length > 0) {
     const found = await ctx.db.mediaAsset.findMany({
-      where: { id: { in: ids }, OR: [{ restaurantId }, { restaurantId: null }] },
+      where: { id: { in: ids }, kind: { in: [...PICTURE_KINDS] }, OR: [{ restaurantId }, { restaurantId: null }] },
       select: { id: true, kind: true, restaurantId: true, contentHash: true, variants: true },
     });
     if (ids.some((id) => !found.some((asset) => asset.id === id))) throw new StudioError('NOT_FOUND');
@@ -209,6 +211,8 @@ export interface BrandKitView {
   motionIntensity: 'none' | 'subtle' | 'expressive';
   logoText: string;
   restaurantId: string;
+  /** The template the menu is drawn with, by name; its colours, type and motion are then the Design tab's. */
+  templateName: string | null;
 }
 
 /** What the restaurant's plan offers the Brand tab, and what guests get in place of a stored choice it does not include. */
@@ -250,6 +254,7 @@ export async function brandKit(db: PrismaClient, menuId: string, restaurantId: s
     motionIntensity: motion,
     logoText: row?.logoText ?? menu.restaurant.name,
     restaurantId,
+    templateName: row && isTemplateId(row.templateId) ? TEMPLATES[row.templateId].name : null,
   };
 }
 

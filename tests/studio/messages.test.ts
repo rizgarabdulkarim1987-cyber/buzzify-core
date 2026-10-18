@@ -132,6 +132,7 @@ describe('server texts', () => {
     'A media action ran without a restaurant',
     'A menu action ran without its restaurant’s plan',
     'The brand kit is saved on a menu, whose restaurant has a plan',
+    'A design is saved on a menu, whose restaurant has a plan',
     'An audit entry names a restaurant other than its target',
     'Super Admin',
   ]);

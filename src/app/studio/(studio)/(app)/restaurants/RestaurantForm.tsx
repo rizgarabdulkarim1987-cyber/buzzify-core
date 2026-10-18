@@ -37,6 +37,7 @@ export interface ProfileValues {
   country: string;
   phone: string;
   whatsapp: string;
+  mapUrl: string;
   socialLinks: SocialLinks;
   workingHours: WorkingHours;
   /** Null when the person may not see the agency's notes. */
@@ -52,15 +53,16 @@ const BLANK: ProfileValues = {
   country: '',
   phone: '',
   whatsapp: '',
+  mapUrl: '',
   socialLinks: { instagram: '', facebook: '', tiktok: '', website: '' },
   workingHours: emptyWorkingHours(),
   notes: '',
 };
 
-const TEXT_FIELDS = ['name', 'type', 'description', 'address', 'city', 'country', 'phone', 'whatsapp', 'notes', 'workingHours'] as const;
+const TEXT_FIELDS = ['name', 'type', 'description', 'address', 'city', 'country', 'phone', 'whatsapp', 'mapUrl', 'notes', 'workingHours'] as const;
 const LINK_FIELDS = SOCIAL_NETWORKS.map((network) => `socialLinks.${network}`);
 const KEPT = [...TEXT_FIELDS, ...LINK_FIELDS];
-const FIELD_ORDER = ['name', 'type', 'description', 'address', 'city', 'country', 'phone', 'whatsapp', ...LINK_FIELDS, 'workingHours', 'notes'];
+const FIELD_ORDER = ['name', 'type', 'description', 'address', 'city', 'country', 'mapUrl', 'phone', 'whatsapp', ...LINK_FIELDS, 'workingHours', 'notes'];
 
 /** The profile a form's values make, in the shape the actions take. Notes go only when the person may write them. */
 function profileOf(values: FormValues, withNotes: boolean) {
@@ -73,6 +75,7 @@ function profileOf(values: FormValues, withNotes: boolean) {
     country: values.country ?? '',
     phone: values.phone ?? '',
     whatsapp: values.whatsapp ?? '',
+    mapUrl: values.mapUrl ?? '',
     socialLinks: Object.fromEntries(SOCIAL_NETWORKS.map((network) => [network, values[`socialLinks.${network}`] ?? ''])),
     workingHours: parseHours(values.workingHours),
     ...(withNotes ? { notes: values.notes ?? '' } : {}),
@@ -138,6 +141,9 @@ function ProfileFields({ form, initial, withNotes }: { form: ActionForm<unknown>
             <Input name="country" autoComplete="off" defaultValue={kept('country', initial.country)} />
           </Field>
         </div>
+        <Field label={t('restaurants.form.mapUrl')} hint={t('restaurants.form.mapUrlHint')} optional error={form.fieldError('mapUrl')}>
+          <Input name="mapUrl" type="url" dir="ltr" className="rtl:text-right" autoComplete="off" placeholder="https://maps.google.com/…" defaultValue={kept('mapUrl', initial.mapUrl)} />
+        </Field>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label={t('restaurants.form.phone')} optional error={form.fieldError('phone')}>
             <Input name="phone" type="tel" dir="ltr" className="rtl:text-right" autoComplete="off" defaultValue={kept('phone', initial.phone)} />

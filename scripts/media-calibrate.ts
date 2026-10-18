@@ -56,7 +56,7 @@ async function main(): Promise<void> {
     const stored = result.asset.files.reduce((sum, file) => sum + file.body.length, 0);
     console.log(`${name}: upload ${KB(bytes.length)}, before ${KB(await legacyBytes(bytes))}, now ${KB(stored)} in ${seconds} s`);
     for (const file of result.asset.files) {
-      const width = file.variant === 'original' ? result.asset.width : Number(file.variant.split('-')[1]);
+      const width = file.variant === 'original' ? result.asset.width! : Number(file.variant.split('-')[1]);
       console.log(`  ${file.variant.padEnd(10)} ${KB(file.body.length).padStart(8)}  ${(await similarity(bytes, file.body, width)).toFixed(4)}`);
     }
   }

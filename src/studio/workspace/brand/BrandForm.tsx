@@ -1,6 +1,7 @@
 'use client';
 
 import { Images, RotateCw, Sparkles, Trash2, Upload } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
@@ -284,6 +285,19 @@ export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView &
           </fieldset>
         </Section>
 
+        {kit.templateName && (
+          <Section id="brand-template" title={t('brand.template.title')}>
+            <Alert tone="neutral">
+              <span className="flex flex-col gap-2">
+                <span>{t('brand.template.body', { name: kit.templateName })}</span>
+                <Link href={`/studio/menus/${menuId}/design`} className="w-fit font-medium underline underline-offset-2">
+                  {t('brand.template.open')}
+                </Link>
+              </span>
+            </Alert>
+          </Section>
+        )}
+        <div hidden={kit.templateName !== null} className="contents">
         <Section id="brand-colours" title={t('brand.colours')} intro={t('brand.coloursIntro')}>
           <div role="radiogroup" aria-label={t('brand.theme')} className="flex gap-4">
             {(['light', 'dark'] as const).map((value) => (
@@ -365,6 +379,7 @@ export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView &
           )}
           {motionLock && <UpgradeHint feature={motionLock} info={plan.upgrade} />}
         </Section>
+        </div>
 
         <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-line bg-bg py-3">
           {failure && (

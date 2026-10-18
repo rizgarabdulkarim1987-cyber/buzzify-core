@@ -58,6 +58,8 @@ export interface MenuProductView {
   needsChoices: boolean;
   orderState: Orderability;
   isSignature: boolean;
+  /** Set only when the restaurant featured it; template heroes show featured products first. */
+  featured?: true;
   media: MediaItem[];
   // Each of these is left out when empty: every product of every menu page carries its view, and the menu page has to
   // arrive in the first round trip (docs/perf), so nothing is sent for what a product does not have.
@@ -217,6 +219,7 @@ export function buildMenuView(catalog: Catalog, tenant: TenantInfo, locale: Loca
         needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),
         orderState: orderability(product, current),
         isSignature: product.isSignature,
+        ...(product.isFeatured ? { featured: true as const } : {}),
         media: localizeMedia(parseMedia(product.media), locale),
         ...productTags(product),
         allergens: product.allergens,

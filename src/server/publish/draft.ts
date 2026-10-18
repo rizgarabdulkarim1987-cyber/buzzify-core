@@ -3,14 +3,18 @@ import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
 import { isLocale, type Locale } from '@/lib/locale';
 import { DEFAULT_FONT_PAIR, isFontPairId } from '@/lib/font-pairs';
 import { isRailStyle, resolveRailStyle } from '@/lib/rail';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
+import { parseOverrides, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { slotOf, type SnapshotMotion } from '@/server/domain/menu-motions';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import { SCENE_KINDS } from '@/server/media/kinds';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
+import { sceneMediaOf } from '@/server/media/scene';
 import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -70,7 +74,6 @@ function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
   };
 }
 
-/** The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. */
 /** The library assets a brand kit names: its logos, and the asset its favicon is drawn from. */
 function brandAssetIds(brand: BrandConfig | null): string[] {
   if (!brand) return [];
@@ -96,11 +99,19 @@ function brandFavicon(asset: ResolvableAsset | undefined, mediaUrl: (key: string
  * The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. The
  * fields the 2b kit added are left out when unused (the classic pair, no logo), so such a menu hashes as before.
  */
+/** The restaurant's side of a template menu: the details it may show, and whether it shows Powered by Buzzify. */
+export interface DesignContext {
+  details: RestaurantDetails;
+  showPoweredBy: boolean;
+}
+
 function brandView(
   brand: BrandConfig | null,
   displayName: string,
   assets: ReadonlyMap<string, ResolvableAsset> = new Map(),
   mediaUrl: (key: string) => string = (key) => key,
+  context: DesignContext | null = null,
+  scenes: ReadonlyMap<string, ResolvableAsset> = new Map(),
 ): BrandView {
   const tokens = (brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const motionIntensity =
@@ -126,7 +137,28 @@ function brandView(
   const faviconId = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
   const favicon = brandFavicon(faviconId ? assets.get(faviconId) : undefined, mediaUrl);
   if (favicon) view.favicon = favicon;
+  // A template menu: its preset with the business's overrides, frozen here so later changes to the preset never reach a
+  // published revision. The kit's own palette and fonts are kept as they are for the classic menu.
+  if (isTemplateId(brand.templateId)) {
+    const overrides = parseOverrides(brand.design);
+    view.design = resolveDesign(TEMPLATES[brand.templateId], overrides, {
+      details: context?.details ?? null,
+      poweredBy: context?.showPoweredBy ?? true,
+      ...(brand.customTemplateId ? { customTemplateId: brand.customTemplateId } : {}),
+    });
+    // A scene file the restaurant can no longer use is left out: the menu then shows its template's own scene.
+    const scene = overrides.sceneAsset ? scenes.get(overrides.sceneAsset.assetId) : undefined;
+    const media = scene ? sceneMediaOf(scene, mediaUrl, overrides.sceneAsset?.framing) : null;
+    if (media) view.design.media = media;
+  }
   return view;
+}
+
+/** The scene file a brand kit's design names, when the menu is drawn with a template. */
+function sceneAssetIds(brand: BrandConfig | null): string[] {
+  if (!brand || !isTemplateId(brand.templateId)) return [];
+  const choice = parseOverrides(brand.design).sceneAsset;
+  return choice ? [choice.assetId] : [];
 }
 
 /**
@@ -148,7 +180,18 @@ export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<st
     logoDarkAssetId: mapped(brand.logoDark?.assetId),
     faviconAssetId: fromLogo ? null : mapped(brand.favicon?.assetId),
     faviconFromLogo: fromLogo,
+    templateId: brand.design?.templateId ?? null,
+    design: json(brand.design ? designFromSnapshot(brand.design.source.overrides, assetMap) : {}),
+    customTemplateId: brand.design?.source.customTemplateId ?? null,
   };
+}
+
+/** A snapshot's stored overrides, its scene file renamed through `assetMap` when the file was copied. */
+function designFromSnapshot(stored: unknown, assetMap?: ReadonlyMap<string, string>) {
+  const overrides = parseOverrides(stored);
+  const scene = overrides.sceneAsset;
+  if (scene && assetMap?.has(scene.assetId)) overrides.sceneAsset = { ...scene, assetId: assetMap.get(scene.assetId)! };
+  return overrides;
 }
 
 /** A placement row as the snapshot's builder reads it: the place comes from the slot, which the service writes with it. */
@@ -178,30 +221,42 @@ export function loadDraftSnapshot(db: ScopedDb, menuId: string): Promise<MenuSna
 export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string): Promise<MenuSnapshot> {
   const db = delegates(client);
   // One query at a time: inside a transaction they share one connection.
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, include: { restaurant: { select: { name: true } } } });
+  const menu = await db.menu.findUniqueOrThrow({
+    where: { id: menuId },
+    include: {
+      restaurant: {
+        select: { name: true, address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true },
+      },
+    },
+  });
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
   const motions = await db.menuMotion.findMany({ where: { menuId }, select: { slot: true, categoryId: true, motionId: true, params: true, texts: true } });
   const displayName = menu.restaurant.name;
   const settings = snapshotMenu(menu, displayName);
+  const { showPoweredBy, ...details } = menu.restaurant;
+  const context: DesignContext = { details, showPoweredBy };
 
   // Library photos become the URLs guests load, so the revision never needs the library again.
   const seo = seoMap(menu.seo);
   const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
   const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
   const brandAssets = brandAssetIds(brand);
-  if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
+  const sceneAssets = sceneAssetIds(brand);
+  if (productAssets.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
-    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog, motions: motions.map(motionFromRow) });
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog, motions: motions.map(motionFromRow) });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
+  // Scene files apart from pictures, so a photo, logo or search image can never resolve to one.
+  const scenes = await loadAssets(db, menu.restaurantId, sceneAssets, SCENE_KINDS);
   const mediaUrl = (key: string) => getStorage().publicUrl(key);
   catalog.products = catalog.products.map((product) => ({
     ...product,
     media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog, motions: motions.map(motionFromRow) });
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog, motions: motions.map(motionFromRow) });
 }
 
 /**

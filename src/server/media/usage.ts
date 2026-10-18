@@ -2,9 +2,17 @@ import type { Prisma } from '@/generated/prisma/client';
 import { isLocale, LOCALES } from '@/lib/locale';
 import type { AnyDb } from '@/server/data/tenant-db';
 
-/** Where an asset is used: menus whose draft shows it, and revisions that show it to guests (or once did). */
+/**
+ * Where an asset is used: menus whose draft shows it, saved designs that would bring it back, and revisions that show it
+ * to guests (or once did).
+ */
 export interface AssetUsage {
-  drafts: Array<{ menuId: string; menuName: string; where: 'product' | 'logo' | 'logoDark' | 'favicon' | 'seo' | 'restaurant'; label: string }>;
+  drafts: Array<{
+    menuId: string;
+    menuName: string;
+    where: 'product' | 'logo' | 'logoDark' | 'favicon' | 'seo' | 'restaurant' | 'scene' | 'savedDesign';
+    label: string;
+  }>;
   revisions: Array<{ menuId: string; menuName: string; number: number }>;
 }
 
@@ -52,6 +60,20 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
     select: { name: true },
     orderBy: [{ name: 'asc' }],
   });
+  // A template menu's background, and the saved designs that carry it (a restaurant's own, or shared ones).
+  const sceneKits = await db.brandConfig.findMany({
+    where: { menu: menuFilter, design: { path: ['sceneAsset', 'assetId'], equals: asset.id } },
+    select: { menuId: true, menu: { select: { name: true } } },
+    orderBy: [{ menu: { name: 'asc' } }],
+  });
+  const savedDesigns = await db.designTemplate.findMany({
+    where: {
+      overrides: { path: ['sceneAsset', 'assetId'], equals: asset.id },
+      ...(asset.restaurantId === null ? {} : { restaurantId: asset.restaurantId }),
+    },
+    select: { name: true },
+    orderBy: [{ name: 'asc' }, { id: 'asc' }],
+  });
   const revisions = await db.menuRevision.findMany({
     where: { menu: menuFilter, assetIds: { has: asset.id } },
     select: { number: true, menuId: true, menu: { select: { name: true } } },
@@ -76,8 +98,10 @@ export async function assetUsage(db: AnyDb, asset: { id: string; restaurantId: s
           .filter(([id]) => id === asset.id)
           .map(([, where]) => ({ menuId: kit.menuId, menuName: kit.menu.name, where, label: kit.menu.name })),
       ),
-      // A restaurant is not a menu: its entries have no menu id.
+      ...sceneKits.map((kit) => ({ menuId: kit.menuId, menuName: kit.menu.name, where: 'scene' as const, label: kit.menu.name })),
+      // A restaurant or a saved design is not a menu: their entries have no menu id.
       ...restaurants.map((restaurant) => ({ menuId: '', menuName: restaurant.name, where: 'restaurant' as const, label: restaurant.name })),
+      ...savedDesigns.map((saved) => ({ menuId: '', menuName: saved.name, where: 'savedDesign' as const, label: saved.name })),
     ],
     revisions: revisions.map((revision) => ({ menuId: revision.menuId, menuName: revision.menu.name, number: revision.number })),
   };

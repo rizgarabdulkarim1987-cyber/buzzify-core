@@ -17,6 +17,9 @@ Sorani-first burger place priced in dinars).
 - Product detail with options, sizes, live totals, upgrades and Perfect Pairing
 - Server-priced cart with set (bundle) conversion that only shows real savings
 - Stale-item handling, per-table carts and a read-only order review
+- **Template menus:** a menu can be drawn with one of 30 template presets (10 restaurant, 8 café, 7 bakery, 5 ice
+  cream), each with its own layout, palette, type and a background scene that is still, moving or real 3D. See
+  [Template Studio](#template-studio). A menu without a template keeps the classic layout exactly
 - English, Arabic and Sorani with right-to-left layout
 - Stable addresses: `/{address}` opens a menu, and an address that was changed keeps redirecting to the new one
 - Only what has been published is shown. Guests never see a draft
@@ -37,6 +40,10 @@ Sorani-first burger place priced in dinars).
     in each language, price, sizes, option groups, pictures, ingredients, allergens, dietary tags and badges
   - **Prices:** every price in one grid, and bulk changes by a percentage or an amount with rounding, previewed first
   - **Availability:** sold out and hidden, live for guests at once without a publish
+  - **Design:** the template gallery (filters by business, style and mode; thumbnails), a live preview on a phone, a
+    tablet or a desktop in each language, apply, duplicate, customize (curated palettes and colours checked for
+    contrast, fonts, layout, motion, featured products, the offer, business details, ordering), reset, and designs
+    saved for reuse
   - **Brand:** palettes checked for contrast as you pick them, presets, logos (light and dark), a favicon, six font pairs
     and the rail and motion styles, with a live sample
   - **Settings:** languages, currency (prices converted), rounding step, time zone, SEO texts and image
@@ -165,9 +172,11 @@ every environment variable, the first deploy, creating the first Super Admin, a 
 | `npm run perf` | Lighthouse mobile baseline into `docs/perf/` (needs `build` and `start`) |
 | `npm run db:up` / `db:down` / `db:status` | Embedded PostgreSQL |
 | `npm run db:migrate` / `db:deploy` | Create and apply migrations in development / apply the existing ones |
-| `npm run db:seed` | Reseeds the demo menus `atelier`, `riverlight` and `hot-brick` (each keeps its restaurant and gets its menu replaced, published as revision 1). With `DEV_SEED_PASSWORD` set it also creates the development users above (only on a local database, never in production; a loopback tunnel to a remote database cannot be detected, so do not run it with one open) |
+| `npm run db:seed` | Reseeds the demo menus `atelier`, `riverlight`, `hot-brick`, and the template demos `maison-demo` (bakery), `onda-demo` (gelateria) and `noor-demo` (restaurant), each named "(Demo)" and showing a "Demonstration menu" card. `npx tsx prisma/seed.ts --only=maison-demo,onda-demo` seeds just those and leaves the other menus alone (each keeps its restaurant and gets its menu replaced, published as revision 1). With `DEV_SEED_PASSWORD` set it also creates the development users above (only on a local database, never in production; a loopback tunnel to a remote database cannot be detected, so do not run it with one open) |
 | `npm run db:seed:load` | Opt-in tooling, local databases only: adds load-test restaurants with a published menu each (1,000 of them, a sizing assumption for the Studio’s lists, not data you need) and 20,000 audit rows, replacing its earlier run |
 | `npm run studio:create-admin` | Creates the first Super Admin: asks for a name, email and password in the terminal (never shown, never stored in the clear), and refuses when one exists unless `--force` is given. It prints which database it will change before it asks anything |
+| `npm run studio:template -- <address> <template|classic> [--apply]` | Draws a menu with a template preset (or back to classic) and republishes it; without `--apply` it only says what it would do, and it refuses a menu with unpublished changes |
+| `npm run studio:thumbnails` | Redraws the Design tab's gallery thumbnails (`public/templates/*.webp`) from the demo menus through the Studio preview, signed in as the temporary Super Admin the e2e setup creates and removes. `THUMBNAILS_BASE_URL` points it at another dev server |
 | `npm run studio:set-platform-owner` | Moves the platform owner (who changes plans) to another active Super Admin, for a handover or when the owner's account is lost. Asks for the email, shows who holds it now, and changes nothing until you type yes. The Studio has no screen for it on purpose |
 | `npm run media:calibrate -- <folder>` | Opt-in tooling: scores the photos in a folder at each quality, to check the similarity threshold uploads are compressed to |
 | `npm run lint` / `typecheck` | Static checks |
@@ -246,6 +255,68 @@ slice, a second patty or bacon to the burger. See `docs/superpowers/specs/2026-1
 - Drag or swipe to turn the model; arrow keys turn it when it is focused. `prefers-reduced-motion` removes the
   assembly animation, the idle turn and the hero's scroll drift.
 - The browser tests run with 3D remembered as off except `tests/e2e/stage.spec.ts`, which opts in.
+
+### Template Studio
+
+A menu can be drawn with one of 30 template presets instead of the classic layout. See
+`docs/superpowers/specs/2026-10-18-template-studio-design.md`.
+
+- **Presets are code** in `src/lib/templates/presets/` (restaurant, café, bakery, ice cream). Each one has a palette
+  (its signature and three curated alternatives), a font pair, a layout (hero, navigation, cards, section headings,
+  product detail, option style, image ratio, density, corners, shadows) and scene settings. `src/ui/template/` draws
+  them and `skins.css` holds each preset's own touches.
+- **A business's changes are kept apart from the preset.** `BrandConfig.templateId` names the preset and
+  `BrandConfig.design` holds only what the business changed. Featured products, the offer, which details to show and
+  ordering carry over when the template changes; the look's changes stay with the template they were made for. Reset
+  puts the look back and keeps the rest.
+- **Publishing freezes the result.** The resolved design is part of the revision's snapshot, with the preset's version
+  and the overrides, so a later change to a preset never alters a published menu, and restoring a revision brings its
+  design back. A classic menu's snapshot has no design and its hash is unchanged.
+- **Three visual modes per menu:** static (a drawn poster), motion (CSS) and 3D (React Three Fiber, one canvas, each
+  preset's scene loaded on its own). Each has tap reaction, scroll that scrubs both ways, ambient movement, intensity,
+  speed, brightness, blur, opacity and a readability veil, all set per business. 3D loads after the page is idle and
+  only on a device that qualifies; anywhere else, with reduced motion, on a lost WebGL context or a scene that throws,
+  the menu falls back to motion or still. `?scene=fail` forces the fallback to check it. Guests can pause the movement
+  from the footer.
+- **Saved designs** (`DesignTemplate`) belong to a restaurant, or are shared with every restaurant by a Super Admin.
+  "Powered by Buzzify" is a per-restaurant setting only a Super Admin changes.
+- **Menu-only mode:** ordering set to none hides the add buttons and the cart (`/cart` redirects to the menu).
+
+#### Scene files (stage 2)
+
+A business can put its own background behind a template menu: a GLB model, an MP4 video or a Lottie animation from the
+media library. See `docs/superpowers/specs/2026-10-18-template-studio-stage-2-scene-files-design.md`.
+
+- **The library takes three more kinds** (`MediaKind` `MODEL`, `VIDEO`, `LOTTIE`), judged by their bytes, each with its
+  own limit: a GLB up to 10 MB, an MP4 up to 20 MB, a Lottie JSON file up to 2 MB (pictures stay at 15 MB). The Media
+  page uploads and lists them; picture pickers (products, logos, favicon, search image) never offer or accept them.
+- **Nothing in a file can run or reach out.** A GLB is parsed on the server (`src/server/media/glb.ts`): a well-formed
+  container, no `uri` anywhere, only extensions the menu's loader handles (no Draco or KTX2), real PNG, JPEG or WebP
+  textures, at most 300,000 triangles. A video must be H.264 (`src/server/media/mp4.ts`), at most 30 s and 1920 px; its
+  length is read from the header or, for a browser recording, from its fragments. A Lottie file is checked as data
+  (`src/server/media/lottie.ts`): any expression, an audio or video layer, an image or font from elsewhere refuses it,
+  and element ids and classes are stripped. The menu plays Lottie with lottie-web's light build, which has no
+  expression engine.
+- **A video needs a poster frame.** The Studio takes one in the browser before the upload (`src/studio/media/poster.ts`)
+  and the server makes its widths and a placeholder like a photo's.
+- **Choosing one:** the Design tab's Motion panel, under "Background file", lists the restaurant's scene files and the
+  shared ones and can upload one. A model gets size, position and turn sliders. The choice is part of the look, like
+  the colours: changing template or resetting removes it, and a saved design keeps it. A shared saved design (a
+  platform template) may only name a shared file.
+- **Playing it:** a model replaces the template's scene in its one canvas (static mode: the template's poster; no
+  WebGL: the template's motion); a video plays muted and looped over its poster (reduced motion and data saver: the
+  poster); a Lottie animation loops, or follows the scroll with ambient movement off (reduced motion: the template's
+  poster). Any failure falls back to the template's motion, and `?scene=fail` forces it for each kind.
+- **In use, kept:** publishing freezes the file's URLs into the snapshot and lists it in `MenuRevision.assetIds`. Usage
+  shows the menus whose draft and the saved designs that name it, and the file cannot be deleted while any of them or a
+  revision does. Restoring a revision brings the choice back; duplicating a menu into another restaurant copies it.
+- **Try it locally:** `npx tsx scripts/scene-fixtures.ts` writes a sample GLB and Lottie file to `.data/scene-fixtures/`.
+- **In production** the R2 bucket needs a CORS rule that allows `GET` from the menu and Studio origins: the menu fetches
+  GLB and Lottie files with `fetch` (a video plays without CORS). R2 answers range requests, which Safari needs for video.
+
+Not built yet (later stages of the spec): assigning a scene file to one category or product, tap reactions and scroll
+ranges for a model, background photos; options specific to a business (a flavour per scoop, prices by weight, a cake
+inquiry flow); order submission and table sessions; analytics for the template features.
 
 ### Explore
 
@@ -338,3 +409,7 @@ This repository is public. The seed data is fictional demo data; no secrets are 
 are git-ignored, and production secrets live only in the hosting provider’s environment variables. The development
 sign-in users share a password that is public by design, so they are never created in production or in a database that
 is not on the developer’s machine. The demo table PIN arrives with sub-project 2 and will be a development-only credential.
+
+Uploaded scene files are data, never code: GLB and MP4 files are parsed and checked before they are stored, and a Lottie
+file is stored only as its checked JSON, without expressions, external images or fonts, or element ids. See
+"Scene files" above.

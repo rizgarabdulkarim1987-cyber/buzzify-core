@@ -1,0 +1,532 @@
+/*
+ * Background scenes (spec 2026-10-18-template-studio-design.md, section 6). The layer is fixed behind the menu and never
+ * takes a pointer event. `.m-anim` drawings move only while the layer is ambient and not paused; everything else reads
+ * the scroll progress, the category in view and a fine pointer from CSS variables the layer sets, so with none of them
+ * set (the static mode) the drawing rests exactly as the poster.
+ */
+
+.scene-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+  --ease-scene: cubic-bezier(0.23, 1, 0.32, 1);
+}
+.scene-art {
+  position: absolute;
+  inset: 0;
+  opacity: calc(0.35 + var(--scene-intensity, 0.6) * 0.65);
+  transition: opacity 800ms ease;
+}
+.scene-ready .scene-art {
+  opacity: 0;
+}
+.scene-layer canvas {
+  position: absolute !important;
+  inset: 0;
+}
+.scene-veil {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+}
+
+/* A business's scene file (stage 2): a video, its poster, or a Lottie animation, covering the screen over the poster. */
+.scene-file {
+  position: absolute;
+  inset: 0;
+}
+.scene-file-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scene-file > svg {
+  display: block;
+}
+.scene-piece {
+  position: absolute;
+  display: block;
+  height: auto;
+  overflow: visible;
+}
+.scene-glow {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in oklab, var(--glow-color, var(--accent)) calc(var(--glow, 0.2) * 100%), transparent), transparent);
+}
+
+/* Ambient movement runs only when the business left it on and nothing holds the scene still. */
+.m-anim {
+  animation-play-state: paused;
+  animation-iteration-count: infinite;
+  animation-timing-function: ease-in-out;
+  transform-box: fill-box;
+}
+.scene-layer[data-ambient]:not([data-paused]) .m-anim {
+  animation-play-state: running;
+}
+
+.m-undulate {
+  animation-name: m-undulate;
+  animation-duration: calc(14s / var(--scene-speed, 1));
+}
+.m-undulate-slow {
+  animation-name: m-undulate;
+  animation-duration: calc(22s / var(--scene-speed, 1));
+  animation-direction: reverse;
+}
+@keyframes m-undulate {
+  50% {
+    transform: translate(-8px, 6px) rotate(-1.4deg);
+  }
+}
+.m-drift {
+  animation-name: m-drift;
+  animation-duration: calc(18s / var(--scene-speed, 1));
+}
+.m-drift-alt {
+  animation-name: m-drift;
+  animation-duration: calc(23s / var(--scene-speed, 1));
+  animation-direction: reverse;
+}
+.m-drift-slow {
+  animation-name: m-drift;
+  animation-duration: calc(34s / var(--scene-speed, 1));
+}
+@keyframes m-drift {
+  33% {
+    transform: translate(10px, -8px);
+  }
+  66% {
+    transform: translate(-6px, 6px);
+  }
+}
+.m-breathe {
+  animation-name: m-breathe;
+  animation-duration: calc(12s / var(--scene-speed, 1));
+}
+@keyframes m-breathe {
+  50% {
+    transform: scale(1.08);
+    opacity: 0.8;
+  }
+}
+.m-sway,
+.m-sway-alt,
+.m-sway-slow,
+.m-sway-slow-alt {
+  animation-name: m-sway;
+  animation-duration: calc(9s / var(--scene-speed, 1));
+}
+.m-sway-alt {
+  animation-direction: reverse;
+  animation-duration: calc(11s / var(--scene-speed, 1));
+}
+.m-sway-slow {
+  animation-name: m-sway-slow;
+  animation-duration: calc(16s / var(--scene-speed, 1));
+}
+.m-sway-slow-alt {
+  animation-name: m-sway-slow;
+  animation-duration: calc(19s / var(--scene-speed, 1));
+  animation-direction: reverse;
+}
+@keyframes m-sway {
+  33% {
+    transform: rotate(4deg);
+  }
+  66% {
+    transform: rotate(-2.5deg);
+  }
+}
+@keyframes m-sway-slow {
+  50% {
+    transform: rotate(1.6deg) translateX(3px);
+  }
+}
+.m-ink {
+  animation-name: m-ink;
+  animation-duration: calc(30s / var(--scene-speed, 1));
+}
+@keyframes m-ink {
+  50% {
+    transform: rotate(-7deg);
+  }
+}
+.m-caustic {
+  animation-name: m-caustic;
+  animation-duration: calc(9s / var(--scene-speed, 1));
+  animation-direction: alternate;
+}
+@keyframes m-caustic {
+  to {
+    transform: translateX(-36px) scaleY(1.2);
+  }
+}
+.m-rays {
+  animation-name: m-rays;
+  animation-duration: calc(12s / var(--scene-speed, 1));
+}
+@keyframes m-rays {
+  50% {
+    transform: skewX(-3deg);
+    opacity: 0.75;
+  }
+}
+.m-spin-slow,
+.m-spin-slow-rev,
+.m-spin-slower {
+  animation-name: m-spin;
+  animation-duration: calc(40s / var(--scene-speed, 1));
+  animation-timing-function: linear;
+}
+.m-spin-slow-rev {
+  animation-direction: reverse;
+  animation-duration: calc(46s / var(--scene-speed, 1));
+}
+.m-spin-slower {
+  animation-duration: calc(80s / var(--scene-speed, 1));
+}
+@keyframes m-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.m-steam {
+  animation-name: m-steam;
+  animation-duration: calc(6s / var(--scene-speed, 1));
+}
+@keyframes m-steam {
+  50% {
+    transform: translateY(-14px) scaleX(1.06);
+    opacity: 0.6;
+  }
+}
+.m-blob,
+.m-blob-alt {
+  animation-name: m-blob;
+  animation-duration: calc(20s / var(--scene-speed, 1));
+}
+.m-blob-alt {
+  animation-duration: calc(27s / var(--scene-speed, 1));
+  animation-direction: reverse;
+}
+@keyframes m-blob {
+  50% {
+    border-radius: 58% 42% 40% 60% / 40% 58% 42% 60%;
+    transform: translate(-14px, 10px) rotate(8deg);
+  }
+}
+.m-whisk {
+  animation-name: m-whisk;
+  animation-duration: calc(3.4s / var(--scene-speed, 1));
+  animation-direction: alternate;
+}
+@keyframes m-whisk {
+  from {
+    transform: rotate(-6deg);
+  }
+  to {
+    transform: rotate(6deg);
+  }
+}
+.m-balance {
+  animation-name: m-balance;
+  animation-duration: calc(8s / var(--scene-speed, 1));
+}
+@keyframes m-balance {
+  50% {
+    transform: rotate(1.4deg);
+  }
+}
+.m-bob {
+  animation-name: m-bob;
+  animation-duration: calc(5s / var(--scene-speed, 1));
+}
+@keyframes m-bob {
+  50% {
+    transform: translateY(-7px);
+  }
+}
+.m-wave,
+.m-wave-alt {
+  animation-name: m-wave;
+  animation-duration: calc(7s / var(--scene-speed, 1));
+  animation-direction: alternate;
+}
+.m-wave-alt {
+  animation-duration: calc(9.5s / var(--scene-speed, 1));
+  animation-direction: alternate-reverse;
+}
+@keyframes m-wave {
+  to {
+    transform: translateX(-28px);
+  }
+}
+.m-bounce {
+  animation-name: m-bounce;
+  animation-duration: calc(3s / var(--scene-speed, 1));
+}
+@keyframes m-bounce {
+  40% {
+    transform: translateY(-9px) scale(0.98, 1.02);
+  }
+  60% {
+    transform: translateY(0) scale(1.03, 0.97);
+  }
+}
+
+/* Scroll: these follow the page both ways. */
+.m-light-scroll {
+  translate: calc(var(--scene-progress, 0) * 36vw) calc(var(--scene-progress, 0) * 55vh);
+}
+.m-scroll-rise {
+  translate: 0 calc(var(--scene-progress, 0) * -60px);
+}
+.m-scroll-rise-late {
+  translate: 0 calc(var(--scene-progress, 0) * -110px);
+}
+.m-scroll-steam {
+  translate: 0 calc(var(--scene-progress, 0) * -70px);
+  opacity: calc(0.5 + var(--scene-progress, 0) * 0.5);
+}
+.m-scroll-whisk {
+  translate: calc(var(--scene-progress, 0) * -32vw) 0;
+}
+.tpl:is(:lang(ar), :lang(ckb)) .m-scroll-whisk {
+  translate: calc(var(--scene-progress, 0) * 32vw) 0;
+}
+.m-arch {
+  stroke-dasharray: 1;
+  stroke-dashoffset: max(0, calc(0.6 - var(--scene-progress, 0) * 2.2 + var(--ring, 0) * 0.14));
+}
+.scene-static .m-arch {
+  stroke-dashoffset: 0;
+}
+.m-layer {
+  translate: 0 calc(var(--layer, 0) * (-9px - var(--scene-progress, 0) * 16px));
+}
+.m-tier {
+  --t: clamp(0, calc(var(--scene-progress, 0) * 4 - var(--tier, 0) * 0.55), 1);
+  translate: 0 calc((1 - var(--t)) * -64px);
+  opacity: calc(0.25 + var(--t) * 0.75);
+}
+.m-scoop {
+  --t: clamp(0, calc(var(--scene-progress, 0) * 4 - var(--scoop, 0) * 0.6), 1);
+  translate: 0 calc((1 - var(--t)) * -50px);
+  opacity: calc(0.2 + var(--t) * 0.8);
+}
+.scene-static :is(.m-tier, .m-scoop) {
+  translate: none;
+  opacity: 1;
+}
+
+/* The category in view turns or relights a drawing, eased. */
+.m-cat-turn,
+.m-cat-turn-rev,
+.m-cat-turn-y,
+.m-cat-bump,
+.m-cat-light {
+  transition:
+    rotate 1100ms var(--ease-scene),
+    transform 1100ms var(--ease-scene),
+    translate 900ms var(--ease-scene),
+    filter 1100ms ease;
+}
+.m-cat-turn {
+  rotate: calc(var(--scene-category, 0) * 45deg);
+}
+.m-cat-turn-rev {
+  rotate: calc(var(--scene-category, 0) * -30deg);
+}
+.m-cat-turn-y {
+  transform: perspective(700px) rotateY(calc(var(--scene-category, 0) * 60deg));
+}
+.m-cat-bump {
+  translate: 0 calc(sin(var(--scene-category, 0) * 1.3rad) * 14px);
+}
+.m-cat-light {
+  filter: hue-rotate(calc(var(--scene-category, 0) * 36deg));
+}
+
+/* A fine pointer leans the near pieces more than the far ones. */
+.m-par,
+.m-par-deep {
+  translate: calc(var(--px, 0) * -10px) calc(var(--py, 0) * 8px);
+  transition: translate 700ms var(--ease-scene);
+}
+.m-par-deep {
+  translate: calc(var(--px, 0) * -20px) calc(var(--py, 0) * 14px);
+}
+
+/* Taps. */
+.m-tap-tilt,
+.m-tap-bounce {
+  transition: rotate 500ms var(--ease-scene), scale 500ms var(--ease-scene);
+}
+.scene-layer[data-tapped] .m-tap-tilt {
+  rotate: -4deg;
+}
+.scene-layer[data-tapped] .m-tap-bounce {
+  scale: 1.1;
+}
+.scene-ripple {
+  position: absolute;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--accent);
+  animation: scene-ripple 900ms var(--ease-scene) forwards;
+}
+@keyframes scene-ripple {
+  from {
+    opacity: 0.6;
+  }
+  to {
+    transform: scale(12);
+    opacity: 0;
+  }
+}
+
+/* Particles: embers and spice rise, bubbles float up, flour falls. */
+.scene-embers,
+.scene-bubbles,
+.scene-petals {
+  position: absolute;
+  inset: 0;
+}
+.scene-embers > span,
+.scene-bubbles > span,
+.scene-petals > span {
+  position: absolute;
+  animation-name: scene-rise;
+  animation-duration: calc((10s + var(--i) * 0.9s) / var(--scene-speed, 1));
+  animation-delay: calc(var(--i) * -1.7s);
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  animation-play-state: inherit;
+}
+.scene-embers.m-anim,
+.scene-bubbles.m-anim,
+.scene-petals.m-anim {
+  animation: none;
+}
+.scene-layer:not([data-ambient]) :is(.scene-embers, .scene-bubbles, .scene-petals) > span,
+.scene-layer[data-paused] :is(.scene-embers, .scene-bubbles, .scene-petals) > span {
+  animation-play-state: paused;
+}
+.scene-embers > span {
+  inset-inline-start: calc(var(--i) * 7% + 2%);
+  bottom: -8px;
+  width: calc(3px + (var(--i) * 1px) / 5);
+  height: calc(3px + (var(--i) * 1px) / 5);
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent);
+}
+.scene-spice > span {
+  width: 3px;
+  height: 3px;
+  box-shadow: none;
+  border-radius: 1px;
+}
+@keyframes scene-rise {
+  from {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.8;
+  }
+  to {
+    transform: translate(24px, -58vh);
+    opacity: 0;
+  }
+}
+.scene-bubbles > span {
+  inset-inline-start: calc(var(--i) * 11% + 3%);
+  bottom: -20px;
+  width: calc(8px + var(--i) * 2px);
+  height: calc(8px + var(--i) * 2px);
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 55%, transparent);
+  animation-duration: calc((16s + var(--i) * 1.5s) / var(--scene-speed, 1));
+}
+.scene-flour > span {
+  top: -10px;
+  bottom: auto;
+  width: 3px;
+  height: 3px;
+  background: color-mix(in oklab, var(--text) 30%, transparent);
+  box-shadow: none;
+  animation-name: scene-fall;
+}
+@keyframes scene-fall {
+  from {
+    transform: translate(0, 0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.7;
+  }
+  to {
+    transform: translate(-18px, 70vh);
+    opacity: 0;
+  }
+}
+.scene-petals > span {
+  top: -40px;
+  inset-inline-start: calc(var(--i) * 11% + 1%);
+  width: calc(14px + var(--i) * 2px);
+  animation-name: scene-petal;
+  animation-duration: calc((18s + var(--i) * 1.4s) / var(--scene-speed, 1));
+}
+.scene-petals > span > svg {
+  display: block;
+  width: 100%;
+}
+@keyframes scene-petal {
+  from {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  to {
+    transform: translate(40px, 105vh) rotate(260deg);
+    opacity: 0;
+  }
+}
+.scene-blob {
+  position: absolute;
+  border-radius: 42% 58% 60% 40% / 48% 40% 60% 52%;
+  opacity: 0.85;
+}
+.scene-frame {
+  position: absolute;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.scene-neon {
+  filter: drop-shadow(0 0 5px currentColor);
+}
+.scene-crystal {
+  transition: fill 1100ms ease;
+}
+
+/* Static: the poster, still, without a single transition. */
+.scene-static * {
+  transition: none !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .scene-layer * {
+    animation: none !important;
+    transition: none !important;
+  }
+}

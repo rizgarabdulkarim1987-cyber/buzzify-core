@@ -4,6 +4,7 @@ import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } f
 import { loadMenuView } from '@/server/route-context';
 import { menuAlternates } from '@/server/seo';
 import { MenuApp } from '@/ui/menu/MenuApp';
+import { TemplateMenu } from '@/ui/template/TemplateMenu';
 
 export async function generateMetadata({
   params,
@@ -26,6 +27,8 @@ export default async function Page({
 }) {
   return withPublicMenu(await params, '', searchString(await searchParams), async (route) => {
     const view = await loadMenuView(route);
+    const { design } = route.tenant.brand;
+    if (design) return <TemplateMenu view={view} design={design} tagline={route.tenant.seo[route.locale]?.description || undefined} />;
     return <MenuApp view={view} />;
   });
 }

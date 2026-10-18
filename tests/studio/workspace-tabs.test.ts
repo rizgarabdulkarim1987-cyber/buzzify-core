@@ -6,8 +6,8 @@ const ALL_BUILT = new Set(WORKSPACE_TABS.map((tab) => tab.key));
 const keys = (tabs: WorkspaceTab[]) => tabs.map((tab) => tab.key);
 
 describe('the menu workspace tabs', () => {
-  it('lists the tabs of spec 10.3 in order, with Motion after Brand, Content at the menu address itself', () => {
-    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'brand', 'motion', 'settings', 'qr', 'data', 'revisions', 'preview']);
+  it('lists the tabs of spec 10.3 in order, Design (template studio) before Brand and Motion after it, Content at the menu address itself', () => {
+    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'design', 'brand', 'motion', 'settings', 'qr', 'data', 'revisions', 'preview']);
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'motion')).toMatchObject({ path: '/motion', needs: ['brand.edit'] });
     expect(WORKSPACE_TABS[0]!.path).toBe('');
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'preview')!.path).toBe('/preview');
@@ -18,11 +18,12 @@ describe('the menu workspace tabs', () => {
     expect(keys(visibleTabs(owner, ALL_BUILT))).toEqual(['content', 'prices', 'availability', 'revisions', 'preview']);
   });
 
-  it('shows a designer every tab, and hides Brand and Motion when the client revokes brand.edit', () => {
+  it('shows a designer every tab, and hides Design, Brand and Motion when the client revokes brand.edit', () => {
     const designer = effectivePermissions({ isSuperAdmin: false, role: 'DESIGNER', policy: {} });
     expect(keys(visibleTabs(designer, ALL_BUILT))).toEqual([...ALL_BUILT]);
     const restricted = effectivePermissions({ isSuperAdmin: false, role: 'DESIGNER', policy: parsePolicy({ DESIGNER: { grant: [], revoke: ['brand.edit'] } }) });
     expect(keys(visibleTabs(restricted, ALL_BUILT))).not.toContain('brand');
+    expect(keys(visibleTabs(restricted, ALL_BUILT))).not.toContain('design');
     expect(keys(visibleTabs(restricted, ALL_BUILT))).not.toContain('motion');
   });
 

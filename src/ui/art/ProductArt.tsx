@@ -77,6 +77,41 @@ const SHAPES: Record<ArtKind, (tone: string, ids: Ids) => ReactNode> = {
       <circle cx="128" cy="76" r="2.5" fill="#F4EFE6" />
     </>
   ),
+  scoop: (tone) => (
+    <>
+      <path d="M74 98l26 64 26-64z" fill="#D9A46A" />
+      <path d="M78 104l44 0M82 116l36 0M86 128l28 0M90 140l20 0" stroke="#B47A43" strokeWidth="2.5" opacity=".7" />
+      <path d="M80 100l40 44M120 100l-40 44" stroke="#B47A43" strokeWidth="2" opacity=".45" />
+      <circle cx="100" cy="80" r="32" fill={tone} />
+      <path d="M68 86c8 8 16 2 24 8s16-2 24 2 10 2 16-4" fill="none" stroke={tone} strokeWidth="9" strokeLinecap="round" />
+      <path d="M82 62c8-8 22-10 32-4" stroke="#fff" strokeOpacity=".45" strokeWidth="4" fill="none" strokeLinecap="round" />
+      <circle cx="112" cy="78" r="2" fill="#fff" opacity=".5" />
+      <circle cx="90" cy="88" r="1.6" fill="#000" opacity=".12" />
+    </>
+  ),
+  cake: (tone, ids) => (
+    <>
+      <ellipse cx="100" cy="152" rx="66" ry="10" fill={`url(#${ids.metal})`} />
+      <rect x="48" y="104" width="104" height="44" rx="6" fill="#F6EEE4" />
+      <rect x="48" y="104" width="104" height="44" rx="6" fill={`url(#${ids.shade})`} />
+      <path d="M48 112c8 8 16-2 26 4s16-4 26 2 16-4 26 2 18 4 26-6" fill="none" stroke={tone} strokeWidth="6" strokeLinecap="round" />
+      <rect x="64" y="70" width="72" height="36" rx="5" fill="#F9F3EC" />
+      <path d="M64 78c6 6 12-2 18 3s12-3 18 1 12-3 18 1 12 2 18-4" fill="none" stroke={tone} strokeWidth="5" strokeLinecap="round" />
+      <circle cx="84" cy="66" r="5" fill={tone} />
+      <circle cx="100" cy="62" r="6" fill={tone} />
+      <circle cx="116" cy="66" r="5" fill={tone} />
+      <path d="M100 56v-8" stroke="#D6BC8A" strokeWidth="2" />
+    </>
+  ),
+  bread: (tone, ids) => (
+    <>
+      <ellipse cx="100" cy="150" rx="68" ry="10" fill={`url(#${ids.metal})`} opacity=".85" />
+      <path d="M42 130c0-36 26-58 58-58s58 22 58 58c0 10-8 14-16 14H58c-8 0-16-4-16-14z" fill={tone} />
+      <path d="M42 130c0-36 26-58 58-58s58 22 58 58c0 10-8 14-16 14H58c-8 0-16-4-16-14z" fill={`url(#${ids.shade})`} />
+      <path d="M66 96c10 8 18 10 26 8M88 86c10 8 18 10 26 8M110 82c8 8 16 10 24 8" stroke="#F3E2C2" strokeWidth="5" strokeLinecap="round" fill="none" opacity=".85" />
+      <path d="M58 110c18-20 66-24 88-4" stroke="#fff" strokeOpacity=".18" strokeWidth="6" fill="none" strokeLinecap="round" />
+    </>
+  ),
 };
 
 /**
@@ -108,7 +143,11 @@ export function ProductCutout({ kind, tone, uid, className }: { kind: ArtKind; t
   );
 }
 
-/** Art-directed placeholder still life. Real photography replaces it through the product's media list. */
+/**
+ * Art-directed placeholder still life. Real photography replaces it through the product's media list. Its backdrop is
+ * the classic menu's charcoal unless a template sets `--art-bg-from`, `--art-bg-to` and `--art-bg-opacity` (0 drops it, so
+ * the drawing stands on the card's own colour).
+ */
 export function ProductArt({
   kind,
   tone,
@@ -125,8 +164,8 @@ export function ProductArt({
     <svg viewBox="0 0 200 200" aria-hidden="true" className={className} preserveAspectRatio="xMidYMid slice">
       <defs>
         <radialGradient id={`${uid}-bg`} cx="50%" cy="38%" r="75%">
-          <stop offset="0" stopColor="#3A3633" />
-          <stop offset="1" stopColor="#1B1A19" />
+          <stop offset="0" style={{ stopColor: 'var(--art-bg-from, #3A3633)' }} />
+          <stop offset="1" style={{ stopColor: 'var(--art-bg-to, #1B1A19)' }} />
         </radialGradient>
         <linearGradient id={ids.metal} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#F2E4C4" />
@@ -143,8 +182,8 @@ export function ProductArt({
           <stop offset="1" stopColor="#000" stopOpacity=".35" />
         </linearGradient>
       </defs>
-      <rect width="200" height="200" fill={`url(#${uid}-bg)`} />
-      <ellipse cx="100" cy="162" rx="64" ry="9" fill="#000" opacity=".4" />
+      <rect width="200" height="200" fill={`url(#${uid}-bg)`} style={{ opacity: 'var(--art-bg-opacity, 1)' }} />
+      <ellipse cx="100" cy="162" rx="64" ry="9" fill="#000" style={{ opacity: 'calc(var(--art-shadow, 0.4))' }} />
       {SHAPES[kind](tone, ids)}
     </svg>
   );

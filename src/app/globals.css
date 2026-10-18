@@ -38,43 +38,189 @@
 
 /*
  * The brand kit's other font pairs (src/lib/font-pairs.ts). `fontVariablesFor` puts `font-pair-{pair}` on the root
- * with only the faces of the page's script, so each rule below names faces the page has. Classic is the rules above.
+ * with only the faces of the page's script, so each rule below names faces the page has. Classic is the rules above, and
+ * the two below for an element inside another pair (a template previewed in the Studio carries its own pair).
  */
-:root.font-pair-cafe {
-  --font-display-stack: var(--font-fraunces), Georgia, serif;
-  --font-text-stack: var(--font-dm-sans), system-ui, sans-serif;
+.font-pair-classic {
+  --font-display-stack: var(--font-bodoni), 'Times New Roman', serif;
+  --font-text-stack: var(--font-hanken), system-ui, sans-serif;
 }
-:root.font-pair-bakery {
-  --font-display-stack: var(--font-playfair), Georgia, serif;
-  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
-}
-:root.font-pair-street {
-  --font-display-stack: var(--font-anton), Impact, sans-serif;
-  --font-text-stack: var(--font-inter), system-ui, sans-serif;
-}
-:root.font-pair-fine {
-  --font-display-stack: var(--font-cormorant), Georgia, serif;
-  --font-text-stack: var(--font-jost), system-ui, sans-serif;
-}
-:root.font-pair-modern {
-  --font-display-stack: var(--font-space-grotesk), system-ui, sans-serif;
-  --font-text-stack: var(--font-inter), system-ui, sans-serif;
-}
-:root.font-pair-cafe:is([lang='ar'], [lang='ckb']) {
-  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
-  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
-}
-:root:is(.font-pair-bakery, .font-pair-fine):is([lang='ar'], [lang='ckb']) {
+.font-pair-classic:is(:lang(ar), :lang(ckb)) {
   --font-display-stack: var(--font-naskh), 'Noto Naskh Arabic', serif;
   --font-text-stack: var(--font-naskh), system-ui, sans-serif;
 }
-:root.font-pair-street:is([lang='ar'], [lang='ckb']) {
+.font-pair-cafe {
+  --font-display-stack: var(--font-fraunces), Georgia, serif;
+  --font-text-stack: var(--font-dm-sans), system-ui, sans-serif;
+}
+.font-pair-bakery {
+  --font-display-stack: var(--font-playfair), Georgia, serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+.font-pair-street {
+  --font-display-stack: var(--font-anton), Impact, sans-serif;
+  --font-text-stack: var(--font-inter), system-ui, sans-serif;
+}
+.font-pair-fine {
+  --font-display-stack: var(--font-cormorant), Georgia, serif;
+  --font-text-stack: var(--font-jost), system-ui, sans-serif;
+}
+.font-pair-modern {
+  --font-display-stack: var(--font-space-grotesk), system-ui, sans-serif;
+  --font-text-stack: var(--font-inter), system-ui, sans-serif;
+}
+.font-pair-cafe:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
+  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
+}
+:is(.font-pair-bakery, .font-pair-fine):is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), 'Noto Naskh Arabic', serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-street:is(:lang(ar), :lang(ckb)) {
   --font-display-stack: var(--font-kufi), system-ui, sans-serif;
   --font-text-stack: var(--font-kufi), system-ui, sans-serif;
 }
-:root.font-pair-modern:is([lang='ar'], [lang='ckb']) {
+.font-pair-modern:is(:lang(ar), :lang(ckb)) {
   --font-display-stack: var(--font-plex-arabic), system-ui, sans-serif;
   --font-text-stack: var(--font-plex-arabic), system-ui, sans-serif;
+}
+
+.font-pair-marble {
+  --font-display-stack: var(--font-gilda), Georgia, serif;
+  --font-text-stack: var(--font-manrope), system-ui, sans-serif;
+}
+.font-pair-palace {
+  --font-display-stack: var(--font-marcellus), Georgia, serif;
+  --font-text-stack: var(--font-jost), system-ui, sans-serif;
+}
+.font-pair-souk {
+  --font-display-stack: var(--font-marcellus), Georgia, serif;
+  --font-text-stack: var(--font-dm-sans), system-ui, sans-serif;
+}
+.font-pair-ink {
+  --font-display-stack: var(--font-shippori), Georgia, serif;
+  --font-text-stack: var(--font-manrope), system-ui, sans-serif;
+}
+.font-pair-riviera {
+  --font-display-stack: var(--font-dm-serif), Georgia, serif;
+  --font-text-stack: var(--font-outfit), system-ui, sans-serif;
+}
+.font-pair-botanical {
+  --font-display-stack: var(--font-young-serif), Georgia, serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+.font-pair-pearl {
+  --font-display-stack: var(--font-caslon), Georgia, serif;
+  --font-text-stack: var(--font-manrope), system-ui, sans-serif;
+}
+.font-pair-studio {
+  --font-display-stack: var(--font-instrument), Georgia, serif;
+  --font-text-stack: var(--font-manrope), system-ui, sans-serif;
+}
+.font-pair-ritual {
+  --font-display-stack: var(--font-instrument), Georgia, serif;
+  --font-text-stack: var(--font-outfit), system-ui, sans-serif;
+}
+.font-pair-terra {
+  --font-display-stack: var(--font-gloock), Georgia, serif;
+  --font-text-stack: var(--font-dm-sans), system-ui, sans-serif;
+}
+.font-pair-nordic {
+  --font-display-stack: var(--font-sora), system-ui, sans-serif;
+  --font-text-stack: var(--font-manrope), system-ui, sans-serif;
+}
+.font-pair-neon {
+  --font-display-stack: var(--font-unbounded), system-ui, sans-serif;
+  --font-text-stack: var(--font-sora), system-ui, sans-serif;
+}
+.font-pair-cocoa {
+  --font-display-stack: var(--font-dm-serif), Georgia, serif;
+  --font-text-stack: var(--font-jost), system-ui, sans-serif;
+}
+.font-pair-gelato {
+  --font-display-stack: var(--font-fredoka), system-ui, sans-serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+.font-pair-pop {
+  --font-display-stack: var(--font-bricolage), system-ui, sans-serif;
+  --font-text-stack: var(--font-outfit), system-ui, sans-serif;
+}
+.font-pair-rose {
+  --font-display-stack: var(--font-bellefair), Georgia, serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+.font-pair-cloud {
+  --font-display-stack: var(--font-outfit), system-ui, sans-serif;
+  --font-text-stack: var(--font-nunito-sans), system-ui, sans-serif;
+}
+.font-pair-marble:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-mada), system-ui, sans-serif;
+  --font-text-stack: var(--font-mada), system-ui, sans-serif;
+}
+.font-pair-palace:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), system-ui, sans-serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-souk:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-reem-kufi), system-ui, sans-serif;
+  --font-text-stack: var(--font-reem-kufi), system-ui, sans-serif;
+}
+.font-pair-ink:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), system-ui, sans-serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-riviera:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
+  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
+}
+.font-pair-botanical:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
+  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
+}
+.font-pair-pearl:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), system-ui, sans-serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-studio:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-mada), system-ui, sans-serif;
+  --font-text-stack: var(--font-mada), system-ui, sans-serif;
+}
+.font-pair-ritual:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-mada), system-ui, sans-serif;
+  --font-text-stack: var(--font-mada), system-ui, sans-serif;
+}
+.font-pair-terra:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-vazirmatn), system-ui, sans-serif;
+  --font-text-stack: var(--font-vazirmatn), system-ui, sans-serif;
+}
+.font-pair-nordic:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-mada), system-ui, sans-serif;
+  --font-text-stack: var(--font-mada), system-ui, sans-serif;
+}
+.font-pair-neon:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-zain), system-ui, sans-serif;
+  --font-text-stack: var(--font-zain), system-ui, sans-serif;
+}
+.font-pair-cocoa:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), system-ui, sans-serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-gelato:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-zain), system-ui, sans-serif;
+  --font-text-stack: var(--font-zain), system-ui, sans-serif;
+}
+.font-pair-pop:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-zain), system-ui, sans-serif;
+  --font-text-stack: var(--font-zain), system-ui, sans-serif;
+}
+.font-pair-rose:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-naskh), system-ui, sans-serif;
+  --font-text-stack: var(--font-naskh), system-ui, sans-serif;
+}
+.font-pair-cloud:is(:lang(ar), :lang(ckb)) {
+  --font-display-stack: var(--font-mada), system-ui, sans-serif;
+  --font-text-stack: var(--font-mada), system-ui, sans-serif;
 }
 
 html {
