@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import * as sales from '@/server/studio/services/sales';
-import { pairingFields, sameRef, upgradeFields, versionField } from '@/server/studio/services/sales';
+import { pairingFields, sameRef, sameSetRef, setFields, upgradeFields, versionField } from '@/server/studio/services/sales';
 
 /**
  * The Sales tab's changes to a menu's draft (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). All need
@@ -49,4 +49,25 @@ export const deletePairing = defineAction({
   input: z.object({ menuId: idField, ruleId: idField, version: versionField }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => sales.deletePairing(ctx, input),
+});
+
+// Sets ----------------------------------------------------------------------------------------------------------------
+
+/** A new set, or a set's price changed, also needs `content.prices`, which the service checks. */
+export const saveSet = defineAction({
+  name: 'sales.saveSet',
+  permission: 'content.edit',
+  feature: 'selling.smart',
+  input: z.object({ menuId: idField, ...setFields }).refine(sameSetRef),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.saveSet(ctx, input),
+});
+
+export const deleteSet = defineAction({
+  name: 'sales.deleteSet',
+  permission: 'content.edit',
+  feature: 'selling.smart',
+  input: z.object({ menuId: idField, bundleId: idField, version: versionField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.deleteSet(ctx, input),
 });

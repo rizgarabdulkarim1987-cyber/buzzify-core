@@ -18,3 +18,11 @@ export async function savePairing(input: unknown) {
 export async function deletePairing(input: unknown) {
   return invoke(sales.deletePairing, input);
 }
+
+export async function saveSet(input: unknown) {
+  return invoke(sales.saveSet, input);
+}
+
+export async function deleteSet(input: unknown) {
+  return invoke(sales.deleteSet, input);
+}

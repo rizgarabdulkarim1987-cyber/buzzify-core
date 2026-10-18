@@ -166,6 +166,79 @@ describe('pairing rules', () => {
   });
 });
 
+const set = (overrides: Record<string, unknown> = {}) => ({
+  menuId: a.menu.id,
+  names: { en: 'Coffee and cake', ar: 'قهوة وكعكة' },
+  descriptions: { en: 'An espresso with a slice' },
+  price: 700,
+  items: [
+    { productId: a.product.id, variantId: null, quantity: 1 },
+    { productId: cake, variantId: null, quantity: 1 },
+  ],
+  dayparts: [],
+  isActive: true,
+  ...overrides,
+});
+
+describe('sets', () => {
+  it('builds a set of two dishes priced below them, edits and deletes it', async () => {
+    const saved = dataOf(await run(sales.saveSet, set()));
+    const row = await prisma().bundle.findUniqueOrThrow({ where: { id: saved.id }, include: { items: { orderBy: { id: 'asc' } } } });
+    expect(row).toMatchObject({ slug: 'coffee-and-cake', price: 700, translations: { en: { name: 'Coffee and cake', description: 'An espresso with a slice' }, ar: { name: 'قهوة وكعكة' } } });
+    expect(row.items.map((item) => [item.productId, item.quantity]).sort()).toEqual([[a.product.id, 1], [cake, 1]].sort());
+
+    const edited = dataOf(await run(sales.saveSet, set({ bundleId: saved.id, version: 1, slug: 'coffee-and-cake', price: 650, items: [{ productId: a.product.id, variantId: null, quantity: 2 }, { productId: cake, variantId: null, quantity: 1 }] })));
+    expect(await prisma().bundle.findUniqueOrThrow({ where: { id: saved.id } })).toMatchObject({ price: 650, version: 2 });
+    expect(await prisma().bundleItem.findMany({ where: { bundleId: saved.id }, select: { quantity: true } })).toHaveLength(2);
+    dataOf(await run(sales.deleteSet, { menuId: a.menu.id, bundleId: saved.id, version: edited.version }));
+    expect(await prisma().bundle.count()).toBe(0);
+    expect(await prisma().bundleItem.count()).toBe(0);
+    expect(await auditActions()).toEqual(expect.arrayContaining(['set.created', 'set.updated', 'set.deleted']));
+  });
+
+  it('refuses one dish, a price not below the dishes, a size of another dish and a slug in use', async () => {
+    expect(failureOf(await run(sales.saveSet, set({ items: [{ productId: cake, variantId: null, quantity: 2 }] }))).code).toBe('INVALID');
+    // Espresso 300 and cake 500 cost 800 one by one.
+    expect(failureOf(await run(sales.saveSet, set({ price: 800 }))).fields).toHaveProperty('price');
+    const size = await prisma().productVariant.create({ data: { menuId: a.menu.id, productId: latte, priceDelta: 100, translations: { en: { name: 'Large' } } } });
+    expect(failureOf(await run(sales.saveSet, set({ items: [{ productId: a.product.id, variantId: size.id, quantity: 1 }, { productId: cake, variantId: null, quantity: 1 }] }))).code).toBe('NOT_FOUND');
+    dataOf(await run(sales.saveSet, set()));
+    expect(failureOf(await run(sales.saveSet, set({ slug: 'coffee-and-cake' }))).fields).toHaveProperty('slug');
+  });
+
+  it('lets an owner without the right to set prices rename a set but not price it', async () => {
+    const saved = dataOf(await run(sales.saveSet, set()));
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { permissionPolicy: { OWNER: { grant: [], revoke: ['content.prices'] } } } });
+    owner = (await loadActor(prisma(), 'owner-a')) as Actor;
+    expect(failureOf(await run(sales.saveSet, set({ names: { en: 'Morning set' } }))).code).toBe('FORBIDDEN');
+    dataOf(await run(sales.saveSet, set({ bundleId: saved.id, version: 1, slug: 'coffee-and-cake', names: { en: 'Morning set' } })));
+    expect(failureOf(await run(sales.saveSet, set({ bundleId: saved.id, version: 2, slug: 'coffee-and-cake', price: 600 }))).code).toBe('FORBIDDEN');
+  });
+
+  it('reads each set with its items and what they cost one by one', async () => {
+    const saved = dataOf(await run(sales.saveSet, set()));
+    const read = dataOf(await rules());
+    expect(read.sets).toEqual([
+      {
+        id: saved.id,
+        version: 1,
+        slug: 'coffee-and-cake',
+        names: { en: 'Coffee and cake', ar: 'قهوة وكعكة' },
+        descriptions: { en: 'An espresso with a slice' },
+        price: 700,
+        items: expect.arrayContaining([
+          { productId: a.product.id, variantId: null, quantity: 1 },
+          { productId: cake, variantId: null, quantity: 1 },
+        ]),
+        dayparts: [],
+        isActive: true,
+        itemsTotal: 800,
+      },
+    ]);
+    expect(read.products.find((p) => p.id === a.product.id)?.variants).toEqual([]);
+  });
+});
+
 describe('the rules the Sales tab reads', () => {
   it('lists the dishes, categories and both kinds of rule with their texts', async () => {
     const up = dataOf(await run(sales.saveUpgrade, upgrade()));
