@@ -60,7 +60,9 @@ describe('data cache', () => {
       await cachedLiveOverlay('m1', load);
       await cachedSlugResolution('atelier', load);
       expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['live', 'm1'], { revalidate: 30, tags: ['live:m1'] });
-      expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['slug', 'atelier'], {
+      // Keyed by the shape of the answer (2: it carries the guest features), so an answer cached before a deploy that
+      // changed the shape is never read as the new one.
+      expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['slug', '2', 'atelier'], {
         revalidate: 300,
         tags: ['slug:atelier', 'plans'],
       });
