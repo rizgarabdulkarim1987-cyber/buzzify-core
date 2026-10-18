@@ -158,8 +158,10 @@ writes the two together. The model is menu-scoped in the tenancy registry.
 - The tab lists the places: Top of the menu, Behind the signature dish (with a note when the menu has no signature
   dish), and one row per category in the menu's order. Each row shows a small still preview of its motion and the
   motion's name, or "No motion", with Choose / Change and Remove.
-- Choose opens the picker: the offered motions as live cards (the Motion Studio's cards, mounted near the viewport),
-  with the Motion Studio's search and group chips. Picking one opens the tuner.
+- Choose (or Change) opens the place's editor, a page of its own (`/studio/menus/{id}/motion/{hero|signature|category-<id>}`)
+  rather than a dialog, since it holds 90 cards and a large preview. On the left, the offered motions as cards with a
+  search and group chips (kept on the page, so filtering never waits on the server); each card shows a still frame and
+  plays while pointed at or focused, because dozens of live previews would starve the page. On the right, the tuner.
 - The tuner: a live preview in the place's own shape, drawn on the menu's page colour; the Motion Studio's parameter
   controls for everything but text; for each text parameter, one field per language of the menu. Save and Cancel. The
   save is at the placement's version; a conflict shows the framework's usual message.

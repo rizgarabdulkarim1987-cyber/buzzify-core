@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
 import { expireMenu } from '@/server/data/cache';
-import { allows } from '@/server/domain/entitlements';
+import { allows } from '@/server/domain/entitlements';
 import { nextMenuStatus } from '@/server/domain/menu-status';
 import { bestRail, clampBrandChoices } from '@/server/domain/plan-choices';
 import { snapshotAssetIds } from '@/server/domain/snapshot';
