@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { unitPriceFromMenu } from '@/lib/menu-price';
-import { stagesOnMenu } from '@/lib/stage';
+import { stagesOnProductPage } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
 import { formatCount } from '@/server/domain/money';
@@ -34,7 +34,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
   const [quantity, setQuantity] = useState(1);
 
   const orderable = product.orderState === 'OK';
-  const staged = stagesOnMenu(product.media);
+  const staged = stagesOnProductPage(product.media);
   const unit = unitPriceFromMenu(product, variantId, selected);
   const missing = product.groups.filter(
     (group) => group.minSelect > group.options.filter((option) => selected.includes(option.id)).length,
