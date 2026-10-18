@@ -98,4 +98,18 @@ test.describe('plans @desktop', () => {
     await expect(group.getByRole('radio', { name: 'Pro' })).toBeChecked();
     await expect(group.getByRole('radio', { name: 'Pro' })).toBeFocused();
   });
+
+  test('switching a feature off for a plan names it, and how many restaurants lose it, before anything is saved', async ({ browser }) => {
+    const page = await signedIn(browser);
+    await page.goto('/studio/settings/plans');
+    const explore = en('plans.feature.immersive.explore');
+    await page.getByRole('switch', { name: en('plansSettings.switch', { feature: explore, plan: 'Premium' }) }).click();
+    await page.getByRole('button', { name: en('plansSettings.save') }).click();
+    const confirm = page.getByRole('dialog', { name: en('plansSettings.confirmTitle') });
+    await expect(confirm).toContainText(en('plansSettings.confirmItem', { feature: explore, plan: 'Premium' }));
+    // The temporary restaurant is on Premium with no extras, so at least one restaurant loses it.
+    await expect(confirm).toContainText(/\d[\d,]* restaurants? loses? it/);
+    await confirm.getByRole('button', { name: en('common.cancel') }).click();
+    await expect(confirm).toHaveCount(0);
+  });
 });

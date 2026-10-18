@@ -33,7 +33,14 @@ export default async function PlansSettingsPage() {
         below={<RouteTabs tabs={settingsTabs(t)} label={t('settings.tabs.label')} />}
       />
       <div className="px-8 py-6">
-        <PlansEditor key={JSON.stringify([data.plans, data.whatsapp])} plans={data.plans} whatsapp={data.whatsapp} features={data.features} canEdit={data.canEdit} />
+        <PlansEditor
+          key={JSON.stringify([data.plans, data.whatsapp])}
+          plans={data.plans}
+          whatsapp={data.whatsapp}
+          features={data.features}
+          followers={data.followers}
+          canEdit={data.canEdit}
+        />
       </div>
     </>
   );

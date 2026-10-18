@@ -1845,6 +1845,13 @@ const en: Messages = {
   'plansSettings.whatsappHint': 'With the country code, such as +964 750 123 4567. The upgrade button opens a chat with it.',
   'plansSettings.save': 'Save plans',
   'plansSettings.saved': 'Plans saved',
+  'plansSettings.confirmTitle': 'Take features out of the plans?',
+  'plansSettings.confirmBody':
+    'Guests of every restaurant on these plans stop seeing them at once, unless the restaurant has the feature on beyond its plan. Nothing is deleted: switching a feature back on brings it back.',
+  'plansSettings.confirmItem': '{feature} in {plan}',
+  'plansSettings.confirmCount_one': '{formatted} restaurant loses it',
+  'plansSettings.confirmCount_other': '{formatted} restaurants lose it',
+  'plansSettings.confirmNone': 'No restaurant loses it now',
   'brand.lockedChoice': 'Guests see {fallback} until the plan includes {choice}.',
   'qr.lockedStyle': 'Brand colours and the logo',
   'qr.lockedKept': 'This code prints in black on white, without the logo, until the plan includes them.',

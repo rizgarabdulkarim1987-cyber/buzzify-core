@@ -131,6 +131,15 @@ describe('plans', () => {
     expect(await auditRow('plans.updated')).toMatchObject({ entityType: 'Plans', entityId: 'plans' });
   });
 
+  it('tells Settings → Plans how many restaurants on each plan would lose each live feature', async () => {
+    await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'PRO', extras: { 'qr.branded': true }, note: '' });
+    const b = await createMenuFixture(prisma(), 'plans-b');
+    await act(owner, plans.setRestaurantPlan, { restaurantId: b.restaurant.id, plan: 'PRO', extras: {}, note: '' });
+    const settings = dataOf(await read(otherAdmin, planQueries.getPlans, {}));
+    expect(settings.followers.PRO).toMatchObject({ 'design.fontPairs': 2, 'qr.branded': 1 });
+    expect(settings.followers.PREMIUM['immersive.explore']).toBe(0);
+  });
+
   it('refuses a WhatsApp number that is not digits with a country code', async () => {
     const refused = failureOf(await act(owner, plans.updatePlans, { plans: {}, whatsapp: '0750 abc' }));
     expect(refused).toMatchObject({ code: 'INVALID', fields: { whatsapp: 'Enter the number with its country code, digits only' } });

@@ -1,15 +1,17 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { updatePlans } from '@/app/studio/_actions/plans';
 import { direction, LOCALE_NAMES, LOCALES, type Locale } from '@/lib/locale';
-import { PLAN_TIERS, type FeatureArea, type FeatureDef, type PlanTier } from '@/server/domain/entitlements';
+import { featuresDropped, parsePlans, PLAN_TIERS, type FeatureArea, type FeatureDef, type FeatureKey, type PlanTier } from '@/server/domain/entitlements';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
+import { numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { Alert, FailureAlert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
+import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
@@ -22,17 +24,21 @@ const LIVE_AREAS: readonly FeatureArea[] = ['design', 'immersive', 'publishing',
 /**
  * Settings → Plans (spec 8.2): the three plans side by side, their names in the Studio's three languages, every feature
  * as a switch per plan (the ones later projects will build under "Coming later", so where each starts can be decided
- * now), and the WhatsApp number the upgrade button opens. Read-only for every Super Admin but the platform owner.
+ * now), and the WhatsApp number the upgrade button opens. Read-only for every Super Admin but the platform owner. A save
+ * that switches a built feature off for a plan asks first, naming each one and how many restaurants lose it.
  */
 export function PlansEditor({
   plans,
   whatsapp,
   features,
+  followers,
   canEdit,
 }: {
   plans: StoredPlans;
   whatsapp: string;
   features: FeatureDef[];
+  /** For each plan and live feature, the restaurants on the plan that take the feature from it (`planFollowers`). */
+  followers: Record<PlanTier, Partial<Record<FeatureKey, number>>>;
   canEdit: boolean;
 }) {
   const t = useT();
@@ -44,9 +50,12 @@ export function PlansEditor({
   const [saving, startSaving] = useTransition();
   const [failure, setFailure] = useState<DescribedFailure | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [confirming, setConfirming] = useState(false);
+  const count = numberFormat(locale);
 
   const dirty = JSON.stringify(draft) !== JSON.stringify(plans) || number.replace(/[\s+\-()]/g, '') !== whatsapp;
   const locked = !canEdit || saving;
+  const dropped = useMemo(() => featuresDropped(parsePlans(plans), parsePlans(draft)), [plans, draft]);
 
   const setName = (tier: PlanTier, language: Locale, name: string) => {
     setDraft((current) => ({ ...current, [tier]: { ...current[tier], names: { ...current[tier].names, [language]: name } } }));
@@ -57,15 +66,27 @@ export function PlansEditor({
     setFailure(null);
   };
 
-  const save = () =>
+  /** Saves the draft; the refusal, in the person's language, when there is one. */
+  const send = async (): Promise<DescribedFailure | null> => {
+    setAttempt((tries) => tries + 1);
+    const result = await updatePlans({ plans: draft, whatsapp: number });
+    if (!result.ok) {
+      const refused = describeFailure(t, locale, result.error);
+      setFailure(refused);
+      return refused;
+    }
+    setFailure(null);
+    toast.success(t('plansSettings.saved'));
+    router.refresh();
+    return null;
+  };
+
+  const save = () => {
+    if (dropped.length > 0) return setConfirming(true);
     startSaving(async () => {
-      setAttempt((count) => count + 1);
-      const result = await updatePlans({ plans: draft, whatsapp: number });
-      if (!result.ok) return setFailure(describeFailure(t, locale, result.error));
-      setFailure(null);
-      toast.success(t('plansSettings.saved'));
-      router.refresh();
+      await send();
     });
+  };
 
   const groups = [
     ...LIVE_AREAS.map((area) => ({ label: t(`plans.area.${area}`), rows: features.filter((f) => f.status === 'live' && f.area === area) })),
@@ -203,6 +224,35 @@ export function PlansEditor({
           </Button>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        title={t('plansSettings.confirmTitle')}
+        body={t('plansSettings.confirmBody')}
+        confirmLabel={t('plansSettings.save')}
+        tone="danger"
+        onConfirm={async () => {
+          const refused = await send();
+          return refused === null ? true : { message: refused.message };
+        }}
+      >
+        <ul className="flex flex-col gap-2.5 text-base">
+          {dropped.map(({ plan, feature }) => {
+            const losing = followers[plan][feature] ?? 0;
+            return (
+              <li key={`${plan}:${feature}`} className="flex flex-col gap-0.5">
+                <span className="font-medium text-text">
+                  {t('plansSettings.confirmItem', { feature: t(`plans.feature.${feature}`), plan: draft[plan].names[locale] })}
+                </span>
+                <span className="text-sm text-muted">
+                  {losing === 0 ? t('plansSettings.confirmNone') : t('plansSettings.confirmCount', { count: losing, formatted: count.format(losing) })}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      </ConfirmDialog>
     </div>
   );
 }

@@ -6,12 +6,14 @@ import {
   extrasToStore,
   FEATURE_KEYS,
   FEATURES,
+  featuresDropped,
   featuresLost,
   isFeatureKey,
   lowestPlanWith,
   parseExtras,
   parsePlans,
   PLAN_TIERS,
+  planFollowers,
   plansToStore,
   type PlanTier,
 } from '@/server/domain/entitlements';
@@ -129,5 +131,37 @@ describe('a restaurant’s entitlements', () => {
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
     expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 8));
     expect(featuresLost(basic, premium)).toEqual([]);
+  });
+});
+
+describe('a change to the plans', () => {
+  it('lists the live features each plan stops including, plan by plan, and ignores what it adds or what is not built', () => {
+    const before = defaultPlans();
+    const after = parsePlans({
+      BASIC: { features: { 'immersive.explore': true } },
+      PRO: { features: { 'qr.branded': false, 'design.backgroundImage': false } },
+      PREMIUM: { features: { 'immersive.stage': false, 'design.fontPairs': false } },
+    });
+    expect(featuresDropped(before, after)).toEqual([
+      { plan: 'PRO', feature: 'qr.branded' },
+      { plan: 'PREMIUM', feature: 'design.fontPairs' },
+      { plan: 'PREMIUM', feature: 'immersive.stage' },
+    ]);
+    expect(featuresDropped(after, after)).toEqual([]);
+  });
+
+  it('counts the restaurants on each plan that take each live feature from it, with no extra of their own', () => {
+    const followers = planFollowers([
+      { plan: 'PRO', extras: {} },
+      { plan: 'PRO', extras: { 'qr.branded': true, 'selling.smart': false } },
+      { plan: 'BASIC', extras: { 'design.fontPairs': true } },
+    ]);
+    expect(followers.PRO['qr.branded']).toBe(1);
+    expect(followers.PRO['selling.smart']).toBe(1);
+    expect(followers.PRO['design.fontPairs']).toBe(2);
+    expect(followers.BASIC['design.fontPairs']).toBe(0);
+    expect(followers.BASIC['immersive.stage']).toBe(1);
+    expect(followers.PREMIUM['immersive.stage']).toBe(0);
+    expect(Object.keys(followers.PRO)).toEqual(FEATURE_KEYS.slice(0, 8));
   });
 });

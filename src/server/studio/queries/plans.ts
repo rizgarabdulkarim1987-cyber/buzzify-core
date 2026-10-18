@@ -6,6 +6,7 @@ import {
   lowestPlanWith,
   parseExtras,
   PLAN_TIERS,
+  planFollowers,
   plansToStore,
   type FeatureKey,
   type PlanTier,
@@ -58,11 +59,20 @@ export const getPlans = defineQuery({
   permission: 'platform.settings',
   input: z.object({}),
   target: () => ({ kind: 'platform' }),
-  run: async (ctx) => ({
-    plans: plansToStore(await readPlans(ctx.db)),
-    whatsapp: (await readUpgradeWhatsApp(ctx.db)) ?? '',
-    features: FEATURES.map((feature) => ({ ...feature })),
-    tiers: [...PLAN_TIERS],
-    canEdit: ctx.permissions.has('plans.manage'),
-  }),
+  run: async (ctx) => {
+    const [plans, whatsapp, restaurants] = await Promise.all([
+      readPlans(ctx.db),
+      readUpgradeWhatsApp(ctx.db),
+      ctx.db.restaurant.findMany({ select: { plan: true, planExtras: true } }),
+    ]);
+    return {
+      plans: plansToStore(plans),
+      whatsapp: whatsapp ?? '',
+      features: FEATURES.map((feature) => ({ ...feature })),
+      tiers: [...PLAN_TIERS],
+      // How many restaurants a switch turned off would take a feature from, for the question before the save.
+      followers: planFollowers(restaurants.map((row) => ({ plan: row.plan, extras: parseExtras(row.planExtras) }))),
+      canEdit: ctx.permissions.has('plans.manage'),
+    };
+  },
 });

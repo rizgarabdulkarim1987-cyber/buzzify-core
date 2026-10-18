@@ -1874,6 +1874,13 @@ const ar: Messages = {
   'plansSettings.whatsappHint': 'مع رمز الدولة، مثل ‎+964 750 123 4567. زر الترقية يفتح محادثة معه.',
   'plansSettings.save': 'حفظ الباقات',
   'plansSettings.saved': 'حُفظت الباقات',
+  'plansSettings.confirmTitle': 'إزالة ميزات من الباقات؟',
+  'plansSettings.confirmBody':
+    'سيتوقف ضيوف كل مطعم على هذه الباقات عن رؤيتها فورًا، إلا المطاعم المفعّلة لها الميزة خارج الباقة. لا يُحذف شيء: إعادة تفعيل الميزة تُرجعها.',
+  'plansSettings.confirmItem': '{feature} في الباقة {plan}',
+  'plansSettings.confirmCount_one': 'يفقدها مطعم واحد',
+  'plansSettings.confirmCount_other': 'عدد المطاعم التي ستفقدها: {formatted}',
+  'plansSettings.confirmNone': 'لا يفقدها أي مطعم الآن',
   'brand.lockedChoice': 'يرى الضيوف {fallback} حتى تشمل الباقة {choice}.',
   'qr.lockedStyle': 'ألوان المطعم والشعار',
   'qr.lockedKept': 'يُطبع هذا الرمز بالأسود على الأبيض ومن دون الشعار حتى تشملها الباقة.',
