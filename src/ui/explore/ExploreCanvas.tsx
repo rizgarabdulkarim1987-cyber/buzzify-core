@@ -4,7 +4,7 @@ import { Canvas, useFrame, useThree, type RootState } from '@react-three/fiber';
 import type { MotionValue } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import { NeutralToneMapping, Vector3, type Group, type Object3D, type PerspectiveCamera } from 'three';
-import { layersFor, NO_EXTRAS, type BurgerSelection, type Layer } from '@/lib/stage';
+import { explodeOffset, layersFor, NO_EXTRAS, type BurgerSelection, type Layer } from '@/lib/stage';
 import {
   advanceTurn,
   createActivity,
@@ -18,6 +18,7 @@ import { cremaTexture, softDotTexture } from '@/ui/stage/materials';
 import { Plinth } from '@/ui/stage/Plinth';
 import { FRAMING } from '@/ui/stage/StageCanvas';
 import { installStudio } from '@/ui/stage/studio';
+import { cameraHeight, fitStage, lookHeight } from './framing';
 import { GrainField, type GrainState } from './GrainField';
 import { sampleDish, type GrainCloud } from './grains';
 import { morphState } from './morph';
@@ -36,6 +37,8 @@ export interface ExploreCanvasProps {
   paused: boolean;
   /** DOM labels to pin to layers, keyed `${sceneId}:${layerKey}`. */
   labels: RefObject<Record<string, HTMLElement | null>>;
+  /** The free band of the screen between the header and the text panel, in CSS pixels; null until measured. */
+  band: RefObject<{ top: number; bottom: number } | null>;
   onReady: () => void;
   onFailure: () => void;
 }
@@ -255,24 +258,57 @@ function Dust({ texture }: { texture: ReturnType<typeof softDotTexture> }) {
   );
 }
 
-function CameraRig({ progress, scenes, reduced }: { progress: MotionValue<number>; scenes: number; reduced: boolean }) {
+/** Space kept between the dish and the header above it, and the text panel below it, in CSS pixels. */
+const BAND_MARGIN = { top: 8, bottom: 14 };
+
+function CameraRig({
+  progress,
+  scenes,
+  reduced,
+  band,
+  dishHeight,
+}: {
+  progress: MotionValue<number>;
+  scenes: number;
+  reduced: boolean;
+  band: RefObject<{ top: number; bottom: number } | null>;
+  /** How tall the dish on screen now stands, in world units, read every frame. */
+  dishHeight: () => number;
+}) {
+  const offset = useRef<number | null>(null);
   useFrame((state, delta) => {
     const dt = Math.min(delta, 1 / 30);
     const half = Math.tan((FOV * Math.PI) / 360);
-    const aspect = state.size.width / Math.max(1, state.size.height);
+    const { width, height } = state.size;
+    const aspect = width / Math.max(1, height);
     const base = Math.min(17, Math.max(7.4, (1.62 * 1.1) / (half * aspect)));
+    // Step back until the dish fits between the header and the text panel, and shift the picture to sit it there.
+    // Until the page has measured them, the picture is lifted by a fixed share of the screen.
+    const free = band.current;
+    const fit = free
+      ? fitStage({
+          width,
+          height,
+          fov: FOV,
+          dish: dishHeight(),
+          plinth: PLINTH,
+          band: { top: free.top + BAND_MARGIN.top, bottom: free.bottom - BAND_MARGIN.bottom },
+          minDistance: base,
+          maxDistance: 17,
+        })
+      : { distance: base, offsetY: height * 0.13 };
     // Lean in a little while the grains fly, so the melt fills the frame.
     const flying = reduced ? 0 : Math.sin(Math.PI * morphState(progress.get(), scenes).t);
-    const distance = base * (1 - 0.06 * flying);
+    const distance = fit.distance * (1 - 0.06 * flying);
     const camera = state.camera as PerspectiveCamera;
     const ease = 1 - Math.exp(-5 * dt);
     camera.position.z += (distance - camera.position.z) * ease;
-    camera.position.y += (base * 0.3 - camera.position.y) * ease;
-    camera.lookAt(0, 0.1 + base * 0.02, 0);
-    // Shift the picture up so the dish sits above the text panel rather than behind it.
-    const lift = Math.round(state.size.height * 0.13);
-    if (camera.view?.offsetY !== lift || camera.view?.fullHeight !== state.size.height) {
-      camera.setViewOffset(state.size.width, state.size.height, 0, lift, state.size.width, state.size.height);
+    camera.position.y += (cameraHeight(fit.distance) - camera.position.y) * ease;
+    camera.lookAt(0, lookHeight(fit.distance), 0);
+    offset.current = offset.current === null ? fit.offsetY : offset.current + (fit.offsetY - offset.current) * ease;
+    const lift = Math.round(offset.current);
+    if (camera.view?.offsetY !== lift || camera.view?.fullHeight !== height || camera.view?.fullWidth !== width) {
+      camera.setViewOffset(width, height, 0, lift, width, height);
     }
   });
   return null;
@@ -345,6 +381,7 @@ function Stage({
   controls,
   reduced,
   labels,
+  band,
   onReady,
 }: Omit<ExploreCanvasProps, 'paused' | 'onFailure'>) {
   const [activity] = useState(createActivity);
@@ -364,6 +401,26 @@ function Stage({
     () => scenes.map((scene) => layersFor(scene.art, selections[scene.productId] ?? NO_EXTRAS)),
     [scenes, selections],
   );
+
+  // How tall each dish stands in the world, whole and pulled apart (which also shrinks the turntable).
+  const heights = useMemo(
+    () =>
+      scenes.map((scene, i) => {
+        const layers = layerSets[i]!;
+        const top = (lift: (layer: Layer) => number) => Math.max(0.5, ...layers.map((layer) => layer.y + layer.height / 2 + lift(layer)));
+        return {
+          whole: top(() => 0) * unitOf(scene),
+          apart: top((layer) => explodeOffset(scene.art, layers, layer.key)) * unitOf(scene) * 0.78,
+        };
+      }),
+    [scenes, layerSets],
+  );
+  const dishHeight = useCallback(() => {
+    const morph = morphState(progress.get(), scenes.length);
+    const user = memory.current.user;
+    const at = (i: number) => heights[i]!.whole + (heights[i]!.apart - heights[i]!.whole) * (i === morph.resting ? user : 0);
+    return at(morph.from) + (at(morph.to) - at(morph.from)) * morph.t;
+  }, [heights, progress, scenes.length]);
 
   // Sample every dish's grains while the page is idle, so a melt never waits for them.
   useEffect(() => {
@@ -448,7 +505,7 @@ function Stage({
         {!reduced && <GrainField count={GRAINS} state={grains} />}
       </group>
       {!reduced && <Dust texture={dots} />}
-      <CameraRig progress={progress} scenes={scenes.length} reduced={reduced} />
+      <CameraRig progress={progress} scenes={scenes.length} reduced={reduced} band={band} dishHeight={dishHeight} />
       <Driver progress={progress} controls={controls} activity={activity} />
       <Coast controls={controls} />
       <Ready onReady={onReady} />

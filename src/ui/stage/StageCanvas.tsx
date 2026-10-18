@@ -48,6 +48,8 @@ export const FRAMING: Record<StageArt, { plinth: number; lift: number; aim: numb
   glass: { plinth: 1.1, lift: 1.5, aim: 0.25, extra: 0.45 },
   croissant: { plinth: 1.35, lift: 1.9, aim: 0.1, extra: 0 },
   millefeuille: { plinth: 1.35, lift: 1.5, aim: 0.1, extra: 0 },
+  bagchicken: { plinth: 1.25, lift: 1.25, aim: 0.2, extra: 0.3 },
+  bagbeef: { plinth: 1.25, lift: 1.25, aim: 0.2, extra: 0.3 },
 };
 const FOV = 30;
 /** Seconds between layers landing: the hero's reveal is unhurried, the sheet's is quick. */

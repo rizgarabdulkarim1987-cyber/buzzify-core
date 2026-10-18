@@ -145,6 +145,13 @@ const ar: Messages = {
   'layer.liquid': 'يوزو وليمون وعسل',
   'layer.lemon': 'شريحة ليمون',
   'layer.croissant': 'عجينة زبدة مطبّقة',
+  'layer.bag': 'كيس الشيبس',
+  'layer.chips': 'رقائق التورتيلا',
+  'layer.chicken': 'دجاج مشوي',
+  'layer.beef': 'لحم متبّل',
+  'layer.veg': 'خس وفلفل',
+  'layer.jalapeno': 'هالابينو',
+  'layer.sauce': 'صوص الجبن',
 };
 
 export default ar;

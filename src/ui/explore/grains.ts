@@ -17,7 +17,7 @@ export interface GrainCloud {
 }
 
 /** How many grains a part gets relative to its area: big see-through or flat parts need fewer. */
-const WEIGHT: Partial<Record<LayerKind, number>> = { glass: 0.35, saucer: 0.6, lemon: 0.7, liquid: 0.8 };
+const WEIGHT: Partial<Record<LayerKind, number>> = { glass: 0.35, saucer: 0.6, lemon: 0.7, liquid: 0.8, bag: 0.7 };
 /** How opaque a part's grains are. */
 const ALPHA: Partial<Record<LayerKind, number>> = { glass: 0.22, ice: 0.7, liquid: 0.92 };
 

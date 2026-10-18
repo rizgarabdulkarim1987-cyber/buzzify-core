@@ -142,6 +142,13 @@ const en: Messages = {
   'layer.liquid': 'Yuzu, lemon and honey',
   'layer.lemon': 'Lemon wheel',
   'layer.croissant': 'All-butter laminate',
+  'layer.bag': 'Chip bag',
+  'layer.chips': 'Tortilla chips',
+  'layer.chicken': 'Grilled chicken',
+  'layer.beef': 'Seasoned beef',
+  'layer.veg': 'Lettuce and peppers',
+  'layer.jalapeno': 'Jalapeños',
+  'layer.sauce': 'Cheese sauce',
 };
 
 export default en;

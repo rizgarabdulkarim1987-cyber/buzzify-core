@@ -206,6 +206,7 @@ function ScenePanel({
     <motion.section
       aria-labelledby={titleId}
       data-stage-layers={layerKeys}
+      data-explore-panel
       inert={!active}
       aria-hidden={!active}
       style={{ opacity, y }}
@@ -314,6 +315,27 @@ export function ExploreApp({ view }: { view: MenuView }) {
   const controls = useRef<StageControls>(createControls());
   const labels = useRef<Record<string, HTMLElement | null>>({});
   const press = useRef<{ lastX: number; lastT: number } | null>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+  // The screen between the header and the tallest text panel, where the dish must stay. Measured from layout, which
+  // ignores the panels' scroll-driven transforms, so it holds still while the guest scrolls.
+  const band = useRef<{ top: number; bottom: number } | null>(null);
+  useEffect(() => {
+    const stage = stageRef.current;
+    const header = headerRef.current;
+    if (!stage || !header) return;
+    const panels = Array.from(stage.querySelectorAll<HTMLElement>('[data-explore-panel]'));
+    const measure = () => {
+      const bottom = Math.min(stage.clientHeight, ...panels.map((panel) => panel.offsetTop));
+      band.current = { top: header.offsetTop + header.offsetHeight, bottom };
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(stage);
+    observer.observe(header);
+    panels.forEach((panel) => observer.observe(panel));
+    return () => observer.disconnect();
+  }, [count]);
 
   const { opened, openProduct, closeProduct } = useProductSheet(view.products, '/explore');
 
@@ -411,7 +433,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
 
   return (
     <>
-      <div className="fixed inset-0 overflow-hidden bg-bg" data-testid="explore-stage" data-explore-mode={mode}>
+      <div ref={stageRef} className="fixed inset-0 overflow-hidden bg-bg" data-testid="explore-stage" data-explore-mode={mode}>
         {scenes.map((scene, index) => (
           <SceneGlow key={scene.id} index={index} progress={progress} tone={scene.tone} />
         ))}
@@ -462,6 +484,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
               reduced={reduced}
               paused={false}
               labels={labels}
+              band={band}
               onReady={() => setMode((current) => (current === 'loading' ? 'ready' : current))}
               onFailure={() => setMode('unavailable')}
             />
@@ -488,7 +511,7 @@ export function ExploreApp({ view }: { view: MenuView }) {
           )}
         </div>
 
-        <div className="relative z-10">
+        <div ref={headerRef} className="relative z-10">
           <Header current="explore" overlay />
         </div>
 

@@ -6,7 +6,7 @@ import type { MediaItem } from './media';
  */
 
 /** The models the stage can draw. A product's media picks one by art kind or by an explicit `model`. */
-export const STAGE_ARTS = ['burger', 'cup', 'glass', 'croissant', 'millefeuille'] as const;
+export const STAGE_ARTS = ['burger', 'cup', 'glass', 'croissant', 'millefeuille', 'bagchicken', 'bagbeef'] as const;
 export type StageArt = (typeof STAGE_ARTS)[number];
 
 export function isStageArt(art: string): art is StageArt {
@@ -16,10 +16,13 @@ export function isStageArt(art: string): art is StageArt {
 /** The model an art kind means when the media item names none. */
 const DEFAULT_MODEL: Partial<Record<string, StageArt>> = { burger: 'burger', cup: 'cup', glass: 'glass' };
 
-/** The model and colour when a product's media can be shown as a 3D stage, otherwise null. */
+/**
+ * The model and colour when a product's media can be shown as a 3D stage, otherwise null. The first art entry
+ * decides, wherever it sits: a photo can come first, so it stays the product's picture while the art draws the stage.
+ */
 export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone: string } | null {
-  const first = media[0];
-  if (!first || first.kind !== 'art') return null;
+  const first = media.find((item): item is Extract<MediaItem, { kind: 'art' }> => item.kind === 'art');
+  if (!first) return null;
   const named = first.model && isStageArt(first.model) ? first.model : undefined;
   const art = named ?? DEFAULT_MODEL[first.art];
   return art ? { art, tone: first.tone } : null;
@@ -53,7 +56,14 @@ export type LayerKind =
   | 'puff-2'
   | 'cream-2'
   | 'puff-3'
-  | 'icing';
+  | 'icing'
+  | 'bag'
+  | 'chips'
+  | 'chicken'
+  | 'beef'
+  | 'veg'
+  | 'jalapeno'
+  | 'sauce';
 
 export interface Layer {
   key: LayerKind;
@@ -94,6 +104,13 @@ const HEIGHT: Record<LayerKind, number> = {
   'cream-2': 0.09,
   'puff-3': 0.12,
   icing: 0.05,
+  bag: 1.0,
+  chips: 0.55,
+  chicken: 0.33,
+  beef: 0.31,
+  veg: 0.33,
+  jalapeno: 0.2,
+  sauce: 0.28,
 };
 
 function stack(keys: LayerKind[]): Layer[] {
@@ -150,9 +167,33 @@ export function millefeuilleLayers(): Layer[] {
   return stack(['puff-1', 'cream-1', 'puff-2', 'cream-2', 'puff-3', 'icing']);
 }
 
+/** Where the open top of the chip bag is, above the disc. */
+const BAG_RIM = HEIGHT.bag;
+
+/**
+ * A chip bag torn open and loaded: chips standing up out of its mouth, the meat heaped on them, then lettuce
+ * and peppers, jalapeño slices and cheese sauce over everything. Nested like the cup: the filling sits in and
+ * above the mouth rather than stacked on the bag's lid.
+ */
+export function bagLayers(meat: 'chicken' | 'beef'): Layer[] {
+  const centre = (key: LayerKind, base: number): Layer => ({ key, height: HEIGHT[key], y: base + HEIGHT[key] / 2 });
+  return [
+    centre('bag', 0),
+    centre('chips', BAG_RIM - 0.15),
+    centre(meat, BAG_RIM + 0.07),
+    centre('veg', BAG_RIM + 0.09),
+    centre('jalapeno', BAG_RIM + 0.25),
+    centre('sauce', BAG_RIM + 0.14),
+  ];
+}
+
 /** The layers a stage draws for a model. Only burgers react to the selection. */
 export function layersFor(art: StageArt, selection: BurgerSelection): Layer[] {
   switch (art) {
+    case 'bagchicken':
+      return bagLayers('chicken');
+    case 'bagbeef':
+      return bagLayers('beef');
     case 'burger':
       return burgerLayers(selection);
     case 'cup':
@@ -186,6 +227,14 @@ export function explodeOffset(art: StageArt, layers: readonly Layer[], key: Laye
       return key === 'lemon' ? 0.55 : key === 'ice' ? 0.4 : key === 'liquid' ? 0.05 : 0;
     case 'croissant':
       return 0;
+    case 'bagchicken':
+    case 'bagbeef': {
+      // The bag stays put and the filling rises out of it onto evenly spaced steps, the top of the heap highest, so
+      // parts that sit inside one another in the bag (and their labels) come apart.
+      const index = layers.findIndex((candidate) => candidate.key === key);
+      if (index <= 0) return 0;
+      return Math.max(0, BAG_RIM + 0.07 + index * 0.17 - layers[index]!.y);
+    }
   }
 }
 

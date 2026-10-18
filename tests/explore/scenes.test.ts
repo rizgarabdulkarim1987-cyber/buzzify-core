@@ -69,6 +69,15 @@ describe('buildScenes', () => {
     expect(scenes[0]?.art).toBe('millefeuille');
   });
 
+  it('stages a dish whose photo comes first and whose model is named after it', () => {
+    const media = [
+      { kind: 'image', url: '/bag.webp', alt: 'Loaded bag', width: 800, height: 800 },
+      { kind: 'art', art: 'bowl', tone: '#e89a2c', model: 'bagchicken' },
+    ] as MenuProductView['media'];
+    const scenes = buildScenes(view([product({ id: 'bag', categoryId: 'c2', isSignature: true, media })]));
+    expect(scenes.map((s) => s.art)).toEqual(['bagchicken']);
+  });
+
   it('takes the first signature of a category and ignores sold-out dishes that cannot be ordered', () => {
     const scenes = buildScenes(
       view([

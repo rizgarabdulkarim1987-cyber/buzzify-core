@@ -5,6 +5,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject }
 import {
   AdditiveBlending,
   BufferGeometry,
+  CapsuleGeometry,
   Float32BufferAttribute,
   InstancedMesh,
   MathUtils,
@@ -13,6 +14,7 @@ import {
   Vector3,
   type CanvasTexture,
   type Group,
+  type Mesh,
 } from 'three';
 import { explodeOffset, type Layer, type StageArt } from '@/lib/stage';
 import { isTransparentKind, LayerMaterial, renderOrderOf } from './materials';
@@ -22,6 +24,7 @@ import {
   domeHeight,
   makeLayerGeometry,
   makeSesame,
+  sauceDrips,
 } from './stage-parts';
 
 const ENTER_HEIGHT = 1.5;
@@ -211,6 +214,59 @@ function Sesame({ count = 64 }: { count?: number }) {
 }
 
 // ---------------------------------------------------------------------------------------------
+// Chip bag bits
+// ---------------------------------------------------------------------------------------------
+
+const isBag = (art: StageArt) => art === 'bagchicken' || art === 'bagbeef';
+
+/**
+ * Cheese sauce running over the front rim of the bag: each drip slowly lengthens down the foil, then draws
+ * back, out of step with the others. Still, at half length, when motion is off.
+ */
+function SauceDrips({ animate }: { animate: boolean }) {
+  const geometry = useMemo(() => {
+    const capsule = new CapsuleGeometry(0.034, 0.1, 6, 14);
+    // Hang from the rim: the top of the drip is its origin, so stretching it pulls it downward.
+    capsule.translate(0, -0.05, 0);
+    return capsule;
+  }, []);
+  useEffect(() => () => geometry.dispose(), [geometry]);
+  const spots = useMemo(() => sauceDrips(), []);
+  const meshes = useRef<Array<Mesh | null>>([]);
+
+  useFrame(({ clock }) => {
+    meshes.current.forEach((mesh, i) => {
+      if (!mesh) return;
+      let stretch = 0.5;
+      if (animate) {
+        const cycle = (clock.elapsedTime * 0.2 + i * 0.37) % 1;
+        stretch = cycle < 0.72 ? MathUtils.smootherstep(cycle / 0.72, 0, 1) : 1 - MathUtils.smoothstep((cycle - 0.72) / 0.28, 0, 1);
+      }
+      const thin = 1 - 0.22 * stretch;
+      mesh.scale.set(thin, 0.4 + 1.2 * stretch, thin);
+    });
+  });
+
+  return (
+    <>
+      {spots.map(([x, y, z], i) => (
+        <mesh
+          key={i}
+          ref={(mesh) => {
+            meshes.current[i] = mesh;
+          }}
+          geometry={geometry}
+          position={[x, y, z]}
+          castShadow
+        >
+          <meshPhysicalMaterial color="#f4a21f" roughness={0.24} clearcoat={0.9} clearcoatRoughness={0.15} />
+        </mesh>
+      ))}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
 // One layer
 // ---------------------------------------------------------------------------------------------
 
@@ -220,6 +276,7 @@ function LayerMesh({
   crema,
   offset,
   explode,
+  ambient,
   register,
 }: {
   item: Item;
@@ -228,6 +285,8 @@ function LayerMesh({
   /** Vertical travel at full explode. */
   offset: number;
   explode?: RefObject<number>;
+  /** Whether parts of the layer may move on their own, like sauce running. */
+  ambient: boolean;
   register?: (key: string, object: Object3D | null) => void;
 }) {
   const group = useRef<Group>(null);
@@ -279,6 +338,7 @@ function LayerMesh({
         <LayerMaterial kind={kind} tone={tone} crema={crema} />
       </mesh>
       {kind === 'bun-top' && <Sesame />}
+      {kind === 'sauce' && <SauceDrips animate={ambient} />}
       {kind === 'saucer' && (
         <mesh position={[0, SAUCER_RIM.y - 0.002, 0]} rotation-x={Math.PI / 2}>
           <torusGeometry args={[SAUCER_RIM.radius, 0.0085, 8, 128]} />
@@ -361,10 +421,12 @@ export function DishModel({
           crema={crema}
           offset={explodeOffset(art, layers, item.layer.key)}
           explode={explode}
+          ambient={ambient}
           register={register}
         />
       ))}
       {ambient && art === 'cup' && <Steam texture={dots} origin={[0, top + 0.05, 0]} />}
+      {ambient && isBag(art) && <Steam texture={dots} origin={[0, top - 0.06, 0]} />}
       {ambient && art === 'glass' && <Bubbles texture={dots} origin={[0, 0, 0]} />}
     </group>
   );
