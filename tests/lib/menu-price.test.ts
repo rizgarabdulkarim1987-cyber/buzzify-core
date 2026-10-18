@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { unitPriceFromMenu } from '@/lib/menu-price';
+import { optionExtraFromMenu, unitPriceFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
 import { buildMenuView } from '@/server/data/menu-view';
 import type { TenantInfo } from '@/server/data/tenant';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
@@ -98,6 +98,38 @@ describe('unitPriceFromMenu', () => {
         }
       }
     }
+  });
+
+  it('says what a size or an option adds now, the discount included', () => {
+    const promotions = [
+      {
+        id: 'twenty',
+        kind: 'DISCOUNT' as const,
+        percentOff: 20,
+        productIds: [IDS.burger, IDS.coldBrew],
+        categoryIds: [],
+        startsOn: null,
+        endsOn: null,
+        startMinute: null,
+        endMinute: null,
+        daysOfWeek: 127,
+        roundTo: 5,
+        translations: {},
+        sortOrder: 0,
+      },
+    ];
+    const regular = buildMenuView(makeCatalog(), tenant, 'en', at(12));
+    const discounted = buildMenuView(makeCatalog({ promotions }), tenant, 'en', at(12));
+    const burgerOf = (v: typeof regular) => v.products.find((p) => p.id === IDS.burger)!;
+    const coldOf = (v: typeof regular) => v.products.find((p) => p.id === IDS.coldBrew)!;
+    const addons = burgerOf(regular).groups[0]!.options.map((o) => o.id);
+
+    expect(optionExtraFromMenu(burgerOf(regular), null, [], addons, IDS.optCheese)).toBe(100);
+    expect(optionExtraFromMenu(burgerOf(discounted), null, [], addons, IDS.optCheese)).toBe(80);
+    // Against the other choices made, without the option's own group.
+    expect(optionExtraFromMenu(burgerOf(discounted), null, [IDS.optDouble], addons, IDS.optCheese)).toBe(80);
+    expect(variantExtraFromMenu(coldOf(regular), IDS.varLarge, IDS.varRegular, [])).toBe(150);
+    expect(variantExtraFromMenu(coldOf(discounted), IDS.varLarge, IDS.varRegular, [])).toBe(120);
   });
 
   it('matches for the burger with two options and clamps at zero', () => {

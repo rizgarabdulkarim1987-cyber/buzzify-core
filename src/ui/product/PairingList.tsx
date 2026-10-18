@@ -17,6 +17,7 @@ export function PairingList<T extends SuggestedDish>({
   onDismiss,
   title,
   headingId = 'pairing-title',
+  formatPrice,
 }: {
   offers: T[];
   onAdd: (offer: T) => void;
@@ -25,8 +26,11 @@ export function PairingList<T extends SuggestedDish>({
   /** The list's heading; "Perfect pairing" unless said otherwise. */
   title?: string;
   headingId?: string;
+  /** How prices show: the menu's own style on a dish page; with the currency symbol (the default) in the cart. */
+  formatPrice?: (amount: number) => string;
 }) {
   const { t, money } = useApp();
+  const show = formatPrice ?? money;
 
   useEffect(() => {
     for (const offer of offers) {
@@ -53,7 +57,7 @@ export function PairingList<T extends SuggestedDish>({
             <div className="min-w-0 flex-1">
               <p>{offer.name}</p>
               {offer.reason && <p className="text-sm text-muted">{offer.reason}</p>}
-              <p className="text-sm tabular-nums text-muted">{money(offer.price)}</p>
+              <p className="text-sm tabular-nums text-muted">{show(offer.price)}</p>
             </div>
             <button
               type="button"

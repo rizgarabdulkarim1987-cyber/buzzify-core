@@ -9,11 +9,12 @@ import { EASE_OUT, ROLL_SECONDS } from '@/ui/motion';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 
 /**
- * A price that rolls to its new value. The rolling digits are decoration and hidden from assistive
- * technology, which gets the final amount at once. With reduced motion the value simply changes.
+ * A price that rolls to its new value, in the menu's price style (it shows on the dish page and in Explore). The
+ * rolling digits are decoration and hidden from assistive technology, which gets the final amount at once. With
+ * reduced motion the value simply changes.
  */
 export function RollingMoney({ value, className }: { value: number; className?: string }) {
-  const { money } = useApp();
+  const { price: money } = useApp();
   const reduced = usePrefersReducedMotion();
   const digits = useRef<HTMLSpanElement>(null);
   // What is on screen right now, so a change that arrives mid-roll continues from there.

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { unitPriceFromMenu } from '@/lib/menu-price';
+import { optionExtraFromMenu, unitPriceFromMenu, variantExtraFromMenu } from '@/lib/menu-price';
 import { stagesOnProductPage } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { UpsellOffer } from '@/server/domain';
@@ -29,7 +29,7 @@ interface Props {
 }
 
 export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Props) {
-  const { t, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
+  const { t, price, addLine, announce, cart, dismissed, dismiss, locale, tenant, preview } = useApp();
   const [variantId, setVariantId] = useState<string | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [quantity, setQuantity] = useState(1);
@@ -162,7 +162,8 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
             items={product.variants.map((variant) => ({
               id: variant.id,
               name: variant.name,
-              priceDelta: variant.priceDelta - (product.variants.find((v) => v.isDefault)?.priceDelta ?? 0),
+              // What it adds now, a live discount included, against the default size.
+              priceDelta: variantExtraFromMenu(product, variant.id, defaultVariant, selected),
             }))}
             onToggle={(id) => setVariantId(id === defaultVariant ? null : id)}
           />
@@ -179,7 +180,13 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
               id: option.id,
               name: option.name,
               effect: option.effect,
-              priceDelta: option.priceDelta,
+              priceDelta: optionExtraFromMenu(
+                product,
+                variantId,
+                selected,
+                group.options.map((entry) => entry.id),
+                option.id,
+              ),
               disabled: !option.isAvailable,
             }))}
             onToggle={(id) => toggle(group.id, id)}
@@ -191,6 +198,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
         {orderable && (
           <PairingList
             offers={data?.pairings ?? []}
+            formatPrice={price}
             onAdd={(offer) => {
               addLine({ productId: offer.productId, variantId: null, optionIds: [], quantity: 1 });
               track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });

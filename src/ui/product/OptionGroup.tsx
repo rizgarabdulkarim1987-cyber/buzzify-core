@@ -26,7 +26,7 @@ export function OptionGroup({
   max: number;
   onToggle: (id: string) => void;
 }) {
-  const { t, money } = useApp();
+  const { t, price } = useApp();
   const name = useId();
   const single = max === 1;
   const requirement =
@@ -61,7 +61,7 @@ export function OptionGroup({
                 {item.priceDelta !== 0 && (
                   <span className="shrink-0 text-sm tabular-nums text-muted">
                     {item.priceDelta > 0 ? '+' : ''}
-                    {money(item.priceDelta)}
+                    {price(item.priceDelta)}
                   </span>
                 )}
               </label>

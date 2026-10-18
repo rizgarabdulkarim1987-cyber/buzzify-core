@@ -194,7 +194,7 @@ function ScenePanel({
   onAdd: (product: MenuProductView) => void;
   onCustomise: (productId: string) => void;
 }) {
-  const { t, money } = useApp();
+  const { t, price } = useApp();
   const product = scene.product;
   const opacity = useTransform(progress, (p) => sceneState(index, p).opacity);
   const y = useTransform(progress, (p) => `${(1 - sceneState(index, p).opacity) * 28}px`);
@@ -250,7 +250,7 @@ function ScenePanel({
                   } ${full ? 'opacity-45' : ''}`}
                 >
                   {option.name}
-                  {option.priceDelta > 0 ? <span className="ms-2 tabular-nums opacity-80">+{money(option.priceDelta)}</span> : null}
+                  {option.priceDelta > 0 ? <span className="ms-2 tabular-nums opacity-80">+{price(option.priceDelta)}</span> : null}
                 </button>
               );
             })}
