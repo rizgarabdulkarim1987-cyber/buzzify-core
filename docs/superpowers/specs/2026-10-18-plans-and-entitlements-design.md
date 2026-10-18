@@ -1,6 +1,6 @@
 # Project 1: Plans and entitlements
 
-Status: draft for the user's approval
+Status: approved by the user (2026-10-18)
 Date: 2026-10-18
 Base: `main` at 6fd2227
 Branch: `worktree-plans-and-entitlements`
