@@ -6,6 +6,7 @@ import { ATELIER, type SeedData } from './seed/atelier';
 import { HOT_BRICK } from './seed/hot-brick';
 import { RIVERLIGHT } from './seed/riverlight';
 import { seedMenu } from './seed/apply';
+import { demoRestaurant } from './seed/demo-restaurant';
 import { assertLocalDatabase } from './seed/local-database';
 import { seedDevUsers } from './seed/users';
 import { assertSeedValid } from './seed/validate';
@@ -62,25 +63,6 @@ async function checkSlugIsOurs(prisma: PrismaClient, slug: string): Promise<void
 
 /** The demo menus, each under its own restaurant: ATELIER (with the development users), then the two 2b added. */
 const DEMOS: readonly SeedData[] = [ATELIER, RIVERLIGHT, HOT_BRICK];
-
-/** Finds the demo's restaurant by name (a reseed keeps it, and so its client number), or creates it. */
-async function demoRestaurant(prisma: PrismaClient, { profile }: SeedData) {
-  return (
-    (await prisma.restaurant.findFirst({ where: { name: profile.name }, orderBy: { createdAt: 'asc' } })) ??
-    (await prisma.restaurant.create({
-      data: {
-        name: profile.name,
-        type: profile.type,
-        description: profile.description,
-        city: profile.city,
-        country: profile.country,
-        phone: profile.phone,
-        whatsapp: profile.whatsapp,
-        socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
-      },
-    }))
-  );
-}
 
 /** Seeds one demo menu under its restaurant and publishes it as revision 1 (guests see only what is published). */
 async function seedDemo(prisma: PrismaClient, data: SeedData): Promise<{ restaurantId: string }> {

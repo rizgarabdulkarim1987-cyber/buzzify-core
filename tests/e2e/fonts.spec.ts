@@ -140,11 +140,13 @@ test.describe('font downloads of a menu with its own font pair', () => {
     expect(fonts.reduce((sum, font) => sum + font.bytes, 0)).toBeLessThan(70 * 1024);
   });
 
-  test('Hot Brick in English downloads only Anton and Inter', async ({ page }) => {
-    expect(families(await fontDownloads(page, '/hot-brick/en'))).toEqual(['anton', 'inter']);
+  // Hot Brick is on Basic, which has the classic and modern pairs only: guests get the classic pair in place of its
+  // street pair (a Pro choice) until the plan includes it.
+  test('Hot Brick, on Basic, in English downloads only the classic pair’s Latin faces', async ({ page }) => {
+    expect(families(await fontDownloads(page, '/hot-brick/en'))).toEqual(['Hanken Grotesk', 'bodoni']);
   });
 
-  test('Hot Brick in Sorani downloads only Noto Kufi Arabic', async ({ page }) => {
-    expect(families(await fontDownloads(page, '/hot-brick/ckb'))).toEqual(['kufi']);
+  test('Hot Brick, on Basic, in Sorani downloads only the classic pair’s Arabic face', async ({ page }) => {
+    expect(families(await fontDownloads(page, '/hot-brick/ckb'))).toEqual(['Noto Naskh Arabic']);
   });
 });

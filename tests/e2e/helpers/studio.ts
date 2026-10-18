@@ -337,6 +337,37 @@ export async function restorePlatformSettings(rows: readonly SettingRow[]): Prom
   }
 }
 
+/**
+ * Makes `userId` (a Super Admin) the platform owner, the one person who changes plans, and answers who was it before, for
+ * `restorePlatformOwner`. There is at most one owner, so the flag moves in one transaction.
+ */
+export async function makePlatformOwner(userId: string): Promise<string | null> {
+  const db = prisma();
+  try {
+    return await db.$transaction(async (tx) => {
+      const before = await tx.user.findFirst({ where: { isPlatformOwner: true }, select: { id: true } });
+      await tx.user.updateMany({ where: { isPlatformOwner: true }, data: { isPlatformOwner: false } });
+      await tx.user.update({ where: { id: userId }, data: { isPlatformOwner: true } });
+      return before?.id ?? null;
+    });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Gives the platform owner back to `userId` (none: nobody), as it was before `makePlatformOwner`. */
+export async function restorePlatformOwner(userId: string | null): Promise<void> {
+  const db = prisma();
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.updateMany({ where: { isPlatformOwner: true }, data: { isPlatformOwner: false } });
+      if (userId) await tx.user.updateMany({ where: { id: userId }, data: { isPlatformOwner: true } });
+    });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 /** Moves a restaurant's version on, as another person's save would, so the next save from an open page is stale. */
 export async function bumpRestaurantVersion(id: string): Promise<void> {
   const db = prisma();
