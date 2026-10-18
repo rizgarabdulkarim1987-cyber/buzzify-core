@@ -52,6 +52,7 @@ same fixed quality, whatever it shows.
 - The similarity score: identical images score 1; a visibly damaged image scores below the threshold.
 - A photo's variants pass the threshold against their source; the original is at most 2560 px with the same aspect
   ratio; a PNG with transparency keeps it; a photo below 2560 px is not enlarged.
-- On sample menu photos (committed as fixtures, small enough for the repository), the stored bytes in total are
-  smaller than today's settings produce; the test prints both.
+- On a synthetic photo-like image made in the test, the stored bytes in total are smaller than today's settings
+  produce; the test prints both. Real photos (from the user) are used only to calibrate the threshold, outside the
+  repository.
 - The full suite stays green.
