@@ -185,7 +185,7 @@ export function CartView() {
               announce(t('cart.added', { name: offer.name }));
             }}
             onChoose={(offer) => {
-              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
               window.location.assign(href(`/p/${offer.slug}`));
             }}
             onDismiss={(offer) => dismiss(offer.suggestionId)}
@@ -201,7 +201,7 @@ export function CartView() {
               announce(t('cart.added', { name: offer.name }));
             }}
             onChoose={(offer) => {
-              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
               window.location.assign(href(`/p/${offer.slug}`));
             }}
             onDismiss={(offer) => dismiss(offer.suggestionId)}

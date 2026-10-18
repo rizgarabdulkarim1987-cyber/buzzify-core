@@ -205,7 +205,7 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
               announce(t('cart.added', { name: offer.name }));
             }}
             onChoose={(offer) => {
-              track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
               onSwitch(offer.productId);
             }}
             onDismiss={(offer) => dismiss(offer.suggestionId)}
