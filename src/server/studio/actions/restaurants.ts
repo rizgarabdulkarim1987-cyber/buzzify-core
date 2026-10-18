@@ -54,6 +54,8 @@ export const createRestaurant = defineAction({
   run: (ctx, { plan: chosen, ...input }) =>
     ctx.transaction(async (tx) => {
       const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
+      // The database's default for `Restaurant.plan` is PREMIUM, so the migration left every existing restaurant with
+      // all it had. A new one must never get that by omission: every path that creates a restaurant sets its plan.
       const created = await tx.restaurant.create({ data: { ...profileData(input), plan }, select: { id: true } });
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
