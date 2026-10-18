@@ -1,12 +1,12 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
-import type { Entitlements } from '@/server/domain/entitlements';
+import { parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
 import type { Catalog } from '@/server/domain/types';
 import { cachedLiveOverlay, cachedPlans, cachedRevisionSnapshot, cachedSlugResolution } from './cache';
 import { loadOverlay } from './live';
-import { entitlementsOf, readPlans } from './plans';
+import { entitlementsOf, readPlansSetting } from './plans';
 import { getPrisma } from './prisma';
 import { menuDb } from './tenant-db';
 import type { TenantInfo } from './tenant';
@@ -100,9 +100,17 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
   }
 
   // The plan is read live, like the statuses: a change of plan reaches guests without a publish.
-  const plans = await cachedPlans(() => readPlans(prisma));
+  const plans = await livePlans(prisma);
   const tenant = tenantInfo(menu, menu.liveRevisionId, snapshot, entitlementsOf(menu.restaurant, plans));
   return menu.slug === slug ? { kind: 'live', tenant } : { kind: 'redirect', slug: menu.slug, tenant };
+}
+
+/**
+ * The plans for the guest pages, from the data cache (at most 5 minutes old; `expirePlans` expires them). The cache
+ * keeps the stored setting, which is JSON, and the plans are parsed from it on every read.
+ */
+export async function livePlans(prisma: PrismaClient): Promise<Plans> {
+  return parsePlans(await cachedPlans(() => readPlansSetting(prisma)));
 }
 
 /** What a public slug opens, from the data cache (at most 5 minutes old; `expireMenu` expires it). */

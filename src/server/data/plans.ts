@@ -15,8 +15,18 @@ export const UPGRADE_WHATSAPP_SETTING = 'upgradeWhatsApp';
 export function readPlans(db: AnyDb): Promise<Plans>;
 export function readPlans(db: ScopedDb): Promise<Plans>;
 export async function readPlans(client: AnyDb | ScopedDb): Promise<Plans> {
+  return parsePlans(await readPlansSetting(delegates(client)));
+}
+
+/**
+ * The `plans` setting as stored (JSON, or null when the owner has not set it): what the data cache can keep, since
+ * `Plans` holds Sets that JSON cannot. `parsePlans` turns it into the plans.
+ */
+export function readPlansSetting(db: AnyDb): Promise<unknown>;
+export function readPlansSetting(db: ScopedDb): Promise<unknown>;
+export async function readPlansSetting(client: AnyDb | ScopedDb): Promise<unknown> {
   const row = await delegates(client).platformSetting.findUnique({ where: { key: PLANS_SETTING }, select: { value: true } });
-  return parsePlans(row?.value);
+  return row?.value ?? null;
 }
 
 /** The digits of the platform owner's WhatsApp number, or null until it is set. */
