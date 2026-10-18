@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
-import { PLAN_TIERS } from '@/server/domain/entitlements';
+import { readPlans } from '@/server/data/plans';
+import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
 import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -73,7 +74,7 @@ export const listRestaurants = defineQuery({
     if (created) filters.push({ createdAt: created });
     const where: Prisma.RestaurantWhereInput = { AND: filters };
 
-    const [total, found, cities] = await Promise.all([
+    const [total, found, cities, plans] = await Promise.all([
       ctx.db.restaurant.count({ where }),
       ctx.db.restaurant.findMany({
         where,
@@ -95,6 +96,7 @@ export const listRestaurants = defineQuery({
       }),
       // The cities the city filter offers: those of the restaurants the reader can see, and no others.
       ctx.db.restaurant.findMany({ where: { AND: [scope, { city: { not: '' } }] }, distinct: ['city'], orderBy: { city: 'asc' }, select: { city: true } }),
+      readPlans(ctx.db),
     ]);
 
     return {
@@ -113,6 +115,8 @@ export const listRestaurants = defineQuery({
       page: input.page,
       pageSize: PAGE_SIZE,
       cities: cities.map((row) => row.city),
+      /** The plans' names in the reader's language, as the platform owner set them. */
+      planNames: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, plans.names[tier][ctx.actor.locale]])) as Record<PlanTier, string>,
       canCreate: ctx.permissions.has('restaurant.create'),
     };
   },

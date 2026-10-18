@@ -31,6 +31,7 @@ export const restaurantPlan = defineQuery({
         inPlan: plans.features[row.plan].has(feature.key),
         extra: extras[feature.key] ?? null,
         lowestPlan: lowestPlanWith(plans, feature.key),
+        plans: PLAN_TIERS.filter((tier) => plans.features[tier].has(feature.key)),
       })),
       note: ctx.actor.isSuperAdmin ? row.planNote : null,
       canEdit: ctx.permissions.has('plans.manage'),

@@ -29,6 +29,8 @@ export default async function RestaurantLayout({ children, params }: { children:
     { href: base, label: t('restaurants.tabs.profile'), exact: true },
     { href: `${base}/branches`, label: t('restaurants.tabs.branches') },
     { href: `${base}/menus`, label: t('restaurants.tabs.menus') },
+    // What the restaurant has bought: everyone may read it; only the platform owner changes it there.
+    { href: `${base}/plan`, label: t('restaurants.tabs.plan') },
     ...(restaurant.can.media ? [{ href: `${base}/media`, label: t('restaurants.tabs.media') }] : []),
     ...(restaurant.can.invite ? [{ href: `${base}/people`, label: t('restaurants.tabs.people') }] : []),
     ...(restaurant.can.audit ? [{ href: `${base}/activity`, label: t('restaurants.tabs.activity') }] : []),

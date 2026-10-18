@@ -36,6 +36,8 @@ export interface PlanTabFeature {
   /** The extra for this restaurant: on, off, or null for "as the plan". */
   extra: boolean | null;
   lowestPlan: PlanTier | null;
+  /** Every plan that includes it, for showing what another plan would change before it is saved. */
+  plans: PlanTier[];
 }
 
 /** What the Plan tab shows (`plans.forRestaurant`). */
