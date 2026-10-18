@@ -173,6 +173,19 @@ describe('plans lock what a restaurant may choose', () => {
       expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, offers: false, socialProof: false, rails: ['plain'] });
     });
 
+    it('leaves the offers out of the preview and names them in the note on a plan without them', async () => {
+      await prisma().promotion.create({
+        data: { menuId: a.menu.id, kind: 'DISCOUNT', percentOff: 50, productIds: [a.product.id], translations: { en: { title: 'Half price' } } },
+      });
+      const premium = dataOf(await runQuery(prisma(), designer, previewQueries.draft, { menuId: a.menu.id, locale: 'en' }));
+      expect(premium.view.offers.map((offer) => offer.title)).toEqual(['Half price']);
+      await setPlan(a.restaurant.id, 'BASIC');
+      const basic = dataOf(await runQuery(prisma(), designer, previewQueries.draft, { menuId: a.menu.id, locale: 'en' }));
+      expect(basic.view.offers).toEqual([]);
+      expect(basic.view.products.find((product) => product.id === a.product.id)).not.toHaveProperty('regularPrice');
+      expect(dataOf(await runQuery(prisma(), designer, previewQueries.planNote, { menuId: a.menu.id })).hidden).toContain('selling.offers');
+    });
+
     it('names what guests on the plan do not see, with the hint’s data, and nothing on a plan that has it all', async () => {
       dataOf(await run(brand.update, await kit({ railStyle: 'drum', motionIntensity: 'expressive' })));
       expect(dataOf(await runQuery(prisma(), designer, previewQueries.planNote, { menuId: a.menu.id }))).toEqual({ hidden: [], upgrade: null });

@@ -5,6 +5,7 @@ import { stageTone } from '@/lib/stage';
 import type { BrandView } from '@/server/data/tenant';
 import { allows, type Entitlements, type FeatureKey } from './entitlements';
 import { DEFAULT_QR_STYLE, type QrStyle } from './qr';
+import type { Catalog } from './types';
 
 /**
  * Choices a plan can lock (spec: plans and entitlements, section 6): which font pairs, rails, motion levels and QR looks
@@ -155,6 +156,7 @@ export function hiddenFromGuests(
     upsellRules: readonly unknown[];
     pairingRules: readonly unknown[];
     bundles: readonly unknown[];
+    promotions?: readonly unknown[];
   },
   entitlements: Entitlements,
 ): FeatureKey[] {
@@ -172,7 +174,19 @@ export function hiddenFromGuests(
   );
   const selling = upgradable || catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
   if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
+  if (!allows(entitlements, 'selling.offers') && (catalog.promotions?.length ?? 0) > 0) hidden.push('selling.offers');
   return hidden;
+}
+
+/**
+ * The catalog as the restaurant's plan serves it to guests. Without smart selling there are no upgrades, pairings or
+ * sets: suggestions are empty, and a set already in a cart is priced as one that is no longer offered. Without timed
+ * offers there are no specials or discounts, so every price is the regular one. The public pages and the Studio's
+ * previews both read the catalog through this.
+ */
+export function servedCatalog(catalog: Catalog, features: Pick<GuestFeatures, 'smartSelling' | 'offers'>): Catalog {
+  const selling = features.smartSelling ? catalog : { ...catalog, upsellRules: [], pairingRules: [], bundles: [] };
+  return features.offers ? selling : { ...selling, promotions: [] };
 }
 
 /**

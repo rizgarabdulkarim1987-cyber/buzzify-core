@@ -147,6 +147,9 @@ describe('what the Preview tab says guests on the plan do not see', () => {
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, PRO)).toEqual(['immersive.explore']);
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [sizes] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
+    const offer = { id: 'o', kind: 'SPECIAL' as const, percentOff: null, productIds: ['p'], categoryIds: [], startsOn: null, endsOn: null, startMinute: null, endMinute: null, daysOfWeek: 127, roundTo: 5, translations: {}, sortOrder: 0 };
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, PRO)).toEqual(['immersive.explore']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, BASIC)).toEqual(['immersive.explore', 'selling.offers']);
     // One size, or sizes at one price, offer nothing to upgrade to.
     expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([
       'immersive.explore',

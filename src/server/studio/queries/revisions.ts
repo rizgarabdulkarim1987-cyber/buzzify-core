@@ -5,6 +5,7 @@ import { buildMenuView, type MenuView } from '@/server/data/menu-view';
 import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
 import { allows } from '@/server/domain/entitlements';
+import { servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog } from '@/server/domain/snapshot';
 import { pendingSchedule } from '@/server/publish/revisions';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -88,9 +89,9 @@ export const view = defineQuery({
     const snapshot = parseSnapshot(revision.snapshot);
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
     // Today's live switches over the revision: what guests would get if the menu went back to it now.
-    const catalog = toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id));
     if (ctx.plan === null) throw new Error('A menu query ran without a menu');
     const tenant = tenantInfo(menu, revision.id, snapshot, ctx.plan.entitlements);
+    const catalog = servedCatalog(toCatalog(menu.id, snapshot, await loadOverlay(ctx.db, menu.id)), tenant.features);
     return { number: revision.number, tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
   },
 });
