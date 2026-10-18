@@ -12,6 +12,7 @@ import {
   type MotionValue,
 } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { hasJoiningScript, meltPieces } from '@/lib/joining';
 import { unitPriceFromMenu } from '@/lib/menu-price';
 import { layersFor, selectionFromOptions, NO_EXTRAS, type BurgerSelection } from '@/lib/stage';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
@@ -86,20 +87,25 @@ function MeltLetter({
   );
 }
 
-/** The dish name set huge behind the object, outlined; it melts letter by letter between dishes. */
+/**
+ * The dish name set huge behind the object, outlined; it melts letter by letter between dishes. Arabic and Sorani
+ * melt in runs of joined letters instead, so every letter keeps the shape it has in the word.
+ */
 function GiantName({ index, progress, name }: { index: number; progress: MotionValue<number>; name: string }) {
-  const words = name.split(' ');
-  const total = name.replace(/\s/g, '').length;
+  const words = name.split(' ').map(meltPieces);
+  const total = words.reduce((count, pieces) => count + pieces.length, 0);
+  // Letter-spacing pulls joined letters apart in some browsers.
+  const tracking = hasJoiningScript(name) ? 'tracking-normal' : 'tracking-[-0.02em]';
   let order = 0;
   return (
     <div
       aria-hidden="true"
-      className="outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] tracking-[-0.02em]"
+      className={`outline-type pointer-events-none absolute inset-x-0 top-[17dvh] select-none ps-[5vw] font-display text-[clamp(4.4rem,23vw,10.5rem)] leading-[0.86] ${tracking}`}
     >
-      {words.map((word, w) => (
-        <span key={`${word}-${w}`} className="block">
-          {Array.from(word).map((char, c) => (
-            <MeltLetter key={`${char}-${c}`} char={char} order={order++} total={total} index={index} progress={progress} />
+      {words.map((pieces, w) => (
+        <span key={`${pieces.join('')}-${w}`} className="block">
+          {pieces.map((piece, c) => (
+            <MeltLetter key={`${piece}-${c}`} char={piece} order={order++} total={total} index={index} progress={progress} />
           ))}
         </span>
       ))}
