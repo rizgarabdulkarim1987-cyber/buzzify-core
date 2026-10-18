@@ -77,7 +77,7 @@ export function checkDefinition(
 
 /** Everything a Super Admin holds, and nothing for anyone else: the permissions that apply outside a restaurant. */
 function platformPermissions(actor: Actor): ReadonlySet<Permission> {
-  return effectivePermissions({ isSuperAdmin: actor.isSuperAdmin, role: null, policy: {} });
+  return effectivePermissions({ isSuperAdmin: actor.isSuperAdmin, isPlatformOwner: actor.isPlatformOwner, role: null, policy: {} });
 }
 
 /** The restaurant (and menu) a target names, with the client's stored policy; null when it does not exist. */
@@ -134,6 +134,7 @@ export async function resolveAccess(
 
   const permissions = effectivePermissions({
     isSuperAdmin: actor.isSuperAdmin,
+    isPlatformOwner: actor.isPlatformOwner,
     role: membership?.role ?? null,
     policy: parsePolicy(place.policy),
   });

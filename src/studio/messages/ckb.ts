@@ -292,6 +292,7 @@ const ckb: Messages = {
   'permission.permissions.manage': 'گۆڕینی دەسەڵاتەکان',
   'permission.audit.view': 'بینینی تۆماری چالاکی',
   'permission.platform.settings': 'گۆڕینی ڕێکخستنەکانی پلاتفۆرم',
+  'permission.plans.manage': 'گۆڕینی پاکێجی چێشتخانەکان و ئەوەی پاکێجەکان لەخۆیان دەگرن',
 
   // Why something did not happen: one per error code, then the server's refusals in the Studio's words
   'error.UNAUTHENTICATED': 'بۆ بەردەوامبوون بچۆ ژوورەوە.',
@@ -343,6 +344,7 @@ const ckb: Messages = {
   'error.text.inviteChanged': 'ئەم بانگهێشتنامەیە لەم ماوەیەدا بەکارهات یان کشێنرایەوە',
   'error.text.personHasAccess': 'ئەم کەسە پێشتر دەستی بەم ڕێستۆرانە دەگات',
   'error.text.personHasAccount': 'ئەم کەسە پێشتر هەژماری هەیە. لە جیاتی ئەوە بۆ کڕیارێک دیاری بکە',
+  'error.text.platformOwnerOnly': 'تەنها خاوەنی پلاتفۆرمەکە دەتوانێت ئەم هەژمارە بگۆڕێت',
   'error.text.personIsSuperAdmin': 'ئەم کەسە پێشتر بەڕێوەبەری باڵایە',
   'error.text.lastSuperAdmin': 'دەبێت هەمیشە بەڕێوەبەرێکی باڵای چالاک هەبێت',
   'error.text.alreadyDeactivated': 'ئەم هەژمارە پێشتر ناچالاک کراوە',

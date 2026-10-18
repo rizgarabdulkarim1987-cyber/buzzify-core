@@ -19,6 +19,7 @@
     "perf": "tsx scripts/perf.ts",
     "media:calibrate": "tsx scripts/media-calibrate.ts",
     "studio:create-admin": "tsx scripts/create-admin.ts",
+    "studio:set-platform-owner": "tsx scripts/set-platform-owner.ts",
     "db:up": "tsx scripts/db.ts up",
     "db:down": "tsx scripts/db.ts down",
     "db:start": "tsx scripts/db.ts start",

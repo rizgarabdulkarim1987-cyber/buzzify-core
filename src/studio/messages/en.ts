@@ -288,6 +288,7 @@ const en: Messages = {
   'permission.permissions.manage': 'Change permissions',
   'permission.audit.view': 'See the activity log',
   'permission.platform.settings': 'Change platform settings',
+  'permission.plans.manage': 'Change restaurants’ plans and what the plans include',
 
   // Why something did not happen: one per error code, then the server's refusals in the Studio's words
   'error.UNAUTHENTICATED': 'Sign in to continue.',
@@ -339,6 +340,7 @@ const en: Messages = {
   'error.text.inviteChanged': 'This invitation was used or withdrawn in the meantime',
   'error.text.personHasAccess': 'This person already has access to this restaurant',
   'error.text.personHasAccount': 'This person already has an account. Assign them to a client instead',
+  'error.text.platformOwnerOnly': 'Only the platform owner can change this account',
   'error.text.personIsSuperAdmin': 'This person is already a Super Admin',
   'error.text.lastSuperAdmin': 'There must always be one active Super Admin',
   'error.text.alreadyDeactivated': 'This account is already deactivated',

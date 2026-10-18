@@ -94,13 +94,20 @@ export async function unassignMember(
  * every active Super Admin (a write that changes nothing but the time), and the count after its own update is then the
  * truth: a second deactivation waits for the first to commit, finds its target changed, and counts one fewer.
  */
+/** The refusal when someone else reaches for the platform owner's account: nobody but its holder may change it. */
+const PLATFORM_OWNER_ONLY = 'Only the platform owner can change this account';
+
 export async function deactivatePerson(
   tx: ScopedTx,
-  args: { actor: Pick<Actor, 'userId' | 'isSuperAdmin'>; userId: string; now: Date },
+  args: { actor: Pick<Actor, 'userId' | 'isSuperAdmin' | 'isPlatformOwner'>; userId: string; now: Date },
 ): Promise<{ revokedInvitations: number }> {
   if (args.userId === args.actor.userId) throw problem('userId', 'You cannot deactivate your own account');
-  const target = await tx.user.findUnique({ where: { id: args.userId }, select: { id: true, isSuperAdmin: true, deactivatedAt: true } });
+  const target = await tx.user.findUnique({
+    where: { id: args.userId },
+    select: { id: true, isSuperAdmin: true, isPlatformOwner: true, deactivatedAt: true },
+  });
   if (!target) throw new StudioError('NOT_FOUND');
+  if (target.isPlatformOwner && !args.actor.isPlatformOwner) throw new StudioError('FORBIDDEN', PLATFORM_OWNER_ONLY);
   if (target.deactivatedAt) throw problem('userId', 'This account is already deactivated', 'CONFLICT');
   if (target.isSuperAdmin) {
     if (!args.actor.isSuperAdmin) throw new StudioError('FORBIDDEN');
@@ -137,14 +144,16 @@ export async function reactivatePerson(tx: ScopedTx, args: { userId: string }): 
  */
 export async function changeEmail(
   tx: ScopedTx,
-  args: { actor: Pick<Actor, 'userId'>; userId: string; email: string },
+  args: { actor: Pick<Actor, 'userId' | 'isPlatformOwner'>; userId: string; email: string },
 ): Promise<{ before: string; name: string; locale: string; after: string }> {
   if (args.userId === args.actor.userId) {
     throw problem('userId', 'Change your own address on your account page, where both addresses confirm it');
   }
   const after = normalizeEmail(args.email);
-  const user = await tx.user.findUnique({ where: { id: args.userId }, select: { email: true, name: true, locale: true } });
+  const user = await tx.user.findUnique({ where: { id: args.userId }, select: { email: true, name: true, locale: true, isPlatformOwner: true } });
   if (!user) throw new StudioError('NOT_FOUND');
+  // A changed address can be used to reset the password: only the owner may move theirs, on their account page.
+  if (user.isPlatformOwner && !args.actor.isPlatformOwner) throw new StudioError('FORBIDDEN', PLATFORM_OWNER_ONLY);
   if (user.email === after) throw problem('email', 'This is already their email address');
   if (await tx.user.findUnique({ where: { email: after }, select: { id: true } })) {
     throw problem('email', 'An account with this email already exists');

@@ -295,6 +295,7 @@ const ar: Messages = {
   'permission.permissions.manage': 'تغيير الصلاحيات',
   'permission.audit.view': 'الاطلاع على سجل النشاط',
   'permission.platform.settings': 'تغيير إعدادات المنصّة',
+  'permission.plans.manage': 'تغيير باقات المطاعم وما تشمله الباقات',
 
   // Why something did not happen: one per error code, then the server's refusals in the Studio's words
   'error.UNAUTHENTICATED': 'سجّل الدخول للمتابعة.',
@@ -350,6 +351,7 @@ const ar: Messages = {
   'error.text.inviteChanged': 'استُخدمت هذه الدعوة أو سُحبت في هذه الأثناء',
   'error.text.personHasAccess': 'لهذا الشخص وصول إلى هذا المطعم بالفعل',
   'error.text.personHasAccount': 'لهذا الشخص حساب بالفعل. عيّنه لعميل بدلًا من ذلك',
+  'error.text.platformOwnerOnly': 'صاحب المنصة وحده يستطيع تغيير هذا الحساب',
   'error.text.personIsSuperAdmin': 'هذا الشخص مشرف عام بالفعل',
   'error.text.lastSuperAdmin': 'يجب أن يبقى مشرف عام نشط واحد على الأقل',
   'error.text.alreadyDeactivated': 'هذا الحساب معطّل بالفعل',

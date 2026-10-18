@@ -58,6 +58,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This invitation was used or withdrawn in the meantime': 'error.text.inviteChanged',
   'This person already has access to this restaurant': 'error.text.personHasAccess',
   'This person already has an account. Assign them to a client instead': 'error.text.personHasAccount',
+  'Only the platform owner can change this account': 'error.text.platformOwnerOnly',
   'This person is already a Super Admin': 'error.text.personIsSuperAdmin',
   'There must always be one active Super Admin': 'error.text.lastSuperAdmin',
   'This account is already deactivated': 'error.text.alreadyDeactivated',
