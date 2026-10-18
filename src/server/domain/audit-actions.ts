@@ -25,6 +25,8 @@ export const AUDIT_ACTIONS = [
   'menu.slug_changed',
   'menu.settings_changed',
   'brand.updated',
+  'motion.placed',
+  'motion.removed',
   'qr.created',
   'qr.updated',
   'qr.deleted',
@@ -95,6 +97,7 @@ export const AUDIT_ENTITY_TYPES = [
   'ModifierOption',
   'MenuPrices',
   'BrandConfig',
+  'MenuMotion',
   'QrCode',
   'ImportJob',
 ] as const;

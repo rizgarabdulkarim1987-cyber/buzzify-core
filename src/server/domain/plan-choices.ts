@@ -141,8 +141,8 @@ export function hiddenChoices(stored: BrandChoices, entitlements: Entitlements):
 
 /**
  * What a menu would show guests that this plan leaves out, in the order the Preview tab lists it: the brand's choices
- * guests do not see, then Explore, the 3D stage when a product has a stage, and smart selling when the menu has offers,
- * pairings or bundles.
+ * guests do not see, then Explore, the 3D stage when a product has a stage, smart selling when the menu has offers,
+ * pairings or bundles, and motions when the menu places any.
  */
 export function hiddenFromGuests(
   brand: BrandView,
@@ -157,6 +157,7 @@ export function hiddenFromGuests(
     bundles: readonly unknown[];
   },
   entitlements: Entitlements,
+  motions: readonly unknown[] = [],
 ): FeatureKey[] {
   const stored = { fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR, railStyle: brand.railStyle, motionIntensity: brand.motionIntensity };
   const hidden = hiddenChoices(stored, entitlements);
@@ -172,14 +173,16 @@ export function hiddenFromGuests(
   );
   const selling = upgradable || catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
   if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
+  if (!allows(entitlements, 'design.menuMotions') && motions.length > 0) hidden.push('design.menuMotions');
   return hidden;
 }
 
-/** What the guest pages may show: Explore, the 3D stage, smart selling, and the rails `?rail=` may preview. */
+/** What the guest pages may show: Explore, the 3D stage, smart selling, the menu's motions, and the rails `?rail=` may preview. */
 export interface GuestFeatures {
   explore: boolean;
   stage: boolean;
   smartSelling: boolean;
+  motions: boolean;
   rails: RailStyle[];
 }
 
@@ -188,6 +191,7 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     explore: allows(entitlements, 'immersive.explore'),
     stage: allows(entitlements, 'immersive.stage'),
     smartSelling: allows(entitlements, 'selling.smart'),
+    motions: allows(entitlements, 'design.menuMotions'),
     rails: allowedRails(entitlements),
   };
 }

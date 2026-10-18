@@ -90,8 +90,8 @@ export function cachedLiveOverlay<T>(menuId: string, load: () => Promise<T>): Pr
  */
 export function cachedSlugResolution<T>(slug: string, load: () => Promise<T>): Promise<T> {
   // The data cache can outlive a deploy, so a change to what the answer carries moves the key (2: the guest features of
-  // the restaurant's plan), and an answer cached by the previous version is never read as the new one.
-  return cached(load, ['slug', '2', slug], { revalidate: 300, tags: [slugTag(slug), PLANS_TAG] })();
+  // the restaurant's plan; 3: the menu's motions), and an answer cached by the previous version is never read as the new one.
+  return cached(load, ['slug', '3', slug], { revalidate: 300, tags: [slugTag(slug), PLANS_TAG] })();
 }
 
 /** The plans the platform owner set. At most 5 minutes old, and expired by `expirePlans`. */

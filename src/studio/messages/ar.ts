@@ -1,5 +1,7 @@
 // Machine-drafted Arabic. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/ar';
+import menuMotions from './menu-motions/ar';
 
 const ar: Messages = {
   // Shared words of the interface
@@ -44,6 +46,7 @@ const ar: Messages = {
   'nav.restaurants': 'المطاعم',
   'nav.menus': 'كل القوائم',
   'nav.media': 'الوسائط',
+  'nav.motion': 'الحركة',
   'nav.people': 'الأشخاص',
   'nav.activity': 'النشاط',
   'nav.settings': 'الإعدادات',
@@ -1835,6 +1838,7 @@ const ar: Messages = {
   'plans.feature.selling.smart': 'البيع الذكي: الترقيات والاقتراحات والوجبات',
   'plans.feature.immersive.explore': 'وضع الاستكشاف',
   'plans.feature.immersive.stage': 'الأطباق ثلاثية الأبعاد',
+  'plans.feature.design.menuMotions': 'حركات على المنيو',
   'plans.feature.design.premiumTemplates': 'القوالب المميزة',
   'plans.feature.design.backgroundImage': 'صورة خلفية',
   'plans.feature.design.backgroundVideo': 'فيديو خلفية',
@@ -1879,6 +1883,10 @@ const ar: Messages = {
   'qr.lockedKept': 'يُطبع هذا الرمز بالأسود على الأبيض ومن دون الشعار حتى تشملها الباقة.',
   'revisions.scheduleLocked': 'جدولة النشر',
   'preview.hiddenTitle': 'ضيوف هذه الباقة لا يرون',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ar.ts)
+  ...motion,
+  // The Motion tab of a menu (menu-motions/ar.ts)
+  ...menuMotions,
 };
 
 export default ar;

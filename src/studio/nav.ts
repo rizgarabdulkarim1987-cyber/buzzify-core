@@ -1,9 +1,9 @@
 import type { Actor } from '@/server/studio/auth/actor';
 
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
-export type NavIcon = 'overview' | 'restaurants' | 'menus' | 'media' | 'people' | 'activity' | 'settings' | 'store';
+export type NavIcon = 'overview' | 'restaurants' | 'menus' | 'media' | 'motion' | 'people' | 'activity' | 'settings' | 'store';
 
-export type NavKey = 'overview' | 'restaurants' | 'menus' | 'media' | 'people' | 'activity' | 'settings' | 'myRestaurant';
+export type NavKey = 'overview' | 'restaurants' | 'menus' | 'media' | 'motion' | 'people' | 'activity' | 'settings' | 'myRestaurant';
 
 export interface NavItem {
   key: NavKey;
@@ -26,6 +26,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'menus', href: '/studio/menus', labelKey: 'nav.menus', icon: 'menus' },
   // The libraries a person manages: Super Admins and designers (spec refinement 20); an owner's pictures are picked in the editor.
   { key: 'media', href: '/studio/media', labelKey: 'nav.media', icon: 'media' },
+  // The motion library a designer reuses across menus (docs/superpowers/plans/2026-10-18-motion-studio.md).
+  { key: 'motion', href: '/studio/motion', labelKey: 'nav.motion', icon: 'motion' },
   { key: 'people', href: '/studio/people', labelKey: 'nav.people', icon: 'people' },
   { key: 'activity', href: '/studio/activity', labelKey: 'nav.activity', icon: 'activity' },
   { key: 'settings', href: '/studio/settings', labelKey: 'nav.settings', icon: 'settings' },

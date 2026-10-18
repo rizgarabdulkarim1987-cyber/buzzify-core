@@ -13,6 +13,7 @@ export const MENU_SCOPED_MODELS = [
   'Bundle',
   'BundleItem',
   'DaypartSchedule',
+  'MenuMotion',
   'Table',
   'QrCode',
   'ImportJob',

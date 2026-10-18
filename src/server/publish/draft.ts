@@ -7,6 +7,7 @@ import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
+import { slotOf, type SnapshotMotion } from '@/server/domain/menu-motions';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
@@ -150,6 +151,24 @@ export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<st
   };
 }
 
+/** A placement row as the snapshot's builder reads it: the place comes from the slot, which the service writes with it. */
+function motionFromRow(row: { slot: string; categoryId: string | null; motionId: string; params: unknown; texts: unknown }) {
+  const place = row.slot.startsWith('category:') ? 'category' : row.slot;
+  return { place, ...(row.categoryId ? { categoryId: row.categoryId } : {}), motionId: row.motionId, params: row.params, texts: row.texts };
+}
+
+/**
+ * A snapshot's motions as draft rows, each category mapped through `categoryIds` when given (a copy has new ones); a
+ * motion whose category has no new id is left out.
+ */
+function motionRows(menuId: string, motions: readonly SnapshotMotion[] = [], categoryIds?: ReadonlyMap<string, string>) {
+  return motions.flatMap((motion) => {
+    const categoryId = motion.categoryId === undefined ? null : categoryIds ? categoryIds.get(motion.categoryId) : motion.categoryId;
+    if (categoryId === undefined) return [];
+    return [{ menuId, slot: slotOf(motion.place, categoryId), categoryId, motionId: motion.motionId, params: json(motion.params), texts: json(motion.texts) }];
+  });
+}
+
 /**
  * The menu as it would be published now: its settings, its restaurant's name (what guests see), its brand kit and its
  * draft catalog. Works on any client, including the transaction a publish runs in.
@@ -162,6 +181,7 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, include: { restaurant: { select: { name: true } } } });
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
+  const motions = await db.menuMotion.findMany({ where: { menuId }, select: { slot: true, categoryId: true, motionId: true, params: true, texts: true } });
   const displayName = menu.restaurant.name;
   const settings = snapshotMenu(menu, displayName);
 
@@ -172,7 +192,7 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const brandAssets = brandAssetIds(brand);
   if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
-    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog, motions: motions.map(motionFromRow) });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
   const mediaUrl = (key: string) => getStorage().publicUrl(key);
@@ -181,7 +201,7 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
     media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog });
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog, motions: motions.map(motionFromRow) });
 }
 
 /**
@@ -233,7 +253,7 @@ function idMap<A extends { id: string }, B extends { id: string }>(
 }
 
 /**
- * Replaces a menu's draft catalog and brand kit with a snapshot's, in the caller's transaction. Every row is created
+ * Replaces a menu's draft catalog, brand kit and motions with a snapshot's, in the caller's transaction. Every row is created
  * with a new id and every reference is remapped, so a snapshot can be written into its own menu (restore) or into
  * another one (duplicate). Products and options start available, shown and uncounted. Tables are left alone, and the
  * brand kit keeps what a snapshot does not carry (typography, navigation style). Finally the draft hash is refreshed.
@@ -265,6 +285,7 @@ export async function writeDraftFromSnapshot(
   const where = { menuId };
 
   // Children before parents, so nothing relies on a cascade.
+  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
@@ -297,6 +318,8 @@ export async function writeDraftFromSnapshot(
           select: { id: true, slug: true },
         });
   const categoryIds = idMap(catalog.categories, (c) => c.slug, categories, (c) => c.slug);
+  const motions = motionRows(menuId, snapshot.motions, categoryIds);
+  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const products =
     catalog.products.length === 0
@@ -492,7 +515,7 @@ const nextVersion = (versions: ReadonlyMap<string, number>, id: string) => (vers
  * so the draft's hash is the revision's and links to products keep working. What guests see changing live stays as it
  * is now: a product that was sold out or hidden, its stock, an option sold out. Every version moves on (a row the
  * revision brings back starts at 1), so an editor opened before cannot save over the restore. The menu's settings
- * that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
+ * and motions that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
  */
 export function restoreDraftFromSnapshot(db: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
 export function restoreDraftFromSnapshot(db: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
@@ -514,6 +537,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
 
   // Children before parents, so nothing relies on a cascade.
+  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
@@ -669,6 +693,9 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
       })),
     });
   }
+
+  const motions = motionRows(menuId, snapshot.motions);
+  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const brandFields = brandRowFromSnapshot(brand);
   await tx.brandConfig.upsert({

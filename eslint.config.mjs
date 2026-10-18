@@ -31,12 +31,26 @@ const databaseClient = {
     'never with the database client.',
 };
 
+// The motion library (src/motion) on the guest menu: its catalog and the `Motion` component are only for menus that
+// place a motion, so the menu reaches them through one file, which `MotionSlot` loads on demand.
+const motionLibraryCode = {
+  group: ['@/motion', '@/motion/*'],
+  message: 'The menu loads the motion library only through src/ui/menu/MotionSlotBody.tsx, which MotionSlot loads on demand.',
+};
+const menuMotionSlot = ['src/ui/menu/MotionSlotBody.tsx'];
+
 // Brackets are glob syntax, so the `[tenant]` folders are matched with escaped brackets.
 const publicMenuCode = ['src/app/\\[tenant\\]/**', 'src/app/api/\\[tenant\\]/**', 'src/ui/**'];
 
 // Code that loads on demand or on a route of its own: the product sheet, and the Explore route, which is built on
 // scroll-driven motion and is never part of the menu's bundle.
 const onDemandMotion = ['src/ui/Sheet.tsx', 'src/ui/product/**', 'src/ui/RollingMoney.tsx', 'src/ui/explore/**'];
+
+// The motion library (src/motion): each motion's file loads on demand, only when that motion is shown, so it may use
+// the library. Its entry points are imported by pages directly and must stay free of it: the `Motion` component, the
+// catalog and its helpers. `motion-value.ts` only re-exports a type, which is erased at build time.
+const motionLibraryOnDemand = ['src/motion/**'];
+const motionLibraryEntry = ['src/motion/Motion.tsx', 'src/motion/index.ts', 'src/motion/catalog/**', 'src/motion/loaders.ts', 'src/motion/params.ts', 'src/motion/progress.ts', 'src/motion/types.ts'];
 
 export default defineConfig([
   ...nextVitals,
@@ -45,6 +59,11 @@ export default defineConfig([
   { rules: { 'no-restricted-imports': ['error', { paths: motionLibrary }] } },
   {
     files: publicMenuCode,
+    rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode, motionLibraryCode] }] },
+  },
+  {
+    // The one guest file that mounts a motion; it still keeps the animation library and the Studio out.
+    files: menuMotionSlot,
     rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode] }] },
   },
   {
@@ -55,6 +74,19 @@ export default defineConfig([
   {
     files: ['src/app/studio/**'],
     rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [databaseClient] }] },
+  },
+  {
+    files: motionLibraryOnDemand,
+    rules: { 'no-restricted-imports': ['error', { patterns: [studioCode] }] },
+  },
+  {
+    files: motionLibraryEntry,
+    rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode] }] },
+  },
+  {
+    // The Studio's Motion area is a route of its own whose whole purpose is to play motions.
+    files: ['src/studio/motion/**'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'src/generated/**', '.data/**', '.superpowers/**']),
 ]);

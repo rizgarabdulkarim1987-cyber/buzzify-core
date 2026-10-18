@@ -1,4 +1,6 @@
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/en';
+import menuMotions from './menu-motions/en';
 
 const en: Messages = {
   // Shared words of the interface
@@ -43,6 +45,7 @@ const en: Messages = {
   'nav.restaurants': 'Restaurants',
   'nav.menus': 'All menus',
   'nav.media': 'Media',
+  'nav.motion': 'Motion',
   'nav.people': 'People',
   'nav.activity': 'Activity',
   'nav.settings': 'Settings',
@@ -1806,6 +1809,7 @@ const en: Messages = {
   'plans.feature.selling.smart': 'Smart selling: upgrades, pairings and sets',
   'plans.feature.immersive.explore': 'Explore mode',
   'plans.feature.immersive.stage': '3D dishes',
+  'plans.feature.design.menuMotions': 'Motions on the menu',
   'plans.feature.design.premiumTemplates': 'Premium templates',
   'plans.feature.design.backgroundImage': 'Background image',
   'plans.feature.design.backgroundVideo': 'Background video',
@@ -1850,6 +1854,10 @@ const en: Messages = {
   'qr.lockedKept': 'This code prints in black on white, without the logo, until the plan includes them.',
   'revisions.scheduleLocked': 'Scheduled publishing',
   'preview.hiddenTitle': 'Guests on this plan don’t see',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
+  ...motion,
+  // The Motion tab of a menu (menu-motions/en.ts)
+  ...menuMotions,
 };
 
 export default en;

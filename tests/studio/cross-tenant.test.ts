@@ -352,6 +352,13 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // The Motion tab
+  'motions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'motions.save': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', motionId: 'golden-particles', params: {}, texts: {}, version: null })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, place: 'category', categoryId: w.b.categoryId, motionId: 'coffee-steam', params: {}, texts: {}, version: null })),
+  ],
+  'motions.remove': [c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', version: 1 }))],
   // Plans: the tab reads B's plan; the change is the platform owner's alone, so anyone else is refused before B is found
   'plans.forRestaurant': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId }))],
   'plans.setRestaurantPlan': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, plan: 'BASIC', extras: {}, note: 'Planted' }))],
