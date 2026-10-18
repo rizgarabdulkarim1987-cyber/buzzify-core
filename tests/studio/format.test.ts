@@ -43,7 +43,49 @@ describe('formatDateTime', () => {
     const node = new Intl.DateTimeFormat('ckb', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Baghdad' }).format(new Date(at));
     expect(formatDateTime(at, 'ckb')).toBe(node);
   });
+
+  it('states the time on another clock when given one, such as a menu’s own', () => {
+    expect(formatDateTime('2026-11-01T06:00:00.000Z', 'en', 'UTC')).toBe('Nov 1, 2026, 6:00 AM');
+    expect(formatDateTime('2026-11-01T06:00:00.000Z', 'en', 'Asia/Baghdad')).toBe('Nov 1, 2026, 9:00 AM');
+    // Late on the 17th in UTC is already the 18th in Baghdad.
+    expect(formatDateTime('2026-10-17T22:30:00.000Z', 'ckb', 'UTC')).toBe('٢٠٢٦ تشرینی یەکەم ١٧ ١٠:٣٠ د.ن');
+    expect(formatDateTime('2026-10-17T22:30:00.000Z', 'ckb', 'Asia/Baghdad')).toBe('٢٠٢٦ تشرینی یەکەم ١٨ ١:٣٠ ب.ن');
+  });
+
+  // The Revisions tab printed "Oct ١٨, ٢٠٢٦, ٦:٢٥ AM" in the browser where the server had printed Sorani, and React threw
+  // the server's page away.
+  it('prints the same Sorani in a browser, whose Intl has no Sorani data', () => {
+    const at = '2026-10-18T03:25:00.000Z';
+    const runtimeSorani = () =>
+      new Intl.DateTimeFormat('ckb', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Baghdad', numberingSystem: 'arab' }).format(new Date(at));
+    expect(inABrowser(runtimeSorani)).toBe('Oct ١٨, ٢٠٢٦, ٦:٢٥ AM');
+    expect(inABrowser(() => formatDateTime(at, 'ckb', 'Asia/Baghdad'))).toBe('٢٠٢٦ تشرینی یەکەم ١٨ ٦:٢٥ ب.ن');
+    expect(inABrowser(() => formatDateTime(at, 'ckb', 'UTC'))).toBe('٢٠٢٦ تشرینی یەکەم ١٨ ٣:٢٥ ب.ن');
+    expect(inABrowser(() => formatDate(at, 'ckb'))).toBe('٢٠٢٦ تشرینی یەکەم ١٨');
+  });
 });
+
+/** Runs `read` with Intl as Chrome has it: no Sorani data, so `ckb` falls back to American English. */
+function inABrowser<T>(read: () => T): T {
+  const { DateTimeFormat, NumberFormat } = Intl;
+  const fallback = (locales?: Intl.LocalesArgument) => ([locales].flat().includes('ckb') ? 'en-US' : locales);
+  class BrowserDateTimeFormat extends DateTimeFormat {
+    constructor(locales?: Intl.LocalesArgument, options?: Intl.DateTimeFormatOptions) {
+      super(fallback(locales), options);
+    }
+  }
+  class BrowserNumberFormat extends NumberFormat {
+    constructor(locales?: Intl.LocalesArgument, options?: Intl.NumberFormatOptions) {
+      super(fallback(locales), options);
+    }
+  }
+  Object.assign(Intl, { DateTimeFormat: BrowserDateTimeFormat, NumberFormat: BrowserNumberFormat });
+  try {
+    return read();
+  } finally {
+    Object.assign(Intl, { DateTimeFormat, NumberFormat });
+  }
+}
 
 describe('numberFormat', () => {
   it('gives Sorani Arabic-script digits without the runtime’s Sorani data, and leaves the other languages to Intl', () => {

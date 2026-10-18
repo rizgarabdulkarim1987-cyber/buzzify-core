@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatInZone, zonedLocalToUtc } from '@/server/domain/schedule-time';
+import { zonedLocalToUtc } from '@/server/domain/schedule-time';
 
 describe('zonedLocalToUtc', () => {
   it('reads a wall-clock time in the menu’s zone', () => {
@@ -19,13 +19,5 @@ describe('zonedLocalToUtc', () => {
   it('refuses something that is not a local time', () => {
     expect(() => zonedLocalToUtc('tomorrow', 'Asia/Baghdad')).toThrow();
     expect(() => zonedLocalToUtc('2026-13-01T09:00', 'Asia/Baghdad')).toThrow();
-  });
-});
-
-describe('formatInZone', () => {
-  it('writes the instant as the menu’s clock shows it', () => {
-    const text = formatInZone(new Date('2026-11-01T06:00:00Z'), 'Asia/Baghdad', 'en');
-    expect(text).toContain('9:00');
-    expect(text).toContain('2026');
   });
 });

@@ -6,9 +6,8 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { cancelScheduledPublish, restoreRevision, rollbackRevision } from '@/app/studio/_actions/revisions';
 import type { Locale } from '@/lib/locale';
-import { formatInZone } from '@/server/domain/schedule-time';
 import type { UpgradeInfo } from '@/server/studio/services/plans';
-import { numberFormat } from '@/studio/format';
+import { formatDateTime, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { useRefuse } from '@/studio/refuse';
@@ -60,7 +59,7 @@ export function RevisionsTable({ menuId, defaultLocale, rows, pending, timezone,
   const refuse = useRefuse();
   const [confirm, setConfirm] = useState<Confirm | null>(null);
   const number = numberFormat(locale);
-  const at = (iso: string) => formatInZone(new Date(iso), timezone, locale);
+  const at = (iso: string) => formatDateTime(iso, locale, timezone);
   const pendingRow = pending ? rows.find((row) => row.number === pending.number) : undefined;
 
   const when = (row: RevisionRow) => {
