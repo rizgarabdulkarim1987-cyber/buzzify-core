@@ -672,6 +672,7 @@ const SWEPT: Record<string, Case[]> = {
   // The Sales tab
   'sales.rules': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.overview': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'sales.saveUpgrade': [
     c("in B's menu", (w) => ({ menuId: w.b.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
     c("B's dishes, through A", (w) => ({ menuId: w.a.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
