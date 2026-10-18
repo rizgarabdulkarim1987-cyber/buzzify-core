@@ -13,6 +13,7 @@ import {
   qualifiesFor3D,
   selectionFromOptions,
   stageOf,
+  stagesOnMenu,
   stageTone,
 } from '@/lib/stage';
 
@@ -228,6 +229,26 @@ describe('stageOf', () => {
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A' }])).toBeNull();
     expect(stageOf([{ kind: 'art', art: 'pastry', tone: '#C98B4A', model: 'teapot' }])).toBeNull();
     expect(stageOf([{ kind: 'image', url: '/a.jpg', alt: 'a', width: 1, height: 1 }])).toBeNull();
+  });
+});
+
+describe('stagesOnMenu', () => {
+  const photo = { kind: 'image' as const, url: '/bag.webp', alt: 'Bag', width: 800, height: 800 };
+  const art = { kind: 'art' as const, art: 'bowl' as const, tone: '#E89A2C', model: 'bagbeef', scan: '/api/assets/models/bag.glb' };
+
+  it('shows guests choosing what to order the real photo, and keeps the 3D model for Explore', () => {
+    expect(stagesOnMenu([photo, art])).toBe(false);
+    expect(stageOf([photo, art])?.art).toBe('bagbeef');
+  });
+
+  it('draws the 3D model where there is no photo to show instead', () => {
+    expect(stagesOnMenu([art])).toBe(true);
+    expect(stagesOnMenu([{ kind: 'art', art: 'burger', tone: '#A5662F' }])).toBe(true);
+  });
+
+  it('has nothing to draw without a model', () => {
+    expect(stagesOnMenu([photo])).toBe(false);
+    expect(stagesOnMenu([])).toBe(false);
   });
 });
 

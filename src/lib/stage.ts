@@ -28,6 +28,14 @@ export function stageOf(media: ReadonlyArray<MediaItem>): { art: StageArt; tone:
   return art ? { art, tone: first.tone, ...(first.scan ? { scan: first.scan } : {}) } : null;
 }
 
+/**
+ * Whether the menu and the product page draw the 3D stage. A real photo wins there, so guests choosing what to order
+ * see the dish as it is; the model stands in only where there is no photo. Explore stages the model either way.
+ */
+export function stagesOnMenu(media: ReadonlyArray<MediaItem>): boolean {
+  return stageOf(media) !== null && !media.some((item) => item.kind === 'image');
+}
+
 /** The art colour when a product's media can be shown as a 3D stage, otherwise null. */
 export function stageTone(media: ReadonlyArray<MediaItem>): string | null {
   return stageOf(media)?.tone ?? null;

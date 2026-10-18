@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { stageTone } from '@/lib/stage';
+import { stagesOnMenu } from '@/lib/stage';
 import type { MenuProductView } from '@/server/data/menu-view';
 import type { Daypart } from '@/server/domain/types';
 import { useApp } from '@/ui/AppProviders';
@@ -31,7 +31,7 @@ export function SignatureFeature({
   covered?: boolean;
 }) {
   const { t, money } = useApp();
-  const staged = stageTone(product.media) !== null;
+  const staged = stagesOnMenu(product.media);
   const reduced = usePrefersReducedMotion();
   const stage = useRef<HTMLDivElement>(null);
 
