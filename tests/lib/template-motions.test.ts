@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEMPLATES } from '@/lib/templates';
-import { categoryKind, PRESET_HERO_MOTIONS, suggestedMotions } from '@/lib/templates/motions';
+import { categoryKind, PRESET_HERO_MOTIONS, previewMotions, suggestedMotions } from '@/lib/templates/motions';
 import { TEMPLATE_IDS } from '@/lib/templates/types';
 import { isOffered } from '@/server/domain/menu-motions';
 
@@ -61,6 +61,19 @@ describe('what each template suggests', () => {
       ['category', 'c4', 'ice-cream-swirl'],
     ]);
     expect(motions.find((motion) => motion.categoryId === 'c2')?.params.background).toBe('#101010');
+  });
+
+  it('previews a template not yet applied with the designer’s own motions and its suggestions in the empty places', () => {
+    const owned = [{ place: 'hero' as const, motionId: 'aurora-background', params: {}, texts: {} }];
+    const swap = { templateId: 'obsidian-gold', owned, categories: [category('c1', 'coffee'), category('c2', 'desserts')], locales: ['en'] as const, logoText: 'Z', allowed: true, playing: true };
+    const palette = { bg: '#101010', accent: '#c8a050' };
+    expect(previewMotions(swap, 'copper-roast', palette).map((motion) => [motion.place, motion.categoryId ?? null, motion.motionId])).toEqual([
+      ['hero', null, 'aurora-background'],
+      ['category', 'c1', 'coffee-steam'],
+      ['category', 'c2', 'chocolate-dripping'],
+    ]);
+    expect(previewMotions(swap, null, palette).map((motion) => motion.motionId)).toEqual(['aurora-background']);
+    expect(previewMotions({ ...swap, allowed: false }, 'copper-roast', palette)).toEqual([]);
   });
 
   it('draws every suggestion with the template’s own palette by default', () => {

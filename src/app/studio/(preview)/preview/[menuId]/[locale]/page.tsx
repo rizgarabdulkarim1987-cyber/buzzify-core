@@ -24,7 +24,7 @@ export default async function PreviewPage({
   if (typeof revision === 'string' && /^[A-Za-z0-9_-]{1,100}$/.test(revision)) {
     redirect(`/studio/preview/${encodeURIComponent(menuId)}/revision/${revision}/${encodeURIComponent(locale)}`);
   }
-  const { view, tenant, designContext, locale: pageLocale } = await loadPreview(menuId, locale);
+  const { view, tenant, designContext, motionSwap, locale: pageLocale } = await loadPreview(menuId, locale);
   const current = tenant.brand.design ?? null;
   let initial = current;
   if (template === 'classic') initial = null;
@@ -40,6 +40,7 @@ export default async function PreviewPage({
       poweredBy={designContext.showPoweredBy}
       tagline={tenant.seo[pageLocale]?.description || undefined}
       fontClasses={fontClasses}
+      motionSwap={motionSwap}
     />
   );
 }

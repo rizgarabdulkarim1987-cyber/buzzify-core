@@ -150,3 +150,32 @@ export function startingTexts(meta: MotionMeta, locales: readonly Locale[], logo
   }
   return texts;
 }
+
+/** A motion as a guest's page plays it: its params resolved for the guest's language; still when the menu's motion is off. */
+export interface PlacedMotion {
+  motionId: string;
+  params: MotionParams;
+  playing: boolean;
+}
+
+export interface MenuMotionsView {
+  hero?: PlacedMotion;
+  signature?: PlacedMotion;
+  /** By category id. */
+  categories: Record<string, PlacedMotion>;
+}
+
+/** Motions laid out by place, each resolved for a guest reading `locale` (`guestParams`). */
+export function motionsView(
+  motions: readonly SnapshotMotion[],
+  guest: { locale: Locale; defaultLocale: Locale; logoText: string; playing: boolean },
+): MenuMotionsView {
+  const view: MenuMotionsView = { categories: {} };
+  for (const motion of motions) {
+    const placed = { motionId: motion.motionId, params: guestParams(motion, guest.locale, guest.defaultLocale, guest.logoText), playing: guest.playing };
+    if (motion.place === 'category') {
+      if (motion.categoryId) view.categories[motion.categoryId] = placed;
+    } else view[motion.place] = placed;
+  }
+  return view;
+}

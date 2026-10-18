@@ -24,8 +24,7 @@ import {
   type PromotionKind,
   type VisualKey,
 } from '@/server/domain';
-import type { MotionParams } from '@/motion/types';
-import { guestParams, type SnapshotMotion } from '@/server/domain/menu-motions';
+import { motionsView, type MenuMotionsView, type PlacedMotion, type SnapshotMotion } from '@/server/domain/menu-motions';
 import type { TenantInfo } from './tenant';
 
 export interface MenuOptionView {
@@ -126,31 +125,11 @@ export interface MenuView {
   motions: MenuMotionsView;
 }
 
-/** A motion as a guest's page plays it: its params resolved for the guest's language; still when the menu's motion is off. */
-export interface PlacedMotion {
-  motionId: string;
-  params: MotionParams;
-  playing: boolean;
-}
+export type { MenuMotionsView, PlacedMotion };
 
-export interface MenuMotionsView {
-  hero?: PlacedMotion;
-  signature?: PlacedMotion;
-  /** By category id. */
-  categories: Record<string, PlacedMotion>;
-}
-
-/** The tenant's motions laid out by place, each resolved for the guest (`guestParams`). */
+/** The tenant's motions laid out by place, each resolved for the guest (`motionsView`). */
 function menuMotions(motions: readonly SnapshotMotion[], tenant: TenantInfo, locale: Locale): MenuMotionsView {
-  const view: MenuMotionsView = { categories: {} };
-  const playing = tenant.brand.motionIntensity !== 'none';
-  for (const motion of motions) {
-    const placed = { motionId: motion.motionId, params: guestParams(motion, locale, tenant.defaultLocale, tenant.brand.logoText), playing };
-    if (motion.place === 'category') {
-      if (motion.categoryId) view.categories[motion.categoryId] = placed;
-    } else view[motion.place] = placed;
-  }
-  return view;
+  return motionsView(motions, { locale, defaultLocale: tenant.defaultLocale, logoText: tenant.brand.logoText, playing: tenant.brand.motionIntensity !== 'none' });
 }
 
 const DAY_MS = 86_400_000;

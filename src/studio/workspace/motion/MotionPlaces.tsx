@@ -1,11 +1,12 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Sparkles, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { removeMotion } from '@/app/studio/_actions/motions';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
 import { motionById } from '@/motion/catalog';
 import type { MotionPlaceView, MotionPlacesView } from '@/server/studio/services/menu-motions';
 import { describeFailure } from '@/studio/errors';
@@ -52,12 +53,19 @@ function PlaceRow({
   const name = placeName(t, place);
   const meta = place.motion ? motionById(place.motion.motionId) : undefined;
   const headingId = `motion-place-${placeSegment(place)}`;
+  // A template menu draws the top behind its own header and hero, and never the signature place.
+  const template = view.templateId !== null;
   const note =
-    place.place === 'signature' && !view.hasSignature
-      ? t('menuMotions.signatureMissing')
-      : place.place === 'category'
-        ? null
-        : t(`menuMotions.place.${place.place}.hint`);
+    place.place === 'category'
+      ? null
+      : place.place === 'signature'
+        ? template
+          ? t('menuMotions.place.signature.templateNote')
+          : view.hasSignature
+            ? t('menuMotions.place.signature.hint')
+            : t('menuMotions.signatureMissing')
+        : t(template ? 'menuMotions.place.hero.templateHint' : 'menuMotions.place.hero.hint');
+  const suggestedBy = place.motion?.suggestedBy ? (isTemplateId(place.motion.suggestedBy) ? TEMPLATES[place.motion.suggestedBy].name : place.motion.suggestedBy) : null;
   // A plan without motions keeps a motion already placed (it may be tuned) but cannot fill an empty place.
   const canEdit = view.allowed || place.motion !== null;
 
@@ -93,6 +101,12 @@ function PlaceRow({
             <span className="text-muted">{t('menuMotions.none')}</span>
           )}
         </p>
+        {suggestedBy && (
+          <p className="inline-flex w-fit items-center gap-1.5 text-sm text-muted">
+            <Sparkles aria-hidden className="size-3.5 shrink-0" />
+            {t('menuMotions.suggestedBy', { template: suggestedBy })}
+          </p>
+        )}
         {note && <p className="text-sm text-muted">{note}</p>}
       </div>
       <div className="flex shrink-0 items-center gap-2">

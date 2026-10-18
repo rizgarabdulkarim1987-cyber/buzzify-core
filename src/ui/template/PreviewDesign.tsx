@@ -1,11 +1,14 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { FontPairId } from '@/lib/font-pairs';
 import { isTemplateId, TEMPLATES } from '@/lib/templates';
+import { previewMotions, type MotionSwap } from '@/lib/templates/motions';
 import { parseOverrides, parseSceneMedia, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
 import type { MenuDesign } from '@/lib/templates/types';
 import type { MenuView } from '@/server/data/menu-view';
+import { motionsView } from '@/server/domain/menu-motions';
+import { useApp } from '@/ui/AppProviders';
 import { MenuApp } from '@/ui/menu/MenuApp';
 import { TemplateMenu } from './TemplateMenu';
 
@@ -32,6 +35,7 @@ export function PreviewDesign({
   poweredBy,
   tagline,
   fontClasses,
+  motionSwap,
 }: {
   view: MenuView;
   initial: MenuDesign | null;
@@ -39,8 +43,20 @@ export function PreviewDesign({
   poweredBy: boolean;
   tagline?: string;
   fontClasses: Record<FontPairId, string>;
+  motionSwap: MotionSwap;
 }) {
   const [design, setDesign] = useState<MenuDesign | null>(initial);
+  const { locale } = useApp();
+
+  // Another template than the draft's shows the motions applying it would give: the designer's own, and that template's
+  // suggestions in the places they leave empty (spec 2026-10-18-template-motions-design.md, section 5).
+  const shown = useMemo(() => {
+    const templateId = design && isTemplateId(design.templateId) ? design.templateId : null;
+    if (templateId === motionSwap.templateId) return view;
+    const motions = previewMotions(motionSwap, templateId, design?.palette ?? { bg: '#000000', accent: '#ffffff' });
+    const guest = { locale, defaultLocale: view.restaurant.defaultLocale, logoText: motionSwap.logoText, playing: motionSwap.playing };
+    return { ...view, motions: motionsView(motions, guest) };
+  }, [view, design, motionSwap, locale]);
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<DesignMessage>) => {
@@ -61,6 +77,6 @@ export function PreviewDesign({
     return () => window.removeEventListener('message', onMessage);
   }, [details, poweredBy]);
 
-  if (!design) return <MenuApp view={view} />;
-  return <TemplateMenu key={design.templateId} view={view} design={design} tagline={tagline} fontClass={fontClasses[design.type.fontPairId]} />;
+  if (!design) return <MenuApp view={shown} />;
+  return <TemplateMenu key={design.templateId} view={shown} design={design} tagline={tagline} fontClass={fontClasses[design.type.fontPairId]} />;
 }

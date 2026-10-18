@@ -1,6 +1,6 @@
 import type { Locale } from '@/lib/locale';
 import { motionById } from '@/motion/catalog';
-import { cleanMotion, startingParams, startingTexts, type SnapshotMotion } from '@/server/domain/menu-motions';
+import { cleanMotion, slotOf, startingParams, startingTexts, type SnapshotMotion } from '@/server/domain/menu-motions';
 import type { TemplateId } from './types';
 
 /**
@@ -126,4 +126,31 @@ export function suggestedMotions(templateId: TemplateId, input: SuggestionInput)
     if (placed) motions.push(placed);
   }
   return motions;
+}
+
+/** What the Studio's preview needs to show any template with the motions applying it would give (spec section 5). */
+export interface MotionSwap {
+  /** The template the draft is drawn with, or null for the classic menu. */
+  templateId: string | null;
+  /** The designer's own motions: those no template placed. */
+  owned: SnapshotMotion[];
+  categories: SuggestionInput['categories'];
+  locales: readonly Locale[];
+  logoText: string;
+  /** Whether the restaurant's plan shows guests the menu's motions at all. */
+  allowed: boolean;
+  /** False when the menu's motion level is off: every motion shows still. */
+  playing: boolean;
+}
+
+/**
+ * The motions a template would leave on the menu if it were applied now: the designer's own, then the template's
+ * suggestions in the places they leave empty (none for Classic). Nothing on a plan without motions on the menu.
+ */
+export function previewMotions(swap: MotionSwap, templateId: TemplateId | null, palette: { bg: string; accent: string }): SnapshotMotion[] {
+  if (!swap.allowed) return [];
+  if (templateId === null) return [...swap.owned];
+  const taken = new Set(swap.owned.map((motion) => slotOf(motion.place, motion.categoryId)));
+  const suggestions = suggestedMotions(templateId, { categories: swap.categories, palette, locales: swap.locales, logoText: swap.logoText });
+  return [...swap.owned, ...suggestions.filter((motion) => !taken.has(slotOf(motion.place, motion.categoryId)))];
 }

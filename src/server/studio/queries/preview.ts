@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import { LOCALES } from '@/lib/locale';
+import type { MotionSwap } from '@/lib/templates/motions';
 import { loadOverlay } from '@/server/data/live';
 import { buildMenuView, type MenuView } from '@/server/data/menu-view';
 import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
 import { hiddenFromGuests, servedCatalog } from '@/server/domain/plan-choices';
-import { toCatalog } from '@/server/domain/snapshot';
+import { placedMotions, toCatalog } from '@/server/domain/snapshot';
 import { loadDraftSnapshot, type DesignContext } from '@/server/publish/draft';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
@@ -24,7 +25,7 @@ export const draft = defineQuery({
   permission: 'view',
   input: z.object({ menuId: idField, locale: z.enum(LOCALES) }),
   target: (i) => ({ kind: 'menu', menuId: i.menuId }),
-  run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView; designContext: DesignContext }> => {
+  run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView; designContext: DesignContext; motionSwap: MotionSwap }> => {
     if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
     const menu = await ctx.db.menu.findUnique({ where: { id: ctx.menuId }, select: { id: true, slug: true, restaurantId: true } });
     if (!menu) throw new StudioError('NOT_FOUND');
@@ -39,7 +40,26 @@ export const draft = defineQuery({
       select: { address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true },
     });
     const { showPoweredBy, ...details } = restaurant;
-    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()), designContext: { details, showPoweredBy } };
+    // What the Design tab's preview needs to show another template with the motions applying it would give.
+    const owned = await ctx.db.menuMotion.findMany({ where: { menuId: menu.id, fromTemplate: null }, select: { slot: true, categoryId: true, motionId: true, params: true, texts: true } });
+    const motionSwap: MotionSwap = {
+      templateId: snapshot.brand.design?.templateId ?? null,
+      owned: placedMotions(
+        owned.map((row) => ({ place: row.slot.startsWith('category:') ? 'category' : row.slot, categoryId: row.categoryId ?? undefined, motionId: row.motionId, params: row.params, texts: row.texts })),
+        snapshot.menu.locales,
+        snapshot.catalog.categories,
+      ),
+      categories: snapshot.catalog.categories.map((category) => ({
+        id: category.id,
+        slug: category.slug,
+        names: Object.values(category.translations).flatMap((entry) => (typeof entry?.name === 'string' ? [entry.name] : [])),
+      })),
+      locales: snapshot.menu.locales,
+      logoText: tenant.brand.logoText,
+      allowed: tenant.features.motions,
+      playing: tenant.brand.motionIntensity !== 'none',
+    };
+    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()), designContext: { details, showPoweredBy }, motionSwap };
   },
 });
 

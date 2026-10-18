@@ -4,6 +4,7 @@ import { Box, Check, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { FONT_PAIR_VARIABLES } from '@/lib/font-pairs';
 import { BUSINESS_TYPES, STYLE_TAGS, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
+import { PRESET_HERO_MOTIONS } from '@/lib/templates/motions';
 import { useT } from '@/studio/i18n';
 import { cx } from '@/studio/ui/cx';
 import { face } from '@/studio/workspace/brand/FontPairPicker';
@@ -82,6 +83,10 @@ function TemplateCard({ preset, selected, current, onSelect }: { preset: Templat
             {preset.tags.map((tag) => (
               <span key={tag}>{t(`design.style.${tag}`)}</span>
             ))}
+          </span>
+          {/* The library motion the template places at the top of the menu when it is applied. */}
+          <span className="truncate text-xs text-muted">
+            {t('design.motionSuggestion', { name: t(`motion.${PRESET_HERO_MOTIONS[preset.id].motionId}.name`) })}
           </span>
         </span>
       </button>

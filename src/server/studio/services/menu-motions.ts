@@ -2,6 +2,8 @@ import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
 import { isLocale, LOCALES, type Locale } from '@/lib/locale';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
+import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
 import type { MotionParams } from '@/motion/types';
 import { allows } from '@/server/domain/entitlements';
 import { cleanMotion, MOTION_PLACES, slotOf, type MotionPlace, type MotionTexts } from '@/server/domain/menu-motions';
@@ -185,7 +187,10 @@ export async function motionPlaces(db: PrismaClient, ctx: QueryContext): Promise
     locales: locales.length > 0 ? locales : [...LOCALES.slice(0, 1)],
     defaultLocale,
     logoText: brand?.logoText ?? menu.restaurant.name,
-    pageBackground: sanitizePalette(tokens[theme], DEFAULT_PALETTES[theme]).bg,
+    // A template menu's page is the template's own colour; a classic one's, the brand kit's theme.
+    pageBackground: isTemplateId(brand?.templateId)
+      ? overriddenPalette(TEMPLATES[brand.templateId], parseOverrides(brand.design)).bg
+      : sanitizePalette(tokens[theme], DEFAULT_PALETTES[theme]).bg,
     motionIntensity,
     hasSignature: signatures > 0,
     templateId: brand?.templateId ?? null,
