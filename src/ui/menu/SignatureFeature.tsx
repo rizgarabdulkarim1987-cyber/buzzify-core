@@ -30,8 +30,9 @@ export function SignatureFeature({
   /** True while the product sheet is open over the hero, so the 3D stage can rest. */
   covered?: boolean;
 }) {
-  const { t, money } = useApp();
-  const staged = stageTone(product.media) !== null;
+  const { t, money, tenant } = useApp();
+  // The 3D dish is the plan's to give; without it the dish art is shown, as on a device without WebGL.
+  const staged = tenant.features.stage && stageTone(product.media) !== null;
   const reduced = usePrefersReducedMotion();
   const stage = useRef<HTMLDivElement>(null);
 

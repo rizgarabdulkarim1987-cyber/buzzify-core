@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { FeatureKey, PlanTier } from '@/server/domain/entitlements';
 import type { PublishIssue } from '@/server/domain/publish-rules';
 
 /**
@@ -12,7 +13,14 @@ export type ErrorCode =
   | 'NOT_FOUND'
   | 'INVALID'
   | 'CONFLICT'
-  | 'RATE_LIMITED';
+  | 'RATE_LIMITED'
+  | 'UPGRADE_REQUIRED';
+
+/** What a restaurant would need for a refused feature: the feature, and the lowest plan that includes it (null: none). */
+export interface UpgradeNeeded {
+  feature: FeatureKey;
+  plan: PlanTier | null;
+}
 
 export interface StudioFailure {
   code: ErrorCode;
@@ -21,6 +29,8 @@ export interface StudioFailure {
   fields?: Record<string, string>;
   /** What stands in the way of a publish, one entry per problem, for the Studio to list by code in the person's language. */
   issues?: PublishIssue[];
+  /** For `UPGRADE_REQUIRED`: what the restaurant's plan lacks, so the Studio can show the upgrade hint. */
+  upgrade?: UpgradeNeeded;
 }
 
 /** What every action and query returns to its caller. Plain data, so it crosses the Server Action boundary as it is. */
@@ -34,6 +44,7 @@ const DEFAULT_MESSAGES: Record<ErrorCode, string> = {
   INVALID: 'Check the highlighted fields',
   CONFLICT: 'Someone else changed this while you were editing. Reload to see their changes.',
   RATE_LIMITED: 'Too many attempts. Try again later.',
+  UPGRADE_REQUIRED: 'This is not part of this restaurant’s plan',
 };
 
 /** The message an unexpected failure shows: nothing about what went wrong leaves the server. */
@@ -44,14 +55,27 @@ export class StudioError extends Error {
   readonly code: ErrorCode;
   readonly fields?: Record<string, string>;
   readonly issues?: PublishIssue[];
+  readonly upgrade?: UpgradeNeeded;
 
-  constructor(code: ErrorCode, message: string = DEFAULT_MESSAGES[code], fields?: Record<string, string>, issues?: PublishIssue[]) {
+  constructor(
+    code: ErrorCode,
+    message: string = DEFAULT_MESSAGES[code],
+    fields?: Record<string, string>,
+    issues?: PublishIssue[],
+    upgrade?: UpgradeNeeded,
+  ) {
     super(message);
     this.name = 'StudioError';
     this.code = code;
     if (fields) this.fields = fields;
     if (issues) this.issues = issues;
+    if (upgrade) this.upgrade = upgrade;
   }
+}
+
+/** The refusal for a feature the restaurant's plan lacks. */
+export function upgradeRequired(upgrade: UpgradeNeeded): StudioError {
+  return new StudioError('UPGRADE_REQUIRED', DEFAULT_MESSAGES.UPGRADE_REQUIRED, undefined, undefined, upgrade);
 }
 
 export function failure(
@@ -59,11 +83,15 @@ export function failure(
   message: string = DEFAULT_MESSAGES[code],
   fields?: Record<string, string>,
   issues?: PublishIssue[],
+  upgrade?: UpgradeNeeded,
 ): {
   ok: false;
   error: StudioFailure;
 } {
-  return { ok: false, error: { code, message, ...(fields ? { fields } : {}), ...(issues ? { issues } : {}) } };
+  return {
+    ok: false,
+    error: { code, message, ...(fields ? { fields } : {}), ...(issues ? { issues } : {}), ...(upgrade ? { upgrade } : {}) },
+  };
 }
 
 /**
@@ -83,7 +111,7 @@ export function invalidInput(error: z.ZodError): { ok: false; error: StudioFailu
 
 /** The result for a thrown `StudioError`, or null for anything else. */
 export function expectedFailure(error: unknown): { ok: false; error: StudioFailure } | null {
-  return error instanceof StudioError ? failure(error.code, error.message, error.fields, error.issues) : null;
+  return error instanceof StudioError ? failure(error.code, error.message, error.fields, error.issues, error.upgrade) : null;
 }
 
 /**

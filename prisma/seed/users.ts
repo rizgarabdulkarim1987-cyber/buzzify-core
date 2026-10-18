@@ -47,6 +47,8 @@ export async function seedDevUsers(prisma: PrismaClient, restaurantId: string): 
           name: dev.name,
           password,
           isSuperAdmin: dev.superAdmin,
+          // The development Super Admin manages the plans, unless the database already has its platform owner.
+          isPlatformOwner: dev.superAdmin && (await prisma.user.count({ where: { isPlatformOwner: true } })) === 0,
         });
         user = { id: userId };
         created.push(dev.email);

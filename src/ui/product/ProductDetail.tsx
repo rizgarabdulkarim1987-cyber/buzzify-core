@@ -34,7 +34,8 @@ export function ProductDetail({ product, mode, titleId, onDone, onSwitch }: Prop
   const [quantity, setQuantity] = useState(1);
 
   const orderable = product.orderState === 'OK';
-  const staged = stagesOnProductPage(product.media);
+  // The 3D dish is the plan's to give; without it the dish art is shown, as on a device without WebGL.
+  const staged = tenant.features.stage && stagesOnProductPage(product.media);
   const unit = unitPriceFromMenu(product, variantId, selected);
   const missing = product.groups.filter(
     (group) => group.minSelect > group.options.filter((option) => selected.includes(option.id)).length,

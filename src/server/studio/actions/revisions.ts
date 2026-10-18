@@ -87,6 +87,8 @@ export const restore = defineAction({
 export const schedule = defineAction({
   name: 'revisions.schedule',
   permission: 'publish.schedule',
+  // Cancelling what was scheduled, and the scheduler publishing it, stay open after a downgrade.
+  feature: 'publish.scheduling',
   input: z.object({
     menuId: idField,
     goLiveAt: z.iso.datetime({ offset: true, error: 'Enter a valid date' }),

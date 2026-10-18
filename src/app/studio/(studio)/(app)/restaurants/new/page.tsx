@@ -4,6 +4,8 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
+import type { PlanTier } from '@/server/domain/entitlements';
+import { getPlans } from '@/server/studio/queries/plans';
 import { newRestaurantAccess } from '@/server/studio/queries/restaurants';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -20,6 +22,13 @@ export default async function NewRestaurantPage() {
   if (!actor) redirect(SIGN_IN_PATH);
   await query(newRestaurantAccess, {});
   const t = getStudioTranslator(actor.locale);
+  // The platform owner chooses the new restaurant's plan; it is the plans' names they need, in their language.
+  const planNames = actor.isPlatformOwner
+    ? (Object.fromEntries(Object.entries((await query(getPlans, {})).plans).map(([tier, plan]) => [tier, plan.names[actor.locale]])) as Record<
+        PlanTier,
+        string
+      >)
+    : null;
 
   return (
     <>
@@ -34,7 +43,7 @@ export default async function NewRestaurantPage() {
         description={t('restaurants.newDescription')}
       />
       <div className="px-8 pb-2">
-        <CreateRestaurantForm />
+        <CreateRestaurantForm planNames={planNames} />
       </div>
     </>
   );

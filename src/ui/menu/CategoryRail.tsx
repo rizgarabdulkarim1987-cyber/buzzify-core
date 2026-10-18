@@ -17,11 +17,12 @@ const noSubscription = () => () => {};
 const readSearch = () => window.location.search;
 const noSearch = () => '';
 
-/** The rail style in use: a `?rail=` preview if there is one, otherwise the restaurant's choice. */
+/** The rail style in use: a `?rail=` preview of a style the restaurant's plan includes, otherwise its own. */
 export function useRailStyle(): RailStyle {
   const { tenant } = useApp();
   const search = useSyncExternalStore(noSubscription, readSearch, noSearch);
-  return railStyleFromQuery(search) ?? tenant.railStyle;
+  const previewed = railStyleFromQuery(search);
+  return previewed !== null && tenant.features.rails.includes(previewed) ? previewed : tenant.railStyle;
 }
 
 /**

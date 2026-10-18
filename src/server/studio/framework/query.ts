@@ -1,9 +1,11 @@
 import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
+import type { FeatureKey } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
 import type { Actor } from '@/server/studio/auth/actor';
 import { admit, checkDefinition, type CheckedTarget, type SelfTarget, type Target } from './access';
+import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
 /** Which restaurants an actor can see across the platform: all of them for a Super Admin, else their own. */
@@ -25,6 +27,8 @@ export interface QueryContext {
   scope: ActorScope;
   /** What the actor may do at the target, for showing or hiding what the page offers. */
   permissions: ReadonlySet<Permission>;
+  /** What the target's restaurant has bought, for showing locks; null for platform and self targets. */
+  plan: PlanAccess | null;
   restaurantId: string | null;
   menuId: string | null;
 }
@@ -35,6 +39,8 @@ interface QueryFields<I, O> {
   input: z.ZodType<I>;
   run(ctx: QueryContext, input: NoInfer<I>): Promise<O>;
   allowWithoutTwoFactor?: boolean;
+  /** A feature the target restaurant's plan must include; refused with `UPGRADE_REQUIRED` after the permission. */
+  feature?: FeatureKey;
 }
 
 /**
@@ -51,6 +57,7 @@ export interface QueryDef<I, O> {
   readonly kind: 'query';
   readonly name: string;
   readonly permission: Permission | 'view' | null;
+  readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
   readonly run: (ctx: QueryContext, input: I) => Promise<O>;
@@ -64,6 +71,7 @@ export function defineQuery<I, O>(spec: QuerySpec<I, O>): QueryDef<I, O> {
     kind: 'query',
     name: spec.name,
     permission: spec.permission,
+    ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
     run: spec.run,
@@ -92,6 +100,7 @@ export async function runQueryForPage<I, O>(
         db: prisma,
         scope: actorScope(admitted.actor),
         permissions: access.permissions,
+        plan: access.plan,
         restaurantId: access.restaurantId,
         menuId: access.menuId,
       },

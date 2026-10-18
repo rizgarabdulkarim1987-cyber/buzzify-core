@@ -2,10 +2,12 @@ import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { globalDb, scopedClient, type ScopedClient, type ScopedTx } from '@/server/data/tenant-db';
+import type { FeatureKey } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
 import type { Actor } from '@/server/studio/auth/actor';
 import { admit, checkDefinition, type Access, type CheckedTarget, type SelfTarget, type Target } from './access';
 import { createId } from './ids';
+import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
 export type { CheckedTarget, SelfTarget, Target } from './access';
@@ -45,6 +47,8 @@ export interface ActionContext {
   menuId: string | null;
   /** What the actor may do at the target. */
   permissions: ReadonlySet<Permission>;
+  /** What the target's restaurant has bought; null for platform and self targets. See `requireFeature`. */
+  plan: PlanAccess | null;
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
   /**
@@ -104,6 +108,8 @@ interface ActionFields<I, O> {
   run(ctx: ActionContext, input: NoInfer<I>): Promise<O>;
   /** For the steps of enrolling in two-factor (and signing out): a Super Admin without it may still run these. */
   allowWithoutTwoFactor?: boolean;
+  /** A feature the target restaurant's plan must include; refused with `UPGRADE_REQUIRED` after the permission. */
+  feature?: FeatureKey;
 }
 
 /** An action names a permission and a target that checks it, or `permission: null` and the person's own account. */
@@ -117,6 +123,7 @@ export interface ActionDef<I, O> {
   readonly kind: 'action';
   readonly name: string;
   readonly permission: Permission | null;
+  readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
   readonly run: (ctx: ActionContext, input: I) => Promise<O>;
@@ -130,6 +137,7 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
     kind: 'action',
     name: spec.name,
     permission: spec.permission,
+    ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
     run: spec.run,
@@ -180,6 +188,7 @@ class Work {
       restaurantId: this.access.restaurantId,
       menuId: this.access.menuId,
       permissions: this.access.permissions,
+      plan: this.access.plan,
       db: this.prisma,
       meta: this.meta,
       transaction: (fn) => this.run(this.client(), this.access, fn),

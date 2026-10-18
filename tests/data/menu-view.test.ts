@@ -17,6 +17,7 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
+  features: { explore: true, stage: true, smartSelling: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
   brand: {
     logoText: 'TEST',
     theme: 'dark',

@@ -177,6 +177,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     user: {
       additionalFields: {
         isSuperAdmin: { type: 'boolean', required: false, defaultValue: false, input: false },
+        isPlatformOwner: { type: 'boolean', required: false, defaultValue: false, input: false },
         locale: { type: 'string', required: false, defaultValue: 'en', input: false },
         deactivatedAt: { type: 'date', required: false, input: false },
       },

@@ -1,5 +1,6 @@
 import type { Translate } from '@/lib/i18n';
 import type { Locale } from '@/lib/locale';
+import { DEFAULT_PLAN_NAMES } from '@/server/domain/entitlements';
 import type { StudioFailure } from '@/server/studio/framework/result';
 import { formatDateTime } from './format';
 
@@ -17,6 +18,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Check the highlighted fields': 'error.INVALID',
   'Someone else changed this while you were editing. Reload to see their changes.': 'error.CONFLICT',
   'Too many attempts. Try again later.': 'error.RATE_LIMITED',
+  'This is not part of this restaurant’s plan': 'error.upgradeGeneric',
   'Something went wrong': 'error.unexpected',
 
   // Signing in, two-factor, passwords
@@ -58,6 +60,12 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This invitation was used or withdrawn in the meantime': 'error.text.inviteChanged',
   'This person already has access to this restaurant': 'error.text.personHasAccess',
   'This person already has an account. Assign them to a client instead': 'error.text.personHasAccount',
+  'Only the platform owner can change this account': 'error.text.platformOwnerOnly',
+
+  // Plans
+  'Choose one of the plans offered': 'error.text.planChoose',
+  'Enter the plan’s name': 'error.text.planName',
+  'Enter the number with its country code, digits only': 'error.text.whatsappDigits',
   'This person is already a Super Admin': 'error.text.personIsSuperAdmin',
   'There must always be one active Super Admin': 'error.text.lastSuperAdmin',
   'This account is already deactivated': 'error.text.alreadyDeactivated',
@@ -218,6 +226,12 @@ export function describeFailure(t: Translate, locale: Locale, failure: StudioFai
     const time = formatDateTime(changedAt, locale);
     const by = failure.fields?.changedBy;
     message = by ? t('error.conflictBy', { name: isolate(by), time }) : t('error.conflictAt', { time });
+  }
+  // A feature the restaurant's plan lacks names the lowest plan with it (by its default name; screens that expect the
+  // refusal show the upgrade hint with the platform owner's names instead).
+  if (failure.code === 'UPGRADE_REQUIRED') {
+    const plan = failure.upgrade?.plan;
+    message = plan ? t('error.UPGRADE_REQUIRED', { plan: DEFAULT_PLAN_NAMES[plan][locale] }) : t('error.upgradeGeneric');
   }
   const retryAfter = Number(failure.fields?.retryAfterSec);
   if (failure.code === 'RATE_LIMITED' && Number.isFinite(retryAfter) && retryAfter > 0) {

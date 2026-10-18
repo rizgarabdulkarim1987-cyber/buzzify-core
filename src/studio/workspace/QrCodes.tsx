@@ -16,11 +16,14 @@ import {
 } from '@/app/studio/_actions/qr';
 import { HEX } from '@/lib/brand';
 import { contrastRatio } from '@/lib/palette';
+import { isBrandedQr } from '@/server/domain/plan-choices';
 import { QR_FRAME_MAX, QR_MIN_CONTRAST, qrStyleProblem, type QrStyle } from '@/server/domain/qr';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import type { QrCodeView, QrCodesView } from '@/server/studio/services/qr';
 import { describeFailure } from '@/studio/errors';
 import { numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { useRefuse } from '@/studio/refuse';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -63,7 +66,7 @@ function fetchFile(url: string) {
  * large with its look (colours checked for scanners as they are picked, the brand's logo, a line of text below), its
  * downloads and how often it was scanned in the last 30 days.
  */
-export function QrCodes({ menuId, view }: { menuId: string; view: QrCodesView }) {
+export function QrCodes({ menuId, view }: { menuId: string; view: QrCodesView & { branded: boolean; upgrade: UpgradeInfo } }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -136,6 +139,8 @@ export function QrCodes({ menuId, view }: { menuId: string; view: QrCodesView })
               code={selected}
               kind={kind(selected)}
               hasLogo={view.hasLogo}
+              branded={view.branded}
+              upgrade={view.upgrade}
               others={view.codes.length - 1}
               onDeleted={() => setSelectedId(null)}
             />
@@ -212,6 +217,8 @@ function CodeEditor({
   code,
   kind,
   hasLogo,
+  branded,
+  upgrade,
   others,
   onDeleted,
 }: {
@@ -219,6 +226,9 @@ function CodeEditor({
   code: QrCodeView;
   kind: string;
   hasLogo: boolean;
+  /** Whether the plan includes brand colours and the logo; without them both are locked, and the frame text stays open. */
+  branded: boolean;
+  upgrade: UpgradeInfo;
   others: number;
   onDeleted: () => void;
 }) {
@@ -347,11 +357,20 @@ function CodeEditor({
                   <input
                     type="color"
                     value={valid ? style[key].toLowerCase() : '#000000'}
+                    disabled={!branded}
                     onChange={(event) => setColour(key, event.target.value)}
                     aria-label={t('brand.colour.pick', { colour: colourLabel })}
-                    className="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-line-strong bg-raised p-0.5"
+                    className="h-8 w-10 shrink-0 cursor-pointer rounded-md border border-line-strong bg-raised p-0.5 disabled:cursor-not-allowed disabled:opacity-50"
                   />
-                  <Input value={style[key]} dir="ltr" maxLength={7} spellCheck={false} onChange={(event) => setColour(key, event.target.value)} className="font-mono uppercase" />
+                  <Input
+                    value={style[key]}
+                    dir="ltr"
+                    maxLength={7}
+                    spellCheck={false}
+                    disabled={!branded}
+                    onChange={(event) => setColour(key, event.target.value)}
+                    className="font-mono uppercase"
+                  />
                 </div>
               </Field>
             );
@@ -367,12 +386,24 @@ function CodeEditor({
           </p>
         )}
         <div className="flex items-center gap-3">
-          <Switch id="qr-logo" checked={style.logo} disabled={!hasLogo && !style.logo} onCheckedChange={(logo) => setStyle((current) => ({ ...current, logo }))} />
+          <Switch
+            id="qr-logo"
+            checked={style.logo}
+            disabled={!branded || (!hasLogo && !style.logo)}
+            onCheckedChange={(logo) => setStyle((current) => ({ ...current, logo }))}
+          />
           <label htmlFor="qr-logo" className="flex flex-col">
             <span className="text-base text-text">{t('qr.logo')}</span>
             <span className="text-sm text-muted">{hasLogo ? t('qr.logoHint') : t('qr.logoMissing')}</span>
           </label>
         </div>
+        {!branded && (
+          <div className="flex max-w-xl flex-col gap-1.5 rounded-md bg-surface px-3 py-2.5">
+            <span className="text-sm font-medium text-text">{t('qr.lockedStyle')}</span>
+            {isBrandedQr(code.style) && <p className="text-sm text-muted">{t('qr.lockedKept')}</p>}
+            <UpgradeHint feature="qr.branded" info={upgrade} />
+          </div>
+        )}
         <Field
           label={t('qr.frameText')}
           hint={t('qr.frameHint')}

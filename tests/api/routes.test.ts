@@ -130,6 +130,23 @@ describe('public API', () => {
       expect(result.bundles[0].savings).toBe(200);
     });
 
+    it('still answers for a bundle in the cart once the plan has no smart selling, with the line marked', async () => {
+      const restaurant = await prisma.restaurant.findFirstOrThrow({ where: { menus: { some: { slug: 'atelier' } } } });
+      await prisma.restaurant.update({ where: { id: restaurant.id }, data: { plan: 'BASIC' } });
+      try {
+        const response = await post(quote, 'atelier', {
+          locale: 'en',
+          cart: { lines: [], bundles: [{ bundleId: burgerSetId, quantity: 1 }] },
+        });
+        expect(response.status).toBe(200);
+        const { quote: result } = await response.json();
+        expect(result.subtotal).toBe(0);
+        expect(result.bundles[0].issues).toEqual([{ code: 'UNKNOWN_BUNDLE', bundleId: burgerSetId }]);
+      } finally {
+        await prisma.restaurant.update({ where: { id: restaurant.id }, data: { plan: 'PREMIUM' } });
+      }
+    });
+
     it('returns 404 for an unknown tenant and for a malformed slug', async () => {
       expect((await post(quote, 'nope', { locale: 'en', cart: { lines: [], bundles: [] } })).status).toBe(404);
       expect((await post(quote, "x'--", { locale: 'en', cart: { lines: [], bundles: [] } })).status).toBe(404);
@@ -236,6 +253,26 @@ describe('public API', () => {
       expect(body.bundles[0]).toMatchObject({ name: 'Burger set', savings: 200, times: 1 });
       expect(body.bundles[0].cartAfter.lines).toEqual([]);
       expect(body.bundles[0].cartAfter.bundles).toEqual([{ bundleId: burgerSetId, quantity: 1 }]);
+    });
+
+    it('offers no upgrades, pairings or sets once the plan has no smart selling, and still picks the signature dish', async () => {
+      const restaurant = await prisma.restaurant.findFirstOrThrow({ where: { menus: { some: { slug: 'atelier' } } } });
+      await prisma.restaurant.update({ where: { id: restaurant.id }, data: { plan: 'BASIC' } });
+      try {
+        const product = await post(suggestions, 'atelier', {
+          context: 'product',
+          locale: 'en',
+          product: { productId: burgerId, variantId: null, optionIds: [] },
+          cart: { lines: [], bundles: [] },
+          dismissedIds: [],
+        });
+        expect(product.status).toBe(200);
+        expect(await product.json()).toMatchObject({ upgrades: [], pairings: [], bundles: [] });
+        const menu = await (await post(suggestions, 'atelier', { context: 'menu', locale: 'en' })).json();
+        expect(menu.signature?.productId).toBeTruthy();
+      } finally {
+        await prisma.restaurant.update({ where: { id: restaurant.id }, data: { plan: 'PREMIUM' } });
+      }
     });
 
     it('works for the menu context with no cart', async () => {

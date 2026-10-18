@@ -1,8 +1,9 @@
+import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import { RESTAURANT_STATUSES, RESTAURANT_TYPES, type RestaurantStatus, type RestaurantType } from '@/server/domain/restaurant-profile';
 
 type RawParams = Record<string, string | string[] | undefined>;
 
-export const LIST_PARAMS = ['q', 'city', 'type', 'status', 'createdFrom', 'createdTo'] as const;
+export const LIST_PARAMS = ['q', 'city', 'type', 'status', 'plan', 'createdFrom', 'createdTo'] as const;
 
 export type SortKey = 'name' | 'createdAt' | 'city';
 
@@ -19,6 +20,7 @@ export interface ListInput {
   city?: string;
   type?: RestaurantType;
   status?: RestaurantStatus;
+  plan?: PlanTier;
   createdFrom?: string;
   createdTo?: string;
   sort: SortKey;
@@ -34,6 +36,7 @@ export function listInput(raw: RawParams): ListInput {
   const text = (name: string, max: number) => first(raw[name])?.trim().slice(0, max) || undefined;
   const type = first(raw.type);
   const status = first(raw.status);
+  const plan = first(raw.plan);
   const from = first(raw.createdFrom);
   const to = first(raw.createdTo);
   const sort = first(raw.sort);
@@ -45,6 +48,7 @@ export function listInput(raw: RawParams): ListInput {
     ...(city ? { city } : {}),
     ...(RESTAURANT_TYPES.includes(type as RestaurantType) ? { type: type as RestaurantType } : {}),
     ...(RESTAURANT_STATUSES.includes(status as RestaurantStatus) ? { status: status as RestaurantStatus } : {}),
+    ...(PLAN_TIERS.includes(plan as PlanTier) ? { plan: plan as PlanTier } : {}),
     ...(from && isCalendarDate(from) ? { createdFrom: from } : {}),
     ...(to && isCalendarDate(to) ? { createdTo: to } : {}),
     sort: SORTS.includes(sort as SortKey) ? (sort as SortKey) : 'name',

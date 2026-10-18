@@ -352,6 +352,9 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // Plans: the tab reads B's plan; the change is the platform owner's alone, so anyone else is refused before B is found
+  'plans.forRestaurant': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId }))],
+  'plans.setRestaurantPlan': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, plan: 'BASIC', extras: {}, note: 'Planted' }))],
   // QR codes
   'qr.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'qr.create': [c("in B's menu", (w) => ({ menuId: w.b.menuId, label: 'Planted', tableNumber: 40 }))],
@@ -605,6 +608,7 @@ const SWEPT: Record<string, Case[]> = {
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'preview.draft': [c("B's draft", (w) => ({ menuId: w.b.menuId, locale: 'en' }))],
+  'preview.planNote': [c("B's draft", (w) => ({ menuId: w.b.menuId }))],
   'menus.slugAvailability': [c("for B's menu", (w) => ({ slug: 'some-new-address', menuId: w.b.menuId }))],
   'people.listPeople': [
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
@@ -677,6 +681,8 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
     ),
   ],
   'settings.get': [c('the settings', () => ({}), ONLY_FORBIDDEN)],
+  'plans.get': [c('the plans', () => ({}), ONLY_FORBIDDEN)],
+  'plans.update': [c('giving Basic Explore', () => ({ plans: { BASIC: { features: { 'immersive.explore': true } } }, whatsapp: '' }), ONLY_FORBIDDEN)],
   'activity.list': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'search.people': [c("B's people", () => ({ q: 'bravo' }), ONLY_FORBIDDEN)],
 };

@@ -64,6 +64,7 @@ describe('getActor', () => {
       email: 'owner@example.com',
       name: 'Owner',
       isSuperAdmin: false,
+      isPlatformOwner: false,
       twoFactorEnabled: false,
       locale: 'ckb',
       memberships: [{ restaurantId: restaurant.id, role: 'DESIGNER' }],

@@ -12,6 +12,8 @@ export interface Actor {
   email: string;
   name: string;
   isSuperAdmin: boolean;
+  /** The one account that sells and alone changes plans; true only while the person is also a Super Admin. */
+  isPlatformOwner: boolean;
   twoFactorEnabled: boolean;
   locale: Locale;
   memberships: Array<{ restaurantId: string; role: MemberRole }>;
@@ -29,6 +31,7 @@ export async function loadActor(prisma: PrismaClient, userId: string): Promise<A
     email: user.email,
     name: user.name,
     isSuperAdmin: user.isSuperAdmin,
+    isPlatformOwner: user.isSuperAdmin && user.isPlatformOwner,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
     locale: isLocale(user.locale) ? user.locale : 'en',
     memberships: user.memberships,

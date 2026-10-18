@@ -63,8 +63,8 @@ export default async function RestaurantsPage({ searchParams }: { searchParams: 
           />
         ) : (
           <>
-            <RestaurantFilters cities={list.cities} />
-            <RestaurantsTable rows={list.rows} sort={input.sort} dir={input.dir} />
+            <RestaurantFilters cities={list.cities} planNames={list.planNames} />
+            <RestaurantsTable rows={list.rows} sort={input.sort} dir={input.dir} planNames={list.planNames} />
             <Pagination page={list.page} pageSize={list.pageSize} total={list.total} />
           </>
         )}

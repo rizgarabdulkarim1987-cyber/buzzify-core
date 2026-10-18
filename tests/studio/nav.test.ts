@@ -8,6 +8,7 @@ function actor(overrides: Partial<Actor>): Actor {
     email: 'person@example.test',
     name: 'Person',
     isSuperAdmin: false,
+    isPlatformOwner: false,
     twoFactorEnabled: true,
     locale: 'en',
     memberships: [],

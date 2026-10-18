@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
+import { readPlans } from '@/server/data/plans';
+import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
 import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -40,6 +42,7 @@ export const listRestaurants = defineQuery({
     city: z.string().trim().max(200).optional(),
     type: z.enum(RESTAURANT_TYPES).optional(),
     status: z.enum(RESTAURANT_STATUSES).optional(),
+    plan: z.enum(PLAN_TIERS).optional(),
     createdFrom: dateField.optional(),
     createdTo: dateField.optional(),
     sort: z.enum(['name', 'createdAt', 'city']).default('name'),
@@ -66,11 +69,12 @@ export const listRestaurants = defineQuery({
     if (input.city) filters.push({ city: { equals: input.city, mode: 'insensitive' } });
     if (input.type) filters.push({ type: input.type });
     if (input.status) filters.push({ status: input.status });
+    if (input.plan) filters.push({ plan: input.plan });
     const created = createdBetween(input.createdFrom, input.createdTo);
     if (created) filters.push({ createdAt: created });
     const where: Prisma.RestaurantWhereInput = { AND: filters };
 
-    const [total, found, cities] = await Promise.all([
+    const [total, found, cities, plans] = await Promise.all([
       ctx.db.restaurant.count({ where }),
       ctx.db.restaurant.findMany({
         where,
@@ -85,12 +89,14 @@ export const listRestaurants = defineQuery({
           type: true,
           city: true,
           status: true,
+          plan: true,
           createdAt: true,
           _count: { select: { menus: true } },
         },
       }),
       // The cities the city filter offers: those of the restaurants the reader can see, and no others.
       ctx.db.restaurant.findMany({ where: { AND: [scope, { city: { not: '' } }] }, distinct: ['city'], orderBy: { city: 'asc' }, select: { city: true } }),
+      readPlans(ctx.db),
     ]);
 
     return {
@@ -101,6 +107,7 @@ export const listRestaurants = defineQuery({
         type: row.type,
         city: row.city,
         status: row.status,
+        plan: row.plan,
         menuCount: row._count.menus,
         createdAt: row.createdAt.toISOString(),
       })),
@@ -108,6 +115,8 @@ export const listRestaurants = defineQuery({
       page: input.page,
       pageSize: PAGE_SIZE,
       cities: cities.map((row) => row.city),
+      /** The plans' names in the reader's language, as the platform owner set them. */
+      planNames: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, plans.names[tier][ctx.actor.locale]])) as Record<PlanTier, string>,
       canCreate: ctx.permissions.has('restaurant.create'),
     };
   },
@@ -147,6 +156,7 @@ export const getRestaurant = defineQuery({
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
       status: row.status,
+      plan: row.plan,
       logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,
       version: row.version,
       createdAt: row.createdAt.toISOString(),
