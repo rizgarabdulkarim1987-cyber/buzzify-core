@@ -1,4 +1,5 @@
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/en';
 
 const en: Messages = {
   // Shared words of the interface
@@ -43,6 +44,7 @@ const en: Messages = {
   'nav.restaurants': 'Restaurants',
   'nav.menus': 'All menus',
   'nav.media': 'Media',
+  'nav.motion': 'Motion',
   'nav.people': 'People',
   'nav.activity': 'Activity',
   'nav.settings': 'Settings',
@@ -1850,6 +1852,8 @@ const en: Messages = {
   'qr.lockedKept': 'This code prints in black on white, without the logo, until the plan includes them.',
   'revisions.scheduleLocked': 'Scheduled publishing',
   'preview.hiddenTitle': 'Guests on this plan don’t see',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
+  ...motion,
 };
 
 export default en;

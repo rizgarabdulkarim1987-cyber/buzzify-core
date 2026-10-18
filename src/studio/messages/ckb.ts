@@ -1,5 +1,6 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
+import motion from './motion/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -44,6 +45,7 @@ const ckb: Messages = {
   'nav.restaurants': 'ڕێستۆرانەکان',
   'nav.menus': 'هەموو مینیوەکان',
   'nav.media': 'میدیا',
+  'nav.motion': 'جووڵە',
   'nav.people': 'کەسەکان',
   'nav.activity': 'چالاکی',
   'nav.settings': 'ڕێکخستنەکان',
@@ -1855,6 +1857,8 @@ const ckb: Messages = {
   'qr.lockedKept': 'ئەم کۆدە بە ڕەش لەسەر سپی و بێ لۆگۆ چاپ دەکرێت تا پاکێجەکە ئەوانە لەخۆ بگرێت.',
   'revisions.scheduleLocked': 'خشتەکردنی بڵاوکردنەوە',
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
+  // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)
+  ...motion,
 };
 
 export default ckb;

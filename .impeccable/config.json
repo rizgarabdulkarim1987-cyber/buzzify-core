@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          "src/motion/type/gradient-text.tsx"
+        ],
+        "createdAt": "2026-10-18T05:59:38.755Z",
+        "reason": "Motion #118 in the user's requested list is 'Gradient Text Animation': the gradient is the motion itself, not decoration"
+      }
+    ]
+  }
+}

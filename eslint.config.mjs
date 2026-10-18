@@ -38,6 +38,12 @@ const publicMenuCode = ['src/app/\\[tenant\\]/**', 'src/app/api/\\[tenant\\]/**'
 // scroll-driven motion and is never part of the menu's bundle.
 const onDemandMotion = ['src/ui/Sheet.tsx', 'src/ui/product/**', 'src/ui/RollingMoney.tsx', 'src/ui/explore/**'];
 
+// The motion library (src/motion): each motion's file loads on demand, only when that motion is shown, so it may use
+// the library. Its entry points are imported by pages directly and must stay free of it: the `Motion` component, the
+// catalog and its helpers. `motion-value.ts` only re-exports a type, which is erased at build time.
+const motionLibraryOnDemand = ['src/motion/**'];
+const motionLibraryEntry = ['src/motion/Motion.tsx', 'src/motion/index.ts', 'src/motion/catalog/**', 'src/motion/loaders.ts', 'src/motion/params.ts', 'src/motion/progress.ts', 'src/motion/types.ts'];
+
 export default defineConfig([
   ...nextVitals,
   ...nextTs,
@@ -55,6 +61,19 @@ export default defineConfig([
   {
     files: ['src/app/studio/**'],
     rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [databaseClient] }] },
+  },
+  {
+    files: motionLibraryOnDemand,
+    rules: { 'no-restricted-imports': ['error', { patterns: [studioCode] }] },
+  },
+  {
+    files: motionLibraryEntry,
+    rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode] }] },
+  },
+  {
+    // The Studio's Motion area is a route of its own whose whole purpose is to play motions.
+    files: ['src/studio/motion/**'],
+    rules: { 'no-restricted-imports': 'off' },
   },
   globalIgnores(['.next/**', 'out/**', 'build/**', 'next-env.d.ts', 'src/generated/**', '.data/**', '.superpowers/**']),
 ]);
