@@ -1,11 +1,13 @@
 import type { ComponentType } from 'react';
-import type { DesignPalette, SceneSettings, TemplateId } from '@/lib/templates/types';
+import type { DesignPalette, ModelFraming, SceneSettings, TemplateId } from '@/lib/templates/types';
 
 export interface SceneProps {
   palette: DesignPalette;
   settings: SceneSettings;
   /** A phone or touch device: fewer, cheaper effects (no transmission, fewer instances). */
   low: boolean;
+  /** Where the business's own model sits; template scenes ignore it. */
+  framing?: ModelFraming | undefined;
 }
 
 /** One preset's 3D scene: what it draws, where the camera starts, and how strongly the studio environment lights it. */

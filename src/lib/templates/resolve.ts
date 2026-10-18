@@ -1,6 +1,7 @@
 import { HEX } from '@/lib/brand';
 import { isFontPairId } from '@/lib/font-pairs';
 import { LOCALES } from '@/lib/locale';
+import { isSafeMediaUrl } from '@/lib/media';
 import { DAYS, TIME_OF_DAY, type WorkingHours } from '@/server/domain/restaurant-profile';
 import { sanitizeDesignPalette, themeOf } from './palette';
 import {
@@ -25,7 +26,9 @@ import {
   type InfoVisibility,
   type LocalText,
   type MenuDesign,
+  type ModelFraming,
   type Promotion,
+  type SceneMedia,
   type SceneSettings,
   type SocialLinks,
   type TemplatePreset,
@@ -53,6 +56,15 @@ export const SCENE_RANGES = {
   opacity: [0, 1],
   overlay: [0, 0.8],
 } as const satisfies Partial<Record<keyof SceneSettings, readonly [number, number]>>;
+
+export const FRAMING_RANGES = {
+  scale: [0.5, 2],
+  x: [-1, 1],
+  y: [-1, 1],
+  turn: [-180, 180],
+} as const satisfies Record<keyof ModelFraming, readonly [number, number]>;
+export const DEFAULT_FRAMING: ModelFraming = { scale: 1, x: 0, y: 0, turn: 0 };
+const ASSET_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
 /** Most featured products a menu shows. */
 export const MAX_FEATURED = 12;
@@ -111,6 +123,13 @@ const SCENE_RULES: { [K in keyof SceneSettings]: (value: unknown) => boolean } =
   overlay: (v) => inRange(v, ...SCENE_RANGES.overlay),
 };
 
+const FRAMING_RULES: { [K in keyof ModelFraming]: (value: unknown) => boolean } = {
+  scale: (v) => inRange(v, ...FRAMING_RANGES.scale),
+  x: (v) => inRange(v, ...FRAMING_RANGES.x),
+  y: (v) => inRange(v, ...FRAMING_RANGES.y),
+  turn: (v) => inRange(v, ...FRAMING_RANGES.turn),
+};
+
 const INFO_RULES: { [K in keyof InfoVisibility]: (value: unknown) => boolean } = {
   hours: bool,
   address: bool,
@@ -128,6 +147,36 @@ function promotion(value: unknown): Promotion | null | undefined {
   // An offer without its conditions is never kept.
   if (!title || !terms) return undefined;
   return { title, body: localText(value.body, TEXT_LIMITS.promoBody) ?? {}, terms };
+}
+
+const safeUrl = (value: unknown): value is string => isSafeMediaUrl(value) && value.length <= 1000;
+const positive = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value) && value > 0;
+
+/**
+ * A resolved scene file from elsewhere than a snapshot (the Studio's message to its preview), read as strictly as a
+ * snapshot reads one: safe URLs only, a known kind, a model framed within range. Null for anything else.
+ */
+export function parseSceneMedia(value: unknown): SceneMedia | null {
+  if (!isObject(value) || typeof value.assetId !== 'string' || !ASSET_ID.test(value.assetId) || !safeUrl(value.url)) return null;
+  const { assetId, url } = value;
+  switch (value.kind) {
+    case 'model': {
+      const framing = isObject(value.framing) ? picked<ModelFraming>(value.framing, FRAMING_RULES) : undefined;
+      if (!framing || Object.keys(framing).length !== 4) return null;
+      return { kind: 'model', assetId, url, framing: framing as ModelFraming };
+    }
+    case 'lottie':
+      return positive(value.width) && positive(value.height) ? { kind: 'lottie', assetId, url, width: value.width, height: value.height } : null;
+    case 'video': {
+      const poster = value.poster;
+      if (!positive(value.width) || !positive(value.height) || !isObject(poster) || !safeUrl(poster.url)) return null;
+      const srcset = typeof poster.srcset === 'string' && poster.srcset.split(',').every((entry) => entry.trim() === '' || safeUrl(entry.trim().split(' ')[0])) ? poster.srcset : '';
+      const placeholder = typeof poster.placeholder === 'string' && /^(data:image\/webp;base64,[A-Za-z0-9+/]+={0,2})?$/.test(poster.placeholder) ? poster.placeholder : '';
+      return { kind: 'video', assetId, url, width: value.width, height: value.height, poster: { url: poster.url, srcset, placeholder } };
+    }
+    default:
+      return null;
+  }
 }
 
 /** Overrides from storage. Anything malformed, unknown or out of range is dropped, never guessed at. */
@@ -149,6 +198,10 @@ export function parseOverrides(input: unknown): DesignOverrides {
   if (layout) overrides.layout = layout;
   const scene = isObject(input.scene) ? picked<SceneSettings>(input.scene, SCENE_RULES) : undefined;
   if (scene) overrides.scene = scene;
+  if (isObject(input.sceneAsset) && typeof input.sceneAsset.assetId === 'string' && ASSET_ID.test(input.sceneAsset.assetId)) {
+    const framing = isObject(input.sceneAsset.framing) ? picked<ModelFraming>(input.sceneAsset.framing, FRAMING_RULES) : undefined;
+    overrides.sceneAsset = { assetId: input.sceneAsset.assetId, ...(framing ? { framing } : {}) };
+  }
   if (isObject(input.featured) && Array.isArray(input.featured.slugs)) {
     const slugs = [...new Set(input.featured.slugs.filter((slug): slug is string => typeof slug === 'string' && SLUG.test(slug)))].slice(0, MAX_FEATURED);
     const title = localText(input.featured.title, TEXT_LIMITS.featuredTitle);

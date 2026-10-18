@@ -376,4 +376,36 @@ describe('template designs', () => {
     spoil(s);
     expect(() => parseSnapshot(s)).toThrow();
   });
+
+  const withMedia = (media: NonNullable<MenuSnapshot['brand']['design']>['media']): MenuSnapshot => {
+    const s = withDesign();
+    return buildSnapshot({ menu, brand: { ...s.brand, design: { ...s.brand.design!, media } }, catalog });
+  };
+  const video = {
+    kind: 'video' as const,
+    assetId: 'asset-video',
+    url: '/api/dev-media/r/x/abc/original.mp4',
+    width: 1080,
+    height: 1920,
+    poster: { url: '/api/dev-media/r/x/abc/poster-webp-640.webp', srcset: '/api/dev-media/r/x/abc/poster-webp-320.webp 320w', placeholder: 'data:image/webp;base64,AAAA' },
+  };
+
+  it('keeps a scene file through JSON, and names it among the assets the revision uses', () => {
+    const s = withMedia(video);
+    expect(parseSnapshot(JSON.parse(JSON.stringify(s)))).toEqual(s);
+    expect(snapshotAssetIds(s)).toEqual(['asset-video']);
+    const model = withMedia({ kind: 'model', assetId: 'asset-model', url: 'https://media.example.com/r/x/m/original.glb', framing: { scale: 1, x: 0, y: 0, turn: 0 } });
+    expect(parseSnapshot(JSON.parse(JSON.stringify(model)))).toEqual(model);
+  });
+
+  it.each([
+    ['a scene file over plain http', { ...video, url: 'http://example.com/a.mp4' }],
+    ['a scene file by script URL', { ...video, url: 'javascript:alert(1)' }],
+    ['a poster that is not a safe URL', { ...video, poster: { ...video.poster, url: '//evil.example.com/p.webp' } }],
+    ['an unknown kind', { ...video, kind: 'flash' }],
+  ])('refuses %s', (_, media) => {
+    const s = JSON.parse(JSON.stringify(withMedia(video))) as MenuSnapshot;
+    (s.brand.design as unknown as Record<string, unknown>).media = media;
+    expect(() => parseSnapshot(s)).toThrow();
+  });
 });

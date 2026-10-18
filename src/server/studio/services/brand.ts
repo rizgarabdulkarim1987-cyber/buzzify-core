@@ -14,6 +14,7 @@ import { getStorage } from '@/server/storage/storage';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
+import { PICTURE_KINDS } from '@/server/media/kinds';
 import { editDraft } from './draft-edit';
 import { thumbKey } from './media';
 
@@ -114,7 +115,7 @@ export async function updateBrand(ctx: ActionContext, input: BrandInput): Promis
   const ids = [input.logoAssetId, input.logoDarkAssetId, faviconId].filter((id): id is string => id !== null);
   if (ids.length > 0) {
     const found = await ctx.db.mediaAsset.findMany({
-      where: { id: { in: ids }, OR: [{ restaurantId }, { restaurantId: null }] },
+      where: { id: { in: ids }, kind: { in: [...PICTURE_KINDS] }, OR: [{ restaurantId }, { restaurantId: null }] },
       select: { id: true, kind: true, restaurantId: true, contentHash: true, variants: true },
     });
     if (ids.some((id) => !found.some((asset) => asset.id === id))) throw new StudioError('NOT_FOUND');

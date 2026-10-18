@@ -381,7 +381,8 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
 
 /**
  * Every media library asset a snapshot names, once each and sorted: its products' photos, the brand's logos and favicon,
- * and the SEO images. Stored on the revision (`MenuRevision.assetIds`), so an asset in use is never deleted.
+ * the SEO images, and a template's scene file. Stored on the revision (`MenuRevision.assetIds`), so an asset in use is
+ * never deleted.
  */
 export function snapshotAssetIds(snapshot: MenuSnapshot): string[] {
   const ids = new Set<string>();
@@ -394,5 +395,6 @@ export function snapshotAssetIds(snapshot: MenuSnapshot): string[] {
   const { logo, logoDark, favicon } = snapshot.brand;
   for (const image of [logo, logoDark, favicon]) if (image) ids.add(image.assetId);
   for (const entry of Object.values(snapshot.menu.seo)) if (entry?.image) ids.add(entry.image.assetId);
+  if (snapshot.brand.design?.media) ids.add(snapshot.brand.design.media.assetId);
   return [...ids].sort(compare);
 }

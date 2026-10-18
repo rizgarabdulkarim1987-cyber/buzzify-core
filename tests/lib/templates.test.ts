@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@/lib/palette';
 import { isTemplateId, presetsFor, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
 import { accentInk, derivePalette, designPaletteProblems, mix, readableOn, themeOf } from '@/lib/templates/palette';
-import { ALL_INFO, businessInfo, parseOverrides, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
+import { ALL_INFO, businessInfo, parseOverrides, parseSceneMedia, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
 
 const DETAILS: RestaurantDetails = {
   address: '12 Mill Street',
@@ -126,6 +126,40 @@ describe('overrides', () => {
       terms: { en: 'Until 3 pm' },
     });
     expect(parseOverrides({ promo: null })).toEqual({ promo: null });
+  });
+
+  it('keeps a scene file choice and its framing, dropping what is out of range', () => {
+    expect(parseOverrides({ sceneAsset: { assetId: 'asset_1', framing: { scale: 1.5, x: -0.4, y: 3, turn: 200, other: 1 } } })).toEqual({
+      sceneAsset: { assetId: 'asset_1', framing: { scale: 1.5, x: -0.4 } },
+    });
+    expect(parseOverrides({ sceneAsset: { assetId: 'asset_1' } })).toEqual({ sceneAsset: { assetId: 'asset_1' } });
+    expect(parseOverrides({ sceneAsset: { assetId: '../etc/passwd' } })).toEqual({});
+    expect(parseOverrides({ sceneAsset: 'asset_1' })).toEqual({});
+  });
+});
+
+describe('a scene file sent to the preview', () => {
+  const video = {
+    kind: 'video',
+    assetId: 'a1',
+    url: '/api/dev-media/r/x/h/original.mp4',
+    width: 1080,
+    height: 1920,
+    poster: { url: '/api/dev-media/r/x/h/poster-webp-640.webp', srcset: '/api/dev-media/r/x/h/poster-webp-320.webp 320w', placeholder: '' },
+  };
+
+  it('keeps a well-formed file of each kind', () => {
+    expect(parseSceneMedia(video)).toEqual(video);
+    expect(parseSceneMedia({ kind: 'model', assetId: 'a2', url: 'https://media.example.com/m.glb', framing: { scale: 1.5, x: 0, y: 0, turn: 90 } })).toMatchObject({ kind: 'model' });
+    expect(parseSceneMedia({ kind: 'lottie', assetId: 'a3', url: '/m.json', width: 400, height: 400 })).toMatchObject({ kind: 'lottie' });
+  });
+
+  it('drops anything else: an unsafe link, an unknown kind, a model framed out of range', () => {
+    expect(parseSceneMedia({ ...video, url: 'javascript:alert(1)' })).toBeNull();
+    expect(parseSceneMedia({ ...video, poster: { ...video.poster, url: '//evil.example.com/p.webp' } })).toBeNull();
+    expect(parseSceneMedia({ ...video, kind: 'flash' })).toBeNull();
+    expect(parseSceneMedia({ kind: 'model', assetId: 'a2', url: '/m.glb', framing: { scale: 9, x: 0, y: 0, turn: 0 } })).toBeNull();
+    expect(parseSceneMedia(null)).toBeNull();
   });
 });
 

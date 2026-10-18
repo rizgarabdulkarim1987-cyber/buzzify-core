@@ -7,7 +7,10 @@ import { toast } from 'sonner';
 import { applyDesign, deleteDesign, resetDesign, saveDesign, setPoweredBy, updateDesign } from '@/app/studio/_actions/design';
 import { LOCALE_NAMES, type Locale } from '@/lib/locale';
 import { TEMPLATES, type DesignOverrides } from '@/lib/templates';
+import { DEFAULT_FRAMING } from '@/lib/templates/resolve';
+import type { ModelFraming, SceneMedia } from '@/lib/templates/types';
 import type { DesignView, SavedDesign } from '@/server/studio/services/design';
+import type { DesignMessage } from '@/ui/template/PreviewDesign';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { Button, buttonClasses } from '@/studio/ui/Button';
@@ -32,6 +35,11 @@ type Device = keyof typeof DEVICES;
 function contentOnly(overrides: DesignOverrides): DesignOverrides {
   const { featured, promo, info, ordering } = overrides;
   return { ...(featured ? { featured } : {}), ...(promo !== undefined ? { promo } : {}), ...(info ? { info } : {}), ...(ordering ? { ordering } : {}) };
+}
+
+/** A background file with the framing being edited, as a published menu would get it. */
+function withFraming(media: SceneMedia, framing: Partial<ModelFraming> | undefined): SceneMedia {
+  return media.kind === 'model' ? { ...media, framing: { ...DEFAULT_FRAMING, ...framing } } : media;
 }
 
 /**
@@ -111,17 +119,23 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
   const [deleting, setDeleting] = useState<SavedDesign | null>(null);
   const [confirmReset, setConfirmReset] = useState(false);
 
+  // Background files met in this visit (the one stored, those picked since), resolved, so the preview plays at once.
+  const [sceneFiles, setSceneFiles] = useState<Record<string, SceneMedia>>(() => (state.sceneMedia ? { [state.sceneMedia.assetId]: state.sceneMedia } : {}));
+  const sceneMedia = overrides.sceneAsset ? (sceneFiles[overrides.sceneAsset.assetId] ?? null) : null;
+
   const dirty = JSON.stringify(overrides) !== JSON.stringify(state.overrides);
   const preset = state.templateId ? TEMPLATES[state.templateId] : null;
   const blocked = preset ? paletteBlocked(preset, overrides) : false;
   const previewTemplate = mode === 'customize' ? current : selected;
   const message = useMemo(
-    () => ({
+    (): DesignMessage => ({
       type: 'buzzify:design',
       templateId: previewTemplate === 'classic' ? null : previewTemplate,
       overrides: previewTemplate === current ? overrides : contentOnly(overrides),
+      // The file belongs to the look of the template it was chosen for, like the rest of the overrides.
+      media: previewTemplate === current && sceneMedia ? withFraming(sceneMedia, overrides.sceneAsset?.framing) : null,
     }),
-    [previewTemplate, current, overrides],
+    [previewTemplate, current, overrides, sceneMedia],
   );
   const src = `/studio/preview/${menuId}/${locale}?template=${previewTemplate}`;
   const label = (selection: GallerySelection) => (selection === 'classic' ? t('design.classic') : TEMPLATES[selection].name);
@@ -296,7 +310,7 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
                   {t('design.save')}
                 </Button>
               </div>
-              <Customizer preset={preset} state={state} overrides={overrides} onChange={setOverrides} poweredBy={poweredBy} poweredByPending={poweredByPending} onPoweredBy={togglePoweredBy} />
+              <Customizer preset={preset} state={state} overrides={overrides} onChange={setOverrides} sceneMedia={sceneMedia} onPickScene={(media) => setSceneFiles((known) => ({ ...known, [media.assetId]: media }))} poweredBy={poweredBy} poweredByPending={poweredByPending} onPoweredBy={togglePoweredBy} />
             </>
           )
         )}

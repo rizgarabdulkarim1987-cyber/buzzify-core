@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { assetUsage, type AssetUsage } from '@/server/media/usage';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
-import { assetIdField, listLibrary } from '@/server/studio/services/media';
+import { assetIdField, LIST_KINDS, listLibrary } from '@/server/studio/services/media';
 import { permissionsIn } from '@/server/studio/services/menus';
 
 /**
@@ -25,6 +25,8 @@ export const listMedia = defineQuery({
     page: pageField,
     /** The restaurant's own assets only, without the shared ones beside them. */
     own: z.boolean().optional(),
+    /** Pictures (the default), scene files, or both. */
+    kinds: z.enum(LIST_KINDS).optional(),
   }),
   target: (i) => (i.restaurantId ? ({ kind: 'restaurant', restaurantId: i.restaurantId } as const) : ({ kind: 'platform' } as const)),
   run: (ctx, input) => listLibrary(ctx.db, { restaurantId: ctx.restaurantId }, input),

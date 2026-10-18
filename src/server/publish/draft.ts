@@ -10,8 +10,10 @@ import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import { SCENE_KINDS } from '@/server/media/kinds';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
+import { sceneMediaOf } from '@/server/media/scene';
 import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -108,6 +110,7 @@ function brandView(
   assets: ReadonlyMap<string, ResolvableAsset> = new Map(),
   mediaUrl: (key: string) => string = (key) => key,
   context: DesignContext | null = null,
+  scenes: ReadonlyMap<string, ResolvableAsset> = new Map(),
 ): BrandView {
   const tokens = (brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const motionIntensity =
@@ -136,13 +139,25 @@ function brandView(
   // A template menu: its preset with the business's overrides, frozen here so later changes to the preset never reach a
   // published revision. The kit's own palette and fonts are kept as they are for the classic menu.
   if (isTemplateId(brand.templateId)) {
-    view.design = resolveDesign(TEMPLATES[brand.templateId], parseOverrides(brand.design), {
+    const overrides = parseOverrides(brand.design);
+    view.design = resolveDesign(TEMPLATES[brand.templateId], overrides, {
       details: context?.details ?? null,
       poweredBy: context?.showPoweredBy ?? true,
       ...(brand.customTemplateId ? { customTemplateId: brand.customTemplateId } : {}),
     });
+    // A scene file the restaurant can no longer use is left out: the menu then shows its template's own scene.
+    const scene = overrides.sceneAsset ? scenes.get(overrides.sceneAsset.assetId) : undefined;
+    const media = scene ? sceneMediaOf(scene, mediaUrl, overrides.sceneAsset?.framing) : null;
+    if (media) view.design.media = media;
   }
   return view;
+}
+
+/** The scene file a brand kit's design names, when the menu is drawn with a template. */
+function sceneAssetIds(brand: BrandConfig | null): string[] {
+  if (!brand || !isTemplateId(brand.templateId)) return [];
+  const choice = parseOverrides(brand.design).sceneAsset;
+  return choice ? [choice.assetId] : [];
 }
 
 /**
@@ -165,9 +180,17 @@ export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<st
     faviconAssetId: fromLogo ? null : mapped(brand.favicon?.assetId),
     faviconFromLogo: fromLogo,
     templateId: brand.design?.templateId ?? null,
-    design: json(brand.design ? parseOverrides(brand.design.source.overrides) : {}),
+    design: json(brand.design ? designFromSnapshot(brand.design.source.overrides, assetMap) : {}),
     customTemplateId: brand.design?.source.customTemplateId ?? null,
   };
+}
+
+/** A snapshot's stored overrides, its scene file renamed through `assetMap` when the file was copied. */
+function designFromSnapshot(stored: unknown, assetMap?: ReadonlyMap<string, string>) {
+  const overrides = parseOverrides(stored);
+  const scene = overrides.sceneAsset;
+  if (scene && assetMap?.has(scene.assetId)) overrides.sceneAsset = { ...scene, assetId: assetMap.get(scene.assetId)! };
+  return overrides;
 }
 
 /**
@@ -199,18 +222,21 @@ export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string
   const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
   const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
   const brandAssets = brandAssetIds(brand);
-  if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
+  const sceneAssets = sceneAssetIds(brand);
+  if (productAssets.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
     return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
+  // Scene files apart from pictures, so a photo, logo or search image can never resolve to one.
+  const scenes = await loadAssets(db, menu.restaurantId, sceneAssets, SCENE_KINDS);
   const mediaUrl = (key: string) => getStorage().publicUrl(key);
   catalog.products = catalog.products.map((product) => ({
     ...product,
     media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context), catalog });
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog });
 }
 
 /**

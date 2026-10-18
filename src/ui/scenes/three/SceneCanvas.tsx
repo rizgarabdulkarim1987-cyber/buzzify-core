@@ -3,19 +3,21 @@
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { useEffect, useRef, useState, type RefObject } from 'react';
 import { NeutralToneMapping } from 'three';
-import type { MenuDesign } from '@/lib/templates/types';
+import type { MenuDesign, SceneMedia } from '@/lib/templates/types';
 import { installStudio } from '@/ui/stage/studio';
 import type { SceneSignal } from '../signal';
 import { ClockProvider, useSceneClock } from './kit/clock';
 import { loadScene, type SceneModule } from './registry';
 
 /**
- * The one WebGL canvas of a template menu (spec 6): the preset's own scene, loaded on its own, drawn behind the menu.
- * Pixel ratio is held at 1.5 on phones, antialiasing is off there, and nothing is drawn while the scene is paused. A lost
- * context, a scene that fails to load or throws, or `forceFailure` hands the menu back to the motion poster.
+ * The one WebGL canvas of a template menu (spec 6): the preset's own scene, loaded on its own, drawn behind the menu, or
+ * the business's own model in its place (stage 2). Pixel ratio is held at 1.5 on phones, antialiasing is off there, and
+ * nothing is drawn while the scene is paused. A lost context, a scene or model that fails to load or throws, or
+ * `forceFailure` hands the menu back to the motion poster.
  */
 export default function SceneCanvas({
   design,
+  model,
   signal,
   paused,
   forceFailure,
@@ -23,6 +25,8 @@ export default function SceneCanvas({
   onFail,
 }: {
   design: MenuDesign;
+  /** The business's model, drawn instead of the template's scene. */
+  model: Extract<SceneMedia, { kind: 'model' }> | null;
   signal: RefObject<SceneSignal>;
   paused: boolean;
   forceFailure: boolean;
@@ -32,9 +36,11 @@ export default function SceneCanvas({
   const [scene, setScene] = useState<SceneModule | null>(null);
   const [phone] = useState(() => window.matchMedia('(max-width: 767px), (pointer: coarse)').matches);
 
+  // A model loads once per file: framing it again (the Studio's sliders) only moves what is already drawn.
+  const modelUrl = model?.url ?? null;
   useEffect(() => {
     let active = true;
-    loadScene(design.templateId)
+    (modelUrl ? import('./AssetModel').then(({ loadModelScene }) => loadModelScene(modelUrl)) : loadScene(design.templateId))
       .then((module) => {
         if (active) setScene(() => module);
       })
@@ -44,7 +50,7 @@ export default function SceneCanvas({
     return () => {
       active = false;
     };
-  }, [design.templateId, onFail]);
+  }, [design.templateId, modelUrl, onFail]);
 
   if (!scene) return null;
   const camera = scene.camera ?? { position: [0, 0, 10] as [number, number, number], fov: 35 };
@@ -68,7 +74,7 @@ export default function SceneCanvas({
         {forceFailure && <Failure />}
         <Environment strength={scene.environment ?? 1} />
         <Lean />
-        <scene.Scene palette={design.palette} settings={design.scene} low={phone} />
+        <scene.Scene palette={design.palette} settings={design.scene} low={phone} framing={model?.framing} />
         <ReadyProbe onReady={onReady} />
       </ClockProvider>
     </Canvas>

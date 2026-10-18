@@ -18,7 +18,7 @@ import { Select } from '@/studio/ui/Select';
 import { DropZone } from './DropZone';
 import { MediaDetails } from './MediaDetails';
 import { MediaGrid } from './MediaGrid';
-import { uploadMedia } from './upload';
+import { PICTURE_ACCEPT, SCENE_ACCEPT, uploadMedia } from './upload';
 
 export interface MediaLibraryProps {
   /** The library shown: a restaurant's (its own pictures), or the shared one (null). */
@@ -122,7 +122,7 @@ export function MediaLibrary({ restaurantId, editable, libraries, selectedLibrar
                 type="file"
                 multiple
                 aria-label={t('media.library.upload')}
-                accept="image/jpeg,image/png,image/webp,image/avif,image/svg+xml,image/x-icon,.ico"
+                accept={`${PICTURE_ACCEPT},${SCENE_ACCEPT}`}
                 className="sr-only"
                 onChange={(event) => {
                   const files = [...(event.target.files ?? [])];

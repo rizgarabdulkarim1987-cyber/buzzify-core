@@ -198,6 +198,38 @@ export interface Promotion {
   terms: LocalText;
 }
 
+/** Where a model sits in the background: its size, where it stands across and up the screen, and how far it is turned. */
+export interface ModelFraming {
+  /** 0.5 to 2. */
+  scale: number;
+  /** -1 (left) to 1 (right). */
+  x: number;
+  /** -1 (down) to 1 (up). */
+  y: number;
+  /** Degrees, -180 to 180. */
+  turn: number;
+}
+
+/** A file from the media library chosen as the background (Template Studio stage 2): its asset, and a model's framing. */
+export interface SceneAssetChoice {
+  assetId: string;
+  framing?: Partial<ModelFraming>;
+}
+
+/** A scene file as a published menu plays it, resolved at publish like the rest of the design. */
+export type SceneMedia =
+  | { kind: 'model'; assetId: string; url: string; framing: ModelFraming }
+  | {
+      kind: 'video';
+      assetId: string;
+      url: string;
+      width: number;
+      height: number;
+      /** The still shown before the video plays, and instead of it with reduced motion or data saver. */
+      poster: { url: string; srcset: string; placeholder: string };
+    }
+  | { kind: 'lottie'; assetId: string; url: string; width: number; height: number };
+
 /** What a business changed from its template: only what it changed. Stored on `BrandConfig.design`. */
 export interface DesignOverrides {
   /** One of the preset's curated palettes, before `colors`. */
@@ -206,6 +238,8 @@ export interface DesignOverrides {
   type?: Partial<DesignType>;
   layout?: Partial<DesignLayout>;
   scene?: Partial<SceneSettings>;
+  /** A library file drawn as the background instead of the template's own scene. Part of the look. */
+  sceneAsset?: SceneAssetChoice;
   /** Products to feature, by slug (ids change when a revision is restored or a menu duplicated; slugs do not). */
   featured?: { slugs: string[]; title?: LocalText };
   promo?: Promotion | null;
@@ -238,6 +272,8 @@ export interface MenuDesign {
   type: DesignType;
   layout: DesignLayout;
   scene: SceneSettings;
+  /** The library file the background plays instead of the template's own scene, when the business chose one. */
+  media?: SceneMedia;
   featured: { slugs: string[]; title?: LocalText };
   promo?: Promotion;
   info: BusinessInfo;

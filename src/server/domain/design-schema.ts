@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { HEX } from '@/lib/brand';
 import { FONT_PAIR_IDS } from '@/lib/font-pairs';
 import { LOCALES } from '@/lib/locale';
+import { isSafeMediaUrl, MAX_PLACEHOLDER_LENGTH } from '@/lib/media';
 import {
   CARD_KINDS,
   CORNERS,
@@ -18,6 +19,7 @@ import {
   VISUAL_MODES,
   type DesignOverrides,
   type MenuDesign,
+  type SceneMedia,
 } from '@/lib/templates/types';
 import { DAYS, TIME_OF_DAY } from './restaurant-profile';
 
@@ -35,6 +37,32 @@ const range = z.tuple([z.string().regex(TIME_OF_DAY), z.string().regex(TIME_OF_D
 const hours = z.object(Object.fromEntries(DAYS.map((day) => [day, z.array(range).max(3)])) as Record<(typeof DAYS)[number], z.ZodArray<typeof range>>);
 
 const overrides = z.custom<DesignOverrides>((value) => typeof value === 'object' && value !== null && !Array.isArray(value));
+
+// A scene file's URLs: same-origin paths or https only, as product media (`isSafeMediaUrl`).
+const mediaUrl = z.string().max(1000).refine(isSafeMediaUrl, 'Not a safe media URL');
+const srcset = z
+  .string()
+  .max(4000)
+  .refine((value) => value === '' || value.split(',').every((candidate) => /^\S+ \d+w$/.test(candidate.trim()) && isSafeMediaUrl(candidate.trim().split(' ')[0])));
+const placeholder = z.string().max(MAX_PLACEHOLDER_LENGTH).regex(/^(data:image\/webp;base64,[A-Za-z0-9+/]+={0,2})?$/);
+const assetId = z.string().regex(/^[A-Za-z0-9_-]{1,64}$/);
+const sceneMedia: z.ZodType<SceneMedia> = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('model'),
+    assetId,
+    url: mediaUrl,
+    framing: z.object({ scale: z.number().min(0.5).max(2), x: z.number().min(-1).max(1), y: z.number().min(-1).max(1), turn: z.number().min(-180).max(180) }),
+  }),
+  z.object({
+    kind: z.literal('video'),
+    assetId,
+    url: mediaUrl,
+    width: z.number().int().positive(),
+    height: z.number().int().positive(),
+    poster: z.object({ url: mediaUrl, srcset, placeholder }),
+  }),
+  z.object({ kind: z.literal('lottie'), assetId, url: mediaUrl, width: z.number().positive(), height: z.number().positive() }),
+]);
 
 export const menuDesignSchema: z.ZodType<MenuDesign> = z.object({
   templateId: z.enum(TEMPLATE_IDS),
@@ -82,6 +110,7 @@ export const menuDesignSchema: z.ZodType<MenuDesign> = z.object({
     opacity: z.number().min(0).max(1),
     overlay: z.number().min(0).max(0.8),
   }),
+  media: sceneMedia.optional(),
   featured: z.object({ slugs: z.array(z.string().regex(/^[a-z0-9][a-z0-9-]{0,80}$/)).max(12), title: text(80).optional() }),
   promo: z.object({ title: text(80), body: text(300), terms: text(300) }).optional(),
   info: z.object({

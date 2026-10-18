@@ -3,6 +3,7 @@ import { expireMenu } from '@/server/data/cache';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
+import { PICTURE_KINDS } from '@/server/media/kinds';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -88,7 +89,11 @@ export const updateRestaurant = defineAction({
       const next = { ...input, notes: seesAgencyNotes(ctx.actor, restaurantId) ? input.notes : before.notes };
       const changes: Record<string, { before: unknown; after: unknown }> = changedFields(before, next);
       const logoChanged = logoAssetId !== undefined && logoAssetId !== row.logoAssetId;
-      if (logoChanged && logoAssetId !== null && !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId }, select: { id: true } }))) {
+      if (
+        logoChanged &&
+        logoAssetId !== null &&
+        !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId, kind: { in: [...PICTURE_KINDS] } }, select: { id: true } }))
+      ) {
         throw new StudioError('NOT_FOUND');
       }
       if (logoChanged) changes.logoAssetId = { before: row.logoAssetId, after: logoAssetId };

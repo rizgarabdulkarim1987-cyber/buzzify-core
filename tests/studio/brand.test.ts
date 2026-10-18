@@ -150,6 +150,13 @@ describe('the brand kit', () => {
     expect(failureOf(await run(brand.update, await kit({ logoAssetId: theirs }))).code).toBe('NOT_FOUND');
   });
 
+  it('refuses a scene file as a logo: logos take pictures only', async () => {
+    const model = await prisma().mediaAsset.create({
+      data: { restaurantId: a.restaurant.id, kind: 'MODEL', storageKey: `r/${a.restaurant.id}/abc`, contentHash: 'abc', mime: 'model/gltf-binary', bytes: 10, storedBytes: 10, variants: { original: `r/${a.restaurant.id}/abc/original.glb` } },
+    });
+    expect(failureOf(await run(brand.update, await kit({ logoAssetId: model.id }))).code).toBe('NOT_FOUND');
+  });
+
   it('suggests three palettes from a logo, each passing every pair', async () => {
     const logoId = await logo(a.restaurant.id);
     const { palettes } = dataOf(await runQuery(prisma(), designer, brandQueries.suggestFromLogo, { menuId: a.menu.id, assetId: logoId, theme: 'light' }));
@@ -200,5 +207,28 @@ describe('the brand kit', () => {
     expect((await prisma().restaurant.findUniqueOrThrow({ where: { id: restaurant.id } })).logoAssetId).toBe(logoId);
     const { menuId } = dataOf(await run(menus.createMenu, { restaurantId: restaurant.id, name: 'Second', slug: 'brand-a-second' }));
     expect((await prisma().brandConfig.findUniqueOrThrow({ where: { menuId } })).logoAssetId).toBe(logoId);
+  });
+
+  it('refuses a scene file as the restaurant logo', async () => {
+    const model = await prisma().mediaAsset.create({
+      data: { restaurantId: a.restaurant.id, kind: 'VIDEO', storageKey: `r/${a.restaurant.id}/def`, contentHash: 'def', mime: 'video/mp4', bytes: 10, storedBytes: 10, variants: { original: `r/${a.restaurant.id}/def/original.mp4` } },
+    });
+    const restaurant = await prisma().restaurant.findUniqueOrThrow({ where: { id: a.restaurant.id } });
+    const result = await run(restaurants.updateRestaurant, {
+      restaurantId: restaurant.id,
+      version: restaurant.version,
+      name: restaurant.name,
+      type: restaurant.type,
+      description: '',
+      address: '',
+      city: '',
+      country: '',
+      phone: '',
+      whatsapp: '',
+      workingHours: emptyWorkingHours(),
+      notes: '',
+      logoAssetId: model.id,
+    });
+    expect(failureOf(result).code).toBe('NOT_FOUND');
   });
 });

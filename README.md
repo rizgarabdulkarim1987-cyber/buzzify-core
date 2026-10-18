@@ -268,10 +268,41 @@ A menu can be drawn with one of 30 template presets instead of the classic layou
   "Powered by Buzzify" is a per-restaurant setting only a Super Admin changes.
 - **Menu-only mode:** ordering set to none hides the add buttons and the cart (`/cart` redirects to the menu).
 
-Not built yet (later stages of the spec): an asset library for GLB, video and Lottie files with upload validation;
-options specific to a business (a flavour per scoop, prices by weight, a cake inquiry flow); order submission and
-table sessions; analytics for the template features. The 3D scenes are modelled from code; a GLB-based scene needs
-that asset library first.
+#### Scene files (stage 2)
+
+A business can put its own background behind a template menu: a GLB model, an MP4 video or a Lottie animation from the
+media library. See `docs/superpowers/specs/2026-10-18-template-studio-stage-2-scene-files-design.md`.
+
+- **The library takes three more kinds** (`MediaKind` `MODEL`, `VIDEO`, `LOTTIE`), judged by their bytes, each with its
+  own limit: a GLB up to 10 MB, an MP4 up to 20 MB, a Lottie JSON file up to 2 MB (pictures stay at 15 MB). The Media
+  page uploads and lists them; picture pickers (products, logos, favicon, search image) never offer or accept them.
+- **Nothing in a file can run or reach out.** A GLB is parsed on the server (`src/server/media/glb.ts`): a well-formed
+  container, no `uri` anywhere, only extensions the menu's loader handles (no Draco or KTX2), real PNG, JPEG or WebP
+  textures, at most 300,000 triangles. A video must be H.264 (`src/server/media/mp4.ts`), at most 30 s and 1920 px; its
+  length is read from the header or, for a browser recording, from its fragments. A Lottie file is checked as data
+  (`src/server/media/lottie.ts`): any expression, an audio or video layer, an image or font from elsewhere refuses it,
+  and element ids and classes are stripped. The menu plays Lottie with lottie-web's light build, which has no
+  expression engine.
+- **A video needs a poster frame.** The Studio takes one in the browser before the upload (`src/studio/media/poster.ts`)
+  and the server makes its widths and a placeholder like a photo's.
+- **Choosing one:** the Design tab's Motion panel, under "Background file", lists the restaurant's scene files and the
+  shared ones and can upload one. A model gets size, position and turn sliders. The choice is part of the look, like
+  the colours: changing template or resetting removes it, and a saved design keeps it. A shared saved design (a
+  platform template) may only name a shared file.
+- **Playing it:** a model replaces the template's scene in its one canvas (static mode: the template's poster; no
+  WebGL: the template's motion); a video plays muted and looped over its poster (reduced motion and data saver: the
+  poster); a Lottie animation loops, or follows the scroll with ambient movement off (reduced motion: the template's
+  poster). Any failure falls back to the template's motion, and `?scene=fail` forces it for each kind.
+- **In use, kept:** publishing freezes the file's URLs into the snapshot and lists it in `MenuRevision.assetIds`. Usage
+  shows the menus whose draft and the saved designs that name it, and the file cannot be deleted while any of them or a
+  revision does. Restoring a revision brings the choice back; duplicating a menu into another restaurant copies it.
+- **Try it locally:** `npx tsx scripts/scene-fixtures.ts` writes a sample GLB and Lottie file to `.data/scene-fixtures/`.
+- **In production** the R2 bucket needs a CORS rule that allows `GET` from the menu and Studio origins: the menu fetches
+  GLB and Lottie files with `fetch` (a video plays without CORS). R2 answers range requests, which Safari needs for video.
+
+Not built yet (later stages of the spec): assigning a scene file to one category or product, tap reactions and scroll
+ranges for a model, background photos; options specific to a business (a flavour per scoop, prices by weight, a cake
+inquiry flow); order submission and table sessions; analytics for the template features.
 
 ### Explore
 
@@ -364,3 +395,7 @@ This repository is public. The seed data is fictional demo data; no secrets are 
 are git-ignored, and production secrets live only in the hosting provider’s environment variables. The development
 sign-in users share a password that is public by design, so they are never created in production or in a database that
 is not on the developer’s machine. The demo table PIN arrives with sub-project 2 and will be a development-only credential.
+
+Uploaded scene files are data, never code: GLB and MP4 files are parsed and checked before they are stored, and a Lottie
+file is stored only as its checked JSON, without expressions, external images or fonts, or element ids. See
+"Scene files" above.

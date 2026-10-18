@@ -32,6 +32,22 @@
   inset: 0;
   background: var(--bg);
 }
+
+/* A business's scene file (stage 2): a video, its poster, or a Lottie animation, covering the screen over the poster. */
+.scene-file {
+  position: absolute;
+  inset: 0;
+}
+.scene-file-fill {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.scene-file > svg {
+  display: block;
+}
 .scene-piece {
   position: absolute;
   display: block;

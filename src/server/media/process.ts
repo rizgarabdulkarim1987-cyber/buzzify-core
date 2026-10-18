@@ -1,9 +1,12 @@
 import { createHash } from 'node:crypto';
 import sharp, { type Sharp } from 'sharp';
 import type { MediaKind } from '@/generated/prisma/client';
-import { MEDIA_MAX_BYTES, sniffMediaType, type MediaMime } from '@/server/domain/media-type';
+import { maxBytesFor, sniffMediaType, UPLOAD_MAX_BYTES, type MediaMime } from '@/server/domain/media-type';
 import { assetFolder, assetKey, IMMUTABLE_CACHE } from '@/server/storage/keys';
 import type { Storage } from '@/server/storage/storage';
+import { checkGlb, type GlbRefusal } from './glb';
+import { checkLottie, type LottieRefusal } from './lottie';
+import { readMp4, type Mp4Refusal } from './mp4';
 import { sanitizeSvg } from './svg';
 
 /**
@@ -11,13 +14,17 @@ import { sanitizeSvg } from './svg';
  * lose their metadata (a phone photo can carry where it was taken), stand upright, and are made into AVIF and WebP at
  * the widths the menu asks for, never larger than they are. SVGs are sanitized and also drawn as WebP for the places
  * that need pixels (favicons, social images, QR codes). Icons are kept as they are.
+ *
+ * Scene files (Template Studio stage 2) are checked by their own parsers and kept as uploaded, except a Lottie animation,
+ * stored as its checked JSON. A video brings a poster frame (the Studio takes it in the browser), made into widths like
+ * a photo.
  */
 
-export type MediaRefusal = 'TYPE' | 'SIZE' | 'DIMENSIONS' | 'UNREADABLE' | 'SVG_UNSAFE';
+export type MediaRefusal = 'TYPE' | 'SIZE' | 'DIMENSIONS' | 'UNREADABLE' | 'SVG_UNSAFE' | 'POSTER' | GlbRefusal | Mp4Refusal | LottieRefusal;
 
 export interface PreparedFile {
   variant: string;
-  ext: 'avif' | 'webp' | 'png' | 'jpg' | 'svg' | 'ico';
+  ext: 'avif' | 'webp' | 'png' | 'jpg' | 'svg' | 'ico' | 'glb' | 'mp4' | 'json';
   contentType: string;
   body: Uint8Array;
 }
@@ -28,9 +35,14 @@ export interface PreparedAsset {
   /** SHA-256 of the bytes as uploaded, in hex. */
   contentHash: string;
   bytes: number;
-  width: number;
-  height: number;
-  /** A tiny blurred WebP as a data URI; empty for SVGs and icons. */
+  /** None for a model. */
+  width: number | null;
+  height: number | null;
+  /** A video's or a Lottie animation's length. */
+  durationMs: number | null;
+  /** What a scene file holds (`MediaAsset.meta`); empty for pictures. */
+  meta: Record<string, unknown>;
+  /** A tiny blurred WebP as a data URI (a video's is of its poster); empty for SVGs, icons, models and Lottie. */
   placeholder: string;
   /** Always holds `original`. */
   files: PreparedFile[];
@@ -42,10 +54,13 @@ export interface AssetVariants {
   avif?: Record<string, string>;
   webp?: Record<string, string>;
   favicon?: Record<'32' | '180' | '512', string>;
+  /** A video's poster frame. */
+  poster?: { avif: Record<string, string>; webp: Record<string, string> };
 }
 
 export const IMAGE_WIDTHS = [320, 640, 1080, 1600] as const;
 export const SVG_WIDTHS = [320, 640] as const;
+export const POSTER_WIDTHS = [320, 640, 1080] as const;
 const MAX_SIDE = 10_000;
 const MAX_ASPECT = 8;
 const MAX_PLACEHOLDER = 1024;
@@ -100,44 +115,133 @@ function renderSvg(svg: string, svgWidth: number, width: number): Sharp {
   return sharp(Buffer.from(svg), { density }).resize({ width });
 }
 
-async function prepareRaster(bytes: Uint8Array, mime: keyof typeof RASTER_EXT): Promise<{ ok: true; asset: PreparedAsset } | { ok: false; reason: MediaRefusal }> {
-  let width: number;
-  let height: number;
+type Prepared = { ok: true; asset: PreparedAsset } | { ok: false; reason: MediaRefusal };
+
+const hashOf = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+
+/** The size of a picture standing upright, or null when it is not a picture sharp can read. */
+async function uprightSize(bytes: Uint8Array): Promise<{ width: number; height: number } | null> {
   try {
     const meta = await sharp(bytes, INPUT).metadata();
-    if (!meta.width || !meta.height) return { ok: false, reason: 'UNREADABLE' };
+    if (!meta.width || !meta.height) return null;
     // Orientations 5 to 8 turn the picture a quarter: it stands upright with its sides swapped.
     const turned = (meta.orientation ?? 1) >= 5;
-    width = turned ? meta.height : meta.width;
-    height = turned ? meta.width : meta.height;
+    return turned ? { width: meta.height, height: meta.width } : { width: meta.width, height: meta.height };
   } catch {
-    return { ok: false, reason: 'UNREADABLE' };
+    return null;
   }
+}
+
+/** AVIF and WebP renditions at each width no wider than the picture (its own width when it is narrower than them all). */
+async function widthFiles(bytes: Uint8Array, width: number, all: readonly number[], prefix: '' | 'poster-'): Promise<PreparedFile[]> {
+  const widths: number[] = all.filter((w) => w <= width);
+  if (widths.length === 0) widths.push(width);
+  const files: PreparedFile[] = [];
+  for (const w of widths) {
+    const resized = () => sharp(bytes, INPUT).rotate().resize({ width: w, withoutEnlargement: true });
+    files.push({ variant: `${prefix}avif-${w}`, ext: 'avif', contentType: 'image/avif', body: toBytes(await resized().avif({ quality: 55, effort: 4 }).toBuffer()) });
+    files.push({ variant: `${prefix}webp-${w}`, ext: 'webp', contentType: 'image/webp', body: toBytes(await resized().webp({ quality: 75 }).toBuffer()) });
+  }
+  return files;
+}
+
+async function prepareModel(bytes: Uint8Array): Promise<Prepared> {
+  const checked = await checkGlb(bytes);
+  if (!checked.ok) return { ok: false, reason: checked.reason };
+  return {
+    ok: true,
+    asset: {
+      kind: 'MODEL',
+      mime: 'model/gltf-binary',
+      contentHash: hashOf(bytes),
+      bytes: bytes.length,
+      width: null,
+      height: null,
+      durationMs: null,
+      meta: { ...checked.meta },
+      placeholder: '',
+      files: [{ variant: 'original', ext: 'glb', contentType: 'model/gltf-binary', body: bytes }],
+    },
+  };
+}
+
+async function prepareLottie(bytes: Uint8Array): Promise<Prepared> {
+  const checked = await checkLottie(bytes);
+  if (!checked.ok) return { ok: false, reason: checked.reason };
+  const { width, height, durationMs, frameRate, layers } = checked.info;
+  return {
+    ok: true,
+    asset: {
+      kind: 'LOTTIE',
+      mime: 'application/json',
+      contentHash: hashOf(bytes),
+      bytes: bytes.length,
+      width,
+      height,
+      durationMs,
+      meta: { frameRate, layers },
+      placeholder: '',
+      files: [{ variant: 'original', ext: 'json', contentType: 'application/json', body: new TextEncoder().encode(checked.json) }],
+    },
+  };
+}
+
+/** A video and its poster frame: the poster must be a photo, and becomes widths and the placeholder. */
+async function prepareVideo(bytes: Uint8Array, poster: Uint8Array | undefined): Promise<Prepared> {
+  const read = readMp4(bytes);
+  if (!read.ok) return { ok: false, reason: read.reason };
+  if (!poster || poster.length > maxBytesFor('image/jpeg')) return { ok: false, reason: 'POSTER' };
+  const posterType = sniffMediaType(poster.subarray(0, 4096));
+  if (posterType !== 'image/jpeg' && posterType !== 'image/png' && posterType !== 'image/webp') return { ok: false, reason: 'POSTER' };
+  const size = await uprightSize(poster);
+  if (!size || Math.max(size.width, size.height) > MAX_SIDE) return { ok: false, reason: 'POSTER' };
+  try {
+    const { durationMs, width, height, codec, hasAudio } = read.info;
+    return {
+      ok: true,
+      asset: {
+        kind: 'VIDEO',
+        mime: 'video/mp4',
+        contentHash: hashOf(bytes),
+        bytes: bytes.length,
+        width,
+        height,
+        durationMs,
+        meta: { codec, hasAudio },
+        placeholder: await placeholderOf(poster),
+        files: [{ variant: 'original', ext: 'mp4', contentType: 'video/mp4', body: bytes }, ...(await widthFiles(poster, size.width, POSTER_WIDTHS, 'poster-'))],
+      },
+    };
+  } catch {
+    return { ok: false, reason: 'POSTER' };
+  }
+}
+
+async function prepareRaster(bytes: Uint8Array, mime: keyof typeof RASTER_EXT): Promise<Prepared> {
+  const size = await uprightSize(bytes);
+  if (!size) return { ok: false, reason: 'UNREADABLE' };
+  const { width, height } = size;
   if (Math.max(width, height) > MAX_SIDE || Math.max(width, height) > MAX_ASPECT * Math.min(width, height)) {
     return { ok: false, reason: 'DIMENSIONS' };
   }
 
   try {
     const upright = () => sharp(bytes, INPUT).rotate();
-    const widths: number[] = IMAGE_WIDTHS.filter((w) => w <= width);
-    if (widths.length === 0) widths.push(width);
     const files: PreparedFile[] = [
       { variant: 'original', ext: RASTER_EXT[mime], contentType: mime, body: toBytes(await reencode(upright(), mime).toBuffer()) },
+      ...(await widthFiles(bytes, width, IMAGE_WIDTHS, '')),
     ];
-    for (const w of widths) {
-      const resized = () => upright().resize({ width: w, withoutEnlargement: true });
-      files.push({ variant: `avif-${w}`, ext: 'avif', contentType: 'image/avif', body: toBytes(await resized().avif({ quality: 55, effort: 4 }).toBuffer()) });
-      files.push({ variant: `webp-${w}`, ext: 'webp', contentType: 'image/webp', body: toBytes(await resized().webp({ quality: 75 }).toBuffer()) });
-    }
     return {
       ok: true,
       asset: {
         kind: 'IMAGE',
         mime,
-        contentHash: createHash('sha256').update(bytes).digest('hex'),
+        contentHash: hashOf(bytes),
         bytes: bytes.length,
         width,
         height,
+        durationMs: null,
+        meta: {},
         placeholder: await placeholderOf(bytes),
         files,
       },
@@ -147,12 +251,19 @@ async function prepareRaster(bytes: Uint8Array, mime: keyof typeof RASTER_EXT): 
   }
 }
 
-/** Checks an upload and makes everything the library stores for it; nothing is written anywhere. */
-export async function prepareAsset(bytes: Uint8Array): Promise<{ ok: true; asset: PreparedAsset } | { ok: false; reason: MediaRefusal }> {
-  if (bytes.length > MEDIA_MAX_BYTES) return { ok: false, reason: 'SIZE' };
+/**
+ * Checks an upload and makes everything the library stores for it; nothing is written anywhere. A video needs its
+ * `poster` frame; any other file ignores one. Each kind is held to its own size limit once its bytes say what it is.
+ */
+export async function prepareAsset(bytes: Uint8Array, poster?: Uint8Array): Promise<Prepared> {
+  if (bytes.length > UPLOAD_MAX_BYTES) return { ok: false, reason: 'SIZE' };
   const mime = sniffMediaType(bytes.subarray(0, 4096));
   if (mime === null) return { ok: false, reason: 'TYPE' };
-  const contentHash = createHash('sha256').update(bytes).digest('hex');
+  if (bytes.length > maxBytesFor(mime)) return { ok: false, reason: 'SIZE' };
+  if (mime === 'model/gltf-binary') return prepareModel(bytes);
+  if (mime === 'video/mp4') return prepareVideo(bytes, poster);
+  if (mime === 'application/json') return prepareLottie(bytes);
+  const contentHash = hashOf(bytes);
 
   if (mime === 'image/svg+xml') {
     const clean = sanitizeSvg(new TextDecoder('utf-8').decode(bytes));
@@ -164,7 +275,10 @@ export async function prepareAsset(bytes: Uint8Array): Promise<{ ok: true; asset
       for (const w of SVG_WIDTHS) {
         files.push({ variant: `webp-${w}`, ext: 'webp', contentType: 'image/webp', body: toBytes(await renderSvg(clean.svg, clean.width, w).webp({ quality: 85 }).toBuffer()) });
       }
-      return { ok: true, asset: { kind: 'SVG', mime, contentHash, bytes: bytes.length, width: clean.width, height: clean.height, placeholder: '', files } };
+      return {
+        ok: true,
+        asset: { kind: 'SVG', mime, contentHash, bytes: bytes.length, width: clean.width, height: clean.height, durationMs: null, meta: {}, placeholder: '', files },
+      };
     } catch {
       return { ok: false, reason: 'SVG_UNSAFE' };
     }
@@ -181,6 +295,8 @@ export async function prepareAsset(bytes: Uint8Array): Promise<{ ok: true; asset
         contentHash,
         bytes: bytes.length,
         ...size,
+        durationMs: null,
+        meta: {},
         placeholder: '',
         files: [{ variant: 'original', ext: 'ico', contentType: 'image/x-icon', body: bytes }],
       },
@@ -204,6 +320,11 @@ export async function storeAsset(
     storedBytes += file.body.length;
     if (file.variant === 'original') {
       variants.original = key;
+      continue;
+    }
+    if (file.variant.startsWith('poster-')) {
+      const [, format, width] = file.variant.split('-') as [string, 'avif' | 'webp', string];
+      (variants.poster ??= { avif: {}, webp: {} })[format][width] = key;
       continue;
     }
     const [format, width] = file.variant.split('-') as ['avif' | 'webp', string];

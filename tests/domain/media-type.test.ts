@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkUploadRequest, MEDIA_MAX_BYTES, sniffMediaType } from '@/server/domain/media-type';
+import { checkUploadRequest, maxBytesFor, MEDIA_MAX_BYTES, PICTURE_MIMES, SCENE_MIMES, sniffMediaType, UPLOAD_MAX_BYTES } from '@/server/domain/media-type';
 
 const bytes = (...values: number[]) => new Uint8Array(values);
 const utf8 = (text: string) => new TextEncoder().encode(text);
@@ -52,5 +52,55 @@ describe('checkUploadRequest', () => {
   it('refuses another declared type', () => {
     expect(checkUploadRequest({ mime: 'image/gif', bytes: 10 })).toBe('TYPE');
     expect(checkUploadRequest({ mime: 'text/html', bytes: 10 })).toBe('TYPE');
+  });
+});
+
+// Scene files (spec 2026-10-18-template-studio-stage-2-scene-files-design.md, 3.1) ---------------------------------------
+
+const GLB_HEAD = bytes(...ascii('glTF'), 0x02, 0x00, 0x00, 0x00, 0x40, 0x00, 0x00, 0x00);
+const mp4Head = (major: string, ...compatible: string[]) =>
+  bytes(0x00, 0x00, 0x00, 16 + compatible.length * 4, ...ascii(`ftyp${major}`), 0, 0, 0, 0, ...ascii(compatible.join('')));
+
+describe('sniffMediaType for scene files', () => {
+  it.each([
+    ['a GLB', GLB_HEAD, 'model/gltf-binary'],
+    ['an MP4 (isom)', mp4Head('isom', 'isom', 'iso2', 'avc1', 'mp41'), 'video/mp4'],
+    ['an MP4 (mp42)', mp4Head('mp42', 'mp42', 'isom'), 'video/mp4'],
+    ['an MP4 named by a compatible brand', mp4Head('XAVC', 'XAVC', 'mp42', 'iso2'), 'video/mp4'],
+    ['a JSON object', utf8('{"v":"5.7.4","fr":30}'), 'application/json'],
+    ['a pretty-printed JSON object after a BOM', utf8('﻿\n  {\n  "v": "5.7.4"\n}'), 'application/json'],
+  ])('recognizes %s', (_, head, mime) => expect(sniffMediaType(head)).toBe(mime));
+
+  it('keeps an AVIF that also lists an MP4 brand an image', () => {
+    expect(sniffMediaType(mp4Head('avif', 'avif', 'mif1', 'isom'))).toBe('image/avif');
+  });
+
+  it.each([
+    ['a JSON array', utf8('[1, 2, 3]')],
+    ['a QuickTime movie', mp4Head('qt  ', 'qt  ')],
+    ['a JSON string', utf8('"hello"')],
+  ])('refuses %s', (_, head) => expect(sniffMediaType(head)).toBeNull());
+});
+
+describe('limits per kind', () => {
+  it('names a limit for each type: 10 MB models, 20 MB videos, 2 MB Lottie, 15 MB pictures', () => {
+    expect(maxBytesFor('model/gltf-binary')).toBe(10 * 1024 * 1024);
+    expect(maxBytesFor('video/mp4')).toBe(20 * 1024 * 1024);
+    expect(maxBytesFor('application/json')).toBe(2 * 1024 * 1024);
+    expect(maxBytesFor('image/png')).toBe(MEDIA_MAX_BYTES);
+    expect(UPLOAD_MAX_BYTES).toBe(20 * 1024 * 1024);
+  });
+
+  it('checks a declared scene file against its own limit', () => {
+    expect(checkUploadRequest({ mime: 'model/gltf-binary', bytes: 10 * 1024 * 1024 })).toBeNull();
+    expect(checkUploadRequest({ mime: 'model/gltf-binary', bytes: 10 * 1024 * 1024 + 1 })).toBe('SIZE');
+    expect(checkUploadRequest({ mime: 'video/mp4', bytes: 20 * 1024 * 1024 })).toBeNull();
+    expect(checkUploadRequest({ mime: 'video/mp4', bytes: 20 * 1024 * 1024 + 1 })).toBe('SIZE');
+    expect(checkUploadRequest({ mime: 'application/json', bytes: 2 * 1024 * 1024 + 1 })).toBe('SIZE');
+  });
+
+  it('sorts the types into pictures and scene files', () => {
+    expect(PICTURE_MIMES).toEqual(['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/svg+xml', 'image/x-icon']);
+    expect(SCENE_MIMES).toEqual(['model/gltf-binary', 'video/mp4', 'application/json']);
   });
 });

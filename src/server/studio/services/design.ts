@@ -3,8 +3,13 @@ import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { DEFAULT_PALETTES } from '@/lib/brand';
 import { isLocale, LOCALES, type Locale } from '@/lib/locale';
 import { isTemplateId, TEMPLATE_IDS, TEMPLATES, type DesignOverrides, type TemplateId } from '@/lib/templates';
+import type { SceneMedia } from '@/lib/templates/types';
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
+import { SCENE_KINDS } from '@/server/media/kinds';
+import { loadAssets } from '@/server/media/resolve';
+import { sceneMediaOf } from '@/server/media/scene';
+import { getStorage } from '@/server/storage/storage';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -63,6 +68,8 @@ export interface DesignView {
   version: number;
   templateId: TemplateId | null;
   overrides: DesignOverrides;
+  /** The scene file the overrides name, resolved for the live preview; null when there is none. */
+  sceneMedia: SceneMedia | null;
   customTemplateId: string | null;
   saved: SavedDesign[];
   /** The menu's products, for choosing what to feature: slug and name in the menu's default language. */
@@ -102,10 +109,13 @@ export async function designState(db: PrismaClient, menuId: string, restaurantId
   const r = menu.restaurant;
   const social = (r.socialLinks ?? {}) as Record<string, unknown>;
   const hours = (r.workingHours ?? {}) as Record<string, unknown>;
+  const overrides = parseOverrides(menu.brand?.design);
+  const scene = await usableSceneAsset(db, restaurantId, overrides.sceneAsset);
   return {
     version: menu.brand?.version ?? 1,
     templateId: isTemplateId(menu.brand?.templateId) ? menu.brand.templateId : null,
-    overrides: parseOverrides(menu.brand?.design),
+    overrides,
+    sceneMedia: scene ? sceneMediaOf(scene, (key) => getStorage().publicUrl(key), overrides.sceneAsset?.framing) : null,
     customTemplateId: menu.brand?.customTemplateId ?? null,
     saved: saved
       .filter((entry) => isTemplateId(entry.basePresetId))
@@ -163,6 +173,10 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
     });
     if (!saved || !isTemplateId(saved.basePresetId)) throw new StudioError('NOT_FOUND');
   }
+  // A saved design's background file comes along only if this restaurant may use it; otherwise every later save of the
+  // design would be refused for a file the business never chose here.
+  const savedLook = saved ? lookOnly(parseOverrides(saved.overrides)) : {};
+  if (savedLook.sceneAsset && !(await usableSceneAsset(ctx.db, restaurantId, savedLook.sceneAsset))) delete savedLook.sceneAsset;
   return editDraft(ctx, async (tx, menuId) => {
     const row = await brandRow(tx, menuId);
     const current = parseOverrides(row.design);
@@ -170,7 +184,7 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
       input.choice.kind === 'preset'
         ? { templateId: input.choice.templateId, design: row.templateId === input.choice.templateId ? current : contentOnly(current), customTemplateId: null }
         : input.choice.kind === 'custom'
-          ? { templateId: saved!.basePresetId, design: { ...lookOnly(parseOverrides(saved!.overrides)), ...contentOnly(current) }, customTemplateId: saved!.id }
+          ? { templateId: saved!.basePresetId, design: { ...savedLook, ...contentOnly(current) }, customTemplateId: saved!.id }
           : { templateId: null, design: contentOnly(current), customTemplateId: null };
     await updateWithVersion(tx.brandConfig, { id: row.id, version: input.version, data: { ...next, design: json(next.design) }, entityType: 'BrandConfig' }, tx);
     ctx.audit({
@@ -183,9 +197,21 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
   });
 }
 
-/** Saves the business's overrides of its template, refusing colours text cannot be read on. */
+/** The scene file a design names, if the restaurant may use it: its own or a shared one, and a scene file at all. */
+async function usableSceneAsset(db: ActionContext['db'], restaurantId: string, choice: DesignOverrides['sceneAsset']) {
+  if (!choice) return null;
+  return (await loadAssets(db, restaurantId, [choice.assetId], SCENE_KINDS)).get(choice.assetId) ?? null;
+}
+
+/**
+ * Saves the business's overrides of its template, refusing colours text cannot be read on and a scene file the
+ * restaurant may not use (another restaurant's, a picture, or none at all: `NOT_FOUND` either way).
+ */
 export async function updateDesign(ctx: ActionContext, input: { version: number; overrides: Record<string, unknown> }): Promise<{ version: number }> {
   const overrides = parseOverrides(input.overrides);
+  const restaurantId = ctx.restaurantId;
+  if (restaurantId === null) throw new Error('A menu action ran without a restaurant');
+  if (overrides.sceneAsset && !(await usableSceneAsset(ctx.db, restaurantId, overrides.sceneAsset))) throw new StudioError('NOT_FOUND');
   return editDraft(ctx, async (tx, menuId) => {
     const row = await brandRow(tx, menuId);
     if (!isTemplateId(row.templateId)) throw new StudioError('INVALID', 'Choose a template first.');
@@ -231,6 +257,11 @@ export async function saveDesign(
     basePresetId = row.templateId;
     overrides = lookOnly(parseOverrides(row.design));
   } else basePresetId = input.from;
+  // Every restaurant may apply a shared design, so the scene file it names must be one every restaurant may use.
+  if (input.shared && overrides.sceneAsset) {
+    const scene = await ctx.db.mediaAsset.findFirst({ where: { id: overrides.sceneAsset.assetId, restaurantId: null }, select: { id: true } });
+    if (!scene) throw new StudioError('INVALID', undefined, { sceneAsset: 'A shared design can only use a file from the shared library' });
+  }
   const data = { name: input.name, basePresetId, overrides: json(overrides), createdById: ctx.actor.userId };
   // A shared design belongs to no restaurant, which the menu's scoped client may not write; the check above stands for it.
   const created = input.shared

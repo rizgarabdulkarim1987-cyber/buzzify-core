@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { faviconFiles, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
 import { folderStorage } from '@/server/storage/folder';
 import type { Storage } from '@/server/storage/storage';
+import { buildGlb, buildMp4 } from '../helpers/scene-files';
 
 const jpeg = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#C8261C' } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
@@ -187,5 +188,74 @@ describe('faviconFiles', () => {
   it('draws one from an SVG logo', async () => {
     const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>');
     expect((await sharp((await faviconFiles({ kind: 'SVG', original: svg }))['180']).metadata()).width).toBe(180);
+  });
+});
+
+// Scene files (spec 2026-10-18-template-studio-stage-2-scene-files-design.md, 3) --------------------------------------
+
+describe('prepareAsset for scene files', () => {
+  it('keeps a GLB as it is, as a model, with what it holds', async () => {
+    const glb = buildGlb({ triangles: 2 });
+    const asset = prepared(await prepareAsset(glb));
+    expect(asset).toMatchObject({ kind: 'MODEL', mime: 'model/gltf-binary', width: null, height: null, durationMs: null, placeholder: '' });
+    expect(asset.meta).toEqual({ triangles: 2, nodes: 1, materials: 1, textures: 0, animations: 0 });
+    expect(asset.files).toEqual([{ variant: 'original', ext: 'glb', contentType: 'model/gltf-binary', body: glb }]);
+  });
+
+  it('stores a Lottie animation as its checked, minified JSON', async () => {
+    const json = { v: '5.7.4', fr: 25, ip: 0, op: 50, w: 300, h: 200, layers: [{ ty: 3, ind: 1, ks: {}, ip: 0, op: 50, st: 0, ln: 'x' }] };
+    const asset = prepared(await prepareAsset(new TextEncoder().encode(JSON.stringify(json, null, 2))));
+    expect(asset).toMatchObject({ kind: 'LOTTIE', mime: 'application/json', width: 300, height: 200, durationMs: 2000 });
+    expect(asset.meta).toEqual({ frameRate: 25, layers: 1 });
+    const original = fileOf(asset, 'original');
+    expect(original).toMatchObject({ ext: 'json', contentType: 'application/json' });
+    expect(JSON.parse(new TextDecoder().decode(original.body)).layers[0].ln).toBeUndefined();
+  });
+
+  it('keeps a video as it is, with its poster made into widths and a placeholder', async () => {
+    const video = buildMp4({ width: 1080, height: 1920, durationMs: 6000, sound: true });
+    const asset = prepared(await prepareAsset(video, await jpeg(720, 1280)));
+    expect(asset).toMatchObject({ kind: 'VIDEO', mime: 'video/mp4', width: 1080, height: 1920, durationMs: 6000 });
+    expect(asset.meta).toEqual({ codec: 'avc1', hasAudio: true });
+    expect(asset.placeholder).toMatch(/^data:image\/webp;base64,/);
+    expect(variantNames(asset)).toEqual(['original', 'poster-avif-320', 'poster-avif-640', 'poster-webp-320', 'poster-webp-640']);
+    expect(fileOf(asset, 'original')).toMatchObject({ ext: 'mp4', contentType: 'video/mp4', body: video });
+  });
+
+  it('refuses a video without a poster, or with one that is not a picture', async () => {
+    expect(await prepareAsset(buildMp4())).toEqual({ ok: false, reason: 'POSTER' });
+    expect(await prepareAsset(buildMp4(), new TextEncoder().encode('<html></html>'))).toEqual({ ok: false, reason: 'POSTER' });
+  });
+
+  it('passes on why a scene file is refused', async () => {
+    expect(await prepareAsset(buildGlb({ edit: (g) => (g.buffers[0].uri = 'https://example.com/a.bin') }))).toEqual({ ok: false, reason: 'MODEL_EXTERNAL' });
+    expect(await prepareAsset(buildMp4({ codec: 'hvc1' }), await jpeg(100, 100))).toEqual({ ok: false, reason: 'VIDEO_CODEC' });
+    expect(await prepareAsset(new TextEncoder().encode('{"v":"5","layers":[]}'))).toEqual({ ok: false, reason: 'LOTTIE_INVALID' });
+  });
+
+  it('holds each kind to its own limit: a model over 10 MB is refused', async () => {
+    const big = new Uint8Array(10 * 1024 * 1024 + 1);
+    big.set([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0]);
+    expect(await prepareAsset(big)).toEqual({ ok: false, reason: 'SIZE' });
+  });
+
+  it('writes a poster under the video, by format and width', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'buzzify-store-'));
+    try {
+      const storage = folderStorage(dir, '/api/dev-media', 'store-asset-test-secret-long-enough-for-hmac');
+      const asset = prepared(await prepareAsset(buildMp4({ width: 640, height: 360 }), await jpeg(640, 360)));
+      const stored = await storeAsset(storage, { restaurantId: 'cr1' }, asset);
+      const folder = `r/cr1/${asset.contentHash}`;
+      expect(stored.variants).toEqual({
+        original: `${folder}/original.mp4`,
+        poster: {
+          avif: { '320': `${folder}/poster-avif-320.avif`, '640': `${folder}/poster-avif-640.avif` },
+          webp: { '320': `${folder}/poster-webp-320.webp`, '640': `${folder}/poster-webp-640.webp` },
+        },
+      });
+      expect(await storage.head(`${folder}/original.mp4`)).toMatchObject({ contentType: 'video/mp4' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

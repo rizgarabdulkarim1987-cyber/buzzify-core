@@ -701,6 +701,12 @@ enum MediaKind {
   IMAGE
   SVG
   ICON
+  /// A GLB model, for a template menu's background (Template Studio stage 2).
+  MODEL
+  /// An MP4 video with a poster frame, for a template menu's background.
+  VIDEO
+  /// A Lottie animation (JSON, checked to be data only), for a template menu's background.
+  LOTTIE
 }
 
 /**
@@ -725,7 +731,11 @@ model MediaAsset {
   storedBytes  Int
   width        Int?
   height       Int?
-  /// `{ original, avif?: { "320": key, ... }, webp?: { ... }, favicon?: { "32": key, "180": key, "512": key } }`.
+  /// A video's or a Lottie animation's length.
+  durationMs   Int?
+  /// What a scene file holds: a model's triangles, textures and animations; a video's codec and sound; a Lottie's frame rate and layers.
+  meta         Json        @default("{}")
+  /// `{ original, avif?: { "320": key, ... }, webp?: { ... }, favicon?: { "32": key, "180": key, "512": key }, poster?: { avif, webp } }`.
   variants     Json        @default("{}")
   /// A tiny blurred WebP as a data URI; empty for icons.
   placeholder  String      @default("")

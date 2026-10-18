@@ -1,4 +1,4 @@
-import type { VisualMode } from '@/lib/templates/types';
+import type { SceneMedia, VisualMode } from '@/lib/templates/types';
 
 /**
  * What a background scene reads every frame: how far the page has scrolled, where the guest last tapped the background,
@@ -56,4 +56,42 @@ export function effectiveMode(requested: VisualMode, env: SceneEnvironment): Vis
     return env.saveData ? 'static' : 'motion';
   }
   return 'motion';
+}
+
+/**
+ * What the background shows: the template's poster, its motion or its 3D scene, or the business's scene file (spec
+ * 2026-10-18-template-studio-stage-2-scene-files-design.md, 5). Static asks for a still: a video's own poster, else the
+ * template's. A model needs 3D and a device that draws it; without one it falls to the template's motion, like the
+ * template's own 3D scene. A video is the heaviest thing on the page, so data saver gets its poster. Reduced motion
+ * always gets a still, and a file that fails gives way to the template's motion.
+ */
+export type ScenePlan = 'poster' | 'motion' | '3d' | 'model' | 'video' | 'videoStill' | 'lottie';
+
+export function scenePlan(requested: VisualMode, media: SceneMedia['kind'] | null, env: SceneEnvironment & { failed: boolean }): ScenePlan {
+  const still: ScenePlan = media === 'video' ? 'videoStill' : 'poster';
+  if (env.reducedMotion || requested === 'static') return still;
+  if (env.failed) return 'motion';
+  switch (media) {
+    case 'video':
+      return env.saveData ? 'videoStill' : 'video';
+    case 'lottie':
+      return 'lottie';
+    case 'model': {
+      if (requested !== '3d') return 'motion';
+      const mode = effectiveMode('3d', env);
+      return mode === '3d' ? 'model' : mode === 'motion' ? 'motion' : 'poster';
+    }
+    default: {
+      const mode = effectiveMode(requested, env);
+      return mode === 'static' ? 'poster' : mode;
+    }
+  }
+}
+
+/**
+ * What a background is drawing: the template and the file it plays. A failure or a finished load belongs to one source,
+ * so choosing another file (the Studio's preview) gives it its own try; framing a model again is the same source.
+ */
+export function sceneSource(templateId: string, media: SceneMedia | null): string {
+  return media ? `${templateId}|${media.kind}|${media.url}` : templateId;
 }

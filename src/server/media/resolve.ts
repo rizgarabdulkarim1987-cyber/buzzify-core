@@ -1,7 +1,8 @@
-import type { MediaAsset } from '@/generated/prisma/client';
+import type { MediaAsset, MediaKind } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
 import type { ImageItem } from '@/lib/media';
 import { delegates, type AnyDb, type ScopedDb } from '@/server/data/tenant-db';
+import { PICTURE_KINDS } from './kinds';
 import type { AssetVariants } from './process';
 
 /**
@@ -15,16 +16,22 @@ export type ResolvableAsset = Pick<MediaAsset, 'id' | 'kind' | 'width' | 'height
 const RESOLVABLE = { id: true, kind: true, width: true, height: true, variants: true, placeholder: true, alt: true } as const;
 
 /**
- * The assets with these ids that a restaurant may use: its own and the shared library's. The restaurant is named in the
- * query itself, so this holds on any client; an id of another restaurant's asset is simply not found.
+ * The assets with these ids that a restaurant may use: its own and the shared library's, of the kinds asked for
+ * (pictures unless told otherwise, so a photo, logo or search image never takes a scene file). The restaurant is named
+ * in the query itself, so this holds on any client; an id of another restaurant's asset is simply not found.
  */
-export function loadAssets(db: AnyDb, restaurantId: string, ids: readonly string[]): Promise<Map<string, ResolvableAsset>>;
-export function loadAssets(db: ScopedDb, restaurantId: string, ids: readonly string[]): Promise<Map<string, ResolvableAsset>>;
-export async function loadAssets(client: AnyDb | ScopedDb, restaurantId: string, ids: readonly string[]): Promise<Map<string, ResolvableAsset>> {
+export function loadAssets(db: AnyDb, restaurantId: string, ids: readonly string[], kinds?: readonly MediaKind[]): Promise<Map<string, ResolvableAsset>>;
+export function loadAssets(db: ScopedDb, restaurantId: string, ids: readonly string[], kinds?: readonly MediaKind[]): Promise<Map<string, ResolvableAsset>>;
+export async function loadAssets(
+  client: AnyDb | ScopedDb,
+  restaurantId: string,
+  ids: readonly string[],
+  kinds: readonly MediaKind[] = PICTURE_KINDS,
+): Promise<Map<string, ResolvableAsset>> {
   const unique = [...new Set(ids)];
   if (unique.length === 0) return new Map();
   const rows = await delegates(client).mediaAsset.findMany({
-    where: { id: { in: unique }, OR: [{ restaurantId }, { restaurantId: null }] },
+    where: { id: { in: unique }, kind: { in: [...kinds] }, OR: [{ restaurantId }, { restaurantId: null }] },
     select: RESOLVABLE,
   });
   return new Map(rows.map((row) => [row.id, row]));

@@ -6,9 +6,12 @@ import type { MediaRow } from '@/server/studio/services/media';
 import { formatBytes, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { cx } from '@/studio/ui/cx';
+import { AssetThumb } from './AssetThumb';
 
-/** A file type as people name it: PNG, JPEG, SVG. */
+/** A file type as people name it: PNG, JPEG, SVG, GLB, MP4, Lottie. */
 export function typeName(mime: string): string {
+  if (mime === 'model/gltf-binary') return 'GLB';
+  if (mime === 'application/json') return 'Lottie';
   const subtype = mime.split('/')[1] ?? mime;
   if (subtype === 'svg+xml') return 'SVG';
   if (subtype === 'x-icon' || subtype === 'vnd.microsoft.icon') return 'ICO';
@@ -27,7 +30,7 @@ export function assetName(t: Translate, locale: Locale, row: MediaRow): string {
   return t('media.library.untitled', { type: typeName(row.mime), size }).trim();
 }
 
-/** The library's pictures as tiles; one is chosen at a time and shown in the details panel. */
+/** The library's files as tiles; one is chosen at a time and shown in the details panel. */
 export function MediaGrid({ rows, selectedId, onSelect }: { rows: MediaRow[]; selectedId: string | null; onSelect: (id: string) => void }) {
   const t = useT();
   const { locale } = useLocale();
@@ -48,9 +51,8 @@ export function MediaGrid({ rows, selectedId, onSelect }: { rows: MediaRow[]; se
                 selected ? 'border-ink shadow-[0_0_0_1px_var(--color-ink)]' : 'border-line hover:border-line-strong',
               )}
             >
-              <span className="studio-checker flex aspect-square items-center justify-center p-2">
-                {/* eslint-disable-next-line @next/next/no-img-element -- library thumbnails come from storage at their own size */}
-                <img data-asset-id={row.id} src={row.thumbUrl} alt="" loading="lazy" className="max-h-full max-w-full object-contain" />
+              <span className="studio-checker relative flex aspect-square items-center justify-center p-2">
+                <AssetThumb row={row} />
               </span>
               <span className="flex flex-col gap-0.5 border-t border-line px-2.5 py-2">
                 <span dir="auto" className="truncate text-sm text-text">

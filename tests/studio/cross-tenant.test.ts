@@ -76,6 +76,8 @@ interface Side {
   designerId: string;
   invitationId: string;
   assetId: string;
+  /** A GLB model in the restaurant's library. */
+  sceneAssetId: string;
   categoryId: string;
   productId: string;
   variantId: string;
@@ -168,6 +170,19 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
     },
   });
+  // A scene file (Template Studio stage 2), which a menu of the restaurant may draw as its background.
+  const sceneAsset = await prisma().mediaAsset.create({
+    data: {
+      restaurantId: restaurant.id,
+      kind: 'MODEL',
+      storageKey: `r/${restaurant.id}/${label}scene`,
+      contentHash: `${label}scene`,
+      mime: 'model/gltf-binary',
+      bytes: 10,
+      storedBytes: 10,
+      variants: { original: `r/${restaurant.id}/${label}scene/original.glb` },
+    },
+  });
   const importJob = await prisma().importJob.create({
     data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
   });
@@ -190,6 +205,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     designerId: designer.id,
     invitationId: invitation.id,
     assetId: asset.id,
+    sceneAssetId: sceneAsset.id,
     categoryId: category.id,
     productId: product.id,
     variantId: variant.id,
@@ -264,7 +280,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.sceneAssetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -430,7 +446,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, choice: { kind: 'preset', templateId: 'copper-roast' } })),
     c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, version: 1, choice: { kind: 'custom', customTemplateId: w.b.designTemplateId } })),
   ],
-  'design.update': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, overrides: { paletteId: 'crema' } }))],
+  'design.update': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, overrides: { paletteId: 'crema' } })),
+    c("B's scene file, through A", (w) => ({ menuId: w.a.menuId, version: 1, overrides: { sceneAsset: { assetId: w.b.sceneAssetId } } })),
+  ],
   'design.reset': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1 }))],
   'design.save': [c("B's menu", (w) => ({ menuId: w.b.menuId, name: 'Planted', shared: false, from: 'copper-roast' }))],
   'design.delete': [
@@ -537,7 +556,9 @@ const SWEPT: Record<string, Case[]> = {
   'media.list': [
     c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
     c("B's library alone", (w) => ({ restaurantId: w.b.restaurantId, own: true })),
+    c("B's scene files", (w) => ({ restaurantId: w.b.restaurantId, kinds: 'scene' })),
     c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+    c("A's scene files", (w) => ({ restaurantId: w.a.restaurantId, kinds: 'all' }), SHOWS_OWN),
     c('the shared library', () => ({}), SCOPED),
   ],
 
