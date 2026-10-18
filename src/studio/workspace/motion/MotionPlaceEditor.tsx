@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, Check, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Search, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { memo, useMemo, useState, useTransition } from 'react';
@@ -22,16 +22,9 @@ import { Alert } from '@/studio/ui/Alert';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
-import { Field } from '@/studio/ui/Field';
-import { SearchFilter, useFilterParams } from '@/studio/ui/FilterBar';
+import { CONTROL_CLASSES, Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { PLACE_ASPECT, PLACE_FADE, placeName, previewParams } from './places';
-
-const GROUP_PARAM = 'group';
-
-function asGroup(value: string | null): MotionCategory | 'all' {
-  return value && PLACEABLE_CATEGORIES.includes(value as MotionCategory) ? (value as MotionCategory) : 'all';
-}
 
 const splitSpecs = (meta: MotionMeta) => {
   const entries = Object.entries(meta.params);
@@ -41,22 +34,24 @@ const splitSpecs = (meta: MotionMeta) => {
   };
 };
 
-/** One motion the place offers, playing on the menu's page colour; pressing it picks it. */
+/**
+ * One motion the place offers, on the menu's page colour; pressing it picks it. It shows a still frame and plays only
+ * while pointed at or focused: dozens of live previews would starve the page, and the large preview plays the pick.
+ */
 const PickCard = memo(function PickCard({
   meta,
   view,
   picked,
-  playing,
   onPick,
 }: {
   meta: MotionMeta;
   view: MotionPlacesView;
   picked: boolean;
-  playing: boolean;
   onPick: (id: string) => void;
 }) {
   const t = useT();
   const { locale } = useLocale();
+  const [live, setLive] = useState(false);
   const params = useMemo(
     () =>
       previewParams(view, locale, {
@@ -72,12 +67,16 @@ const PickCard = memo(function PickCard({
         type="button"
         aria-pressed={picked}
         onClick={() => onPick(meta.id)}
+        onPointerEnter={() => setLive(true)}
+        onPointerLeave={() => setLive(false)}
+        onFocus={() => setLive(true)}
+        onBlur={() => setLive(false)}
         className="group flex w-full flex-col gap-2 rounded-lg text-start outline-offset-4"
       >
         <MotionPreview
           meta={meta}
           params={params}
-          playing={playing}
+          playing={live}
           className={cx(
             'aspect-[4/3] w-full rounded-lg transition-[box-shadow] duration-150 ease-out',
             picked ? 'ring-2 ring-ink' : 'ring-1 ring-line group-hover:ring-2 group-hover:ring-line-strong',
@@ -102,7 +101,10 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
   const t = useT();
   const { locale, dir } = useLocale();
   const router = useRouter();
-  const { params: query, set } = useFilterParams();
+  // Kept on the page, not in the address: filtering is instant and never asks the server for the page again.
+  const [q, setQ] = useState('');
+  const [group, setGroup] = useState<MotionCategory | 'all'>('all');
+  // The large preview follows the viewer's choice from the Motion Studio (still under reduced motion until they play it).
   const [playing] = usePlayPreference();
   const [saving, startSaving] = useTransition();
   const [failure, setFailure] = useState<string | null>(null);
@@ -112,8 +114,6 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
   );
 
   const offered = useMemo(() => placeMotions(place.place), [place.place]);
-  const group = asGroup(query.get(GROUP_PARAM));
-  const q = query.get('q') ?? '';
   const shown = useMemo(() => filterMotions(offered, { q, category: group }, (id) => t(`motion.${id}.name`)), [offered, q, group, t]);
   const counts = useMemo(() => {
     const byGroup = new Map<MotionCategory, number>();
@@ -184,8 +184,8 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
                   key={pick.motionId}
                   meta={meta}
                   params={previewParams(view, locale, pick)}
-                  playing
-                  className={cx('absolute inset-0', PLACE_FADE[place.place])}
+                  playing={playing}
+                  className={cx('size-full', PLACE_FADE[place.place])}
                 />
               ) : (
                 <p className="absolute inset-0 grid place-items-center px-6 text-center text-sm text-muted">{t('menuMotions.editor.pickFirst')}</p>
@@ -255,7 +255,17 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
           <h3 id="motion-editor-motions" className="text-md font-semibold text-text">
             {t('menuMotions.editor.motions')}
           </h3>
-          <SearchFilter label={t('menuMotions.editor.search')} placeholder={t('menuMotions.editor.searchPlaceholder')} />
+          <div className="relative w-72">
+            <Search aria-hidden className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
+            <input
+              type="search"
+              aria-label={t('menuMotions.editor.search')}
+              placeholder={t('menuMotions.editor.searchPlaceholder')}
+              value={q}
+              onChange={(event) => setQ(event.target.value)}
+              className={cx(CONTROL_CLASSES, 'h-8 ps-8 pe-2.5 text-base')}
+            />
+          </div>
           <nav aria-label={t('menuMotions.editor.groups')} className="-mx-1 overflow-x-auto px-1 pb-1">
             <ul className="flex w-max gap-1.5">
               {(['all', ...PLACEABLE_CATEGORIES] as const).map((key) => {
@@ -265,7 +275,7 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
                     <button
                       type="button"
                       aria-pressed={current}
-                      onClick={() => set({ [GROUP_PARAM]: key === 'all' ? null : key })}
+                      onClick={() => setGroup(key)}
                       className={cx(
                         'inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-sm whitespace-nowrap transition-colors duration-150',
                         current ? 'bg-ink text-on-ink' : 'border border-line-strong bg-raised text-text hover:bg-hover',
@@ -283,7 +293,13 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
             <EmptyState
               title={t('menuMotions.editor.empty', { q })}
               action={
-                <Button icon={<X aria-hidden />} onClick={() => set({ q: null, [GROUP_PARAM]: null })}>
+                <Button
+                  icon={<X aria-hidden />}
+                  onClick={() => {
+                    setQ('');
+                    setGroup('all');
+                  }}
+                >
                   {t('common.clearFilters')}
                 </Button>
               }
@@ -291,7 +307,7 @@ export function MotionPlaceEditor({ menuId, view, place }: { menuId: string; vie
           ) : (
             <ul aria-label={t('menuMotions.editor.motions')} className="grid grid-cols-[repeat(auto-fill,minmax(176px,1fr))] gap-x-4 gap-y-6">
               {shown.map((motion) => (
-                <PickCard key={motion.id} meta={motion} view={view} picked={pick?.motionId === motion.id} playing={playing} onPick={choose} />
+                <PickCard key={motion.id} meta={motion} view={view} picked={pick?.motionId === motion.id} onPick={choose} />
               ))}
             </ul>
           )}
