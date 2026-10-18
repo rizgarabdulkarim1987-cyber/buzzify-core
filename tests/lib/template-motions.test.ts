@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { TEMPLATES } from '@/lib/templates';
+import { motionById } from '@/motion/catalog';
 import { categoryKind, PRESET_HERO_MOTIONS, previewMotions, suggestedMotions } from '@/lib/templates/motions';
 import { TEMPLATE_IDS } from '@/lib/templates/types';
 import { isOffered } from '@/server/domain/menu-motions';
@@ -38,9 +39,12 @@ describe('what each template suggests', () => {
     expect(hero).toMatchObject({ place: 'hero', motionId: 'golden-particles', params: { background: '#101010', color: '#c8a050' } });
   });
 
-  it('writes the brand’s name into a motion whose words stand for it', () => {
-    const [hero] = suggestedMotions('paris-maison', input());
-    expect(hero).toMatchObject({ motionId: 'premium-logo-reveal', texts: { text: { en: 'Zhamitos', ar: 'Zhamitos' } } });
+  it('never suggests words for the top, where they would sit behind the menu’s own title', () => {
+    for (const id of TEMPLATE_IDS) {
+      const meta = motionById(PRESET_HERO_MOTIONS[id].motionId)!;
+      expect(meta.category, id).not.toBe('type');
+      expect(Object.values(meta.params).some((spec) => spec.type === 'text'), id).toBe(false);
+    }
   });
 
   it('suggests motions for at most three categories, the first that match in menu order', () => {

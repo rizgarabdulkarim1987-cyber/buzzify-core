@@ -61,7 +61,7 @@ export const PRESET_HERO_MOTIONS: Record<TemplateId, { motionId: string; tint?: 
   'nordic-brew': { motionId: 'aurora-background' },
   'neon-noir': { motionId: 'mesh-gradient' },
   'gallery-blanc': { motionId: 'floating-geometric-shapes', tint: true },
-  'paris-maison': { motionId: 'premium-logo-reveal', tint: true },
+  'paris-maison': { motionId: 'soft-glow', tint: true },
   'butter-and-fold': { motionId: 'food-levitation' },
   'rose-patisserie': { motionId: 'animated-bokeh', tint: true },
   'cocoa-atelier': { motionId: 'chocolate-dripping' },
