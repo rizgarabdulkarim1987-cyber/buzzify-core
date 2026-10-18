@@ -4,9 +4,11 @@ import { DEFAULT_PALETTES } from '@/lib/brand';
 import { isLocale, LOCALES, type Locale } from '@/lib/locale';
 import { isTemplateId, TEMPLATE_IDS, TEMPLATES, type DesignOverrides, type TemplateId } from '@/lib/templates';
 import type { SceneMedia } from '@/lib/templates/types';
+import { suggestedMotions } from '@/lib/templates/motions';
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
 import { allows, type Entitlements, type FeatureKey } from '@/server/domain/entitlements';
+import { slotOf } from '@/server/domain/menu-motions';
 import { allowedSceneKinds, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
 import { isSceneKind, SCENE_KINDS, SCENE_MEDIA_KIND } from '@/server/media/kinds';
 import { loadAssets } from '@/server/media/resolve';
@@ -216,14 +218,70 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
           ? { templateId: saved!.basePresetId, design: { ...savedLook, ...contentOnly(current) }, customTemplateId: saved!.id }
           : { templateId: null, design: contentOnly(current), customTemplateId: null };
     await updateWithVersion(tx.brandConfig, { id: row.id, version: input.version, data: { ...next, design: json(next.design) }, entityType: 'BrandConfig' }, tx);
+    const motions = await placeTemplateMotions(ctx, tx, menuId, next.templateId as TemplateId | null, next.design, row.logoText);
     ctx.audit({
       action: 'design.applied',
       entityType: 'BrandConfig',
       entityId: row.id,
-      changes: { templateId: { before: row.templateId, after: next.templateId }, ...(saved ? { customTemplateId: { before: row.customTemplateId, after: saved.id } } : {}) },
+      changes: {
+        templateId: { before: row.templateId, after: next.templateId },
+        ...(saved ? { customTemplateId: { before: row.customTemplateId, after: saved.id } } : {}),
+        ...(motions.length > 0 ? { suggestedMotions: { before: null, after: motions } } : {}),
+      },
     });
     return { version: input.version + 1 };
   });
+}
+
+/** A category's names in every language it has, for reading what it holds. */
+function categoryNames(translations: unknown): string[] {
+  if (!translations || typeof translations !== 'object') return [];
+  return Object.values(translations as Record<string, { name?: unknown } | null>).flatMap((entry) => (typeof entry?.name === 'string' ? [entry.name] : []));
+}
+
+/**
+ * Replaces the motions templates placed with this template's suggestions, in the places the designer left empty (spec:
+ * 2026-10-18-template-motions-design.md, section 4). The designer's own motions are never touched; nothing is placed on
+ * a plan without motions on the menu, or for Classic. Returns the motions placed, for the audit log.
+ */
+async function placeTemplateMotions(
+  ctx: ActionContext,
+  tx: Parameters<Parameters<typeof editDraft>[1]>[0],
+  menuId: string,
+  templateId: TemplateId | null,
+  overrides: DesignOverrides,
+  logoText: string,
+): Promise<string[]> {
+  await tx.menuMotion.deleteMany({ where: { fromTemplate: { not: null } } });
+  if (templateId === null || !isTemplateId(templateId)) return [];
+  if (ctx.plan === null || !allows(ctx.plan.entitlements, 'design.menuMotions')) return [];
+  const menu = await tx.menu.findFirstOrThrow({ where: { id: menuId }, select: { locales: true } });
+  const categories = await tx.category.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+    select: { id: true, slug: true, translations: true },
+  });
+  const taken = new Set((await tx.menuMotion.findMany({ select: { slot: true } })).map((motion) => motion.slot));
+  const palette = overriddenPalette(TEMPLATES[templateId], overrides);
+  const suggestions = suggestedMotions(templateId, {
+    categories: categories.map((category) => ({ id: category.id, slug: category.slug, names: categoryNames(category.translations) })),
+    palette: { bg: palette.bg, accent: palette.accent },
+    locales: menu.locales.filter(isLocale),
+    logoText,
+  });
+  const data = suggestions
+    .map((motion) => ({
+      menuId,
+      slot: slotOf(motion.place, motion.categoryId),
+      categoryId: motion.categoryId ?? null,
+      motionId: motion.motionId,
+      params: json(motion.params),
+      texts: json(motion.texts),
+      fromTemplate: templateId,
+    }))
+    .filter((motion) => !taken.has(motion.slot));
+  if (data.length > 0) await tx.menuMotion.createMany({ data });
+  return data.map((motion) => motion.motionId);
 }
 
 /** The scene file a design names, if the restaurant may use it: its own or a shared one, and a scene file at all. */

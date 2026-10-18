@@ -296,6 +296,9 @@ model MenuMotion {
   params     Json
   /// For each text param, its text by language.
   texts      Json      @default("{}")
+  /// The template preset that placed it (docs/superpowers/specs/2026-10-18-template-motions-design.md); null for one the
+  /// designer placed or saved. Applying a template replaces the motions templates placed. Not part of the snapshot.
+  fromTemplate String?
   version    Int       @default(1)
   updatedAt  DateTime  @updatedAt
   menu       Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)

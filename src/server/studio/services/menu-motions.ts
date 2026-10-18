@@ -77,7 +77,8 @@ export async function saveMotion(ctx: ActionContext, input: SaveInput): Promise<
     // A motion the plan does not include may stay where it is (tuned, even), never be newly placed.
     if (stored?.motionId !== motion.motionId) requireFeature(ctx.plan, 'design.menuMotions');
 
-    const data = { motionId: motion.motionId, params: json(motion.params), texts: json(motion.texts) };
+    // Saved here, a motion a template suggested becomes the designer's own: a change of template keeps it.
+    const data = { motionId: motion.motionId, params: json(motion.params), texts: json(motion.texts), fromTemplate: null };
     let id: string;
     let version: number;
     if (input.version === null) {
@@ -132,7 +133,8 @@ export interface MotionPlaceView {
   categoryId?: string;
   /** The category's name in the menu's default language; empty for the menu's own places. */
   name: string;
-  motion: { motionId: string; params: MotionParams; texts: MotionTexts; version: number } | null;
+  /** `suggestedBy`: the template that placed it, until the designer saves it. */
+  motion: { motionId: string; params: MotionParams; texts: MotionTexts; version: number; suggestedBy: string | null } | null;
 }
 
 export interface MotionPlacesView {
@@ -143,6 +145,8 @@ export interface MotionPlacesView {
   pageBackground: string;
   motionIntensity: Motion;
   hasSignature: boolean;
+  /** The template the menu is drawn with, or null for the classic menu. */
+  templateId: string | null;
   places: MotionPlaceView[];
   /** Whether the restaurant's plan includes motions on the menu. */
   allowed: boolean;
@@ -173,7 +177,7 @@ export async function motionPlaces(db: PrismaClient, ctx: QueryContext): Promise
   const stored = (slot: string): MotionPlaceView['motion'] => {
     const row = bySlot.get(slot);
     return row
-      ? { motionId: row.motionId, params: row.params as MotionParams, texts: row.texts as MotionTexts, version: row.version }
+      ? { motionId: row.motionId, params: row.params as MotionParams, texts: row.texts as MotionTexts, version: row.version, suggestedBy: row.fromTemplate }
       : null;
   };
   const allowed = allows(ctx.plan.entitlements, 'design.menuMotions');
@@ -184,6 +188,7 @@ export async function motionPlaces(db: PrismaClient, ctx: QueryContext): Promise
     pageBackground: sanitizePalette(tokens[theme], DEFAULT_PALETTES[theme]).bg,
     motionIntensity,
     hasSignature: signatures > 0,
+    templateId: brand?.templateId ?? null,
     places: [
       { place: 'hero', name: '', motion: stored('hero') },
       { place: 'signature', name: '', motion: stored('signature') },
