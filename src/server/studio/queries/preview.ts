@@ -4,10 +4,12 @@ import { loadOverlay } from '@/server/data/live';
 import { buildMenuView, type MenuView } from '@/server/data/menu-view';
 import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
+import { hiddenFromGuests } from '@/server/domain/plan-choices';
 import { toCatalog } from '@/server/domain/snapshot';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { upgradeInfo } from '@/server/studio/services/plans';
 
 /**
  * The draft as guests would get it if it were published now (spec 10.4, Preview): the draft snapshot with today's live
@@ -32,5 +34,19 @@ export const draft = defineQuery({
     // As guests on the restaurant's plan would see it.
     const tenant = tenantInfo(menu, 'draft', snapshot, ctx.plan.entitlements);
     return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()) };
+  },
+});
+
+/** What the Preview tab says above the frames: what the draft would show guests that the plan leaves out, and the hint. */
+export const planNote = defineQuery({
+  name: 'preview.planNote',
+  permission: 'view',
+  input: z.object({ menuId: idField }),
+  target: (i) => ({ kind: 'menu', menuId: i.menuId }),
+  run: async (ctx) => {
+    if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
+    const snapshot = await loadDraftSnapshot(ctx.db, ctx.menuId);
+    const hidden = hiddenFromGuests(snapshot.brand, snapshot.catalog, ctx.plan.entitlements);
+    return { hidden, upgrade: hidden.length > 0 ? await upgradeInfo(ctx.db, ctx) : null };
   },
 });

@@ -1,5 +1,7 @@
 import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, type FontPairId } from '@/lib/font-pairs';
+import { parseMedia } from '@/lib/media';
 import { RAIL_STYLES, type RailStyle } from '@/lib/rail';
+import { stageTone } from '@/lib/stage';
 import type { BrandView } from '@/server/data/tenant';
 import { allows, type Entitlements, type FeatureKey } from './entitlements';
 import { DEFAULT_QR_STYLE, type QrStyle } from './qr';
@@ -25,7 +27,7 @@ export const BASIC_FONT_PAIRS: readonly FontPairId[] = ['classic', 'modern'];
 const MOTIONS: readonly Motion[] = ['none', 'subtle', 'expressive'];
 
 /** The feature a rail style needs; the plain rail needs none. */
-function railFeature(style: RailStyle): FeatureKey | null {
+export function railFeature(style: RailStyle): FeatureKey | null {
   if (style === 'plain') return null;
   return style === 'grains' ? 'immersive.stage' : 'design.railStyles';
 }
@@ -134,6 +136,32 @@ export function hiddenChoices(stored: BrandChoices, entitlements: Entitlements):
   const rail = railFeature(stored.railStyle);
   if (rail !== null && guestRail(stored.railStyle, entitlements) !== stored.railStyle) hidden.push(rail);
   if (guestMotion(stored.motionIntensity, entitlements) !== stored.motionIntensity) hidden.push('design.expressiveMotion');
+  return hidden;
+}
+
+/**
+ * What a menu would show guests that this plan leaves out, in the order the Preview tab lists it: the brand's choices
+ * guests do not see, then Explore, the 3D stage when a product has a stage, and smart selling when the menu has offers,
+ * pairings or bundles.
+ */
+export function hiddenFromGuests(
+  brand: BrandView,
+  catalog: {
+    products: ReadonlyArray<{ media: unknown[] }>;
+    upsellRules: readonly unknown[];
+    pairingRules: readonly unknown[];
+    bundles: readonly unknown[];
+  },
+  entitlements: Entitlements,
+): FeatureKey[] {
+  const stored = { fontPairId: brand.fontPairId ?? DEFAULT_FONT_PAIR, railStyle: brand.railStyle, motionIntensity: brand.motionIntensity };
+  const hidden = hiddenChoices(stored, entitlements);
+  if (!allows(entitlements, 'immersive.explore')) hidden.push('immersive.explore');
+  if (!allows(entitlements, 'immersive.stage') && catalog.products.some((product) => stageTone(parseMedia(product.media)) !== null)) {
+    hidden.push('immersive.stage');
+  }
+  const selling = catalog.upsellRules.length + catalog.pairingRules.length + catalog.bundles.length > 0;
+  if (!allows(entitlements, 'selling.smart') && selling) hidden.push('selling.smart');
   return hidden;
 }
 

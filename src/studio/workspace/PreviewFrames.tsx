@@ -1,9 +1,12 @@
 'use client';
 
-import { ExternalLink, RotateCw } from 'lucide-react';
+import { ExternalLink, Lock, RotateCw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { Locale } from '@/lib/locale';
+import type { FeatureKey } from '@/server/domain/entitlements';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import { useT } from '@/studio/i18n';
+import { UpgradeAction } from '@/studio/plans/UpgradeHint';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
 
@@ -66,11 +69,54 @@ function DeviceFrame({
   );
 }
 
+/** What the draft would show guests that the restaurant's plan leaves out, each with the plan it is part of. */
+function PlanNote({ hidden, upgrade }: { hidden: FeatureKey[]; upgrade: UpgradeInfo }) {
+  const t = useT();
+  const first = hidden[0];
+  return (
+    <section aria-labelledby="preview-hidden" className="flex flex-col gap-2 rounded-lg border border-line px-4 py-3">
+      <h2 id="preview-hidden" className="text-sm font-medium text-text">
+        {t('preview.hiddenTitle')}
+      </h2>
+      <ul className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-text">
+        {hidden.map((feature) => {
+          const plan = upgrade.lowest[feature];
+          return (
+            <li key={feature} className="inline-flex items-center gap-1.5">
+              <Lock aria-hidden className="size-3.5 shrink-0 text-muted" />
+              {t(`plans.feature.${feature}`)}
+              <span className="text-muted">· {plan ? t('upgrade.partOf', { plan: upgrade.planNames[plan] }) : t('upgrade.notInPlan')}</span>
+            </li>
+          );
+        })}
+      </ul>
+      {first && (
+        <div>
+          <UpgradeAction feature={first} info={upgrade} />
+        </div>
+      )}
+    </section>
+  );
+}
+
 /**
  * The draft as guests would see it, on a phone and on a desktop, in each of the menu's languages (spec 10.4). Each frame
- * loads the preview page, which reads the draft afresh: Reload shows the latest saved changes.
+ * loads the preview page, which reads the draft afresh: Reload shows the latest saved changes. Above them, what guests
+ * on the restaurant's plan do not see.
  */
-export function PreviewFrames({ menuId, name, locales, defaultLocale }: { menuId: string; name: string; locales: Locale[]; defaultLocale: Locale }) {
+export function PreviewFrames({
+  menuId,
+  name,
+  locales,
+  defaultLocale,
+  note,
+}: {
+  menuId: string;
+  name: string;
+  locales: Locale[];
+  defaultLocale: Locale;
+  note: { hidden: FeatureKey[]; upgrade: UpgradeInfo | null };
+}) {
   const t = useT();
   const [locale, setLocale] = useState<Locale>(defaultLocale);
   const [round, setRound] = useState(0);
@@ -107,6 +153,8 @@ export function PreviewFrames({ menuId, name, locales, defaultLocale }: { menuId
           </a>
         </div>
       </div>
+
+      {note.upgrade && note.hidden.length > 0 && <PlanNote hidden={note.hidden} upgrade={note.upgrade} />}
 
       <div className="flex flex-col items-start gap-8 xl:flex-row">
         <DeviceFrame

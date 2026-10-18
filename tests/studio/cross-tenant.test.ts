@@ -608,6 +608,7 @@ const SWEPT: Record<string, Case[]> = {
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'preview.draft': [c("B's draft", (w) => ({ menuId: w.b.menuId, locale: 'en' }))],
+  'preview.planNote': [c("B's draft", (w) => ({ menuId: w.b.menuId }))],
   'menus.slugAvailability': [c("for B's menu", (w) => ({ slug: 'some-new-address', menuId: w.b.menuId }))],
   'people.listPeople': [
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),

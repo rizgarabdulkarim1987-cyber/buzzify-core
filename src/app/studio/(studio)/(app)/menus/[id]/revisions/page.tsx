@@ -23,6 +23,7 @@ export default async function RevisionsPage({ params }: { params: Promise<{ id: 
       draftHash={list.draftHash}
       canRollback={menu.can.rollback}
       canSchedule={menu.can.schedule}
+      scheduleUpgrade={menu.scheduleUpgrade}
     />
   );
 }

@@ -6,7 +6,8 @@ import { DEFAULT_FONT_PAIR, FONT_PAIR_IDS, isFontPairId, type FontPairId } from 
 import { dominantColors, paletteProblems, suggestPalettes, type PaletteProblem } from '@/lib/palette';
 import { isRailStyle, RAIL_STYLES, type RailStyle } from '@/lib/rail';
 import { MEDIA_MAX_BYTES } from '@/server/domain/media-type';
-import { brandChoiceLock, type BrandChoices } from '@/server/domain/plan-choices';
+import type { FeatureKey } from '@/server/domain/entitlements';
+import { brandChoiceLock, type BrandChoices, type Motion } from '@/server/domain/plan-choices';
 import { FAVICON_SIZES, faviconFiles, type AssetVariants } from '@/server/media/process';
 import { loadAssets } from '@/server/media/resolve';
 import { assetKey, IMMUTABLE_CACHE } from '@/server/storage/keys';
@@ -17,6 +18,7 @@ import { requireFeature } from '@/server/studio/framework/plan';
 import { StudioError } from '@/server/studio/framework/result';
 import { editDraft } from './draft-edit';
 import { thumbKey } from './media';
+import type { UpgradeInfo } from './plans';
 
 /**
  * The brand kit (spec 12): the palette of each theme, the logos, the favicon, the font pair, the rail and the motion. It
@@ -207,6 +209,17 @@ export interface BrandKitView {
   motionIntensity: 'none' | 'subtle' | 'expressive';
   logoText: string;
   restaurantId: string;
+}
+
+/** What the restaurant's plan offers the Brand tab, and what guests get in place of a stored choice it does not include. */
+export interface BrandPlanView {
+  fontPairs: FontPairId[];
+  rails: RailStyle[];
+  motions: Motion[];
+  /** The features whose stored choice guests do not see on this plan. */
+  hidden: FeatureKey[];
+  guestSees: BrandChoices;
+  upgrade: UpgradeInfo;
 }
 
 /** The kit as the Brand tab edits it, with thumbnails of its logos and favicon. */

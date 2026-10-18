@@ -1876,6 +1876,7 @@ const ar: Messages = {
   'plansSettings.saved': 'حُفظت الباقات',
   'brand.lockedChoice': 'يرى الضيوف {fallback} حتى تشمل الباقة {choice}.',
   'qr.lockedStyle': 'ألوان المطعم والشعار',
+  'qr.lockedKept': 'يُطبع هذا الرمز بالأسود على الأبيض ومن دون الشعار حتى تشملها الباقة.',
   'revisions.scheduleLocked': 'جدولة النشر',
   'preview.hiddenTitle': 'ضيوف هذه الباقة لا يرون',
 };

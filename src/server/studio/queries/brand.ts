@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { allowedFontPairs, allowedMotions, allowedRails, hiddenChoices } from '@/server/domain/plan-choices';
+import { allowedFontPairs, allowedMotions, allowedRails, clampBrandChoices, hiddenChoices } from '@/server/domain/plan-choices';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
-import { brandKit, paletteSuggestions } from '@/server/studio/services/brand';
+import { brandKit, paletteSuggestions, type BrandPlanView } from '@/server/studio/services/brand';
 import { upgradeInfo } from '@/server/studio/services/plans';
 import { idField } from '@/server/studio/services/content';
 
@@ -33,8 +33,9 @@ export const get = defineQuery({
         rails: allowedRails(entitlements),
         motions: allowedMotions(entitlements),
         hidden: hiddenChoices(chosen, entitlements),
+        guestSees: clampBrandChoices(chosen, entitlements),
         upgrade,
-      },
+      } satisfies BrandPlanView,
     };
   },
 });

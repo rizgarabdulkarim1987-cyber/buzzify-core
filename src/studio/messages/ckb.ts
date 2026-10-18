@@ -1852,6 +1852,7 @@ const ckb: Messages = {
   'plansSettings.saved': 'پاکێجەکان پاشەکەوت کران',
   'brand.lockedChoice': 'میوانەکان {fallback} دەبینن تا پاکێجەکە {choice} لەخۆ بگرێت.',
   'qr.lockedStyle': 'ڕەنگەکانی ڕێستۆران و لۆگۆ',
+  'qr.lockedKept': 'ئەم کۆدە بە ڕەش لەسەر سپی و بێ لۆگۆ چاپ دەکرێت تا پاکێجەکە ئەوانە لەخۆ بگرێت.',
   'revisions.scheduleLocked': 'خشتەکردنی بڵاوکردنەوە',
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
 };

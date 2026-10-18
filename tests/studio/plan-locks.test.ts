@@ -14,6 +14,7 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import * as brandQueries from '@/server/studio/queries/brand';
+import * as menuQueries from '@/server/studio/queries/menus';
 import * as previewQueries from '@/server/studio/queries/preview';
 import * as qrQueries from '@/server/studio/queries/qr';
 import * as revisionQueries from '@/server/studio/queries/revisions';
@@ -109,6 +110,8 @@ describe('plans lock what a restaurant may choose', () => {
       await setPlan(a.restaurant.id, 'BASIC');
       const view = dataOf(await runQuery(prisma(), designer, brandQueries.get, { menuId: a.menu.id }));
       expect(view.plan).toMatchObject({ fontPairs: ['classic', 'modern'], rails: ['plain'], motions: ['none', 'subtle'], hidden: ['design.fontPairs', 'design.railStyles'] });
+      // What guests get in place of each stored choice, for the tab's "Guests see … until the plan includes …".
+      expect(view.plan.guestSees).toEqual({ fontPairId: 'classic', railStyle: 'plain', motionIntensity: view.motionIntensity });
       expect(view.plan.upgrade).toMatchObject({ restaurantName: a.restaurant.name, isOwner: false, lowest: { 'design.railStyles': 'PRO' } });
     });
   });
@@ -169,6 +172,15 @@ describe('plans lock what a restaurant may choose', () => {
       expect(tenant.brand).toMatchObject({ railStyle: 'plain', motionIntensity: 'subtle' });
       expect(tenant.features).toEqual({ explore: false, stage: false, smartSelling: false, rails: ['plain'] });
     });
+
+    it('names what guests on the plan do not see, with the hint’s data, and nothing on a plan that has it all', async () => {
+      dataOf(await run(brand.update, await kit({ railStyle: 'drum', motionIntensity: 'expressive' })));
+      expect(dataOf(await runQuery(prisma(), designer, previewQueries.planNote, { menuId: a.menu.id }))).toEqual({ hidden: [], upgrade: null });
+      await setPlan(a.restaurant.id, 'BASIC');
+      const note = dataOf(await runQuery(prisma(), designer, previewQueries.planNote, { menuId: a.menu.id }));
+      expect(note.hidden).toEqual(['design.railStyles', 'design.expressiveMotion', 'immersive.explore']);
+      expect(note.upgrade?.lowest['immersive.explore']).toBe('PREMIUM');
+    });
   });
 
   describe('scheduled publishing', () => {
@@ -183,6 +195,13 @@ describe('plans lock what a restaurant may choose', () => {
       expect(list.upgrade.lowest['publish.scheduling']).toBe('PRO');
       await activateDueRevisions(prisma(), new Date(goLiveAt.getTime() + 60_000));
       expect((await prisma().menu.findUniqueOrThrow({ where: { id: a.menu.id } })).liveRevisionId).toBe(scheduled.revisionId);
+    });
+
+    it('gives the menu’s Schedule entry the hint’s data only when the plan has no scheduling', async () => {
+      expect(dataOf(await runQuery(prisma(), designer, menuQueries.getMenu, { menuId: a.menu.id })).scheduleUpgrade).toBeNull();
+      await setPlan(a.restaurant.id, 'BASIC');
+      const menu = dataOf(await runQuery(prisma(), designer, menuQueries.getMenu, { menuId: a.menu.id }));
+      expect(menu.scheduleUpgrade?.lowest['publish.scheduling']).toBe('PRO');
     });
   });
 });
