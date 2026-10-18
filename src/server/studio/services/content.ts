@@ -166,7 +166,7 @@ export interface ProductEditing {
 // Texts ---------------------------------------------------------------------------------------------------------------
 
 /** The texts with something in them, in the languages' order. */
-function present(values: Texts | undefined): Partial<Record<Locale, string>> {
+export function present(values: Texts | undefined): Partial<Record<Locale, string>> {
   const result: Partial<Record<Locale, string>> = {};
   for (const locale of LOCALES) {
     const value = values?.[locale]?.trim();
@@ -190,7 +190,7 @@ export function textsOf(translations: unknown, field: string): Partial<Record<Lo
  * The translations with `fields` written in: each given field replaces its value in every language (a language left
  * out loses it), other fields stay. A language left with nothing is dropped.
  */
-function withTexts(translations: unknown, fields: Record<string, Texts | undefined>): Prisma.InputJsonObject {
+export function withTexts(translations: unknown, fields: Record<string, Texts | undefined>): Prisma.InputJsonObject {
   const before = (translations ?? {}) as TranslationMap;
   const after: Record<string, Record<string, string>> = {};
   for (const locale of LOCALES) {
@@ -371,10 +371,10 @@ export function createProduct(
   });
 }
 
-type Changes = Record<string, { before: unknown; after: unknown }>;
+export type Changes = Record<string, { before: unknown; after: unknown }>;
 
 /** The pairs whose two sides differ, for an audit row. */
-function changed(pairs: Record<string, [unknown, unknown]>): Changes {
+export function changed(pairs: Record<string, [unknown, unknown]>): Changes {
   const changes: Changes = {};
   for (const [field, [before, after]] of Object.entries(pairs)) {
     if (JSON.stringify(before) !== JSON.stringify(after)) changes[field] = { before, after };
