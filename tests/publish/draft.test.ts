@@ -72,6 +72,16 @@ function stripIds(snapshot: MenuSnapshot) {
           b.items.map((item) => ({ ...item, productId: path(item.productId), variantId: path(item.variantId) })),
         ),
       })),
+      ...(catalog.promotions
+        ? {
+            promotions: catalog.promotions.map((p) => ({
+              ...p,
+              id: 'promotion',
+              productIds: p.productIds.map((id) => path(id)),
+              categoryIds: p.categoryIds.map((id) => path(id)),
+            })),
+          }
+        : {}),
     },
   };
 }
@@ -89,6 +99,7 @@ function idsOf(snapshot: MenuSnapshot): Set<string> {
     ...catalog.upsellRules.map((r) => r.id),
     ...catalog.pairingRules.map((r) => r.id),
     ...catalog.bundles.map((b) => b.id),
+    ...(catalog.promotions ?? []).map((p) => p.id),
   ]);
 }
 
@@ -162,6 +173,16 @@ describe('draft snapshots', () => {
     expect(snapshot.brand).toMatchObject({ logoText: 'ATELIER', theme: 'dark', railStyle: 'deck' });
     expect(snapshot.brand.tokens.dark.accent).toBe('#D6BC8A');
     expect(snapshot.catalog.products).toHaveLength(24);
+  });
+
+  it('carries the demo’s sales tools: a happy hour and a special, meal categories and a dish to share', async () => {
+    const { catalog } = await loadDraftSnapshot(prisma, atelierMenuId);
+    expect(catalog.promotions?.map((p) => [p.kind, p.percentOff, p.startMinute, p.endMinute])).toEqual([
+      ['DISCOUNT', 20, 17 * 60, 19 * 60],
+      ['SPECIAL', null, null, null],
+    ]);
+    expect(catalog.categories.filter((c) => c.completesMeal).map((c) => c.slug)).toEqual(['patisserie', 'cold']);
+    expect(catalog.products.find((p) => p.slug === 'truffle-fries')?.serves).toBe(2);
   });
 
   it('stores the hash of the draft', async () => {

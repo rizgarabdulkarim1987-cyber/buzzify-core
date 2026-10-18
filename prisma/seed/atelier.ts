@@ -67,6 +67,8 @@ export interface SeedProduct {
   dietary?: string[];
   /** BADGES keys: NEW, POPULAR or RECOMMENDED. */
   badges?: string[];
+  /** How many people the dish is for, from 2. */
+  serves?: number;
   groups?: SeedGroup[];
   variants?: SeedVariant[];
 }
@@ -146,8 +148,26 @@ export interface SeedData {
   pairingRules: SeedPairingRule[];
   upsellRules: SeedUpsellRule[];
   bundles: SeedBundle[];
+  /** Timed offers (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1), by product and category slugs. */
+  promotions?: SeedPromotion[];
+  /** The slugs of the categories the cart suggests from when the order has none ("complete your meal"). */
+  mealCategories?: string[];
   schedule: Array<{ daypart: Daypart; startMinute: number; endMinute: number; daysOfWeek: number }>;
   tables: number[];
+}
+
+export interface SeedPromotion {
+  kind: 'SPECIAL' | 'DISCOUNT';
+  percentOff?: number;
+  products?: string[];
+  categories?: string[];
+  startsOn?: string;
+  endsOn?: string;
+  startMinute?: number;
+  endMinute?: number;
+  daysOfWeek?: number;
+  title: Tri;
+  text?: Tri;
 }
 
 const t = (en: string, ar: string, ckb: string): Tri => ({ en, ar, ckb });
@@ -717,6 +737,7 @@ export const ATELIER: SeedData = {
       popularity: 70,
       priority: 55,
       slot: 'SIDE',
+      serves: 2,
       art: 'plate',
       tone: '#D9B45A',
       name: t('Truffle Fries', 'بطاطس بالكمأة', 'پەتاتەی سووربەکراوی ترۆفڵ'),
@@ -979,6 +1000,23 @@ export const ATELIER: SeedData = {
       ],
     },
   ],
+  promotions: [
+    {
+      kind: 'DISCOUNT',
+      percentOff: 20,
+      categories: ['cold'],
+      startMinute: 17 * 60,
+      endMinute: 19 * 60,
+      title: t('Golden hour', 'الساعة الذهبية', 'کاتژمێری زێڕین'),
+      text: t('20% off every cold drink', 'خصم 20% على كل المشروبات الباردة', '20% داشکاندن لە هەموو خواردنەوە ساردەکان'),
+    },
+    {
+      kind: 'SPECIAL',
+      products: ['wagyu-burger'],
+      title: t('Chef’s choice this week', 'اختيار الشيف هذا الأسبوع', 'هەڵبژاردەی چێشتلێنەر ئەم هەفتەیە'),
+    },
+  ],
+  mealCategories: ['patisserie', 'cold'],
   schedule: [
     { daypart: 'BREAKFAST', startMinute: 420, endMinute: 660, daysOfWeek: 127 },
     { daypart: 'LUNCH', startMinute: 660, endMinute: 960, daysOfWeek: 127 },
