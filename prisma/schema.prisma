@@ -172,6 +172,7 @@ model Menu {
   bundles         Bundle[]
   bundleItems     BundleItem[]
   schedule        DaypartSchedule[]
+  motions         MenuMotion[]
   tables          Table[]
   qrCodes         QrCode[]
   importJobs      ImportJob[]
@@ -259,8 +260,34 @@ model Category {
   version      Int       @default(1)
   menu         Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
   products     Product[]
+  motions      MenuMotion[]
 
   @@unique([menuId, slug])
+}
+
+/// A motion from the library at a place on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md). Part of
+/// the draft; published with the revision. Only the motions service writes rows, the slot and the category together.
+model MenuMotion {
+  id         String    @id @default(cuid())
+  menuId     String
+  /// `hero`, `signature`, or `category:<categoryId>`: one motion per place. It carries the uniqueness, since two null
+  /// categories are different to PostgreSQL.
+  slot       String
+  /// The category whose heading it plays over (category places only); deleting the category deletes the motion.
+  categoryId String?
+  /// A motion id from the library's catalog (src/motion/catalog).
+  motionId   String
+  /// The motion's params other than text, resolved.
+  params     Json
+  /// For each text param, its text by language.
+  texts      Json      @default("{}")
+  version    Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  menu       Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, slot])
+  @@index([categoryId])
 }
 
 model Product {
