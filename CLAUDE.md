@@ -18,6 +18,7 @@ Sources of the skills available in this workspace:
 | one-skill-to-rule-them-all | https://github.com/rebelytics/one-skill-to-rule-them-all |
 | frontend-design (Anthropic) | https://github.com/anthropics/claude-code/blob/main/plugins/frontend-design/skills/frontend-design/SKILL.md |
 | canvas-design (Anthropic) | https://github.com/anthropics/skills/blob/main/skills/canvas-design/SKILL.md |
+| graphify (vendored in `.claude/skills/graphify`, v0.9.93) | https://github.com/Graphify-Labs/graphify |
 
 Invoke a skill with `/<skill-name>` (plugin skills as `/<plugin>:<skill>`, e.g. `/superpowers:brainstorming`), or name it in plain words.
 
@@ -33,5 +34,6 @@ Do not load every skill at once: they cost context and several impose conflictin
 - **Implementing a feature or fix:** `superpowers:test-driven-development`.
 - **Before saying work is done:** `superpowers:verification-before-completion`.
 - **Reviewing a diff:** `code-review`.
+- **Mapping or questioning the codebase:** `graphify` (`/graphify .` to build, then `graphify query "<question>"`). Needs the CLI: `uv tool install graphifyy`. Output goes to `graphify-out/` (gitignored).
 
 When two design skills disagree, follow this project's existing design system and tokens over either skill.

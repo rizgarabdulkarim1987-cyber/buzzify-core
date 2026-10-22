@@ -12,3 +12,4 @@ next-env.d.ts
 .superpowers/
 docs/perf/lighthouse-latest.json
 .neon
+graphify-out/
