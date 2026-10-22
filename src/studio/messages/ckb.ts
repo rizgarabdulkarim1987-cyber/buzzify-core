@@ -2416,9 +2416,17 @@ const ckb: Messages = {
   'plansSettings.whatsappHint': 'لەگەڵ کۆدی وڵات، وەک ‎+964 750 123 4567. دوگمەی بەرزکردنەوە گفتوگۆیەکی لەگەڵ دەکاتەوە.',
   'plansSettings.save': 'پاشەکەوتکردنی پاکێجەکان',
   'plansSettings.saved': 'پاکێجەکان پاشەکەوت کران',
+  'plansSettings.confirmTitle': 'تایبەتمەندییەکان لە پاکێجەکان لاببرێن؟',
+  'plansSettings.confirmBody':
+    'میوانانی هەموو ڕێستۆرانێکی سەر ئەم پاکێجانە یەکسەر نایانبینن، جگە لەو ڕێستۆرانانەی تایبەتمەندییەکەیان زیاتر لە پاکێجەکە بۆ کارا کراوە. هیچ شتێک ناسڕێتەوە: کاراکردنەوەی تایبەتمەندییەکە دەیگەڕێنێتەوە.',
+  'plansSettings.confirmItem': '{feature} لە پاکێجی {plan}',
+  'plansSettings.confirmCount_one': '{formatted} ڕێستۆران لەدەستی دەدات',
+  'plansSettings.confirmCount_other': '{formatted} ڕێستۆران لەدەستی دەدەن',
+  'plansSettings.confirmNone': 'ئێستا هیچ ڕێستۆرانێک لەدەستی نادات',
   'brand.lockedChoice': 'میوانەکان {fallback} دەبینن تا پاکێجەکە {choice} لەخۆ بگرێت.',
   'qr.lockedStyle': 'ڕەنگەکانی ڕێستۆران و لۆگۆ',
   'qr.lockedKept': 'ئەم کۆدە بە ڕەش لەسەر سپی و بێ لۆگۆ چاپ دەکرێت تا پاکێجەکە ئەوانە لەخۆ بگرێت.',
+  'qr.resetPlain': 'گەڕاندنەوە بۆ ڕەش لەسەر سپی',
   'revisions.scheduleLocked': 'خشتەکردنی بڵاوکردنەوە',
   'preview.hiddenTitle': 'میوانانی ئەم پاکێجە ئەمانە نابینن',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)

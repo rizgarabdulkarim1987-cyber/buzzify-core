@@ -127,6 +127,16 @@ describe('locks on choices', () => {
     expect(qrStyleLock(branded, DEFAULT_QR_STYLE, PRO)).toBeNull();
   });
 
+  it('lets a code kept from a higher plan go back to black on white a part at a time, and refuses new branding', () => {
+    const kept = { foreground: '#123456', background: '#FFF8E7', logo: true, frameText: '' };
+    expect(qrStyleLock({ ...kept, logo: false }, kept, BASIC)).toBeNull();
+    expect(qrStyleLock({ ...kept, foreground: '#000000' }, kept, BASIC)).toBeNull();
+    expect(qrStyleLock({ ...kept, background: '#ffffff', logo: false }, kept, BASIC)).toBeNull();
+    expect(qrStyleLock({ ...kept, foreground: '#222222' }, kept, BASIC)).toBe('qr.branded');
+    expect(qrStyleLock({ ...kept, background: '#123456', foreground: '#000000' }, kept, BASIC)).toBe('qr.branded');
+    expect(qrStyleLock({ ...kept, logo: true }, { ...kept, logo: false }, BASIC)).toBe('qr.branded');
+  });
+
   it('brings copied choices within the plan', () => {
     expect(clampBrandChoices(stored, BASIC)).toEqual({ fontPairId: 'classic', railStyle: 'plain', motionIntensity: 'subtle' });
     expect(clampBrandChoices(stored, PREMIUM)).toEqual(stored);

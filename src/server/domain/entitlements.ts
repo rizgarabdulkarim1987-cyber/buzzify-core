@@ -174,7 +174,7 @@ export interface Entitlements {
 }
 
 /** A restaurant's features: its plan's, with its extras laid over them (an extra wins over the plan). */
-export function effectiveEntitlements(args: { plan: PlanTier; plans: Plans; extras: PlanExtras }): Entitlements {
+export function effectiveEntitlements(args: { plan: PlanTier; plans: Pick<Plans, 'features'>; extras: PlanExtras }): Entitlements {
   const features = new Set<FeatureKey>(args.plans.features[args.plan]);
   for (const key of FEATURE_KEYS) {
     const extra = args.extras[key];
@@ -199,4 +199,28 @@ export function featuresLost(before: Entitlements, after: Entitlements): Feature
   return FEATURES.filter((feature) => feature.status === 'live' && before.features.has(feature.key) && !after.features.has(feature.key)).map(
     (feature) => feature.key,
   );
+}
+
+/** The live features each plan stops including when the plans change, plan by plan and in catalog order within each. */
+export function featuresDropped(before: Pick<Plans, 'features'>, after: Pick<Plans, 'features'>): Array<{ plan: PlanTier; feature: FeatureKey }> {
+  return PLAN_TIERS.flatMap((plan) =>
+    featuresLost({ plan, features: before.features[plan] }, { plan, features: after.features[plan] }).map((feature) => ({ plan, feature })),
+  );
+}
+
+const LIVE_KEYS: readonly FeatureKey[] = FEATURES.filter((feature) => feature.status === 'live').map((feature) => feature.key);
+
+/**
+ * For each plan and live feature, how many restaurants on the plan take the feature from it, with no extra of their own
+ * deciding it: the ones that lose it when the plan stops including it, and gain it when the plan starts.
+ */
+export function planFollowers(restaurants: ReadonlyArray<{ plan: PlanTier; extras: PlanExtras }>): Record<PlanTier, Record<FeatureKey, number>> {
+  const counts = Object.fromEntries(PLAN_TIERS.map((plan) => [plan, Object.fromEntries(LIVE_KEYS.map((key) => [key, 0]))])) as Record<
+    PlanTier,
+    Record<FeatureKey, number>
+  >;
+  for (const { plan, extras } of restaurants) {
+    for (const key of LIVE_KEYS) if (extras[key] === undefined) counts[plan][key] += 1;
+  }
+  return counts;
 }

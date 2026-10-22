@@ -83,20 +83,21 @@ export async function unassignMember(
 
 // Accounts ------------------------------------------------------------------------------------------------------------
 
+/** The refusal when someone else reaches for the platform owner's account: nobody but its holder may change it. */
+const PLATFORM_OWNER_ONLY = 'Only the platform owner can change this account';
+
 /**
  * Switches an account off: it keeps its history and memberships, every session it holds ends now, and the invitations it
  * sent that nobody has used are withdrawn (a deactivated person's word is no longer good). Better Auth refuses it a new
  * session, and the Studio no longer finds an actor for it.
  *
- * Refused: your own account; one that is deactivated already; a Super Admin's, unless the actor is a Super Admin too; and
- * the last active Super Admin's. The last rule has to hold when two Super Admins deactivate each other at the same
- * moment, which a count taken before the update cannot promise. So a Super Admin's deactivation first takes a row lock on
- * every active Super Admin (a write that changes nothing but the time), and the count after its own update is then the
- * truth: a second deactivation waits for the first to commit, finds its target changed, and counts one fewer.
+ * Refused: your own account; the platform owner's, to anyone else; one that is deactivated already; a Super Admin's,
+ * unless the actor is a Super Admin too; and the last active Super Admin's. The last rule has to hold when two Super
+ * Admins deactivate each other at the same moment, which a count taken before the update cannot promise. So a Super
+ * Admin's deactivation first takes a row lock on every active Super Admin (a write that changes nothing but the time), and
+ * the count after its own update is then the truth: a second deactivation waits for the first to commit, finds its target
+ * changed, and counts one fewer.
  */
-/** The refusal when someone else reaches for the platform owner's account: nobody but its holder may change it. */
-const PLATFORM_OWNER_ONLY = 'Only the platform owner can change this account';
-
 export async function deactivatePerson(
   tx: ScopedTx,
   args: { actor: Pick<Actor, 'userId' | 'isSuperAdmin' | 'isPlatformOwner'>; userId: string; now: Date },

@@ -159,14 +159,16 @@ export function brandChoiceLock(next: BrandChoices, stored: BrandChoices, entitl
   return null;
 }
 
-/** `qr.branded` when a save gives a code brand colours or the logo it did not have on a plan without them; else null. */
+/**
+ * `qr.branded` when a save gives a code a brand colour or the logo it did not have, on a plan without them; else null.
+ * Each part (the code's colour, its ground, the logo) may stay as stored or go back to black on white without the logo,
+ * so a code kept from a higher plan can always be reset, all at once or a part at a time.
+ */
 export function qrStyleLock(next: QrStyle, stored: QrStyle, entitlements: Entitlements): 'qr.branded' | null {
-  if (allows(entitlements, 'qr.branded') || !isBrandedQr(next)) return null;
-  const kept =
-    next.foreground.toUpperCase() === stored.foreground.toUpperCase() &&
-    next.background.toUpperCase() === stored.background.toUpperCase() &&
-    next.logo === stored.logo;
-  return kept ? null : 'qr.branded';
+  if (allows(entitlements, 'qr.branded')) return null;
+  const keptOrReset = (key: 'foreground' | 'background') =>
+    next[key].toUpperCase() === stored[key].toUpperCase() || next[key].toUpperCase() === DEFAULT_QR_STYLE[key];
+  return keptOrReset('foreground') && keptOrReset('background') && (!next.logo || stored.logo) ? null : 'qr.branded';
 }
 
 /** The features whose stored choice guests do not see on this plan, in the order the Brand tab lists them. */

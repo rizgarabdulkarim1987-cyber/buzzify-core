@@ -1,5 +1,16 @@
 import { z } from 'zod';
-import { allows, FEATURES, lowestPlanWith, parseExtras, PLAN_TIERS, plansToStore } from '@/server/domain/entitlements';
+import {
+  allows,
+  FEATURE_KEYS,
+  FEATURES,
+  lowestPlanWith,
+  parseExtras,
+  PLAN_TIERS,
+  planFollowers,
+  plansToStore,
+  type FeatureKey,
+  type PlanTier,
+} from '@/server/domain/entitlements';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { readPlans, readUpgradeWhatsApp } from '@/server/data/plans';
@@ -24,6 +35,10 @@ export const restaurantPlan = defineQuery({
     return {
       plan: row.plan,
       planNames: upgrade.planNames,
+      planFeatures: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, FEATURE_KEYS.filter((key) => plans.features[tier].has(key))])) as Record<
+        PlanTier,
+        FeatureKey[]
+      >,
       features: FEATURES.filter((feature) => feature.status === 'live').map((feature) => ({
         key: feature.key,
         area: feature.area,
@@ -31,7 +46,6 @@ export const restaurantPlan = defineQuery({
         inPlan: plans.features[row.plan].has(feature.key),
         extra: extras[feature.key] ?? null,
         lowestPlan: lowestPlanWith(plans, feature.key),
-        plans: PLAN_TIERS.filter((tier) => plans.features[tier].has(feature.key)),
       })),
       note: ctx.actor.isSuperAdmin ? row.planNote : null,
       canEdit: ctx.permissions.has('plans.manage'),
@@ -45,11 +59,20 @@ export const getPlans = defineQuery({
   permission: 'platform.settings',
   input: z.object({}),
   target: () => ({ kind: 'platform' }),
-  run: async (ctx) => ({
-    plans: plansToStore(await readPlans(ctx.db)),
-    whatsapp: (await readUpgradeWhatsApp(ctx.db)) ?? '',
-    features: FEATURES.map((feature) => ({ ...feature })),
-    tiers: [...PLAN_TIERS],
-    canEdit: ctx.permissions.has('plans.manage'),
-  }),
+  run: async (ctx) => {
+    const [plans, whatsapp, restaurants] = await Promise.all([
+      readPlans(ctx.db),
+      readUpgradeWhatsApp(ctx.db),
+      ctx.db.restaurant.findMany({ select: { plan: true, planExtras: true } }),
+    ]);
+    return {
+      plans: plansToStore(plans),
+      whatsapp: whatsapp ?? '',
+      features: FEATURES.map((feature) => ({ ...feature })),
+      tiers: [...PLAN_TIERS],
+      // How many restaurants a switch turned off would take a feature from, for the question before the save.
+      followers: planFollowers(restaurants.map((row) => ({ plan: row.plan, extras: parseExtras(row.planExtras) }))),
+      canEdit: ctx.permissions.has('plans.manage'),
+    };
+  },
 });

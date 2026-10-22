@@ -109,6 +109,15 @@ describe('plans', () => {
     expect(dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: null, canEdit: false });
   });
 
+  it('gives the Plan tab every feature each plan holds, as the platform owner set them', async () => {
+    dataOf(await act(owner, plans.updatePlans, { plans: { BASIC: { features: { 'immersive.explore': true } }, PREMIUM: { features: { 'qr.branded': false } } }, whatsapp: '' }));
+    const tab = dataOf(await read(owner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
+    expect(tab.planFeatures.BASIC).toEqual(['immersive.explore', 'contact.whatsapp']);
+    expect(tab.planFeatures.PRO).toContain('qr.branded');
+    expect(tab.planFeatures.PREMIUM).toContain('immersive.stage');
+    expect(tab.planFeatures.PREMIUM).not.toContain('qr.branded');
+  });
+
   it('changes what a plan holds for every restaurant on it, and keeps the WhatsApp number as digits', async () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'BASIC', extras: {}, note: '' });
     const names = { en: 'Starter', ar: 'البداية', ckb: 'دەستپێک' };
@@ -120,6 +129,15 @@ describe('plans', () => {
     expect(settings).toMatchObject({ whatsapp: '9647501234567', canEdit: false });
     expect(settings.plans.BASIC.names).toEqual(names);
     expect(await auditRow('plans.updated')).toMatchObject({ entityType: 'Plans', entityId: 'plans' });
+  });
+
+  it('tells Settings → Plans how many restaurants on each plan would lose each live feature', async () => {
+    await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'PRO', extras: { 'qr.branded': true }, note: '' });
+    const b = await createMenuFixture(prisma(), 'plans-b');
+    await act(owner, plans.setRestaurantPlan, { restaurantId: b.restaurant.id, plan: 'PRO', extras: {}, note: '' });
+    const settings = dataOf(await read(otherAdmin, planQueries.getPlans, {}));
+    expect(settings.followers.PRO).toMatchObject({ 'design.fontPairs': 2, 'qr.branded': 1 });
+    expect(settings.followers.PREMIUM['immersive.explore']).toBe(0);
   });
 
   it('refuses a WhatsApp number that is not digits with a country code', async () => {
