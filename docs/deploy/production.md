@@ -199,7 +199,7 @@ Keep it in your password manager. Vercel sends it with each call by itself once 
    If Vercel lets you mark a variable as a **Secret** (hidden after saving), do that for `DATABASE_URL`,
    `DIRECT_DATABASE_URL`, `BETTER_AUTH_SECRET`, `RESEND_API_KEY`, `R2_SECRET_ACCESS_KEY` and `CRON_SECRET`.
 
-   Add `EMAIL_FROM` only if you want a different sender than the default `Buzzify Studio <studio@buzzify.me>`, and
+   Add `EMAIL_FROM` only if you want a different sender than the default `Buzzify Core <studio@buzzify.me>`, and
    `PUBLIC_ROOT_REDIRECT` only to send visitors of `https://menu.buzzify.me/` somewhere other than `https://buzzify.me`.
 
    **Never add `DEV_SEED_PASSWORD` or `ALLOW_REMOTE_DEV_SEED`.** The first creates test accounts with a password that is
@@ -496,7 +496,7 @@ with milestone 2b. They add more variables (`R2_*`, `MEDIA_PUBLIC_URL`, `CRON_SE
 | `R2_BUCKET` | yes | You, step 3b | `buzzify-media` |
 | `MEDIA_PUBLIC_URL` | yes | You, step 3b | `https://media.buzzify.me` |
 | `CRON_SECRET` | yes | You, step 3c | 32 or more characters |
-| `EMAIL_FROM` | no | You | `Buzzify Studio <studio@buzzify.me>` (the default) |
+| `EMAIL_FROM` | no | You | `Buzzify Core <studio@buzzify.me>` (the default) |
 | `PUBLIC_ROOT_REDIRECT` | no | You | `https://buzzify.me` (the default) |
 | `DEV_SEED_PASSWORD` | never in production | | |
 | `ALLOW_REMOTE_DEV_SEED` | never in production | | |

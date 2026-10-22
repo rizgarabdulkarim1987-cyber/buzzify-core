@@ -5,7 +5,7 @@ import { createPrisma } from '@/server/data/prisma';
 import { seedMenu } from '../../prisma/seed/apply';
 import { MAISON } from '../../prisma/seed/maison';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
-import { createMenuFixture, publishFixture } from '../helpers/db';
+import { createMenuFixture, deleteBillingRows, publishFixture } from '../helpers/db';
 
 /**
  * The sales tools as a guest meets them (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.3), on a menu made
@@ -38,6 +38,7 @@ test.afterAll(async () => {
   await prisma.menuSlug.deleteMany({ where: { OR: [{ menuId: ids.menu }, { slug }] } });
   await prisma.menu.deleteMany({ where: { id: ids.menu } });
   await prisma.auditLog.deleteMany({ where: { OR: [{ menuId: ids.menu }, { restaurantId: ids.restaurant }] } });
+  await deleteBillingRows(prisma, [ids.restaurant]);
   await prisma.restaurant.deleteMany({ where: { id: ids.restaurant } });
   await prisma.$disconnect();
 });
@@ -114,6 +115,7 @@ test.describe('Sales tools on a template menu', () => {
     await prisma.menuSlug.deleteMany({ where: { OR: [{ menuId: made.menu }, { slug: templateSlug }] } });
     await prisma.menu.deleteMany({ where: { id: made.menu } });
     await prisma.auditLog.deleteMany({ where: { OR: [{ menuId: made.menu }, { restaurantId: made.restaurant }] } });
+    await deleteBillingRows(prisma, [made.restaurant]);
     await prisma.restaurant.deleteMany({ where: { id: made.restaurant } });
   });
 

@@ -166,7 +166,7 @@ describe('two-factor enrolment', () => {
     const started = dataOf(await invoke(accountActions.startTwoFactorSetup, { password: GOOD }));
 
     expect(started.totpUri).toMatch(/^otpauth:\/\/totp\//);
-    expect(new URL(started.totpUri).searchParams.get('issuer')).toBe('Buzzify Studio');
+    expect(new URL(started.totpUri).searchParams.get('issuer')).toBe('Buzzify Core');
     expect(started.secret).toMatch(/^[A-Z2-7]{16,}$/);
     expect(new URL(started.totpUri).searchParams.get('secret')).toBe(started.secret);
     expect(started.qrSvg).toMatch(/^<\?xml[^>]*>\s*<svg|^<svg/);

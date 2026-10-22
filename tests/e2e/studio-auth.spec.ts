@@ -139,7 +139,7 @@ test.describe('Studio sign-in @desktop', () => {
     const page = await freshPage(browser);
 
     await page.goto(new URL(url).pathname);
-    await expect(page.getByRole('heading', { level: 1, name: 'Join Buzzify Studio' })).toBeVisible();
+    await expect(page.getByRole('heading', { level: 1, name: 'Join Buzzify Core' })).toBeVisible();
     await expect(page.getByText(`You are invited as Owner of ${restaurant.name}.`)).toBeVisible();
     await expect(page.getByText(email)).toBeVisible();
 

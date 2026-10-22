@@ -40,10 +40,11 @@ export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as cons
 
 /**
  * Global models that reference a restaurant by design, because they are queried across restaurants: a person's
- * memberships are read by user (with the base client), to learn which restaurants they may open. A client scoped to a
+ * memberships are read by user (with the base client), to learn which restaurants they may open; billing rows are read and swept across
+ * restaurants by the platform owner. A client scoped to a
  * restaurant confines them to it (`RESTAURANT_CONFINED_MODELS`).
  */
-export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
+export const CROSS_RESTAURANT_MODELS = ['Membership', 'Subscription', 'Payment'] as const;
 
 /**
  * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, the
@@ -63,6 +64,10 @@ export const GLOBAL_MODELS = [
   'AuditLog',
   'Invitation',
   'PlatformSetting',
+  // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).
+  'Application',
+  'PlanPrice',
+  'SubscriptionEvent',
 ] as const;
 
 /**
@@ -79,6 +84,8 @@ export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaur
   Restaurant: 'id',
   Menu: 'restaurantId',
   Membership: 'restaurantId',
+  Subscription: 'restaurantId',
+  Payment: 'restaurantId',
 };
 
 /** Which menu and which restaurant a client is confined to. A class of rows whose id is missing is refused outright. */

@@ -6,7 +6,7 @@ import { prepareAsset, storeAsset } from '@/server/media/process';
 import { getStorage } from '@/server/storage/storage';
 import { DEMO_PLANS } from '../../../prisma/seed/demo-restaurant';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
-import { createMenuFixture, publishFixture } from '../../helpers/db';
+import { createMenuFixture, deleteBillingRows, publishFixture } from '../../helpers/db';
 
 /**
  * A photo in a restaurant's media library, made and stored the way an upload is (in the development folder the app
@@ -147,6 +147,7 @@ export async function createTemporaryMenu({
         await db.auditLog.deleteMany({
           where: { OR: [{ menuId: menu.id }, { restaurantId: restaurant.id }, { entityId: { in: [menu.id, restaurant.id] } }] },
         });
+        await deleteBillingRows(db, [restaurant.id]);
         await db.restaurant.deleteMany({ where: { id: restaurant.id } });
       } finally {
         await db.$disconnect();

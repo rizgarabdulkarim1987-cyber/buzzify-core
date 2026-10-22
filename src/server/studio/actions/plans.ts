@@ -1,12 +1,13 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
-import { expireMenu, expirePlans } from '@/server/data/cache';
+import { expirePlans } from '@/server/data/cache';
 import { extrasToStore, parseExtras, parsePlans, PLAN_NAME_MAX, PLAN_TIERS, plansToStore } from '@/server/domain/entitlements';
 import { LOCALES } from '@/lib/locale';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 import { PLANS_SETTING, readPlans, readUpgradeWhatsApp, UPGRADE_WHATSAPP_SETTING } from '@/server/data/plans';
-import { menuAddresses } from '@/server/studio/services/restaurants';
+import { followRestaurantPlan } from '@/server/studio/services/billing';
+import { expireMenusAfterCommit } from '@/server/studio/services/restaurants';
 
 /**
  * Plans (spec: plans and entitlements, sections 2.1 and 8): only the platform owner holds `plans.manage`, so only they set
@@ -50,12 +51,11 @@ export const setRestaurantPlan = defineAction({
       if (Object.keys(changes).length > 0) {
         ctx.audit({ action: 'restaurant.plan_changed', entityType: 'RestaurantPlan', entityId: restaurantId, changes });
       }
+      // The live Menu subscription follows, so a later payment does not put the restaurant back on its old plan.
+      await followRestaurantPlan(tx, ctx, input.plan, new Date());
 
       // What guests see depends on the plan and is cached per address: every address of every menu is expired.
-      const menus = await menuAddresses(tx);
-      ctx.afterCommit(() => {
-        for (const { menuId, slugs } of menus) expireMenu(slugs, menuId);
-      });
+      await expireMenusAfterCommit(tx, ctx.afterCommit);
       return { plan: input.plan, extras, note: input.note };
     }),
 });

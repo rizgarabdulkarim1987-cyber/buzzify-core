@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { expireMenu } from '@/server/data/cache';
 import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
@@ -13,7 +12,7 @@ import {
   branchInput,
   branchProfileOf,
   changedFields,
-  menuAddresses,
+  expireMenusAfterCommit,
   pickBranch,
   pickProfile,
   profileData,
@@ -143,10 +142,7 @@ export const setRestaurantStatus = defineAction({
 
       // The public page reads the restaurant's status live, but it caches what each address resolves to: every address
       // of every menu is expired once this has committed, so guests see the change at once.
-      const menus = await menuAddresses(tx);
-      ctx.afterCommit(() => {
-        for (const { menuId, slugs } of menus) expireMenu(slugs, menuId);
-      });
+      await expireMenusAfterCommit(tx, ctx.afterCommit);
       return { status };
     }),
 });

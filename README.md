@@ -1,4 +1,4 @@
-# Buzzify Menu Studio
+# Buzzify Core
 
 A multi-tenant digital menu and revenue platform for cafés and restaurants. Guests open a restaurant's published menu on
 their phone; the team runs restaurants, menus and people in the **Studio**. The repository is demonstrated with three

@@ -28,6 +28,11 @@ export function testPrisma(): PrismaClient {
 export async function resetTestData(prisma: PrismaClient): Promise<void> {
   // Shared library assets belong to no restaurant, so no cascade removes them.
   await prisma.mediaAsset.deleteMany();
+  await prisma.payment.deleteMany();
+  await prisma.subscriptionEvent.deleteMany();
+  await prisma.subscription.deleteMany();
+  await prisma.planPrice.deleteMany();
+  await prisma.application.deleteMany();
   await prisma.auditLog.deleteMany();
   await prisma.platformSetting.deleteMany();
   await prisma.invitation.deleteMany();
@@ -49,6 +54,18 @@ export async function publishFixture(prisma: PrismaClient, menuId: string, note 
   const outcome = await prisma.$transaction((tx) => publishMenu(tx, { menuId, actorId: null, note, now: new Date() }));
   if (!outcome.ok) throw new Error(`Fixture menu ${menuId} cannot be published: ${JSON.stringify(outcome.issues)}`);
   return outcome;
+}
+
+/**
+ * Deletes the billing rows of the restaurants given (payments, then subscription events and subscriptions): a restaurant
+ * that has any cannot be deleted (its foreign keys restrict it), so a fixture's cleanup runs this first. Only tests do:
+ * the Studio never deletes payment history.
+ */
+export async function deleteBillingRows(prisma: PrismaClient, restaurantIds: readonly string[]): Promise<void> {
+  const ids = [...restaurantIds];
+  await prisma.payment.deleteMany({ where: { restaurantId: { in: ids } } });
+  await prisma.subscriptionEvent.deleteMany({ where: { subscription: { restaurantId: { in: ids } } } });
+  await prisma.subscription.deleteMany({ where: { restaurantId: { in: ids } } });
 }
 
 /**

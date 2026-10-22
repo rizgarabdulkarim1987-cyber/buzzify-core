@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
 import { NEVER_GRANTABLE, PERMISSIONS } from '@/server/domain/permissions';
@@ -13,6 +13,7 @@ import type { ActionResult } from '@/server/studio/framework/result';
 import * as session from '@/server/studio/public-actions/session';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { Browser } from '../helpers/browser';
+import { seedApplications } from '../../prisma/seed/applications';
 import { publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 import { devMail } from '../helpers/mail';
 
@@ -97,6 +98,9 @@ interface Side {
   offerId: string;
   /** A design the restaurant saved from a template preset. */
   designTemplateId: string;
+  /** A paid Menu subscription and its payment (docs/superpowers/plans/2026-10-22-business-core-in-menu.md). */
+  subscriptionId: string;
+  paymentId: string;
 }
 
 interface World {
@@ -207,6 +211,36 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   });
   const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
   const designTemplate = await prisma().designTemplate.create({ data: { restaurantId: restaurant.id, name: `${title} house look`, basePresetId: 'kyoto-ink', overrides: {} } });
+  const periodStart = new Date(Date.now() - 86_400_000);
+  const periodEnd = new Date(Date.now() + 29 * 86_400_000);
+  const subscription = await prisma().subscription.create({
+    data: {
+      restaurantId: restaurant.id,
+      applicationId: 'menu',
+      planCode: 'PREMIUM',
+      status: 'ACTIVE',
+      period: 'MONTHLY',
+      currency: 'IQD',
+      priceMinor: 50000,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      anchorDay: periodEnd.getUTCDate(),
+      version: 1,
+    },
+  });
+  const payment = await prisma().payment.create({
+    data: {
+      subscriptionId: subscription.id,
+      restaurantId: restaurant.id,
+      amountMinor: 50000,
+      currency: 'IQD',
+      paidAt: periodStart,
+      coversFrom: periodStart,
+      coversTo: periodEnd,
+      idempotencyKey: randomUUID(),
+      recordedById: adminId,
+    },
+  });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -239,10 +273,13 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     setId: set.id,
     offerId: offer.id,
     designTemplateId: designTemplate.id,
+    subscriptionId: subscription.id,
+    paymentId: payment.id,
   };
 }
 
 async function buildWorld(): Promise<World> {
+  await seedApplications(prisma());
   const admin = await person('root', 'Root Admin', true);
   const a = await side('alpha', 'Alphaville', admin.id);
   const b = await side('bravo', 'Bravoville', admin.id);
@@ -300,6 +337,9 @@ async function snapshotOfB(w: World): Promise<unknown> {
       }),
       platformSettings: await db.platformSetting.findMany({ orderBy: { key: 'asc' } }),
       media: await db.mediaAsset.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
+      subscriptions: await db.subscription.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
+      subscriptionEvents: await db.subscriptionEvent.findMany({ where: { subscription: { restaurantId: b.restaurantId } }, orderBy: { id: 'asc' } }),
+      payments: await db.payment.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
     }),
   );
 }
@@ -868,6 +908,27 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'plans.update': [c('giving Basic Explore', () => ({ plans: { BASIC: { features: { 'immersive.explore': true } } }, whatsapp: '' }), ONLY_FORBIDDEN)],
   'activity.list': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'search.people': [c("B's people", () => ({ q: 'bravo' }), ONLY_FORBIDDEN)],
+  // Billing: the platform owner's alone (`plans.manage`) or any Super Admin's to read (`platform.settings`)
+  'billing.overview': [c('the products and prices', () => ({}), ONLY_FORBIDDEN)],
+  'billing.restaurant': [c("B's subscriptions and payments", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
+  'billing.setApplication': [c('turning the Menu off', () => ({ applicationId: 'menu', name: { en: 'Planted', ar: 'Planted', ckb: 'Planted' }, status: 'DISABLED' }), ONLY_FORBIDDEN)],
+  'billing.setPrices': [c("B's plan's prices", () => ({ applicationId: 'menu', planCode: 'PREMIUM', prices: [] }), ONLY_FORBIDDEN)],
+  'billing.startTrial': [
+    c("a trial for B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, applicationId: 'menu', planCode: 'BASIC', trialDays: 14, period: 'MONTHLY', currency: 'IQD' }), ONLY_FORBIDDEN),
+  ],
+  'billing.changePlan': [
+    c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+    c("B's subscription, through A", (w) => ({ restaurantId: w.a.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+  ],
+  'billing.cancel': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, reason: 'Planted' }), ONLY_FORBIDDEN)],
+  'billing.reactivate': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1 }), ONLY_FORBIDDEN)],
+  'billing.recordPayment': [
+    c(
+      "a payment for B's subscription",
+      (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, amountMinor: 1, paidAt: new Date().toISOString(), idempotencyKey: randomUUID() }),
+      ONLY_FORBIDDEN,
+    ),
+  ],
 };
 
 /**

@@ -43,7 +43,7 @@ const sender = z
   .trim()
   .regex(
     /^(?:[^<>@\r\n]+ <[^\s<>@]+@[^\s<>@]+>|[^\s<>@]+@[^\s<>@]+)$/,
-    'must be an address such as studio@buzzify.me, or a name and address such as Buzzify Studio <studio@buzzify.me>',
+    'must be an address such as studio@buzzify.me, or a name and address such as Buzzify Core <studio@buzzify.me>',
   );
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -95,7 +95,7 @@ const mailSchema = z.object({
       .transform((value) => value ?? null),
   ),
   /** The sender of every Studio email. */
-  EMAIL_FROM: z.preprocess(unset, sender.default('Buzzify Studio <studio@buzzify.me>')),
+  EMAIL_FROM: z.preprocess(unset, sender.default('Buzzify Core <studio@buzzify.me>')),
 });
 
 export interface MailEnv {
