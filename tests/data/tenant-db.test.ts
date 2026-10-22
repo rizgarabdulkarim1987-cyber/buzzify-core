@@ -396,4 +396,28 @@ describe('tenant scoping', () => {
       expect(await globalDb(prisma).membership.count()).toBe(2);
     });
   });
+
+  describe('billing rows', () => {
+    it("are confined to the restaurant's client but readable by globalDb across restaurants", async () => {
+      await prisma.application.create({ data: { id: 'menu', name: { en: 'Menu' } } });
+      const sub = (restaurantId: string) => ({
+        restaurantId,
+        applicationId: 'menu',
+        planCode: 'PRO',
+        status: 'ACTIVE' as const,
+        period: 'MONTHLY' as const,
+        currency: 'IQD' as const,
+        priceMinor: 1,
+        currentPeriodStart: new Date('2026-10-01T00:00:00Z'),
+        currentPeriodEnd: new Date('2026-11-01T00:00:00Z'),
+        version: 1,
+      });
+      const subA = await prisma.subscription.create({ data: sub(a.restaurant.id) });
+      await prisma.subscription.create({ data: sub(b.restaurant.id) });
+
+      const own = await restaurantDb(prisma, a.restaurant.id).subscription.findMany();
+      expect(own.map((s) => s.id)).toEqual([subA.id]);
+      expect(await globalDb(prisma).subscription.count()).toBe(2);
+    });
+  });
 });

@@ -38,9 +38,9 @@ describe('billing tables', () => {
   it('refuses a second live subscription for the same restaurant and application', async () => {
     const restaurant = await prisma.restaurant.create({ data: { name: 'Live twice' } });
     await prisma.subscription.create({ data: subscription(restaurant.id, 'ACTIVE') });
-    await expect(prisma.subscription.create({ data: subscription(restaurant.id, 'TRIAL') })).rejects.toThrow(
-      /Unique constraint|unique/i,
-    );
+    const error = await prisma.subscription.create({ data: subscription(restaurant.id, 'TRIAL') }).catch((e: unknown) => e);
+    expect(error).toMatchObject({ code: 'P2002' });
+    expect(JSON.stringify((error as { meta?: unknown }).meta)).toContain('Subscription_live_key');
   });
 
   it('accepts an expired subscription beside a live one', async () => {
