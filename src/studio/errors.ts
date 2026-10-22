@@ -247,6 +247,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This restaurant already has a live subscription to this product': 'error.text.billingSecondLive',
   'Only an active restaurant can start a trial. Activate it first.': 'error.text.billingRestaurantNotActive',
   'This product is turned off. Turn it on before starting a trial.': 'error.text.billingProductDisabled',
+  'Only an active restaurant can reactivate a subscription. Activate it first.': 'error.text.billingReactivateRestaurantNotActive',
+  'This product is turned off. Turn it on before reactivating.': 'error.text.billingReactivateProductDisabled',
   'This payment was already recorded for another subscription': 'error.text.billingPaymentKeyUsed',
   'Choose one of the products offered': 'error.text.billingProductChoose',
   'Choose a plan': 'error.text.billingPlanEnter',

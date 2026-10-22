@@ -224,7 +224,7 @@ function ProductBilling({
             confirmLabel={t('billing.cancel')}
             onConfirm={async (data) => {
               const result = await settle(() =>
-                cancelSubscription({ restaurantId: shared.restaurantId, subscriptionId: current.id, reason: String(data.get('reason') ?? '') }),
+                cancelSubscription({ restaurantId: shared.restaurantId, subscriptionId: current.id, version: current.version, reason: String(data.get('reason') ?? '') }),
               );
               if (!result.ok) return refuse(result, ['reason']);
               toast.success(t('billing.cancelled'));
@@ -246,7 +246,7 @@ function ProductBilling({
             body={t('billing.reactivateBody', { name: title, date: formatDate(iso(current.currentPeriodEnd), locale) })}
             confirmLabel={t('billing.reactivate')}
             onConfirm={async () => {
-              const result = await settle(() => reactivateSubscription({ restaurantId: shared.restaurantId, subscriptionId: current.id }));
+              const result = await settle(() => reactivateSubscription({ restaurantId: shared.restaurantId, subscriptionId: current.id, version: current.version }));
               if (!result.ok) return refuse(result);
               toast.success(t('billing.reactivated'));
               router.refresh();
@@ -610,7 +610,7 @@ function ChangePlanDialog({
   const newPrice = priceOf(prices, planCode, subscription.currency, subscription.period);
   const price = keepPrice ? subscription.priceMinor : newPrice;
   const form = useActionForm(
-    (values) => settle(() => changePlan({ restaurantId: shared.restaurantId, subscriptionId: subscription.id, planCode: values.planCode ?? '', keepPrice })),
+    (values) => settle(() => changePlan({ restaurantId: shared.restaurantId, subscriptionId: subscription.id, version: subscription.version, planCode: values.planCode ?? '', keepPrice })),
     {
       onSuccess: () => {
         toast.success(t('billing.planChanged'));

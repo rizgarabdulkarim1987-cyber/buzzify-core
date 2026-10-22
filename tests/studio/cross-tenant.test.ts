@@ -917,11 +917,11 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
     c("a trial for B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, applicationId: 'menu', planCode: 'BASIC', trialDays: 14, period: 'MONTHLY', currency: 'IQD' }), ONLY_FORBIDDEN),
   ],
   'billing.changePlan': [
-    c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
-    c("B's subscription, through A", (w) => ({ restaurantId: w.a.restaurantId, subscriptionId: w.b.subscriptionId, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+    c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+    c("B's subscription, through A", (w) => ({ restaurantId: w.a.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
   ],
-  'billing.cancel': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, reason: 'Planted' }), ONLY_FORBIDDEN)],
-  'billing.reactivate': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId }), ONLY_FORBIDDEN)],
+  'billing.cancel': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, reason: 'Planted' }), ONLY_FORBIDDEN)],
+  'billing.reactivate': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1 }), ONLY_FORBIDDEN)],
   'billing.recordPayment': [
     c(
       "a payment for B's subscription",

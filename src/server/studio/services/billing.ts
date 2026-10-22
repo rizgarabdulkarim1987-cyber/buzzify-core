@@ -30,6 +30,8 @@ export const SECOND_LIVE = 'This restaurant already has a live subscription to t
 const RESTAURANT_NOT_ACTIVE = 'Only an active restaurant can start a trial. Activate it first.';
 const PRODUCT_DISABLED = 'This product is turned off. Turn it on before starting a trial.';
 const DUPLICATE_KEY = 'This payment was already recorded for another subscription';
+const REACTIVATE_RESTAURANT_NOT_ACTIVE = 'Only an active restaurant can reactivate a subscription. Activate it first.';
+const REACTIVATE_PRODUCT_DISABLED = 'This product is turned off. Turn it on before reactivating.';
 
 /** What the billing functions need of the action: who acts, and where its audit rows and callbacks go. */
 export type BillingWork = Pick<ActionContext, 'actor' | 'audit' | 'afterCommit'>;
@@ -43,6 +45,8 @@ const invalid = (field: string, message: string) => new StudioError('INVALID', '
 // Inputs --------------------------------------------------------------------------------------------------------------
 
 const idField = z.string().min(1).max(100);
+/** The subscription's version when the person opened the dialog: a row that moved on since is refused as `CONFLICT`. */
+const version = z.number().int().positive();
 const applicationId = z.enum(APPLICATION_IDS, 'Choose one of the products offered');
 const planCode = z.string().trim().min(1, 'Choose a plan').max(40);
 const currency = z.enum(CURRENCIES, 'Choose one of the currencies offered');
@@ -77,15 +81,16 @@ export const trialInput = z.object({
   currency,
 });
 
-export const changePlanInput = z.object({ restaurantId: idField, subscriptionId: idField, planCode, keepPrice: z.boolean() });
+export const changePlanInput = z.object({ restaurantId: idField, subscriptionId: idField, version, planCode, keepPrice: z.boolean() });
 
 export const cancelInput = z.object({
   restaurantId: idField,
   subscriptionId: idField,
+  version,
   reason: z.string().trim().max(500, 'Use at most 500 characters').default(''),
 });
 
-export const reactivateInput = z.object({ restaurantId: idField, subscriptionId: idField });
+export const reactivateInput = z.object({ restaurantId: idField, subscriptionId: idField, version });
 
 export const paymentInput = z.object({
   restaurantId: idField,
@@ -281,7 +286,7 @@ export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer
   if (input.planCode === sub.planCode) throw invalid('planCode', 'The subscription is already on this plan');
   const priceMinor = input.keepPrice ? sub.priceMinor : await planPrice(tx, sub.applicationId, input.planCode, sub.currency, sub.period);
 
-  await updateWithVersion(tx.subscription, { id: sub.id, version: sub.version, data: { planCode: input.planCode, priceMinor }, entityType: 'Subscription' }, tx);
+  await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { planCode: input.planCode, priceMinor }, entityType: 'Subscription' }, tx);
   await tx.subscriptionEvent.create({
     data: {
       subscriptionId: sub.id,
@@ -309,7 +314,7 @@ export async function cancel(tx: ScopedTx, work: BillingWork, input: z.infer<typ
   // The stored status can lag a missed sweep: judge it as of now, so a lapsed row is not cancelled into a dead end.
   if (effectiveStatus(sub, now) === 'EXPIRED') throw new StudioError('CONFLICT', 'This subscription has already expired');
 
-  await updateWithVersion(tx.subscription, { id: sub.id, version: sub.version, data: { status: 'CANCELLED', cancelledAt: now }, entityType: 'Subscription' }, tx);
+  await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { status: 'CANCELLED', cancelledAt: now }, entityType: 'Subscription' }, tx);
   await tx.subscriptionEvent.create({
     data: { subscriptionId: sub.id, type: 'CANCELLED', fromStatus: sub.status, toStatus: 'CANCELLED', data: { reason: input.reason }, actorId: work.actor.userId, occurredAt: now },
   });
@@ -335,7 +340,7 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
   // A trial that was never paid for comes back as the trial it was, never as a paid period.
   const to: SubscriptionStatus = sub.anchorDay === null && sub.trialEndsAt !== null ? 'TRIAL' : 'ACTIVE';
   try {
-    await updateWithVersion(tx.subscription, { id: sub.id, version: sub.version, data: { status: to, cancelledAt: null }, entityType: 'Subscription' }, tx);
+    await updateWithVersion(tx.subscription, { id: sub.id, version: input.version, data: { status: to, cancelledAt: null }, entityType: 'Subscription' }, tx);
   } catch (error) {
     if (isUniqueViolation(error)) throw new StudioError('CONFLICT', SECOND_LIVE);
     throw error;
@@ -352,6 +357,13 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
   // Live again: for the Menu, its plan (which may have been changed while it was cancelled) is what guests see.
   await applyMenuPlan(tx, work, sub.restaurantId, sub.applicationId, sub.planCode);
   return { id: sub.id, status: to };
+  // As for a trial: a suspended or archived restaurant, or a product turned off, gets nothing live again.
+  const restaurant = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { status: true } });
+  if (!restaurant) throw new StudioError('NOT_FOUND');
+  if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_RESTAURANT_NOT_ACTIVE);
+  const application = await tx.application.findUnique({ where: { id: sub.applicationId }, select: { status: true } });
+  if (!application) throw new StudioError('NOT_FOUND');
+  if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_PRODUCT_DISABLED);
 }
 
 // Payments ------------------------------------------------------------------------------------------------------------

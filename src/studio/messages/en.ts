@@ -1989,6 +1989,8 @@ const en: Messages = {
   'error.text.billingSecondLive': 'This restaurant already has a live subscription to this product',
   'error.text.billingRestaurantNotActive': 'Only an active restaurant can start a trial. Activate it first.',
   'error.text.billingProductDisabled': 'This product is turned off. Turn it on before starting a trial.',
+  'error.text.billingReactivateRestaurantNotActive': 'Only an active restaurant can reactivate a subscription. Activate it first.',
+  'error.text.billingReactivateProductDisabled': 'This product is turned off. Turn it on before reactivating.',
   'error.text.billingPaymentKeyUsed': 'This payment was already recorded for another subscription',
   'error.text.billingProductChoose': 'Choose one of the products offered',
   'error.text.billingPlanEnter': 'Choose a plan',

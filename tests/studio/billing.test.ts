@@ -89,6 +89,8 @@ async function pay(subscriptionId: string, now: Date) {
 }
 
 const load = (id: string) => prisma.subscription.findUniqueOrThrow({ where: { id } });
+/** The subscription's version as the page would show it now: what the person saw when they opened a dialog. */
+const versionOf = async (id: string) => (await load(id)).version;
 const events = (id: string) => prisma.subscriptionEvent.findMany({ where: { subscriptionId: id }, orderBy: [{ occurredAt: 'asc' }, { id: 'asc' }] });
 const planOf = async (id = restaurantId) => (await prisma.restaurant.findUniqueOrThrow({ where: { id }, select: { plan: true } })).plan;
 
@@ -422,7 +424,7 @@ describe('recordPayment', () => {
     }
     expect(codeOf(await actAt(now, billing.recordPayment, paymentInput(id, now, { idempotencyKey: 'not-a-uuid' })))).toBe('INVALID');
     expect(codeOf(await actAt(now, billing.recordPayment, paymentInput(id, now, { method: 'CARD' })))).toBe('INVALID');
-    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'Closed the shop' }))).toBe('OK');
+    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'Closed the shop' }))).toBe('OK');
     expect(await actAt(now, billing.recordPayment, paymentInput(id, now))).toMatchObject({ ok: false, error: { code: 'CONFLICT' } });
     expect(await prisma.payment.count()).toBe(1);
   });
@@ -494,9 +496,9 @@ describe('recordPayment', () => {
     const now = at('2027-02-10T12:00:00+03:00');
     expect(codeOf(await actAt(now, billing.recordPayment, paymentInput(otherId, now)))).toBe('NOT_FOUND');
     for (const [def, input] of [
-      [billing.changePlan, { restaurantId, subscriptionId: otherId, planCode: 'PREMIUM', keepPrice: true }],
-      [billing.cancel, { restaurantId, subscriptionId: otherId }],
-      [billing.reactivate, { restaurantId, subscriptionId: otherId }],
+      [billing.changePlan, { restaurantId, subscriptionId: otherId, version: 1, planCode: 'PREMIUM', keepPrice: true }],
+      [billing.cancel, { restaurantId, subscriptionId: otherId, version: 1 }],
+      [billing.reactivate, { restaurantId, subscriptionId: otherId, version: 1 }],
     ] as const) {
       expect(codeOf(await actAt(now, def as ActionDef<unknown, unknown>, input)), def.name).toBe('NOT_FOUND');
     }
@@ -508,7 +510,7 @@ describe('recordPayment', () => {
 describe('recordPayment on a cancelled subscription', () => {
   it('restarts a CANCELLED subscription whose paid period has ended like an EXPIRED one: starts now, re-anchors, ACTIVATED', async () => {
     const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb
-    expect(codeOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: 'Closed for winter' }))).toBe('OK');
+    expect(codeOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'Closed for winter' }))).toBe('OK');
     const now = at('2027-04-15T10:00:00+03:00');
     expect(codeOf(await actAt(now, billing.recordPayment, paymentInput(id, now)))).toBe('OK');
     const sub = await load(id);
@@ -524,7 +526,7 @@ describe('recordPayment on a cancelled subscription', () => {
 
   it('restarts a cancelled subscription exactly at the end of its paid period', async () => {
     const id = await paidOnTheThirtyFirst();
-    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: '' });
+    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: '' });
     const end = (await load(id)).currentPeriodEnd;
     expect(codeOf(await actAt(end, billing.recordPayment, paymentInput(id, end)))).toBe('OK');
     expect((await load(id)).currentPeriodStart.toISOString()).toBe(end.toISOString());
@@ -532,7 +534,7 @@ describe('recordPayment on a cancelled subscription', () => {
 
   it('still refuses a CANCELLED subscription before its period ends: reactivate it first', async () => {
     const id = await paidOnTheThirtyFirst();
-    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: '' });
+    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: '' });
     const now = at('2027-02-20T12:00:00+03:00');
     expect(await actAt(now, billing.recordPayment, paymentInput(id, now))).toMatchObject({ ok: false, error: { code: 'CONFLICT' } });
     expect((await load(id)).status).toBe('CANCELLED');
@@ -540,7 +542,7 @@ describe('recordPayment on a cancelled subscription', () => {
 
   it('refuses to restart an ended CANCELLED subscription while a newer live one exists, as CONFLICT', async () => {
     const id = await paidOnTheThirtyFirst();
-    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: 'switching' });
+    await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'switching' });
     const now = at('2027-03-10T10:00:00+03:00');
     await trial(now);
     const audits = await prisma.auditLog.count();
@@ -554,7 +556,7 @@ describe('changePlan', () => {
   it('changes the plan, keeping the price or taking the new plan’s price', async () => {
     const id = await paidOnTheThirtyFirst();
     const now = at('2027-02-10T12:00:00+03:00');
-    const change = (planCode: string, keepPrice: boolean) => actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, planCode, keepPrice });
+    const change = async (planCode: string, keepPrice: boolean) => actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode, keepPrice });
     expect(codeOf(await change('PREMIUM', true))).toBe('OK');
     expect(await load(id)).toMatchObject({ planCode: 'PREMIUM', priceMinor: 50000, status: 'ACTIVE' });
     expect(codeOf(await change('PRO', false))).toBe('OK');
@@ -567,14 +569,14 @@ describe('changePlan', () => {
     expect(await change('GOLD', true)).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } });
     expect(await change('PREMIUM', true)).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } });
     expect(await change('BASIC', false)).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } }); // no price
-    expect(codeOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: 'nope', planCode: 'PRO', keepPrice: true }))).toBe('NOT_FOUND');
+    expect(codeOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: 'nope', version: 1, planCode: 'PRO', keepPrice: true }))).toBe('NOT_FOUND');
   });
 
   it('is seen in the restaurant’s Menu plan, with the plan-change row, and the menus expired', async () => {
     const id = await paidOnTheThirtyFirst();
     expect(await planOf()).toBe('PRO');
     vi.mocked(expireMenu).mockClear();
-    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'BASIC', keepPrice: true }));
+    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode: 'BASIC', keepPrice: true }));
     expect(await planOf()).toBe('BASIC');
     expect(vi.mocked(expireMenu).mock.calls).toEqual([[['billing-a'], menuId]]);
     const row = await prisma.auditLog.findFirstOrThrow({ where: { action: 'restaurant.plan_changed' }, orderBy: { occurredAt: 'desc' } });
@@ -583,7 +585,7 @@ describe('changePlan', () => {
 
   it('leaves the restaurant’s plan alone when the subscription is no longer live', async () => {
     const id = await paidOnTheThirtyFirst(); // ends 28 Feb, grace to 7 Mar
-    dataOf(await actAt(at('2027-03-20T12:00:00+03:00'), billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'BASIC', keepPrice: true }));
+    dataOf(await actAt(at('2027-03-20T12:00:00+03:00'), billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode: 'BASIC', keepPrice: true }));
     expect((await load(id)).planCode).toBe('BASIC');
     expect(await planOf()).toBe('PRO');
   });
@@ -593,18 +595,18 @@ describe('cancel and reactivate', () => {
   it('cancels, then reactivates before currentPeriodEnd; after it, CONFLICT', async () => {
     const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb
     const now = at('2027-02-10T12:00:00+03:00');
-    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'Closed the shop' }))).toBe('OK');
+    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'Closed the shop' }))).toBe('OK');
     let sub = await load(id);
     expect(sub.status).toBe('CANCELLED');
     expect(sub.cancelledAt?.toISOString()).toBe(now.toISOString());
-    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'again' }))).toBe('CONFLICT');
+    expect(codeOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'again' }))).toBe('CONFLICT');
 
-    expect(codeOf(await actAt(at('2027-03-01T00:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id }))).toBe('CONFLICT');
-    expect(codeOf(await actAt(at('2027-02-20T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id }))).toBe('OK');
+    expect(codeOf(await actAt(at('2027-03-01T00:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toBe('CONFLICT');
+    expect(codeOf(await actAt(at('2027-02-20T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toBe('OK');
     sub = await load(id);
     expect(sub.status).toBe('ACTIVE');
     expect(sub.cancelledAt).toBeNull();
-    expect(codeOf(await actAt(at('2027-02-20T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id }))).toBe('CONFLICT');
+    expect(codeOf(await actAt(at('2027-02-20T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toBe('CONFLICT');
     expect((await events(id)).slice(-2).map((e) => [e.type, e.fromStatus, e.toStatus])).toEqual([
       ['CANCELLED', 'ACTIVE', 'CANCELLED'],
       ['REACTIVATED', 'CANCELLED', 'ACTIVE'],
@@ -615,7 +617,7 @@ describe('cancel and reactivate', () => {
 
   it('refuses to cancel a lagged ACTIVE subscription whose grace has passed', async () => {
     const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb, 7 days of grace; the sweep has not run
-    expect(await actAt(at('2027-03-20T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: 'late' })).toMatchObject({
+    expect(await actAt(at('2027-03-20T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'late' })).toMatchObject({
       ok: false,
       error: { code: 'CONFLICT', message: 'This subscription has already expired' },
     });
@@ -625,9 +627,9 @@ describe('cancel and reactivate', () => {
   it('refuses to reactivate while another live subscription to the product exists', async () => {
     const id = await paidOnTheThirtyFirst();
     const now = at('2027-02-10T12:00:00+03:00');
-    await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'switching' });
+    await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'switching' });
     await trial(now);
-    expect(codeOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id }))).toBe('CONFLICT');
+    expect(codeOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toBe('CONFLICT');
     expect((await load(id)).status).toBe('CANCELLED');
   });
 
@@ -635,15 +637,15 @@ describe('cancel and reactivate', () => {
     await price('BASIC', [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 20000 }]);
     const id = await paidOnTheThirtyFirst(); // PRO, ACTIVE to 28 Feb
     const now = at('2027-02-10T12:00:00+03:00');
-    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'PREMIUM', keepPrice: false }));
+    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode: 'PREMIUM', keepPrice: false }));
     expect(await planOf()).toBe('PREMIUM');
-    dataOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'pausing' }));
+    dataOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'pausing' }));
     // Cancelled, so the plan change is not what guests see yet.
-    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'BASIC', keepPrice: false }));
+    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode: 'BASIC', keepPrice: false }));
     expect(await planOf()).toBe('PREMIUM');
     const rows = await prisma.auditLog.count({ where: { action: 'restaurant.plan_changed' } });
     vi.mocked(expireMenu).mockClear();
-    dataOf(await actAt(at('2027-02-12T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id }));
+    dataOf(await actAt(at('2027-02-12T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }));
     expect(await planOf()).toBe('BASIC');
     expect(vi.mocked(expireMenu).mock.calls).toEqual([[['billing-a'], menuId]]);
     const row = await prisma.auditLog.findFirstOrThrow({ where: { action: 'restaurant.plan_changed' }, orderBy: { occurredAt: 'desc' } });
@@ -654,9 +656,73 @@ describe('cancel and reactivate', () => {
   it('returns a cancelled trial that was never paid to TRIAL, not to ACTIVE', async () => {
     const id = await trial(at('2027-01-31T09:00:00+03:00'));
     const now = at('2027-02-05T12:00:00+03:00');
-    await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'not now' });
-    expect(dataOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id }))).toEqual({ id, status: 'TRIAL' });
+    await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'not now' });
+    expect(dataOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toEqual({ id, status: 'TRIAL' });
     expect((await load(id)).status).toBe('TRIAL');
+  });
+});
+
+describe('the version the person saw', () => {
+  it('refuses a plan change, cancel or reactivate made from a stale page as CONFLICT, and writes nothing', async () => {
+    const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb
+    const now = at('2027-02-10T12:00:00+03:00');
+    // The dialog was opened on this version; a payment recorded in another tab then moved the row on.
+    const seen = await versionOf(id);
+    await pay(id, now);
+    const after = await load(id);
+    for (const [def, input] of [
+      [billing.changePlan, { restaurantId, subscriptionId: id, version: seen, planCode: 'PREMIUM', keepPrice: true }],
+      [billing.cancel, { restaurantId, subscriptionId: id, version: seen, reason: 'stale' }],
+    ] as Array<[ActionDef<unknown, unknown>, unknown]>) {
+      expect(codeOf(await actAt(now, def, input))).toBe('CONFLICT');
+    }
+    expect(await load(id)).toEqual(after);
+
+    const cancelledFrom = await versionOf(id);
+    dataOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: cancelledFrom, reason: 'pausing' }));
+    // Reactivate opened before a plan change made in another tab.
+    const seenCancelled = await versionOf(id);
+    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, version: seenCancelled, planCode: 'PREMIUM', keepPrice: true }));
+    expect(codeOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id, version: seenCancelled }))).toBe('CONFLICT');
+    expect((await load(id)).status).toBe('CANCELLED');
+  });
+
+  it('requires the version', async () => {
+    const id = await paidOnTheThirtyFirst();
+    expect(codeOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, reason: '' }))).toBe('INVALID');
+  });
+});
+
+describe('reactivate, like a trial, needs an active restaurant and product', () => {
+  async function cancelled(): Promise<string> {
+    const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb
+    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'pausing' }));
+    return id;
+  }
+
+  it('refuses a suspended or archived restaurant as CONFLICT, leaving the subscription cancelled and the plan alone', async () => {
+    const id = await cancelled();
+    await prisma.restaurant.update({ where: { id: restaurantId }, data: { plan: 'BASIC' } });
+    for (const status of ['SUSPENDED', 'ARCHIVED'] as const) {
+      await prisma.restaurant.update({ where: { id: restaurantId }, data: { status } });
+      expect(await actAt(at('2027-02-12T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) })).toMatchObject({
+        ok: false,
+        error: { code: 'CONFLICT', message: 'Only an active restaurant can reactivate a subscription. Activate it first.' },
+      });
+    }
+    expect((await load(id)).status).toBe('CANCELLED');
+    expect(await planOf()).toBe('BASIC');
+  });
+
+  it('refuses a product that is turned off as CONFLICT', async () => {
+    const id = await cancelled();
+    const now = at('2027-02-12T12:00:00+03:00');
+    dataOf(await actAt(now, billing.setApplication, { applicationId: 'menu', name: { en: 'Menu', ar: 'المنيو', ckb: 'مێنو' }, status: 'DISABLED' }));
+    expect(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) })).toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT', message: 'This product is turned off. Turn it on before reactivating.' },
+    });
+    expect((await load(id)).status).toBe('CANCELLED');
   });
 });
 
@@ -691,9 +757,9 @@ describe('who may use billing', () => {
       [billing.setApplication, { applicationId: 'cashier', name: { en: 'Till', ar: 'Till', ckb: 'Till' }, status: 'ACTIVE' }],
       [billing.setPrices, { applicationId: 'menu', planCode: 'BASIC', prices: [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 1 }] }],
       [billing.startTrial, trialInput({ applicationId: 'menu' })],
-      [billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'PREMIUM', keepPrice: true }],
-      [billing.cancel, { restaurantId, subscriptionId: id, reason: '' }],
-      [billing.reactivate, { restaurantId, subscriptionId: id }],
+      [billing.changePlan, { restaurantId, subscriptionId: id, version: await versionOf(id), planCode: 'PREMIUM', keepPrice: true }],
+      [billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: '' }],
+      [billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }],
       [billing.recordPayment, paymentInput(id, at('2027-02-01T09:00:00+03:00'))],
     ] as Array<[ActionDef<unknown, unknown>, unknown]>;
   }

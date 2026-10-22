@@ -2018,6 +2018,8 @@ const ar: Messages = {
   'error.text.billingSecondLive': 'لدى هذا المطعم اشتراك فعّال في هذا المنتج بالفعل',
   'error.text.billingRestaurantNotActive': 'لا يبدأ فترة تجريبية إلا مطعم نشط. فعّله أولًا.',
   'error.text.billingProductDisabled': 'هذا المنتج متوقف. شغّله قبل بدء فترة تجريبية.',
+  'error.text.billingReactivateRestaurantNotActive': 'لا يُعاد تفعيل اشتراك إلا لمطعم نشط. فعّل المطعم أولًا.',
+  'error.text.billingReactivateProductDisabled': 'هذا المنتج متوقف. شغّله قبل إعادة التفعيل.',
   'error.text.billingPaymentKeyUsed': 'سُجّلت هذه الدفعة من قبل لاشتراك آخر',
   'error.text.billingProductChoose': 'اختر أحد المنتجات المعروضة',
   'error.text.billingPlanEnter': 'اختر باقة',

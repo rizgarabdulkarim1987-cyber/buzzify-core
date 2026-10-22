@@ -1993,6 +1993,8 @@ const ckb: Messages = {
   'error.text.billingSecondLive': 'ئەم ڕێستۆرانە پێشتر بەشداریکردنێکی چالاکی لەم بەرهەمەدا هەیە',
   'error.text.billingRestaurantNotActive': 'تەنها ڕێستۆرانێکی چالاک دەتوانێت تاقیکردنەوە دەست پێ بکات. سەرەتا چالاکی بکە.',
   'error.text.billingProductDisabled': 'ئەم بەرهەمە کوژاوەتەوە. پێش دەستپێکردنی تاقیکردنەوە هەڵیبکە.',
+  'error.text.billingReactivateRestaurantNotActive': 'تەنها بۆ ڕێستۆرانێکی چالاک دەتوانرێت بەشداریکردن دووبارە چالاک بکرێتەوە. سەرەتا ڕێستۆرانەکە چالاک بکە.',
+  'error.text.billingReactivateProductDisabled': 'ئەم بەرهەمە کوژاوەتەوە. پێش دووبارە چالاککردنەوە هەڵیبکە.',
   'error.text.billingPaymentKeyUsed': 'ئەم پارەدانە پێشتر بۆ بەشداریکردنێکی تر تۆمار کراوە',
   'error.text.billingProductChoose': 'یەکێک لە بەرهەمە پێشکەشکراوەکان هەڵبژێرە',
   'error.text.billingPlanEnter': 'پاکێجێک هەڵبژێرە',
