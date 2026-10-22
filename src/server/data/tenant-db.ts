@@ -23,7 +23,8 @@ export const MENU_SCOPED_MODELS = [
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
-export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
+/** Subscription and Payment are written by the platform owner, who passes the restaurant's id explicitly. */
+export const RESTAURANT_SCOPED_MODELS = ['Branch', 'Subscription', 'Payment'] as const;
 
 /**
  * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
@@ -63,6 +64,10 @@ export const GLOBAL_MODELS = [
   'AuditLog',
   'Invitation',
   'PlatformSetting',
+  // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).
+  'Application',
+  'PlanPrice',
+  'SubscriptionEvent',
 ] as const;
 
 /**

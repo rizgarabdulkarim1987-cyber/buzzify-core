@@ -8,6 +8,7 @@ import { MAISON } from './seed/maison';
 import { NOOR } from './seed/noor';
 import { ONDA } from './seed/onda';
 import { RIVERLIGHT } from './seed/riverlight';
+import { seedApplications } from './seed/applications';
 import { seedMenu } from './seed/apply';
 import { demoRestaurant } from './seed/demo-restaurant';
 import { assertLocalDatabase } from './seed/local-database';
@@ -115,6 +116,7 @@ async function main() {
   const withDevUsers = checkDevUsers();
   const prisma = createPrisma();
   try {
+    await seedApplications(prisma);
     // Every address is checked before anything is written, so a refusal leaves every menu as it was.
     for (const demo of demos) await checkSlugIsOurs(prisma, demo.restaurant.slug);
     let atelier: { restaurantId: string } | undefined;

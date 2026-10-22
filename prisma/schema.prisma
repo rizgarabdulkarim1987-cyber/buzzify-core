@@ -107,6 +107,8 @@ model Restaurant {
   invitations     Invitation[]
   mediaAssets     MediaAsset[]
   designTemplates DesignTemplate[]
+  subscriptions   Subscription[]
+  payments        Payment[]
 
   @@index([name])
   @@index([city])
@@ -864,4 +866,152 @@ model DesignTemplate {
   restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Billing: the products a restaurant subscribes to, their prices, and payments recorded by hand (no gateway).
+// ---------------------------------------------------------------------------------------------------------------------
+
+enum AppStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Money is an Int in minor units (IQD has 0 digits, USD has 2) beside one of these.
+enum Currency {
+  IQD
+  USD
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
+/// PAST_DUE is folded into GRACE: the period is over, the restaurant is still served, and payment is awaited.
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  GRACE
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionEventType {
+  STARTED_TRIAL
+  ACTIVATED
+  RENEWED
+  PLAN_CHANGED
+  ENTERED_GRACE
+  EXPIRED
+  CANCELLED
+  REACTIVATED
+}
+
+/// How the money reached the person who took it. Payments are recorded by hand; the electronic names are labels only.
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  ZAINCASH
+  FIB
+  QI_CARD
+  OTHER
+}
+
+/// A product that can be subscribed to (`menu`, `cashier`).
+model Application {
+  id        String    @id
+  /// { en, ar, ckb }
+  name      Json
+  status    AppStatus @default(ACTIVE)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  prices        PlanPrice[]
+  subscriptions Subscription[]
+}
+
+model PlanPrice {
+  id            String        @id @default(cuid())
+  applicationId String
+  planCode      String
+  currency      Currency
+  period        BillingPeriod
+  /// Minor units: IQD has 0 digits, USD has 2.
+  amountMinor   Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, planCode, currency, period])
+}
+
+/// What a restaurant has bought of an application. At most one live (TRIAL, ACTIVE or GRACE) row per restaurant and
+/// application: a partial unique index in the migration enforces it.
+model Subscription {
+  id                 String             @id @default(cuid())
+  restaurantId       String
+  applicationId      String
+  planCode           String
+  status             SubscriptionStatus
+  period             BillingPeriod
+  currency           Currency
+  /// What this subscription renews at, in minor units, copied from the plan price when it started.
+  priceMinor         Int
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  /// The day of the month periods end on, in Asia/Baghdad; set by the first payment.
+  anchorDay          Int?
+  graceDays          Int                @default(7)
+  cancelledAt        DateTime?
+  version            Int
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  restaurant         Restaurant         @relation(fields: [restaurantId], references: [id])
+  application        Application        @relation(fields: [applicationId], references: [id])
+
+  events   SubscriptionEvent[]
+  payments Payment[]
+
+  @@index([status, currentPeriodEnd])
+  @@index([restaurantId])
+}
+
+model SubscriptionEvent {
+  id             String                @id @default(cuid())
+  subscriptionId String
+  type           SubscriptionEventType
+  fromStatus     SubscriptionStatus?
+  toStatus       SubscriptionStatus
+  data           Json                  @default("{}")
+  actorId        String?
+  occurredAt     DateTime              @default(now())
+  subscription   Subscription          @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId, occurredAt])
+}
+
+/// A payment the Super Admin recorded by hand after the money arrived. There is no online payment gateway.
+model Payment {
+  id             String        @id @default(cuid())
+  subscriptionId String
+  restaurantId   String
+  amountMinor    Int
+  currency       Currency
+  method         PaymentMethod @default(CASH)
+  reference      String        @default("")
+  paidAt         DateTime
+  coversFrom     DateTime
+  coversTo       DateTime
+  idempotencyKey String        @unique
+  recordedById   String
+  note           String        @default("")
+  createdAt      DateTime      @default(now())
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+  restaurant     Restaurant    @relation(fields: [restaurantId], references: [id])
+
+  @@index([subscriptionId])
+  @@index([restaurantId, paidAt])
 }
