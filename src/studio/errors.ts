@@ -20,6 +20,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Too many attempts. Try again later.': 'error.RATE_LIMITED',
   'This is not part of this restaurant’s plan': 'error.upgradeGeneric',
   'Something went wrong': 'error.unexpected',
+  // A call that never got an answer (src/studio/settle.ts)
+  'The connection failed before an answer came back. Nothing you typed is lost: try again.': 'error.network',
 
   // Signing in, two-factor, passwords
   'Wrong email or password': 'error.text.signInFailed',

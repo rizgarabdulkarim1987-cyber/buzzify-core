@@ -339,6 +339,37 @@ export async function restorePlatformSettings(rows: readonly SettingRow[]): Prom
   }
 }
 
+/** One plan price of a product, as stored. */
+export interface PlanPriceRow {
+  planCode: string;
+  currency: 'IQD' | 'USD';
+  period: 'MONTHLY' | 'YEARLY';
+  amountMinor: number;
+}
+
+/** A product's plan prices as they are now, so a test that changes them can put them back (`restorePlanPrices`). */
+export async function planPriceRows(applicationId: string): Promise<PlanPriceRow[]> {
+  const db = prisma();
+  try {
+    return await db.planPrice.findMany({ where: { applicationId }, select: { planCode: true, currency: true, period: true, amountMinor: true } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Puts a product's plan prices back as `rows` had them. */
+export async function restorePlanPrices(applicationId: string, rows: readonly PlanPriceRow[]): Promise<void> {
+  const db = prisma();
+  try {
+    await db.$transaction([
+      db.planPrice.deleteMany({ where: { applicationId } }),
+      db.planPrice.createMany({ data: rows.map((row) => ({ ...row, applicationId })) }),
+    ]);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
 /**
  * Makes `userId` (a Super Admin) the platform owner, the one person who changes plans, and answers who was it before, for
  * `restorePlatformOwner`. There is at most one owner, so the flag moves in one transaction.
