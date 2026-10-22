@@ -20,3 +20,6 @@ export function formatMoney(amountMinor: number, currency: Currency, locale: Loc
     maximumFractionDigits: digits,
   }).format(amountMinor / 10 ** digits);
 }
+
+/** The largest amount a Postgres Int4 column holds. */
+export const MAX_AMOUNT_MINOR = 2_147_483_647;

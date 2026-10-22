@@ -57,6 +57,18 @@ export async function publishFixture(prisma: PrismaClient, menuId: string, note 
 }
 
 /**
+ * Deletes the billing rows of the restaurants given (payments, then subscription events and subscriptions): a restaurant
+ * that has any cannot be deleted (its foreign keys restrict it), so a fixture's cleanup runs this first. Only tests do:
+ * the Studio never deletes payment history.
+ */
+export async function deleteBillingRows(prisma: PrismaClient, restaurantIds: readonly string[]): Promise<void> {
+  const ids = [...restaurantIds];
+  await prisma.payment.deleteMany({ where: { restaurantId: { in: ids } } });
+  await prisma.subscriptionEvent.deleteMany({ where: { subscription: { restaurantId: { in: ids } } } });
+  await prisma.subscription.deleteMany({ where: { restaurantId: { in: ids } } });
+}
+
+/**
  * A restaurant with one menu (one category, one product priced 300) and its slug. The menu is published unless
  * `publish` is false, so `menu` is the row as it stands afterwards: PUBLISHED, with its live revision.
  */

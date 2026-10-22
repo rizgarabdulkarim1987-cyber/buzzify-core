@@ -13,7 +13,7 @@ import { getStorage } from '@/server/storage/storage';
 import { seedMenu } from '../../../prisma/seed/apply';
 import { ONDA } from '../../../prisma/seed/onda';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
-import { publishFixture } from '../../helpers/db';
+import { deleteBillingRows, publishFixture } from '../../helpers/db';
 
 export type SceneKind = 'model' | 'video' | 'lottie';
 
@@ -157,6 +157,7 @@ export async function createSceneMenus(browser: Browser): Promise<SceneMenus> {
       await db.menuSlug.deleteMany({ where: { OR: [{ menuId: { in: menuIds } }, { slug: { in: slugs } }] } });
       await db.menu.deleteMany({ where: { id: { in: menuIds } } });
       await db.auditLog.deleteMany({ where: { OR: [{ menuId: { in: menuIds } }, { restaurantId: { in: restaurantIds } }] } });
+      await deleteBillingRows(db, restaurantIds);
       await db.restaurant.deleteMany({ where: { id: { in: restaurantIds } } });
     } finally {
       await db.$disconnect();

@@ -9,6 +9,7 @@ import type { Locale } from '@/lib/locale';
 import { createPrisma } from '@/server/data/prisma';
 import { readDevMail } from '@/server/email/send';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
+import { deleteBillingRows } from '../../helpers/db';
 
 /**
  * Studio people for the end-to-end tests, written straight to the development database the app under test reads.
@@ -292,6 +293,7 @@ export async function removeRestaurants(ids: readonly string[]): Promise<void> {
   const db = prisma();
   try {
     await db.auditLog.deleteMany({ where: { OR: [{ restaurantId: { in: [...ids] } }, { entityId: { in: [...ids] } }] } });
+    await deleteBillingRows(db, ids);
     await db.restaurant.deleteMany({ where: { id: { in: [...ids] } } });
   } finally {
     await db.$disconnect();

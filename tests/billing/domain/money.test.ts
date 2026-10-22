@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { formatMoney, minorUnitDigits } from '@/server/domain/billing/money';
+import { formatMoney, MAX_AMOUNT_MINOR, minorUnitDigits } from '@/server/domain/billing/money';
 
 describe('money', () => {
   it('knows minor unit digits per currency', () => {
     expect(minorUnitDigits('USD')).toBe(2);
     expect(minorUnitDigits('IQD')).toBe(0);
+  });
+
+  it('caps an amount at the largest Postgres Int4', () => {
+    expect(MAX_AMOUNT_MINOR).toBe(2_147_483_647);
+    expect(Number.isSafeInteger(MAX_AMOUNT_MINOR)).toBe(true);
   });
 
   it('formats IQD without decimals', () => {

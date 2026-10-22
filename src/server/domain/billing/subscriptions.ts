@@ -43,3 +43,19 @@ export function effectiveStatus(sub: LifecycleView, now: Date): SubscriptionStat
   }
   return current.status;
 }
+
+/** One automatic step of the lifecycle (grace, expiry). */
+export type LifecycleStep = { type: 'ENTERED_GRACE' | 'EXPIRED'; from: SubscriptionStatus; to: SubscriptionStatus };
+
+/** Every transition due at `now`, in order: `dueTransition` applied until none is left, as `effectiveStatus` does. */
+export function lifecycleSteps(sub: LifecycleView, now: Date): LifecycleStep[] {
+  const steps: LifecycleStep[] = [];
+  let current = sub;
+  for (let guard = 0; guard < 3; guard += 1) {
+    const due = dueTransition(current, now);
+    if (!due) break;
+    steps.push({ type: due.event, from: current.status, to: due.to });
+    current = { ...current, status: due.to };
+  }
+  return steps;
+}

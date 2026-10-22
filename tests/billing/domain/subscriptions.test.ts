@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { dueTransition, effectiveStatus, graceEndsAt, isLive, type LifecycleView } from '@/server/domain/billing/subscriptions';
+import { dueTransition, effectiveStatus, graceEndsAt, isLive, lifecycleSteps, type LifecycleView } from '@/server/domain/billing/subscriptions';
 
 const end = new Date('2027-03-01T00:00:00Z');
 const view = (over: Partial<LifecycleView>): LifecycleView => ({ status: 'ACTIVE', trialEndsAt: null, currentPeriodEnd: end, graceDays: 7, ...over });
@@ -44,5 +44,29 @@ describe('subscription lifecycle', () => {
     expect(effectiveStatus(view({}), plus(end, 30 * DAY))).toBe('EXPIRED');
     expect(effectiveStatus(view({}), plus(end, 3_600_000))).toBe('GRACE');
     expect(effectiveStatus(view({}), plus(end, -DAY))).toBe('ACTIVE');
+  });
+});
+
+describe('lifecycleSteps', () => {
+  it('lists nothing for a row that is not due', () => {
+    expect(lifecycleSteps(view({}), plus(end, -DAY))).toEqual([]);
+    expect(lifecycleSteps(view({ status: 'CANCELLED' }), plus(end, 100 * DAY))).toEqual([]);
+    expect(lifecycleSteps(view({ status: 'EXPIRED' }), plus(end, 100 * DAY))).toEqual([]);
+  });
+
+  it('lists the one step due: ACTIVE into GRACE, a trial straight to EXPIRED', () => {
+    expect(lifecycleSteps(view({}), plus(end, 3_600_000))).toEqual([{ type: 'ENTERED_GRACE', from: 'ACTIVE', to: 'GRACE' }]);
+    const trialEndsAt = new Date('2027-02-10T00:00:00Z');
+    expect(lifecycleSteps(view({ status: 'TRIAL', trialEndsAt }), plus(trialEndsAt, 1000))).toEqual([{ type: 'EXPIRED', from: 'TRIAL', to: 'EXPIRED' }]);
+  });
+
+  it('lists every missed step in order, ending where effectiveStatus ends', () => {
+    const now = plus(end, 30 * DAY);
+    const steps = lifecycleSteps(view({}), now);
+    expect(steps).toEqual([
+      { type: 'ENTERED_GRACE', from: 'ACTIVE', to: 'GRACE' },
+      { type: 'EXPIRED', from: 'GRACE', to: 'EXPIRED' },
+    ]);
+    expect(steps.at(-1)?.to).toBe(effectiveStatus(view({}), now));
   });
 });
