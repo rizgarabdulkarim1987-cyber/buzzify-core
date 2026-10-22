@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { expireMenu } from '@/server/data/cache';
 import * as billing from '@/server/studio/actions/billing';
+import * as plans from '@/server/studio/actions/plans';
 import * as restaurants from '@/server/studio/actions/restaurants';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { createPasswordUser } from '@/server/studio/auth/users';
@@ -659,6 +660,58 @@ describe('cancel and reactivate', () => {
     await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'not now' });
     expect(dataOf(await actAt(now, billing.reactivate, { restaurantId, subscriptionId: id, version: await versionOf(id) }))).toEqual({ id, status: 'TRIAL' });
     expect((await load(id)).status).toBe('TRIAL');
+  });
+});
+
+describe('a plan set on the Plan tab', () => {
+  const comp = (now: Date, plan: string) => actAt(now, plans.setRestaurantPlan, { restaurantId, plan, extras: {}, note: 'Comped' });
+
+  it('moves the live Menu subscription too, so the next payment keeps the comped plan', async () => {
+    const id = await paidOnTheThirtyFirst(); // PRO, ACTIVE to 28 Feb
+    const before = await load(id);
+    dataOf(await comp(at('2027-02-10T12:00:00+03:00'), 'PREMIUM'));
+    expect(await planOf()).toBe('PREMIUM');
+    // Moved like a plan change on the Billing tab: a new version, the price kept, a PLAN_CHANGED event and an audit row.
+    expect(await load(id)).toMatchObject({ planCode: 'PREMIUM', priceMinor: before.priceMinor, status: 'ACTIVE', version: before.version + 1 });
+    const changed = (await events(id)).filter((e) => e.type === 'PLAN_CHANGED');
+    expect(changed.map((e) => [e.fromStatus, e.toStatus, e.actorId, e.data])).toEqual([
+      ['ACTIVE', 'ACTIVE', owner.userId, { fromPlanCode: 'PRO', toPlanCode: 'PREMIUM', keepPrice: true, priceMinorBefore: 50000, priceMinorAfter: 50000 }],
+    ]);
+    const row = await prisma.auditLog.findFirstOrThrow({ where: { action: 'subscription.plan_changed', entityId: id } });
+    expect(row).toMatchObject({ restaurantId, entityType: 'Subscription', changes: { planCode: { before: 'PRO', after: 'PREMIUM' } } });
+
+    // The routine renewal records money; it does not undo the comp.
+    await pay(id, at('2027-02-27T12:00:00+03:00'));
+    expect(await planOf()).toBe('PREMIUM');
+    expect((await load(id)).planCode).toBe('PREMIUM');
+  });
+
+  it('moves a trial the same way', async () => {
+    const id = await trial(at('2027-01-31T09:00:00+03:00')); // PRO
+    dataOf(await comp(at('2027-02-01T12:00:00+03:00'), 'BASIC'));
+    expect((await load(id)).planCode).toBe('BASIC');
+    await pay(id, at('2027-02-02T12:00:00+03:00'));
+    expect(await planOf()).toBe('BASIC');
+  });
+
+  it('leaves the subscription alone when it is already on that plan, or when none is live', async () => {
+    const id = await paidOnTheThirtyFirst(); // PRO
+    const before = await load(id);
+    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), plans.setRestaurantPlan, { restaurantId, plan: 'PRO', extras: {}, note: 'Only the note' }));
+    expect(await load(id)).toEqual(before);
+
+    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: '' }));
+    const cancelled = await load(id);
+    dataOf(await comp(at('2027-02-11T12:00:00+03:00'), 'BASIC'));
+    expect(await load(id)).toEqual(cancelled);
+    expect(await planOf()).toBe('BASIC');
+    expect((await events(id)).filter((e) => e.type === 'PLAN_CHANGED')).toHaveLength(0);
+  });
+
+  it('changes only the restaurant when it has no subscription', async () => {
+    dataOf(await comp(at('2027-02-10T12:00:00+03:00'), 'BASIC'));
+    expect(await planOf()).toBe('BASIC');
+    expect(await prisma.subscription.count()).toBe(0);
   });
 });
 

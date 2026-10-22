@@ -308,6 +308,32 @@ export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer
   return { id: sub.id };
 }
 
+/**
+ * The Plan tab set the restaurant's plan (`plans.setRestaurantPlan`): its live Menu subscription moves to that plan too,
+ * in the same transaction, so the next payment or trial step re-applies the plan the owner chose instead of undoing it.
+ * The price is kept (a plan given on the Plan tab is not repriced) and the move is written as the Billing tab's plan
+ * change is: a `PLAN_CHANGED` event and a `subscription.plan_changed` row. Nothing happens without a live one, or when it
+ * is already on that plan. The live row is the one whose stored status is live, even if a sweep has not yet ended it:
+ * that is the row a payment would renew or restart.
+ */
+export async function followRestaurantPlan(tx: ScopedTx, work: BillingWork, plan: PlanTier, now: Date): Promise<void> {
+  const sub = await tx.subscription.findFirst({ where: { applicationId: 'menu', status: { in: LIVE } } });
+  if (!sub || sub.planCode === plan) return;
+  await updateWithVersion(tx.subscription, { id: sub.id, version: sub.version, data: { planCode: plan }, entityType: 'Subscription' }, tx);
+  await tx.subscriptionEvent.create({
+    data: {
+      subscriptionId: sub.id,
+      type: 'PLAN_CHANGED',
+      fromStatus: sub.status,
+      toStatus: sub.status,
+      data: { fromPlanCode: sub.planCode, toPlanCode: plan, keepPrice: true, priceMinorBefore: sub.priceMinor, priceMinorAfter: sub.priceMinor },
+      actorId: work.actor.userId,
+      occurredAt: now,
+    },
+  });
+  work.audit({ action: 'subscription.plan_changed', entityType: 'Subscription', entityId: sub.id, changes: { planCode: { before: sub.planCode, after: plan } } });
+}
+
 export async function cancel(tx: ScopedTx, work: BillingWork, input: z.infer<typeof cancelInput>, now: Date) {
   const sub = await loadSubscription(tx, input.subscriptionId);
   if (!isLive(sub.status)) throw new StudioError('CONFLICT', 'Only a live subscription can be cancelled');
@@ -331,6 +357,13 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
   const sub = await loadSubscription(tx, input.subscriptionId);
   if (sub.status !== 'CANCELLED') throw new StudioError('CONFLICT', 'Only a cancelled subscription can be reactivated');
   if (!(now < sub.currentPeriodEnd)) throw new StudioError('CONFLICT', 'What was paid for has ended. Record a payment to start a new period.');
+  // As for a trial: a suspended or archived restaurant, or a product turned off, gets nothing live again.
+  const restaurant = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { status: true } });
+  if (!restaurant) throw new StudioError('NOT_FOUND');
+  if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_RESTAURANT_NOT_ACTIVE);
+  const application = await tx.application.findUnique({ where: { id: sub.applicationId }, select: { status: true } });
+  if (!application) throw new StudioError('NOT_FOUND');
+  if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_PRODUCT_DISABLED);
   const other = await tx.subscription.findFirst({
     where: { applicationId: sub.applicationId, status: { in: LIVE }, id: { not: sub.id } },
     select: { id: true },
@@ -357,13 +390,6 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
   // Live again: for the Menu, its plan (which may have been changed while it was cancelled) is what guests see.
   await applyMenuPlan(tx, work, sub.restaurantId, sub.applicationId, sub.planCode);
   return { id: sub.id, status: to };
-  // As for a trial: a suspended or archived restaurant, or a product turned off, gets nothing live again.
-  const restaurant = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { status: true } });
-  if (!restaurant) throw new StudioError('NOT_FOUND');
-  if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_RESTAURANT_NOT_ACTIVE);
-  const application = await tx.application.findUnique({ where: { id: sub.applicationId }, select: { status: true } });
-  if (!application) throw new StudioError('NOT_FOUND');
-  if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_PRODUCT_DISABLED);
 }
 
 // Payments ------------------------------------------------------------------------------------------------------------
