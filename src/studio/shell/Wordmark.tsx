@@ -5,7 +5,7 @@ export function Wordmark({ className }: { className?: string }) {
   return (
     <span dir="ltr" lang="en" className={cx('inline-flex items-baseline gap-1.5 text-md leading-none', className)}>
       <span className="font-semibold tracking-[-0.01em] text-text">Buzzify</span>
-      <span className="text-muted">Studio</span>
+      <span className="text-muted">Core</span>
     </span>
   );
 }
