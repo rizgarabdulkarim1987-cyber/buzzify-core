@@ -130,7 +130,15 @@ export async function setPrices(tx: ScopedTx, work: BillingWork, input: z.infer<
   const select = { currency: true, period: true, amountMinor: true } as const;
   const before = await tx.planPrice.findMany({ where, orderBy: order, select });
   await tx.planPrice.deleteMany({ where });
-  if (input.prices.length > 0) await tx.planPrice.createMany({ data: input.prices.map((price) => ({ ...where, ...price })) });
+  if (input.prices.length > 0) {
+    try {
+      await tx.planPrice.createMany({ data: input.prices.map((price) => ({ ...where, ...price })) });
+    } catch (error) {
+      // Two saves of the same plan at once: each deletes only the rows it saw, so the later insert meets the other's row.
+      if (isUniqueViolation(error)) throw new StudioError('CONFLICT');
+      throw error;
+    }
+  }
   const after = await tx.planPrice.findMany({ where, orderBy: order, select });
   if (JSON.stringify(before) !== JSON.stringify(after)) {
     work.audit({ action: 'plan_prices.updated', entityType: 'PlanPrices', entityId: `${input.applicationId}:${input.planCode}`, changes: { prices: { before, after } } });
@@ -341,6 +349,8 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
     entityId: sub.id,
     changes: { status: { before: 'CANCELLED', after: to }, cancelledAt: { before: sub.cancelledAt?.toISOString() ?? null, after: null } },
   });
+  // Live again: for the Menu, its plan (which may have been changed while it was cancelled) is what guests see.
+  await applyMenuPlan(tx, work, sub.restaurantId, sub.applicationId, sub.planCode);
   return { id: sub.id, status: to };
 }
 

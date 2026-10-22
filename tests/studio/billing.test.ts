@@ -170,6 +170,26 @@ describe('products and prices', () => {
     expect((await prisma.planPrice.findMany({ where: { planCode: 'BASIC' } })).map((r) => r.amountMinor)).toEqual([2_147_483_647]);
   });
 
+  it('answers CONFLICT, not a generic error, when another save of the same plan’s prices lands meanwhile', async () => {
+    const now = new Date();
+    const other = testPrisma();
+    let pending: Promise<ActionResult<unknown>> | undefined;
+    try {
+      // The other save has inserted its row but not committed: this one deletes nothing it can see, then its insert
+      // waits on that row and meets the unique key once the other commits.
+      await other.$transaction(async (t) => {
+        await t.planPrice.create({ data: { applicationId: 'menu', planCode: 'BASIC', currency: 'USD', period: 'MONTHLY', amountMinor: 1 } });
+        pending = actAt(now, billing.setPrices, { applicationId: 'menu', planCode: 'BASIC', prices: [{ currency: 'USD', period: 'MONTHLY', amountMinor: 2 }] });
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      });
+      expect(await pending).toMatchObject({ ok: false, error: { code: 'CONFLICT' } });
+    } finally {
+      await other.$disconnect();
+    }
+    expect((await prisma.planPrice.findMany({ where: { planCode: 'BASIC' } })).map((r) => r.amountMinor)).toEqual([1]);
+    expect(await prisma.auditLog.count({ where: { action: 'plan_prices.updated', entityId: 'menu:BASIC' } })).toBe(0);
+  });
+
   it('sets a product’s names and status, auditing only what changed', async () => {
     const name = { en: 'Cashier', ar: 'الكاشير', ckb: 'کاشێر' };
     expect(dataOf(await actAt(new Date(), billing.setApplication, { applicationId: 'cashier', name, status: 'ACTIVE' }))).toMatchObject({ status: 'ACTIVE' });
@@ -611,6 +631,26 @@ describe('cancel and reactivate', () => {
     expect((await load(id)).status).toBe('CANCELLED');
   });
 
+  it('puts the restaurant on the Menu plan the subscription has when it is reactivated', async () => {
+    await price('BASIC', [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 20000 }]);
+    const id = await paidOnTheThirtyFirst(); // PRO, ACTIVE to 28 Feb
+    const now = at('2027-02-10T12:00:00+03:00');
+    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'PREMIUM', keepPrice: false }));
+    expect(await planOf()).toBe('PREMIUM');
+    dataOf(await actAt(now, billing.cancel, { restaurantId, subscriptionId: id, reason: 'pausing' }));
+    // Cancelled, so the plan change is not what guests see yet.
+    dataOf(await actAt(now, billing.changePlan, { restaurantId, subscriptionId: id, planCode: 'BASIC', keepPrice: false }));
+    expect(await planOf()).toBe('PREMIUM');
+    const rows = await prisma.auditLog.count({ where: { action: 'restaurant.plan_changed' } });
+    vi.mocked(expireMenu).mockClear();
+    dataOf(await actAt(at('2027-02-12T12:00:00+03:00'), billing.reactivate, { restaurantId, subscriptionId: id }));
+    expect(await planOf()).toBe('BASIC');
+    expect(vi.mocked(expireMenu).mock.calls).toEqual([[['billing-a'], menuId]]);
+    const row = await prisma.auditLog.findFirstOrThrow({ where: { action: 'restaurant.plan_changed' }, orderBy: { occurredAt: 'desc' } });
+    expect(row.changes).toEqual({ plan: { before: 'PREMIUM', after: 'BASIC' } });
+    expect(await prisma.auditLog.count({ where: { action: 'restaurant.plan_changed' } })).toBe(rows + 1);
+  });
+
   it('returns a cancelled trial that was never paid to TRIAL, not to ACTIVE', async () => {
     const id = await trial(at('2027-01-31T09:00:00+03:00'));
     const now = at('2027-02-05T12:00:00+03:00');
@@ -697,6 +737,16 @@ describe('deleting a restaurant with billing rows', () => {
     expect(await prisma.restaurant.findUnique({ where: { id: bare.id } })).not.toBeNull();
     expect(await prisma.payment.count({ where: { restaurantId: bare.id } })).toBe(1);
     expect(await prisma.auditLog.count({ where: { action: 'restaurant.deleted' } })).toBe(0);
+    // Refused for its billing rows before being told to delete its menus, which would not help.
+    expect(await actAt(new Date(), restaurants.deleteRestaurant, { restaurantId, confirmName: 'Restaurant billing-a' })).toMatchObject({
+      ok: false,
+      error: { code: 'INVALID', message: 'Delete all of its menus first' },
+    });
+    dataOf(await actAt(at('2027-01-31T09:00:00+03:00'), billing.startTrial, trialInput()));
+    expect(await actAt(new Date(), restaurants.deleteRestaurant, { restaurantId, confirmName: 'Restaurant billing-a' })).toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT', message: expect.stringContaining('never deleted') },
+    });
     // A restaurant without billing rows still goes.
     const plain = await prisma.restaurant.create({ data: { name: 'Plain Cafe' } });
     expect(dataOf(await actAt(new Date(), restaurants.deleteRestaurant, { restaurantId: plain.id, confirmName: 'Plain Cafe' }))).toEqual({ deleted: true });

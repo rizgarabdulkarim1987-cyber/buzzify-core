@@ -280,11 +280,12 @@ export async function removeRestaurant(
 ): Promise<{ name: string; memberships: number; invitations: number; branches: number }> {
   const restaurant = await tx.restaurant.findUnique({ where: { id: args.restaurantId }, select: { id: true, name: true } });
   if (!restaurant) throw new StudioError('NOT_FOUND');
-  if ((await tx.menu.count()) > 0) throw new StudioError('INVALID', 'Delete all of its menus first');
   // Payment history is never deleted, and payments name their subscription: such a restaurant is suspended instead.
+  // Checked before the menus, so the owner learns this before deleting any of them.
   if ((await tx.subscription.count()) > 0 || (await tx.payment.count()) > 0) {
     throw new StudioError('CONFLICT', 'This restaurant has subscriptions or payments on record, which are never deleted. Suspend it instead.');
   }
+  if ((await tx.menu.count()) > 0) throw new StudioError('INVALID', 'Delete all of its menus first');
   if (args.confirmName.trim() !== restaurant.name) {
     const message = 'Type the restaurant name exactly to confirm';
     throw new StudioError('INVALID', message, { confirmName: message });
