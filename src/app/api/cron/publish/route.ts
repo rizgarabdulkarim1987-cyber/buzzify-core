@@ -1,19 +1,12 @@
-import { timingSafeEqual } from 'node:crypto';
 import { getPrisma } from '@/server/data/prisma';
 import { parseCronEnv } from '@/server/env';
+import { authorized } from '@/server/http/cron-auth';
 import { activateDueRevisions } from '@/server/publish/revisions';
 
 /** One run makes up to 100 revisions live; a minute is plenty, and the next run picks up the rest. */
 export const maxDuration = 60;
 
 const NO_STORE = { 'cache-control': 'no-store' };
-
-/** Whether the request carries the scheduler's secret, compared in constant time. */
-function authorized(header: string | null, secret: string): boolean {
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const given = Buffer.from(header ?? '');
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
 
 /**
  * Scheduled publishing (spec 10.6): the platform's scheduler calls this every minute with `CRON_SECRET`, and every
