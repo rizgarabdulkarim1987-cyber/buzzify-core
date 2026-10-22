@@ -1,0 +1,53 @@
+# Checks every pull request and every push to main: lint, types, and the Vitest suite against a real PostgreSQL.
+# The end-to-end suite (Playwright) needs a running app and a seeded database, and is not part of this workflow yet.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      # The tests reach the database at 127.0.0.1:54329 as postgres/postgres (scripts/db-config.ts), the same address as
+      # the embedded server `npm run db:up` starts locally. The test setup creates `buzzify_test` and migrates it.
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 54329:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      # Generated files the repository ignores: the Prisma client, and the types `next dev` would write.
+      - run: npx prisma generate
+      - name: Write next-env.d.ts
+        run: printf '/// <reference types="next" />\n/// <reference types="next/image-types/global" />\n' > next-env.d.ts
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test

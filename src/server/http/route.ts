@@ -1,7 +1,8 @@
 import type { z } from 'zod';
+import { getPrisma } from '@/server/data/prisma';
 import { getTenant } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
-import { createRateLimiter } from './rate-limit';
+import { admitRequest, createRateLimiter } from './rate-limit';
 
 const MAX_BODY_BYTES = 32 * 1024;
 const limiters = new Map<string, ReturnType<typeof createRateLimiter>>();
@@ -56,9 +57,13 @@ export async function handleTenantRequest<S extends z.ZodType>(
   if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const verdict = limiterFor(options.route, options.limit, options.windowMs ?? 60_000).check(
-    `${tenant.id}:${ip}`,
-    Date.now(),
+  const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
+  const verdict = await admitRequest(
+    getPrisma(),
+    limiterFor(options.route, rule.limit, rule.windowMs),
+    `${options.route}:${tenant.id}:${ip}`,
+    rule,
+    new Date(),
   );
   if (!verdict.allowed) {
     return problem(429, 'RATE_LIMITED', 'Too many requests', {
