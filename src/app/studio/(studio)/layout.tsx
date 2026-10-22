@@ -15,7 +15,7 @@ const ICON = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 
 export const metadata: Metadata = {
-  title: { default: 'Buzzify Studio', template: '%s · Buzzify Studio' },
+  title: { default: 'Buzzify Core', template: '%s · Buzzify Core' },
   robots: { index: false, follow: false },
   icons: { icon: ICON },
 };

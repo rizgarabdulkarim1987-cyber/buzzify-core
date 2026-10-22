@@ -5,7 +5,7 @@ import menuMotions from './menu-motions/ar';
 
 const ar: Messages = {
   // Shared words of the interface
-  'common.appName': 'Buzzify Studio',
+  'common.appName': 'Buzzify Core',
   'common.skipToContent': 'انتقل إلى المحتوى',
   'common.save': 'حفظ',
   'common.saving': 'جارٍ الحفظ…',
@@ -75,7 +75,7 @@ const ar: Messages = {
   'auth.signIn.alreadyAction': 'الذهاب إلى الاستوديو',
 
   'auth.twoFactor.title': 'أدخل الرمز',
-  'auth.twoFactor.intro': 'افتح تطبيق المصادقة وأدخل الرمز المكوّن من 6 أرقام الظاهر لـ Buzzify Studio.',
+  'auth.twoFactor.intro': 'افتح تطبيق المصادقة وأدخل الرمز المكوّن من 6 أرقام الظاهر لـ Buzzify Core.',
   'auth.twoFactor.code': 'رمز المصادقة',
   'auth.twoFactor.recoveryTitle': 'استخدام رمز استرداد',
   'auth.twoFactor.recoveryIntro': 'أدخل أحد رموز الاسترداد التي حفظتها عند إعداد المصادقة الثنائية. يعمل كل رمز مرة واحدة.',
@@ -92,7 +92,7 @@ const ar: Messages = {
   'auth.forgot.pending': 'جارٍ الإرسال…',
   'auth.forgot.sentTitle': 'تحقّق من بريدك الوارد',
   'auth.forgot.sentBody':
-    'إن كان {email} لحساب في Buzzify Studio، فإن رابطًا لاختيار كلمة مرور جديدة في طريقه إليك. يعمل مرة واحدة خلال ساعة.',
+    'إن كان {email} لحساب في Buzzify Core، فإن رابطًا لاختيار كلمة مرور جديدة في طريقه إليك. يعمل مرة واحدة خلال ساعة.',
   'auth.forgot.again': 'استخدام عنوان آخر',
 
   'auth.reset.title': 'اختر كلمة مرور جديدة',
@@ -105,7 +105,7 @@ const ar: Messages = {
   'auth.reset.missingBody': 'افتح الرابط من الرسالة مرة أخرى، أو اطلب رابطًا جديدًا.',
   'auth.reset.requestNew': 'طلب رابط جديد',
 
-  'auth.invite.title': 'انضم إلى Buzzify Studio',
+  'auth.invite.title': 'انضم إلى Buzzify Core',
   'auth.invite.forRestaurant': 'أنت مدعوّ بصفة {role} في {restaurant}.',
   'auth.invite.forRole': 'أنت مدعوّ بصفة {role}.',
   'auth.invite.address': 'العنوان المدعوّ',
@@ -114,7 +114,7 @@ const ar: Messages = {
   'auth.invite.password': 'كلمة المرور',
   'auth.invite.create': 'إنشاء الحساب',
   'auth.invite.creating': 'جارٍ إنشاء حسابك…',
-  'auth.invite.existingIntro': 'لهذا العنوان حساب في Buzzify Studio بالفعل. سجّل الدخول به لقبول الدعوة.',
+  'auth.invite.existingIntro': 'لهذا العنوان حساب في Buzzify Core بالفعل. سجّل الدخول به لقبول الدعوة.',
   'auth.invite.signInToAccept': 'سجّل الدخول للقبول',
   'auth.invite.accept': 'قبول الدعوة',
   'auth.invite.accepting': 'جارٍ القبول…',
@@ -158,7 +158,7 @@ const ar: Messages = {
   'auth.codes.list': 'رموز الاسترداد',
   'auth.codes.copyAll': 'نسخ الرموز',
   'auth.codes.download': 'تنزيل كملف نصي',
-  'auth.codes.fileTitle': 'رموز الاسترداد لـ Buzzify Studio',
+  'auth.codes.fileTitle': 'رموز الاسترداد لـ Buzzify Core',
   'auth.codes.fileAccount': 'الحساب: {email}',
   'auth.codes.fileNote': 'يسجّل كل رمز دخولك مرة واحدة. احفظ هذا الملف في مكان لا يفتحه غيرك.',
 
@@ -2071,12 +2071,12 @@ const ar: Messages = {
   'email.greeting': 'مرحبًا {name}،',
   'email.greetingNoName': 'مرحبًا،',
   'email.linkFallback': 'إذا لم يعمل الزر، انسخ هذا الرابط إلى المتصفح:',
-  'email.footer': 'وصلتك هذه الرسالة بسبب نشاط على حساب في Buzzify Studio.',
+  'email.footer': 'وصلتك هذه الرسالة بسبب نشاط على حساب في Buzzify Core.',
 
   // Email: invitation
-  'email.invite.subject': 'دعوة للانضمام إلى Buzzify Studio',
-  'email.invite.intro': 'دعاك {inviter} للانضمام إلى Buzzify Studio.',
-  'email.invite.introNoInviter': 'تمت دعوتك للانضمام إلى Buzzify Studio.',
+  'email.invite.subject': 'دعوة للانضمام إلى Buzzify Core',
+  'email.invite.intro': 'دعاك {inviter} للانضمام إلى Buzzify Core.',
+  'email.invite.introNoInviter': 'تمت دعوتك للانضمام إلى Buzzify Core.',
   'email.invite.restaurant': 'المطعم: {restaurant}',
   'email.invite.role': 'دورك: {role}',
   'email.invite.action': 'قبول الدعوة',
@@ -2084,36 +2084,36 @@ const ar: Messages = {
   'email.invite.ignore': 'إذا لم تكن تتوقع هذه الدعوة، يمكنك تجاهل هذه الرسالة.',
 
   // Email: password reset
-  'email.reset.subject': 'إعادة تعيين كلمة مرور Buzzify Studio',
-  'email.reset.intro': 'تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في Buzzify Studio.',
+  'email.reset.subject': 'إعادة تعيين كلمة مرور Buzzify Core',
+  'email.reset.intro': 'تلقينا طلبًا لإعادة تعيين كلمة مرور حسابك في Buzzify Core.',
   'email.reset.action': 'اختيار كلمة مرور جديدة',
   'email.reset.expiry': 'يمكن استخدام هذا الرابط مرة واحدة فقط وتنتهي صلاحيته بعد ساعة واحدة.',
   'email.reset.ignore': 'إذا لم تطلب ذلك، تجاهل هذه الرسالة؛ ستبقى كلمة مرورك كما هي.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
-  'email.changeEmailConfirm.subject': 'وافق على تغيير بريدك الإلكتروني في Buzzify Studio',
+  'email.changeEmailConfirm.subject': 'وافق على تغيير بريدك الإلكتروني في Buzzify Core',
   'email.changeEmailConfirm.intro':
-    'طلبتَ تغيير البريد الإلكتروني لحسابك في Buzzify Studio إلى {newEmail}. وافق على التغيير للمتابعة.',
+    'طلبتَ تغيير البريد الإلكتروني لحسابك في Buzzify Core إلى {newEmail}. وافق على التغيير للمتابعة.',
   'email.changeEmailConfirm.action': 'الموافقة على التغيير',
   'email.changeEmailConfirm.ignore': 'إذا لم تطلب ذلك، تجاهل هذه الرسالة؛ سيبقى بريدك الإلكتروني كما هو.',
 
   // Email: changing the sign-in address, step two (sent to the new address)
-  'email.verifyNewEmail.subject': 'أكّد عنوان بريدك الإلكتروني الجديد في Buzzify Studio',
+  'email.verifyNewEmail.subject': 'أكّد عنوان بريدك الإلكتروني الجديد في Buzzify Core',
   'email.verifyNewEmail.intro':
-    'أكّد أن هذا العنوان يخصّك لإكمال تغيير البريد الإلكتروني الذي تسجّل به الدخول إلى Buzzify Studio.',
+    'أكّد أن هذا العنوان يخصّك لإكمال تغيير البريد الإلكتروني الذي تسجّل به الدخول إلى Buzzify Core.',
   'email.verifyNewEmail.action': 'تأكيد عنوان البريد الإلكتروني',
   'email.verifyNewEmail.ignore': 'إذا لم تطلب ذلك، يمكنك تجاهل هذه الرسالة.',
 
   // Email: notice to the old address after the change
-  'email.emailChanged.subject': 'تم تغيير بريدك الإلكتروني في Buzzify Studio',
-  'email.emailChanged.intro': 'تم تغيير البريد الإلكتروني لحسابك في Buzzify Studio إلى {newEmail}.',
-  'email.emailChanged.warning': 'إذا لم تكن أنت من أجرى هذا التغيير، فتواصل مع مسؤول Buzzify Studio فورًا.',
+  'email.emailChanged.subject': 'تم تغيير بريدك الإلكتروني في Buzzify Core',
+  'email.emailChanged.intro': 'تم تغيير البريد الإلكتروني لحسابك في Buzzify Core إلى {newEmail}.',
+  'email.emailChanged.warning': 'إذا لم تكن أنت من أجرى هذا التغيير، فتواصل مع مسؤول Buzzify Core فورًا.',
 
   // Email: notice after a password change
-  'email.passwordChanged.subject': 'تم تغيير كلمة مرور Buzzify Studio',
-  'email.passwordChanged.intro': 'تم تغيير كلمة مرور حسابك في Buzzify Studio قبل قليل.',
+  'email.passwordChanged.subject': 'تم تغيير كلمة مرور Buzzify Core',
+  'email.passwordChanged.intro': 'تم تغيير كلمة مرور حسابك في Buzzify Core قبل قليل.',
   'email.passwordChanged.warning':
-    'إذا لم تكن أنت من أجرى هذا التغيير، فأعد تعيين كلمة المرور الآن وتواصل مع مسؤول Buzzify Studio.',
+    'إذا لم تكن أنت من أجرى هذا التغيير، فأعد تعيين كلمة المرور الآن وتواصل مع مسؤول Buzzify Core.',
   'workspace.tab.design': 'التصميم',
   'activity.action.design.applied': 'غيّر القالب',
   'activity.action.design.updated': 'خصّص التصميم',

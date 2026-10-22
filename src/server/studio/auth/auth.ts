@@ -143,7 +143,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
   const { secret, baseUrl, production } = config;
 
   return betterAuth({
-    appName: 'Buzzify Studio',
+    appName: 'Buzzify Core',
     baseURL: baseUrl,
     secret,
     database: prismaAdapter(prisma, { provider: 'postgresql' }),
@@ -220,7 +220,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     },
 
     // nextCookies must come last: it warns when another plugin follows it.
-    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Studio', backupCodeOptions: { amount: 10 } }), nextCookies()],
+    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }), nextCookies()],
   });
 }
 

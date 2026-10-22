@@ -5,7 +5,7 @@ import menuMotions from './menu-motions/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
-  'common.appName': 'Buzzify Studio',
+  'common.appName': 'Buzzify Core',
   'common.skipToContent': 'بازدان بۆ ناوەڕۆک',
   'common.save': 'پاشەکەوتکردن',
   'common.saving': 'پاشەکەوت دەکرێت…',
@@ -75,7 +75,7 @@ const ckb: Messages = {
   'auth.signIn.alreadyAction': 'بڕۆ بۆ ستۆدیۆ',
 
   'auth.twoFactor.title': 'کۆدەکەت بنووسە',
-  'auth.twoFactor.intro': 'ئەپی ناسینەوەکەت بکەرەوە و ئەو کۆدە 6 ژمارەییە بنووسە کە بۆ Buzzify Studio پیشانی دەدات.',
+  'auth.twoFactor.intro': 'ئەپی ناسینەوەکەت بکەرەوە و ئەو کۆدە 6 ژمارەییە بنووسە کە بۆ Buzzify Core پیشانی دەدات.',
   'auth.twoFactor.code': 'کۆدی ناسینەوە',
   'auth.twoFactor.recoveryTitle': 'کۆدی گەڕاندنەوە بەکاربهێنە',
   'auth.twoFactor.recoveryIntro':
@@ -94,7 +94,7 @@ const ckb: Messages = {
   'auth.forgot.pending': 'دەنێردرێت…',
   'auth.forgot.sentTitle': 'سەیری سندوقی نامەکانت بکە',
   'auth.forgot.sentBody':
-    'ئەگەر {email} هی هەژمارێکی Buzzify Studio بێت، بەستەرێک بۆ هەڵبژاردنی وشەیەکی نهێنی نوێ لە ڕێگادایە. تەنیا یەک جار و لە ماوەی کاتژمێرێکدا کار دەکات.',
+    'ئەگەر {email} هی هەژمارێکی Buzzify Core بێت، بەستەرێک بۆ هەڵبژاردنی وشەیەکی نهێنی نوێ لە ڕێگادایە. تەنیا یەک جار و لە ماوەی کاتژمێرێکدا کار دەکات.',
   'auth.forgot.again': 'ناونیشانێکی تر بەکاربهێنە',
 
   'auth.reset.title': 'وشەیەکی نهێنی نوێ هەڵبژێرە',
@@ -107,7 +107,7 @@ const ckb: Messages = {
   'auth.reset.missingBody': 'بەستەرەکە دووبارە لە ئیمەیڵەکەوە بکەرەوە، یان داوای بەستەرێکی نوێ بکە.',
   'auth.reset.requestNew': 'داوای بەستەرێکی نوێ بکە',
 
-  'auth.invite.title': 'بەشداربە لە Buzzify Studio',
+  'auth.invite.title': 'بەشداربە لە Buzzify Core',
   'auth.invite.forRestaurant': 'وەک {role} لە {restaurant} بانگهێشتکراویت.',
   'auth.invite.forRole': 'وەک {role} بانگهێشتکراویت.',
   'auth.invite.address': 'ناونیشانی بانگهێشتکراو',
@@ -116,7 +116,7 @@ const ckb: Messages = {
   'auth.invite.password': 'وشەی نهێنی',
   'auth.invite.create': 'دروستکردنی هەژمار',
   'auth.invite.creating': 'هەژمارەکەت دروست دەکرێت…',
-  'auth.invite.existingIntro': 'ئەم ناونیشانە پێشتر هەژمارێکی Buzzify Studio ـی هەیە. بۆ قبوڵکردن پێی بچۆ ژوورەوە.',
+  'auth.invite.existingIntro': 'ئەم ناونیشانە پێشتر هەژمارێکی Buzzify Core ـی هەیە. بۆ قبوڵکردن پێی بچۆ ژوورەوە.',
   'auth.invite.signInToAccept': 'بچۆ ژوورەوە بۆ قبوڵکردن',
   'auth.invite.accept': 'قبوڵکردنی بانگهێشتنامە',
   'auth.invite.accepting': 'قبوڵ دەکرێت…',
@@ -162,7 +162,7 @@ const ckb: Messages = {
   'auth.codes.list': 'کۆدەکانی گەڕاندنەوە',
   'auth.codes.copyAll': 'کۆپیکردنی کۆدەکان',
   'auth.codes.download': 'داگرتن وەک دەق',
-  'auth.codes.fileTitle': 'کۆدەکانی گەڕاندنەوەی Buzzify Studio',
+  'auth.codes.fileTitle': 'کۆدەکانی گەڕاندنەوەی Buzzify Core',
   'auth.codes.fileAccount': 'هەژمار: {email}',
   'auth.codes.fileNote': 'هەر کۆدێک یەک جار دەتباتە ژوورەوە. ئەم فایلە لە شوێنێک دابنێ کە تەنیا خۆت بتوانیت بیکەیتەوە.',
 
@@ -2046,12 +2046,12 @@ const ckb: Messages = {
   'email.greeting': 'سڵاو {name}،',
   'email.greetingNoName': 'سڵاو،',
   'email.linkFallback': 'ئەگەر دوگمەکە کارنەکات، ئەم بەستەرە کۆپی بکە و لە وێبگەڕەکەتدا بیخە:',
-  'email.footer': 'ئەم ئیمەیڵە بۆ تۆ هاتووە بەهۆی چالاکییەک لەسەر هەژمارێک لە Buzzify Studio.',
+  'email.footer': 'ئەم ئیمەیڵە بۆ تۆ هاتووە بەهۆی چالاکییەک لەسەر هەژمارێک لە Buzzify Core.',
 
   // Email: invitation
-  'email.invite.subject': 'بانگهێشتکراویت بۆ Buzzify Studio',
-  'email.invite.intro': '{inviter} بانگهێشتی کردویت بۆ ئەوەی بچیتە ناو Buzzify Studio.',
-  'email.invite.introNoInviter': 'بانگهێشتکراویت بۆ ئەوەی بچیتە ناو Buzzify Studio.',
+  'email.invite.subject': 'بانگهێشتکراویت بۆ Buzzify Core',
+  'email.invite.intro': '{inviter} بانگهێشتی کردویت بۆ ئەوەی بچیتە ناو Buzzify Core.',
+  'email.invite.introNoInviter': 'بانگهێشتکراویت بۆ ئەوەی بچیتە ناو Buzzify Core.',
   'email.invite.restaurant': 'ڕێستۆران: {restaurant}',
   'email.invite.role': 'ڕۆڵەکەت: {role}',
   'email.invite.action': 'قبوڵکردنی بانگهێشتنامەکە',
@@ -2059,37 +2059,37 @@ const ckb: Messages = {
   'email.invite.ignore': 'ئەگەر چاوەڕێی ئەم بانگهێشتنامەیە نەبوویت، دەتوانیت ئەم ئیمەیڵە فەرامۆش بکەیت.',
 
   // Email: password reset
-  'email.reset.subject': 'وشەی نهێنی Buzzify Studio دووبارە ڕێکبخەرەوە',
-  'email.reset.intro': 'داواکارییەکمان وەرگرت بۆ دووبارە ڕێکخستنەوەی وشەی نهێنی هەژمارەکەت لە Buzzify Studio.',
+  'email.reset.subject': 'وشەی نهێنی Buzzify Core دووبارە ڕێکبخەرەوە',
+  'email.reset.intro': 'داواکارییەکمان وەرگرت بۆ دووبارە ڕێکخستنەوەی وشەی نهێنی هەژمارەکەت لە Buzzify Core.',
   'email.reset.action': 'وشەیەکی نهێنی نوێ هەڵبژێرە',
   'email.reset.expiry': 'ئەم بەستەرە تەنیا یەک جار بەکاردێت و دوای کاتژمێرێک بەسەر دەچێت.',
   'email.reset.ignore': 'ئەگەر تۆ ئەمەت نەویستووە، ئەم ئیمەیڵە فەرامۆش بکە؛ وشەی نهێنییەکەت وەک خۆی دەمێنێتەوە.',
 
   // Email: changing the sign-in address, step one (sent to the current address)
-  'email.changeEmailConfirm.subject': 'ڕەزامەندی لەسەر گۆڕینی ئیمەیڵەکەت لە Buzzify Studio بدە',
+  'email.changeEmailConfirm.subject': 'ڕەزامەندی لەسەر گۆڕینی ئیمەیڵەکەت لە Buzzify Core بدە',
   'email.changeEmailConfirm.intro':
-    'داوات کردووە ئیمەیڵی هەژمارەکەت لە Buzzify Studio بگۆڕدرێت بۆ {newEmail}. بۆ بەردەوامبوون ڕەزامەندی لەسەر گۆڕانکارییەکە بدە.',
+    'داوات کردووە ئیمەیڵی هەژمارەکەت لە Buzzify Core بگۆڕدرێت بۆ {newEmail}. بۆ بەردەوامبوون ڕەزامەندی لەسەر گۆڕانکارییەکە بدە.',
   'email.changeEmailConfirm.action': 'ڕەزامەندی لەسەر گۆڕانکارییەکە',
   'email.changeEmailConfirm.ignore': 'ئەگەر تۆ ئەمەت نەویستووە، ئەم ئیمەیڵە فەرامۆش بکە؛ ناونیشانەکەت وەک خۆی دەمێنێتەوە.',
 
   // Email: changing the sign-in address, step two (sent to the new address)
-  'email.verifyNewEmail.subject': 'ناونیشانی ئیمەیڵە نوێیەکەت لە Buzzify Studio پشتڕاست بکەرەوە',
+  'email.verifyNewEmail.subject': 'ناونیشانی ئیمەیڵە نوێیەکەت لە Buzzify Core پشتڕاست بکەرەوە',
   'email.verifyNewEmail.intro':
-    'پشتڕاستی بکەرەوە کە ئەم ناونیشانە هی تۆیە، بۆ تەواوکردنی گۆڕینی ئەو ئیمەیڵەی بۆ چوونەژوورەوە لە Buzzify Studio بەکاری دەهێنیت.',
+    'پشتڕاستی بکەرەوە کە ئەم ناونیشانە هی تۆیە، بۆ تەواوکردنی گۆڕینی ئەو ئیمەیڵەی بۆ چوونەژوورەوە لە Buzzify Core بەکاری دەهێنیت.',
   'email.verifyNewEmail.action': 'پشتڕاستکردنەوەی ئەم ناونیشانی ئیمەیڵە',
   'email.verifyNewEmail.ignore': 'ئەگەر تۆ ئەمەت نەویستووە، دەتوانیت ئەم ئیمەیڵە فەرامۆش بکەیت.',
 
   // Email: notice to the old address after the change
-  'email.emailChanged.subject': 'ئیمەیڵی هەژمارەکەت لە Buzzify Studio گۆڕدرا',
-  'email.emailChanged.intro': 'ئیمەیڵی هەژمارەکەت لە Buzzify Studio گۆڕدرا بۆ {newEmail}.',
+  'email.emailChanged.subject': 'ئیمەیڵی هەژمارەکەت لە Buzzify Core گۆڕدرا',
+  'email.emailChanged.intro': 'ئیمەیڵی هەژمارەکەت لە Buzzify Core گۆڕدرا بۆ {newEmail}.',
   'email.emailChanged.warning':
-    'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، دەستبەجێ پەیوەندی بە بەڕێوەبەری Buzzify Studio بکە.',
+    'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، دەستبەجێ پەیوەندی بە بەڕێوەبەری Buzzify Core بکە.',
 
   // Email: notice after a password change
-  'email.passwordChanged.subject': 'وشەی نهێنی Buzzify Studio گۆڕدرا',
-  'email.passwordChanged.intro': 'وشەی نهێنی هەژمارەکەت لە Buzzify Studio ئێستا گۆڕدرا.',
+  'email.passwordChanged.subject': 'وشەی نهێنی Buzzify Core گۆڕدرا',
+  'email.passwordChanged.intro': 'وشەی نهێنی هەژمارەکەت لە Buzzify Core ئێستا گۆڕدرا.',
   'email.passwordChanged.warning':
-    'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، ئێستا وشەی نهێنییەکەت دووبارە ڕێکبخەرەوە و پەیوەندی بە بەڕێوەبەری Buzzify Studio بکە.',
+    'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، ئێستا وشەی نهێنییەکەت دووبارە ڕێکبخەرەوە و پەیوەندی بە بەڕێوەبەری Buzzify Core بکە.',
   'workspace.tab.design': 'دیزاین',
   'activity.action.design.applied': 'قاڵبەکەی گۆڕی',
   'activity.action.design.updated': 'دیزاینەکەی ڕێکخست',

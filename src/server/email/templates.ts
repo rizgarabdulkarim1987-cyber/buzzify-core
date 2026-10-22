@@ -45,7 +45,7 @@ interface Content {
   notes: string[];
 }
 
-const BRAND = 'Buzzify Studio';
+const BRAND = 'Buzzify Core';
 
 /** First-strong isolate and pop-directional isolate (U+2068, U+2069). */
 const FSI = String.fromCodePoint(0x2068);

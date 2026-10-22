@@ -580,7 +580,7 @@ describe('changing a user email', () => {
     ]);
     const [notice] = await mailTo(dee.email);
     expect(notice?.text).toContain(next);
-    expect(notice?.subject).toBe('Your Buzzify Studio email was changed');
+    expect(notice?.subject).toBe('Your Buzzify Core email was changed');
     expect(await prisma().session.count({ where: { userId: dee.userId } })).toBe(1);
     expect(browser.has('studio.session_token')).toBe(true);
     // Signs in with the new address now, not the old one.

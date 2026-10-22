@@ -129,7 +129,7 @@ describe('checkProductionEnv', () => {
   });
 
   it('reports malformed values of the optional variables too', () => {
-    expect(named(problemsWith({ EMAIL_FROM: 'Buzzify Studio' }))).toEqual(['EMAIL_FROM']);
+    expect(named(problemsWith({ EMAIL_FROM: 'Buzzify Core' }))).toEqual(['EMAIL_FROM']);
     expect(named(problemsWith({ PUBLIC_ROOT_REDIRECT: 'javascript:alert(1)' }))).toEqual(['PUBLIC_ROOT_REDIRECT']);
     expect(named(problemsWith({ STUDIO_HOST: 'https://studio.buzzify.me' }))).toEqual(['STUDIO_HOST']);
   });
