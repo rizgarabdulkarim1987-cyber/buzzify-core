@@ -508,8 +508,10 @@ function RecordPaymentDialog({ subscription, title, shared, onClose }: { subscri
   const form = useActionForm(
     (values) => {
       const request = paymentRequest(values, subscription, shared.restaurantId, idempotencyKey);
-      // The client check has passed by now; the server says the same thing again if not.
-      return settle(() => recordPayment(request.ok ? request.input : { ...values, idempotencyKey }));
+      // `validate` has refused such values already. Should any get this far, they are refused here too: only an amount
+      // read into minor units is ever sent.
+      if (!request.ok) return Promise.resolve<Awaited<ReturnType<typeof recordPayment>>>({ ok: false, error: { code: 'INVALID', message: 'Check the highlighted fields' } });
+      return settle(() => recordPayment(request.input));
     },
     {
       keep: KEPT_PAYMENT_FIELDS,

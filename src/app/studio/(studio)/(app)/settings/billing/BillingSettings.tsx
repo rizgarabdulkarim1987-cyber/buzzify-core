@@ -1,5 +1,6 @@
 'use client';
 
+import { Package } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -13,6 +14,7 @@ import { formatAmountInput, parseAmountInput } from '@/studio/money-input';
 import { settle } from '@/studio/settle';
 import { Alert, FailureAlert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
+import { EmptyState } from '@/studio/ui/EmptyState';
 import { Input } from '@/studio/ui/Input';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { Switch } from '@/studio/ui/Switch';
@@ -42,6 +44,8 @@ export function BillingSettings({
         <p className="max-w-[72ch] text-sm text-muted">{t('billingSettings.intro')}</p>
       </div>
       {!canEdit && <Alert>{t('billingSettings.readOnly')}</Alert>}
+      {/* The products come with the migrations; a database without them cannot bill anyone, so it says so. */}
+      {products.length === 0 && <EmptyState icon={<Package aria-hidden />} title={t('billingSettings.emptyTitle')} body={t('billingSettings.empty')} />}
       {products.map((product) => (
         <ProductSection key={product.id} product={product} planNames={planNames} canEdit={canEdit} />
       ))}
@@ -90,15 +94,13 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
       const errors = Object.fromEntries(checked.flatMap(({ plan, sent }) => (sent.ok ? [] : Object.entries(sent.errors).map(([cell, key]) => [`${plan.code}:${cell}`, t(key)]))));
       setCellErrors(errors);
       if (Object.keys(errors).length > 0) return setPricesFailure(null);
-      // One plan at a time: a refusal stops there, and the plans saved before it stay saved.
+      // One plan at a time: a refusal stops there, and the plans saved before it stay saved. The page is not refreshed
+      // then: the section is keyed on the stored prices, so a refresh would remount it and drop the refusal and what was
+      // typed. A retry sends the saved plans again, which changes nothing for them.
       for (const { plan, sent } of checked) {
         if (!sent.ok) continue;
         const result = await settle(() => setPrices({ applicationId: product.id, planCode: plan.code, prices: sent.prices }));
-        if (!result.ok) {
-          setPricesFailure(describeFailure(t, locale, result.error));
-          router.refresh();
-          return;
-        }
+        if (!result.ok) return setPricesFailure(describeFailure(t, locale, result.error));
       }
       setPricesFailure(null);
       toast.success(t('billingSettings.pricesSaved', { product: name }));
@@ -194,6 +196,9 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
                           const cell = priceCell(currency, period);
                           const error = cellErrors[`${plan.code}:${cell}`];
                           const errorId = `price-${product.id}-${plan.code}-${cell}`;
+                          const typed = prices[plan.code]?.[cell] ?? '';
+                          // Pointed at only when there is something under the field to read: an error or a read-back.
+                          const described = Boolean(error) || readbackOf(typed, currency) !== null;
                           return (
                             <td key={cell} className="px-3 py-2">
                               <Input
@@ -203,7 +208,7 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
                                 className="rtl:text-right"
                                 readOnly={!canEdit || savingPrices}
                                 aria-invalid={error ? true : undefined}
-                                aria-describedby={errorId}
+                                aria-describedby={described ? errorId : undefined}
                                 aria-label={t('billingSettings.priceLabel', { plan: planName(plan.code), currency, period: t(`billing.period.${period}`) })}
                                 onChange={(event) => {
                                   const value = event.target.value;
@@ -221,7 +226,7 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
                                   {error}
                                 </p>
                               ) : (
-                                <Readback text={prices[plan.code]?.[cell] ?? ''} currency={currency} id={errorId} />
+                                <Readback text={typed} currency={currency} id={errorId} />
                               )}
                             </td>
                           );
@@ -255,11 +260,17 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
 function Readback({ text, currency, id }: { text: string; currency: Currency; id: string }) {
   const t = useT();
   const { locale } = useLocale();
-  const parsed = parseAmountInput(text, currency);
-  if (!parsed.ok || text.trim() === formatAmountInput(parsed.minor, currency)) return null;
+  const minor = readbackOf(text, currency);
+  if (minor === null) return null;
   return (
     <p id={id} className="mt-1 text-xs text-muted">
-      {t('billing.amountReads', { amount: formatMoney(parsed.minor, currency, locale) })}
+      {t('billing.amountReads', { amount: formatMoney(minor, currency, locale) })}
     </p>
   );
+}
+
+/** The amount a read-back names, or null when the text cannot be read or already reads as it will be shown. */
+function readbackOf(text: string, currency: Currency): number | null {
+  const parsed = parseAmountInput(text, currency);
+  return !parsed.ok || text.trim() === formatAmountInput(parsed.minor, currency) ? null : parsed.minor;
 }

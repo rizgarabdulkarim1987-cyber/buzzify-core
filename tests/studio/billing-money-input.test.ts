@@ -16,6 +16,9 @@ describe('IQD amounts', () => {
     ['1.250.000', 1250000],
     ['1,250,000', 1250000],
     ['1 250 000', 1250000],
+    // The narrow no-break space, which `Intl` writes between groups for some locales.
+    ['25 000', 25000],
+    ['1 250 000', 1250000],
     ['٢٥٬٠٠٠', 25000],
     ['٢٥٠٠٠', 25000],
     ['۲۵۰۰۰', 25000],
@@ -99,6 +102,14 @@ describe('the messages', () => {
       expect(STUDIO_MESSAGES[locale][key], key).toBeTruthy();
     }
     expect(STUDIO_MESSAGES[locale]['billing.amountReads']).toContain('{amount}');
+  });
+
+  it('names, for every problem in every currency, a message that exists, and keeps no amount message nothing names', () => {
+    const problems = ['EMPTY', 'NOT_A_NUMBER', 'NEGATIVE', 'NOT_WHOLE', 'TOO_PRECISE', 'TOO_LARGE'] as const;
+    const named = new Set(problems.flatMap((reason) => (['IQD', 'USD'] as const).map((currency) => amountProblemKey(reason, currency))));
+    for (const key of named) expect(STUDIO_MESSAGES.en[key], key).toBeTruthy();
+    const defined = Object.keys(STUDIO_MESSAGES.en).filter((key) => key.startsWith('billing.amount.'));
+    expect(defined.sort()).toEqual([...named].sort());
   });
 });
 

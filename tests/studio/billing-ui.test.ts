@@ -146,6 +146,21 @@ describe('Settings → Billing', () => {
     expect(html).toContain(en('billingSettings.saveProduct', { product: 'Cashier' }));
   });
 
+  it('points each price field only at a message that is there', () => {
+    for (const html of [settings(true), settings(false)]) {
+      const described = [...html.matchAll(/aria-describedby="([^"]+)"/g)].map((match) => match[1]!);
+      for (const id of described) expect(html, id).toContain(`id="${id}"`);
+    }
+  });
+
+  it('says what is missing when there are no products, in each language', () => {
+    for (const locale of ['en', 'ar', 'ckb'] as const) {
+      const html = render(createElement(BillingSettings, { products: [], planNames: PLAN_NAMES, canEdit: true }), locale);
+      expect(html).toContain(STUDIO_MESSAGES[locale]['billingSettings.empty']);
+    }
+    expect(settings(true)).not.toContain(en('billingSettings.empty'));
+  });
+
   it('reads right to left in Arabic and Sorani, with the product names of the language', () => {
     expect(settings(true, 'ar')).toContain('المنيو');
     expect(settings(false, 'ckb')).toContain(STUDIO_MESSAGES.ckb['billingSettings.readOnly']);
@@ -305,7 +320,8 @@ describe('the payment form', () => {
     expect(request.ok && request.input.method).toBe('CASH');
   });
 
-  it('keeps the idempotency key when the answer is lost and the payment is sent again', async () => {
+  // The dialog's own key (made once per opening) is followed across a lost answer in billing-dom.test.ts.
+  it('builds the request around the key it is given, so a resend with the same key is the same payment', async () => {
     const key = crypto.randomUUID();
     actions.recordPayment.mockRejectedValueOnce(new TypeError('Failed to fetch')).mockResolvedValueOnce({ ok: true, data: { paymentId: 'p1' } });
     const send = async () => {
