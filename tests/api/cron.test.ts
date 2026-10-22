@@ -41,6 +41,21 @@ describe('the publishing cron', () => {
     expect(await response.json()).toEqual({ activated: 0, cancelled: 0 });
   });
 
+  it("clears the public API's rate counts that are a day old, and leaves the rest", async () => {
+    vi.stubEnv('CRON_SECRET', SECRET);
+    const now = Date.now();
+    await prisma.authRateLimit.createMany({
+      data: [
+        { key: 'api:quote:menu:203.0.113.1', windowStart: new Date(now - 25 * 3600_000), count: 3 },
+        { key: 'api:quote:menu:203.0.113.2', windowStart: new Date(now - 60_000), count: 3 },
+        { key: 'signin:ip:203.0.113.1', windowStart: new Date(now - 25 * 3600_000), count: 3 },
+      ],
+    });
+    expect((await call(`Bearer ${SECRET}`)).status).toBe(200);
+    const keys = (await prisma.authRateLimit.findMany({ orderBy: { key: 'asc' } })).map((row) => row.key);
+    expect(keys).toEqual(['api:quote:menu:203.0.113.2', 'signin:ip:203.0.113.1']);
+  });
+
   it('gives itself a minute', async () => {
     expect((await import('@/app/api/cron/publish/route')).maxDuration).toBe(60);
   });

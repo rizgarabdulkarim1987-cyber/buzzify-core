@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, resetTestData, seedAtelier, testPrisma } from '../helpers/db';
 
@@ -212,6 +212,19 @@ describe('public API', () => {
       }
       expect(statuses.filter((s) => s === 200).length).toBe(60);
       expect(statuses.slice(60)).toEqual([429, 429]);
+    });
+
+    it('holds the limit across server instances', async () => {
+      // A second import with a fresh module registry is a second server: its own in-memory limiter, the same database.
+      vi.resetModules();
+      const other = (await import('@/app/api/[tenant]/quote/route')) as RouteModule;
+      const body = { locale: 'en', cart: { lines: [], bundles: [] } };
+      for (let i = 0; i < 60; i += 1) {
+        expect((await post(i % 2 === 0 ? quote : other, 'atelier', body, { ip: '203.0.113.77' })).status).toBe(200);
+      }
+      const refused = await post(other, 'atelier', body, { ip: '203.0.113.77' });
+      expect(refused.status).toBe(429);
+      expect(Number(refused.headers.get('retry-after'))).toBeGreaterThan(0);
     });
   });
 
