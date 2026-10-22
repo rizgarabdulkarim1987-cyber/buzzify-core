@@ -124,7 +124,7 @@ Buzzify Core keeps each restaurant's subscriptions (per product) and the payment
 payment gateway and no provider key**: a payment is recorded in the Studio (cash by default; the other methods are only
 labels).
 
-A second scheduler call moves overdue subscriptions on: `GET` or `POST`
+A second scheduler call moves overdue subscriptions on: a `GET` (only `GET`; a `POST` is answered `405`) of
 `https://studio.buzzify-menu.online/api/cron/subscriptions` every 15 minutes, with the same `CRON_SECRET` and the same
 `Authorization: Bearer` header as the publish scheduler above (no new setting). It answers `401` when the secret is
 missing or wrong.
@@ -136,7 +136,8 @@ missing or wrong.
   curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/subscriptions
   ```
 
-- or an external scheduler that can send a header: the same address every 15 minutes with `Authorization: Bearer SECRET`.
+- or an external scheduler that can send a header: a `GET` of the same address every 15 minutes with
+  `Authorization: Bearer SECRET`.
 
 The sweep moves subscriptions past their end to the grace period and then to expired, and records the matching events.
 Access is judged when a request arrives, so a missed run only delays the stored status and its events; nothing is lost
@@ -144,9 +145,10 @@ and the next run catches up. Add the job after the deploy that brings billing.
 
 ## The production migration for billing (once, with the owner's approval)
 
-The release that brings billing includes a migration (the folder in `prisma/migrations/` ending `_billing`), and the
-Hostinger build runs `prisma migrate deploy` on production. Rehearse it first; do not let the first run happen on
-production.
+The release that brings billing includes two migrations (the folders in `prisma/migrations/` ending `_billing`, which
+adds the tables, and `_billing_applications`, which adds the Menu and Cashier products; never run the demo seed on
+production for them), and the Hostinger build runs `prisma migrate deploy` on production. Rehearse it first; do
+not let the first run happen on production.
 
 1. **Snapshot:** in Neon, project `buzzify-menu`, take a snapshot of the `production` branch. This is the way back.
 2. **Rehearse on a branch:** create a Neon branch from `production` (or from that snapshot). With `DIRECT_DATABASE_URL`
