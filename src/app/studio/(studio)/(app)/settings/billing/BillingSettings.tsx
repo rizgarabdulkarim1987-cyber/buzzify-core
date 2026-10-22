@@ -5,10 +5,11 @@ import { useState, useTransition } from 'react';
 import { toast } from 'sonner';
 import { setApplication, setPrices } from '@/app/studio/_actions/billing';
 import { direction, LOCALE_NAMES, LOCALES, type Locale } from '@/lib/locale';
+import { formatMoney, type Currency } from '@/server/domain/billing/money';
 import { CURRENCIES, PERIODS, priceCell, priceDraft, pricesToSend, type BillingProduct, type PriceDraft } from '@/studio/billing';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
-import { formatAmountInput } from '@/studio/money-input';
+import { formatAmountInput, parseAmountInput } from '@/studio/money-input';
 import { settle } from '@/studio/settle';
 import { Alert, FailureAlert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
@@ -202,7 +203,7 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
                                 className="rtl:text-right"
                                 readOnly={!canEdit || savingPrices}
                                 aria-invalid={error ? true : undefined}
-                                aria-describedby={error ? errorId : undefined}
+                                aria-describedby={errorId}
                                 aria-label={t('billingSettings.priceLabel', { plan: planName(plan.code), currency, period: t(`billing.period.${period}`) })}
                                 onChange={(event) => {
                                   const value = event.target.value;
@@ -215,10 +216,12 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
                                   setPricesFailure(null);
                                 }}
                               />
-                              {error && (
+                              {error ? (
                                 <p id={errorId} className="mt-1 text-xs text-danger">
                                   {error}
                                 </p>
+                              ) : (
+                                <Readback text={prices[plan.code]?.[cell] ?? ''} currency={currency} id={errorId} />
                               )}
                             </td>
                           );
@@ -242,5 +245,21 @@ function ProductSection({ product, planNames, canEdit }: { product: BillingProdu
         )}
       </div>
     </section>
+  );
+}
+
+/**
+ * What a typed price will be saved as, when it is written another way than the field will show it after the save:
+ * "25.000" in IQD reads back as IQD 25,000, so a person sees the thousands were understood.
+ */
+function Readback({ text, currency, id }: { text: string; currency: Currency; id: string }) {
+  const t = useT();
+  const { locale } = useLocale();
+  const parsed = parseAmountInput(text, currency);
+  if (!parsed.ok || text.trim() === formatAmountInput(parsed.minor, currency)) return null;
+  return (
+    <p id={id} className="mt-1 text-xs text-muted">
+      {t('billing.amountReads', { amount: formatMoney(parsed.minor, currency, locale) })}
+    </p>
   );
 }

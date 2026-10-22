@@ -337,7 +337,7 @@ describe('the price grid', () => {
   it('names each cell that cannot be read', () => {
     expect(pricesToSend({ 'IQD/MONTHLY': '25.5', 'USD/YEARLY': 'abc' })).toEqual({
       ok: false,
-      errors: { 'IQD/MONTHLY': 'billing.amount.whole', 'USD/YEARLY': 'billing.amount.NOT_A_NUMBER' },
+      errors: { 'IQD/MONTHLY': 'billing.amount.whole', 'USD/YEARLY': 'billing.amount.usdFormat' },
     });
   });
 });

@@ -80,9 +80,11 @@ export function priceOf(product: BillingProduct | undefined, planCode: string, c
   return plan?.prices.find((price) => price.currency === currency && price.period === period)?.amountMinor ?? null;
 }
 
-/** The message key for an amount that cannot be read; IQD has no minor unit, so "too precise" is "whole dinars". */
+/** The message key for an amount that cannot be read, worded for the way the currency's amounts are written. */
 export function amountProblemKey(reason: AmountInputProblem, currency: Currency): string {
-  if (reason === 'TOO_PRECISE') return currency === 'IQD' ? 'billing.amount.whole' : 'billing.amount.cents';
+  if (reason === 'NOT_WHOLE' || (reason === 'TOO_PRECISE' && currency === 'IQD')) return 'billing.amount.whole';
+  if (reason === 'TOO_PRECISE') return 'billing.amount.cents';
+  if (reason === 'NOT_A_NUMBER') return currency === 'IQD' ? 'billing.amount.whole' : 'billing.amount.usdFormat';
   return `billing.amount.${reason}`;
 }
 

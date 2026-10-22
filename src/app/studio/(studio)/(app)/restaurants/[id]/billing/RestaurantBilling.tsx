@@ -28,7 +28,7 @@ import {
 import { useActionForm } from '@/studio/forms';
 import { formatDate, formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
-import { formatAmountInput } from '@/studio/money-input';
+import { formatAmountInput, parseAmountInput } from '@/studio/money-input';
 import { useRefuse } from '@/studio/refuse';
 import { settle } from '@/studio/settle';
 import { Alert } from '@/studio/ui/Alert';
@@ -490,6 +490,7 @@ function StartTrialDialog({ product, prices, shared, onClose }: { product: Produ
 }
 
 const PAYMENT_FIELDS = ['amountMinor', 'paidAt', 'method', 'reference', 'note'] as const;
+const KEPT_PAYMENT_FIELDS = ['paidAt', 'method', 'reference', 'note'] as const;
 
 /**
  * Money the platform owner has received, recorded by hand. Mounted each time the dialog opens, so the idempotency key is
@@ -498,6 +499,7 @@ const PAYMENT_FIELDS = ['amountMinor', 'paidAt', 'method', 'reference', 'note'] 
  */
 function RecordPaymentDialog({ subscription, title, shared, onClose }: { subscription: SubscriptionView; title: string; shared: Shared; onClose: () => void }) {
   const t = useT();
+  const { locale } = useLocale();
   const router = useRouter();
   const formId = useId();
   const [idempotencyKey] = useState(() => crypto.randomUUID());
@@ -510,7 +512,7 @@ function RecordPaymentDialog({ subscription, title, shared, onClose }: { subscri
       return settle(() => recordPayment(request.ok ? request.input : { ...values, idempotencyKey }));
     },
     {
-      keep: PAYMENT_FIELDS,
+      keep: KEPT_PAYMENT_FIELDS,
       validate: (values) => {
         const request = paymentRequest(values, subscription, shared.restaurantId, idempotencyKey);
         return request.ok ? null : Object.fromEntries(Object.entries(request.errors).map(([field, key]) => [field, t(key)]));
@@ -522,7 +524,13 @@ function RecordPaymentDialog({ subscription, title, shared, onClose }: { subscri
       },
     },
   );
-  const kept = (name: (typeof PAYMENT_FIELDS)[number], fallback: string) => form.value(name) ?? fallback;
+  const kept = (name: (typeof KEPT_PAYMENT_FIELDS)[number], fallback: string) => form.value(name) ?? fallback;
+  // Controlled, so the hint can say what will be recorded ("25.000" is IQD 25,000), and a refused send keeps it as typed.
+  const [amount, setAmount] = useState(() => formatAmountInput(subscription.priceMinor, currency));
+  const parsed = parseAmountInput(amount, currency);
+  const amountHint = parsed.ok
+    ? t('billing.amountReads', { amount: formatMoney(parsed.minor, currency, locale) })
+    : t(currency === 'IQD' ? 'billing.amountHintIqd' : 'billing.amountHintUsd');
 
   return (
     <Dialog
@@ -546,14 +554,15 @@ function RecordPaymentDialog({ subscription, title, shared, onClose }: { subscri
         <p className="text-sm text-muted">{t('billing.byHand')}</p>
         <FormError form={form} fields={PAYMENT_FIELDS} />
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('billing.field.amount', { currency })} hint={t(currency === 'IQD' ? 'billing.amountHintIqd' : 'billing.amountHintUsd')} error={form.fieldError('amountMinor')}>
+          <Field label={t('billing.field.amount', { currency })} hint={<span aria-live="polite">{amountHint}</span>} error={form.fieldError('amountMinor')}>
             <Input
               name="amountMinor"
               inputMode="decimal"
               dir="ltr"
               className="rtl:text-right"
               autoComplete="off"
-              defaultValue={kept('amountMinor', formatAmountInput(subscription.priceMinor, currency))}
+              value={amount}
+              onChange={(event) => setAmount(event.target.value)}
               autoFocus
             />
           </Field>

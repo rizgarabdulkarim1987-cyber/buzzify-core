@@ -58,7 +58,10 @@ test.describe('billing @desktop', () => {
 
     // Settings → Billing: Pro costs 25,000 IQD a month.
     await page.goto('/studio/settings/billing');
-    await page.getByRole('textbox', { name: en('billingSettings.priceLabel', { plan: 'Pro', currency: 'IQD', period: en('billing.period.MONTHLY') }) }).fill('25,000');
+    // Typed as people in Iraq write it: the point groups thousands, and the field says what will be saved.
+    const proMonthly = page.getByRole('textbox', { name: en('billingSettings.priceLabel', { plan: 'Pro', currency: 'IQD', period: en('billing.period.MONTHLY') }) });
+    await proMonthly.fill('25.000');
+    await expect(proMonthly).toHaveAccessibleDescription(/IQD.25,000/);
     await page.getByRole('button', { name: en('billingSettings.savePrices', { product: 'Menu' }) }).click();
     await expect(page.getByText(en('billingSettings.pricesSaved', { product: 'Menu' }))).toBeVisible();
 

@@ -1,7 +1,14 @@
 /**
- * Billing amounts as people type them, ported from Business Core (src/admin/money-input.ts). Money is stored in the
- * currency's minor unit (cents for USD; IQD has none); people type the major unit, in Latin or Arabic-Indic digits, with
- * a point or a comma. The conversion is integer arithmetic on the digits, never `parseFloat(text) * 100`.
+ * Billing amounts as people type them (ported from Business Core's src/admin/money-input.ts, then made strict per
+ * currency). Money is stored in the currency's minor unit (cents for USD; IQD has none); people type the major unit, in
+ * Latin, Arabic-Indic (٠-٩) or Extended Arabic-Indic (۰-۹) digits. The conversion is integer arithmetic on the digits,
+ * never `parseFloat(text) * 100`.
+ *
+ * - IQD has no fraction, so every separator groups thousands: in Iraq "25.000" is twenty-five thousand dinars, as are
+ *   "25,000", "25٬000" and "25 000". Groups after the first (1 to 3 digits) have exactly 3 digits, with one kind of
+ *   separator; anything else ("25.5", "25.00", "2.50.000", "25.") is refused, never guessed.
+ * - USD takes a decimal point (or the Arabic decimal mark ٫) with at most 2 digits after it, and commas grouping thousands
+ *   in threes before it: "1,250.50". A decimal comma ("1.250,50", "4,50") is refused.
  *
  * Menu prices have their own reader (src/lib/money-input.ts), with a lower ceiling and any currency; this one knows only
  * the billing currencies and allows up to a Postgres Int4.
@@ -11,14 +18,18 @@ import { MAX_AMOUNT_MINOR, minorUnitDigits, type Currency } from '@/server/domai
 /** The largest amount billing stores, in minor units: a Postgres Int4. */
 export const MAX_MINOR = MAX_AMOUNT_MINOR;
 
-export type AmountInputProblem = 'EMPTY' | 'NOT_A_NUMBER' | 'NEGATIVE' | 'TOO_PRECISE' | 'TOO_LARGE';
+/**
+ * Why a typed amount cannot be read. `NOT_WHOLE` is an IQD amount that is not whole dinars written plainly or in
+ * thousands; `TOO_PRECISE` is a USD amount with more than 2 decimals.
+ */
+export type AmountInputProblem = 'EMPTY' | 'NOT_A_NUMBER' | 'NEGATIVE' | 'NOT_WHOLE' | 'TOO_PRECISE' | 'TOO_LARGE';
 
 const ARABIC_INDIC_ZERO = 0x0660;
 const EXTENDED_ARABIC_INDIC_ZERO = 0x06f0;
 const ARABIC_DECIMAL_MARK = '٫';
 const ARABIC_THOUSANDS_MARK = '٬';
 
-/** Latin digits for Arabic-Indic ones; the Arabic thousands mark for `,`. */
+/** Latin digits for Arabic-Indic ones, `,` for the Arabic thousands mark, `.` for the Arabic decimal mark, plain spaces. */
 function latinize(text: string): string {
   let out = '';
   for (const char of text) {
@@ -26,86 +37,47 @@ function latinize(text: string): string {
     if (code >= ARABIC_INDIC_ZERO && code <= ARABIC_INDIC_ZERO + 9) out += String(code - ARABIC_INDIC_ZERO);
     else if (code >= EXTENDED_ARABIC_INDIC_ZERO && code <= EXTENDED_ARABIC_INDIC_ZERO + 9) out += String(code - EXTENDED_ARABIC_INDIC_ZERO);
     else if (char === ARABIC_THOUSANDS_MARK) out += ',';
+    else if (char === ARABIC_DECIMAL_MARK) out += '.';
     else if (char === ' ' || char === ' ') out += ' ';
     else out += char;
   }
   return out;
 }
 
-/** Digits split by one separator: a first group of one to three digits, then groups of exactly three. */
-function joinGroups(text: string, separator: string): string | null {
-  const groups = text.split(separator);
-  if (groups.length === 1) return /^\d*$/.test(text) ? text : null;
-  if (!/^\d{1,3}$/.test(groups[0]!)) return null;
-  if (!groups.slice(1).every((group) => /^\d{3}$/.test(group))) return null;
-  return groups.join('');
-}
-
-/** The integer and fraction digits of a typed number, or null when it is not one. */
-function splitNumber(text: string): { whole: string; fraction: string } | null {
-  if (text.includes(ARABIC_DECIMAL_MARK)) {
-    const [whole = '', fraction = '', ...rest] = text.split(ARABIC_DECIMAL_MARK);
-    if (rest.length > 0 || !/^\d+$/.test(fraction)) return null;
-    const joined = joinGroups(whole, whole.includes(',') ? ',' : whole.includes('.') ? '.' : ' ');
-    return joined === null ? null : { whole: joined, fraction };
-  }
-
-  const lastPoint = text.lastIndexOf('.');
-  const lastComma = text.lastIndexOf(',');
-  const points = text.split('.').length - 1;
-  const commas = text.split(',').length - 1;
-
-  let decimal: '.' | ',' | null = null;
-  let group: '.' | ',' | ' ' = ' ';
-  if (points > 0 && commas > 0) {
-    decimal = lastPoint > lastComma ? '.' : ',';
-    group = decimal === '.' ? ',' : '.';
-  } else if (points === 1) {
-    decimal = '.';
-  } else if (points > 1) {
-    group = '.';
-  } else if (commas === 1) {
-    // "50,000" groups thousands; "4,50" is a decimal comma.
-    const after = text.length - lastComma - 1;
-    if (after === 3) group = ',';
-    else decimal = ',';
-  } else if (commas > 1) {
-    group = ',';
-  }
-
-  let whole = text;
-  let fraction = '';
-  if (decimal !== null) {
-    const at = text.lastIndexOf(decimal);
-    whole = text.slice(0, at);
-    fraction = text.slice(at + 1);
-    if (!/^\d+$/.test(fraction)) return null;
-  }
-  if (whole.includes(' ') && group !== ' ') return null;
-  const joined = joinGroups(whole, group);
-  if (joined === null) return null;
-  if (joined === '' && fraction === '') return null;
-  return { whole: joined, fraction };
-}
+/** Whole IQD: plain digits, or a 1-3 digit group then groups of exactly 3, all split by the same `.`, `,` or space. */
+const IQD_PLAIN = /^\d+$/;
+const IQD_GROUPED = /^\d{1,3}([., ])\d{3}(?:\1\d{3})*$/;
+/** USD: plain digits or comma groups of 3, then optionally a point and 1 or more digits (checked against 2 after). */
+const USD_NUMBER = /^(\d+|\d{1,3}(?:,\d{3})+)(?:\.(\d+))?$/;
 
 /** A typed amount in the currency's major unit, as minor units, or why it cannot be one. */
 export function parseAmountInput(text: string, currency: Currency): { ok: true; minor: number } | { ok: false; reason: AmountInputProblem } {
   const value = latinize(text).trim();
   if (value === '') return { ok: false, reason: 'EMPTY' };
   if (/^-\s*[\d.,]/.test(value)) return { ok: false, reason: 'NEGATIVE' };
-  if (/[^\d.,٫ ]/.test(value)) return { ok: false, reason: 'NOT_A_NUMBER' };
+  if (/[^\d., ]/.test(value)) return { ok: false, reason: 'NOT_A_NUMBER' };
 
-  const parts = splitNumber(value);
-  if (!parts) return { ok: false, reason: 'NOT_A_NUMBER' };
+  let whole: string;
+  let fraction = '';
+  if (minorUnitDigits(currency) === 0) {
+    // The Arabic decimal mark (٫) never groups thousands: dinars have no fraction.
+    if (text.includes(ARABIC_DECIMAL_MARK)) return { ok: false, reason: 'NOT_WHOLE' };
+    if (IQD_PLAIN.test(value)) whole = value;
+    else if (IQD_GROUPED.test(value)) whole = value.replace(/[., ]/g, '');
+    else return { ok: false, reason: 'NOT_WHOLE' };
+  } else {
+    const match = USD_NUMBER.exec(value);
+    if (!match) return { ok: false, reason: 'NOT_A_NUMBER' };
+    whole = match[1]!.replace(/,/g, '');
+    fraction = match[2] ?? '';
+    if (fraction.length > 2) return { ok: false, reason: 'TOO_PRECISE' };
+  }
 
   const digits = minorUnitDigits(currency);
-  const significant = parts.fraction.replace(/0+$/, '');
-  if (significant.length > digits) return { ok: false, reason: 'TOO_PRECISE' };
-
-  const whole = parts.whole.replace(/^0+(?=\d)/, '') || '0';
+  const trimmed = whole.replace(/^0+(?=\d)/, '');
   // Checked as text first, so a huge number never loses precision.
-  if (whole.length > 12) return { ok: false, reason: 'TOO_LARGE' };
-  const minor = Number(whole) * 10 ** digits + Number(significant.padEnd(digits, '0') || '0');
+  if (trimmed.length > 12) return { ok: false, reason: 'TOO_LARGE' };
+  const minor = Number(trimmed) * 10 ** digits + Number(fraction.padEnd(digits, '0') || '0');
   if (minor > MAX_MINOR) return { ok: false, reason: 'TOO_LARGE' };
   return { ok: true, minor };
 }
