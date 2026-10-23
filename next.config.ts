@@ -27,6 +27,9 @@ const config: NextConfig = {
     // and a guest's menu painted one simulated round trip (150 ms) later on a phone. Merging the small chunks brings
     // it back: docs/perf/baseline-2026-10-17-studio-core-2a.md, "After the fix".
     turbopackChunking: { minChunkSize: 200_000 },
+    // Hostinger's build machine reports dozens of cores but refuses the threads that many build workers ask for
+    // ("OS can't spawn worker thread", build of 2026-10-23), so its build collects page data with a few workers.
+    ...(process.env.BUILD_TARGET === 'standalone' ? { cpus: 4 } : {}),
   },
 };
 
