@@ -3,6 +3,7 @@
 import {
   Activity,
   ChevronsUpDown,
+  CreditCard,
   Images,
   LayoutDashboard,
   LogOut,
@@ -33,6 +34,7 @@ import { Wordmark } from './Wordmark';
 const ICONS: Record<NavIcon, LucideIcon> = {
   overview: LayoutDashboard,
   restaurants: Store,
+  billing: CreditCard,
   menus: UtensilsCrossed,
   media: Images,
   motion: Sparkles,

@@ -9,7 +9,7 @@ import { createPasswordUser } from '@/server/studio/auth/users';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
-import { billingOverview, restaurantBilling } from '@/server/studio/queries/billing';
+import { billingOverview, billingRestaurants, restaurantBilling } from '@/server/studio/queries/billing';
 import { seedApplications } from '../../prisma/seed/applications';
 import { createMenuFixture, resetTestData, testPrisma } from '../helpers/db';
 
@@ -799,6 +799,59 @@ describe('billing.restaurant', () => {
     expect(view.payments[0]).toMatchObject({ subscriptionId: id, amountMinor: 50000, currency: 'IQD', method: 'CASH', recordedByName: 'owner' });
     expect(dataOf(await readAt(at('2027-03-20T12:00:00+03:00'), restaurantBilling, { restaurantId })).subscriptions[0]!.status).toBe('EXPIRED');
     expect(codeOf(await readAt(new Date(), restaurantBilling, { restaurantId: 'nope' }))).toBe('NOT_FOUND');
+  });
+});
+
+describe('billing.restaurants', () => {
+  it('lists every restaurant with each product’s subscription as it is now and its last payment', async () => {
+    const other = await createMenuFixture(prisma, 'billing-b');
+    const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb, never swept
+    const list = dataOf(await readAt(at('2027-03-02T12:00:00+03:00'), billingRestaurants, {}));
+
+    expect(list.applications.map((app) => app.id)).toEqual(['menu', 'cashier']);
+    expect(list.total).toBe(2);
+    expect(list.rows.map((row) => row.name)).toEqual(['Restaurant billing-a', 'Restaurant billing-b']);
+
+    const [paid, none] = list.rows;
+    expect(paid).toMatchObject({ id: restaurantId, lastPayment: { amountMinor: 50000, currency: 'IQD' } });
+    expect(paid!.products).toEqual([
+      {
+        applicationId: 'menu',
+        subscription: {
+          id,
+          planCode: 'PRO',
+          status: 'GRACE',
+          currentPeriodEnd: (await load(id)).currentPeriodEnd,
+          trial: false,
+        },
+      },
+      { applicationId: 'cashier', subscription: null },
+    ]);
+    expect(none).toMatchObject({ id: other.restaurant.id, lastPayment: null });
+    expect(none!.products.map((product) => product.subscription)).toEqual([null, null]);
+  });
+
+  it('shows a trial as a trial that ends with its period, and a cancelled one when there is no live one', async () => {
+    const id = await trial(at('2027-01-31T09:00:00+03:00'));
+    let row = dataOf(await readAt(at('2027-02-01T09:00:00+03:00'), billingRestaurants, {})).rows[0]!;
+    expect(row.products[0]!.subscription).toMatchObject({ id, status: 'TRIAL', trial: true });
+    expect(row.lastPayment).toBeNull();
+
+    dataOf(await actAt(at('2027-02-02T09:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: '' }));
+    row = dataOf(await readAt(at('2027-02-03T09:00:00+03:00'), billingRestaurants, {})).rows[0]!;
+    expect(row.products[0]!.subscription).toMatchObject({ id, status: 'CANCELLED' });
+  });
+
+  it('pages the restaurants by name', async () => {
+    for (const slug of ['billing-c', 'billing-d']) await createMenuFixture(prisma, slug);
+    const second = dataOf(await readAt(new Date(), billingRestaurants, { page: 2, pageSize: 2 }));
+    expect(second).toMatchObject({ total: 3, page: 2, pageSize: 2 });
+    expect(second.rows.map((row) => row.name)).toEqual(['Restaurant billing-d']);
+  });
+
+  it('is for Super Admins only', async () => {
+    expect(dataOf(await readAt(new Date(), billingRestaurants, {}, otherAdmin)).total).toBe(1);
+    expect(codeOf(await readAt(new Date(), billingRestaurants, {}, restaurantOwner))).toBe('FORBIDDEN');
   });
 });
 

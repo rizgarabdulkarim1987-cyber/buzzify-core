@@ -1,6 +1,6 @@
 import type { Currency } from '@/server/domain/billing/money';
 import { isLive, type SubscriptionStatus } from '@/server/domain/billing/subscriptions';
-import type { billingOverview, restaurantBilling } from '@/server/studio/queries/billing';
+import type { billingOverview, billingRestaurants, restaurantBilling } from '@/server/studio/queries/billing';
 import type { FormValues } from './forms';
 import { parseAmountInput, type AmountInputProblem } from './money-input';
 import type { StatusTone } from './ui/StatusBadge';
@@ -15,6 +15,7 @@ type Output<Q> = Q extends { run: (...args: never[]) => Promise<infer O> } ? O :
 
 export type BillingOverview = Output<typeof billingOverview>;
 export type RestaurantBillingView = Output<typeof restaurantBilling>;
+export type BillingRestaurants = Output<typeof billingRestaurants>;
 export type BillingProduct = BillingOverview['applications'][number];
 export type SubscriptionView = RestaurantBillingView['subscriptions'][number];
 export type PaymentView = RestaurantBillingView['payments'][number];
