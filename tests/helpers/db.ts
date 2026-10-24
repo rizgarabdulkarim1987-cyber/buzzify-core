@@ -36,6 +36,9 @@ export async function resetTestData(prisma: PrismaClient): Promise<void> {
   await prisma.auditLog.deleteMany();
   await prisma.platformSetting.deleteMany();
   await prisma.invitation.deleteMany();
+  // A shift and its expenses name the person with no cascade: they go before the users.
+  await prisma.posCashExpense.deleteMany();
+  await prisma.posShift.deleteMany();
   await prisma.membership.deleteMany();
   await prisma.twoFactor.deleteMany();
   await prisma.session.deleteMany();

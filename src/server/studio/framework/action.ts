@@ -108,6 +108,8 @@ export interface ActionContext {
 // than the schema has does not narrow what the handler sees.
 interface ActionFields<I, O> {
   name: string;
+  /** A till definition that still runs when the Cashier subscription has lapsed (closing and reading a shift). */
+  allowLapsed?: true;
   input: z.ZodType<I>;
   run(ctx: ActionContext, input: NoInfer<I>): Promise<O>;
   /** For the steps of enrolling in two-factor (and signing out): a Super Admin without it may still run these. */
@@ -130,6 +132,7 @@ export interface ActionDef<I, O> {
   readonly permission: Permission | null;
   /** A till permission instead of a Studio one; the target is then the person's own till. */
   readonly pos?: PosPermission;
+  readonly allowLapsed?: true;
   readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
@@ -145,6 +148,7 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
     name: spec.name,
     permission: spec.permission,
     ...(spec.pos === undefined ? {} : { pos: spec.pos }),
+    ...(spec.allowLapsed === undefined ? {} : { allowLapsed: spec.allowLapsed }),
     ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,

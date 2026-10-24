@@ -51,6 +51,8 @@ export interface Guarded<I> {
   permission: Requirement;
   /** A till permission instead of a Studio one: the target is then `pos`, and `permission` is null. */
   pos?: PosPermission;
+  /** A till definition that still works when the Cashier subscription has lapsed (closing and reading a shift). */
+  allowLapsed?: true;
   /** A feature the target restaurant's plan must include, checked after the permission. */
   feature?: FeatureKey;
   input: z.ZodType<I>;
@@ -69,7 +71,7 @@ const isSelf = (target: unknown) => (target as { kind?: unknown } | null)?.kind 
  */
 export function checkDefinition(
   kind: 'action' | 'query',
-  def: { name: unknown; permission: unknown; pos?: unknown; feature?: unknown; input: unknown; target: unknown; run: unknown },
+  def: { name: unknown; permission: unknown; pos?: unknown; allowLapsed?: unknown; feature?: unknown; input: unknown; target: unknown; run: unknown },
 ): void {
   if (typeof def.name !== 'string' || def.name === '') throw new Error(`A Studio ${kind} needs a name`);
   const label = `Studio ${kind} ${def.name}`;
@@ -78,6 +80,9 @@ export function checkDefinition(
   }
   if (typeof (def.input as { safeParseAsync?: unknown } | null)?.safeParseAsync !== 'function') {
     throw new Error(`${label} needs a Zod input schema`);
+  }
+  if (def.allowLapsed !== undefined && (def.allowLapsed !== true || def.pos === undefined)) {
+    throw new Error(`${label} allows a lapsed subscription, which only a till definition (pos) can`);
   }
   if (def.pos !== undefined) {
     if (kind !== 'action' && kind !== 'query') throw new Error(`${label} is not an action or a query`);
@@ -228,10 +233,13 @@ export async function resolvePosAccess(
   actor: Actor,
   required: PosPermission,
   target: PosTarget,
+  allowLapsed = false,
 ): Promise<Access | { ok: false; error: StudioFailure }> {
   const posActor = await resolvePosActor(prisma, actor.userId);
   if (!posActor) return failure('NOT_FOUND');
-  if (!(await posGate(prisma, posActor.restaurantId)).open) return failure('FORBIDDEN');
+  // A lapsed Cashier subscription still lets a definition marked `allowLapsed` run; an inactive restaurant never does.
+  const gate = await posGate(prisma, posActor.restaurantId);
+  if (!gate.open && !(allowLapsed && gate.reason === 'cashierPlanInactive')) return failure('FORBIDDEN');
   if (!canPos(posActor.role, required)) return failure('FORBIDDEN');
   const place = await locate(prisma, { kind: 'restaurant', restaurantId: posActor.restaurantId });
   if (!place) return failure('NOT_FOUND');
@@ -269,7 +277,7 @@ export async function admit<I>(
 
   const access =
     def.pos !== undefined
-      ? await resolvePosAccess(prisma, actor, def.pos, def.target(parsed.data) as PosTarget)
+      ? await resolvePosAccess(prisma, actor, def.pos, def.target(parsed.data) as PosTarget, def.allowLapsed === true)
       : await resolveAccess(prisma, actor, def.target(parsed.data), def.permission, def.name, def.feature);
   if ('ok' in access) return access;
   return { ok: true, actor, input: parsed.data, access };

@@ -1,6 +1,10 @@
 'use server';
 
 import * as pos from '@/server/studio/actions/pos';
+import * as kitchen from '@/server/studio/actions/pos-kitchen';
+import * as orders from '@/server/studio/actions/pos-orders';
+import * as payments from '@/server/studio/actions/pos-payments';
+import * as shifts from '@/server/studio/actions/pos-shifts';
 import { invoke } from '@/server/studio/framework/invoke';
 
 export async function updatePosSettings(input: unknown) {
@@ -85,4 +89,88 @@ export async function posImportApply(input: unknown) {
 
 export async function posImportDiscard(input: unknown) {
   return invoke(pos.posImportDiscard, input);
+}
+
+export async function createPosArea(input: unknown) {
+  return invoke(pos.createPosArea, input);
+}
+
+export async function renamePosArea(input: unknown) {
+  return invoke(pos.renamePosArea, input);
+}
+
+export async function deletePosArea(input: unknown) {
+  return invoke(pos.deletePosArea, input);
+}
+
+export async function createPosTables(input: unknown) {
+  return invoke(pos.createPosTables, input);
+}
+
+export async function deletePosTable(input: unknown) {
+  return invoke(pos.deletePosTable, input);
+}
+
+export async function movePosTable(input: unknown) {
+  return invoke(pos.movePosTable, input);
+}
+
+export async function openPosOrder(input: unknown) {
+  return invoke(orders.openPosOrder, input);
+}
+
+export async function addPosLine(input: unknown) {
+  return invoke(orders.addPosLine, input);
+}
+
+export async function updatePosLine(input: unknown) {
+  return invoke(orders.updatePosLine, input);
+}
+
+export async function cancelPosLine(input: unknown) {
+  return invoke(orders.cancelPosLine, input);
+}
+
+export async function setPosInvoiceDiscount(input: unknown) {
+  return invoke(orders.setPosInvoiceDiscount, input);
+}
+
+export async function requestPosBill(input: unknown) {
+  return invoke(orders.requestPosBill, input);
+}
+
+export async function cancelPosOrder(input: unknown) {
+  return invoke(orders.cancelPosOrder, input);
+}
+
+export async function movePosOrderToTable(input: unknown) {
+  return invoke(orders.movePosOrderToTable, input);
+}
+
+export async function payPosOrder(input: unknown) {
+  return invoke(payments.payPosOrder, input);
+}
+
+export async function openPosShift(input: unknown) {
+  return invoke(shifts.openPosShift, input);
+}
+
+export async function addPosExpense(input: unknown) {
+  return invoke(shifts.addPosExpense, input);
+}
+
+export async function closePosShift(input: unknown) {
+  return invoke(shifts.closePosShift, input);
+}
+
+export async function sendPosToKitchen(input: unknown) {
+  return invoke(kitchen.sendPosToKitchen, input);
+}
+
+export async function markPosLinesReady(input: unknown) {
+  return invoke(kitchen.markPosLinesReady, input);
+}
+
+export async function acknowledgePosCancellations(input: unknown) {
+  return invoke(kitchen.acknowledgePosCancellations, input);
 }
