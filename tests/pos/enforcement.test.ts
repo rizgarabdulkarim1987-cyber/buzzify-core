@@ -6,6 +6,10 @@ import { POS_PERMISSIONS } from '@/server/domain/pos/permissions';
 import { defineAction } from '@/server/studio/framework/action';
 import { defineQuery } from '@/server/studio/framework/query';
 import * as posActions from '@/server/studio/actions/pos';
+import * as posKitchenActions from '@/server/studio/actions/pos-kitchen';
+import * as posOrderActions from '@/server/studio/actions/pos-orders';
+import * as posPaymentActions from '@/server/studio/actions/pos-payments';
+import * as posShiftActions from '@/server/studio/actions/pos-shifts';
 import * as posQueries from '@/server/studio/queries/pos';
 
 const POS_TARGET = { kind: 'pos' } as const;
@@ -31,8 +35,31 @@ describe('the till inside the action framework', () => {
   });
 });
 
+describe('allowLapsed', () => {
+  const base = { name: 'pos.lapse', input: z.object({}), run: noop };
+
+  it('is accepted on a till definition and refused anywhere else', () => {
+    expect(defineAction({ ...base, permission: null, pos: 'shift.use', allowLapsed: true, target: () => POS_TARGET }).allowLapsed).toBe(true);
+    expect(defineQuery({ ...base, permission: null, pos: 'report.view', allowLapsed: true, target: () => POS_TARGET }).allowLapsed).toBe(true);
+    expect(() => defineAction({ ...base, permission: 'menu.create', allowLapsed: true, target: (() => ({ kind: 'platform' })) as never })).toThrow(/lapsed/);
+    expect(() => defineAction({ ...base, permission: null, pos: 'shift.use', allowLapsed: false as never, target: () => POS_TARGET })).toThrow(/lapsed/);
+  });
+
+  it('is carried by exactly the shift-closing and reading definitions', () => {
+    const all = [...Object.values(posActions), ...Object.values(posShiftActions), ...Object.values(posQueries)] as Array<{ name: string; allowLapsed?: true }>;
+    expect(all.filter((def) => def.allowLapsed).map((def) => def.name).sort()).toEqual(['pos.closeShift', 'pos.dailyReport', 'pos.myShift', 'pos.openShifts', 'pos.shift', 'pos.shiftReport']);
+  });
+});
+
 describe('every till action and query names a till permission', () => {
-  const defs = [...Object.entries(posActions), ...Object.entries(posQueries)] as Array<[string, { pos?: string; permission: unknown }]>;
+  const defs = [
+    ...Object.entries(posActions),
+    ...Object.entries(posOrderActions),
+    ...Object.entries(posPaymentActions),
+    ...Object.entries(posShiftActions),
+    ...Object.entries(posKitchenActions),
+    ...Object.entries(posQueries),
+  ] as Array<[string, { pos?: string; permission: unknown }]>;
 
   it('has some', () => {
     expect(defs.length).toBeGreaterThan(0);
@@ -46,6 +73,10 @@ describe('every till action and query names a till permission', () => {
   it('are exported only as definitions (a repository scan, like tests/studio/enforcement.test.ts)', () => {
     for (const [file, shape] of [
       ['src/server/studio/actions/pos.ts', /^export const \w+ = defineAction\(/],
+      ['src/server/studio/actions/pos-orders.ts', /^export const \w+ = defineAction\(/],
+      ['src/server/studio/actions/pos-payments.ts', /^export const \w+ = defineAction\(/],
+      ['src/server/studio/actions/pos-shifts.ts', /^export const \w+ = defineAction\(/],
+      ['src/server/studio/actions/pos-kitchen.ts', /^export const \w+ = defineAction\(/],
       ['src/server/studio/queries/pos.ts', /^export const \w+ = defineQuery\(/],
     ] as const) {
       const exports = readFileSync(join(process.cwd(), file), 'utf8')
@@ -56,7 +87,14 @@ describe('every till action and query names a till permission', () => {
   });
 
   it('never reads the restaurant from the input: no till definition names restaurantId in its input schema', () => {
-    for (const file of ['src/server/studio/actions/pos.ts', 'src/server/studio/queries/pos.ts']) {
+    for (const file of [
+      'src/server/studio/actions/pos.ts',
+      'src/server/studio/actions/pos-orders.ts',
+      'src/server/studio/actions/pos-payments.ts',
+      'src/server/studio/actions/pos-shifts.ts',
+      'src/server/studio/actions/pos-kitchen.ts',
+      'src/server/studio/queries/pos.ts',
+    ]) {
       expect(readFileSync(join(process.cwd(), file), 'utf8'), file).not.toMatch(/restaurantId:\s*z\./);
     }
   });

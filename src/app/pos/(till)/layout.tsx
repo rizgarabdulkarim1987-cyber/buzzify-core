@@ -1,9 +1,11 @@
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
 import { posEntry } from '@/server/pos/entry';
 import { getStudioTranslator } from '@/studio/messages';
+import { TillNav } from '@/app/pos/_ui/TillNav';
 
 /**
  * Every till page sits in this frame. Nobody signed in goes to the shared sign-in, a person with no till gets a 404, and a
@@ -24,7 +26,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       >
         {t('common.skipToContent')}
       </a>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-8 py-3">
+      <header className="print:hidden flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8">
         <Link href="/pos" className="text-base font-semibold text-text">
           {t('pos.shell.label')}
         </Link>
@@ -37,6 +39,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
           </Link>
         </div>
       </header>
+      <TillNav items={tillNav(entry.actor.role)} />
       <main id="main" className="min-w-0 flex-1">
         {children}
       </main>

@@ -114,6 +114,13 @@ model Restaurant {
   posKitchenSections  PosKitchenSection[]
   posCategorySettings PosCategorySetting[]
   posProductSettings  PosProductSetting[]
+  posAreas            PosArea[]
+  posTables           PosTable[]
+  posOrders           PosOrder[]
+  posOrderLines       PosOrderLine[]
+  posPayments         PosPayment[]
+  posShifts           PosShift[]
+  posCashExpenses     PosCashExpense[]
 
   @@index([name])
   @@index([city])
@@ -358,6 +365,7 @@ model Product {
   pairingTo         PairingRule[]      @relation("PairingTarget")
   bundleItems       BundleItem[]
   posProductSetting PosProductSetting?
+  posOrderLines     PosOrderLine[]
 
   @@unique([menuId, slug])
   @@index([menuId, categoryId])
@@ -609,21 +617,21 @@ enum MemberRole {
 
 /// A person who signs in to the Studio (Better Auth's table). Accounts are created by invitation only.
 model User {
-  id               String       @id
+  id               String           @id
   name             String
   /// Lower case and trimmed, unique.
   email            String
-  emailVerified    Boolean      @default(false)
+  emailVerified    Boolean          @default(false)
   image            String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  twoFactorEnabled Boolean?     @default(false)
-  isSuperAdmin     Boolean      @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  twoFactorEnabled Boolean?         @default(false)
+  isSuperAdmin     Boolean          @default(false)
   /// The one account that sells: only it changes plans. At most one row is true (a partial unique index in the
   /// migration), and it counts only while the person is a Super Admin.
-  isPlatformOwner  Boolean      @default(false)
+  isPlatformOwner  Boolean          @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
-  locale           String       @default("en")
+  locale           String           @default("en")
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt    DateTime?
   sessions         Session[]
@@ -632,6 +640,9 @@ model User {
   memberships      Membership[]
   invitationsSent  Invitation[]
   posStaffs        PosStaff[]
+  posShifts        PosShift[]
+  posCashExpenses  PosCashExpense[]
+  posPayments      PosPayment[]
 
   @@unique([email])
   @@map("user")
@@ -1225,4 +1236,178 @@ model PosProductSetting {
   restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@index([restaurantId])
+}
+
+enum PosOrderStatus {
+  PENDING_APPROVAL
+  OPEN
+  READY
+  BILL_REQUESTED
+  PAID
+  CANCELLED
+  REJECTED
+}
+
+enum PosOrderKind {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+enum PosDiscountKind {
+  AMOUNT
+  PERCENT
+}
+
+/// A part of the floor (hall, terrace) that groups tables.
+model PosArea {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  sortOrder    Int        @default(0)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables       PosTable[]
+
+  @@index([restaurantId])
+}
+
+/// A dining table. Its number is the Menu's QR table number (`/t/<n>`), so there is one numbering.
+model PosTable {
+  id           String     @id @default(cuid())
+  restaurantId String
+  areaId       String
+  number       Int
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  area         PosArea    @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  orders       PosOrder[]
+
+  @@unique([restaurantId, number])
+  @@index([areaId])
+}
+
+/// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
+model PosOrder {
+  id                   String           @id @default(cuid())
+  restaurantId         String
+  tableId              String?
+  /// Sequence per restaurant.
+  number               Int
+  kind                 PosOrderKind     @default(DINE_IN)
+  status               PosOrderStatus   @default(OPEN)
+  seatedAt             DateTime         @default(now())
+  invoiceDiscountKind  PosDiscountKind?
+  invoiceDiscountValue Int?
+  /// Optimistic lock: every write to an order or its lines matches it and bumps it by one.
+  version              Int              @default(1)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  restaurant           Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table                PosTable?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  lines                PosOrderLine[]
+  payment              PosPayment?
+
+  @@unique([restaurantId, number])
+  @@index([tableId])
+  @@index([restaurantId, status])
+}
+
+model PosOrderLine {
+  id                  String           @id @default(cuid())
+  restaurantId        String
+  orderId             String
+  productId           String?
+  nameSnapshot        String
+  /// Integer IQD: the product's base price when the line was added. Chosen variant and options are in optionsSnapshot.
+  unitPriceSnapshot   Int
+  quantity            Int              @default(1)
+  note                String           @default("")
+  /// [{ id, name, priceDelta }] of the chosen variant (first) and options, copied when the line was added.
+  optionsSnapshot     Json             @default("[]")
+  discountKind        PosDiscountKind?
+  discountValue       Int?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  /// Plain id (no relation): the kitchen section when the line was added; survives a section delete.
+  sectionId           String?
+  sectionNameSnapshot String           @default("")
+  sentAt              DateTime?
+  /// The round it was sent in: 1, 2, 3... per order.
+  batch               Int?
+  readyAt             DateTime?
+  cancelAckAt         DateTime?
+  createdAt           DateTime         @default(now())
+  restaurant          Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order               PosOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([orderId])
+  @@index([productId])
+  @@index([restaurantId, sentAt])
+}
+
+model PosPayment {
+  id             String           @id @default(cuid())
+  restaurantId   String
+  orderId        String           @unique
+  method         PosPaymentMethod
+  /// Integer IQD handed over by the customer.
+  amountReceived Int
+  reference      String?
+  totalsSnapshot Json
+  userId         String?
+  shiftId        String?
+  paidAt         DateTime         @default(now())
+  restaurant     Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order          PosOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift          PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, paidAt])
+  @@index([shiftId])
+}
+
+/// One person's cash drawer from opening to count. One open shift per person and restaurant: the partial unique index
+/// "PosShift_one_open_per_user" (raw SQL in the migration).
+model PosShift {
+  id                  String           @id @default(cuid())
+  restaurantId        String
+  userId              String
+  openedAt            DateTime         @default(now())
+  /// Integer IQD in the drawer when the shift opened. Zero is allowed.
+  openingFloat        Int
+  closedAt            DateTime?
+  /// Plain id (no relation) so it records a manager closing someone else's shift.
+  closedByUserId      String?
+  countedCash         Int?
+  /// Integer IQD the drawer should have held at close, frozen when the shift closed.
+  expectedCashAtClose Int?
+  /// countedCash minus expectedCashAtClose: positive is over, negative is short.
+  difference          Int?
+  note                String           @default("")
+  restaurant          Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user                User             @relation(fields: [userId], references: [id], onDelete: NoAction)
+  payments            PosPayment[]
+  expenses            PosCashExpense[]
+
+  @@index([restaurantId, openedAt])
+  @@index([userId])
+}
+
+/// Cash taken out of the drawer during a shift.
+model PosCashExpense {
+  id           String     @id @default(cuid())
+  restaurantId String
+  shiftId      String
+  userId       String
+  /// Integer IQD.
+  amount       Int
+  reason       String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shift        PosShift   @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: NoAction)
+
+  @@index([shiftId])
+  @@index([restaurantId, createdAt])
 }

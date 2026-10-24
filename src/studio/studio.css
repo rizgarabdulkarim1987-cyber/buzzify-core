@@ -6,6 +6,7 @@
 @import 'tailwindcss' source(none);
 @source '.';
 @source '../app/studio';
+@source '../app/pos';
 
 /*
  * Tokens. Black, white and neutral greys; one amber, used only for selection, the current navigation item and the
