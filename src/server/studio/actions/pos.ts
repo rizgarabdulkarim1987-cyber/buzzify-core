@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
+import { previewPosImport } from '@/server/pos/menu-import';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
@@ -18,6 +19,7 @@ import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { setProductAvailability } from '@/server/studio/services/availability';
+import { applyImport, discardImport, IMPORT_MAX_BYTES, sheetFileNameField } from '@/server/studio/services/imports';
 import * as content from '@/server/studio/services/content';
 import { contentSlugField, idField, namesField, priceField } from '@/server/studio/services/content';
 import { StudioError } from '@/server/studio/framework/result';
@@ -333,5 +335,37 @@ export const posSetProductSetting = defineAction({
       if (Object.keys(changes).length > 0) ctx.audit({ action: 'pos.product.setting', entityType: 'PosProductSetting', entityId: productId, changes });
       return { productId };
     });
+  },
+});
+
+// Importing the cashier's old product list ----------------------------------------------------------------------------
+
+export const posImportPreview = defineAction({
+  name: 'pos.importPreview',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ fileName: sheetFileNameField, csv: z.string().min(1).max(IMPORT_MAX_BYTES) }),
+  target: () => CATALOG,
+  run: (ctx, input) => previewPosImport(ctx, input),
+});
+
+export const posImportApply = defineAction({
+  name: 'pos.importApply',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ importJobId: idField }),
+  target: () => CATALOG,
+  run: (ctx, input) => applyImport(ctx, input),
+});
+
+export const posImportDiscard = defineAction({
+  name: 'pos.importDiscard',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ importJobId: idField }),
+  target: () => CATALOG,
+  run: async (ctx, input) => {
+    await discardImport(ctx, input);
+    return { discarded: true as const };
   },
 });

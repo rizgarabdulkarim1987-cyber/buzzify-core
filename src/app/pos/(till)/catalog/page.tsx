@@ -8,6 +8,7 @@ import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { CatalogEditor } from './CatalogEditor';
+import { CatalogImport } from './CatalogImport';
 import { CatalogSetup } from './CatalogSetup';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -37,7 +38,14 @@ export default async function PosCatalogPage() {
         }
       />
       <div className="flex flex-col gap-8 px-8 pb-8">
-        {editor ? <CatalogEditor data={editor} /> : <CatalogSetup menus={state.menus} />}
+        {editor ? (
+          <>
+            <CatalogImport />
+            <CatalogEditor data={editor} />
+          </>
+        ) : (
+          <CatalogSetup menus={state.menus} />
+        )}
       </div>
     </>
   );

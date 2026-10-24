@@ -74,3 +74,15 @@ export async function posSetCategorySection(input: unknown) {
 export async function posSetProductSetting(input: unknown) {
   return invoke(pos.posSetProductSetting, input);
 }
+
+export async function posImportPreview(input: unknown) {
+  return invoke(pos.posImportPreview, input);
+}
+
+export async function posImportApply(input: unknown) {
+  return invoke(pos.posImportApply, input);
+}
+
+export async function posImportDiscard(input: unknown) {
+  return invoke(pos.posImportDiscard, input);
+}

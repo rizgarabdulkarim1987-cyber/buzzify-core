@@ -247,6 +247,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Upload a CSV or Excel (.xlsx) file': 'error.text.sheetType',
   'Use a file of at most 5 MB': 'error.text.sheetTooLarge',
   'Some columns of this sheet are not right': 'error.text.sheetColumns',
+  'Some rows of this file are not right': 'error.text.posImportRows',
   'This import was already applied or discarded': 'error.text.importDone',
   'The menu changed after this sheet was read. Upload it again.': 'error.text.importStale',
   'Fix the rows marked invalid and upload the sheet again': 'error.text.importInvalidRows',
@@ -292,7 +293,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
