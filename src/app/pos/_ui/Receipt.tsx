@@ -1,0 +1,68 @@
+'use client';
+
+import Link from 'next/link';
+import { formatNumber } from '@/lib/pos-format';
+import type { Receipt as ReceiptData } from '@/server/pos/payments';
+import { useT } from '@/studio/i18n';
+import { Button } from '@/studio/ui/Button';
+import { useMoney } from './money';
+
+/** The paid order as a slip: printable at 80 mm, with the screen controls left out of the print. */
+export function Receipt({ receipt }: { receipt: ReceiptData }) {
+  const t = useT();
+  const money = useMoney();
+  const s = receipt.snapshot;
+  return (
+    <div className="mx-auto flex w-full max-w-[80mm] flex-col gap-3 px-4 py-6 print:max-w-none print:p-0">
+      <header className="text-center">
+        <h1 className="text-lg font-semibold">{t('pos.receipt.heading', { n: formatNumber(receipt.orderNumber) })}</h1>
+        <p className="text-sm text-muted">
+          {receipt.tableNumber !== null ? `${t('pos.receipt.table', { n: formatNumber(receipt.tableNumber) })} · ` : ''}
+          <time dateTime={new Date(receipt.paidAt).toISOString()}>{new Date(receipt.paidAt).toLocaleString('en-GB')}</time>
+        </p>
+        {receipt.cashierName ? <p className="text-sm text-muted">{receipt.cashierName}</p> : null}
+      </header>
+      <ul className="flex flex-col gap-1 border-y border-dashed border-line-strong py-2 text-base">
+        {s.lines.map((line) => (
+          <li key={line.id} className="flex justify-between gap-3">
+            <span>
+              {formatNumber(line.quantity)} × {line.name}
+              {line.options.length > 0 ? <span className="block text-sm text-muted">{line.options.map((o) => o.name).join(' · ')}</span> : null}
+            </span>
+            <span className="shrink-0">{money(line.lineTotal)}</span>
+          </li>
+        ))}
+      </ul>
+      <dl className="flex flex-col gap-1 text-base">
+        <Line label={t('pos.totals.subtotal')} value={money(s.subtotal)} />
+        {s.invoiceDiscount > 0 ? <Line label={t('pos.totals.discount')} value={`− ${money(s.invoiceDiscount)}`} /> : null}
+        {s.service > 0 ? <Line label={t('pos.totals.service')} value={money(s.service)} /> : null}
+        {s.tax > 0 ? <Line label={t('pos.totals.tax')} value={money(s.tax)} /> : null}
+        <div className="flex justify-between text-lg font-semibold">
+          <dt>{t('pos.totals.total')}</dt>
+          <dd>{money(s.total)}</dd>
+        </div>
+        <Line label={t('pos.receipt.cash')} value={money(receipt.amountReceived)} />
+        <Line label={t('pos.pay.change')} value={money(receipt.change)} />
+      </dl>
+      <p className="text-center text-sm text-muted">{t('pos.receipt.thanks')}</p>
+      <div className="flex flex-col gap-2 print:hidden">
+        <Button size="lg" className="min-h-12" onClick={() => window.print()}>
+          {t('pos.receipt.print')}
+        </Button>
+        <Link href="/pos/tables" className="inline-flex min-h-12 items-center justify-center rounded-md border border-line-strong text-base font-medium">
+          {t('pos.receipt.back')}
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function Line({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex justify-between gap-3 text-muted">
+      <dt>{label}</dt>
+      <dd>{value}</dd>
+    </div>
+  );
+}

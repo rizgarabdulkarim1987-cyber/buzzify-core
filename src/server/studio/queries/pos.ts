@@ -11,6 +11,7 @@ import { canPos } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
+import { loadTillCatalog } from '@/server/pos/till-catalog';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
 import { listPosStaff } from '@/server/pos/staff';
@@ -158,6 +159,16 @@ export const posOrder = defineQuery({
     if (!view) throw new StudioError('NOT_FOUND');
     return view;
   },
+});
+
+/** What the till sells: the catalog menu as it is now, for the order screen. Null when no catalog menu is chosen. */
+export const posTillCatalog = defineQuery({
+  name: 'pos.tillCatalog',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => loadTillCatalog(ctx.db, restaurantOf(ctx)),
 });
 
 /** The person's own open shift (its id), or none. */
