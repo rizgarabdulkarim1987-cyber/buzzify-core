@@ -63,6 +63,7 @@ export const closePosShift = defineAction({
   name: 'pos.closeShift',
   permission: null,
   pos: 'shift.use',
+  allowLapsed: true,
   input: z.object({ shiftId: idField, countedCash: money, note: z.string().trim().max(300, 'Use at most 300 characters') }),
   target: () => TILL,
   run: (ctx, input) => {
