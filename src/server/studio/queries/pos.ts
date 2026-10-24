@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
 import { readOrderView } from '@/server/pos/orders';
+import { readKitchenQueue, readKitchenScope, readKitchenTicket } from '@/server/pos/kitchen';
 import { readBoard } from '@/server/pos/board';
 import { readReceipt } from '@/server/pos/payments';
 import { listOpenShifts, openShiftIdOf, readShiftSummary } from '@/server/pos/shifts';
@@ -219,4 +220,51 @@ export const posBoard = defineQuery({
   input: z.object({ areaId: idField.optional() }),
   target: () => TILL,
   run: (ctx, { areaId }) => readBoard(ctx.db, restaurantOf(ctx), { areaId }),
+});
+
+function kitchenActor(ctx: QueryContext) {
+  if (ctx.pos === null) throw new Error('A till query ran without a restaurant');
+  return { userId: ctx.pos.userId, role: ctx.pos.role };
+}
+
+/** What the kitchen screen may show this person: the kitchen switches and the section they are tied to. */
+export const posKitchenScope = defineQuery({
+  name: 'pos.kitchenScope',
+  permission: null,
+  pos: 'kitchen.view',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => readKitchenScope(ctx.db, restaurantOf(ctx), kitchenActor(ctx)),
+});
+
+/** The kitchen screen: cards of sent lines still to cook and cancellations still to be seen. */
+export const posKitchenQueue = defineQuery({
+  name: 'pos.kitchenQueue',
+  permission: null,
+  pos: 'kitchen.view',
+  input: z.object({ sectionId: idField.nullable().optional() }),
+  target: () => TILL,
+  run: async (ctx, input) => ({ cards: await readKitchenQueue(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input), readAt: new Date() }),
+});
+
+const ticketInput = z.object({ orderId: idField, batch: z.number().int().min(1).max(2_147_483_647).optional() });
+
+/** The kitchen ticket of one round, for the kitchen. */
+export const posKitchenTicket = defineQuery({
+  name: 'pos.kitchenTicket',
+  permission: null,
+  pos: 'kitchen.view',
+  input: ticketInput,
+  target: () => TILL,
+  run: (ctx, input) => readKitchenTicket(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input),
+});
+
+/** The same ticket, for the cashier who sends or reprints it. */
+export const posOrderKitchenTicket = defineQuery({
+  name: 'pos.orderKitchenTicket',
+  permission: null,
+  pos: 'order.handle',
+  input: ticketInput,
+  target: () => TILL,
+  run: (ctx, input) => readKitchenTicket(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input),
 });
