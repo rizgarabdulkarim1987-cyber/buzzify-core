@@ -109,6 +109,8 @@ model Restaurant {
   designTemplates DesignTemplate[]
   subscriptions   Subscription[]
   payments        Payment[]
+  posSettings     PosSettings?
+  posStaffs       PosStaff[]
 
   @@index([name])
   @@index([city])
@@ -188,6 +190,7 @@ model Menu {
   analyticsEvents AnalyticsEvent[]
   cashierLinks    CashierLink[]
   pairingCodes    CashierPairingCode[]
+  posSettings     PosSettings[]
 
   @@index([restaurantId])
   @@index([status])
@@ -623,6 +626,7 @@ model User {
   twofactors       TwoFactor[]
   memberships      Membership[]
   invitationsSent  Invitation[]
+  posStaffs        PosStaff[]
 
   @@unique([email])
   @@map("user")
@@ -1109,4 +1113,68 @@ model LinkRateLimit {
   key         String   @id
   windowStart DateTime
   count       Int
+}
+
+/// The roles of the cashier, separate from the Studio's `MemberRole`.
+enum PosRole {
+  OWNER
+  MANAGER
+  CASHIER
+  KITCHEN
+}
+
+enum PosPaymentMethod {
+  CASH
+  ZAINCASH
+  FIB
+  QICARD
+}
+
+/// How one restaurant runs its till: rates, payment methods and the on/off switches of the cashier's features.
+model PosSettings {
+  id                    String             @id @default(cuid())
+  restaurantId          String             @unique
+  /// Whole percent added as a service charge.
+  serviceRatePercent    Int                @default(0)
+  /// Whole percent added as tax.
+  taxRatePercent        Int                @default(0)
+  enabledPaymentMethods PosPaymentMethod[] @default([CASH])
+  kitchenPrintEnabled   Boolean            @default(false)
+  kitchenScreenEnabled  Boolean            @default(false)
+  qrOrderingEnabled     Boolean            @default(false)
+  takeawayEnabled       Boolean            @default(false)
+  deliveryEnabled       Boolean            @default(false)
+  complaintsEnabled     Boolean            @default(false)
+  /// Minutes a table may stay occupied before its ring warns.
+  tableRingMinutes      Int                @default(60)
+  /// The menu whose rows are this restaurant's product list; null until the cashier is first set up.
+  catalogMenuId         String?
+  version               Int                @default(1)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  restaurant            Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  catalogMenu           Menu?              @relation(fields: [catalogMenuId], references: [id], onDelete: SetNull)
+}
+
+/// A person who works the till of one restaurant. An OWNER member of the restaurant is its cashier OWNER without a row.
+model PosStaff {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  userId           String
+  role             PosRole
+  deactivatedAt    DateTime?
+  /// For a KITCHEN member: the only section whose screen they see. Null sees every section.
+  kitchenSectionId String?
+  /// scrypt hash of the quick sign-in PIN, never the PIN.
+  pinHash          String?
+  pinSetAt         DateTime?
+  pinFailedCount   Int        @default(0)
+  pinLockedUntil   DateTime?
+  createdAt        DateTime   @default(now())
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
+  @@index([userId])
 }
