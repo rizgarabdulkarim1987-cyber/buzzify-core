@@ -164,7 +164,7 @@ export const posMyShift = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => {
-    if (ctx.pos === null) throw new Error('A till query ran without a till');
+    if (ctx.pos === null) throw new Error('A till query ran without a restaurant');
     return { shiftId: await openShiftIdOf(ctx.db, restaurantOf(ctx), ctx.pos.userId) };
   },
 });
@@ -177,7 +177,7 @@ export const posShift = defineQuery({
   input: z.object({ shiftId: idField }),
   target: () => TILL,
   run: async (ctx, { shiftId }) => {
-    if (ctx.pos === null) throw new Error('A till query ran without a till');
+    if (ctx.pos === null) throw new Error('A till query ran without a restaurant');
     const summary = await readShiftSummary(ctx.db, restaurantOf(ctx), shiftId);
     if (!summary) throw new StudioError('NOT_FOUND');
     if (summary.shift.userId !== ctx.pos.userId && !canPos(ctx.pos.role, 'report.view')) throw new StudioError('FORBIDDEN');
