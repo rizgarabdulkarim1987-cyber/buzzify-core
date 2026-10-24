@@ -20,12 +20,12 @@ export function DailyReportView({ report }: { report: DailyReport }) {
       <form method="get" className="flex flex-wrap items-end gap-3 print:hidden">
         <label className="flex flex-col gap-1.5 text-base font-medium">
           {t('pos.report.day')}
-          <input type="date" name="day" defaultValue={report.day} dir="ltr" className="h-10 rounded-md border border-line-strong bg-raised px-3 text-base" />
+          <input type="date" name="day" defaultValue={report.day} dir="ltr" className="min-h-12 rounded-md border border-line-strong bg-raised px-3 text-base" />
         </label>
-        <Button type="submit" variant="secondary" size="lg">
+        <Button type="submit" variant="secondary" size="lg" className="min-h-12">
           {t('pos.report.show')}
         </Button>
-        <Button type="button" variant="ghost" size="lg" onClick={() => window.print()}>
+        <Button type="button" variant="ghost" size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>
       </form>

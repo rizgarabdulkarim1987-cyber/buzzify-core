@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { countKind, isLate, needsSheet, pickName, quickCash, tableTone, visibleProducts } from '@/lib/pos-view';
+import { amountDigits, countKind, isLate, needsSheet, pickName, quickCash, typedAmount, tableTone, visibleProducts } from '@/lib/pos-view';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { tillNav } from '@/server/domain/pos/nav';
 import type { TillProduct } from '@/server/pos/till-catalog';
@@ -91,5 +91,23 @@ describe('late kitchen cards', () => {
   it('warns after the limit, not at it', () => {
     expect(isLate(0, 15 * 60_000)).toBe(false);
     expect(isLate(0, 15 * 60_000 + 1)).toBe(true);
+  });
+});
+
+describe('typed amounts', () => {
+  it('keeps Latin digits whatever keyboard typed them, up to nine', () => {
+    expect(amountDigits('٥٠٬٠٠٠')).toBe('50000');
+    expect(amountDigits('۷۱ ۰۰۰')).toBe('71000');
+    expect(amountDigits('12ab3,4')).toBe('1234');
+    expect(amountDigits('1234567890')).toBe('123456789');
+  });
+
+  it('reads a typed amount, and says nothing for an empty one', () => {
+    expect(typedAmount('٥٠٠٠٠')).toBe(50_000);
+    expect(typedAmount(' 71,000 ')).toBe(71_000);
+    expect(typedAmount('0')).toBe(0);
+    expect(typedAmount('')).toBeNull();
+    expect(typedAmount('   ')).toBeNull();
+    expect(typedAmount('12x')).toBeNull();
   });
 });

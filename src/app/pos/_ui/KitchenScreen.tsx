@@ -98,7 +98,7 @@ export function KitchenScreen({ cards, readAt, canFilter }: { cards: KitchenCard
                         {line.note ? <span className="block text-sm">“{line.note}”</span> : null}
                       </span>
                       {!line.ready && !card.orderCancelled ? (
-                        <Button variant="secondary" size="lg" disabled={pending} onClick={() => void call(() => markPosLinesReady({ lineIds: [line.id] }))}>
+                        <Button variant="secondary" size="lg" className="min-h-12" disabled={pending} onClick={() => void call(() => markPosLinesReady({ lineIds: [line.id] }))}>
                           {t('pos.kitchen.ready')}
                         </Button>
                       ) : null}
@@ -118,7 +118,7 @@ export function KitchenScreen({ cards, readAt, canFilter }: { cards: KitchenCard
                         </li>
                       ))}
                     </ul>
-                    <Button variant="secondary" size="lg" disabled={pending} onClick={() => void call(() => acknowledgePosCancellations({ lineIds: card.cancelled.map((line) => line.id) }))}>
+                    <Button variant="secondary" size="lg" className="min-h-12" disabled={pending} onClick={() => void call(() => acknowledgePosCancellations({ lineIds: card.cancelled.map((line) => line.id) }))}>
                       {t('pos.kitchen.seen')}
                     </Button>
                   </div>

@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { payPosOrder } from '@/app/studio/_actions/pos';
-import { quickCash } from '@/lib/pos-view';
+import { amountDigits, quickCash } from '@/lib/pos-view';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
@@ -84,7 +84,7 @@ function PayBody({ orderId, version, total }: Omit<Props, 'open' | 'onClose'>) {
           aria-label={t('pos.pay.otherAmount')}
           value={typed}
           onChange={(event) => {
-            const digits = event.target.value.replace(/\D/g, '').slice(0, 9);
+            const digits = amountDigits(event.target.value);
             setTyped(digits);
             setReceived(digits === '' ? 0 : Number(digits));
           }}

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
-import { countKind } from '@/lib/pos-view';
+import { amountDigits, countKind, typedAmount } from '@/lib/pos-view';
 import type { ShiftSummary } from '@/server/pos/shifts';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -16,7 +16,6 @@ import { useMoney } from './money';
 import { usePosCall } from './use-pos-call';
 
 const FLOATS = [0, 25_000, 50_000, 100_000] as const;
-const digits = (value: string) => value.replace(/\D/g, '').slice(0, 9);
 
 /** Starting a shift: the cash already in the drawer, by a tap or typed. */
 export function OpenShiftForm() {
@@ -41,7 +40,7 @@ export function OpenShiftForm() {
         ))}
       </div>
       <Field label={t('pos.shift.openingFloat')}>
-        <Input size="lg" inputMode="numeric" dir="ltr" value={amount} onChange={(event) => setAmount(digits(event.target.value))} />
+        <Input size="lg" inputMode="numeric" dir="ltr" value={amount} onChange={(event) => setAmount(amountDigits(event.target.value))} />
       </Field>
       <Button variant="primary" size="lg" className="min-h-12" disabled={pending || amount === ''} pending={pending} onClick={() => void call(() => openPosShift({ openingFloat: Number(amount) }))}>
         {t('pos.shift.open')}
@@ -118,9 +117,10 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         confirmLabel={t('common.save')}
         tone="primary"
         onConfirm={async (form) => {
-          const amount = digits(String(form.get('amount') ?? ''));
+          const amount = typedAmount(String(form.get('amount') ?? ''));
+          if (amount === null) return { fields: { amount: t('pos.order.discountDigits') } };
           const reason = String(form.get('reason') ?? '').trim();
-          const result = await call(() => addPosExpense({ shiftId: shift.id, amount: Number(amount), reason }), { quiet: true });
+          const result = await call(() => addPosExpense({ shiftId: shift.id, amount, reason }), { quiet: true });
           if (result.ok) return true;
           return { fields: result.error.fields ?? {}, message: result.error.fields ? undefined : t('pos.shift.refused') };
         }}
@@ -145,7 +145,8 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         confirmLabel={t('pos.shift.close')}
         tone="primary"
         onConfirm={async (form) => {
-          const countedCash = Number(digits(String(form.get('counted') ?? '')));
+          const countedCash = typedAmount(String(form.get('counted') ?? ''));
+          if (countedCash === null) return { fields: { countedCash: t('pos.shift.enterCount') } };
           const note = String(form.get('note') ?? '').trim();
           const result = await call(() => closePosShift({ shiftId: shift.id, countedCash, note }), { quiet: true });
           if (result.ok) {
@@ -158,7 +159,7 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         {(errors) => (
           <>
             <Field label={t('pos.shift.counted')} error={errors.countedCash}>
-              <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(digits(event.target.value))} />
+              <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(amountDigits(event.target.value))} />
             </Field>
             {difference !== null ? (
               <dl aria-live="polite">

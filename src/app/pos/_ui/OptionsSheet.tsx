@@ -136,15 +136,16 @@ function Choice({ type, name, checked, onChange, label, extra }: { type: 'radio'
 
 /** A quantity with large plus and minus buttons, 1 to 999. */
 export function Stepper({ value, onChange, label, disabled }: { value: number; onChange: (next: number) => void; label: string; disabled?: boolean }) {
+  const t = useT();
   return (
     <div role="group" aria-label={label} className="inline-flex items-center gap-1">
-      <button type="button" aria-label="−" disabled={disabled || value <= 1} onClick={() => onChange(value - 1)} className="size-12 rounded-md border border-line-strong bg-raised text-xl hover:bg-hover disabled:opacity-40">
+      <button type="button" aria-label={t('pos.order.stepperMinus')} disabled={disabled || value <= 1} onClick={() => onChange(value - 1)} className="size-12 rounded-md border border-line-strong bg-raised text-xl hover:bg-hover disabled:opacity-40">
         −
       </button>
       <output className="min-w-10 text-center text-lg font-semibold" dir="ltr">
         {formatNumber(value)}
       </output>
-      <button type="button" aria-label="+" disabled={disabled || value >= 999} onClick={() => onChange(value + 1)} className="size-12 rounded-md border border-line-strong bg-raised text-xl hover:bg-hover disabled:opacity-40">
+      <button type="button" aria-label={t('pos.order.stepperPlus')} disabled={disabled || value >= 999} onClick={() => onChange(value + 1)} className="size-12 rounded-md border border-line-strong bg-raised text-xl hover:bg-hover disabled:opacity-40">
         +
       </button>
     </div>

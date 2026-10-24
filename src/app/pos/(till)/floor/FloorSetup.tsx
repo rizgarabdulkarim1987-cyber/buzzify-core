@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { createPosArea, createPosTables, deletePosArea, deletePosTable, movePosTable, renamePosArea } from '@/app/studio/_actions/pos';
 import { usePosCall } from '@/app/pos/_ui/use-pos-call';
 import { formatNumber } from '@/lib/pos-format';
+import { typedAmount } from '@/lib/pos-view';
 import type { FloorView } from '@/server/pos/floor';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -16,7 +17,7 @@ import { Select } from '@/studio/ui/Select';
 type Area = FloorView['areas'][number];
 type Doomed = { kind: 'area'; area: Area } | { kind: 'table'; id: string; number: number };
 
-const whole = (value: string): number => (/^\d+$/.test(value.trim()) ? Number(value.trim()) : Number.NaN);
+const whole = (value: string): number => typedAmount(value) ?? Number.NaN;
 
 export function FloorSetup({ floor }: { floor: FloorView }) {
   const t = useT();
@@ -37,7 +38,7 @@ export function FloorSetup({ floor }: { floor: FloorView }) {
         <Field label={t('pos.floor.newArea')} className="min-w-56 flex-1">
           <Input name="name" size="lg" maxLength={60} required />
         </Field>
-        <Button variant="primary" type="submit" size="lg" disabled={pending}>
+        <Button variant="primary" type="submit" size="lg" className="min-h-12" disabled={pending}>
           {t('pos.floor.addArea')}
         </Button>
       </form>
@@ -57,10 +58,10 @@ export function FloorSetup({ floor }: { floor: FloorView }) {
             <Field label={t('pos.floor.areaName')} className="min-w-56 flex-1">
               <Input name="name" size="lg" defaultValue={area.name} maxLength={60} required />
             </Field>
-            <Button type="submit" variant="secondary" size="lg" disabled={pending}>
+            <Button type="submit" variant="secondary" size="lg" className="min-h-12" disabled={pending}>
               {t('common.save')}
             </Button>
-            <Button type="button" variant="ghost" size="lg" disabled={pending} onClick={() => setDoomed({ kind: 'area', area })}>
+            <Button type="button" variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDoomed({ kind: 'area', area })}>
               {t('pos.floor.deleteArea')}
             </Button>
           </form>
@@ -88,7 +89,7 @@ export function FloorSetup({ floor }: { floor: FloorView }) {
                   <Button
                     type="button"
                     variant="ghost"
-                    size="lg"
+                    size="lg" className="min-h-12"
                     aria-label={t('pos.floor.deleteTable', { n: formatNumber(table.number) })}
                     disabled={pending}
                     onClick={() => setDoomed({ kind: 'table', id: table.id, number: table.number })}
@@ -117,7 +118,7 @@ export function FloorSetup({ floor }: { floor: FloorView }) {
             <Field label={t('pos.floor.to')} className="w-28">
               <Input name="to" size="lg" inputMode="numeric" dir="ltr" required />
             </Field>
-            <Button type="submit" variant="secondary" size="lg" disabled={pending}>
+            <Button type="submit" variant="secondary" size="lg" className="min-h-12" disabled={pending}>
               {t('pos.floor.addTables')}
             </Button>
           </form>

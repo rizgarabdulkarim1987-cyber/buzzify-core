@@ -243,6 +243,9 @@ const posTill: Messages = {
   'pos.report.openShift': 'Open the shift',
   'pos.report.outside': 'Cancelled outside any shift',
   'pos.report.outsideCounts': '{orders} orders and {lines} lines',
+  'pos.shift.enterCount': 'Enter the counted cash (0 if the drawer is empty)',
+  'pos.order.stepperMinus': 'Decrease',
+  'pos.order.stepperPlus': 'Increase',
 };
 
 export default posTill;

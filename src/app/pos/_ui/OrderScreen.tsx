@@ -13,7 +13,7 @@ import {
   updatePosLine,
 } from '@/app/studio/_actions/pos';
 import { formatNumber } from '@/lib/pos-format';
-import { needsSheet, pickName, visibleProducts } from '@/lib/pos-view';
+import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import { useLocale, useT } from '@/studio/i18n';
@@ -209,11 +209,11 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
                       )}
                       <span className="flex-1" />
                       {can.discount && !line.sent ? (
-                        <Button variant="ghost" size="lg" disabled={pending} onClick={() => setDialog({ line, kind: 'discount' })}>
+                        <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog({ line, kind: 'discount' })}>
                           {t('pos.order.discount')}
                         </Button>
                       ) : null}
-                      <Button variant="ghost" size="lg" disabled={pending} onClick={() => setDialog({ line, kind: 'cancel' })}>
+                      <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog({ line, kind: 'cancel' })}>
                         {t('pos.order.cancelLine')}
                       </Button>
                     </div>
@@ -259,17 +259,17 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
               ) : null}
               <div className="flex w-full flex-wrap gap-2">
                 {can.discount ? (
-                  <Button variant="ghost" size="lg" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
+                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
                     {t('pos.order.invoiceDiscount')}
                   </Button>
                 ) : null}
                 {order.tableId ? (
-                  <Button variant="ghost" size="lg" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
+                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
                     {t('pos.order.moveTable')}
                   </Button>
                 ) : null}
                 {can.cancel ? (
-                  <Button variant="ghost" size="lg" disabled={pending} onClick={() => setDialog('cancelOrder')}>
+                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog('cancelOrder')}>
                     {t('pos.order.cancelOrder')}
                   </Button>
                 ) : null}
@@ -404,8 +404,9 @@ function DiscountDialog({
         const raw = String(form.get('value') ?? '').trim();
         const kind = form.get('kind') === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
         if (raw === '') return onSave(null);
-        if (!/^\d+$/.test(raw)) return Promise.resolve({ fields: { value: t('pos.order.discountDigits') } });
-        return onSave({ kind, value: Number(raw) });
+        const value = typedAmount(raw);
+        if (value === null) return Promise.resolve({ fields: { value: t('pos.order.discountDigits') } });
+        return onSave({ kind, value });
       }}
     >
       {(errors) => (

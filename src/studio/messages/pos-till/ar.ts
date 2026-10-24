@@ -243,6 +243,9 @@ const posTill: Messages = {
   'pos.report.openShift': 'فتح الوردية',
   'pos.report.outside': 'إلغاءات خارج أي وردية',
   'pos.report.outsideCounts': '{orders} طلبات و{lines} بنود',
+  'pos.shift.enterCount': 'أدخل النقد المعدود (0 إن كان الدرج فارغًا)',
+  'pos.order.stepperMinus': 'إنقاص',
+  'pos.order.stepperPlus': 'زيادة',
 };
 
 export default posTill;

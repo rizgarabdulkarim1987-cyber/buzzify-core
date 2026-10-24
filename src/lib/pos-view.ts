@@ -1,4 +1,5 @@
 import type { Locale } from '@/lib/locale';
+import { parseAmount } from '@/server/domain/pos/cash';
 import type { TableStatus } from '@/server/domain/pos/table-status';
 import type { Names, TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 
@@ -70,4 +71,16 @@ export function visibleProducts(catalog: Pick<TillCatalog, 'products'>, category
 /** Whether a kitchen card was sent long enough ago to warn about: more than `warnMinutes`. */
 export function isLate(sentAtMs: number, nowMs: number, warnMinutes = 15): boolean {
   return nowMs - sentAtMs > warnMinutes * 60_000;
+}
+
+const INDIC: Record<string, string> = { '٠': '0', '١': '1', '٢': '2', '٣': '3', '٤': '4', '٥': '5', '٦': '6', '٧': '7', '٨': '8', '٩': '9', '۰': '0', '۱': '1', '۲': '2', '۳': '3', '۴': '4', '۵': '5', '۶': '6', '۷': '7', '۸': '8', '۹': '9' };
+
+/** What an amount field keeps while it is typed: Latin digits only (Arabic-Indic and Persian ones converted), at most nine. */
+export function amountDigits(text: string): string {
+  return text.replace(/[٠-٩۰-۹]/g, (d) => INDIC[d]!).replace(/\D/g, '').slice(0, 9);
+}
+
+/** A typed whole amount of dinars, or null when the field is empty or not an amount: an empty count is not a count of 0. */
+export function typedAmount(text: string): number | null {
+  return text.trim() === '' ? null : parseAmount(text);
 }

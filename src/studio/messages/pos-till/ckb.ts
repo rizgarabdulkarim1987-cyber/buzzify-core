@@ -243,6 +243,9 @@ const posTill: Messages = {
   'pos.report.openShift': 'کردنەوەی شیفت',
   'pos.report.outside': 'هەڵوەشاندنەوە لە دەرەوەی شیفت',
   'pos.report.outsideCounts': '{orders} داواکاری و {lines} دێڕ',
+  'pos.shift.enterCount': 'پارەی ژمێردراو بنووسە (0 ئەگەر دڕاوەر بەتاڵە)',
+  'pos.order.stepperMinus': 'کەمکردنەوە',
+  'pos.order.stepperPlus': 'زیادکردن',
 };
 
 export default posTill;
