@@ -176,6 +176,7 @@ export const posMyShift = defineQuery({
   name: 'pos.myShift',
   permission: null,
   pos: 'shift.use',
+  allowLapsed: true,
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => {

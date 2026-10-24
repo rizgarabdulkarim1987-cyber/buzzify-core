@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { openPosOrder } from '@/app/studio/_actions/pos';
 import { elapsedLabel, elapsedMinutes, formatNumber, type ElapsedText } from '@/lib/pos-format';
 import { tableTone, type TableTone } from '@/lib/pos-view';
@@ -11,6 +11,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { useLiveRefresh, useNow } from './live';
 import { useMoney } from './money';
 import { usePosCall } from './use-pos-call';
 
@@ -23,34 +24,6 @@ const TONE: Record<TableTone, string> = {
   pending: 'border-dashed border-line-strong bg-surface text-text',
 };
 const RING = 2 * Math.PI * 46;
-
-/** The page re-read every few seconds while it is visible, and as soon as the person comes back to it. */
-function useLiveRefresh(everyMs: number) {
-  const router = useRouter();
-  useEffect(() => {
-    const tick = () => {
-      if (document.visibilityState === 'visible') router.refresh();
-    };
-    const timer = window.setInterval(tick, everyMs);
-    document.addEventListener('visibilitychange', tick);
-    window.addEventListener('focus', tick);
-    return () => {
-      window.clearInterval(timer);
-      document.removeEventListener('visibilitychange', tick);
-      window.removeEventListener('focus', tick);
-    };
-  }, [everyMs, router]);
-}
-
-/** A clock that moves every half minute, so the time rings and the minutes on the tables keep going between refreshes. */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
 
 export function TablesBoard({ board }: { board: BoardView }) {
   const t = useT();

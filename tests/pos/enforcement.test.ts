@@ -47,7 +47,7 @@ describe('allowLapsed', () => {
 
   it('is carried by exactly the shift-closing and reading definitions', () => {
     const all = [...Object.values(posActions), ...Object.values(posShiftActions), ...Object.values(posQueries)] as Array<{ name: string; allowLapsed?: true }>;
-    expect(all.filter((def) => def.allowLapsed).map((def) => def.name).sort()).toEqual(['pos.closeShift', 'pos.dailyReport', 'pos.openShifts', 'pos.shift', 'pos.shiftReport']);
+    expect(all.filter((def) => def.allowLapsed).map((def) => def.name).sort()).toEqual(['pos.closeShift', 'pos.dailyReport', 'pos.myShift', 'pos.openShifts', 'pos.shift', 'pos.shiftReport']);
   });
 });
 
