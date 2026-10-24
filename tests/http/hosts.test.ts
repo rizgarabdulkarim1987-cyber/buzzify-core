@@ -14,6 +14,8 @@ describe('routeHost on the studio host', () => {
   it.each([
     '/studio',
     '/studio/menus',
+    '/pos',
+    '/pos/settings',
     '/api/auth',
     '/api/auth/sign-in/email',
     '/api/studio/export',
@@ -29,7 +31,7 @@ describe('routeHost on the studio host', () => {
 });
 
 describe('routeHost on the public host', () => {
-  it.each(['/studio', '/studio/menus', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export'])(
+  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export'])(
     'answers 404 for %s',
     (pathname) => expect(routeHost({ host: PUBLIC, pathname }, cfg)).toEqual(NOT_FOUND),
   );
@@ -43,7 +45,7 @@ describe('routeHost on the public host', () => {
   );
 
   it('matches paths by whole segment, so a menu may be called studios or authors', () => {
-    for (const pathname of ['/studios', '/studio-cafe/en', '/api/authors/quote', '/api/studios/quote']) {
+    for (const pathname of ['/studios', '/posters', '/pos-cafe/en', '/studio-cafe/en', '/api/authors/quote', '/api/studios/quote']) {
       expect(routeHost({ host: PUBLIC, pathname }, cfg), pathname).toEqual(NEXT);
     }
   });
@@ -54,7 +56,7 @@ describe('routeHost on any other host (development and previews)', () => {
     expect(routeHost({ host, pathname: '/' }, cfg)).toEqual({ action: 'redirect', to: '/studio' }),
   );
 
-  it.each(['/studio', '/studio/menus', '/api/auth/session', '/atelier/en', '/api/atelier/quote', '/anything'])(
+  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/api/auth/session', '/atelier/en', '/api/atelier/quote', '/anything'])(
     'serves %s',
     (pathname) => expect(routeHost({ host: '127.0.0.1:3100', pathname }, cfg)).toEqual(NEXT),
   );

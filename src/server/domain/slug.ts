@@ -12,6 +12,7 @@ export const SLUG_MAX = 48;
  */
 export const RESERVED_SLUGS: readonly string[] = [
   'studio',
+  'pos',
   'api',
   'auth',
   'admin',

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '@/server/studio/auth/actor';
-import { isNavItemActive, NAV_ITEMS, safeNextPath, visibleNav } from '@/studio/nav';
+import { isNavItemActive, NAV_ITEMS, posNavItem, safeNextPath, visibleNav } from '@/studio/nav';
 
 function actor(overrides: Partial<Actor>): Actor {
   return {
@@ -138,6 +138,24 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(item!, '/studio/menus/m1')).toBe(true);
     expect(isNavItemActive(item!, '/studio/restaurants/r1/people')).toBe(true);
     expect(isNavItemActive(item!, '/studio/account')).toBe(false);
+  });
+});
+
+describe('the cashier item and the shared sign-in', () => {
+  it('is one item pointing at /pos', () => {
+    expect(posNavItem()).toMatchObject({ key: 'cashier', href: '/pos', labelKey: 'nav.cashier' });
+  });
+
+  it('is not among the Studio areas, so a menu-only user never sees it', () => {
+    expect(NAV_ITEMS.map((item) => item.key)).not.toContain('cashier');
+  });
+
+  it('lets a sign-in return to the till', () => {
+    expect(safeNextPath('/pos')).toBe('/pos');
+    expect(safeNextPath('/pos/settings')).toBe('/pos/settings');
+    for (const value of ['/posters', '/pos/../studio', '//pos', '/pos?x=1', 'https://evil.test/pos']) {
+      expect(safeNextPath(value), value).toBeNull();
+    }
   });
 });
 

@@ -3,7 +3,7 @@ import type { Actor } from '@/server/studio/auth/actor';
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'activity' | 'settings' | 'store';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'activity' | 'settings' | 'myRestaurant';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'activity' | 'settings' | 'myRestaurant' | 'cashier';
 
 export interface NavItem {
   key: NavKey;
@@ -102,8 +102,13 @@ export function isNavItemActive(item: Pick<NavItem, 'href' | 'exact' | 'match'>,
   return [item.href, ...(item.match ?? [])].some((path) => within(pathname, path));
 }
 
-/** A Studio path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
-const STUDIO_PATH = /^\/studio(?:\/[A-Za-z0-9_-]+)*$/;
+/** The one item that leads from the Studio to the till; the shell adds it only for a person with a till (`getPosAccess`). */
+export function posNavItem(): NavItem {
+  return { key: 'cashier', href: '/pos', labelKey: 'nav.cashier', icon: 'store' };
+}
+
+/** A Studio or till path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
+const STUDIO_PATH = /^\/(?:studio|pos)(?:\/[A-Za-z0-9_-]+)*$/;
 
 /**
  * The page to return to after signing in, from an untrusted `next` parameter: a Studio path, or null for anything else,

@@ -76,3 +76,12 @@ export const getPosActor = cache(async (): Promise<PosActor | null> => {
   const actor = await getActor();
   return actor ? resolvePosActor(getPrisma(), actor.userId) : null;
 });
+
+/** The person, their till identity and whether the till is open for their restaurant, for one request. */
+export const getPosAccess = cache(async () => {
+  const studioActor = await getActor();
+  if (!studioActor) return { signedIn: false as const, actor: null, gate: null };
+  const prisma = getPrisma();
+  const actor = await resolvePosActor(prisma, studioActor.userId);
+  return { signedIn: true as const, actor, gate: actor ? await posGate(prisma, actor.restaurantId) : null };
+});
