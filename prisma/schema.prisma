@@ -101,16 +101,19 @@ model Restaurant {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  branches        Branch[]
-  menus           Menu[]
-  memberships     Membership[]
-  invitations     Invitation[]
-  mediaAssets     MediaAsset[]
-  designTemplates DesignTemplate[]
-  subscriptions   Subscription[]
-  payments        Payment[]
-  posSettings     PosSettings?
-  posStaffs       PosStaff[]
+  branches            Branch[]
+  menus               Menu[]
+  memberships         Membership[]
+  invitations         Invitation[]
+  mediaAssets         MediaAsset[]
+  designTemplates     DesignTemplate[]
+  subscriptions       Subscription[]
+  payments            Payment[]
+  posSettings         PosSettings?
+  posStaffs           PosStaff[]
+  posKitchenSections  PosKitchenSection[]
+  posCategorySettings PosCategorySetting[]
+  posProductSettings  PosProductSetting[]
 
   @@index([name])
   @@index([city])
@@ -271,18 +274,19 @@ model BrandConfig {
 }
 
 model Category {
-  id            String       @id @default(cuid())
-  menuId        String
-  slug          String
-  sortOrder     Int          @default(0)
-  translations  Json
-  isActive      Boolean      @default(true)
+  id                 String              @id @default(cuid())
+  menuId             String
+  slug               String
+  sortOrder          Int                 @default(0)
+  translations       Json
+  isActive           Boolean             @default(true)
   /// The cart suggests one of its dishes when the order has none ("complete your meal").
-  completesMeal Boolean      @default(false)
-  version       Int          @default(1)
-  menu          Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  products      Product[]
-  motions       MenuMotion[]
+  completesMeal      Boolean             @default(false)
+  version            Int                 @default(1)
+  menu               Menu                @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  products           Product[]
+  motions            MenuMotion[]
+  posCategorySetting PosCategorySetting?
 
   @@unique([menuId, slug])
 }
@@ -344,15 +348,16 @@ model Product {
   sortOrder          Int       @default(0)
   version            Int       @default(1)
 
-  menu        Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  variants    ProductVariant[]
-  groups      ModifierGroup[]
-  upsellFrom  UpsellRule[]     @relation("UpsellSource")
-  upsellTo    UpsellRule[]     @relation("UpsellTarget")
-  pairingFrom PairingRule[]    @relation("PairingSource")
-  pairingTo   PairingRule[]    @relation("PairingTarget")
-  bundleItems BundleItem[]
+  menu              Menu               @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category          Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants          ProductVariant[]
+  groups            ModifierGroup[]
+  upsellFrom        UpsellRule[]       @relation("UpsellSource")
+  upsellTo          UpsellRule[]       @relation("UpsellTarget")
+  pairingFrom       PairingRule[]      @relation("PairingSource")
+  pairingTo         PairingRule[]      @relation("PairingTarget")
+  bundleItems       BundleItem[]
+  posProductSetting PosProductSetting?
 
   @@unique([menuId, slug])
   @@index([menuId, categoryId])
@@ -1158,7 +1163,7 @@ model PosSettings {
 
 /// A person who works the till of one restaurant. An OWNER member of the restaurant is its cashier OWNER without a row.
 model PosStaff {
-  id               String     @id @default(cuid())
+  id               String             @id @default(cuid())
   restaurantId     String
   userId           String
   role             PosRole
@@ -1168,13 +1173,56 @@ model PosStaff {
   /// scrypt hash of the quick sign-in PIN, never the PIN.
   pinHash          String?
   pinSetAt         DateTime?
-  pinFailedCount   Int        @default(0)
+  pinFailedCount   Int                @default(0)
   pinLockedUntil   DateTime?
-  createdAt        DateTime   @default(now())
-  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  user             User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt        DateTime           @default(now())
+  restaurant       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kitchenSection   PosKitchenSection? @relation(fields: [kitchenSectionId], references: [id], onDelete: SetNull)
 
   @@unique([restaurantId, userId])
   @@index([restaurantId])
   @@index([userId])
+}
+
+/// A part of the kitchen with its own screen (grill, cold, bar). A KITCHEN member may be tied to one.
+model PosKitchenSection {
+  id           String               @id @default(cuid())
+  restaurantId String
+  name         String
+  sortOrder    Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff        PosStaff[]
+  categories   PosCategorySetting[]
+  products     PosProductSetting[]
+
+  @@index([restaurantId])
+}
+
+/// What only the till knows about a menu category: which kitchen section prepares it.
+model PosCategorySetting {
+  id           String             @id @default(cuid())
+  categoryId   String             @unique
+  restaurantId String
+  sectionId    String?
+  category     Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  section      PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// What only the till knows about a menu product: its kitchen section (overriding its category's) and a till-only sold-out switch.
+model PosProductSetting {
+  id              String             @id @default(cuid())
+  productId       String             @unique
+  restaurantId    String
+  sectionId       String?
+  soldOutOverride Boolean            @default(false)
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
 }
