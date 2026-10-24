@@ -1048,6 +1048,7 @@ const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'p
   'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
   'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
   'pos.importPreview', 'pos.importApply', 'pos.importDiscard',
+  'pos.createArea', 'pos.renameArea', 'pos.deleteArea', 'pos.createTables', 'pos.deleteTable', 'pos.moveTable', 'pos.floor',
 ];
 
 describe('the cross-tenant sweep', () => {

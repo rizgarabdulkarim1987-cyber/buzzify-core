@@ -22,3 +22,10 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
 export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
   return TRANSITIONS[from].includes(to);
 }
+
+/** Orders in these states are history: nothing about them may change, and their table is free again. */
+export const LOCKED_STATUSES = ['PAID', 'CANCELLED', 'REJECTED'] as const satisfies readonly OrderStatus[];
+
+export function isLocked(status: OrderStatus): boolean {
+  return (LOCKED_STATUSES as readonly OrderStatus[]).includes(status);
+}

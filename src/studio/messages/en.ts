@@ -1,6 +1,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/en';
 import menuMotions from './menu-motions/en';
+import posTill from './pos-till/en';
 
 const en: Messages = {
   // Shared words of the interface
@@ -2722,6 +2723,8 @@ const en: Messages = {
   ...motion,
   // The Motion tab of a menu (menu-motions/en.ts)
   ...menuMotions,
+  // The till: floor, orders, shifts, kitchen and report (pos-till/en.ts)
+  ...posTill,
 };
 
 export default en;

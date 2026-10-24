@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
+import { readFloor } from '@/server/pos/floor';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
@@ -124,4 +125,14 @@ export const posOverview = defineQuery({
       }),
     };
   },
+});
+
+/** The floor: areas with their tables. Every till role that takes orders reads it; changing it needs settings.manage. */
+export const posFloor = defineQuery({
+  name: 'pos.floor',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => readFloor(ctx.db, restaurantOf(ctx)),
 });

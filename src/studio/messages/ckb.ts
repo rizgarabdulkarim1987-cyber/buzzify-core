@@ -2,6 +2,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ckb';
 import menuMotions from './menu-motions/ckb';
+import posTill from './pos-till/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -2727,6 +2728,8 @@ const ckb: Messages = {
   ...motion,
   // The Motion tab of a menu (menu-motions/ckb.ts)
   ...menuMotions,
+  // The till: floor, orders, shifts, kitchen and report (pos-till/ckb.ts)
+  ...posTill,
 };
 
 export default ckb;

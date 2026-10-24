@@ -1,4 +1,5 @@
 import type { Translate } from '@/lib/i18n';
+import { POS_TEXT } from '@/server/pos/errors';
 import type { Locale } from '@/lib/locale';
 import { DEFAULT_PLAN_NAMES } from '@/server/domain/entitlements';
 import type { StudioFailure } from '@/server/studio/framework/result';
@@ -10,6 +11,7 @@ import { formatDateTime } from './format';
  * English on an Arabic or Sorani page. tests/studio/messages.test.ts scans the server code for refusals missing here.
  */
 export const SERVER_TEXT: Readonly<Record<string, string>> = {
+  ...POS_TEXT,
   // The framework's defaults, one per code
   'Sign in to continue': 'error.UNAUTHENTICATED',
   'Set up two-factor authentication to continue': 'error.TWO_FACTOR_REQUIRED',

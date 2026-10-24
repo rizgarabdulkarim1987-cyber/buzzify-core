@@ -86,3 +86,27 @@ export async function posImportApply(input: unknown) {
 export async function posImportDiscard(input: unknown) {
   return invoke(pos.posImportDiscard, input);
 }
+
+export async function createPosArea(input: unknown) {
+  return invoke(pos.createPosArea, input);
+}
+
+export async function renamePosArea(input: unknown) {
+  return invoke(pos.renamePosArea, input);
+}
+
+export async function deletePosArea(input: unknown) {
+  return invoke(pos.deletePosArea, input);
+}
+
+export async function createPosTables(input: unknown) {
+  return invoke(pos.createPosTables, input);
+}
+
+export async function deletePosTable(input: unknown) {
+  return invoke(pos.deletePosTable, input);
+}
+
+export async function movePosTable(input: unknown) {
+  return invoke(pos.movePosTable, input);
+}

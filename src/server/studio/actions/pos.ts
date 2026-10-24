@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { previewPosImport } from '@/server/pos/menu-import';
+import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
@@ -369,4 +370,100 @@ export const posImportDiscard = defineAction({
     await discardImport(ctx, input);
     return { discarded: true as const };
   },
+});
+
+// The floor: areas and tables ------------------------------------------------------------------------------------------
+
+const areaName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
+const tableNumber = z.number().int().min(1).max(100_000);
+
+export const createPosArea = defineAction({
+  name: 'pos.createArea',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ name: areaName }),
+  target: () => TILL,
+  run: (ctx, { name }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const { id } = await createAreaIn(tx, restaurantId, name);
+      ctx.audit({ action: 'pos.area.create', entityType: 'PosArea', entityId: id, changes: { name: { before: null, after: name } } });
+      return { areaId: id };
+    });
+  },
+});
+
+export const renamePosArea = defineAction({
+  name: 'pos.renameArea',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ areaId: idField, name: areaName }),
+  target: () => TILL,
+  run: (ctx, { areaId, name }) =>
+    ctx.transaction(async (tx) => {
+      const { id, before } = await renameAreaIn(tx, areaId, name);
+      if (before !== name) ctx.audit({ action: 'pos.area.rename', entityType: 'PosArea', entityId: id, changes: { name: { before, after: name } } });
+      return { areaId: id };
+    }),
+});
+
+export const deletePosArea = defineAction({
+  name: 'pos.deleteArea',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ areaId: idField }),
+  target: () => TILL,
+  run: (ctx, { areaId }) =>
+    ctx.transaction(async (tx) => {
+      const area = await deleteAreaIn(tx, areaId);
+      ctx.audit({ action: 'pos.area.delete', entityType: 'PosArea', entityId: area.id, changes: { name: { before: area.name, after: null }, tables: { before: area.tables, after: 0 } } });
+      return { deleted: true as const };
+    }),
+});
+
+export const createPosTables = defineAction({
+  name: 'pos.createTables',
+  permission: null,
+  pos: 'settings.manage',
+  input: z
+    .object({ areaId: idField, from: tableNumber, to: tableNumber })
+    .refine((v) => v.from <= v.to, { message: 'The first number must not exceed the last', path: ['to'] })
+    .refine((v) => v.to - v.from + 1 <= MAX_TABLES_PER_CALL, { message: 'Create at most 200 tables at a time', path: ['to'] }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const { count } = await createTablesIn(tx, restaurantId, input);
+      ctx.audit({ action: 'pos.tables.create', entityType: 'PosArea', entityId: input.areaId, changes: { from: { before: null, after: input.from }, to: { before: null, after: input.to } } });
+      return { count };
+    });
+  },
+});
+
+export const deletePosTable = defineAction({
+  name: 'pos.deleteTable',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ tableId: idField }),
+  target: () => TILL,
+  run: (ctx, { tableId }) =>
+    ctx.transaction(async (tx) => {
+      const table = await deleteTableIn(tx, tableId);
+      ctx.audit({ action: 'pos.table.delete', entityType: 'PosTable', entityId: table.id, changes: { number: { before: table.number, after: null } } });
+      return { deleted: true as const };
+    }),
+});
+
+export const movePosTable = defineAction({
+  name: 'pos.moveTable',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ tableId: idField, areaId: idField }),
+  target: () => TILL,
+  run: (ctx, { tableId, areaId }) =>
+    ctx.transaction(async (tx) => {
+      const { id, from } = await moveTableIn(tx, tableId, areaId);
+      if (from !== areaId) ctx.audit({ action: 'pos.table.move', entityType: 'PosTable', entityId: id, changes: { areaId: { before: from, after: areaId } } });
+      return { tableId: id };
+    }),
 });
