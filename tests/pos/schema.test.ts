@@ -72,3 +72,39 @@ describe('PosStaff', () => {
     expect(await prisma.posStaff.count({ where: { restaurantId } })).toBe(1);
   });
 });
+
+describe('floor, orders, payments and shifts', () => {
+  const live = { restaurantId: '', tableId: '' };
+
+  async function order(status: 'OPEN' | 'PAID', number: number) {
+    return prisma.posOrder.create({ data: { restaurantId: live.restaurantId, tableId: live.tableId, number, status } });
+  }
+
+  it('lets a table hold one live order, while finished ones stay as history', async () => {
+    live.restaurantId = restaurantId;
+    const area = await prisma.posArea.create({ data: { restaurantId, name: 'Hall' } });
+    live.tableId = (await prisma.posTable.create({ data: { restaurantId, areaId: area.id, number: 1 } })).id;
+    await order('PAID', 1);
+    await order('OPEN', 2);
+    await expect(order('OPEN', 3)).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('numbers tables once per restaurant', async () => {
+    const area = await prisma.posArea.findFirstOrThrow({ where: { restaurantId } });
+    await expect(prisma.posTable.create({ data: { restaurantId, areaId: area.id, number: 1 } })).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('lets a person hold one open shift per restaurant and a closed one beside it', async () => {
+    const closed = await prisma.posShift.create({ data: { restaurantId, userId: 'pos-u1', openingFloat: 0, closedAt: new Date() } });
+    await prisma.posShift.create({ data: { restaurantId, userId: 'pos-u1', openingFloat: 5000 } });
+    await expect(prisma.posShift.create({ data: { restaurantId, userId: 'pos-u1', openingFloat: 1 } })).rejects.toMatchObject({ code: 'P2002' });
+    expect(closed.id).toBeTruthy();
+  });
+
+  it('takes one payment per order', async () => {
+    const paid = await prisma.posOrder.findFirstOrThrow({ where: { restaurantId, status: 'PAID' } });
+    const base = { restaurantId, orderId: paid.id, method: 'CASH' as const, amountReceived: 1000, totalsSnapshot: {} };
+    await prisma.posPayment.create({ data: base });
+    await expect(prisma.posPayment.create({ data: base })).rejects.toMatchObject({ code: 'P2002' });
+  });
+});
