@@ -13,14 +13,16 @@ import { failure, invalidInput, type StudioFailure } from './result';
  * What an action or query works on. A menu resolves to its restaurant before anything runs. `self` is the signed-in
  * person's own account: it needs no permission, and it is the only target a definition with `permission: null` may name.
  * `pos` is the till of the restaurant the person works in: the restaurant comes from their staff row or membership, never
- * from the input, and it is the only target a definition with a `pos` permission may name.
+ * from the input, and it is the only target a definition with a `pos` permission may name. With `catalog: true` the work
+ * is also confined to the restaurant's product-list menu (refused until it exists), and the person holds the Studio's
+ * content permissions there and nowhere else: the product list is edited by the Studio's own services.
  */
 export type Target =
   | { kind: 'platform' }
   | { kind: 'restaurant'; restaurantId: string }
   | { kind: 'menu'; menuId: string }
   | { kind: 'self' }
-  | { kind: 'pos' };
+  | { kind: 'pos'; catalog?: boolean };
 
 export type PosTarget = Extract<Target, { kind: 'pos' }>;
 
@@ -225,6 +227,7 @@ export async function resolvePosAccess(
   prisma: PrismaClient,
   actor: Actor,
   required: PosPermission,
+  target: PosTarget,
 ): Promise<Access | { ok: false; error: StudioFailure }> {
   const posActor = await resolvePosActor(prisma, actor.userId);
   if (!posActor) return failure('NOT_FOUND');
@@ -234,8 +237,18 @@ export async function resolvePosAccess(
   if (!place) return failure('NOT_FOUND');
   const plans = await readPlans(prisma);
   const plan: PlanAccess = { entitlements: entitlementsOf(place, plans), plans };
-  // A till role grants no Studio permission: the till's work goes through the till's own checks.
-  return { restaurantId: place.restaurantId, menuId: null, permissions: new Set(), plan, pos: posActor };
+  if (target.catalog !== true) {
+    // A till role grants no Studio permission: the till's work goes through the till's own checks.
+    return { restaurantId: place.restaurantId, menuId: null, permissions: new Set(), plan, pos: posActor };
+  }
+  const settings = await prisma.posSettings.findUnique({ where: { restaurantId: place.restaurantId }, select: { catalogMenuId: true } });
+  const menu = settings?.catalogMenuId
+    ? await prisma.menu.findFirst({ where: { id: settings.catalogMenuId, restaurantId: place.restaurantId }, select: { id: true } })
+    : null;
+  if (!menu) return failure('NOT_FOUND');
+  // `catalog.manage` is the till's word for editing the product list, which the Studio's services check as these three.
+  const content = new Set<Permission>(['content.edit', 'content.prices', 'content.availability']);
+  return { restaurantId: place.restaurantId, menuId: menu.id, permissions: content, plan, pos: posActor };
 }
 
 /**
@@ -256,7 +269,7 @@ export async function admit<I>(
 
   const access =
     def.pos !== undefined
-      ? await resolvePosAccess(prisma, actor, def.pos)
+      ? await resolvePosAccess(prisma, actor, def.pos, def.target(parsed.data) as PosTarget)
       : await resolveAccess(prisma, actor, def.target(parsed.data), def.permission, def.name, def.feature);
   if ('ok' in access) return access;
   return { ok: true, actor, input: parsed.data, access };

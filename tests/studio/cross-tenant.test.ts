@@ -1043,7 +1043,10 @@ afterAll(async () => {
  * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
  * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
  */
-const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu'];
+const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
+  'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
+  'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
+];
 
 describe('the cross-tenant sweep', () => {
   it('has an entry for every Studio action and query, in exactly one table, and none for one that does not exist', () => {
@@ -1068,7 +1071,7 @@ describe('the cross-tenant sweep', () => {
       const def = DEFINITIONS.get(name) as unknown as { pos?: string; permission: unknown; target(input: never): unknown };
       expect(def.pos, name).toBeTruthy();
       expect(def.permission, name).toBeNull();
-      expect(def.target(undefined as never), name).toEqual({ kind: 'pos' });
+      expect(def.target(undefined as never), name).toMatchObject({ kind: 'pos' });
     }
   });
 

@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
+import { saveProductBasics } from '@/server/pos/catalog-edit';
+import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
 import {
@@ -15,6 +17,9 @@ import { emailField } from '@/server/studio/auth/fields';
 import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
+import { setProductAvailability } from '@/server/studio/services/availability';
+import * as content from '@/server/studio/services/content';
+import { contentSlugField, idField, namesField, priceField } from '@/server/studio/services/content';
 import { StudioError } from '@/server/studio/framework/result';
 
 /**
@@ -23,6 +28,10 @@ import { StudioError } from '@/server/studio/framework/result';
  */
 
 const TILL = { kind: 'pos' } as const;
+/** The same, confined to the restaurant's product-list menu and holding the Studio's content permissions there. */
+const CATALOG = { kind: 'pos', catalog: true } as const;
+const version = z.number().int().min(1);
+const sectionName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
 
 const percent = z.number().int().min(0).max(100);
 
@@ -168,4 +177,161 @@ export const chooseCatalogMenu = defineAction({
   input: z.object({ menuId: z.string().min(1).max(100) }),
   target: () => TILL,
   run: (ctx, { menuId }) => choose(ctx, menuId),
+});
+
+// The product list, edited by the Studio's own content services -------------------------------------------------------
+
+export const posCreateCategory = defineAction({
+  name: 'pos.createCategory',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ names: namesField, slug: contentSlugField.optional() }),
+  target: () => CATALOG,
+  run: (ctx, { names, slug }) => content.createCategory(ctx, { names, slug }),
+});
+
+export const posUpdateCategory = defineAction({
+  name: 'pos.updateCategory',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ categoryId: idField, version, names: namesField, slug: contentSlugField, isActive: z.boolean() }),
+  target: () => CATALOG,
+  run: (ctx, input) => content.updateCategory(ctx, input),
+});
+
+export const posDeleteCategory = defineAction({
+  name: 'pos.deleteCategory',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ categoryId: idField, version }),
+  target: () => CATALOG,
+  run: (ctx, input) => content.deleteCategory(ctx, input),
+});
+
+export const posCreateProduct = defineAction({
+  name: 'pos.createProduct',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ categoryId: idField, names: namesField, price: priceField }),
+  target: () => CATALOG,
+  run: (ctx, input) => content.createProduct(ctx, input),
+});
+
+export const posSaveProductBasics = defineAction({
+  name: 'pos.saveProductBasics',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, version, names: namesField, price: priceField, categoryId: idField }),
+  target: () => CATALOG,
+  run: (ctx, input) => saveProductBasics(ctx, input),
+});
+
+export const posDeleteProduct = defineAction({
+  name: 'pos.deleteProduct',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, version }),
+  target: () => CATALOG,
+  run: (ctx, input) => content.deleteProduct(ctx, input),
+});
+
+export const posSetAvailability = defineAction({
+  name: 'pos.setAvailability',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, isAvailable: z.boolean().optional(), isHidden: z.boolean().optional() }),
+  target: () => CATALOG,
+  run: (ctx, input) => setProductAvailability(ctx, input),
+});
+
+// Kitchen sections and the till's own settings on categories and products ---------------------------------------------
+
+export const createKitchenSection = defineAction({
+  name: 'pos.createKitchenSection',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ name: sectionName }),
+  target: () => TILL,
+  run: (ctx, { name }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const { id } = await addKitchenSection(tx, restaurantId, name);
+      ctx.audit({ action: 'pos.section.create', entityType: 'PosKitchenSection', entityId: id, changes: { name: { before: null, after: name } } });
+      return { sectionId: id };
+    });
+  },
+});
+
+export const renameKitchenSection = defineAction({
+  name: 'pos.renameKitchenSection',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ sectionId: idField, name: sectionName }),
+  target: () => TILL,
+  run: (ctx, { sectionId, name }) =>
+    ctx.transaction(async (tx) => {
+      const { id, before } = await renameKitchenSectionIn(tx, sectionId, name);
+      if (before !== name) ctx.audit({ action: 'pos.section.rename', entityType: 'PosKitchenSection', entityId: id, changes: { name: { before, after: name } } });
+      return { sectionId: id };
+    }),
+});
+
+export const deleteKitchenSection = defineAction({
+  name: 'pos.deleteKitchenSection',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ sectionId: idField }),
+  target: () => TILL,
+  run: (ctx, { sectionId }) =>
+    ctx.transaction(async (tx) => {
+      const row = await removeKitchenSection(tx, sectionId);
+      ctx.audit({ action: 'pos.section.delete', entityType: 'PosKitchenSection', entityId: row.id, changes: { name: { before: row.name, after: null } } });
+      return { deleted: true as const };
+    }),
+});
+
+/** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
+export const posSetCategorySection = defineAction({
+  name: 'pos.setCategorySection',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ categoryId: idField, sectionId: idField.nullable() }),
+  target: () => CATALOG,
+  run: (ctx, { categoryId, sectionId }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      if (!(await tx.category.findFirst({ where: { id: categoryId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      if (sectionId !== null && !(await tx.posKitchenSection.findFirst({ where: { id: sectionId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      const row = await tx.posCategorySetting.findFirst({ where: { categoryId }, select: { id: true, sectionId: true } });
+      if (row) await tx.posCategorySetting.updateMany({ where: { id: row.id }, data: { sectionId } });
+      else await tx.posCategorySetting.create({ data: { categoryId, restaurantId, sectionId } });
+      const before = row?.sectionId ?? null;
+      if (before !== sectionId) ctx.audit({ action: 'pos.category.section', entityType: 'PosCategorySetting', entityId: categoryId, changes: { sectionId: { before, after: sectionId } } });
+      return { categoryId };
+    });
+  },
+});
+
+/** A product's own kitchen section (null: its category's) and the till-only sold-out switch. */
+export const posSetProductSetting = defineAction({
+  name: 'pos.setProductSetting',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, sectionId: idField.nullable(), soldOutOverride: z.boolean() }),
+  target: () => CATALOG,
+  run: (ctx, { productId, sectionId, soldOutOverride }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      if (sectionId !== null && !(await tx.posKitchenSection.findFirst({ where: { id: sectionId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, sectionId: true, soldOutOverride: true } });
+      if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { sectionId, soldOutOverride } });
+      else await tx.posProductSetting.create({ data: { productId, restaurantId, sectionId, soldOutOverride } });
+      const changes: Record<string, { before: unknown; after: unknown }> = {};
+      if ((row?.sectionId ?? null) !== sectionId) changes.sectionId = { before: row?.sectionId ?? null, after: sectionId };
+      if ((row?.soldOutOverride ?? false) !== soldOutOverride) changes.soldOutOverride = { before: row?.soldOutOverride ?? false, after: soldOutOverride };
+      if (Object.keys(changes).length > 0) ctx.audit({ action: 'pos.product.setting', entityType: 'PosProductSetting', entityId: productId, changes });
+      return { productId };
+    });
+  },
 });

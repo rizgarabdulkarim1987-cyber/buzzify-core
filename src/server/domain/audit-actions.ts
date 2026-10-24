@@ -104,6 +104,11 @@ export const AUDIT_ACTIONS = [
   'pos.staff.deactivate',
   'pos.staff.reactivate',
   'pos.catalog.chosen',
+  'pos.section.create',
+  'pos.section.rename',
+  'pos.section.delete',
+  'pos.category.section',
+  'pos.product.setting',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -112,6 +117,9 @@ export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 export const AUDIT_ENTITY_TYPES = [
   'PosSettings',
   'PosStaff',
+  'PosKitchenSection',
+  'PosCategorySetting',
+  'PosProductSetting',
   'Restaurant',
   'RestaurantStatus',
   'RestaurantPlan',
