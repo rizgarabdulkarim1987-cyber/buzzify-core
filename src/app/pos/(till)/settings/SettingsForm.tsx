@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
 import { updatePosSettings } from '@/app/studio/_actions/pos';
-import { POS_PAYMENT_METHODS, type PosPaymentMethodKey, type PosSettingsView } from '@/server/pos/settings';
+import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import type { PosSettingsView } from '@/server/pos/settings';
 import { useActionForm } from '@/studio/forms';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -49,7 +50,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
   const enabled = new Set<PosPaymentMethodKey>(settings.enabledPaymentMethods);
 
   return (
-    <form {...form.props} key={settings.version} className="flex max-w-xl flex-col gap-6">
+    <form key={settings.version} {...form.props} className="flex max-w-xl flex-col gap-6">
       <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'enabledPaymentMethods']} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('pos.settings.service')} error={form.fieldError('serviceRatePercent')}>

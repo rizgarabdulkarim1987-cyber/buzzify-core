@@ -44,6 +44,12 @@ const whole = (value: string | undefined): number => (value && /^\d+$/.test(valu
 
 const namesOf = (values: FormValues, locales: readonly Locale[]) => Object.fromEntries(locales.map((locale) => [locale, values[`name.${locale}`] ?? '']));
 
+/** What an add form shows again: the typed values after a refusal, nothing after a success (so a press cannot add it twice). */
+const afterRefusal = <T,>(form: { data: T | null; fieldError: (name: string) => string | undefined; value: (name: string) => string | undefined }) => ({
+  fieldError: form.fieldError,
+  value: (name: string) => (form.data === null ? form.value(name) : undefined),
+});
+
 /** One-press calls: the answer becomes a toast, and the page re-reads. */
 function useCall() {
   const t = useT();
@@ -123,7 +129,7 @@ function SectionRow({ section }: { section: Section }) {
   });
   return (
     <li className="flex flex-wrap items-end gap-3 px-4 py-3">
-      <form {...form.props} key={section.name} className="flex flex-wrap items-end gap-3">
+      <form key={section.name} {...form.props} className="flex flex-wrap items-end gap-3">
         <Field label={t('pos.catalog.sectionName')} error={form.fieldError('name')}>
           <Input name="name" defaultValue={form.value('name') ?? section.name} />
         </Field>
@@ -167,7 +173,7 @@ function SectionsPanel({ sections }: { sections: Section[] }) {
       <form {...form.props} className="flex flex-wrap items-end gap-3">
         <FormError form={form} fields={['name']} />
         <Field label={t('pos.catalog.sectionName')} error={form.fieldError('name')}>
-          <Input name="name" defaultValue={form.value('name')} />
+          <Input name="name" defaultValue={afterRefusal(form).value('name')} />
         </Field>
         <Button type="submit" pending={form.pending}>
           {t('pos.catalog.sectionAdd')}
@@ -209,7 +215,7 @@ function ProductRow({ product, category, categories, sections, locales, setting 
   );
   return (
     <li className="flex flex-col gap-3 px-4 py-4">
-      <form {...form.props} key={product.version} className="flex flex-col gap-3">
+      <form key={product.version} {...form.props} className="flex flex-col gap-3">
         <FormError form={form} fields={['price', 'categoryId', ...locales.map((locale) => `names.${locale}`)]} />
         <NameFields locales={locales} names={product.names} form={form} />
         <div className="grid gap-3 sm:grid-cols-3">
@@ -279,10 +285,10 @@ function AddProduct({ category, locales }: { category: Category; locales: Locale
   return (
     <form {...form.props} className="flex flex-col gap-3 px-4 py-4">
       <FormError form={form} fields={['price', 'categoryId']} />
-      <NameFields locales={locales} names={{}} form={form} />
+      <NameFields locales={locales} names={{}} form={afterRefusal(form)} />
       <div className="flex flex-wrap items-end gap-3">
         <Field label={t('pos.catalog.productPrice')} error={form.fieldError('price')}>
-          <Input name="price" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('price') ?? '0'} />
+          <Input name="price" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={afterRefusal(form).value('price') ?? '0'} />
         </Field>
         <Button type="submit" pending={form.pending}>
           {t('pos.catalog.productAdd')}
@@ -317,7 +323,7 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
   return (
     <section className="flex flex-col rounded-lg border border-line">
       <div className="flex flex-col gap-3 border-b border-line px-4 py-4">
-        <form {...form.props} key={category.version} className="flex flex-col gap-3">
+        <form key={category.version} {...form.props} className="flex flex-col gap-3">
           <FormError form={form} fields={locales.map((locale) => `names.${locale}`)} />
           <NameFields locales={locales} names={category.names} form={form} />
           <Button type="submit" variant="secondary" pending={form.pending} className="self-start">
@@ -379,7 +385,7 @@ function AddCategory({ locales }: { locales: Locale[] }) {
   return (
     <form {...form.props} className="flex flex-col gap-3 border-t border-line pt-6">
       <FormError form={form} fields={locales.map((locale) => `names.${locale}`)} />
-      <NameFields locales={locales} names={{}} form={form} />
+      <NameFields locales={locales} names={{}} form={afterRefusal(form)} />
       <Button type="submit" pending={form.pending} className="self-start">
         {t('pos.catalog.categoryAdd')}
       </Button>

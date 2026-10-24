@@ -1,10 +1,10 @@
 import type { PrismaClient } from '@/generated/prisma/client';
+import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 
-export const POS_PAYMENT_METHODS = ['CASH', 'ZAINCASH', 'FIB', 'QICARD'] as const;
-export type PosPaymentMethodKey = (typeof POS_PAYMENT_METHODS)[number];
+export { POS_PAYMENT_METHODS, type PosPaymentMethodKey };
 
 /** How a restaurant runs its till, as a form shows it. `version` is 0 until the first save. */
 export interface PosSettingsView {
