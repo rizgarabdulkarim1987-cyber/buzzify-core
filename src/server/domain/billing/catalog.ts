@@ -4,9 +4,9 @@ import { PLAN_TIERS } from '@/server/domain/entitlements';
 export const APPLICATION_IDS = ['menu', 'cashier'] as const;
 export type ApplicationId = (typeof APPLICATION_IDS)[number];
 
-/** The plan codes an application sells: the Menu's three tiers; the Cashier has none yet. */
-export function planCodesFor(applicationId: ApplicationId): readonly string[] {
-  return applicationId === 'menu' ? PLAN_TIERS : [];
+/** The plan codes an application sells: the same three tiers for the Menu and the Cashier; only the Menu's move the restaurant's plan. */
+export function planCodesFor(_applicationId: ApplicationId): readonly string[] {
+  return PLAN_TIERS;
 }
 
 export interface DefaultApplication {

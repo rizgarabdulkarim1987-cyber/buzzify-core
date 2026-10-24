@@ -168,7 +168,7 @@ describe('products and prices', () => {
     const dup = { currency: 'IQD', period: 'MONTHLY', amountMinor: 1 };
     expect(codeOf(await actAt(now, billing.setPrices, { applicationId: 'menu', planCode: 'BASIC', prices: [dup, dup] }))).toBe('INVALID');
     expect(await actAt(now, billing.setPrices, { applicationId: 'menu', planCode: 'GOLD', prices: [] })).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } });
-    expect(await actAt(now, billing.setPrices, { applicationId: 'cashier', planCode: 'PRO', prices: [] })).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } });
+    expect(await actAt(now, billing.setPrices, { applicationId: 'cashier', planCode: 'GOLD', prices: [] })).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { planCode: expect.any(String) } } });
     expect(codeOf(await actAt(now, billing.setPrices, { applicationId: 'ghost', planCode: 'PRO', prices: [] }))).toBe('INVALID');
     expect((await prisma.planPrice.findMany({ where: { planCode: 'BASIC' } })).map((r) => r.amountMinor)).toEqual([2_147_483_647]);
   });
@@ -218,7 +218,7 @@ describe('products and prices', () => {
       ['PRO', ['IQD/MONTHLY/50000', 'USD/YEARLY/39900']],
       ['PREMIUM', ['IQD/MONTHLY/80000']],
     ]);
-    expect(overview.applications[1]!.plans).toEqual([]);
+    expect(overview.applications[1]!.plans.map((plan) => [plan.code, plan.prices])).toEqual([['BASIC', []], ['PRO', []], ['PREMIUM', []]]);
   });
 });
 
@@ -272,6 +272,17 @@ describe('startTrial', () => {
     }
     expect(await prisma.subscription.count()).toBe(0);
     expect(await planOf()).toBe('PREMIUM');
+  });
+
+  it('starts a Cashier trial on the same plans as the Menu without moving the Menu plan', async () => {
+    const now = at('2027-01-31T09:00:00+03:00');
+    const name = { en: 'Cashier', ar: 'الكاشير', ckb: 'کاشێر' };
+    dataOf(await actAt(now, billing.setApplication, { applicationId: 'cashier', name, status: 'ACTIVE' }));
+    dataOf(await actAt(now, billing.setPrices, { applicationId: 'cashier', planCode: 'PRO', prices: [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 25_000 }] }));
+    const before = await planOf();
+    expect(codeOf(await actAt(now, billing.startTrial, trialInput({ applicationId: 'cashier' })))).toBe('OK');
+    expect(await prisma.subscription.findFirstOrThrow({ where: { applicationId: 'cashier' } })).toMatchObject({ status: 'TRIAL', planCode: 'PRO', priceMinor: 25_000 });
+    expect(await planOf()).toBe(before);
   });
 
   it('refuses a trial of a product that is turned off, as CONFLICT', async () => {
@@ -787,7 +798,7 @@ describe('billing.restaurant', () => {
     expect(view.canEdit).toBe(true);
     expect(view.applications.map((app) => [app.id, app.planCodes])).toEqual([
       ['menu', ['BASIC', 'PRO', 'PREMIUM']],
-      ['cashier', []],
+      ['cashier', ['BASIC', 'PRO', 'PREMIUM']],
     ]);
     expect(view.subscriptions).toHaveLength(1);
     expect(view.subscriptions[0]).toMatchObject({ id, storedStatus: 'ACTIVE', status: 'GRACE', planCode: 'PRO' });
