@@ -32,7 +32,7 @@ export function TablesBoard({ board }: { board: BoardView }) {
   const router = useRouter();
   const { call, pending } = usePosCall();
   const [areaId, setAreaId] = useState<string | null>(null);
-  const now = useNow();
+  const now = useNow(new Date(board.readAt).getTime());
   useLiveRefresh(REFRESH_MS);
 
   const text: ElapsedText = useMemo(

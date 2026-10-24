@@ -27,11 +27,11 @@ export default async function KitchenPage() {
       </>
     );
   }
-  const { cards } = await query(posKitchenQueue, {});
+  const { cards, readAt } = await query(posKitchenQueue, {});
   return (
     <>
       <PageHeader title={t('pos.kitchen.title')} />
-      <KitchenScreen cards={cards} canFilter={scope.sectionId === null} />
+      <KitchenScreen cards={cards} readAt={readAt} canFilter={scope.sectionId === null} />
     </>
   );
 }

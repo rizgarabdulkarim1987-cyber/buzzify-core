@@ -37,7 +37,7 @@ export function FloorSetup({ floor }: { floor: FloorView }) {
         <Field label={t('pos.floor.newArea')} className="min-w-56 flex-1">
           <Input name="name" size="lg" maxLength={60} required />
         </Field>
-        <Button type="submit" size="lg" disabled={pending}>
+        <Button variant="primary" type="submit" size="lg" disabled={pending}>
           {t('pos.floor.addArea')}
         </Button>
       </form>

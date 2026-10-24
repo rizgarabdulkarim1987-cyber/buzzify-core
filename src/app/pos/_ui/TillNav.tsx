@@ -12,7 +12,7 @@ export function TillNav({ items }: { items: ReadonlyArray<{ key: TillPageKey; hr
   const path = usePathname();
   if (items.length < 2) return null;
   return (
-    <nav aria-label={t('pos.nav.label')} className="flex gap-1 overflow-x-auto border-b border-line px-4 py-1.5 sm:px-8">
+    <nav aria-label={t('pos.nav.label')} className="print:hidden flex gap-1 overflow-x-auto border-b border-line px-4 py-1.5 sm:px-8">
       {items.map((item) => {
         const current = path === item.href || path.startsWith(`${item.href}/`) || (item.key === 'tables' && path.startsWith('/pos/orders'));
         return (

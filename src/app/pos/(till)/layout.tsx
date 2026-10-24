@@ -26,7 +26,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       >
         {t('common.skipToContent')}
       </a>
-      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8">
+      <header className="print:hidden flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8">
         <Link href="/pos" className="text-base font-semibold text-text">
           {t('pos.shell.label')}
         </Link>

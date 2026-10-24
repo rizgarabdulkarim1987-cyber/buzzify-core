@@ -21,9 +21,12 @@ export function useLiveRefresh(everyMs: number) {
   }, [everyMs, router]);
 }
 
-/** A clock that moves every half minute, so the time rings and the minutes on the tables keep going between refreshes. */
-export function useNow(everyMs = 30_000): number {
-  const [now, setNow] = useState(() => Date.now());
+/**
+ * A clock that moves every half minute, so the time rings and the minutes keep going between refreshes. It starts at the
+ * moment the server read the data (`start`), so the first client render matches the server's HTML.
+ */
+export function useNow(start: number, everyMs = 30_000): number {
+  const [now, setNow] = useState(start);
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), everyMs);
     return () => window.clearInterval(timer);

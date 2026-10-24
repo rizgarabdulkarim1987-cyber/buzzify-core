@@ -50,7 +50,7 @@ export function KitchenTicket({ ticket }: { ticket: Ticket }) {
         </section>
       ))}
       {ticket.sheets.length === 0 && ticket.cancelSlips.length === 0 ? <p className="text-center text-base text-muted">{t('pos.ticket.nothing')}</p> : null}
-      <Button size="lg" className="min-h-12 print:hidden" onClick={() => window.print()}>
+      <Button variant="primary" size="lg" className="min-h-12 print:hidden" onClick={() => window.print()}>
         {t('pos.receipt.print')}
       </Button>
     </div>

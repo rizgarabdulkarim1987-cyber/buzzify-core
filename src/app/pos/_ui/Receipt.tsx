@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { formatNumber } from '@/lib/pos-format';
+import { formatNumber, formatStamp } from '@/lib/pos-format';
 import type { Receipt as ReceiptData } from '@/server/pos/payments';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -18,7 +18,7 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
         <h1 className="text-lg font-semibold">{t('pos.receipt.heading', { n: formatNumber(receipt.orderNumber) })}</h1>
         <p className="text-sm text-muted">
           {receipt.tableNumber !== null ? `${t('pos.receipt.table', { n: formatNumber(receipt.tableNumber) })} · ` : ''}
-          <time dateTime={new Date(receipt.paidAt).toISOString()}>{new Date(receipt.paidAt).toLocaleString('en-GB')}</time>
+          <time dateTime={new Date(receipt.paidAt).toISOString()}>{formatStamp(receipt.paidAt)}</time>
         </p>
         {receipt.cashierName ? <p className="text-sm text-muted">{receipt.cashierName}</p> : null}
       </header>
@@ -47,7 +47,7 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
       </dl>
       <p className="text-center text-sm text-muted">{t('pos.receipt.thanks')}</p>
       <div className="flex flex-col gap-2 print:hidden">
-        <Button size="lg" className="min-h-12" onClick={() => window.print()}>
+        <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>
         <Link href="/pos/tables" className="inline-flex min-h-12 items-center justify-center rounded-md border border-line-strong text-base font-medium">

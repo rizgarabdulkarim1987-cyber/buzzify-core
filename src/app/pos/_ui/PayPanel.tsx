@@ -96,7 +96,7 @@ function PayBody({ orderId, version, total }: Omit<Props, 'open' | 'onClose'>) {
         <dd className={cx('text-2xl font-semibold', enough ? 'text-success' : 'text-danger')}>{money(Math.abs(change))}</dd>
       </dl>
 
-      <Button size="lg" className="min-h-12 w-full" disabled={!enough || pending} pending={pending} onClick={pay}>
+      <Button variant="primary" size="lg" className="min-h-12 w-full" disabled={!enough || pending} pending={pending} onClick={pay}>
         {t('pos.pay.take')}
       </Button>
     </div>

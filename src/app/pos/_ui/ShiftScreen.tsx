@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
-import { formatNumber } from '@/lib/pos-format';
+import { formatNumber, formatStamp } from '@/lib/pos-format';
 import { countKind } from '@/lib/pos-view';
 import type { ShiftSummary } from '@/server/pos/shifts';
 import { useT } from '@/studio/i18n';
@@ -43,7 +43,7 @@ export function OpenShiftForm() {
       <Field label={t('pos.shift.openingFloat')}>
         <Input size="lg" inputMode="numeric" dir="ltr" value={amount} onChange={(event) => setAmount(digits(event.target.value))} />
       </Field>
-      <Button size="lg" className="min-h-12" disabled={pending || amount === ''} pending={pending} onClick={() => void call(() => openPosShift({ openingFloat: Number(amount) }))}>
+      <Button variant="primary" size="lg" className="min-h-12" disabled={pending || amount === ''} pending={pending} onClick={() => void call(() => openPosShift({ openingFloat: Number(amount) }))}>
         {t('pos.shift.open')}
       </Button>
     </div>
@@ -65,8 +65,8 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
   return (
     <div className="flex max-w-xl flex-col gap-4 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
       <p className="text-base text-muted">
-        {summary.cashierName} · {t('pos.shift.openedAt')} {new Date(shift.openedAt).toLocaleString('en-GB')}
-        {shift.closedAt ? ` · ${t('pos.shift.closedAt')} ${new Date(shift.closedAt).toLocaleString('en-GB')}` : ''}
+        {summary.cashierName} · {t('pos.shift.openedAt')} {formatStamp(shift.openedAt)}
+        {shift.closedAt ? ` · ${t('pos.shift.closedAt')} ${formatStamp(shift.closedAt)}` : ''}
       </p>
       <dl className="flex flex-col gap-2 rounded-lg border border-line p-4 text-base">
         <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
@@ -100,13 +100,13 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             {t('pos.shift.addExpense')}
           </Button>
           {canClose ? (
-            <Button size="lg" className="min-h-12 flex-1" disabled={pending} onClick={() => setDialog('close')}>
+            <Button variant="primary" size="lg" className="min-h-12 flex-1" disabled={pending} onClick={() => setDialog('close')}>
               {t('pos.shift.countAndClose')}
             </Button>
           ) : null}
         </div>
       ) : (
-        <Button size="lg" className="min-h-12 print:hidden" onClick={() => window.print()}>
+        <Button variant="primary" size="lg" className="min-h-12 print:hidden" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>
       )}
@@ -128,7 +128,7 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         {(errors) => (
           <>
             <Field label={t('pos.shift.expenseAmount')} error={errors.amount}>
-              <Input name="amount" size="lg" inputMode="numeric" dir="ltr" />
+              <Input name="amount" autoFocus size="lg" inputMode="numeric" dir="ltr" />
             </Field>
             <Field label={t('pos.order.reason')} error={errors.reason}>
               <Input name="reason" size="lg" maxLength={200} />
@@ -158,7 +158,7 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         {(errors) => (
           <>
             <Field label={t('pos.shift.counted')} error={errors.countedCash}>
-              <Input name="counted" size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(digits(event.target.value))} />
+              <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(digits(event.target.value))} />
             </Field>
             {difference !== null ? (
               <dl aria-live="polite">

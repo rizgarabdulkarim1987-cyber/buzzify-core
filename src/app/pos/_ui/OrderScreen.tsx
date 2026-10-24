@@ -88,7 +88,7 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
   const failed = { message: t('pos.order.actionRefused') };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-24 sm:px-8 lg:pb-8">
+    <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:pb-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-text">
           {order.tableNumber !== null
@@ -253,7 +253,7 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
                 </Button>
               ) : null}
               {can.pay ? (
-                <Button size="lg" className="min-h-12 flex-1" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
+                <Button variant="primary" size="lg" className="min-h-12 flex-1" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
                   {t('pos.order.pay')}
                 </Button>
               ) : null}

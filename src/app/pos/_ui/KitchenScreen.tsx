@@ -15,12 +15,12 @@ import { usePosCall } from './use-pos-call';
 const REFRESH_MS = 5_000;
 
 /** The kitchen's cards, oldest first: what to cook, what is ready, and what the cashier cancelled. */
-export function KitchenScreen({ cards, canFilter }: { cards: KitchenCard[]; canFilter: boolean }) {
+export function KitchenScreen({ cards, readAt, canFilter }: { cards: KitchenCard[]; readAt: Date; canFilter: boolean }) {
   const t = useT();
   const { locale } = useLocale();
   const { call, pending } = usePosCall();
   const [section, setSection] = useState<string | null | undefined>(undefined);
-  const now = useNow(15_000);
+  const now = useNow(new Date(readAt).getTime(), 15_000);
   useLiveRefresh(REFRESH_MS);
 
   const text: ElapsedText = useMemo(
@@ -124,7 +124,7 @@ export function KitchenScreen({ cards, canFilter }: { cards: KitchenCard[]; canF
                   </div>
                 ) : null}
                 {pendingLines.length > 1 && !card.orderCancelled ? (
-                  <Button size="lg" className="min-h-12" disabled={pending} onClick={() => void call(() => markPosLinesReady({ lineIds: pendingLines.map((line) => line.id) }))}>
+                  <Button variant="primary" size="lg" className="min-h-12" disabled={pending} onClick={() => void call(() => markPosLinesReady({ lineIds: pendingLines.map((line) => line.id) }))}>
                     {t('pos.kitchen.allReady')}
                   </Button>
                 ) : null}

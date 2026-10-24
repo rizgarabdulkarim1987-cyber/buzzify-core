@@ -48,3 +48,8 @@ export function elapsedLabel(minutes: number, text: ElapsedText, pluralLocale: s
 export function ltr(text: string): string {
   return `⁦${text}⁩`;
 }
+
+/** A date and time as "25/10/2026, 01:43" in Baghdad time, the same on the server and in every browser. */
+export function formatStamp(at: Date | string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', dateStyle: 'short', timeStyle: 'short', hour12: false }).format(new Date(at));
+}

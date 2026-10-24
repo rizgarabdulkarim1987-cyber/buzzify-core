@@ -106,11 +106,11 @@ function SheetBody({ product, fallback, pending, onAdd }: { product: TillProduct
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={300} rows={2} />
       </label>
 
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <Stepper value={quantity} onChange={setQuantity} label={t('pos.order.quantity')} />
-        <Button
+        <Button variant="primary"
           size="lg"
-          className="min-h-12 flex-1"
+          className="min-h-12 min-w-40 flex-1"
           disabled={pending || missing.length > 0}
           onClick={() => onAdd(product, { variantId, optionIds, quantity, note: note.trim() })}
         >
