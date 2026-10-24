@@ -34,6 +34,14 @@ describe('security headers', () => {
     expect(menu['content-security-policy']).not.toContain('frame-ancestors');
   });
 
+  it('the till (/pos) can be framed only by itself, like the Studio', async () => {
+    for (const path of ['/pos', '/pos/catalog']) {
+      const till = await headersFor(path);
+      expect(till['x-frame-options']).toBe('SAMEORIGIN');
+      expect(till['content-security-policy']).toContain("frame-ancestors 'self'");
+    }
+  });
+
   it('the Studio root itself is covered, not only the pages under it', async () => {
     expect((await headersFor('/studio'))['x-frame-options']).toBe('SAMEORIGIN');
   });

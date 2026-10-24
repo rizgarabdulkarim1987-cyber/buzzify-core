@@ -33,6 +33,8 @@ const config: NextConfig = {
     return [
       { source: '/:path*', headers: SECURITY_HEADERS },
       { source: '/studio/:path*', headers: STUDIO_HEADERS },
+      // The till is framed by no one else either: a frame over a payment screen is a clickjacking surface.
+      { source: '/pos/:path*', headers: STUDIO_HEADERS },
     ];
   },
   // Hostinger runs Next.js's self-contained server (it reads the PORT it is given); `npm run build:host` sets this.
