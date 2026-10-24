@@ -20,6 +20,8 @@ export const MENU_SCOPED_MODELS = [
   'ImportJob',
   'AnalyticsEvent',
   'MenuRevision',
+  'CashierLink',
+  'CashierPairingCode',
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
@@ -68,6 +70,10 @@ export const GLOBAL_MODELS = [
   'Application',
   'PlanPrice',
   'SubscriptionEvent',
+  // The cashier link's events, imports and counters are reached through a link, which the base client finds by id.
+  'CashierLinkEvent',
+  'CashierImportBatch',
+  'LinkRateLimit',
 ] as const;
 
 /**

@@ -164,9 +164,9 @@ model Menu {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id])
-  liveRevision    MenuRevision?     @relation("LiveRevision", fields: [liveRevisionId], references: [id], onDelete: SetNull)
-  revisions       MenuRevision[]    @relation("MenuRevisions")
+  restaurant      Restaurant           @relation(fields: [restaurantId], references: [id])
+  liveRevision    MenuRevision?        @relation("LiveRevision", fields: [liveRevisionId], references: [id], onDelete: SetNull)
+  revisions       MenuRevision[]       @relation("MenuRevisions")
   slugs           MenuSlug[]
   domains         MenuDomain[]
   brand           BrandConfig?
@@ -186,6 +186,8 @@ model Menu {
   qrCodes         QrCode[]
   importJobs      ImportJob[]
   analyticsEvents AnalyticsEvent[]
+  cashierLinks    CashierLink[]
+  pairingCodes    CashierPairingCode[]
 
   @@index([restaurantId])
   @@index([status])
@@ -1014,4 +1016,97 @@ model Payment {
 
   @@index([subscriptionId])
   @@index([restaurantId, paidAt])
+}
+
+enum CashierLinkStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum LinkEventType {
+  CATALOG_CHANGED
+  LINK_REVOKED
+  PLAN_CHANGED
+}
+
+/// A menu paired with a Buzzify Cashier business (docs/superpowers/specs/2026-10-24-cashier-link-menu-side.md and the
+/// cashier repo's link contract). At most one ACTIVE link per menu (a partial unique index in the migration). The
+/// secret is stored encrypted (`LINK_ENCRYPTION_KEY`) and is never returned by any API after pairing.
+model CashierLink {
+  id                  String               @id @default(cuid())
+  menuId              String
+  status              CashierLinkStatus    @default(ACTIVE)
+  /// AES-256-GCM of the shared secret, `base64url(iv | tag | ciphertext)`.
+  secretCiphertext    String
+  /// The cashier's origin, checked by the SSRF guard when it paired.
+  cashierBaseUrl      String
+  /// The cashier's Business id: opaque to the menu, shown to staff with the name.
+  cashierBusinessRef  String
+  cashierBusinessName String
+  coreBusinessId      String?
+  pairedAt            DateTime             @default(now())
+  revokedAt           DateTime?
+  lastSeenAt          DateTime?
+  menu                Menu                 @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  events              CashierLinkEvent[]
+  imports             CashierImportBatch[]
+
+  @@index([menuId, status])
+}
+
+/// A single-use code the menu owner generates in the Studio and the cashier owner enters; stored hashed.
+model CashierPairingCode {
+  id          String    @id @default(cuid())
+  menuId      String
+  /// SHA-256 of the 10-character code, in hex.
+  codeHash    String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  /// Failed pairing attempts that matched this code; five burn it.
+  attempts    Int       @default(0)
+  /// A plain id, not a relation, so removing the person never blocks history.
+  createdById String?
+  createdAt   DateTime  @default(now())
+  menu        Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
+}
+
+/// A nudge for the cashier (`catalog.changed`, `link.revoked`, `plan.changed`), written in the same transaction as the
+/// change and delivered after it: once at once, then from the scheduler every minute (contract 6.5). It carries no data.
+model CashierLinkEvent {
+  id            String        @id @default(cuid())
+  linkId        String
+  /// The id the cashier de-duplicates by; the same across retries.
+  eventId       String        @unique @default(uuid())
+  type          LinkEventType
+  occurredAt    DateTime      @default(now())
+  attempts      Int           @default(0)
+  nextAttemptAt DateTime      @default(now())
+  deliveredAt   DateTime?
+  lastError     String?
+  link          CashierLink   @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([deliveredAt, nextAttemptAt])
+  @@index([linkId])
+}
+
+/// What an import from the cashier answered, kept so the same `batchKey` returns the first answer (contract 5.4).
+model CashierImportBatch {
+  id        String      @id @default(cuid())
+  linkId    String
+  batchKey  String
+  result    Json
+  createdAt DateTime    @default(now())
+  link      CashierLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, batchKey])
+}
+
+/// A fixed-window counter for the link API (600 requests a minute per link, pairing attempts per address), in the
+/// database so every instance agrees.
+model LinkRateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
 }
