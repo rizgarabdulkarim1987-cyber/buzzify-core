@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
@@ -75,6 +76,52 @@ export const posCatalogEditor = defineQuery({
       sections,
       categorySections: Object.fromEntries(categorySettings.map((row) => [row.categoryId, row.sectionId])),
       productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride }])),
+    };
+  },
+});
+
+/**
+ * The Super Admin's view of the cashier across the platform: every restaurant that has a Cashier subscription or till
+ * staff, with the subscription as it is now, its active staff and whether a catalog menu is chosen. Read-only; the till
+ * itself belongs to the restaurant's own people.
+ */
+export const posOverview = defineQuery({
+  name: 'pos.overview',
+  permission: 'platform.settings',
+  input: z.object({}),
+  target: () => ({ kind: 'platform' }) as const,
+  run: async (ctx) => {
+    const now = new Date();
+    const [subscriptions, staff, settings] = await Promise.all([
+      ctx.db.subscription.findMany({
+        where: { applicationId: 'cashier' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        select: { restaurantId: true, status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
+      }),
+      ctx.db.posStaff.groupBy({ by: ['restaurantId'], where: { deactivatedAt: null }, _count: { _all: true } }),
+      ctx.db.posSettings.findMany({ where: { catalogMenuId: { not: null } }, select: { restaurantId: true } }),
+    ]);
+    const newest = new Map<string, (typeof subscriptions)[number]>();
+    for (const row of subscriptions) if (!newest.has(row.restaurantId)) newest.set(row.restaurantId, row);
+    const staffOf = new Map(staff.map((row) => [row.restaurantId, row._count._all]));
+    const chosen = new Set(settings.map((row) => row.restaurantId));
+    const ids = [...new Set([...newest.keys(), ...staffOf.keys()])];
+    const restaurants = await ctx.db.restaurant.findMany({
+      where: { id: { in: ids } },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      select: { id: true, name: true },
+    });
+    return {
+      rows: restaurants.map((restaurant) => {
+        const subscription = newest.get(restaurant.id);
+        return {
+          id: restaurant.id,
+          name: restaurant.name,
+          status: subscription ? effectiveStatus(subscription, now) : ('NONE' as const),
+          staff: staffOf.get(restaurant.id) ?? 0,
+          catalogChosen: chosen.has(restaurant.id),
+        };
+      }),
     };
   },
 });

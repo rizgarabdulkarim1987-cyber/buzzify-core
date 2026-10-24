@@ -887,6 +887,7 @@ const SWEPT: Record<string, Case[]> = {
  */
 const PLATFORM_ONLY: Record<string, Case[]> = {
   'billing.restaurants': [c('the billing list', () => ({}), ONLY_FORBIDDEN)],
+  'pos.overview': [c('the cashier overview', () => ({}), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
