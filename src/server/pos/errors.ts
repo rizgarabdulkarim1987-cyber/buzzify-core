@@ -11,6 +11,23 @@ export const POS_TEXT = {
   'The table already has an open order': 'error.text.posTableOccupied',
   'The first number must not exceed the last': 'error.text.posRangeOrder',
   'Create at most 200 tables at a time': 'error.text.posRangeSize',
+  'Use at most 300 characters': 'error.text.posTextTooLong',
+  'Nothing to change': 'error.text.posNothingToChange',
+  'Choose a size': 'error.text.posChooseSize',
+  'Choose an option for every required group': 'error.text.posChooseRequired',
+  'Choose only as many options as the group allows': 'error.text.posChooseTooMany',
+  'Enter a reason': 'error.text.posEnterReason',
+  'Only a dine-in order sits at a table': 'error.text.posDineInOnly',
+  'That option is not available': 'error.text.posOptionUnavailable',
+  'The bill cannot be requested for this order': 'error.text.posBillRefused',
+  'The discount is larger than the line': 'error.text.posDiscountTooBig',
+  'The line is cancelled': 'error.text.posLineCancelled',
+  'The line was sent to the kitchen and can no longer change': 'error.text.posLineSent',
+  'The order cannot be cancelled': 'error.text.posCancelRefused',
+  'The order is paid, cancelled or rejected and can no longer change': 'error.text.posOrderLocked',
+  'The order was changed by someone else. Reload it and try again.': 'error.text.posOrderChanged',
+  'This product is not available': 'error.text.posProductUnavailable',
+  'Could not open the order. Try again.': 'error.text.posOpenFailed',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

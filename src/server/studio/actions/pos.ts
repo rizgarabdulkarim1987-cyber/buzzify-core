@@ -467,3 +467,4 @@ export const movePosTable = defineAction({
       return { tableId: id };
     }),
 });
+

@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
+import { readOrderView } from '@/server/pos/orders';
+import { StudioError } from '@/server/studio/framework/result';
+import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
@@ -135,4 +138,18 @@ export const posFloor = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readFloor(ctx.db, restaurantOf(ctx)),
+});
+
+/** One order with its lines and totals, for the order screen. */
+export const posOrder = defineQuery({
+  name: 'pos.order',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField }),
+  target: () => TILL,
+  run: async (ctx, { orderId }) => {
+    const view = await readOrderView(ctx.db, restaurantOf(ctx), orderId);
+    if (!view) throw new StudioError('NOT_FOUND');
+    return view;
+  },
 });
