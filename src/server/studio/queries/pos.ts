@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
 import { readOrderView } from '@/server/pos/orders';
+import { readReceipt } from '@/server/pos/payments';
 import { listOpenShifts, openShiftIdOf, readShiftSummary } from '@/server/pos/shifts';
 import { canPos } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
@@ -193,4 +194,18 @@ export const posOpenShifts = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => ({ shifts: await listOpenShifts(ctx.db, restaurantOf(ctx)) }),
+});
+
+/** The receipt of a paid order, from the totals frozen when it was paid. */
+export const posReceipt = defineQuery({
+  name: 'pos.receipt',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField }),
+  target: () => TILL,
+  run: async (ctx, { orderId }) => {
+    const receipt = await readReceipt(ctx.db, restaurantOf(ctx), orderId);
+    if (!receipt) throw new StudioError('NOT_FOUND');
+    return receipt;
+  },
 });

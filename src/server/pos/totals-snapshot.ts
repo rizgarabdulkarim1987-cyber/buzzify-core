@@ -1,0 +1,40 @@
+import { z } from 'zod';
+import { optionsSnapshotSchema } from './orders';
+
+const amount = z.number().int().min(0);
+const discountSchema = z.object({ kind: z.enum(['AMOUNT', 'PERCENT']), value: z.number().int() });
+
+/**
+ * Everything the receipt needs, copied when the order is paid: the totals, what produced them and the lines paid for
+ * (cancelled lines left out). It never changes when the menu or the rates change later.
+ */
+export const totalsSnapshotSchema = z.object({
+  subtotal: amount,
+  invoiceDiscount: amount,
+  service: amount,
+  tax: amount,
+  deliveryFee: amount.default(0),
+  total: amount,
+  invoiceDiscountInput: discountSchema.nullable(),
+  rates: z.object({ serviceRatePercent: z.number().int(), taxRatePercent: z.number().int() }),
+  lines: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      quantity: z.number().int().min(1),
+      unitPrice: amount,
+      options: optionsSnapshotSchema,
+      discount: discountSchema.nullable(),
+      lineTotal: amount,
+    }),
+  ),
+});
+
+export type TotalsSnapshot = z.infer<typeof totalsSnapshotSchema>;
+
+/** A stored payment's snapshot, checked. A snapshot that does not match the schema is corrupt data, never guessed at. */
+export function parseTotalsSnapshot(paymentId: string, value: unknown): TotalsSnapshot {
+  const parsed = totalsSnapshotSchema.safeParse(value);
+  if (!parsed.success) throw new Error(`The stored totals of payment ${paymentId} are corrupt`, { cause: parsed.error });
+  return parsed.data;
+}
