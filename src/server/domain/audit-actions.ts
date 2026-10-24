@@ -103,6 +103,7 @@ export const AUDIT_ACTIONS = [
   'pos.staff.role',
   'pos.staff.deactivate',
   'pos.staff.reactivate',
+  'pos.catalog.chosen',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { readPosSettings } from '@/server/pos/settings';
 import { listPosStaff } from '@/server/pos/staff';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
@@ -28,4 +29,25 @@ export const posStaff = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => listPosStaff(ctx.db, restaurantOf(ctx)),
+});
+
+/** The menus a restaurant may pick its product list from, and the one it has picked. */
+export const posCatalogMenu = defineQuery({
+  name: 'pos.catalogMenu',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({}),
+  target: () => TILL,
+  run: async (ctx) => {
+    const restaurantId = restaurantOf(ctx);
+    const [chosen, menus] = await Promise.all([
+      catalogMenuOf(ctx.db, restaurantId),
+      ctx.db.menu.findMany({
+        where: { restaurantId, status: { not: 'ARCHIVED' } },
+        select: { id: true, name: true, currency: true },
+        orderBy: { createdAt: 'asc' },
+      }),
+    ]);
+    return { chosenId: chosen?.id ?? null, menus };
+  },
 });

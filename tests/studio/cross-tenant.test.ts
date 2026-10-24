@@ -1043,7 +1043,7 @@ afterAll(async () => {
  * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
  * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
  */
-const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff'];
+const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu'];
 
 describe('the cross-tenant sweep', () => {
   it('has an entry for every Studio action and query, in exactly one table, and none for one that does not exist', () => {

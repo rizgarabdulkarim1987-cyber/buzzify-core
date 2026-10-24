@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
+import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
 import {
   addPosStaff,
@@ -149,4 +150,22 @@ export const setPosStaffActive = defineAction({
       return { staffId: result.id };
     });
   },
+});
+
+export const ensureCatalogMenu = defineAction({
+  name: 'pos.ensureCatalogMenu',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => ensure(ctx),
+});
+
+export const chooseCatalogMenu = defineAction({
+  name: 'pos.chooseCatalogMenu',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ menuId: z.string().min(1).max(100) }),
+  target: () => TILL,
+  run: (ctx, { menuId }) => choose(ctx, menuId),
 });
