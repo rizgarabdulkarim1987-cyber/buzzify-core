@@ -148,6 +148,7 @@ const ar: Messages = {
   'pos.catalog.categoryDelete': 'حذف الفئة',
   'pos.catalog.categoryInactive': 'مخفية',
   'pos.catalog.productAdd': 'إضافة منتج',
+  'pos.catalog.showAll': 'عرض {count} منتجاً إضافياً',
   'pos.catalog.productNone': 'لا توجد منتجات في هذه الفئة.',
   'pos.catalog.productPrice': 'السعر (د.ع)',
   'pos.catalog.productCategory': 'الفئة',

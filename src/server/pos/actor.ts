@@ -23,7 +23,7 @@ export type PosGate = { open: true } | { open: false; reason: 'restaurantInactiv
 /**
  * The till identity of a user: a Studio OWNER member is the cashier OWNER of that restaurant, anyone else needs an
  * active staff row. A Studio DESIGNER alone, a Super Admin and a deactivated person have none. With `restaurantId`
- * the answer is for that restaurant only; without it, the restaurant they joined first.
+ * the answer is for that restaurant only; without it, the first they joined whose till is open (else the first).
  */
 export async function resolvePosActor(prisma: PrismaClient, userId: string, restaurantId?: string): Promise<PosActor | null> {
   const user = await prisma.user.findUnique({
@@ -44,10 +44,22 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
     candidates.set(member.restaurantId, { role: 'OWNER', viaMembership: true, joined: member.createdAt });
   }
 
-  const chosen =
-    restaurantId !== undefined
-      ? ([restaurantId, candidates.get(restaurantId)] as const)
-      : [...candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime())[0];
+  let chosen: readonly [string, (typeof candidates extends Map<string, infer V> ? V : never) | undefined] | undefined;
+  if (restaurantId !== undefined) {
+    chosen = [restaurantId, candidates.get(restaurantId)];
+  } else {
+    // The first restaurant they joined whose till is open; if none is open, the first they joined (it shows why it is closed).
+    const byJoined = [...candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime());
+    chosen = byJoined[0];
+    if (byJoined.length > 1) {
+      for (const entry of byJoined) {
+        if ((await posGate(prisma, entry[0])).open) {
+          chosen = entry;
+          break;
+        }
+      }
+    }
+  }
   if (!chosen || !chosen[1]) return null;
   const restaurant = await prisma.restaurant.findUnique({ where: { id: chosen[0] }, select: { name: true } });
   if (!restaurant) return null;

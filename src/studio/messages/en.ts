@@ -147,6 +147,7 @@ const en: Messages = {
   'pos.catalog.categoryDelete': 'Delete category',
   'pos.catalog.categoryInactive': 'Hidden',
   'pos.catalog.productAdd': 'Add a product',
+  'pos.catalog.showAll': 'Show {count} more products',
   'pos.catalog.productNone': 'No products in this category.',
   'pos.catalog.productPrice': 'Price (IQD)',
   'pos.catalog.productCategory': 'Category',

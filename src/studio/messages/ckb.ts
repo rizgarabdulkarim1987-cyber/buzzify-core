@@ -148,6 +148,7 @@ const ckb: Messages = {
   'pos.catalog.categoryDelete': 'سڕینەوەی پۆل',
   'pos.catalog.categoryInactive': 'شاراوە',
   'pos.catalog.productAdd': 'زیادکردنی بەرهەم',
+  'pos.catalog.showAll': 'پیشاندانی {count} بەرهەمی تر',
   'pos.catalog.productNone': 'هیچ بەرهەمێک لەم پۆلەدا نییە.',
   'pos.catalog.productPrice': 'نرخ (دینار)',
   'pos.catalog.productCategory': 'پۆل',

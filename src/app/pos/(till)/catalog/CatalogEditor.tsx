@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import { previewOf } from '@/server/domain/pos/visible';
 import {
   createKitchenSection,
   deleteKitchenSection,
@@ -311,6 +312,8 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
   const t = useT();
   const router = useRouter();
   const { busy, call } = useCall();
+  const [expanded, setExpanded] = useState(false);
+  const { shown, hidden } = previewOf(category.products, expanded);
   const form = useActionForm(
     (values) => posUpdateCategory({ categoryId: category.id, version: category.version, names: namesOf(values, locales), slug: category.slug, isActive: category.isActive }),
     {
@@ -352,7 +355,7 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
         <p className="px-4 py-3 text-sm text-muted">{t('pos.catalog.productNone')}</p>
       ) : (
         <ul className="flex flex-col divide-y divide-line">
-          {category.products.map((product) => (
+          {shown.map((product) => (
             <ProductRow
               key={product.id}
               product={product}
@@ -363,6 +366,13 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
               setting={productSettings[product.id] ?? { sectionId: null, soldOutOverride: false }}
             />
           ))}
+          {hidden > 0 && (
+            <li className="px-4 py-3">
+              <Button variant="secondary" onClick={() => setExpanded(true)}>
+                {t('pos.catalog.showAll', { count: hidden })}
+              </Button>
+            </li>
+          )}
         </ul>
       )}
       <div className="border-t border-line">

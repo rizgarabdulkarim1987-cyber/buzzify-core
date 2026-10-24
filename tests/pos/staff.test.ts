@@ -83,12 +83,14 @@ describe('creating and listing staff', () => {
     expect(codeOf(await run(owner, createPosStaff, NEW('cashier@pos-test.example')))).toBe('CONFLICT');
   });
 
-  it('attaches an existing account that works in another restaurant, which then holds both', async () => {
-    const result = await run(owner, createPosStaff, { name: 'Ignored', email: 'bmanager@pos-test.example', role: 'CASHIER' });
-    dataOf(result);
+  it('never attaches an existing account: no row is written and the answer matches an unknown email without a password', async () => {
+    const existing = failureOf(await run(owner, createPosStaff, { name: 'X', email: 'bmanager@pos-test.example', role: 'CASHIER' }));
+    const unknown = failureOf(await run(owner, createPosStaff, { name: 'X', email: 'nobody-here@pos-test.example', role: 'CASHIER' }));
+    expect(existing).toEqual(unknown);
     const user = await prisma().user.findUnique({ where: { email: 'bmanager@pos-test.example' } });
-    const rows = await prisma().posStaff.findMany({ where: { userId: user!.id }, orderBy: { createdAt: 'asc' } });
-    expect(rows.map((row) => [row.restaurantId, row.role])).toEqual([[b.id, 'MANAGER'], [a.id, 'CASHIER']]);
+    expect(await prisma().posStaff.count({ where: { userId: user!.id, restaurantId: a.id } })).toBe(0);
+    expect(codeOf(await run(owner, createPosStaff, NEW('bmanager@pos-test.example')))).toBe('CONFLICT');
+    expect(await prisma().posStaff.count({ where: { userId: user!.id, restaurantId: a.id } })).toBe(0);
   });
 
   it('never shows one restaurant the staff of another', async () => {

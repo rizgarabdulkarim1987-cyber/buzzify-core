@@ -101,6 +101,25 @@ describe('resolvePosActor', () => {
     expect((await resolvePosActor(prisma, 'act-staff'))?.restaurantId).toBe(a);
   });
 
+  it('without a restaurant named, prefers one whose till is open over the one they joined first', async () => {
+    const c = (await prisma.restaurant.create({ data: { name: 'Actor C' } })).id;
+    const d = (await prisma.restaurant.create({ data: { name: 'Actor D' } })).id;
+    await prisma.user.create({ data: { id: 'act-two', name: 'Two', email: 'two@act.test' } });
+    await prisma.posStaff.createMany({
+      data: [
+        { restaurantId: c, userId: 'act-two', role: 'CASHIER', createdAt: new Date('2025-01-01') },
+        { restaurantId: d, userId: 'act-two', role: 'CASHIER', createdAt: new Date('2026-01-01') },
+      ],
+    });
+    expect((await resolvePosActor(prisma, 'act-two'))?.restaurantId).toBe(c);
+    await subscribe(d, 'ACTIVE', new Date(Date.now() + 20 * DAY));
+    expect((await resolvePosActor(prisma, 'act-two'))?.restaurantId).toBe(d);
+    await deleteBillingRows(prisma, [c, d]);
+    await prisma.posStaff.deleteMany({ where: { userId: 'act-two' } });
+    await prisma.user.delete({ where: { id: 'act-two' } });
+    await prisma.restaurant.deleteMany({ where: { id: { in: [c, d] } } });
+  });
+
   it('a Studio DESIGNER alone has no till', async () => {
     expect(await resolvePosActor(prisma, 'act-designer')).toBeNull();
   });
