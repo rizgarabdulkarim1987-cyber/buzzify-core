@@ -886,6 +886,7 @@ const SWEPT: Record<string, Case[]> = {
  * name B.
  */
 const PLATFORM_ONLY: Record<string, Case[]> = {
+  'billing.restaurants': [c('the billing list', () => ({}), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
@@ -1037,10 +1038,17 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
+/**
+ * The till's definitions take no restaurant from their input: the framework resolves it from the person's own staff row or
+ * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
+ * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
+ */
+const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff'];
+
 describe('the cross-tenant sweep', () => {
   it('has an entry for every Studio action and query, in exactly one table, and none for one that does not exist', () => {
     expect(DEFINITIONS.size).toBeGreaterThan(50);
-    const tables = [SWEPT, PLATFORM_ONLY, SELF].map((table) => Object.keys(table));
+    const tables = [SWEPT, PLATFORM_ONLY, SELF].map((table) => Object.keys(table)).concat([TILL]);
     const listed = tables.flat();
     expect([...DEFINITIONS.keys()].filter((name) => !listed.includes(name)), 'definitions without an entry').toEqual([]);
     expect(listed.filter((name) => !DEFINITIONS.has(name)), 'entries for no definition').toEqual([]);
@@ -1052,6 +1060,15 @@ describe('the cross-tenant sweep', () => {
       const def = DEFINITIONS.get(name)!;
       expect(def.target({} as never), name).toEqual({ kind: 'platform' });
       expect(NEVER_GRANTABLE, name).toContain(def.permission);
+    }
+  });
+
+  it('lists as till only what names a till permission and the pos target', () => {
+    for (const name of TILL) {
+      const def = DEFINITIONS.get(name) as unknown as { pos?: string; permission: unknown; target(input: never): unknown };
+      expect(def.pos, name).toBeTruthy();
+      expect(def.permission, name).toBeNull();
+      expect(def.target(undefined as never), name).toEqual({ kind: 'pos' });
     }
   });
 

@@ -58,6 +58,7 @@ describe('PosStaff', () => {
 
   it('refuses a role the enum does not have', async () => {
     await expect(
+      // eslint-disable-next-line no-restricted-properties -- the test goes around the client on purpose, to prove the database refuses
       prisma.$executeRawUnsafe(`INSERT INTO "PosStaff" ("id","restaurantId","userId","role") VALUES ('x','${restaurantId}','pos-u2','BOSS')`),
     ).rejects.toThrow();
   });

@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
-import { getPrisma } from '@/server/data/prisma';
 import { canPos, posLanding, type PosPermission } from '@/server/domain/pos/permissions';
 import { getPosAccess } from '@/server/pos/actor';
 import { getStudioTranslator } from '@/studio/messages';
@@ -26,12 +25,11 @@ export default async function PosHomePage() {
   if (posLanding(actor.role) === 'kitchen') redirect('/pos/kitchen');
 
   const t = getStudioTranslator(actor.locale);
-  const restaurant = await getPrisma().restaurant.findUnique({ where: { id: actor.restaurantId }, select: { name: true } });
   return (
     <>
       <PageHeader
         title={t('pos.home.title')}
-        description={t('pos.home.intro', { restaurant: restaurant?.name ?? '', role: t(`pos.role.${actor.role}`) })}
+        description={t('pos.home.intro', { restaurant: actor.restaurantName, role: t(`pos.role.${actor.role}`) })}
       />
       <ul className="grid gap-4 px-8 pb-8 sm:grid-cols-2 xl:grid-cols-3">
         {LINKS.filter((link) => canPos(actor.role, link.permission)).map((link) => (

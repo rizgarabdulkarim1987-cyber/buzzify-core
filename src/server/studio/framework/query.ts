@@ -3,8 +3,10 @@ import type { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { FeatureKey } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
+import type { PosPermission } from '@/server/domain/pos/permissions';
+import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type CheckedTarget, type SelfTarget, type Target } from './access';
+import { admit, checkDefinition, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
@@ -31,6 +33,8 @@ export interface QueryContext {
   plan: PlanAccess | null;
   restaurantId: string | null;
   menuId: string | null;
+  /** Who is at the till, for a query with a `pos` permission; null for every other. */
+  pos: PosActor | null;
 }
 
 // As for actions, the input type comes from the schema alone.
@@ -49,14 +53,17 @@ interface QueryFields<I, O> {
  */
 export type QuerySpec<I, O> = QueryFields<I, O> &
   (
-    | { permission: Permission | 'view'; target(input: NoInfer<I>): CheckedTarget }
-    | { permission: null; target(input: NoInfer<I>): SelfTarget }
+    | { permission: Permission | 'view'; pos?: undefined; target(input: NoInfer<I>): CheckedTarget }
+    | { permission: null; pos?: undefined; target(input: NoInfer<I>): SelfTarget }
+    | { permission: null; pos: PosPermission; target(input: NoInfer<I>): PosTarget }
   );
 
 export interface QueryDef<I, O> {
   readonly kind: 'query';
   readonly name: string;
   readonly permission: Permission | 'view' | null;
+  /** A till permission instead of a Studio one; the target is then the person's own till. */
+  readonly pos?: PosPermission;
   readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
@@ -71,6 +78,7 @@ export function defineQuery<I, O>(spec: QuerySpec<I, O>): QueryDef<I, O> {
     kind: 'query',
     name: spec.name,
     permission: spec.permission,
+    ...(spec.pos === undefined ? {} : { pos: spec.pos }),
     ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
@@ -103,6 +111,7 @@ export async function runQueryForPage<I, O>(
         plan: access.plan,
         restaurantId: access.restaurantId,
         menuId: access.menuId,
+        pos: access.pos ?? null,
       },
       admitted.input,
     );

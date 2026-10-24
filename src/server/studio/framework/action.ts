@@ -4,13 +4,15 @@ import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { globalDb, scopedClient, type ScopedClient, type ScopedTx } from '@/server/data/tenant-db';
 import type { FeatureKey } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
+import type { PosPermission } from '@/server/domain/pos/permissions';
+import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type Access, type CheckedTarget, type SelfTarget, type Target } from './access';
+import { admit, checkDefinition, type Access, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import { createId } from './ids';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
-export type { CheckedTarget, SelfTarget, Target } from './access';
+export type { CheckedTarget, PosTarget, SelfTarget, Target } from './access';
 
 /** One audit row, as the action describes it. Who, where, when and from which address are added by the framework. */
 export interface AuditEntry {
@@ -49,6 +51,8 @@ export interface ActionContext {
   permissions: ReadonlySet<Permission>;
   /** What the target's restaurant has bought; null for platform and self targets. See `requireFeature`. */
   plan: PlanAccess | null;
+  /** Who is at the till, for an action with a `pos` permission; null for every other. */
+  pos: PosActor | null;
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
   /**
@@ -115,14 +119,17 @@ interface ActionFields<I, O> {
 /** An action names a permission and a target that checks it, or `permission: null` and the person's own account. */
 export type ActionSpec<I, O> = ActionFields<I, O> &
   (
-    | { permission: Permission; target(input: NoInfer<I>): CheckedTarget }
-    | { permission: null; target(input: NoInfer<I>): SelfTarget }
+    | { permission: Permission; pos?: undefined; target(input: NoInfer<I>): CheckedTarget }
+    | { permission: null; pos?: undefined; target(input: NoInfer<I>): SelfTarget }
+    | { permission: null; pos: PosPermission; target(input: NoInfer<I>): PosTarget }
   );
 
 export interface ActionDef<I, O> {
   readonly kind: 'action';
   readonly name: string;
   readonly permission: Permission | null;
+  /** A till permission instead of a Studio one; the target is then the person's own till. */
+  readonly pos?: PosPermission;
   readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
@@ -137,6 +144,7 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
     kind: 'action',
     name: spec.name,
     permission: spec.permission,
+    ...(spec.pos === undefined ? {} : { pos: spec.pos }),
     ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
@@ -189,6 +197,7 @@ class Work {
       menuId: this.access.menuId,
       permissions: this.access.permissions,
       plan: this.access.plan,
+      pos: this.access.pos ?? null,
       db: this.prisma,
       meta: this.meta,
       transaction: (fn) => this.run(this.client(), this.access, fn),

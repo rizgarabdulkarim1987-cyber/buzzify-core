@@ -2,6 +2,8 @@ import type { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { allows, isFeatureKey, lowestPlanWith, type FeatureKey, type PlanTier } from '@/server/domain/entitlements';
 import { effectivePermissions, parsePolicy, PERMISSIONS, type Permission } from '@/server/domain/permissions';
+import { canPos, POS_PERMISSIONS, type PosPermission } from '@/server/domain/pos/permissions';
+import { posGate, resolvePosActor, type PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import { entitlementsOf, readPlans } from '@/server/data/plans';
 import type { PlanAccess } from './plan';
@@ -10,17 +12,22 @@ import { failure, invalidInput, type StudioFailure } from './result';
 /**
  * What an action or query works on. A menu resolves to its restaurant before anything runs. `self` is the signed-in
  * person's own account: it needs no permission, and it is the only target a definition with `permission: null` may name.
+ * `pos` is the till of the restaurant the person works in: the restaurant comes from their staff row or membership, never
+ * from the input, and it is the only target a definition with a `pos` permission may name.
  */
 export type Target =
   | { kind: 'platform' }
   | { kind: 'restaurant'; restaurantId: string }
   | { kind: 'menu'; menuId: string }
-  | { kind: 'self' };
+  | { kind: 'self' }
+  | { kind: 'pos' };
+
+export type PosTarget = Extract<Target, { kind: 'pos' }>;
 
 export type SelfTarget = Extract<Target, { kind: 'self' }>;
 
-/** Every target whose permission is checked: all of them but `self`. */
-export type CheckedTarget = Exclude<Target, SelfTarget>;
+/** Every target whose Studio permission is checked: all of them but `self` and `pos`. */
+export type CheckedTarget = Exclude<Target, SelfTarget | PosTarget>;
 
 /** What a definition requires: a permission key, `'view'` (queries: Super Admin or member), or nothing (`self` only). */
 export type Requirement = Permission | 'view' | null;
@@ -32,12 +39,16 @@ export interface Access {
   permissions: ReadonlySet<Permission>;
   /** The restaurant's plan; null on platform and self targets. */
   plan: PlanAccess | null;
+  /** Who is at the till, on a `pos` target; null otherwise. */
+  pos?: PosActor | null;
 }
 
 /** The parts of an action or query definition the checks read. */
 export interface Guarded<I> {
   name: string;
   permission: Requirement;
+  /** A till permission instead of a Studio one: the target is then `pos`, and `permission` is null. */
+  pos?: PosPermission;
   /** A feature the target restaurant's plan must include, checked after the permission. */
   feature?: FeatureKey;
   input: z.ZodType<I>;
@@ -56,7 +67,7 @@ const isSelf = (target: unknown) => (target as { kind?: unknown } | null)?.kind 
  */
 export function checkDefinition(
   kind: 'action' | 'query',
-  def: { name: unknown; permission: unknown; feature?: unknown; input: unknown; target: unknown; run: unknown },
+  def: { name: unknown; permission: unknown; pos?: unknown; feature?: unknown; input: unknown; target: unknown; run: unknown },
 ): void {
   if (typeof def.name !== 'string' || def.name === '') throw new Error(`A Studio ${kind} needs a name`);
   const label = `Studio ${kind} ${def.name}`;
@@ -65,6 +76,31 @@ export function checkDefinition(
   }
   if (typeof (def.input as { safeParseAsync?: unknown } | null)?.safeParseAsync !== 'function') {
     throw new Error(`${label} needs a Zod input schema`);
+  }
+  if (def.pos !== undefined) {
+    if (kind !== 'action' && kind !== 'query') throw new Error(`${label} is not an action or a query`);
+    if (typeof def.pos !== 'string' || !(POS_PERMISSIONS as readonly string[]).includes(def.pos)) {
+      throw new Error(`${label} names an unknown till permission: ${String(def.pos)}`);
+    }
+    if (def.permission !== null) throw new Error(`${label} names a till permission, so its Studio permission is null`);
+    if (def.feature !== undefined) throw new Error(`${label} needs a feature, which a till target has no plan for`);
+    let target: unknown;
+    try {
+      target = (def.target as (input: unknown) => unknown)(undefined);
+    } catch {
+      target = undefined;
+    }
+    if ((target as { kind?: unknown } | null)?.kind !== 'pos') {
+      throw new Error(`${label} names a till permission, which is only allowed with a pos target that ignores the input`);
+    }
+    return;
+  }
+  try {
+    if (((def.target as (input: unknown) => unknown)(undefined) as { kind?: unknown } | null)?.kind === 'pos') {
+      throw new Error(`${label} names the pos target, which needs a till permission (pos)`);
+    }
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('pos target')) throw error;
   }
   const permission = def.permission;
   const allowed = permission === null || (typeof permission === 'string' && (KNOWN.has(permission) || (kind === 'query' && permission === 'view')));
@@ -181,6 +217,28 @@ export async function resolveAccess(
 }
 
 /**
+ * The till check: the person's restaurant and role come from the database, the till must be open for that restaurant (it
+ * is active and has a live Cashier subscription), and the role must hold the permission. Somebody with no till at all
+ * and a closed till are refused alike as far as the answer goes: no one learns what exists.
+ */
+export async function resolvePosAccess(
+  prisma: PrismaClient,
+  actor: Actor,
+  required: PosPermission,
+): Promise<Access | { ok: false; error: StudioFailure }> {
+  const posActor = await resolvePosActor(prisma, actor.userId);
+  if (!posActor) return failure('NOT_FOUND');
+  if (!(await posGate(prisma, posActor.restaurantId)).open) return failure('FORBIDDEN');
+  if (!canPos(posActor.role, required)) return failure('FORBIDDEN');
+  const place = await locate(prisma, { kind: 'restaurant', restaurantId: posActor.restaurantId });
+  if (!place) return failure('NOT_FOUND');
+  const plans = await readPlans(prisma);
+  const plan: PlanAccess = { entitlements: entitlementsOf(place, plans), plans };
+  // A till role grants no Studio permission: the till's work goes through the till's own checks.
+  return { restaurantId: place.restaurantId, menuId: null, permissions: new Set(), plan, pos: posActor };
+}
+
+/**
  * Everything that happens before a handler runs, in order: an actor; two-factor for a Super Admin (unless the
  * definition is part of enrolling); valid input; the target and the permission.
  */
@@ -196,7 +254,10 @@ export async function admit<I>(
   const parsed = await def.input.safeParseAsync(raw);
   if (!parsed.success) return invalidInput(parsed.error);
 
-  const access = await resolveAccess(prisma, actor, def.target(parsed.data), def.permission, def.name, def.feature);
+  const access =
+    def.pos !== undefined
+      ? await resolvePosAccess(prisma, actor, def.pos)
+      : await resolveAccess(prisma, actor, def.target(parsed.data), def.permission, def.name, def.feature);
   if ('ok' in access) return access;
   return { ok: true, actor, input: parsed.data, access };
 }

@@ -98,12 +98,19 @@ export const AUDIT_ACTIONS = [
   'account.recovery_code_used',
   'account.session_ended',
   'account.other_sessions_ended',
+  'pos.settings.update',
+  'pos.staff.create',
+  'pos.staff.role',
+  'pos.staff.deactivate',
+  'pos.staff.reactivate',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
 
 /** The kinds of row the audit log names (its `entityType`), each with a label (`activity.entity.<type>`). */
 export const AUDIT_ENTITY_TYPES = [
+  'PosSettings',
+  'PosStaff',
   'Restaurant',
   'RestaurantStatus',
   'RestaurantPlan',

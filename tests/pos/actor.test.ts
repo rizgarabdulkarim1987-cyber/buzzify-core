@@ -80,6 +80,7 @@ describe('resolvePosActor', () => {
       userId: 'act-owner',
       name: 'Owner',
       restaurantId: a,
+      restaurantName: 'Actor A',
       role: 'OWNER',
       viaMembership: true,
       locale: 'ar',

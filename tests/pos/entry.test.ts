@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { PosActor } from '@/server/pos/actor';
 import { POS_SIGN_IN, posEntry } from '@/server/pos/entry';
 
-const actor: PosActor = { userId: 'u', name: 'U', restaurantId: 'r', role: 'CASHIER', viaMembership: false, locale: 'en' };
+const actor: PosActor = { userId: 'u', name: 'U', restaurantId: 'r', restaurantName: 'R', role: 'CASHIER', viaMembership: false, locale: 'en' };
 
 describe('posEntry', () => {
   it('sends nobody signed in to the shared sign-in, which returns to the till', () => {

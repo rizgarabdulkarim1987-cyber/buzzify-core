@@ -11,6 +11,7 @@ export interface PosActor {
   userId: string;
   name: string;
   restaurantId: string;
+  restaurantName: string;
   role: PosRole;
   /** True when the role comes from being the restaurant's Studio OWNER rather than from a staff row. */
   viaMembership: boolean;
@@ -48,11 +49,14 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
       ? ([restaurantId, candidates.get(restaurantId)] as const)
       : [...candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime())[0];
   if (!chosen || !chosen[1]) return null;
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: chosen[0] }, select: { name: true } });
+  if (!restaurant) return null;
 
   return {
     userId: user.id,
     name: user.name,
     restaurantId: chosen[0],
+    restaurantName: restaurant.name,
     role: chosen[1].role,
     viaMembership: chosen[1].viaMembership,
     locale: isLocale(user.locale) ? user.locale : 'en',
