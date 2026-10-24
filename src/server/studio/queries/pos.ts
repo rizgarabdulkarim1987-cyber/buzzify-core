@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
 import { readOrderView } from '@/server/pos/orders';
+import { readBoard } from '@/server/pos/board';
 import { readReceipt } from '@/server/pos/payments';
 import { listOpenShifts, openShiftIdOf, readShiftSummary } from '@/server/pos/shifts';
 import { canPos } from '@/server/domain/pos/permissions';
@@ -208,4 +209,14 @@ export const posReceipt = defineQuery({
     if (!receipt) throw new StudioError('NOT_FOUND');
     return receipt;
   },
+});
+
+/** The tables board: every table with its state and total, the area tabs and today's sales. */
+export const posBoard = defineQuery({
+  name: 'pos.board',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ areaId: idField.optional() }),
+  target: () => TILL,
+  run: (ctx, { areaId }) => readBoard(ctx.db, restaurantOf(ctx), { areaId }),
 });
