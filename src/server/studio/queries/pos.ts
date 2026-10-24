@@ -3,6 +3,7 @@ import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
 import { readOrderView } from '@/server/pos/orders';
 import { readKitchenQueue, readKitchenScope, readKitchenTicket } from '@/server/pos/kitchen';
+import { dayField, readDailyReport, readShiftReport } from '@/server/pos/report';
 import { readBoard } from '@/server/pos/board';
 import { readReceipt } from '@/server/pos/payments';
 import { listOpenShifts, openShiftIdOf, readShiftSummary } from '@/server/pos/shifts';
@@ -267,4 +268,24 @@ export const posOrderKitchenTicket = defineQuery({
   input: ticketInput,
   target: () => TILL,
   run: (ctx, input) => readKitchenTicket(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input),
+});
+
+/** One shift's sales, discounts, cancellations and cash count. */
+export const posShiftReport = defineQuery({
+  name: 'pos.shiftReport',
+  permission: null,
+  pos: 'report.view',
+  input: z.object({ shiftId: idField }),
+  target: () => TILL,
+  run: (ctx, { shiftId }) => readShiftReport(ctx.db, restaurantOf(ctx), shiftId),
+});
+
+/** The report of one Baghdad day: its shifts and their totals. */
+export const posDailyReport = defineQuery({
+  name: 'pos.dailyReport',
+  permission: null,
+  pos: 'report.view',
+  input: z.object({ day: dayField }),
+  target: () => TILL,
+  run: (ctx, { day }) => readDailyReport(ctx.db, restaurantOf(ctx), { day }),
 });
