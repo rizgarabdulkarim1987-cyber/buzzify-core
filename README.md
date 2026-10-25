@@ -63,8 +63,23 @@ Sorani-first burger place priced in dinars).
   that has it and a button that opens a WhatsApp chat with the owner, never an error. Guests get only what the plan
   includes, at once and without a republish; a downgrade keeps every saved choice, so moving back brings it all back
 
-Not in this release: table PIN verification, order submission, cashier and kitchen screens, tax and service charge.
-See `docs/superpowers/specs`.
+**The Cashier** (`/pos`, for a restaurant's own till; a restaurant needs a live Cashier subscription, and a Super Admin has no till
+identity, so it is opened as the restaurant's Owner or as staff)
+
+- **Tables:** a board of the floor, coloured by state (free, busy, ready, bill asked, waiting for approval), live; the floor
+  (areas and tables, added by range, moved between areas) is set up by a manager
+- **Orders:** the Menu's catalog with search and categories, sizes, options and notes, a discount on a line or the whole
+  bill, service and tax, moving an order to another table
+- **Payment:** cash, with quick amounts and the change; a receipt to print. Totals are frozen when the order is paid
+- **Kitchen:** send to the kitchen by section, a kitchen screen that marks what is ready and warns when a ticket is late, a
+  cancellation notice, and a printable ticket
+- **Shifts:** open with the drawer's cash, add expenses, count and close with the difference shown, a slip to print; the
+  daily report
+- Roles (owner, manager, cashier, kitchen), the product list and staff are managed from the till's own pages
+- Arabic, Sorani and English, Baghdad time, amounts in dinars with Arabic-Indic digits in typed fields
+
+Not in this release: guests ordering from the table's QR code, takeaway and delivery, working offline, card payments and
+refunds, PIN sign-in, stock and suppliers. See `docs/superpowers/plans/2026-10-24-cashier-unified-plan.md`.
 
 ### The spreadsheet format
 

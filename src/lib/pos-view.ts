@@ -84,3 +84,8 @@ export function amountDigits(text: string): string {
 export function typedAmount(text: string): number | null {
   return text.trim() === '' ? null : parseAmount(text);
 }
+
+/** The parts of a printed line joined by a dot, skipping the ones that are missing, so it never starts with a separator. */
+export function joinParts(parts: ReadonlyArray<string | null | undefined>): string {
+  return parts.filter((part): part is string => typeof part === 'string' && part !== '').join(' · ');
+}

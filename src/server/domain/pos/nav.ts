@@ -18,3 +18,9 @@ export type TillPageKey = (typeof TILL_PAGES)[number]['key'];
 export function tillNav(role: PosRole): ReadonlyArray<{ key: TillPageKey; href: string }> {
   return TILL_PAGES.filter((page) => canPos(role, page.permission)).map(({ key, href }) => ({ key, href }));
 }
+
+/** Whether a role may open a till page by its address: the nav hides a page, this is what the page itself checks. */
+export function canOpenTillPage(role: PosRole, key: TillPageKey): boolean {
+  const page = TILL_PAGES.find((candidate) => candidate.key === key);
+  return page !== undefined && canPos(role, page.permission);
+}

@@ -1,6 +1,7 @@
 'use client';
 
 import { formatNumber } from '@/lib/pos-format';
+import { joinParts } from '@/lib/pos-view';
 import type { KitchenTicket as Ticket } from '@/server/pos/kitchen';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -10,14 +11,13 @@ export function KitchenTicket({ ticket }: { ticket: Ticket }) {
   const t = useT();
   const head = (
     <p className="text-sm text-muted">
-      {ticket.tableNumber !== null ? t('pos.ticket.table', { n: formatNumber(ticket.tableNumber) }) : ''}
-      {ticket.areaName ? ` · ${ticket.areaName}` : ''} · {ticket.cashierName}
+      {joinParts([ticket.tableNumber !== null ? t('pos.ticket.table', { n: formatNumber(ticket.tableNumber) }) : null, ticket.areaName, ticket.cashierName])}
     </p>
   );
   return (
     <div className="mx-auto flex w-full max-w-[80mm] flex-col gap-4 px-4 py-6 print:max-w-none print:p-0">
       {ticket.sheets.map((sheet) => (
-        <section key={`${sheet.sectionId}-${sheet.batch}`} className="flex flex-col gap-2 break-after-page border-b border-dashed border-line-strong pb-3">
+        <section key={`${sheet.sectionId}-${sheet.batch}`} className="flex flex-col gap-2 break-after-page last:break-after-auto border-b border-dashed border-line-strong pb-3">
           <h1 className="text-lg font-semibold">
             {sheet.sectionName} · {t('pos.ticket.order', { n: formatNumber(ticket.orderNumber) })}
           </h1>
@@ -34,7 +34,7 @@ export function KitchenTicket({ ticket }: { ticket: Ticket }) {
         </section>
       ))}
       {ticket.cancelSlips.map((slip) => (
-        <section key={`cancel-${slip.sectionId}`} className="flex flex-col gap-2 break-after-page border-b border-dashed border-line-strong pb-3">
+        <section key={`cancel-${slip.sectionId}`} className="flex flex-col gap-2 break-after-page last:break-after-auto border-b border-dashed border-line-strong pb-3">
           <h1 className="text-lg font-semibold text-danger">
             {t('pos.ticket.cancelled')} · {slip.sectionName}
           </h1>
