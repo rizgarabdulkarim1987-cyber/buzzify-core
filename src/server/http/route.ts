@@ -88,3 +88,24 @@ export async function handleTenantRequest<S extends z.ZodType>(
   }
   return handler({ tenant, input: parsed.data, now: new Date() });
 }
+
+/**
+ * A GET to a tenant's public API: the same lookup and the shared per-address limit as `handleTenantRequest`, with no body.
+ */
+export async function handleTenantGet(
+  request: Request,
+  ctx: { params: Promise<{ tenant: string }> },
+  options: { route: string; limit: number; windowMs?: number },
+  handler: (args: { tenant: TenantInfo; now: Date }) => Promise<Response>,
+): Promise<Response> {
+  const { tenant: slug } = await ctx.params;
+  const tenant = await getTenant(slug);
+  if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
+  const verdict = await admitRequest(getPrisma(), limiterFor(options.route, rule.limit, rule.windowMs), `${options.route}:${tenant.id}:${ip}`, rule, new Date());
+  if (!verdict.allowed) {
+    return problem(429, 'RATE_LIMITED', 'Too many requests', { 'Retry-After': String(Math.ceil(verdict.retryAfterMs / 1000)) });
+  }
+  return handler({ tenant, now: new Date() });
+}
