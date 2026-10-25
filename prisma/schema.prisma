@@ -101,26 +101,28 @@ model Restaurant {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  branches            Branch[]
-  menus               Menu[]
-  memberships         Membership[]
-  invitations         Invitation[]
-  mediaAssets         MediaAsset[]
-  designTemplates     DesignTemplate[]
-  subscriptions       Subscription[]
-  payments            Payment[]
-  posSettings         PosSettings?
-  posStaffs           PosStaff[]
-  posKitchenSections  PosKitchenSection[]
-  posCategorySettings PosCategorySetting[]
-  posProductSettings  PosProductSetting[]
-  posAreas            PosArea[]
-  posTables           PosTable[]
-  posOrders           PosOrder[]
-  posOrderLines       PosOrderLine[]
-  posPayments         PosPayment[]
-  posShifts           PosShift[]
-  posCashExpenses     PosCashExpense[]
+  branches              Branch[]
+  menus                 Menu[]
+  memberships           Membership[]
+  invitations           Invitation[]
+  mediaAssets           MediaAsset[]
+  designTemplates       DesignTemplate[]
+  subscriptions         Subscription[]
+  payments              Payment[]
+  posSettings           PosSettings?
+  posStaffs             PosStaff[]
+  posKitchenSections    PosKitchenSection[]
+  posCategorySettings   PosCategorySetting[]
+  posProductSettings    PosProductSetting[]
+  posAreas              PosArea[]
+  posTables             PosTable[]
+  posOrders             PosOrder[]
+  posOrderLines         PosOrderLine[]
+  posCustomerOrders     PosCustomerOrder[]
+  posCustomerOrderLines PosCustomerOrderLine[]
+  posPayments           PosPayment[]
+  posShifts             PosShift[]
+  posCashExpenses       PosCashExpense[]
 
   @@index([name])
   @@index([city])
@@ -355,17 +357,18 @@ model Product {
   sortOrder          Int       @default(0)
   version            Int       @default(1)
 
-  menu              Menu               @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  category          Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  variants          ProductVariant[]
-  groups            ModifierGroup[]
-  upsellFrom        UpsellRule[]       @relation("UpsellSource")
-  upsellTo          UpsellRule[]       @relation("UpsellTarget")
-  pairingFrom       PairingRule[]      @relation("PairingSource")
-  pairingTo         PairingRule[]      @relation("PairingTarget")
-  bundleItems       BundleItem[]
-  posProductSetting PosProductSetting?
-  posOrderLines     PosOrderLine[]
+  menu                  Menu                   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category              Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants              ProductVariant[]
+  groups                ModifierGroup[]
+  upsellFrom            UpsellRule[]           @relation("UpsellSource")
+  upsellTo              UpsellRule[]           @relation("UpsellTarget")
+  pairingFrom           PairingRule[]          @relation("PairingSource")
+  pairingTo             PairingRule[]          @relation("PairingTarget")
+  bundleItems           BundleItem[]
+  posProductSetting     PosProductSetting?
+  posOrderLines         PosOrderLine[]
+  posCustomerOrderLines PosCustomerOrderLine[]
 
   @@unique([menuId, slug])
   @@index([menuId, categoryId])
@@ -1273,13 +1276,14 @@ model PosArea {
 
 /// A dining table. Its number is the Menu's QR table number (`/t/<n>`), so there is one numbering.
 model PosTable {
-  id           String     @id @default(cuid())
-  restaurantId String
-  areaId       String
-  number       Int
-  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  area         PosArea    @relation(fields: [areaId], references: [id], onDelete: Cascade)
-  orders       PosOrder[]
+  id             String             @id @default(cuid())
+  restaurantId   String
+  areaId         String
+  number         Int
+  restaurant     Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  area           PosArea            @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  orders         PosOrder[]
+  customerOrders PosCustomerOrder[]
 
   @@unique([restaurantId, number])
   @@index([areaId])
@@ -1410,4 +1414,61 @@ model PosCashExpense {
 
   @@index([shiftId])
   @@index([restaurantId, createdAt])
+}
+
+enum PosCustomerOrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// A guest's order from the Menu's table page, waiting for the cashier. Separate from `PosOrder`, so the one-live-order-per-table
+/// index and the order state machine are untouched. A request older than 60 minutes is expired on read, not by a job.
+model PosCustomerOrder {
+  id              String                 @id @default(cuid())
+  restaurantId    String
+  tableId         String
+  /// The Menu's table number when the guest sent it.
+  tableNumber     Int
+  /// Random and unguessable: the guest reads the request's status with it.
+  publicId        String                 @unique @default(cuid())
+  status          PosCustomerOrderStatus @default(PENDING)
+  customerNote    String                 @default("")
+  locale          String
+  rejectReason    String                 @default("")
+  /// Plain id (no relation): the order the request became or joined.
+  orderId         String?
+  decidedAt       DateTime?
+  /// Plain id (no relation): the person who accepted or rejected it.
+  decidedByUserId String?
+  createdAt       DateTime               @default(now())
+  restaurant      Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table           PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  lines           PosCustomerOrderLine[]
+
+  @@index([restaurantId, status])
+  @@index([tableId, status, createdAt])
+  @@index([restaurantId, createdAt])
+}
+
+model PosCustomerOrderLine {
+  id                   String           @id @default(cuid())
+  restaurantId         String
+  requestId            String
+  productId            String?
+  nameSnapshot         String
+  /// Integer IQD: the product's base price when the guest ordered. The variant and options are in optionsSnapshot.
+  unitPriceSnapshot    Int
+  /// [{ id, name, priceDelta }] of the chosen variant (first) and options.
+  optionsSnapshot      Json             @default("[]")
+  /// Integer IQD per unit the Menu's promotions took off (base + options minus the quoted unit price); 0 for none.
+  promoDiscountPerUnit Int              @default(0)
+  quantity             Int
+  note                 String           @default("")
+  restaurant           Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  request              PosCustomerOrder @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product              Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([restaurantId])
 }

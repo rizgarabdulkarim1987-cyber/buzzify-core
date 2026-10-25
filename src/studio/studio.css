@@ -23,6 +23,7 @@
   --s-accent: #f2b705;
   --s-danger: #b42318;
   --s-success: #067647;
+  --s-info: #1d4ed8;
 
   /* Derived from the tokens above: states of the same few colours. */
   --s-line-strong: #cfcfcb;
@@ -34,6 +35,7 @@
   --s-danger-wash: #fdf1f0;
   --s-success-wash: #eef7f2;
   --s-accent-wash: #fdf6dd;
+  --s-info-wash: #eaf1fe;
   --s-overlay: rgb(17 17 17 / 0.4);
 
   --s-font: var(--font-studio-latin), var(--font-studio-arabic), system-ui, sans-serif;
@@ -70,6 +72,8 @@
   --color-danger-wash: var(--s-danger-wash);
   --color-success: var(--s-success);
   --color-success-wash: var(--s-success-wash);
+  --color-info: var(--s-info);
+  --color-info-wash: var(--s-info-wash);
   --color-overlay: var(--s-overlay);
 
   --font-*: initial;

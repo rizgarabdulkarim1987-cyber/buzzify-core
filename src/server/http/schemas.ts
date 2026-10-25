@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { EVENT_TYPES } from '@/server/data/events';
+import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { LOCALES, MAX_LINES, MAX_QUANTITY } from '@/server/domain/types';
 
 const id = z.string().min(1).max(64);
@@ -60,4 +61,26 @@ export const eventsRequestSchema = z.object({
     )
     .min(1)
     .max(20),
+});
+
+/** A guest's QR order. Strict: a price, a total or any field not listed here is refused, never ignored. */
+export const qrOrderSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  locale,
+  cart: z.strictObject({
+    lines: z
+      .array(
+        z.strictObject({
+          productId: id,
+          variantId: id.nullable().default(null),
+          optionIds: z.array(id).max(20).default([]),
+          quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity),
+          note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+        }),
+      )
+      .min(1)
+      .max(QR_LIMITS.maxLines),
+    bundles: z.array(z.strictObject({ bundleId: id, quantity: z.number().int().min(1).max(MAX_QUANTITY) })).max(10).default([]),
+  }),
+  note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
 });

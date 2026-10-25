@@ -21,7 +21,7 @@ const TONE: Record<TableTone, string> = {
   busy: 'border-accent bg-accent-wash text-text',
   ready: 'border-success bg-success-wash text-text',
   bill: 'border-danger bg-danger-wash text-text',
-  pending: 'border-dashed border-line-strong bg-surface text-text',
+  pending: 'border-info bg-info-wash text-text',
 };
 const RING = 2 * Math.PI * 46;
 
@@ -51,6 +51,10 @@ export function TablesBoard({ board }: { board: BoardView }) {
   const areaName = (id: string) => board.areas.find((area) => area.id === id)?.name ?? '';
 
   const tap = (table: BoardView['tables'][number]) => {
+    if (table.pendingRequests > 0) {
+      router.push('/pos/requests');
+      return;
+    }
     if (table.orderId) {
       router.push(`/pos/orders/${table.orderId}`);
       return;
@@ -116,6 +120,11 @@ export function TablesBoard({ board }: { board: BoardView }) {
                     <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="3" />
                     <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} />
                   </svg>
+                ) : null}
+                {table.pendingRequests > 0 ? (
+                  <span className="absolute end-2 top-2 inline-flex min-h-6 items-center rounded-full bg-info px-2 text-sm font-semibold text-on-ink">
+                    {table.orderId ? formatNumber(table.pendingRequests) : t('pos.board.newOrder')}
+                  </span>
                 ) : null}
                 <span className="relative text-2xl font-semibold" dir="ltr">{formatNumber(table.number)}</span>
                 <span className="relative text-sm text-muted">{areaId === null && board.areas.length > 1 ? areaName(table.areaId) : t(`pos.board.state.${tone}`)}</span>
