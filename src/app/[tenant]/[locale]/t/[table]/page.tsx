@@ -2,11 +2,9 @@ import { notFound } from 'next/navigation';
 import { getPrisma } from '@/server/data/prisma';
 import { menuDb } from '@/server/data/tenant-db';
 import { searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
-import { complaintGate } from '@/server/pos/complaints-guest';
 import { loadMenuView } from '@/server/route-context';
 import { RouteTable } from '@/ui/AppProviders';
 import { MenuApp } from '@/ui/menu/MenuApp';
-import { ComplaintEntryProvider } from '@/ui/menu/ComplaintEntry';
 
 const TABLE_NUMBER = /^\d{1,3}$/;
 
@@ -27,14 +25,10 @@ export default async function Page({
     if (!table) notFound();
 
     const view = await loadMenuView(route);
-    // The complaint page exists only when the restaurant turned it on; the link follows the same gate.
-    const complaints = (await complaintGate(getPrisma(), route.tenant, number)).open;
     return (
       <>
         <RouteTable number={number} />
-        <ComplaintEntryProvider table={complaints ? number : null}>
-          <MenuApp view={view} />
-        </ComplaintEntryProvider>
+        <MenuApp view={view} />
       </>
     );
   });

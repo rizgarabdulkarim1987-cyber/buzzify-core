@@ -10,6 +10,8 @@ export const WORDS = {
     link: 'Complaints & suggestions',
     close: 'Close',
     table: 'Table {n}',
+    tableAsk: 'Your table number',
+    tableNeeded: 'Enter your table number.',
     intro: 'Your message goes to the manager, not to the staff at your table.',
     what: 'Your complaint or suggestion',
     category: 'About',
@@ -38,6 +40,8 @@ export const WORDS = {
     link: 'الشكاوى والمقترحات',
     close: 'إغلاق',
     table: 'الطاولة {n}',
+    tableAsk: 'رقم طاولتك',
+    tableNeeded: 'اكتب رقم طاولتك.',
     intro: 'تصل رسالتك إلى المدير وليس إلى موظفي طاولتك.',
     what: 'شكواك أو مقترحك',
     category: 'بخصوص',
@@ -66,6 +70,8 @@ export const WORDS = {
     link: 'گلەیی و پێشنیار',
     close: 'داخستن',
     table: 'مێزی {n}',
+    tableAsk: 'ژمارەی مێزەکەت',
+    tableNeeded: 'ژمارەی مێزەکەت بنووسە.',
     intro: 'نامەکەت دەگاتە بەڕێوەبەر، نەک ستافی مێزەکەت.',
     what: 'گلەیی یان پێشنیارەکەت',
     category: 'دەربارەی',
@@ -91,5 +97,5 @@ export const WORDS = {
   },
 } as const satisfies Record<Locale, Record<string, string>>;
 
-export const COMPLAINT_TITLE = (locale: Locale, table: number) => ({ title: WORDS[locale].title, table: WORDS[locale].table.replace('{n}', String(table)), intro: WORDS[locale].intro });
+export const COMPLAINT_TITLE = (locale: Locale, table: number | null) => ({ title: WORDS[locale].title, table: table === null ? '' : WORDS[locale].table.replace('{n}', String(table)), intro: WORDS[locale].intro });
 export const COMPLAINT_LINK = (locale: Locale) => ({ open: WORDS[locale].link, close: WORDS[locale].close });

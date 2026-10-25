@@ -7,10 +7,13 @@ import { guestFontPair, guestPalette, guestTheme } from '@/lib/guest-brand';
 import { direction, isLocale } from '@/lib/locale';
 import type { BrandView } from '@/server/data/tenant';
 import { hostEnv } from '@/server/env';
+import { getPrisma } from '@/server/data/prisma';
+import { complaintsAvailable } from '@/server/pos/complaints-guest';
 import { resolvePublicRoute } from '@/server/public-page';
 import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss, themeLogo } from '@/ui/brand';
+import { ComplaintEntryProvider } from '@/ui/menu/ComplaintEntry';
 
 export async function generateMetadata({
   params,
@@ -84,6 +87,8 @@ export default async function RootLayout({
   }
 
   const { tenant, locale } = resolved.route;
+  // The complaints box is a fixture of every page of a menu that offers it; a failed read must never take the menu down.
+  const complaints = await complaintsAvailable(getPrisma(), tenant).catch(() => false);
   return (
     <html lang={locale} dir={direction(locale)} data-theme={guestTheme(tenant.brand)} className={fontVariablesFor(locale, guestFontPair(tenant.brand))}>
       <head>
@@ -106,7 +111,7 @@ export default async function RootLayout({
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
           }}
         >
-          {children}
+          <ComplaintEntryProvider enabled={complaints}>{children}</ComplaintEntryProvider>
         </AppProviders>
       </body>
     </html>

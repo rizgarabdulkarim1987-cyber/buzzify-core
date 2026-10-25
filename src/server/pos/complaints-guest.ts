@@ -29,6 +29,14 @@ export type ComplaintGate = { open: true; restaurantId: string; tableId: string 
 
 const CLOSED: ComplaintGate = { open: false };
 
+/** Whether this menu offers the complaints box at all (the subscription is read first); the table is checked on sending. */
+export async function complaintsAvailable(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, now: Date = new Date()): Promise<boolean> {
+  const gate = await posGate(prisma, tenant.restaurantId, now);
+  if (!gate.open) return false;
+  const settings = await scopedClient(prisma, { restaurantId: tenant.restaurantId }).posSettings.findFirst({ where: { restaurantId: tenant.restaurantId }, select: { complaintsEnabled: true, catalogMenuId: true } });
+  return settings?.complaintsEnabled === true && settings.catalogMenuId === tenant.id;
+}
+
 /** Whether guests of this menu may send a complaint from this table. The subscription is read first. */
 export async function complaintGate(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, tableNumber: number, now: Date = new Date()): Promise<ComplaintGate> {
   if (!Number.isInteger(tableNumber) || tableNumber < 1) return CLOSED;

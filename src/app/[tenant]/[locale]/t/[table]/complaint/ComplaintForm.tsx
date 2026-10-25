@@ -22,7 +22,8 @@ function newKey(): string {
 
 const FIELD = 'min-h-12 w-full rounded-md border border-line bg-surface px-3 py-2 text-base text-text';
 
-export function ComplaintForm({ slug, table, locale }: { slug: string; table: number; locale: Locale }) {
+/** `table` is null when the guest has not said where they sit (the menu opened without a QR scan): the form then asks for the number. */
+export function ComplaintForm({ slug, table, locale }: { slug: string; table: number | null; locale: Locale }) {
   const w = WORDS[locale];
   const [clientKey, setClientKey] = useState(newKey);
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
@@ -33,9 +34,12 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
   const [phone, setPhone] = useState('');
   const [consent, setConsent] = useState(false);
   const [website, setWebsite] = useState('');
+  const [tableText, setTableText] = useState('');
   const [error, setError] = useState('');
 
   async function send() {
+    const tableNumber = table ?? (/^\d{1,3}$/.test(tableText.trim()) ? Number(tableText.trim()) : 0);
+    if (tableNumber < 1) return setError(w.tableNeeded);
     if (body.trim() === '') return setError(w.empty);
     if ((name.trim() || phone.trim()) && !consent) return setError(w.consentNeeded);
     setError('');
@@ -45,7 +49,7 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          table,
+          table: tableNumber,
           locale,
           clientKey,
           body,
@@ -82,6 +86,7 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
             setCategory('');
             setName('');
             setPhone('');
+            setTableText('');
             setConsent(false);
             setClientKey(newKey());
             setPhase('form');
@@ -102,6 +107,12 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
         void send();
       }}
     >
+      {table === null ? (
+        <label className="flex flex-col gap-1 text-base text-text">
+          {w.tableAsk}
+          <input className={FIELD} dir="ltr" inputMode="numeric" autoComplete="off" maxLength={3} value={tableText} onChange={(event) => setTableText(event.target.value.replace(/\D/g, ''))} />
+        </label>
+      ) : null}
       <label className="flex flex-col gap-1 text-base text-text">
         {w.what}
         <textarea className={FIELD} dir="auto" rows={5} maxLength={COMPLAINT_TEXT_MAX} value={body} onChange={(event) => setBody(event.target.value)} />

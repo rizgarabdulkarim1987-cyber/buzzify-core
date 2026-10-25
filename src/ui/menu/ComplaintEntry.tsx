@@ -5,17 +5,18 @@ import { ComplaintForm } from '@/app/[tenant]/[locale]/t/[table]/complaint/Compl
 import { COMPLAINT_LINK, COMPLAINT_TITLE } from '@/app/[tenant]/[locale]/t/[table]/complaint/words';
 import { useApp } from '@/ui/AppProviders';
 
-/** The table whose page may take a complaint, or null when the restaurant has not turned complaints on for it. */
-const Context = createContext<number | null>(null);
+/** Whether this menu offers the complaints box; set once for every page of the menu. */
+const Context = createContext(false);
 
-export function ComplaintEntryProvider({ table, children }: { table: number | null; children: ReactNode }) {
-  return <Context.Provider value={table}>{children}</Context.Provider>;
+export function ComplaintEntryProvider({ enabled, children }: { enabled: boolean; children: ReactNode }) {
+  return <Context.Provider value={enabled}>{children}</Context.Provider>;
 }
 
 /** A button in the menu's header that opens the complaint form in a dialog; nothing when complaints are off. */
 export function ComplaintButton() {
-  const table = useContext(Context);
-  const { tenant, locale } = useApp();
+  const enabled = useContext(Context);
+  // The table this device sits at (from the QR scan, remembered), or null: the form then asks for it.
+  const { tenant, locale, table } = useApp();
   const dialog = useRef<HTMLDialogElement>(null);
   const [open, setOpen] = useState(false);
 
@@ -26,7 +27,7 @@ export function ComplaintButton() {
     if (!open && node.open) node.close();
   }, [open]);
 
-  if (table === null) return null;
+  if (!enabled) return null;
   const words = COMPLAINT_LINK(locale);
   const title = COMPLAINT_TITLE(locale, table);
   return (
@@ -57,7 +58,8 @@ export function ComplaintButton() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="text-sm text-muted">
-                  <span dir="auto">{tenant.name}</span> · {title.table}
+                  <span dir="auto">{tenant.name}</span>
+                  {title.table ? ` · ${title.table}` : ''}
                 </p>
                 <h2 id="complaint-title" className="font-display text-2xl text-text">
                   {title.title}
