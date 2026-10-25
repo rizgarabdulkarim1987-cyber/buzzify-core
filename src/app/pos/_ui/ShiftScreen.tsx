@@ -141,7 +141,14 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         open={dialog === 'close'}
         onOpenChange={(next) => !next && setDialog('none')}
         title={t('pos.shift.countAndClose')}
-        body={summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.countHint', { amount: money(summary.expectedCash) })}
+        body={
+          <>
+            {summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.countHint', { amount: money(summary.expectedCash) })}
+            {summary.unsettledDeliveries.count > 0 ? (
+              <span className="mt-2 block font-medium">{t('pos.shift.unsettled', { n: formatNumber(summary.unsettledDeliveries.count), amount: money(summary.unsettledDeliveries.amount) })}</span>
+            ) : null}
+          </>
+        }
         confirmLabel={t('pos.shift.close')}
         tone="primary"
         onConfirm={async (form) => {

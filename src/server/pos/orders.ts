@@ -198,6 +198,20 @@ export interface OrderView {
   tableId: string | null;
   tableNumber: number | null;
   areaName: string | null;
+  kind: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  /** Only for a takeaway or delivery. */
+  offPremise: {
+    queueNumber: number;
+    fulfillment: 'NEW' | 'PREPARING' | 'READY' | 'OUT' | 'DELIVERED' | 'PICKED_UP';
+    customerName: string;
+    customerPhone: string;
+    address: string;
+    addressNote: string;
+    zoneId: string | null;
+    zoneName: string;
+    driverId: string | null;
+    driverName: string;
+  } | null;
   seatedAt: Date;
   invoiceDiscount: Discount | null;
   lines: OrderLineView[];
@@ -231,6 +245,22 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     tableId: order.tableId,
     tableNumber: order.table?.number ?? null,
     areaName: order.table?.area.name ?? null,
+    kind: order.kind,
+    offPremise:
+      order.kind === 'DINE_IN'
+        ? null
+        : {
+            queueNumber: order.queueNumber ?? 0,
+            fulfillment: order.fulfillment ?? 'NEW',
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            address: order.address,
+            addressNote: order.addressNote,
+            zoneId: order.deliveryZoneId,
+            zoneName: order.deliveryZoneName,
+            driverId: order.driverId,
+            driverName: order.driverNameSnapshot,
+          },
     seatedAt: order.seatedAt,
     invoiceDiscount: invoiceDiscount ?? null,
     lines: lines.map((line) => {

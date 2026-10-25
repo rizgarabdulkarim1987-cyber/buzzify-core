@@ -59,3 +59,16 @@ export const posOffPremiseBoard = defineQuery({
   target: () => TILL,
   run: (ctx) => readOffPremiseBoard(ctx.db, restaurantOf(ctx)),
 });
+
+/** Whether this restaurant takes takeaway and delivery orders, for the board's tabs. */
+export const posOffPremiseFlags = defineQuery({
+  name: 'pos.offPremiseFlags',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: async (ctx) => {
+    const settings = await ctx.db.posSettings.findFirst({ where: { restaurantId: restaurantOf(ctx) }, select: { takeawayEnabled: true, deliveryEnabled: true } });
+    return { takeaway: settings?.takeawayEnabled === true, delivery: settings?.deliveryEnabled === true };
+  },
+});

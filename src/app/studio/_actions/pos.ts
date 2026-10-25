@@ -7,7 +7,8 @@ import * as orders from '@/server/studio/actions/pos-orders';
 import * as payments from '@/server/studio/actions/pos-payments';
 import * as requests from '@/server/studio/actions/pos-requests';
 import * as shifts from '@/server/studio/actions/pos-shifts';
-import { invoke } from '@/server/studio/framework/invoke';
+import { invoke, invokeQuery } from '@/server/studio/framework/invoke';
+import * as deliveryQueries from '@/server/studio/queries/pos-delivery';
 
 export async function updatePosSettings(input: unknown) {
   return invoke(pos.updatePosSettings, input);
@@ -232,4 +233,9 @@ export async function advancePosFulfillment(input: unknown) {
 
 export async function assignPosDriver(input: unknown) {
   return invoke(delivery.assignPosDriver, input);
+}
+
+/** The last delivery to a phone number, to fill in a returning customer's details. */
+export async function lookupPosCustomer(input: unknown) {
+  return invokeQuery(deliveryQueries.posRecentCustomer, input);
 }

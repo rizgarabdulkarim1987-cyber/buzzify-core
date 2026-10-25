@@ -76,7 +76,11 @@ export function KitchenScreen({ cards, readAt, canFilter }: { cards: KitchenCard
               >
                 <header className="flex items-baseline justify-between gap-2">
                   <h2 className="text-lg font-semibold">
-                    {card.tableNumber !== null ? t('pos.kitchen.table', { n: formatNumber(card.tableNumber) }) : t('pos.kitchen.order', { n: formatNumber(card.orderNumber) })}
+                    {card.kind !== 'DINE_IN' && card.queueNumber !== null
+                      ? t(card.kind === 'DELIVERY' ? 'pos.kitchen.delivery' : 'pos.kitchen.takeaway', { n: formatNumber(card.queueNumber) })
+                      : card.tableNumber !== null
+                        ? t('pos.kitchen.table', { n: formatNumber(card.tableNumber) })
+                        : t('pos.kitchen.order', { n: formatNumber(card.orderNumber) })}
                   </h2>
                   <span className={cx('text-sm', late ? 'font-semibold text-danger' : 'text-muted')}>
                     {late ? `${t('pos.kitchen.late')} · ` : ''}
