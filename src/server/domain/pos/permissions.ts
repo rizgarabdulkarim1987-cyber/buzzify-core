@@ -25,6 +25,8 @@ export const POS_PERMISSIONS = [
   'purchase.manage',
   'complaint.view',
   'complaint.manage',
+  /** Set one's own quick sign-in PIN. Held by every role. */
+  'pin.own',
 ] as const;
 export type PosPermission = (typeof POS_PERMISSIONS)[number];
 
@@ -32,12 +34,17 @@ export type PosPermission = (typeof POS_PERMISSIONS)[number];
 const MATRIX: Record<PosRole, readonly PosPermission[]> = {
   OWNER: POS_PERMISSIONS,
   MANAGER: POS_PERMISSIONS,
-  CASHIER: ['order.handle', 'order.discount', 'order.cancel', 'payment.take', 'shift.use', 'inventory.view'],
-  KITCHEN: ['kitchen.view'],
+  CASHIER: ['order.handle', 'order.discount', 'order.cancel', 'payment.take', 'shift.use', 'inventory.view', 'pin.own'],
+  KITCHEN: ['kitchen.view', 'pin.own'],
 };
 
 export function canPos(role: PosRole, permission: PosPermission): boolean {
   return MATRIX[role].includes(permission);
+}
+
+/** The four roles with what each may do, in `POS_ROLES` order: the read-only table on the staff page. */
+export function roleMatrix(): { role: PosRole; permissions: PosPermission[] }[] {
+  return POS_ROLES.map((role) => ({ role, permissions: [...MATRIX[role]] }));
 }
 
 export function posPermissionsOf(role: PosRole): ReadonlySet<PosPermission> {
