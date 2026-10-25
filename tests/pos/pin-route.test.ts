@@ -4,7 +4,9 @@ import { POST as registerRoute } from '@/app/api/pos/device/register/route';
 import { POST } from '@/app/api/pos/pin/sign-in/route';
 import { DEVICE_COOKIE } from '@/server/domain/pos/pin';
 import { deviceCookieOptions, readDeviceToken } from '@/server/pos/device-cookie';
-import { registerPosDevice, revokePosDevice, setOwnPosPin } from '@/server/studio/actions/pos-pin';
+import { hashPin } from '@/server/pos/pin';
+import { actorFromHeaders } from '@/server/studio/auth/actor';
+import { clearPosStaffPin, registerPosDevice, revokePosDevice, setOwnPosPin } from '@/server/studio/actions/pos-pin';
 import { getAuth } from '@/server/studio/auth/auth';
 import { cookieHeader, cookieStore } from '../helpers/auth';
 import { dataOf, GOOD, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
@@ -151,6 +153,45 @@ describe('the PIN sign-in route', () => {
     const res = await send({ staffId: cashierStaff, pin: '2580' });
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe('tillClosed');
+  });
+});
+
+describe('what a PIN session is bound to', () => {
+  async function pinIn(staffId: string, pin: string, device = token) {
+    const res = await send({ staffId, pin }, { device });
+    expect(res.status).toBe(200);
+    return cookieHeader(res.headers.getSetCookie());
+  }
+
+  it('records the device and its restaurant, and the till works there for a person staffed at two restaurants', async () => {
+    const b = await restaurant('Pin Route B');
+    const bManager = await person('b-manager', { staff: [b.id, 'MANAGER'] });
+    const bDevice = dataOf(await run(bManager, registerPosDevice, { name: 'B till' }));
+    // The person joined A first (cashier), then B (manager).
+    const both = await person('both', { staff: [a.id, 'CASHIER'] });
+    await prisma().posStaff.create({ data: { userId: both.userId, restaurantId: b.id, role: 'MANAGER', pinHash: await hashPin('2580') } });
+    const bStaff = (await prisma().posStaff.findFirstOrThrow({ where: { userId: both.userId, restaurantId: b.id } })).id;
+    const cookie = await pinIn(bStaff, '2580', bDevice.token);
+    const session = await getAuth().api.getSession({ headers: cookie });
+    expect(session?.session).toMatchObject({ posDeviceId: bDevice.deviceId, posRestaurantId: b.id });
+    const actor = await actorFromHeaders(prisma(), cookie);
+    expect(actor?.posRestaurantId).toBe(b.id);
+    const { resolvePosActor } = await import('@/server/pos/actor');
+    expect(await resolvePosActor(prisma(), both.userId, actor?.posRestaurantId)).toMatchObject({ restaurantId: b.id, role: 'MANAGER' });
+  });
+
+  it('ends every PIN session of a device when it is revoked, and leaves password sessions alone', async () => {
+    const pinSession = await pinIn(cashierStaff, '2580');
+    const passwordSessionCookie = await passwordSession(kitchen);
+    dataOf(await run(manager, revokePosDevice, { deviceId }));
+    expect(await getAuth().api.getSession({ headers: pinSession })).toBeNull();
+    expect((await getAuth().api.getSession({ headers: new Headers({ cookie: passwordSessionCookie }) }))?.user.id).toBe(kitchen.userId);
+  });
+
+  it('ends a person’s PIN sessions when a manager clears their PIN', async () => {
+    const pinSession = await pinIn(cashierStaff, '2580');
+    dataOf(await run(manager, clearPosStaffPin, { staffId: cashierStaff }));
+    expect(await getAuth().api.getSession({ headers: pinSession })).toBeNull();
   });
 });
 

@@ -20,6 +20,15 @@ export const pinSignInBody = z.object({ staffId: z.string().min(1).max(64), pin:
 export function pinSignIn(prisma: PrismaClient) {
   return {
     id: 'pos-pin-sign-in',
+    // The two columns of the session row a PIN sign-in fills; Better Auth drops fields it was not told about.
+    schema: {
+      session: {
+        fields: {
+          posDeviceId: { type: 'string', required: false, input: false },
+          posRestaurantId: { type: 'string', required: false, input: false },
+        },
+      },
+    },
     endpoints: {
       pinSignIn: createAuthEndpoint('/pos-pin/sign-in', { method: 'POST', body: pinSignInBody }, async (ctx) => {
         const headers = ctx.headers ?? new Headers();
@@ -45,7 +54,7 @@ export function pinSignIn(prisma: PrismaClient) {
         const previous = await getSessionFromCtx(ctx).catch(() => null);
         if (previous) await ctx.context.internalAdapter.deleteSession(previous.session.token);
 
-        const session = await ctx.context.internalAdapter.createSession(user.id, false);
+        const session = await ctx.context.internalAdapter.createSession(user.id, false, { posDeviceId: device.id, posRestaurantId: device.restaurantId });
         await setSessionCookie(ctx, { session, user });
         return ctx.json({ landing: posLanding(actor.role) });
       }),
