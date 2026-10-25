@@ -11,6 +11,286 @@
         ],
         "createdAt": "2026-10-18T05:59:38.755Z",
         "reason": "Motion #118 in the user's requested list is 'Gradient Text Animation': the gradient is the motion itself, not decoration"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:26.697Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:27.072Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:27.572Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:28.488Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:28.784Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles.html"
+        ],
+        "createdAt": "2026-10-25T20:15:29.509Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:29.956Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "undersized-ui-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:30.283Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:30.668Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:31.127Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:31.549Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/crazy-styles-photos.html"
+        ],
+        "createdAt": "2026-10-25T20:15:31.986Z",
+        "reason": "Claude: throwaway brainstorm mockup of phone screens inside a gitignored .superpowers folder; not shipped UI"
+      },
+      {
+        "rule": "gradient-text",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/signature-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:40:56.388Z",
+        "reason": "Claude: gold engraving and photo-inside-letters are the concept of two mockup styles (Boutique, Giant Type); throwaway brainstorm file"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/signature-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:40:56.635Z",
+        "reason": "Claude: Neon Alley style depicts literal neon tubes; throwaway brainstorm file"
+      },
+      {
+        "rule": "skipped-heading",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/full-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:43:08.045Z",
+        "reason": "Claude: throwaway brainstorm mockup in gitignored .superpowers; the marquee and effects are part of the styles being shown"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/full-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:43:08.307Z",
+        "reason": "Claude: throwaway brainstorm mockup in gitignored .superpowers; the marquee and effects are part of the styles being shown"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/full-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:43:08.562Z",
+        "reason": "Claude: throwaway brainstorm mockup in gitignored .superpowers; the marquee and effects are part of the styles being shown"
+      },
+      {
+        "rule": "organic-clip-path",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/hundred-ideas.html"
+        ],
+        "createdAt": "2026-10-25T20:43:08.819Z",
+        "reason": "Claude: throwaway brainstorm mockup in gitignored .superpowers; the marquee and effects are part of the styles being shown"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/signature-menus.html"
+        ],
+        "createdAt": "2026-10-25T20:43:09.066Z",
+        "reason": "Claude: throwaway brainstorm mockup in gitignored .superpowers; the marquee and effects are part of the styles being shown"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/motion-menus.html"
+        ],
+        "createdAt": "2026-10-25T21:13:08.959Z",
+        "reason": "Claude: theatre spotlight/curtain lighting is the concept of a throwaway mockup style"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/themed-menus.html"
+        ],
+        "createdAt": "2026-10-26T00:00:00.000Z",
+        "reason": "Claude: lantern light, planet halo and printer nozzle glow are the concept of throwaway themed mockup styles"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/kurd-arab-menus.html"
+        ],
+        "createdAt": "2026-10-26T01:00:00.000Z",
+        "reason": "Claude: Ramadan lantern, moon and desert sun glow are the concept of throwaway themed mockup styles"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          ".superpowers/brainstorm/86318-1792958227/content/layout-menus-2.html"
+        ],
+        "createdAt": "2026-10-26T02:00:00.000Z",
+        "reason": "Claude: the fridge lamp light and solid level rings in a throwaway mockup; not decorative glow"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/kurd-arab.html",
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:00:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/kurd-arab.html",
+          "src/studio/styles/pages/motion.html",
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:01:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/kurd-arab.html",
+          "src/studio/styles/pages/motion.html",
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:02:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "organic-clip-path",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/kurd-arab.html",
+          "src/studio/styles/pages/layout-2.html"
+        ],
+        "createdAt": "2026-10-26T03:03:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/kurd-arab.html",
+          "src/studio/styles/pages/layout.html",
+          "src/studio/styles/pages/layout-2.html",
+          "src/studio/styles/pages/motion.html",
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:04:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:05:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "src/studio/styles/pages/themed.html"
+        ],
+        "createdAt": "2026-10-26T03:06:00.000Z",
+        "reason": "a menu style's own effect, shown as-is in the Studio showroom"
       }
     ]
   }

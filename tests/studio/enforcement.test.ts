@@ -80,9 +80,20 @@ const ROUTE_EXPORT = /export const (?:(?:GET|POST) = studioRoute\(|maxDuration =
 /** The folders the Studio host serves: its API and its pages (a `route.ts` among the pages is an endpoint too). */
 const STUDIO_ROUTE_DIRS = ['src/app/api/studio/', 'src/app/studio/'];
 
-/** A route handler the Studio host serves: any `route.*` file in those folders. */
+/**
+ * Folders whose routes serve files (the menu-style pages and posters), not JSON through a definition: `studioRoute`
+ * answers `{ data }` or `{ error }`, so these routes check the actor themselves (`styleFileAccess`). Rule 5 still
+ * applies to them.
+ */
+const FILE_ROUTE_DIRS = ['src/app/studio/style-files/'];
+
+/** A route handler the Studio host serves: any `route.*` file in those folders, except the file-serving ones. */
 function isStudioRoute(path: string): boolean {
-  return STUDIO_ROUTE_DIRS.some((dir) => path.startsWith(dir)) && /^route\.\w+$/.test(posix.basename(path));
+  return (
+    STUDIO_ROUTE_DIRS.some((dir) => path.startsWith(dir)) &&
+    !FILE_ROUTE_DIRS.some((dir) => path.startsWith(dir)) &&
+    /^route\.\w+$/.test(posix.basename(path))
+  );
 }
 
 /** The exports of a Studio route handler that are not built with `studioRoute`; none for any other file. */
@@ -281,6 +292,8 @@ describe('Studio enforcement rules', () => {
       expect(routeViolations('src/app/studio/(app)/menus/page.tsx', 'export default function Page() {}')).toEqual([]);
       expect(routeViolations('src/app/studio/(app)/menus/router.ts', handWritten)).toEqual([]);
       expect(routeViolations('src/app/api/[tenant]/quote/route.ts', handWritten)).toEqual([]);
+      // The menu-style file routes serve HTML and images, so they are the one place a hand-written handler is allowed.
+      expect(routeViolations('src/app/studio/style-files/page/[file]/route.ts', handWritten)).toEqual([]);
     });
 
     it('holds for every route file under src/app/api/studio and src/app/studio', () => {

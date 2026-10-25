@@ -1,0 +1,668 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بالموشن</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Baloo+Bhaijaan+2:wght@500;700;800&family=Cairo:wght@400;600;700;900&family=Changa:wght@300;500;700;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Sans+Arabic:wght@300;400;600;700&family=Lalezar&family=Reem+Kufi:wght@400;600;700&family=Tajawal:wght@300;500;800;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 920px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover h2 { font-size: 22px; }
+  .cover .tag { font-size: 13px; color: #ffd23f; font-weight: 700; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .sk { font-size: 11px; color: #9a9aa3; direction: ltr; text-align: right; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 80; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .replay { position: absolute; top: 10px; left: 104px; z-index: 80; height: 38px; padding: 0 12px; border-radius: 20px; background: rgba(0,0,0,.6); color: #fff; font: 700 12px 'Cairo'; border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 56px 10px 12px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; transition: background-color 200ms ease, color 200ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .cart .ic { display: inline-block; }
+  .odo { display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 60; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); }
+  .add:active { transform: scale(.9); }
+
+  /* shared scroll reveal: rare-ish (once per section per visit), ease-out, staggered */
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+
+  /* =====================================================================
+     1. THEATER — curtains part, a spotlight follows the section you read
+     ===================================================================== */
+  .m-thr { background: #14070b; color: #f5e6c8; font-family: 'Reem Kufi'; }
+  .curtain { position: absolute; top: 0; bottom: 0; width: 51%; z-index: 70; pointer-events: none; background: repeating-linear-gradient(90deg, #7a0d1c 0 18px, #9e1426 18px 30px, #6a0a17 30px 44px); box-shadow: inset 0 -40px 60px rgba(0,0,0,.5); }
+  .curtain.r { right: 0; transform-origin: right; } .curtain.l { left: 0; transform-origin: left; }
+  .curtain::after { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 46px; background: linear-gradient(#c9a24a, #8a6420); }
+  .m-thr .hd { text-align: center; padding: 34px 16px 10px; }
+  .m-thr .hd small { font-size: 11px; letter-spacing: 5px; color: #c9a24a; }
+  .m-thr .hd h1 { font: 700 40px 'Aref Ruqaa'; color: #f6e3a8; }
+  .m-thr .tabs { background: rgba(20,7,11,.92); border-bottom: 1px solid rgba(201,162,74,.35); }
+  .m-thr .tabs button { font: 600 13px 'Reem Kufi'; padding: 5px 12px; border-radius: 20px; color: #c9b490; }
+  .m-thr .tabs button.on { background: #c9a24a; color: #14070b; }
+  .m-thr section { position: relative; padding: 30px 12px 8px; }
+  .m-thr section > h3 { position: relative; text-align: center; font: 700 28px 'Aref Ruqaa'; color: #f6e3a8; margin-bottom: 18px; }
+  .m-thr section::before { content: ''; position: absolute; top: -10px; left: 50%; width: 120%; height: 300px; transform: translateX(-50%); background: conic-gradient(from 155deg at 50% 0, transparent 0deg, rgba(255,236,190,.16) 25deg, rgba(255,236,190,.16) 45deg, transparent 70deg); opacity: 0; transition: opacity 500ms var(--ease-out); pointer-events: none; }
+  .m-thr section.lit::before { opacity: 1; }
+  .m-thr .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; }
+  .m-thr .it { background: linear-gradient(#2a0f16, #1a0a0e); border: 1px solid rgba(201,162,74,.35); border-radius: 80px 80px 10px 10px; padding: 8px 8px 10px; text-align: center; }
+  .m-thr .it .ph { aspect-ratio: 1; border-radius: 80px 80px 6px 6px; }
+  .m-thr .it .nm { font-weight: 600; font-size: 15px; margin-top: 8px; }
+  .m-thr .it .row { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; color: #c9a24a; font-weight: 700; }
+  .m-thr .add { width: 30px; height: 30px; border-radius: 50%; background: #c9a24a; color: #14070b; font-weight: 700; font-size: 17px; }
+  .m-thr .hero { margin: 8px 18px 0; }
+  .m-thr .hero .it { border-radius: 200px 200px 14px 14px; }
+  .m-thr .hero .it .ph { aspect-ratio: 1.1; border-radius: 200px 200px 8px 8px; }
+  .m-thr .hero .nm { font: 700 24px 'Aref Ruqaa'; }
+  .m-thr .cart { background: #c9a24a; color: #14070b; }
+
+  /* =====================================================================
+     2. STACKED DECKS — each section is a sheet that slides over the last
+     ===================================================================== */
+  .m-stk { background: #111; color: #111; font-family: 'Tajawal'; }
+  .m-stk .hd { padding: 28px 16px 14px; color: #fff; }
+  .m-stk .hd h1 { font-weight: 900; font-size: 38px; line-height: 1; }
+  .m-stk .hd p { color: #aaa; font-size: 13px; margin-top: 4px; }
+  .m-stk .tabs { background: #111; }
+  .m-stk .tabs button { font: 800 13px 'Tajawal'; padding: 6px 13px; border-radius: 30px; background: #222; color: #ccc; }
+  .m-stk .tabs button.on { background: #fff; color: #111; }
+  .m-stk section { position: sticky; }
+  .m-stk .sheet { border-radius: 30px 30px 0 0; padding: 22px 14px 26px; box-shadow: 0 -12px 30px rgba(0,0,0,.35); transform-origin: top center; will-change: transform; min-height: 300px; }
+  .m-stk .sheet h3 { font-weight: 900; font-size: 34px; margin-bottom: 14px; display: flex; justify-content: space-between; align-items: baseline; }
+  .m-stk .sheet h3 small { font-size: 13px; font-weight: 500; opacity: .7; }
+  .m-stk .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .m-stk .it { background: rgba(255,255,255,.75); border-radius: 18px; padding: 6px; }
+  .m-stk .it .ph { aspect-ratio: 1; border-radius: 14px; }
+  .m-stk .it .nm { font-weight: 800; font-size: 14.5px; margin: 6px 4px 0; }
+  .m-stk .it .row { display: flex; justify-content: space-between; align-items: center; margin: 2px 4px; font-weight: 800; }
+  .m-stk .add { width: 30px; height: 30px; border-radius: 50%; background: #111; color: #fff; font-weight: 800; font-size: 17px; }
+  .m-stk .cart { background: #fff; color: #111; }
+
+  /* =====================================================================
+     3. MORPH — the photo you tap grows into the dish page
+     ===================================================================== */
+  .m-mor { background: #faf8f4; color: #1c1a17; font-family: 'IBM Plex Sans Arabic'; }
+  .m-mor .hd { padding: 26px 16px 8px; }
+  .m-mor .hd h1 { font-weight: 700; font-size: 30px; }
+  .m-mor .hd p { color: #7a746b; font-size: 13px; }
+  .m-mor .tabs { background: rgba(250,248,244,.94); backdrop-filter: blur(8px); }
+  .m-mor .tabs button { font: 600 13px 'IBM Plex Sans Arabic'; padding: 6px 13px; border-radius: 30px; color: #7a746b; }
+  .m-mor .tabs button.on { background: #1c1a17; color: #faf8f4; }
+  .m-mor section { padding: 22px 14px 6px; }
+  .m-mor section > h3 { font-weight: 700; font-size: 20px; margin-bottom: 12px; }
+  .m-mor .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; }
+  .m-mor .it { cursor: pointer; }
+  .m-mor .it .ph { aspect-ratio: 1; border-radius: 22px; box-shadow: 0 10px 20px rgba(60,40,10,.12); }
+  .m-mor .it .nm { font-weight: 600; font-size: 14.5px; margin-top: 8px; }
+  .m-mor .it .row { display: flex; justify-content: space-between; align-items: center; color: #7a746b; font-size: 13px; }
+  .m-mor .it .rv, .m-mor .rvb { filter: blur(6px); }
+  .m-mor .rvb { opacity: 0; transform: scale(.96); transition: opacity 450ms var(--ease-out), transform 450ms var(--ease-out), filter 450ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-mor .rvb.in { opacity: 1; transform: none; filter: none; }
+  .m-mor .add { width: 30px; height: 30px; border-radius: 50%; background: #1c1a17; color: #fff; font-weight: 700; font-size: 17px; }
+  .m-mor .hint { margin: 0 16px; font-size: 12px; color: #a39b8f; }
+  .detail { position: absolute; inset: 0; z-index: 65; pointer-events: none; }
+  .detail .bgd { position: absolute; inset: 0; background: #faf8f4; opacity: 0; }
+  .detail .img { position: absolute; top: 0; left: 0; width: 100%; height: 56%; background-size: cover; background-position: center; transform-origin: top left; border-radius: 0 0 28px 28px; }
+  .detail .info { position: absolute; top: 56%; left: 0; right: 0; padding: 22px 18px; color: #1c1a17; font-family: 'IBM Plex Sans Arabic'; opacity: 0; transform: translateY(20px); }
+  .detail .info h2 { font-size: 28px; font-weight: 700; }
+  .detail .info p { color: #7a746b; margin-top: 6px; line-height: 1.7; }
+  .detail .info .row { display: flex; justify-content: space-between; align-items: center; margin-top: 18px; font-size: 22px; font-weight: 700; }
+  .detail .info .big { background: #1c1a17; color: #fff; padding: 12px 26px; border-radius: 30px; font-size: 15px; }
+  .detail .x { position: absolute; top: 12px; right: 12px; width: 40px; height: 40px; border-radius: 50%; background: rgba(255,255,255,.9); font-size: 18px; opacity: 0; }
+  .detail.on { pointer-events: auto; }
+  .m-mor .cart { background: #1c1a17; color: #faf8f4; }
+
+  /* =====================================================================
+     4. FLY TO CART — dishes jump into the basket
+     ===================================================================== */
+  .m-fly { background: #fff6e0; color: #2b1d0e; font-family: 'Baloo Bhaijaan 2'; }
+  .m-fly .hd { padding: 24px 16px 8px; }
+  .m-fly .hd h1 { font-weight: 800; font-size: 36px; line-height: 1; color: #ff5a1f; }
+  .m-fly .hd p { font-size: 14px; color: #7a5a35; }
+  .m-fly .tabs { background: rgba(255,246,224,.94); }
+  .m-fly .tabs button { font: 700 14px 'Baloo Bhaijaan 2'; padding: 5px 14px; border-radius: 30px; background: #fff; border: 2px solid #2b1d0e; }
+  .m-fly .tabs button.on { background: #ff5a1f; color: #fff; border-color: #ff5a1f; }
+  .m-fly section { padding: 20px 12px 6px; }
+  .m-fly section > h3 { font-weight: 800; font-size: 26px; margin-bottom: 10px; }
+  .m-fly .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; perspective: 700px; }
+  .m-fly .it { background: #fff; border: 2.5px solid #2b1d0e; border-radius: 22px; padding: 7px; box-shadow: 0 5px 0 #2b1d0e; transition: transform 200ms var(--ease-out); }
+  @media (hover: hover) and (pointer: fine) { .m-fly .it:hover { transform: translateY(-3px) rotate(-1deg); } }
+  .m-fly .it .ph { aspect-ratio: 1; border-radius: 16px; }
+  .m-fly .it .nm { font-weight: 700; font-size: 16px; margin: 6px 4px 0; }
+  .m-fly .it .row { display: flex; justify-content: space-between; align-items: center; margin: 0 4px; font-weight: 800; }
+  .m-fly .add { width: 34px; height: 34px; border-radius: 50%; background: #ff5a1f; color: #fff; font-weight: 800; font-size: 20px; }
+  .m-fly .cart { background: #2b1d0e; color: #fff6e0; }
+  .m-fly .cart .ic { font-size: 22px; }
+  .flyer { position: absolute; z-index: 75; width: 64px; height: 64px; border-radius: 50%; background-size: cover; background-position: center; border: 3px solid #fff; box-shadow: 0 8px 18px rgba(0,0,0,.3); pointer-events: none; top: 0; left: 0; }
+
+  /* =====================================================================
+     5. INK — tapping a section floods the screen in its colour
+     ===================================================================== */
+  .m-ink { background: #161618; color: #f4f1ea; font-family: 'Changa'; }
+  .m-ink .hd { padding: 26px 16px 10px; }
+  .m-ink .hd h1 { font-weight: 800; font-size: 34px; line-height: 1.05; }
+  .m-ink .hd p { color: #9a968c; font-size: 13px; }
+  .m-ink .tabs { background: rgba(22,22,24,.94); }
+  .m-ink .tabs button { font: 500 13px 'Changa'; padding: 6px 13px; border-radius: 30px; border: 1.5px solid var(--c); color: var(--c); }
+  .m-ink .tabs button.on { background: var(--c); color: #161618; }
+  .m-ink section { padding: 26px 12px 6px; }
+  .m-ink section > h3 { font-weight: 800; font-size: 40px; line-height: 1.1; color: var(--c); margin-bottom: 12px; overflow: hidden; }
+  .m-ink section > h3 span { display: inline-block; transform: translateY(105%); transition: transform 520ms var(--ease-out); }
+  .m-ink section.in > h3 span { transform: none; }
+  .m-ink .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .m-ink .it { background: #202023; border-radius: 16px; overflow: hidden; border-top: 4px solid var(--c); }
+  .m-ink .it .ph { aspect-ratio: 1; }
+  .m-ink .it .nm { font-weight: 700; font-size: 14.5px; margin: 7px 8px 0; }
+  .m-ink .it .row { display: flex; justify-content: space-between; align-items: center; margin: 2px 8px 8px; font-weight: 700; color: var(--c); }
+  .m-ink .add { width: 30px; height: 30px; border-radius: 50%; background: var(--c); color: #161618; font-weight: 800; font-size: 17px; }
+  .ink { position: absolute; inset: 0; z-index: 66; pointer-events: none; }
+  .m-ink .cart { background: #f4f1ea; color: #161618; }
+
+  /* =====================================================================
+     6. LIVING STEAM — hot dishes steam, cold ones sweat
+     ===================================================================== */
+  .m-stm { background: #1d1410 radial-gradient(ellipse at 50% 0, #3b2618, #1d1410 70%); color: #f6ead8; font-family: 'El Messiri'; }
+  .m-stm .hd { text-align: center; padding: 30px 16px 10px; }
+  .m-stm .hd h1 { font-weight: 700; font-size: 36px; }
+  .m-stm .hd p { color: #c8b39a; font-size: 13px; }
+  .m-stm .tabs { background: rgba(29,20,16,.92); }
+  .m-stm .tabs button { font: 600 13px 'El Messiri'; padding: 5px 12px; border-radius: 20px; color: #c8b39a; border: 1px solid #4a3426; }
+  .m-stm .tabs button.on { background: #e8a25a; color: #1d1410; border-color: #e8a25a; }
+  .m-stm section { padding: 24px 12px 6px; }
+  .m-stm section > h3 { font-weight: 700; font-size: 24px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .m-stm section > h3 small { font-size: 12px; color: #c8b39a; font-weight: 400; }
+  .m-stm .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .m-stm .it .pic { position: relative; border-radius: 16px; overflow: hidden; aspect-ratio: 1; }
+  .m-stm .it .pic .ph { position: absolute; inset: 0; }
+  .m-stm .steam { position: absolute; inset: 0; pointer-events: none; }
+  .m-stm .steam i { position: absolute; bottom: 30%; width: 26%; height: 50%; border-radius: 50%; background: radial-gradient(ellipse at 50% 60%, rgba(255,255,255,.55), transparent 65%); filter: blur(8px); opacity: 0; animation: steam 3.2s ease-out infinite; }
+  .m-stm .steam i:nth-child(1) { left: 22%; } .m-stm .steam i:nth-child(2) { left: 42%; animation-delay: 1.05s; } .m-stm .steam i:nth-child(3) { left: 60%; animation-delay: 2.1s; }
+  @keyframes steam { 0% { opacity: 0; transform: translateY(20%) scaleX(.7); } 30% { opacity: .9; } 100% { opacity: 0; transform: translateY(-80%) scaleX(1.4) rotate(8deg); } }
+  .m-stm .sizzle { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(105deg, transparent 40%, rgba(255,210,150,.22) 50%, transparent 60%); background-size: 250% 100%; animation: sizzle 3.6s linear infinite; mix-blend-mode: screen; }
+  @keyframes sizzle { from { background-position: 150% 0; } to { background-position: -150% 0; } }
+  .m-stm .frost { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 26px rgba(200,235,255,.55); }
+  .m-stm .frost b { position: absolute; top: -10%; width: 5px; height: 9px; border-radius: 50% 50% 50% 50% / 60% 60% 40% 40%; background: rgba(230,245,255,.85); box-shadow: inset -1px -1px 1px rgba(0,0,0,.2); animation: drip linear infinite; }
+  @keyframes drip { 0%, 40% { transform: translateY(0); opacity: 0; } 45% { opacity: 1; } 100% { transform: translateY(1000%); opacity: 0; } }
+  .m-stm .badge { position: absolute; top: 8px; right: 8px; z-index: 2; font: 700 11px 'Cairo'; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.55); }
+  .m-stm .it .nm { font-weight: 700; font-size: 15px; margin-top: 7px; }
+  .m-stm .it .row { display: flex; justify-content: space-between; align-items: center; color: #e8a25a; font-weight: 700; }
+  .m-stm .add { width: 30px; height: 30px; border-radius: 50%; background: #e8a25a; color: #1d1410; font-weight: 800; font-size: 17px; }
+  .m-stm .hero { margin: 8px 14px 0; }
+  .m-stm .hero .pic { aspect-ratio: 4/3; }
+  .m-stm .hero .nm { font-size: 22px; }
+  .m-stm .cart { background: #e8a25a; color: #1d1410; }
+
+  /* =====================================================================
+     7. DEPTH — photos drift inside their frames as you scroll
+     ===================================================================== */
+  .m-dep { background: #0a0a0a; color: #f2f2f2; font-family: 'Tajawal'; }
+  .m-dep .hd { padding: 28px 16px 8px; }
+  .m-dep .hd h1 { font-weight: 300; font-size: 40px; line-height: 1; }
+  .m-dep .hd h1 b { font-weight: 900; }
+  .m-dep .tabs { background: rgba(10,10,10,.9); backdrop-filter: blur(8px); }
+  .m-dep .tabs button { font: 500 13px 'Tajawal'; padding: 5px 10px; color: #888; }
+  .m-dep .tabs button.on { color: #fff; box-shadow: inset 0 -2px 0 #fff; }
+  .m-dep section { padding: 18px 0 6px; overflow: hidden; }
+  .m-dep .band { font: 900 92px/1 'Tajawal'; white-space: nowrap; color: transparent; -webkit-text-stroke: 1.2px rgba(255,255,255,.55); will-change: transform; margin-bottom: 8px; }
+  .m-dep .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; padding: 0 12px; }
+  .m-dep .fr { position: relative; aspect-ratio: 3/3.6; overflow: hidden; border-radius: 6px; }
+  .m-dep .fr .ph { position: absolute; left: 0; right: 0; top: -15%; height: 130%; will-change: transform; }
+  .m-dep .it .nm { font-weight: 800; font-size: 15px; margin-top: 7px; }
+  .m-dep .it .row { display: flex; justify-content: space-between; align-items: center; color: #aaa; font-weight: 500; }
+  .m-dep .add { width: 30px; height: 30px; border: 1px solid #fff; border-radius: 50%; color: #fff; font-size: 17px; }
+  .m-dep .rvs { opacity: 0; transform: scale(.92); transition: opacity 500ms var(--ease-out), transform 500ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-dep .rvs.in { opacity: 1; transform: none; }
+  .m-dep .hero { padding: 0 12px; }
+  .m-dep .hero .fr { aspect-ratio: 4/4.4; }
+  .m-dep .hero .nm { font-size: 22px; }
+  .m-dep .cart { background: #f2f2f2; color: #0a0a0a; }
+
+  /* =====================================================================
+     8. KINETIC TYPE — words rise, prices roll like a meter
+     ===================================================================== */
+  .m-kin { background: #f4efe6; color: #141414; font-family: 'Cairo'; }
+  .m-kin .hd { padding: 26px 16px 12px; }
+  .m-kin .hd h1 { font: 400 52px/1.05 'Lalezar'; }
+  .m-kin .hd h1 .swap { display: inline-flex; height: 1.05em; overflow: hidden; vertical-align: bottom; color: #e5383b; }
+  .m-kin .hd h1 .swap span { display: block; transition: transform 520ms var(--ease-in-out); }
+  .m-kin .hd h1 .swap i { display: block; height: 1.05em; font-style: normal; }
+  .m-kin .mq { overflow: hidden; white-space: nowrap; background: #141414; color: #f4efe6; font: 400 22px 'Lalezar'; padding: 6px 0; }
+  .m-kin .mq span { display: inline-block; animation: mq 18s linear infinite; }
+  .m-kin .mq b { color: #e5383b; margin: 0 10px; font-weight: 400; }
+  @keyframes mq { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+  .m-kin .tabs { background: rgba(244,239,230,.94); }
+  .m-kin .tabs button { font: 900 13px 'Cairo'; padding: 5px 12px; border: 2px solid #141414; border-radius: 4px; }
+  .m-kin .tabs button.on { background: #141414; color: #f4efe6; }
+  .m-kin section { padding: 24px 12px 6px; }
+  .m-kin section > h3 { font: 400 48px/1.05 'Lalezar'; margin-bottom: 12px; }
+  .m-kin .w { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 4px; margin-left: 10px; }
+  .m-kin .w > span { display: inline-block; transform: translateY(110%); transition: transform 560ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-kin .in .w > span, .m-kin .w.in > span { transform: none; }
+  .m-kin .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .m-kin .it .ph { aspect-ratio: 1; clip-path: inset(100% 0 0 0); transition: clip-path 600ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-kin .it.in .ph { clip-path: inset(0 0 0 0); }
+  .m-kin .it .nm { font-weight: 900; font-size: 15px; margin-top: 7px; }
+  .m-kin .it .row { display: flex; justify-content: space-between; align-items: center; }
+  .m-kin .it .row b { font: 400 22px 'Lalezar'; }
+  .m-kin .add { width: 32px; height: 32px; background: #e5383b; color: #fff; font-weight: 900; font-size: 18px; }
+  .m-kin .cart { background: #141414; color: #f4efe6; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .rvb, .rvs, .m-kin .w > span, .m-ink section > h3 span { transform: none !important; filter: none !important; transition: opacity 200ms ease !important; }
+    .m-kin .it .ph { clip-path: none !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات بالموشن</h1>
+  <p>سجلت اختياراتك من الدفعة الثانية: رادار المقاتلة، الأكواريوم، بورصة المطبخ، والنادل يراسلك. هذي ثمانية منيوهات الحركة هي البطل بيها، بس كلها تمشي على القاعدة: الحركة ما توقف بين الزبون والطبق، والأطباق تبين بصورها مرة وحدة. <b>اضغط «افتح المنيو»</b>، نزّل، دوس الأقسام، وأضف للسلة. زر «↻ عيدها» يعيد حركة البداية.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <button class="replay" id="replay">↻ عيدها</button>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 600) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const FEAT = { n: 'مشاوي مشكلة للعائلة', d: 'كباب، تكة، أوصال ودجاج، مع خبز التنور والصوص. تكفي ٤ أشخاص.', p: '٣٥٬٠٠٠', img: '1555939594-58d7cb561ad1', temp: 'hot', grill: true };
+const MENU = [
+  { id: 'grill', t: 'المشويات', c: '#ff6b4a', bg: '#ffd9cc', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن والبهارات، على الفحم', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0', temp: 'hot', grill: true },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص الفلفل', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e', temp: 'hot', grill: true },
+    { n: 'ريش مشوية', d: 'ريش غنم بصوص الباربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947', temp: 'hot', grill: true },
+    { n: 'برياني دجاج', d: 'بسمتي ودجاج ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a', temp: 'hot' },
+  ]},
+  { id: 'fast', t: 'السريع', c: '#ffc43d', bg: '#fff0bf', items: [
+    { n: 'دبل سماش', d: 'لحم مضغوط وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd', temp: 'hot' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم وبطاطا', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783', temp: 'hot' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec', temp: 'hot' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38', temp: 'hot' },
+    { n: 'سمبوسة', d: '٥ قطع لحم أو خضار', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950', temp: 'hot' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9', temp: 'hot' },
+  ]},
+  { id: 'fresh', t: 'السلطات', c: '#4cd685', bg: '#d4f5dd', items: [
+    { n: 'سلطة الموسم', d: 'خضار طازجة وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', c: '#ff7eb6', bg: '#ffdcec', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9', temp: 'cold' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات وزبدة', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445', temp: 'hot' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c', temp: 'hot' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb', temp: 'cold' },
+  ]},
+  { id: 'drink', t: 'المشروبات', c: '#7aa7ff', bg: '#dce8ff', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085', temp: 'hot' },
+    { n: 'موهيتو فراولة', d: 'نعناع وليمون وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e', temp: 'cold' },
+  ]},
+];
+const ALL = MENU.flatMap(s => s.items);
+const toAr = x => String(x).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const D = k => `style="--d:${Math.min(k, 6) * 50}ms"`;
+const tabs = () => `<nav class="tabs">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c}">${s.t}</button>`).join('')}</nav>`;
+const sections = (head, item, wrap = (s, inner) => `<div class="grid">${inner}</div>`) => MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${head(s, si)}${wrap(s, s.items.map((it, k) => item(it, s, k, si)).join(''))}</section>`).join('');
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك', icon = '') => `<div class="cart"><span><span class="ic">${icon}</span> ${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const words = (t, base = 0) => t.split(' ').map((w, i) => `<span class="w"><span style="--d:${base + i * 70}ms">${w}</span></span>`).join('');
+const card = (it, k, extra = '') => `<div class="it rv" ${D(k)} data-i="${ALL.indexOf(it)}"><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div>${extra}</div>`;
+
+const STYLES = [
+ { key: 'thr', name: 'الستارة والسبوت', tag: 'المنيو يفتح مثل عرض مسرحي', sk: 'animate · gsap-timeline · soft-skill',
+   desc: 'أول ما تفتح المنيو تنفتح ستارة حمرة، وضوء سبوت ينزل على القسم اللي تقراه هسه وينتقل وياك. الأطباق تطلع وحدة ورا الثانية بأقواس ذهبية.',
+   mo: '<b>الحركة:</b> ستارة تنفتح بالبداية بس، ضوء يتبع القسم، الأطباق تصعد بتتابع خفيف.',
+   render: () => `
+    <div class="hd"><small>ليلة الافتتاح</small><h1>مسرح المذاق</h1></div>
+    ${tabs()}
+    <div class="hero"><div class="it rv"><div class="ph" ${bg(FEAT.img, 800)}></div><div class="nm">${FEAT.n}</div><div class="row"><span>${FEAT.p} د.ع</span><button class="add">+</button></div></div></div>
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => card(it, k))}
+    ${cart('مقاعدك', '🎟')}` },
+
+ { key: 'stk', name: 'الأوراق المتراكمة', tag: 'كل قسم ورقة تنزلق فوق اللي قبلها', sk: 'emil-design-eng · animation-performance · stitch-skill',
+   desc: 'كل قسم ورقة ملونة. لما تنزل، القسم الجاي ينزلق فوق القسم الحالي، واللي تحته يصغر ويغمق شوية مثل كومة أوراق. تحس إنك تقلب طبقات.',
+   mo: '<b>الحركة:</b> مرتبطة بإصبعك وأنت تنزل، فإذا وقفت توقف، وإذا رجعت ترجع.',
+   render: () => `
+    <div class="hd"><h1>طبقات<br>المطبخ</h1><p>نزّل وشوف الأوراق تتراكم</p></div>
+    ${tabs()}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="sheet" style="background:${s.bg}"><h3>${s.t}<small>${toAr(s.items.length)} أطباق</small></h3><div class="grid">${s.items.map((it, k) => `<div class="it" data-i="${ALL.indexOf(it)}"><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`).join('')}</div></div></section>`).join('')}
+    ${cart()}` },
+
+ { key: 'mor', name: 'من الصورة للتفاصيل', tag: 'الصورة اللي تدوسها تكبر وتصير صفحة الطبق', sk: 'emil-design-eng · animate · impeccable',
+   desc: 'تدوس على أي طبق، فنفس الصورة تكبر بنعومة من مكانها وتصير صفحة الطبق بالتفاصيل. وتسكّرها فترجع الصورة لمكانها. والأطباق تظهر من ضبابية لوضوح.',
+   mo: '<b>الحركة:</b> الصورة تنتقل من مكانها للصفحة، فالعين تعرف وين راحت ومنين رجعت.',
+   render: () => `
+    <div class="hd"><h1>المطبخ الهادئ</h1><p>كل شي طازج، كل يوم</p></div>
+    ${tabs()}
+    <p class="hint">دوس على أي صورة حتى تشوف التفاصيل</p>
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => `<div class="it rvb" ${D(k)} data-i="${ALL.indexOf(it)}"><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`)}
+    ${cart()}` },
+
+ { key: 'fly', name: 'الطيران للسلة', tag: 'الطبق يقفز ويطير لسلتك', sk: 'animate · emil-design-eng · gpt-taste',
+   desc: 'لما تدوس ＋، صورة الطبق تطير بقوس من مكانها وتنزل بالسلة، والسلة تهتز من الفرحة، والعداد يلف مثل عداد السيارة. ستايل مرح وألوان دافئة.',
+   mo: '<b>الحركة:</b> الصورة تطير من الطبق للسلة، فالزبون يعرف إن الطبق انضاف بدون ما يقرا أي شي.',
+   render: () => `
+    <div class="hd"><h1>يلّا ناكل!</h1><p>دوس ＋ وشوف شيصير 😋</p></div>
+    ${tabs()}
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => card(it, k))}
+    ${cart('السلة', '🧺')}` },
+
+ { key: 'ink', name: 'حبر الأقسام', tag: 'كل قسم يغرق الشاشة بلونه', sk: 'gsap · animate · design-taste-frontend',
+   desc: 'تدوس على اسم قسم، فلونه ينتشر من إصبعك مثل حبر بالماي ويغطي الشاشة، ويطلع القسم. كل قسم بلون، وعناوينه تصعد من تحت.',
+   mo: '<b>الحركة:</b> اللون ينتشر من مكان إصبعك، فالانتقال يبين منين بدأ.',
+   render: () => `
+    <div class="hd"><h1>ألوان<br>المطبخ</h1><p>دوس على أي قسم 👆</p></div>
+    ${tabs()}
+    ${sections(s => `<h3><span>${s.t}</span></h3>`, (it, s, k) => card(it, k))}
+    ${cart()}` },
+
+ { key: 'stm', name: 'البخار الحي', tag: 'الحار يطلع منه بخار، والبارد يتعرق', sk: 'animate · canvas-design · animation-performance',
+   desc: 'الأطباق الحارة يطلع منها بخار حقيقي يتموج، والمشاوي عليها لمعة مثل الأكل اللي توه طالع من النار، والمشروبات الباردة عليها قطرات ماي تنزل. الزبون يحس بحرارة الأكل قبل لا يذوقه.',
+   mo: '<b>الحركة:</b> هادئة ومستمرة على الصور بس، وما تحرك الأسماء والأسعار.',
+   render: () => {
+     const fx = it => it.temp === 'hot' ? `<div class="steam"><i></i><i></i><i></i></div>${it.grill ? '<div class="sizzle"></div>' : ''}<span class="badge">♨ حار</span>` : it.temp === 'cold' ? `<div class="frost">${[12, 34, 58, 80].map((l, j) => `<b style="left:${l}%;animation-duration:${3 + j * .7}s;animation-delay:-${j * 1.1}s"></b>`).join('')}</div><span class="badge">❄ بارد</span>` : '';
+     const it2 = (it, k) => `<div class="it rv" ${D(k)} data-i="${ALL.indexOf(it)}"><div class="pic"><div class="ph" ${bg(it.img)}></div>${fx(it)}</div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`;
+     return `
+    <div class="hd"><h1>من النار للطاولة</h1><p>كل شي يطلع حار</p></div>
+    ${tabs()}
+    <div class="hero">${it2(FEAT, 0).replace(`data-i="-1"`, '')}</div>
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => it2(it, k))}
+    ${cart()}`; } },
+
+ { key: 'dep', name: 'عمق السكرول', tag: 'الصور تتحرك جوة إطاراتها', sk: 'gsap-scrolltrigger · animation-performance · frontend-design',
+   desc: 'وأنت تنزل، الصور تتحرك جوة إطاراتها أبطأ من الصفحة، فتحس إن بيها عمق مثل شباك تشوف منه الأكل. واسم القسم مكتوب بحروف ضخمة مفرغة تمشي بالعرض ويا السكرول.',
+   mo: '<b>الحركة:</b> مرتبطة بالسكرول، وكلها تحريك بس، فتبقى ناعمة حتى على الموبايلات الضعيفة.',
+   render: () => `
+    <div class="hd"><h1>عمق<br><b>المذاق</b></h1></div>
+    ${tabs()}
+    <div class="hero"><div class="it rvs"><div class="fr"><div class="ph" ${bg(FEAT.img, 800)}></div></div><div class="nm">${FEAT.n}</div><div class="row"><span>${FEAT.p} د.ع</span><button class="add">+</button></div></div></div>
+    ${sections(s => `<div class="band">${(s.t + ' · ').repeat(4)}</div>`, (it, s, k) => `<div class="it rvs" ${D(k)} data-i="${ALL.indexOf(it)}"><div class="fr"><div class="ph" ${bg(it.img, 600)}></div></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`)}
+    ${cart()}` },
+
+ { key: 'kin', name: 'الحروف الراقصة', tag: 'الكلمات تصعد والأسعار تلف', sk: 'gsap · animate · brutalist-skill',
+   desc: 'العنوان يبدل كلمة بكلمة (طازج، حار، مقرمش)، وأسماء الأقسام تصعد كلمة كلمة، والصور تنكشف من تحت لفوق، وشريط أسماء يمشي بين الأقسام.',
+   mo: '<b>الحركة:</b> كلمة كلمة، مو حرف حرف، حتى الحروف العربية تبقى متصلة.',
+   render: () => `
+    <div class="hd"><h1>أكل <span class="swap"><span><i>طازج</i><i>حار</i><i>مقرمش</i><i>طازج</i></span></span><br>كل يوم</h1></div>
+    <div class="mq"><span>${Array(2).fill(ALL.map(i => `${i.n}<b>✦</b>`).join('')).join('')}</span></div>
+    ${tabs()}
+    ${sections(s => `<h3>${words(s.t)}</h3>`, (it, s, k) => `<div class="it" ${D(k)} data-i="${ALL.indexOf(it)}"><div class="ph" ${bg(it.img)} style="--d:${Math.min(k, 6) * 60}ms"></div><div class="nm">${it.n}</div><div class="row"><b>${it.p}</b><button class="add">+</button></div></div>`)}
+    ${cart()}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover" data-key="${s.key}">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="tag">${s.tag}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div><span class="sk">${s.sk}</span>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.rvb,.rvs,.it,section').forEach(x => x.classList.add('in'));
+  el.style.cssText = 'position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, io = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+
+function open(key) {
+  const s = STYLES.find(x => x.key === key);
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.curtain,.detail,.ink,.flyer').forEach(x => x.remove());
+  count = 0; total = 0; current = key;
+  screen.onscroll = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+document.getElementById('replay').onclick = () => current && open(current);
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+
+function setOdo(n) {
+  const cols = screen.querySelectorAll('.cart .odo > span');
+  const d = String(Math.min(n, 99)).padStart(2, '0');
+  cols.forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`);
+}
+
+function addToCart(btn) {
+  const card = btn.closest('.it, .hero');
+  const m = card.textContent.match(/[٠-٩]{1,3}٬[٠-٩]{3}/);
+  count++; total += m ? fromAr(m[0]) : 0;
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  const nm = card.querySelector('.nm');
+  if (current !== 'fly') toast(`انضاف ${nm ? nm.textContent : ''} ✓`);
+  return card;
+}
+
+function wire(key) {
+  setOdo(0);
+  // reveal on scroll (root = the phone screen)
+  io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.rvb,.rvs,.m-ink section,.m-kin section,.m-kin .it').forEach(el => io.observe(el));
+  cleanups.push(() => io.disconnect());
+
+  screen.querySelectorAll('.add').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const card = addToCart(b);
+    if (key === 'fly') flyToCart(card);
+  }));
+
+  const nav = screen.querySelector('.tabs'), btns = [...nav.querySelectorAll('button')];
+  const jump = id => { const sec = screen.querySelector(`[data-sec="${id}"]`); screen.scrollTo({ top: sec.offsetTop - nav.offsetHeight + 2, behavior: key === 'ink' ? 'instant' : 'smooth' }); };
+  btns.forEach(b => b.addEventListener('click', e => key === 'ink' ? inkTo(b, e) : jump(b.dataset.to)));
+
+  const onScroll = () => {
+    let cur = MENU[0].id;
+    for (const s of MENU) { const el = screen.querySelector(`[data-sec="${s.id}"]`); if (el.offsetTop - nav.offsetHeight - 80 <= screen.scrollTop) cur = s.id; }
+    btns.forEach(b => b.classList.toggle('on', b.dataset.to === cur));
+    const on = btns.find(b => b.classList.contains('on')); nav.scrollTo({ left: on.offsetLeft - nav.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' });
+    if (key === 'thr') screen.querySelectorAll('section').forEach(s => s.classList.toggle('lit', s.dataset.sec === cur));
+  };
+  const extra = [];
+  screen.onscroll = () => { onScroll(); extra.forEach(f => f()); };
+
+  if (key === 'thr') curtains();
+  if (key === 'stk') extra.push(stack(nav));
+  if (key === 'mor') morph();
+  if (key === 'dep') extra.push(depth());
+  if (key === 'kin') swapWords();
+  requestAnimationFrame(() => { onScroll(); extra.forEach(f => f()); });
+}
+
+// 1. curtains — one-time entrance (rare tier), strong ease-in-out for on-screen movement
+function curtains() {
+  if (reduce) return;
+  const r = document.createElement('div'), l = document.createElement('div');
+  r.className = 'curtain r'; l.className = 'curtain l';
+  device.append(r, l);
+  const opt = { duration: 1100, delay: 250, easing: 'cubic-bezier(0.77, 0, 0.175, 1)', fill: 'forwards' };
+  r.animate([{ transform: 'translateX(0) scaleX(1)' }, { transform: 'translateX(70%) scaleX(.3)' }], opt);
+  l.animate([{ transform: 'translateX(0) scaleX(1)' }, { transform: 'translateX(-70%) scaleX(.3)' }], opt).onfinish = () => { r.remove(); l.remove(); };
+}
+
+// 2. stacked sheets — scroll-linked, transform only
+function stack(nav) {
+  const secs = [...screen.querySelectorAll('section')];
+  const layout = () => {
+    const vh = screen.clientHeight, top = nav.offsetHeight;
+    secs.forEach(s => { s.style.top = `${Math.min(top, vh - s.offsetHeight - 52)}px`; });
+  };
+  layout();
+  return () => {
+    secs.forEach((s, i) => {
+      const next = secs[i + 1]; const sheet = s.firstElementChild;
+      if (!next || reduce) { sheet.style.transform = ''; sheet.style.filter = ''; return; }
+      const covered = s.getBoundingClientRect().bottom - next.getBoundingClientRect().top;
+      const p = Math.max(0, Math.min(1, covered / s.offsetHeight));
+      sheet.style.transform = `scale(${1 - p * .07})`;
+      sheet.style.filter = `brightness(${1 - p * .35})`;
+    });
+  };
+}
+
+// 3. morph — FLIP the tapped photo into the dish page
+function morph() {
+  const det = document.createElement('div');
+  det.className = 'detail';
+  det.innerHTML = `<div class="bgd"></div><div class="img"></div><div class="info"><h2></h2><p></p><div class="row"><span class="pr"></span><button class="big">أضف للطلب</button></div></div><button class="x" aria-label="رجوع">→</button>`;
+  device.appendChild(det);
+  const img = det.querySelector('.img'), bgd = det.querySelector('.bgd'), info = det.querySelector('.info'), x = det.querySelector('.x');
+  let from = null, openItem = null;
+  const ease = 'cubic-bezier(0.32, 0.72, 0, 1)';
+  const flip = (src, reverse) => {
+    const d = device.getBoundingClientRect(), r = src.getBoundingClientRect(), t = img.getBoundingClientRect();
+    const sx = r.width / t.width, sy = r.height / t.height, tx = r.left - d.left, ty = r.top - d.top;
+    const a = { transform: `translate(${tx}px, ${ty}px) scale(${sx}, ${sy})`, borderRadius: `${22 / sx}px / ${22 / sy}px` };
+    const b = { transform: 'none', borderRadius: '0 0 28px 28px' };
+    const dur = reduce ? 1 : 460;
+    img.animate(reverse ? [b, a] : [a, b], { duration: dur, easing: ease, fill: 'forwards' });
+    bgd.animate(reverse ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }], { duration: dur * .8, easing: 'ease-out', fill: 'forwards' });
+    info.animate(reverse ? [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'translateY(20px)' }] : [{ opacity: 0, transform: 'translateY(20px)' }, { opacity: 1, transform: 'none' }], { duration: reverse ? 180 : 360, delay: reverse ? 0 : 160, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' });
+    x.animate(reverse ? [{ opacity: 1 }, { opacity: 0 }] : [{ opacity: 0 }, { opacity: 1 }], { duration: 200, delay: reverse ? 0 : 250, fill: 'forwards' });
+    return dur;
+  };
+  screen.querySelectorAll('.it').forEach(c => c.addEventListener('click', e => {
+    if (e.target.closest('.add')) return;
+    const it = ALL[+c.dataset.i]; openItem = c; from = c.querySelector('.ph');
+    img.style.backgroundImage = `url(${U(it.img, 900)})`;
+    det.querySelector('h2').textContent = it.n; det.querySelector('p').textContent = it.d; det.querySelector('.pr').textContent = `${it.p} د.ع`;
+    det.classList.add('on'); from.style.visibility = 'hidden';
+    flip(from, false);
+  }));
+  const close = () => { if (!from) return; const dur = flip(from, true); const f = from; setTimeout(() => { f.style.visibility = ''; det.classList.remove('on'); }, dur); from = null; };
+  x.onclick = close;
+  det.querySelector('.big').onclick = () => { addToCart(openItem.querySelector('.add')); close(); };
+}
+
+// 4. fly to cart — WAAPI arc, cart bump
+function flyToCart(card) {
+  const ph = card.querySelector('.ph'); if (!ph || reduce) return;
+  const d = device.getBoundingClientRect(), a = ph.getBoundingClientRect(), ic = screen.querySelector('.cart .ic').getBoundingClientRect();
+  const f = document.createElement('div'); f.className = 'flyer'; f.style.backgroundImage = ph.style.backgroundImage;
+  device.appendChild(f);
+  const x0 = a.left - d.left + a.width / 2 - 32, y0 = a.top - d.top + a.height / 2 - 32;
+  const x1 = ic.left - d.left + ic.width / 2 - 32, y1 = ic.top - d.top + ic.height / 2 - 32;
+  const xm = (x0 + x1) / 2, ym = Math.min(y0, y1) - 120;
+  f.animate([
+    { transform: `translate(${x0}px, ${y0}px) scale(1.15)`, opacity: 1 },
+    { transform: `translate(${xm}px, ${ym}px) scale(.9)`, opacity: 1, offset: .45 },
+    { transform: `translate(${x1}px, ${y1}px) scale(.35)`, opacity: .9 },
+  ], { duration: 620, easing: 'cubic-bezier(0.77, 0, 0.175, 1)', fill: 'forwards' }).onfinish = () => {
+    f.remove();
+    screen.querySelector('.cart .ic').animate([{ transform: 'scale(1) rotate(0)' }, { transform: 'scale(1.35) rotate(-12deg)' }, { transform: 'scale(1) rotate(0)' }], { duration: 300, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+  };
+}
+
+// 5. ink — colour floods out from the tapped tab, then the section appears
+function inkTo(btn, e) {
+  const s = MENU.find(m => m.id === btn.dataset.to);
+  const nav = screen.querySelector('.tabs');
+  if (reduce) { screen.scrollTo({ top: screen.querySelector(`[data-sec="${s.id}"]`).offsetTop - nav.offsetHeight + 2 }); return; }
+  const d = device.getBoundingClientRect(), r = btn.getBoundingClientRect();
+  const cx = r.left - d.left + r.width / 2, cy = r.top - d.top + r.height / 2;
+  const ink = document.createElement('div'); ink.className = 'ink'; ink.style.background = s.c;
+  device.appendChild(ink);
+  ink.animate([{ clipPath: `circle(0px at ${cx}px ${cy}px)` }, { clipPath: `circle(150% at ${cx}px ${cy}px)` }], { duration: 420, easing: 'cubic-bezier(0.23, 1, 0.32, 1)', fill: 'forwards' }).onfinish = () => {
+    screen.scrollTo({ top: screen.querySelector(`[data-sec="${s.id}"]`).offsetTop - nav.offsetHeight + 2, behavior: 'instant' });
+    ink.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 260, easing: 'ease-out', fill: 'forwards' }).onfinish = () => ink.remove();
+  };
+}
+
+// 7. depth — photos lag inside frames, bands slide with scroll
+function depth() {
+  const phs = [...screen.querySelectorAll('.fr .ph')], bands = [...screen.querySelectorAll('.band')];
+  return () => {
+    if (reduce) return;
+    const h = screen.clientHeight, top = screen.getBoundingClientRect().top;
+    phs.forEach(p => { const r = p.parentElement.getBoundingClientRect(); const c = (r.top - top + r.height / 2) / h - .5; p.style.transform = `translateY(${c * -18}%)`; });
+    bands.forEach((b, i) => { const r = b.getBoundingClientRect(); const c = (r.top - top) / h; b.style.transform = `translateX(${(c - .5) * (i % 2 ? -160 : 160)}px)`; });
+  };
+}
+
+// 8. headline word swap — ease-in-out, on-screen movement
+function swapWords() {
+  const col = screen.querySelector('.hd .swap > span'); if (!col || reduce) return;
+  let i = 0;
+  const t = setInterval(() => {
+    i++; col.style.transition = ''; col.style.transform = `translateY(-${i * 1.05}em)`;
+    if (i === 3) setTimeout(() => { col.style.transition = 'none'; col.style.transform = 'translateY(0)'; i = 0; }, 560);
+  }, 2200);
+  cleanups.push(() => clearInterval(t));
+}
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

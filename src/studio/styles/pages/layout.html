@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بشكل مختلف</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Reem+Kufi:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .cart.abs { position: absolute; left: 0; right: 0; bottom: 0; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+
+  /* =====================================================================
+     1. THE ELEVATOR — every section is a floor; a brass panel takes you there
+     ===================================================================== */
+  .m-elv { background: #f2ece1; color: #2b2620; font-family: 'IBM Plex Sans Arabic'; }
+  .m-elv .lay { display: grid; grid-template-columns: 1fr 78px; min-height: 100%; }
+  .m-elv .panel { position: sticky; top: 0; height: 100dvh; max-height: 900px; background: linear-gradient(90deg, #8d8a84, #c9c5bd 40%, #8d8a84); border-right: 2px solid #6d6a64; display: flex; flex-direction: column; align-items: center; padding: 58px 0 90px; gap: 10px; grid-column: 2; grid-row: 1; }
+  .m-elv .disp { width: 58px; height: 46px; border-radius: 6px; background: #120c06; color: #ff9a1f; font: 700 26px 'IBM Plex Mono'; display: flex; align-items: center; justify-content: center; gap: 2px; box-shadow: inset 0 0 8px #000; margin-bottom: 8px; }
+  .m-elv .disp i { font-style: normal; font-size: 13px; transition: transform 300ms var(--ease-out); }
+  .m-elv .fb { width: 54px; display: flex; flex-direction: column; align-items: center; gap: 2px; font: 700 10px 'Cairo'; color: #2b2620; }
+  .m-elv .fb b { width: 42px; height: 42px; border-radius: 50%; background: radial-gradient(circle at 40% 35%, #f6e2a6, #c9a24a 55%, #7a5e1e); box-shadow: 0 3px 0 #5a4310, inset 0 -2px 4px rgba(0,0,0,.3); display: flex; align-items: center; justify-content: center; font: 700 17px 'IBM Plex Mono'; color: #3a2a08; transition: box-shadow 160ms ease, transform 120ms var(--ease-out); }
+  .m-elv .fb.on b { box-shadow: 0 0 0 3px #ff9a1f, 0 3px 0 #5a4310; color: #a64b00; }
+  .m-elv .fb:active b { transform: translateY(2px); box-shadow: 0 1px 0 #5a4310; }
+  .m-elv .floors { grid-column: 1; grid-row: 1; }
+  .m-elv .hd { padding: 58px 16px 12px; }
+  .m-elv .hd h1 { font: 400 34px 'Lalezar'; line-height: 1.05; }
+  .m-elv .hd p { font-size: 13px; color: #6b6358; }
+  .m-elv section { position: relative; padding: 18px 12px 14px; border-top: 6px solid #2b2620; }
+  .m-elv section::before { content: attr(data-floor); position: absolute; top: 6px; left: 10px; font: 700 64px 'IBM Plex Mono'; color: rgba(43,38,32,.08); line-height: 1; }
+  .m-elv section h3 { font: 400 24px 'Lalezar'; margin-bottom: 10px; position: relative; }
+  .m-elv section h3 small { font: 600 11px 'IBM Plex Mono'; color: #a64b00; margin-right: 6px; }
+  .m-elv .row { display: grid; grid-template-columns: 76px 1fr auto; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px dashed #cbbfa9; }
+  .m-elv .row .ph { width: 76px; height: 76px; border-radius: 10px; }
+  .m-elv .row b { display: block; font-size: 15px; }
+  .m-elv .row span { font: 700 13px 'IBM Plex Mono'; color: #a64b00; }
+  .m-elv .add { width: 32px; height: 32px; border-radius: 50%; background: #2b2620; color: #f2ece1; font-weight: 800; }
+  .m-elv .doors { position: absolute; inset: 0; z-index: 60; pointer-events: none; display: flex; }
+  .m-elv .doors i { flex: 1; background: linear-gradient(90deg, #9a968e, #d6d2ca, #9a968e); border: 1px solid #7a766e; }
+  .m-elv .cart { background: #2b2620; color: #f2ece1; grid-column: 1 / -1; }
+
+  /* =====================================================================
+     2. PERIODIC TABLE — the whole menu on one screen; tap an element
+     ===================================================================== */
+  .m-per { background: #f5f5f0; color: #1b1b1f; font-family: 'IBM Plex Sans Arabic'; display: flex; flex-direction: column; }
+  .m-per .hd { padding: 56px 12px 6px; display: flex; justify-content: space-between; align-items: end; }
+  .m-per .hd h1 { font: 800 24px 'Changa'; line-height: 1.1; }
+  .m-per .hd small { font: 500 10px 'IBM Plex Mono'; color: #777; }
+  .m-per .legend { display: flex; flex-wrap: wrap; gap: 5px; padding: 6px 12px 8px; }
+  .m-per .legend button { font: 700 11.5px 'Cairo'; padding: 3px 9px; border-radius: 4px; border: 2px solid var(--c); color: #1b1b1f; transition: background-color 160ms ease; }
+  .m-per .legend button.on { background: var(--c); color: #fff; }
+  .m-per .table { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; padding: 0 10px; }
+  .m-per .el { position: relative; aspect-ratio: 1 / 1.12; border: 2.5px solid var(--c); border-radius: 6px; overflow: hidden; text-align: right; transition: opacity 200ms ease, transform 200ms var(--ease-out); }
+  .m-per .el .ph { position: absolute; inset: 0; }
+  .m-per .el::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 30%, rgba(0,0,0,.78)); }
+  .m-per .el > * { position: relative; z-index: 2; }
+  .m-per .el .no { position: absolute; top: 3px; right: 5px; font: 700 10px 'IBM Plex Mono'; color: #fff; background: var(--c); padding: 0 4px; border-radius: 3px; }
+  .m-per .el .sym { position: absolute; bottom: 20px; right: 5px; font: 800 22px 'Changa'; color: #fff; line-height: 1; }
+  .m-per .el .pr { position: absolute; bottom: 4px; right: 5px; left: 5px; display: flex; justify-content: space-between; font: 600 9.5px 'IBM Plex Mono'; color: #ffe08a; }
+  .m-per .el .pr em { font: 600 9.5px 'Cairo'; color: #fff; font-style: normal; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 60%; }
+  .m-per.filter .el:not(.hit) { opacity: .18; }
+  .m-per .key { margin: 10px 10px 0; font-size: 11.5px; color: #777; text-align: center; }
+  .m-per .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 70; background: #fff; border-radius: 22px 22px 0 0; padding: 10px 16px 18px; transform: translateY(105%); transition: transform 420ms var(--ease-drawer); box-shadow: 0 -10px 30px rgba(0,0,0,.2); }
+  .m-per .sheet.on { transform: none; }
+  .m-per .sheet .grab { width: 40px; height: 4px; border-radius: 2px; background: #ccc; margin: 0 auto 10px; }
+  .m-per .sheet .ph { height: 220px; border-radius: 14px; }
+  .m-per .sheet .tt { display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+  .m-per .sheet .tt .sym { width: 54px; height: 54px; border-radius: 8px; background: var(--c); color: #fff; font: 800 24px 'Changa'; display: flex; align-items: center; justify-content: center; }
+  .m-per .sheet h3 { font-size: 20px; }
+  .m-per .sheet .sp { font: 700 15px 'IBM Plex Mono'; color: var(--c); }
+  .m-per .sheet .add { width: 100%; margin-top: 14px; padding: 13px; border-radius: 12px; background: #1b1b1f; color: #fff; font-weight: 800; font-size: 15px; }
+  .m-per .scrim { position: absolute; inset: 0; z-index: 65; background: rgba(0,0,0,.35); opacity: 0; pointer-events: none; transition: opacity 300ms ease; }
+  .m-per .scrim.on { opacity: 1; pointer-events: auto; }
+  .m-per .cart { background: #1b1b1f; color: #fff; margin-top: auto; }
+
+  /* =====================================================================
+     3. METRO LINE — sections are stations on one line; dishes hang off it
+     ===================================================================== */
+  .m-met { background: #fafafa; color: #1a1a1a; font-family: 'Changa'; }
+  .m-met .hd { padding: 56px 16px 4px; }
+  .m-met .hd small { font: 500 11px 'IBM Plex Mono'; color: #888; letter-spacing: 2px; }
+  .m-met .hd h1 { font-weight: 800; font-size: 30px; }
+  .m-met .map { position: sticky; top: 0; z-index: 20; background: rgba(250,250,250,.96); padding: 10px 16px 12px; border-bottom: 1px solid #e3e3e3; }
+  .m-met .map .ln { position: relative; display: flex; justify-content: space-between; }
+  .m-met .map .ln::before { content: ''; position: absolute; top: 9px; left: 8px; right: 8px; height: 5px; border-radius: 3px; background: linear-gradient(to left, #e3262b 0 20%, #f7a600 20% 40%, #2ba84a 40% 60%, #e5007e 60% 80%, #0077c8 80%); }
+  .m-met .map button { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; font: 600 11px 'Changa'; width: 60px; }
+  .m-met .map button b { width: 23px; height: 23px; border-radius: 50%; background: #fff; border: 4px solid var(--c); transition: transform 200ms var(--ease-out), background-color 200ms ease; }
+  .m-met .map button.on b { background: var(--c); transform: scale(1.18); }
+  .m-met .map .train { position: absolute; top: -8px; width: 26px; height: 14px; border-radius: 7px 7px 3px 3px; background: #1a1a1a; transition: right 500ms var(--ease-in-out); margin-right: -1px; }
+  .m-met .map .train::after { content: ''; position: absolute; top: 3px; right: 4px; width: 18px; height: 4px; background: #9fd3ff; border-radius: 1px; }
+  .m-met .line { position: relative; padding: 10px 12px 20px 12px; }
+  .m-met .line::before { content: ''; position: absolute; top: 0; bottom: 0; right: 30px; width: 8px; background: linear-gradient(var(--grad)); border-radius: 4px; }
+  .m-met section { position: relative; padding-right: 50px; margin-bottom: 8px; }
+  .m-met .st { position: relative; display: flex; align-items: center; gap: 10px; padding: 12px 0 8px; }
+  .m-met .st b { position: absolute; right: -32px; width: 28px; height: 28px; border-radius: 50%; background: #fff; border: 6px solid var(--c); }
+  .m-met .st h3 { font-weight: 800; font-size: 22px; }
+  .m-met .st small { font: 500 11px 'IBM Plex Mono'; color: var(--c); }
+  .m-met .stop { position: relative; display: grid; grid-template-columns: 70px 1fr auto; gap: 10px; align-items: center; background: #fff; border: 1px solid #ececec; border-radius: 12px; padding: 7px; margin-bottom: 7px; }
+  .m-met .stop::before { content: ''; position: absolute; right: -24px; top: 50%; width: 22px; height: 3px; background: var(--c); }
+  .m-met .stop::after { content: ''; position: absolute; right: -27px; top: calc(50% - 4px); width: 11px; height: 11px; border-radius: 50%; background: #fff; border: 3px solid var(--c); }
+  .m-met .stop .ph { width: 70px; height: 70px; border-radius: 8px; }
+  .m-met .stop b { font-size: 15.5px; }
+  .m-met .stop span { display: block; font: 600 12.5px 'IBM Plex Mono'; color: #666; }
+  .m-met .add { width: 32px; height: 32px; border-radius: 50%; background: var(--c); color: #fff; font-weight: 800; font-size: 17px; }
+  .m-met .cart { background: #1a1a1a; color: #fff; }
+
+  /* =====================================================================
+     4. THE CABINET — sections are drawers; pull one out to see its tray
+     ===================================================================== */
+  .m-cab { background: #5a3a22; background-image: repeating-linear-gradient(90deg, rgba(0,0,0,.06) 0 3px, transparent 3px 11px); color: #2a1a0c; font-family: 'El Messiri'; }
+  .m-cab .hd { padding: 58px 16px 14px; color: #f6e2b8; text-align: center; }
+  .m-cab .hd h1 { font: 400 36px 'Lalezar'; }
+  .m-cab .hd p { font-size: 14px; opacity: .85; }
+  .m-cab .chest { padding: 0 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+  .m-cab .dr { background: #8a5a32; border-radius: 6px; box-shadow: 0 6px 0 #3e2716, inset 0 0 0 3px #a8744a; overflow: hidden; }
+  .m-cab .front { width: 100%; display: grid; grid-template-columns: 1fr auto; align-items: center; padding: 12px 14px; gap: 10px; text-align: right; color: #fff3da; }
+  .m-cab .front h3 { font: 400 24px 'Lalezar'; }
+  .m-cab .front .pk { display: flex; gap: 4px; margin-top: 4px; }
+  .m-cab .front .pk i { width: 34px; height: 34px; border-radius: 5px; background-size: cover; background-position: center; border: 2px solid #f6e2b8; }
+  .m-cab .front .pk em { font: 600 12px 'Cairo'; font-style: normal; align-self: center; margin-right: 4px; color: #f6e2b8; }
+  .m-cab .handle { width: 62px; height: 18px; border-radius: 9px; background: linear-gradient(#f3d488, #b8892f); box-shadow: 0 3px 0 #6b4a12; position: relative; }
+  .m-cab .handle::after { content: ''; position: absolute; top: 5px; left: 10px; right: 10px; height: 4px; border-radius: 2px; background: #6b4a12; opacity: .5; }
+  .m-cab .tray { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 420ms var(--ease-drawer); background: #f4e3c4; }
+  .m-cab .tray > div { overflow: hidden; }
+  .m-cab .dr.on .tray { grid-template-rows: 1fr; }
+  .m-cab .dr.on { box-shadow: 0 12px 0 #3e2716, inset 0 0 0 3px #a8744a; }
+  .m-cab .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 12px; box-shadow: inset 0 10px 14px -10px rgba(0,0,0,.45); }
+  .m-cab .it { background: #fffaf0; border-radius: 8px; padding: 5px 5px 8px; box-shadow: 0 2px 4px rgba(0,0,0,.12); }
+  .m-cab .it .ph { aspect-ratio: 1; border-radius: 5px; }
+  .m-cab .it b { display: block; font-size: 15px; margin-top: 4px; }
+  .m-cab .it .r { display: flex; justify-content: space-between; align-items: center; font: 700 13px 'Cairo'; color: #8a3a12; }
+  .m-cab .add { width: 28px; height: 28px; border-radius: 50%; background: #5a3a22; color: #fff; font-weight: 800; }
+  .m-cab .cart { background: #f3d488; color: #3e2716; }
+
+  /* =====================================================================
+     5. SUPERMARKET SHELVES — every section is a shelf; slide along it
+     ===================================================================== */
+  .m-shf { background: #eef2f4; color: #1d2a33; font-family: 'Cairo'; }
+  .m-shf .hd { padding: 56px 16px 8px; display: flex; justify-content: space-between; align-items: center; }
+  .m-shf .hd h1 { font: 400 32px 'Lalezar'; color: #d62828; }
+  .m-shf .hd .aisle { font: 700 12px 'Cairo'; background: #1d2a33; color: #fff; padding: 6px 10px; border-radius: 6px; text-align: center; line-height: 1.3; }
+  .m-shf .signs { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 8px 12px; background: rgba(238,242,244,.96); }
+  .m-shf .signs button { flex: none; font: 700 12.5px 'Cairo'; padding: 5px 11px; border-radius: 4px; background: #fff; border: 2px solid #1d2a33; }
+  .m-shf .signs button.on { background: #ffd23f; }
+  .m-shf section { padding: 8px 0 0; }
+  .m-shf .lbl { display: inline-block; margin: 0 12px 6px; font: 400 20px 'Lalezar'; background: #d62828; color: #fff; padding: 2px 12px 0; border-radius: 3px; }
+  .m-shf .hs { gap: 10px; padding: 0 12px 4px; scroll-padding: 0 12px; background: linear-gradient(#d9dfe3, #aab4bb) 0 157px / 100% 14px no-repeat local; }
+  .m-shf .prod { flex: none; width: 128px; scroll-snap-align: start; display: flex; flex-direction: column; align-items: center; }
+  .m-shf .prod .ph { width: 118px; height: 118px; border-radius: 12px 12px 4px 4px; box-shadow: 0 6px 8px -4px rgba(0,0,0,.35); }
+  .m-shf .prod b { font-size: 13px; margin-top: 5px; text-align: center; line-height: 1.3; height: 34px; }
+  .m-shf .prod .tag { margin-top: 16px; }
+  .m-shf .board { height: 14px; margin: 0 0 4px; background: linear-gradient(#d9dfe3, #aab4bb); box-shadow: 0 6px 8px -4px rgba(0,0,0,.35); position: relative; z-index: 1; }
+  .m-shf .tags { display: flex; gap: 10px; padding: 0 12px; overflow: hidden; }
+  .m-shf .tag { flex: none; width: 128px; display: flex; justify-content: center; }
+  .m-shf .tag span { position: relative; display: flex; align-items: center; gap: 6px; background: #ffd23f; padding: 3px 4px 3px 8px; border-radius: 3px; font: 800 13px 'Cairo'; transform-origin: top center; animation: tagSway 3s ease-in-out infinite alternate; }
+  @keyframes tagSway { from { transform: rotate(-2deg); } to { transform: rotate(2deg); } }
+  .m-shf .add { width: 24px; height: 24px; border-radius: 3px; background: #d62828; color: #fff; font-weight: 800; }
+  .m-shf .cart { background: #1d2a33; color: #fff; margin-top: 14px; }
+
+  /* =====================================================================
+     6. KITCHEN TICKET RAIL — sections are columns of order tickets
+     ===================================================================== */
+  .m-tkt { background: #26292d; color: #f0f0f0; font-family: 'IBM Plex Sans Arabic'; display: flex; flex-direction: column; overflow: hidden !important; }
+  .m-tkt .hd { padding: 56px 16px 6px; }
+  .m-tkt .hd small { font: 700 11px 'IBM Plex Mono'; color: #ff5a36; letter-spacing: 2px; }
+  .m-tkt .hd h1 { font: 400 30px 'Lalezar'; }
+  .m-tkt .rails { display: flex; gap: 6px; padding: 6px 12px 8px; overflow-x: auto; scrollbar-width: none; }
+  .m-tkt .rails button { flex: none; font: 700 12px 'IBM Plex Mono', 'Cairo'; padding: 5px 10px; border-radius: 4px; background: #34383d; color: #c8ccd0; }
+  .m-tkt .rails button.on { background: #ff5a36; color: #fff; }
+  .m-tkt .board { flex: 1; min-height: 0; gap: 12px; padding: 0 14px; scroll-padding: 0 14px; }
+  .m-tkt .col { flex: none; width: 80%; scroll-snap-align: start; display: flex; flex-direction: column; min-height: 0; }
+  .m-tkt .bar { height: 14px; border-radius: 3px; background: linear-gradient(#c9ced3, #7d8389); box-shadow: 0 3px 4px rgba(0,0,0,.5); position: relative; z-index: 2; }
+  .m-tkt .col h3 { font: 700 13px 'IBM Plex Mono', 'Cairo'; color: #ff5a36; padding: 6px 2px 4px; display: flex; justify-content: space-between; }
+  .m-tkt .tickets { flex: 1; overflow-y: auto; scrollbar-width: none; padding: 0 2px 12px; }
+  .m-tkt .tickets::-webkit-scrollbar { display: none; }
+  .m-tkt .tk { position: relative; background: #fffef8; color: #222; padding: 9px 10px 12px; margin-bottom: 10px; display: grid; grid-template-columns: 72px 1fr; gap: 10px; transform: rotate(var(--r, 0deg)); box-shadow: 0 4px 8px rgba(0,0,0,.4); -webkit-mask: radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) -6px 0/12px 100% repeat-x; mask: radial-gradient(circle at 6px 100%, transparent 5px, #000 5.5px) -6px 0/12px 100% repeat-x; }
+  .m-tkt .tk::before { content: ''; position: absolute; top: -6px; left: 50%; width: 30px; height: 12px; margin-left: -15px; background: #9aa0a6; border-radius: 2px; }
+  .m-tkt .tk .ph { width: 72px; height: 72px; filter: saturate(1.1); }
+  .m-tkt .tk .no { font: 700 10px 'IBM Plex Mono'; color: #999; }
+  .m-tkt .tk b { display: block; font-size: 15px; }
+  .m-tkt .tk .r { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font: 700 13px 'IBM Plex Mono'; border-top: 1px dashed #bbb; padding-top: 5px; }
+  .m-tkt .add { padding: 4px 9px; border-radius: 4px; background: #222; color: #fff; font: 700 11px 'Cairo'; }
+  .m-tkt .cart { background: #ff5a36; color: #fff; position: relative; }
+
+  /* =====================================================================
+     7. MAGAZINE — a bento spread per section; the star dish takes the cover
+     ===================================================================== */
+  .m-mag { background: #fff; color: #111; font-family: 'Reem Kufi'; }
+  .m-mag .mast { padding: 54px 14px 8px; border-bottom: 4px solid #111; display: flex; justify-content: space-between; align-items: end; }
+  .m-mag .mast h1 { font: 400 46px 'Lalezar'; line-height: .9; letter-spacing: -1px; }
+  .m-mag .mast small { font: 600 10px 'IBM Plex Mono'; text-align: left; line-height: 1.5; color: #555; }
+  .m-mag .toc { position: sticky; top: 0; z-index: 20; background: #fff; display: flex; gap: 0; border-bottom: 1px solid #111; overflow-x: auto; scrollbar-width: none; }
+  .m-mag .toc button { flex: none; font: 600 12.5px 'Reem Kufi'; padding: 8px 10px; border-left: 1px solid #ddd; }
+  .m-mag .toc button b { font: 700 10px 'IBM Plex Mono'; color: #e63946; margin-left: 3px; }
+  .m-mag .toc button.on { background: #111; color: #fff; }
+  .m-mag section { padding: 14px 10px 6px; }
+  .m-mag .kick { display: flex; align-items: baseline; gap: 8px; border-bottom: 1px solid #111; padding-bottom: 4px; margin-bottom: 8px; }
+  .m-mag .kick b { font: 700 12px 'IBM Plex Mono'; color: #e63946; }
+  .m-mag .kick h3 { font: 400 30px 'Lalezar'; line-height: 1; }
+  .m-mag .bento { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 108px; gap: 6px; grid-auto-flow: dense; }
+  .m-mag .tile { position: relative; overflow: hidden; border-radius: 4px; }
+  .m-mag .tile .ph { position: absolute; inset: 0; transition: transform 600ms var(--ease-out); }
+  .m-mag .tile::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(0,0,0,.75)); }
+  .m-mag .tile .cap { position: absolute; bottom: 6px; right: 7px; left: 7px; z-index: 2; color: #fff; display: flex; justify-content: space-between; align-items: end; gap: 4px; }
+  .m-mag .tile .cap b { font-size: 14px; line-height: 1.2; }
+  .m-mag .tile .cap span { font: 600 11px 'IBM Plex Mono'; color: #ffd23f; display: block; }
+  .m-mag .tile.big { grid-column: span 2; grid-row: span 2; }
+  .m-mag .tile.big .cap b { font: 400 24px 'Lalezar'; }
+  .m-mag .tile.wide { grid-column: span 2; }
+  .m-mag .tile.tall { grid-row: span 2; }
+  .m-mag .tile .badge { position: absolute; top: 7px; right: 7px; z-index: 2; background: #e63946; color: #fff; font: 700 10px 'Cairo'; padding: 1px 7px; }
+  .m-mag .add { width: 26px; height: 26px; border-radius: 50%; background: #fff; color: #111; font-weight: 800; }
+  .m-mag .cart { background: #111; color: #fff; }
+
+  /* =====================================================================
+     8. THE TABLE FROM ABOVE — sections are placemats, dishes are plates
+     ===================================================================== */
+  .m-top { background: #7a5232; background-image: repeating-linear-gradient(0deg, rgba(0,0,0,.05) 0 2px, transparent 2px 22px), repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 60px, transparent 60px 120px); color: #2a1a0c; font-family: 'Rakkas'; }
+  .m-top .hd { padding: 56px 16px 8px; text-align: center; color: #fbe7c6; }
+  .m-top .hd h1 { font-size: 36px; font-weight: 400; }
+  .m-top .hd p { font: 600 13px 'Cairo'; opacity: .85; }
+  .m-top .napkins { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 8px 12px; background: rgba(122,82,50,.95); }
+  .m-top .napkins button { flex: none; font: 400 15px 'Rakkas'; padding: 4px 12px; background: #fbf6ec; color: #2a1a0c; clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); padding-bottom: 9px; }
+  .m-top .napkins button.on { background: #e8b04a; }
+  .m-top .mat { margin: 14px 12px; padding: 14px 10px 10px; background: var(--mat); border-radius: 12px; box-shadow: 0 8px 14px rgba(0,0,0,.35); position: relative; }
+  .m-top .mat::before { content: ''; position: absolute; inset: 6px; border: 2px dashed rgba(255,255,255,.55); border-radius: 8px; pointer-events: none; }
+  .m-top .mat h3 { position: relative; text-align: center; font-size: 24px; font-weight: 400; color: #fff; margin-bottom: 8px; }
+  .m-top .plates { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 12px 8px; }
+  .m-top .pl { display: flex; flex-direction: column; align-items: center; }
+  .m-top .pl:nth-child(4n+2), .m-top .pl:nth-child(4n+3) { transform: translateY(10px); }
+  .m-top .plate { width: 132px; height: 132px; border-radius: 50%; padding: 12px; background: radial-gradient(circle, #fff 58%, #e9e4da 60%, #fff 66%, #dcd6ca 100%); box-shadow: 0 6px 10px rgba(0,0,0,.35); position: relative; }
+  .m-top .plate .ph { width: 100%; height: 100%; border-radius: 50%; }
+  .m-top .plate .fork, .m-top .plate .knife { position: absolute; top: 18px; width: 6px; height: 96px; border-radius: 3px; background: linear-gradient(90deg, #b9bcc0, #f3f4f5, #b9bcc0); }
+  .m-top .plate .fork { right: -14px; } .m-top .plate .knife { left: -14px; }
+  .m-top .card { margin-top: 6px; background: #fbf6ec; padding: 3px 8px; border-radius: 4px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,.25); display: flex; align-items: center; gap: 6px; }
+  .m-top .card b { font-size: 14px; font-weight: 400; }
+  .m-top .card span { font: 700 11.5px 'Cairo'; color: #8a3a12; }
+  .m-top .add { width: 24px; height: 24px; border-radius: 50%; background: #2a1a0c; color: #fff; font: 800 14px 'Cairo'; }
+  .m-top .cart { background: #e8b04a; color: #2a1a0c; font-family: 'Cairo'; }
+
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات شكلها نفسه مختلف</h1>
+  <p>مو منيو عادي وفوقه حركة: كل وحدة شي حقيقي يغيّر طريقة تصفح المنيو نفسها، مثل الكتاب بالفهرس والجريدة. مصعد طوابقه أقسام، وجدول دوري يعرض كل المنيو بشاشة وحدة، وخط مترو، وخزانة أدراج، ورفوف سوبرماركت، وسكة تذاكر المطبخ، ومجلة، وسفرة من فوق. وكلها تبين الأكل بصوره الحقيقية وتوصلك لأي قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', c: '#e3262b', mat: '#9c2a22', items: [
+    { n: 'تكة دجاج', s: 'تك', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', s: 'ست', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', s: 'رش', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', s: 'بر', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', c: '#f7a600', mat: '#b8741a', items: [
+    { n: 'دبل سماش', s: 'سم', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', s: 'شا', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', s: 'بس', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', s: 'بت', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', s: 'سب', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', s: 'با', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', c: '#2ba84a', mat: '#3d7a3a', items: [
+    { n: 'سلطة الموسم', s: 'سل', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', s: 'أف', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', c: '#e5007e', mat: '#8a2f5a', items: [
+    { n: 'تيراميسو', s: 'تر', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', s: 'بك', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', s: 'بز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', s: 'أو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', c: '#0077c8', mat: '#2a5a8a', items: [
+    { n: 'لاتيه', s: 'لا', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', s: 'مو', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك', cls = '') => `<div class="cart ${cls}"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+') => `<button class="add" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+
+const STYLES = [
+ { key: 'elv', fam: 'تصفح بالطوابق', name: 'المصعد',
+   desc: 'كل قسم طابق. على الجانب لوحة مصعد نحاسية، تدوس على رقم الطابق فتنسد الأبواب وتنفتح على القسم، والشاشة الصغيرة تعرض رقم الطابق الي إنت بي وإنت تنزل.',
+   mo: '<b>الشكل:</b> عمود أزرار ثابت على اليمين بدل التبويبات، والأطباق صفوف بصورة وسعر.',
+   render: () => `<div class="lay">
+      <aside class="panel"><div class="disp"><span class="fl">١</span><i>▼</i></div>${MENU.map((s, i) => `<button class="fb ${i ? '' : 'on'}" data-to="${s.id}"><b>${toAr(i + 1)}</b>${s.t}</button>`).join('')}</aside>
+      <div class="floors"><div class="hd"><h1>مطعم<br>البرج</h1><p>اختار الطابق، الأكل ينتظرك</p></div>
+      ${MENU.map((s, i) => `<section data-sec="${s.id}" data-floor="${toAr(i + 1)}"><h3>${s.t}<small>FLOOR ${i + 1}</small></h3>${s.items.map(it => `<div class="row"><div class="ph" ${bg(it.img, 200)}></div><div><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it)}</div>`).join('')}</section>`).join('')}</div>
+      ${cart('الطلب')}</div>` },
+
+ { key: 'per', fam: 'كل المنيو بشاشة وحدة', name: 'الجدول الدوري للأكل',
+   desc: 'المنيو كله على شكل الجدول الدوري: كل طبق «عنصر» بصورته ورقمه ورمزه وسعره، وكل قسم لونه. تشوف الـ١٨ طبق بشاشة وحدة بدون سكرول. تدوس على قسم فيبرز لونه، وتدوس على عنصر فتطلع بطاقته وتضيفه.',
+   mo: '<b>الشكل:</b> شبكة مربعات صغيرة تغطي المنيو كله، وبطاقة تنسحب من تحت للطبق.',
+   render: () => `
+    <div class="hd"><div><small>THE PERIODIC TABLE OF FOOD</small><h1>جدول المذاق</h1></div><small>١٨ عنصر · ٥ مجموعات</small></div>
+    <div class="legend">${MENU.map(s => `<button data-g="${s.id}" style="--c:${s.c}">${s.t}</button>`).join('')}</div>
+    <div class="table">${MENU.flatMap(s => s.items.map(it => `<button class="el" data-g="${s.id}" data-no="${it.no}" style="--c:${s.c}"><div class="ph" ${bg(it.img, 240)}></div><span class="no">${toAr(it.no)}</span><span class="sym">${it.s}</span><span class="pr"><em>${it.n}</em>${it.p.replace('٬٠٠٠', 'k').replace('٬٥٠٠', '.5k')}</span></button>`)).join('')}</div>
+    <p class="key">دوس على أي عنصر حتى تشوفه وتضيفه</p>
+    <div class="scrim"></div><div class="sheet"><div class="grab"></div><div class="ph"></div><div class="tt"><div class="sym"></div><div><h3></h3><div class="sp"></div></div></div><button class="add">أضف للطلب</button></div>
+    ${cart('التفاعل')}` },
+
+ { key: 'met', fam: 'تصفح بالمحطات', name: 'خط المترو',
+   desc: 'المنيو خط مترو واحد، وكل قسم محطة بلونها. فوق خريطة الخط ثابتة، تدوس على محطة فيمشي القطار لها وينقلك. والأطباق معلّقة على الخط مثل مواقف صغيرة.',
+   mo: '<b>الشكل:</b> خط عمودي ملوّن ينزل ويا المنيو، والأطباق متفرعة منه، والقطار يأشر المحطة الحالية.',
+   render: () => `
+    <div class="hd"><small>LINE 1 · خط المذاق</small><h1>مترو المطبخ</h1></div>
+    <div class="map"><div class="ln">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c}"><b></b>${s.t}</button>`).join('')}<i class="train"></i></div></div>
+    <div class="line" style="--grad:${MENU.map((s, i) => `${s.c} ${i * 20}% ${(i + 1) * 20}%`).join(',')}">
+    ${MENU.map((s, i) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="st"><b></b><h3>${s.t}</h3><small>STATION ${i + 1}</small></div>${s.items.map(it => `<div class="stop rv"><div class="ph" ${bg(it.img, 200)}></div><div><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it)}</div>`).join('')}</section>`).join('')}</div>
+    ${cart('التذكرة')}` },
+
+ { key: 'cab', fam: 'تصفح بالأدراج', name: 'خزانة الأدراج',
+   desc: 'المنيو خزانة خشب، وكل قسم جرّار بمقبض نحاس، وعلى وجهه صور صغيرة من أطباقه. تسحب الجرّار فيطلع بصينيته وبيها الأطباق، والجرّار الثاني يرجع لمكانه.',
+   mo: '<b>الشكل:</b> كل الأقسام تبين مرة وحدة كجرّارات، وتفتح الي تريده بس.',
+   render: () => `
+    <div class="hd"><h1>خزانة جدتي</h1><p>كل جرّار بي طبخة</p></div>
+    <div class="chest">${MENU.map((s, i) => `<div class="dr ${i ? '' : 'on'}" data-sec="${s.id}"><button class="front"><div><h3>${s.t}</h3><div class="pk">${s.items.slice(0, 4).map(it => `<i style="background-image:url(${U(it.img, 120)})"></i>`).join('')}<em>${toAr(s.items.length)} أطباق</em></div></div><span class="handle"></span></button>
+      <div class="tray"><div><div class="grid">${s.items.map(it => `<div class="it"><div class="ph" ${bg(it.img, 300)}></div><b>${it.n}</b><div class="r"><span>${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></div></div></div>`).join('')}</div>
+    ${cart('سلتك')}` },
+
+ { key: 'shf', fam: 'تصفح بالرفوف', name: 'رفوف السوبرماركت',
+   desc: 'كل قسم رف بلافتته، والأطباق واكفة على الرف وتحت كل طبق بطاقة سعر صفرة تتمرجح، مثل رفوف السوبرماركت. الرفوف كلها تبين وإنت تنزل، وتسحب الرف يمين ويسار لباقي أطباقه.',
+   mo: '<b>الشكل:</b> صفوف أفقية فوق بعض، كل رف تسحبه على جنب، وبطاقات أسعار معلقة.',
+   render: () => `
+    <div class="hd"><h1>ماركت المذاق</h1><div class="aisle">ممر<br>١</div></div>
+    <nav class="signs">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}">${s.t}</button>`).join('')}</nav>
+    ${MENU.map(s => `<section data-sec="${s.id}"><span class="lbl">${s.t}</span>
+      <div class="hs">${s.items.map((it, k) => `<div class="prod"><div class="ph" ${bg(it.img, 260)}></div><b>${it.n}</b><div class="tag"><span style="animation-delay:-${k * .5}s">${it.p} ${addBtn(it)}</span></div></div>`).join('')}</div></section>`).join('')}
+    ${cart('العربانة')}` },
+
+ { key: 'tkt', fam: 'تصفح بالأعمدة', name: 'سكة تذاكر المطبخ',
+   desc: 'مثل سكة الطلبات بمطبخ المطعم: كل قسم عمود تذاكر معلقة على سكة حديد. تسحب يمين ويسار بين الأعمدة، وكل عمود تنزل بي. كل طبق تذكرة بصورته ورقمه وسعره.',
+   mo: '<b>الشكل:</b> المنيو يتصفح بالعرض، أعمدة جنب بعض، والعمود الجاي يبين طرفه.',
+   render: () => `
+    <div class="hd"><small>KITCHEN RAIL · ORDERS</small><h1>سكة الطلبات</h1></div>
+    <div class="rails">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}">${s.t}</button>`).join('')}</div>
+    <div class="board hs">${MENU.map(s => `<div class="col" data-sec="${s.id}"><div class="bar"></div><h3><span>${s.t}</span><span>${toAr(s.items.length)} تذاكر</span></h3><div class="tickets">${s.items.map((it, k) => `<div class="tk" style="--r:${[-1.2, .8, -.5, 1.1][k % 4]}deg"><div class="ph" ${bg(it.img, 200)}></div><div><span class="no">#${String(it.no).padStart(3, '0')}</span><b>${it.n}</b><div class="r"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div></div>`).join('')}</div></div>`).join('')}</div>
+    ${cart('طلبك')}` },
+
+ { key: 'mag', fam: 'تصفح بالصفحات', name: 'المجلة',
+   desc: 'المنيو مجلة طعام: عنوان كبير مثل غلاف مجلة، وفهرس ثابت بأرقام الصفحات، وكل قسم صفحة بنتو: طبق النجمة ياخذ مربع كبير، وباقي الأطباق بأحجام مختلفة تملأ الصفحة.',
+   mo: '<b>الشكل:</b> شبكة بأحجام مختلفة بدل البطاقات المتساوية، وكأنك تقلب مجلة.',
+   render: () => `
+    <div class="mast"><h1>مذاق</h1><small>العدد ٢٦<br>تشرين ٢٠٢٦<br>٥ أبواب</small></div>
+    <nav class="toc">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}"><b>${toAr(String(i * 8 + 4).padStart(2, '0'))}</b>${s.t}</button>`).join('')}</nav>
+    ${MENU.map((s, i) => `<section data-sec="${s.id}"><div class="kick"><b>${toAr(String(i * 8 + 4).padStart(2, '0'))}</b><h3>${s.t}</h3></div><div class="bento">${s.items.map((it, k) => {
+      const sz = s.items.length < 3 ? (k ? 'wide' : 'wide') : k === 0 ? 'big' : (k === 3 && s.items.length > 4 ? 'wide' : k === 4 ? 'tall' : '');
+      return `<div class="tile ${sz} rv"><div class="ph" ${bg(it.img, sz === 'big' ? 600 : 300)}></div>${k === 0 ? '<span class="badge">اختيار المحرر</span>' : ''}<div class="cap"><div><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it)}</div></div>`; }).join('')}</div></section>`).join('')}
+    ${cart('مشترياتك')}` },
+
+ { key: 'top', fam: 'تصفح من فوق', name: 'السفرة من فوق',
+   desc: 'تشوف المنيو مثل ما تشوف سفرة من فوق: طاولة خشب، وكل قسم مفرش بلونه، وكل طبق صحن مدوّر بصورته، جنبه شوكة وسكين، وتحته كارت صغير باسمه وسعره.',
+   mo: '<b>الشكل:</b> صحون مدوّرة على مفارش بدل البطاقات، والأقسام مناديل تدوس عليها.',
+   render: () => `
+    <div class="hd"><h1>عالسفرة</h1><p>تفضّل، اختار صحنك</p></div>
+    <nav class="napkins">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}">${s.t}</button>`).join('')}</nav>
+    ${MENU.map(s => `<section class="mat" data-sec="${s.id}" style="--mat:${s.mat}"><h3>${s.t}</h3><div class="plates">${s.items.map(it => `<div class="pl rv"><div class="plate"><i class="fork"></i><i class="knife"></i><div class="ph" ${bg(it.img, 260)}></div></div><div class="card"><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('سفرتك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv').forEach(x => x.classList.add('in'));
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key;
+  screen.onscroll = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// Track which section is in view inside a scroller; calls back with its id
+function spy(scroller, axis, onChange) {
+  const secs = [...scroller.querySelectorAll('[data-sec]')];
+  const run = () => {
+    let cur = secs[0].dataset.sec;
+    if (axis === 'y') { const off = scroller.scrollTop + 140; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); }
+    else { const r = scroller.getBoundingClientRect(); let best = 1e9; secs.forEach(s => { const d = Math.abs(s.getBoundingClientRect().right - r.right); if (d < best) { best = d; cur = s.dataset.sec; } }); }
+    onChange(cur);
+  };
+  scroller.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => scroller.removeEventListener('scroll', run));
+  run();
+}
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const jumpY = (id, offset = 0) => { const s = screen.querySelector(`[data-sec="${id}"]`); screen.scrollTo({ top: topOf(s) - offset, behavior: reduce ? 'instant' : 'smooth' }); };
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv').forEach((el, i) => { el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); return addToCart(a.dataset.n, a.dataset.p); }
+    const to = e.target.closest('[data-to]');
+    if (to && WIRE[key].go) return WIRE[key].go(to.dataset.to, to);
+    WIRE[key].click && WIRE[key].click(e);
+  };
+  WIRE[key].init && WIRE[key].init();
+}
+
+const WIRE = {
+  elv: {
+    init() {
+      const fl = screen.querySelector('.disp .fl');
+      spy(screen, 'y', id => { const i = MENU.findIndex(s => s.id === id); fl.textContent = toAr(i + 1); mark('.fb', id); });
+    },
+    go(id) {
+      if (reduce) return jumpY(id, -2);
+      // the doors close, the car moves while they are shut, then they open on the floor
+      const d = document.createElement('div'); d.className = 'doors'; d.innerHTML = '<i></i><i></i>';
+      device.appendChild(d);
+      const [a, b] = d.children, o = { duration: 260, easing: 'cubic-bezier(0.77, 0, 0.175, 1)', fill: 'both' };
+      const L = [{ transform: 'translateX(-100%)' }, { transform: 'translateX(0)' }], R = [{ transform: 'translateX(100%)' }, { transform: 'translateX(0)' }];
+      d.style.left = '0'; d.style.right = '78px';
+      a.animate(R, o); b.animate(L, o).onfinish = () => {
+        const s = screen.querySelector(`[data-sec="${id}"]`); screen.scrollTo({ top: topOf(s), behavior: 'instant' });
+        setTimeout(() => { a.animate(R, { ...o, direction: 'reverse', delay: 0 }); b.animate(L, { ...o, direction: 'reverse' }).onfinish = () => d.remove(); }, 120);
+      };
+    },
+  },
+  per: {
+    click(e) {
+      const g = e.target.closest('.legend [data-g]');
+      if (g) { const on = !g.classList.contains('on'); screen.querySelectorAll('.legend button').forEach(b => b.classList.remove('on')); screen.classList.toggle('filter', on); screen.querySelectorAll('.el').forEach(el => el.classList.toggle('hit', on && el.dataset.g === g.dataset.g)); if (on) g.classList.add('on'); return; }
+      const el = e.target.closest('.el');
+      const sheet = screen.querySelector('.sheet'), scrim = screen.querySelector('.scrim');
+      if (el) {
+        const s = MENU.find(x => x.id === el.dataset.g), it = s.items.find(x => x.no === +el.dataset.no);
+        sheet.style.setProperty('--c', s.c);
+        sheet.querySelector('.ph').style.backgroundImage = `url(${U(it.img, 700)})`;
+        sheet.querySelector('.sym').textContent = it.s; sheet.querySelector('h3').textContent = `${toAr(it.no)} · ${it.n}`;
+        sheet.querySelector('.sp').textContent = `${it.p} د.ع · ${it.d}`;
+        const add = sheet.querySelector('.add'); add.dataset.n = it.n; add.dataset.p = it.p;
+        sheet.classList.add('on'); scrim.classList.add('on'); return;
+      }
+      if (e.target.closest('.scrim')) { sheet.classList.remove('on'); scrim.classList.remove('on'); }
+    },
+    init() {
+      // adding from the sheet closes it again
+      screen.querySelector('.sheet .add').addEventListener('click', () => setTimeout(() => { screen.querySelector('.sheet').classList.remove('on'); screen.querySelector('.scrim').classList.remove('on'); }, 160));
+    },
+  },
+  met: {
+    init() {
+      const train = screen.querySelector('.train');
+      spy(screen, 'y', id => { mark('.map [data-to]', id); const b = screen.querySelector(`.map [data-to="${id}"]`); train.style.right = `${b.offsetLeft === undefined ? 0 : b.parentElement.clientWidth - b.offsetLeft - b.offsetWidth / 2 - 13}px`; });
+    },
+    go(id) { jumpY(id, screen.querySelector('.map').offsetHeight - 4); },
+  },
+  cab: {
+    click(e) {
+      const f = e.target.closest('.front'); if (!f) return;
+      const dr = f.parentElement, was = dr.classList.contains('on');
+      screen.querySelectorAll('.dr').forEach(d => d.classList.remove('on'));
+      if (!was) { dr.classList.add('on'); setTimeout(() => screen.scrollTo({ top: topOf(dr) - 12, behavior: reduce ? 'instant' : 'smooth' }), 120); }
+    },
+  },
+  shf: {
+    init() { const nav = screen.querySelector('.signs'); spy(screen, 'y', id => mark('.signs [data-to]', id)); },
+    go(id) { jumpY(id, screen.querySelector('.signs').offsetHeight); },
+  },
+  tkt: {
+    init() { spy(screen.querySelector('.board'), 'x', id => mark('.rails [data-to]', id)); },
+    go(id) { const b = screen.querySelector('.board'), c = b.querySelector(`[data-sec="${id}"]`); b.scrollTo({ left: c.offsetLeft - b.offsetWidth + c.offsetWidth + 14, behavior: reduce ? 'instant' : 'smooth' }); },
+  },
+  mag: {
+    init() { spy(screen, 'y', id => mark('.toc [data-to]', id)); },
+    go(id) { jumpY(id, screen.querySelector('.toc').offsetHeight); },
+  },
+  top: {
+    init() { spy(screen, 'y', id => mark('.napkins [data-to]', id)); },
+    go(id) { jumpY(id, screen.querySelector('.napkins').offsetHeight); },
+  },
+};
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>
