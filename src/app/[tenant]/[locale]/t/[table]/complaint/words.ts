@@ -7,6 +7,7 @@ import type { Locale } from '@/lib/locale';
 export const WORDS = {
   en: {
     title: 'Tell us what went wrong',
+    link: 'Something wrong? Tell the manager',
     table: 'Table {n}',
     intro: 'Your message goes to the manager, not to the staff at your table.',
     what: 'What happened?',
@@ -33,6 +34,7 @@ export const WORDS = {
   },
   ar: {
     title: 'أخبرنا بما حدث',
+    link: 'عندك ملاحظة؟ أخبر المدير',
     table: 'الطاولة {n}',
     intro: 'تصل رسالتك إلى المدير وليس إلى موظفي طاولتك.',
     what: 'ماذا حدث؟',
@@ -59,6 +61,7 @@ export const WORDS = {
   },
   ckb: {
     title: 'پێمان بڵێ چی ڕوویدا',
+    link: 'کێشەیەک هەیە؟ بە بەڕێوەبەر بڵێ',
     table: 'مێزی {n}',
     intro: 'نامەکەت دەگاتە بەڕێوەبەر، نەک ستافی مێزەکەت.',
     what: 'چی ڕوویدا؟',
@@ -86,3 +89,4 @@ export const WORDS = {
 } as const satisfies Record<Locale, Record<string, string>>;
 
 export const COMPLAINT_TITLE = (locale: Locale, table: number) => ({ title: WORDS[locale].title, table: WORDS[locale].table.replace('{n}', String(table)), intro: WORDS[locale].intro });
+export const COMPLAINT_LINK = (locale: Locale) => WORDS[locale].link;
