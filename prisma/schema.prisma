@@ -125,6 +125,7 @@ model Restaurant {
   posPayments           PosPayment[]
   posShifts             PosShift[]
   posCashExpenses       PosCashExpense[]
+  posSyncOperations     PosSyncOperation[]
 
   @@index([name])
   @@index([city])
@@ -1474,6 +1475,28 @@ model PosCashExpense {
 
   @@index([shiftId])
   @@index([restaurantId, createdAt])
+}
+
+/// One operation a till device queued while offline, applied exactly once: the action and this row commit together.
+model PosSyncOperation {
+  id           String     @id @default(cuid())
+  restaurantId String
+  /// Plain id (no relation): the person whose till sent it.
+  userId       String
+  deviceId     String
+  /// The client's uuid: the idempotency key, unique per restaurant.
+  operationId  String
+  kind         String
+  /// sha256 of the canonical payload: the same id with another payload is refused.
+  payloadHash  String
+  /// What the action answered, stored in the same transaction; a repeat of the operation answers this.
+  result       Json
+  clientAt     DateTime
+  appliedAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, operationId])
+  @@index([restaurantId, appliedAt])
 }
 
 enum PosCustomerOrderStatus {
