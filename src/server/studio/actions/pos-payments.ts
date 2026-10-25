@@ -51,6 +51,9 @@ export const payPosOrder = defineAction({
           status: { before: done.from, after: 'PAID' },
         },
       });
+      if (done.consumed > 0) {
+        ctx.audit({ action: 'pos.stock.consume', entityType: 'PosPayment', entityId: done.paymentId, changes: { movements: { before: null, after: done.consumed } } });
+      }
       return { paymentId: done.paymentId, change: done.change, total: done.total };
     });
   },

@@ -10,6 +10,7 @@ import { resolveDevice } from '@/server/pos/pin';
 import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
 import { query } from '@/server/studio/framework/invoke';
+import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
@@ -30,7 +31,8 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const t = getStudioTranslator(entry.actor.locale);
   const sharedDevice = (await resolveDevice(getPrisma(), (await cookies()).get(DEVICE_COOKIE)?.value))?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
-  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
+  const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
+  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));
   return (
     <div className="flex min-h-dvh flex-col">
       <a

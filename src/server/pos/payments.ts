@@ -5,6 +5,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { effectiveRates, loadOrderForChange, optionsSnapshotSchema, orderTotals, pricedLine, readRates } from './orders';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import { consumeForPayment } from './recipes';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
 
@@ -87,7 +88,9 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     },
     select: { id: true },
   });
-  return { paymentId: payment.id, method: input.method, orderId: order.id, number: order.number, change: input.amountReceived - totals.total, total: totals.total, from: order.status, shiftId };
+  // Stock: a product with a recipe takes its ingredients out in this same transaction (never refused for lack of stock).
+  const consumed = await consumeForPayment(db, restaurantId, input.userId, { paymentId: payment.id, lines: live.map((line) => ({ orderLineId: line.id, productId: line.productId, quantity: line.quantity })) });
+  return { paymentId: payment.id, method: input.method, orderId: order.id, number: order.number, change: input.amountReceived - totals.total, total: totals.total, from: order.status, shiftId, consumed };
 }
 
 export interface Receipt {

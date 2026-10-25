@@ -2,6 +2,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ar';
 import menuMotions from './menu-motions/ar';
+import posStock from './pos-stock/ar';
 import posTill from './pos-till/ar';
 
 const ar: Messages = {
@@ -2754,6 +2755,8 @@ const ar: Messages = {
   ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/ar.ts)
   ...posTill,
+  // Stock, purchases, complaints and the range report (pos-stock/ar.ts)
+  ...posStock,
 };
 
 export default ar;

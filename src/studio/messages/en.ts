@@ -1,6 +1,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/en';
 import menuMotions from './menu-motions/en';
+import posStock from './pos-stock/en';
 import posTill from './pos-till/en';
 
 const en: Messages = {
@@ -2725,6 +2726,8 @@ const en: Messages = {
   ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/en.ts)
   ...posTill,
+  // Stock, purchases, complaints and the range report (pos-stock/en.ts)
+  ...posStock,
 };
 
 export default en;

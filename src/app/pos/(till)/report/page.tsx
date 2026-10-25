@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { baghdadDayOf, isCalendarDay } from '@/lib/baghdad';
 import { getPosAccess } from '@/server/pos/actor';
 import { query } from '@/server/studio/framework/invoke';
@@ -22,6 +23,11 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
   return (
     <>
       <PageHeader title={t('pos.report.title')} />
+      <div className="px-8 pb-4 print:hidden">
+        <Link href="/pos/report/range" className="inline-flex min-h-12 items-center text-base underline underline-offset-2">
+          {t('pos.range.title')}
+        </Link>
+      </div>
       <DailyReportView report={report} />
     </>
   );
