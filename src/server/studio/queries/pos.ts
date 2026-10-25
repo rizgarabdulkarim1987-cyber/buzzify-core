@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { baghdadMonthOf } from '@/lib/baghdad';
 import { effectiveStatus } from '@/server/domain/billing/subscriptions';
 import { readFloor } from '@/server/pos/floor';
 import { readOrderView } from '@/server/pos/orders';
@@ -103,7 +104,7 @@ export const posOverview = defineQuery({
   target: () => ({ kind: 'platform' }) as const,
   run: async (ctx) => {
     const now = new Date();
-    const [subscriptions, staff, settings] = await Promise.all([
+    const [subscriptions, staff, settings, aiPackages, aiUsage] = await Promise.all([
       ctx.db.subscription.findMany({
         where: { applicationId: 'cashier' },
         orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
@@ -111,7 +112,11 @@ export const posOverview = defineQuery({
       }),
       ctx.db.posStaff.groupBy({ by: ['restaurantId'], where: { deactivatedAt: null }, _count: { _all: true } }),
       ctx.db.posSettings.findMany({ where: { catalogMenuId: { not: null } }, select: { restaurantId: true } }),
+      ctx.db.posAiPackage.findMany({ select: { restaurantId: true, enabled: true, monthlyLimit: true } }),
+      ctx.db.posAiUsageMonth.findMany({ where: { month: baghdadMonthOf(now) }, select: { restaurantId: true, requests: true } }),
     ]);
+    const aiOf = new Map(aiPackages.map((row) => [row.restaurantId, row]));
+    const aiUsed = new Map(aiUsage.map((row) => [row.restaurantId, row.requests]));
     const newest = new Map<string, (typeof subscriptions)[number]>();
     for (const row of subscriptions) if (!newest.has(row.restaurantId)) newest.set(row.restaurantId, row);
     const staffOf = new Map(staff.map((row) => [row.restaurantId, row._count._all]));
@@ -131,6 +136,7 @@ export const posOverview = defineQuery({
           status: subscription ? effectiveStatus(subscription, now) : ('NONE' as const),
           staff: staffOf.get(restaurant.id) ?? 0,
           catalogChosen: chosen.has(restaurant.id),
+          ai: { enabled: aiOf.get(restaurant.id)?.enabled ?? false, limit: aiOf.get(restaurant.id)?.monthlyLimit ?? 0, used: aiUsed.get(restaurant.id) ?? 0 },
         };
       }),
     };

@@ -7,6 +7,7 @@ import { currentDevice } from '@/server/pos/device-session';
 import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
 import { query } from '@/server/studio/framework/invoke';
+import { posAiState } from '@/server/studio/queries/pos-ai';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
@@ -30,7 +31,8 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
-  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));
+  const ai = canPos(entry.actor.role, 'report.view') ? await query(posAiState, {}) : { enabled: false };
+  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));
   return (
     <div className="flex min-h-dvh flex-col">
       <a

@@ -11,6 +11,7 @@ import { requestStudioLocale } from '@/studio/request-locale';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
+import { AiPackageControl } from './AiPackageControl';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('cashierOverview.title') };
@@ -42,6 +43,7 @@ export default async function CashierOverviewPage() {
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.subscription')}</th>
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.staff')}</th>
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.catalog')}</th>
+                  <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.ai')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -57,6 +59,9 @@ export default async function CashierOverviewPage() {
                     </td>
                     <td className="px-4 py-3 tabular-nums text-text">{row.staff}</td>
                     <td className="px-4 py-3 text-text">{row.catalogChosen ? t('cashierOverview.catalogSet') : t('cashierOverview.catalogMissing')}</td>
+                    <td className="px-4 py-3">
+                      <AiPackageControl restaurantId={row.id} enabled={row.ai.enabled} limit={row.ai.limit} used={row.ai.used} />
+                    </td>
                   </tr>
                 ))}
               </tbody>

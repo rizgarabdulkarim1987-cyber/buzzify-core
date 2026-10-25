@@ -7,6 +7,7 @@ export const TILL_PAGES = [
   { key: 'shift', href: '/pos/shift', permission: 'shift.use' },
   { key: 'kitchen', href: '/pos/kitchen', permission: 'kitchen.view' },
   { key: 'report', href: '/pos/report', permission: 'report.view' },
+  { key: 'ai', href: '/pos/ai', permission: 'report.view', needsAi: true },
   { key: 'inventory', href: '/pos/inventory', permission: 'inventory.view' },
   { key: 'purchases', href: '/pos/purchases', permission: 'purchase.manage' },
   { key: 'complaints', href: '/pos/complaints', permission: 'complaint.view', needsComplaints: true },
@@ -16,16 +17,16 @@ export const TILL_PAGES = [
   { key: 'qr', href: '/pos/qr', permission: 'settings.manage', needsQr: true },
   { key: 'delivery', href: '/pos/delivery', permission: 'settings.manage', needsDelivery: true },
   { key: 'settings', href: '/pos/settings', permission: 'settings.manage' },
-] as const satisfies ReadonlyArray<{ key: string; href: string; permission: PosPermission; needsQr?: true; needsDelivery?: true; needsComplaints?: true }>;
+] as const satisfies ReadonlyArray<{ key: string; href: string; permission: PosPermission; needsQr?: true; needsDelivery?: true; needsComplaints?: true; needsAi?: true }>;
 
 export type TillPageKey = (typeof TILL_PAGES)[number]['key'];
 
 /**
- * The pages this role may open, in menu order: nothing is listed that would answer 404 or refuse. The pages of QR ordering
- * and of delivery are listed only while the restaurant has switched them on.
+ * The pages this role may open, in menu order: nothing is listed that would answer 404 or refuse. The pages of QR ordering,
+ * of delivery and of the AI package are listed only while the restaurant has switched them on.
  */
-export function tillNav(role: PosRole, options: { qrOrdering?: boolean; delivery?: boolean; complaints?: boolean } = {}): ReadonlyArray<{ key: TillPageKey; href: string }> {
-  return TILL_PAGES.filter((page) => canPos(role, page.permission) && (!('needsQr' in page) || options.qrOrdering === true) && (!('needsDelivery' in page) || options.delivery === true) && (!('needsComplaints' in page) || options.complaints === true)).map(({ key, href }) => ({ key, href }));
+export function tillNav(role: PosRole, options: { qrOrdering?: boolean; delivery?: boolean; complaints?: boolean; ai?: boolean } = {}): ReadonlyArray<{ key: TillPageKey; href: string }> {
+  return TILL_PAGES.filter((page) => canPos(role, page.permission) && (!('needsQr' in page) || options.qrOrdering === true) && (!('needsDelivery' in page) || options.delivery === true) && (!('needsComplaints' in page) || options.complaints === true) && (!('needsAi' in page) || options.ai === true)).map(({ key, href }) => ({ key, href }));
 }
 
 /** Whether a role may open a till page by its address: the nav hides a page, this is what the page itself checks. */
