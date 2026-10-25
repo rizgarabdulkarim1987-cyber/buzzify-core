@@ -44,8 +44,8 @@ describe('the queueable operations', () => {
 
   it('takes one to 25 operations in a request', () => {
     const op = samples.requestBill;
-    expect(syncRequestSchema.safeParse({ deviceId: base.deviceId, operations: [] }).success).toBe(false);
-    expect(syncRequestSchema.safeParse({ deviceId: base.deviceId, operations: Array(25).fill(op) }).success).toBe(true);
-    expect(syncRequestSchema.safeParse({ deviceId: base.deviceId, operations: Array(26).fill(op) }).success).toBe(false);
+    expect(syncRequestSchema.safeParse({ scope: "r1:u1", deviceId: base.deviceId, operations: [] }).success).toBe(false);
+    expect(syncRequestSchema.safeParse({ scope: "r1:u1", deviceId: base.deviceId, operations: Array(25).fill(op) }).success).toBe(true);
+    expect(syncRequestSchema.safeParse({ scope: "r1:u1", deviceId: base.deviceId, operations: Array(26).fill(op) }).success).toBe(false);
   });
 });
