@@ -18,6 +18,8 @@ export default styleMessages(
     'styles.detail.number': 'No. {number}',
     'styles.detail.frame': 'Style preview',
     'styles.detail.open': 'Open full screen',
+    'styles.detail.previous': 'Previous style',
+    'styles.detail.next': 'Next style',
   },
   {
     'themed-kurd': ['Jajim and Nowruz', 'Woven Kurdish rugs, a Nowruz fire and dancers between the sections'],

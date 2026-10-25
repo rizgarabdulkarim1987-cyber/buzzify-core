@@ -18,6 +18,8 @@ export default styleMessages(
     'styles.detail.number': 'ژمارە {number}',
     'styles.detail.frame': 'پێشبینینی ستایل',
     'styles.detail.open': 'بە شاشەی تەواو بیکەرەوە',
+    'styles.detail.previous': 'ستایلی پێشوو',
+    'styles.detail.next': 'ستایلی دواتر',
   },
   {
     'themed-kurd': ['جاجم و نەورۆز', 'جاجمی چنراو، ئاگری نەورۆز و هەڵپەڕکێ لە نێوان بەشەکان'],

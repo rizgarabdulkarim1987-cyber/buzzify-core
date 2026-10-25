@@ -18,6 +18,8 @@ export default styleMessages(
     'styles.detail.number': 'رقم {number}',
     'styles.detail.frame': 'معاينة النمط',
     'styles.detail.open': 'افتح بملء الشاشة',
+    'styles.detail.previous': 'النمط السابق',
+    'styles.detail.next': 'النمط التالي',
   },
   {
     'themed-kurd': ['جاجيم ونوروز', 'سجاد كردي منسوج ونار نوروز وراقصون بين الأقسام'],

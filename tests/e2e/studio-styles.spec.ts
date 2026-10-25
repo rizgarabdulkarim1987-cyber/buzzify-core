@@ -29,7 +29,8 @@ test.describe('the Menu Styles gallery @desktop', () => {
     const poster = first.locator('img');
     await expect(poster).toHaveAttribute('src', '/studio/style-files/poster/themed-kurd');
     // The poster has loaded at its own size, so the signed-in route served it.
-    await expect.poll(() => poster.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(344);  });
+    await expect.poll(() => poster.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBe(344);
+  });
 
   test('searches the styles and clears the filters', async ({ browser }) => {
     const page = await superAdminPage(browser);
@@ -64,4 +65,57 @@ test.describe('the Menu Styles gallery @desktop', () => {
     await expect(page).toHaveURL(/\/studio/);
     await expect(page).not.toHaveURL(/\/studio\/styles/);
   });
+});
+
+test.describe('a Menu Style in its phone frame @desktop', () => {
+  const airport = en('styles.layout-2-dep.name');
+
+  test('opens a style from its card and runs it in the frame', async ({ browser }) => {
+    const page = await superAdminPage(browser);
+    await page.goto('/studio/styles');
+    await page.getByRole('link', { name: new RegExp(airport) }).click();
+    await expect(page).toHaveURL(/\/studio\/styles\/layout-2-dep$/);
+    await expect(page.getByRole('heading', { level: 1, name: new RegExp(airport) })).toBeVisible();
+    await expect(page).toHaveTitle(new RegExp(`^${airport} · `));
+
+    const frame = page.frameLocator(`iframe[title="${airport}"]`);
+    // Solo mode: the style is open full size, its own gallery hidden.
+    await expect(frame.locator('.app.on')).toBeVisible();
+    const sum = frame.locator('#screen .cart .sum');
+    await expect(sum).toHaveText(/^٠ /);
+    await frame.locator('#screen .add').first().click();
+    await expect(sum).not.toHaveText(/^٠ /);
+  });
+
+  test('links to the neighbours and to the full-screen page', async ({ browser }) => {
+    const page = await superAdminPage(browser);
+    await page.goto('/studio/styles/layout-2-dep');
+    await expect(page.getByRole('link', { name: en('styles.detail.previous') })).toHaveAttribute('href', '/studio/styles/layout-top');
+    await expect(page.getByRole('link', { name: en('styles.detail.next') })).toHaveAttribute('href', '/studio/styles/layout-2-cmc');
+    const open = page.getByRole('link', { name: en('styles.detail.open') });
+    await expect(open).toHaveAttribute('href', '/studio/style-files/page/layout-2?style=dep');
+    await expect(open).toHaveAttribute('target', '_blank');
+    // The first style's previous is the last one: the list wraps.
+    await page.goto('/studio/styles/themed-kurd');
+    await expect(page.getByRole('link', { name: en('styles.detail.previous') })).toHaveAttribute('href', '/studio/styles/layout-2-box');
+  });
+
+  test('fits the whole phone on a short screen', async ({ browser }) => {
+    const page = await superAdminPage(browser);
+    await page.setViewportSize({ width: 1280, height: 700 });
+    await page.goto('/studio/styles/layout-2-dep');
+    const phone = page.locator('[data-phone]');
+    await expect(phone).toBeVisible();
+    const box = (await phone.boundingBox())!;
+    expect(box.y + box.height).toBeLessThanOrEqual(700);
+    expect(box.height).toBeGreaterThan(400);
+  });
+
+  for (const id of ['themed-par', 'nope']) {
+    test(`shows "not found" for ${id}`, async ({ browser }) => {
+      const page = await superAdminPage(browser);
+      await page.goto(`/studio/styles/${id}`);
+      await expect(page.getByRole('heading', { level: 1, name: en('common.notFoundTitle') })).toBeVisible();
+    });
+  }
 });
