@@ -1,5 +1,6 @@
 'use client';
 
+import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
@@ -71,6 +72,10 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
         <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} />
         <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
+        {summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
+        {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
+          <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
+        ))}
         <div className="flex justify-between border-t border-line pt-2 text-lg font-semibold">
           <dt>{t('pos.shift.expected')}</dt>
           <dd>{money(summary.expectedCash)}</dd>

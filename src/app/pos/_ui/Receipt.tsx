@@ -5,10 +5,12 @@ import { formatNumber, formatStamp } from '@/lib/pos-format';
 import type { Receipt as ReceiptData } from '@/server/pos/payments';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
+import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { useMoney } from './money';
+import { ReverseButton } from './ReverseDialog';
 
 /** The paid order as a slip: printable at 80 mm, with the screen controls left out of the print. */
-export function Receipt({ receipt }: { receipt: ReceiptData }) {
+export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; canRefund?: boolean }) {
   const t = useT();
   const money = useMoney();
   const s = receipt.snapshot;
@@ -59,11 +61,27 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
           <dt>{t('pos.totals.total')}</dt>
           <dd>{money(s.total)}</dd>
         </div>
-        <Line label={t('pos.receipt.cash')} value={money(receipt.amountReceived)} />
-        <Line label={t('pos.pay.change')} value={money(receipt.change)} />
+        <Line label={receipt.method === 'CASH' ? t('pos.receipt.cash') : t(`pos.method.${receipt.method}`)} value={money(receipt.amountReceived)} />
+        {receipt.method === 'CASH' ? <Line label={t('pos.pay.change')} value={money(receipt.change)} /> : null}
+        {receipt.reference ? (
+          <div className="flex justify-between gap-3 text-muted" data-testid="receipt-reference">
+            <dt>{t('pos.receipt.reference')}</dt>
+            <dd dir="ltr">{receipt.reference}</dd>
+          </div>
+        ) : null}
       </dl>
+      {receipt.reversal ? (
+        <div className="flex flex-col items-center gap-1 rounded-md border-2 border-danger p-2 text-center" data-testid="receipt-reversed">
+          <strong className="text-lg tracking-wide text-danger">{t('pos.receipt.reversed')}</strong>
+          <span className="text-base font-semibold">{money(receipt.reversal.amount)}</span>
+          <span className="text-sm text-muted">{t('pos.receipt.reversedBy', { name: receipt.reversal.byName, time: formatStamp(receipt.reversal.at) })}</span>
+          <span className="text-sm" dir="auto">{receipt.reversal.reason}</span>
+          {receipt.reversal.reference ? <span className="text-sm text-muted" dir="ltr">{receipt.reversal.reference}</span> : null}
+        </div>
+      ) : null}
       <p className="text-center text-sm text-muted">{t('pos.receipt.thanks')}</p>
       <div className="flex flex-col gap-2 print:hidden">
+        {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} /> : null}
         <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>

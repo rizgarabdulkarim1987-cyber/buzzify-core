@@ -3,11 +3,13 @@ import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
+import { currentDevice } from '@/server/pos/device-session';
 import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
 import { query } from '@/server/studio/framework/invoke';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
+import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
 import { TillNav } from '@/app/pos/_ui/TillNav';
 import { OfflineRedirect } from '@/app/pos/_ui/sync/OfflineRedirect';
 import { RegisterSw } from '@/app/pos/_ui/sync/RegisterSw';
@@ -24,6 +26,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (entry.kind === 'inactive') redirect('/pos/inactive');
 
   const t = getStudioTranslator(entry.actor.locale);
+  const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
   return (
@@ -43,6 +46,10 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
           <span>
             {entry.actor.name} · {t(`pos.role.${entry.actor.role}`)}
           </span>
+          <Link href="/pos/pin" className="underline underline-offset-2">
+            {t('pos.pin.title')}
+          </Link>
+          {sharedDevice ? <SwitchUserButton /> : null}
           <Link href="/studio/account" className="underline underline-offset-2">
             {t('pos.shell.account')}
           </Link>

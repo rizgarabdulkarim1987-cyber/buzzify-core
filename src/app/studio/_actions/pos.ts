@@ -5,6 +5,7 @@ import * as delivery from '@/server/studio/actions/pos-delivery';
 import * as kitchen from '@/server/studio/actions/pos-kitchen';
 import * as orders from '@/server/studio/actions/pos-orders';
 import * as payments from '@/server/studio/actions/pos-payments';
+import * as pin from '@/server/studio/actions/pos-pin';
 import * as requests from '@/server/studio/actions/pos-requests';
 import * as shifts from '@/server/studio/actions/pos-shifts';
 import { invoke, invokeQuery } from '@/server/studio/framework/invoke';
@@ -238,4 +239,20 @@ export async function assignPosDriver(input: unknown) {
 /** The last delivery to a phone number, to fill in a returning customer's details. */
 export async function lookupPosCustomer(input: unknown) {
   return invokeQuery(deliveryQueries.posRecentCustomer, input);
+}
+
+export async function reversePosPayment(input: unknown) {
+  return invoke(payments.reversePosPayment, input);
+}
+
+export async function setOwnPosPin(input: unknown) {
+  return invoke(pin.setOwnPosPin, input);
+}
+
+export async function clearPosStaffPin(input: unknown) {
+  return invoke(pin.clearPosStaffPin, input);
+}
+
+export async function revokePosDevice(input: unknown) {
+  return invoke(pin.revokePosDevice, input);
 }

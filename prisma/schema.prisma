@@ -126,6 +126,9 @@ model Restaurant {
   posShifts             PosShift[]
   posCashExpenses       PosCashExpense[]
   posSyncOperations     PosSyncOperation[]
+  posPaymentReversals   PosPaymentReversal[]
+  posSharedDevices      PosSharedDevice[]
+  posPinAttempts        PosPinAttempt[]
 
   @@index([name])
   @@index([city])
@@ -623,21 +626,21 @@ enum MemberRole {
 
 /// A person who signs in to the Studio (Better Auth's table). Accounts are created by invitation only.
 model User {
-  id               String           @id
+  id               String               @id
   name             String
   /// Lower case and trimmed, unique.
   email            String
-  emailVerified    Boolean          @default(false)
+  emailVerified    Boolean              @default(false)
   image            String?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  twoFactorEnabled Boolean?         @default(false)
-  isSuperAdmin     Boolean          @default(false)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  twoFactorEnabled Boolean?             @default(false)
+  isSuperAdmin     Boolean              @default(false)
   /// The one account that sells: only it changes plans. At most one row is true (a partial unique index in the
   /// migration), and it counts only while the person is a Super Admin.
-  isPlatformOwner  Boolean          @default(false)
+  isPlatformOwner  Boolean              @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
-  locale           String           @default("en")
+  locale           String               @default("en")
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt    DateTime?
   sessions         Session[]
@@ -649,6 +652,7 @@ model User {
   posShifts        PosShift[]
   posCashExpenses  PosCashExpense[]
   posPayments      PosPayment[]
+  posReversals     PosPaymentReversal[]
 
   @@unique([email])
   @@map("user")
@@ -1412,9 +1416,9 @@ model PosOrderLine {
 }
 
 model PosPayment {
-  id             String           @id @default(cuid())
+  id             String              @id @default(cuid())
   restaurantId   String
-  orderId        String           @unique
+  orderId        String              @unique
   method         PosPaymentMethod
   /// Integer IQD handed over by the customer.
   amountReceived Int
@@ -1422,11 +1426,12 @@ model PosPayment {
   totalsSnapshot Json
   userId         String?
   shiftId        String?
-  paidAt         DateTime         @default(now())
-  restaurant     Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  order          PosOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  user           User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
-  shift          PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  paidAt         DateTime            @default(now())
+  restaurant     Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order          PosOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift          PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  reversal       PosPaymentReversal?
 
   @@index([restaurantId, paidAt])
   @@index([shiftId])
@@ -1435,10 +1440,10 @@ model PosPayment {
 /// One person's cash drawer from opening to count. One open shift per person and restaurant: the partial unique index
 /// "PosShift_one_open_per_user" (raw SQL in the migration).
 model PosShift {
-  id                  String           @id @default(cuid())
+  id                  String               @id @default(cuid())
   restaurantId        String
   userId              String
-  openedAt            DateTime         @default(now())
+  openedAt            DateTime             @default(now())
   /// Integer IQD in the drawer when the shift opened. Zero is allowed.
   openingFloat        Int
   closedAt            DateTime?
@@ -1449,11 +1454,12 @@ model PosShift {
   expectedCashAtClose Int?
   /// countedCash minus expectedCashAtClose: positive is over, negative is short.
   difference          Int?
-  note                String           @default("")
-  restaurant          Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  user                User             @relation(fields: [userId], references: [id], onDelete: NoAction)
+  note                String               @default("")
+  restaurant          Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: NoAction)
   payments            PosPayment[]
   expenses            PosCashExpense[]
+  reversals           PosPaymentReversal[]
 
   @@index([restaurantId, openedAt])
   @@index([userId])
@@ -1554,4 +1560,58 @@ model PosCustomerOrderLine {
 
   @@index([requestId])
   @@index([restaurantId])
+}
+
+/// A full reversal of one payment, recorded as a counter-entry under the reverser's name. One per payment; the payment
+/// row is never edited. It counts in the shift where it was recorded.
+model PosPaymentReversal {
+  id           String           @id @default(cuid())
+  restaurantId String
+  paymentId    String           @unique
+  orderId      String
+  method       PosPaymentMethod
+  /// Integer IQD: the payment's snapshot total.
+  amount       Int
+  /// Free text copied from the terminal for a terminal method.
+  reference    String?
+  reason       String
+  userId       String?
+  shiftId      String?
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift        PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([shiftId])
+}
+
+/// A till device a manager registered for quick PIN sign-in. Only the sha256 of its cookie token is stored.
+model PosSharedDevice {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  name            String
+  tokenHash       String     @unique
+  createdByUserId String?
+  createdAt       DateTime   @default(now())
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// One PIN attempt on a device, for the per-device limit. Plain ids; never holds the PIN.
+model PosPinAttempt {
+  id           String     @id @default(cuid())
+  restaurantId String
+  deviceId     String
+  staffId      String
+  ok           Boolean
+  at           DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, at])
+  @@index([staffId, at])
 }

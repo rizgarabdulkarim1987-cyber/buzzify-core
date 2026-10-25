@@ -310,7 +310,7 @@ export function OrderScreen({
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} />
 
-      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} />
+      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} methods={order.paymentMethods} />
 
       <ConfirmDialog
         open={dialog === 'cancelOrder'}

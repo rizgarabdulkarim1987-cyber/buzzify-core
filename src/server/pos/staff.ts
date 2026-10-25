@@ -13,6 +13,8 @@ export interface PosStaffView {
   role: PosRole;
   viaMembership: boolean;
   active: boolean;
+  /** Whether the person has set a quick sign-in PIN (never the PIN itself). */
+  hasPin: boolean;
   createdAt: string;
 }
 
@@ -45,6 +47,7 @@ export async function listPosStaff(db: PrismaClient, restaurantId: string): Prom
       role: 'OWNER' as const,
       viaMembership: true,
       active: member.user.deactivatedAt === null,
+      hasPin: false,
       createdAt: member.createdAt.toISOString(),
     })),
     // A staff row of someone who is also an OWNER member is hidden: the membership is what counts.
@@ -58,6 +61,7 @@ export async function listPosStaff(db: PrismaClient, restaurantId: string): Prom
         role: row.role,
         viaMembership: false,
         active: row.deactivatedAt === null && row.user.deactivatedAt === null,
+        hasPin: row.pinHash !== null,
         createdAt: row.createdAt.toISOString(),
       })),
   ];

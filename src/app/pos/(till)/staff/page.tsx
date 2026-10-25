@@ -5,6 +5,7 @@ import { posStaff } from '@/server/studio/queries/pos';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
+import { RolesMatrix } from '@/app/pos/_ui/RolesMatrix';
 import { AddStaffForm, StaffList } from './StaffForms';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -21,6 +22,7 @@ export default async function PosStaffPage() {
       <div className="flex flex-col gap-8 px-8 pb-8">
         <StaffList people={people} ownRole={access.actor?.role ?? 'CASHIER'} ownUserId={access.actor?.userId ?? ''} />
         <AddStaffForm ownRole={access.actor?.role ?? 'CASHIER'} />
+        <RolesMatrix />
       </div>
     </>
   );
