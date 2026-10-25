@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
-import { aiErrorCode } from '@/server/ai/ai-error-code';
-import { AiProviderError } from '@/server/ai/errors';
-import { clearAiProviderCache, pingAiProvider, resolveAiProvider, aiSettingsInput, AiSettingsKeyError, writeAiSettings } from '@/server/ai/settings';
+import { checkAiProvider, type HealthCheck } from '@/server/ai/health';
+import { clearAiProviderCache, resolveAiProvider, aiSettingsInput, AiSettingsKeyError, writeAiSettings } from '@/server/ai/settings';
 import { StudioError } from '@/server/studio/framework/result';
 import { defineAction } from '@/server/studio/framework/action';
 
@@ -38,8 +37,8 @@ export const saveAiSettings = defineAction({
 });
 
 /**
- * One tiny real request, so the owner learns at once whether the saved key and model work. Nothing is stored and no
- * restaurant's usage is counted. Answers { ok: true } or { ok: false, code } like the till's AI actions.
+ * Tries the saved provider the three ways the till uses it, so a problem is named here and not met at the till. Nothing is
+ * stored and no restaurant's usage is counted.
  */
 export const testAiProvider = defineAction({
   name: 'ai.testProvider',
@@ -48,13 +47,9 @@ export const testAiProvider = defineAction({
   target: () => PLATFORM,
   run: async (ctx) => {
     clearAiProviderCache();
-    try {
-      const provider = await resolveAiProvider(ctx.db);
-      if (!provider) return { ok: false as const, code: 'aiUnavailable' as const, provider: null, detail: 'no key' };
-      await pingAiProvider(provider);
-      return { ok: true as const, provider: provider.name, detail: null };
-    } catch (error) {
-      return { ok: false as const, code: aiErrorCode(error), provider: null, detail: error instanceof AiProviderError ? error.detail : error instanceof Error ? error.name : null };
-    }
+    const provider = await resolveAiProvider(ctx.db);
+    if (!provider) return { ok: false, provider: null, checks: [] as HealthCheck[], detail: 'no key' };
+    const checks = await checkAiProvider(provider);
+    return { ok: checks.every((check) => check.ok), provider: provider.name, checks, detail: null };
   },
 });
