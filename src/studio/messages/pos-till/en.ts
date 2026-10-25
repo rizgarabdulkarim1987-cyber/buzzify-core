@@ -412,7 +412,7 @@ const posTill: Messages = {
   'pos.sync.signedOut': 'Signed out · sign in to send',
   'pos.offline.title': 'Offline till',
   'pos.offline.bannerOffline': 'No connection. You are working from the copy saved on this device; everything you do is sent when the connection returns.',
-  'pos.offline.bannerOnline': 'Connected. Waiting operations are being sent.',
+  'pos.offline.bannerOnline': 'Connected.',
   'pos.offline.noCopy': 'Nothing is saved on this device yet. Open the till once with a connection first.',
   'pos.offline.noShift': 'No shift is open. Open one with a connection first.',
   'pos.offline.table': 'Table {n}',

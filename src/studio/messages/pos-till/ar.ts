@@ -412,7 +412,7 @@ const posTill: Messages = {
   'pos.sync.signedOut': 'انتهت الجلسة · سجّل الدخول للإرسال',
   'pos.offline.title': 'الكاشير بدون اتصال',
   'pos.offline.bannerOffline': 'لا يوجد اتصال. تعمل على النسخة المحفوظة في هذا الجهاز، وكل ما تفعله يُرسل عند عودة الاتصال.',
-  'pos.offline.bannerOnline': 'تم الاتصال. تُرسل العمليات المنتظرة الآن.',
+  'pos.offline.bannerOnline': 'تم الاتصال.',
   'pos.offline.noCopy': 'لا توجد نسخة محفوظة في هذا الجهاز بعد. افتح الكاشير مرة واحدة مع اتصال أولاً.',
   'pos.offline.noShift': 'لا توجد وردية مفتوحة. افتح واحدة مع اتصال أولاً.',
   'pos.offline.table': 'طاولة {n}',

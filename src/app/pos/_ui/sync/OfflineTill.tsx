@@ -2,7 +2,6 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import type { Refusal } from '@/lib/pos-sync/guards';
 import { deriveLocalState, localTotals, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { OpDraft } from '@/lib/pos-sync/queue';
 import { formatNumber, ltr } from '@/lib/pos-format';
@@ -137,7 +136,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
 
   const queue = async (draft: OpDraft): Promise<boolean> => {
     const result = await sync.enqueue(draft);
-    if (!result.ok) setMessage(t(`pos.offline.refuse.${result.reason satisfies Refusal}`));
+    if (!result.ok) setMessage(t(`pos.offline.refuse.${result.reason}`));
     else setMessage(null);
     return result.ok;
   };

@@ -1,8 +1,6 @@
 import { z } from 'zod';
-import { delegates } from '@/server/data/tenant-db';
 import { OP_KINDS } from '@/lib/pos-sync/op-schema';
 import { refuse } from '@/server/pos/errors';
-import { findStoredOperation } from '@/server/pos/sync-operation';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -31,22 +29,18 @@ export const discardPosSyncOperation = defineAction({
     if (ctx.pos === null || ctx.restaurantId === null) throw new Error('A till action ran without a till');
     // Cash was taken at the till for a payment: the reason is the only record of why it was not posted.
     if (input.kind === 'payCash' && input.reason === '') throw new StudioError('INVALID', 'Enter a reason', { reason: 'Enter a reason' });
-    if (await findStoredOperation(delegates(ctx.db), ctx.restaurantId, input.operationId)) {
+    if (await ctx.db.posSyncOperation.findFirst({ where: { restaurantId: ctx.restaurantId, operationId: input.operationId }, select: { id: true } })) {
       throw refuse('CONFLICT', 'This operation was already applied');
     }
-    ctx.audit({
-      action: 'pos.sync.discard',
-      entityType: 'PosSyncOperation',
-      entityId: input.operationId,
-      changes: {
-        kind: { before: input.kind, after: null },
-        deviceId: { before: input.deviceId, after: null },
-        clientAt: { before: input.clientAt, after: null },
-        ...(input.summary.amount !== undefined ? { amount: { before: input.summary.amount, after: null } } : {}),
-        ...(input.summary.lines !== undefined ? { lines: { before: input.summary.lines, after: null } } : {}),
-        reason: { before: null, after: input.reason },
-      },
-    });
+    const changes: Record<string, { before: unknown; after: unknown }> = {
+      kind: { before: input.kind, after: null },
+      deviceId: { before: input.deviceId, after: null },
+      clientAt: { before: input.clientAt, after: null },
+      reason: { before: null, after: input.reason },
+    };
+    if (input.summary.amount !== undefined) changes.amount = { before: input.summary.amount, after: null };
+    if (input.summary.lines !== undefined) changes.lines = { before: input.summary.lines, after: null };
+    ctx.audit({ action: 'pos.sync.discard', entityType: 'PosSyncOperation', entityId: input.operationId, changes });
     return { discarded: true as const };
   },
 });
