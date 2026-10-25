@@ -302,6 +302,15 @@ describe('Studio enforcement rules', () => {
       );
       expect(offenders).toEqual([]);
     });
+
+    it('has every file-serving route go through serveStyleFile, which checks the actor', () => {
+      const offenders = FILE_ROUTE_DIRS.flatMap((dir) => sourceFiles(dir.replace(/\/$/, ''))).filter(
+        (path) =>
+          /^route\.\w+$/.test(posix.basename(path)) &&
+          !/import\s*\{[^}]*serveStyleFile[^}]*\}\s*from\s*'@\/server\/studio\/style-files'/.test(read(path)),
+      );
+      expect(offenders).toEqual([]);
+    });
   });
 
   describe('6. no path under the Studio API has a dot (the proxy skips dotted paths)', () => {

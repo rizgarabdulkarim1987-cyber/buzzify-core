@@ -29,11 +29,11 @@ describe('style page files', () => {
     vi.mocked(getActor).mockResolvedValue(designer);
   });
 
-  it.each(STYLE_PAGES)('serves the %s page to a designer as private, cacheable HTML', async (name) => {
+  it.each(STYLE_PAGES)('serves the %s page to a designer as private HTML that is revalidated', async (name) => {
     const res = await page(name);
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
-    expect(res.headers.get('cache-control')).toBe('private, max-age=3600');
+    expect(res.headers.get('cache-control')).toBe('private, no-cache');
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     const html = await res.text();
     expect(html).toContain("get('style')");
@@ -56,6 +56,14 @@ describe('style page files', () => {
     expect((await page('motion')).status).toBe(404);
     vi.mocked(getActor).mockResolvedValue(null);
     expect((await page('motion')).status).toBe(404);
+  });
+
+  it('refuses a Super Admin who has not set up two-factor', async () => {
+    vi.mocked(getActor).mockResolvedValue({ ...designer, isSuperAdmin: true, twoFactorEnabled: false });
+    expect((await page('motion')).status).toBe(404);
+    expect((await poster('themed-kurd')).status).toBe(404);
+    vi.mocked(getActor).mockResolvedValue({ ...designer, isSuperAdmin: true, twoFactorEnabled: true });
+    expect((await page('motion')).status).toBe(200);
   });
 
   it.each(['..%2Fpackage.json', 'layout-2.html', 'LAYOUT', 'nope'])('answers 404 for the page name %s', async (name) => {

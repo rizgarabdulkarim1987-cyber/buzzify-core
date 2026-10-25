@@ -91,7 +91,7 @@ export function StyleDetail({ style }: { style: MenuStyle }) {
         }
       />
 
-      <section aria-label={t('styles.detail.frame')} className="flex min-w-0 justify-center px-8 pb-6 lg:flex-1 lg:pt-6">
+      <section aria-label={t('styles.detail.frame')} className="flex min-w-0 justify-[safe_center] px-8 pb-6 lg:flex-1 lg:pt-6">
         <div
           data-phone
           className="rounded-[calc(34px*var(--s)+8px)] bg-text p-2 ring-1 ring-line-strong"
