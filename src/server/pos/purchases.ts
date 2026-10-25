@@ -79,7 +79,8 @@ export interface InvoiceInput {
 export async function refreshLastCost(db: AnyDb, restaurantId: string, itemIds: readonly string[]): Promise<void> {
   for (const itemId of new Set(itemIds)) {
     const latest = await db.posPurchaseLine.findFirst({
-      where: { restaurantId, itemId, invoice: { voidedAt: null } },
+      // A line with no price (a gift) says nothing about cost; it must not make a cost of 0 look known.
+      where: { restaurantId, itemId, lineTotal: { gt: 0 }, invoice: { voidedAt: null } },
       orderBy: [{ invoice: { invoiceDay: 'desc' } }, { createdAt: 'desc' }, { id: 'desc' }],
       select: { quantity: true, lineTotal: true },
     });
@@ -160,7 +161,8 @@ export async function setPurchasePaid(db: AnyDb, restaurantId: string, invoiceId
   const wasPaid = invoice.paidAt !== null;
   const method = input.paid ? (input.method ?? null) : null;
   if (wasPaid === input.paid && (!input.paid || invoice.paidMethod === method)) return { changed: false as const, from: wasPaid, to: input.paid };
-  await db.posPurchaseInvoice.update({ where: { id: invoiceId }, data: { paidAt: input.paid ? new Date() : null, paidMethod: method } });
+  const { count } = await db.posPurchaseInvoice.updateMany({ where: { id: invoiceId, restaurantId, voidedAt: null }, data: { paidAt: input.paid ? new Date() : null, paidMethod: method } });
+  if (count === 0) throw refuse('CONFLICT', 'This invoice was already voided');
   return { changed: true as const, from: wasPaid, to: input.paid, method };
 }
 

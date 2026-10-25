@@ -68,7 +68,14 @@ export async function consumeForPayment(
       const used = recipe.quantity * line.quantity;
       if (!Number.isSafeInteger(used) || used > MAX_MOVEMENT * 100) throw new Error('A recipe consumes an impossible quantity');
       const cost = item.lastCostAmount !== null && item.lastCostQuantity !== null ? { amount: item.lastCostAmount, quantity: item.lastCostQuantity } : null;
-      movements.push({ itemId: item.id, kind: 'SALE', quantity: -used, costTotal: costOf(used, cost), paymentId: input.paymentId, orderLineId: line.orderLineId });
+      // A sale never fails for stock: a cost too large to store (a typo in a purchase) is recorded as unknown.
+      let costTotal: number | null = null;
+      try {
+        costTotal = costOf(used, cost);
+      } catch (error) {
+        if (!(error instanceof RangeError)) throw error;
+      }
+      movements.push({ itemId: item.id, kind: 'SALE', quantity: -used, costTotal, paymentId: input.paymentId, orderLineId: line.orderLineId });
     }
   }
   await applyMovements(db, restaurantId, userId, movements);
