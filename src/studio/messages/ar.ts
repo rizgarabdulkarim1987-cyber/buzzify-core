@@ -47,7 +47,7 @@ const ar: Messages = {
   'nav.menus': 'كل القوائم',
   'nav.media': 'الوسائط',
   'nav.motion': 'الحركة',
-  'nav.styles': 'أنماط القوائم',
+  'nav.styles': 'ستايلات المنيو',
   'nav.people': 'الأشخاص',
   'nav.activity': 'النشاط',
   'nav.settings': 'الإعدادات',

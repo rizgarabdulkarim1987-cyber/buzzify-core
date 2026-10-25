@@ -2,7 +2,7 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.library.title': 'أنماط القوائم',
+    'styles.library.title': 'ستايلات المنيو',
     'styles.library.intro': '٣٥ مظهرًا كاملًا للقائمة. افتح أيًّا منها لتراه حيًّا داخل إطار هاتف.',
     'styles.library.search': 'ابحث في الأنماط',
     'styles.library.searchPlaceholder': 'الاسم أو الرقم',
