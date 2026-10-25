@@ -138,6 +138,10 @@ model Restaurant {
   posRecipeLines        PosRecipeLine[]
   posComplaints         PosComplaint[]
   posComplaintNotes     PosComplaintNote[]
+  posAiPackage          PosAiPackage?
+  posAiUsageMonths      PosAiUsageMonth[]
+  posAiCalls            PosAiCall[]
+  posAiSummaries        PosAiSummary[]
 
   @@index([name])
   @@index([city])
@@ -1825,6 +1829,11 @@ model PosComplaint {
   contactPhone          String?
   contactConsentAt      DateTime?
   contactRemovedAt      DateTime?
+  /// Suggestions by the AI package (phase 9); the customer's own category above is never changed.
+  aiCategory            PosComplaintCategory?
+  aiSummary             String?
+  languageGuess         String?
+  aiLabeledAt           DateTime?
   statusChangedAt       DateTime?
   statusChangedByUserId String?
   locale                String                @default("ar")
@@ -1834,6 +1843,7 @@ model PosComplaint {
 
   @@unique([restaurantId, clientKey])
   @@index([restaurantId, status, createdAt])
+  @@index([restaurantId, aiLabeledAt])
   @@index([tableId, createdAt])
 }
 
@@ -1848,4 +1858,86 @@ model PosComplaintNote {
   complaint    PosComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
 
   @@index([complaintId, createdAt])
+}
+
+/// What the AI package may do for a restaurant. Set by the Super Admin (`pos.setAiPackage`) and read locally on every AI
+/// request: Core is never contacted at sale time. `monthlyLimit` 0 with the package on means "no requests left", never "unlimited".
+model PosAiPackage {
+  restaurantId String     @id
+  enabled      Boolean    @default(false)
+  monthlyLimit Int        @default(0)
+  syncedAt     DateTime?
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+/// AI requests per Baghdad calendar month ('YYYY-MM'). A request is one user-started AI operation.
+model PosAiUsageMonth {
+  restaurantId String
+  month        String
+  requests     Int        @default(0)
+  inputTokens  Int        @default(0)
+  outputTokens Int        @default(0)
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, month])
+}
+
+enum PosAiFeature {
+  ASK
+  SUMMARY
+  ALERTS
+  SUPPLY_ENTRY
+  COMPLAINTS
+}
+
+enum PosAiCallStatus {
+  OK
+  PROVIDER_ERROR
+  TIMEOUT
+  REFUSED
+  REJECTED_OUTPUT
+}
+
+enum PosAiSummaryKind {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALERTS
+}
+
+/// Metadata only: never a prompt, an answer, a tool result or a file. staffId is a plain id.
+model PosAiCall {
+  id           String          @id @default(cuid())
+  restaurantId String
+  staffId      String?
+  feature      PosAiFeature
+  model        String
+  status       PosAiCallStatus
+  inputTokens  Int             @default(0)
+  outputTokens Int             @default(0)
+  toolCalls    Int             @default(0)
+  ms           Int
+  createdAt    DateTime        @default(now())
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, createdAt])
+}
+
+/// A phrased summary or alerts paragraph, reused while the facts it was written from (factsHash) are unchanged.
+model PosAiSummary {
+  id           String           @id @default(cuid())
+  restaurantId String
+  kind         PosAiSummaryKind
+  periodFrom   String
+  periodTo     String
+  locale       String
+  factsHash    String
+  text         String
+  model        String
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, kind, periodFrom, periodTo, locale])
 }

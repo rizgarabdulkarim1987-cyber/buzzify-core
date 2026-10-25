@@ -1,6 +1,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/en';
 import menuMotions from './menu-motions/en';
+import posAi from './pos-ai/en';
 import posStock from './pos-stock/en';
 import posTill from './pos-till/en';
 
@@ -2728,6 +2729,8 @@ const en: Messages = {
   ...posTill,
   // Stock, purchases, complaints and the range report (pos-stock/en.ts)
   ...posStock,
+  // The AI package: Ask, summary, alerts, supply entry, complaint labels (pos-ai/en.ts)
+  ...posAi,
 };
 
 export default en;
