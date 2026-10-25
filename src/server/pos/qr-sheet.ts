@@ -6,12 +6,13 @@ import { DEFAULT_QR_STYLE } from '@/server/domain/qr';
 import { previewQr } from '@/server/qr/render';
 
 /** What the till's frame needs on every page: whether QR ordering is on and how many guest orders wait. */
-export async function readQrFlags(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<{ qrOrdering: boolean; pendingRequests: number }> {
+export async function readQrFlags(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<{ qrOrdering: boolean; delivery: boolean; pendingRequests: number }> {
   const till = scopedClient(prisma, { restaurantId });
-  const settings = await till.posSettings.findFirst({ where: { restaurantId }, select: { qrOrderingEnabled: true } });
-  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, pendingRequests: 0 };
+  const settings = await till.posSettings.findFirst({ where: { restaurantId }, select: { qrOrderingEnabled: true, deliveryEnabled: true } });
+  const delivery = settings?.deliveryEnabled === true;
+  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, delivery, pendingRequests: 0 };
   const pendingRequests = await till.posCustomerOrder.count({ where: { restaurantId, status: 'PENDING', createdAt: { gt: expiryCutoff(now) } } });
-  return { qrOrdering: true, pendingRequests };
+  return { qrOrdering: true, delivery, pendingRequests };
 }
 
 export interface QrSheetView {

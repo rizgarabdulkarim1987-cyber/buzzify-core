@@ -71,13 +71,13 @@ describe('the table QR sheet', () => {
 describe('the flags of the till frame', () => {
   it('is off with no settings or the switch off, and counts waiting requests when on', async () => {
     const other = await restaurant('Sheet C');
-    expect(await readQrFlags(prisma(), other.id)).toEqual({ qrOrdering: false, pendingRequests: 0 });
-    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: true, pendingRequests: 0 });
+    expect(await readQrFlags(prisma(), other.id)).toEqual({ qrOrdering: false, delivery: false, pendingRequests: 0 });
+    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: true, delivery: false, pendingRequests: 0 });
     const table = await prisma().posTable.findFirstOrThrow({ where: { restaurantId: a.id, number: 1 } });
     await prisma().posCustomerOrder.create({ data: { restaurantId: a.id, tableId: table.id, tableNumber: 1, locale: 'en' } });
     await prisma().posCustomerOrder.create({ data: { restaurantId: a.id, tableId: table.id, tableNumber: 1, locale: 'en', createdAt: new Date(Date.now() - 90 * 60_000) } });
-    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: true, pendingRequests: 1 });
+    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: true, delivery: false, pendingRequests: 1 });
     await prisma().posSettings.updateMany({ where: { restaurantId: a.id }, data: { qrOrderingEnabled: false } });
-    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: false, pendingRequests: 0 });
+    expect(await readQrFlags(prisma(), a.id)).toEqual({ qrOrdering: false, delivery: false, pendingRequests: 0 });
   });
 });

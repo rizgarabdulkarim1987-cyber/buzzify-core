@@ -11,15 +11,16 @@ export const TILL_PAGES = [
   { key: 'catalog', href: '/pos/catalog', permission: 'catalog.manage' },
   { key: 'staff', href: '/pos/staff', permission: 'staff.manage' },
   { key: 'qr', href: '/pos/qr', permission: 'settings.manage', needsQr: true },
+  { key: 'delivery', href: '/pos/delivery', permission: 'settings.manage', needsDelivery: true },
   { key: 'settings', href: '/pos/settings', permission: 'settings.manage' },
-] as const satisfies ReadonlyArray<{ key: string; href: string; permission: PosPermission; needsQr?: true }>;
+] as const satisfies ReadonlyArray<{ key: string; href: string; permission: PosPermission; needsQr?: true; needsDelivery?: true }>;
 
 export type TillPageKey = (typeof TILL_PAGES)[number]['key'];
 
 /**
  * The pages this role may open, in menu order: nothing is listed that would answer 404 or refuse. The pages of QR ordering
- * are listed only while the restaurant has switched it on.
+ * and of delivery are listed only while the restaurant has switched them on.
  */
-export function tillNav(role: PosRole, options: { qrOrdering?: boolean } = {}): ReadonlyArray<{ key: TillPageKey; href: string }> {
-  return TILL_PAGES.filter((page) => canPos(role, page.permission) && (!('needsQr' in page) || options.qrOrdering === true)).map(({ key, href }) => ({ key, href }));
+export function tillNav(role: PosRole, options: { qrOrdering?: boolean; delivery?: boolean } = {}): ReadonlyArray<{ key: TillPageKey; href: string }> {
+  return TILL_PAGES.filter((page) => canPos(role, page.permission) && (!('needsQr' in page) || options.qrOrdering === true) && (!('needsDelivery' in page) || options.delivery === true)).map(({ key, href }) => ({ key, href }));
 }
