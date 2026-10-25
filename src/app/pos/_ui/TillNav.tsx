@@ -2,12 +2,13 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { formatNumber } from '@/lib/pos-format';
 import type { TillPageKey } from '@/server/domain/pos/nav';
 import { useT } from '@/studio/i18n';
 import { cx } from '@/studio/ui/cx';
 
 /** The till's pages for the signed-in role, as a row of large touch targets. The page being shown is marked. */
-export function TillNav({ items }: { items: ReadonlyArray<{ key: TillPageKey; href: string }> }) {
+export function TillNav({ items }: { items: ReadonlyArray<{ key: TillPageKey; href: string; badge?: number }> }) {
   const t = useT();
   const path = usePathname();
   if (items.length < 2) return null;
@@ -26,6 +27,9 @@ export function TillNav({ items }: { items: ReadonlyArray<{ key: TillPageKey; hr
             )}
           >
             {t(`pos.nav.${item.key}`)}
+            {item.badge ? (
+              <span className="ms-2 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-info px-1.5 text-sm font-semibold text-on-ink">{formatNumber(item.badge)}</span>
+            ) : null}
           </Link>
         );
       })}

@@ -191,3 +191,7 @@ export async function setPosRequestLineQuantity(input: unknown) {
 export async function removePosRequestLine(input: unknown) {
   return invoke(requests.removePosRequestLine, input);
 }
+
+export async function ensurePosMenuTables(input: unknown) {
+  return invoke(requests.ensurePosMenuTables, input);
+}

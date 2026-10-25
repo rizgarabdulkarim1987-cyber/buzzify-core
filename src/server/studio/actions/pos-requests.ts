@@ -2,8 +2,11 @@ import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
+import { ensureMenuTablesIn } from '@/server/pos/qr-sheet';
+import { getStudioTranslator } from '@/studio/messages';
 import { acceptRequestIn, rejectRequestIn, removeRequestLineIn, setRequestLineQuantityIn } from '@/server/pos/customer-orders';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
+import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 
 /** What the cashier does with a guest's QR order: change a quantity, remove a line, accept it into an order or reject it. */
@@ -112,6 +115,28 @@ export const rejectPosRequest = defineAction({
         changes: { status: { before: 'PENDING', after: 'REJECTED' }, reason: { before: null, after: done.reason } },
       });
       return { requestId: done.requestId };
+    });
+  },
+});
+
+/** Makes the Menu's table pages for the floor's tables that have none, so every printed QR code opens a page. */
+export const ensurePosMenuTables = defineAction({
+  name: 'pos.ensureMenuTables',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({}),
+  target: () => ({ kind: 'pos', catalog: true }) as const,
+  run: (ctx) => {
+    const { restaurantId } = till(ctx);
+    const menuId = ctx.menuId;
+    if (menuId === null) throw new StudioError('NOT_FOUND');
+    const name = getStudioTranslator(ctx.actor.locale);
+    return ctx.transaction(async (tx) => {
+      const done = await ensureMenuTablesIn(delegates(tx), restaurantId, menuId, (number) => name('qr.kind.table', { number }));
+      if (done.created > 0) {
+        ctx.audit({ action: 'pos.qr.tables', entityType: 'PosSettings', entityId: menuId, changes: { menuTables: { before: null, after: done.created } } });
+      }
+      return done;
     });
   },
 });

@@ -1,5 +1,7 @@
 import { z } from 'zod';
-import { listPendingRequests, readRequest } from '@/server/pos/customer-orders';
+import { listPendingDetails, readRequest } from '@/server/pos/customer-orders';
+import { readQrSheet } from '@/server/pos/qr-sheet';
+import { hostEnv } from '@/server/env';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
 
@@ -21,7 +23,7 @@ export const posRequests = defineQuery({
   target: () => TILL,
   run: async (ctx) => {
     const readAt = new Date();
-    return { readAt, requests: await listPendingRequests(ctx.db, restaurantOf(ctx), readAt) };
+    return { readAt, requests: await listPendingDetails(ctx.db, restaurantOf(ctx), readAt) };
   },
 });
 
@@ -32,4 +34,14 @@ export const posRequest = defineQuery({
   input: z.object({ requestId: idField }),
   target: () => TILL,
   run: (ctx, { requestId }) => readRequest(ctx.db, restaurantOf(ctx), requestId),
+});
+
+/** The table codes to print, for the restaurant's catalog menu. Refused until a catalog menu exists. */
+export const posQrSheet = defineQuery({
+  name: 'pos.qrSheet',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({}),
+  target: () => ({ kind: 'pos', catalog: true }) as const,
+  run: (ctx) => readQrSheet(ctx.db, restaurantOf(ctx), ctx.menuId, hostEnv().publicOrigin),
 });

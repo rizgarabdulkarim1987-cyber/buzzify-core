@@ -135,6 +135,7 @@ export const AUDIT_ACTIONS = [
   'pos.request.accept',
   'pos.request.reject',
   'pos.request.edit',
+  'pos.qr.tables',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];

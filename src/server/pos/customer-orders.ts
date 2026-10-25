@@ -89,13 +89,19 @@ export async function pendingByTable(db: AnyDb, restaurantId: string, now: Date 
   return new Map(groups.map((group) => [group.tableId, group._count._all]));
 }
 
-export async function readRequest(db: AnyDb, restaurantId: string, id: string, now: Date = new Date()): Promise<RequestDetail> {
-  const row = await db.posCustomerOrder.findFirst({ where: { id, restaurantId }, include: { lines: { orderBy: { id: 'asc' } } } });
-  if (!row) throw new StudioError('NOT_FOUND');
-  const live = await db.posOrder.findFirst({
-    where: { restaurantId, tableId: row.tableId, status: { notIn: [...LOCKED_STATUSES] } },
-    select: { id: true, version: true },
-  });
+type DetailRow = {
+  id: string;
+  tableId: string;
+  tableNumber: number;
+  createdAt: Date;
+  status: RequestDetail['status'];
+  customerNote: string;
+  locale: string;
+  rejectReason: string;
+  lines: LineRow[];
+};
+
+function detailOf(row: DetailRow, live: { id: string; version: number } | undefined, now: Date): RequestDetail {
   const lines = row.lines.map(lineView);
   return {
     id: row.id,
@@ -113,6 +119,33 @@ export async function readRequest(db: AnyDb, restaurantId: string, id: string, n
     liveOrderId: live?.id ?? null,
     liveOrderVersion: live?.version ?? null,
   };
+}
+
+export async function readRequest(db: AnyDb, restaurantId: string, id: string, now: Date = new Date()): Promise<RequestDetail> {
+  const row = await db.posCustomerOrder.findFirst({ where: { id, restaurantId }, include: { lines: { orderBy: { id: 'asc' } } } });
+  if (!row) throw new StudioError('NOT_FOUND');
+  const live = await db.posOrder.findFirst({
+    where: { restaurantId, tableId: row.tableId, status: { notIn: [...LOCKED_STATUSES] } },
+    select: { id: true, version: true },
+  });
+  return detailOf(row, live ?? undefined, now);
+}
+
+/** Every waiting request with its lines and the live order of its table, in a fixed number of queries. Oldest first. */
+export async function listPendingDetails(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<RequestDetail[]> {
+  const rows = await db.posCustomerOrder.findMany({
+    where: { restaurantId, ...waiting(now) },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    include: { lines: { orderBy: { id: 'asc' } } },
+  });
+  const live = rows.length
+    ? await db.posOrder.findMany({
+        where: { restaurantId, tableId: { in: rows.map((row) => row.tableId) }, status: { notIn: [...LOCKED_STATUSES] } },
+        select: { id: true, version: true, tableId: true },
+      })
+    : [];
+  const byTable = new Map(live.map((order) => [order.tableId as string, order]));
+  return rows.map((row) => detailOf(row, byTable.get(row.tableId), now));
 }
 
 /** Why a request cannot be decided or edited now: unknown, already decided, or expired. */

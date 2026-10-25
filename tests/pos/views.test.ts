@@ -27,6 +27,14 @@ describe('the nav', () => {
     expect(keys('MANAGER')).toEqual(['tables', 'shift', 'kitchen', 'report', 'floor', 'catalog', 'staff', 'settings']);
     expect(keys('OWNER')).toEqual(keys('MANAGER'));
   });
+
+  it('lists the QR ordering pages only while the restaurant has it on, and only for roles that may open them', () => {
+    const withQr = (role: (typeof POS_ROLES)[number]) => tillNav(role, { qrOrdering: true }).map((page) => page.key);
+    expect(withQr('CASHIER')).toEqual(['tables', 'requests', 'shift']);
+    expect(withQr('KITCHEN')).toEqual(['kitchen']);
+    expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'floor', 'catalog', 'staff', 'qr', 'settings']);
+    expect(tillNav('MANAGER', { qrOrdering: false }).map((page) => page.key)).not.toContain('requests');
+  });
 });
 
 describe('table colours', () => {
