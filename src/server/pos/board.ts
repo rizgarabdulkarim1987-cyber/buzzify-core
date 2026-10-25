@@ -3,11 +3,12 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
 import { tableStatus, type TableStatus } from '@/server/domain/pos/table-status';
 import { baghdadDayRange } from '@/lib/baghdad';
+import { pendingByTable } from './customer-orders';
 import { orderTotals, readRates } from './orders';
 
 export interface BoardView {
   areas: { id: string; name: string; tableCount: number; busyCount: number }[];
-  tables: { id: string; number: number; areaId: string; status: TableStatus; seatedAt: Date | null; total: number; orderId: string | null }[];
+  tables: { id: string; number: number; areaId: string; status: TableStatus; seatedAt: Date | null; total: number; orderId: string | null; pendingRequests: number }[];
   busyCount: number;
   todaySales: number;
   ringMinutes: number;
@@ -23,7 +24,7 @@ const paidTotal = z.object({ total: z.number().int() });
 export async function readBoard(db: AnyDb, restaurantId: string, options: { areaId?: string; now?: Date } = {}): Promise<BoardView> {
   const now = options.now ?? new Date();
   const day = baghdadDayRange(now);
-  const [areas, tables, orders, settings, payments] = await Promise.all([
+  const [areas, tables, orders, settings, payments, pending] = await Promise.all([
     db.posArea.findMany({ where: { restaurantId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, name: true } }),
     db.posTable.findMany({ where: { restaurantId }, orderBy: [{ number: 'asc' }, { id: 'asc' }], select: { id: true, number: true, areaId: true } }),
     db.posOrder.findMany({
@@ -32,6 +33,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
     }),
     readRates(db, restaurantId),
     db.posPayment.findMany({ where: { restaurantId, paidAt: { gte: day.start, lt: day.end } }, select: { totalsSnapshot: true } }),
+    pendingByTable(db, restaurantId, now),
   ]);
   const byTable = new Map(orders.map((order) => [order.tableId as string, order]));
   const rows = tables.map((table) => {
@@ -40,10 +42,11 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
       id: table.id,
       number: table.number,
       areaId: table.areaId,
-      status: tableStatus(order),
+      status: tableStatus(order, { hasPendingRequest: (pending.get(table.id) ?? 0) > 0 }),
       seatedAt: order?.seatedAt ?? null,
       total: order ? orderTotals(order, order.lines, settings).totals.total : 0,
       orderId: order?.id ?? null,
+      pendingRequests: pending.get(table.id) ?? 0,
     };
   });
   const tableIds = new Set(tables.map((t) => t.id));

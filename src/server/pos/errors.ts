@@ -40,6 +40,10 @@ export const POS_TEXT = {
   'The order was changed by someone else. Reload it and try again.': 'error.text.posOrderChanged',
   'This product is not available': 'error.text.posProductUnavailable',
   'Could not open the order. Try again.': 'error.text.posOpenFailed',
+  'This request was already decided': 'error.text.posRequestDecided',
+  'The request has no items': 'error.text.posRequestEmpty',
+  'This request expired': 'error.text.posRequestExpired',
+  'The table has an order that cannot take more items': 'error.text.posOrderNotJoinable',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

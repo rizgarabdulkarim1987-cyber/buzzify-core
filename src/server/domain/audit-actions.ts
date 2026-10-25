@@ -131,6 +131,10 @@ export const AUDIT_ACTIONS = [
   'pos.shift.open',
   'pos.shift.expense',
   'pos.shift.close',
+  'pos.request.submit',
+  'pos.request.accept',
+  'pos.request.reject',
+  'pos.request.edit',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -149,6 +153,8 @@ export const AUDIT_ENTITY_TYPES = [
   'PosPayment',
   'PosShift',
   'PosCashExpense',
+  'PosCustomerOrder',
+  'PosCustomerOrderLine',
   'Restaurant',
   'RestaurantStatus',
   'RestaurantPlan',

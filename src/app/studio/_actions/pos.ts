@@ -4,6 +4,7 @@ import * as pos from '@/server/studio/actions/pos';
 import * as kitchen from '@/server/studio/actions/pos-kitchen';
 import * as orders from '@/server/studio/actions/pos-orders';
 import * as payments from '@/server/studio/actions/pos-payments';
+import * as requests from '@/server/studio/actions/pos-requests';
 import * as shifts from '@/server/studio/actions/pos-shifts';
 import { invoke } from '@/server/studio/framework/invoke';
 
@@ -173,4 +174,20 @@ export async function markPosLinesReady(input: unknown) {
 
 export async function acknowledgePosCancellations(input: unknown) {
   return invoke(kitchen.acknowledgePosCancellations, input);
+}
+
+export async function acceptPosRequest(input: unknown) {
+  return invoke(requests.acceptPosRequest, input);
+}
+
+export async function rejectPosRequest(input: unknown) {
+  return invoke(requests.rejectPosRequest, input);
+}
+
+export async function setPosRequestLineQuantity(input: unknown) {
+  return invoke(requests.setPosRequestLineQuantity, input);
+}
+
+export async function removePosRequestLine(input: unknown) {
+  return invoke(requests.removePosRequestLine, input);
 }
