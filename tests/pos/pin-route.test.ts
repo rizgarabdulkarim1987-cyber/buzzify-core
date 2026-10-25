@@ -1,5 +1,6 @@
 import { cookies, headers } from 'next/headers';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { POST as registerRoute } from '@/app/api/pos/device/register/route';
 import { POST } from '@/app/api/pos/pin/sign-in/route';
 import { DEVICE_COOKIE } from '@/server/domain/pos/pin';
 import { deviceCookieOptions, readDeviceToken } from '@/server/pos/device-cookie';
@@ -150,6 +151,38 @@ describe('the PIN sign-in route', () => {
     const res = await send({ staffId: cashierStaff, pin: '2580' });
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe('tillClosed');
+  });
+});
+
+describe('the device registration route', () => {
+  async function register(who: Person, body: unknown, origin: string | null = ORIGIN): Promise<Response> {
+    const all = new Headers({ 'content-type': 'application/json', cookie: await passwordSession(who) });
+    if (origin !== null) all.set('origin', origin);
+    vi.mocked(headers).mockResolvedValue(all as never);
+    vi.mocked(cookies).mockResolvedValue(cookieStore(all.get('cookie')) as never);
+    return registerRoute(new Request(`${ORIGIN}/api/pos/device/register`, { method: 'POST', body: JSON.stringify(body), headers: all }));
+  }
+
+  it('sets the device secret in an HttpOnly cookie and answers with the id only', async () => {
+    const res = await register(manager, { name: 'Bar tablet' });
+    const body = (await res.json()) as { ok: boolean; data: { deviceId: string } };
+    expect(body.ok).toBe(true);
+    expect(Object.keys(body.data)).toEqual(['deviceId']);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const cookie = res.headers.getSetCookie().find((c) => c.startsWith(`${DEVICE_COOKIE}=`)) ?? '';
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+    const secret = cookie.split(';')[0]!.split('=')[1]!;
+    expect(JSON.stringify(body)).not.toContain(secret);
+    expect(await prisma().posSharedDevice.count({ where: { name: 'Bar tablet', revokedAt: null } })).toBe(1);
+  });
+
+  it('refuses a cashier, a foreign Origin and a blank name without a cookie', async () => {
+    for (const res of [await register(cashier, { name: 'x' }), await register(manager, { name: 'x' }, 'https://evil.example'), await register(manager, { name: '  ' })]) {
+      expect(res.headers.getSetCookie().some((c) => c.startsWith(`${DEVICE_COOKIE}=`))).toBe(false);
+    }
+    expect((await register(manager, { name: 'x' }, 'https://evil.example')).status).toBe(403);
+    expect(await prisma().posSharedDevice.count({ where: { name: 'x' } })).toBe(0);
   });
 });
 

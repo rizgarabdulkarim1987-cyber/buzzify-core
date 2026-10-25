@@ -1,12 +1,9 @@
-import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { tillNav } from '@/server/domain/pos/nav';
-import { getPrisma } from '@/server/data/prisma';
 import { getPosAccess } from '@/server/pos/actor';
-import { DEVICE_COOKIE } from '@/server/pos/device-cookie';
-import { resolveDevice } from '@/server/pos/pin';
+import { currentDevice } from '@/server/pos/device-session';
 import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
 import { query } from '@/server/studio/framework/invoke';
@@ -28,7 +25,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (entry.kind === 'inactive') redirect('/pos/inactive');
 
   const t = getStudioTranslator(entry.actor.locale);
-  const sharedDevice = (await resolveDevice(getPrisma(), (await cookies()).get(DEVICE_COOKIE)?.value))?.restaurantId === entry.actor.restaurantId;
+  const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
   return (

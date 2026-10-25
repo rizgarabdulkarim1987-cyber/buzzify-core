@@ -1,10 +1,6 @@
 import type { Metadata } from 'next';
-import { cookies } from 'next/headers';
-import { getPrisma } from '@/server/data/prisma';
 import { getPosAccess } from '@/server/pos/actor';
-import { DEVICE_COOKIE } from '@/server/pos/device-cookie';
-import { resolveDevice } from '@/server/pos/pin';
-import { cashierSubscriptionOf } from '@/server/pos/subscription';
+import { currentCashierSubscription, currentDevice } from '@/server/pos/device-session';
 import { query } from '@/server/studio/framework/invoke';
 import { posSettings } from '@/server/studio/queries/pos';
 import { posDevices } from '@/server/studio/queries/pos-pin';
@@ -23,10 +19,9 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function PosSettingsPage() {
   const [settings, devices, access, locale] = await Promise.all([query(posSettings, {}), query(posDevices, {}), getPosAccess(), requestStudioLocale()]);
   const t = getStudioTranslator(locale);
-  const prisma = getPrisma();
   const [subscription, own] = await Promise.all([
-    access.actor ? cashierSubscriptionOf(prisma, access.actor.restaurantId) : null,
-    resolveDevice(prisma, (await cookies()).get(DEVICE_COOKIE)?.value),
+    access.actor ? currentCashierSubscription(access.actor.restaurantId) : null,
+    currentDevice(),
   ]);
   const thisDeviceId = own && own.restaurantId === access.actor?.restaurantId ? own.id : null;
   return (
