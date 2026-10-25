@@ -113,8 +113,8 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
   const [drawer, closer, openOrdersCount, unsettledDeliveries] = await Promise.all([
     drawerOf(db, restaurantId, shift),
     shift.closedByUserId ? db.user.findFirst({ where: { id: shift.closedByUserId }, select: { name: true } }) : Promise.resolve(null),
-    db.posOrder.count({ where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] } } }),
-    readUnsettledDeliveries(db, restaurantId),
+    db.posOrder.count({ where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] }, NOT: { kind: 'DELIVERY', fulfillment: 'DELIVERED' } } }),
+    shift.closedAt ? Promise.resolve({ count: 0, amount: 0 }) : readUnsettledDeliveries(db, restaurantId),
   ]);
   return {
     shift: {

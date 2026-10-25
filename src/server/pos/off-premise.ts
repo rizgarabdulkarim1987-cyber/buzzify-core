@@ -1,10 +1,12 @@
+import { z } from 'zod';
+import type { Prisma } from '@/generated/prisma/client';
 import { baghdadDayOf } from '@/lib/baghdad';
 import { normalizePhone } from '@/lib/phone';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { canAdvance, isFinished, type Fulfillment } from '@/server/domain/pos/fulfillment';
-import { bumpOrder, loadOrderForChange, orderTotals, readRates, reopened } from './orders';
+import { assertNotHandedOver, bumpOrder, loadOrderForChange, orderTotals, readRates, reopened } from './orders';
 
 /**
  * Takeaway and delivery orders: the same `PosOrder` as a table's, with no table, a queue number that restarts every Baghdad
@@ -82,6 +84,7 @@ export interface OffPremiseDetailsInput {
  */
 export async function updateOffPremiseDetailsIn(db: AnyDb, restaurantId: string, input: OffPremiseDetailsInput) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   if (order.kind !== 'TAKEAWAY' && order.kind !== 'DELIVERY') throw refuse('CONFLICT', 'Only a takeaway or delivery order has these details');
   const delivery = order.kind === 'DELIVERY';
   const data: Record<string, string | number | null> = {};
@@ -109,14 +112,12 @@ export async function updateOffPremiseDetailsIn(db: AnyDb, restaurantId: string,
         data.deliveryZoneName = '';
         changed.push('zone');
       }
-    } else {
+    } else if (input.zoneId !== order.deliveryZoneId) {
       const zone = await db.posDeliveryZone.findFirst({ where: { id: input.zoneId, restaurantId, active: true }, select: { id: true, name: true, fee: true } });
       if (!zone) throw new StudioError('NOT_FOUND');
-      if (zone.id !== order.deliveryZoneId) {
-        data.deliveryZoneId = zone.id;
-        data.deliveryZoneName = zone.name;
-        changed.push('zone');
-      }
+      data.deliveryZoneId = zone.id;
+      data.deliveryZoneName = zone.name;
+      changed.push('zone');
       if (input.deliveryFee === undefined) fee = zone.fee;
     }
   }
@@ -239,25 +240,32 @@ export interface OffPremiseBoard {
   cashWithDrivers: { driverId: string | null; driverName: string; count: number; amount: number }[];
 }
 
-/** Orders shown at most; the oldest come first, so a flood never hides the ones waiting longest. */
+/** Orders shown at most. Anything older than the window drops off the board (cash with a driver never does), so leftovers cannot crowd out new orders. */
 export const OFF_PREMISE_LIMIT = 200;
+export const OFF_PREMISE_WINDOW_DAYS = 3;
+
+const UNSETTLED_WHERE = { kind: 'DELIVERY', fulfillment: 'DELIVERED', status: { notIn: ['PAID', 'CANCELLED', 'REJECTED'] } } satisfies Prisma.PosOrderWhereInput;
+const FINISHED_AND_PAID = { status: 'PAID', fulfillment: { in: ['DELIVERED', 'PICKED_UP'] } } satisfies Prisma.PosOrderWhereInput;
+const paidTotal = z.object({ total: z.number().int() });
 
 /** A delivered order that is still unpaid (cash with the driver): the one case where a finished fulfillment keeps showing. */
 const isUnsettled = (o: { kind: string; fulfillment: string | null; status: string }): boolean => o.kind === 'DELIVERY' && o.fulfillment === 'DELIVERED' && o.status !== 'PAID';
 
 /** The live takeaway and delivery orders: not cancelled, and not both finished and paid. */
-export async function readOffPremiseBoard(db: AnyDb, restaurantId: string): Promise<OffPremiseBoard> {
+export async function readOffPremiseBoard(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<OffPremiseBoard> {
+  const since = new Date(now.getTime() - OFF_PREMISE_WINDOW_DAYS * 86_400_000);
   const [orders, rates] = await Promise.all([
     db.posOrder.findMany({
       where: {
         restaurantId,
         kind: { in: ['TAKEAWAY', 'DELIVERY'] },
         status: { notIn: ['CANCELLED', 'REJECTED'] },
-        NOT: { status: 'PAID', fulfillment: { in: ['DELIVERED', 'PICKED_UP'] } },
+        NOT: FINISHED_AND_PAID,
+        OR: [{ seatedAt: { gte: since } }, UNSETTLED_WHERE],
       },
       orderBy: [{ seatedAt: 'asc' }, { id: 'asc' }],
       take: OFF_PREMISE_LIMIT,
-      include: { lines: true },
+      include: { lines: true, payment: { select: { totalsSnapshot: true } } },
     }),
     readRates(db, restaurantId),
   ]);
@@ -276,7 +284,7 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string): Prom
     driverId: o.driverId,
     driverName: o.driverNameSnapshot,
     seatedAt: o.seatedAt,
-    total: orderTotals(o, o.lines, rates).totals.total,
+    total: o.payment ? paidTotal.parse(o.payment.totalsSnapshot).total : orderTotals(o, o.lines, rates).totals.total,
     paid: o.status === 'PAID',
     cashWithDriver: isUnsettled(o),
   }));
@@ -297,6 +305,25 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string): Prom
 
 /** How many delivered orders are unpaid and how much the drivers hold: counted on the close-shift screen, never blocking it. */
 export async function readUnsettledDeliveries(db: AnyDb, restaurantId: string): Promise<{ count: number; amount: number }> {
-  const board = await readOffPremiseBoard(db, restaurantId);
-  return { count: board.cashWithDrivers.reduce((s, r) => s + r.count, 0), amount: board.cashWithDrivers.reduce((s, r) => s + r.amount, 0) };
+  const [orders, rates] = await Promise.all([
+    db.posOrder.findMany({ where: { restaurantId, ...UNSETTLED_WHERE }, take: 1000, include: { lines: true } }),
+    readRates(db, restaurantId),
+  ]);
+  return { count: orders.length, amount: orders.reduce((sum, o) => sum + orderTotals(o, o.lines, rates).totals.total, 0) };
+}
+
+/** Which kinds show their tab: switched on, or still holding live orders that must be finished. */
+export async function readOffPremiseFlags(db: AnyDb, restaurantId: string) {
+  const [settings, live] = await Promise.all([
+    db.posSettings.findFirst({ where: { restaurantId }, select: { takeawayEnabled: true, deliveryEnabled: true } }),
+    db.posOrder.findMany({
+      where: { restaurantId, kind: { in: ['TAKEAWAY', 'DELIVERY'] }, status: { notIn: ['CANCELLED', 'REJECTED'] }, NOT: FINISHED_AND_PAID },
+      distinct: ['kind'],
+      select: { kind: true },
+    }),
+  ]);
+  const has = (kind: string) => live.some((o) => o.kind === kind);
+  const takeawayOn = settings?.takeawayEnabled === true;
+  const deliveryOn = settings?.deliveryEnabled === true;
+  return { takeaway: takeawayOn || has('TAKEAWAY'), delivery: deliveryOn || has('DELIVERY'), takeawayOn, deliveryOn };
 }

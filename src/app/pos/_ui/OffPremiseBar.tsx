@@ -137,7 +137,14 @@ export function OffPremiseBar({ order, zones, drivers, editable }: Props) {
                 expectedVersion: order.version,
                 customerName: current.name.trim(),
                 customerPhone: current.phone,
-                ...(delivery ? { address: current.address, addressNote: current.note, zoneId: current.zoneId === '' ? null : current.zoneId, deliveryFee: fee ?? 0 } : {}),
+                ...(delivery
+                  ? {
+                      address: current.address,
+                      addressNote: current.note,
+                      ...((current.zoneId === '' ? null : current.zoneId) !== info.zoneId ? { zoneId: current.zoneId === '' ? null : current.zoneId } : {}),
+                      ...(fee !== null && fee !== order.totals.deliveryFee ? { deliveryFee: fee } : {}),
+                    }
+                  : {}),
               }),
             { quiet: true },
           );

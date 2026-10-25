@@ -115,3 +115,13 @@ describe('recent customer', () => {
     expect(dataOf(await ask(cashier, posRecentCustomer, { phone: 'abc' }))).toBeNull();
   });
 });
+
+describe('review fixes', () => {
+  it('edits the other details of an order whose zone was switched off', async () => {
+    const zone = await prisma().posDeliveryZone.create({ data: { restaurantId: a.id, name: 'Karrada', fee: 3000 } });
+    const done = dataOf(await run(cashier, openPosOffPremiseOrder, { ...delivery, zoneId: zone.id }));
+    await prisma().posDeliveryZone.update({ where: { id: zone.id }, data: { active: false } });
+    dataOf(await run(cashier, updatePosOffPremiseDetails, { orderId: done.orderId, expectedVersion: done.version, customerName: 'Sara K', zoneId: zone.id }));
+    expect(await prisma().posOrder.findUniqueOrThrow({ where: { id: done.orderId } })).toMatchObject({ customerName: 'Sara K', deliveryZoneName: 'Karrada', deliveryFee: 3000 });
+  });
+});

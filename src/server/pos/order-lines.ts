@@ -5,6 +5,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import {
   bumpOrder,
+  assertNotHandedOver,
   loadOrderForChange,
   optionsSnapshotSchema,
   pricedLine,
@@ -94,6 +95,7 @@ export interface AddLineInput {
  */
 export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string, input: AddLineInput) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   const product = await db.product.findFirst({
     where: { id: input.productId, menuId, category: { isActive: true } },
     include: {
@@ -145,6 +147,7 @@ async function loadLineForChange(db: AnyDb, restaurantId: string, lineId: string
   const line = await db.posOrderLine.findFirst({ where: { id: lineId, restaurantId } });
   if (!line) throw new StudioError('NOT_FOUND');
   const order = await loadOrderForChange(db, restaurantId, line.orderId, expected);
+  assertNotHandedOver(order);
   if (line.cancelledAt) throw refuse('CONFLICT', 'The line is cancelled');
   return { line, order };
 }

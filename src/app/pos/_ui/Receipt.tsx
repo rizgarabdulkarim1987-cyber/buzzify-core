@@ -25,13 +25,13 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
           <p className="text-base font-semibold">{t(receipt.kind === 'DELIVERY' ? 'pos.receipt.kindDelivery' : 'pos.receipt.kindTakeaway', { n: formatNumber(receipt.queueNumber) })}</p>
         ) : null}
         {receipt.customer ? (
-          <div className="mt-1 text-sm text-muted" dir="auto">
-            {receipt.customer.name ? <p>{receipt.customer.name}</p> : null}
+          <div className="mt-1 text-sm text-muted">
+            {receipt.customer.name ? <p dir="auto">{receipt.customer.name}</p> : null}
             {receipt.customer.phone ? <p dir="ltr">{receipt.customer.phone}</p> : null}
             {receipt.kind === 'DELIVERY' ? (
               <>
-                <p>{[receipt.customer.zoneName, receipt.customer.address].filter(Boolean).join(' · ')}</p>
-                {receipt.customer.addressNote ? <p>{receipt.customer.addressNote}</p> : null}
+                <p dir="auto">{[receipt.customer.zoneName, receipt.customer.address].filter(Boolean).join(' · ')}</p>
+                {receipt.customer.addressNote ? <p dir="auto">{receipt.customer.addressNote}</p> : null}
                 {receipt.customer.driverName ? <p>{t('pos.offp.driver')}: {receipt.customer.driverName}</p> : null}
               </>
             ) : null}

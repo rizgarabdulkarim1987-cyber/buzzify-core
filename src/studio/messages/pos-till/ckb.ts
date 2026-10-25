@@ -116,6 +116,7 @@ const posTill: Messages = {
   'error.text.posDriverRequired': 'پێش دەرچوونی داواکارییەکە شوفێرێک هەڵبژێرە',
   'error.text.posDriverInactive': 'ئەم شوفێرە بەردەست نییە',
   'error.text.posPhoneInvalid': 'ژمارەی تەلەفۆنێکی دروست بنووسە',
+  'error.text.posHandedOver': 'داواکارییەکە ڕادەستکرا و ئیتر ناگۆڕدرێت',
   'error.text.posAddressRequired': 'ناونیشانەکە بنووسە',
   'error.text.posNameTooLong': 'زۆرینە ١٢٠ پیت بەکاربهێنە',
   'error.text.posBadStep': 'ئەم هەنگاوە لەم دۆخەی داواکارییەدا ڕێگەپێدراو نییە',

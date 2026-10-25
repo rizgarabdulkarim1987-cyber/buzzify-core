@@ -37,10 +37,12 @@ interface Props {
   readAt: string;
   zones: ZoneRow[];
   drivers: DriverRow[];
+  /** False while the type is switched off: the live orders can still be finished, but no new one is opened. */
+  canOpen: boolean;
 }
 
 /** The live takeaway or delivery orders as cards, each with its next step; and the dialog that opens a new one. */
-export function OffPremiseBoard({ kind, board, readAt, zones, drivers }: Props) {
+export function OffPremiseBoard({ kind, board, readAt, zones, drivers, canOpen }: Props) {
   const t = useT();
   const { locale } = useLocale();
   const money = useMoney();
@@ -85,18 +87,20 @@ export function OffPremiseBoard({ kind, board, readAt, zones, drivers }: Props) 
   return (
     <div className="flex flex-col gap-4 px-4 pb-8 sm:px-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <Button
-          variant="primary"
-          size="lg"
-          className="min-h-12"
-          onClick={() => {
-            setDraft(emptyDraft);
-            setHint(null);
-            setOpen(true);
-          }}
-        >
-          {delivery ? t('pos.offp.newDelivery') : t('pos.offp.newTakeaway')}
-        </Button>
+        {canOpen ? (
+          <Button
+            variant="primary"
+            size="lg"
+            className="min-h-12"
+            onClick={() => {
+              setDraft(emptyDraft);
+              setHint(null);
+              setOpen(true);
+            }}
+          >
+            {delivery ? t('pos.offp.newDelivery') : t('pos.offp.newTakeaway')}
+          </Button>
+        ) : null}
       </div>
 
       {delivery && board.cashWithDrivers.length > 0 ? (

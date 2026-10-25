@@ -33,7 +33,7 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader title={kind === 'DELIVERY' ? t('pos.offp.tabDelivery') : t('pos.offp.tabTakeaway')} />
       <OffPremiseTabs current={kind === 'DELIVERY' ? 'delivery' : 'takeaway'} takeaway={flags.takeaway} delivery={flags.delivery} />
-      <OffPremiseBoard kind={kind} board={board} readAt={new Date().toISOString()} zones={options.zones} drivers={options.drivers} />
+      <OffPremiseBoard kind={kind} board={board} readAt={new Date().toISOString()} zones={options.zones} drivers={options.drivers} canOpen={kind === 'DELIVERY' ? flags.deliveryOn : flags.takeawayOn} />
     </>
   );
 }

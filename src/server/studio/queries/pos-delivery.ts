@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { listDrivers, listZones } from '@/server/pos/delivery-setup';
-import { findRecentCustomerIn, readOffPremiseBoard } from '@/server/pos/off-premise';
+import { findRecentCustomerIn, readOffPremiseBoard, readOffPremiseFlags } from '@/server/pos/off-premise';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 
 /** The delivery lists, read for the person's own restaurant. */
@@ -67,8 +67,5 @@ export const posOffPremiseFlags = defineQuery({
   pos: 'order.handle',
   input: z.object({}),
   target: () => TILL,
-  run: async (ctx) => {
-    const settings = await ctx.db.posSettings.findFirst({ where: { restaurantId: restaurantOf(ctx) }, select: { takeawayEnabled: true, deliveryEnabled: true } });
-    return { takeaway: settings?.takeawayEnabled === true, delivery: settings?.deliveryEnabled === true };
-  },
+  run: (ctx) => readOffPremiseFlags(ctx.db, restaurantOf(ctx)),
 });

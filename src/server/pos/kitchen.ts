@@ -5,7 +5,7 @@ import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { kitchenDone } from './kitchen-state';
-import { bumpOrder, loadOrderForChange, optionsSnapshotSchema, readRates } from './orders';
+import { assertNotHandedOver, bumpOrder, loadOrderForChange, optionsSnapshotSchema, readRates } from './orders';
 
 /** Who is asking the kitchen: a KITCHEN member tied to one section sees only that section, whatever they ask for. */
 export interface KitchenActor {
@@ -108,6 +108,7 @@ export async function readKitchenScope(db: AnyDb, restaurantId: string, actor: K
 export async function sendToKitchenIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number }) {
   await assertKitchenOn(db, restaurantId);
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   if (order.status === 'PENDING_APPROVAL') throw refuse('CONFLICT', 'The order is waiting for approval');
   const status = order.status === 'READY' ? 'OPEN' : order.status;
   // A takeaway or delivery goes into PREPARING when the kitchen gets work (also back from READY, when new work arrives).
@@ -284,6 +285,10 @@ export async function markLinesReadyIn(db: AnyDb, restaurantId: string, input: {
       if (count === 1) markedLineIds.push({ lineId: line.id, orderId });
     }
     const order = await db.posOrder.findFirstOrThrow({ where: { id: orderId, restaurantId }, select: { status: true, number: true, kind: true, fulfillment: true } });
+    if (live === 0 && order.status === 'PAID' && order.kind !== 'DINE_IN' && (order.fulfillment === 'NEW' || order.fulfillment === 'PREPARING') && (await kitchenDone(db, restaurantId, orderId))) {
+      // Paid at the counter before it was cooked: the food is ready for pickup, so the board can offer the next step.
+      await db.posOrder.updateMany({ where: { id: orderId, restaurantId, status: 'PAID', fulfillment: order.fulfillment }, data: { fulfillment: 'READY', version: { increment: 1 } } });
+    }
     if (live > 0 && order.status === 'OPEN' && (await kitchenDone(db, restaurantId, orderId))) {
       // The kitchen finishing a takeaway or delivery also makes it READY to hand over (unless the cashier already moved it on).
       const handOver = order.kind !== 'DINE_IN' && (order.fulfillment === 'NEW' || order.fulfillment === 'PREPARING');

@@ -22,11 +22,11 @@ export function DeliverySlip({ order }: { order: OrderView }) {
           <time dateTime={new Date(order.seatedAt).toISOString()}>{formatStamp(order.seatedAt)}</time>
         </p>
       </header>
-      <div className="flex flex-col gap-1 border-y border-dashed border-line-strong py-2 text-base" dir="auto">
-        {info.customerName ? <p className="font-medium">{info.customerName}</p> : null}
+      <div className="flex flex-col gap-1 border-y border-dashed border-line-strong py-2 text-base">
+        {info.customerName ? <p className="font-medium" dir="auto">{info.customerName}</p> : null}
         {info.customerPhone ? <p dir="ltr">{info.customerPhone}</p> : null}
-        <p>{[info.zoneName, info.address].filter(Boolean).join(' · ')}</p>
-        {info.addressNote ? <p className="text-sm text-muted">{info.addressNote}</p> : null}
+        <p dir="auto">{[info.zoneName, info.address].filter(Boolean).join(' · ')}</p>
+        {info.addressNote ? <p className="text-sm text-muted" dir="auto">{info.addressNote}</p> : null}
         {info.driverName ? <p className="text-sm text-muted">{t('pos.offp.driver')}: {info.driverName}</p> : null}
       </div>
       <ul className="flex flex-col gap-1 text-base">

@@ -61,6 +61,11 @@ export async function readRates(db: AnyDb, restaurantId: string): Promise<TillRa
 const stale = (): StudioError => refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
 const lockedError = (): StudioError => refuse('CONFLICT', 'The order is paid, cancelled or rejected and can no longer change');
 
+/** A takeaway or delivery that has gone to the customer keeps its lines and money: only paying and cancelling remain. */
+export function assertNotHandedOver(order: Pick<PosOrder, 'fulfillment'>): void {
+  if (order.fulfillment === 'DELIVERED' || order.fulfillment === 'PICKED_UP') throw refuse('CONFLICT', 'The order was handed over and can no longer change');
+}
+
 /** The order, checked for the change: it exists in the restaurant, is not locked and is at the expected version. */
 export async function loadOrderForChange(db: AnyDb, restaurantId: string, orderId: string, expected: number): Promise<PosOrder> {
   const order = await db.posOrder.findFirst({ where: { id: orderId, restaurantId } });
@@ -130,6 +135,7 @@ export async function openOrderIn(db: AnyDb, restaurantId: string, tableId: stri
 
 export async function setInvoiceDiscountIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; discount: Discount | null }) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {
     invoiceDiscountKind: input.discount?.kind ?? null,
     invoiceDiscountValue: input.discount?.value ?? null,

@@ -4,7 +4,7 @@ import { sendPosToKitchen, markPosLinesReady } from '@/server/studio/actions/pos
 import { addPosLine, cancelPosOrder } from '@/server/studio/actions/pos-orders';
 import { payPosOrder } from '@/server/studio/actions/pos-payments';
 import { closePosShift, openPosShift } from '@/server/studio/actions/pos-shifts';
-import { posOffPremiseBoard } from '@/server/studio/queries/pos-delivery';
+import { posOffPremiseBoard, posOffPremiseFlags } from '@/server/studio/queries/pos-delivery';
 import { posKitchenQueue, posShift } from '@/server/studio/queries/pos';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
@@ -142,5 +142,42 @@ describe('cash with the driver', () => {
     expect((await ask(bCashier, posOffPremiseBoard, {})).ok).toBe(true);
     expect(dataOf(await ask(bCashier, posOffPremiseBoard, {})).delivery).toEqual([]);
     dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 7000, note: '' }));
+  });
+});
+
+describe('review fixes', () => {
+  it('freezes a handed-over order but still lets it be paid', async () => {
+    dataOf(await run(cashier, openPosShift, { openingFloat: 0 }));
+    const d = await open(delivery);
+    let v = d.version;
+    for (const to of ['PREPARING', 'READY']) v = dataOf(await run(cashier, advancePosFulfillment, { orderId: d.orderId, expectedVersion: v, to })).version;
+    v = dataOf(await run(cashier, assignPosDriver, { orderId: d.orderId, expectedVersion: v, driverId })).version;
+    for (const to of ['OUT', 'DELIVERED']) v = dataOf(await run(cashier, advancePosFulfillment, { orderId: d.orderId, expectedVersion: v, to })).version;
+    expect(codeOf(await run(cashier, addPosLine, { orderId: d.orderId, productId: burger, quantity: 1, note: '', optionIds: [], expectedVersion: v }))).toBe('CONFLICT');
+    expect(codeOf(await run(cashier, sendPosToKitchen, { orderId: d.orderId, expectedVersion: v }))).toBe('CONFLICT');
+    dataOf(await run(cashier, payPosOrder, { orderId: d.orderId, expectedVersion: v, expectedTotal: 7000, amountReceived: 7000 }));
+  });
+
+  it('makes a prepaid takeaway READY when the kitchen finishes it', async () => {
+    dataOf(await run(cashier, openPosShift, { openingFloat: 0 }));
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { kitchenScreenEnabled: true } });
+    const t = await open(takeaway);
+    const sent = dataOf(await run(cashier, sendPosToKitchen, { orderId: t.orderId, expectedVersion: t.version }));
+    dataOf(await run(cashier, payPosOrder, { orderId: t.orderId, expectedVersion: sent.version, expectedTotal: 5000, amountReceived: 5000 }));
+    const cards = dataOf(await ask(kitchen, posKitchenQueue, {})).cards;
+    dataOf(await run(kitchen, markPosLinesReady, { lineIds: cards[0]!.lines.map((l) => l.id) }));
+    expect(await prisma().posOrder.findUniqueOrThrow({ where: { id: t.orderId } })).toMatchObject({ status: 'PAID', fulfillment: 'READY' });
+  });
+
+  it('keeps a switched-off type reachable while it still has live orders, and shows no unsettled on a closed shift', async () => {
+    const shiftId = dataOf(await run(cashier, openPosShift, { openingFloat: 0 })).shiftId;
+    const flagsOf = async () => dataOf(await ask(cashier, posOffPremiseFlags, {}));
+    await open(delivery);
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { deliveryEnabled: false, takeawayEnabled: false } });
+    expect(await flagsOf()).toMatchObject({ delivery: true, deliveryOn: false, takeaway: false });
+    await prisma().posOrder.deleteMany({ where: { restaurantId: a.id } });
+    expect(await flagsOf()).toMatchObject({ delivery: false });
+    dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 0, note: '' }));
+    expect(dataOf(await ask(cashier, posShift, { shiftId })).unsettledDeliveries).toEqual({ count: 0, amount: 0 });
   });
 });
