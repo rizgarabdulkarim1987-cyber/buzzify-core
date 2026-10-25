@@ -33,12 +33,12 @@ export function effectiveRates(kind: PosOrder['kind'], rates: Rates): Rates {
 
 /** The totals of an order from its lines (cancelled ones included; the money rules leave them out). */
 export function orderTotals(
-  order: Pick<PosOrder, 'invoiceDiscountKind' | 'invoiceDiscountValue' | 'kind'>,
+  order: Pick<PosOrder, 'invoiceDiscountKind' | 'invoiceDiscountValue' | 'kind' | 'deliveryFee'>,
   lines: readonly PosOrderLine[],
   rates: Rates,
 ) {
   const invoiceDiscount = toDiscount(order.invoiceDiscountKind, order.invoiceDiscountValue);
-  return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates)), invoiceDiscount };
+  return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates), order.kind === 'DELIVERY' ? order.deliveryFee : 0), invoiceDiscount };
 }
 
 export interface TillRates extends Rates {

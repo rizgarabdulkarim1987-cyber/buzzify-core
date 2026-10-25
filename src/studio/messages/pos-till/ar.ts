@@ -327,6 +327,7 @@ const posTill: Messages = {
   'pos.report.day': 'اليوم',
   'pos.report.show': 'عرض',
   'pos.report.netSales': 'صافي المبيعات',
+  'pos.report.deliveryFees': 'أجور التوصيل (مشمولة)',
   'pos.report.discounts': 'الخصومات',
   'pos.report.expenses': 'المصروفات',
   'pos.report.cancelled': 'طلبات / بنود ملغاة',

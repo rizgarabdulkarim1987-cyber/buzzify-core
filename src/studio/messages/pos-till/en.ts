@@ -327,6 +327,7 @@ const posTill: Messages = {
   'pos.report.day': 'Day',
   'pos.report.show': 'Show',
   'pos.report.netSales': 'Net sales',
+  'pos.report.deliveryFees': 'Delivery fees (included)',
   'pos.report.discounts': 'Discounts',
   'pos.report.expenses': 'Expenses',
   'pos.report.cancelled': 'Cancelled orders / lines',

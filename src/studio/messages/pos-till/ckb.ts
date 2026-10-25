@@ -327,6 +327,7 @@ const posTill: Messages = {
   'pos.report.day': 'ڕۆژ',
   'pos.report.show': 'پیشاندان',
   'pos.report.netSales': 'فرۆشتنی پوختە',
+  'pos.report.deliveryFees': 'کرێی گەیاندن (تێدایە)',
   'pos.report.discounts': 'داشکاندنەکان',
   'pos.report.expenses': 'خەرجییەکان',
   'pos.report.cancelled': 'داواکاری / دێڕی هەڵوەشێنراو',
