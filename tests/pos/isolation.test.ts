@@ -67,4 +67,30 @@ describe('a menu-only restaurant', () => {
     expect(statements.length).toBeGreaterThan(0);
     expect(statements.filter((sql) => /"Pos[A-Za-z]*"/.test(sql))).toEqual([]);
   });
+
+  it('answers the QR availability and order routes closed without reading a till table', async () => {
+    const availability = (await import('@/app/api/[tenant]/qr-order/availability/route')) as unknown as {
+      GET: (request: Request, ctx: { params: Promise<{ tenant: string }> }) => Promise<Response>;
+    };
+    const order = (await import('@/app/api/[tenant]/qr-order/route')) as unknown as RouteModule;
+    const product = await client.product.findFirstOrThrow({ where: { menu: { slug: 'atelier' } } });
+    const ctx = { params: Promise.resolve({ tenant: 'atelier' }) };
+    statements.length = 0;
+
+    const open = await availability.GET(new Request('http://localhost/api/atelier/qr-order/availability?table=1', { headers: { 'x-forwarded-for': '10.1.2.1' } }), ctx);
+    expect(await open.json()).toEqual({ available: false });
+
+    const posted = await order.POST(
+      new Request('http://localhost/api/atelier/qr-order', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-forwarded-for': '10.1.2.2' },
+        body: JSON.stringify({ table: 1, locale: 'en', cart: { lines: [{ productId: product.id, quantity: 1 }], bundles: [] } }),
+      }),
+      ctx,
+    );
+    expect(posted.status).toBe(404);
+
+    expect(statements.length).toBeGreaterThan(0);
+    expect(statements.filter((sql) => /"Pos[A-Za-z]*"/.test(sql))).toEqual([]);
+  });
 });

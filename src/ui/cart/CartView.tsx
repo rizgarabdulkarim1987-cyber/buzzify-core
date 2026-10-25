@@ -9,6 +9,7 @@ import { BackIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { PairingList } from '@/ui/product/PairingList';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { BundleSuggestion } from './BundleSuggestion';
+import { SendToWaiter } from './SendToWaiter';
 
 function Stepper({
   quantity,
@@ -78,6 +79,8 @@ export function CartView() {
           <p className="mt-2 text-muted">{t('cart.emptyHint')}</p>
         </div>
       )}
+
+      {empty && <SendToWaiter canSend={false} />}
 
       {!empty && (
         <>
@@ -220,6 +223,8 @@ export function CartView() {
             </h3>
             <p className="mt-1 text-sm text-muted">{t('cart.reviewNote')}</p>
           </section>
+
+          <SendToWaiter canSend={!hasIssues && !quoting && quote !== null && cart.lines.length > 0} />
         </>
       )}
     </main>
