@@ -82,6 +82,8 @@ export async function registerDeviceIn(db: AnyDb, restaurantId: string, input: {
 export async function revokeDeviceIn(db: AnyDb, restaurantId: string, deviceId: string): Promise<void> {
   const { count } = await db.posSharedDevice.updateMany({ where: { id: deviceId, restaurantId, revokedAt: null }, data: { revokedAt: new Date() } });
   if (count === 0) throw new StudioError('NOT_FOUND');
+  // Whoever signed in on it by PIN is signed out with it.
+  await db.session.deleteMany({ where: { posDeviceId: deviceId, posRestaurantId: restaurantId } });
 }
 
 export async function listDevices(prisma: Pick<PrismaClient, 'posSharedDevice'>, restaurantId: string) {

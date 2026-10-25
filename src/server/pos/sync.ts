@@ -99,7 +99,7 @@ export interface SyncContext {
  * per operation. Once an operation of an order fails, the later ones of that order answer `skipped`; other orders go on.
  */
 export async function applyOperations(ctx: SyncContext, deviceId: string, raw: readonly unknown[], scope?: string): Promise<OpAnswer[] | null> {
-  const pos = await resolvePosActor(ctx.prisma, ctx.actor.userId);
+  const pos = await resolvePosActor(ctx.prisma, ctx.actor.userId, ctx.actor.posRestaurantId);
   if (!pos) return null;
   const restaurantId = pos.restaurantId;
   // Operations are the work of the person and restaurant that queued them: never apply them under another sign-in.

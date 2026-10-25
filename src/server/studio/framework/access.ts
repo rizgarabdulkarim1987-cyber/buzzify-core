@@ -235,7 +235,7 @@ export async function resolvePosAccess(
   target: PosTarget,
   allowLapsed = false,
 ): Promise<Access | { ok: false; error: StudioFailure }> {
-  const posActor = await resolvePosActor(prisma, actor.userId);
+  const posActor = await resolvePosActor(prisma, actor.userId, actor.posRestaurantId);
   if (!posActor) return failure('NOT_FOUND');
   // A lapsed Cashier subscription still lets a definition marked `allowLapsed` run; an inactive restaurant never does.
   const gate = await posGate(prisma, posActor.restaurantId);
