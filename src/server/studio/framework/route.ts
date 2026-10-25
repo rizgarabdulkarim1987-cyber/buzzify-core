@@ -52,7 +52,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * its body is JSON: a cross-site form can post text or form data without an `Origin` in some browsers and after some
  * redirects, but it cannot send `application/json` without a preflight the Studio never answers.
  */
-function sameOrigin(request: Request): boolean {
+export function sameOrigin(request: Request): boolean {
   const origin = request.headers.get('origin');
   if (origin === null) {
     const type = request.headers.get('content-type')?.split(';')[0]?.trim().toLowerCase();

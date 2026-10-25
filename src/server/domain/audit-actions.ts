@@ -144,6 +144,8 @@ export const AUDIT_ACTIONS = [
   'pos.order.details',
   'pos.order.fulfillment',
   'pos.order.driver',
+  'pos.sync.apply',
+  'pos.sync.discard',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -166,6 +168,7 @@ export const AUDIT_ENTITY_TYPES = [
   'PosCustomerOrderLine',
   'PosDeliveryZone',
   'PosDriver',
+  'PosSyncOperation',
   'Restaurant',
   'RestaurantStatus',
   'RestaurantPlan',

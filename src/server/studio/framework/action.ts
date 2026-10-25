@@ -234,8 +234,11 @@ class Work {
   private targetTransaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
     if (!this.claim) return this.run(this.client(), this.access, fn);
     if (this.claimed) return Promise.reject(new Error(`${this.name} runs an operation, which takes one transaction`));
-    this.claimed = true;
-    return this.run(this.client(), this.access, fn, undefined, this.claim);
+    return this.run(this.client(), this.access, fn, undefined, this.claim).then((value) => {
+      // A transaction that failed has recorded nothing, so an action that retries it (a lost race for the next number) may.
+      this.claimed = true;
+      return value;
+    });
   }
 
   /** The target's client: a menu and its restaurant, a restaurant alone, or global rows only. */
