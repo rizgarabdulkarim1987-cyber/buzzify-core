@@ -72,6 +72,10 @@ export async function registerDeviceIn(db: AnyDb, restaurantId: string, input: {
     data: { restaurantId, name: input.name, tokenHash: sha256(token), createdByUserId: input.userId },
     select: { id: true },
   });
+  if ((await db.posSharedDevice.count({ where: { restaurantId, revokedAt: null } })) > MAX_DEVICES) {
+    await db.posSharedDevice.updateMany({ where: { id: device.id, restaurantId }, data: { revokedAt: new Date() } });
+    throw refuse('CONFLICT', 'Register at most 20 devices');
+  }
   return { deviceId: device.id, token };
 }
 
@@ -132,29 +136,56 @@ export async function verifyPin(prisma: PrismaClient, input: VerifyInput): Promi
   const restaurantId = device.restaurantId;
   const meta = clampMeta(input.meta);
 
+  // The try is charged BEFORE the (slow) hash check, so a burst of parallel requests cannot all pass the limits: each one
+  // first writes its attempt row, then counts, and the staff counter is raised with a conditional update.
+  const reserved = await prisma.posPinAttempt.create({ data: { restaurantId, deviceId: device.id, staffId: input.staffId, ok: false, at: now }, select: { id: true } });
   const recentFailures = await prisma.posPinAttempt.count({
     where: { restaurantId, deviceId: device.id, ok: false, at: { gte: new Date(now.getTime() - PIN_LIMITS.deviceWindowMs) } },
   });
-  if (recentFailures >= PIN_LIMITS.deviceFailures) throw new DeviceLimitError();
+  if (recentFailures > PIN_LIMITS.deviceFailures) {
+    await prisma.posPinAttempt.deleteMany({ where: { id: reserved.id, restaurantId } });
+    throw new DeviceLimitError();
+  }
 
-  const staff = await prisma.posStaff.findFirst({
+  let staff = await prisma.posStaff.findFirst({
     where: { id: input.staffId, restaurantId, deactivatedAt: null },
     select: { id: true, userId: true, pinHash: true, pinFailedCount: true, pinLockedUntil: true, user: { select: ELIGIBILITY_SELECT } },
   });
 
+  if (staff?.pinLockedUntil && staff.pinLockedUntil <= now) {
+    // The lock has run out: the count starts again.
+    await prisma.posStaff.updateMany({ where: { id: staff.id, restaurantId, pinLockedUntil: { lte: now } }, data: { pinFailedCount: 0, pinLockedUntil: null } });
+    staff = { ...staff, pinFailedCount: 0, pinLockedUntil: null };
+  }
+  if (staff?.pinLockedUntil) throw new PinLockedError(staff.pinLockedUntil);
+  if (staff) {
+    const taken = await prisma.posStaff.updateMany({
+      where: { id: staff.id, restaurantId, pinLockedUntil: null, pinFailedCount: { lt: PIN_LIMITS.staffFailures } },
+      data: { pinFailedCount: { increment: 1 } },
+    });
+    if (taken.count === 0) {
+      // Five tries are already in flight or used: lock now if nobody has, and say until when.
+      await prisma.posStaff.updateMany({
+        where: { id: staff.id, restaurantId, pinLockedUntil: null, pinFailedCount: { gte: PIN_LIMITS.staffFailures } },
+        data: { pinLockedUntil: new Date(now.getTime() + PIN_LIMITS.staffLockMs) },
+      });
+      const now2 = await prisma.posStaff.findFirst({ where: { id: staff.id, restaurantId }, select: { pinLockedUntil: true } });
+      throw new PinLockedError(now2?.pinLockedUntil ?? new Date(now.getTime() + PIN_LIMITS.staffLockMs));
+    }
+  }
+
   const fail = async (known: { id: string; userId: string } | null): Promise<never> => {
     await prisma.$transaction(async (tx) => {
-      await tx.posPinAttempt.create({ data: { restaurantId, deviceId: device.id, staffId: input.staffId, ok: false, at: now } });
       if (known) {
-        await tx.posStaff.updateMany({ where: { id: known.id, restaurantId }, data: { pinFailedCount: { increment: 1 } } });
         await tx.posStaff.updateMany({
           where: { id: known.id, restaurantId, pinFailedCount: { gte: PIN_LIMITS.staffFailures }, pinLockedUntil: null },
           data: { pinLockedUntil: new Date(now.getTime() + PIN_LIMITS.staffLockMs) },
         });
       }
+      // Whoever typed is unknown: the row names the person tried, not an actor.
       await tx.auditLog.create({
         data: {
-          actorId: known?.userId ?? null,
+          actorId: null,
           restaurantId,
           action: 'pos.pin.fail',
           entityType: 'PosStaff',
@@ -168,35 +199,27 @@ export async function verifyPin(prisma: PrismaClient, input: VerifyInput): Promi
     throw new PinRefusedError();
   };
 
-  if (staff?.pinLockedUntil) {
-    if (staff.pinLockedUntil > now) {
-      await prisma.posPinAttempt.create({ data: { restaurantId, deviceId: device.id, staffId: input.staffId, ok: false, at: now } });
-      throw new PinLockedError(staff.pinLockedUntil);
-    }
-    // The lock has run out: the count starts again.
-    await prisma.posStaff.updateMany({ where: { id: staff.id, restaurantId, pinLockedUntil: { lte: now } }, data: { pinFailedCount: 0, pinLockedUntil: null } });
-  }
-
   const hash = staff?.pinHash ?? (await dummy());
   const matches = await verifyPassword({ hash, password: input.pin });
   if (!staff || !staff.pinHash || !matches || !pinEligible(staff.user)) return fail(staff ? { id: staff.id, userId: staff.userId } : null);
 
+  const person = staff;
   await prisma.$transaction(async (tx) => {
-    await tx.posPinAttempt.create({ data: { restaurantId, deviceId: device.id, staffId: staff.id, ok: true, at: now } });
-    await tx.posStaff.updateMany({ where: { id: staff.id, restaurantId }, data: { pinFailedCount: 0, pinLockedUntil: null } });
+    await tx.posPinAttempt.updateMany({ where: { id: reserved.id, restaurantId }, data: { ok: true } });
+    await tx.posStaff.updateMany({ where: { id: person.id, restaurantId }, data: { pinFailedCount: 0, pinLockedUntil: null } });
     await tx.posSharedDevice.updateMany({ where: { id: device.id, restaurantId }, data: { lastUsedAt: now } });
     await tx.auditLog.create({
       data: {
-        actorId: staff.userId,
+        actorId: person.userId,
         restaurantId,
         action: 'pos.pin.ok',
         entityType: 'PosStaff',
-        entityId: staff.id,
+        entityId: person.id,
         changes: { deviceId: { before: null, after: device.id } },
         ip: meta.ip,
         userAgent: meta.userAgent,
       },
     });
   });
-  return { userId: staff.userId, staffId: staff.id };
+  return { userId: person.userId, staffId: person.id };
 }
