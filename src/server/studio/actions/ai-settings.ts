@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { aiErrorCode } from '@/server/ai/ai-error-code';
+import { AiProviderError } from '@/server/ai/errors';
 import { clearAiProviderCache, pingAiProvider, resolveAiProvider, aiSettingsInput, AiSettingsKeyError, writeAiSettings } from '@/server/ai/settings';
 import { StudioError } from '@/server/studio/framework/result';
 import { defineAction } from '@/server/studio/framework/action';
@@ -49,11 +50,11 @@ export const testAiProvider = defineAction({
     clearAiProviderCache();
     try {
       const provider = await resolveAiProvider(ctx.db);
-      if (!provider) return { ok: false as const, code: 'aiUnavailable' as const, provider: null };
+      if (!provider) return { ok: false as const, code: 'aiUnavailable' as const, provider: null, detail: 'no key' };
       await pingAiProvider(provider);
-      return { ok: true as const, provider: provider.name };
+      return { ok: true as const, provider: provider.name, detail: null };
     } catch (error) {
-      return { ok: false as const, code: aiErrorCode(error), provider: null };
+      return { ok: false as const, code: aiErrorCode(error), provider: null, detail: error instanceof AiProviderError ? error.detail : error instanceof Error ? error.name : null };
     }
   },
 });

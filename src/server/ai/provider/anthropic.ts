@@ -72,6 +72,15 @@ export function fromAnthropicMessage(message: { stop_reason?: string | null; con
   return { stop, content: fromContent(message.content), model: message.model, inputTokens: message.usage?.input_tokens ?? 0, outputTokens: message.usage?.output_tokens ?? 0 };
 }
 
+/** The status and error type of a failed call, and the API's own short message (it describes the account or the model, never the request). */
+function describeAnthropicError(error: unknown): string {
+  if (error instanceof Anthropic.APIError) {
+    const inner = (error.error as { error?: { type?: string; message?: string } } | undefined)?.error;
+    return `http ${error.status ?? 'none'} ${inner?.type ?? ''} ${(inner?.message ?? '').slice(0, 160)}`.trim();
+  }
+  return error instanceof Error ? error.name : 'unknown';
+}
+
 export function createAnthropicProvider(apiKey: string, models: { ask?: string | undefined; fast?: string | undefined } = {}): AiProvider {
   const client = new Anthropic({ apiKey, maxRetries: 1 });
   // Models the Super Admin saved win over the environment's, which win over the defaults.
@@ -88,7 +97,7 @@ export function createAnthropicProvider(apiKey: string, models: { ask?: string |
         return fromAnthropicMessage(message as unknown as Parameters<typeof fromAnthropicMessage>[0]);
       } catch (error) {
         if (error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError || (error instanceof Error && error.name === 'TimeoutError')) throw new AiTimeoutError();
-        throw new AiProviderError();
+        throw new AiProviderError(describeAnthropicError(error));
       }
     },
   };
