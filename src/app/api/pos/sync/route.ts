@@ -2,7 +2,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { syncRequestSchema } from '@/lib/pos-sync/op-schema';
 import { getPrisma } from '@/server/data/prisma';
 import { readBodyWithLimit } from '@/server/http/route';
-import { applyOperations } from '@/server/pos/sync';
+import { applyOperations, ScopeMismatchError } from '@/server/pos/sync';
 import { actorFromHeaders } from '@/server/studio/auth/actor';
 import { requestMeta } from '@/server/studio/framework/action';
 import { sameOrigin } from '@/server/studio/framework/route';
@@ -35,7 +35,13 @@ export async function POST(request: Request): Promise<Response> {
     }
     const parsed = syncRequestSchema.safeParse(body);
     if (!parsed.success) return refuse(400, 'INVALID');
-    const answers = await applyOperations({ prisma, actor, meta: requestMeta(request.headers) }, parsed.data.deviceId, parsed.data.operations);
+    let answers;
+    try {
+      answers = await applyOperations({ prisma, actor, meta: requestMeta(request.headers) }, parsed.data.deviceId, parsed.data.operations, parsed.data.scope);
+    } catch (error) {
+      if (error instanceof ScopeMismatchError) return refuse(409, 'CONFLICT');
+      throw error;
+    }
     if (answers === null) return refuse(403, 'FORBIDDEN');
     return Response.json({ serverTime: new Date().toISOString(), answers }, { headers: NO_STORE });
   } catch (error) {

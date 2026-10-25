@@ -18,6 +18,7 @@ const noParams = { params: Promise.resolve({}) };
 
 let a: { id: string };
 let manager: Person;
+let scope: string;
 let tableId: string;
 let cashierSession: Headers;
 let outsiderSession: Headers;
@@ -37,6 +38,7 @@ beforeEach(async () => {
   a = await restaurant('Routes A');
   manager = await person('manager', { staff: [a.id, 'MANAGER'] });
   const cashier = await person('cashier', { staff: [a.id, 'CASHIER'] });
+  scope = `${a.id}:${cashier.userId}`;
   const outsider = await person('outsider');
   const areaId = dataOf(await run(manager, createPosArea, { name: 'Hall' })).areaId;
   await run(manager, createPosTables, { areaId, from: 1, to: 2 });
@@ -68,7 +70,7 @@ const post = (handler: (request: Request, context: { params: Promise<unknown> })
   handler(new Request(`${ORIGIN}/api/pos/sync`, { method: 'POST', body, headers: sent(session, extra) }), noParams);
 
 const openOp = () => ({ operationId: randomUUID(), deviceId: device, clientAt: '2026-10-25T08:00:00.000Z', kind: 'openOrder', payload: { tableId } });
-const batch = (operations: unknown[]) => JSON.stringify({ deviceId: device, operations });
+const batch = (operations: unknown[]) => JSON.stringify({ scope, deviceId: device, operations });
 
 describe('POST /api/pos/sync', () => {
   it('replays an operation and answers it, never cached', async () => {
@@ -96,6 +98,12 @@ describe('POST /api/pos/sync', () => {
     expect((await post(syncPost, '{nope', cashierSession)).status).toBe(400);
     expect((await post(syncPost, batch([]), cashierSession)).status).toBe(400);
     expect((await post(syncPost, batch(Array.from({ length: 26 }, openOp)), cashierSession)).status).toBe(400);
+    expect(await prisma().posOrder.count()).toBe(0);
+  });
+
+  it('refuses a batch queued by someone else than the person now signed in, and applies none of it', async () => {
+    const other = JSON.stringify({ scope: `${a.id}:someone-else`, deviceId: device, operations: [openOp()] });
+    expect((await post(syncPost, other, cashierSession)).status).toBe(409);
     expect(await prisma().posOrder.count()).toBe(0);
   });
 

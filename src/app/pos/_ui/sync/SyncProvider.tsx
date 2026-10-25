@@ -3,9 +3,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { canQueue, type Refusal } from '@/lib/pos-sync/guards';
 import { indicatorState, type IndicatorState } from '@/lib/pos-sync/indicator';
-import { deviceId, getValue, openPosDb, putValue, type PosDb } from '@/lib/pos-sync/idb';
+import { deleteValue, deviceId, getValue, openPosDb, putValue, type PosDb } from '@/lib/pos-sync/idb';
 import { MAX_BATCH, type Op } from '@/lib/pos-sync/op-schema';
-import { applyToCurrent, counts, discardLocal, enqueue, listQueue, loadSnapshot, pruneDone, retry, saveSnapshot, type OpDraft, type QueueCounts, type QueuedOp } from '@/lib/pos-sync/queue';
+import { applyToCurrent, clearScopeCache, counts, discardLocal, enqueue, listQueue, loadSnapshot, pruneDone, retry, saveSnapshot, type OpDraft, type QueueCounts, type QueuedOp } from '@/lib/pos-sync/queue';
 import { replayUntilIdle, withSyncLock, type Transport } from '@/lib/pos-sync/replay';
 import { scopeOf, type Scope } from '@/lib/pos-sync/scope';
 import type { SyncSnapshot } from '@/lib/pos-sync/snapshot';
@@ -64,16 +64,19 @@ async function fetchSnapshot(): Promise<Fetched> {
   }
 }
 
-const transport: Transport = async (device, operations: Op[]) => {
+/** The transport for one person's queue: the server refuses the batch when someone else is signed in by now. */
+const transportFor = (scope: Scope): Transport => async (device, operations: Op[]) => {
   try {
     const response = await fetch('/api/pos/sync', {
+      signal: AbortSignal.timeout(20_000),
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       credentials: 'same-origin',
       cache: 'no-store',
-      body: JSON.stringify({ deviceId: device, operations: operations.slice(0, MAX_BATCH) }),
+      body: JSON.stringify({ scope, deviceId: device, operations: operations.slice(0, MAX_BATCH) }),
     });
-    if (response.status === 401) return { kind: 'signedOut' };
+    // 409: another person is signed in; 403: this one has lost the till. Either way the queue waits for the right sign-in.
+    if (response.status === 401 || response.status === 403 || response.status === 409) return { kind: 'signedOut' };
     if (response.status >= 500) return { kind: 'server' };
     if (!response.ok) return { kind: 'server' };
     const body = (await response.json()) as { serverTime: string; answers: never[] };
@@ -130,6 +133,19 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     setSignedOut(fetched.kind === 'signedOut');
     if (fetched.kind === 'noTill') return;
     const known = scopeRef.current ?? (await getValue<string>(db, 'meta', 'lastScope')) ?? null;
+    const waiting = known && fetched.kind === 'signedOut' ? await counts(db, known) : null;
+    if (known && waiting && waiting.pending + waiting.blocked + waiting.attention === 0) {
+      // Signed out with nothing waiting: the next person at this device must not read this one's floor and orders.
+      await clearScopeCache(db, known);
+      await deleteValue(db, 'meta', 'lastScope');
+      scopeRef.current = null;
+      setScope(null);
+      setSnapshot(null);
+      setSnapshotAt(null);
+      setQueue([]);
+      setTally(EMPTY);
+      return;
+    }
     if (known) {
       scopeRef.current = known;
       setScope(known);
@@ -147,7 +163,7 @@ export function SyncProvider({ children }: { children: ReactNode }) {
     const forScope = scopeRef.current;
     setSyncing(true);
     try {
-      const pass = await withSyncLock(() => replayUntilIdle(db, forScope, transport));
+      const pass = await withSyncLock(() => replayUntilIdle(db, forScope, transportFor(forScope)));
       if (pass.state === 'signedOut') setSignedOut(true);
       else if (pass.state === 'backoff') {
         setOnline(false);
@@ -240,7 +256,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
       },
       async discard(operationId, reason) {
         if (!db || !scopeRef.current) return { ok: false };
-        const target = queue.find((q) => q.operationId === operationId);
+        const forScope = scopeRef.current;
+        return withSyncLock(async () => {
+        // Under the lock no send is in flight: what is still waiting here has not reached the server.
+        const target = (await listQueue(db, forScope)).find((q) => q.operationId === operationId);
         if (!target || target.state === 'done') return { ok: false };
         const amount = target.op.kind === 'payCash' ? target.op.payload.amountReceived : undefined;
         const lines = target.op.kind === 'addLine' ? target.op.payload.quantity : undefined;
@@ -262,9 +281,10 @@ export function SyncProvider({ children }: { children: ReactNode }) {
         } catch {
           return { ok: false };
         }
-        await discardLocal(db, scopeRef.current, operationId);
-        await reload(db, scopeRef.current);
+        await discardLocal(db, forScope, operationId);
+        await reload(db, forScope);
         return { ok: true };
+        });
       },
     }),
     [db, ready, online, syncing, signedOut, tally, scope, snapshot, snapshotAt, queue, refresh, reload, sync],

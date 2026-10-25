@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@/generated/prisma/client';
+import { scopeOf } from '@/lib/pos-sync/scope';
 import { operationIdOf, operationSchema, type Op, type OpAnswer, type OpKind, type OrderRef, type SyncErrorCode } from '@/lib/pos-sync/op-schema';
 import { delegates, scopedClient } from '@/server/data/tenant-db';
 import { resolvePosActor } from '@/server/pos/actor';
@@ -84,6 +85,9 @@ function storedAnswer(op: Op, stored: Stored, userId: string): OpAnswer {
   return { operationId: op.operationId, status: 'done', replayed: true, result };
 }
 
+/** The batch was queued by someone else (another person, or another restaurant) than the one now signed in. */
+export class ScopeMismatchError extends Error {}
+
 export interface SyncContext {
   prisma: PrismaClient;
   actor: Actor;
@@ -94,10 +98,12 @@ export interface SyncContext {
  * Applies the operations in order. Returns `null` when the person has no till (the route answers 403), else one answer
  * per operation. Once an operation of an order fails, the later ones of that order answer `skipped`; other orders go on.
  */
-export async function applyOperations(ctx: SyncContext, deviceId: string, raw: readonly unknown[]): Promise<OpAnswer[] | null> {
+export async function applyOperations(ctx: SyncContext, deviceId: string, raw: readonly unknown[], scope?: string): Promise<OpAnswer[] | null> {
   const pos = await resolvePosActor(ctx.prisma, ctx.actor.userId);
   if (!pos) return null;
   const restaurantId = pos.restaurantId;
+  // Operations are the work of the person and restaurant that queued them: never apply them under another sign-in.
+  if (scope !== undefined && scope !== scopeOf(restaurantId, ctx.actor.userId)) throw new ScopeMismatchError();
   const db = delegates(scopedClient(ctx.prisma, { restaurantId }));
   const failed = new Set<string>();
   const answers: OpAnswer[] = [];

@@ -50,7 +50,7 @@ export type Op = z.infer<typeof operationSchema>;
 
 /** The request body of `POST /api/pos/sync`: one to 25 operations, applied in order. */
 export const MAX_BATCH = 25;
-export const syncRequestSchema = z.object({ deviceId: uuid, operations: z.array(z.unknown()).min(1).max(MAX_BATCH) }).strict();
+export const syncRequestSchema = z.object({ scope: z.string().min(1).max(100), deviceId: uuid, operations: z.array(z.unknown()).min(1).max(MAX_BATCH) }).strict();
 
 export const SYNC_ERROR_CODES = [
   'stale',
