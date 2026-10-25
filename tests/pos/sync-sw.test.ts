@@ -30,6 +30,7 @@ function boot(network: (url: string) => Promise<{ ok: boolean; body: string }>) 
   const context = {
     self: scope,
     URL,
+    Response: { redirect: (url: string, status: number) => ({ redirected: true, url, status }) },
     Promise,
     Set,
     caches: { open: async (n: string) => cacheOf(n), keys: async () => [...stores.keys()], delete: async (n: string) => stores.delete(n) },
@@ -57,7 +58,7 @@ function boot(network: (url: string) => Promise<{ ok: boolean; body: string }>) 
 const shellHtml = '<html><script src="/_next/static/chunks/app.js"></script><link href="/_next/static/css/a.css"></html>';
 
 describe('the till service worker', () => {
-  it('stores the shell and the scripts it names at install, and answers a failed /pos navigation with the shell', async () => {
+  it('stores the shell and the scripts it names at install, and sends a failed /pos navigation to the shell', async () => {
     let online = true;
     const sw = boot(async (url) => {
       if (!online) throw new Error('offline');
@@ -67,7 +68,8 @@ describe('the till service worker', () => {
     expect([...sw.stores.get('pos-sw-v1-shell')!.keys()]).toEqual(['/pos/offline']);
     expect([...sw.stores.get('pos-sw-v1-static')!.keys()].sort()).toEqual(['/_next/static/chunks/app.js', '/_next/static/css/a.css']);
     online = false;
-    const page = (await sw.dispatch('/pos/tables', { mode: 'navigate' })) as { body: string };
+    expect(await sw.dispatch('/pos/tables', { mode: 'navigate' })).toEqual({ redirected: true, url: 'https://till.test/pos/offline', status: 302 });
+    const page = (await sw.dispatch('/pos/offline', { mode: 'navigate' })) as { body: string };
     expect(page.body).toBe(shellHtml);
     const script = (await sw.dispatch('/_next/static/chunks/app.js')) as { body: string };
     expect(script.body).toBe('asset');

@@ -92,8 +92,10 @@ async function shellFallback(request) {
     return response;
   } catch (error) {
     const cached = await (await caches.open(SHELL_CACHE)).match(SHELL_URL);
-    if (cached) return cached;
-    throw error;
+    if (!cached) throw error;
+    // Any other till page needs the server: send the cashier to the offline till rather than serve it a page that cannot run.
+    if (!isShell(new URL(request.url))) return Response.redirect(new URL(SHELL_URL, self.location.origin).href, 302);
+    return cached;
   }
 }
 
