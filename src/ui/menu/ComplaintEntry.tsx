@@ -35,8 +35,12 @@ export function ComplaintButton() {
         type="button"
         data-testid="complaint-open"
         onClick={() => setOpen(true)}
-        className="inline-flex min-h-12 items-center rounded-md border border-line px-4 text-sm text-text transition-colors duration-150 [@media(hover:hover)]:hover:border-accent"
+        className="inline-flex min-h-12 items-center gap-2 rounded-md border border-line px-4 text-sm text-text transition-colors duration-150 [@media(hover:hover)]:hover:border-accent"
       >
+        <svg aria-hidden="true" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" className="shrink-0 text-accent">
+          <path d="M4 5h16v11H9l-5 4z" />
+          <path d="M8 9.5h8M8 12.5h5" />
+        </svg>
         {words.open}
       </button>
       <dialog
