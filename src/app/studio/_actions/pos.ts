@@ -225,3 +225,11 @@ export async function openPosOffPremiseOrder(input: unknown) {
 export async function updatePosOffPremiseDetails(input: unknown) {
   return invoke(delivery.updatePosOffPremiseDetails, input);
 }
+
+export async function advancePosFulfillment(input: unknown) {
+  return invoke(delivery.advancePosFulfillment, input);
+}
+
+export async function assignPosDriver(input: unknown) {
+  return invoke(delivery.assignPosDriver, input);
+}

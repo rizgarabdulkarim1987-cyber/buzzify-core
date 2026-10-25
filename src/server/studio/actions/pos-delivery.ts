@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
-import { openOffPremiseIn, updateOffPremiseDetailsIn, type OpenOffPremiseInput } from '@/server/pos/off-premise';
+import { advanceFulfillmentIn, assignDriverIn, openOffPremiseIn, updateOffPremiseDetailsIn, type OpenOffPremiseInput } from '@/server/pos/off-premise';
 import { phoneField } from '@/server/pos/phone-field';
 import { createDriverIn, createZoneIn, deleteZoneIn, updateDriverIn, updateZoneIn } from '@/server/pos/delivery-setup';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -201,6 +201,38 @@ export const updatePosOffPremiseDetails = defineAction({
         entityId: done.orderId,
         changes: { fields: { before: null, after: done.changed.join(',') }, deliveryFee: { before: done.fee.before, after: done.fee.after } },
       });
+      return { orderId: done.orderId, version: done.version };
+    });
+  },
+});
+
+export const advancePosFulfillment = defineAction({
+  name: 'pos.advanceFulfillment',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField, expectedVersion: z.number().int().min(1).max(INT32), to: z.enum(['PREPARING', 'READY', 'OUT', 'DELIVERED', 'PICKED_UP']) }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await advanceFulfillmentIn(delegates(tx), restaurantId, input);
+      ctx.audit({ action: 'pos.order.fulfillment', entityType: 'PosOrder', entityId: done.orderId, changes: { fulfillment: { before: done.from, after: done.to } } });
+      return { orderId: done.orderId, version: done.version };
+    });
+  },
+});
+
+export const assignPosDriver = defineAction({
+  name: 'pos.assignDriver',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField, expectedVersion: z.number().int().min(1).max(INT32), driverId: idField.nullable() }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await assignDriverIn(delegates(tx), restaurantId, input);
+      ctx.audit({ action: 'pos.order.driver', entityType: 'PosOrder', entityId: done.orderId, changes: { driverId: { before: done.before, after: done.after } } });
       return { orderId: done.orderId, version: done.version };
     });
   },

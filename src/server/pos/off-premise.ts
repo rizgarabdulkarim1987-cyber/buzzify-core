@@ -3,7 +3,8 @@ import { normalizePhone } from '@/lib/phone';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
-import { bumpOrder, loadOrderForChange, reopened } from './orders';
+import { canAdvance, isFinished, type Fulfillment } from '@/server/domain/pos/fulfillment';
+import { bumpOrder, loadOrderForChange, orderTotals, readRates, reopened } from './orders';
 
 /**
  * Takeaway and delivery orders: the same `PosOrder` as a table's, with no table, a queue number that restarts every Baghdad
@@ -149,4 +150,153 @@ export async function findRecentCustomerIn(db: AnyDb, restaurantId: string, rawP
   if (!last) return null;
   const zone = last.deliveryZoneId ? await db.posDeliveryZone.findFirst({ where: { id: last.deliveryZoneId, restaurantId, active: true }, select: { id: true } }) : null;
   return { customerName: last.customerName, address: last.address, addressNote: last.addressNote, zoneId: zone?.id ?? null };
+}
+
+// Fulfillment, the driver and the board ---------------------------------------------------------------------------------
+
+const staleOrder = () => refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
+
+/** A takeaway or delivery order that can still move: it exists here, is not cancelled or rejected and is at the expected version. Paid is allowed. */
+async function loadMovable(db: AnyDb, restaurantId: string, orderId: string, expected: number, sentence: Parameters<typeof refuse>[1]) {
+  const order = await db.posOrder.findFirst({ where: { id: orderId, restaurantId } });
+  if (!order) throw new StudioError('NOT_FOUND');
+  if (order.kind === 'DINE_IN') throw refuse('CONFLICT', sentence);
+  if (order.status === 'CANCELLED' || order.status === 'REJECTED') throw refuse('CONFLICT', 'The order is paid, cancelled or rejected and can no longer change');
+  if (order.version !== expected) throw staleOrder();
+  return order as typeof order & { kind: OffPremiseKind; fulfillment: Fulfillment };
+}
+
+/**
+ * Moves the order one step. This is the only change a PAID order accepts (a takeaway paid at the counter, then picked up): a
+ * compare-and-set on the version and the current step, so two taps at once leave one winner and one stale conflict.
+ */
+export async function advanceFulfillmentIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; to: Fulfillment }) {
+  const order = await loadMovable(db, restaurantId, input.orderId, input.expectedVersion, 'Only a takeaway or delivery order has these details');
+  if (!canAdvance(order.kind, order.fulfillment, input.to)) throw refuse('CONFLICT', 'That step is not allowed');
+  if (input.to === 'PICKED_UP' && order.status !== 'PAID') throw refuse('CONFLICT', 'The order is not paid yet');
+  if (input.to === 'OUT' && order.driverId === null) throw refuse('CONFLICT', 'Choose a driver before the order goes out');
+  const now = new Date();
+  const { count } = await db.posOrder.updateMany({
+    where: { id: order.id, restaurantId, version: input.expectedVersion, fulfillment: order.fulfillment, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+    data: {
+      fulfillment: input.to,
+      version: { increment: 1 },
+      ...(input.to === 'OUT' ? { outAt: now } : {}),
+      ...(input.to === 'READY' && order.fulfillment === 'OUT' ? { outAt: null } : {}),
+      ...(isFinished(input.to) ? { doneAt: now } : {}),
+    },
+  });
+  if (count === 0) throw staleOrder();
+  return { orderId: order.id, version: input.expectedVersion + 1, from: order.fulfillment, to: input.to };
+}
+
+/** Assigns an active driver (or, before it goes out, takes the driver off). The name is copied, so a later rename leaves the order alone. */
+export async function assignDriverIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; driverId: string | null }) {
+  const order = await loadMovable(db, restaurantId, input.orderId, input.expectedVersion, 'Only a delivery order has a driver');
+  if (order.kind !== 'DELIVERY') throw refuse('CONFLICT', 'Only a delivery order has a driver');
+  if (isFinished(order.fulfillment)) throw refuse('CONFLICT', 'That step is not allowed');
+  let driver: { id: string; name: string } | null = null;
+  if (input.driverId !== null) {
+    const found = await db.posDriver.findFirst({ where: { id: input.driverId, restaurantId }, select: { id: true, name: true, active: true } });
+    if (!found) throw new StudioError('NOT_FOUND');
+    if (!found.active) throw refuse('CONFLICT', 'That driver is not available');
+    driver = found;
+  } else if (order.fulfillment === 'OUT') {
+    throw refuse('CONFLICT', 'Choose a driver before the order goes out');
+  }
+  const { count } = await db.posOrder.updateMany({
+    where: { id: order.id, restaurantId, version: input.expectedVersion, status: { notIn: ['CANCELLED', 'REJECTED'] } },
+    data: { driverId: driver?.id ?? null, driverNameSnapshot: driver?.name ?? '', version: { increment: 1 } },
+  });
+  if (count === 0) throw staleOrder();
+  return { orderId: order.id, version: input.expectedVersion + 1, before: order.driverId, after: driver?.id ?? null };
+}
+
+export interface OffPremiseCard {
+  orderId: string;
+  number: number;
+  queueNumber: number;
+  kind: OffPremiseKind;
+  status: string;
+  fulfillment: Fulfillment;
+  version: number;
+  customerName: string;
+  customerPhone: string;
+  address: string;
+  zoneName: string;
+  driverId: string | null;
+  driverName: string;
+  seatedAt: Date;
+  total: number;
+  paid: boolean;
+  /** Delivered and not paid: the driver holds the customer's cash. */
+  cashWithDriver: boolean;
+}
+
+export interface OffPremiseBoard {
+  takeaway: OffPremiseCard[];
+  delivery: OffPremiseCard[];
+  cashWithDrivers: { driverId: string | null; driverName: string; count: number; amount: number }[];
+}
+
+/** Orders shown at most; the oldest come first, so a flood never hides the ones waiting longest. */
+export const OFF_PREMISE_LIMIT = 200;
+
+/** A delivered order that is still unpaid (cash with the driver): the one case where a finished fulfillment keeps showing. */
+const isUnsettled = (o: { kind: string; fulfillment: string | null; status: string }): boolean => o.kind === 'DELIVERY' && o.fulfillment === 'DELIVERED' && o.status !== 'PAID';
+
+/** The live takeaway and delivery orders: not cancelled, and not both finished and paid. */
+export async function readOffPremiseBoard(db: AnyDb, restaurantId: string): Promise<OffPremiseBoard> {
+  const [orders, rates] = await Promise.all([
+    db.posOrder.findMany({
+      where: {
+        restaurantId,
+        kind: { in: ['TAKEAWAY', 'DELIVERY'] },
+        status: { notIn: ['CANCELLED', 'REJECTED'] },
+        NOT: { status: 'PAID', fulfillment: { in: ['DELIVERED', 'PICKED_UP'] } },
+      },
+      orderBy: [{ seatedAt: 'asc' }, { id: 'asc' }],
+      take: OFF_PREMISE_LIMIT,
+      include: { lines: true },
+    }),
+    readRates(db, restaurantId),
+  ]);
+  const cards: OffPremiseCard[] = orders.map((o) => ({
+    orderId: o.id,
+    number: o.number,
+    queueNumber: o.queueNumber ?? 0,
+    kind: o.kind as OffPremiseKind,
+    status: o.status,
+    fulfillment: (o.fulfillment ?? 'NEW') as Fulfillment,
+    version: o.version,
+    customerName: o.customerName,
+    customerPhone: o.customerPhone,
+    address: o.address,
+    zoneName: o.deliveryZoneName,
+    driverId: o.driverId,
+    driverName: o.driverNameSnapshot,
+    seatedAt: o.seatedAt,
+    total: orderTotals(o, o.lines, rates).totals.total,
+    paid: o.status === 'PAID',
+    cashWithDriver: isUnsettled(o),
+  }));
+  const unsettled = new Map<string, { driverId: string | null; driverName: string; count: number; amount: number }>();
+  for (const card of cards.filter((c) => c.cashWithDriver)) {
+    const key = card.driverId ?? '';
+    const row = unsettled.get(key) ?? { driverId: card.driverId, driverName: card.driverName, count: 0, amount: 0 };
+    row.count += 1;
+    row.amount += card.total;
+    unsettled.set(key, row);
+  }
+  return {
+    takeaway: cards.filter((c) => c.kind === 'TAKEAWAY'),
+    delivery: cards.filter((c) => c.kind === 'DELIVERY'),
+    cashWithDrivers: [...unsettled.values()].sort((a, b) => b.amount - a.amount || a.driverName.localeCompare(b.driverName)),
+  };
+}
+
+/** How many delivered orders are unpaid and how much the drivers hold: counted on the close-shift screen, never blocking it. */
+export async function readUnsettledDeliveries(db: AnyDb, restaurantId: string): Promise<{ count: number; amount: number }> {
+  const board = await readOffPremiseBoard(db, restaurantId);
+  return { count: board.cashWithDrivers.reduce((s, r) => s + r.count, 0), amount: board.cashWithDrivers.reduce((s, r) => s + r.amount, 0) };
 }
