@@ -216,3 +216,12 @@ export async function createPosDriver(input: unknown) {
 export async function updatePosDriver(input: unknown) {
   return invoke(delivery.updatePosDriver, input);
 }
+
+export async function openPosOffPremiseOrder(input: unknown) {
+  return invoke(delivery.openPosOffPremiseOrder, input);
+}
+
+
+export async function updatePosOffPremiseDetails(input: unknown) {
+  return invoke(delivery.updatePosOffPremiseDetails, input);
+}

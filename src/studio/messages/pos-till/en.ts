@@ -116,6 +116,8 @@ const posTill: Messages = {
   'error.text.posDriverRequired': 'Choose a driver before the order goes out',
   'error.text.posDriverInactive': 'That driver is not available',
   'error.text.posPhoneInvalid': 'Enter a valid phone number',
+  'error.text.posAddressRequired': 'Enter an address',
+  'error.text.posNameTooLong': 'Use at most 120 characters',
   'error.text.posBadStep': 'That step is not allowed from the order’s current state',
   'activity.entity.PosDeliveryZone': 'Delivery zone',
   'activity.entity.PosDriver': 'Driver',

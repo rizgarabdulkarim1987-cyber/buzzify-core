@@ -55,6 +55,8 @@ export const POS_TEXT = {
   'That driver is not available': 'error.text.posDriverInactive',
   'That step is not allowed': 'error.text.posBadStep',
   'Enter a valid phone number': 'error.text.posPhoneInvalid',
+  'Enter an address': 'error.text.posAddressRequired',
+  'Use at most 120 characters': 'error.text.posNameTooLong',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

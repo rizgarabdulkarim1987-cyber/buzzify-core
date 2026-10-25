@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
+import { isUniqueViolation, refuse } from '@/server/pos/errors';
+import { openOffPremiseIn, updateOffPremiseDetailsIn, type OpenOffPremiseInput } from '@/server/pos/off-premise';
 import { phoneField } from '@/server/pos/phone-field';
 import { createDriverIn, createZoneIn, deleteZoneIn, updateDriverIn, updateZoneIn } from '@/server/pos/delivery-setup';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -103,6 +105,103 @@ export const updatePosDriver = defineAction({
       if (fields.phone !== undefined && done.before.phone !== fields.phone) changes.phone = { before: done.before.phone !== '', after: fields.phone !== '' };
       ctx.audit({ action: 'pos.driver.update', entityType: 'PosDriver', entityId: driverId, changes });
       return { driverId };
+    });
+  },
+});
+
+// Takeaway and delivery orders ------------------------------------------------------------------------------------------
+
+const INT32 = 2_147_483_647;
+const OPEN_ATTEMPTS = 10;
+const customerName = z.string().trim().max(120, 'Use at most 120 characters');
+const addressText = z.string().trim().min(1, 'Enter an address').max(300, 'Use at most 300 characters');
+const addressNote = z.string().trim().max(300, 'Use at most 300 characters');
+
+const openInput = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('TAKEAWAY'), customerName: customerName.default(''), customerPhone: phoneField(true).default('') }),
+  z.object({
+    kind: z.literal('DELIVERY'),
+    customerName: customerName.default(''),
+    customerPhone: phoneField(false),
+    address: addressText,
+    addressNote: addressNote.default(''),
+    zoneId: idField.nullable().default(null),
+    deliveryFee: fee.nullable().default(null),
+  }),
+]);
+
+export const openPosOffPremiseOrder = defineAction({
+  name: 'pos.openOffPremiseOrder',
+  permission: null,
+  pos: 'order.handle',
+  input: openInput,
+  target: () => TILL,
+  run: async (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    const value: OpenOffPremiseInput =
+      input.kind === 'TAKEAWAY'
+        ? input
+        : { kind: 'DELIVERY', customerName: input.customerName, customerPhone: input.customerPhone, address: input.address, addressNote: input.addressNote, zoneId: input.zoneId, deliveryFee: input.deliveryFee };
+    // A lost race for the order number or the queue number is a unique violation; a failed transaction cannot go on, so retry.
+    for (let attempt = 1; attempt <= OPEN_ATTEMPTS; attempt++) {
+      try {
+        return await ctx.transaction(async (tx) => {
+          const opened = await openOffPremiseIn(delegates(tx), restaurantId, value);
+          ctx.audit({
+            action: 'pos.order.open',
+            entityType: 'PosOrder',
+            entityId: opened.orderId,
+            changes: {
+              number: { before: null, after: opened.number },
+              kind: { before: null, after: input.kind },
+              queueNumber: { before: null, after: opened.queueNumber },
+              zoneId: { before: null, after: opened.zoneId },
+              deliveryFee: { before: null, after: opened.deliveryFee },
+              hasPhone: { before: null, after: input.customerPhone !== '' },
+            },
+          });
+          return { orderId: opened.orderId, number: opened.number, queueNumber: opened.queueNumber, version: opened.version };
+        });
+      } catch (error) {
+        if (!isUniqueViolation(error)) throw error;
+        await new Promise((resolve) => setTimeout(resolve, Math.random() * 40));
+      }
+    }
+    throw refuse('CONFLICT', 'Could not open the order. Try again.');
+  },
+});
+
+export const updatePosOffPremiseDetails = defineAction({
+  name: 'pos.updateOffPremiseDetails',
+  permission: null,
+  pos: 'order.handle',
+  input: z
+    .object({
+      orderId: idField,
+      expectedVersion: z.number().int().min(1).max(INT32),
+      customerName: customerName.optional(),
+      customerPhone: phoneField(true).optional(),
+      address: z.string().trim().max(300, 'Use at most 300 characters').optional(),
+      addressNote: addressNote.optional(),
+      zoneId: idField.nullable().optional(),
+      deliveryFee: fee.optional(),
+    })
+    .refine((v) => v.customerName !== undefined || v.customerPhone !== undefined || v.address !== undefined || v.addressNote !== undefined || v.zoneId !== undefined || v.deliveryFee !== undefined, {
+      message: 'Nothing to change',
+      path: ['customerName'],
+    }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await updateOffPremiseDetailsIn(delegates(tx), restaurantId, input);
+      ctx.audit({
+        action: 'pos.order.details',
+        entityType: 'PosOrder',
+        entityId: done.orderId,
+        changes: { fields: { before: null, after: done.changed.join(',') }, deliveryFee: { before: done.fee.before, after: done.fee.after } },
+      });
+      return { orderId: done.orderId, version: done.version };
     });
   },
 });

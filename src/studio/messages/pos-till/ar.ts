@@ -116,6 +116,8 @@ const posTill: Messages = {
   'error.text.posDriverRequired': 'اختر سائقاً قبل خروج الطلب',
   'error.text.posDriverInactive': 'هذا السائق غير متاح',
   'error.text.posPhoneInvalid': 'أدخل رقم هاتف صحيحاً',
+  'error.text.posAddressRequired': 'أدخل العنوان',
+  'error.text.posNameTooLong': 'استخدم 120 حرفاً كحد أقصى',
   'error.text.posBadStep': 'هذه الخطوة غير مسموحة في حالة الطلب الحالية',
   'activity.entity.PosDeliveryZone': 'منطقة توصيل',
   'activity.entity.PosDriver': 'سائق',

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { listDrivers, listZones } from '@/server/pos/delivery-setup';
+import { findRecentCustomerIn } from '@/server/pos/off-premise';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 
 /** The delivery lists, read for the person's own restaurant. */
@@ -37,4 +38,14 @@ export const posDeliveryOptions = defineQuery({
     const [zones, drivers] = await Promise.all([listZones(ctx.db, restaurantId, { activeOnly: true }), listDrivers(ctx.db, restaurantId, { activeOnly: true })]);
     return { zones, drivers };
   },
+});
+
+/** The last delivery to this phone number, to fill in a returning customer's details. */
+export const posRecentCustomer = defineQuery({
+  name: 'pos.recentCustomer',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ phone: z.string().trim().max(40) }),
+  target: () => TILL,
+  run: (ctx, { phone }) => findRecentCustomerIn(ctx.db, restaurantOf(ctx), phone),
 });
