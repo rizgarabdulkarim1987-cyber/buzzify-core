@@ -78,7 +78,7 @@ const ar: Messages = {
   'cart.quoteError': 'تعذّر تحديث الأسعار. تحقّق من اتصالك.',
   'cart.fixIssues': 'أزل العناصر غير المتوفرة للمتابعة.',
   'cart.reviewTitle': 'مراجعة الطلب',
-  'cart.reviewNote': 'هذا ملخص للقراءة فقط. سيتوفر الطلب برمز طاولتك في الإصدار القادم.',
+  'cart.reviewNote': 'ملخص لطلبك. أظهره للموظف عند طاولتك.',
   'cart.added': 'تمت إضافة {name} إلى طلبك',
   'cart.items_one': 'عنصر واحد',
   'cart.items_two': 'عنصران',

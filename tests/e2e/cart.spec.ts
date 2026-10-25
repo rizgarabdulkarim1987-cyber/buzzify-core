@@ -17,7 +17,7 @@ test.describe('Cart', () => {
     await expect(lines).toHaveCount(2);
     await expect(page.getByTestId('cart-subtotal')).toContainText('$8.50');
     await expect(page.getByRole('heading', { name: 'Order review' })).toBeVisible();
-    await expect(page.getByText(/read-only summary/)).toBeVisible();
+    await expect(page.getByText(/summary of your order/)).toBeVisible();
     await expect(
       page.getByRole('button', { name: /submit|place order|confirm|checkout|pay/i }),
     ).toHaveCount(0);

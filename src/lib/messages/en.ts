@@ -73,7 +73,7 @@ const en: Messages = {
   'cart.quoteError': 'We could not update prices. Check your connection.',
   'cart.fixIssues': 'Remove the unavailable items to continue.',
   'cart.reviewTitle': 'Order review',
-  'cart.reviewNote': 'This is a read-only summary. Ordering with your table’s PIN arrives in the next release.',
+  'cart.reviewNote': 'A summary of your order. Show it to the staff at your table.',
   'cart.added': '{name} added to your order',
   'cart.items_one': '{count} item',
   'cart.items_other': '{count} items',
