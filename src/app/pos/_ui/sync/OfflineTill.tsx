@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { currentKey, deriveLocalState, localTotals, type LocalOrder } from '@/lib/pos-sync/local-state';
@@ -38,7 +39,16 @@ export function OfflineTill() {
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 sm:p-8">
       <h1 className="text-xl font-semibold text-text">{t('pos.offline.title')}</h1>
       <p role="status" data-testid="offline-banner" className={cx('rounded-md border px-3 py-2 text-sm', sync.online ? 'border-line text-muted' : 'border-accent bg-accent-wash text-text')}>
-        {sync.online ? t('pos.offline.bannerOnline') : t('pos.offline.bannerOffline')}
+        {sync.online ? (
+          <>
+            {t('pos.offline.bannerOnline')}{' '}
+            <Link href="/pos/tables" className="underline underline-offset-2">
+              {t('pos.offline.fullTill')}
+            </Link>
+          </>
+        ) : (
+          t('pos.offline.bannerOffline')
+        )}
       </p>
       <div role="tablist" className="flex gap-2">
         {(['tables', 'queue'] as const).map((key) => (

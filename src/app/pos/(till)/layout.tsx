@@ -9,6 +9,7 @@ import { query } from '@/server/studio/framework/invoke';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { TillNav } from '@/app/pos/_ui/TillNav';
+import { OfflineRedirect } from '@/app/pos/_ui/sync/OfflineRedirect';
 import { RegisterSw } from '@/app/pos/_ui/sync/RegisterSw';
 import { SyncIndicator } from '@/app/pos/_ui/sync/SyncIndicator';
 
@@ -48,6 +49,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
         </div>
       </header>
       <RegisterSw />
+      <OfflineRedirect />
       <TillNav items={items} />
       <main id="main" className="min-w-0 flex-1">
         {children}

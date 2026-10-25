@@ -413,6 +413,7 @@ const posTill: Messages = {
   'pos.offline.title': 'کاشێر بێ هێڵ',
   'pos.offline.bannerOffline': 'هێڵ نییە. لەسەر ئەو کۆپییە کار دەکەیت کە لەم ئامێرەدا پاشەکەوت کراوە، و هەرچییەک بیکەیت کە هێڵ گەڕایەوە دەنێردرێت.',
   'pos.offline.bannerOnline': 'بەستراوە.',
+  'pos.offline.fullTill': 'کاشێری تەواو بکەرەوە',
   'pos.offline.noCopy': 'هێشتا هیچ کۆپییەک لەم ئامێرەدا پاشەکەوت نەکراوە. سەرەتا یەکجار کاشێر بە هێڵەوە بکەرەوە.',
   'pos.offline.noShift': 'هیچ شیفتێک کراوە نییە. سەرەتا یەکێک بە هێڵەوە بکەرەوە.',
   'pos.offline.table': 'مێزی {n}',
