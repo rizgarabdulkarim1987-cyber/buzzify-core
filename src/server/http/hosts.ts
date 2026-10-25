@@ -15,7 +15,7 @@ const NEXT: HostDecision = { action: 'next' };
 const NOT_FOUND: HostDecision = { action: 'notFound' };
 
 /** Paths that exist only on the Studio host. */
-const STUDIO_ONLY = ['/studio', '/pos', '/api/auth', '/api/studio'];
+const STUDIO_ONLY = ['/studio', '/pos', '/api/auth', '/api/studio', '/api/pos'];
 /** What the Studio host serves besides `/`. */
 const STUDIO_SERVES = [...STUDIO_ONLY, '/_next'];
 
