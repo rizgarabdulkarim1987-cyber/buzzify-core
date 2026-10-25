@@ -171,8 +171,3 @@ export async function resolveAiProvider(db: AnyDb, now: number = Date.now()): Pr
   cache = { at: now, provider };
   return provider;
 }
-
-/** One tiny real request, for the owner's "test the connection" button. Throws like any provider call. */
-export async function pingAiProvider(provider: AiProvider): Promise<void> {
-  await provider.complete({ purpose: 'phrase', system: 'Reply with the single word: ok', messages: [{ role: 'user', content: [{ type: 'text', text: 'ping' }] }], maxTokens: 50, signal: AbortSignal.timeout(20_000) });
-}

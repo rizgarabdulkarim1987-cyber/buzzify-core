@@ -103,12 +103,37 @@ describe('saving the AI provider settings', () => {
   });
 
   it('tests the connection with the saved provider and reports a missing key calmly', async () => {
-    expect(dataOf(await run(owner, testAiProvider, {}))).toMatchObject({ ok: false, code: 'aiUnavailable', detail: 'no key' });
+    expect(dataOf(await run(owner, testAiProvider, {}))).toMatchObject({ ok: false, checks: [], detail: 'no key' });
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'ok' } }], model: 'm', usage: { prompt_tokens: 3, completion_tokens: 1 } })));
     vi.stubGlobal('fetch', fetchMock);
     dataOf(await save(openai()));
-    expect(dataOf(await run(owner, testAiProvider, {}))).toEqual({ ok: true, provider: 'openai', detail: null });
-    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(dataOf(await run(owner, testAiProvider, {}))).toEqual({
+      ok: true,
+      provider: 'openai',
+      detail: null,
+      checks: [
+        { purpose: 'phrase', ok: true, detail: null },
+        { purpose: 'ask', ok: true, detail: null },
+        { purpose: 'classify', ok: true, detail: null },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    vi.unstubAllGlobals();
+  });
+
+  it('names the purpose that fails when only one of them does', async () => {
+    const ok = JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'ok' } }], model: 'm' });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: unknown, init: { body: string }) =>
+        JSON.parse(init.body).tools ? new Response(JSON.stringify({ error: { type: 'invalid_request_error', code: 'bad_schema' } }), { status: 400 }) : new Response(ok),
+      ),
+    );
+    dataOf(await save(openai()));
+    const result = dataOf(await run(owner, testAiProvider, {})) as { ok: boolean; checks: { purpose: string; ok: boolean; detail: string | null }[] };
+    expect(result.ok).toBe(false);
+    expect(result.checks.map((c) => [c.purpose, c.ok])).toEqual([['phrase', true], ['ask', false], ['classify', true]]);
+    expect(result.checks[1]!.detail).toBe('http 400 invalid_request_error bad_schema');
     vi.unstubAllGlobals();
   });
 });

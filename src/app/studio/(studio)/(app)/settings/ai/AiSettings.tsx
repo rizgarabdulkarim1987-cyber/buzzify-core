@@ -75,7 +75,9 @@ export function AiSettings({ settings }: { settings: AiSettingsView }) {
     setBusy(null);
     if (!result.ok) return void setTestResult({ ok: false, text: describeFailure(t, locale, result.error).message });
     const data = result.data;
-    setTestResult(data.ok ? { ok: true, text: t('aiSettings.testOk', { provider: t(`aiSettings.provider.${data.provider}`) }) } : { ok: false, text: `${t(`pos.ai.error.${data.code}`)}${data.detail ? ` (${data.detail})` : ''}` });
+    if (data.ok) return void setTestResult({ ok: true, text: t('aiSettings.testOk', { provider: t(`aiSettings.provider.${data.provider}`) }) });
+    const failed = data.checks.filter((check) => !check.ok).map((check) => `[${check.purpose}: ${check.detail ?? 'failed'}]`);
+    setTestResult({ ok: false, text: `${t('pos.ai.error.aiUnavailable')} ${data.detail ? `(${data.detail})` : failed.join(' ')}` });
   }
 
   const pending = busy !== null || refreshing;
