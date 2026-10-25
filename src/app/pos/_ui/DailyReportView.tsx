@@ -1,5 +1,6 @@
 'use client';
 
+import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
 import Link from 'next/link';
 import { formatNumber } from '@/lib/pos-format';
 import { countKind } from '@/lib/pos-view';
@@ -37,6 +38,15 @@ export function DailyReportView({ report }: { report: DailyReport }) {
       <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label={t('pos.report.netSales')} value={money(totals.netSales)} strong />
         <Stat label={t('pos.report.discounts')} value={money(totals.discountsTotal)} />
+        {totals.refundsTotal > 0 ? (
+          <Stat
+            label={t('pos.report.refunds')}
+            value={money(totals.refundsTotal)}
+            hint={POS_PAYMENT_METHODS.filter((m) => totals.refundsByMethod[m].count > 0)
+              .map((m) => `${t(`pos.method.${m}`)} ${money(totals.refundsByMethod[m].total)}`)
+              .join(' · ')}
+          />
+        ) : null}
         {totals.deliveryFeesTotal > 0 ? <Stat label={t('pos.report.deliveryFees')} value={money(totals.deliveryFeesTotal)} /> : null}
         <Stat label={t('pos.report.expenses')} value={money(totals.expensesTotal)} />
         <Stat label={t('pos.report.cancelled')} value={`${formatNumber(totals.cancelledOrders)} / ${formatNumber(totals.cancelledLines)}`} hint={t('pos.report.cancelledHint')} />
@@ -91,6 +101,7 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
       <dl className="flex flex-col gap-1 text-base">
         <Line label={t('pos.report.netSales')} value={money(shift.netSales)} />
         <Line label={t('pos.report.discounts')} value={money(shift.discountsTotal)} />
+        {shift.refundsTotal > 0 ? <Line label={t('pos.report.refunds')} value={money(shift.refundsTotal)} /> : null}
         {shift.deliveryFeesTotal > 0 ? <Line label={t('pos.report.deliveryFees')} value={money(shift.deliveryFeesTotal)} /> : null}
         <Line label={t('pos.shift.expenses')} value={money(shift.expenses.reduce((sum, e) => sum + e.amount, 0))} />
         <Line label={t('pos.shift.expected')} value={money(shift.expectedCash)} />

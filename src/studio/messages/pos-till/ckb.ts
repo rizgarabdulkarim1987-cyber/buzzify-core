@@ -494,6 +494,20 @@ const posTill: Messages = {
   'activity.action.pos.pin.ok': 'بە PIN چووە ژوورەوە',
   'activity.action.pos.pin.fail': 'PINی هەڵە نووسرا',
   'activity.entity.PosSharedDevice': 'ئامێری هاوبەش',
+  'pos.reverse.button': 'گەڕاندنەوەی پارەدان',
+  'pos.reverse.needsNetwork': 'گەڕاندنەوەی پارەدان پێویستی بە تۆڕە.',
+  'pos.reverse.title': 'ئەم پارەدانە بگەڕێنرێتەوە؟',
+  'pos.reverse.cashNote': 'هەموو بڕەکە لە دراوەری تۆ دەردەچێت. بە ناوی تۆ تۆمار دەکرێت و ناگەڕێتەوە.',
+  'pos.reverse.terminalNote': 'سەرەتا گەڕاندنەوەکە لەسەر ئامێرەکە ئەنجام بدە. ئەمە تەنها تۆماری دەکات و هیچ لە دراوەرەکەت ناچێت.',
+  'pos.reverse.confirm': 'پارەدانەکە بگەڕێنەرەوە',
+  'pos.reverse.amount': 'بڕ',
+  'pos.reverse.reason': 'هۆکار',
+  'pos.reverse.reference': 'ژمارەی گەڕاندنەوە لەسەر ئامێر (ئارەزوومەندانە)',
+  'pos.receipt.reversed': 'گەڕێندراوەتەوە',
+  'pos.receipt.reversedBy': 'لەلایەن {name} · {time}',
+  'pos.shift.cashRefunds': 'گەڕاندنەوەی نەقد',
+  'pos.shift.terminalRefunds': 'گەڕاندنەوە بە {method}',
+  'pos.report.refunds': 'گەڕاندنەوەکان',
 };
 
 export default posTill;

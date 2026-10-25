@@ -494,6 +494,20 @@ const posTill: Messages = {
   'activity.action.pos.pin.ok': 'دخل برمز PIN',
   'activity.action.pos.pin.fail': 'أُدخل رمز PIN خاطئ',
   'activity.entity.PosSharedDevice': 'جهاز مشترك',
+  'pos.reverse.button': 'استرجاع الدفعة',
+  'pos.reverse.needsNetwork': 'استرجاع الدفعة يحتاج إلى الشبكة.',
+  'pos.reverse.title': 'استرجاع هذه الدفعة؟',
+  'pos.reverse.cashNote': 'المبلغ كله يُخصم من درج نقدك. يُسجَّل باسمك ولا يمكن التراجع عنه.',
+  'pos.reverse.terminalNote': 'نفّذ الاسترجاع على الجهاز أولاً. هذا يسجّله فقط ولا يُخصم شيء من درجك.',
+  'pos.reverse.confirm': 'استرجع الدفعة',
+  'pos.reverse.amount': 'المبلغ',
+  'pos.reverse.reason': 'السبب',
+  'pos.reverse.reference': 'مرجع الاسترجاع على الجهاز (اختياري)',
+  'pos.receipt.reversed': 'مُسترجَع',
+  'pos.receipt.reversedBy': 'بواسطة {name} · {time}',
+  'pos.shift.cashRefunds': 'استرجاعات نقدية',
+  'pos.shift.terminalRefunds': 'استرجاعات {method}',
+  'pos.report.refunds': 'الاسترجاعات',
 };
 
 export default posTill;

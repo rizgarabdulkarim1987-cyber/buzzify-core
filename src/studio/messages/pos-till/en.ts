@@ -494,6 +494,20 @@ const posTill: Messages = {
   'activity.action.pos.pin.ok': 'Signed in with a PIN',
   'activity.action.pos.pin.fail': 'A wrong PIN was entered',
   'activity.entity.PosSharedDevice': 'Shared device',
+  'pos.reverse.button': 'Reverse payment',
+  'pos.reverse.needsNetwork': 'Reversing a payment needs the network.',
+  'pos.reverse.title': 'Reverse this payment?',
+  'pos.reverse.cashNote': 'The whole amount comes out of your drawer. This is recorded under your name and cannot be undone.',
+  'pos.reverse.terminalNote': 'Do the refund on the terminal first. This only records it; nothing moves from your drawer.',
+  'pos.reverse.confirm': 'Reverse payment',
+  'pos.reverse.amount': 'Amount',
+  'pos.reverse.reason': 'Reason',
+  'pos.reverse.reference': 'Refund reference on the terminal (optional)',
+  'pos.receipt.reversed': 'REVERSED',
+  'pos.receipt.reversedBy': 'By {name} · {time}',
+  'pos.shift.cashRefunds': 'Cash refunds',
+  'pos.shift.terminalRefunds': 'Refunds by {method}',
+  'pos.report.refunds': 'Refunds',
 };
 
 export default posTill;
