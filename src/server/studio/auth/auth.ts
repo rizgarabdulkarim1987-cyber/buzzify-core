@@ -12,6 +12,7 @@ import { renderEmail, type EmailParams, type EmailTemplate } from '@/server/emai
 import { authEnv, type AuthEnv } from '@/server/env';
 import { getPlatformSettings } from '@/server/studio/services/settings';
 import { SIGN_IN_PATH } from '@/server/studio/framework/paths';
+import { pinSignIn } from './pin-plugin';
 import { checkPasswordPolicy, MAX_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH } from './password-policy';
 
 /** The person an email is for: the address to send to, and what to call them in it. Their `locale`, when they have one, picks the language. */
@@ -220,7 +221,7 @@ export function createAuth(prisma: PrismaClient, config: AuthEnv = authEnv()) {
     },
 
     // nextCookies must come last: it warns when another plugin follows it.
-    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }), nextCookies()],
+    plugins: [emailChangeNeedsSession, twoFactor({ issuer: 'Buzzify Core', backupCodeOptions: { amount: 10 } }), pinSignIn(prisma), nextCookies()],
   });
 }
 

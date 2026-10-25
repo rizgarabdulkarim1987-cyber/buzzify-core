@@ -3,7 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { changePosStaffRole, createPosStaff, setPosStaffActive } from '@/app/studio/_actions/pos';
+import { changePosStaffRole, clearPosStaffPin, createPosStaff, setPosStaffActive } from '@/app/studio/_actions/pos';
 import { POS_ROLES, type PosRole } from '@/server/domain/pos/permissions';
 import type { PosStaffView } from '@/server/pos/staff';
 import { requireFields, useActionForm } from '@/studio/forms';
@@ -87,12 +87,12 @@ export function StaffList({ people, ownRole, ownUserId }: { people: PosStaffView
   const [busy, setBusy] = useState<string | null>(null);
   const roles = assignable(ownRole);
 
-  async function run(id: string, call: () => ReturnType<typeof changePosStaffRole>) {
+  async function run(id: string, call: () => ReturnType<typeof changePosStaffRole> | ReturnType<typeof clearPosStaffPin>, done = t('pos.staff.changed')) {
     setBusy(id);
     const result = await settle(call);
     setBusy(null);
     if (result.ok) {
-      toast.success(t('pos.staff.changed'));
+      toast.success(done);
       router.refresh();
     } else {
       toast.error(describeFailure(t, locale, result.error).message);
@@ -130,6 +130,12 @@ export function StaffList({ people, ownRole, ownUserId }: { people: PosStaffView
                   <span className="text-sm text-muted">{t(`pos.role.${person.role}`)}</span>
                 )}
                 <span className="text-sm text-muted">{person.active ? t('pos.staff.active') : t('pos.staff.inactive')}</span>
+                <span className="text-sm text-muted">{person.hasPin ? t('pos.staff.hasPin') : t('pos.staff.noPin')}</span>
+                {editable && person.hasPin && (
+                  <Button variant="secondary" size="sm" pending={busy === person.id} onClick={() => void run(person.id, () => clearPosStaffPin({ staffId: person.id }), t('pos.staff.pinCleared'))}>
+                    {t('pos.staff.clearPin')}
+                  </Button>
+                )}
                 {editable && (
                   <Button
                     variant="secondary"
