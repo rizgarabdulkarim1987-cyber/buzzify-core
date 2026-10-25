@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
 import type { TenantInfo } from '@/server/data/tenant';
@@ -125,7 +126,9 @@ export async function submitCustomerOrder(
 
   return till.$transaction(async (tx) => {
     // Locks the table's row, so two submissions for one table count the limits one after the other.
-    await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
+    const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
+    // The table was removed between the gate and here.
+    if (locked.count === 0) throw new QrGateClosed();
     const [pending, recentTable, recentRestaurant] = await Promise.all([
       tx.posCustomerOrder.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: 'PENDING', createdAt: { gt: expiryCutoff(now) } } }),
       tx.posCustomerOrder.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, createdAt: { gt: new Date(now.getTime() - 10 * 60_000) } } }),
@@ -138,6 +141,8 @@ export async function submitCustomerOrder(
       data: {
         restaurantId: gate.restaurantId,
         tableId: gate.tableId,
+        // Unguessable: the guest's own id is the only thing that lets a status be read.
+        publicId: randomBytes(16).toString('base64url'),
         tableNumber: input.table,
         locale: input.locale,
         customerNote: input.note,

@@ -138,6 +138,12 @@ export function AppProviders({
       const previous = readTable(tenant.slug);
       if (previous !== null && previous !== next) store.getState().clear();
       writeTable(tenant.slug, next);
+      try {
+        // Which table this visit scanned: ordering from the cart needs it, the remembered table alone is not enough.
+        window.sessionStorage.setItem(`buzzify:table-seen:${tenant.slug}`, String(next));
+      } catch {
+        // Without session storage the guest simply cannot send from the cart.
+      }
       setTable(next);
     },
     [store, tenant.slug],

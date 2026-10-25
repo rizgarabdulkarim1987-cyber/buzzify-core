@@ -24,6 +24,14 @@ function readSent(slug: string): Sent | null {
   }
 }
 
+function scannedHere(slug: string, table: number): boolean {
+  try {
+    return window.sessionStorage.getItem(`buzzify:table-seen:${slug}`) === String(table);
+  } catch {
+    return false;
+  }
+}
+
 function writeSent(slug: string, sent: Sent | null): void {
   try {
     if (sent) window.sessionStorage.setItem(storageKey(slug), JSON.stringify(sent));
@@ -44,8 +52,9 @@ export function SendToWaiter({ canSend }: { canSend: boolean }) {
 }
 
 function Panel({ canSend }: { canSend: boolean }) {
-  const { t, tenant, locale, table, cart, hydrated, preview, replaceCart, announce } = useApp();
+  const { t, tenant, locale, table, cart, hydrated, preview, replaceCart } = useApp();
   const [available, setAvailable] = useState(false);
+  const [scanned] = useState(() => table !== null && scannedHere(tenant.slug, table));
   const [sent, setSent] = useState<Sent | null>(() => readSent(tenant.slug));
   const [phase, setPhase] = useState<Phase>('PENDING');
   const [reason, setReason] = useState('');
@@ -55,14 +64,14 @@ function Panel({ canSend }: { canSend: boolean }) {
   const api = `/api/${tenant.slug}/qr-order`;
 
   useEffect(() => {
-    if (!hydrated || preview || table === null) return;
+    if (!hydrated || preview || table === null || !scanned) return;
     const controller = new AbortController();
     fetch(`${api}/availability?table=${table}`, { signal: controller.signal, cache: 'no-store' })
       .then((response) => (response.ok ? (response.json() as Promise<{ available: boolean }>) : { available: false }))
       .then((body) => setAvailable(body.available))
       .catch(() => setAvailable(false));
     return () => controller.abort();
-  }, [api, hydrated, preview, table]);
+  }, [api, hydrated, preview, table, scanned]);
 
   useEffect(() => {
     if (!sent || phase !== 'PENDING') return;
@@ -82,7 +91,6 @@ function Panel({ canSend }: { canSend: boolean }) {
         if (stopped || body.status === 'PENDING') return;
         setPhase(body.status);
         setReason(body.rejectReason);
-        announce(t(`qr.${body.status}`));
       } catch {
         // A dropped connection is retried on the next tick.
       }
@@ -93,7 +101,7 @@ function Panel({ canSend }: { canSend: boolean }) {
       stopped = true;
       window.clearInterval(timer);
     };
-  }, [api, sent, phase, tenant.slug, announce, t]);
+  }, [api, sent, phase, tenant.slug]);
 
   const send = useCallback(async () => {
     if (table === null || busy) return;
@@ -154,7 +162,8 @@ function Panel({ canSend }: { canSend: boolean }) {
     );
   }
 
-  if (!canSend || !available || cart.bundles.length > 0) return null;
+  if (!canSend || !available || !scanned) return null;
+  if (cart.bundles.length > 0) return <p className="mt-8 text-sm text-muted">{t('qr.bundles')}</p>;
 
   return (
     <section className="mt-8" aria-labelledby="qr-send-title">

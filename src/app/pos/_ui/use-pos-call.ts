@@ -21,13 +21,13 @@ export function usePosCall() {
   const [refreshing, startRefresh] = useTransition();
 
   const call = useCallback(
-    async <T,>(action: () => Promise<ActionResult<T>>, options: { onOk?: (data: T) => void; quiet?: boolean } = {}): Promise<ActionResult<T>> => {
+    async <T,>(action: () => Promise<ActionResult<T>>, options: { onOk?: (data: T) => void; quiet?: boolean; keepPage?: boolean } = {}): Promise<ActionResult<T>> => {
       setBusy(true);
       const result = await settle(action);
       setBusy(false);
       if (result.ok) {
         options.onOk?.(result.data);
-        startRefresh(() => router.refresh());
+        if (!options.keepPage) startRefresh(() => router.refresh());
       } else {
         if (!options.quiet) toast.error(describeFailure(t, locale, result.error).message);
         if (result.error.code === 'CONFLICT') startRefresh(() => router.refresh());

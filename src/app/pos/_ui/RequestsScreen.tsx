@@ -45,7 +45,8 @@ export function RequestsScreen({ requests, readAt }: { requests: RequestDetail[]
   const router = useRouter();
   const { call, pending } = usePosCall();
   const [rejecting, setRejecting] = useState<RequestDetail | null>(null);
-  const now = useNow(new Date(readAt).getTime());
+  const [leaving, setLeaving] = useState(false);
+  const now = Math.max(useNow(new Date(readAt).getTime()), new Date(readAt).getTime());
   useLiveRefresh(REFRESH_MS);
 
   const text: ElapsedText = useMemo(
@@ -104,7 +105,7 @@ export function RequestsScreen({ requests, readAt }: { requests: RequestDetail[]
                       </p>
                       {line.options.length > 0 ? (
                         <p className="break-words text-sm text-muted" dir="auto">
-                          {line.options.map((option) => option.name).join('، ')}
+                          {line.options.map((option) => option.name).join(locale === 'en' ? ', ' : '، ')}
                         </p>
                       ) : null}
                       {line.note ? (
@@ -124,10 +125,10 @@ export function RequestsScreen({ requests, readAt }: { requests: RequestDetail[]
                     <QuantityStepper
                       value={line.quantity}
                       label={t('pos.requests.quantityOf', { name: line.name })}
-                      disabled={pending}
+                      disabled={pending || leaving}
                       onChange={(quantity) => void call(() => setPosRequestLineQuantity({ lineId: line.id, quantity }))}
                     />
-                    <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => void call(() => removePosRequestLine({ lineId: line.id }))}>
+                    <Button variant="ghost" size="lg" className="min-h-12" disabled={pending || leaving} onClick={() => void call(() => removePosRequestLine({ lineId: line.id }))}>
                       {t('pos.requests.remove')}
                     </Button>
                   </div>
@@ -149,17 +150,22 @@ export function RequestsScreen({ requests, readAt }: { requests: RequestDetail[]
               <span>{money(request.total)}</span>
             </div>
             <div className="flex gap-2">
-              <Button variant="secondary" size="lg" className="min-h-12 flex-1" disabled={pending} onClick={() => setRejecting(request)}>
+              <Button variant="secondary" size="lg" className="min-h-12 flex-1" disabled={pending || leaving} onClick={() => setRejecting(request)}>
                 {t('pos.requests.reject')}
               </Button>
               <Button
                 variant="primary"
                 size="lg"
                 className="min-h-12 flex-1"
-                disabled={pending || request.lines.length === 0}
+                disabled={pending || leaving || request.lines.length === 0}
                 onClick={() =>
                   void call(() => acceptPosRequest({ requestId: request.id, ...(request.liveOrderVersion !== null ? { expectedOrderVersion: request.liveOrderVersion } : {}) }), {
-                    onOk: (data) => router.push(`/pos/orders/${data.orderId}`),
+                    // The list stays as it is until the order page opens, so no other card slides under the finger.
+                    onOk: (data) => {
+                      setLeaving(true);
+                      router.push(`/pos/orders/${data.orderId}`);
+                    },
+                    keepPage: true,
                   })
                 }
               >

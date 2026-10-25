@@ -79,6 +79,7 @@ const en: Messages = {
   'cart.items_other': '{count} items',
   'qr.title': 'Send to the cashier — table {table}',
   'qr.note': 'Note for the cashier (optional)',
+  'qr.bundles': 'Offers (bundles) cannot be sent from here. Remove them to send the rest, or ask the staff.',
   'qr.send': 'Send order',
   'qr.sending': 'Sending…',
   'qr.failed': 'We could not send the order. Try again.',
