@@ -108,3 +108,24 @@ describe('floor, orders, payments and shifts', () => {
     await expect(prisma.posPayment.create({ data: base })).rejects.toMatchObject({ code: 'P2002' });
   });
 });
+
+describe('PosPaymentReversal, PosSharedDevice and PosPinAttempt', () => {
+  it('lets a payment be reversed once (paymentId is unique)', async () => {
+    const order = await prisma.posOrder.create({ data: { restaurantId, number: 9001, status: 'PAID' } });
+    const payment = await prisma.posPayment.create({ data: { restaurantId, orderId: order.id, method: 'FIB', amountReceived: 5000, totalsSnapshot: {} } });
+    const data = { restaurantId, paymentId: payment.id, orderId: order.id, method: 'FIB' as const, amount: 5000, reason: 'wrong table' };
+    await prisma.posPaymentReversal.create({ data });
+    await expect(prisma.posPaymentReversal.create({ data })).rejects.toThrow();
+  });
+
+  it('keeps a device token hash unique', async () => {
+    const data = { restaurantId, name: 'Front till', tokenHash: 'a'.repeat(64) };
+    await prisma.posSharedDevice.create({ data });
+    await expect(prisma.posSharedDevice.create({ data: { ...data, restaurantId: otherId } })).rejects.toThrow();
+  });
+
+  it('records an attempt without any secret column', async () => {
+    const row = await prisma.posPinAttempt.create({ data: { restaurantId, deviceId: 'd1', staffId: 's1', ok: false } });
+    expect(Object.keys(row).sort()).toEqual(['at', 'deviceId', 'id', 'ok', 'restaurantId', 'staffId']);
+  });
+});
