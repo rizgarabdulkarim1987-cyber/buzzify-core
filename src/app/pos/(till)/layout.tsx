@@ -3,9 +3,10 @@ import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
-import { getPrisma } from '@/server/data/prisma';
 import { posEntry } from '@/server/pos/entry';
-import { readQrFlags } from '@/server/pos/qr-sheet';
+import { canPos } from '@/server/domain/pos/permissions';
+import { query } from '@/server/studio/framework/invoke';
+import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { TillNav } from '@/app/pos/_ui/TillNav';
 
@@ -20,7 +21,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (entry.kind === 'inactive') redirect('/pos/inactive');
 
   const t = getStudioTranslator(entry.actor.locale);
-  const flags = await readQrFlags(getPrisma(), entry.actor.restaurantId);
+  const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, pendingRequests: 0 };
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
   return (
     <div className="flex min-h-dvh flex-col">

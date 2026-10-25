@@ -38,19 +38,21 @@ function writeSent(slug: string, sent: Sent | null): void {
  * sent: the server prices the order itself. It stays hidden when the restaurant takes no QR orders at this table.
  */
 export function SendToWaiter({ canSend }: { canSend: boolean }) {
+  const { hydrated } = useApp();
+  // The saved request is read from sessionStorage when this mounts, so it mounts only after hydration.
+  return hydrated ? <Panel canSend={canSend} /> : null;
+}
+
+function Panel({ canSend }: { canSend: boolean }) {
   const { t, tenant, locale, table, cart, hydrated, preview, replaceCart, announce } = useApp();
   const [available, setAvailable] = useState(false);
-  const [sent, setSent] = useState<Sent | null>(null);
+  const [sent, setSent] = useState<Sent | null>(() => readSent(tenant.slug));
   const [phase, setPhase] = useState<Phase>('PENDING');
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const api = `/api/${tenant.slug}/qr-order`;
-
-  useEffect(() => {
-    if (hydrated) setSent(readSent(tenant.slug));
-  }, [hydrated, tenant.slug]);
 
   useEffect(() => {
     if (!hydrated || preview || table === null) return;

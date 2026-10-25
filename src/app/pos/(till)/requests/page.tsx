@@ -1,9 +1,7 @@
 import type { Metadata } from 'next';
 import { getPosAccess } from '@/server/pos/actor';
-import { getPrisma } from '@/server/data/prisma';
-import { readQrFlags } from '@/server/pos/qr-sheet';
 import { query } from '@/server/studio/framework/invoke';
-import { posRequests } from '@/server/studio/queries/pos-requests';
+import { posQrFlags, posRequests } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { Alert } from '@/studio/ui/Alert';
@@ -19,7 +17,7 @@ export default async function RequestsPage() {
   const { actor } = await getPosAccess();
   if (!actor) return null;
   const t = getStudioTranslator(actor.locale);
-  const flags = await readQrFlags(getPrisma(), actor.restaurantId);
+  const flags = await query(posQrFlags, {});
   if (!flags.qrOrdering) {
     return (
       <>

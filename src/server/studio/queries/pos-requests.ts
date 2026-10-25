@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { listPendingDetails, readRequest } from '@/server/pos/customer-orders';
-import { readQrSheet } from '@/server/pos/qr-sheet';
+import { readQrFlags, readQrSheet } from '@/server/pos/qr-sheet';
 import { hostEnv } from '@/server/env';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
@@ -44,4 +44,14 @@ export const posQrSheet = defineQuery({
   input: z.object({}),
   target: () => ({ kind: 'pos', catalog: true }) as const,
   run: (ctx) => readQrSheet(ctx.db, restaurantOf(ctx), ctx.menuId, hostEnv().publicOrigin),
+});
+
+/** Whether QR ordering is on and how many guest orders wait, for the till frame's navigation. */
+export const posQrFlags = defineQuery({
+  name: 'pos.qrFlags',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => readQrFlags(ctx.db, restaurantOf(ctx)),
 });
