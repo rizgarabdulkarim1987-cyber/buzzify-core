@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { canQueue, OFFLINE_MAX_AGE_MS } from '@/lib/pos-sync/guards';
-import { deriveLocalState, localTotals } from '@/lib/pos-sync/local-state';
+import { currentKey, deriveLocalState, localTotals } from '@/lib/pos-sync/local-state';
 import type { Op } from '@/lib/pos-sync/op-schema';
 import type { OpDraft, QueuedOp } from '@/lib/pos-sync/queue';
 import type { SyncSnapshot } from '@/lib/pos-sync/snapshot';
@@ -156,5 +156,16 @@ describe('what may be queued', () => {
     for (const kind of ['openShift', 'closeShift', 'moveToTable', 'advanceFulfillment', 'addExpense']) {
       expect(canQueue(kind, state())).toEqual({ ok: false, reason: 'onlineOnly' });
     }
+  });
+});
+
+describe('following an order across its opening', () => {
+  it('keeps the screen on the same order once the server has applied the operation that opened it', () => {
+    const open = queued({ kind: 'openOrder', payload: { tableId: 't1' } });
+    const key = `op:${open.operationId}`;
+    expect(currentKey(key, [open])).toBe(key);
+    const applied = { ...open, state: 'done' as const, result: { orderId: 'o5', number: 5, version: 1 } };
+    expect(currentKey(key, [applied])).toBe('id:o5');
+    expect(currentKey('id:o5', [applied])).toBe('id:o5');
   });
 });

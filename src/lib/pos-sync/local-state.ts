@@ -86,6 +86,16 @@ function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<ty
   };
 }
 
+/**
+ * The key an order is known by now. A screen holds the key it opened the order under (`op:<id>`); once the server applied
+ * that operation the order lives under its server id, and the screen must follow it rather than lose it.
+ */
+export function currentKey(key: string, queue: readonly QueuedOp[]): string {
+  if (!key.startsWith('op:')) return key;
+  const opened = queue.find((q) => q.operationId === key.slice(3));
+  return opened?.state === 'done' && typeof opened.result?.orderId === 'string' ? `id:${opened.result.orderId}` : key;
+}
+
 /** The snapshot orders with the queue unapplied operations applied, oldest first. */
 export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedOp[]): LocalState {
   const orders = new Map<string, LocalOrder>();

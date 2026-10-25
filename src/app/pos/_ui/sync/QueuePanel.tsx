@@ -37,7 +37,7 @@ export function QueuePanel() {
     <section className="flex flex-col gap-3" data-testid="queue-panel">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-semibold text-text">{t('pos.offline.queue')}</h2>
-        <Button className="min-h-12" onClick={() => sync.syncNow()} disabled={!sync.online || sync.syncing}>
+        <Button className="min-h-12" onClick={() => sync.syncNow()} disabled={sync.syncing}>
           {t('pos.offline.syncNow')}
         </Button>
       </div>

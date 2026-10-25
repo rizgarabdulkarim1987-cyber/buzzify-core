@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { deriveLocalState, localTotals, type LocalOrder } from '@/lib/pos-sync/local-state';
+import { currentKey, deriveLocalState, localTotals, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { OpDraft } from '@/lib/pos-sync/queue';
 import { formatNumber, ltr } from '@/lib/pos-format';
 import { pickName, quickCash } from '@/lib/pos-view';
@@ -32,7 +32,7 @@ export function OfflineTill() {
 
   const snapshot = sync.snapshot;
   const local = useMemo(() => (snapshot ? deriveLocalState(snapshot, sync.queue) : null), [snapshot, sync.queue]);
-  const order = local && viewKey ? (local.all.find((o) => o.key === viewKey) ?? null) : null;
+  const order = local && viewKey ? (local.all.find((o) => o.key === currentKey(viewKey, sync.queue)) ?? null) : null;
 
   return (
     <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 p-4 sm:p-8">
