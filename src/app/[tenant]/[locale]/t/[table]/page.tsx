@@ -6,7 +6,7 @@ import { complaintGate } from '@/server/pos/complaints-guest';
 import { loadMenuView } from '@/server/route-context';
 import { RouteTable } from '@/ui/AppProviders';
 import { MenuApp } from '@/ui/menu/MenuApp';
-import { COMPLAINT_LINK } from './complaint/words';
+import { ComplaintEntryProvider } from '@/ui/menu/ComplaintEntry';
 
 const TABLE_NUMBER = /^\d{1,3}$/;
 
@@ -32,14 +32,9 @@ export default async function Page({
     return (
       <>
         <RouteTable number={number} />
-        <MenuApp view={view} />
-        {complaints ? (
-          <p className="px-4 pb-8 text-center text-sm">
-            <a className="inline-flex min-h-12 items-center text-muted underline" href={`/${route.tenant.slug}/${route.locale}/t/${number}/complaint`}>
-              {COMPLAINT_LINK(route.locale)}
-            </a>
-          </p>
-        ) : null}
+        <ComplaintEntryProvider table={complaints ? number : null}>
+          <MenuApp view={view} />
+        </ComplaintEntryProvider>
       </>
     );
   });
