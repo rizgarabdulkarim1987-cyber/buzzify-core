@@ -29,6 +29,14 @@ function block(content: AiContent): Record<string, unknown> {
   }
 }
 
+/** Strict tools reject numeric and length limits ("For 'integer' type, properties maximum, minimum are not supported"); the server still checks every tool input before it runs. */
+const UNSUPPORTED = new Set(['minimum', 'maximum', 'exclusiveMinimum', 'exclusiveMaximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems']);
+export function strictSchema(schema: unknown): unknown {
+  if (Array.isArray(schema)) return schema.map(strictSchema);
+  if (schema === null || typeof schema !== 'object') return schema;
+  return Object.fromEntries(Object.entries(schema).filter(([key]) => !UNSUPPORTED.has(key)).map(([key, value]) => [key, strictSchema(value)]));
+}
+
 const isFile = (c: AiContent) => c.type === 'document' || c.type === 'image';
 
 /** Pure: what is sent for a request. Documents and images come before the text, as the API asks. */
@@ -47,7 +55,7 @@ export function toAnthropicParams(req: AiRequest, env: Record<string, string | u
     output_config: { effort: effortFor(req.purpose), ...(req.jsonSchema ? { format: { type: 'json_schema', schema: req.jsonSchema } } : {}) },
   };
   if (req.tools && req.tools.length > 0) {
-    body.tools = req.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: tool.inputSchema, strict: true }));
+    body.tools = req.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: strictSchema(tool.inputSchema), strict: true }));
     body.tool_choice = { type: 'auto' };
   }
   if (req.purpose === 'ask') body.cache_control = { type: 'ephemeral' };

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { AiProviderError, AiTimeoutError } from '@/server/ai/errors';
 import { toAnthropicParams } from '@/server/ai/provider/anthropic';
+import { toolSpecs } from '@/server/ai/tools';
 import { FakeProvider } from '@/server/ai/provider/fake';
 import type { AiRequest } from '@/server/ai/provider/types';
 
@@ -82,6 +83,11 @@ describe('the fake provider', () => {
 
 describe('the Anthropic mapping', () => {
   const tool = { name: 'getDailyReport', description: 'd', inputSchema: { type: 'object', additionalProperties: false, required: [], properties: {} } };
+
+  it('leaves out the limits strict tools do not accept, from every real tool', () => {
+    const { body } = toAnthropicParams(ask('hi', { tools: toolSpecs('OWNER') }), {});
+    expect(JSON.stringify(body.tools)).not.toMatch(/"(minimum|maximum|minLength|maxLength|minItems|maxItems|exclusiveMinimum|exclusiveMaximum|multipleOf)"/);
+  });
 
   it('sends ask on Opus with auto tool choice, strict tools, effort medium, the fallback beta and no sampling keys', () => {
     const { beta, body } = toAnthropicParams(ask('hi', { tools: [tool] }), {});
