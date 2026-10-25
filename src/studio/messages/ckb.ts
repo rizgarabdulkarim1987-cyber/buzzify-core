@@ -1,6 +1,7 @@
 // Machine-drafted Sorani. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ckb';
+import styles from './styles/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -46,6 +47,7 @@ const ckb: Messages = {
   'nav.menus': 'هەموو مینیوەکان',
   'nav.media': 'میدیا',
   'nav.motion': 'جووڵە',
+  'nav.styles': 'ستایلەکانی مینیو',
   'nav.people': 'کەسەکان',
   'nav.activity': 'چالاکی',
   'nav.settings': 'ڕێکخستنەکان',
@@ -1762,6 +1764,8 @@ const ckb: Messages = {
     'ئەگەر تۆ ئەم گۆڕانکارییەت نەکردووە، ئێستا وشەی نهێنییەکەت دووبارە ڕێکبخەرەوە و پەیوەندی بە بەڕێوەبەری Buzzify Studio بکە.',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ckb.ts)
   ...motion,
+  // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
+  ...styles,
 };
 
 export default ckb;
