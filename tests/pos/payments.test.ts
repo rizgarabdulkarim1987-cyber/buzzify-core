@@ -113,12 +113,11 @@ describe('paying in cash', () => {
     expect(dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: free.version, expectedTotal: 0, amountReceived: 0 })).total).toBe(0);
   });
 
-  it('refuses a method other than cash', async () => {
+  it('refuses an unknown method', async () => {
     await shift();
     const { orderId, version } = await orderOf(1);
-    expect(codeOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'ZAINCASH' }))).toBe('INVALID');
+    expect(codeOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'BITCOIN' }))).toBe('INVALID');
   });
-
   it('refuses an empty order and one whose lines are all cancelled', async () => {
     await shift();
     const empty = dataOf(await run(cashier, openPosOrder, { tableId }));
@@ -160,5 +159,70 @@ describe('paying in cash', () => {
     dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000 }));
     const actions = (await prisma().auditLog.findMany({ where: { restaurantId: a.id }, select: { action: true } })).map((r) => r.action);
     expect(actions).toContain('pos.payment.take');
+  });
+});
+
+describe('paying by terminal (recorded, never verified)', () => {
+  const enable = (methods: string[]) => prisma().posSettings.update({ where: { restaurantId: a.id }, data: { enabledPaymentMethods: methods as never } });
+
+  it('records the method and the reference, with no change, and keeps the drawer cash-only', async () => {
+    await enable(['CASH', 'FIB']);
+    const shiftId = await shift();
+    const { orderId, version } = await orderOf(1);
+    const paid = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'FIB', reference: '  TX-778899 ' }));
+    expect(paid).toMatchObject({ change: 0, total: 5_000 });
+    const receipt = dataOf(await ask(cashier, posReceipt, { orderId }));
+    expect(receipt).toMatchObject({ method: 'FIB', reference: 'TX-778899', change: 0 });
+    const summary = dataOf(await ask(cashier, posShift, { shiftId }));
+    expect(summary.expectedCash).toBe(10_000);
+    expect(summary.cashSales).toBe(0);
+  });
+
+  it('stores a blank reference as none and refuses 101 characters', async () => {
+    await enable(['CASH', 'QICARD']);
+    await shift();
+    const { orderId, version } = await orderOf(1);
+    const base = { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'QICARD' };
+    expect(codeOf(await run(cashier, payPosOrder, { ...base, reference: 'x'.repeat(101) }))).toBe('INVALID');
+    dataOf(await run(cashier, payPosOrder, { ...base, reference: '   ' }));
+    expect((await prisma().posPayment.findFirstOrThrow({ where: { orderId } })).reference).toBeNull();
+  });
+
+  it('takes the exact total only', async () => {
+    await enable(['CASH', 'ZAINCASH']);
+    await shift();
+    const { orderId, version } = await orderOf(1);
+    const base = { orderId, expectedVersion: version, expectedTotal: 5_000, method: 'ZAINCASH' };
+    expect(failureOf(await run(cashier, payPosOrder, { ...base, amountReceived: 6_000 }))).toMatchObject({ code: 'INVALID' });
+    expect(failureOf(await run(cashier, payPosOrder, { ...base, amountReceived: 4_000 }))).toMatchObject({ code: 'INVALID' });
+    expect(await prisma().posPayment.count()).toBe(0);
+  });
+
+  it('refuses a method the restaurant has not switched on, and one switched off after the screen loaded', async () => {
+    await shift();
+    const { orderId, version } = await orderOf(1);
+    const input = { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'FIB' };
+    expect(failureOf(await run(cashier, payPosOrder, input))).toMatchObject({ code: 'CONFLICT' });
+    await enable(['CASH', 'FIB']);
+    await enable(['CASH']);
+    expect(codeOf(await run(cashier, payPosOrder, input))).toBe('CONFLICT');
+    expect(await prisma().posPayment.count()).toBe(0);
+    expect(dataOf(await ask(cashier, posOrder, { orderId })).status).not.toBe('PAID');
+  });
+
+  it('still takes cash when no settings row was ever saved', async () => {
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { enabledPaymentMethods: ['CASH'] } });
+    await shift();
+    const { orderId, version } = await orderOf(1);
+    expect(codeOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000 }))).toBe('OK');
+  });
+
+  it('audits the method and the reference but nothing else', async () => {
+    await enable(['CASH', 'FIB']);
+    await shift();
+    const { orderId, version } = await orderOf(1);
+    dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 5_000, method: 'FIB', reference: 'TX-1' }));
+    const row = await prisma().auditLog.findFirstOrThrow({ where: { action: 'pos.payment.take', restaurantId: a.id } });
+    expect(row.changes).toMatchObject({ method: { after: 'FIB' }, reference: { after: 'TX-1' } });
   });
 });

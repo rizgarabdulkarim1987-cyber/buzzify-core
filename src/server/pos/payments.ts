@@ -4,6 +4,7 @@ import { lineTotal } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { effectiveRates, loadOrderForChange, optionsSnapshotSchema, orderTotals, pricedLine, readRates } from './orders';
+import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
 
@@ -13,13 +14,15 @@ export interface PayInput {
   /** The total on the screen the cashier looked at: if the order changed since, it no longer matches and nothing is taken. */
   expectedTotal: number;
   amountReceived: number;
+  method: PosPaymentMethodKey;
   reference?: string;
   userId: string;
 }
 
 /**
  * Takes the cash for an order and marks it PAID in one transaction, freezing the totals on the payment. The person needs an
- * open shift (its row is locked first, so closing it cannot miss this payment). Cash only: a card or wallet is a later phase.
+ * open shift (its row is locked first, so closing it cannot miss this payment). Cash may give change; a terminal method (ZainCash,
+ * FIB, QiCard) takes the exact total, must be switched on, and only records the method and the reference: nothing is verified.
  */
 export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInput) {
   const shiftId = await lockOpenShiftOf(db, restaurantId, input.userId);
@@ -33,7 +36,13 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
   if (live.length === 0) throw refuse('CONFLICT', 'Cannot pay an empty order');
   const { totals, invoiceDiscount } = orderTotals(order, lines, rates);
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
-  if (input.amountReceived < totals.total) {
+  if (input.method !== 'CASH') {
+    const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
+    if (!(settings?.enabledPaymentMethods ?? []).includes(input.method)) throw refuse('CONFLICT', 'This payment method is switched off');
+    if (input.amountReceived !== totals.total) {
+      throw new StudioError('INVALID', 'Card and wallet payments take the exact total', { amountReceived: 'Card and wallet payments take the exact total' });
+    }
+  } else if (input.amountReceived < totals.total) {
     throw new StudioError('INVALID', 'The amount is less than the total', { amountReceived: 'The amount is less than the total' });
   }
 
@@ -69,7 +78,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     data: {
       restaurantId,
       orderId: order.id,
-      method: 'CASH',
+      method: input.method,
       amountReceived: input.amountReceived,
       reference: input.reference ?? null,
       totalsSnapshot: snapshot,
@@ -78,7 +87,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     },
     select: { id: true },
   });
-  return { paymentId: payment.id, orderId: order.id, number: order.number, change: input.amountReceived - totals.total, total: totals.total, from: order.status, shiftId };
+  return { paymentId: payment.id, method: input.method, orderId: order.id, number: order.number, change: input.amountReceived - totals.total, total: totals.total, from: order.status, shiftId };
 }
 
 export interface Receipt {

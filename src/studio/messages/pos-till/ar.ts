@@ -478,6 +478,13 @@ const posTill: Messages = {
   'pos.offline.error.wrongActor': 'هذه العملية أجراها شخص آخر.',
   'pos.offline.error.unknownRef': 'الطلب الذي تتبعه غير معروف.',
   'pos.offline.error.failed': 'تعذّر على الخادم تنفيذها.',
+  'error.text.posMethodOff': 'طريقة الدفع هذه متوقفة',
+  'error.text.posExactTotal': 'الدفع بالبطاقة أو المحفظة يكون بالمبلغ المطلوب بالضبط',
+  'pos.pay.method': 'طريقة الدفع',
+  'pos.pay.reference': 'مرجع العملية على الجهاز (اختياري)',
+  'pos.pay.terminalNote': 'نفّذ الدفع على الجهاز أولاً. هذا يسجّله فقط ولا يتحقق من المزوّد.',
+  'pos.pay.terminalOffline': 'الدفع بالبطاقة والمحفظة يحتاج إلى الشبكة.',
+  'pos.receipt.reference': 'المرجع',
 };
 
 export default posTill;

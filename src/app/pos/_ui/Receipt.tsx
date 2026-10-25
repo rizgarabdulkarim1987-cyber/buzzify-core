@@ -59,8 +59,14 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
           <dt>{t('pos.totals.total')}</dt>
           <dd>{money(s.total)}</dd>
         </div>
-        <Line label={t('pos.receipt.cash')} value={money(receipt.amountReceived)} />
-        <Line label={t('pos.pay.change')} value={money(receipt.change)} />
+        <Line label={receipt.method === 'CASH' ? t('pos.receipt.cash') : t(`pos.method.${receipt.method}`)} value={money(receipt.amountReceived)} />
+        {receipt.method === 'CASH' ? <Line label={t('pos.pay.change')} value={money(receipt.change)} /> : null}
+        {receipt.reference ? (
+          <div className="flex justify-between gap-3 text-muted" data-testid="receipt-reference">
+            <dt>{t('pos.receipt.reference')}</dt>
+            <dd dir="ltr">{receipt.reference}</dd>
+          </div>
+        ) : null}
       </dl>
       <p className="text-center text-sm text-muted">{t('pos.receipt.thanks')}</p>
       <div className="flex flex-col gap-2 print:hidden">

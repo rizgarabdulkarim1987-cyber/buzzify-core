@@ -18,8 +18,15 @@ describe('the queueable operations', () => {
     for (const kind of OP_KINDS) expect(operationSchema.safeParse(samples[kind]).success, kind).toBe(true);
   });
 
+  it('never queues a terminal method: a payCash payload carries no method or reference', () => {
+    for (const extra of [{ method: 'FIB' }, { method: 'CASH' }, { reference: 'TX-1' }]) {
+      const op = { ...samples.payCash, payload: { ...samples.payCash.payload, ...extra } };
+      expect(operationSchema.safeParse(op).success, JSON.stringify(extra)).toBe(false);
+    }
+  });
+
   it('refuses everything that needs the network', () => {
-    for (const kind of ['openShift', 'closeShift', 'moveToTable', 'advanceFulfillment', 'updateLine', 'setInvoiceDiscount']) {
+    for (const kind of ['openShift', 'closeShift', 'moveToTable', 'advanceFulfillment', 'updateLine', 'setInvoiceDiscount', 'reversePayment', 'payTerminal']) {
       expect(operationSchema.safeParse({ ...samples.sendToKitchen, kind }).success, kind).toBe(false);
     }
   });

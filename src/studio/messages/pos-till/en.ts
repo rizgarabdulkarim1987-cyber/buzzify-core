@@ -478,6 +478,13 @@ const posTill: Messages = {
   'pos.offline.error.wrongActor': 'This operation was made by another person.',
   'pos.offline.error.unknownRef': 'The order it belongs to is not known.',
   'pos.offline.error.failed': 'The server could not apply it.',
+  'error.text.posMethodOff': 'This payment method is switched off',
+  'error.text.posExactTotal': 'Card and wallet payments take the exact total',
+  'pos.pay.method': 'Payment method',
+  'pos.pay.reference': 'Terminal reference (optional)',
+  'pos.pay.terminalNote': 'Take the payment on the terminal first. This only records it; nothing is checked with the provider.',
+  'pos.pay.terminalOffline': 'Card and wallet payments need the network.',
+  'pos.receipt.reference': 'Reference',
 };
 
 export default posTill;

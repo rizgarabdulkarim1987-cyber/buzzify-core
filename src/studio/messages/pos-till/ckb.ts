@@ -478,6 +478,13 @@ const posTill: Messages = {
   'pos.offline.error.wrongActor': 'ئەم کارە کەسێکی تر کردوویەتی.',
   'pos.offline.error.unknownRef': 'ئەو داواکارییەی سەر بەیەتی نەناسراوە.',
   'pos.offline.error.failed': 'سێرڤەر نەیتوانی جێبەجێی بکات.',
+  'error.text.posMethodOff': 'ئەم شێوازی پارەدانە ڕاگیراوە',
+  'error.text.posExactTotal': 'پارەدان بە کارت و جزدان بە کۆی گشتی ڕێک دەبێت',
+  'pos.pay.method': 'شێوازی پارەدان',
+  'pos.pay.reference': 'ژمارەی مامەڵە لەسەر ئامێر (ئارەزوومەندانە)',
+  'pos.pay.terminalNote': 'سەرەتا پارەدانەکە لەسەر ئامێرەکە ئەنجام بدە. ئەمە تەنها تۆماری دەکات و لەگەڵ دابینکەر پشتڕاست ناکرێتەوە.',
+  'pos.pay.terminalOffline': 'پارەدان بە کارت و جزدان پێویستی بە تۆڕە.',
+  'pos.receipt.reference': 'ژمارەی مامەڵە',
 };
 
 export default posTill;

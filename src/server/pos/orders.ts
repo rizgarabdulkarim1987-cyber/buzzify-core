@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { PosOrder, PosOrderLine, Prisma } from '@/generated/prisma/client';
 import type { AnyDb } from '@/server/data/tenant-db';
+import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { canTransition, isLocked, LOCKED_STATUSES, type OrderStatus } from '@/server/domain/pos/order-state';
 import { computeTotals, lineTotal, type Discount, type PricedLine, type Rates, type Totals } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
@@ -232,6 +233,8 @@ export interface OrderView {
   rates: Rates;
   kitchen: { print: boolean; screen: boolean };
   paid: { paymentId: string; method: string; amountReceived: number; paidAt: Date } | null;
+  /** The ways the till may take payment now; cash is always among them. */
+  paymentMethods: PosPaymentMethodKey[];
 }
 
 /** The order, all its lines (cancelled ones included, oldest first), its totals and the rates they were computed with. */
@@ -244,9 +247,10 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     },
   });
   if (!order) return null;
-  const [lines, settings] = await Promise.all([
+  const [lines, settings, methodRow] = await Promise.all([
     db.posOrderLine.findMany({ where: { orderId: order.id, restaurantId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
     readRates(db, restaurantId),
+    db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } }),
   ]);
   const { totals, invoiceDiscount } = orderTotals(order, lines, settings);
   const rates = effectiveRates(order.kind, settings);
@@ -302,5 +306,6 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     paid: order.payment
       ? { paymentId: order.payment.id, method: order.payment.method, amountReceived: order.payment.amountReceived, paidAt: order.payment.paidAt }
       : null,
+    paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }

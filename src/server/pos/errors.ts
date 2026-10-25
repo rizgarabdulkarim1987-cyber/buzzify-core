@@ -58,6 +58,8 @@ export const POS_TEXT = {
   'Enter an address': 'error.text.posAddressRequired',
   'The order was handed over and can no longer change': 'error.text.posHandedOver',
   'Use at most 120 characters': 'error.text.posNameTooLong',
+  'This payment method is switched off': 'error.text.posMethodOff',
+  'Card and wallet payments take the exact total': 'error.text.posExactTotal',
   'This operation was already applied': 'error.text.posOperationApplied',
 } as const;
 
