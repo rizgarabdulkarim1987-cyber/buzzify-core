@@ -239,3 +239,7 @@ export async function assignPosDriver(input: unknown) {
 export async function lookupPosCustomer(input: unknown) {
   return invokeQuery(deliveryQueries.posRecentCustomer, input);
 }
+
+export async function reversePosPayment(input: unknown) {
+  return invoke(payments.reversePosPayment, input);
+}

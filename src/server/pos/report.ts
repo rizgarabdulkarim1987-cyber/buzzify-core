@@ -25,7 +25,10 @@ export interface ShiftReport {
   discountsTotal: number;
   /** The delivery fees inside grossSales, from the snapshots (a fee is charged on top of the food, not a sale of it). */
   deliveryFeesTotal: number;
-  /** grossSales (no refunds exist yet). */
+  /** Reversals recorded in the shift, by method (count and IQD). A refund does not change grossSales. */
+  refundsByMethod: MethodSales;
+  refundsTotal: number;
+  /** grossSales minus refundsTotal (negative when the shift refunded other shifts' sales). */
   netSales: number;
   /** Whole orders the shift's person cancelled between the opening and the close (or now, while open). */
   cancelledOrders: number;
@@ -58,6 +61,8 @@ export interface DailyReport {
   /** The shifts added up; the cancellation counts are the whole day's: the shifts' plus `outsideShifts`. */
   totals: {
     byMethod: MethodSales;
+    refundsByMethod: MethodSales;
+    refundsTotal: number;
     grossSales: number;
     discountsTotal: number;
     deliveryFeesTotal: number;
@@ -89,6 +94,11 @@ interface PaymentRow {
   shiftId: string | null;
   method: PosPaymentMethod;
   totalsSnapshot: unknown;
+}
+interface ReversalRow {
+  shiftId: string | null;
+  method: PosPaymentMethod;
+  amount: number;
 }
 interface ExpenseRow {
   shiftId: string;
@@ -191,9 +201,15 @@ async function outsideShiftsOf(db: AnyDb, dayCancels: readonly CancelRow[], shif
   };
 }
 
-function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], expenses: readonly ExpenseRow[], cancels: readonly CancelRow[], now: Date, closedByName: string | null): ShiftReport {
+function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], reversals: readonly ReversalRow[], expenses: readonly ExpenseRow[], cancels: readonly CancelRow[], now: Date, closedByName: string | null): ShiftReport {
   const { user, ...shift } = row;
   const { byMethod, grossSales, discountsTotal, deliveryFeesTotal, cashTotals } = sales(payments);
+  const refundsByMethod = noSales();
+  for (const r of reversals) {
+    refundsByMethod[r.method].count += 1;
+    refundsByMethod[r.method].total += r.amount;
+  }
+  const refundsTotal = reversals.reduce((s, r) => s + r.amount, 0);
   const own = cancels.filter((c) => inShiftWindow(c, shift, now));
   return {
     shift,
@@ -203,12 +219,14 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], expens
     grossSales,
     discountsTotal,
     deliveryFeesTotal,
-    netSales: grossSales,
+    refundsByMethod,
+    refundsTotal,
+    netSales: grossSales - refundsTotal,
     cancelledOrders: own.filter((c) => c.action === ORDER_CANCEL).length,
     cancelledLines: own.filter((c) => c.action === LINE_CANCEL).length,
     cancelReasons: reasonCounts(own),
     expenses: expenses.map((e) => ({ reason: e.reason, amount: e.amount })),
-    expectedCash: shift.expectedCashAtClose ?? expectedCash({ openingFloat: shift.openingFloat, cashSales: cashTotals, expenses: expenses.map((e) => e.amount), cashRefunds: [] }),
+    expectedCash: shift.expectedCashAtClose ?? expectedCash({ openingFloat: shift.openingFloat, cashSales: cashTotals, expenses: expenses.map((e) => e.amount), cashRefunds: reversals.filter((r) => r.method === 'CASH').map((r) => r.amount) }),
     countedCash: shift.countedCash,
     difference: shift.difference,
   };
@@ -221,8 +239,9 @@ async function shiftReports(db: AnyDb, restaurantId: string, shifts: readonly Sh
   const from = new Date(Math.min(...shifts.map((s) => s.openedAt.getTime())));
   const to = new Date(Math.max(...shifts.map((s) => (s.closedAt ?? now).getTime())));
   const closers = [...new Set(shifts.flatMap((s) => (s.closedByUserId && s.closedByUserId !== s.userId ? [s.closedByUserId] : [])))];
-  const [payments, expenses, cancels, closerRows] = await Promise.all([
+  const [payments, reversals, expenses, cancels, closerRows] = await Promise.all([
     db.posPayment.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }], select: { id: true, shiftId: true, method: true, totalsSnapshot: true } }),
+    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, select: { shiftId: true, method: true, amount: true } }),
     db.posCashExpense.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { shiftId: true, amount: true, reason: true } }),
     db.auditLog.findMany({
       where: { restaurantId, action: { in: [ORDER_CANCEL, LINE_CANCEL] }, actorId: { in: [...new Set(shifts.map((s) => s.userId))] }, occurredAt: { gte: from, lte: to } },
@@ -232,10 +251,11 @@ async function shiftReports(db: AnyDb, restaurantId: string, shifts: readonly Sh
   ]);
   const closerNames = new Map(closerRows.map((u) => [u.id, u.name]));
   const paymentsByShift = groupBy(payments, (p) => p.shiftId ?? '');
+  const reversalsByShift = groupBy(reversals, (r) => r.shiftId ?? '');
   const expensesByShift = groupBy(expenses, (e) => e.shiftId);
   const cancelsByUser = groupBy(cancels, (c) => c.actorId ?? '');
   return shifts.map((s) =>
-    shiftReport(s, paymentsByShift.get(s.id) ?? [], expensesByShift.get(s.id) ?? [], cancelsByUser.get(s.userId) ?? [], now, s.closedByUserId && s.closedByUserId !== s.userId ? (closerNames.get(s.closedByUserId) ?? null) : null),
+    shiftReport(s, paymentsByShift.get(s.id) ?? [], reversalsByShift.get(s.id) ?? [], expensesByShift.get(s.id) ?? [], cancelsByUser.get(s.userId) ?? [], now, s.closedByUserId && s.closedByUserId !== s.userId ? (closerNames.get(s.closedByUserId) ?? null) : null),
   );
 }
 
@@ -267,12 +287,16 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
   const outside = await outsideShiftsOf(db, dayCancels, overlapping, now);
 
   const byMethod = noSales();
-  const totals = { grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
+  const refundsByMethod = noSales();
+  const totals = { refundsTotal: 0, grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
   for (const r of reports) {
     for (const method of Object.keys(byMethod) as PosPaymentMethod[]) {
       byMethod[method].count += r.salesByMethod[method].count;
       byMethod[method].total += r.salesByMethod[method].total;
+      refundsByMethod[method].count += r.refundsByMethod[method].count;
+      refundsByMethod[method].total += r.refundsByMethod[method].total;
     }
+    totals.refundsTotal += r.refundsTotal;
     totals.grossSales += r.grossSales;
     totals.discountsTotal += r.discountsTotal;
     totals.deliveryFeesTotal += r.deliveryFeesTotal;
@@ -284,5 +308,5 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
   }
   totals.cancelledOrders += outside?.cancelledOrders ?? 0;
   totals.cancelledLines += outside?.cancelledLines ?? 0;
-  return { day: input.day, shifts: reports, totals: { byMethod, ...totals }, outsideShifts: outside };
+  return { day: input.day, shifts: reports, totals: { byMethod, refundsByMethod, ...totals }, outsideShifts: outside };
 }

@@ -485,6 +485,15 @@ const posTill: Messages = {
   'pos.pay.terminalNote': 'Take the payment on the terminal first. This only records it; nothing is checked with the provider.',
   'pos.pay.terminalOffline': 'Card and wallet payments need the network.',
   'pos.receipt.reference': 'Reference',
+  'error.text.posAlreadyReversed': 'This payment was already reversed',
+  'activity.action.pos.payment.reverse': 'Reversed a payment',
+  'activity.action.pos.staff.pin.set': 'Set a quick sign-in PIN',
+  'activity.action.pos.staff.pin.clear': 'Cleared someone\'s PIN',
+  'activity.action.pos.device.register': 'Registered a shared device',
+  'activity.action.pos.device.revoke': 'Removed a shared device',
+  'activity.action.pos.pin.ok': 'Signed in with a PIN',
+  'activity.action.pos.pin.fail': 'A wrong PIN was entered',
+  'activity.entity.PosSharedDevice': 'Shared device',
 };
 
 export default posTill;

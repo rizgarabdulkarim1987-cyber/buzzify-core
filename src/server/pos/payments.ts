@@ -106,13 +106,17 @@ export interface Receipt {
   paidAt: Date;
   cashierName: string | null;
   snapshot: TotalsSnapshot;
+  /** The order's version now, which a reversal must quote. */
+  orderVersion: number;
+  /** Set once the payment was reversed: who, when, why, and the terminal reference of the refund. */
+  reversal: { at: Date; byName: string; reason: string; reference: string | null; amount: number; method: string } | null;
 }
 
 /** The receipt of a paid order, from the totals frozen when it was paid. */
 export async function readReceipt(db: AnyDb, restaurantId: string, orderId: string): Promise<Receipt | null> {
   const payment = await db.posPayment.findFirst({
     where: { orderId, restaurantId },
-    include: { order: { select: { number: true, kind: true, queueNumber: true, customerName: true, customerPhone: true, address: true, addressNote: true, deliveryZoneName: true, driverNameSnapshot: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
+    include: { reversal: { include: { user: { select: { name: true } } } }, order: { select: { version: true, number: true, kind: true, queueNumber: true, customerName: true, customerPhone: true, address: true, addressNote: true, deliveryZoneName: true, driverNameSnapshot: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
   });
   if (!payment) return null;
   const snapshot = parseTotalsSnapshot(payment.id, payment.totalsSnapshot);
@@ -141,5 +145,9 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
     paidAt: payment.paidAt,
     cashierName: payment.user?.name ?? null,
     snapshot,
+    orderVersion: payment.order.version,
+    reversal: payment.reversal
+      ? { at: payment.reversal.createdAt, byName: payment.reversal.user?.name ?? '', reason: payment.reversal.reason, reference: payment.reversal.reference, amount: payment.reversal.amount, method: payment.reversal.method }
+      : null,
   };
 }

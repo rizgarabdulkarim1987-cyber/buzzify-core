@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { cashDifference, expectedCash } from '@/server/domain/pos/cash-drawer';
 import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
+import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
@@ -57,13 +58,17 @@ export async function addExpenseIn(db: AnyDb, restaurantId: string, input: { shi
 
 /** What the drawer should hold now: the float, plus the totals of the shift's cash payments, minus its expenses. */
 async function drawerOf(db: AnyDb, restaurantId: string, shift: { id: string; openingFloat: number }) {
-  const [payments, expenses] = await Promise.all([
+  const [payments, reversals, expenses] = await Promise.all([
     db.posPayment.findMany({ where: { restaurantId, shiftId: shift.id, method: 'CASH' }, select: { totalsSnapshot: true } }),
+    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: shift.id }, select: { method: true, amount: true } }),
     db.posCashExpense.findMany({ where: { restaurantId, shiftId: shift.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, amount: true, reason: true, createdAt: true } }),
   ]);
   const cashSales = payments.map((p) => cashTotal.parse(p.totalsSnapshot).total);
-  const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds: [] });
-  return { cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total };
+  const cashRefunds = reversals.filter((r) => r.method === 'CASH').map((r) => r.amount);
+  const refundsByMethod: Record<PosPaymentMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0 };
+  for (const r of reversals) refundsByMethod[r.method] += r.amount;
+  const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds });
+  return { cashRefunds: cashRefunds.reduce((a, b) => a + b, 0), refundsByMethod, cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total };
 }
 
 /** Counts the drawer and closes the shift, freezing what it should have held and the difference. */
@@ -100,6 +105,10 @@ export interface ShiftSummary {
   salesCount: number;
   expenses: { id: string; amount: number; reason: string; createdAt: Date }[];
   expensesTotal: number;
+  /** Cash handed back by reversals recorded in this shift (already inside expectedCash). */
+  cashRefunds: number;
+  /** Everything reversed in this shift, by method (cash included). */
+  refundsByMethod: Record<PosPaymentMethodKey, number>;
   /** For an open shift what the drawer should hold now; for a closed one what was frozen at close. */
   expectedCash: number;
   openOrdersCount: number;
@@ -134,6 +143,8 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
     salesCount: drawer.salesCount,
     expenses: drawer.expenses,
     expensesTotal: drawer.expensesTotal,
+    cashRefunds: drawer.cashRefunds,
+    refundsByMethod: drawer.refundsByMethod,
     expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : drawer.expectedCash,
     openOrdersCount,
     unsettledDeliveries,

@@ -485,6 +485,15 @@ const posTill: Messages = {
   'pos.pay.terminalNote': 'سەرەتا پارەدانەکە لەسەر ئامێرەکە ئەنجام بدە. ئەمە تەنها تۆماری دەکات و لەگەڵ دابینکەر پشتڕاست ناکرێتەوە.',
   'pos.pay.terminalOffline': 'پارەدان بە کارت و جزدان پێویستی بە تۆڕە.',
   'pos.receipt.reference': 'ژمارەی مامەڵە',
+  'error.text.posAlreadyReversed': 'ئەم پارەدانە پێشتر گەڕێندراوەتەوە',
+  'activity.action.pos.payment.reverse': 'پارەدانێکی گەڕاندەوە',
+  'activity.action.pos.staff.pin.set': 'PINی چوونەژوورەوەی خێرای دانا',
+  'activity.action.pos.staff.pin.clear': 'PINی کەسێکی سڕییەوە',
+  'activity.action.pos.device.register': 'ئامێرێکی هاوبەشی تۆمارکرد',
+  'activity.action.pos.device.revoke': 'ئامێرێکی هاوبەشی لابرد',
+  'activity.action.pos.pin.ok': 'بە PIN چووە ژوورەوە',
+  'activity.action.pos.pin.fail': 'PINی هەڵە نووسرا',
+  'activity.entity.PosSharedDevice': 'ئامێری هاوبەش',
 };
 
 export default posTill;

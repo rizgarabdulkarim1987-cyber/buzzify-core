@@ -485,6 +485,15 @@ const posTill: Messages = {
   'pos.pay.terminalNote': 'نفّذ الدفع على الجهاز أولاً. هذا يسجّله فقط ولا يتحقق من المزوّد.',
   'pos.pay.terminalOffline': 'الدفع بالبطاقة والمحفظة يحتاج إلى الشبكة.',
   'pos.receipt.reference': 'المرجع',
+  'error.text.posAlreadyReversed': 'تم استرجاع هذه الدفعة من قبل',
+  'activity.action.pos.payment.reverse': 'استرجع دفعة',
+  'activity.action.pos.staff.pin.set': 'عيّن رمز PIN للدخول السريع',
+  'activity.action.pos.staff.pin.clear': 'مسح رمز PIN لشخص',
+  'activity.action.pos.device.register': 'سجّل جهازاً مشتركاً',
+  'activity.action.pos.device.revoke': 'أزال جهازاً مشتركاً',
+  'activity.action.pos.pin.ok': 'دخل برمز PIN',
+  'activity.action.pos.pin.fail': 'أُدخل رمز PIN خاطئ',
+  'activity.entity.PosSharedDevice': 'جهاز مشترك',
 };
 
 export default posTill;
