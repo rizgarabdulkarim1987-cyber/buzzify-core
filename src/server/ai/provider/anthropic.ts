@@ -72,12 +72,14 @@ export function fromAnthropicMessage(message: { stop_reason?: string | null; con
   return { stop, content: fromContent(message.content), model: message.model, inputTokens: message.usage?.input_tokens ?? 0, outputTokens: message.usage?.output_tokens ?? 0 };
 }
 
-export function createAnthropicProvider(apiKey: string): AiProvider {
+export function createAnthropicProvider(apiKey: string, models: { ask?: string | undefined; fast?: string | undefined } = {}): AiProvider {
   const client = new Anthropic({ apiKey, maxRetries: 1 });
+  // Models the Super Admin saved win over the environment's, which win over the defaults.
+  const env = { ...process.env, ...(models.ask ? { AI_MODEL_ASK: models.ask, AI_MODEL_EXTRACT: models.ask } : {}), ...(models.fast ? { AI_MODEL_FAST: models.fast } : {}) };
   return {
     name: 'anthropic',
     async complete(req) {
-      const { beta, body } = toAnthropicParams(req);
+      const { beta, body } = toAnthropicParams(req, env);
       try {
         // The SDK's request types are narrower than this neutral mapping, which the mapping test pins.
         const message = beta

@@ -135,7 +135,7 @@ describe('the gateway stays isolated', () => {
       if (!/\.(ts|tsx)$/.test(file)) continue;
       const text = read(file);
       const normalized = file.replaceAll('\\', '/');
-      if (text.includes('ANTHROPIC_API_KEY')) expect(['src/server/ai/provider/index.ts', 'src/server/ai/provider/anthropic.ts']).toContain(normalized);
+      if (/ANTHROPIC_API_KEY|OPENAI_API_KEY/.test(text)) expect(['src/server/ai/provider/index.ts', 'src/server/ai/provider/anthropic.ts', 'src/server/ai/provider/openai.ts']).toContain(normalized);
       if (/^['"]use client['"]/.test(text.trimStart())) {
         // Types are erased at build time and supply-limits is plain constants; nothing else of the AI folder may reach a client.
         const imports = [...text.matchAll(/^import (type )?[^;]*from '(@\/server\/ai[^']*)';/gm)].filter((m) => !m[1] && m[2] !== '@/server/ai/supply-limits');

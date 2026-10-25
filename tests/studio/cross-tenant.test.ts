@@ -912,8 +912,11 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'activity.list': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'search.people': [c("B's people", () => ({ q: 'bravo' }), ONLY_FORBIDDEN)],
   // Billing: the platform owner's alone (`plans.manage`) or any Super Admin's to read (`platform.settings`)
+  'ai.settings': [c('the AI provider settings', () => ({}), ONLY_FORBIDDEN)],
   'billing.overview': [c('the products and prices', () => ({}), ONLY_FORBIDDEN)],
   'billing.restaurant': [c("B's subscriptions and payments", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
+  'ai.saveSettings': [c('saving a key', () => ({ provider: 'openai', anthropic: {}, openai: { apiKey: 'sk-planted-key-0000000000000' } }), ONLY_FORBIDDEN)],
+  'ai.testProvider': [c('testing the provider', () => ({}), ONLY_FORBIDDEN)],
   'billing.setApplication': [c('turning the Menu off', () => ({ applicationId: 'menu', name: { en: 'Planted', ar: 'Planted', ckb: 'Planted' }, status: 'DISABLED' }), ONLY_FORBIDDEN)],
   'billing.setPrices': [c("B's plan's prices", () => ({ applicationId: 'menu', planCode: 'PREMIUM', prices: [] }), ONLY_FORBIDDEN)],
   'billing.startTrial': [
