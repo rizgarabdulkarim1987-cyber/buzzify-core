@@ -257,6 +257,16 @@ describe('the bill, cancelling and moving', () => {
     expect((await view(first.orderId)).tableNumber).toBe(3);
   });
 
+  it('answers CONFLICT, not a generic error, for the order that loses a race for the same free table', async () => {
+    const first = await open(cashier, tables[0]!);
+    const second = await open(cashier, tables[1]!);
+    const results = await Promise.all([
+      run(cashier, movePosOrderToTable, { orderId: first.orderId, tableId: tables[2]!.id, expectedVersion: first.version }),
+      run(cashier, movePosOrderToTable, { orderId: second.orderId, tableId: tables[2]!.id, expectedVersion: second.version }),
+    ]);
+    expect(results.map((r) => (r.ok ? 'OK' : codeOf(r))).sort()).toEqual(['CONFLICT', 'OK']);
+  });
+
   it('audits what changed', async () => {
     const { orderId, version } = await open();
     dataOf(await run(cashier, addPosLine, { orderId, productId: juice, quantity: 1, note: '', optionIds: [], expectedVersion: version }));

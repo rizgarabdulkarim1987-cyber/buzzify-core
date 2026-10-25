@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { amountDigits, countKind, isLate, needsSheet, pickName, quickCash, typedAmount, tableTone, visibleProducts } from '@/lib/pos-view';
+import { amountDigits, joinParts, countKind, isLate, needsSheet, pickName, quickCash, typedAmount, tableTone, visibleProducts } from '@/lib/pos-view';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
-import { tillNav } from '@/server/domain/pos/nav';
+import { canOpenTillPage, tillNav } from '@/server/domain/pos/nav';
 import type { TillProduct } from '@/server/pos/till-catalog';
 
 const product = (id: string, categoryId: string, sortOrder: number, names: TillProduct['names'], extra: Partial<TillProduct> = {}): TillProduct => ({
@@ -34,6 +34,25 @@ describe('the nav', () => {
     expect(withQr('KITCHEN')).toEqual(['kitchen']);
     expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'floor', 'catalog', 'staff', 'qr', 'settings']);
     expect(tillNav('MANAGER', { qrOrdering: false }).map((page) => page.key)).not.toContain('requests');
+  });
+});
+
+describe('opening a till page by address', () => {
+  it('lets a role open exactly the pages its nav lists, and nothing else', () => {
+    expect(canOpenTillPage('CASHIER', 'floor')).toBe(false);
+    expect(canOpenTillPage('CASHIER', 'tables')).toBe(true);
+    expect(canOpenTillPage('KITCHEN', 'shift')).toBe(false);
+    expect(canOpenTillPage('MANAGER', 'floor')).toBe(true);
+    for (const role of POS_ROLES) for (const page of tillNav(role)) expect(canOpenTillPage(role, page.key)).toBe(true);
+  });
+});
+
+describe('joining the parts of a line', () => {
+  it('skips what is missing, so a line never starts or ends with a separator', () => {
+    expect(joinParts(['Table 4', 'Hall', 'Sara'])).toBe('Table 4 · Hall · Sara');
+    expect(joinParts([null, 'Hall', 'Sara'])).toBe('Hall · Sara');
+    expect(joinParts(['', null, 'Sara'])).toBe('Sara');
+    expect(joinParts([null, ''])).toBe('');
   });
 });
 

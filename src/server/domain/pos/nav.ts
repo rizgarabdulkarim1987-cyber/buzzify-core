@@ -24,3 +24,9 @@ export type TillPageKey = (typeof TILL_PAGES)[number]['key'];
 export function tillNav(role: PosRole, options: { qrOrdering?: boolean; delivery?: boolean } = {}): ReadonlyArray<{ key: TillPageKey; href: string }> {
   return TILL_PAGES.filter((page) => canPos(role, page.permission) && (!('needsQr' in page) || options.qrOrdering === true) && (!('needsDelivery' in page) || options.delivery === true)).map(({ key, href }) => ({ key, href }));
 }
+
+/** Whether a role may open a till page by its address: the nav hides a page, this is what the page itself checks. */
+export function canOpenTillPage(role: PosRole, key: TillPageKey): boolean {
+  const page = TILL_PAGES.find((candidate) => candidate.key === key);
+  return page !== undefined && canPos(role, page.permission);
+}
