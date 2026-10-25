@@ -64,11 +64,16 @@ export function OffPremiseBar({ order, zones, drivers, editable }: Props) {
         {info.customerPhone ? <span className="ms-2 text-muted" dir="ltr">{info.customerPhone}</span> : null}
       </p>
       {delivery ? (
-        <p className="text-sm text-muted" dir="auto">
-          {info.zoneName ? `${info.zoneName} · ` : ''}
-          {info.address}
-          {info.addressNote ? ` (${info.addressNote})` : ''} · {t('pos.offp.fee')}: {money(order.totals.deliveryFee)}
-        </p>
+        <div className="flex flex-col gap-0.5 text-sm text-muted">
+          <p dir="auto">
+            {info.zoneName ? `${info.zoneName} · ` : ''}
+            {info.address}
+            {info.addressNote ? ` (${info.addressNote})` : ''}
+          </p>
+          <p>
+            {t('pos.offp.fee')}: {money(order.totals.deliveryFee)}
+          </p>
+        </div>
       ) : null}
       {delivery && info.fulfillment !== 'DELIVERED' ? (
         <Select
