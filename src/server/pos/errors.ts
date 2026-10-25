@@ -67,6 +67,20 @@ export const POS_TEXT = {
   'This payment method is switched off': 'error.text.posMethodOff',
   'Card and wallet payments take the exact total': 'error.text.posExactTotal',
   'This operation was already applied': 'error.text.posOperationApplied',
+  'An item with this name already exists': 'error.text.posItemNameTaken',
+  'Remove the item from its recipes first': 'error.text.posItemInRecipe',
+  'This item is switched off': 'error.text.posItemInactive',
+  'Stock changed while you counted. Check the numbers and save again.': 'error.text.posStockChanged',
+  'Each item can be counted once': 'error.text.posCountOnce',
+  'A supplier with this name already exists': 'error.text.posSupplierNameTaken',
+  'Enter a quantity': 'error.text.posEnterQuantity',
+  'Enter a note': 'error.text.posEnterNote',
+  'Use at most 1000 characters': 'error.text.posText1000',
+  'This invoice was already saved': 'error.text.posInvoiceDuplicate',
+  'This invoice was already voided': 'error.text.posInvoiceVoided',
+  'The sum of the lines is too large': 'error.text.posInvoiceTooLarge',
+  'The complaint was changed by someone else. Reload it.': 'error.text.posComplaintChanged',
+  'Agree to be contacted to leave a name or phone': 'error.text.posConsentRequired',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

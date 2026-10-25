@@ -129,6 +129,15 @@ model Restaurant {
   posPaymentReversals   PosPaymentReversal[]
   posSharedDevices      PosSharedDevice[]
   posPinAttempts        PosPinAttempt[]
+  posInventoryItems     PosInventoryItem[]
+  posSuppliers          PosSupplier[]
+  posPurchaseInvoices   PosPurchaseInvoice[]
+  posPurchaseLines      PosPurchaseLine[]
+  posStockCounts        PosStockCount[]
+  posStockMovements     PosStockMovement[]
+  posRecipeLines        PosRecipeLine[]
+  posComplaints         PosComplaint[]
+  posComplaintNotes     PosComplaintNote[]
 
   @@index([name])
   @@index([city])
@@ -373,6 +382,7 @@ model Product {
   pairingTo             PairingRule[]          @relation("PairingTarget")
   bundleItems           BundleItem[]
   posProductSetting     PosProductSetting?
+  posRecipeLines        PosRecipeLine[]
   posOrderLines         PosOrderLine[]
   posCustomerOrderLines PosCustomerOrderLine[]
 
@@ -1619,4 +1629,223 @@ model PosPinAttempt {
 
   @@index([deviceId, at])
   @@index([staffId, at])
+}
+
+enum PosStockUnit {
+  GRAM
+  MILLILITER
+  PIECE
+}
+
+enum PosStockMovementKind {
+  PURCHASE
+  PURCHASE_VOID
+  SALE
+  ADJUSTMENT
+  WASTE
+  COUNT
+}
+
+enum PosSupplierPayMethod {
+  CASH
+  BANK
+  ZAINCASH
+  FIB
+  QICARD
+  OTHER
+}
+
+enum PosComplaintStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum PosComplaintCategory {
+  FOOD
+  SERVICE
+  CLEANLINESS
+  PRICE
+  OTHER
+}
+
+/// An ingredient or supply. `onHand` changes only in the same transaction as a PosStockMovement, by exactly its quantity.
+/// The last cost is lastCostAmount IQD for lastCostQuantity units, both null until the first purchase.
+model PosInventoryItem {
+  id               String             @id @default(cuid())
+  restaurantId     String
+  name             String
+  nameKey          String
+  unit             PosStockUnit
+  onHand           Int                @default(0)
+  reorderLevel     Int                @default(0)
+  active           Boolean            @default(true)
+  lastCostAmount   Int?
+  lastCostQuantity Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  restaurant       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements        PosStockMovement[]
+  purchaseLines    PosPurchaseLine[]
+  recipeLines      PosRecipeLine[]
+
+  @@unique([restaurantId, nameKey])
+  @@index([restaurantId, active])
+}
+
+model PosSupplier {
+  id           String               @id @default(cuid())
+  restaurantId String
+  name         String
+  nameKey      String
+  phone        String               @default("")
+  notes        String               @default("")
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  invoices     PosPurchaseInvoice[]
+
+  @@unique([restaurantId, nameKey])
+}
+
+/// A supplier invoice, posted when saved. Never edited: a wrong one is voided and entered again.
+model PosPurchaseInvoice {
+  id           String                @id @default(cuid())
+  restaurantId String
+  supplierId   String
+  /// 'YYYY-MM-DD', the date printed on the invoice (a Baghdad calendar day).
+  invoiceDay   String
+  number       String?
+  note         String                @default("")
+  /// Integer IQD: the sum of the lines.
+  total        Int
+  clientKey    String
+  paidAt       DateTime?
+  paidMethod   PosSupplierPayMethod?
+  voidedAt     DateTime?
+  voidReason   String?
+  /// Plain id (no relation): the person who saved it.
+  userId       String?
+  createdAt    DateTime              @default(now())
+  restaurant   Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier     PosSupplier           @relation(fields: [supplierId], references: [id], onDelete: NoAction)
+  lines        PosPurchaseLine[]
+
+  @@unique([restaurantId, clientKey])
+  @@unique([restaurantId, supplierId, number])
+  @@index([restaurantId, invoiceDay])
+}
+
+model PosPurchaseLine {
+  id           String             @id @default(cuid())
+  restaurantId String
+  invoiceId    String
+  itemId       String
+  /// In the item's smallest unit.
+  quantity     Int
+  /// Integer IQD as printed on the invoice.
+  lineTotal    Int
+  createdAt    DateTime           @default(now())
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  invoice      PosPurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item         PosInventoryItem   @relation(fields: [itemId], references: [id], onDelete: NoAction)
+
+  @@index([invoiceId])
+  @@index([itemId, createdAt])
+}
+
+model PosStockCount {
+  id           String             @id @default(cuid())
+  restaurantId String
+  userId       String?
+  note         String             @default("")
+  createdAt    DateTime           @default(now())
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements    PosStockMovement[]
+
+  @@index([restaurantId, createdAt])
+}
+
+/// The append-only stock ledger. Rows are only ever created. quantity is a signed delta; costTotal is IQD (the line total
+/// for a purchase, negated for a void; the last-cost value for a sale or waste; null when unknown). purchaseLineId,
+/// paymentId and orderLineId are plain ids so history outlives the rows.
+model PosStockMovement {
+  id             String               @id @default(cuid())
+  restaurantId   String
+  itemId         String
+  kind           PosStockMovementKind
+  quantity       Int
+  costTotal      Int?
+  reason         String               @default("")
+  purchaseLineId String?
+  paymentId      String?
+  orderLineId    String?
+  countId        String?
+  userId         String?
+  createdAt      DateTime             @default(now())
+  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  item           PosInventoryItem     @relation(fields: [itemId], references: [id], onDelete: NoAction)
+  count          PosStockCount?       @relation(fields: [countId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([paymentId])
+}
+
+/// One ingredient of a product, per ONE unit sold. Configuration, not the ledger.
+model PosRecipeLine {
+  id           String           @id @default(cuid())
+  restaurantId String
+  productId    String
+  itemId       String
+  quantity     Int
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product      Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  item         PosInventoryItem @relation(fields: [itemId], references: [id], onDelete: NoAction)
+
+  @@unique([productId, itemId])
+  @@index([restaurantId])
+  @@index([itemId])
+}
+
+/// A guest complaint or suggestion from a table QR page. The contact is personal data: removable, never audited.
+/// tableId and orderId are plain ids (no relation) so a deleted table or order never deletes a complaint.
+model PosComplaint {
+  id                    String                @id @default(cuid())
+  restaurantId          String
+  clientKey             String
+  status                PosComplaintStatus    @default(NEW)
+  category              PosComplaintCategory?
+  body                  String
+  tableId               String?
+  tableNumber           Int?
+  orderId               String?
+  orderNumber           Int?
+  contactName           String?
+  contactPhone          String?
+  contactConsentAt      DateTime?
+  contactRemovedAt      DateTime?
+  statusChangedAt       DateTime?
+  statusChangedByUserId String?
+  locale                String                @default("ar")
+  createdAt             DateTime              @default(now())
+  restaurant            Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  notes                 PosComplaintNote[]
+
+  @@unique([restaurantId, clientKey])
+  @@index([restaurantId, status, createdAt])
+  @@index([tableId, createdAt])
+}
+
+model PosComplaintNote {
+  id           String       @id @default(cuid())
+  restaurantId String
+  complaintId  String
+  userId       String?
+  body         String
+  createdAt    DateTime     @default(now())
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  complaint    PosComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId, createdAt])
 }
