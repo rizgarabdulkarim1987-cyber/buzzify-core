@@ -17,6 +17,7 @@
     "test:load": "vitest run --config vitest.load.config.ts",
     "test:e2e": "playwright test",
     "perf": "tsx scripts/perf.ts",
+    "styles:posters": "tsx scripts/menu-style-posters.ts",
     "studio:create-admin": "tsx scripts/create-admin.ts",
     "studio:stage-models": "tsx scripts/set-stage-models.ts",
     "db:up": "tsx scripts/db.ts up",

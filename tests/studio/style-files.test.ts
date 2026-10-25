@@ -69,8 +69,11 @@ describe('style poster files', () => {
     vi.mocked(getActor).mockResolvedValue(designer);
   });
 
-  // The posters are made in Task 3.
-  it.todo('serves a catalog id as image/webp');
+  it('serves a catalog id as image/webp', async () => {
+    const res = await poster('themed-kurd');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toBe('image/webp');
+  });
 
   it.each(['nope', 'themed-par'])('answers 404 for %s', async (id) => {
     expect((await poster(id)).status).toBe(404);

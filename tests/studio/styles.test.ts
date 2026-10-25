@@ -1,3 +1,5 @@
+import { existsSync, statSync } from 'node:fs';
+import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
 import { filterStyles } from '@/studio/styles/search';
@@ -66,5 +68,13 @@ describe('filterStyles', () => {
   });
   it('returns nothing for a miss', () => {
     expect(find('zzz')).toEqual([]);
+  });
+});
+
+describe('style posters', () => {
+  it.each(MENU_STYLES.map((s) => s.id))('has a poster under 60 KB for %s', (id) => {
+    const file = path.join(process.cwd(), 'src/studio/styles/posters', `${id}.webp`);
+    expect(existsSync(file)).toBe(true);
+    expect(statSync(file).size).toBeLessThan(60 * 1024);
   });
 });
