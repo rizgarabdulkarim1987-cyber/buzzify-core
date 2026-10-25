@@ -73,7 +73,7 @@ export async function readRangeReport(db: AnyDb, restaurantId: string, input: { 
     db.posStockMovement.findMany({ where: { restaurantId, kind: 'WASTE', createdAt: { gte: start, lt: end } }, select: { costTotal: true } }),
   ]);
   const sold = await db.posStockMovement.findMany({
-    where: { restaurantId, kind: 'SALE', paymentId: { in: payments.map((p) => p.id) } },
+    where: { restaurantId, kind: 'SALE', paymentId: { not: null }, createdAt: { gte: start, lt: end } }, // made in the payment's own transaction, so the day agrees; no id list to overflow the bind limit
     select: { orderLineId: true, costTotal: true },
   });
   const byLine = new Map<string, { cost: number; unknown: boolean }>();

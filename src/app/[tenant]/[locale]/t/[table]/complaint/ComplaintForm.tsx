@@ -117,7 +117,7 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
           ))}
         </select>
       </label>
-      <fieldset className="flex flex-col gap-3 border-t border-line pt-4">
+      <fieldset className="flex min-w-0 flex-col gap-3 border-0 p-0">
         <legend className="text-sm text-muted">{w.contactIntro}</legend>
         <input className={FIELD} dir="auto" autoComplete="name" maxLength={CONTACT_NAME_MAX} placeholder={w.name} aria-label={w.name} value={name} onChange={(event) => setName(event.target.value)} />
         <input className={FIELD} dir="ltr" type="tel" inputMode="tel" autoComplete="tel" maxLength={24} placeholder={w.phone} aria-label={w.phone} value={phone} onChange={(event) => setPhone(event.target.value)} />

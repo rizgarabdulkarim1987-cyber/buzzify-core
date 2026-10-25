@@ -205,6 +205,24 @@ describe('recipes and sales', () => {
     expect(await onHand(rice)).toBe(-100);
   });
 
+  it('still takes payment when a typo in a purchase makes the cost too large to store', async () => {
+    const beef = await newItem('Beef');
+    // 20,000,000 IQD for 1 g (meant 1 kg): 400 g would cost 8 billion IQD, far past what a column can hold.
+    dataOf(await buy(beef, 1, 20_000_000));
+    dataOf(await run(manager, setPosRecipe, { productId: burger, lines: [{ itemId: beef, quantity: 200 }] }));
+    const { orderId, version } = await orderOf(2);
+    dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 10_000, amountReceived: 10_000 }));
+    expect(await onHand(beef)).toBe(-399);
+    expect((await prisma().posStockMovement.findFirstOrThrow({ where: { itemId: beef, kind: 'SALE' } })).costTotal).toBeNull();
+  });
+
+  it('does not read a free line as a known cost of 0', async () => {
+    const beef = await newItem('Beef');
+    dataOf(await buy(beef, 1000, 5000));
+    dataOf(await buy(beef, 1000, 0));
+    expect(dataOf(await ask(manager, posInventoryItem, { itemId: beef })).item.lastCost).toEqual({ amount: 5000, quantity: 1000 });
+  });
+
   it('will not switch off an item a recipe uses, and will not buy or adjust one that is off', async () => {
     const beef = await stocked();
     expect(failureOf(await run(manager, updatePosItem, { itemId: beef, active: false }))).toMatchObject({ code: 'CONFLICT' });

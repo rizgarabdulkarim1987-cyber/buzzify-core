@@ -8,6 +8,9 @@ import { useSyncOptional } from '../sync/SyncProvider';
 /** The look of every control on the stock, purchase and complaint screens: 48px tall, tokens of the Studio. */
 export const CONTROL = 'min-h-12 w-full min-w-0 rounded-md border border-line-strong bg-raised px-3 text-base text-text focus:border-ink disabled:opacity-45';
 
+/** The same control without the full width, for a select that sits beside a field. */
+const FIXED_WIDTH_CONTROL = CONTROL.replace(' w-full', '');
+
 export function TextInput({ label, hint, error, ...rest }: { label: string; hint?: string; error?: string | null } & InputHTMLAttributes<HTMLInputElement>) {
   const id = useId();
   return (
@@ -99,7 +102,7 @@ export function QuantityField({
           className={`${CONTROL} text-start`}
         />
         {units.length > 1 ? (
-          <select aria-label={t('pos.stock.unitPicker')} value={display} onChange={(event) => update(text, event.target.value as DisplayUnit)} className={`${CONTROL} w-24 shrink-0`}>
+          <select aria-label={t('pos.stock.unitPicker')} value={display} onChange={(event) => update(text, event.target.value as DisplayUnit)} className={`${FIXED_WIDTH_CONTROL} w-24 shrink-0`}>
             {units.map((u) => (
               <option key={u} value={u}>
                 {t(`pos.stock.unit.${u}`)}

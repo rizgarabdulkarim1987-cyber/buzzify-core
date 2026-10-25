@@ -187,7 +187,8 @@ export async function recordStockCount(db: AnyDb, restaurantId: string, userId: 
   const held = new Map(items.map((item) => [item.id, item.onHand]));
   const count = await db.posStockCount.create({ data: { restaurantId, userId, note: input.note }, select: { id: true } });
   let changed = 0;
-  for (const line of input.lines) {
+  // Rows are locked in item id order, as `applyMovements` does, so a count and a payment cannot wait on each other.
+  for (const line of [...input.lines].sort((a, b) => (a.itemId < b.itemId ? -1 : a.itemId > b.itemId ? 1 : 0))) {
     const observed = held.get(line.itemId)!;
     if (line.counted === observed) continue;
     const { count: rows } = await db.posInventoryItem.updateMany({ where: { id: line.itemId, restaurantId, onHand: observed }, data: { onHand: line.counted } });
