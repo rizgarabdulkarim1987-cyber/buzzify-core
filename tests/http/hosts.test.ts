@@ -19,6 +19,8 @@ describe('routeHost on the studio host', () => {
     '/api/auth',
     '/api/auth/sign-in/email',
     '/api/studio/export',
+    '/api/pos/sync',
+    '/api/pos/sync/snapshot',
     '/_next/static/chunk.js',
     '/_next/webpack-hmr',
     '/favicon.ico',
@@ -31,7 +33,7 @@ describe('routeHost on the studio host', () => {
 });
 
 describe('routeHost on the public host', () => {
-  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export'])(
+  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export', '/api/pos/sync', '/api/pos/sync/snapshot'])(
     'answers 404 for %s',
     (pathname) => expect(routeHost({ host: PUBLIC, pathname }, cfg)).toEqual(NOT_FOUND),
   );
