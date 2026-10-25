@@ -125,7 +125,9 @@ export async function submitCustomerOrder(
   const known = new Set(existing.map((product) => product.id));
 
   return till.$transaction(async (tx) => {
-    // Locks the table's row, so two submissions for one table count the limits one after the other.
+    // Locks the restaurant's settings row, then the table's row (always in this order): two submissions count the hourly cap
+    // and the table's limits one after the other.
+    await tx.posSettings.updateMany({ where: { restaurantId: gate.restaurantId }, data: { restaurantId: gate.restaurantId } });
     const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
     // The table was removed between the gate and here.
     if (locked.count === 0) throw new QrGateClosed();
