@@ -7,6 +7,7 @@ import { StudioI18nProvider } from '@/studio/i18n';
 import { clientMessages } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { Toaster } from '@/studio/ui/Toaster';
+import { SyncProvider } from './_ui/sync/SyncProvider';
 
 export const metadata: Metadata = {
   title: { default: 'Buzzify Cashier', template: '%s · Buzzify Cashier' },
@@ -23,7 +24,7 @@ export default async function PosRootLayout({ children }: { children: ReactNode 
     <html lang={locale} dir={direction(locale)} className={studioFontVariables(locale)}>
       <body>
         <StudioI18nProvider locale={locale} messages={clientMessages(locale)}>
-          {children}
+          <SyncProvider>{children}</SyncProvider>
           <Toaster />
         </StudioI18nProvider>
       </body>

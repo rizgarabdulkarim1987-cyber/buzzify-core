@@ -9,6 +9,8 @@ import { query } from '@/server/studio/framework/invoke';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { TillNav } from '@/app/pos/_ui/TillNav';
+import { RegisterSw } from '@/app/pos/_ui/sync/RegisterSw';
+import { SyncIndicator } from '@/app/pos/_ui/sync/SyncIndicator';
 
 /**
  * Every till page sits in this frame. Nobody signed in goes to the shared sign-in, a person with no till gets a 404, and a
@@ -36,6 +38,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
           {t('pos.shell.label')}
         </Link>
         <div className="flex items-center gap-4 text-sm text-muted">
+          <SyncIndicator />
           <span>
             {entry.actor.name} · {t(`pos.role.${entry.actor.role}`)}
           </span>
@@ -44,6 +47,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
           </Link>
         </div>
       </header>
+      <RegisterSw />
       <TillNav items={items} />
       <main id="main" className="min-w-0 flex-1">
         {children}

@@ -35,6 +35,15 @@ const config: NextConfig = {
       { source: '/studio/:path*', headers: STUDIO_HEADERS },
       // The till is framed by no one else either: a frame over a payment screen is a clickjacking surface.
       { source: '/pos/:path*', headers: STUDIO_HEADERS },
+      // The service worker must never be served from a stale cache, and may control only the till.
+      {
+        source: '/pos/sw.js',
+        headers: [
+          { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+          { key: 'Service-Worker-Allowed', value: '/pos/' },
+          { key: 'Content-Type', value: 'text/javascript; charset=utf-8' },
+        ],
+      },
     ];
   },
   // Hostinger runs Next.js's self-contained server (it reads the PORT it is given); `npm run build:host` sets this.
