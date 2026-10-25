@@ -2,6 +2,7 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ckb';
 import menuMotions from './menu-motions/ckb';
+import aiSettings from './ai-settings/ckb';
 import posAi from './pos-ai/ckb';
 import posStock from './pos-stock/ckb';
 import posTill from './pos-till/ckb';
@@ -2736,6 +2737,7 @@ const ckb: Messages = {
   ...posStock,
   // The AI package: Ask, summary, alerts, supply entry, complaint labels (pos-ai/ckb.ts)
   ...posAi,
+  ...aiSettings,
 };
 
 export default ckb;

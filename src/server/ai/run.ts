@@ -3,7 +3,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { AiOutputRejectedError, AiProviderError, AiRefusedError, AiTimeoutError, AiUnavailableError, AiUnreadableError } from './errors';
 import { requireAi } from './package';
 import { AI_TIMEOUTS_MS } from './provider/models';
-import { getAiProvider } from './provider';
+import { resolveAiProvider } from './settings';
 import type { AiRequest, AiResponse } from './provider/types';
 import { addAiTokens, releaseAiRequest, reserveAiRequest } from './usage';
 
@@ -23,7 +23,7 @@ export type AiCaller = (req: Omit<AiRequest, 'signal'>) => Promise<AiResponse>;
  */
 export async function runAi<T>(env: AiEnv, opts: { feature: PosAiFeature; now?: Date; work: (call: AiCaller) => Promise<T> }): Promise<T> {
   const pkg = await requireAi(env.db, env.restaurantId);
-  const provider = getAiProvider();
+  const provider = await resolveAiProvider(env.db);
   if (!provider) throw new AiUnavailableError('No AI provider is configured');
   const now = opts.now ?? new Date();
   const { month } = await reserveAiRequest(env.db, env.restaurantId, pkg.monthlyLimit, now);

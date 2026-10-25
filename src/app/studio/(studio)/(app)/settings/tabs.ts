@@ -7,5 +7,6 @@ export function settingsTabs(t: Translate): RouteTab[] {
     { href: '/studio/settings', label: t('settings.tabs.general'), exact: true },
     { href: '/studio/settings/plans', label: t('settings.tabs.plans') },
     { href: '/studio/settings/billing', label: t('settings.tabs.billing') },
+    { href: '/studio/settings/ai', label: t('settings.tabs.ai') },
   ];
 }

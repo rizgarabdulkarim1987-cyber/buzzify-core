@@ -124,7 +124,7 @@ describe('runTool', () => {
 
 describe('the AI folder cannot write money, stock or complaints', () => {
   const files = (dir: string): string[] => readdirSync(dir).flatMap((n) => (statSync(join(dir, n)).isDirectory() ? files(join(dir, n)) : [join(dir, n)]));
-  const AI_TABLES = new Set(['posAiCall', 'posAiUsageMonth', 'posAiSummary', 'posAiPackage', 'posComplaint']);
+  const AI_TABLES = new Set(['posAiCall', 'posAiUsageMonth', 'posAiSummary', 'posAiPackage', 'posComplaint', 'platformSetting']);
 
   it('writes only its own tables (and the AI columns of complaints through the label service)', () => {
     for (const file of files('src/server/ai')) {

@@ -43,6 +43,6 @@ export interface AiResponse {
 }
 
 export interface AiProvider {
-  readonly name: 'anthropic' | 'fake';
+  readonly name: 'anthropic' | 'openai' | 'fake';
   complete(req: AiRequest): Promise<AiResponse>;
 }
