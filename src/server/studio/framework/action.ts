@@ -9,10 +9,12 @@ import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import { admit, checkDefinition, type Access, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import { createId } from './ids';
+import { DuplicateOperationError, type OperationClaim } from './operation';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
 export type { CheckedTarget, PosTarget, SelfTarget, Target } from './access';
+export { DuplicateOperationError, type OperationClaim } from './operation';
 
 /** One audit row, as the action describes it. Who, where, when and from which address are added by the framework. */
 export interface AuditEntry {
@@ -192,7 +194,11 @@ class Work {
     private readonly access: Access,
     private readonly meta: RequestMeta,
     private readonly name: string,
+    private readonly claim?: OperationClaim,
   ) {}
+
+  /** Whether the claimed operation's one transaction has run. */
+  claimed = false;
 
   context(): ActionContext {
     return {
@@ -204,8 +210,11 @@ class Work {
       pos: this.access.pos ?? null,
       db: this.prisma,
       meta: this.meta,
-      transaction: (fn) => this.run(this.client(), this.access, fn),
-      transactionIn: (scope, fn) => this.transactionIn(scope, fn),
+      transaction: (fn) => this.targetTransaction(fn),
+      transactionIn: (scope, fn) => {
+        if (this.claim) throw new Error(`${this.name} runs an operation, which takes the target's one transaction`);
+        return this.transactionIn(scope, fn);
+      },
       newId: () => {
         const id = createId();
         this.generated.add(id);
@@ -219,6 +228,14 @@ class Work {
         this.callbacks.push(fn);
       },
     };
+  }
+
+  /** The action's transaction on the target; with an operation, its only one, which records the operation too. */
+  private targetTransaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
+    if (!this.claim) return this.run(this.client(), this.access, fn);
+    if (this.claimed) return Promise.reject(new Error(`${this.name} runs an operation, which takes one transaction`));
+    this.claimed = true;
+    return this.run(this.client(), this.access, fn, undefined, this.claim);
   }
 
   /** The target's client: a menu and its restaurant, a restaurant alone, or global rows only. */
@@ -259,14 +276,17 @@ class Work {
     place: Place,
     fn: (tx: ScopedTx) => Promise<T>,
     check?: (tx: ScopedTx) => Promise<void>,
+    claim?: OperationClaim,
   ): Promise<T> {
     const auditsBefore = this.audits.length;
     const callbacksBefore = this.callbacks.length;
     let value: T;
     try {
       value = await client.$transaction(async (tx) => {
+        if (claim) await this.record(tx, claim, place);
         const result = await fn(tx);
         if (check) await check(tx);
+        if (claim) await this.complete(tx, claim, place, result);
         if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
         return result;
       });
@@ -279,6 +299,45 @@ class Work {
     this.audits = [];
     this.runCallbacks();
     return value;
+  }
+
+  /** The operation's row, inserted first: a second copy of the same id fails here and none of its change is made. */
+  private async record(tx: ScopedTx, claim: OperationClaim, place: Place): Promise<void> {
+    if (place.restaurantId === null) throw new Error(`${this.name} runs an operation outside a restaurant`);
+    try {
+      await tx.posSyncOperation.create({
+        data: {
+          restaurantId: place.restaurantId,
+          userId: this.actor.userId,
+          deviceId: claim.deviceId,
+          operationId: claim.operationId,
+          kind: claim.kind,
+          payloadHash: claim.payloadHash,
+          result: {},
+          clientAt: claim.clientAt,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'P2002') throw new DuplicateOperationError(claim.operationId);
+      throw error;
+    }
+  }
+
+  /** The action's answer, stored with the change, and the audit row that says which device sent it and when. */
+  private async complete(tx: ScopedTx, claim: OperationClaim, place: Place, result: unknown): Promise<void> {
+    const stored = JSON.parse(JSON.stringify(result ?? {})) as Prisma.InputJsonObject;
+    const updated = await tx.posSyncOperation.updateMany({
+      where: { restaurantId: place.restaurantId as string, operationId: claim.operationId },
+      data: { result: stored },
+    });
+    if (updated.count !== 1) throw new Error(`${this.name} lost its operation row`);
+    this.audits.push({
+      action: 'pos.sync.apply',
+      entityType: 'PosSyncOperation',
+      entityId: claim.operationId,
+      changes: { kind: { before: null, after: claim.kind }, deviceId: { before: null, after: claim.deviceId }, clientAt: { before: null, after: claim.clientAt.toISOString() } },
+    });
   }
 
   private async transactionIn<T>(scope: TransactionScope, fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
@@ -356,6 +415,7 @@ export async function runAction<I, O>(
   def: ActionDef<I, O>,
   raw: unknown,
   meta: RequestMeta,
+  options: { operation?: OperationClaim } = {},
 ): Promise<ActionResult<O>> {
   try {
     if (def.kind !== 'action') throw new Error(`Studio ${def.name} is not an action`);
@@ -363,8 +423,9 @@ export async function runAction<I, O>(
     if ((def.permission as unknown) === 'view') throw new Error(`Studio action ${def.name} cannot use 'view'`);
     const admitted = await admit(prisma, actor, def, raw);
     if (!admitted.ok) return admitted;
-    const work = new Work(prisma, admitted.actor, admitted.access, clampMeta(meta), def.name);
+    const work = new Work(prisma, admitted.actor, admitted.access, clampMeta(meta), def.name, options.operation);
     const data = await def.run(work.context(), admitted.input);
+    if (options.operation && !work.claimed) throw new Error(`Studio action ${def.name} ran an operation without its transaction`);
     await work.finish();
     return { ok: true, data };
   } catch (error) {
