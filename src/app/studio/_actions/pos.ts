@@ -1,12 +1,14 @@
 'use server';
 
 import * as pos from '@/server/studio/actions/pos';
+import * as delivery from '@/server/studio/actions/pos-delivery';
 import * as kitchen from '@/server/studio/actions/pos-kitchen';
 import * as orders from '@/server/studio/actions/pos-orders';
 import * as payments from '@/server/studio/actions/pos-payments';
 import * as requests from '@/server/studio/actions/pos-requests';
 import * as shifts from '@/server/studio/actions/pos-shifts';
-import { invoke } from '@/server/studio/framework/invoke';
+import { invoke, invokeQuery } from '@/server/studio/framework/invoke';
+import * as deliveryQueries from '@/server/studio/queries/pos-delivery';
 
 export async function updatePosSettings(input: unknown) {
   return invoke(pos.updatePosSettings, input);
@@ -194,4 +196,46 @@ export async function removePosRequestLine(input: unknown) {
 
 export async function ensurePosMenuTables(input: unknown) {
   return invoke(requests.ensurePosMenuTables, input);
+}
+
+export async function createPosZone(input: unknown) {
+  return invoke(delivery.createPosZone, input);
+}
+
+export async function updatePosZone(input: unknown) {
+  return invoke(delivery.updatePosZone, input);
+}
+
+export async function deletePosZone(input: unknown) {
+  return invoke(delivery.deletePosZone, input);
+}
+
+export async function createPosDriver(input: unknown) {
+  return invoke(delivery.createPosDriver, input);
+}
+
+export async function updatePosDriver(input: unknown) {
+  return invoke(delivery.updatePosDriver, input);
+}
+
+export async function openPosOffPremiseOrder(input: unknown) {
+  return invoke(delivery.openPosOffPremiseOrder, input);
+}
+
+
+export async function updatePosOffPremiseDetails(input: unknown) {
+  return invoke(delivery.updatePosOffPremiseDetails, input);
+}
+
+export async function advancePosFulfillment(input: unknown) {
+  return invoke(delivery.advancePosFulfillment, input);
+}
+
+export async function assignPosDriver(input: unknown) {
+  return invoke(delivery.assignPosDriver, input);
+}
+
+/** The last delivery to a phone number, to fill in a returning customer's details. */
+export async function lookupPosCustomer(input: unknown) {
+  return invokeQuery(deliveryQueries.posRecentCustomer, input);
 }

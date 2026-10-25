@@ -14,6 +14,7 @@ import {
 } from '@/app/studio/_actions/pos';
 import { formatNumber } from '@/lib/pos-format';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
+import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import { useLocale, useT } from '@/studio/i18n';
@@ -26,6 +27,7 @@ import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { useMoney } from './money';
+import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
 import { usePosCall } from './use-pos-call';
@@ -44,7 +46,24 @@ export interface FreeTable {
 
 type Dialogs = 'none' | 'pay' | 'invoiceDiscount' | 'cancelOrder' | 'move' | { line: OrderLineView; kind: 'cancel' | 'discount' };
 
-export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderView; catalog: TillCatalog | null; can: OrderCan; freeTables: FreeTable[] }) {
+export interface DeliveryChoices {
+  zones: ZoneRow[];
+  drivers: DriverRow[];
+}
+
+export function OrderScreen({
+  order,
+  catalog,
+  can,
+  freeTables,
+  delivery,
+}: {
+  order: OrderView;
+  catalog: TillCatalog | null;
+  can: OrderCan;
+  freeTables: FreeTable[];
+  delivery: DeliveryChoices;
+}) {
   const t = useT();
   const { locale } = useLocale();
   const money = useMoney();
@@ -91,13 +110,17 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
     <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:pb-8">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h1 className="text-xl font-semibold text-text">
-          {order.tableNumber !== null
-            ? t('pos.order.heading', { n: formatNumber(order.number), table: formatNumber(order.tableNumber) })
-            : t('pos.order.headingNoTable', { n: formatNumber(order.number) })}
+          {order.offPremise
+            ? t(order.kind === 'DELIVERY' ? 'pos.offp.headingDelivery' : 'pos.offp.headingTakeaway', { n: formatNumber(order.number), q: formatNumber(order.offPremise.queueNumber) })
+            : order.tableNumber !== null
+              ? t('pos.order.heading', { n: formatNumber(order.number), table: formatNumber(order.tableNumber) })
+              : t('pos.order.headingNoTable', { n: formatNumber(order.number) })}
           {order.areaName ? <span className="ms-2 text-base font-normal text-muted">{order.areaName}</span> : null}
         </h1>
         <span className="text-sm text-muted">{t(`pos.order.status.${order.status}`)}</span>
       </div>
+
+      <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
       <div role="tablist" className="flex gap-1 lg:hidden">
         {(['menu', 'order'] as const).map((key) => (
@@ -228,6 +251,7 @@ export function OrderScreen({ order, catalog, can, freeTables }: { order: OrderV
             {order.totals.invoiceDiscount > 0 ? <Row label={t('pos.totals.discount')} value={`− ${money(order.totals.invoiceDiscount)}`} /> : null}
             {order.totals.service > 0 ? <Row label={t('pos.totals.service')} value={money(order.totals.service)} /> : null}
             {order.totals.tax > 0 ? <Row label={t('pos.totals.tax')} value={money(order.totals.tax)} /> : null}
+            {order.totals.deliveryFee > 0 ? <Row label={t('pos.totals.deliveryFee')} value={money(order.totals.deliveryFee)} /> : null}
             <div className="flex items-baseline justify-between gap-3 text-xl font-semibold">
               <dt>{t('pos.totals.total')}</dt>
               <dd>{money(order.totals.total)}</dd>

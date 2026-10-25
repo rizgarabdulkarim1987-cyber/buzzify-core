@@ -119,6 +119,8 @@ model Restaurant {
   posOrders             PosOrder[]
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
+  posDeliveryZones      PosDeliveryZone[]
+  posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
   posPayments           PosPayment[]
   posShifts             PosShift[]
@@ -1257,6 +1259,16 @@ enum PosOrderKind {
   DELIVERY
 }
 
+/// How far a takeaway or delivery order has come. Null for a dine-in order.
+enum PosFulfillment {
+  NEW
+  PREPARING
+  READY
+  OUT
+  DELIVERED
+  PICKED_UP
+}
+
 enum PosDiscountKind {
   AMOUNT
   PERCENT
@@ -1301,6 +1313,23 @@ model PosOrder {
   seatedAt             DateTime         @default(now())
   invoiceDiscountKind  PosDiscountKind?
   invoiceDiscountValue Int?
+  /// Takeaway and delivery: the Baghdad day ('YYYY-MM-DD') and the number within it. Null for dine-in.
+  queueDay             String?
+  queueNumber          Int?
+  customerName         String           @default("")
+  customerPhone        String           @default("")
+  address              String           @default("")
+  addressNote          String           @default("")
+  /// Plain ids and copies (no relation): a zone or driver edit never changes an order.
+  deliveryZoneId       String?
+  deliveryZoneName     String           @default("")
+  /// Integer IQD added after tax; 0 for anything but a delivery.
+  deliveryFee          Int              @default(0)
+  driverId             String?
+  driverNameSnapshot   String           @default("")
+  fulfillment          PosFulfillment?
+  outAt                DateTime?
+  doneAt               DateTime?
   /// Optimistic lock: every write to an order or its lines matches it and bumps it by one.
   version              Int              @default(1)
   createdAt            DateTime         @default(now())
@@ -1311,8 +1340,39 @@ model PosOrder {
   payment              PosPayment?
 
   @@unique([restaurantId, number])
+  @@unique([restaurantId, queueDay, queueNumber])
   @@index([tableId])
   @@index([restaurantId, status])
+  @@index([restaurantId, kind, status])
+  @@index([restaurantId, customerPhone])
+}
+
+/// A delivery area with its fee, picked when a delivery order is opened.
+model PosDeliveryZone {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  /// Integer IQD.
+  fee          Int
+  active       Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// A person who delivers. They never sign in: a name and a phone, nothing more.
+model PosDriver {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  phone        String     @default("")
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
 }
 
 model PosOrderLine {

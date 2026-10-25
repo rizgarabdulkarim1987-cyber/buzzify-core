@@ -33,12 +33,12 @@ export function effectiveRates(kind: PosOrder['kind'], rates: Rates): Rates {
 
 /** The totals of an order from its lines (cancelled ones included; the money rules leave them out). */
 export function orderTotals(
-  order: Pick<PosOrder, 'invoiceDiscountKind' | 'invoiceDiscountValue' | 'kind'>,
+  order: Pick<PosOrder, 'invoiceDiscountKind' | 'invoiceDiscountValue' | 'kind' | 'deliveryFee'>,
   lines: readonly PosOrderLine[],
   rates: Rates,
 ) {
   const invoiceDiscount = toDiscount(order.invoiceDiscountKind, order.invoiceDiscountValue);
-  return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates)), invoiceDiscount };
+  return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates), order.kind === 'DELIVERY' ? order.deliveryFee : 0), invoiceDiscount };
 }
 
 export interface TillRates extends Rates {
@@ -60,6 +60,11 @@ export async function readRates(db: AnyDb, restaurantId: string): Promise<TillRa
 
 const stale = (): StudioError => refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
 const lockedError = (): StudioError => refuse('CONFLICT', 'The order is paid, cancelled or rejected and can no longer change');
+
+/** A takeaway or delivery that has gone to the customer keeps its lines and money: only paying and cancelling remain. */
+export function assertNotHandedOver(order: Pick<PosOrder, 'fulfillment'>): void {
+  if (order.fulfillment === 'DELIVERED' || order.fulfillment === 'PICKED_UP') throw refuse('CONFLICT', 'The order was handed over and can no longer change');
+}
 
 /** The order, checked for the change: it exists in the restaurant, is not locked and is at the expected version. */
 export async function loadOrderForChange(db: AnyDb, restaurantId: string, orderId: string, expected: number): Promise<PosOrder> {
@@ -130,6 +135,7 @@ export async function openOrderIn(db: AnyDb, restaurantId: string, tableId: stri
 
 export async function setInvoiceDiscountIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; discount: Discount | null }) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {
     invoiceDiscountKind: input.discount?.kind ?? null,
     invoiceDiscountValue: input.discount?.value ?? null,
@@ -205,6 +211,20 @@ export interface OrderView {
   tableId: string | null;
   tableNumber: number | null;
   areaName: string | null;
+  kind: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  /** Only for a takeaway or delivery. */
+  offPremise: {
+    queueNumber: number;
+    fulfillment: 'NEW' | 'PREPARING' | 'READY' | 'OUT' | 'DELIVERED' | 'PICKED_UP';
+    customerName: string;
+    customerPhone: string;
+    address: string;
+    addressNote: string;
+    zoneId: string | null;
+    zoneName: string;
+    driverId: string | null;
+    driverName: string;
+  } | null;
   seatedAt: Date;
   invoiceDiscount: Discount | null;
   lines: OrderLineView[];
@@ -238,6 +258,22 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     tableId: order.tableId,
     tableNumber: order.table?.number ?? null,
     areaName: order.table?.area.name ?? null,
+    kind: order.kind,
+    offPremise:
+      order.kind === 'DINE_IN'
+        ? null
+        : {
+            queueNumber: order.queueNumber ?? 0,
+            fulfillment: order.fulfillment ?? 'NEW',
+            customerName: order.customerName,
+            customerPhone: order.customerPhone,
+            address: order.address,
+            addressNote: order.addressNote,
+            zoneId: order.deliveryZoneId,
+            zoneName: order.deliveryZoneName,
+            driverId: order.driverId,
+            driverName: order.driverNameSnapshot,
+          },
     seatedAt: order.seatedAt,
     invoiceDiscount: invoiceDiscount ?? null,
     lines: lines.map((line) => {

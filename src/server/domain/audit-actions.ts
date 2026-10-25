@@ -136,6 +136,14 @@ export const AUDIT_ACTIONS = [
   'pos.request.reject',
   'pos.request.edit',
   'pos.qr.tables',
+  'pos.zone.create',
+  'pos.zone.update',
+  'pos.zone.delete',
+  'pos.driver.create',
+  'pos.driver.update',
+  'pos.order.details',
+  'pos.order.fulfillment',
+  'pos.order.driver',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -156,6 +164,8 @@ export const AUDIT_ENTITY_TYPES = [
   'PosCashExpense',
   'PosCustomerOrder',
   'PosCustomerOrderLine',
+  'PosDeliveryZone',
+  'PosDriver',
   'Restaurant',
   'RestaurantStatus',
   'RestaurantPlan',

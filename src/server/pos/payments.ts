@@ -42,7 +42,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     invoiceDiscount: totals.invoiceDiscount,
     service: totals.service,
     tax: totals.tax,
-    deliveryFee: 0,
+    deliveryFee: totals.deliveryFee,
     total: totals.total,
     invoiceDiscountInput: invoiceDiscount ?? null,
     rates: effectiveRates(order.kind, rates),
@@ -86,6 +86,10 @@ export interface Receipt {
   orderId: string;
   orderNumber: number;
   tableNumber: number | null;
+  kind: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  /** The day's queue number of a takeaway or delivery; null for a table. */
+  queueNumber: number | null;
+  customer: { name: string; phone: string; address: string; addressNote: string; zoneName: string; driverName: string } | null;
   method: string;
   amountReceived: number;
   change: number;
@@ -99,7 +103,7 @@ export interface Receipt {
 export async function readReceipt(db: AnyDb, restaurantId: string, orderId: string): Promise<Receipt | null> {
   const payment = await db.posPayment.findFirst({
     where: { orderId, restaurantId },
-    include: { order: { select: { number: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
+    include: { order: { select: { number: true, kind: true, queueNumber: true, customerName: true, customerPhone: true, address: true, addressNote: true, deliveryZoneName: true, driverNameSnapshot: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
   });
   if (!payment) return null;
   const snapshot = parseTotalsSnapshot(payment.id, payment.totalsSnapshot);
@@ -108,6 +112,19 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
     orderId,
     orderNumber: payment.order.number,
     tableNumber: payment.order.table?.number ?? null,
+    kind: payment.order.kind,
+    queueNumber: payment.order.queueNumber,
+    customer:
+      payment.order.kind === 'DINE_IN'
+        ? null
+        : {
+            name: payment.order.customerName,
+            phone: payment.order.customerPhone,
+            address: payment.order.address,
+            addressNote: payment.order.addressNote,
+            zoneName: payment.order.deliveryZoneName,
+            driverName: payment.order.driverNameSnapshot,
+          },
     method: payment.method,
     amountReceived: payment.amountReceived,
     change: payment.amountReceived - snapshot.total,

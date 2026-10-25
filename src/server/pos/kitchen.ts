@@ -5,7 +5,7 @@ import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { kitchenDone } from './kitchen-state';
-import { bumpOrder, loadOrderForChange, optionsSnapshotSchema, readRates } from './orders';
+import { assertNotHandedOver, bumpOrder, loadOrderForChange, optionsSnapshotSchema, readRates } from './orders';
 
 /** Who is asking the kitchen: a KITCHEN member tied to one section sees only that section, whatever they ask for. */
 export interface KitchenActor {
@@ -16,6 +16,9 @@ export interface KitchenActor {
 export interface KitchenCard {
   orderId: string;
   orderNumber: number;
+  /** TAKEAWAY and DELIVERY have no table; they show their queue number instead. */
+  kind: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  queueNumber: number | null;
   tableNumber: number | null;
   areaName: string | null;
   batch: number;
@@ -31,6 +34,8 @@ export interface KitchenCard {
 
 export interface KitchenTicket {
   orderNumber: number;
+  kind: 'DINE_IN' | 'TAKEAWAY' | 'DELIVERY';
+  queueNumber: number | null;
   tableNumber: number | null;
   areaName: string | null;
   /** Who sent the round (else the person printing). */
@@ -103,10 +108,13 @@ export async function readKitchenScope(db: AnyDb, restaurantId: string, actor: K
 export async function sendToKitchenIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number }) {
   await assertKitchenOn(db, restaurantId);
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
+  assertNotHandedOver(order);
   if (order.status === 'PENDING_APPROVAL') throw refuse('CONFLICT', 'The order is waiting for approval');
   const status = order.status === 'READY' ? 'OPEN' : order.status;
+  // A takeaway or delivery goes into PREPARING when the kitchen gets work (also back from READY, when new work arrives).
+  const preparing = order.kind !== 'DINE_IN' && (order.fulfillment === 'NEW' || order.fulfillment === 'READY');
   // Bumping first row-locks the order, so the lines read below cannot change under us.
-  const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, status !== order.status ? { status } : {});
+  const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, { ...(status !== order.status ? { status } : {}), ...(preparing ? { fulfillment: 'PREPARING' as const } : {}) });
   const unsent = await db.posOrderLine.findMany({ where: { orderId: order.id, restaurantId, sentAt: null, cancelledAt: null }, select: { id: true } });
   if (unsent.length === 0) throw refuse('CONFLICT', 'Nothing new to send to the kitchen');
   const last = await db.posOrderLine.aggregate({ where: { orderId: order.id, restaurantId }, _max: { batch: true } });
@@ -201,7 +209,7 @@ export async function readKitchenQueue(db: AnyDb, restaurantId: string, actor: K
   });
   const orders = await db.posOrder.findMany({
     where: { restaurantId, id: { in: orderIds } },
-    select: { id: true, number: true, status: true, table: { select: { number: true, area: { select: { name: true } } } } },
+    select: { id: true, number: true, kind: true, queueNumber: true, status: true, table: { select: { number: true, area: { select: { name: true } } } } },
   });
   const orderById = new Map(orders.map((order) => [order.id, order]));
   const reasons = await orderCancelReasons(db, restaurantId, orders.filter((order) => order.status === 'CANCELLED').map((order) => order.id));
@@ -217,6 +225,8 @@ export async function readKitchenQueue(db: AnyDb, restaurantId: string, actor: K
       card = {
         orderId: order.id,
         orderNumber: order.number,
+        kind: order.kind,
+        queueNumber: order.queueNumber,
         tableNumber: order.table?.number ?? null,
         areaName: order.table?.area.name ?? null,
         batch: line.batch,
@@ -274,9 +284,15 @@ export async function markLinesReadyIn(db: AnyDb, restaurantId: string, input: {
       });
       if (count === 1) markedLineIds.push({ lineId: line.id, orderId });
     }
-    const order = await db.posOrder.findFirstOrThrow({ where: { id: orderId, restaurantId }, select: { status: true, number: true } });
+    const order = await db.posOrder.findFirstOrThrow({ where: { id: orderId, restaurantId }, select: { status: true, number: true, kind: true, fulfillment: true } });
+    if (live === 0 && order.status === 'PAID' && order.kind !== 'DINE_IN' && (order.fulfillment === 'NEW' || order.fulfillment === 'PREPARING') && (await kitchenDone(db, restaurantId, orderId))) {
+      // Paid at the counter before it was cooked: the food is ready for pickup, so the board can offer the next step.
+      await db.posOrder.updateMany({ where: { id: orderId, restaurantId, status: 'PAID', fulfillment: order.fulfillment }, data: { fulfillment: 'READY', version: { increment: 1 } } });
+    }
     if (live > 0 && order.status === 'OPEN' && (await kitchenDone(db, restaurantId, orderId))) {
-      await db.posOrder.updateMany({ where: { id: orderId, restaurantId, status: 'OPEN' }, data: { status: 'READY', version: { increment: 1 } } });
+      // The kitchen finishing a takeaway or delivery also makes it READY to hand over (unless the cashier already moved it on).
+      const handOver = order.kind !== 'DINE_IN' && (order.fulfillment === 'NEW' || order.fulfillment === 'PREPARING');
+      await db.posOrder.updateMany({ where: { id: orderId, restaurantId, status: 'OPEN' }, data: { status: 'READY', version: { increment: 1 }, ...(handOver ? { fulfillment: 'READY' as const } : {}) } });
       readied.push({ orderId, number: order.number });
     }
   }
@@ -333,7 +349,7 @@ async function senderName(db: AnyDb, restaurantId: string, actor: KitchenActor, 
 export async function readKitchenTicket(db: AnyDb, restaurantId: string, actor: KitchenActor, input: { orderId: string; batch?: number }): Promise<KitchenTicket> {
   const order = await db.posOrder.findFirst({
     where: { id: input.orderId, restaurantId },
-    select: { id: true, number: true, status: true, table: { select: { number: true, area: { select: { name: true } } } } },
+    select: { id: true, number: true, kind: true, queueNumber: true, status: true, table: { select: { number: true, area: { select: { name: true } } } } },
   });
   if (!order) throw new StudioError('NOT_FOUND');
   const forced = await forcedSection(db, restaurantId, actor);
@@ -380,6 +396,8 @@ export async function readKitchenTicket(db: AnyDb, restaurantId: string, actor: 
 
   return {
     orderNumber: order.number,
+    kind: order.kind,
+    queueNumber: order.queueNumber,
     tableNumber: order.table?.number ?? null,
     areaName: order.table?.area.name ?? null,
     cashierName: await senderName(db, restaurantId, actor, order.id, batch),

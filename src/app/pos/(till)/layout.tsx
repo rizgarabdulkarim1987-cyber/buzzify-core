@@ -21,8 +21,8 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (entry.kind === 'inactive') redirect('/pos/inactive');
 
   const t = getStudioTranslator(entry.actor.locale);
-  const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, pendingRequests: 0 };
-  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
+  const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
+  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : 0 }));
   return (
     <div className="flex min-h-dvh flex-col">
       <a

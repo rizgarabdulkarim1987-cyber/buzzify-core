@@ -5,6 +5,7 @@ import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
+import { readUnsettledDeliveries } from './off-premise';
 
 /** A person who changes a shift: the cashier whose drawer it is, or a manager or owner on their behalf. */
 export interface ShiftActor {
@@ -102,15 +103,18 @@ export interface ShiftSummary {
   /** For an open shift what the drawer should hold now; for a closed one what was frozen at close. */
   expectedCash: number;
   openOrdersCount: number;
+  /** Delivered orders still unpaid, restaurant-wide: the drivers hold that cash. Counted for the close-shift screen, never blocking it. */
+  unsettledDeliveries: { count: number; amount: number };
 }
 
 export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId: string): Promise<ShiftSummary | null> {
   const shift = await db.posShift.findFirst({ where: { id: shiftId, restaurantId }, include: { user: { select: { name: true } } } });
   if (!shift) return null;
-  const [drawer, closer, openOrdersCount] = await Promise.all([
+  const [drawer, closer, openOrdersCount, unsettledDeliveries] = await Promise.all([
     drawerOf(db, restaurantId, shift),
     shift.closedByUserId ? db.user.findFirst({ where: { id: shift.closedByUserId }, select: { name: true } }) : Promise.resolve(null),
-    db.posOrder.count({ where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] } } }),
+    db.posOrder.count({ where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] }, NOT: { kind: 'DELIVERY', fulfillment: 'DELIVERED' } } }),
+    shift.closedAt ? Promise.resolve({ count: 0, amount: 0 }) : readUnsettledDeliveries(db, restaurantId),
   ]);
   return {
     shift: {
@@ -132,6 +136,7 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
     expensesTotal: drawer.expensesTotal,
     expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : drawer.expectedCash,
     openOrdersCount,
+    unsettledDeliveries,
   };
 }
 

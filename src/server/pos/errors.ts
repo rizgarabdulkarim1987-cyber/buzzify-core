@@ -44,6 +44,20 @@ export const POS_TEXT = {
   'The request has no items': 'error.text.posRequestEmpty',
   'This request expired': 'error.text.posRequestExpired',
   'The table has an order that cannot take more items': 'error.text.posOrderNotJoinable',
+  'A delivery zone with this name already exists': 'error.text.posZoneNameTaken',
+  'Create at most 50 delivery zones': 'error.text.posTooManyZones',
+  'Create at most 100 drivers': 'error.text.posTooManyDrivers',
+  'This order type is switched off': 'error.text.posTypeOff',
+  'Only a takeaway or delivery order has these details': 'error.text.posOffPremiseOnly',
+  'Only a delivery order has a driver': 'error.text.posDeliveryOnly',
+  'The order is not paid yet': 'error.text.posNotPaid',
+  'Choose a driver before the order goes out': 'error.text.posDriverRequired',
+  'That driver is not available': 'error.text.posDriverInactive',
+  'That step is not allowed': 'error.text.posBadStep',
+  'Enter a valid phone number': 'error.text.posPhoneInvalid',
+  'Enter an address': 'error.text.posAddressRequired',
+  'The order was handed over and can no longer change': 'error.text.posHandedOver',
+  'Use at most 120 characters': 'error.text.posNameTooLong',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

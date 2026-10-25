@@ -29,7 +29,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
     db.posTable.findMany({ where: { restaurantId }, orderBy: [{ number: 'asc' }, { id: 'asc' }], select: { id: true, number: true, areaId: true } }),
     db.posOrder.findMany({
       where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] }, tableId: { not: null } },
-      select: { id: true, tableId: true, status: true, kind: true, seatedAt: true, invoiceDiscountKind: true, invoiceDiscountValue: true, lines: true },
+      select: { id: true, tableId: true, status: true, kind: true, seatedAt: true, invoiceDiscountKind: true, invoiceDiscountValue: true, deliveryFee: true, lines: true },
     }),
     readRates(db, restaurantId),
     db.posPayment.findMany({ where: { restaurantId, paidAt: { gte: day.start, lt: day.end } }, select: { totalsSnapshot: true } }),

@@ -11,7 +11,15 @@ export function KitchenTicket({ ticket }: { ticket: Ticket }) {
   const t = useT();
   const head = (
     <p className="text-sm text-muted">
-      {joinParts([ticket.tableNumber !== null ? t('pos.ticket.table', { n: formatNumber(ticket.tableNumber) }) : null, ticket.areaName, ticket.cashierName])}
+      {joinParts([
+        ticket.kind !== 'DINE_IN' && ticket.queueNumber !== null
+          ? t(ticket.kind === 'DELIVERY' ? 'pos.ticket.delivery' : 'pos.ticket.takeaway', { n: formatNumber(ticket.queueNumber) })
+          : ticket.tableNumber !== null
+            ? t('pos.ticket.table', { n: formatNumber(ticket.tableNumber) })
+            : null,
+        ticket.areaName,
+        ticket.cashierName,
+      ])}
     </p>
   );
   return (

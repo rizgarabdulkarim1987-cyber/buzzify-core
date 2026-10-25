@@ -21,6 +21,22 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
           <time dateTime={new Date(receipt.paidAt).toISOString()}>{formatStamp(receipt.paidAt)}</time>
         </p>
         {receipt.cashierName ? <p className="text-sm text-muted">{receipt.cashierName}</p> : null}
+        {receipt.queueNumber !== null && receipt.kind !== 'DINE_IN' ? (
+          <p className="text-base font-semibold">{t(receipt.kind === 'DELIVERY' ? 'pos.receipt.kindDelivery' : 'pos.receipt.kindTakeaway', { n: formatNumber(receipt.queueNumber) })}</p>
+        ) : null}
+        {receipt.customer ? (
+          <div className="mt-1 text-sm text-muted">
+            {receipt.customer.name ? <p dir="auto">{receipt.customer.name}</p> : null}
+            {receipt.customer.phone ? <p dir="ltr">{receipt.customer.phone}</p> : null}
+            {receipt.kind === 'DELIVERY' ? (
+              <>
+                <p dir="auto">{[receipt.customer.zoneName, receipt.customer.address].filter(Boolean).join(' · ')}</p>
+                {receipt.customer.addressNote ? <p dir="auto">{receipt.customer.addressNote}</p> : null}
+                {receipt.customer.driverName ? <p>{t('pos.offp.driver')}: {receipt.customer.driverName}</p> : null}
+              </>
+            ) : null}
+          </div>
+        ) : null}
       </header>
       <ul className="flex flex-col gap-1 border-y border-dashed border-line-strong py-2 text-base">
         {s.lines.map((line) => (
@@ -38,6 +54,7 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
         {s.invoiceDiscount > 0 ? <Line label={t('pos.totals.discount')} value={`− ${money(s.invoiceDiscount)}`} /> : null}
         {s.service > 0 ? <Line label={t('pos.totals.service')} value={money(s.service)} /> : null}
         {s.tax > 0 ? <Line label={t('pos.totals.tax')} value={money(s.tax)} /> : null}
+        {s.deliveryFee > 0 ? <Line label={t('pos.totals.deliveryFee')} value={money(s.deliveryFee)} /> : null}
         <div className="flex justify-between text-lg font-semibold">
           <dt>{t('pos.totals.total')}</dt>
           <dd>{money(s.total)}</dd>
@@ -50,7 +67,7 @@ export function Receipt({ receipt }: { receipt: ReceiptData }) {
         <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>
-        <Link href="/pos/tables" className="inline-flex min-h-12 items-center justify-center rounded-md border border-line-strong text-base font-medium">
+        <Link href={receipt.kind === 'DINE_IN' ? '/pos/tables' : `/pos/tables?area=${receipt.kind === 'DELIVERY' ? 'delivery' : 'takeaway'}`} className="inline-flex min-h-12 items-center justify-center rounded-md border border-line-strong text-base font-medium">
           {t('pos.receipt.back')}
         </Link>
       </div>
