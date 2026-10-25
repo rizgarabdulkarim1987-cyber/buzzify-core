@@ -529,6 +529,11 @@ const posTill: Messages = {
   'pos.perm.complaint.view': 'بینینی سکاڵاکان',
   'pos.perm.complaint.manage': 'چارەسەرکردنی سکاڵاکان',
   'pos.perm.pin.own': 'دانانی PINی خۆی',
+  'error.text.posPinShape': 'لە ٤ بۆ ٨ ژمارە بەکاربهێنە',
+  'error.text.posPinWeak': 'PINێک هەڵبژێرە کە گریمانەکردنی قورس بێت',
+  'error.text.posPinUnavailable': 'ئەم هەژمارە ناتوانێت PINی چوونەژوورەوەی خێرا بەکاربهێنێت',
+  'error.text.posTooManyDevices': 'زیاتر لە ٢٠ ئامێر تۆمار مەکە',
+  'error.text.posDeviceName': 'ناوی ئامێرەکە بنووسە',
 };
 
 export default posTill;

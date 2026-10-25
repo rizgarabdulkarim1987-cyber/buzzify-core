@@ -529,6 +529,11 @@ const posTill: Messages = {
   'pos.perm.complaint.view': 'See complaints',
   'pos.perm.complaint.manage': 'Handle complaints',
   'pos.perm.pin.own': 'Set own quick PIN',
+  'error.text.posPinShape': 'Use 4 to 8 digits',
+  'error.text.posPinWeak': 'Choose a PIN that is harder to guess',
+  'error.text.posPinUnavailable': 'This account cannot use a quick sign-in PIN',
+  'error.text.posTooManyDevices': 'Register at most 20 devices',
+  'error.text.posDeviceName': 'Enter a device name',
 };
 
 export default posTill;

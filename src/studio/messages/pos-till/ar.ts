@@ -529,6 +529,11 @@ const posTill: Messages = {
   'pos.perm.complaint.view': 'عرض الشكاوى',
   'pos.perm.complaint.manage': 'معالجة الشكاوى',
   'pos.perm.pin.own': 'تعيين رمز PIN الخاص',
+  'error.text.posPinShape': 'استخدم من 4 إلى 8 أرقام',
+  'error.text.posPinWeak': 'اختر رمزاً يصعب تخمينه',
+  'error.text.posPinUnavailable': 'هذا الحساب لا يستطيع استخدام رمز الدخول السريع',
+  'error.text.posTooManyDevices': 'سجّل 20 جهازاً كحد أقصى',
+  'error.text.posDeviceName': 'اكتب اسم الجهاز',
 };
 
 export default posTill;
