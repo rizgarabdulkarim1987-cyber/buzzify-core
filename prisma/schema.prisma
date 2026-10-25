@@ -678,9 +678,14 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Set only on a session made by PIN sign-in: the shared device and the restaurant it belongs to. Revoking the device
+  /// or clearing the PIN ends these sessions, and the till works in this restaurant whatever else the person joined.
+  posDeviceId     String?
+  posRestaurantId String?
 
   @@unique([token])
   @@index([userId])
+  @@index([posDeviceId])
   @@map("session")
 }
 

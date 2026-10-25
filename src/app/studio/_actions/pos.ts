@@ -1,8 +1,5 @@
 'use server';
 
-import { cookies } from 'next/headers';
-import { DEVICE_COOKIE, deviceCookieOptions } from '@/server/pos/device-cookie';
-import { currentDevice } from '@/server/pos/device-session';
 import * as pos from '@/server/studio/actions/pos';
 import * as delivery from '@/server/studio/actions/pos-delivery';
 import * as kitchen from '@/server/studio/actions/pos-kitchen';
@@ -256,19 +253,6 @@ export async function clearPosStaffPin(input: unknown) {
   return invoke(pin.clearPosStaffPin, input);
 }
 
-/** Registers this browser as a shared device: the token goes into an HttpOnly cookie and never back to the page. */
-export async function registerPosDevice(input: unknown) {
-  const result = await invoke(pin.registerPosDevice, input);
-  if (!result.ok) return result;
-  (await cookies()).set(DEVICE_COOKIE, result.data.token, deviceCookieOptions());
-  return { ok: true as const, data: { deviceId: result.data.deviceId } };
-}
-
-/** Revokes a device; when it is the one this browser holds, the cookie goes too. */
 export async function revokePosDevice(input: unknown) {
-  const own = await currentDevice();
-  const result = await invoke(pin.revokePosDevice, input);
-  if (result.ok && own && typeof input === 'object' && input !== null && (input as { deviceId?: unknown }).deviceId === own.id) (await cookies()).delete(DEVICE_COOKIE);
-  return result;
+  return invoke(pin.revokePosDevice, input);
 }
-

@@ -90,7 +90,7 @@ export async function posGate(prisma: PrismaClient, restaurantId: string, now: D
 /** The till identity behind the current request, or `null`. Cached for the length of one request. */
 export const getPosActor = cache(async (): Promise<PosActor | null> => {
   const actor = await getActor();
-  return actor ? resolvePosActor(getPrisma(), actor.userId) : null;
+  return actor ? resolvePosActor(getPrisma(), actor.userId, actor.posRestaurantId) : null;
 });
 
 /** The person, their till identity and whether the till is open for their restaurant, for one request. */
@@ -98,6 +98,6 @@ export const getPosAccess = cache(async () => {
   const studioActor = await getActor();
   if (!studioActor) return { signedIn: false as const, actor: null, gate: null };
   const prisma = getPrisma();
-  const actor = await resolvePosActor(prisma, studioActor.userId);
+  const actor = await resolvePosActor(prisma, studioActor.userId, studioActor.posRestaurantId);
   return { signedIn: true as const, actor, gate: actor ? await posGate(prisma, actor.restaurantId) : null };
 });

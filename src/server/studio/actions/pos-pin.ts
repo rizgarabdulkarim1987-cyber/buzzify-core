@@ -65,6 +65,8 @@ export const clearPosStaffPin = defineAction({
       if (row.userId === pos.userId) throw new StudioError('FORBIDDEN', 'You cannot change your own role or access');
       if (!mayAssign(pos.role, row.role, row.role)) throw refuseRole();
       await tx.posStaff.updateMany({ where: { id: row.id, restaurantId }, data: { pinHash: null, pinSetAt: null, pinFailedCount: 0, pinLockedUntil: null } });
+      // A PIN that may have leaked ends the sessions it made, on every device of this restaurant.
+      await tx.session.deleteMany({ where: { userId: row.userId, posRestaurantId: restaurantId, posDeviceId: { not: null } } });
       ctx.audit({ action: 'pos.staff.pin.clear', entityType: 'PosStaff', entityId: row.id });
       return { staffId: row.id };
     });

@@ -81,7 +81,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
       orderId: order.id,
       method: input.method,
       amountReceived: input.amountReceived,
-      reference: input.reference ?? null,
+      reference: input.method === 'CASH' ? null : (input.reference ?? null),
       totalsSnapshot: snapshot,
       userId: input.userId,
       shiftId,

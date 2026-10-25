@@ -210,6 +210,17 @@ describe('verifying a PIN', () => {
     expect(row.pinLockedUntil).not.toBeNull();
   });
 
+  it('charges a try before hashing: a burst of thirty parallel guesses reaches the lock, and the right PIN is then refused', async () => {
+    const results = await Promise.allSettled(Array.from({ length: 30 }, () => attempt(cashier, '1357')));
+    expect(results.every((r) => r.status === 'rejected')).toBe(true);
+    const row = await prisma().posStaff.findUniqueOrThrow({ where: { id: await staffId(cashier) } });
+    expect(row.pinFailedCount).toBeLessThanOrEqual(PIN_LIMITS.staffFailures);
+    expect(row.pinLockedUntil).not.toBeNull();
+    // At most the five reserved tries ever reached the hash check.
+    expect(await prisma().auditLog.count({ where: { action: 'pos.pin.fail' } })).toBeLessThanOrEqual(PIN_LIMITS.staffFailures);
+    await expect(attempt(cashier, '2580')).rejects.toBeInstanceOf(PinLockedError);
+  });
+
   it('never writes a PIN into an audit row or an attempt', async () => {
     await expect(attempt(cashier, '8642')).rejects.toBeInstanceOf(PinRefusedError);
     await attempt(cashier, '2580');

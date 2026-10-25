@@ -1,9 +1,12 @@
 import { cookies, headers } from 'next/headers';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { POST as registerRoute } from '@/app/api/pos/device/register/route';
 import { POST } from '@/app/api/pos/pin/sign-in/route';
 import { DEVICE_COOKIE } from '@/server/domain/pos/pin';
 import { deviceCookieOptions, readDeviceToken } from '@/server/pos/device-cookie';
-import { registerPosDevice, revokePosDevice, setOwnPosPin } from '@/server/studio/actions/pos-pin';
+import { hashPin } from '@/server/pos/pin';
+import { actorFromHeaders } from '@/server/studio/auth/actor';
+import { clearPosStaffPin, registerPosDevice, revokePosDevice, setOwnPosPin } from '@/server/studio/actions/pos-pin';
 import { getAuth } from '@/server/studio/auth/auth';
 import { cookieHeader, cookieStore } from '../helpers/auth';
 import { dataOf, GOOD, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
@@ -150,6 +153,77 @@ describe('the PIN sign-in route', () => {
     const res = await send({ staffId: cashierStaff, pin: '2580' });
     expect(res.status).toBe(403);
     expect(await codeOf(res)).toBe('tillClosed');
+  });
+});
+
+describe('what a PIN session is bound to', () => {
+  async function pinIn(staffId: string, pin: string, device = token) {
+    const res = await send({ staffId, pin }, { device });
+    expect(res.status).toBe(200);
+    return cookieHeader(res.headers.getSetCookie());
+  }
+
+  it('records the device and its restaurant, and the till works there for a person staffed at two restaurants', async () => {
+    const b = await restaurant('Pin Route B');
+    const bManager = await person('b-manager', { staff: [b.id, 'MANAGER'] });
+    const bDevice = dataOf(await run(bManager, registerPosDevice, { name: 'B till' }));
+    // The person joined A first (cashier), then B (manager).
+    const both = await person('both', { staff: [a.id, 'CASHIER'] });
+    await prisma().posStaff.create({ data: { userId: both.userId, restaurantId: b.id, role: 'MANAGER', pinHash: await hashPin('2580') } });
+    const bStaff = (await prisma().posStaff.findFirstOrThrow({ where: { userId: both.userId, restaurantId: b.id } })).id;
+    const cookie = await pinIn(bStaff, '2580', bDevice.token);
+    const session = await getAuth().api.getSession({ headers: cookie });
+    expect(session?.session).toMatchObject({ posDeviceId: bDevice.deviceId, posRestaurantId: b.id });
+    const actor = await actorFromHeaders(prisma(), cookie);
+    expect(actor?.posRestaurantId).toBe(b.id);
+    const { resolvePosActor } = await import('@/server/pos/actor');
+    expect(await resolvePosActor(prisma(), both.userId, actor?.posRestaurantId)).toMatchObject({ restaurantId: b.id, role: 'MANAGER' });
+  });
+
+  it('ends every PIN session of a device when it is revoked, and leaves password sessions alone', async () => {
+    const pinSession = await pinIn(cashierStaff, '2580');
+    const passwordSessionCookie = await passwordSession(kitchen);
+    dataOf(await run(manager, revokePosDevice, { deviceId }));
+    expect(await getAuth().api.getSession({ headers: pinSession })).toBeNull();
+    expect((await getAuth().api.getSession({ headers: new Headers({ cookie: passwordSessionCookie }) }))?.user.id).toBe(kitchen.userId);
+  });
+
+  it('ends a person’s PIN sessions when a manager clears their PIN', async () => {
+    const pinSession = await pinIn(cashierStaff, '2580');
+    dataOf(await run(manager, clearPosStaffPin, { staffId: cashierStaff }));
+    expect(await getAuth().api.getSession({ headers: pinSession })).toBeNull();
+  });
+});
+
+describe('the device registration route', () => {
+  async function register(who: Person, body: unknown, origin: string | null = ORIGIN): Promise<Response> {
+    const all = new Headers({ 'content-type': 'application/json', cookie: await passwordSession(who) });
+    if (origin !== null) all.set('origin', origin);
+    vi.mocked(headers).mockResolvedValue(all as never);
+    vi.mocked(cookies).mockResolvedValue(cookieStore(all.get('cookie')) as never);
+    return registerRoute(new Request(`${ORIGIN}/api/pos/device/register`, { method: 'POST', body: JSON.stringify(body), headers: all }));
+  }
+
+  it('sets the device secret in an HttpOnly cookie and answers with the id only', async () => {
+    const res = await register(manager, { name: 'Bar tablet' });
+    const body = (await res.json()) as { ok: boolean; data: { deviceId: string } };
+    expect(body.ok).toBe(true);
+    expect(Object.keys(body.data)).toEqual(['deviceId']);
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    const cookie = res.headers.getSetCookie().find((c) => c.startsWith(`${DEVICE_COOKIE}=`)) ?? '';
+    expect(cookie).toContain('HttpOnly');
+    expect(cookie).toContain('SameSite=Lax');
+    const secret = cookie.split(';')[0]!.split('=')[1]!;
+    expect(JSON.stringify(body)).not.toContain(secret);
+    expect(await prisma().posSharedDevice.count({ where: { name: 'Bar tablet', revokedAt: null } })).toBe(1);
+  });
+
+  it('refuses a cashier, a foreign Origin and a blank name without a cookie', async () => {
+    for (const res of [await register(cashier, { name: 'x' }), await register(manager, { name: 'x' }, 'https://evil.example'), await register(manager, { name: '  ' })]) {
+      expect(res.headers.getSetCookie().some((c) => c.startsWith(`${DEVICE_COOKIE}=`))).toBe(false);
+    }
+    expect((await register(manager, { name: 'x' }, 'https://evil.example')).status).toBe(403);
+    expect(await prisma().posSharedDevice.count({ where: { name: 'x' } })).toBe(0);
   });
 });
 

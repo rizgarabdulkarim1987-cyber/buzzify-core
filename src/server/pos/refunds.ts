@@ -44,7 +44,7 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
         orderId: order.id,
         method: payment.method,
         amount,
-        reference: input.reference ?? null,
+        reference: payment.method === 'CASH' ? null : (input.reference ?? null),
         reason: input.reason,
         userId: input.userId,
         shiftId,

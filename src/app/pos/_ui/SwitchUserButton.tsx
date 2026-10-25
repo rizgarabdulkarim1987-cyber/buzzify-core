@@ -21,10 +21,12 @@ export function SwitchUserButton() {
       size="md"
       className="min-h-12"
       pending={busy}
-      onClick={() => {
+      onClick={async () => {
         if (!online) return toast.error(t('pos.switch.needsNetwork'));
         if (waiting > 0) return toast.error(t('pos.switch.pendingWarn', { n: formatNumber(waiting) }));
         setBusy(true);
+        // The person leaves first: nobody can press Back into their session while the switch screen is up.
+        await fetch('/api/auth/sign-out', { method: 'POST', headers: { 'content-type': 'application/json' }, credentials: 'same-origin', body: '{}' }).catch(() => undefined);
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         window.location.href = '/pos/switch';
       }}

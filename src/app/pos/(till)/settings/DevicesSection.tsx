@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { registerPosDevice, revokePosDevice } from '@/app/studio/_actions/pos';
+import { revokePosDevice } from '@/app/studio/_actions/pos';
+import type { ActionResult } from '@/server/studio/framework/result';
 import { formatStamp } from '@/lib/pos-format';
 import { requireFields, useActionForm } from '@/studio/forms';
 import { describeFailure } from '@/studio/errors';
@@ -21,13 +22,24 @@ interface DeviceRow {
   lastUsedAt: Date | string | null;
 }
 
+/** Registers this browser through the Route Handler that sets the device cookie (the secret never reaches the page). */
+async function registerHere(values: Record<string, string>): Promise<ActionResult<{ deviceId: string }>> {
+  const response = await fetch('/api/pos/device/register', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    credentials: 'same-origin',
+    body: JSON.stringify({ name: values.name ?? '' }),
+  });
+  return (await response.json()) as ActionResult<{ deviceId: string }>;
+}
+
 /** The shared devices PIN sign-in works on. Registering stores this browser's secret in an HttpOnly cookie. */
 export function DevicesSection({ devices, thisDeviceId }: { devices: DeviceRow[]; thisDeviceId: string | null }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
   const [revoking, setRevoking] = useState<DeviceRow | null>(null);
-  const form = useActionForm((values) => registerPosDevice({ name: values.name ?? '' }), {
+  const form = useActionForm(registerHere, {
     validate: (values) => requireFields(values, { name: t('error.text.posDeviceName') }),
     onSuccess: () => {
       toast.success(t('pos.devices.registered'));
