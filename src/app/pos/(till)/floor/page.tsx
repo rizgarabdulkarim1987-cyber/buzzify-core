@@ -1,4 +1,7 @@
 import type { Metadata } from 'next';
+import { notFound } from 'next/navigation';
+import { canOpenTillPage } from '@/server/domain/pos/nav';
+import { getPosAccess } from '@/server/pos/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posFloor } from '@/server/studio/queries/pos';
 import { getStudioTranslator } from '@/studio/messages';
@@ -11,6 +14,8 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function FloorPage() {
+  const { actor } = await getPosAccess();
+  if (!actor || !canOpenTillPage(actor.role, 'floor')) notFound();
   const [floor, locale] = await Promise.all([query(posFloor, {}), requestStudioLocale()]);
   const t = getStudioTranslator(locale);
   return (

@@ -4,7 +4,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { canTransition, isLocked, LOCKED_STATUSES, type OrderStatus } from '@/server/domain/pos/order-state';
 import { computeTotals, lineTotal, type Discount, type PricedLine, type Rates, type Totals } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
-import { refuse } from './errors';
+import { isUniqueViolation, refuse } from './errors';
 import { kitchenDone } from './kitchen-state';
 
 /** A chosen variant or option, copied onto the line when it was added. */
@@ -165,7 +165,14 @@ export async function moveToTableIn(db: AnyDb, restaurantId: string, input: { or
   const table = await db.posTable.findFirst({ where: { id: input.tableId, restaurantId }, select: { id: true } });
   if (!table) throw new StudioError('NOT_FOUND');
   await assertTableFree(db, restaurantId, table.id);
-  const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, { tableId: table.id });
+  let version: number;
+  try {
+    version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, { tableId: table.id });
+  } catch (error) {
+    // A concurrent move or open took the table between the check above and this update: the one-live-order-per-table index.
+    if (isUniqueViolation(error)) throw refuse('CONFLICT', 'The table already has an open order');
+    throw error;
+  }
   return { orderId: order.id, version, from: order.tableId, to: table.id };
 }
 
