@@ -40,7 +40,7 @@ export async function runAi<T>(env: AiEnv, opts: { feature: PosAiFeature; now?: 
       res = await provider.complete({ ...req, signal: AbortSignal.timeout(AI_TIMEOUTS_MS[req.purpose]) });
     } catch (error) {
       if (error instanceof AiUnavailableError) throw error;
-      throw new AiProviderError();
+      throw new AiProviderError(error instanceof Error ? error.name : null);
     }
     responded = true;
     inputTokens += res.inputTokens;

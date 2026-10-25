@@ -103,11 +103,11 @@ describe('saving the AI provider settings', () => {
   });
 
   it('tests the connection with the saved provider and reports a missing key calmly', async () => {
-    expect(dataOf(await run(owner, testAiProvider, {}))).toMatchObject({ ok: false, code: 'aiUnavailable' });
+    expect(dataOf(await run(owner, testAiProvider, {}))).toMatchObject({ ok: false, code: 'aiUnavailable', detail: 'no key' });
     const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: 'ok' } }], model: 'm', usage: { prompt_tokens: 3, completion_tokens: 1 } })));
     vi.stubGlobal('fetch', fetchMock);
     dataOf(await save(openai()));
-    expect(dataOf(await run(owner, testAiProvider, {}))).toEqual({ ok: true, provider: 'openai' });
+    expect(dataOf(await run(owner, testAiProvider, {}))).toEqual({ ok: true, provider: 'openai', detail: null });
     expect(fetchMock).toHaveBeenCalledOnce();
     vi.unstubAllGlobals();
   });
@@ -166,12 +166,14 @@ describe('the OpenAI mapping', () => {
     expect(() => fromOpenAiResponse({ choices: [{ message: { tool_calls: [{ id: 'c', type: 'function', function: { name: 'x', arguments: '{oops' } }] } }] })).toThrow(AiProviderError);
   });
 
-  it('fails calmly on an HTTP error, a dropped connection and a timeout, and never reads the error body', async () => {
+  
+  it('fails calmly on an HTTP error, a dropped connection and a timeout, naming the status and type but never the message', async () => {
     const provider = createOpenAiProvider(KEY);
-    const body = vi.fn();
-    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 401, json: body, text: body }) as unknown as Response));
-    await expect(provider.complete(req())).rejects.toBeInstanceOf(AiProviderError);
-    expect(body).not.toHaveBeenCalled();
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ error: { type: 'invalid_request_error', code: 'insufficient_quota', message: `Incorrect key ${KEY}` } }), { status: 429 })));
+    const failure = await provider.complete(req()).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(AiProviderError);
+    expect((failure as AiProviderError).detail).toBe('http 429 invalid_request_error insufficient_quota');
+    expect(JSON.stringify(failure)).not.toContain(KEY);
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('network'))));
     await expect(provider.complete(req())).rejects.toBeInstanceOf(AiProviderError);
     vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(Object.assign(new Error('t'), { name: 'TimeoutError' }))));

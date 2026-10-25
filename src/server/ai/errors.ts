@@ -28,9 +28,12 @@ export class AiTimeoutError extends AiUnavailableError {
 }
 
 export class AiProviderError extends AiUnavailableError {
-  constructor() {
+  /** Why, for the owner and the server log: an HTTP status and the provider's error type, never any content of the request. */
+  readonly detail: string | null;
+  constructor(detail: string | null = null) {
     super('The AI provider failed');
     this.name = 'AiProviderError';
+    this.detail = detail;
   }
 }
 

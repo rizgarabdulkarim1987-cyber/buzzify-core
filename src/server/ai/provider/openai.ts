@@ -112,15 +112,18 @@ export function createOpenAiProvider(apiKey: string, models: { ask?: string | un
         });
       } catch (error) {
         if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) throw new AiTimeoutError();
-        throw new AiProviderError();
+        throw new AiProviderError(error instanceof Error ? error.name : null);
       }
-      // The body of an error can echo the request, so it is never read or logged.
-      if (!response.ok) throw new AiProviderError();
+      if (!response.ok) {
+        // Only the status and the error's type and code are read: its message can repeat part of the request or the key.
+        const body = (await response.json().catch(() => null)) as { error?: { type?: string; code?: string } } | null;
+        throw new AiProviderError(`http ${response.status} ${body?.error?.type ?? ''} ${body?.error?.code ?? ''}`.trim());
+      }
       try {
         return fromOpenAiResponse((await response.json()) as Parameters<typeof fromOpenAiResponse>[0]);
       } catch (error) {
         if (error instanceof AiProviderError) throw error;
-        throw new AiProviderError();
+        throw new AiProviderError(error instanceof Error ? error.name : null);
       }
     },
   };

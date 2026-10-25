@@ -1,6 +1,6 @@
 import { ZodError } from 'zod';
 import { StudioError } from '@/server/studio/framework/result';
-import { AiInputTooLargeError, AiLimitReachedError, AiNotEnabledError, AiOutputRejectedError, AiRefusedError, AiUnavailableError, AiUnreadableError } from './errors';
+import { AiProviderError, AiInputTooLargeError, AiLimitReachedError, AiNotEnabledError, AiOutputRejectedError, AiRefusedError, AiUnavailableError, AiUnreadableError } from './errors';
 
 /** What a screen is told when an AI operation does not produce an answer. */
 export type AiErrorCode = 'aiDisabled' | 'aiLimit' | 'aiUnavailable' | 'aiRefused' | 'ungrounded' | 'unreadable' | 'tooLarge' | 'invalid' | 'notFound' | 'failed';
@@ -11,7 +11,10 @@ export type AiFailure = { ok: false; code: AiErrorCode };
 export function aiErrorCode(error: unknown): AiErrorCode {
   if (error instanceof AiNotEnabledError) return 'aiDisabled';
   if (error instanceof AiLimitReachedError) return 'aiLimit';
-  if (error instanceof AiUnavailableError) return 'aiUnavailable';
+  if (error instanceof AiUnavailableError) {
+    console.error('ai unavailable', error.name, error instanceof AiProviderError ? error.detail : error.message);
+    return 'aiUnavailable';
+  }
   if (error instanceof AiRefusedError) return 'aiRefused';
   if (error instanceof AiOutputRejectedError) return 'ungrounded';
   if (error instanceof AiUnreadableError) return 'unreadable';
