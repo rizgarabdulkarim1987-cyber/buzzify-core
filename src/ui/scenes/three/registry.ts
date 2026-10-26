@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react';
 import type { DesignPalette, ModelFraming, SceneSettings, TemplateId } from '@/lib/templates/types';
+import { borrowedArt } from '../borrow';
 
 export interface SceneProps {
   palette: DesignPalette;
@@ -17,8 +18,8 @@ export interface SceneModule {
   environment?: number;
 }
 
-/** Each preset's scene in a chunk of its own, so a menu downloads only the scene it shows. */
-const LOADERS: Record<TemplateId, () => Promise<{ default: SceneModule }>> = {
+/** Each preset's scene in a chunk of its own, so a menu downloads only the scene it shows. Presets 1 to 30 have one each. */
+const LOADERS: Partial<Record<TemplateId, () => Promise<{ default: SceneModule }>>> = {
   'obsidian-gold': () => import('./scenes/obsidian-gold'),
   'ivory-marble': () => import('./scenes/ivory-marble'),
   'emerald-palace': () => import('./scenes/emerald-palace'),
@@ -49,12 +50,31 @@ const LOADERS: Record<TemplateId, () => Promise<{ default: SceneModule }>> = {
   'vanilla-cloud': () => import('./scenes/vanilla-cloud'),
   'pop-gelato': () => import('./scenes/pop-gelato'),
   'frozen-jewel': () => import('./scenes/frozen-jewel'),
-  // The menu styles start in the static mode; a business that picks 3D gets a neighbouring template's scene for now.
-  'the-book': () => import('./scenes/gallery-blanc'),
-  'the-magazine': () => import('./scenes/gallery-blanc'),
-  'taste-airport': () => import('./scenes/neon-noir'),
 };
 
-export async function loadScene(id: TemplateId): Promise<SceneModule> {
-  return (await LOADERS[id]()).default;
+/**
+ * The menu styles start in the static mode; a business that picks 3D gets a neighbouring template's scene. The first
+ * three keep the scene they shipped with whatever palette is chosen; a later style borrows by its background
+ * (`borrowedArt`), so adding a style needs no line here.
+ */
+const BORROWS: Partial<Record<TemplateId, TemplateId>> = {
+  'the-book': 'gallery-blanc',
+  'the-magazine': 'gallery-blanc',
+  'taste-airport': 'neon-noir',
+};
+
+export function hasOwnScene(id: TemplateId): boolean {
+  return LOADERS[id] !== undefined;
+}
+
+/** The template whose scene a design with this template and palette draws. */
+export function sceneIdFor(id: TemplateId, palette: Pick<DesignPalette, 'bg'>): TemplateId {
+  return hasOwnScene(id) ? id : (BORROWS[id] ?? borrowedArt(palette));
+}
+
+/** Loads a scene by the id `sceneIdFor` gives, so the caller re-loads only when the scene itself changes. */
+export async function loadScene(sceneId: TemplateId): Promise<SceneModule> {
+  const loader = LOADERS[sceneId];
+  if (!loader) throw new Error(`No 3D scene of its own for ${sceneId}; load sceneIdFor(...) instead`);
+  return (await loader()).default;
 }

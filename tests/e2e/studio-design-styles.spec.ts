@@ -1,5 +1,7 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { getStudioTranslator } from '@/studio/messages';
+import { MENU_STYLES } from '@/studio/styles/catalog';
+import { TEMPLATE_FOR_STYLE } from '@/studio/styles/template-map';
 import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
 import { hideDevTools, superAdminFile, uniqueClientAddress } from './helpers/studio';
 
@@ -44,8 +46,10 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     const cards = page.locator('ul[data-styles] > li');
     await expect(cards).toHaveCount(35);
     await expect(page.getByText(en('design.filter.stylesCount_other', { count: 35 }))).toBeVisible();
-    // Coming-soon cards say so in text, on every one of the 32.
-    await expect(cards.getByText(en('design.comingSoon'), { exact: true })).toHaveCount(32);
+    // Coming-soon cards say so in text, on every one not yet made a template (32 before batch 2).
+    const soon = MENU_STYLES.length - Object.keys(TEMPLATE_FOR_STYLE).length;
+    expect(soon).toBeLessThanOrEqual(32);
+    await expect(cards.getByText(en('design.comingSoon'), { exact: true })).toHaveCount(soon);
     // Catalog order: the first style is a coming-soon card (the Kurdish theme), with its poster from the private route.
     const first = cards.first().getByRole('button');
     await expect(first).toHaveAccessibleName(en('design.selectSoon', { name: en('styles.themed-kurd.name') }));
