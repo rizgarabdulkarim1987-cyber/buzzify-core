@@ -350,6 +350,8 @@ export async function cancel(tx: ScopedTx, work: BillingWork, input: z.infer<typ
     entityId: sub.id,
     changes: { status: { before: sub.status, after: 'CANCELLED' }, cancelledAt: { before: null, after: now.toISOString() }, reason: { before: null, after: input.reason } },
   });
+  // A cancelled Menu subscription closes the restaurant's menus to guests (`findPublicMenu`), so it must reach them now.
+  if (sub.applicationId === 'menu') await expireMenusAfterCommit(tx, work.afterCommit);
   return { id: sub.id };
 }
 

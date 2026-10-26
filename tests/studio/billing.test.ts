@@ -627,6 +627,13 @@ describe('cancel and reactivate', () => {
     expect(await prisma.auditLog.count({ where: { action: 'subscription.reactivated', restaurantId } })).toBe(1);
   });
 
+  it('expires the restaurant’s menus when its Menu subscription is cancelled, since guests lose the menu', async () => {
+    const id = await paidOnTheThirtyFirst();
+    vi.mocked(expireMenu).mockClear();
+    dataOf(await actAt(at('2027-02-10T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'stopped' }));
+    expect(vi.mocked(expireMenu).mock.calls).toEqual([[['billing-a'], menuId]]);
+  });
+
   it('refuses to cancel a lagged ACTIVE subscription whose grace has passed', async () => {
     const id = await paidOnTheThirtyFirst(); // ACTIVE to 28 Feb, 7 days of grace; the sweep has not run
     expect(await actAt(at('2027-03-20T12:00:00+03:00'), billing.cancel, { restaurantId, subscriptionId: id, version: await versionOf(id), reason: 'late' })).toMatchObject({
