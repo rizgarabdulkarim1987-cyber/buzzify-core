@@ -11,7 +11,6 @@ import { resolvePublicRoute } from '@/server/public-page';
 import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss, themeLogo } from '@/ui/brand';
-import { GuestChrome } from '@/ui/guest/GuestChrome';
 
 export async function generateMetadata({
   params,
@@ -110,7 +109,6 @@ export default async function RootLayout({
           }}
         >
           {children}
-          <GuestChrome />
         </AppProviders>
       </body>
     </html>

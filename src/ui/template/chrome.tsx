@@ -8,6 +8,7 @@ import type { MenuOfferView } from '@/server/data/menu-view';
 import { DAYS } from '@/server/domain/restaurant-profile';
 import { useApp } from '@/ui/AppProviders';
 import { CameraIcon, ChatIcon, ClockIcon, CloseIcon, GlobeIcon, PauseIcon, PhoneIcon, PinIcon, PlayIcon, SearchIcon } from '@/ui/Icons';
+import { GuestTools } from '@/ui/guest/GuestTools';
 import { useOfferEnd } from '@/ui/menu/SalesLabels';
 
 /** The pieces around a template menu's products: header, search, filters, an offer, the place's details, the footer. */
@@ -35,6 +36,7 @@ export function TemplateHeader() {
         </h1>
         {table !== null && <p className="mt-0.5 text-sm text-(--accent-ink)">{t('menu.table', { number: String(table).padStart(2, '0') })}</p>}
       </div>
+      <GuestTools />
     </header>
   );
 }

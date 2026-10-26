@@ -106,6 +106,14 @@ export const GlobeIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
+/** The wire globe of the language button: a circle, its axis and meridian, and the equator with two parallels. */
+export const LanguageIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...base(props)}>
+    <circle cx="10" cy="10" r="7.5" />
+    <path d="M10 2.5v15M2.5 10h15M4 6.4c4-1 8-1 12 0M4 13.6c4 1 8 1 12 0M10 2.5c-2.6 2-3.8 4.6-3.8 7.5s1.2 5.5 3.8 7.5c2.6-2 3.8-4.6 3.8-7.5S12.6 4.5 10 2.5z" />
+  </svg>
+);
+
 export const CameraIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...base(props)}>
     <rect x="3.5" y="3.5" width="13" height="13" rx="3.5" />
