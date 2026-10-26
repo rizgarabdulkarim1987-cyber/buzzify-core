@@ -192,8 +192,6 @@
   box-sizing: border-box;
   min-inline-size: 0;
   padding-inline: 0.125rem;
-  animation: tm-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  animation-delay: calc(var(--i, 0) * 28ms);
 }
 [data-body='treasure'] .tm-pin:nth-child(3n + 2) {
   margin-block-start: 0.5rem;
@@ -213,29 +211,11 @@
   box-shadow: 0 4px 8px color-mix(in srgb, var(--text) 38%, transparent);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-[data-body='treasure'] .tm-photo > * {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
-/* The add button on the pin's upper rim. */
+/* The add button (shared/shapes.css) on the pin's upper rim. */
 [data-body='treasure'] .tm-add {
-  position: absolute;
   inset-block-start: -0.25rem;
   inset-inline-end: -0.5rem;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding: 0;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
   box-shadow: 0 2px 4px color-mix(in srgb, var(--text) 40%, transparent);
-}
-[data-body='treasure'] .tm-add svg {
-  inline-size: 1rem;
-  block-size: 1rem;
 }
 /*
  * The price flag: it hangs from the photo (swallowtail end on the inline-end side), the inverse pair so it reads on any
@@ -263,26 +243,9 @@
   padding-inline: 0.75rem 0.5rem;
   clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0.3125rem 50%);
 }
-/* The name below: two lines at most, however long. */
+/* The name below (two lines at most, the whole pin its tap area: shared/shapes.css). */
 [data-body='treasure'] .tm-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  inline-size: 100%;
-  min-block-size: 0;
-  padding: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
   color: var(--tm-ink);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-/* The tap area is the whole pin: the pin is the positioned ancestor of the name's overlay, and its ring stays inside. */
-[data-body='treasure'] .tm-name:focus-visible::after {
-  outline-offset: -2px;
-  border-radius: 0.75rem;
 }
 
 @media (hover: hover) {
@@ -292,17 +255,6 @@
 }
 [data-body='treasure'] .tm-pin:active .tm-photo {
   transform: scale(0.95);
-}
-
-@keyframes tm-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 @media (min-width: 640px) {
@@ -336,9 +288,6 @@
 
 /* Less motion: the pins are simply there. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='treasure'] .tm-pin {
-    animation: none;
-  }
   [data-body='treasure'] .tm-photo,
   [data-body='treasure'] .tm-point {
     transition: none;

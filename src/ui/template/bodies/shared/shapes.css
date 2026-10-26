@@ -63,3 +63,109 @@
   outline: 2px solid currentColor;
   outline-offset: -4px;
 }
+
+/*
+ * The icon-sized dish cell (`IconDish`, and the Bento compartment): its parts that every such shape draws the same way.
+ * A shape keeps its frame and decoration and sets the custom properties below to adjust them.
+ */
+
+/* The name under the picture: two lines at most however long. */
+:where([data-body]) .tpl-dish-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  inline-size: 100%;
+  min-block-size: 0;
+  padding: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+/*
+ * The whole cell is the name's tap area (the cell is the positioned ancestor of its overlay); the cell or its frame may
+ * clip, so the ring is drawn inside it. `--tpl-ring-inset` and `--tpl-ring-radius` adjust it.
+ */
+:where([data-body]) .tpl-open.tpl-dish-name:focus-visible::after {
+  outline-offset: var(--tpl-ring-inset, -2px);
+  border-radius: var(--tpl-ring-radius, 0.75rem);
+}
+
+/* The photo fills its frame (the frame sets the size and the clipping). */
+:where([data-body]) .tpl-fill-media > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The photo covers a frame whose size comes from elsewhere (an aspect ratio, a grid area): laid over it. */
+:where([data-body]) .tpl-cover-media > :first-child {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  inline-size: 100%;
+  block-size: 100%;
+}
+:where([data-body]) .tpl-cover-media img,
+:where([data-body]) .tpl-cover-media svg {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/*
+ * The add button sitting on a photo's rim or corner (the shape places it): a small round plus. `--rim-add-size`,
+ * `--rim-add-bg` and `--rim-add-ink` adjust it; the default is the accent pair.
+ */
+:where([data-body]) .tpl-add.tpl-rim-add {
+  position: absolute;
+  inline-size: var(--rim-add-size, 1.75rem);
+  block-size: var(--rim-add-size, 1.75rem);
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--rim-add-bg, var(--accent));
+  color: var(--rim-add-ink, var(--on-accent));
+}
+:where([data-body]) .tpl-rim-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+/*
+ * A discount in a tight spot (`SaleChip`): the price there has no room for the regular price, so a compact "−NN%" chip
+ * shows the sale. The shape places it; `--sale-bg` and `--sale-ink` adjust its pair (default the accent pair).
+ */
+:where([data-body]) .tpl-off {
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 999px;
+  background: var(--sale-bg, var(--accent));
+  color: var(--sale-ink, var(--on-accent));
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+/* A cell's entrance: it rises into place, a little after the one before it (`--i`). Less motion: it is simply there. */
+:where([data-body]) .tpl-rise {
+  animation: tpl-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes tpl-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where([data-body]) .tpl-rise {
+    animation: none;
+  }
+}

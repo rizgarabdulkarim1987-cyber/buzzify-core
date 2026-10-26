@@ -1,22 +1,18 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
-import { hueAt } from './shared/hue';
+import { hueAt, SHAPE_HUES } from './shared/hue';
+import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './homescreen.css';
 
-/** The hues (degrees) of the dock's app tiles, spread around the wheel so neighbours differ; a seventh starts again. */
-const HUES = [340, 28, 150, 205, 265, 48] as const;
-
-/** The hue (in degrees) of the nth dock tile. */
+/** The hue (in degrees) of the nth dock tile: the shared set, so neighbours differ; a seventh starts again. */
 export function appHue(index: number): number {
-  return hueAt(HUES, index);
+  return hueAt(SHAPE_HUES, index);
 }
 
 /**
@@ -61,7 +57,7 @@ export function HomescreenBody() {
                   <ShapeHeading id={`h-${category.slug}`} name={category.name} count={n(products.length)} className="hs-head" title="hs-title" />
                 </li>
                 {products.map((product, row) => (
-                  <App key={product.id} product={product} priority={index < 3 && row < 4} order={Math.min(index * 4 + row, 8)} />
+                  <IconDish key={product.id} product={product} prefix="hs" suffix="homescreen" cell="hs-app" head="hs-icon" price="hs-badge" pricePlace="head" sizes="96px" priority={index < 3 && row < 4} order={Math.min(index * 4 + row, 8)} />
                 ))}
               </ul>
             </section>
@@ -69,23 +65,5 @@ export function HomescreenBody() {
         })}
       </main>
     </div>
-  );
-}
-
-function App({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
-  const { openProduct } = useTemplate();
-  return (
-    <li data-row className="hs-app" style={{ '--i': order } as CSSProperties}>
-      <div className="hs-icon">
-        <div data-photo className="hs-photo">
-          <ProductMedia product={product} suffix="homescreen" sizes="96px" priority={priority} className="hs-img" rounded={false} />
-        </div>
-        <Price product={product} className="tpl-price-tight hs-badge" />
-        <QuickAction product={product} variant="icon" className="hs-add relative z-[2]" />
-      </div>
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open hs-name text-center">
-        {product.name}
-      </button>
-    </li>
   );
 }

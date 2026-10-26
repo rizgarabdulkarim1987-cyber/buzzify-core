@@ -1,13 +1,12 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { localDigits } from '@/lib/digits';
-import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
+import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './fridge.css';
@@ -53,7 +52,22 @@ export function FridgeBody() {
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.frg.shelf', { n: n(index + 1) })} count={n(products.length)} className="fr-head" title="fr-frost" />
               <ul className="fr-row">
                 {products.map((product, at) => (
-                  <Jar key={product.id} product={product} priority={index === 0 && at < 6} order={Math.min(index * 3 + at, 8)} />
+                  <IconDish
+                    key={product.id}
+                    product={product}
+                    prefix="fr"
+                    suffix="fridge"
+                    cell="fr-jar tpl-rise"
+                    head="fr-glass"
+                    price="fr-lid"
+                    pricePlace="top"
+                    media="cover"
+                    inPhoto={<SaleChip product={product} className="fr-off" />}
+                    addInPhoto
+                    sizes="112px"
+                    priority={index === 0 && at < 6}
+                    order={Math.min(index * 3 + at, 8)}
+                  />
                 ))}
               </ul>
             </section>
@@ -61,26 +75,5 @@ export function FridgeBody() {
         })}
       </main>
     </div>
-  );
-}
-
-function Jar({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
-  const { t, tenant } = useApp();
-  const { openProduct } = useTemplate();
-  const off = product.regularPrice !== undefined && product.percentOff ? product.percentOff : 0;
-  return (
-    <li data-row className="fr-jar" style={{ '--i': order } as CSSProperties}>
-      <div className="fr-glass">
-        <Price product={product} className="tpl-price-tight fr-lid" />
-        <div data-photo className="fr-photo">
-          <ProductMedia product={product} suffix="fridge" sizes="112px" priority={priority} className="fr-img" rounded={false} />
-          {off ? <span className="fr-off tabular-nums">{t('menu.percentOff', { percent: localDigits(String(off), tenant.numeralSystem) })}</span> : null}
-          <QuickAction product={product} variant="icon" className="fr-add relative z-[2]" />
-        </div>
-      </div>
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open fr-name text-center">
-        {product.name}
-      </button>
-    </li>
   );
 }

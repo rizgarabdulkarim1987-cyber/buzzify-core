@@ -146,8 +146,6 @@
   box-sizing: border-box;
   min-inline-size: 0;
   padding: 0.5rem 0.125rem 0;
-  animation: lv-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  animation-delay: calc(var(--i, 0) * 28ms);
 }
 
 /*
@@ -210,11 +208,6 @@
   box-shadow: 0 4px 0 color-mix(in srgb, var(--text) 28%, transparent);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-[data-body='levels'] .lv-photo > * {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
 /* The level number, on the photo's lower start rim. */
 [data-body='levels'] .lv-level {
   position: absolute;
@@ -233,38 +226,17 @@
   line-height: 1;
   pointer-events: none;
 }
-/* A discount: a compact chip on the photo's upper start rim, since the pill has no room for the regular price. */
+/* A discount (shared/shapes.css) on the photo's upper start rim, since the pill has no room for the regular price. */
 [data-body='levels'] .lv-off {
   position: absolute;
   inset-block-start: -0.25rem;
   inset-inline-start: -0.5rem;
-  padding: 0.0625rem 0.3125rem;
-  border-radius: 999px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1.2;
-  pointer-events: none;
 }
-/* The add button on the photo's upper end rim. */
+/* The add button (shared/shapes.css) on the photo's upper end rim. */
 [data-body='levels'] .lv-add {
-  position: absolute;
   inset-block-start: -0.25rem;
   inset-inline-end: -0.5rem;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding: 0;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--on-accent);
   box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 35%, transparent);
-}
-[data-body='levels'] .lv-add svg {
-  inline-size: 1rem;
-  block-size: 1rem;
 }
 /* The price pill under the photo, the inverse pair. A long price wraps inside the node. Taps go through to the node. */
 [data-body='levels'] .lv-pill {
@@ -284,26 +256,9 @@
   overflow-wrap: anywhere;
   pointer-events: none;
 }
-/* The name below: two lines at most, however long. */
+/* The name below (two lines at most, the whole node its tap area: shared/shapes.css). */
 [data-body='levels'] .lv-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  inline-size: 100%;
-  min-block-size: 0;
-  padding: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
   color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-/* The tap area is the whole node: the node is the positioned ancestor of the name's overlay, and its ring stays inside. */
-[data-body='levels'] .lv-name:focus-visible::after {
-  outline-offset: -2px;
-  border-radius: 0.75rem;
 }
 
 @media (hover: hover) {
@@ -313,17 +268,6 @@
 }
 [data-body='levels'] .lv-node:active .lv-photo {
   transform: scale(0.95);
-}
-
-@keyframes lv-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /* A wide screen keeps the road a tidy column of three: the nodes grow a little. */
@@ -343,9 +287,6 @@
 
 /* Less motion: the nodes are simply there. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='levels'] .lv-node {
-    animation: none;
-  }
   [data-body='levels'] .lv-photo,
   [data-body='levels'] .lv-world-chip {
     transition: none;

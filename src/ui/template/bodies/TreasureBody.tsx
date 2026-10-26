@@ -1,12 +1,11 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
 import { hueAt } from './shared/hue';
+import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './treasure.css';
@@ -64,7 +63,7 @@ export function TreasureBody() {
               <ShapeHeading id={`h-${category.slug}`} name={category.name} count={n(products.length)} className="tm-head" title="tm-title" />
               <ul className="tm-pins">
                 {products.map((product, row) => (
-                  <Pin key={product.id} product={product} priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
+                  <IconDish key={product.id} product={product} prefix="tm" suffix="treasure" cell="tm-pin tpl-rise" head="tm-disc" price="tm-tag" pricePlace="below" sizes="96px" priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
                 ))}
               </ul>
             </section>
@@ -72,23 +71,5 @@ export function TreasureBody() {
         })}
       </main>
     </div>
-  );
-}
-
-function Pin({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
-  const { openProduct } = useTemplate();
-  return (
-    <li data-row className="tm-pin" style={{ '--i': order } as CSSProperties}>
-      <div className="tm-disc">
-        <div data-photo className="tm-photo">
-          <ProductMedia product={product} suffix="treasure" sizes="96px" priority={priority} className="tm-img" rounded={false} />
-        </div>
-        <QuickAction product={product} variant="icon" className="tm-add relative z-[2]" />
-      </div>
-      <Price product={product} className="tpl-price-tight tm-tag" />
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tm-name text-center">
-        {product.name}
-      </button>
-    </li>
   );
 }

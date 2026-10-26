@@ -4,7 +4,11 @@ import { contrastRatio } from '@/lib/palette';
 import { withResults } from '@/ui/template/bodies/CabinetBody';
 import { groupHue } from '@/ui/template/bodies/PeriodicBody';
 import { stationHue } from '@/ui/template/bodies/MetroBody';
-import { hueAt } from '@/ui/template/bodies/shared/hue';
+import { appHue } from '@/ui/template/bodies/HomescreenBody';
+import { worldHue } from '@/ui/template/bodies/LevelsBody';
+import { hueAt, SHAPE_HUES } from '@/ui/template/bodies/shared/hue';
+import { saleOff } from '@/ui/template/parts';
+import type { MenuProductView } from '@/server/data/menu-view';
 import { keepInViewDelta } from '@/ui/template/bodies/shared/useKeepInView';
 
 const box = (start: number, end: number) => ({ top: start, bottom: end, left: start, right: end });
@@ -17,6 +21,20 @@ describe('the pieces the browse shapes share', () => {
     expect(hueAt(hues, -1)).toBe(30);
     expect(stationHue(9)).toBe(stationHue(1));
     expect(groupHue(-1)).toBe(groupHue(7));
+  });
+
+  it('gives the home screen dock and the game worlds the one shared colour set', () => {
+    for (const index of [0, 1, 5, 6]) {
+      expect(appHue(index)).toBe(hueAt(SHAPE_HUES, index));
+      expect(worldHue(index)).toBe(hueAt(SHAPE_HUES, index));
+    }
+  });
+
+  it('reads a live discount for the sale chip, and none without a regular price', () => {
+    const dish = (fields: Partial<MenuProductView>) => fields as MenuProductView;
+    expect(saleOff(dish({ regularPrice: 500, percentOff: 20 }))).toBe(20);
+    expect(saleOff(dish({ percentOff: 20 }))).toBe(0);
+    expect(saleOff(dish({ regularPrice: 500, percentOff: 0 }))).toBe(0);
   });
 
   it('moves a strip only as far as it takes to show the lit item, on either axis', () => {

@@ -1,23 +1,19 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { localDigits } from '@/lib/digits';
-import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
-import { hueAt } from './shared/hue';
+import { SaleChip } from '../parts';
+import { hueAt, SHAPE_HUES } from './shared/hue';
+import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './levels.css';
 
-/** The hues (degrees) the worlds take in turn, spread around the wheel so neighbours differ; a seventh starts again. */
-const HUES = [340, 28, 150, 205, 265, 48] as const;
-
-/** The hue (in degrees) of the nth world. */
+/** The hue (in degrees) of the nth world: the shared set, so neighbours differ; a seventh starts again. */
 export function worldHue(index: number): number {
-  return hueAt(HUES, index);
+  return hueAt(SHAPE_HUES, index);
 }
 
 /** Level nodes in a row of the road. */
@@ -79,44 +75,39 @@ export function LevelsBody() {
             >
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.lvl.world', { n: n(index + 1) })} count={n(products.length)} className="lv-head" title="lv-banner" />
               <ul className="lv-road">
-                {products.map((product, at) => (
-                  <Node key={product.id} product={product} spot={levelSpot(at, products.length)} level={n(at + 1)} priority={index === 0 && at < 6} order={Math.min(index * 3 + at, 8)} />
-                ))}
+                {products.map((product, at) => {
+                  const spot = levelSpot(at, products.length);
+                  return (
+                    <IconDish
+                      key={product.id}
+                      product={product}
+                      prefix="lv"
+                      suffix="levels"
+                      cell="lv-node tpl-rise"
+                      head="lv-disc"
+                      price="lv-pill"
+                      pricePlace="below"
+                      sizes="96px"
+                      priority={index === 0 && at < 6}
+                      order={Math.min(index * 3 + at, 8)}
+                      cellProps={{ 'data-link': spot.link, 'data-back': spot.row % 2 === 1 ? '' : undefined }}
+                      style={{ gridRow: spot.row + 1, gridColumn: spot.col + 1 }}
+                      extras={
+                        <>
+                          <span aria-hidden className="lv-level">
+                            {n(at + 1)}
+                          </span>
+                          <SaleChip product={product} className="lv-off" />
+                        </>
+                      }
+                    />
+                  );
+                })}
               </ul>
             </section>
           );
         })}
       </main>
     </div>
-  );
-}
-
-function Node({ product, spot, level, priority, order }: { product: MenuProductView; spot: LevelSpot; level: string; priority: boolean; order: number }) {
-  const { t, tenant } = useApp();
-  const { openProduct } = useTemplate();
-  const off = product.regularPrice !== undefined && product.percentOff ? product.percentOff : 0;
-  return (
-    <li
-      data-row
-      data-link={spot.link}
-      data-back={spot.row % 2 === 1 ? '' : undefined}
-      className="lv-node"
-      style={{ gridRow: spot.row + 1, gridColumn: spot.col + 1, '--i': order } as CSSProperties}
-    >
-      <div className="lv-disc">
-        <div data-photo className="lv-photo">
-          <ProductMedia product={product} suffix="levels" sizes="96px" priority={priority} className="lv-img" rounded={false} />
-        </div>
-        <span aria-hidden className="lv-level">
-          {level}
-        </span>
-        {off ? <span className="lv-off tabular-nums">{t('menu.percentOff', { percent: localDigits(String(off), tenant.numeralSystem) })}</span> : null}
-        <QuickAction product={product} variant="icon" className="lv-add relative z-[2]" />
-      </div>
-      <Price product={product} className="tpl-price-tight lv-pill" />
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open lv-name text-center">
-        {product.name}
-      </button>
-    </li>
   );
 }

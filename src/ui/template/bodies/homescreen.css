@@ -164,11 +164,6 @@
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
-[data-body='homescreen'] .hs-photo > * {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
 /*
  * The price, as the notification badge on the icon's upper corner. A long price ("From 12,500 IQD") wraps inside the
  * badge rather than running past the cell. Taps go through it to the icon, which opens the dish.
@@ -191,38 +186,20 @@
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
   pointer-events: none;
 }
-/* The add button inside the icon's lower corner, away from the badge and clear of the name. */
+/* The add button (shared/shapes.css) inside the icon's lower corner, away from the badge and clear of the name. */
 [data-body='homescreen'] .hs-add {
-  position: absolute;
+  --rim-add-size: 1.625rem;
+  --rim-add-bg: #fff;
+  --rim-add-ink: #1b1030;
   inset-block-end: 0.25rem;
   inset-inline-start: 0.25rem;
-  inline-size: 1.625rem;
-  block-size: 1.625rem;
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding: 0;
-  border-radius: 50%;
-  background: #fff;
-  color: #1b1030;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
-[data-body='homescreen'] .hs-add svg {
-  inline-size: 1rem;
-  block-size: 1rem;
-}
-/* The name below the icon: two lines at most, however long. */
+/* The name below the icon (two lines at most: shared/shapes.css). */
 [data-body='homescreen'] .hs-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  inline-size: 100%;
-  min-block-size: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  padding: 0;
+  --tpl-ring-inset: 4px;
+  --tpl-ring-radius: var(--radius-card);
   color: var(--hs-ink);
-  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.15;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);

@@ -62,15 +62,36 @@ export function CardNote({ product, className = '' }: { product: MenuProductView
   );
 }
 
+/** The product's live discount in percent, or 0 when it is not on sale. */
+export function saleOff(product: MenuProductView): number {
+  return product.regularPrice !== undefined && product.percentOff ? product.percentOff : 0;
+}
+
+/** "−NN%" in the menu's numerals, or null when the product is not on sale. */
+function useSaleLabel(product: MenuProductView): string | null {
+  const { t, tenant } = useApp();
+  const off = saleOff(product);
+  return off ? t('menu.percentOff', { percent: localDigits(String(off), tenant.numeralSystem) }) : null;
+}
+
+/**
+ * A discount as a compact "−NN%" chip, for a price in a tight spot (`tpl-price-tight`) that has no room for the crossed-out
+ * regular price: sighted guests still see the sale, and the price keeps the regular price for screen readers. Nothing
+ * when the product is not on sale. The shape places it (`shared/shapes.css` draws it).
+ */
+export function SaleChip({ product, className = '' }: { product: MenuProductView; className?: string }) {
+  const label = useSaleLabel(product);
+  return label ? <span className={`tpl-off tabular-nums ${className}`}>{label}</span> : null;
+}
+
 /** The Sales tab's labels on a product: its special, its live discount and "Most ordered". */
 function SalesTags({ product }: { product: MenuProductView }) {
-  const { t, tenant } = useApp();
+  const { t } = useApp();
+  const sale = useSaleLabel(product);
   return (
     <>
       {product.special && <span className="tpl-badge tpl-badge-special">{product.special}</span>}
-      {product.regularPrice !== undefined && product.percentOff && (
-        <span className="tpl-badge tpl-badge-sale tabular-nums">{t('menu.percentOff', { percent: localDigits(String(product.percentOff), tenant.numeralSystem) })}</span>
-      )}
+      {sale && <span className="tpl-badge tpl-badge-sale tabular-nums">{sale}</span>}
       {product.mostOrdered && <span className="tpl-badge">{t('menu.mostOrdered')}</span>}
     </>
   );

@@ -1,12 +1,11 @@
 'use client';
 
 import type { CSSProperties } from 'react';
-import { localDigits } from '@/lib/digits';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './bento.css';
@@ -76,20 +75,18 @@ export function BentoBody() {
 const AREAS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
 
 function Compartment({ product, slot, priority, order }: { product: MenuProductView; slot: number; priority: boolean; order: number }) {
-  const { t, tenant } = useApp();
   const { openProduct } = useTemplate();
-  const off = product.regularPrice !== undefined && product.percentOff ? product.percentOff : 0;
   return (
-    <li data-row className="bn-cell" style={{ gridArea: AREAS[slot], '--i': order } as CSSProperties}>
-      <div data-photo className="bn-photo">
+    <li data-row className="bn-cell tpl-rise" style={{ gridArea: AREAS[slot], '--i': order } as CSSProperties}>
+      <div data-photo className="bn-photo tpl-cover-media">
         <ProductMedia product={product} suffix="bento" sizes="(min-width: 640px) 360px, 70vw" priority={priority} className="bn-img" rounded={false} />
       </div>
       <div className="bn-price-flag">
         <Price product={product} className="tpl-price-tight bn-price" />
-        {off ? <span className="bn-off tabular-nums">{t('menu.percentOff', { percent: localDigits(String(off), tenant.numeralSystem) })}</span> : null}
+        <SaleChip product={product} className="bn-off" />
       </div>
-      <QuickAction product={product} variant="icon" className="bn-add relative z-[2]" />
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open bn-name text-start">
+      <QuickAction product={product} variant="icon" className="tpl-rim-add bn-add relative z-[2]" />
+      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name bn-name text-start">
         {product.name}
       </button>
     </li>

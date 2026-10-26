@@ -197,26 +197,12 @@
   isolation: isolate;
   background: var(--card, var(--bg));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 40%, transparent);
-  animation: bn-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
-  animation-delay: calc(var(--i, 0) * 28ms);
 }
+/* The photo's frame is the whole compartment; the photo is laid over it (shared/shapes.css). */
 [data-body='bento'] .bn-photo {
   position: absolute;
   inset: 0;
   z-index: -1;
-}
-[data-body='bento'] .bn-photo > :first-child {
-  position: absolute;
-  inset: 0;
-  aspect-ratio: auto;
-  inline-size: 100%;
-  block-size: 100%;
-}
-[data-body='bento'] .bn-photo img,
-[data-body='bento'] .bn-photo svg {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
 }
 
 /* The price flag: a small accent flag on the compartment's start corner; the discount chip under it. Taps go through. */
@@ -255,59 +241,34 @@
   clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 0.25rem 50%);
   padding-inline: 0.5rem 0.375rem;
 }
+/* The discount chip (shared/shapes.css), in paper under the accent price flag. */
 [data-body='bento'] .bn-off {
-  padding: 0.0625rem 0.3125rem;
-  border-radius: 999px;
-  background: var(--bn-paper);
-  color: var(--bn-ink);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1.2;
+  --sale-bg: var(--bn-paper);
+  --sale-ink: var(--bn-ink);
 }
 
-/* The add button on the compartment's end corner. */
+/* The add button (shared/shapes.css) on the compartment's end corner, in paper. */
 [data-body='bento'] .bn-add {
-  position: absolute;
+  --rim-add-size: 1.625rem;
+  --rim-add-bg: var(--bn-paper);
+  --rim-add-ink: var(--bn-ink);
   inset-block-start: 0.25rem;
   inset-inline-end: 0.25rem;
-  inline-size: 1.625rem;
-  block-size: 1.625rem;
-  min-inline-size: 0;
-  min-block-size: 0;
-  padding: 0;
-  border-radius: 50%;
-  background: var(--bn-paper);
-  color: var(--bn-ink);
   box-shadow: 0 2px 0 color-mix(in srgb, #000 40%, transparent);
 }
-[data-body='bento'] .bn-add svg {
-  inline-size: 1rem;
-  block-size: 1rem;
-}
 
-/* The name flag: paper, two lines at most however long. Not positioned, so the tap overlay covers the whole cell. */
+/*
+ * The name flag: paper, two lines at most however long (shared/shapes.css). Not positioned, so the tap overlay covers the
+ * whole cell; its ring stays inside the compartment, which clips what is outside it.
+ */
 [data-body='bento'] .bn-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
+  --tpl-ring-inset: -3px;
+  --tpl-ring-radius: 0.375rem;
   box-sizing: border-box;
-  inline-size: 100%;
-  min-block-size: 0;
   padding-block: 0.125rem;
   padding-inline: 0.375rem;
-  overflow: hidden;
-  overflow-wrap: anywhere;
   background: var(--bn-paper);
   color: var(--bn-ink);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.2;
-}
-/* The ring stays inside the compartment, which clips what is outside it. */
-[data-body='bento'] .bn-name:focus-visible::after {
-  outline-offset: -3px;
-  border-radius: 0.375rem;
 }
 
 @media (hover: hover) {
@@ -319,17 +280,6 @@
 }
 [data-body='bento'] .bn-cell:active {
   box-shadow: inset 0 0 0 2px var(--accent);
-}
-
-@keyframes bn-in {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
 }
 
 /* A wide screen keeps the box a tidy column; its compartments grow with it. */
@@ -349,9 +299,6 @@
 
 /* Less motion: the compartments are simply there. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='bento'] .bn-cell {
-    animation: none;
-  }
   [data-body='bento'] .bn-lid {
     transition: none;
   }
