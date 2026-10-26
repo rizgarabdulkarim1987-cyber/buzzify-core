@@ -19,7 +19,6 @@ const SWITCHES = [
   ['qrOrderingEnabled', 'pos.settings.qrOrdering'],
   ['takeawayEnabled', 'pos.settings.takeaway'],
   ['deliveryEnabled', 'pos.settings.delivery'],
-  ['complaintsEnabled', 'pos.settings.complaints'],
 ] as const;
 
 /** The whole numbers a field holds; anything else goes to the server as it is, which refuses it. */
@@ -37,6 +36,8 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         // Cash is always sent: its box is checked and disabled, and a disabled field is not part of the form.
         enabledPaymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || values[`method.${method}`] === 'on'),
         ...Object.fromEntries(SWITCHES.map(([key]) => [key, values[key] === 'on'])),
+        // Guests no longer read this one (a menu's own switch decides), so the screen keeps what is stored.
+        complaintsEnabled: settings.complaintsEnabled,
         version: settings.version,
       }),
     {

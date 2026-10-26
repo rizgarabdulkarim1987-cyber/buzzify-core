@@ -4,7 +4,7 @@ import type { Messages } from '@/lib/i18n';
 const posStock: Messages = {
   'pos.nav.inventory': 'المخزون',
   'pos.nav.purchases': 'المشتريات',
-  'pos.nav.complaints': 'الشكاوى',
+  'pos.nav.complaints': 'الشكاوى والاقتراحات',
 
   'error.text.posItemNameTaken': 'يوجد صنف بهذا الاسم',
   'error.text.posItemInRecipe': 'أزل الصنف من وصفاته أولًا',
@@ -167,8 +167,8 @@ const posStock: Messages = {
   'pos.buy.listOwed': 'غير مدفوع',
 
   // الشكاوى
-  'pos.complaints.title': 'الشكاوى',
-  'pos.complaints.intro': 'ما أرسله الضيوف من طاولاتهم. المدير وحده يرى الاسم أو الهاتف.',
+  'pos.complaints.title': 'الشكاوى والاقتراحات',
+  'pos.complaints.intro': 'ما أرسله الضيوف من المنيو. المدير وحده يرى الاسم أو الهاتف.',
   'pos.complaints.filters': 'تصفية الشكاوى',
   'pos.complaints.all': 'الكل',
   'pos.complaints.status.NEW': 'جديدة',
@@ -179,7 +179,8 @@ const posStock: Messages = {
   'pos.complaints.category.CLEANLINESS': 'النظافة',
   'pos.complaints.category.PRICE': 'السعر',
   'pos.complaints.category.OTHER': 'أخرى',
-  'pos.complaints.empty': 'لا شكاوى',
+  'pos.complaints.category.SUGGESTION': 'اقتراح',
+  'pos.complaints.empty': 'لا شكاوى ولا اقتراحات',
   'pos.complaints.table': 'الطاولة {n}',
   'pos.complaints.order': 'الطلب {n}',
   'pos.complaints.orderGone': 'الطلب لم يعد متاحًا.',
