@@ -527,4 +527,33 @@ export const theScrollDepth = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth];
+export const theDancingLetters = definePreset({
+  id: 'the-dancing-letters',
+  number: 49,
+  name: 'Dancing Letters',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#F4EFE6', text: '#141414', accent: '#D62828', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'night-poster', name: 'Night poster', seed: { bg: '#141414', text: '#F4EFE6', accent: '#FF5A5F', raised: '#222222' } },
+    { id: 'sun-yellow', name: 'Sun yellow', seed: { bg: '#FFD93D', text: '#141414', accent: '#141414', raised: '#FFF3B8' } },
+    { id: 'ocean-blue', name: 'Ocean blue', seed: { bg: '#1D4ED8', text: '#FFFFFF', accent: '#FFD93D', raised: '#2D5FEA' } },
+  ],
+  type: { fontPairId: 'street', scale: 1.0 },
+  layout: {
+    body: 'kinetic',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters];

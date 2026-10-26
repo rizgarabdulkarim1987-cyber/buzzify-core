@@ -2401,6 +2401,7 @@ const ckb: Messages = {
   'design.body.bento': 'سندوقی بێنتۆ',
   'design.body.mailboxes': 'دیواری سندوقی پۆست',
   'design.body.depth': 'قووڵایی سکرۆڵ',
+  'design.body.kinetic': 'پیتە سەماکەرەکان',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

@@ -8,6 +8,7 @@ import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
 import { DepthBody } from './DepthBody';
 import { FridgeBody } from './FridgeBody';
+import { KineticBody } from './KineticBody';
 import { HomescreenBody } from './HomescreenBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
@@ -43,4 +44,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   bento: BentoBody,
   mailboxes: MailboxesBody,
   depth: DepthBody,
+  kinetic: KineticBody,
 };
