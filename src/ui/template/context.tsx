@@ -18,6 +18,11 @@ export interface TemplateContextValue {
   signature: MenuProductView | undefined;
   activeId: string | null;
   jumpTo(categoryId: string): void;
+  /**
+   * A body whose categories are not all on one scrolling page (the Book) registers how to bring one into view. While one
+   * is registered, `jumpTo` hands the category to it instead of scrolling; the body moves the view and focus itself.
+   */
+  setCategoryOpener(opener: ((categoryId: string) => void) | null): void;
   openProduct(productId: string, variantId?: string | null): void;
   /** Whether guests can add to an order here (ordering on, not a Studio preview). */
   canOrder: boolean;

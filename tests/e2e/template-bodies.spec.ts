@@ -31,7 +31,7 @@ test.beforeAll(async () => {
   const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug, domains: [] } }, restaurantId);
   menuId = seeded.menuId;
   await prisma.menuSlug.create({ data: { slug, menuId } });
-  const design: DesignOverrides = { ...MAISON.brand.design, layout: { body: 'book' } };
+  const design: DesignOverrides = { ...MAISON.brand.design, layout: { body: 'book', hero: 'chapters' } };
   await prisma.brandConfig.update({ where: { menuId }, data: { design: design as Prisma.InputJsonValue } });
   await publishFixture(prisma, menuId, 'Book body');
 });
@@ -94,8 +94,23 @@ test('a category with one dish has its own spread', async ({ page }) => {
 test('reduced motion turns the page at once', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto(`/${slug}/en?stage=off`);
+  await expect(page.locator('#cat-patisserie')).toHaveCSS('transition-duration', /^(0|1e-06)s$/);
   await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
   await expect(page.locator('#cat-patisserie')).toBeVisible({ timeout: 100 });
+});
+
+test('an address with #cat-<slug> opens that chapter', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off#cat-patisserie`);
+  await expect(page.locator('#cat-patisserie')).toBeVisible();
+  await expect(index(page)).toBeHidden();
+});
+
+test('a hero button that jumps to a category opens its chapter', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off`);
+  await page.getByRole('button', { name: 'Go to Pâtisserie' }).first().click();
+  await expect(page.locator('#cat-patisserie')).toBeVisible();
+  await expect(index(page)).toBeHidden();
+  await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
 });
 
 test('in Arabic the book is right to left and its index renders', async ({ page }) => {

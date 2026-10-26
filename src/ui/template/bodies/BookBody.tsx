@@ -30,26 +30,43 @@ function RibbonIcon() {
  */
 export function BookBody() {
   const { t } = useApp();
-  const { categories, byCategory, jumpTo, design } = useTemplate();
+  const { categories, byCategory, jumpTo, setCategoryOpener, design } = useTemplate();
   const [openId, setOpenId] = useState<string | null>(null);
-  const opened = useRef<string | null>(null);
+  const shown = useRef<string | null>(null);
   const root = useRef<HTMLElement>(null);
   const open = categories.some((category) => category.id === openId) ? openId : null;
 
-  // After a page turns to a chapter, the page-level jump moves the view and focus to its heading; after it turns back,
-  // focus returns to the chapter that was open.
+  // The template's jumpTo (hero buttons, navigation) and a #cat-<slug> address both open a chapter through here.
+  useEffect(() => {
+    setCategoryOpener(setOpenId);
+    return () => setCategoryOpener(null);
+  }, [setCategoryOpener]);
+  useEffect(() => {
+    const fromHash = () => {
+      const slug = decodeURIComponent(window.location.hash.slice(1)).replace(/^cat-/, '');
+      const match = window.location.hash.startsWith('#cat-') ? categories.find((category) => category.slug === slug) : undefined;
+      if (match) setOpenId(match.id);
+    };
+    fromHash();
+    window.addEventListener('hashchange', fromHash);
+    return () => window.removeEventListener('hashchange', fromHash);
+  }, [categories]);
+
+  // After the page turns to a chapter, the view and focus move to its heading; after it turns back, focus returns to
+  // the chapter that was open. Keyed on the open chapter only, so a re-render never scrolls the guest again.
   useEffect(() => {
     if (open) {
-      opened.current = open;
-      jumpTo(open);
-    } else if (opened.current) {
-      const from = opened.current;
-      opened.current = null;
-      const chapter = root.current?.querySelector<HTMLElement>(`[data-chapter="${CSS.escape(from)}"]`);
-      chapter?.focus({ preventScroll: true });
+      shown.current = open;
+      const spread = root.current?.querySelector<HTMLElement>(`[data-spread="${CSS.escape(open)}"]`);
+      spread?.scrollIntoView({ behavior: 'auto', block: 'start' });
+      spread?.querySelector<HTMLElement>('[data-heading]')?.focus({ preventScroll: true });
+    } else if (shown.current) {
+      const from = shown.current;
+      shown.current = null;
+      root.current?.querySelector<HTMLElement>(`[data-chapter="${CSS.escape(from)}"]`)?.focus({ preventScroll: true });
       root.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
     }
-  }, [open, jumpTo]);
+  }, [open]);
 
   return (
     <main id="menu" ref={root} data-body="book" data-open={open ?? ''} className="min-w-0">
@@ -64,7 +81,7 @@ export function BookBody() {
               const products = byCategory.get(category.id) ?? [];
               return (
                 <li key={category.id} className="bk-entry">
-                  <button type="button" data-chapter={category.id} onClick={() => setOpenId(category.id)} className="bk-chapter">
+                  <button type="button" data-chapter={category.id} onClick={() => jumpTo(category.id)} className="bk-chapter">
                     <span aria-hidden className="bk-folio">
                       {position + 1}
                     </span>
@@ -76,6 +93,7 @@ export function BookBody() {
                     {sample(products).map((product) => (
                       <li key={product.id}>
                         <ProductMedia product={product} suffix="book" sizes="96px" dim={false} className="bk-thumb" />
+                        <span className="sr-only">{product.name}</span>
                         <Price product={product} className="bk-taste-price" />
                       </li>
                     ))}
@@ -94,6 +112,7 @@ export function BookBody() {
               key={category.id}
               id={`cat-${category.slug}`}
               data-page="spread"
+              data-spread={category.id}
               data-state={current ? 'open' : 'closed'}
               inert={!current}
               aria-labelledby={`h-${category.slug}`}
@@ -109,7 +128,7 @@ export function BookBody() {
                 <ProductList products={byCategory.get(category.id) ?? []} kind={design.layout.card} />
               </div>
               {next && (
-                <button type="button" onClick={() => setOpenId(next.id)} aria-label={`${t('tpl.next')}: ${next.name}`} className="bk-next tpl-display">
+                <button type="button" onClick={() => jumpTo(next.id)} aria-label={`${t('tpl.next')}: ${next.name}`} className="bk-next tpl-display">
                   <span>{next.name}</span>
                   <span aria-hidden className="bk-arrow">
                     →

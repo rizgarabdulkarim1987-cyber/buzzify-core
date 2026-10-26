@@ -1,7 +1,7 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
@@ -118,9 +118,18 @@ export function TemplateMenu({
     return () => observer.disconnect();
   }, [categories]);
 
+  const opener = useRef<((categoryId: string) => void) | null>(null);
+  const setCategoryOpener = useCallback((next: ((categoryId: string) => void) | null) => {
+    opener.current = next;
+  }, []);
   const jumpTo = useCallback(
     (categoryId: string) => {
       const category = view.categories.find((candidate) => candidate.id === categoryId);
+      if (category && opener.current) {
+        setActiveId(categoryId);
+        opener.current(categoryId);
+        return;
+      }
       const target = category ? document.getElementById(`cat-${category.slug}`) : null;
       if (!target) return;
       setActiveId(categoryId);
@@ -160,6 +169,7 @@ export function TemplateMenu({
       signature,
       activeId,
       jumpTo,
+      setCategoryOpener,
       openProduct,
       canOrder,
       quickAdd,
@@ -167,7 +177,7 @@ export function TemplateMenu({
       toggleFavorite: (product) => favorites.toggle(product.id),
       reduced,
     }),
-    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, openProduct, canOrder, quickAdd, favorites, reduced],
+    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites, reduced],
   );
 
   const toggleDietary = (tag: DietaryTag) =>
