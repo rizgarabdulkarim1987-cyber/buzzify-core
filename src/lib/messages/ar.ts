@@ -252,6 +252,7 @@ const ar: Messages = {
   'tpl.board.gate': 'البوابة {letter}: {name}',
   'tpl.elv.floor': 'الطابق {n}',
   'tpl.elv.goTo': 'الطابق {n}: {name}',
+  'tpl.per.group': 'المجموعة {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',
   'tpl.day.wed': 'الأربعاء',

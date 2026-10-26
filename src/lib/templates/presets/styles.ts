@@ -121,4 +121,33 @@ export const theElevator = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator];
+export const thePeriodicTable = definePreset({
+  id: 'the-periodic-table',
+  number: 35,
+  name: 'Periodic Table of Food',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#F6F4EE', text: '#181A1F', accent: '#1457B8', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'lab-night', name: 'Lab night', seed: { bg: '#12151C', text: '#EDEFF4', accent: '#6FA8FF' } },
+    { id: 'chalk-lab', name: 'Chalk lab', seed: { bg: '#1D2B26', text: '#EEF3EC', accent: '#F2C14E' } },
+    { id: 'blueprint', name: 'Blueprint', seed: { bg: '#EAF0F8', text: '#14213A', accent: '#C4410C' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'periodic',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'photo',
+    detail: 'sheet',
+    options: 'chips',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable];

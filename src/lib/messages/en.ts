@@ -238,6 +238,7 @@ const en: Messages = {
   'tpl.board.gate': 'Gate {letter}: {name}',
   'tpl.elv.floor': 'Floor {n}',
   'tpl.elv.goTo': 'Floor {n}: {name}',
+  'tpl.per.group': 'Group {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',
