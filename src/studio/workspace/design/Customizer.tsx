@@ -6,6 +6,7 @@ import { FONT_PAIR_IDS, FONT_PAIR_VARIABLES, FONT_PAIRS, type FontPairId } from 
 import { LOCALE_NAMES, type Locale } from '@/lib/locale';
 import { contrastRatio } from '@/lib/palette';
 import {
+  BODY_KINDS,
   CARD_KINDS,
   CORNERS,
   DENSITIES,
@@ -17,6 +18,7 @@ import {
   NAV_KINDS,
   OPTION_STYLES,
   SHADOWS,
+  SHAPE_SETS,
   type DesignLayout,
   type DesignOverrides,
   type DesignPalette,
@@ -179,6 +181,7 @@ function TypePanel({ preset, overrides, onChange }: { preset: TemplatePreset; ov
 }
 
 const LAYOUT_CHOICES: ReadonlyArray<{ key: keyof DesignLayout; values: readonly string[] }> = [
+  { key: 'body', values: BODY_KINDS },
   { key: 'hero', values: HERO_KINDS },
   { key: 'nav', values: NAV_KINDS },
   { key: 'card', values: CARD_KINDS },
@@ -194,16 +197,21 @@ const LAYOUT_CHOICES: ReadonlyArray<{ key: keyof DesignLayout; values: readonly 
 function LayoutPanel({ preset, overrides, onChange }: { preset: TemplatePreset; overrides: DesignOverrides; onChange: Change }) {
   const t = useT();
   const layout = { ...preset.layout, ...overrides.layout };
+  const setByShape = SHAPE_SETS[layout.body];
   return (
     <Panel id="design-layout" title={t('design.section.layout')} intro={t('design.layout.intro')}>
       <div className="grid gap-3 sm:grid-cols-2">
         {LAYOUT_CHOICES.map(({ key, values }) => (
           <Field key={key} label={t(`design.layout.${key}`)}>
-            <Select
-              value={layout[key]}
-              onChange={(event) => onChange({ ...overrides, layout: { ...overrides.layout, [key]: event.target.value } })}
-              options={values.map((value) => ({ value, label: `${t(`design.${key}.${value}`)}${value === preset.layout[key] ? ` · ${t('design.layout.templates')}` : ''}` }))}
-            />
+            {setByShape.includes(key) ? (
+              <p className="py-2 text-sm text-muted">{t('design.setByShape', { shape: t(`design.body.${layout.body}`) })}</p>
+            ) : (
+              <Select
+                value={layout[key]}
+                onChange={(event) => onChange({ ...overrides, layout: { ...overrides.layout, [key]: event.target.value } })}
+                options={values.map((value) => ({ value, label: `${t(`design.${key}.${value}`)}${value === preset.layout[key] ? ` · ${t('design.layout.templates')}` : ''}` }))}
+              />
+            )}
           </Field>
         ))}
       </div>

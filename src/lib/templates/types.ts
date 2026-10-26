@@ -78,6 +78,13 @@ export type Shadow = (typeof SHADOWS)[number];
 export const HEADING_STYLES = ['rule', 'numbered', 'arch', 'plain', 'seal', 'script', 'band', 'ornament', 'outline'] as const;
 export type HeadingStyle = (typeof HEADING_STYLES)[number];
 
+/**
+ * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
+ * replace some of the structural knobs (see `SHAPE_SETS`).
+ */
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board'] as const;
+export type BodyKind = (typeof BODY_KINDS)[number];
+
 /** The three background modes every preset supports (spec 6). */
 export const VISUAL_MODES = ['static', 'motion', '3d'] as const;
 export type VisualMode = (typeof VISUAL_MODES)[number];
@@ -118,6 +125,7 @@ export interface DesignType {
 }
 
 export interface DesignLayout {
+  body: BodyKind;
   hero: HeroKind;
   nav: NavKind;
   card: CardKind;
@@ -129,6 +137,14 @@ export interface DesignLayout {
   shadow: Shadow;
   heading: HeadingStyle;
 }
+
+/** The layout knobs a body sets itself. Customize hides these while that body is chosen. */
+export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
+  scroll: [],
+  book: ['hero', 'nav'],
+  magazine: ['hero'],
+  board: ['hero', 'nav', 'card', 'heading'],
+};
 
 export interface SceneSettings {
   /** The mode the business asks for; a device that cannot show it gets the next one down. */
