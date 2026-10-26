@@ -444,5 +444,3 @@ export const authEnv = lazy(parseAuthEnv);
 /** Where media is stored: R2, or the development folder. */
 export const storageEnv = lazy(parseStorageEnv);
 
-/** The secret the scheduled-publishing cron sends. */
-export const cronEnv = lazy(parseCronEnv);

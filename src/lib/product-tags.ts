@@ -36,6 +36,3 @@ export const ALLERGENS = [
 ] as const;
 export type Allergen = (typeof ALLERGENS)[number];
 
-export function isAllergen(value: unknown): value is Allergen {
-  return typeof value === 'string' && (ALLERGENS as readonly string[]).includes(value);
-}

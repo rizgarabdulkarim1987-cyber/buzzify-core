@@ -72,12 +72,6 @@ export const ListIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const FilterIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg {...base(props)}>
-    <path d="M3.5 6h13M6 10h8M8.5 14h3" />
-  </svg>
-);
-
 export const ClockIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...base(props)}>
     <circle cx="10" cy="10" r="6.5" />
