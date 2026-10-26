@@ -2399,6 +2399,7 @@ const en: Messages = {
   'design.body.kinetic': 'Dancing letters',
   'design.body.theatre': 'The theatre',
   'design.body.stacked': 'Stacked sheets',
+  'design.body.morph': 'Photo to details',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

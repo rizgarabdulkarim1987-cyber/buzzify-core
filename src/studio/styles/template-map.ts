@@ -27,6 +27,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'motion-kin': 'the-dancing-letters',
   'motion-thr': 'the-curtain-and-spotlight',
   'motion-stk': 'the-stacked-sheets',
+  'motion-mor': 'the-photo-to-details',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

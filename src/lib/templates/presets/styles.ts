@@ -614,4 +614,33 @@ export const theStackedSheets = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets];
+export const thePhotoToDetails = definePreset({
+  id: 'the-photo-to-details',
+  number: 52,
+  name: 'Photo to Details',
+  business: 'restaurant',
+  tags: ['light', 'minimal'],
+  seed: { bg: '#FAF8F4', text: '#1C1A17', accent: '#1C1A17', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'night-gallery', name: 'Night gallery', seed: { bg: '#14120F', text: '#F5F1EA', accent: '#F2C94C', raised: '#201D19' } },
+    { id: 'sage-room', name: 'Sage room', seed: { bg: '#EEF1E8', text: '#1E2A1F', accent: '#3F6B3A', raised: '#FFFFFF' } },
+    { id: 'blush-wall', name: 'Blush wall', seed: { bg: '#FBF1EE', text: '#2A1715', accent: '#B5412E', raised: '#FFFFFF' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'morph',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails];

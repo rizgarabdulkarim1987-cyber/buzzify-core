@@ -14,6 +14,7 @@ import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
 import { MailboxesBody } from './MailboxesBody';
 import { MetroBody } from './MetroBody';
+import { MorphBody } from './MorphBody';
 import { PeriodicBody } from './PeriodicBody';
 import { ShelvesBody } from './ShelvesBody';
 import { StackedBody } from './StackedBody';
@@ -49,4 +50,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   kinetic: KineticBody,
   theatre: TheatreBody,
   stacked: StackedBody,
+  morph: MorphBody,
 };
