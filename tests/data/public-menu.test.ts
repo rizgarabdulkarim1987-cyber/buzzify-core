@@ -119,6 +119,7 @@ describe('public menu read path', () => {
     await prisma.menu.update({ where: { id: a.menu.id }, data: { status: 'SUSPENDED' } });
     expect(await resolvePublicMenu('public-a')).toEqual({
       kind: 'unavailable',
+      menuId: a.menu.id,
       name: 'Restaurant public-a',
       defaultLocale: 'en',
       locales: ['en', 'ar', 'ckb'],
