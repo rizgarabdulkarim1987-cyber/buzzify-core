@@ -125,7 +125,8 @@ export interface DesignType {
 }
 
 export interface DesignLayout {
-  body: BodyKind;
+  /** Absent means `scroll`: a design stored before shapes existed, and every scroll template, carries no body. */
+  body?: BodyKind;
   hero: HeroKind;
   nav: NavKind;
   card: CardKind;
@@ -145,6 +146,11 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   magazine: ['hero'],
   board: ['hero', 'nav', 'card', 'heading'],
 };
+
+/** The shape a design browses in; `scroll` when it names none. */
+export function bodyOf(layout: Pick<DesignLayout, 'body'>): BodyKind {
+  return layout.body ?? 'scroll';
+}
 
 export interface SceneSettings {
   /** The mode the business asks for; a device that cannot show it gets the next one down. */

@@ -26,7 +26,6 @@ export const obsidianGold = definePreset({
     corners: 'none',
     shadow: 'none',
     heading: 'rule',
-    body: 'scroll',
   },
   scene: { intensity: 0.7 },
 });
@@ -55,7 +54,6 @@ export const ivoryMarble = definePreset({
     corners: 'none',
     shadow: 'soft',
     heading: 'plain',
-    body: 'scroll',
   },
   scene: { intensity: 0.55 },
 });
@@ -84,7 +82,6 @@ export const emeraldPalace = definePreset({
     corners: 'soft',
     shadow: 'lifted',
     heading: 'arch',
-    body: 'scroll',
   },
 });
 
@@ -112,7 +109,6 @@ export const royalBurgundy = definePreset({
     corners: 'round',
     shadow: 'soft',
     heading: 'numbered',
-    body: 'scroll',
   },
   scene: { intensity: 0.5 },
 });
@@ -141,7 +137,6 @@ export const kyotoInk = definePreset({
     corners: 'none',
     shadow: 'none',
     heading: 'seal',
-    body: 'scroll',
   },
   scene: { mode: 'motion', intensity: 0.45 },
 });
@@ -170,7 +165,6 @@ export const mediterraneanRiviera = definePreset({
     corners: 'round',
     shadow: 'soft',
     heading: 'script',
-    body: 'scroll',
   },
 });
 
@@ -198,7 +192,6 @@ export const emberGrill = definePreset({
     corners: 'soft',
     shadow: 'lifted',
     heading: 'band',
-    body: 'scroll',
   },
   scene: { intensity: 0.55 },
 });
@@ -227,7 +220,6 @@ export const botanicalTable = definePreset({
     corners: 'round',
     shadow: 'none',
     heading: 'ornament',
-    body: 'scroll',
   },
   scene: { intensity: 0.5 },
 });
@@ -256,7 +248,6 @@ export const saffronHouse = definePreset({
     corners: 'soft',
     shadow: 'soft',
     heading: 'ornament',
-    body: 'scroll',
   },
 });
 
@@ -284,7 +275,6 @@ export const oceanPearl = definePreset({
     corners: 'soft',
     shadow: 'none',
     heading: 'outline',
-    body: 'scroll',
   },
 });
 

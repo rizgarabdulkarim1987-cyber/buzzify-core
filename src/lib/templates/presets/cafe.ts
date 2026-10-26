@@ -26,7 +26,6 @@ export const copperRoast = definePreset({
     corners: 'round',
     shadow: 'soft',
     heading: 'rule',
-    body: 'scroll',
   },
 });
 
@@ -54,7 +53,6 @@ export const creamStudio = definePreset({
     corners: 'round',
     shadow: 'none',
     heading: 'plain',
-    body: 'scroll',
   },
   scene: { mode: 'motion', intensity: 0.5 },
 });
@@ -83,7 +81,6 @@ export const matchaRitual = definePreset({
     corners: 'pill',
     shadow: 'none',
     heading: 'seal',
-    body: 'scroll',
   },
   scene: { intensity: 0.5, speed: 0.8 },
 });
@@ -112,7 +109,6 @@ export const midnightEspresso = definePreset({
     corners: 'soft',
     shadow: 'none',
     heading: 'outline',
-    body: 'scroll',
   },
   scene: { intensity: 0.55 },
 });
@@ -141,7 +137,6 @@ export const terraCafe = definePreset({
     corners: 'round',
     shadow: 'soft',
     heading: 'arch',
-    body: 'scroll',
   },
 });
 
@@ -169,7 +164,6 @@ export const nordicBrew = definePreset({
     corners: 'soft',
     shadow: 'none',
     heading: 'plain',
-    body: 'scroll',
   },
   scene: { mode: 'motion', intensity: 0.45 },
 });
@@ -198,7 +192,6 @@ export const neonNoir = definePreset({
     corners: 'round',
     shadow: 'lifted',
     heading: 'outline',
-    body: 'scroll',
   },
   scene: { intensity: 0.6, overlay: 0.2 },
 });
@@ -227,7 +220,6 @@ export const galleryBlanc = definePreset({
     corners: 'none',
     shadow: 'none',
     heading: 'plain',
-    body: 'scroll',
   },
   scene: { mode: 'motion', intensity: 0.45 },
 });

@@ -26,7 +26,6 @@ export const parisMaison = definePreset({
     corners: 'soft',
     shadow: 'soft',
     heading: 'script',
-    body: 'scroll',
   },
 });
 
@@ -54,7 +53,6 @@ export const butterAndFold = definePreset({
     corners: 'round',
     shadow: 'none',
     heading: 'band',
-    body: 'scroll',
   },
 });
 
@@ -82,7 +80,6 @@ export const rosePatisserie = definePreset({
     corners: 'pill',
     shadow: 'soft',
     heading: 'script',
-    body: 'scroll',
   },
   scene: { intensity: 0.5 },
 });
@@ -111,7 +108,6 @@ export const cocoaAtelier = definePreset({
     corners: 'soft',
     shadow: 'lifted',
     heading: 'ornament',
-    body: 'scroll',
   },
 });
 
@@ -139,7 +135,6 @@ export const artisanCrust = definePreset({
     corners: 'none',
     shadow: 'none',
     heading: 'rule',
-    body: 'scroll',
   },
   scene: { mode: 'motion', intensity: 0.45 },
 });
@@ -168,7 +163,6 @@ export const pistachioBoutique = definePreset({
     corners: 'round',
     shadow: 'soft',
     heading: 'ornament',
-    body: 'scroll',
   },
 });
 
@@ -196,7 +190,6 @@ export const celebrationHouse = definePreset({
     corners: 'soft',
     shadow: 'soft',
     heading: 'script',
-    body: 'scroll',
   },
 });
 

@@ -26,7 +26,6 @@ export const gelatoRiviera = definePreset({
     corners: 'pill',
     shadow: 'soft',
     heading: 'script',
-    body: 'scroll',
   },
 });
 
@@ -54,7 +53,6 @@ export const sorbetGarden = definePreset({
     corners: 'round',
     shadow: 'none',
     heading: 'band',
-    body: 'scroll',
   },
 });
 
@@ -82,7 +80,6 @@ export const vanillaCloud = definePreset({
     corners: 'pill',
     shadow: 'soft',
     heading: 'plain',
-    body: 'scroll',
   },
   scene: { intensity: 0.5, speed: 0.8 },
 });
@@ -111,7 +108,6 @@ export const popGelato = definePreset({
     corners: 'round',
     shadow: 'lifted',
     heading: 'band',
-    body: 'scroll',
   },
   scene: { intensity: 0.6 },
 });
@@ -140,7 +136,6 @@ export const frozenJewel = definePreset({
     corners: 'soft',
     shadow: 'lifted',
     heading: 'outline',
-    body: 'scroll',
   },
 });
 

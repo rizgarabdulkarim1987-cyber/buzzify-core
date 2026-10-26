@@ -88,7 +88,7 @@ export const menuDesignSchema: z.ZodType<MenuDesign> = z.object({
     tracking: z.number().min(-0.04).max(0.2),
   }),
   layout: z.object({
-    body: z.enum(BODY_KINDS).default('scroll'),
+    body: z.enum(BODY_KINDS).optional(),
     hero: z.enum(HERO_KINDS),
     nav: z.enum(NAV_KINDS),
     card: z.enum(CARD_KINDS),

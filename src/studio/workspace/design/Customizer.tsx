@@ -6,6 +6,7 @@ import { FONT_PAIR_IDS, FONT_PAIR_VARIABLES, FONT_PAIRS, type FontPairId } from 
 import { LOCALE_NAMES, type Locale } from '@/lib/locale';
 import { contrastRatio } from '@/lib/palette';
 import {
+  bodyOf,
   BODY_KINDS,
   CARD_KINDS,
   CORNERS,
@@ -197,19 +198,19 @@ const LAYOUT_CHOICES: ReadonlyArray<{ key: keyof DesignLayout; values: readonly 
 function LayoutPanel({ preset, overrides, onChange }: { preset: TemplatePreset; overrides: DesignOverrides; onChange: Change }) {
   const t = useT();
   const layout = { ...preset.layout, ...overrides.layout };
-  const setByShape = SHAPE_SETS[layout.body];
+  const setByShape = SHAPE_SETS[bodyOf(layout)];
   return (
     <Panel id="design-layout" title={t('design.section.layout')} intro={t('design.layout.intro')}>
       <div className="grid gap-3 sm:grid-cols-2">
         {LAYOUT_CHOICES.map(({ key, values }) => (
           <Field key={key} label={t(`design.layout.${key}`)}>
             {setByShape.includes(key) ? (
-              <p className="py-2 text-sm text-muted">{t('design.setByShape', { shape: t(`design.body.${layout.body}`) })}</p>
+              <p className="py-2 text-sm text-muted">{t('design.setByShape', { shape: t(`design.body.${bodyOf(layout)}`) })}</p>
             ) : (
               <Select
-                value={layout[key]}
+                value={layout[key] ?? 'scroll'}
                 onChange={(event) => onChange({ ...overrides, layout: { ...overrides.layout, [key]: event.target.value } })}
-                options={values.map((value) => ({ value, label: `${t(`design.${key}.${value}`)}${value === preset.layout[key] ? ` · ${t('design.layout.templates')}` : ''}` }))}
+                options={values.map((value) => ({ value, label: `${t(`design.${key}.${value}`)}${value === (preset.layout[key] ?? 'scroll') ? ` · ${t('design.layout.templates')}` : ''}` }))}
               />
             )}
           </Field>

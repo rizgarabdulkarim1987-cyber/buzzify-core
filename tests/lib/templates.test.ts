@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@/lib/palette';
-import { BODY_KINDS, isTemplateId, presetsFor, SHAPE_SETS, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
+import { bodyOf, BODY_KINDS, isTemplateId, presetsFor, SHAPE_SETS, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
 import { menuDesignSchema } from '@/server/domain/design-schema';
 import { accentInk, derivePalette, designPaletteProblems, mix, readableOn, themeOf } from '@/lib/templates/palette';
 import { ALL_INFO, businessInfo, parseOverrides, parseSceneMedia, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
@@ -228,9 +228,10 @@ describe('the browse shape (body)', () => {
     expect(SHAPE_SETS).toEqual({ scroll: [], book: ['hero', 'nav'], magazine: ['hero'], board: ['hero', 'nav', 'card', 'heading'] });
   });
 
-  it.each(templateList().map((preset) => [preset.id, preset] as const))('%s has a body', (_, preset) => {
-    expect(BODY_KINDS).toContain(preset.layout.body);
-    expect(preset.layout.body).toBe('scroll');
+  it.each(templateList().map((preset) => [preset.id, preset] as const))('%s names no body, so it scrolls', (_, preset) => {
+    expect('body' in preset.layout).toBe(false);
+    expect(bodyOf(preset.layout)).toBe('scroll');
+    expect('body' in resolveDesign(preset, {}, { details: null, poweredBy: true }).layout).toBe(false);
   });
 
   it('drops an unknown body from overrides and keeps a valid one', () => {
@@ -238,11 +239,11 @@ describe('the browse shape (body)', () => {
     expect(parseOverrides({ layout: { body: 'book' } })).toEqual({ layout: { body: 'book' } });
   });
 
-  it('parses a stored design without a body as scroll, and rejects an unknown body', () => {
+  it('accepts a stored design without a body and leaves it absent, and rejects an unknown body', () => {
     const design = resolveDesign(TEMPLATES['obsidian-gold'], {}, { details: null, poweredBy: true });
     const { body, ...layout } = design.layout;
-    expect(body).toBe('scroll');
-    expect(menuDesignSchema.parse({ ...design, layout }).layout.body).toBe('scroll');
+    expect(body).toBeUndefined();
+    expect('body' in menuDesignSchema.parse({ ...design, layout }).layout).toBe(false);
     expect(menuDesignSchema.safeParse({ ...design, layout: { ...layout, body: 'nope' } }).success).toBe(false);
     expect(menuDesignSchema.parse({ ...design, layout: { ...layout, body: 'board' } }).layout.body).toBe('board');
   });
