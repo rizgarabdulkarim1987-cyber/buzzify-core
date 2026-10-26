@@ -37,9 +37,30 @@ the menu.
    `/studio/styles` and `/studio/styles/<id>` redirect to `/studio/menus`. The private style files route, the
    catalog, the posters and the messages stay: the gallery uses them.
 
+## All 35 become real, batch by batch (the user, 2026-10-26)
+
+"Make all 35 real with my products, batch after batch after this batch." Every picked style becomes a real template
+on the `body` mechanism. Each later batch gets its own short spec addendum, plan and PR, and follows the same rules,
+including leaving the current menu and its motion untouched. As each style becomes real, its coming-soon card in the
+gallery becomes a template card. Claude's order groups styles that share a shape:
+
+| Batch | Styles (catalog ids) |
+|---|---|
+| 1 (this spec) | `themed-book`, `layout-mag`, `layout-2-dep` |
+| 2 | `layout-elv`, `layout-per`, `layout-met`, `layout-cab` |
+| 3 | `layout-shf`, `layout-tkt`, `layout-top`, `layout-2-cmc` |
+| 4 | `layout-2-hom`, `layout-2-map`, `layout-2-lvl`, `layout-2-frg` |
+| 5 | `layout-2-bnt`, `layout-2-box`, `motion-dep`, `motion-kin` |
+| 6 | `motion-thr`, `motion-stk`, `motion-mor`, `motion-fly` |
+| 7 | `motion-ink`, `motion-stm`, `kurd-arab-cit`, `kurd-arab-ram` |
+| 8 | `kurd-arab-lyl`, `themed-kurd`, `themed-shn`, `themed-bab` |
+| 9 | `themed-spc`, `themed-win`, `themed-sum`, `themed-prn` |
+
+`BODY_KINDS` grows by one kind per new shape. Two styles that share a shape share one kind and differ by preset.
+
 ## Non-goals
 
-- Making the other 32 styles real. Later batches use the same `body` mechanism, one style at a time.
+- Making the other 32 styles real **in this batch**. They follow in batches 2–9 above.
 - The wheel of fortune.
 - New business types or a change to how templates are stored.
 
