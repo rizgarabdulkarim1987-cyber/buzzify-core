@@ -222,3 +222,12 @@
     }
   }
 }
+
+/*
+ * A person's own button shape (src/lib/appearance.ts). `data-shape` is on <html> only for someone who chose a look, so
+ * everyone else keeps each control's own radius. Unlayered on purpose: it must win over a utility's `rounded-*`.
+ */
+html[data-shape] button:not(.s-keep-radius),
+html[data-shape] .s-btn {
+  border-radius: var(--s-btn-radius);
+}

@@ -6,7 +6,7 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BASE =
-  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ' +
+  's-btn inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ' +
   'transition-colors duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-45 aria-busy:cursor-progress';
 
 const VARIANTS: Record<ButtonVariant, string> = {
