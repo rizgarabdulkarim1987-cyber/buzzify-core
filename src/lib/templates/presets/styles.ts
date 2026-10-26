@@ -585,4 +585,33 @@ export const theCurtainAndSpotlight = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight];
+export const theStackedSheets = definePreset({
+  id: 'the-stacked-sheets',
+  number: 51,
+  name: 'Stacked Sheets',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#141210', text: '#F4EFE8', accent: '#F6B8A8', raised: '#221E1B' },
+  alternatives: [
+    { id: 'paper-desk', name: 'Paper desk', seed: { bg: '#EFE9DF', text: '#1B1612', accent: '#C2452D', raised: '#FFFFFF' } },
+    { id: 'ink-blue', name: 'Ink blue', seed: { bg: '#0E1626', text: '#EAF0FB', accent: '#8FB8FF', raised: '#18233A' } },
+    { id: 'forest-floor', name: 'Forest floor', seed: { bg: '#10201A', text: '#E8F2EA', accent: '#A6E3B8', raised: '#193027' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'stacked',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets];

@@ -37,6 +37,8 @@ export interface BodyMenuOptions {
   colors?: Partial<DesignPalette>;
   /** Dishes (by slug) on a 20% discount all day, so the cards show the sale. */
   discount?: string[];
+  /** This many more sections after Maison's five, each with one dish (a menu with many sections). */
+  extraSections?: number;
 }
 
 export interface BodyMenus {
@@ -53,13 +55,17 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0 } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
         {
           ...MAISON,
-          products: BODY_PRODUCTS,
+          categories: [...MAISON.categories, ...Array.from({ length: extraSections }, (_, at) => ({ slug: `more-${at + 1}`, name: { en: `Section ${at + 6}`, ar: `القسم ${at + 6}`, ckb: `بەشی ${at + 6}` } }))],
+          products: [
+            ...BODY_PRODUCTS,
+            ...Array.from({ length: extraSections }, (_, at) => ({ ...MAISON.products[0]!, slug: `more-dish-${at + 1}`, category: `more-${at + 1}`, signature: false, featured: false, name: { en: `Extra dish ${at + 1}`, ar: `طبق إضافي ${at + 1}`, ckb: `خواردنی زیادە ${at + 1}` } })),
+          ],
           ...(discount ? { promotions: [{ kind: 'DISCOUNT' as const, percentOff: 20, products: discount, title: { en: 'A fifth off', ar: 'خصم الخُمس', ckb: 'پێنج یەک داشکاندن' } }] } : {}),
           brand: templateId ? { ...MAISON.brand, templateId } : MAISON.brand,
           restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [], numeralSystem },

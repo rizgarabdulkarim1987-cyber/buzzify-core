@@ -82,7 +82,7 @@ export type HeadingStyle = (typeof HEADING_STYLES)[number];
  * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
  * replace some of the structural knobs (see `SHAPE_SETS`).
  */
-export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes', 'depth', 'kinetic', 'theatre'] as const;
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes', 'depth', 'kinetic', 'theatre', 'stacked'] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 
 /** The three background modes every preset supports (spec 6). */
@@ -162,6 +162,7 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   depth: ['hero', 'nav', 'card', 'heading'],
   kinetic: ['hero', 'nav', 'card', 'heading'],
   theatre: ['hero', 'nav', 'card', 'heading'],
+  stacked: ['hero', 'nav', 'card', 'heading'],
 };
 
 /** The shape a design browses in; `scroll` when it names none. */
@@ -373,6 +374,7 @@ export const TEMPLATE_IDS = [
   'the-scroll-depth',
   'the-dancing-letters',
   'the-curtain-and-spotlight',
+  'the-stacked-sheets',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 
