@@ -192,6 +192,22 @@ test.describe('the Magazine body', () => {
     await expect(card.getByText(/\$\d/).first()).toBeInViewport({ ratio: 1 });
   });
 
+  test('a long dish name keeps the caption on the photo', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${magSlug}/en?stage=off`);
+    const lead = magazine(page).locator('[data-lead]').first();
+    await expect(lead).toBeVisible();
+    await lead.locator('.mg-lead-name').evaluate((node) => {
+      node.textContent = 'A very long dish name that keeps going and going so that it wraps onto three or four lines on a phone screen';
+    });
+    const photo = (await lead.locator('[data-zoom]').boundingBox())!;
+    const caption = (await lead.locator('.mg-cap').boundingBox())!;
+    expect(caption.y).toBeGreaterThanOrEqual(photo.y - 1);
+    expect(caption.y + caption.height).toBeLessThanOrEqual(photo.y + photo.height + 1);
+    expect(caption.x).toBeGreaterThanOrEqual(photo.x - 1);
+    expect(caption.x + caption.width).toBeLessThanOrEqual(photo.x + photo.width + 1);
+  });
+
   test('tapping the lead photo opens the detail sheet', async ({ page }) => {
     await page.goto(`/${magSlug}/en?stage=off`);
     // A real pointer tap on the photo itself (the name's stretched target sits over it).

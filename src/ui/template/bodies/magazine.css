@@ -47,6 +47,9 @@
   grid-area: 1 / 1;
 }
 [data-body='magazine'] .mg-photo {
+  /* A minimum height: the photo stretches to the cell, so a tall caption (a long name) always sits on it. */
+  align-self: stretch;
+  min-block-size: 0;
   aspect-ratio: 21 / 9;
   overflow: hidden;
   transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
