@@ -93,6 +93,10 @@ export type LimitOutcome = LimitCheck | { ok: false; code: 'NO_PLAN'; limit: 0 }
  * write. `NO_PLAN` is a pharmacy with no live subscription (or an unreadable plan): it creates nothing.
  */
 export async function checkCreation(db: AnyDb, restaurantId: string, kind: LimitKind, now: Date = new Date()): Promise<LimitOutcome> {
+  // One creation at a time per business: the count below is read after the lock, so two concurrent creations at
+  // limit-1 cannot both pass. The lock is held to the end of the surrounding transaction (and is a no-op outside one).
+  // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one business's creations
+  await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${restaurantId}))`;
   const limits = await limitsOf(db, restaurantId, now);
   if (!limits) return { ok: false, code: 'NO_PLAN', limit: 0 };
   const current = kind === 'branches' ? await countBranches(db, restaurantId) : await countActiveStaff(db, restaurantId);

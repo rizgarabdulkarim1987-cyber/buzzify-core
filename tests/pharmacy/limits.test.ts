@@ -82,6 +82,43 @@ describe('pharmacy limits', () => {
     expect(await branchCount(id)).toBe(2);
   });
 
+  it('two concurrent branch creations at one below the limit let exactly one through', async () => {
+    await plan({ ...ROOMY, branches: 3 });
+    const { id } = await pharmacy('Racing', { branches: 2 });
+
+    const results = await Promise.all(['A', 'B', 'C'].map((name) => run(admin, restaurants.createBranch, { restaurantId: id, name })));
+
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(results.filter((r) => !r.ok).map((r) => (r.ok ? '' : r.error.code))).toEqual(['CONFLICT', 'CONFLICT']);
+    expect(await branchCount(id)).toBe(3);
+  });
+
+  it('a creation waits while another creation of the same business holds the lock', async () => {
+    await plan({ ...ROOMY, branches: 3 });
+    const { id } = await pharmacy('Locked', { branches: 2 });
+
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const holder = prisma().$transaction(async (tx) => {
+      // eslint-disable-next-line no-restricted-properties -- takes the same advisory lock the code under test takes
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      await held;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
+    let finished = false;
+    const creation = run(admin, restaurants.createBranch, { restaurantId: id, name: 'Waiting' }).then((result) => {
+      finished = true;
+      return result;
+    });
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(finished).toBe(false);
+
+    release();
+    await holder;
+    expect((await creation).ok).toBe(true);
+  });
+
   it('staff limit counts only active staff', async () => {
     await plan({ ...ROOMY, users: 2 });
     const { id, branchId } = await pharmacy('Staffed');

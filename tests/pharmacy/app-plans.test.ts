@@ -80,7 +80,8 @@ describe('pharmacy plans', () => {
     const changed = dataOf(await run(owner, appPlans.upsert, planInput({ version: 1, limits: { ...LIMITS, branches: 4 } })));
     expect(changed.version).toBe(2);
 
-    // Two tabs of the one platform owner: the second still holds version 1.
+    // Two tabs of the same owner is the only setup possible: there is exactly one platform owner.
+    // The second tab still holds version 1.
     const stale = failure(await run(owner, appPlans.upsert, planInput({ version: 1, limits: { ...LIMITS, branches: 9 } })));
     expect(stale).toMatchObject({ code: 'CONFLICT', fields: { changedBy: 'alice' } });
     expect((await row()).limits).toMatchObject({ branches: 4 });

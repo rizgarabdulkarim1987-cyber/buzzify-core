@@ -23,4 +23,5 @@ export interface DefaultApplication {
 export const DEFAULT_APPLICATIONS: readonly DefaultApplication[] = [
   { id: 'menu', name: { en: 'Menu', ar: 'المنيو', ckb: 'مێنو' }, status: 'ACTIVE', sortOrder: 1 },
   { id: 'cashier', name: { en: 'Cashier', ar: 'الكاشير', ckb: 'کاشێر' }, status: 'DISABLED', sortOrder: 2 },
+  { id: 'pharmacy', name: { en: 'Pharmacy', ar: 'الصيدلية', ckb: 'دەرمانخانە' }, status: 'DISABLED', sortOrder: 3 },
 ];
