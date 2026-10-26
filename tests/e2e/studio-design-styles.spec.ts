@@ -78,6 +78,17 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     await expect(page.getByRole('button', { name: en('design.duplicate') })).toHaveCount(0);
   });
 
+  test('leaving Styles with a coming-soon card chosen goes back to the template in use', async ({ browser }) => {
+    test.slow();
+    const page = await signedIn(browser);
+    await openStyles(page);
+    await page.getByRole('button', { name: en('design.selectSoon', { name: en('styles.layout-elv.name') }) }).click();
+    await expect(page.getByText(en('design.comingSoonPreview'))).toBeVisible();
+    await page.getByRole('button', { name: en('design.filter.styles'), exact: true }).click();
+    await expect(page.getByText(en('design.comingSoonPreview'))).toHaveCount(0);
+    await expect(page.locator('aside iframe')).not.toHaveAttribute('src', /style-files/);
+  });
+
   test('switching the body in Customize swaps the preview, and the knobs the shape sets say so', async ({ browser }) => {
     test.slow();
     const page = await signedIn(browser);

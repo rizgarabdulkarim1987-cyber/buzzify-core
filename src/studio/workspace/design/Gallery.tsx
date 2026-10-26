@@ -181,17 +181,21 @@ export function Gallery({
   current,
   selected,
   onSelect,
+  canSeeStyles,
 }: {
   restaurantType: string;
   current: GallerySelection;
   selected: GallerySelection;
   onSelect: (selection: GallerySelection) => void;
+  /** Whether the visitor may read the style files (posters and mockups); without them the Styles view is not offered. */
+  canSeeStyles: boolean;
 }) {
   const t = useT();
   const [business, setBusiness] = useState<BusinessType | 'all'>(() => businessOf(restaurantType));
   const [styles, setStyles] = useState<ReadonlySet<StyleTag>>(new Set());
   // The catalog view: the 35 picked styles in the library's order. The three that are real show as their templates.
-  const [catalog, setCatalog] = useState(false);
+  const [catalogOn, setCatalog] = useState(false);
+  const catalog = canSeeStyles && catalogOn;
   const presets = useMemo(
     () => templateList().filter((preset) => (business === 'all' || preset.business === business) && [...styles].every((style) => preset.tags.includes(style))),
     [business, styles],
@@ -200,14 +204,20 @@ export function Gallery({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <button
-          type="button"
-          aria-pressed={catalog}
-          onClick={() => setCatalog((on) => !on)}
-          className={cx('h-7 self-start rounded-full border px-3 text-sm transition-colors', catalog ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
-        >
-          {t('design.filter.styles')}
-        </button>
+        {canSeeStyles && (
+          <button
+            type="button"
+            aria-pressed={catalog}
+            onClick={() => {
+              // A coming-soon card exists only in the Styles view: leaving it goes back to the template in use.
+              if (catalog && isSoon(selected)) onSelect(current);
+              setCatalog(!catalog);
+            }}
+            className={cx('h-7 self-start rounded-full border px-3 text-sm transition-colors', catalog ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
+          >
+            {t('design.filter.styles')}
+          </button>
+        )}
         {!catalog && (
           <>
             <div role="group" aria-label={t('design.filter.business')} className="flex flex-wrap gap-1.5">

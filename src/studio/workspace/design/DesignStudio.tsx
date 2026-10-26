@@ -92,7 +92,18 @@ function PreviewFrame({ src, device, title, message }: { src: string; device: De
  * with the preview following every change, reset it, and save designs to reuse. Applying and saving change the draft
  * only; guests see the design once the menu is published.
  */
-export function DesignStudio({ menuId, state, customizing = false }: { menuId: string; state: DesignView; customizing?: boolean }) {
+export function DesignStudio({
+  menuId,
+  state,
+  customizing = false,
+  canSeeStyles = false,
+}: {
+  menuId: string;
+  state: DesignView;
+  customizing?: boolean;
+  /** Whether the visitor may read the menu-style files (`styleFileAccess`), which the gallery's Styles view shows. */
+  canSeeStyles?: boolean;
+}) {
   const t = useT();
   const { locale: studioLocale } = useLocale();
   const router = useRouter();
@@ -262,7 +273,7 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
                 </Button>
               )}
             </div>
-            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} />
+            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} />
             <section aria-labelledby="design-saved" className="flex flex-col gap-3 border-t border-line pt-6">
               <h2 id="design-saved" className="text-md font-semibold text-text">
                 {t('design.custom.title')}
