@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { formatCount } from '@/server/domain/money';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { ProductList } from '../cards';
@@ -26,21 +27,27 @@ function RibbonIcon() {
 /**
  * The menu as a printed book (spec 2026-10-26-menu-styles-in-templates-design.md). The first page is the index: every
  * chapter with its dish count and a taste of its dishes. A chapter turns to its own page, whose ribbon turns back. The
- * pages are all in the document (the `cat-<slug>` ids stay for deep links); only the open one can be seen or focused.
+ * pages are all in the document (the `cat-<slug>` ids stay for deep links); only the open one can be seen or focused,
+ * and once a turn ends the closed ones leave the layout (book.css), so they take no room and load no photos.
  */
 export function BookBody() {
-  const { t } = useApp();
+  const { t, locale, tenant } = useApp();
   const { categories, byCategory, jumpTo, setCategoryOpener, design } = useTemplate();
-  const [openId, setOpenId] = useState<string | null>(null);
+  const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
+  // The chapter the guest turned to, and which turn it was: only a guest's turn (a chapter, the ribbon, the address)
+  // moves the view and the focus, never a change of `categories` (search, filters) that hides or shows the open page.
+  const [turn, setTurn] = useState<{ id: string | null; seq: number }>({ id: null, seq: 0 });
+  const openId = turn.id;
+  const turnTo = useCallback((id: string | null) => setTurn((previous) => ({ id, seq: previous.seq + 1 })), []);
   const shown = useRef<string | null>(null);
   const root = useRef<HTMLElement>(null);
   const open = categories.some((category) => category.id === openId) ? openId : null;
 
-  // The template's jumpTo (hero buttons, navigation) and a #cat-<slug> address both open a chapter through here.
+  // The template's jumpTo (navigation, the next-chapter button) opens a chapter through here.
   useEffect(() => {
-    setCategoryOpener(setOpenId);
+    setCategoryOpener(turnTo);
     return () => setCategoryOpener(null);
-  }, [setCategoryOpener]);
+  }, [setCategoryOpener, turnTo]);
   // Read on arrival and when the address changes, never because the categories did (search, filters): a guest who has
   // turned to another chapter must stay there.
   const latest = useRef(categories);
@@ -58,19 +65,21 @@ export function BookBody() {
         return;
       }
       const match = latest.current.find((category) => category.slug === slug);
-      if (match) setOpenId(match.id);
+      if (match) turnTo(match.id);
     };
     fromHash();
     window.addEventListener('hashchange', fromHash);
     return () => window.removeEventListener('hashchange', fromHash);
-  }, []);
+  }, [turnTo]);
 
-  // After the page turns to a chapter, the view and focus move to its heading; after it turns back, focus returns to
-  // the chapter that was open. Keyed on the open chapter only, so a re-render never scrolls the guest again.
+  // After the guest turns to a chapter, the view and focus move to its heading; after they turn back, focus returns to
+  // the chapter that was open. Keyed on the guest's turn only, so search and re-renders never scroll or refocus.
   useEffect(() => {
-    if (open) {
-      shown.current = open;
-      const spread = root.current?.querySelector<HTMLElement>(`[data-spread="${CSS.escape(open)}"]`);
+    if (turn.seq === 0) return;
+    const target = turn.id !== null && latest.current.some((category) => category.id === turn.id) ? turn.id : null;
+    if (target) {
+      shown.current = target;
+      const spread = root.current?.querySelector<HTMLElement>(`[data-spread="${CSS.escape(target)}"]`);
       spread?.scrollIntoView({ behavior: 'auto', block: 'start' });
       spread?.querySelector<HTMLElement>('[data-heading]')?.focus({ preventScroll: true });
     } else if (shown.current) {
@@ -79,7 +88,7 @@ export function BookBody() {
       root.current?.querySelector<HTMLElement>(`[data-chapter="${CSS.escape(from)}"]`)?.focus({ preventScroll: true });
       root.current?.scrollIntoView({ block: 'start', behavior: 'auto' });
     }
-  }, [open]);
+  }, [turn]);
 
   return (
     <main id="menu" ref={root} data-body="book" data-open={open ?? ''} className="min-w-0">
@@ -96,11 +105,11 @@ export function BookBody() {
                 <li key={category.id} className="bk-entry">
                   <button type="button" data-chapter={category.id} onClick={() => jumpTo(category.id)} className="bk-chapter">
                     <span aria-hidden className="bk-folio">
-                      {position + 1}
+                      {n(position + 1)}
                     </span>
                     <span className="tpl-display bk-name">{category.name}</span>
                     <span aria-hidden className="bk-leader" />
-                    <span className="bk-count">{t('tpl.book.dishes', { count: products.length })}</span>
+                    <span className="bk-count">{t('tpl.book.dishes', { count: products.length, n: n(products.length) })}</span>
                   </button>
                   <ul className="bk-taste">
                     {sample(products).map((product) => (
@@ -131,7 +140,7 @@ export function BookBody() {
               aria-labelledby={`h-${category.slug}`}
               className="bk-page tpl-section"
             >
-              <button type="button" onClick={() => setOpenId(null)} aria-label={t('tpl.book.toContents')} className="bk-ribbon">
+              <button type="button" onClick={() => turnTo(null)} aria-label={t('tpl.book.toContents')} className="bk-ribbon">
                 <RibbonIcon />
               </button>
               <div tabIndex={-1} data-heading className="outline-none">

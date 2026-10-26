@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
-import { bodyOf, type MenuDesign } from '@/lib/templates/types';
+import { bodyOf, SHAPE_SETS, type MenuDesign } from '@/lib/templates/types';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
@@ -191,6 +191,13 @@ export function TemplateMenu({
     });
 
   const { layout } = design;
+  const body = bodyOf(layout);
+  // A browse shape that sets the hero or the navigation replaces them: a big hero or a scroll-only navigation left in
+  // the layout (from the template it started on) must not reach it. For `scroll` nothing is set, so nothing changes.
+  const shapeSets = SHAPE_SETS[body];
+  const heroKind = shapeSets.includes('hero') ? 'compact' : layout.hero;
+  const navKind = shapeSets.includes('nav') ? undefined : layout.nav;
+  const noResults = <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>;
   const animated = design.scene.mode !== 'static' && !reduced;
   // Only validated colours reach the page's own background (the root's colour shows around the menu).
   const page = HEX.test(design.palette.bg) && HEX.test(design.palette.text) ? `html,body{background:${design.palette.bg};color:${design.palette.text}}` : '';
@@ -202,7 +209,7 @@ export function TemplateMenu({
         className={`tpl tpl-${design.templateId} ${fontClass ?? ''}`}
         style={designStyle(design)}
         data-template={design.templateId}
-        data-nav={layout.nav}
+        data-nav={navKind}
         data-card={layout.card}
         data-theme-mode={design.theme}
       >
@@ -212,7 +219,7 @@ export function TemplateMenu({
             {t('menu.skip')}
           </a>
           <TemplateHeader />
-          {query.trim() === '' && <Hero kind={layout.hero} tagline={tagline} />}
+          {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">
@@ -230,12 +237,12 @@ export function TemplateMenu({
               }}
             />
           </div>
-          {bodyOf(layout) === 'scroll' ? (
+          {body === 'scroll' ? (
             <div className="tpl-body">
               {categories.length > 0 && <Nav kind={layout.nav} />}
               <main id="menu" className="tpl-main min-w-0">
                 {visible.length === 0 ? (
-                  <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
+                  noResults
                 ) : (
                   categories.map((category, index) => (
                     <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
@@ -251,10 +258,12 @@ export function TemplateMenu({
               </main>
             </div>
           ) : visible.length === 0 ? (
-            <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
-          ) : bodyOf(layout) === 'magazine' ? (
+            <main id="menu" className="tpl-main min-w-0">
+              {noResults}
+            </main>
+          ) : body === 'magazine' ? (
             <MagazineBody />
-          ) : bodyOf(layout) === 'board' ? (
+          ) : body === 'board' ? (
             <BoardBody />
           ) : (
             <BookBody />

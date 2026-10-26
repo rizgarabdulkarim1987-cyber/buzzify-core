@@ -20,7 +20,7 @@ export const theBook = definePreset({
   type: { fontPairId: 'pearl', scale: 1.04 },
   layout: {
     body: 'book',
-    hero: 'chapters',
+    hero: 'compact',
     nav: 'chapters',
     card: 'row',
     detail: 'sheet',

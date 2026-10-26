@@ -20,8 +20,13 @@
   margin-inline: auto;
 }
 
-/* A page: paper in the card colour with a shaded spine. The open one is in the flow, the others wait behind it. */
+/*
+ * A page: paper in the card colour with a shaded spine. The open one is in the flow; a closed one leaves the layout once
+ * its turn ends (display: none, kept for the turn by allow-discrete), so it takes no room, its photos are not fetched
+ * and the category observer never sees it. The opening page starts turned (@starting-style).
+ */
 [data-body='book'] .bk-page {
+  display: none;
   position: absolute;
   inset-block-start: 0;
   inset-inline: 0;
@@ -41,17 +46,26 @@
   transition:
     transform var(--turn-ms) cubic-bezier(0.32, 0.72, 0, 1),
     opacity var(--turn-ms) ease,
-    visibility 0s linear var(--turn-ms);
+    visibility 0s linear var(--turn-ms),
+    display 0s linear var(--turn-ms);
+  transition-behavior: allow-discrete;
 }
 [data-body='book']:dir(rtl) .bk-page {
   background-image: linear-gradient(to left, color-mix(in srgb, var(--text) 14%, transparent), transparent 2.4rem);
 }
 [data-body='book'] .bk-page[data-state='open'] {
+  display: block;
   position: relative;
   transform: perspective(1600px) rotateY(0deg);
   opacity: 1;
   visibility: visible;
   transition-delay: 0s;
+}
+@starting-style {
+  [data-body='book'] .bk-page[data-state='open'] {
+    transform: perspective(1600px) rotateY(calc(var(--turn) * 78deg));
+    opacity: 0;
+  }
 }
 [data-body='book'] .bk-page.tpl-section {
   scroll-margin-top: 1rem;

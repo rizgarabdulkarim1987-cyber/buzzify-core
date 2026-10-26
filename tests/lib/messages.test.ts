@@ -40,6 +40,16 @@ describe('messages', () => {
     }
   });
 
+  it('writes the Book and Magazine counts in the tenant numerals ({n}), never the raw {count}', () => {
+    for (const locale of ['en', 'ar', 'ckb'] as const) {
+      for (const [key, value] of Object.entries(MESSAGES[locale]).filter(([k]) => /^tpl\.(book\.dishes|mag\.sections)_/.test(k))) {
+        expect(placeholders(value as string), `${locale} ${key}`).not.toContain('count');
+      }
+    }
+    expect(getTranslator('ar')('tpl.book.dishes', { count: 5, n: '٥' })).toBe('٥ أطباق');
+    expect(getTranslator('en')('tpl.mag.sections', { count: 12, n: '١٢' })).toBe('١٢ sections');
+  });
+
   it('translates with interpolation and plurals', () => {
     expect(getTranslator('en')('menu.table', { number: '04' })).toBe('Table 04');
     expect(getTranslator('en')('cart.items', { count: 1 })).toBe('1 item');

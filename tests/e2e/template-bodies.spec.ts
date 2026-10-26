@@ -20,6 +20,8 @@ const slug = `e2e-${run}-book`;
 const magSlug = `e2e-${run}-mag`;
 const boardSlug = `e2e-${run}-board`;
 const boardArabSlug = `e2e-${run}-boardar`;
+const bookArabSlug = `e2e-${run}-bookar`;
+const boardIndexSlug = `e2e-${run}-boardidx`;
 const prisma = createPrisma(databaseUrl(DEV_DB));
 const made: { restaurantId: string; menuId: string; slug: string }[] = [];
 
@@ -42,6 +44,9 @@ test.beforeAll(async () => {
   await createMenu(magSlug, 'magazine', { body: 'magazine', hero: 'compact', nav: 'chips', card: 'row' });
   await createMenu(boardSlug, 'board', { body: 'board', hero: 'compact' });
   await createMenu(boardArabSlug, 'board', { body: 'board', hero: 'compact' }, 'ARAB');
+  await createMenu(bookArabSlug, 'book', { body: 'book' }, 'ARAB');
+  // A scroll template's big hero and side index left in the overrides: the Board sets both itself.
+  await createMenu(boardIndexSlug, 'board', { body: 'board', hero: 'editorial', nav: 'index' });
 });
 
 test.afterAll(async () => {
@@ -133,12 +138,69 @@ test('a deep link to a dish opens the detail sheet on the book', async ({ page }
   await expect(book(page)).toBeAttached();
 });
 
-test('a hero button that jumps to a category opens its chapter', async ({ page }) => {
+test('the index replaces the hero: a hero left in the overrides is not drawn', async ({ page }) => {
+  // The fixture's overrides still say `hero: 'chapters'`, whose buttons read "Go to <category>".
   await page.goto(`/${slug}/en?stage=off`);
-  await page.getByRole('button', { name: 'Go to Pâtisserie' }).first().click();
+  await expect(index(page)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Go to Pâtisserie' })).toHaveCount(0);
+});
+
+test('a chapter of the index opens its page with focus on the heading', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off`);
+  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
   await expect(page.locator('#cat-patisserie')).toBeVisible();
   await expect(index(page)).toBeHidden();
   await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
+});
+
+test('on a phone the first screen shows the index with photos and prices', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/${slug}/en?stage=off`);
+  await expect(index(page)).toBeVisible();
+  const first = index(page).locator('.bk-taste li').first();
+  await expect(first.locator('img, svg').first()).toBeInViewport({ ratio: 1 });
+  await expect(first.getByText(/\$\d/)).toBeInViewport({ ratio: 1 });
+});
+
+test('typing in the search box on a chapter keeps the focus in the search box', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off`);
+  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
+  await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.click();
+  // "sourdough" hides the Pâtisserie chapter, deleting it brings the chapter back.
+  await page.keyboard.type('sourdough', { delay: 30 });
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('sourdough');
+  for (let i = 0; i < 'sourdough'.length; i += 1) await page.keyboard.press('Backspace', { delay: 30 });
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue('');
+  await expect(page.locator('#cat-patisserie')).toBeVisible();
+});
+
+test('closed pages take no room and the open page is the only one laid out', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off`);
+  await expect(index(page)).toBeVisible();
+  for (const category of categories) expect(await page.locator(`#cat-${category.slug}`).boundingBox(), category.slug).toBeNull();
+  await index(page).getByRole('button', { name: /Bread/ }).click();
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  // After the turn (under 300 ms) the index and the other chapters leave the layout.
+  await expect.poll(async () => page.locator('[data-page="index"]').boundingBox()).toBeNull();
+  expect(await page.locator('#cat-patisserie').boundingBox()).toBeNull();
+});
+
+test('a search that finds nothing keeps the skip link target', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off`);
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
+  await expect(page.getByText(/zzzzqq/)).toBeVisible();
+  await expect(page.locator('main#menu')).toHaveCount(1);
+});
+
+test('counts and page numbers use the tenant numerals', async ({ page }) => {
+  await page.goto(`/${bookArabSlug}/en?stage=off`);
+  const chapter = index(page).getByRole('button', { name: /Pâtisserie/ });
+  await expect(chapter.locator('.bk-count')).toHaveText('٣ dishes');
+  await expect(chapter.locator('.bk-folio')).toHaveText('٢');
 });
 
 test('in Arabic the book is right to left and its index renders', async ({ page }) => {
@@ -242,6 +304,19 @@ test.describe('the Magazine body', () => {
     await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
     await expect(magazine(page).locator('[data-lead]').first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('the lead price is white on the caption scrim', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    await expect(magazine(page).locator('.mg-lead-price').first()).toHaveCSS('color', 'rgb(255, 255, 255)');
+  });
+
+  test('the masthead name clears the sticky section strip', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${magSlug}/en?stage=off`);
+    const strip = (await page.getByRole('navigation', { name: 'Categories' }).boundingBox())!;
+    const name = (await magazine(page).locator('.mg-name').boundingBox())!;
+    expect(name.y - (strip.y + strip.height)).toBeGreaterThanOrEqual(8);
   });
 
   test('reduced motion removes the lead photo transition', async ({ page }) => {
@@ -361,6 +436,16 @@ test.describe('the departures Board', () => {
     await expect(rows(page).first()).toBeVisible();
     await expect(rows(page).first()).toHaveCSS('animation-name', 'none');
     await expect(rows(page).first()).toHaveCSS('animation-duration', /^(0|1e-06)s$/);
+  });
+
+  test('a scroll hero and side index left in the overrides do not reach the board', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/${boardIndexSlug}/en?stage=off`);
+    await expect(board(page)).toBeVisible();
+    await expect(page.locator('.tpl')).not.toHaveAttribute('data-nav', /.*/);
+    await expect(page.locator('.tpl-hero-editorial')).toHaveCount(0);
+    const tabs = (await page.getByRole('navigation', { name: 'Categories' }).boundingBox())!;
+    expect(tabs.width).toBeGreaterThan(600);
   });
 
   test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {

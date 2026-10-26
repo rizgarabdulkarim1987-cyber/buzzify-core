@@ -9,13 +9,14 @@
   justify-content: space-between;
   gap: 0.5rem 1rem;
   margin-inline: var(--gutter, 1rem);
-  padding-block-end: calc(var(--space) * 0.5rem);
+  /* Room under the sticky section strip, so the name's capitals are never tucked beneath it. */
+  padding-block: calc(var(--space) * 0.5rem) calc(var(--space) * 0.375rem);
   border-block-end: 4px solid var(--text);
 }
 [data-body='magazine'] .mg-name {
   margin: 0;
-  font-size: calc(var(--type-scale) * clamp(1.7rem, 8vw, 4.2rem));
-  line-height: 0.92;
+  font-size: calc(var(--type-scale) * clamp(1.7rem, 7.5vw, 4.2rem));
+  line-height: 1;
   overflow-wrap: anywhere;
 }
 [data-body='magazine'] .mg-issue {
@@ -28,7 +29,7 @@
 
 /* A spread: the section heading, a lead photo with its caption over it, the rest below. */
 [data-body='magazine'] .mg-spread {
-  padding-top: calc(var(--space) * 1rem);
+  padding-top: calc(var(--space) * 0.75rem);
 }
 [data-body='magazine'] .mg-spread:not(:first-of-type) {
   padding-top: calc(var(--space) * 2rem);
@@ -73,7 +74,11 @@
   gap: 0.25rem 0.75rem;
   padding: 2.5rem 0.9rem 0.8rem;
   color: #fff;
-  background: linear-gradient(transparent, rgb(0 0 0 / 0.78));
+  /*
+   * The scrim fades in above the text only: from 2.25rem down it is at least 60% black, so white text over a white
+   * plate still reads at 5.7:1 (black 60% over white is sRGB 0.40, luminance 0.133; (1 + 0.05) / (0.133 + 0.05)).
+   */
+  background: linear-gradient(rgb(0 0 0 / 0) 0, rgb(0 0 0 / 0.6) 2.25rem, rgb(0 0 0 / 0.85) 100%);
 }
 [data-body='magazine'] .mg-lead-name {
   grid-column: 1;
@@ -86,12 +91,12 @@
 [data-body='magazine'] .mg-lead-price {
   grid-column: 2;
   grid-row: 1;
-  color: color-mix(in srgb, var(--accent) 35%, #fff);
+  color: #fff;
   font-size: 1.05rem;
   font-weight: 700;
 }
 [data-body='magazine'] .mg-lead-price .tpl-was {
-  color: rgb(255 255 255 / 0.75);
+  color: rgb(255 255 255 / 0.85);
 }
 [data-body='magazine'] .mg-badges {
   grid-column: 1;

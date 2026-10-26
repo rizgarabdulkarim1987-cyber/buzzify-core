@@ -51,6 +51,10 @@ describe('template presets', () => {
     }
   });
 
+  it('gives The Book the compact hero, so its index is the first screen (the shape sets the hero)', () => {
+    expect(TEMPLATES['the-book'].layout.hero).toBe('compact');
+  });
+
   it('leaves the thirty earlier presets without a body, so their published snapshots never change', () => {
     for (const preset of templateList().filter((p) => p.number <= 30)) expect(preset.layout, preset.id).not.toHaveProperty('body');
   });
