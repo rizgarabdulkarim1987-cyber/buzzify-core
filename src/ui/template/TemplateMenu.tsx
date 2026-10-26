@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
-import type { MenuDesign } from '@/lib/templates/types';
+import { bodyOf, type MenuDesign } from '@/lib/templates/types';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
@@ -14,6 +14,7 @@ import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { BookBody } from './bodies/BookBody';
 import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
@@ -217,25 +218,31 @@ export function TemplateMenu({
               }}
             />
           </div>
-          <div className="tpl-body">
-            {categories.length > 0 && <Nav kind={layout.nav} />}
-            <main id="menu" className="tpl-main min-w-0">
-              {visible.length === 0 ? (
-                <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
-              ) : (
-                categories.map((category, index) => (
-                  <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
-                    <div tabIndex={-1} data-heading className="outline-none">
-                      <SectionHeading id={`h-${category.slug}`} name={category.name} index={index} style={layout.heading} />
-                    </div>
-                    <div className="tpl-section-body">
-                      <ProductList products={byCategory.get(category.id) ?? []} kind={layout.card} />
-                    </div>
-                  </section>
-                ))
-              )}
-            </main>
-          </div>
+          {bodyOf(layout) === 'scroll' ? (
+            <div className="tpl-body">
+              {categories.length > 0 && <Nav kind={layout.nav} />}
+              <main id="menu" className="tpl-main min-w-0">
+                {visible.length === 0 ? (
+                  <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
+                ) : (
+                  categories.map((category, index) => (
+                    <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
+                      <div tabIndex={-1} data-heading className="outline-none">
+                        <SectionHeading id={`h-${category.slug}`} name={category.name} index={index} style={layout.heading} />
+                      </div>
+                      <div className="tpl-section-body">
+                        <ProductList products={byCategory.get(category.id) ?? []} kind={layout.card} />
+                      </div>
+                    </section>
+                  ))
+                )}
+              </main>
+            </div>
+          ) : visible.length === 0 ? (
+            <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
+          ) : (
+            <BookBody />
+          )}
           <InfoSection info={design.info} />
           <TemplateFooter poweredBy={design.poweredBy} motion={animated ? { paused: motionPaused, toggle: () => setMotionPaused((value) => !value) } : null} />
         </div>
