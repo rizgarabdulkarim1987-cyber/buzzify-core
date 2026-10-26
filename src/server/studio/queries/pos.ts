@@ -7,7 +7,7 @@ import { readKitchenQueue, readKitchenScope, readKitchenTicket } from '@/server/
 import { dayField, readDailyReport, readShiftReport } from '@/server/pos/report';
 import { readBoard } from '@/server/pos/board';
 import { readReceipt } from '@/server/pos/payments';
-import { listOpenShifts, openShiftIdOf, readShiftSummary } from '@/server/pos/shifts';
+import { listOpenShifts, readShiftSummary } from '@/server/pos/shifts';
 import { canPos } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
@@ -187,7 +187,8 @@ export const posMyShift = defineQuery({
   target: () => TILL,
   run: async (ctx) => {
     if (ctx.pos === null) throw new Error('A till query ran without a restaurant');
-    return { shiftId: await openShiftIdOf(ctx.db, restaurantOf(ctx), ctx.pos.userId) };
+    const shift = await ctx.db.posShift.findFirst({ where: { restaurantId: restaurantOf(ctx), userId: ctx.pos.userId, closedAt: null }, select: { id: true, openedAt: true } });
+    return { shiftId: shift?.id ?? null, openedAt: shift?.openedAt ?? null, readAt: new Date() };
   },
 });
 

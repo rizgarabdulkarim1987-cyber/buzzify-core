@@ -291,6 +291,15 @@
         ],
         "createdAt": "2026-10-26T03:06:00.000Z",
         "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "src/app/pos/till.css"
+        ],
+        "createdAt": "2026-10-26T01:08:06.321Z",
+        "reason": "Claude: the queue item's start bar is the state colour (new order / bill / ready) from the owner-approved calm cashier design, ported as is"
       }
     ]
   }

@@ -1,0 +1,341 @@
+/*
+ * The till shell (.till): calm and still. Colour only on what needs the cashier (info blue new QR order, danger red bill,
+ * success green ready); nothing moves. The tables layouts (docs/superpowers/specs/2026-10-26-pos-calm-layouts-design.md)
+ * only arrange; this file styles them, on the Studio's own tokens. Screen only: printing keeps the receipt's black on white.
+ * Loaded after studio.css, so `@layer components` sits below the utilities and a layout's utility classes win.
+ */
+
+@media screen {
+  .till {
+    --tile-free: #a3a3a0;
+    --tile-busy: var(--s-surface);
+    --tile-new: var(--s-info);
+    --tile-bill: var(--s-danger);
+    --tile-ready: var(--s-success);
+    --panel: var(--s-surface);
+  }
+
+  /* Night: the same calm in dark graphite, while the tables page shows it. */
+  html:has(.till[data-layout='night']) {
+    color-scheme: dark;
+    --s-bg: #161616;
+    --s-surface: #1e1e1e;
+    --s-raised: #1e1e1e;
+    --s-line: #2c2c2c;
+    --s-line-strong: #3a3a3a;
+    --s-hover: #2a2a2a;
+    --s-pressed: #333333;
+    --s-text: #eeeeee;
+    --s-muted: #a6a6a6;
+    --s-ink: #f2f2f2;
+    --s-ink-hover: #dddddd;
+    --s-on-ink: #111111;
+    --s-danger: #ff8a80;
+    --s-success: #6fdca8;
+    --s-info: #8fb4ff;
+    --s-danger-wash: #3a1514;
+    --s-success-wash: #10301f;
+    --s-info-wash: #142a52;
+    --s-accent-wash: #3a3015;
+  }
+
+  html:has(.till[data-layout='night']) .till {
+    --tile-free: #5a5a5a;
+    --tile-busy: #2a2a2a;
+    --tile-new: #2563c9;
+    --tile-bill: #c8262c;
+    --tile-ready: #16a36a;
+    --panel: #1b1b1b;
+  }
+
+  html:has(.till) body {
+    background: var(--s-bg);
+    color: var(--s-text);
+  }
+
+  /* Still: nothing in the till moves. */
+  .till *,
+  .till *::before,
+  .till *::after {
+    transition: none !important;
+    animation: none !important;
+  }
+}
+
+@layer components {
+  @media screen {
+    /* The area tabs: one sunk group, the chosen tab lifted onto the surface. */
+    .till-tabs {
+      background: var(--s-hover);
+    }
+
+    .till-tab {
+      color: var(--s-muted);
+    }
+
+    .till-tab[aria-selected='true'],
+    .till-tab[aria-current='page'] {
+      background: var(--s-surface);
+      color: var(--s-text);
+      box-shadow: 0 0 0 1px var(--s-line);
+    }
+
+    /* Today's figures, each in its own hairline chip. */
+    .till-stat {
+      background: var(--s-surface);
+      box-shadow: inset 0 0 0 1px var(--s-line);
+    }
+
+    .till-panel {
+      background: var(--panel);
+      border: 1px solid var(--s-line);
+    }
+
+    .till-card {
+      background: var(--s-raised);
+      border: 1px solid var(--s-line);
+    }
+
+    /* A table tile. Colour is meaning: only the states that need the cashier are filled. */
+    .tile {
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      min-width: 0;
+      min-height: 0;
+      border-radius: 14px;
+      border: 1px solid var(--s-line);
+      background: var(--s-raised);
+      color: var(--s-text);
+      text-align: start;
+      container-type: size;
+    }
+
+    .tile[data-status='FREE'] .tile-no {
+      color: var(--tile-free);
+    }
+
+    .tile[data-status='BUSY'] {
+      background: var(--tile-busy);
+      border-color: var(--tile-busy);
+    }
+
+    .tile[data-status='PENDING_APPROVAL'] {
+      background: var(--tile-new);
+      border-color: var(--tile-new);
+      color: #ffffff;
+    }
+
+    .tile[data-status='BILL_REQUESTED'] {
+      background: var(--tile-bill);
+      border-color: var(--tile-bill);
+      color: #ffffff;
+    }
+
+    .tile[data-status='READY'] {
+      box-shadow: inset 0 0 0 4px var(--tile-ready);
+      border-color: var(--tile-ready);
+    }
+
+    .tile[data-status='READY'] .tile-tag {
+      color: var(--s-success);
+    }
+
+    .tile-sub {
+      color: var(--s-muted);
+    }
+
+    .tile[data-status='PENDING_APPROVAL'] .tile-sub,
+    .tile[data-status='BILL_REQUESTED'] .tile-sub {
+      color: #ffffffd9;
+    }
+
+    /* Seated longer than the owner's "table ring minutes". */
+    .tile-sub[data-late],
+    .time[data-late] {
+      color: var(--s-danger);
+      font-weight: 700;
+    }
+
+    .tile[data-status='PENDING_APPROVAL'] .tile-sub[data-late],
+    .tile[data-status='BILL_REQUESTED'] .tile-sub[data-late] {
+      color: #ffffff;
+    }
+
+    .tile[aria-pressed='true'],
+    .tile[data-selected] {
+      outline: 3px solid var(--s-ink);
+      outline-offset: 2px;
+    }
+
+    .tile[aria-busy='true'] {
+      opacity: 0.6;
+      cursor: wait;
+    }
+
+    .state-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: var(--tile-free);
+      flex: none;
+    }
+
+    .state-dot[data-status='BUSY'] {
+      background: var(--s-muted);
+    }
+
+    .state-dot[data-status='PENDING_APPROVAL'] {
+      background: var(--tile-new);
+    }
+
+    .state-dot[data-status='BILL_REQUESTED'] {
+      background: var(--tile-bill);
+    }
+
+    .state-dot[data-status='READY'] {
+      background: var(--tile-ready);
+    }
+
+    /* A waiting item: a hairline card with its state as a bar at the inline start. */
+    .queue-item {
+      border: 1px solid var(--s-line);
+      border-inline-start-width: 5px;
+      background: var(--s-raised);
+    }
+
+    .queue-item[data-status='PENDING_APPROVAL'] {
+      border-inline-start-color: var(--tile-new);
+    }
+
+    .queue-item[data-status='BILL_REQUESTED'] {
+      border-inline-start-color: var(--tile-bill);
+    }
+
+    .queue-item[data-status='READY'] {
+      border-inline-start-color: var(--tile-ready);
+    }
+
+    .btn-new {
+      background: var(--tile-new);
+      color: #ffffff;
+    }
+
+    .btn-bill {
+      background: var(--tile-bill);
+      color: #ffffff;
+    }
+
+    .btn-plain {
+      background: var(--s-raised);
+      border: 1px solid var(--s-line);
+      color: var(--s-text);
+    }
+
+    .btn-main {
+      background: var(--s-ink);
+      color: var(--s-on-ink);
+    }
+
+    /* The slips: an open table as a paper ticket with its state as the top edge. */
+    .slip {
+      background: var(--s-raised);
+      border: 1px solid var(--s-line);
+      border-top: 5px solid var(--s-muted);
+    }
+
+    .slip[data-status='PENDING_APPROVAL'] {
+      border-top-color: var(--tile-new);
+    }
+
+    .slip[data-status='BILL_REQUESTED'] {
+      border-top-color: var(--tile-bill);
+    }
+
+    .slip[data-status='READY'] {
+      border-top-color: var(--tile-ready);
+    }
+
+    .slip-line {
+      border-bottom: 1px dashed var(--s-line);
+    }
+
+    .keypad-key {
+      border: 1px solid var(--s-line);
+      background: var(--s-raised);
+      border-radius: 14px;
+    }
+
+    .keypad-key:active {
+      background: var(--s-pressed);
+    }
+
+    /* The layout picker's small wireframes. */
+    .layout-option {
+      border: 2px solid var(--s-line);
+      background: var(--s-raised);
+    }
+
+    .layout-option[aria-pressed='true'] {
+      border-color: var(--s-ink);
+    }
+
+    .wire {
+      background: var(--s-hover);
+      border-radius: 3px;
+    }
+  }
+}
+
+/*
+ * The cashier's look on every till page, taken from the restaurant cashier: big page titles and rounder corners (Studio
+ * components keep their own sizes and tokens). Outside the layers so they win over the components' utility classes; screen only.
+ */
+@media screen {
+  .till main h1.text-xl {
+    font-size: clamp(1.875rem, 3vw, 2.25rem);
+    font-weight: 700;
+    line-height: 1.15;
+  }
+
+  .till main [class~='rounded-md'] {
+    border-radius: 14px;
+  }
+
+  .till main [class~='rounded-lg'] {
+    border-radius: 22px;
+  }
+
+  html:has(.till) [role='dialog'] {
+    border-radius: 28px;
+  }
+
+  /* A titled section is a card, as the cashier's panels are; a list inside it drops its own frame. */
+  .till main section[aria-labelledby] {
+    border: 1px solid var(--s-line);
+    border-radius: 28px;
+    background: var(--s-surface);
+    padding: 1.5rem;
+  }
+
+  .till main section[aria-labelledby] > h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  .till main section[aria-labelledby] > ul {
+    border-color: var(--s-line);
+    border-radius: 18px;
+    background: var(--s-bg);
+  }
+
+  /* An empty list: a dashed, centred box. */
+  .till main section[aria-labelledby] > div.py-10 {
+    align-items: center;
+    border: 2px dashed var(--s-line-strong);
+    border-radius: 22px;
+    padding: 2.5rem 1rem;
+    text-align: center;
+  }
+}

@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { cookies } from 'next/headers';
+import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
 import { query } from '@/server/studio/framework/invoke';
 import { posBoard } from '@/server/studio/queries/pos';
 import { posDeliveryOptions, posOffPremiseBoard, posOffPremiseFlags } from '@/server/studio/queries/pos-delivery';
@@ -19,13 +21,21 @@ export default async function TablesPage({ searchParams }: { searchParams: Promi
   const t = getStudioTranslator(locale);
   const kind = area === 'takeaway' && flags.takeaway ? 'TAKEAWAY' : area === 'delivery' && flags.delivery ? 'DELIVERY' : null;
   if (kind === null) {
-    const board = await query(posBoard, {});
+    const layout = layoutOf((await cookies()).get(LAYOUT_COOKIE)?.value);
+    const zonesOff = layout === 'zones' && (flags.takeaway || flags.delivery);
+    const [board, offBoard] = await Promise.all([query(posBoard, {}), zonesOff ? query(posOffPremiseBoard, {}) : null]);
+    // One screen from lg up: the floor takes what the header and tabs leave (docs/superpowers/specs/2026-10-26-pos-calm-layouts-design.md).
     return (
-      <>
-        <PageHeader title={t('pos.board.title')} />
+      <div className="flex min-h-full flex-col lg:h-full">
+        <div className="pt-4" />
         <OffPremiseTabs current="tables" takeaway={flags.takeaway} delivery={flags.delivery} />
-        <TablesBoard board={board} />
-      </>
+        <TablesBoard
+          board={board}
+          layout={layout}
+          offCards={offBoard ? [...(flags.takeaway ? offBoard.takeaway : []), ...(flags.delivery ? offBoard.delivery : [])] : []}
+          offPremise={{ takeaway: flags.takeawayOn, delivery: flags.deliveryOn }}
+        />
+      </div>
     );
   }
   const [board, options] = await Promise.all([query(posOffPremiseBoard, {}), query(posDeliveryOptions, {})]);

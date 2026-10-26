@@ -71,7 +71,7 @@ const ar: Messages = {
   'activity.action.pos.staff.role': 'غيّر دوراً في الكاشير',
   'activity.action.pos.staff.deactivate': 'أوقف شخصاً في الكاشير',
   'activity.action.pos.staff.reactivate': 'أعاد تفعيل شخص في الكاشير',
-  'pos.shell.label': 'الكاشير',
+  'pos.shell.label': 'كاشير بزفاي',
   'pos.shell.account': 'الحساب واللغة',
   'pos.role.OWNER': 'مالك',
   'pos.role.MANAGER': 'مدير',

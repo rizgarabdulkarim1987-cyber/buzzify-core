@@ -24,7 +24,7 @@ export default async function ReportPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader title={t('pos.report.title')} />
       <div className="px-8 pb-4 print:hidden">
-        <Link href="/pos/report/range" className="inline-flex min-h-12 items-center text-base underline underline-offset-2">
+        <Link href="/pos/report/range" className="inline-flex min-h-12 items-center rounded-xl border border-line bg-surface px-5 text-base font-semibold hover:bg-hover">
           {t('pos.range.title')}
         </Link>
       </div>
