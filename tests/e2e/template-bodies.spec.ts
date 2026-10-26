@@ -105,6 +105,17 @@ test('an address with #cat-<slug> opens that chapter', async ({ page }) => {
   await expect(index(page)).toBeHidden();
 });
 
+test('a chapter turned to after an address stays open when the menu is searched', async ({ page }) => {
+  await page.goto(`/${slug}/en?stage=off#cat-bread`);
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to contents' }).click();
+  await index(page).getByRole('button', { name: /Pâtisserie/ }).click();
+  await expect(page.locator('#cat-patisserie')).toBeVisible();
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('mille');
+  await expect(page.locator('#cat-patisserie')).toBeVisible();
+  await expect(page.locator('#cat-bread')).toBeHidden();
+});
+
 test('a hero button that jumps to a category opens its chapter', async ({ page }) => {
   await page.goto(`/${slug}/en?stage=off`);
   await page.getByRole('button', { name: 'Go to Pâtisserie' }).first().click();

@@ -41,16 +41,27 @@ export function BookBody() {
     setCategoryOpener(setOpenId);
     return () => setCategoryOpener(null);
   }, [setCategoryOpener]);
+  // Read on arrival and when the address changes, never because the categories did (search, filters): a guest who has
+  // turned to another chapter must stay there.
+  const latest = useRef(categories);
+  latest.current = categories;
   useEffect(() => {
     const fromHash = () => {
-      const slug = decodeURIComponent(window.location.hash.slice(1)).replace(/^cat-/, '');
-      const match = window.location.hash.startsWith('#cat-') ? categories.find((category) => category.slug === slug) : undefined;
+      const hash = window.location.hash;
+      if (!hash.startsWith('#cat-')) return;
+      let slug = hash.slice(5);
+      try {
+        slug = decodeURIComponent(slug);
+      } catch {
+        return;
+      }
+      const match = latest.current.find((category) => category.slug === slug);
       if (match) setOpenId(match.id);
     };
     fromHash();
     window.addEventListener('hashchange', fromHash);
     return () => window.removeEventListener('hashchange', fromHash);
-  }, [categories]);
+  }, []);
 
   // After the page turns to a chapter, the view and focus move to its heading; after it turns back, focus returns to
   // the chapter that was open. Keyed on the open chapter only, so a re-render never scrolls the guest again.
