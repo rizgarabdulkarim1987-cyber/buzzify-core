@@ -37,7 +37,7 @@ async function createMenu(menuSlug: string, label: string, layout: NonNullable<D
 
 test.beforeAll(async () => {
   await createMenu(slug, 'book', { body: 'book', hero: 'chapters' });
-  await createMenu(magSlug, 'magazine', { body: 'magazine', nav: 'chips', card: 'row' });
+  await createMenu(magSlug, 'magazine', { body: 'magazine', hero: 'compact', nav: 'chips', card: 'row' });
 });
 
 test.afterAll(async () => {
@@ -180,6 +180,25 @@ test.describe('the Magazine body', () => {
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     await magazine(page).locator('#cat-patisserie').getByRole('button', { name: named('mille-feuille'), exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('on a phone the first screen shows the lead and the next dish with its price', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${magSlug}/en?stage=off`);
+    const spread = magazine(page).locator('section').first();
+    await expect(spread.locator('[data-lead]')).toBeInViewport();
+    const card = spread.locator('[data-card] li').first();
+    await expect(card.getByText(/\$\d/).first()).toBeInViewport({ ratio: 1 });
+  });
+
+  test('tapping the lead photo opens the detail sheet', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    // A real pointer tap on the photo itself (the name's stretched target sits over it).
+    const photo = magazine(page).locator('[data-lead] [data-zoom]').first();
+    await photo.scrollIntoViewIfNeeded();
+    const box = (await photo.boundingBox())!;
+    await page.mouse.click(box.x + 20, box.y + 20);
     await expect(page.getByRole('dialog')).toBeVisible();
   });
 

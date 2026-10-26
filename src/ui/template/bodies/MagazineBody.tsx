@@ -7,6 +7,7 @@ import { useTemplate } from '../context';
 import { Nav } from '../navs';
 import { Badges, Price, ProductMedia, QuickAction } from '../parts';
 import { SectionHeading } from '../sections';
+import { splitLead } from './lead';
 import './magazine.css';
 
 /**
@@ -36,10 +37,7 @@ export function MagazineBody() {
           </p>
         </div>
         {categories.map((category, index) => {
-          const products = byCategory.get(category.id) ?? [];
-          // The lead is the section's first dish that has a real photo (else its first dish); the rest keep menu order.
-          const lead = products.find((product) => product.media[0]?.kind === 'image') ?? products[0];
-          const rest = products.filter((product) => product !== lead);
+          const { lead, rest } = splitLead(byCategory.get(category.id) ?? []);
           return (
             <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section mg-spread">
               <div tabIndex={-1} data-heading className="outline-none">

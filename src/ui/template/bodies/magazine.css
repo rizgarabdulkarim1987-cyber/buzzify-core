@@ -14,7 +14,7 @@
 }
 [data-body='magazine'] .mg-name {
   margin: 0;
-  font-size: calc(var(--type-scale) * clamp(2.2rem, 11vw, 4.2rem));
+  font-size: calc(var(--type-scale) * clamp(1.7rem, 8vw, 4.2rem));
   line-height: 0.92;
   overflow-wrap: anywhere;
 }
@@ -28,17 +28,26 @@
 
 /* A spread: the section heading, a lead photo with its caption over it, the rest below. */
 [data-body='magazine'] .mg-spread {
+  padding-top: calc(var(--space) * 1rem);
+}
+[data-body='magazine'] .mg-spread:not(:first-of-type) {
   padding-top: calc(var(--space) * 2rem);
 }
 [data-body='magazine'] .mg-lead {
   position: relative;
+  display: grid;
   overflow: hidden;
   border-radius: var(--radius-card);
   background: var(--card);
   isolation: isolate;
 }
+/* Photo and caption share one cell; the caption is not positioned, so the name's stretched target covers the whole lead. */
+[data-body='magazine'] .mg-photo,
+[data-body='magazine'] .mg-cap {
+  grid-area: 1 / 1;
+}
 [data-body='magazine'] .mg-photo {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 21 / 9;
   overflow: hidden;
   transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
 }
@@ -47,14 +56,14 @@
   block-size: 100%;
   object-fit: cover;
 }
-[data-body='magazine'] .mg-lead:hover .mg-photo {
-  transform: scale(1.03);
+@media (hover: hover) {
+  [data-body='magazine'] .mg-lead:hover .mg-photo {
+    transform: scale(1.03);
+  }
 }
 [data-body='magazine'] .mg-cap {
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: 0;
   z-index: 2;
+  align-self: end;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
@@ -74,7 +83,7 @@
 [data-body='magazine'] .mg-lead-price {
   grid-column: 2;
   grid-row: 1;
-  color: #ffd23f;
+  color: color-mix(in srgb, var(--accent) 35%, #fff);
   font-size: 1.05rem;
   font-weight: 700;
 }
@@ -90,12 +99,12 @@
   justify-self: end;
 }
 [data-body='magazine'] .mg-rest {
-  margin-block-start: calc(var(--space) * 1.25rem);
+  margin-block-start: calc(var(--space) * 0.75rem);
 }
 
 @media (min-width: 768px) {
   [data-body='magazine'] .mg-photo {
-    aspect-ratio: 16 / 9;
+    aspect-ratio: 16 / 7;
   }
 }
 
