@@ -2429,6 +2429,7 @@ const ar: Messages = {
   'design.body.theatre': 'المسرح',
   'design.body.stacked': 'الأوراق المتراكمة',
   'design.body.morph': 'من الصورة للتفاصيل',
+  'design.body.fly': 'الطيران للسلة',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

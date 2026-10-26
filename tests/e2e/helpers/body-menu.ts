@@ -39,6 +39,10 @@ export interface BodyMenuOptions {
   discount?: string[];
   /** This many more sections after Maison's five, each with one dish (a menu with many sections). */
   extraSections?: number;
+  /** Ordering off (`none`): a menu only, no cart and no add buttons. */
+  ordering?: 'none';
+  /** Every dish has no media at all (no photo, no drawing). */
+  noPhotos?: boolean;
 }
 
 export interface BodyMenus {
@@ -55,7 +59,7 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0 } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0, ordering, noPhotos = false } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
@@ -74,8 +78,9 @@ export function bodyMenus(): BodyMenus {
       );
       made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
       await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
-      if (layout || paletteId || colors) {
-        const design: DesignOverrides = { ...MAISON.brand.design, ...(layout ? { layout } : {}), ...(paletteId ? { paletteId } : {}), ...(colors ? { colors } : {}) };
+      if (noPhotos) await prisma.product.updateMany({ where: { menuId: seeded.menuId }, data: { media: [] } });
+      if (layout || paletteId || colors || ordering) {
+        const design: DesignOverrides = { ...MAISON.brand.design, ...(layout ? { layout } : {}), ...(paletteId ? { paletteId } : {}), ...(colors ? { colors } : {}), ...(ordering ? { ordering } : {}) };
         await prisma.brandConfig.update({ where: { menuId: seeded.menuId }, data: { design: design as Prisma.InputJsonValue } });
       }
       await publishFixture(prisma, seeded.menuId, `${label} body`);

@@ -643,4 +643,33 @@ export const thePhotoToDetails = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails];
+export const theFlyToCart = definePreset({
+  id: 'the-fly-to-cart',
+  number: 53,
+  name: 'Fly to Cart',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#FFF6E0', text: '#2B1D0E', accent: '#FF5A1F', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'night-kitchen', name: 'Night kitchen', seed: { bg: '#1F1710', text: '#FFF3DC', accent: '#FF7A3D', raised: '#2E2217' } },
+    { id: 'mint-market', name: 'Mint market', seed: { bg: '#EAF7EE', text: '#12301F', accent: '#1A7A42', raised: '#FFFFFF' } },
+    { id: 'berry-pop', name: 'Berry pop', seed: { bg: '#FDEEF3', text: '#3A1020', accent: '#D6246E', raised: '#FFFFFF' } },
+  ],
+  type: { fontPairId: 'pop', scale: 1.0 },
+  layout: {
+    body: 'fly',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart];

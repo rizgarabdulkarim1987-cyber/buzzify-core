@@ -7,6 +7,7 @@ import { ComicsBody } from './ComicsBody';
 import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
 import { DepthBody } from './DepthBody';
+import { FlyBody } from './FlyBody';
 import { FridgeBody } from './FridgeBody';
 import { KineticBody } from './KineticBody';
 import { HomescreenBody } from './HomescreenBody';
@@ -51,4 +52,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   theatre: TheatreBody,
   stacked: StackedBody,
   morph: MorphBody,
+  fly: FlyBody,
 };
