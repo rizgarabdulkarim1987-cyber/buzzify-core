@@ -838,6 +838,25 @@ model PlatformSetting {
 }
 
 /**
+ * A message from the Buzzify team to every till and Studio user (spec 2026-10-26, part 4). Written by Super Admins;
+ * titles and bodies are { en?, ar?, ckb? }. Shown from startsAt until endsAt (open-ended when null), unless archived.
+ */
+model Announcement {
+  id          String    @id @default(cuid())
+  titles      Json
+  bodies      Json
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime?
+  archivedAt  DateTime?
+  /// A plain id, not a relation, so removing the person never removes the announcement.
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([archivedAt, startsAt])
+}
+
+/**
  * What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is.
  */
 enum MediaKind {

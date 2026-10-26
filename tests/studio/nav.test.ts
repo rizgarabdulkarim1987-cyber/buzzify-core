@@ -20,7 +20,7 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'announcements', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
@@ -31,6 +31,7 @@ describe('NAV_ITEMS', () => {
       '/studio/motion',
       '/studio/styles',
       '/studio/people',
+      '/studio/announcements',
       '/studio/activity',
       '/studio/settings',
     ]);
@@ -39,12 +40,12 @@ describe('NAV_ITEMS', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'announcements', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'announcements', 'activity', 'settings']);
   });
 
   it('gives a designer the working areas but not Billing, People, Activity or Settings', () => {
