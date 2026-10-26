@@ -38,6 +38,8 @@ test('a closed drawer renders no dishes and loads no photos', async ({ page }) =
   const closed = page.locator(`#cat-${last}`);
   await expect(closed.locator('[data-row]')).toHaveCount(0);
   await expect(closed.locator('img, svg')).toHaveCount(0);
+  await expect(front(page, last)).not.toHaveAttribute('aria-controls', /./);
+  await expect(front(page, slugAt(0))).toHaveAttribute('aria-controls', `tray-${slugAt(0)}`);
   expect(await page.locator(`#cat-${slugAt(0)} [data-row]`).count()).toBeGreaterThan(0);
 });
 
@@ -80,6 +82,7 @@ test('a long dish name stays inside its tile without sideways scrolling', async 
 test('counts use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
   await expect(fronts(page).first().locator('[data-count]')).toHaveText('٣');
+  await expect(fronts(page).first().getByRole('button')).toHaveAccessibleName(/٣ dishes/);
 });
 
 test('in Arabic the fronts and trays mirror and nothing scrolls sideways', async ({ page }) => {
@@ -90,6 +93,18 @@ test('reduced motion removes the tray entrance', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
   await expect(cab(page).locator('.cb-tray').first()).toHaveCSS('animation-name', 'none');
+});
+
+test('a search for a dish in a closed drawer opens that drawer, and the search box keeps the focus', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(front(page, last)).toHaveAttribute('aria-expanded', 'false');
+  const box = page.getByRole('searchbox', { name: 'Search the menu' });
+  await box.click();
+  await page.keyboard.type('sourdough', { delay: 30 });
+  await expect(page.locator(`#cat-${last} [data-row]`)).toHaveCount(1);
+  await expect(page.locator(`#cat-${last} [data-row]`)).toBeVisible();
+  await expect(front(page, last)).toHaveAttribute('aria-expanded', 'true');
+  await expect(box).toBeFocused();
 });
 
 test('a search keeps main#menu and never steals focus', async ({ page }) => {

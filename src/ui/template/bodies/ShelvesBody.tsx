@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties } from 'react';
+import { useRef, type CSSProperties } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Badges, Price, ProductMedia, QuickAction } from '../parts';
+import { useKeepInView } from './shared/useKeepInView';
+import './shared/shapes.css';
 import './shelves.css';
 
 /**
@@ -22,22 +24,11 @@ export function ShelvesBody() {
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
 
   // Keep the lit aisle sign in view, moving only the strip (never the page).
-  useEffect(() => {
-    const container = strip.current;
-    const active = activeId ? container?.querySelector<HTMLElement>(`[data-category="${CSS.escape(activeId)}"]`) : null;
-    if (!container || !active) return;
-    const box = container.getBoundingClientRect();
-    const item = active.getBoundingClientRect();
-    const margin = 16;
-    let delta = 0;
-    if (item.left < box.left + margin) delta = item.left - box.left - margin;
-    else if (item.right > box.right - margin) delta = item.right - box.right + margin;
-    if (delta !== 0) container.scrollBy({ left: delta, behavior: reduced ? 'auto' : 'smooth' });
-  }, [activeId, reduced]);
+  useKeepInView(strip, activeId, 'x', reduced);
 
   return (
     <div className="tpl-body" data-body="shelves">
-      <nav aria-label={t('menu.categories')} data-signs className="sf-signs">
+      <nav aria-label={t('menu.categories')} data-signs className="tpl-strip-sticky sf-signs">
         <ul ref={strip} className="scroll-hidden sf-signs-list">
           {categories.map((category) => (
             <li key={category.id}>

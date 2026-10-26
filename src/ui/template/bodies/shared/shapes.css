@@ -1,0 +1,24 @@
+/*
+ * Layout helpers the browse shapes share. `:where()` keeps them at one class of specificity, so a shape's own
+ * `[data-body='<kind>']` rules can still adjust them.
+ */
+
+/*
+ * A shape's strip of sections (route, legend, aisle signs) stays at the top of the viewport while the menu scrolls, so
+ * every section stays one tap away. The header does not stick, so the strip pins at 0. A shape sets `--nav-room` on its
+ * `[data-body]` to the strip's height, so a jumped-to section lands just below it.
+ */
+:where([data-body]) .tpl-strip-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+
+/*
+ * The last section is tall enough for the lit-section tracking (a band 30% to 40% down the viewport) to reach it when
+ * the page is scrolled to the end, so its entry on the strip lights. A shape can set `--tall-last` (default 60dvh).
+ */
+:where([data-body]) .tpl-tall-last:last-child {
+  min-block-size: var(--tall-last, 60dvh);
+}

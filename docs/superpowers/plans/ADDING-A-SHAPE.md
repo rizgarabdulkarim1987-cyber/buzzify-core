@@ -18,6 +18,23 @@ One shape = one new `BodyKind`, its component, and the preset that starts on it.
 | 9 | `tests/e2e/<kind>-body.spec.ts` (or a describe in `template-bodies.spec.ts`) | Use `tests/e2e/helpers/body-menu.ts`: `bodyMenus().create(slug, label, { templateId: '<id>' })`, `openMenu`, `expectFirstScreen`, `expectEverySectionReachable`, `expectJumpsTo`, `expectOpensProduct`, `expectQuickAdd`, `expectArabicRtl`. |
 | 10 | `tests/lib/templates.test.ts` | Optional: pin the new preset's number/body/theme next to the 31-33 block. Nothing else needs editing. |
 
+## Shared pieces to reuse (`src/ui/template/bodies/shared/`)
+
+Do not copy these from an older body; import them. Each keeps a shape's look: the shape adds only its own decoration.
+
+| Piece | What it does | Used by |
+|---|---|---|
+| `useKeepInView(ref, activeId, 'x' \| 'y', reduced, margin = 16)` (`useKeepInView.ts`) | Keeps the lit `[data-category]` entry of a section strip in view, scrolling only the strip, never the page. Keyed on `activeId`, so search/filter never move it. `keepInViewDelta` is the pure maths (unit-tested). | board (margin 24), elevator (`y`), metro, periodic (`y`, margin 4), shelves |
+| `<RowDish prefix="xx" suffix sizes priority order? description? />` (`RowDish.tsx` + `rows.css`) | The row card: square photo, name button (`tpl-open`, whole-card tap area), price + badges, optional one-line description, quick add. Elements carry `rd-*` (shared layout, at `:where([data-body])` specificity) and `xx-*` (your CSS: gaps, padding, borders, fonts, wider-screen sizes). | elevator (`el`), metro (`mt`), cabinet (`cb`) |
+| `hueAt(hues, index)` (`hue.ts`) | Picks a colour from a shape's hue list, wrapping both ways. | metro `stationHue`, periodic `groupHue` |
+| `.tpl-strip-sticky` (`shapes.css`) | Pins a shape's own section strip (route, legend, signs) to the top of the viewport (`top: 0`, the header does not stick) with a 92% `--bg` backing. Also set `--nav-room` on your `[data-body]` to the strip's height so a jumped-to section lands below it; cap a wrapping strip at about two rows. | metro, periodic, shelves (board uses `.tpl-nav`, which is already sticky) |
+| `.tpl-tall-last` (`shapes.css`) | On each section: the last one gets `min-block-size: var(--tall-last, 60dvh)`, so the lit-section tracking (a band 30-40% down the viewport) reaches it at the end of the page. Set `--tall-last` on your `[data-body]` to change it. | elevator (70dvh), metro, periodic |
+
+Import `./shared/shapes.css` in the body that uses a class from it (the CSS is imported once per module; duplicates are fine).
+A strip that claims to "stay at the top" must be sticky: add an `expectStripStays(page, strip, button, slug)` e2e
+(`tests/e2e/helpers/body-menu.ts`). A body that hides sections (accordions, pages) must open the ones holding search
+or filter results when the results change (see `withResults` in `CabinetBody.tsx`), without moving scroll or focus.
+
 ## Files a new shape does NOT need to touch (they follow the lists)
 
 - `src/ui/template/TemplateMenu.tsx`: draws `BODIES[body]`; the `scroll` branch is unchanged.

@@ -149,3 +149,21 @@ export async function expectArabicRtl(page: Page, slug: string, shown: (page: Pa
   await expect(shown(page)).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
 }
+
+/**
+ * The strip of sections stays at the top: scrolled to the end of the menu, `strip` is still pinned to the top of the
+ * viewport, `button` (a section's entry on it) still jumps there, and the section's heading lands below the strip,
+ * not under it.
+ */
+export async function expectStripStays(page: Page, strip: Locator, button: Locator, categorySlug: string) {
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect.poll(async () => Math.abs((await strip.boundingBox())?.y ?? 99), { message: 'the strip is pinned to the top' }).toBeLessThanOrEqual(1);
+  await expectJumpsTo(page, button, categorySlug);
+  const heading = page.locator(`#cat-${categorySlug} [data-heading]`);
+  await expect
+    .poll(async () => {
+      const bar = (await strip.boundingBox())!;
+      return (await heading.boundingBox())!.y - (bar.y + bar.height);
+    }, { message: 'the heading clears the strip' })
+    .toBeGreaterThanOrEqual(-1);
+}

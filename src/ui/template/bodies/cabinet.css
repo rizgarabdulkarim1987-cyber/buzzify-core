@@ -1,6 +1,6 @@
 /*
  * The Drawer Cabinet body (a browse shape of a template menu): every section a drawer front with a handle, drawers are
- * independent accordions, an open drawer shows a two-across tray of dishes. Everything is scoped under
+ * independent accordions, an open drawer shows a tray of dishes (one across on a phone, two from 640px). Everything is scoped under
  * [data-body='cabinet']; the wood is mixed from the menu's own text and accent so every palette stays legible. Logical
  * properties only, so the tray and the handle mirror in RTL.
  */
@@ -41,6 +41,7 @@
   color: var(--cb-ink);
 }
 [data-body='cabinet'] .cb-pull {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
@@ -102,7 +103,7 @@
   border-radius: var(--radius-card, 0.5rem);
 }
 
-/* The tray: lined with the card colour, shadowed under the front, two dishes across. */
+/* The tray: lined with the card colour, shadowed under the front, one dish across on a phone and more on wider screens. */
 [data-body='cabinet'] .cb-tray {
   background: var(--card);
   box-shadow: inset 0 10px 14px -10px rgba(0, 0, 0, 0.45);
@@ -127,57 +128,25 @@
   list-style: none;
 }
 
-/* A dish: photo, name and price, add button, in one short row so many fit in a tray. */
-[data-body='cabinet'] .cb-tile {
-  position: relative;
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) auto;
-  align-items: center;
+/* A dish (the shared `RowDish`, laid out by shared/rows.css): photo, name and price, add button, in one short row so
+ * many fit in a tray. */
+[data-body='cabinet'] .cb-row {
   gap: 0.625rem;
   min-inline-size: 0;
-  padding: 0.1875rem 0.375rem 0.1875rem 0.1875rem;
+  padding-block: 0.1875rem;
   padding-inline: 0.1875rem 0.375rem;
   border: 1px solid var(--line);
   border-radius: var(--radius-card, 0.5rem);
   background: var(--raised, var(--card));
 }
 [data-body='cabinet'] .cb-photo {
-  inline-size: 3rem;
-  block-size: 3rem;
-  overflow: hidden;
   border-radius: var(--radius-image, 0.375rem);
-  background: var(--card);
-}
-[data-body='cabinet'] .cb-photo > * {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
-[data-body='cabinet'] .cb-text {
-  min-inline-size: 0;
 }
 [data-body='cabinet'] .cb-name {
-  display: block;
-  inline-size: 100%;
-  min-block-size: 0;
-  padding: 0;
-  font-size: 0.9375rem;
-  font-weight: 700;
   line-height: 1.2;
-  color: var(--text);
-  overflow-wrap: anywhere;
 }
 [data-body='cabinet'] .cb-meta {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
   gap: 0.1rem 0.5rem;
-  margin-block-start: 0.15rem;
-}
-[data-body='cabinet'] .cb-price {
-  font-size: 0.875rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 @media (hover: hover) {
   [data-body='cabinet'] .cb-pull:hover .cb-handle {

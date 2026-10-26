@@ -9,6 +9,7 @@ import {
   expectJumpsTo,
   expectOpensProduct,
   expectQuickAdd,
+  expectStripStays,
   openMenu,
 } from './helpers/body-menu';
 
@@ -320,6 +321,11 @@ test.describe('the departures Board', () => {
     const tabs = (await page.getByRole('navigation', { name: 'Categories' }).boundingBox())!;
     expect(tabs.y).toBeLessThanOrEqual(1);
     expect(tabs.y + tabs.height).toBeGreaterThan(0);
+  });
+
+  test('scrolled to the end, the gate tabs are still at the top and gate A jumps', async ({ page }) => {
+    await openMenu(page, boardSlug);
+    await expectStripStays(page, page.getByRole('navigation', { name: 'Categories' }), gate(page, 'A'), BODY_CATEGORIES[0]!.slug);
   });
 
   test('each row has a photo, a name, a gate code and a price', async ({ page }) => {

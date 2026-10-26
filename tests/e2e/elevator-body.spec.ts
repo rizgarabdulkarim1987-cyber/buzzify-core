@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, dishName, expectArabicRtl, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
 
 /**
  * The Elevator body (spec 2026-10-26-menu-styles-in-templates-design.md): a floor-button rail pinned at the inline
@@ -48,6 +48,27 @@ test('a floor button rides to its floor, focuses the heading and lights up', asy
   await expect(rail(page).locator('[data-display]')).toHaveText('3');
 });
 
+test('the lit floor number reads at 4.5:1 or more on its button', async ({ page }) => {
+  await openMenu(page, slug);
+  const lit = rail(page).locator('[aria-current="true"] [data-floor-no]');
+  await expect(lit).toHaveCount(1);
+  const ratio = await lit.evaluate((node) => {
+    const style = getComputedStyle(node);
+    // A gradient behind the digit has no single colour to measure against: the lit state must be a solid fill.
+    if (style.backgroundImage !== 'none') return 0;
+    const luminance = (value: string) => {
+      const [r, g, b] = value.match(/[\d.]+/g)!.slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const [light, dark] = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    return (light! + 0.05) / (dark! + 0.05);
+  });
+  expect(ratio).toBeGreaterThanOrEqual(4.5);
+});
+
 test('the rail stays pinned while the floors scroll', async ({ page }) => {
   await openMenu(page, slug);
   await floor(page, 4).click();
@@ -70,7 +91,6 @@ test('a floor opens a dish and adds one', async ({ page }) => {
   const first = page.locator('#cat-viennoiserie');
   await expectOpensProduct(page, first, 'croissant');
   await expectQuickAdd(page, first, 'croissant');
-  expect(dishName('croissant').length).toBeGreaterThan(0);
 });
 
 test('a section with one dish is a floor of one row', async ({ page }) => {

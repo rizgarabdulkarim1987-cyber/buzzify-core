@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, dishName, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
 
 /**
  * The Periodic Table body (spec 2026-10-26-menu-styles-in-templates-design.md): every dish an element tile (photo,
@@ -56,6 +56,13 @@ test('the legend lights the group in view', async ({ page }) => {
   await expect(entry(page, 'bread')).toHaveAttribute('aria-current', 'true');
 });
 
+test('the legend stays at the top, at most two rows high: scrolled to the end, the first group is still one tap away', async ({ page }) => {
+  await openMenu(page, slug);
+  const chip = (await entry(page, 'viennoiserie').boundingBox())!;
+  expect((await legend(page).boundingBox())!.height).toBeLessThanOrEqual(chip.height * 2 + 6 + 16);
+  await expectStripStays(page, legend(page), entry(page, 'viennoiserie'), 'viennoiserie');
+});
+
 test('a tile opens its dish from anywhere on it and adds one', async ({ page }) => {
   await openMenu(page, slug);
   const first = page.locator('#cat-viennoiserie');
@@ -64,7 +71,6 @@ test('a tile opens its dish from anywhere on it and adds one', async ({ page }) 
   const box = (await tiles(page).first().boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.4);
   await expect(page.getByRole('dialog')).toBeVisible();
-  expect(dishName('croissant').length).toBeGreaterThan(0);
 });
 
 test('a group with one dish is a grid of one tile', async ({ page }) => {

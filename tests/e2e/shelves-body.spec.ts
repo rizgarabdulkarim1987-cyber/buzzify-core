@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
 
 /**
  * The Supermarket Shelves body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a shelf plank under
@@ -27,6 +27,11 @@ test('on a phone the first screen shows at least four boxes on a shelf with phot
   await expect(bay(page)).toBeVisible();
   await expectFirstScreen(page, boxes(page), { min: 4 });
   await expectEverySectionReachable(signs(page));
+});
+
+test('the aisle signs stay at the top: scrolled to the end, the first aisle is still one tap away', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectStripStays(page, signs(page), sign(page, 'viennoiserie'), 'viennoiserie');
 });
 
 test('boxes wrap to rows of four on a phone, each with a hanging price tag', async ({ page }) => {

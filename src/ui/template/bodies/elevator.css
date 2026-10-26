@@ -4,6 +4,8 @@
  * and density arrive as the template's CSS variables. Logical properties only, so the panel mirrors in RTL.
  */
 [data-body='elevator'] {
+  /* The last floor (shared/shapes.css, .tpl-tall-last) keeps the 70dvh this shape always had. */
+  --tall-last: 70dvh;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 4.75rem;
   align-items: start;
@@ -28,7 +30,7 @@
   padding-block: 0.75rem 6rem;
   border-inline-start: 2px solid #6d6a64;
   background: linear-gradient(90deg, #8d8a84, #c9c5bd 40%, #8d8a84);
-  color: #2b2620;
+  color: #1a1611;
 }
 [data-body='elevator'] .el-display {
   flex: none;
@@ -84,7 +86,7 @@
   font-size: 0.6875rem;
   font-weight: 700;
   line-height: 1.1;
-  color: #2b2620;
+  color: #1a1611;
 }
 [data-body='elevator'] .el-button b {
   display: grid;
@@ -105,9 +107,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* The lit button: the floor display's colours (an amber digit on near-black, about 8:1) inside an amber ring. */
 [data-body='elevator'] .el-button[aria-current='true'] b {
+  background: #120c06;
   box-shadow: 0 0 0 3px #ff9a1f, 0 3px 0 #5a4310;
-  color: #a64b00;
+  color: #ff9a1f;
 }
 [data-body='elevator'] .el-button:active b {
   transform: translateY(2px);
@@ -125,10 +129,6 @@
   padding-top: calc(var(--space) * 0.75rem);
   border-block-start: 6px solid var(--text);
   scroll-margin-top: 0;
-}
-/* The last floor is tall enough for its button to light when the page is scrolled to it. */
-[data-body='elevator'] .el-floor:last-child {
-  min-block-size: 70dvh;
 }
 [data-body='elevator'] .el-floor:first-child {
   border-block-start: 0;
@@ -174,12 +174,8 @@
   list-style: none;
 }
 
-/* A row: photo, then name over price, then the add button. */
+/* A row (the shared `RowDish`, laid out by shared/rows.css): photo, then name over price, then the add button. */
 [data-body='elevator'] .el-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) auto;
-  align-items: center;
   gap: 0.75rem;
   padding: calc(var(--space) * 0.25rem) var(--gutter, 1rem);
   border-block-end: 1px dashed var(--line);
@@ -189,44 +185,8 @@
     background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
 }
-[data-body='elevator'] .el-photo {
-  inline-size: 3rem;
-  block-size: 3rem;
-  overflow: hidden;
-  border-radius: var(--radius-image, 0.5rem);
-  background: var(--card);
-}
-[data-body='elevator'] .el-photo > * {
-  inline-size: 100%;
-  block-size: 100%;
-  object-fit: cover;
-}
-[data-body='elevator'] .el-text {
-  min-inline-size: 0;
-}
-[data-body='elevator'] .el-name {
-  display: block;
-  inline-size: 100%;
-  min-block-size: 0;
-  padding: 0;
-  font-size: 0.9375rem;
-  font-weight: 700;
-  line-height: 1.25;
-  color: var(--text);
-  overflow-wrap: anywhere;
-}
-[data-body='elevator'] .el-meta {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: 0.15rem 0.5rem;
-  margin-block-start: 0.15rem;
-}
 [data-body='elevator'] .el-price {
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.875rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 [data-body='elevator'] .el-desc {
   display: none;

@@ -10,9 +10,11 @@
   --sf-tag-ink: #1d2a33;
   --sf-plank: color-mix(in oklab, var(--text) 14%, var(--bg));
   --sf-plank-edge: color-mix(in oklab, var(--text) 32%, var(--bg));
+  /* The sticky strip's height, so a jumped-to bay lands just below it. */
+  --nav-room: 3.25rem;
 }
 
-/* The aisle signs: one chip per section, in a strip that scrolls sideways, each one tap from its bay. */
+/* The aisle signs (sticky: shared/shapes.css): one chip per section, in a strip that scrolls sideways, each one tap from its bay. */
 [data-body='shelves'] .sf-signs {
   padding: 0.25rem var(--gutter, 1rem);
 }

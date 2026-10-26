@@ -1,11 +1,13 @@
 'use client';
 
-import { useEffect, useRef, type CSSProperties } from 'react';
-import type { MenuProductView } from '@/server/data/menu-view';
+import { useRef, type CSSProperties } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Badges, Price, ProductMedia, QuickAction } from '../parts';
+import { hueAt } from './shared/hue';
+import { RowDish } from './shared/RowDish';
+import { useKeepInView } from './shared/useKeepInView';
+import './shared/shapes.css';
 import './metro.css';
 
 /** The hues of the stations (line colours), spread around the wheel so neighbours differ; a ninth station starts again. */
@@ -13,7 +15,7 @@ const HUES = [25, 82, 150, 245, 335, 195, 290, 55] as const;
 
 /** The hue (in degrees) of the nth station. */
 export function stationHue(index: number): number {
-  return HUES[((index % HUES.length) + HUES.length) % HUES.length]!;
+  return hueAt(HUES, index);
 }
 
 /**
@@ -30,22 +32,11 @@ export function MetroBody() {
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
 
   // Keep the lit station in view, moving only the route strip (never the page).
-  useEffect(() => {
-    const container = strip.current;
-    const active = activeId ? container?.querySelector<HTMLElement>(`[data-category="${CSS.escape(activeId)}"]`) : null;
-    if (!container || !active) return;
-    const box = container.getBoundingClientRect();
-    const item = active.getBoundingClientRect();
-    const margin = 16;
-    let delta = 0;
-    if (item.left < box.left + margin) delta = item.left - box.left - margin;
-    else if (item.right > box.right - margin) delta = item.right - box.right + margin;
-    if (delta !== 0) container.scrollBy({ left: delta, behavior: reduced ? 'auto' : 'smooth' });
-  }, [activeId, reduced]);
+  useKeepInView(strip, activeId, 'x', reduced);
 
   return (
     <div className="tpl-body" data-body="metro">
-      <nav aria-label={t('menu.categories')} data-route className="mt-route">
+      <nav aria-label={t('menu.categories')} data-route className="tpl-strip-sticky mt-route">
         <ul ref={strip} className="scroll-hidden mt-route-list">
           {categories.map((category, index) => (
             <li key={category.id}>
@@ -74,7 +65,7 @@ export function MetroBody() {
               id={`cat-${category.slug}`}
               aria-labelledby={`h-${category.slug}`}
               data-station={n(index + 1)}
-              className="tpl-section mt-station"
+              className="tpl-section tpl-tall-last mt-station"
               style={{ '--g': stationHue(index) } as CSSProperties}
             >
               <div className="mt-run">
@@ -89,7 +80,7 @@ export function MetroBody() {
                 </div>
                 <ul className="mt-stops">
                   {products.map((product, row) => (
-                    <Stop key={product.id} product={product} priority={index === 0 && row < 5} order={Math.min(index * 3 + row, 8)} />
+                    <RowDish key={product.id} product={product} prefix="mt" suffix="metro" sizes="56px" priority={index === 0 && row < 5} order={Math.min(index * 3 + row, 8)} />
                   ))}
                 </ul>
               </div>
@@ -98,26 +89,5 @@ export function MetroBody() {
         })}
       </main>
     </div>
-  );
-}
-
-function Stop({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
-  const { openProduct } = useTemplate();
-  return (
-    <li data-row className="mt-row" style={{ '--i': order } as CSSProperties}>
-      <div data-photo className="mt-photo">
-        <ProductMedia product={product} suffix="metro" sizes="56px" priority={priority} className="mt-img" />
-      </div>
-      <div className="mt-text">
-        <button type="button" onClick={() => openProduct(product.id)} className="tpl-open mt-name text-start">
-          {product.name}
-        </button>
-        <span className="mt-meta">
-          <Price product={product} className="mt-price" />
-          <Badges product={product} className="mt-badges" />
-        </span>
-      </div>
-      <QuickAction product={product} className="mt-add relative z-[2]" />
-    </li>
   );
 }
