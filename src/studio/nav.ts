@@ -1,9 +1,9 @@
 import type { Actor } from '@/server/studio/auth/actor';
 
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
-export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'store';
+export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'store' | 'announcements';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'announcements' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview';
 
 export interface NavItem {
   key: NavKey;
@@ -34,6 +34,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'motion', href: '/studio/motion', labelKey: 'nav.motion', icon: 'motion' },
   { key: 'styles', href: '/studio/styles', labelKey: 'nav.styles', icon: 'styles' },
   { key: 'people', href: '/studio/people', labelKey: 'nav.people', icon: 'people' },
+  // What the Buzzify team tells every till and Studio user (docs/superpowers/specs/2026-10-26-staff-appearance-logo-announcements-design.md).
+  { key: 'announcements', href: '/studio/announcements', labelKey: 'nav.announcements', icon: 'announcements' },
   { key: 'activity', href: '/studio/activity', labelKey: 'nav.activity', icon: 'activity' },
   { key: 'settings', href: '/studio/settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
@@ -43,7 +45,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
  * allowed to invite does that from their restaurant's People tab. Billing, Activity and Settings need `platform.settings`
  * or `audit.view`, which no client policy can grant.
  */
-const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'people', 'activity', 'settings']);
+const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'people', 'announcements', 'activity', 'settings']);
 
 /** What the navigation needs to know about a restaurant an owner holds: its name and its menus. */
 export interface OwnedRestaurant {
