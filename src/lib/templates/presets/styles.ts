@@ -237,4 +237,33 @@ export const theSupermarketShelves = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves];
+export const theKitchenTicketRail = definePreset({
+  id: 'the-kitchen-ticket-rail',
+  number: 39,
+  name: 'Kitchen Ticket Rail',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#26292D', text: '#F0F0F0', accent: '#FF5A36', raised: '#34383D' },
+  alternatives: [
+    { id: 'pass-light', name: 'Pass light', seed: { bg: '#E9E6DE', text: '#23262A', accent: '#C8321B' } },
+    { id: 'walk-in', name: 'Walk-in', seed: { bg: '#1B2A33', text: '#E8F0F3', accent: '#5CC8E8' } },
+    { id: 'brass-pass', name: 'Brass pass', seed: { bg: '#2A2118', text: '#F3E7D0', accent: '#E0A030' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'tickets',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail];

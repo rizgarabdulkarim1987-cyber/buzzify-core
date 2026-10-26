@@ -2415,6 +2415,7 @@ const ar: Messages = {
   'design.body.metro': 'خط المترو',
   'design.body.cabinet': 'خزانة الأدراج',
   'design.body.shelves': 'أرفف السوبرماركت',
+  'design.body.tickets': 'سكة تذاكر المطبخ',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

@@ -255,6 +255,7 @@ const ar: Messages = {
   'tpl.per.group': 'المجموعة {n}',
   'tpl.met.station': 'المحطة {n}',
   'tpl.shf.aisle': 'الممر {n}',
+  'tpl.tkt.ticket': 'التذكرة {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',
   'tpl.day.wed': 'الأربعاء',
