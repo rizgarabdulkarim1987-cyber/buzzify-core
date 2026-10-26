@@ -244,6 +244,7 @@ const en: Messages = {
   'tpl.tkt.ticket': 'Ticket {n}',
   'tpl.top.setting': 'Setting {n}',
   'tpl.cmc.page': 'Page {n}',
+  'tpl.lvl.world': 'World {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',

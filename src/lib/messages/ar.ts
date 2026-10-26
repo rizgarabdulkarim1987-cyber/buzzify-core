@@ -258,6 +258,7 @@ const ar: Messages = {
   'tpl.tkt.ticket': 'التذكرة {n}',
   'tpl.top.setting': 'الطقم {n}',
   'tpl.cmc.page': 'الصفحة {n}',
+  'tpl.lvl.world': 'العالم {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',
   'tpl.day.wed': 'الأربعاء',

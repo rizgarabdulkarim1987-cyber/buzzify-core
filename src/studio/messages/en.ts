@@ -2391,6 +2391,7 @@ const en: Messages = {
   'design.body.comics': 'Kitchen comics',
   'design.body.homescreen': 'Phone home screen',
   'design.body.treasure': 'Treasure map',
+  'design.body.levels': 'Game levels',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

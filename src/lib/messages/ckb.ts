@@ -244,6 +244,7 @@ const ckb: Messages = {
   'tpl.tkt.ticket': 'تیکێتی {n}',
   'tpl.top.setting': 'سەرخوانی {n}',
   'tpl.cmc.page': 'لاپەڕەی {n}',
+  'tpl.lvl.world': 'جیهانی {n}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

@@ -382,4 +382,33 @@ export const theTreasureMap = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap];
+export const theGameLevels = definePreset({
+  id: 'the-game-levels',
+  number: 44,
+  name: 'Game Levels',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#1D1B3A', text: '#F4F1FF', accent: '#FFD23F', raised: '#2A2760' },
+  alternatives: [
+    { id: 'candy-world', name: 'Candy world', seed: { bg: '#FFF1DE', text: '#2B1A4A', accent: '#D93A66', raised: '#FFFFFF' } },
+    { id: 'jungle-run', name: 'Jungle run', seed: { bg: '#12372E', text: '#EAF7E6', accent: '#FFC93C', raised: '#1C4B3F' } },
+    { id: 'sky-island', name: 'Sky island', seed: { bg: '#DDEBFF', text: '#14264A', accent: '#1F6FEB', raised: '#F2F7FF' } },
+  ],
+  type: { fontPairId: 'pop', scale: 1.0 },
+  layout: {
+    body: 'levels',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels];
