@@ -65,6 +65,7 @@ const ckb: Messages = {
   'error.text.posLastOwner': 'ڕێستۆرانتەکە لانی کەم یەک خاوەنی چالاکی پێویستە',
   'error.text.posRoleLimit': 'ڕۆڵەکەت ڕێگە نادات ئەم ڕۆڵە بدەیت یان بیگۆڕیت',
   'error.text.posAlreadyStaff': 'ئەم کەسە پێشتر لەسەر ئەم قاسەیە کار دەکات',
+  'activity.entity.Announcement': 'ڕاگەیاندن',
   'activity.entity.PosSettings': 'ڕێکخستنەکانی کاشێر',
   'activity.entity.PosStaff': 'کارمەندانی کاشێر',
   'activity.action.pos.settings.update': 'ڕێکخستنەکانی کاشێری گۆڕی',

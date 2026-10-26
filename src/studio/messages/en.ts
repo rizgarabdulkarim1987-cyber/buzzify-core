@@ -64,6 +64,7 @@ const en: Messages = {
   'error.text.posLastOwner': 'The restaurant needs at least one active owner',
   'error.text.posRoleLimit': 'Your role cannot give or change this role',
   'error.text.posAlreadyStaff': 'This person already works at this till',
+  'activity.entity.Announcement': 'Announcement',
   'activity.entity.PosSettings': 'Cashier settings',
   'activity.entity.PosStaff': 'Cashier staff',
   'activity.action.pos.settings.update': 'Changed the cashier settings',

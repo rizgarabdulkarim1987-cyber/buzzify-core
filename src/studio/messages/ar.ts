@@ -65,6 +65,7 @@ const ar: Messages = {
   'error.text.posLastOwner': 'يحتاج المطعم إلى مالك واحد نشط على الأقل',
   'error.text.posRoleLimit': 'دورك لا يسمح بمنح هذا الدور أو تغييره',
   'error.text.posAlreadyStaff': 'هذا الشخص يعمل على هذا الصندوق بالفعل',
+  'activity.entity.Announcement': 'إعلان',
   'activity.entity.PosSettings': 'إعدادات الكاشير',
   'activity.entity.PosStaff': 'موظفو الكاشير',
   'activity.action.pos.settings.update': 'غيّر إعدادات الكاشير',
