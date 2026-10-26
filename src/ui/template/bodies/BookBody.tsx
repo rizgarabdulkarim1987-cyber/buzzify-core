@@ -44,7 +44,9 @@ export function BookBody() {
   // Read on arrival and when the address changes, never because the categories did (search, filters): a guest who has
   // turned to another chapter must stay there.
   const latest = useRef(categories);
-  latest.current = categories;
+  useEffect(() => {
+    latest.current = categories;
+  }, [categories]);
   useEffect(() => {
     const fromHash = () => {
       const hash = window.location.hash;
