@@ -3,7 +3,7 @@ import type { Prisma } from '@/generated/prisma/client';
 import { readPlans } from '@/server/data/plans';
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
-import { formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
+import { BUSINESS_SECTORS, formatClientId, parseClientId, readWorkingHours, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 import { restaurantActivityRows } from '@/server/studio/services/activity';
@@ -41,6 +41,7 @@ export const listRestaurants = defineQuery({
     q: z.string().trim().max(100).optional(),
     city: z.string().trim().max(200).optional(),
     type: z.enum(RESTAURANT_TYPES).optional(),
+    sector: z.enum(BUSINESS_SECTORS).optional(),
     status: z.enum(RESTAURANT_STATUSES).optional(),
     plan: z.enum(PLAN_TIERS).optional(),
     createdFrom: dateField.optional(),
@@ -68,6 +69,7 @@ export const listRestaurants = defineQuery({
     }
     if (input.city) filters.push({ city: { equals: input.city, mode: 'insensitive' } });
     if (input.type) filters.push({ type: input.type });
+    if (input.sector) filters.push({ sector: input.sector });
     if (input.status) filters.push({ status: input.status });
     if (input.plan) filters.push({ plan: input.plan });
     const created = createdBetween(input.createdFrom, input.createdTo);
@@ -87,6 +89,7 @@ export const listRestaurants = defineQuery({
           clientNumber: true,
           name: true,
           type: true,
+          sector: true,
           city: true,
           status: true,
           plan: true,
@@ -105,6 +108,7 @@ export const listRestaurants = defineQuery({
         clientId: formatClientId(row.clientNumber),
         name: row.name,
         type: row.type,
+        sector: row.sector,
         city: row.city,
         status: row.status,
         plan: row.plan,
@@ -155,6 +159,7 @@ export const getRestaurant = defineQuery({
       ...profile,
       // The agency's notes are not the client's to read.
       notes: seesAgencyNotes(ctx.actor, restaurantId) ? profile.notes : null,
+      sector: row.sector,
       status: row.status,
       plan: row.plan,
       logo: logoAsset ? { assetId: logoAsset.id, thumbUrl: getStorage().publicUrl(thumbKey(logoAsset.kind, logoAsset.variants as unknown as AssetVariants)) } : null,

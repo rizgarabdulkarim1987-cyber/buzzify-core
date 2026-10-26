@@ -3,6 +3,8 @@ import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
+import { provisionPharmacy } from '@/server/pharmacy/provision';
+import { BUSINESS_SECTORS, PH_CURRENCIES } from '@/server/domain/restaurant-profile';
 import { PICTURE_KINDS } from '@/server/media/kinds';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
@@ -48,24 +50,79 @@ function restaurantOf(ctx: ActionContext): string {
 /** The profile fields a menu shows guests: the name on every menu, the rest on template menus (spec 2026-10-18, 4.3). */
 const MENU_FIELDS = new Set(['name', 'address', 'city', 'phone', 'whatsapp', 'mapUrl', 'socialLinks', 'workingHours']);
 
+const pharmacyBranch = z.object({
+  name: z.string().trim().min(1, 'Enter the branch name').max(120, 'Use at most 120 characters'),
+  city: z.string().trim().max(200, 'This is too long').optional(),
+});
+
+/** The profile, plus what a new pharmacy adds: its branches, the currencies it prices in and, optionally, who owns it. */
+const createInput = restaurantInput
+  .extend({
+    // The plan is the platform owner's to choose; from anyone else it is ignored and the restaurant starts on Basic.
+    plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered').optional(),
+    sector: z.enum(BUSINESS_SECTORS,'Choose one of the sectors offered').default('FOOD'),
+    // Read only for a pharmacy; a food restaurant has no branches here and ignores them.
+    branches: z.array(pharmacyBranch).max(20, 'A pharmacy starts with at most 20 branches').optional(),
+    currencies: z.array(z.enum(PH_CURRENCIES, 'Choose IQD, USD or both')).min(1, 'Choose at least one currency').default(['IQD']),
+    ownerEmail: z.string().trim().email('Enter a valid email address').max(254).optional(),
+  })
+  .superRefine((input, ctx) => {
+    if (input.sector === 'PHARMACY' && (input.branches?.length ?? 0) === 0) {
+      ctx.addIssue({ code: 'custom', path: ['branches'], message: 'Add at least one branch' });
+    }
+  });
+
 export const createRestaurant = defineAction({
   name: 'restaurants.create',
   permission: 'restaurant.create',
-  // The plan is the platform owner's to choose; from anyone else it is ignored and the restaurant starts on Basic.
-  input: restaurantInput.extend({ plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered').optional() }),
+  input: createInput,
   target: () => PLATFORM,
-  run: (ctx, { plan: chosen, ...input }) =>
+  run: (ctx, { plan: chosen, sector, branches, currencies, ownerEmail, ...input }) =>
     ctx.transaction(async (tx) => {
       const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
-      const created = await tx.restaurant.create({ data: { ...profileData(input), plan }, select: { id: true } });
+      const created = await tx.restaurant.create({
+        data: { ...profileData(input), plan, ...(sector === 'PHARMACY' ? { sector } : {}) },
+        select: { id: true },
+      });
+      const pharmacy =
+        sector === 'PHARMACY'
+          ? await provisionPharmacy(tx, {
+              restaurantId: created.id,
+              branches: branches ?? [],
+              currencies,
+              ownerEmail,
+              invitedById: ctx.actor.userId,
+              afterCommit: ctx.afterCommit,
+            })
+          : null;
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
         action: 'restaurant.created',
         entityType: 'Restaurant',
         entityId: created.id,
         restaurantId: created.id,
-        changes: { ...addedFields(input), plan: { before: null, after: plan } },
+        changes: {
+          ...addedFields(input),
+          plan: { before: null, after: plan },
+          ...(pharmacy
+            ? {
+                sector: { before: null, after: sector },
+                branches: { before: null, after: (branches ?? []).map((branch) => branch.name) },
+                currencies: { before: null, after: currencies },
+              }
+            : {}),
+        },
       });
+      if (pharmacy?.invitationId && ownerEmail) {
+        // The same entry the Studio's own owner invitations leave: the address and the role, never the link.
+        ctx.audit({
+          action: 'invitation.created',
+          entityType: 'Invitation',
+          entityId: pharmacy.invitationId,
+          restaurantId: created.id,
+          changes: { email: { before: null, after: ownerEmail.toLowerCase() }, role: { before: null, after: 'OWNER' } },
+        });
+      }
       return { restaurantId: created.id };
     }),
 });

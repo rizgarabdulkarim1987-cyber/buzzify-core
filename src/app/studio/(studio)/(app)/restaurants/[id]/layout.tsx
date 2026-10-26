@@ -10,6 +10,7 @@ import { Alert } from '@/studio/ui/Alert';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { RouteTabs, type RouteTab } from '@/studio/ui/RouteTabs';
 import { RestaurantStatusBadge } from '../RestaurantStatusBadge';
+import { SectorBadge } from '../SectorBadge';
 import { loadRestaurant } from './load';
 import { RestaurantActions } from './RestaurantActions';
 
@@ -26,15 +27,17 @@ export default async function RestaurantLayout({ children, params }: { children:
   const restaurant = await loadRestaurant(id);
 
   const base = `/studio/restaurants/${restaurant.id}`;
+  // A pharmacy has no menus, menu plan or menu media library: those tabs are for food businesses only.
+  const food = restaurant.sector === 'FOOD';
   const tabs: RouteTab[] = [
     { href: base, label: t('restaurants.tabs.profile'), exact: true },
     { href: `${base}/branches`, label: t('restaurants.tabs.branches') },
-    { href: `${base}/menus`, label: t('restaurants.tabs.menus') },
+    ...(food ? [{ href: `${base}/menus`, label: t('restaurants.tabs.menus') }] : []),
     // What the restaurant has bought: everyone may read it; only the platform owner changes it there.
-    { href: `${base}/plan`, label: t('restaurants.tabs.plan') },
+    ...(food ? [{ href: `${base}/plan`, label: t('restaurants.tabs.plan') }] : []),
     // Its subscriptions and payments: Super Admins read them; only the platform owner changes them there.
     ...(actor.isSuperAdmin ? [{ href: `${base}/billing`, label: t('restaurants.tabs.billing') }] : []),
-    ...(restaurant.can.media ? [{ href: `${base}/media`, label: t('restaurants.tabs.media') }] : []),
+    ...(food && restaurant.can.media ? [{ href: `${base}/media`, label: t('restaurants.tabs.media') }] : []),
     ...(restaurant.can.invite ? [{ href: `${base}/people`, label: t('restaurants.tabs.people') }] : []),
     ...(restaurant.can.audit ? [{ href: `${base}/activity`, label: t('restaurants.tabs.activity') }] : []),
   ];
@@ -57,7 +60,7 @@ export default async function RestaurantLayout({ children, params }: { children:
             <span dir="ltr" className="font-mono text-sm">
               {restaurant.clientId}
             </span>
-            <span>{t(`restaurants.type.${restaurant.type}`)}</span>
+            {food ? <span>{t(`restaurants.type.${restaurant.type}`)}</span> : <SectorBadge sector={restaurant.sector} t={t} />}
             {restaurant.city && <span>{restaurant.city}</span>}
             <RestaurantStatusBadge status={restaurant.status} t={t} />
           </span>
