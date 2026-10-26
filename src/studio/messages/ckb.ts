@@ -2389,6 +2389,7 @@ const ckb: Messages = {
   'design.body.elevator': 'ئاسانسۆر',
   'design.body.periodic': 'خشتەی پریودی',
   'design.body.metro': 'هێڵی مترۆ',
+  'design.body.cabinet': 'کابینەتی دەراکان',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

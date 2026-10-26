@@ -179,4 +179,33 @@ export const theMetroLine = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine];
+export const theDrawerCabinet = definePreset({
+  id: 'the-drawer-cabinet',
+  number: 37,
+  name: 'Drawer Cabinet',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#F4E9D3', text: '#2A1A0C', accent: '#8A3A12', raised: '#FFFAF0' },
+  alternatives: [
+    { id: 'walnut', name: 'Walnut', seed: { bg: '#2B1B10', text: '#F6E2B8', accent: '#F3D488' } },
+    { id: 'whitewashed', name: 'Whitewashed', seed: { bg: '#F5F5F1', text: '#2D3532', accent: '#4F7A6B' } },
+    { id: 'cherry', name: 'Cherry', seed: { bg: '#F6ECE8', text: '#3A1A18', accent: '#9C2F2A' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'cabinet',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet];

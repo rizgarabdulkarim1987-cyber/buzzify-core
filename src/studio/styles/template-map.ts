@@ -12,6 +12,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-elv': 'the-elevator',
   'layout-per': 'the-periodic-table',
   'layout-met': 'the-metro-line',
+  'layout-cab': 'the-drawer-cabinet',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */
