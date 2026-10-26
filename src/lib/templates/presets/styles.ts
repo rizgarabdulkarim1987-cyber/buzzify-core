@@ -324,4 +324,33 @@ export const theKitchenComics = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics];
+export const thePhoneHomeScreen = definePreset({
+  id: 'the-phone-home-screen',
+  number: 42,
+  name: 'Phone Home Screen',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#1B1030', text: '#F5EEFF', accent: '#FF5C8A', raised: '#2A1A47' },
+  alternatives: [
+    { id: 'ocean-wallpaper', name: 'Ocean wallpaper', seed: { bg: '#06202E', text: '#EAF8FF', accent: '#35C2E8' } },
+    { id: 'forest-wallpaper', name: 'Forest wallpaper', seed: { bg: '#0E2418', text: '#EDFBF2', accent: '#5BD68A' } },
+    { id: 'sunset-wallpaper', name: 'Sunset wallpaper', seed: { bg: '#2A1208', text: '#FFF3E8', accent: '#FF9A3C' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'homescreen',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen];

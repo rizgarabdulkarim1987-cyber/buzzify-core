@@ -2389,6 +2389,7 @@ const en: Messages = {
   'design.body.tickets': 'Kitchen ticket rail',
   'design.body.tabletop': 'Table from above',
   'design.body.comics': 'Kitchen comics',
+  'design.body.homescreen': 'Phone home screen',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

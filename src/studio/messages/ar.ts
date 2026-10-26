@@ -2418,6 +2418,7 @@ const ar: Messages = {
   'design.body.tickets': 'سكة تذاكر المطبخ',
   'design.body.tabletop': 'الطاولة من الأعلى',
   'design.body.comics': 'قصص المطبخ المصوّرة',
+  'design.body.homescreen': 'شاشة الموبايل الرئيسية',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',
