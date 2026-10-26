@@ -2386,6 +2386,7 @@ const ckb: Messages = {
   'design.body.book': 'کتێب',
   'design.body.magazine': 'گۆڤار',
   'design.body.board': 'تەختە',
+  'design.body.elevator': 'ئاسانسۆر',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

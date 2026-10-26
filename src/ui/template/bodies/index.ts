@@ -2,6 +2,7 @@ import type { ComponentType } from 'react';
 import type { BodyKind } from '@/lib/templates/types';
 import { BoardBody } from './BoardBody';
 import { BookBody } from './BookBody';
+import { ElevatorBody } from './ElevatorBody';
 import { MagazineBody } from './MagazineBody';
 
 /**
@@ -13,4 +14,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   book: BookBody,
   magazine: MagazineBody,
   board: BoardBody,
+  elevator: ElevatorBody,
 };

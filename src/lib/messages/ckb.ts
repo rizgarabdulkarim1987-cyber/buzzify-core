@@ -236,6 +236,8 @@ const ckb: Messages = {
   'tpl.mag.sections_one': '{n} بەش',
   'tpl.mag.sections_other': '{n} بەش',
   'tpl.board.gate': 'دەرگای {letter}: {name}',
+  'tpl.elv.floor': 'نهۆمی {n}',
+  'tpl.elv.goTo': 'نهۆمی {n}: {name}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

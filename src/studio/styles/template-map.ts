@@ -9,6 +9,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'themed-book': 'the-book',
   'layout-mag': 'the-magazine',
   'layout-2-dep': 'taste-airport',
+  'layout-elv': 'the-elevator',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

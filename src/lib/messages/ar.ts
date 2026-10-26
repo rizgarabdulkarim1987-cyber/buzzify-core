@@ -250,6 +250,8 @@ const ar: Messages = {
   'tpl.mag.sections_many': '{n} قسمًا',
   'tpl.mag.sections_other': '{n} قسم',
   'tpl.board.gate': 'البوابة {letter}: {name}',
+  'tpl.elv.floor': 'الطابق {n}',
+  'tpl.elv.goTo': 'الطابق {n}: {name}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',
   'tpl.day.wed': 'الأربعاء',

@@ -236,6 +236,8 @@ const en: Messages = {
   'tpl.mag.sections_one': '{n} section',
   'tpl.mag.sections_other': '{n} sections',
   'tpl.board.gate': 'Gate {letter}: {name}',
+  'tpl.elv.floor': 'Floor {n}',
+  'tpl.elv.goTo': 'Floor {n}: {name}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',

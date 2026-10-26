@@ -2410,6 +2410,7 @@ const ar: Messages = {
   'design.body.book': 'كتاب',
   'design.body.magazine': 'مجلة',
   'design.body.board': 'لوحة',
+  'design.body.elevator': 'مصعد',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

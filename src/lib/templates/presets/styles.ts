@@ -92,4 +92,33 @@ export const tasteAirport = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport];
+export const theElevator = definePreset({
+  id: 'the-elevator',
+  number: 34,
+  name: 'The Elevator',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#F2ECE1', text: '#2B2620', accent: '#A64B00', raised: '#E6DDCC' },
+  alternatives: [
+    { id: 'lobby-marble', name: 'Lobby marble', seed: { bg: '#F4F2EE', text: '#22252B', accent: '#8A5A12' } },
+    { id: 'brass-night', name: 'Brass night', seed: { bg: '#1C1812', text: '#F1E8D6', accent: '#E8A33D' } },
+    { id: 'steel-car', name: 'Steel car', seed: { bg: '#E9ECEF', text: '#1F2429', accent: '#B34A00' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'elevator',
+    hero: 'compact',
+    nav: 'index',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator];
