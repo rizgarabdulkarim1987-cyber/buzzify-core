@@ -1,11 +1,11 @@
 'use client';
 
-import type { CSSProperties } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { SaleChip } from '../parts';
+import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './bento.css';
@@ -30,11 +30,19 @@ export function compartmentSizes(count: number): number[] {
 }
 
 /**
+ * Whether the compartment at `slot` of a tray of `size` is one row tall (bento.css: the lead compartment, and both of a
+ * tray of two, span two rows; every other one spans one). A small compartment carries its price at the end of its name
+ * strip instead of in a flag on the photo, so the flags never cover the picture.
+ */
+export const isSmallCompartment = (size: number, slot: number) => size >= 3 && slot > 0;
+
+/**
  * The Bento Box (spec 2026-10-26-menu-styles-in-templates-design.md). Every section is a lacquered bento box: a rounded
  * tray divided into compartments of unequal size (a big one for the lead dish, smaller ones for the rest, the pattern
- * chosen by how many dishes the box holds), each dish's photo filling its compartment. A paper flag pinned on the
- * compartment carries the name, a smaller flag the price. A strip of lid-handle tabs stays at the top and jumps,
- * lighting the box in view. All boxes are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
+ * chosen by how many dishes the box holds), each dish's photo filling its compartment. A paper strip at the
+ * compartment's foot carries the name; the price is a flag on a big compartment's corner and the strip's end in a small
+ * one. A strip of lid-handle tabs stays at the top and jumps, lighting the box in view. All boxes are on the page, so the
+ * template's own jump and `#cat-<slug>` scrolling reach them.
  */
 export function BentoBody() {
   const { t, locale, tenant } = useApp();
@@ -59,7 +67,7 @@ export function BentoBody() {
                 return (
                   <ul key={tray} className="bn-tray" data-n={size}>
                     {products.slice(start, start + size).map((product, at) => (
-                      <Compartment key={product.id} product={product} slot={at} priority={index === 0 && start + at < 6} order={Math.min(index * 3 + start + at, 8)} />
+                      <Compartment key={product.id} product={product} slot={at} small={isSmallCompartment(size, at)} priority={index === 0 && start + at < 6} order={Math.min(index * 3 + start + at, 8)} />
                     ))}
                   </ul>
                 );
@@ -74,21 +82,23 @@ export function BentoBody() {
 
 const AREAS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
 
-function Compartment({ product, slot, priority, order }: { product: MenuProductView; slot: number; priority: boolean; order: number }) {
-  const { openProduct } = useTemplate();
+function Compartment({ product, slot, small, priority, order }: { product: MenuProductView; slot: number; small: boolean; priority: boolean; order: number }) {
   return (
-    <li data-row className="bn-cell tpl-rise" style={{ gridArea: AREAS[slot], '--i': order } as CSSProperties}>
-      <div data-photo className="bn-photo tpl-cover-media">
-        <ProductMedia product={product} suffix="bento" sizes="(min-width: 640px) 360px, 70vw" priority={priority} className="bn-img" rounded={false} />
-      </div>
-      <div className="bn-price-flag">
-        <Price product={product} className="tpl-price-tight bn-price" />
-        <SaleChip product={product} className="bn-off" />
-      </div>
-      <QuickAction product={product} variant="icon" className="tpl-rim-add bn-add relative z-[2]" />
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name bn-name text-start">
-        {product.name}
-      </button>
-    </li>
+    <IconDish
+      product={product}
+      prefix="bn"
+      suffix="bento"
+      cell="bn-cell tpl-rise"
+      head="bn-top"
+      price="bn-price"
+      pricePlace={small ? 'below' : 'head'}
+      media="cover"
+      extras={<SaleChip product={product} className="bn-off" />}
+      sizes="(min-width: 640px) 360px, 70vw"
+      priority={priority}
+      order={order}
+      cellProps={{ 'data-size': small ? 'small' : 'big' }}
+      style={{ gridArea: AREAS[slot] }}
+    />
   );
 }

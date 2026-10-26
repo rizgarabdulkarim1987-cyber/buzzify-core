@@ -130,10 +130,52 @@ test('a long dish name and a long price stay inside the smallest compartment wit
   const lines = await cell.locator('.bn-name').evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)));
   expect(lines).toBeLessThanOrEqual(2);
   const box = (await cell.boundingBox())!;
-  const flag = (await cell.locator('.bn-price-flag').boundingBox())!;
+  const flag = (await cell.locator('.bn-price').boundingBox())!;
   expect(flag.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(flag.x + flag.width).toBeLessThanOrEqual(box.x + box.width + 1);
   expect(flag.y + flag.height).toBeLessThanOrEqual(box.y + box.height + 1);
+});
+
+test('in every compartment the photo stays in sight: name, price and add never overlap and leave at least 40% of it uncovered', async ({ page }) => {
+  await openMenu(page, slug);
+  const three = page.locator('#cat-viennoiserie [data-row]');
+  expect(await three.count()).toBe(3);
+  // The worst ordinary case: a name of two lines and a long price, on every compartment of a tray of three.
+  for (let i = 0; i < 3; i++) {
+    await three.nth(i).locator('.bn-name').evaluate((node) => {
+      node.textContent = 'Pain au chocolat aux amandes grillées';
+    });
+    await three.nth(i).locator('.bn-price').evaluate((node) => {
+      node.textContent = 'From 12,500 IQD';
+    });
+  }
+  for (let i = 0; i < 3; i++) {
+    const report = await three.nth(i).evaluate((cell) => {
+      const box = cell.getBoundingClientRect();
+      const parts = ['.bn-price', '.bn-add', '.bn-name'].map((selector) => cell.querySelector(selector)!.getBoundingClientRect());
+      const overlaps: string[] = [];
+      for (let a = 0; a < parts.length; a++) {
+        for (let b = a + 1; b < parts.length; b++) {
+          const width = Math.min(parts[a]!.right, parts[b]!.right) - Math.max(parts[a]!.left, parts[b]!.left);
+          const height = Math.min(parts[a]!.bottom, parts[b]!.bottom) - Math.max(parts[a]!.top, parts[b]!.top);
+          if (width > 0.5 && height > 0.5) overlaps.push(`${['price', 'add', 'name'][a]} over ${['price', 'add', 'name'][b]}`);
+        }
+      }
+      const photo = cell.querySelector('[data-photo] img, [data-photo] svg')!.getBoundingClientRect();
+      let seen = 0;
+      let all = 0;
+      for (let y = box.top + 0.5; y < box.bottom; y += 2) {
+        for (let x = box.left + 0.5; x < box.right; x += 2) {
+          all++;
+          const inPhoto = x >= photo.left && x <= photo.right && y >= photo.top && y <= photo.bottom;
+          if (inPhoto && !parts.some((p) => x >= p.left && x <= p.right && y >= p.top && y <= p.bottom)) seen++;
+        }
+      }
+      return { overlaps, share: seen / all };
+    });
+    expect(report.overlaps, `compartment ${i + 1}: name, price and add overlap`).toEqual([]);
+    expect(report.share, `compartment ${i + 1}: share of the photo in sight`).toBeGreaterThanOrEqual(0.4);
+  }
 });
 
 test('on a wide screen the boxes stay a tidy column', async ({ page }) => {

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
-import { BentoBody, compartmentSizes } from '@/ui/template/bodies/BentoBody';
+import { BentoBody, compartmentSizes, isSmallCompartment } from '@/ui/template/bodies/BentoBody';
 
 describe('The Bento Box shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -33,5 +33,12 @@ describe('The Bento Box shape', () => {
       expect(sizes.every((size) => size >= 1 && size <= 6)).toBe(true);
       expect(sizes.filter((size) => size === 1).length).toBe(n === 1 ? 1 : 0);
     }
+  });
+
+  it('treats the one-row compartments as small (price on the name strip): all but the lead from a tray of three', () => {
+    expect([0, 1].map((slot) => isSmallCompartment(1, slot))).toEqual([false, false]);
+    expect([0, 1].map((slot) => isSmallCompartment(2, slot))).toEqual([false, false]);
+    expect([0, 1, 2].map((slot) => isSmallCompartment(3, slot))).toEqual([false, true, true]);
+    expect([0, 1, 2, 3, 4, 5].map((slot) => isSmallCompartment(6, slot))).toEqual([false, true, true, true, true, true]);
   });
 });
