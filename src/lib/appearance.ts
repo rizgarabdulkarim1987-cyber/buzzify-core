@@ -82,20 +82,22 @@ export function isDark(background: string): boolean {
 }
 
 type Field = 'font' | 'bg' | 'text' | 'button' | 'buttonText' | 'shape';
-export type AppearanceCheck = { ok: true; value: Appearance } | { ok: false; field: Field; reason: string };
+/** Why a field was refused: written wrongly, too close in contrast to what it sits on, or not one of the choices. */
+export type AppearanceCode = 'format' | 'contrast' | 'choice';
+export type AppearanceCheck = { ok: true; value: Appearance } | { ok: false; field: Field; code: AppearanceCode; reason: string };
 
 /** Whether the choice may be saved. The reason is a one-line English message; the picker shows it next to the field. */
 export function checkAppearance(input: unknown): AppearanceCheck {
   const a = (input ?? {}) as Record<string, unknown>;
   if (typeof a.font !== 'string' || !(FONT_KEYS as readonly string[]).includes(a.font)) {
-    return { ok: false, field: 'font', reason: 'Choose one of the fonts offered' };
+    return { ok: false, field: 'font', code: 'choice', reason: 'Choose one of the fonts offered' };
   }
   if (typeof a.shape !== 'string' || !(SHAPES as readonly string[]).includes(a.shape)) {
-    return { ok: false, field: 'shape', reason: 'Choose round or square' };
+    return { ok: false, field: 'shape', code: 'choice', reason: 'Choose round or square' };
   }
   for (const field of ['bg', 'text', 'button', 'buttonText'] as const) {
     const v = a[field];
-    if (typeof v !== 'string' || !HEX.test(v)) return { ok: false, field, reason: 'Use a colour such as #1a2b3c' };
+    if (typeof v !== 'string' || !HEX.test(v)) return { ok: false, field, code: 'format', reason: 'Use a colour such as #1a2b3c' };
   }
   const value: Appearance = {
     font: a.font as FontKey,
@@ -106,13 +108,13 @@ export function checkAppearance(input: unknown): AppearanceCheck {
     buttonText: (a.buttonText as string).toLowerCase(),
   };
   if (contrast(value.text, value.bg) < MIN_TEXT_CONTRAST) {
-    return { ok: false, field: 'text', reason: 'The text is too close to the background colour to read' };
+    return { ok: false, field: 'text', code: 'contrast', reason: 'The text is too close to the background colour to read' };
   }
   if (contrast(value.buttonText, value.button) < MIN_TEXT_CONTRAST) {
-    return { ok: false, field: 'buttonText', reason: 'The button text is too close to the button colour to read' };
+    return { ok: false, field: 'buttonText', code: 'contrast', reason: 'The button text is too close to the button colour to read' };
   }
   if (contrast(value.button, value.bg) < MIN_BUTTON_CONTRAST) {
-    return { ok: false, field: 'button', reason: 'The button is too close to the background colour to see' };
+    return { ok: false, field: 'button', code: 'contrast', reason: 'The button is too close to the background colour to see' };
   }
   return { ok: true, value };
 }
@@ -153,7 +155,11 @@ function mutedOn(text: string, bg: string): string {
  * pages are exactly the stylesheet's. Status colours (danger, success, info, accent) are never in here.
  */
 export function appearanceVars(a: Appearance): Record<string, string> {
-  if (sameAsDefault(a)) return {};
+  return sameAsDefault(a) ? {} : fullAppearanceVars(a);
+}
+
+/** Every variable for a look, the default included: what the picker's preview needs. */
+export function fullAppearanceVars(a: Appearance): Record<string, string> {
   const vars: Record<string, string> = {
     '--s-bg': a.bg,
     '--s-raised': a.bg,
@@ -173,3 +179,11 @@ export function appearanceVars(a: Appearance): Record<string, string> {
   if (stack) vars['--s-font'] = stack;
   return vars;
 }
+
+/** Starting points in the picker; each passes the readability check. */
+export const PRESETS: ReadonlyArray<{ key: 'light' | 'dark' | 'cream' | 'ocean'; appearance: Appearance }> = [
+  { key: 'light', appearance: DEFAULT_APPEARANCE },
+  { key: 'dark', appearance: { font: 'studio', bg: '#121212', text: '#f2f2f2', button: '#f2b705', buttonText: '#111111', shape: 'square' } },
+  { key: 'cream', appearance: { font: 'studio', bg: '#faf3e3', text: '#2b2118', button: '#7a3e11', buttonText: '#ffffff', shape: 'round' } },
+  { key: 'ocean', appearance: { font: 'studio', bg: '#eef5fb', text: '#0b2540', button: '#1d4ed8', buttonText: '#ffffff', shape: 'round' } },
+];

@@ -54,6 +54,9 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
             {t('pos.pin.title')}
           </Link>
           {sharedDevice ? <SwitchUserButton /> : null}
+          <Link href="/studio/account#appearance" className="underline underline-offset-2">
+            {t('account.appearance.title')}
+          </Link>
           <Link href="/studio/account" className="underline underline-offset-2">
             {t('pos.shell.account')}
           </Link>

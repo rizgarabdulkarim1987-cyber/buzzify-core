@@ -4,6 +4,8 @@ import {
   checkAppearance,
   contrast,
   DEFAULT_APPEARANCE,
+  fullAppearanceVars,
+  PRESETS,
   FONT_KEYS,
   isDark,
   parseStoredAppearance,
@@ -86,5 +88,24 @@ describe('isDark', () => {
   it('is true for #111111 and false for #ffffff', () => {
     expect(isDark('#111111')).toBe(true);
     expect(isDark('#ffffff')).toBe(false);
+  });
+});
+
+describe('checkAppearance codes', () => {
+  it('says whether a field is badly written, too close in contrast, or not on offer', () => {
+    expect(checkAppearance({ ...DEFAULT_APPEARANCE, bg: 'red' })).toMatchObject({ code: 'format' });
+    expect(checkAppearance({ ...DEFAULT_APPEARANCE, text: '#ffffff' })).toMatchObject({ field: 'text', code: 'contrast' });
+    expect(checkAppearance({ ...DEFAULT_APPEARANCE, font: 'comic' })).toMatchObject({ code: 'choice' });
+  });
+});
+
+describe('presets and the full variable set', () => {
+  it('offers presets that all pass the readability check', () => {
+    expect(PRESETS.length).toBeGreaterThanOrEqual(3);
+    for (const preset of PRESETS) expect(checkAppearance(preset.appearance)).toEqual({ ok: true, value: preset.appearance });
+  });
+  it('gives the default look a full set of variables for the preview', () => {
+    expect(fullAppearanceVars(DEFAULT_APPEARANCE)['--s-bg']).toBe('#ffffff');
+    expect(fullAppearanceVars(DEFAULT_APPEARANCE)['--s-btn-radius']).toBe('6px');
   });
 });
