@@ -208,4 +208,33 @@ export const theDrawerCabinet = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet];
+export const theSupermarketShelves = definePreset({
+  id: 'the-supermarket-shelves',
+  number: 38,
+  name: 'Supermarket Shelves',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#EEF2F4', text: '#1D2A33', accent: '#C41F1F', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'corner-shop', name: 'Corner shop', seed: { bg: '#F7F1E4', text: '#2B2218', accent: '#B4381B' } },
+    { id: 'fresh-aisle', name: 'Fresh aisle', seed: { bg: '#EDF5EE', text: '#17301F', accent: '#1F7A3E' } },
+    { id: 'night-market', name: 'Night market', seed: { bg: '#141C22', text: '#EAF0F3', accent: '#FFD23F' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'shelves',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves];

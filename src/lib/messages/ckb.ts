@@ -240,6 +240,7 @@ const ckb: Messages = {
   'tpl.elv.goTo': 'نهۆمی {n}: {name}',
   'tpl.per.group': 'گروپی {n}',
   'tpl.met.station': 'وێستگەی {n}',
+  'tpl.shf.aisle': 'ڕێڕەوی {n}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

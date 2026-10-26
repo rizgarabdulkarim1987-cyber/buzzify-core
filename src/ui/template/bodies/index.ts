@@ -7,6 +7,7 @@ import { ElevatorBody } from './ElevatorBody';
 import { MagazineBody } from './MagazineBody';
 import { MetroBody } from './MetroBody';
 import { PeriodicBody } from './PeriodicBody';
+import { ShelvesBody } from './ShelvesBody';
 
 /**
  * Every browse shape but `scroll`, by kind: the component `TemplateMenu` draws in place of the long page. A body reads
@@ -21,4 +22,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   periodic: PeriodicBody,
   metro: MetroBody,
   cabinet: CabinetBody,
+  shelves: ShelvesBody,
 };

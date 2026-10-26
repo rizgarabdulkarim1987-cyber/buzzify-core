@@ -2385,6 +2385,7 @@ const en: Messages = {
   'design.body.periodic': 'Periodic table',
   'design.body.metro': 'Metro line',
   'design.body.cabinet': 'Drawer cabinet',
+  'design.body.shelves': 'Supermarket shelves',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',
