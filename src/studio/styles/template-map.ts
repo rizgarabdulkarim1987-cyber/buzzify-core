@@ -29,6 +29,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'motion-stk': 'the-stacked-sheets',
   'motion-mor': 'the-photo-to-details',
   'motion-fly': 'the-fly-to-cart',
+  'motion-ink': 'the-section-ink',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

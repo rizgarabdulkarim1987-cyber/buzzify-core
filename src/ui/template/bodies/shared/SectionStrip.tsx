@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, type CSSProperties, type ReactNode } from 'react';
+import { useRef, type CSSProperties, type MouseEvent, type ReactNode } from 'react';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate, type MenuCategory } from '../../context';
 import { useKeepInView } from './useKeepInView';
@@ -18,6 +18,7 @@ export function SectionStrip({
   className = '',
   chip,
   chipStyle,
+  onPick,
   children,
 }: {
   marker: string;
@@ -28,6 +29,8 @@ export function SectionStrip({
   chip?: string;
   /** Per-button style (a hue, for example). */
   chipStyle?: (category: MenuCategory, index: number) => CSSProperties | undefined;
+  /** Called with the tapped chip just before the page jumps (a shape that answers the tap with its own effect). */
+  onPick?: (category: MenuCategory, button: HTMLButtonElement) => void;
   children: (category: MenuCategory, index: number) => ReactNode;
 }) {
   const { t } = useApp();
@@ -43,7 +46,10 @@ export function SectionStrip({
               type="button"
               data-category={category.id}
               aria-current={category.id === activeId ? 'true' : undefined}
-              onClick={() => jumpTo(category.id)}
+              onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                onPick?.(category, event.currentTarget);
+                jumpTo(category.id);
+              }}
               className={chip ?? `${prefix}-chip`}
               style={chipStyle?.(category, index)}
             >

@@ -2406,6 +2406,7 @@ const ckb: Messages = {
   'design.body.stacked': 'لاپەڕە لەسەریەکەکان',
   'design.body.morph': 'لە وێنەوە بۆ وردەکاری',
   'design.body.fly': 'فڕین بۆ سەبەتە',
+  'design.body.ink': 'مرەکەبی بەشەکان',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

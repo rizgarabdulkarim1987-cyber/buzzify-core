@@ -672,4 +672,33 @@ export const theFlyToCart = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart];
+export const theSectionInk = definePreset({
+  id: 'the-section-ink',
+  number: 54,
+  name: 'Section Ink',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#161618', text: '#F4F1EA', accent: '#FF5A36', raised: '#202023' },
+  alternatives: [
+    { id: 'paper-press', name: 'Paper press', seed: { bg: '#F6F1E7', text: '#1B1713', accent: '#D6361F', raised: '#FFFFFF' } },
+    { id: 'midnight-blue', name: 'Midnight blue', seed: { bg: '#0F1830', text: '#EEF2FF', accent: '#4F8BFF', raised: '#18244A' } },
+    { id: 'plum-night', name: 'Plum night', seed: { bg: '#1E1226', text: '#FBEFFF', accent: '#E65CC0', raised: '#2B1A37' } },
+  ],
+  type: { fontPairId: 'pop', scale: 1.0 },
+  layout: {
+    body: 'ink',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk];

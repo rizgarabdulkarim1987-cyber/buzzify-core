@@ -11,6 +11,7 @@ import { FlyBody } from './FlyBody';
 import { FridgeBody } from './FridgeBody';
 import { KineticBody } from './KineticBody';
 import { HomescreenBody } from './HomescreenBody';
+import { InkBody } from './InkBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
 import { MailboxesBody } from './MailboxesBody';
@@ -53,4 +54,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   stacked: StackedBody,
   morph: MorphBody,
   fly: FlyBody,
+  ink: InkBody,
 };
