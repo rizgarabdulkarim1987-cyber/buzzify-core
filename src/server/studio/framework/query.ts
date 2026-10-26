@@ -2,11 +2,13 @@ import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { FeatureKey } from '@/server/domain/entitlements';
+import type { PhPermission } from '@/server/domain/pharmacy/permissions';
 import type { Permission } from '@/server/domain/permissions';
 import type { PosPermission } from '@/server/domain/pos/permissions';
+import type { PhActor } from '@/server/pharmacy/actor';
 import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
+import { admit, checkDefinition, type CheckedTarget, type PhTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
@@ -35,6 +37,8 @@ export interface QueryContext {
   menuId: string | null;
   /** Who is at the till, for a query with a `pos` permission; null for every other. */
   pos: PosActor | null;
+  /** Who works in the pharmacy, for a query with a `ph` permission; null for every other. */
+  ph: PhActor | null;
 }
 
 // As for actions, the input type comes from the schema alone.
@@ -42,6 +46,8 @@ interface QueryFields<I, O> {
   name: string;
   /** A till definition that still runs when the Cashier subscription has lapsed (closing and reading a shift). */
   allowLapsed?: true;
+  /** A pharmacy query runs while the pharmacy is read-only whether or not it says so; this only states it. */
+  allowReadOnly?: true;
   input: z.ZodType<I>;
   run(ctx: QueryContext, input: NoInfer<I>): Promise<O>;
   allowWithoutTwoFactor?: boolean;
@@ -51,13 +57,15 @@ interface QueryFields<I, O> {
 
 /**
  * A query names a permission, or `'view'`: a Super Admin or a member of the target's restaurant (on a platform target,
- * anyone signed in, with rows limited by `scope`). `permission: null` is for the person's own account only.
+ * anyone signed in, with rows limited by `scope`). `permission: null` is for the person's own account, their till
+ * (`pos`) or their pharmacy (`ph`).
  */
 export type QuerySpec<I, O> = QueryFields<I, O> &
   (
-    | { permission: Permission | 'view'; pos?: undefined; target(input: NoInfer<I>): CheckedTarget }
-    | { permission: null; pos?: undefined; target(input: NoInfer<I>): SelfTarget }
-    | { permission: null; pos: PosPermission; target(input: NoInfer<I>): PosTarget }
+    | { permission: Permission | 'view'; pos?: undefined; ph?: undefined; target(input: NoInfer<I>): CheckedTarget }
+    | { permission: null; pos?: undefined; ph?: undefined; target(input: NoInfer<I>): SelfTarget }
+    | { permission: null; pos: PosPermission; ph?: undefined; target(input: NoInfer<I>): PosTarget }
+    | { permission: null; pos?: undefined; ph: PhPermission; target(input: NoInfer<I>): PhTarget }
   );
 
 export interface QueryDef<I, O> {
@@ -67,6 +75,9 @@ export interface QueryDef<I, O> {
   /** A till permission instead of a Studio one; the target is then the person's own till. */
   readonly pos?: PosPermission;
   readonly allowLapsed?: true;
+  /** A pharmacy permission instead of a Studio one; the target is then the person's own pharmacy. */
+  readonly ph?: PhPermission;
+  readonly allowReadOnly?: true;
   readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
@@ -83,6 +94,8 @@ export function defineQuery<I, O>(spec: QuerySpec<I, O>): QueryDef<I, O> {
     permission: spec.permission,
     ...(spec.pos === undefined ? {} : { pos: spec.pos }),
     ...(spec.allowLapsed === undefined ? {} : { allowLapsed: spec.allowLapsed }),
+    ...(spec.ph === undefined ? {} : { ph: spec.ph }),
+    ...(spec.allowReadOnly === undefined ? {} : { allowReadOnly: spec.allowReadOnly }),
     ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
@@ -116,6 +129,7 @@ export async function runQueryForPage<I, O>(
         restaurantId: access.restaurantId,
         menuId: access.menuId,
         pos: access.pos ?? null,
+        ph: access.ph ?? null,
       },
       admitted.input,
     );

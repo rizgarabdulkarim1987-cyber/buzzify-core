@@ -1,5 +1,7 @@
 /** Rules for a pharmacy owner's time-limited grant of access to Buzzify support, as pure functions. */
 
+import type { PhPermission } from './permissions';
+
 export const SUPPORT_SCOPES = ['catalog.read', 'stock.read', 'sales.read', 'rx.read', 'patients.read'] as const;
 export type SupportScope = (typeof SUPPORT_SCOPES)[number];
 
@@ -52,6 +54,23 @@ export function grantStatus(
   if (now.getTime() >= grant.expiresAt.getTime()) return 'expired';
   if (now.getTime() < grant.startsAt.getTime()) return 'pending';
   return 'active';
+}
+
+/**
+ * The one table of what a support actor may read: each pharmacy permission that only reads, and the grant scope that
+ * covers it. A permission missing here writes (or is the owner's own, such as `support.grant`), so no grant covers it.
+ */
+export const SUPPORT_READ_SCOPE: Readonly<Partial<Record<PhPermission, SupportScope>>> = Object.freeze({
+  'catalog.view': 'catalog.read',
+  'cost.view': 'stock.read',
+  'profit.view': 'sales.read',
+  'report.view': 'sales.read',
+  'rx.attachment.view': 'rx.read',
+});
+
+/** The grant scope a support actor needs for `permission`, or null when no grant can cover it. */
+export function supportReadScope(permission: PhPermission): SupportScope | null {
+  return SUPPORT_READ_SCOPE[permission] ?? null;
 }
 
 export function grantAllows(

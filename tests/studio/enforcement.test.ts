@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, posix, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { phModelNames, phReferences, phSchemaNames } from '../helpers/ph-models';
 
 /**
  * The Studio's static rules: every way in from the browser goes through the framework (`defineAction`, `defineQuery`,
@@ -49,14 +50,17 @@ function exportsNotMatching(source: string, shape: RegExp): string[] {
 // Rule 1 -------------------------------------------------------------------------------------------------------------
 
 const ACTIONS_DIR = 'src/app/studio/_actions/';
+/** The pharmacy's Server Actions, which forward to its definitions the same way. */
+const PHARMACY_ACTIONS_DIR = 'src/app/pharmacy/_actions/';
+const ACTIONS_DIRS = [ACTIONS_DIR, PHARMACY_ACTIONS_DIR];
 
 function containsUseServer(source: string): boolean {
   return source.includes("'use server'") || source.includes('"use server"');
 }
 
-/** A file outside the actions folder may not hold a Server Action. */
+/** A file outside the actions folders may not hold a Server Action. */
 function misplacedUseServer(path: string, source: string): boolean {
-  return containsUseServer(source) && !path.startsWith(ACTIONS_DIR);
+  return containsUseServer(source) && !ACTIONS_DIRS.some((dir) => path.startsWith(dir));
 }
 
 // Rule 2 -------------------------------------------------------------------------------------------------------------
@@ -141,10 +145,33 @@ function databaseImports(path: string, source: string): string[] {
     .filter((specifier) => isDatabaseModule(resolveSpecifier(path, specifier)));
 }
 
+// Rules 7 and 8 ------------------------------------------------------------------------------------------------------
+
+const PH = phSchemaNames();
+const PH_NAMES = phModelNames();
+
+/** The Studio's own code (its actions, queries, services and framework) never names a Ph model or relation to one. */
+const studioPhReferences = (source: string) => phReferences(source, PH_NAMES);
+
+/**
+ * A pharmacy file that uses a Ph model's delegate gets its client from `ctx`/`tx` (scoped to the actor's pharmacy and
+ * branches), never by importing the application's client itself.
+ */
+function pharmacyClientViolations(path: string, source: string): string[] {
+  const delegates = phReferences(source, PH.delegates);
+  return delegates.length > 0 ? databaseImports(path, source) : [];
+}
+
 // --------------------------------------------------------------------------------------------------------------------
 
 describe('Studio enforcement rules', () => {
-  describe("1. 'use server' lives only in src/app/studio/_actions", () => {
+  describe("1. 'use server' lives only in src/app/studio/_actions and src/app/pharmacy/_actions", () => {
+    it('allows the pharmacy actions folder and nothing else of the pharmacy', () => {
+      expect(misplacedUseServer('src/app/pharmacy/_actions/products.ts', "'use server';\n")).toBe(false);
+      expect(misplacedUseServer('src/app/pharmacy/(app)/products/page.tsx', "async function save() {\n  'use server';\n}\n")).toBe(true);
+      expect(misplacedUseServer('src/server/pharmacy/actions/products.ts', "'use server'\n")).toBe(true);
+    });
+
     it('tells an actions file from a Server Action anywhere else', () => {
       expect(misplacedUseServer('src/app/studio/_actions/menus.ts', "'use server';\n")).toBe(false);
       expect(misplacedUseServer('src/app/studio/(app)/menus/page.tsx', 'export default function Page() {}\n')).toBe(false);
@@ -213,6 +240,13 @@ describe('Studio enforcement rules', () => {
       );
       expect(offenders).toEqual([]);
     });
+
+    it('holds for every file in src/app/pharmacy/_actions', () => {
+      const offenders = sourceFiles(PHARMACY_ACTIONS_DIR).flatMap((path) =>
+        actionsFileViolations(read(path)).map((line) => `${path}: ${line}`),
+      );
+      expect(offenders).toEqual([]);
+    });
   });
 
   describe('3. action, query and public action modules export only definitions', () => {
@@ -252,6 +286,18 @@ describe('Studio enforcement rules', () => {
         ),
         ...sourceFiles('src/server/studio/public-actions').flatMap((path) =>
           exportsNotMatching(read(path), DEFINE_PUBLIC_ACTION).map((line) => `${path}: ${line}`),
+        ),
+      ];
+      expect(offenders).toEqual([]);
+    });
+
+    it('holds for src/server/pharmacy/actions and src/server/pharmacy/queries', () => {
+      const offenders = [
+        ...sourceFiles('src/server/pharmacy/actions').flatMap((path) =>
+          exportsNotMatching(read(path), DEFINE_ACTION).map((line) => `${path}: ${line}`),
+        ),
+        ...sourceFiles('src/server/pharmacy/queries').flatMap((path) =>
+          exportsNotMatching(read(path), DEFINE_QUERY).map((line) => `${path}: ${line}`),
         ),
       ];
       expect(offenders).toEqual([]);
@@ -356,6 +402,71 @@ describe('Studio enforcement rules', () => {
     it('holds for every file under src/app/studio', () => {
       const offenders = sourceFiles('src/app/studio').flatMap((path) =>
         databaseImports(path, read(path)).map((specifier) => `${path}: ${specifier}`),
+      );
+      expect(offenders).toEqual([]);
+    });
+
+    it('finds the client in a pharmacy page too', () => {
+      const pharmacyPage = 'src/app/pharmacy/(app)/products/page.tsx';
+      expect(databaseImports(pharmacyPage, "import { getPrisma } from '@/server/data/prisma';")).toHaveLength(1);
+      expect(databaseImports(pharmacyPage, "import { invokeQuery } from '@/server/studio/framework/invoke';")).toEqual([]);
+    });
+
+    it('holds for every file under src/app/pharmacy', () => {
+      const offenders = sourceFiles('src/app/pharmacy').flatMap((path) =>
+        databaseImports(path, read(path)).map((specifier) => `${path}: ${specifier}`),
+      );
+      expect(offenders).toEqual([]);
+    });
+  });
+
+  describe("7. the Studio's own code never names a Ph model", () => {
+    it('reads the Ph models and the relations to them from the schema', () => {
+      expect(PH.delegates).toEqual(expect.arrayContaining(['phSettings', 'phStaff', 'phStaffBranch']));
+      expect(PH.relations).toEqual(expect.arrayContaining(['phStaffs', 'phStaffBranches']));
+      // A relation between two Ph models, and an enum, are not names the Studio could reach Ph rows by.
+      expect(PH_NAMES).not.toContain('staff');
+      expect(PH_NAMES).not.toContain('role');
+    });
+
+    it('finds a delegate, a relation and a bracket access, and ignores lookalikes', () => {
+      expect(studioPhReferences('await tx.phStaff.findMany({ where: { restaurantId } });')).toEqual(['phStaff']);
+      expect(studioPhReferences('await ctx.db.\n  phSettings.findUnique({ where: { restaurantId } });')).toEqual(['phSettings']);
+      expect(studioPhReferences("prisma.user.findUnique({ where: { id }, include: { phStaffs: true } });")).toEqual(['phStaffs']);
+      expect(studioPhReferences("prisma.restaurant.findMany({ select: { id: true,\n  phSettings: true } });")).toEqual(['phSettings']);
+      expect(studioPhReferences("const rows = await (tx as never)['phStaffBranch'].count();")).toEqual(['phStaffBranch']);
+      expect(studioPhReferences("import { phGate } from '@/server/pharmacy/actor';\nconst gate = await phGate(prisma, id, now);")).toEqual([]);
+      expect(studioPhReferences('const staff = await tx.posStaff.findMany(); // PhStaff is not read here')).toEqual([]);
+      expect(studioPhReferences('access.ph ?? null; def.ph;')).toEqual([]);
+    });
+
+    it('holds for every file under src/server/studio', () => {
+      const offenders = sourceFiles('src/server/studio').flatMap((path) =>
+        studioPhReferences(read(path)).map((name) => `${path}: ${name}`),
+      );
+      expect(offenders).toEqual([]);
+    });
+  });
+
+  describe('8. pharmacy code reaches Ph models only through ctx and tx', () => {
+    const action = 'src/server/pharmacy/actions/products.ts';
+    const viaTx = "export const create = defineAction({\n  async run(ctx) { return ctx.transaction((tx) => tx.phStaff.count()); },\n});";
+
+    it('refuses a file that uses a Ph delegate and imports the client itself', () => {
+      expect(pharmacyClientViolations(action, viaTx)).toEqual([]);
+      expect(pharmacyClientViolations(action, `import { getPrisma } from '@/server/data/prisma';\n${viaTx}`)).toEqual([
+        '@/server/data/prisma',
+      ]);
+      expect(pharmacyClientViolations(action, "import { getPrisma } from '../../data/prisma';\ngetPrisma().phSettings.findMany();")).toHaveLength(1);
+      // The client imported for something else is the actor's business, not a Ph model read.
+      expect(
+        pharmacyClientViolations('src/server/pharmacy/actor.ts', "import { getPrisma } from '@/server/data/prisma';\ninclude: { phStaffs: true }"),
+      ).toEqual([]);
+    });
+
+    it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
+      const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')].flatMap((path) =>
+        pharmacyClientViolations(path, read(path)).map((specifier) => `${path}: ${specifier}`),
       );
       expect(offenders).toEqual([]);
     });

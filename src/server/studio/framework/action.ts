@@ -3,17 +3,29 @@ import type { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { globalDb, scopedClient, type ScopedClient, type ScopedTx } from '@/server/data/tenant-db';
 import type { FeatureKey } from '@/server/domain/entitlements';
+import { assertAuditSafe } from '@/server/domain/pharmacy/audit-fields';
+import type { PhPermission } from '@/server/domain/pharmacy/permissions';
 import type { Permission } from '@/server/domain/permissions';
 import type { PosPermission } from '@/server/domain/pos/permissions';
+import type { PhActor } from '@/server/pharmacy/actor';
 import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type Access, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
+import {
+  admit,
+  checkDefinition,
+  type Access,
+  type CheckedTarget,
+  type PhTarget,
+  type PosTarget,
+  type SelfTarget,
+  type Target,
+} from './access';
 import { createId } from './ids';
 import { DuplicateOperationError, type OperationClaim } from './operation';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
-export type { CheckedTarget, PosTarget, SelfTarget, Target } from './access';
+export type { CheckedTarget, PhTarget, PosTarget, SelfTarget, Target } from './access';
 export { DuplicateOperationError, type OperationClaim } from './operation';
 
 /** One audit row, as the action describes it. Who, where, when and from which address are added by the framework. */
@@ -55,6 +67,8 @@ export interface ActionContext {
   plan: PlanAccess | null;
   /** Who is at the till, for an action with a `pos` permission; null for every other. */
   pos: PosActor | null;
+  /** Who works in the pharmacy, for an action with a `ph` permission; null for every other. */
+  ph: PhActor | null;
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
   /**
@@ -65,6 +79,8 @@ export interface ActionContext {
    *   row and memberships;
    * - restaurant target: its branches, its `Restaurant` row, its menus and its memberships; menu-scoped models are
    *   refused (a menu's rows need a menu target);
+   * - ph target: as a restaurant target for the pharmacy, with the branch-scoped models confined to the actor's
+   *   branches (every branch for the owner);
    * - platform and self targets: menu- and restaurant-scoped models are refused, and nothing else is filtered.
    *
    * Never filtered: `MenuSlug`, `MenuDomain`, `User` and the other global models (and `Restaurant`, `Menu`,
@@ -93,12 +109,16 @@ export interface ActionContext {
    *   bug in the action and fails it.
    *
    * Audit rows are written inside it, filed under the scope's restaurant and menu; afterCommit callbacks run once it
-   * has committed. A failed transaction drops what was queued during it, as `transaction` does.
+   * has committed. A failed transaction drops what was queued during it, as `transaction` does. Not for a `ph` action,
+   * which works in its own pharmacy's branches only.
    */
   transactionIn<T>(scope: TransactionScope, fn: (tx: ScopedTx) => Promise<T>): Promise<T>;
   /** A new id for a row the action is about to create, to scope `transactionIn` to a menu that does not exist yet. */
   newId(): string;
-  /** Queues an audit row for the next transaction, or for the end of the action when no transaction follows. */
+  /**
+   * Queues an audit row for the next transaction, or for the end of the action when no transaction follows. A `ph`
+   * action's entry must pass `assertAuditSafe` (no patient, prescription or customer field), or the action fails.
+   */
   audit(entry: AuditEntry): void;
   /** Queues work for after the next commit (or the end of the action), such as expiring a cached menu. */
   afterCommit(fn: () => void): void;
@@ -112,6 +132,8 @@ interface ActionFields<I, O> {
   name: string;
   /** A till definition that still runs when the Cashier subscription has lapsed (closing and reading a shift). */
   allowLapsed?: true;
+  /** A pharmacy action that still runs while the pharmacy is read-only (an export, say). */
+  allowReadOnly?: true;
   input: z.ZodType<I>;
   run(ctx: ActionContext, input: NoInfer<I>): Promise<O>;
   /** For the steps of enrolling in two-factor (and signing out): a Super Admin without it may still run these. */
@@ -120,12 +142,16 @@ interface ActionFields<I, O> {
   feature?: FeatureKey;
 }
 
-/** An action names a permission and a target that checks it, or `permission: null` and the person's own account. */
+/**
+ * An action names a permission and a target that checks it, or `permission: null` and the person's own account, their
+ * till (`pos`) or their pharmacy (`ph`).
+ */
 export type ActionSpec<I, O> = ActionFields<I, O> &
   (
-    | { permission: Permission; pos?: undefined; target(input: NoInfer<I>): CheckedTarget }
-    | { permission: null; pos?: undefined; target(input: NoInfer<I>): SelfTarget }
-    | { permission: null; pos: PosPermission; target(input: NoInfer<I>): PosTarget }
+    | { permission: Permission; pos?: undefined; ph?: undefined; target(input: NoInfer<I>): CheckedTarget }
+    | { permission: null; pos?: undefined; ph?: undefined; target(input: NoInfer<I>): SelfTarget }
+    | { permission: null; pos: PosPermission; ph?: undefined; target(input: NoInfer<I>): PosTarget }
+    | { permission: null; pos?: undefined; ph: PhPermission; target(input: NoInfer<I>): PhTarget }
   );
 
 export interface ActionDef<I, O> {
@@ -135,6 +161,9 @@ export interface ActionDef<I, O> {
   /** A till permission instead of a Studio one; the target is then the person's own till. */
   readonly pos?: PosPermission;
   readonly allowLapsed?: true;
+  /** A pharmacy permission instead of a Studio one; the target is then the person's own pharmacy. */
+  readonly ph?: PhPermission;
+  readonly allowReadOnly?: true;
   readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
@@ -151,6 +180,8 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
     permission: spec.permission,
     ...(spec.pos === undefined ? {} : { pos: spec.pos }),
     ...(spec.allowLapsed === undefined ? {} : { allowLapsed: spec.allowLapsed }),
+    ...(spec.ph === undefined ? {} : { ph: spec.ph }),
+    ...(spec.allowReadOnly === undefined ? {} : { allowReadOnly: spec.allowReadOnly }),
     ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
@@ -208,11 +239,13 @@ class Work {
       permissions: this.access.permissions,
       plan: this.access.plan,
       pos: this.access.pos ?? null,
+      ph: this.access.ph ?? null,
       db: this.prisma,
       meta: this.meta,
       transaction: (fn) => this.targetTransaction(fn),
       transactionIn: (scope, fn) => {
         if (this.claim) throw new Error(`${this.name} runs an operation, which takes the target's one transaction`);
+        if (this.access.ph) throw new Error(`${this.name} is a pharmacy action, which works in its own pharmacy: use transaction`);
         return this.transactionIn(scope, fn);
       },
       newId: () => {
@@ -222,6 +255,8 @@ class Work {
       },
       audit: (entry) => {
         this.checkAuditRestaurant(entry);
+        // A pharmacy's audit log never carries patient data: such an entry is a bug and fails the action.
+        if (this.access.ph) assertAuditSafe(entry.entityType, entry.changes);
         this.audits.push(entry);
       },
       afterCommit: (fn) => {
@@ -241,9 +276,15 @@ class Work {
     });
   }
 
-  /** The target's client: a menu and its restaurant, a restaurant alone, or global rows only. */
+  /** The target's client: a menu and its restaurant, a restaurant alone, a pharmacy's branches, or global rows only. */
   private client(): ScopedClient {
-    const { restaurantId, menuId } = this.access;
+    const { restaurantId, menuId, ph } = this.access;
+    if (ph) {
+      return scopedClient(
+        this.prisma,
+        ph.allBranches ? { restaurantId: ph.restaurantId, allBranches: true } : { restaurantId: ph.restaurantId, branchIds: ph.branchIds },
+      );
+    }
     if (restaurantId === null) return globalDb(this.prisma);
     return scopedClient(this.prisma, menuId === null ? { restaurantId } : { menuId, restaurantId });
   }

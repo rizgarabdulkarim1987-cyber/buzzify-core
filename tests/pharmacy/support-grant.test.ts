@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { grantAllows, grantStatus, validateGrantRequest } from '@/server/domain/pharmacy/support-grant';
+import { PH_PERMISSIONS } from '@/server/domain/pharmacy/permissions';
+import {
+  grantAllows,
+  grantStatus,
+  SUPPORT_READ_SCOPE,
+  SUPPORT_SCOPES,
+  supportReadScope,
+  validateGrantRequest,
+} from '@/server/domain/pharmacy/support-grant';
 
 const now = new Date('2026-10-27T10:00:00Z');
 const hours = (h: number, from = now) => new Date(from.getTime() + h * 3_600_000);
@@ -79,5 +87,25 @@ describe('support grant rules', () => {
   it('a grant that starts in the future is pending', () => {
     const grant = { startsAt: hours(1), expiresAt: hours(2), revokedAt: null };
     expect(grantStatus(grant, now)).toBe('pending');
+  });
+});
+
+describe('the read scope a support actor needs for a permission', () => {
+  it('maps every read permission to one scope', () => {
+    expect(SUPPORT_READ_SCOPE).toEqual({
+      'catalog.view': 'catalog.read',
+      'cost.view': 'stock.read',
+      'profit.view': 'sales.read',
+      'report.view': 'sales.read',
+      'rx.attachment.view': 'rx.read',
+    });
+    for (const scope of Object.values(SUPPORT_READ_SCOPE)) expect(SUPPORT_SCOPES).toContain(scope);
+  });
+
+  it('answers null for anything that writes, so a support actor never holds it', () => {
+    expect(supportReadScope('catalog.view')).toBe('catalog.read');
+    const writes = PH_PERMISSIONS.filter((p) => !(p in SUPPORT_READ_SCOPE));
+    expect(writes).toEqual(expect.arrayContaining(['catalog.manage', 'stock.count', 'support.grant', 'ai.use']));
+    for (const permission of writes) expect(supportReadScope(permission)).toBeNull();
   });
 });
