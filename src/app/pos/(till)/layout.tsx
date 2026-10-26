@@ -6,12 +6,15 @@ import { getPosAccess } from '@/server/pos/actor';
 import { currentDevice } from '@/server/pos/device-session';
 import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
+import { getActor } from '@/server/studio/auth/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posAiState } from '@/server/studio/queries/pos-ai';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
+import { AppearanceCache } from '@/app/pos/_ui/sync/AppearanceCache';
+import { appearanceVars, parseStoredAppearance } from '@/lib/appearance';
 import { TillNav } from '@/app/pos/_ui/TillNav';
 import { OfflineRedirect } from '@/app/pos/_ui/sync/OfflineRedirect';
 import { RegisterSw } from '@/app/pos/_ui/sync/RegisterSw';
@@ -28,6 +31,9 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   if (entry.kind === 'inactive') redirect('/pos/inactive');
 
   const t = getStudioTranslator(entry.actor.locale);
+  // The root layout wears this look; the cache keeps it for the offline till.
+  const look = parseStoredAppearance((await getActor())?.appearance);
+  const lookVars = appearanceVars(look);
   const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
@@ -62,6 +68,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
           </Link>
         </div>
       </header>
+      <AppearanceCache userId={entry.actor.userId} vars={lookVars} shape={Object.keys(lookVars).length > 0 ? look.shape : null} />
       <RegisterSw />
       <OfflineRedirect />
       <TillNav items={items} />
