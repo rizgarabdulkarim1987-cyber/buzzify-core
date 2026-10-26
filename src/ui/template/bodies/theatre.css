@@ -186,13 +186,14 @@
   --d: -1;
   inset-inline-end: 0;
 }
-:root[dir='rtl'] [data-body='theatre'] .th-curtain-s {
+[data-body='theatre']:dir(rtl) .th-curtain-s {
   --d: -1;
 }
-:root[dir='rtl'] [data-body='theatre'] .th-curtain-e {
+[data-body='theatre']:dir(rtl) .th-curtain-e {
   --d: 1;
 }
-/* The entrance (armed by the script): drawn shut until the stage first comes into view, then they part once. */
+/* The entrance (armed by the script): drawn shut until the stage first comes into view, then they part once. The
+   stages on the screen when the script arms are opened in the same pass, so the first screen never shows them shut. */
 [data-body='theatre'][data-armed] .th-stage:not([data-open]) .th-curtain {
   translate: 0 0;
 }

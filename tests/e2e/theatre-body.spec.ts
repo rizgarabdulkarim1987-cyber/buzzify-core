@@ -289,3 +289,94 @@ test('a dish on sale shows a −NN% chip in the menu numerals on its card, and k
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });
+
+/** How much of a stage's start curtain is drawn across it (px from the stage's start edge to the curtain's far edge). */
+const drawnAcross = (page: Page, stageId: string) =>
+  page.locator(`#${stageId}`).evaluate((stage) => {
+    const curtain = stage.querySelector('.th-curtain-s')!.getBoundingClientRect();
+    const box = stage.getBoundingClientRect();
+    return getComputedStyle(document.documentElement).direction === 'rtl' ? box.right - curtain.left : curtain.right - box.left;
+  });
+
+/** An IntersectionObserver that never reports (a background tab, an unpainted preview). */
+const silenceObserver = (page: Page) =>
+  page.addInitScript(() => {
+    window.IntersectionObserver = class {
+      readonly root = null;
+      readonly rootMargin = '';
+      readonly thresholds = [];
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    } as unknown as typeof IntersectionObserver;
+  });
+
+test('the first screen is never covered: the stages on it at load are never seen with their curtains shut', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // From the first script on, every frame for 2s: is the first performer's centre under a curtain?
+  await page.addInitScript(() => {
+    const hits: string[] = [];
+    (window as unknown as { curtainHits: string[] }).curtainHits = hits;
+    const start = performance.now();
+    const sample = () => {
+      const cell = document.querySelector('[data-body="theatre"] [data-row]');
+      if (cell) {
+        // The curtains take no taps (pointer-events: none), so the check is by their boxes, not elementFromPoint.
+        const box = cell.getBoundingClientRect();
+        const x = box.left + box.width / 2;
+        const y = box.top + box.height / 2;
+        const covered = [...document.querySelectorAll('.th-curtain')].some((curtain) => {
+          const c = curtain.getBoundingClientRect();
+          return x > c.left && x < c.right && y > c.top && y < c.bottom;
+        });
+        if (covered) hits.push(`${Math.round(performance.now() - start)}ms`);
+      }
+      if (performance.now() - start < 2000) requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  });
+  await page.goto(`/${slug}/en?stage=off`);
+  await expect(theatre(page)).toHaveAttribute('data-armed', '');
+  await page.waitForTimeout(2100);
+  expect(await page.evaluate(() => (window as unknown as { curtainHits: string[] }).curtainHits)).toEqual([]);
+  // A stage below the first screen still waits for its entrance.
+  await expect(page.locator('#cat-bread')).not.toHaveAttribute('data-open', '');
+});
+
+test('with an observer that never reports, the stages still open: at once on the first screen, and when scrolled to', async ({ page }) => {
+  await silenceObserver(page);
+  await openMenu(page, slug);
+  await expect(theatre(page)).toHaveAttribute('data-armed', '');
+  await expect.poll(() => drawnAcross(page, 'cat-viennoiserie'), { timeout: 5000 }).toBeLessThan(60);
+  await page.locator('#cat-bread').scrollIntoViewIfNeeded();
+  await expect(page.locator('#cat-bread')).toHaveAttribute('data-open', '', { timeout: 5000 });
+  await expect.poll(() => drawnAcross(page, 'cat-bread'), { timeout: 5000 }).toBeLessThan(60);
+});
+
+test('a stage taller than ten screens opens when it is scrolled into', async ({ page }) => {
+  await openMenu(page, slug);
+  const tall = page.locator('#cat-patisserie');
+  await expect(tall).not.toHaveAttribute('data-open', '');
+  await tall.locator('.th-floor').evaluate((floor) => {
+    (floor as HTMLElement).style.minBlockSize = `${window.innerHeight * 12}px`;
+  });
+  await tall.evaluate((stage) => window.scrollTo(0, window.scrollY + stage.getBoundingClientRect().top + window.innerHeight * 2));
+  await expect(tall).toHaveAttribute('data-open', '', { timeout: 5000 });
+});
+
+test('keyboard focus in a stage that has not opened opens it for good: tabbing out does not draw the curtains again', async ({ page }) => {
+  await silenceObserver(page);
+  await openMenu(page, slug);
+  const far = page.locator('#cat-bread');
+  await expect(theatre(page)).toHaveAttribute('data-armed', '');
+  await expect(far).not.toHaveAttribute('data-open', '');
+  // Focus moves in and out without scrolling (the stage stays off the screen, so only the focus can open it).
+  await far.locator('.th-name').first().evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await expect(far).toHaveAttribute('data-open', '');
+  await entry(page, 'viennoiserie').evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await page.waitForTimeout(1600);
+  expect(await drawnAcross(page, 'cat-bread')).toBeLessThan(60);
+});
