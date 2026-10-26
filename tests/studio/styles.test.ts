@@ -2,13 +2,11 @@ import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
-import { filterStyles } from '@/studio/styles/search';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 import { TEMPLATE_IDS } from '@/lib/templates';
 import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-map';
 
 const ids = MENU_STYLES.map((s) => s.id);
-const arName = (id: string) => STUDIO_MESSAGES.ar[`styles.${id}.name`] ?? id;
 
 describe('Menu styles catalog', () => {
   it('holds 35 styles with unique ids, numbered 1 to 35', () => {
@@ -34,13 +32,12 @@ describe('Menu styles catalog', () => {
 describe('Menu styles messages', () => {
   for (const locale of ['en', 'ar', 'ckb'] as const) {
     const m = STUDIO_MESSAGES[locale];
-    it(`${locale} names every style, group and the nav entry`, () => {
+    it(`${locale} names every style and group`, () => {
       for (const id of ids) {
         expect(m[`styles.${id}.name`], `${id} name`).toBeTruthy();
         expect(m[`styles.${id}.line`], `${id} line`).toBeTruthy();
       }
       for (const g of STYLE_GROUPS) expect(m[`styles.group.${g}`], g).toBeTruthy();
-      expect(m['nav.styles']).toBeTruthy();
     });
     it(`${locale} has no stale style keys`, () => {
       const known = new Set(ids);
@@ -50,27 +47,11 @@ describe('Menu styles messages', () => {
       });
       expect(stale).toEqual([]);
     });
+    it(`${locale} keeps no keys of the removed Menu Styles area`, () => {
+      const gone = Object.keys(m).filter((k) => k === 'nav.styles' || /^styles\.(library|detail)\./.test(k));
+      expect(gone).toEqual([]);
+    });
   }
-});
-
-describe('filterStyles', () => {
-  const find = (q: string, group: Parameters<typeof filterStyles>[1]['group'] = 'all') =>
-    filterStyles(MENU_STYLES, { q, group }, arName).map((s) => s.id);
-
-  it('finds a style by its Arabic name', () => {
-    expect(find('مطار')).toEqual(['layout-2-dep']);
-  });
-  it('finds a style by its number, in Arabic digits or with #', () => {
-    const third = MENU_STYLES[2]!.id;
-    expect(find('٣')).toEqual([third]);
-    expect(find('#3')).toEqual([third]);
-  });
-  it('filters by group', () => {
-    expect(find('', 'heritage')).toHaveLength(3);
-  });
-  it('returns nothing for a miss', () => {
-    expect(find('zzz')).toEqual([]);
-  });
 });
 
 describe('styles made real as templates', () => {

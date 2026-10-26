@@ -2,24 +2,10 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.library.title': 'Menu Styles',
-    'styles.library.intro': '35 complete looks for a menu. Open one to see it alive, in a phone frame.',
-    'styles.library.search': 'Search styles',
-    'styles.library.searchPlaceholder': 'Name or number',
-    'styles.library.groups': 'Groups',
-    'styles.library.all': 'All',
-    'styles.library.showing': 'Showing {count} of {total}',
-    'styles.library.empty': 'No style matches “{q}”.',
     'styles.group.themes': 'Themes',
     'styles.group.heritage': 'Kurdish & Arab',
     'styles.group.motion': 'Motion-led',
     'styles.group.shapes': 'New shapes',
-    'styles.detail.back': 'All styles',
-    'styles.detail.number': 'No. {number}',
-    'styles.detail.frame': 'Style preview',
-    'styles.detail.open': 'Open full screen',
-    'styles.detail.previous': 'Previous style',
-    'styles.detail.next': 'Next style',
   },
   {
     'themed-kurd': ['Jajim and Nowruz', 'Woven Kurdish rugs, a Nowruz fire and dancers between the sections'],

@@ -53,7 +53,6 @@ const ckb: Messages = {
   'nav.menus': 'هەموو مینیوەکان',
   'nav.media': 'میدیا',
   'nav.motion': 'جووڵە',
-  'nav.styles': 'ستایلەکانی مینیو',
   'nav.people': 'کەسەکان',
   'nav.activity': 'چالاکی',
   'nav.settings': 'ڕێکخستنەکان',

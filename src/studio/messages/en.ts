@@ -52,7 +52,6 @@ const en: Messages = {
   'nav.menus': 'All menus',
   'nav.media': 'Media',
   'nav.motion': 'Motion',
-  'nav.styles': 'Menu Styles',
   'nav.people': 'People',
   'nav.activity': 'Activity',
   'nav.settings': 'Settings',
