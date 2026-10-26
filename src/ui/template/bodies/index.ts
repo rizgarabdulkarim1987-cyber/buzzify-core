@@ -3,6 +3,7 @@ import type { BodyKind } from '@/lib/templates/types';
 import { BoardBody } from './BoardBody';
 import { BookBody } from './BookBody';
 import { CabinetBody } from './CabinetBody';
+import { ComicsBody } from './ComicsBody';
 import { ElevatorBody } from './ElevatorBody';
 import { MagazineBody } from './MagazineBody';
 import { MetroBody } from './MetroBody';
@@ -27,4 +28,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   shelves: ShelvesBody,
   tickets: TicketsBody,
   tabletop: TabletopBody,
+  comics: ComicsBody,
 };

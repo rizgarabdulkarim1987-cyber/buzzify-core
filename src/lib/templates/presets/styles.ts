@@ -295,4 +295,33 @@ export const theTableFromAbove = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove];
+export const theKitchenComics = definePreset({
+  id: 'the-kitchen-comics',
+  number: 41,
+  name: 'Kitchen Comics',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#FFFDF4', text: '#111111', accent: '#C1121F', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'midnight-issue', name: 'Midnight issue', seed: { bg: '#14122B', text: '#FFF4C2', accent: '#FFDE21' } },
+    { id: 'pop-pink', name: 'Pop pink', seed: { bg: '#FFF0F6', text: '#1A0A12', accent: '#B4125A' } },
+    { id: 'newsprint', name: 'Newsprint', seed: { bg: '#ECE8DC', text: '#111111', accent: '#1D4ED8' } },
+  ],
+  type: { fontPairId: 'pop', scale: 1.0 },
+  layout: {
+    body: 'comics',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'none',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics];
