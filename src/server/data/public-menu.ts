@@ -1,5 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
+import { productRuns } from '@/server/domain/billing/subscriptions';
 import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
@@ -83,7 +84,17 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           status: true,
           restaurantId: true,
           liveRevisionId: true,
-          restaurant: { select: { status: true, plan: true, planExtras: true } },
+          restaurant: {
+            select: {
+              status: true,
+              plan: true,
+              planExtras: true,
+              subscriptions: {
+                where: { applicationId: 'menu' },
+                select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
+              },
+            },
+          },
         },
       },
     },
@@ -94,8 +105,9 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
 
   const snapshot = await loadRevisionSnapshot(prisma, menu.id, menu.liveRevisionId);
   // Only a published menu of an active restaurant is served. A draft never has a live revision, since publishing
-  // makes it PUBLISHED, so this leaves suspended and archived menus and restaurants.
-  if (menu.status !== 'PUBLISHED' || menu.restaurant.status !== 'ACTIVE') {
+  // makes it PUBLISHED, so this leaves suspended and archived menus and restaurants, and restaurants whose Menu
+  // subscription was cancelled or has expired (grace still serves; no subscription at all serves as before billing).
+  if (menu.status !== 'PUBLISHED' || menu.restaurant.status !== 'ACTIVE' || !productRuns(menu.restaurant.subscriptions, new Date())) {
     const { displayName, defaultLocale, locales } = snapshot.menu;
     return { kind: 'unavailable', name: displayName, defaultLocale, locales };
   }

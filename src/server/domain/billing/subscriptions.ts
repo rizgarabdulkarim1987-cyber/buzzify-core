@@ -44,6 +44,14 @@ export function effectiveStatus(sub: LifecycleView, now: Date): SubscriptionStat
   return current.status;
 }
 
+/**
+ * Whether a restaurant's subscriptions to a product still let it run as of `now`: one of them is live (grace included).
+ * A restaurant that has never had one keeps running, as it did before billing existed.
+ */
+export function productRuns(subs: readonly LifecycleView[], now: Date): boolean {
+  return subs.length === 0 || subs.some((sub) => isLive(effectiveStatus(sub, now)));
+}
+
 /** One automatic step of the lifecycle (grace, expiry). */
 export type LifecycleStep = { type: 'ENTERED_GRACE' | 'EXPIRED'; from: SubscriptionStatus; to: SubscriptionStatus };
 

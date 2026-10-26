@@ -148,6 +148,54 @@ describe('public menu read path', () => {
     expect(await resolvePublicMenu('public-a')).toMatchObject({ kind: 'live' });
   });
 
+  describe('the Menu subscription', () => {
+    const DAY = 86_400_000;
+    const subscribe = async (status: 'TRIAL' | 'ACTIVE' | 'GRACE' | 'EXPIRED' | 'CANCELLED', periodEnd = Date.now() + 25 * DAY) => {
+      await prisma.application.upsert({ where: { id: 'menu' }, create: { id: 'menu', name: { en: 'Menu' } }, update: {} });
+      await prisma.subscription.deleteMany({ where: { restaurantId: a.restaurant.id } });
+      await prisma.subscription.create({
+        data: {
+          restaurantId: a.restaurant.id,
+          applicationId: 'menu',
+          planCode: 'pro',
+          status,
+          period: 'MONTHLY',
+          currency: 'IQD',
+          priceMinor: 0,
+          currentPeriodStart: new Date(periodEnd - 30 * DAY),
+          currentPeriodEnd: new Date(periodEnd),
+          trialEndsAt: status === 'TRIAL' ? new Date(periodEnd) : null,
+          version: 1,
+        },
+      });
+    };
+
+    it('keeps serving a restaurant that has never had one', async () => {
+      expect(await resolvePublicMenu('public-a')).toMatchObject({ kind: 'live' });
+    });
+
+    it('serves while it is on trial, active or in grace', async () => {
+      for (const status of ['TRIAL', 'ACTIVE', 'GRACE'] as const) {
+        await subscribe(status);
+        expect(await resolvePublicMenu('public-a'), status).toMatchObject({ kind: 'live' });
+      }
+    });
+
+    it('closes the menu once it is cancelled or expired', async () => {
+      for (const status of ['CANCELLED', 'EXPIRED'] as const) {
+        await subscribe(status);
+        expect(await resolvePublicMenu('public-a'), status).toMatchObject({ kind: 'unavailable', name: 'Restaurant public-a' });
+        expect(await getTenant('public-a'), status).toBeNull();
+      }
+      expect(await resolvePublicMenu('public-b')).toMatchObject({ kind: 'live' });
+    });
+
+    it('closes the menu when the period has run out, before the sweep has stored it', async () => {
+      await subscribe('TRIAL', Date.now() - DAY);
+      expect(await resolvePublicMenu('public-a')).toMatchObject({ kind: 'unavailable' });
+    });
+  });
+
   it('is missing for unknown, malformed and tombstoned slugs', async () => {
     await prisma.menuSlug.create({ data: { slug: 'public-gone', menuId: null } });
     for (const slug of ['nope', '', "x'; DROP TABLE", 'UPPER', '-lead', 'a'.repeat(49), 'public-gone']) {
