@@ -194,22 +194,24 @@ test('white text reads on every surface it sits on: every palette of the shape, 
   }
 });
 
-test('keyboard focus rings show in full: a whole app icon (in white, on the band) and a dock tile', async ({ page }) => {
-  await openMenu(page, slug);
-  const app = apps(page).first();
-  const name = app.locator('.hs-name');
-  await name.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(name).toBeFocused();
-  await expectFocusRingShows(page, app, { outset: 4, pseudo: '::after' });
-  expect(await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor)).toBe('rgb(255, 255, 255)');
-  const tile = entry(page, 'patisserie');
-  await tile.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(tile).toBeFocused();
-  await expectFocusRingShows(page, tile, { outset: -4 });
+test('keyboard focus rings show in full and stand out, in every palette: a whole app icon (in white, on the band) and a dock tile', async ({ page }) => {
+  for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
+    await openMenu(page, menuSlug);
+    const app = apps(page).first();
+    const name = app.locator('.hs-name');
+    await name.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(name).toBeFocused();
+    await expectFocusRingShows(page, app, { outset: 4, pseudo: '::after' });
+    expect(await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor)).toBe('rgb(255, 255, 255)');
+    const tile = entry(page, 'patisserie');
+    await tile.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(tile).toBeFocused();
+    await expectFocusRingShows(page, tile, { outset: -4 });
+  }
 });
 
 test('a dish on sale shows a −NN% chip in the menu numerals on its icon, and keeps the regular price for screen readers', async ({ page }) => {

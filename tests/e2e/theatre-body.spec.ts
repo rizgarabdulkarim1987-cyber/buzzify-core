@@ -36,7 +36,8 @@ test.beforeAll(async () => {
   await menus.create(slug, 'theatre', { templateId: 'the-curtain-and-spotlight' });
   // Arabic-Indic numerals, and the croissant 20% off: the sale chip.
   await menus.create(arabSlug, 'theatre', { templateId: 'the-curtain-and-spotlight', numeralSystem: 'ARAB', discount: ['croissant'] });
-  for (const id of alternatives) await menus.create(paletteSlug(id), 'theatre', { templateId: 'the-curtain-and-spotlight', paletteId: id });
+  // The eclair 20% off on the alternatives: the sale chip read on every palette.
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'theatre', { templateId: 'the-curtain-and-spotlight', paletteId: id, discount: ['eclair'] });
 });
 test.afterAll(() => menus.remove());
 
@@ -249,27 +250,30 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'price ticket': stage.locator('.th-ticket').first(),
       'name plate': stage.locator('.th-name').first(),
       'add button': stage.locator('.th-add').first(),
+      ...(menu === 'signature' ? {} : { 'sale chip': theatre(page).locator('.tpl-off').first() }),
     });
     // A dimmed stage keeps its text: the cards of an unlit stage still read.
     await expectReadable(`${menu} (unlit stage)`, { 'name plate': page.locator('#cat-bread .th-name').first(), 'price ticket': page.locator('#cat-bread .th-ticket').first() });
   }
 });
 
-test('keyboard focus rings show in full: a whole performer and a strip entry', async ({ page }) => {
-  await openMenu(page, slug);
-  const cell = performers(page).first();
-  const name = cell.locator('.th-name');
-  await name.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(name).toBeFocused();
-  await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
-  const chip = entry(page, 'patisserie');
-  await chip.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(chip).toBeFocused();
-  await expectFocusRingShows(page, chip, { outset: -4 });
+test('keyboard focus rings show in full and stand out, in every palette: a whole performer and a strip entry', async ({ page }) => {
+  for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
+    await openMenu(page, menuSlug);
+    const cell = performers(page).first();
+    const name = cell.locator('.th-name');
+    await name.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(name).toBeFocused();
+    await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+    const chip = entry(page, 'patisserie');
+    await chip.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(chip).toBeFocused();
+    await expectFocusRingShows(page, chip, { outset: -4 });
+  }
 });
 
 test('a dish on sale shows a −NN% chip in the menu numerals on its card, and keeps the regular price for screen readers', async ({ page }) => {

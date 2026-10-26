@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Locator, type Page } from '@playwright/test';
+import sharp from 'sharp';
 import type { Prisma } from '@/generated/prisma/client';
 import { TEMPLATES } from '@/lib/templates';
 import type { DesignOverrides, DesignPalette, TemplateId } from '@/lib/templates/types';
@@ -228,9 +229,74 @@ export async function expectReadable(menu: string, pairs: Record<string, Locator
  * Keyboard focus on the focused element draws a ring that nothing clips: the ring (an outline of `outset` px around
  * `ringOf`, or inside it when negative) lies wholly inside every ancestor that clips (overflow other than visible, or a
  * clip-path), the element itself included. Pass `ringOf` when the ring is drawn around another box (a whole-card tap
- * area). Checks the outline is really drawn, too.
+ * area). Checks the outline is really drawn, too, and that its colour stands out from what it is drawn on: the median
+ * contrast between the ring colour and the pixels under the ring (the same spot with the ring hidden) is at least
+ * `minContrast` (3:1, the non-text minimum, unless set).
  */
-export async function expectFocusRingShows(page: Page, ringOf: Locator, { outset, pseudo }: { outset: number; pseudo?: '::after' }) {
+export async function expectFocusRingShows(page: Page, ringOf: Locator, { outset, pseudo, minContrast = 3 }: { outset: number; pseudo?: '::after'; minContrast?: number }) {
+  await expectRingUnclipped(ringOf, { outset, pseudo });
+  if (minContrast > 0) expect(await focusRingContrast(page, ringOf, { outset, pseudo }), 'the focus ring stands out from what it is drawn on').toBeGreaterThanOrEqual(minContrast);
+}
+
+/**
+ * The median contrast between the focus ring's colour and the page under it. The ring's area is captured with the ring,
+ * without it, and with it again: the ring's pixels are those that change when it is hidden (and are the same in both
+ * captures with it, so anything still moving is left out), and each is compared with the ring colour composited over
+ * the pixel without the ring. 0 when no pixel changes (the ring cannot be told from what it is drawn on).
+ */
+export async function focusRingContrast(page: Page, ringOf: Locator, { outset, pseudo }: { outset: number; pseudo?: '::after' }): Promise<number> {
+  const ring = await ringOf.evaluate(
+    (box, { outset, pseudo }) => {
+      const focused = document.activeElement as HTMLElement;
+      const style = getComputedStyle(focused, pseudo ?? null);
+      const rect = box.getBoundingClientRect();
+      focused.setAttribute('data-ring-probe', '');
+      return { colour: style.outlineColor, top: rect.top - outset, left: rect.left - outset, bottom: rect.bottom + outset, right: rect.right + outset, vw: window.innerWidth, vh: window.innerHeight };
+    },
+    { outset, pseudo },
+  );
+  const still = await page.addStyleTag({ content: '[data-ring-probe], [data-ring-probe]::after, [data-ring-probe]::before { transition: none !important; }' });
+  const x = Math.max(0, Math.floor(ring.left) - 2);
+  const y = Math.max(0, Math.floor(ring.top) - 2);
+  const clip = { x, y, width: Math.min(ring.vw, Math.ceil(ring.right) + 2) - x, height: Math.min(ring.vh, Math.ceil(ring.bottom) + 2) - y };
+  const capture = async () => (await sharp(await page.screenshot({ clip, scale: 'css' })).removeAlpha().raw().toBuffer({ resolveWithObject: true })).data;
+  // Wait for the area to settle (a transition that the focus started, an entrance still running): two equal captures.
+  let shown = await capture();
+  for (let tries = 0; tries < 20; tries++) {
+    await page.waitForTimeout(100);
+    const next = await capture();
+    if (next.equals(shown)) break;
+    shown = next;
+  }
+  const hide = await page.addStyleTag({ content: '[data-ring-probe], [data-ring-probe]::after, [data-ring-probe]::before { outline: none !important; }' });
+  const hidden = await capture();
+  await hide.evaluate((node) => (node as Element).remove());
+  const again = await capture();
+  await still.evaluate((node) => (node as Element).remove());
+  await page.evaluate(() => document.querySelector('[data-ring-probe]')?.removeAttribute('data-ring-probe'));
+  const parts = ring.colour.match(/[\d.]+/g)!.map(Number);
+  const srgb = ring.colour.startsWith('color(');
+  const [r, g, b] = parts.slice(0, 3).map((part) => (srgb ? part : part / 255)) as [number, number, number];
+  const alpha = ring.colour.startsWith('rgba') || ring.colour.includes('/') ? parts[3]! : 1;
+  const luminance = ([cr, cg, cb]: number[]) => {
+    const [lr, lg, lb] = [cr!, cg!, cb!].map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
+    return 0.2126 * lr! + 0.7152 * lg! + 0.0722 * lb!;
+  };
+  const ratios: number[] = [];
+  const distance = (one: Buffer, two: Buffer, at: number) => Math.abs(one[at]! - two[at]!) + Math.abs(one[at + 1]! - two[at + 1]!) + Math.abs(one[at + 2]! - two[at + 2]!);
+  for (let at = 0; at + 2 < shown.length; at += 3) {
+    // A ring pixel: hiding the ring changes it (more than antialiasing does), and it reads the same in both captures.
+    if (distance(shown, hidden, at) < 48 || distance(shown, again, at) > 6) continue;
+    const under = [hidden[at]! / 255, hidden[at + 1]! / 255, hidden[at + 2]! / 255];
+    const drawn = [r, g, b].map((c, i) => c * alpha + under[i]! * (1 - alpha));
+    const [light, dark] = [luminance(drawn), luminance(under)].sort((p, q) => q - p);
+    ratios.push((light! + 0.05) / (dark! + 0.05));
+  }
+  ratios.sort((p, q) => p - q);
+  return ratios[Math.floor(ratios.length / 2)] ?? 0;
+}
+
+async function expectRingUnclipped(ringOf: Locator, { outset, pseudo }: { outset: number; pseudo?: '::after' }) {
   const result = await ringOf.evaluate(
     (box, { outset, pseudo }) => {
       const focused = document.activeElement as HTMLElement | null;

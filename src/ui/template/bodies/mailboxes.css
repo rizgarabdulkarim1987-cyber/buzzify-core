@@ -185,6 +185,10 @@
     0 2px 3px rgb(0 0 0 / 0.4);
   color: var(--bx-ink);
 }
+/* The keyboard ring is drawn on the brass: the box ink (7.4:1 on brass), not the palette's accent ink. */
+[data-body='mailboxes'] .bx-name:focus-visible::after {
+  outline-color: var(--bx-ink);
+}
 /* The door: a top bar (the box number at the start, the price stamp at the end) over the window. */
 [data-body='mailboxes'] .bx-door {
   display: grid;

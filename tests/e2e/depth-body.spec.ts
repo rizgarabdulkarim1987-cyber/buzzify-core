@@ -32,7 +32,8 @@ const paletteSlug = (id: string) => menus.slug(`dep-${id}`);
 test.beforeAll(async () => {
   await menus.create(slug, 'depth', { templateId: 'the-scroll-depth' });
   await menus.create(arabSlug, 'depth', { templateId: 'the-scroll-depth', numeralSystem: 'ARAB', discount: ['croissant'] });
-  for (const id of alternatives) await menus.create(paletteSlug(id), 'depth', { templateId: 'the-scroll-depth', paletteId: id });
+  // The eclair 20% off on the alternatives: the sale chip read on every palette.
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'depth', { templateId: 'the-scroll-depth', paletteId: id, discount: ['eclair'] });
 });
 test.afterAll(() => menus.remove());
 
@@ -241,25 +242,28 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'caption name': first.locator('.dp-name').first(),
       'caption price': first.locator('.dp-price').first(),
       'add button': first.locator('.dp-add').first(),
+      ...(menu === 'signature' ? {} : { 'sale chip': depth(page).locator('.tpl-off').first() }),
     });
   }
 });
 
-test('keyboard focus rings show in full: a whole card and a strip entry', async ({ page }) => {
-  await openMenu(page, slug);
-  const cell = cards(page).first();
-  const name = cell.locator('.dp-name');
-  await name.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(name).toBeFocused();
-  await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
-  const chip = entry(page, 'patisserie');
-  await chip.focus();
-  await page.keyboard.press('Shift+Tab');
-  await page.keyboard.press('Tab');
-  await expect(chip).toBeFocused();
-  await expectFocusRingShows(page, chip, { outset: -4 });
+test('keyboard focus rings show in full and stand out, in every palette: a whole card and a strip entry', async ({ page }) => {
+  for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
+    await openMenu(page, menuSlug);
+    const cell = cards(page).first();
+    const name = cell.locator('.dp-name');
+    await name.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(name).toBeFocused();
+    await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+    const chip = entry(page, 'patisserie');
+    await chip.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(chip).toBeFocused();
+    await expectFocusRingShows(page, chip, { outset: -4 });
+  }
 });
 
 test('a dish on sale shows a −NN% chip in the menu numerals on its frame, and keeps the regular price for screen readers', async ({ page }) => {
