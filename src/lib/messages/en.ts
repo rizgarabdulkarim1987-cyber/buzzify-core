@@ -233,6 +233,8 @@ const en: Messages = {
   'tpl.book.toContents': 'Back to contents',
   'tpl.book.dishes_one': '{count} dish',
   'tpl.book.dishes_other': '{count} dishes',
+  'tpl.mag.sections_one': '{count} section',
+  'tpl.mag.sections_other': '{count} sections',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',

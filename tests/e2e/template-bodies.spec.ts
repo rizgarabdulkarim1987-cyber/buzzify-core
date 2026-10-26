@@ -17,32 +17,38 @@ import { deleteBillingRows, publishFixture } from '../helpers/db';
 
 const run = randomUUID().slice(0, 8);
 const slug = `e2e-${run}-book`;
+const magSlug = `e2e-${run}-mag`;
 const prisma = createPrisma(databaseUrl(DEV_DB));
-let restaurantId = '';
-let menuId = '';
+const made: { restaurantId: string; menuId: string; slug: string }[] = [];
 
 const products = MAISON.products.filter((product) => product.slug !== 'baguette');
 const categories = MAISON.categories;
 const named = (productSlug: string) => MAISON.products.find((product) => product.slug === productSlug)!.name.en;
 
+async function createMenu(menuSlug: string, label: string, layout: NonNullable<DesignOverrides['layout']>) {
+  const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
+  const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [] } }, restaurant.id);
+  made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
+  await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
+  const design: DesignOverrides = { ...MAISON.brand.design, layout };
+  await prisma.brandConfig.update({ where: { menuId: seeded.menuId }, data: { design: design as Prisma.InputJsonValue } });
+  await publishFixture(prisma, seeded.menuId, `${label} body`);
+}
+
 test.beforeAll(async () => {
-  const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} book e2e-${run}`, type: MAISON.profile.type } });
-  restaurantId = restaurant.id;
-  const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug, domains: [] } }, restaurantId);
-  menuId = seeded.menuId;
-  await prisma.menuSlug.create({ data: { slug, menuId } });
-  const design: DesignOverrides = { ...MAISON.brand.design, layout: { body: 'book', hero: 'chapters' } };
-  await prisma.brandConfig.update({ where: { menuId }, data: { design: design as Prisma.InputJsonValue } });
-  await publishFixture(prisma, menuId, 'Book body');
+  await createMenu(slug, 'book', { body: 'book', hero: 'chapters' });
+  await createMenu(magSlug, 'magazine', { body: 'magazine', nav: 'chips', card: 'row' });
 });
 
 test.afterAll(async () => {
   try {
-    await prisma.menuSlug.deleteMany({ where: { OR: [{ menuId }, { slug }] } });
-    await prisma.menu.deleteMany({ where: { id: menuId } });
-    await prisma.auditLog.deleteMany({ where: { OR: [{ menuId }, { restaurantId }] } });
-    await deleteBillingRows(prisma, [restaurantId]);
-    await prisma.restaurant.deleteMany({ where: { id: restaurantId } });
+    for (const { restaurantId, menuId, slug: menuSlug } of made) {
+      await prisma.menuSlug.deleteMany({ where: { OR: [{ menuId }, { slug: menuSlug }] } });
+      await prisma.menu.deleteMany({ where: { id: menuId } });
+      await prisma.auditLog.deleteMany({ where: { OR: [{ menuId }, { restaurantId }] } });
+      await deleteBillingRows(prisma, [restaurantId]);
+      await prisma.restaurant.deleteMany({ where: { id: restaurantId } });
+    }
   } finally {
     await prisma.$disconnect();
   }
@@ -130,4 +136,71 @@ test('in Arabic the book is right to left and its index renders', async ({ page 
   await expect(index(page)).toBeVisible();
   await expect(index(page).getByRole('button', { name: new RegExp(categories[1]!.name.ar) })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+const magazine = (page: Page) => page.locator('[data-body="magazine"]');
+
+test.describe('the Magazine body', () => {
+  test('the first screen shows a lead photo with its name and price, and a strip of sections', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    await expect(magazine(page)).toBeVisible();
+    await expect(magazine(page).getByRole('heading', { level: 2 }).first()).toBeVisible();
+    const lead = magazine(page).locator('[data-lead]').first();
+    await expect(lead).toBeVisible();
+    // The fixture's dishes are drawings (art); a real menu's are library photos, which render as <img>.
+    await expect(lead.locator('img, svg').first()).toBeVisible();
+    await expect(lead.getByText(/\$\d/).first()).toBeVisible();
+    await expect(magazine(page).getByText(/sections/).first()).toBeVisible();
+  });
+
+  test('the strip jumps to a section', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    await page.getByRole('button', { name: /Pâtisserie/ }).first().click();
+    await expect(page.locator('#cat-patisserie')).toBeInViewport();
+    await expect(page.locator('#cat-patisserie [data-heading]')).toBeFocused();
+  });
+
+  test('an address with #cat-<slug> reaches that section', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off#cat-bread`);
+    await expect(page.locator('#cat-bread')).toBeInViewport();
+  });
+
+  test('the overrides choose the strip and the cards', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    await expect(page.locator('.tpl[data-nav="chips"][data-card="row"]')).toBeVisible();
+    await expect(magazine(page).locator('[data-card="row"]').first()).toBeAttached();
+  });
+
+  test('a lead and a card open the detail sheet', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    const lead = magazine(page).locator('[data-lead]').first();
+    await lead.getByRole('button').first().click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await magazine(page).locator('#cat-patisserie').getByRole('button', { name: named('mille-feuille'), exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('a section with one dish is a lead alone', async ({ page }) => {
+    await page.goto(`/${magSlug}/en?stage=off`);
+    const spread = page.locator('#cat-bread');
+    await expect(spread.locator('[data-lead]')).toHaveCount(1);
+    await expect(spread.getByRole('button', { name: named('sourdough'), exact: true })).toBeVisible();
+    await expect(spread.locator('[data-card]')).toHaveCount(0);
+  });
+
+  test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {
+    await page.goto(`/${magSlug}/ar?stage=off`);
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(magazine(page).locator('[data-lead]').first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('reduced motion removes the lead photo transition', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(`/${magSlug}/en?stage=off`);
+    await expect(magazine(page).locator('[data-lead] [data-zoom]').first()).toHaveCSS('transition-duration', /^(0|1e-06)s$/);
+  });
 });

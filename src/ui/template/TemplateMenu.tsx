@@ -15,6 +15,7 @@ import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { BookBody } from './bodies/BookBody';
+import { MagazineBody } from './bodies/MagazineBody';
 import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
@@ -250,6 +251,8 @@ export function TemplateMenu({
             </div>
           ) : visible.length === 0 ? (
             <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
+          ) : bodyOf(layout) === 'magazine' ? (
+            <MagazineBody />
           ) : (
             <BookBody />
           )}
