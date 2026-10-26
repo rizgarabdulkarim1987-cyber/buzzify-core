@@ -1,7 +1,6 @@
 'use client';
 
 import { useApp } from '@/ui/AppProviders';
-import { LanguageSwitch } from '@/ui/LanguageSwitch';
 import { ModeSwitch } from './ModeSwitch';
 
 export function Header({ current = 'menu', overlay = false }: { current?: 'menu' | 'explore'; overlay?: boolean }) {
@@ -35,7 +34,6 @@ export function Header({ current = 'menu', overlay = false }: { current?: 'menu'
             <p className="mt-0.5 text-sm text-accent">{t('menu.table', { number: String(table).padStart(2, '0') })}</p>
           )}
         </div>
-        <LanguageSwitch />
       </div>
       {/* Explore is the plan's to give: without it there is one way to browse, so no switch. */}
       {tenant.features.explore && <ModeSwitch current={current} />}

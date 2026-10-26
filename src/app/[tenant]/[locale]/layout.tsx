@@ -11,6 +11,7 @@ import { resolvePublicRoute } from '@/server/public-page';
 import { menuCanonical, menuSocialImage } from '@/server/seo';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss, themeLogo } from '@/ui/brand';
+import { GuestChrome } from '@/ui/guest/GuestChrome';
 
 export async function generateMetadata({
   params,
@@ -104,9 +105,12 @@ export default async function RootLayout({
             defaultLocale: tenant.defaultLocale,
             features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
+            // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
+            feedback: tenant.feedbackEnabled !== false,
           }}
         >
           {children}
+          <GuestChrome />
         </AppProviders>
       </body>
     </html>

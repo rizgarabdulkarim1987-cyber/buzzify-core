@@ -20,6 +20,9 @@ function newKey(): string {
   return crypto.randomUUID().replace(/-/g, '');
 }
 
+// A suggestion first: the most common reason to open the box on a good day.
+const KINDS = ['SUGGESTION', ...COMPLAINT_CATEGORIES.filter((key) => key !== 'SUGGESTION')] as const;
+
 const FIELD = 'min-h-12 w-full rounded-md border border-line bg-surface px-3 py-2 text-base text-text';
 
 export function ComplaintForm({ slug, table, locale }: { slug: string; table: number | null; locale: Locale }) {
@@ -110,7 +113,7 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
         {w.category}
         <select className={FIELD} value={category} onChange={(event) => setCategory(event.target.value)}>
           <option value="">{w.any}</option>
-          {COMPLAINT_CATEGORIES.map((key) => (
+          {KINDS.map((key) => (
             <option key={key} value={key}>
               {w[key]}
             </option>
