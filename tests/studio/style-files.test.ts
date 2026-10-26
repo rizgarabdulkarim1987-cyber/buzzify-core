@@ -13,6 +13,7 @@ const designer: Actor = {
   email: 'd@example.com',
   name: 'Designer',
   isSuperAdmin: false,
+  isPlatformOwner: false,
   twoFactorEnabled: false,
   locale: 'en',
   memberships: [],
