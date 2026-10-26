@@ -655,6 +655,8 @@ model User {
   isPlatformOwner  Boolean              @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
   locale           String               @default("en")
+  /// The look this person chose for the Studio and the till (src/lib/appearance.ts); null until they choose. Read only through parseStoredAppearance.
+  appearance       Json?
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt    DateTime?
   sessions         Session[]
