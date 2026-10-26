@@ -242,6 +242,7 @@ const en: Messages = {
   'tpl.met.station': 'Station {n}',
   'tpl.shf.aisle': 'Aisle {n}',
   'tpl.tkt.ticket': 'Ticket {n}',
+  'tpl.top.setting': 'Setting {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',

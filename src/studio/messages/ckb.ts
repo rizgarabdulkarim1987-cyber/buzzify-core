@@ -2392,6 +2392,7 @@ const ckb: Messages = {
   'design.body.cabinet': 'کابینەتی دەراکان',
   'design.body.shelves': 'ڕەفەکانی سوپەرمارکێت',
   'design.body.tickets': 'ڕێڵی تیکێتی چێشتخانە',
+  'design.body.tabletop': 'خوان لە سەرەوە',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

@@ -242,6 +242,7 @@ const ckb: Messages = {
   'tpl.met.station': 'وێستگەی {n}',
   'tpl.shf.aisle': 'ڕێڕەوی {n}',
   'tpl.tkt.ticket': 'تیکێتی {n}',
+  'tpl.top.setting': 'سەرخوانی {n}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

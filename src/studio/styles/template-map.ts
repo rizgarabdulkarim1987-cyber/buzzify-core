@@ -15,6 +15,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-cab': 'the-drawer-cabinet',
   'layout-shf': 'the-supermarket-shelves',
   'layout-tkt': 'the-kitchen-ticket-rail',
+  'layout-top': 'the-table-from-above',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

@@ -266,4 +266,33 @@ export const theKitchenTicketRail = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail];
+export const theTableFromAbove = definePreset({
+  id: 'the-table-from-above',
+  number: 40,
+  name: 'The Table from Above',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#6B4A2E', text: '#FBE7C6', accent: '#E8B04A', raised: '#7D5A3A' },
+  alternatives: [
+    { id: 'oak', name: 'Pale oak', seed: { bg: '#A88B66', text: '#2A1A0C', accent: '#8A3A12' } },
+    { id: 'walnut', name: 'Dark walnut', seed: { bg: '#3B2A1E', text: '#F3E3C8', accent: '#E0A030' } },
+    { id: 'slate', name: 'Slate table', seed: { bg: '#2F3A40', text: '#EAF0F2', accent: '#7FC8B8' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'tabletop',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove];
