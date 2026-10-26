@@ -1,6 +1,7 @@
 'use client';
 
 import type { CSSProperties } from 'react';
+import { contrastRatio, hexOfHsl } from '@/lib/palette';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
@@ -14,6 +15,22 @@ import './levels.css';
 /** The hue (in degrees) of the nth world: the shared set, so neighbours differ; a seventh starts again. */
 export function worldHue(index: number): number {
   return hueAt(SHAPE_HUES, index);
+}
+
+/** The solid fill of the nth world's number, its "World N" label and its level badges: the world's hue, deep. */
+export function worldFill(index: number): string {
+  return hexOfHsl({ h: worldHue(index), s: 80, l: 36 });
+}
+
+/** The ink on that fill: white or near black, whichever reads better on the hue (green and yellow take the dark). */
+export function worldInk(index: number): string {
+  const fill = worldFill(index);
+  return contrastRatio('#FFFFFF', fill) >= contrastRatio('#111111', fill) ? '#FFFFFF' : '#111111';
+}
+
+/** A world's colours as custom properties: its hue for the washes and rings, the fill and ink pair for text. */
+function worldStyle(index: number): CSSProperties {
+  return { '--w-h': worldHue(index), '--w-fill': worldFill(index), '--w-ink': worldInk(index) } as CSSProperties;
 }
 
 /** Level nodes in a row of the road. */
@@ -51,7 +68,7 @@ export function LevelsBody() {
 
   return (
     <div className="tpl-body" data-body="levels">
-      <SectionStrip marker="worlds" prefix="lv" className="lv-worlds" chip="lv-world-chip" chipStyle={(_, index) => ({ '--w-h': worldHue(index) }) as CSSProperties}>
+      <SectionStrip marker="worlds" prefix="lv" className="lv-worlds" chip="lv-world-chip" chipStyle={(_, index) => worldStyle(index)}>
         {(category, index) => (
           <>
             <span aria-hidden className="lv-number">
@@ -70,7 +87,7 @@ export function LevelsBody() {
               id={`cat-${category.slug}`}
               aria-labelledby={`h-${category.slug}`}
               data-world={n(index + 1)}
-              style={{ '--w-h': worldHue(index) } as CSSProperties}
+              style={worldStyle(index)}
               className="tpl-section tpl-tall-last lv-world"
             >
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.lvl.world', { n: n(index + 1) })} count={n(products.length)} className="lv-head" title="lv-banner" />

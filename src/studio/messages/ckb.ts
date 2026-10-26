@@ -2395,7 +2395,7 @@ const ckb: Messages = {
   'design.body.tabletop': 'خوان لە سەرەوە',
   'design.body.comics': 'چیرۆکە وێنەکانی چێشتخانە',
   'design.body.homescreen': 'شاشەی سەرەکی مۆبایل',
-  'design.body.treasure': 'نەخشەی گەنج',
+  'design.body.treasure': 'نەخشەی گەنجینە',
   'design.body.levels': 'ئاستەکانی یاری',
   'design.body.fridge': 'سەلاجە',
   'design.body.bento': 'سندوقی بێنتۆ',

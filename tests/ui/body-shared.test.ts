@@ -60,9 +60,10 @@ describe('the Drawer Cabinet under a search or a filter', () => {
 });
 
 describe('text on the accent in the browse shapes', () => {
+  // Also the chips, seals and add buttons on the accent of the home screen, treasure map, game levels, fridge and bento.
   // Shelves' aisle sign, count and add button and Tabletop's lit napkin draw text on the accent with --on-accent: the
   // pair reads on each of the shape's palettes, the light "Night market" yellow and the dark "Pale oak" rust included.
-  it.each(['the-supermarket-shelves', 'the-table-from-above'] as const)('reads on every palette of %s', (id) => {
+  it.each(['the-supermarket-shelves', 'the-table-from-above', 'the-phone-home-screen', 'the-treasure-map', 'the-game-levels', 'the-fridge', 'the-bento-box'] as const)('reads on every palette of %s', (id) => {
     for (const { palette } of TEMPLATES[id].palettes) expect(contrastRatio(palette.onAccent, palette.accent)).toBeGreaterThanOrEqual(4.5);
   });
 });

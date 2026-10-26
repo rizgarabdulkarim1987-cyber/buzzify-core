@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
-import { LevelsBody, levelSpot, worldHue } from '@/ui/template/bodies/LevelsBody';
+import { contrastRatio } from '@/lib/palette';
+import { LevelsBody, levelSpot, worldFill, worldHue, worldInk } from '@/ui/template/bodies/LevelsBody';
 
 describe('Game Levels shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -35,5 +36,11 @@ describe('Game Levels shape', () => {
   it('gives neighbouring worlds different hues and repeats the set', () => {
     expect(worldHue(0)).not.toBe(worldHue(1));
     expect(worldHue(0)).toBe(worldHue(6));
+  });
+
+  it("writes the world numbers, labels and level badges in the ink that reads on each world's hue", () => {
+    for (let index = 0; index < 6; index++) {
+      expect(contrastRatio(worldInk(index), worldFill(index)), `world ${index + 1}`).toBeGreaterThanOrEqual(4.5);
+    }
   });
 });

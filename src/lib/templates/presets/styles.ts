@@ -390,7 +390,7 @@ export const theGameLevels = definePreset({
   tags: ['dark', 'playful'],
   seed: { bg: '#1D1B3A', text: '#F4F1FF', accent: '#FFD23F', raised: '#2A2760' },
   alternatives: [
-    { id: 'candy-world', name: 'Candy world', seed: { bg: '#FFF1DE', text: '#2B1A4A', accent: '#D93A66', raised: '#FFFFFF' } },
+    { id: 'candy-world', name: 'Candy world', seed: { bg: '#FFF1DE', text: '#2B1A4A', accent: '#C8325C', raised: '#FFFFFF' } },
     { id: 'jungle-run', name: 'Jungle run', seed: { bg: '#12372E', text: '#EAF7E6', accent: '#FFC93C', raised: '#1C4B3F' } },
     { id: 'sky-island', name: 'Sky island', seed: { bg: '#DDEBFF', text: '#14264A', accent: '#1F6FEB', raised: '#F2F7FF' } },
   ],

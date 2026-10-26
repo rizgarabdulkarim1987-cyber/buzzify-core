@@ -5,7 +5,8 @@
  * that winds back and forth: the first row runs from the start side to the end, the next back, and the road turns down
  * at each row end. A strip of worlds stays at the top and jumps. Everything is scoped under [data-body='levels']. The
  * page is the template's --bg, text --text; banners, pills and the lit world are the inverse pair (--bg on --text) or
- * --on-accent on --accent, so contrast holds on every palette. Logical properties only (RTL mirrors).
+ * --on-accent on --accent, and the numbers on a world's hue take the ink that reads on it (--w-ink on --w-fill, chosen in
+ * LevelsBody), so contrast holds on every palette. Logical properties only (RTL mirrors).
  */
 [data-body='levels'] {
   --lv-gap: 0.625rem;
@@ -15,6 +16,12 @@
   --lv-road: 0.875rem;
   /* The sticky strip's height, so a jumped-to world lands just below it. */
   --nav-room: 4.25rem;
+  /*
+   * The last section (shared/shapes.css) only as tall as the strip needs to light it. Lit means it covers the band 30%
+   * to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the page's footer, about
+   * 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch into a large empty block.
+   */
+  --tall-last: calc(70dvh - 13rem);
   padding-block-end: 1rem;
   color: var(--text);
 }
@@ -54,8 +61,8 @@
   inline-size: 1.5rem;
   block-size: 1.5rem;
   border-radius: 50%;
-  background: hsl(var(--w-h) 75% 42%);
-  color: #fff;
+  background: var(--w-fill);
+  color: var(--w-ink);
   font-size: 0.75rem;
   font-weight: 800;
 }
@@ -106,8 +113,8 @@
   flex: none;
   padding: 0.0625rem 0.5rem;
   border-radius: 999px;
-  background: hsl(var(--w-h) 80% 36%);
-  color: #fff;
+  background: var(--w-fill);
+  color: var(--w-ink);
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.25;
@@ -219,8 +226,8 @@
   block-size: 1.5rem;
   border: 2px solid #fff;
   border-radius: 50%;
-  background: hsl(var(--w-h) 80% 36%);
-  color: #fff;
+  background: var(--w-fill);
+  color: var(--w-ink);
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1;

@@ -4,6 +4,7 @@ import type { CSSProperties } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
+import { SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
 import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
@@ -63,7 +64,7 @@ export function TreasureBody() {
               <ShapeHeading id={`h-${category.slug}`} name={category.name} count={n(products.length)} className="tm-head" title="tm-title" />
               <ul className="tm-pins">
                 {products.map((product, row) => (
-                  <IconDish key={product.id} product={product} prefix="tm" suffix="treasure" cell="tm-pin tpl-rise" head="tm-disc" price="tm-tag" pricePlace="below" sizes="96px" priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
+                  <IconDish key={product.id} product={product} prefix="tm" suffix="treasure" cell="tm-pin tpl-rise" head="tm-disc" price="tm-tag" pricePlace="below" extras={<SaleChip product={product} className="tm-off" />} sizes="96px" priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
                 ))}
               </ul>
             </section>

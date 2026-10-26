@@ -64,7 +64,7 @@ export function FridgeBody() {
                     media="cover"
                     inPhoto={<SaleChip product={product} className="fr-off" />}
                     addInPhoto
-                    sizes="112px"
+                    sizes="(min-width: 640px) 180px, 33vw"
                     priority={index === 0 && at < 6}
                     order={Math.min(index * 3 + at, 8)}
                   />
