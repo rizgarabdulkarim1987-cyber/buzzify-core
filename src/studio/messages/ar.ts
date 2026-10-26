@@ -1,6 +1,7 @@
 // Machine-drafted Arabic. These strings have not been reviewed by a native speaker; have one review them before launch.
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/ar';
+import styles from './styles/ar';
 import menuMotions from './menu-motions/ar';
 import aiSettings from './ai-settings/ar';
 import posAi from './pos-ai/ar';
@@ -52,6 +53,7 @@ const ar: Messages = {
   'nav.menus': 'كل القوائم',
   'nav.media': 'الوسائط',
   'nav.motion': 'الحركة',
+  'nav.styles': 'ستايلات المنيو',
   'nav.people': 'الأشخاص',
   'nav.activity': 'النشاط',
   'nav.settings': 'الإعدادات',
@@ -2753,6 +2755,8 @@ const ar: Messages = {
   'preview.hiddenTitle': 'ضيوف هذه الباقة لا يرون',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/ar.ts)
   ...motion,
+  // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
+  ...styles,
   // The Motion tab of a menu (menu-motions/ar.ts)
   ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/ar.ts)

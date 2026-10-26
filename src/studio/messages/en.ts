@@ -1,5 +1,6 @@
 import type { Messages } from '@/lib/i18n';
 import motion from './motion/en';
+import styles from './styles/en';
 import menuMotions from './menu-motions/en';
 import aiSettings from './ai-settings/en';
 import posAi from './pos-ai/en';
@@ -51,6 +52,7 @@ const en: Messages = {
   'nav.menus': 'All menus',
   'nav.media': 'Media',
   'nav.motion': 'Motion',
+  'nav.styles': 'Menu Styles',
   'nav.people': 'People',
   'nav.activity': 'Activity',
   'nav.settings': 'Settings',
@@ -2724,6 +2726,8 @@ const en: Messages = {
   'preview.hiddenTitle': 'Guests on this plan don’t see',
   // The Motion area: its pages, and a name and a line for each of the 150 motions (motion/en.ts)
   ...motion,
+  // The Menu Styles area: its pages, and a name and a line for each of the 35 styles (styles/*.ts)
+  ...styles,
   // The Motion tab of a menu (menu-motions/en.ts)
   ...menuMotions,
   // The till: floor, orders, shifts, kitchen and report (pos-till/en.ts)

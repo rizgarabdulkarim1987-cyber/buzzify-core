@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات كردية وعربية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Aref+Ruqaa:wght@400;700&family=Cairo:wght@400;600;700;900&family=El+Messiri:wght@400;600;700&family=Lalezar&family=Reem+Kufi:wght@400;600;700&family=Marhey:wght@400;600;700&family=Rakkas&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 920px; }
+  .grp { font: 400 30px 'Lalezar'; margin: 34px 0 0; color: #ffd23f; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 16px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .chrome .rp { font: 700 14px 'Cairo'; }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  .fx { position: absolute; inset: 0; pointer-events: none; z-index: 15; overflow: hidden; }
+  .ph { background-size: cover; background-position: center; }
+  .tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 56px 10px 12px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; transition: background-color 200ms ease, color 200ms ease; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; }
+  .it .ph { aspect-ratio: 1; }
+  .it .row { display: flex; justify-content: space-between; align-items: center; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .cart .ic { display: inline-block; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); }
+  .add:active { transform: scale(.9); }
+  .rv { opacity: 0; transform: translateY(18px); transition: opacity 420ms var(--ease-out), transform 420ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes sway { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
+  @keyframes tw { from { opacity: 1; } to { opacity: .35; } }
+
+  /* =====================================================================
+     K1. ERBIL CITADEL — windows light up one by one at dusk, pigeons fly
+     ===================================================================== */
+  .m-cit { background: #ecdcbc; color: #3b2614; font-family: 'Reem Kufi'; }
+  .m-cit .hd { position: relative; height: 270px; background: linear-gradient(#24164a, #7a3550 45%, #e98a4a 80%, #f5c27a); overflow: hidden; text-align: center; color: #fff4dc; }
+  .m-cit .hd h1 { position: relative; z-index: 3; font: 400 40px 'Lalezar'; padding-top: 20px; }
+  .m-cit .hd p { position: relative; z-index: 3; font-size: 14px; opacity: .9; }
+  .m-cit .castle { position: absolute; bottom: 0; left: 0; width: 100%; height: 150px; }
+  .m-cit .win { opacity: 0; animation: lightOn 600ms var(--ease-out) forwards, tw 2.6s ease-in-out infinite alternate; }
+  @keyframes lightOn { to { opacity: 1; } }
+  .m-cit .bird { position: absolute; z-index: 2; width: 18px; height: 8px; animation: fly linear infinite; }
+  .m-cit .bird::before, .m-cit .bird::after { content: ''; position: absolute; top: 0; width: 9px; height: 8px; border-top: 2px solid #2a1730; border-radius: 50% 50% 0 0; animation: flap .5s ease-in-out infinite alternate; }
+  .m-cit .bird::before { left: 0; transform-origin: right bottom; } .m-cit .bird::after { right: 0; transform-origin: left bottom; }
+  @keyframes flap { to { transform: scaleY(.3); } }
+  @keyframes fly { from { transform: translateX(-60px); } to { transform: translateX(520px); } }
+  .m-cit .tabs { background: rgba(236,220,188,.96); border-bottom: 3px solid #b4885a; }
+  .m-cit .tabs button { font: 600 13px 'Reem Kufi'; padding: 5px 12px; border-radius: 4px; background: #d9c39a; }
+  .m-cit .tabs button.on { background: #3b2614; color: #ecdcbc; }
+  .m-cit section { padding: 20px 12px 6px; }
+  .m-cit section > h3 { font: 400 28px 'Lalezar'; text-align: center; margin-bottom: 12px; }
+  .m-cit .it { background: repeating-linear-gradient(0deg, #c9a979 0 14px, #b4905f 14px 16px); padding: 7px 7px 9px; border-radius: 80px 80px 4px 4px; box-shadow: 0 6px 12px rgba(59,38,20,.25); }
+  .m-cit .it .ph { border-radius: 72px 72px 2px 2px; border: 3px solid #f3e4c4; }
+  .m-cit .it .nm { font-weight: 700; font-size: 15px; text-align: center; margin-top: 6px; color: #2a1a0c; }
+  .m-cit .it .row { font-weight: 700; color: #6b2a10; padding: 0 2px; }
+  .m-cit .add { width: 28px; height: 28px; border-radius: 50%; background: #3b2614; color: #f3e4c4; font-weight: 800; }
+  .m-cit .cart { background: #3b2614; color: #f3e4c4; }
+
+  /* =====================================================================
+     K2. KURDISH DRESS — velvet and sequins, a shimmer sweeps each dish
+     ===================================================================== */
+  .m-jli { background-color: #3a0d3f; background-image: radial-gradient(circle, rgba(255,214,102,.5) 0 1.4px, transparent 2px); background-size: 18px 18px; color: #fff1d0; font-family: 'Marhey'; }
+  .m-jli .hd { text-align: center; padding: 26px 16px 0; position: relative; }
+  .m-jli .hd small { color: #ffd666; font-size: 12px; letter-spacing: 2px; }
+  .m-jli .hd h1 { font: 400 42px 'Lalezar'; color: #ffd666; text-shadow: 0 3px 0 #1f0622; }
+  .m-jli .fringe { display: flex; justify-content: center; height: 46px; margin-top: 8px; }
+  .m-jli .fringe i { width: 6px; height: 40px; margin: 0 2px; border-radius: 3px; transform-origin: top center; animation: sway 1.8s ease-in-out infinite alternate; }
+  .m-jli .belt { height: 16px; background: repeating-linear-gradient(90deg, #ffd666 0 8px, #c2185b 8px 16px, #1e88e5 16px 24px, #43a047 24px 32px); }
+  .m-jli .tabs { background: rgba(42,8,46,.94); }
+  .m-jli .tabs button { font: 600 13px 'Marhey'; padding: 5px 13px; border-radius: 30px; border: 1px solid #ffd666; color: #ffd666; }
+  .m-jli .tabs button.on { background: #ffd666; color: #3a0d3f; }
+  .m-jli section { padding: 20px 12px 6px; }
+  .m-jli section > h3 { font: 400 28px 'Lalezar'; color: #ffd666; margin-bottom: 12px; text-align: center; }
+  .m-jli .it { position: relative; background: linear-gradient(160deg, #6a1b6f, #3a0d3f); border: 2px solid #ffd666; border-radius: 16px; padding: 6px 6px 9px; overflow: hidden; }
+  .m-jli .it .ph { border-radius: 11px; }
+  .m-jli .it::after { content: ''; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255,240,190,.55) 50%, transparent 65%); transform: translateX(120%); pointer-events: none; }
+  .m-jli .it.in::after { animation: shimmer 1100ms var(--ease-out) var(--d, 0ms) forwards; }
+  @keyframes shimmer { to { transform: translateX(-120%); } }
+  .m-jli .it .nm { font-weight: 600; font-size: 14.5px; margin-top: 6px; }
+  .m-jli .it .row { color: #ffd666; font-weight: 700; }
+  .m-jli .add { width: 28px; height: 28px; border-radius: 50%; background: #ffd666; color: #3a0d3f; font-weight: 800; }
+  .m-jli .cart { background: #ffd666; color: #3a0d3f; }
+
+  /* =====================================================================
+     K3. HAWRAMAN — a stepped village; dishes step down like terraces
+     ===================================================================== */
+  .m-hwr { background: #eeeadd; color: #2f3324; font-family: 'Rakkas'; }
+  .m-hwr .hd { position: relative; height: 250px; background: linear-gradient(#9fc4d9, #dfeaf0); overflow: hidden; }
+  .m-hwr .hd h1 { position: absolute; top: 18px; right: 18px; z-index: 3; font-size: 40px; font-weight: 400; color: #2f3324; }
+  .m-hwr .hd p { position: absolute; top: 72px; right: 20px; z-index: 3; font: 600 13px 'Cairo'; }
+  .m-hwr .vil { position: absolute; bottom: 0; left: 0; width: 100%; height: 200px; }
+  .m-hwr .smoke { position: absolute; width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.85); filter: blur(2px); animation: puff 3s ease-out infinite; }
+  @keyframes puff { from { transform: translate(0,0) scale(.6); opacity: .9; } to { transform: translate(-14px,-60px) scale(2.4); opacity: 0; } }
+  .m-hwr .tabs { background: rgba(238,234,221,.96); border-bottom: 2px solid #8c8270; }
+  .m-hwr .tabs button { font: 600 13px 'Cairo'; padding: 5px 12px; border-radius: 6px; background: #ddd6c3; }
+  .m-hwr .tabs button.on { background: #4f6b3a; color: #fff; }
+  .m-hwr section { padding: 20px 12px 6px; }
+  .m-hwr section > h3 { font-size: 26px; font-weight: 400; margin-bottom: 12px; padding: 4px 12px; background: #8c8270; color: #fff; display: inline-block; border-radius: 4px 4px 0 0; }
+  .m-hwr .it { background: #fff; padding: 6px 6px 9px; border-bottom: 6px solid #8c8270; border-radius: 6px; box-shadow: 0 6px 12px rgba(47,51,36,.12); }
+  .m-hwr .it .ph { border-radius: 3px; }
+  .m-hwr .it .nm { font-size: 16px; margin-top: 6px; }
+  .m-hwr .it .row { font: 700 13px 'Cairo'; color: #4f6b3a; }
+  .m-hwr .rvx { opacity: 0; transform: translateX(var(--x, 40px)); transition: opacity 480ms var(--ease-out), transform 480ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-hwr .rvx.in { opacity: 1; transform: none; }
+  .m-hwr .add { width: 28px; height: 28px; border-radius: 6px; background: #4f6b3a; color: #fff; font-weight: 800; }
+  .m-hwr .cart { background: #4f6b3a; color: #fff; }
+
+  /* =====================================================================
+     K4. THE TEAHOUSE (چايخانة) — tea pours into an istikan, dice roll on add
+     ===================================================================== */
+  .m-chy { background: #2b1a10; background-image: repeating-linear-gradient(90deg, rgba(255,255,255,.025) 0 2px, transparent 2px 9px); color: #f6e6c8; font-family: 'El Messiri'; }
+  .m-chy .hd { display: grid; grid-template-columns: 1fr 110px; align-items: end; padding: 58px 18px 10px; gap: 10px; }
+  .m-chy .hd h1 { font: 400 40px 'Lalezar'; color: #f0b34a; line-height: 1.05; }
+  .m-chy .hd p { font-size: 14px; opacity: .85; }
+  .m-chy .glass { position: relative; width: 70px; height: 96px; margin: 0 auto; }
+  .m-chy .glass .cup { position: absolute; bottom: 12px; left: 8px; width: 54px; height: 72px; clip-path: polygon(0 0, 100% 0, 84% 50%, 100% 100%, 0 100%, 16% 50%); background: rgba(255,255,255,.18); overflow: hidden; }
+  .m-chy .glass .tea { position: absolute; inset: 0; background: linear-gradient(#c0601c, #7a2e0a); transform-origin: bottom; transform: scaleY(0); animation: fill 2.2s var(--ease-out) .5s forwards; }
+  @keyframes fill { to { transform: scaleY(.86); } }
+  .m-chy .glass .stream { position: absolute; top: -26px; left: 33px; width: 4px; height: 50px; background: #b5561a; border-radius: 2px; transform-origin: top; animation: pour 2.4s ease-in-out .3s forwards; transform: scaleY(0); }
+  @keyframes pour { 0% { transform: scaleY(0); } 15%, 80% { transform: scaleY(1); } 100% { transform: scaleY(0); transform-origin: bottom; } }
+  .m-chy .glass .saucer { position: absolute; bottom: 4px; left: 0; width: 70px; height: 10px; border-radius: 50%; background: #e9e1d1; }
+  .m-chy .glass .steam { position: absolute; top: -6px; width: 6px; height: 26px; border-radius: 6px; background: linear-gradient(transparent, rgba(255,255,255,.4)); filter: blur(2px); animation: steam 2.4s ease-in-out infinite; opacity: 0; }
+  @keyframes steam { 0% { transform: translateY(10px) scaleX(1); opacity: 0; } 40% { opacity: .9; } 100% { transform: translateY(-26px) scaleX(1.8); opacity: 0; } }
+  .m-chy .tavla { height: 30px; background: linear-gradient(135deg, transparent 50%, #2b1a10 50%) 0 0/28px 30px, linear-gradient(225deg, transparent 50%, #2b1a10 50%) 0 0/28px 30px, repeating-linear-gradient(90deg, #c0601c 0 14px, #f6e6c8 14px 28px); }
+  .m-chy .tabs { background: rgba(43,26,16,.95); }
+  .m-chy .tabs button { font: 600 14px 'El Messiri'; padding: 4px 12px; border-radius: 6px; border: 1px solid #6b4a2e; }
+  .m-chy .tabs button.on { background: #f0b34a; color: #2b1a10; border-color: #f0b34a; }
+  .m-chy section { padding: 20px 12px 6px; }
+  .m-chy section > h3 { font: 400 26px 'Lalezar'; color: #f0b34a; margin-bottom: 12px; }
+  .m-chy .it { background: #3d2616; border: 6px solid #5a3a22; border-radius: 6px; padding: 5px 5px 8px; box-shadow: inset 0 0 0 1px #7a5434; }
+  .m-chy .it .nm { font-weight: 700; font-size: 15px; margin-top: 6px; }
+  .m-chy .it .row { color: #f0b34a; font: 700 13px 'Cairo'; }
+  .m-chy .add { width: 28px; height: 28px; border-radius: 5px; background: #f6e6c8; color: #2b1a10; font-weight: 800; }
+  .m-chy .cart { background: #f0b34a; color: #2b1a10; }
+  .m-chy .cart .ic { font-size: 18px; }
+
+  /* =====================================================================
+     A1. SADU TENT — Bedouin weave, drifting dunes, the dallah pours coffee
+     ===================================================================== */
+  .m-sad { --r: #a3221e; background: #f4e7cf; color: #2a1610; font-family: 'Reem Kufi'; }
+  .m-sad .sadu { height: 26px; background: linear-gradient(45deg, var(--r) 25%, transparent 25%, transparent 75%, var(--r) 75%) 0 0/26px 26px, linear-gradient(45deg, var(--r) 25%, #f4e7cf 25%, #f4e7cf 75%, var(--r) 75%) 13px 13px/26px 26px; border-top: 5px solid #1d1210; border-bottom: 5px solid #1d1210; }
+  .m-sad .hd { position: relative; height: 240px; background: linear-gradient(#f7a541, #fbd38a 55%, #f4e7cf); overflow: hidden; }
+  .m-sad .hd h1 { position: absolute; top: 20px; right: 18px; z-index: 3; font: 400 42px 'Lalezar'; color: #2a1610; }
+  .m-sad .hd p { position: absolute; top: 76px; right: 20px; z-index: 3; font-size: 14px; }
+  .m-sad .sunr { position: absolute; top: 40px; left: 40px; width: 80px; height: 80px; border-radius: 50%; background: #fff2c7; box-shadow: 0 0 40px #fff2c7; }
+  .m-sad .dunes { position: absolute; bottom: 0; left: 0; width: 200%; height: 120px; animation: dunes 26s linear infinite; }
+  .m-sad .dunes.d2 { height: 80px; animation-duration: 14s; }
+  @keyframes dunes { to { transform: translateX(50%); } }
+  .m-sad .dallah { position: absolute; bottom: 30px; left: 70px; width: 90px; height: 110px; z-index: 3; }
+  .m-sad .dallah .pot { transform-origin: 60px 70px; animation: tilt 4s ease-in-out infinite; }
+  @keyframes tilt { 0%, 15%, 85%, 100% { transform: rotate(0); } 35%, 65% { transform: rotate(-28deg); } }
+  .m-sad .dallah .flow { transform-origin: top; transform: scaleY(0); animation: flow 4s ease-in-out infinite; }
+  @keyframes flow { 0%, 33%, 70%, 100% { transform: scaleY(0); } 40%, 62% { transform: scaleY(1); } }
+  .m-sad .tabs { background: rgba(244,231,207,.96); }
+  .m-sad .tabs button { font: 600 13px 'Reem Kufi'; padding: 5px 12px; border: 2px solid #1d1210; }
+  .m-sad .tabs button.on { background: var(--r); color: #fff; border-color: var(--r); }
+  .m-sad section { padding: 20px 12px 6px; }
+  .m-sad section > h3 { font: 400 28px 'Lalezar'; margin-bottom: 12px; }
+  .m-sad .it { background: #fff8ea; padding: 0 0 9px; border: 2px solid #1d1210; }
+  .m-sad .it .band { height: 10px; background: repeating-linear-gradient(90deg, var(--r) 0 10px, #1d1210 10px 14px, #f4e7cf 14px 20px); }
+  .m-sad .it .ph { margin: 6px; }
+  .m-sad .it .nm { font-weight: 700; font-size: 15px; padding: 0 8px; }
+  .m-sad .it .row { color: var(--r); font-weight: 700; padding: 0 8px; }
+  .m-sad .add { width: 28px; height: 28px; background: var(--r); color: #fff; font-weight: 800; }
+  .m-sad .cart { background: #1d1210; color: #f4e7cf; }
+
+  /* =====================================================================
+     A2. ANDALUSIA — zellige stars turn, a fountain ripples, horseshoe arches
+     ===================================================================== */
+  .m-and { background: #f6f1e7; color: #1d3b3a; font-family: 'Amiri'; }
+  .m-and .zel { height: 34px; background: conic-gradient(from 45deg at 50% 50%, #1f6f6a 0 25%, #f6f1e7 0 50%, #c8902f 0 75%, #f6f1e7 0) 0 0/34px 34px; border-top: 3px solid #1d3b3a; border-bottom: 3px solid #1d3b3a; }
+  .m-and .hd { text-align: center; padding: 22px 16px 8px; position: relative; }
+  .m-and .star { width: 58px; height: 58px; margin: 0 auto 4px; background: conic-gradient(#1f6f6a 0 12.5%, #c8902f 0 25%, #1f6f6a 0 37.5%, #c8902f 0 50%, #1f6f6a 0 62.5%, #c8902f 0 75%, #1f6f6a 0 87.5%, #c8902f 0); clip-path: polygon(50% 0, 61% 25%, 85% 15%, 75% 39%, 100% 50%, 75% 61%, 85% 85%, 61% 75%, 50% 100%, 39% 75%, 15% 85%, 25% 61%, 0 50%, 25% 39%, 15% 15%, 39% 25%); animation: rot 16s linear infinite; }
+  .m-and .hd h1 { font: 700 40px 'Aref Ruqaa'; }
+  .m-and .hd p { font-size: 15px; color: #6b5a3a; }
+  .m-and .pool { position: relative; margin: 10px 18px 0; border-radius: 160px 160px 10px 10px; overflow: hidden; border: 5px solid #1d3b3a; box-shadow: 0 0 0 4px #c8902f; }
+  .m-and .pool .ph { height: 160px; }
+  .m-and .pool .water { position: relative; height: 46px; overflow: hidden; background: #1f6f6a; }
+  .m-and .pool .water .refl { position: absolute; inset: 0; background-size: cover; background-position: center bottom; transform: scaleY(-1); opacity: .35; filter: blur(1px); animation: refl 3s ease-in-out infinite alternate; }
+  @keyframes refl { to { transform: scaleY(-1) skewX(3deg) translateX(-4px); } }
+  .m-and .pool .ring { position: absolute; top: 50%; left: 50%; width: 30px; height: 10px; margin: -5px 0 0 -15px; border: 2px solid rgba(255,255,255,.7); border-radius: 50%; animation: ring 2.8s ease-out infinite; }
+  @keyframes ring { from { transform: scale(.3); opacity: 1; } to { transform: scale(6); opacity: 0; } }
+  .m-and .pcap { text-align: center; margin: 10px 0 2px; font-size: 20px; font-weight: 700; }
+  .m-and .tabs { background: rgba(246,241,231,.96); border-bottom: 2px solid #1d3b3a; }
+  .m-and .tabs button { font: 700 15px 'Amiri'; padding: 3px 12px; color: #6b5a3a; }
+  .m-and .tabs button.on { color: #fff; background: #1f6f6a; border-radius: 20px 20px 4px 4px; }
+  .m-and section { padding: 22px 12px 6px; }
+  .m-and section > h3 { font: 700 28px 'Aref Ruqaa'; text-align: center; margin-bottom: 12px; }
+  .m-and .it { background: #fff; padding: 6px 6px 9px; border-radius: 50% 50% 8px 8px / 34% 34% 8px 8px; border: 2px solid #c8902f; }
+  .m-and .it .ph { border-radius: 50% 50% 4px 4px / 40% 40% 4px 4px; }
+  .m-and .it .nm { font-weight: 700; font-size: 17px; text-align: center; margin-top: 4px; }
+  .m-and .it .row { font: 700 13px 'Cairo'; color: #1f6f6a; padding: 0 4px; }
+  .m-and .add { width: 28px; height: 28px; border-radius: 50%; background: #1f6f6a; color: #fff; font-weight: 800; }
+  .m-and .cart { background: #1d3b3a; color: #f6f1e7; }
+
+  /* =====================================================================
+     A3. RAMADAN NIGHTS — lanterns sway, the crescent glows, garlands move
+     ===================================================================== */
+  .m-ram { background: radial-gradient(ellipse at 50% 0, #1f2f66, #0b1430 60%); color: #fbe9b7; font-family: 'El Messiri'; }
+  .m-ram .hd { position: relative; height: 260px; text-align: center; overflow: hidden; }
+  .m-ram .moon { position: absolute; top: 60px; left: 34px; width: 70px; height: 70px; border-radius: 50%; box-shadow: 14px -6px 0 0 #f6d27a; filter: drop-shadow(0 0 12px rgba(246,210,122,.6)); }
+  .m-ram .garland { position: absolute; top: 0; left: -10px; right: -10px; height: 40px; display: flex; justify-content: space-around; border-top: 2px solid #c9a24a; transform-origin: top; animation: garl 3s ease-in-out infinite alternate; }
+  .m-ram .garland i { width: 0; height: 0; border-left: 9px solid transparent; border-right: 9px solid transparent; border-top: 16px solid; }
+  @keyframes garl { from { transform: translateY(0) rotate(-.6deg); } to { transform: translateY(3px) rotate(.6deg); } }
+  .m-ram .lan { position: absolute; top: 0; transform-origin: top center; animation: sway 3s ease-in-out infinite alternate; }
+  .m-ram .lan::before { content: ''; display: block; width: 2px; height: var(--l, 60px); margin: 0 auto; background: #c9a24a; }
+  .m-ram .lan b { display: block; width: 30px; height: 44px; border-radius: 8px 8px 14px 14px; background: radial-gradient(circle at 50% 60%, #fff3c4, #f0a830 50%, #8a4a10); box-shadow: 0 0 22px rgba(255,200,90,.65); position: relative; animation: tw 1.6s ease-in-out infinite alternate; }
+  .m-ram .lan b::before { content: ''; position: absolute; top: -8px; left: 5px; width: 20px; height: 10px; border-radius: 10px 10px 0 0; background: #c9a24a; }
+  .m-ram .hd h1 { position: absolute; bottom: 52px; left: 0; right: 0; font: 400 44px 'Lalezar'; color: #f6d27a; }
+  .m-ram .hd p { position: absolute; bottom: 24px; left: 0; right: 0; font-size: 15px; }
+  .m-ram .tabs { background: rgba(11,20,48,.9); backdrop-filter: blur(8px); }
+  .m-ram .tabs button { font: 600 14px 'El Messiri'; padding: 4px 13px; border-radius: 20px; border: 1px solid #c9a24a; color: #f6d27a; }
+  .m-ram .tabs button.on { background: #f6d27a; color: #0b1430; }
+  .m-ram section { padding: 22px 12px 6px; }
+  .m-ram section > h3 { font: 400 28px 'Lalezar'; color: #f6d27a; text-align: center; margin-bottom: 12px; }
+  .m-ram .it { background: #13204a; padding: 6px 6px 9px; border: 1.5px solid #c9a24a; border-radius: 70px 70px 10px 10px; }
+  .m-ram .it .ph { border-radius: 64px 64px 6px 6px; }
+  .m-ram .it .nm { font-weight: 700; font-size: 16px; text-align: center; margin-top: 4px; }
+  .m-ram .it .row { color: #f6d27a; font: 700 13px 'Cairo'; padding: 0 4px; }
+  .m-ram .add { width: 28px; height: 28px; border-radius: 50%; background: #f6d27a; color: #0b1430; font-weight: 800; }
+  .m-ram .cart { background: #f6d27a; color: #0b1430; }
+
+  /* =====================================================================
+     A4. ONE THOUSAND AND ONE NIGHTS — a flying carpet, dishes rise from smoke
+     ===================================================================== */
+  .m-lyl { background: linear-gradient(#1a0b33, #3b1462 50%, #0f3b4a); color: #ffe9c4; font-family: 'Aref Ruqaa'; }
+  .m-lyl .hd { position: relative; text-align: center; padding: 22px 16px 10px; overflow: hidden; }
+  .m-lyl .hd h1 { font-size: 40px; line-height: 1.1; color: #ffcc66; }
+  .m-lyl .hd p { font: 400 15px 'Amiri'; }
+  .m-lyl .sky { position: absolute; inset: 0; background-image: radial-gradient(circle, #fff 0 1px, transparent 1.5px), radial-gradient(circle, rgba(255,255,255,.6) 0 1px, transparent 1.5px); background-size: 70px 70px, 110px 110px; background-position: 0 0, 35px 50px; animation: tw 2.4s ease-in-out infinite alternate; }
+  .m-lyl .carpet { position: relative; margin: 14px 24px 4px; animation: hover 3.2s ease-in-out infinite; }
+  @keyframes hover { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-12px) rotate(1.5deg); } }
+  .m-lyl .carpet .ph { height: 190px; border-radius: 10px; border: 6px solid #b3202a; outline: 3px dashed #ffcc66; outline-offset: -11px; }
+  .m-lyl .carpet .tas { position: absolute; top: 0; bottom: 0; width: 10px; background: repeating-linear-gradient(0deg, #ffcc66 0 4px, transparent 4px 8px); }
+  .m-lyl .carpet .tas.r { right: -10px; } .m-lyl .carpet .tas.l { left: -10px; }
+  .m-lyl .ccap { position: relative; font-size: 20px; margin-top: 10px; }
+  .m-lyl .tabs { background: rgba(26,11,51,.9); backdrop-filter: blur(8px); }
+  .m-lyl .tabs button { font: 400 16px 'Aref Ruqaa'; padding: 3px 13px; border-radius: 20px; color: #ffcc66; }
+  .m-lyl .tabs button.on { background: #ffcc66; color: #1a0b33; }
+  .m-lyl section { padding: 22px 12px 6px; }
+  .m-lyl section > h3 { font-size: 28px; color: #ffcc66; text-align: center; margin-bottom: 12px; }
+  .m-lyl .it { background: rgba(255,255,255,.07); border: 1px solid rgba(255,204,102,.5); border-radius: 14px; padding: 6px 6px 9px; }
+  .m-lyl .it .ph { border-radius: 10px; }
+  .m-lyl .it .nm { font-size: 17px; margin-top: 4px; }
+  .m-lyl .it .row { color: #ffcc66; font: 700 13px 'Cairo'; }
+  .m-lyl .rvm { opacity: 0; transform: scale(.9) translateY(10px); filter: blur(10px); transition: opacity 600ms var(--ease-out), transform 600ms var(--ease-out), filter 600ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .m-lyl .rvm.in { opacity: 1; transform: none; filter: none; }
+  .m-lyl .add { width: 28px; height: 28px; border-radius: 50%; background: #ffcc66; color: #1a0b33; font: 800 15px 'Cairo'; }
+  .m-lyl .cart { background: #ffcc66; color: #1a0b33; font-family: 'Cairo'; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .m-cit .win { opacity: 1; } .m-chy .glass .tea { transform: scaleY(.86); }
+    .rv, .rvx, .rvm { transform: none !important; filter: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٣ ستايلات كردية وعربية</h1>
+  <p>واحد كردي واثنان عربيان، كلها بيها موشن، وكلها تمشي على القاعدة: الأطباق بصورها الحقيقية تبين مرة وحدة، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>، وزر «↻» يعيد حركة البداية.</p>
+  <h2 class="grp">كردي</h2>
+  <div class="covers" id="covers-k"></div>
+  <h2 class="grp">عربي</h2>
+  <div class="covers" id="covers-a"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button><button id="replay" class="rp" aria-label="عيد الحركة">↻</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 600) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const FEAT = { n: 'مشاوي مشكلة للعائلة', p: '٣٥٬٠٠٠', img: '1555939594-58d7cb561ad1' };
+const MENU = [
+  { id: 'grill', t: 'المشويات', items: [
+    { n: 'تكة دجاج', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', items: [
+    { n: 'دبل سماش', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', items: [
+    { n: 'سلطة الموسم', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', items: [
+    { n: 'تيراميسو', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', items: [
+    { n: 'لاتيه', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const D = k => `--d:${Math.min(k, 6) * 60}ms`;
+const tabs = () => `<nav class="tabs">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}">${s.t}</button>`).join('')}</nav>`;
+const sections = (head, item) => MENU.map((s, si) => `<section data-sec="${s.id}">${head(s, si)}<div class="grid">${s.items.map((it, k) => item(it, s, k, si)).join('')}</div></section>`).join('');
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك', icon = '') => `<div class="cart"><span><span class="ic">${icon}</span> ${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const row = it => `<div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add" aria-label="أضف ${it.n}">+</button></div>`;
+const card = (cls, it, k, extra = '', style = '') => `<div class="it ${cls}" style="${D(k)};${style}">${extra}<div class="ph" ${bg(it.img)}></div>${row(it)}</div>`;
+
+// Erbil citadel: the mound, the wall and its houses, windows that light up one by one
+const castle = () => {
+  let wins = '';
+  [[70, 70], [96, 62], [124, 70], [150, 58], [178, 66], [206, 54], [232, 62], [262, 58], [290, 66], [318, 60], [346, 70]].forEach(([x, y], i) => {
+    wins += `<rect class="win" x="${x}" y="${y}" width="7" height="9" rx="1" fill="#ffd27a" style="animation-delay:${400 + i * 140}ms, ${-i * .4}s"/>`;
+    wins += `<rect class="win" x="${x + 4}" y="${y + 18}" width="6" height="8" rx="1" fill="#ffc35a" style="animation-delay:${600 + i * 140}ms, ${-i * .3}s"/>`;
+  });
+  return `<svg class="castle" viewBox="0 0 430 150" preserveAspectRatio="none">
+    <path d="M0 150 L0 120 Q 60 100 50 96 L 50 52 L 380 48 L 380 96 Q 380 104 430 118 L430 150 Z" fill="#3a2230"/>
+    <path d="M50 52 L 66 44 L 92 50 L 118 40 L 146 48 L 172 38 L 200 46 L 228 36 L 256 44 L 286 38 L 314 46 L 342 40 L 380 48 Z" fill="#4a2c3a"/>
+    <rect x="198" y="18" width="18" height="30" fill="#4a2c3a"/><path d="M196 18 L207 6 L218 18 Z" fill="#4a2c3a"/>
+    ${wins}
+    <path d="M0 150 L0 134 Q 215 112 430 134 L430 150 Z" fill="#2a1622"/></svg>`;
+};
+// Hawraman: houses stacked up the slope, each roof the next one's yard
+const village = () => {
+  let h = '', smoke = [];
+  const rows = [[150, 7, 30], [118, 6, 50], [86, 5, 74], [54, 4, 100]];
+  rows.forEach(([y, n, x0], r) => {
+    for (let i = 0; i < n; i++) {
+      const x = x0 + i * 48 + (r % 2) * 10, c = ['#b9ad92', '#a89c80', '#c7bca3'][(i + r) % 3];
+      h += `<rect x="${x}" y="${y}" width="44" height="34" fill="${c}"/><rect x="${x}" y="${y}" width="44" height="4" fill="#6b6150"/><rect x="${x + 8}" y="${y + 12}" width="7" height="10" fill="#4a4436"/><rect x="${x + 26}" y="${y + 12}" width="7" height="10" fill="#4a4436"/>`;
+      if ((i + r) % 4 === 1) smoke.push([x + 38, y - 4]);
+    }
+  });
+  return { svg: `<svg class="vil" viewBox="0 0 430 200" preserveAspectRatio="none"><path d="M0 200 L0 60 Q 120 30 200 40 T 430 20 L430 200 Z" fill="#6f8a55"/>${h}</svg>`, smoke };
+};
+const dallah = () => `<svg class="dallah" viewBox="0 0 90 110">
+  <g class="pot"><path d="M30 30 Q 26 18 40 14 Q 54 18 50 30 Z" fill="#c9a24a"/><path d="M24 34 Q 20 70 28 82 L 52 82 Q 60 70 56 34 Z" fill="#d8b35a"/><path d="M24 40 Q 8 38 2 26" stroke="#c9a24a" stroke-width="5" fill="none" stroke-linecap="round"/><path d="M56 40 Q 72 50 60 70" stroke="#8a6a2a" stroke-width="4" fill="none"/><circle cx="40" cy="11" r="4" fill="#c9a24a"/></g>
+  <rect class="flow" x="1" y="28" width="3" height="58" rx="1.5" fill="#6b3a12"/>
+  <path d="M-6 86 L 12 86 L 9 100 L -3 100 Z" fill="#f4e7cf" stroke="#1d1210" stroke-width="1.5"/></svg>`;
+const dunes = (c, cls = '') => `<svg class="dunes ${cls}" viewBox="0 0 860 120" preserveAspectRatio="none"><path d="M0 70 Q 107 30 215 70 T 430 70 T 645 70 T 860 70 V120 H0 Z" fill="${c}"/></svg>`;
+
+const STYLES = [
+ { grp: 'k', key: 'cit', fam: 'كردي', name: 'قلعة أربيل',
+   desc: 'قلعة أربيل وقت الغروب: السما بنفسجي وبرتقالي، وشبابيك بيوت القلعة تشتعل وحدة ورا وحدة، والحمام يطير فوقها. كل طبق داخل قوس من طابوق القلعة.',
+   mo: '<b>الموشن:</b> الشبابيك تضوي بالتتابع أول ما تفتح المنيو، وسرب حمام يطير، والأطباق تصعد.',
+   render: () => `
+    <div class="hd"><h1>قەڵا · القلعة</h1><p>أقدم مدينة مأهولة، وأطيب سفرة</p>
+      ${[[40, 14], [70, 22], [100, 9]].map(([t, d], i) => `<i class="bird" style="top:${t}px;animation-duration:${d}s;animation-delay:-${i * 3}s"></i>`).join('')}${castle()}</div>
+    ${tabs()}
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => card('rv', it, k))}
+    ${cart('سفرتك')}` },
+
+ { grp: 'a', key: 'ram', fam: 'عربي · موسمي', name: 'ليالي رمضان',
+   desc: 'سما ليل وهلال، وفوانيس رمضان معلّقة تتمرجح وضوها يرمش، وزينة مثلثات ملوّنة تتحرك بهدوء. ينفع المطعم يشغّله بشهر رمضان بس، والأطباق داخل أقواس ذهبية.',
+   mo: '<b>الموشن:</b> الفوانيس تتمرجح وضوها يرمش، والزينة تتحرك، والأطباق تصعد.',
+   render: () => `
+    <div class="hd"><div class="garland">${Array.from({ length: 12 }, (_, i) => `<i style="color:${['#e9a51b', '#c2185b', '#2f9e7a', '#5c6bc0'][i % 4]}"></i>`).join('')}</div><div class="moon"></div>
+      ${[[58, 70, 0], [74, 100, 1.1], [86, 54, .5], [30, 84, 1.6]].map(([l, len, d]) => `<div class="lan" style="left:${l}%;--l:${len}px;animation-delay:-${d}s"><b></b></div>`).join('')}
+      <h1>رمضان كريم</h1><p>فطورك وسحورك عدنا</p></div>
+    ${tabs()}
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => card('rv', it, k))}
+    ${cart('سفرة الفطور', '🌙')}` },
+
+ { grp: 'a', key: 'lyl', fam: 'عربي', name: 'ألف ليلة وليلة',
+   desc: 'حكايات شهرزاد: سما بنفسجية بنجوم، والطبق المميز طاير على بساط سحري بشرّابات ذهبية. وكل طبق يطلع من دخان مثل دخان مصباح علاء الدين: يبدي ضبابي ويوضح.',
+   mo: '<b>الموشن:</b> البساط يطير ويتمايل، والنجوم ترمش، وكل صورة تطلع من الدخان.',
+   render: () => `
+    <div class="hd"><div class="sky"></div><h1 style="position:relative">ألف ليلة<br>وليلة</h1><p style="position:relative">وفي الليلة الألف، قالت شهرزاد: جربوا هذا الطبق</p>
+      <div class="carpet"><span class="tas r"></span><span class="tas l"></span><div class="ph" ${bg(FEAT.img, 800)}></div></div>
+      <div class="ccap">${FEAT.n} · <span style="font-family:Cairo;font-size:15px">${FEAT.p}</span> <button class="add" aria-label="أضف ${FEAT.n}">+</button></div></div>
+    ${tabs()}
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => card('rvm', it, k))}
+    ${cart('كنزك', '🪔')}` },
+];
+
+// ---------- gallery ----------
+const coverHTML = s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`;
+document.getElementById('covers-k').innerHTML = STYLES.filter(s => s.grp === 'k').map(coverHTML).join('');
+document.getElementById('covers-a').innerHTML = STYLES.filter(s => s.grp === 'a').map(coverHTML).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.rvx,.rvm').forEach(x => x.classList.add('in'));
+  el.style.cssText = 'position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key;
+  screen.onscroll = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+document.getElementById('replay').onclick = () => current && open(current);
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+
+function addToCart(btn) {
+  const c = btn.closest('.it, .pcap, .ccap') || btn.parentElement;
+  const m = c.textContent.match(/[٠-٩]{1,3}٬[٠-٩]{3}/);
+  count++; total += m ? fromAr(m[0]) : 0;
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  const nm = c.querySelector('.nm');
+  toast(`انضاف ${nm ? nm.textContent : FEAT.n} ✓`);
+  // teahouse: the die tumbles in the basket on every add
+  if (current === 'chy' && !reduce) screen.querySelector('.cart .ic').animate([{ transform: 'rotate(0) translateY(0)' }, { transform: 'rotate(200deg) translateY(-10px)', offset: .5 }, { transform: 'rotate(360deg) translateY(0)' }], { duration: 420, easing: 'cubic-bezier(0.23, 1, 0.32, 1)' });
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .15 });
+  screen.querySelectorAll('.rv,.rvx,.rvm').forEach(el => io.observe(el));
+  cleanups.push(() => io.disconnect());
+  screen.onclick = e => { const b = e.target.closest('.add'); if (!b) return; e.stopPropagation(); addToCart(b); };
+  const nav = screen.querySelector('.tabs'), btns = [...nav.querySelectorAll('button')];
+  btns.forEach(b => b.addEventListener('click', () => { const sec = screen.querySelector(`[data-sec="${b.dataset.to}"]`); screen.scrollTo({ top: sec.offsetTop - nav.offsetHeight + 2, behavior: 'smooth' }); }));
+  screen.onscroll = () => {
+    let cur = MENU[0].id;
+    for (const s of MENU) { const el = screen.querySelector(`[data-sec="${s.id}"]`); if (el.offsetTop - nav.offsetHeight - 80 <= screen.scrollTop) cur = s.id; }
+    btns.forEach(b => b.classList.toggle('on', b.dataset.to === cur));
+    const on = btns.find(b => b.classList.contains('on')); nav.scrollTo({ left: on.offsetLeft - nav.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' });
+  };
+}
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

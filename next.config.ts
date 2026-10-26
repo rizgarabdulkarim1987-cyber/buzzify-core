@@ -65,6 +65,8 @@ const config: NextConfig = {
     ],
     // The 3D models are read from disk by their route (src/app/api/assets/models/[file]/route.ts).
     '/api/assets/models/[file]': ['./src/assets/models/*.glb'],
+    // The menu-style pages and posters are read from disk by their routes (src/server/studio/style-files.ts).
+    '/studio/style-files/**': ['./src/studio/styles/pages/*.html', './src/studio/styles/posters/*.webp'],
   },
   experimental: {
     // Turbopack's production chunker merges chunks smaller than this (unminified bytes; the default is 50,000). With the
