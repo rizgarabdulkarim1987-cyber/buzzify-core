@@ -54,7 +54,7 @@ function KineticRow({ product, priority }: { product: MenuProductView; priority:
   const { openProduct } = useTemplate();
   const words = dishWords(product.name);
   return (
-    <li data-row className="kn-row">
+    <li data-row data-id={product.id} className="kn-row">
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-display kn-name text-start">
         {words.map((word, at) => (
           <span key={at}>
@@ -73,7 +73,7 @@ function KineticRow({ product, priority }: { product: MenuProductView; priority:
       </span>
       <div className="kn-thumb">
         <div data-photo className="kn-photo tpl-fill-media">
-          <ProductMedia product={product} suffix="kinetic" sizes="72px" priority={priority} className="kn-img" rounded={false} />
+          <ProductMedia product={product} suffix="kinetic" sizes="(min-width: 640px) 96px, 52px" priority={priority} className="kn-img" rounded={false} />
         </div>
         <QuickAction product={product} variant="icon" className="tpl-rim-add kn-add relative z-[2]" />
       </div>

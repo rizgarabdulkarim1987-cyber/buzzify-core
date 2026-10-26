@@ -127,7 +127,22 @@ test('the words rise one after another: a later word starts later', async ({ pag
   await openMenu(page, slug);
   const delays = await page.locator('#cat-celebration [data-row]').first().locator('.kn-word > span').evaluateAll((nodes) => nodes.map((node) => parseFloat(getComputedStyle(node).transitionDelay)));
   expect(delays.length).toBeGreaterThan(1);
-  for (let at = 1; at < delays.length; at++) expect(delays[at]).toBeGreaterThan(delays[at - 1]!);
+  for (let at = 1; at < Math.min(delays.length, 6); at++) expect(delays[at]).toBeGreaterThan(delays[at - 1]!);
+});
+
+test('a long name has its last word up within the cap: the word delay stops growing at 350ms', async ({ page }) => {
+  await openMenu(page, slug);
+  const name = page.locator('#cat-celebration [data-row]').first().locator('.kn-name');
+  await name.evaluate((button) => {
+    const word = button.querySelector('.kn-word')!;
+    for (let at = 1; at < 12; at++) {
+      const copy = word.cloneNode(true) as HTMLElement;
+      copy.style.setProperty('--w', String(at));
+      button.append(copy);
+    }
+  });
+  const delays = await name.locator('.kn-word > span').evaluateAll((nodes) => nodes.map((node) => parseFloat(getComputedStyle(node).transitionDelay)));
+  expect(Math.max(...delays)).toBeLessThanOrEqual(0.35);
 });
 
 test('a search keeps the rows already shown shown: the entrance does not play again', async ({ page }) => {
@@ -140,6 +155,23 @@ test('a search keeps the rows already shown shown: the entrance does not play ag
   await expect(kept).toBeVisible();
   expect(await riseOf(kept)).toBe(0);
   await expect(kept.locator('.kn-price')).toHaveCSS('opacity', '1');
+});
+
+test('clearing a search that hid the first rows brings them back shown: the entrance does not play again', async ({ page }) => {
+  await openMenu(page, slug);
+  const first = rows(page).filter({ hasText: dishName('croissant') }).first();
+  await expect(first).toHaveAttribute('data-in', '');
+  await expect.poll(() => riseOf(first)).toBe(0);
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.fill('eclair');
+  await expect(rows(page).filter({ hasText: dishName('croissant') })).toHaveCount(0);
+  await search.fill('');
+  const back = rows(page).filter({ hasText: dishName('croissant') }).first();
+  await expect(back).toBeVisible();
+  // Right away, not after a rise: the restored row is a new node, but its dish was already shown.
+  expect(await back.evaluate((row) => row.hasAttribute('data-in'))).toBe(true);
+  expect(await riseOf(back)).toBe(0);
+  await expect(back.locator('.kn-price')).toHaveCSS('opacity', '1');
 });
 
 test('a dish opens and adds, and its photo and the whole row are tap targets', async ({ page }) => {
