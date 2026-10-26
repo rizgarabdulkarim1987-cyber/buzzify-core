@@ -2421,6 +2421,7 @@ const ar: Messages = {
   'design.body.homescreen': 'شاشة الموبايل الرئيسية',
   'design.body.treasure': 'خريطة الكنز',
   'design.body.levels': 'مراحل اللعبة',
+  'design.body.fridge': 'الثلاجة',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

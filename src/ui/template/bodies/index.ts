@@ -5,6 +5,7 @@ import { BookBody } from './BookBody';
 import { CabinetBody } from './CabinetBody';
 import { ComicsBody } from './ComicsBody';
 import { ElevatorBody } from './ElevatorBody';
+import { FridgeBody } from './FridgeBody';
 import { HomescreenBody } from './HomescreenBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
@@ -35,4 +36,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   homescreen: HomescreenBody,
   treasure: TreasureBody,
   levels: LevelsBody,
+  fridge: FridgeBody,
 };

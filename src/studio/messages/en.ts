@@ -2392,6 +2392,7 @@ const en: Messages = {
   'design.body.homescreen': 'Phone home screen',
   'design.body.treasure': 'Treasure map',
   'design.body.levels': 'Game levels',
+  'design.body.fridge': 'The fridge',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

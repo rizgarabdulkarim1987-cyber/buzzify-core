@@ -2397,6 +2397,7 @@ const ckb: Messages = {
   'design.body.homescreen': 'شاشەی سەرەکی مۆبایل',
   'design.body.treasure': 'نەخشەی گەنج',
   'design.body.levels': 'ئاستەکانی یاری',
+  'design.body.fridge': 'سەلاجە',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

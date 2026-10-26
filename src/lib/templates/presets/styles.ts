@@ -411,4 +411,33 @@ export const theGameLevels = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels];
+export const theFridge = definePreset({
+  id: 'the-fridge',
+  number: 45,
+  name: 'The Fridge',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#E8F4FA', text: '#16324A', accent: '#1565C0', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'night-fridge', name: 'Night fridge', seed: { bg: '#0F2230', text: '#E6F3FA', accent: '#5CC8FF', raised: '#173449' } },
+    { id: 'mint-cooler', name: 'Mint cooler', seed: { bg: '#E6F6EF', text: '#123A2C', accent: '#12805C', raised: '#FFFFFF' } },
+    { id: 'pantry-cream', name: 'Pantry cream', seed: { bg: '#FBF3E4', text: '#3A2A14', accent: '#B34A14', raised: '#FFFFFF' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'fridge',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge];
