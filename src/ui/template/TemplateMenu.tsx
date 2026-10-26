@@ -1,11 +1,11 @@
 'use client';
 
 import dynamic from 'next/dynamic';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { HEX } from '@/lib/brand';
 import { isDietaryTag, type DietaryTag } from '@/lib/product-tags';
 import { matchesQuery } from '@/lib/search';
-import type { MenuDesign } from '@/lib/templates/types';
+import { bodyOf, SHAPE_SETS, type MenuDesign } from '@/lib/templates/types';
 import type { MenuProductView, MenuView } from '@/server/data/menu-view';
 import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
@@ -14,6 +14,9 @@ import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { BoardBody } from './bodies/BoardBody';
+import { BookBody } from './bodies/BookBody';
+import { MagazineBody } from './bodies/MagazineBody';
 import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
@@ -117,9 +120,18 @@ export function TemplateMenu({
     return () => observer.disconnect();
   }, [categories]);
 
+  const opener = useRef<((categoryId: string) => void) | null>(null);
+  const setCategoryOpener = useCallback((next: ((categoryId: string) => void) | null) => {
+    opener.current = next;
+  }, []);
   const jumpTo = useCallback(
     (categoryId: string) => {
       const category = view.categories.find((candidate) => candidate.id === categoryId);
+      if (category && opener.current) {
+        setActiveId(categoryId);
+        opener.current(categoryId);
+        return;
+      }
       const target = category ? document.getElementById(`cat-${category.slug}`) : null;
       if (!target) return;
       setActiveId(categoryId);
@@ -159,6 +171,7 @@ export function TemplateMenu({
       signature,
       activeId,
       jumpTo,
+      setCategoryOpener,
       openProduct,
       canOrder,
       quickAdd,
@@ -166,7 +179,7 @@ export function TemplateMenu({
       toggleFavorite: (product) => favorites.toggle(product.id),
       reduced,
     }),
-    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, openProduct, canOrder, quickAdd, favorites, reduced],
+    [design, view, categories, byCategory, featured, signature, activeId, jumpTo, setCategoryOpener, openProduct, canOrder, quickAdd, favorites, reduced],
   );
 
   const toggleDietary = (tag: DietaryTag) =>
@@ -178,6 +191,13 @@ export function TemplateMenu({
     });
 
   const { layout } = design;
+  const body = bodyOf(layout);
+  // A browse shape that sets the hero or the navigation replaces them: a big hero or a scroll-only navigation left in
+  // the layout (from the template it started on) must not reach it. For `scroll` nothing is set, so nothing changes.
+  const shapeSets = SHAPE_SETS[body];
+  const heroKind = shapeSets.includes('hero') ? 'compact' : layout.hero;
+  const navKind = shapeSets.includes('nav') ? undefined : layout.nav;
+  const noResults = <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>;
   const animated = design.scene.mode !== 'static' && !reduced;
   // Only validated colours reach the page's own background (the root's colour shows around the menu).
   const page = HEX.test(design.palette.bg) && HEX.test(design.palette.text) ? `html,body{background:${design.palette.bg};color:${design.palette.text}}` : '';
@@ -189,7 +209,7 @@ export function TemplateMenu({
         className={`tpl tpl-${design.templateId} ${fontClass ?? ''}`}
         style={designStyle(design)}
         data-template={design.templateId}
-        data-nav={layout.nav}
+        data-nav={navKind}
         data-card={layout.card}
         data-theme-mode={design.theme}
       >
@@ -199,7 +219,7 @@ export function TemplateMenu({
             {t('menu.skip')}
           </a>
           <TemplateHeader />
-          {query.trim() === '' && <Hero kind={layout.hero} tagline={tagline} />}
+          {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">
@@ -217,25 +237,37 @@ export function TemplateMenu({
               }}
             />
           </div>
-          <div className="tpl-body">
-            {categories.length > 0 && <Nav kind={layout.nav} />}
+          {body === 'scroll' ? (
+            <div className="tpl-body">
+              {categories.length > 0 && <Nav kind={layout.nav} />}
+              <main id="menu" className="tpl-main min-w-0">
+                {visible.length === 0 ? (
+                  noResults
+                ) : (
+                  categories.map((category, index) => (
+                    <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
+                      <div tabIndex={-1} data-heading className="outline-none">
+                        <SectionHeading id={`h-${category.slug}`} name={category.name} index={index} style={layout.heading} />
+                      </div>
+                      <div className="tpl-section-body">
+                        <ProductList products={byCategory.get(category.id) ?? []} kind={layout.card} />
+                      </div>
+                    </section>
+                  ))
+                )}
+              </main>
+            </div>
+          ) : visible.length === 0 ? (
             <main id="menu" className="tpl-main min-w-0">
-              {visible.length === 0 ? (
-                <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
-              ) : (
-                categories.map((category, index) => (
-                  <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section">
-                    <div tabIndex={-1} data-heading className="outline-none">
-                      <SectionHeading id={`h-${category.slug}`} name={category.name} index={index} style={layout.heading} />
-                    </div>
-                    <div className="tpl-section-body">
-                      <ProductList products={byCategory.get(category.id) ?? []} kind={layout.card} />
-                    </div>
-                  </section>
-                ))
-              )}
+              {noResults}
             </main>
-          </div>
+          ) : body === 'magazine' ? (
+            <MagazineBody />
+          ) : body === 'board' ? (
+            <BoardBody />
+          ) : (
+            <BookBody />
+          )}
           <InfoSection info={design.info} />
           <TemplateFooter poweredBy={design.poweredBy} motion={animated ? { paused: motionPaused, toggle: () => setMotionPaused((value) => !value) } : null} />
         </div>

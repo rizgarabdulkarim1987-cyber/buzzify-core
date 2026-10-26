@@ -49,6 +49,10 @@ const LOADERS: Record<TemplateId, () => Promise<{ default: SceneModule }>> = {
   'vanilla-cloud': () => import('./scenes/vanilla-cloud'),
   'pop-gelato': () => import('./scenes/pop-gelato'),
   'frozen-jewel': () => import('./scenes/frozen-jewel'),
+  // The menu styles start in the static mode; a business that picks 3D gets a neighbouring template's scene for now.
+  'the-book': () => import('./scenes/gallery-blanc'),
+  'the-magazine': () => import('./scenes/gallery-blanc'),
+  'taste-airport': () => import('./scenes/neon-noir'),
 };
 
 export async function loadScene(id: TemplateId): Promise<SceneModule> {

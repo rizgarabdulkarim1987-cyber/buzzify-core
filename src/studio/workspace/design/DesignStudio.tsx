@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { toast } from 'sonner';
 import { applyDesign, deleteDesign, resetDesign, saveDesign, setPoweredBy, updateDesign } from '@/app/studio/_actions/design';
 import { LOCALE_NAMES, type Locale } from '@/lib/locale';
-import { TEMPLATES, type DesignOverrides } from '@/lib/templates';
+import { TEMPLATES, type DesignOverrides, type TemplateId } from '@/lib/templates';
 import { DEFAULT_FRAMING } from '@/lib/templates/resolve';
 import type { ModelFraming, SceneMedia } from '@/lib/templates/types';
 import type { DesignView, SavedDesign } from '@/server/studio/services/design';
@@ -22,7 +22,7 @@ import { IconButton } from '@/studio/ui/IconButton';
 import { Input } from '@/studio/ui/Input';
 import { Switch } from '@/studio/ui/Switch';
 import { Customizer, paletteBlocked } from './Customizer';
-import { Gallery, type GallerySelection } from './Gallery';
+import { Gallery, isSoon, soonStyleOf, type GallerySelection } from './Gallery';
 
 const DEVICES = {
   phone: { width: 390, height: 844 },
@@ -92,11 +92,22 @@ function PreviewFrame({ src, device, title, message }: { src: string; device: De
  * with the preview following every change, reset it, and save designs to reuse. Applying and saving change the draft
  * only; guests see the design once the menu is published.
  */
-export function DesignStudio({ menuId, state, customizing = false }: { menuId: string; state: DesignView; customizing?: boolean }) {
+export function DesignStudio({
+  menuId,
+  state,
+  customizing = false,
+  canSeeStyles = false,
+}: {
+  menuId: string;
+  state: DesignView;
+  customizing?: boolean;
+  /** Whether the visitor may read the menu-style files (`styleFileAccess`), which the gallery's Styles view shows. */
+  canSeeStyles?: boolean;
+}) {
   const t = useT();
   const { locale: studioLocale } = useLocale();
   const router = useRouter();
-  const current: GallerySelection = state.templateId ?? 'classic';
+  const current: TemplateId | 'classic' = state.templateId ?? 'classic';
   const [selected, setSelected] = useState<GallerySelection>(current);
   const [mode, setModeState] = useState<'gallery' | 'customize'>(customizing ? 'customize' : 'gallery');
   // The view is kept in the address, so a save (which reloads the tab's data) stays where the person was.
@@ -113,7 +124,7 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
   const [saving, startSaving] = useTransition();
   const [poweredBy, setPoweredByState] = useState(state.showPoweredBy);
   const [poweredByPending, startPoweredBy] = useTransition();
-  const [naming, setNaming] = useState<null | 'menu' | GallerySelection>(null);
+  const [naming, setNaming] = useState<null | 'menu' | TemplateId>(null);
   const [name, setName] = useState('');
   const [shared, setShared] = useState(false);
   const [deleting, setDeleting] = useState<SavedDesign | null>(null);
@@ -126,7 +137,10 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
   const dirty = JSON.stringify(overrides) !== JSON.stringify(state.overrides);
   const preset = state.templateId ? TEMPLATES[state.templateId] : null;
   const blocked = preset ? paletteBlocked(preset, overrides) : false;
-  const previewTemplate = mode === 'customize' ? current : selected;
+  // A coming-soon style has no template to draw: the preview shows its mockup instead (below).
+  const soon = soonStyleOf(selected);
+  const picked: TemplateId | 'classic' | null = isSoon(selected) ? null : selected;
+  const previewTemplate = mode === 'customize' || !picked ? current : picked;
   const message = useMemo(
     (): DesignMessage => ({
       type: 'buzzify:design',
@@ -137,8 +151,16 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
     }),
     [previewTemplate, current, overrides, sceneMedia],
   );
-  const src = `/studio/preview/${menuId}/${locale}?template=${previewTemplate}`;
-  const label = (selection: GallerySelection) => (selection === 'classic' ? t('design.classic') : TEMPLATES[selection].name);
+  const src = soon && mode === 'gallery' ? `/studio/style-files/page/${soon.page}?style=${soon.key}` : `/studio/preview/${menuId}/${locale}?template=${previewTemplate}`;
+  const label = (selection: GallerySelection) => {
+    if (selection === 'classic') return t('design.classic');
+    if (isSoon(selection)) {
+      const style = soonStyleOf(selection);
+      return style ? t(`styles.${style.id}.name`) : '';
+    }
+    return TEMPLATES[selection].name;
+  };
+  const previewLabel = soon && mode === 'gallery' ? label(selected) : label(previewTemplate);
 
   const fail = useCallback(
     (error: Parameters<typeof describeFailure>[2]): void => {
@@ -149,7 +171,8 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
 
   const apply = () =>
     startSaving(async () => {
-      const choice = selected === 'classic' ? { kind: 'classic' as const } : { kind: 'preset' as const, templateId: selected };
+      if (!picked) return;
+      const choice = picked === 'classic' ? { kind: 'classic' as const } : { kind: 'preset' as const, templateId: picked };
       const result = await applyDesign({ menuId, version: state.version, choice });
       if (!result.ok) return fail(result.error);
       toast.success(t('design.applied'));
@@ -182,8 +205,8 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
 
   const saveAs = () =>
     startSaving(async () => {
-      const from = naming === 'menu' ? 'menu' : naming;
-      if (!from || from === 'classic') return;
+      const from = naming;
+      if (!from) return;
       const result = await saveDesign({ menuId, name, shared, from });
       if (!result.ok) return fail(result.error);
       setNaming(null);
@@ -227,7 +250,8 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
                 <strong className="font-semibold">{label(selected)}</strong>
                 {selected === current && <span className="text-muted"> · {t('design.current')}</span>}
               </span>
-              {selected !== current && (
+              {soon && <span className="inline-flex items-center rounded-full border border-line bg-surface px-2 py-0.5 text-xs font-medium text-text">{t('design.comingSoon')}</span>}
+              {picked && selected !== current && (
                 <Button variant="primary" pending={saving} onClick={apply}>
                   {selected === 'classic' ? t('design.applyClassic') : t('design.apply')}
                 </Button>
@@ -237,19 +261,19 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
                   {t('design.customize')}
                 </Button>
               )}
-              {selected !== 'classic' && (
+              {picked && picked !== 'classic' && (
                 <Button
                   icon={<Copy aria-hidden />}
                   onClick={() => {
-                    setNaming(selected);
-                    setName(`${label(selected)} · ${t('design.copy')}`);
+                    setNaming(picked);
+                    setName(`${label(picked)} · ${t('design.copy')}`);
                   }}
                 >
                   {t('design.duplicate')}
                 </Button>
               )}
             </div>
-            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} />
+            <Gallery restaurantType={state.restaurantType} current={current} selected={selected} onSelect={setSelected} canSeeStyles={canSeeStyles} />
             <section aria-labelledby="design-saved" className="flex flex-col gap-3 border-t border-line pt-6">
               <h2 id="design-saved" className="text-md font-semibold text-text">
                 {t('design.custom.title')}
@@ -333,9 +357,10 @@ export function DesignStudio({ menuId, state, customizing = false }: { menuId: s
             ))}
           </div>
         </div>
-        <PreviewFrame key={`${src}-${device}`} src={src} device={device} title={t('design.preview.frameTitle', { template: label(previewTemplate), size: t(`design.preview.${device}`) })} message={message} />
+        {soon && mode === 'gallery' && <p className="text-sm font-medium text-text">{t('design.comingSoonPreview')}</p>}
+        <PreviewFrame key={`${src}-${device}`} src={src} device={device} title={t('design.preview.frameTitle', { template: previewLabel, size: t(`design.preview.${device}`) })} message={message} />
         <div className="flex items-center justify-between gap-3">
-          <p className="text-xs text-muted">{t('design.preview.note')}</p>
+          <p className="text-xs text-muted">{soon && mode === 'gallery' ? t('design.comingSoonNote') : t('design.preview.note')}</p>
           <a href={src} target="_blank" rel="noopener noreferrer" className={buttonClasses('secondary', 'sm')}>
             <ExternalLink aria-hidden />
             {t('design.preview.newTab')}

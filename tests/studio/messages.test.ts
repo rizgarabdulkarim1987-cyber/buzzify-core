@@ -179,3 +179,12 @@ describe('server texts', () => {
     expect(en(SERVER_TEXT['Enter a valid email address']!)).toBe('Enter a valid email address');
   });
 });
+
+describe('the browse shape messages', () => {
+  const keys = ['design.layout.body', 'design.body.scroll', 'design.body.book', 'design.body.magazine', 'design.body.board', 'design.setByShape'];
+
+  it.each(['en', 'ar', 'ckb'] as const)('%s has the body label, every shape name and the set-by-shape line', (locale) => {
+    for (const key of keys) expect(STUDIO_MESSAGES[locale][key], key).toBeTruthy();
+    expect(STUDIO_MESSAGES[locale]['design.setByShape']).toContain('{shape}');
+  });
+});

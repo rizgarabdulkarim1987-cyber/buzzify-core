@@ -11,7 +11,7 @@ import {
 } from '@/server/domain/snapshot';
 import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
 import type { CatalogPromotion } from '@/server/domain/types';
-import { TEMPLATES } from '@/lib/templates';
+import { bodyOf, TEMPLATES } from '@/lib/templates';
 import { resolveDesign } from '@/lib/templates/resolve';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
@@ -451,6 +451,22 @@ describe('template designs', () => {
     expect(parsed).toEqual(s);
     expect(snapshotHash(parsed)).toBe(snapshotHash(s));
     expect(snapshotHash(s)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it('reads a stored design without a body as scroll', () => {
+    const stored = JSON.parse(JSON.stringify(withDesign()));
+    delete stored.brand.design.layout.body;
+    const parsed = parseSnapshot(stored);
+    expect('body' in parsed.brand.design!.layout).toBe(false);
+    expect(bodyOf(parsed.brand.design!.layout)).toBe('scroll');
+  });
+
+  it('keeps the hash of a scroll template: resolving it adds no body key', () => {
+    const s = withDesign();
+    const layout = { ...s.brand.design!.layout };
+    delete (layout as { body?: unknown }).body;
+    const bare = buildSnapshot({ menu, brand: { ...brand, design: { ...s.brand.design!, layout } }, catalog });
+    expect(snapshotHash(s)).toBe(snapshotHash(bare));
   });
 
   it.each([

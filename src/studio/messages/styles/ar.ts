@@ -2,24 +2,10 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.library.title': 'ستايلات المنيو',
-    'styles.library.intro': '٣٥ مظهرًا كاملًا للقائمة. افتح أيًّا منها لتراه حيًّا داخل إطار هاتف.',
-    'styles.library.search': 'ابحث في الستايلات',
-    'styles.library.searchPlaceholder': 'الاسم أو الرقم',
-    'styles.library.groups': 'المجموعات',
-    'styles.library.all': 'الكل',
-    'styles.library.showing': 'عرض {count} من {total}',
-    'styles.library.empty': 'لا ستايل يطابق «{q}».',
     'styles.group.themes': 'ثيمات',
     'styles.group.heritage': 'كردي وعربي',
     'styles.group.motion': 'بالحركة',
     'styles.group.shapes': 'أشكال جديدة',
-    'styles.detail.back': 'كل الستايلات',
-    'styles.detail.number': 'رقم {number}',
-    'styles.detail.frame': 'معاينة الستايل',
-    'styles.detail.open': 'افتح بملء الشاشة',
-    'styles.detail.previous': 'الستايل السابق',
-    'styles.detail.next': 'الستايل التالي',
   },
   {
     'themed-kurd': ['جاجيم ونوروز', 'سجاد كردي منسوج ونار نوروز وراقصون بين الأقسام'],

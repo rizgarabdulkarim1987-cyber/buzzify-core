@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { contrastRatio } from '@/lib/palette';
-import { isTemplateId, presetsFor, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
+import { bodyOf, BODY_KINDS, isTemplateId, presetsFor, SHAPE_SETS, TEMPLATE_IDS, TEMPLATES, templateList, type DesignPalette } from '@/lib/templates';
+import { menuDesignSchema } from '@/server/domain/design-schema';
 import { accentInk, derivePalette, designPaletteProblems, mix, readableOn, themeOf } from '@/lib/templates/palette';
 import { ALL_INFO, businessInfo, parseOverrides, parseSceneMedia, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
 
@@ -15,20 +16,47 @@ const DETAILS: RestaurantDetails = {
 };
 
 describe('template presets', () => {
-  it('lists thirty presets numbered 1 to 30 in the brief order, each id once', () => {
+  it('lists thirty-three presets numbered 1 to 33 in the brief order, each id once', () => {
     const list = templateList();
-    expect(list.map((preset) => preset.number)).toEqual(Array.from({ length: 30 }, (_, i) => i + 1));
-    expect(new Set(list.map((preset) => preset.id)).size).toBe(30);
+    expect(list.map((preset) => preset.number)).toEqual(Array.from({ length: 33 }, (_, i) => i + 1));
+    expect(new Set(list.map((preset) => preset.id)).size).toBe(33);
     expect(list.map((preset) => preset.id).sort()).toEqual([...TEMPLATE_IDS].sort());
     expect(isTemplateId('obsidian-gold')).toBe(true);
     expect(isTemplateId('classic')).toBe(false);
   });
 
-  it('has ten restaurant, eight café, seven bakery and five ice cream presets', () => {
-    expect(presetsFor('restaurant')).toHaveLength(10);
+  it('has thirteen restaurant, eight café, seven bakery and five ice cream presets', () => {
+    expect(presetsFor('restaurant')).toHaveLength(13);
     expect(presetsFor('cafe')).toHaveLength(8);
     expect(presetsFor('bakery')).toHaveLength(7);
     expect(presetsFor('icecream')).toHaveLength(5);
+  });
+
+  it('adds the three shapes as presets 31 to 33, each with its body, theme and a fonts pair', () => {
+    const expected = [
+      ['the-book', 31, 'book', 'light'],
+      ['the-magazine', 32, 'magazine', 'light'],
+      ['taste-airport', 33, 'board', 'dark'],
+    ] as const;
+    for (const [id, number, body, theme] of expected) {
+      const preset = TEMPLATES[id];
+      expect(preset.number).toBe(number);
+      expect(preset.business).toBe('restaurant');
+      expect(preset.layout.body).toBe(body);
+      expect(bodyOf(preset.layout)).toBe(body);
+      expect(preset.tags).toContain(theme);
+      expect(themeOf(preset.palette.bg)).toBe(theme);
+      expect(preset.palettes.length).toBeGreaterThanOrEqual(4);
+      expect(preset.name.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('gives The Book the compact hero, so its index is the first screen (the shape sets the hero)', () => {
+    expect(TEMPLATES['the-book'].layout.hero).toBe('compact');
+  });
+
+  it('leaves the thirty earlier presets without a body, so their published snapshots never change', () => {
+    for (const preset of templateList().filter((p) => p.number <= 30)) expect(preset.layout, preset.id).not.toHaveProperty('body');
   });
 
   it('uses the brief colours for the presets it names', () => {
@@ -218,5 +246,32 @@ describe('resolveDesign', () => {
       whatsapp: '+9647501234567',
     });
     expect(businessInfo({ ...DETAILS, workingHours: {}, address: ' ', city: '' }, ALL_INFO)).not.toHaveProperty('hours');
+  });
+});
+
+describe('the browse shape (body)', () => {
+  it('lists the four bodies and the knobs each one sets', () => {
+    expect(BODY_KINDS).toEqual(['scroll', 'book', 'magazine', 'board']);
+    expect(SHAPE_SETS).toEqual({ scroll: [], book: ['hero', 'nav'], magazine: ['hero'], board: ['hero', 'nav', 'card', 'heading'] });
+  });
+
+  it.each(templateList().filter((preset) => preset.number <= 30).map((preset) => [preset.id, preset] as const))('%s names no body, so it scrolls', (_, preset) => {
+    expect('body' in preset.layout).toBe(false);
+    expect(bodyOf(preset.layout)).toBe('scroll');
+    expect('body' in resolveDesign(preset, {}, { details: null, poweredBy: true }).layout).toBe(false);
+  });
+
+  it('drops an unknown body from overrides and keeps a valid one', () => {
+    expect(parseOverrides({ layout: { body: 'nope' } })).toEqual({});
+    expect(parseOverrides({ layout: { body: 'book' } })).toEqual({ layout: { body: 'book' } });
+  });
+
+  it('accepts a stored design without a body and leaves it absent, and rejects an unknown body', () => {
+    const design = resolveDesign(TEMPLATES['obsidian-gold'], {}, { details: null, poweredBy: true });
+    const { body, ...layout } = design.layout;
+    expect(body).toBeUndefined();
+    expect('body' in menuDesignSchema.parse({ ...design, layout }).layout).toBe(false);
+    expect(menuDesignSchema.safeParse({ ...design, layout: { ...layout, body: 'nope' } }).success).toBe(false);
+    expect(menuDesignSchema.parse({ ...design, layout: { ...layout, body: 'board' } }).layout.body).toBe('board');
   });
 });

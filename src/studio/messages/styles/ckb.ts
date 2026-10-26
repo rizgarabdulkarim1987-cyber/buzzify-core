@@ -2,24 +2,10 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.library.title': 'ستایلەکانی مینیو',
-    'styles.library.intro': '٣٥ شێوازی تەواوی مینیو. یەکێکیان بکەرەوە بۆ ئەوەی زیندوو لەناو چوارچێوەی مۆبایل ببینیت.',
-    'styles.library.search': 'گەڕان لە ستایلەکان',
-    'styles.library.searchPlaceholder': 'ناو یان ژمارە',
-    'styles.library.groups': 'گرووپەکان',
-    'styles.library.all': 'هەموو',
-    'styles.library.showing': 'پیشاندانی {count} لە {total}',
-    'styles.library.empty': 'هیچ ستایلێک لەگەڵ «{q}» ناگونجێت.',
     'styles.group.themes': 'تێمەکان',
     'styles.group.heritage': 'کوردی و عەرەبی',
     'styles.group.motion': 'بە جووڵە',
     'styles.group.shapes': 'شێوەی نوێ',
-    'styles.detail.back': 'هەموو ستایلەکان',
-    'styles.detail.number': 'ژمارە {number}',
-    'styles.detail.frame': 'پێشبینینی ستایل',
-    'styles.detail.open': 'بە شاشەی تەواو بیکەرەوە',
-    'styles.detail.previous': 'ستایلی پێشوو',
-    'styles.detail.next': 'ستایلی دواتر',
   },
   {
     'themed-kurd': ['جاجم و نەورۆز', 'جاجمی چنراو، ئاگری نەورۆز و هەڵپەڕکێ لە نێوان بەشەکان'],

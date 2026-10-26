@@ -10,6 +10,7 @@ import {
   DENSITIES,
   DESIGN_PALETTE_KEYS,
   DETAIL_KINDS,
+  BODY_KINDS,
   HEADING_STYLES,
   HERO_KINDS,
   IMAGE_RATIOS,
@@ -90,6 +91,7 @@ function picked<T extends object>(source: Json, rules: { [K in keyof T]?: (value
 }
 
 const LAYOUT_RULES: { [K in keyof DesignLayout]: (value: unknown) => boolean } = {
+  body: (v) => oneOf(BODY_KINDS, v),
   hero: (v) => oneOf(HERO_KINDS, v),
   nav: (v) => oneOf(NAV_KINDS, v),
   card: (v) => oneOf(CARD_KINDS, v),
