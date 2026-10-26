@@ -18,6 +18,8 @@ import { deleteBillingRows, publishFixture } from '../helpers/db';
 const run = randomUUID().slice(0, 8);
 const slug = `e2e-${run}-book`;
 const magSlug = `e2e-${run}-mag`;
+const boardSlug = `e2e-${run}-board`;
+const boardArabSlug = `e2e-${run}-boardar`;
 const prisma = createPrisma(databaseUrl(DEV_DB));
 const made: { restaurantId: string; menuId: string; slug: string }[] = [];
 
@@ -25,9 +27,9 @@ const products = MAISON.products.filter((product) => product.slug !== 'baguette'
 const categories = MAISON.categories;
 const named = (productSlug: string) => MAISON.products.find((product) => product.slug === productSlug)!.name.en;
 
-async function createMenu(menuSlug: string, label: string, layout: NonNullable<DesignOverrides['layout']>) {
+async function createMenu(menuSlug: string, label: string, layout: NonNullable<DesignOverrides['layout']>, numeralSystem: 'LATN' | 'ARAB' = 'LATN') {
   const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
-  const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [] } }, restaurant.id);
+  const seeded = await seedMenu(prisma, { ...MAISON, products, restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [], numeralSystem } }, restaurant.id);
   made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
   await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
   const design: DesignOverrides = { ...MAISON.brand.design, layout };
@@ -38,6 +40,8 @@ async function createMenu(menuSlug: string, label: string, layout: NonNullable<D
 test.beforeAll(async () => {
   await createMenu(slug, 'book', { body: 'book', hero: 'chapters' });
   await createMenu(magSlug, 'magazine', { body: 'magazine', hero: 'compact', nav: 'chips', card: 'row' });
+  await createMenu(boardSlug, 'board', { body: 'board', hero: 'compact' });
+  await createMenu(boardArabSlug, 'board', { body: 'board', hero: 'compact' }, 'ARAB');
 });
 
 test.afterAll(async () => {
@@ -237,5 +241,126 @@ test.describe('the Magazine body', () => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(`/${magSlug}/en?stage=off`);
     await expect(magazine(page).locator('[data-lead] [data-zoom]').first()).toHaveCSS('transition-duration', /^(0|1e-06)s$/);
+  });
+});
+
+test.describe('the departures Board', () => {
+  const board = (page: Page) => page.locator('[data-body="board"]');
+  const rows = (page: Page) => board(page).locator('[data-row]');
+  const gate = (page: Page, letter: string) => page.getByRole('button', { name: new RegExp(`^Gate ${letter}:`) });
+
+  test('on a phone the first screen shows at least five dishes with prices', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    await expect(board(page)).toBeVisible();
+    const viewport = page.viewportSize()!;
+    const boxes = await rows(page).evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const box = node.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom, price: /\$\d/.test(node.textContent ?? '') };
+      }),
+    );
+    const whole = boxes.filter((box) => box.top >= 0 && box.bottom <= viewport.height && box.price);
+    expect(whole.length).toBeGreaterThanOrEqual(5);
+  });
+
+  test('gate tabs carry letters and gate C jumps to the third section', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    for (const letter of ['A', 'B', 'C', 'D', 'E']) await expect(gate(page, letter)).toBeVisible();
+    await gate(page, 'C').click();
+    await expect(page.locator('#cat-celebration')).toBeInViewport();
+    await expect(page.locator('#cat-celebration [data-heading]')).toBeFocused();
+    await expect(gate(page, 'C')).toHaveAttribute('aria-current', 'true');
+  });
+
+  test('the gate tabs stay at the top while the board scrolls', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    await gate(page, 'D').click();
+    await expect(page.locator('#cat-boxes')).toBeInViewport();
+    const tabs = (await page.getByRole('navigation', { name: 'Categories' }).boundingBox())!;
+    expect(tabs.y).toBeLessThanOrEqual(1);
+    expect(tabs.y + tabs.height).toBeGreaterThan(0);
+  });
+
+  test('each row has a photo, a name, a gate code and a price', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    const first = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(first.locator('img, svg').first()).toBeVisible();
+    await expect(first.locator('[data-code]')).toHaveText('A1');
+    await expect(first.getByText(/\$\d/).first()).toBeVisible();
+    await expect(page.locator('#cat-patisserie [data-row]').nth(1).locator('[data-code]')).toHaveText('B2');
+    await expect(first.getByRole('button', { name: named('croissant'), exact: true })).toBeVisible();
+  });
+
+  test('add updates the cart and does not open the sheet', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    await expect(page.getByTestId('cart-bar')).toBeHidden();
+    await page.locator('#cat-patisserie').getByRole('button', { name: `Add ${named('mille-feuille')} to your order` }).click();
+    await expect(page.getByTestId('cart-bar')).toContainText('1');
+    await expect(page.getByRole('dialog')).toBeHidden();
+  });
+
+  test('the whole row opens the detail sheet', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    const row = page.locator('#cat-patisserie [data-row]').first();
+    await row.scrollIntoViewIfNeeded();
+    const photo = (await row.locator('[data-photo]').boundingBox())!;
+    await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
+    const dialog = page.getByRole('dialog');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await row.getByRole('button', { name: named('mille-feuille'), exact: true }).click();
+    await expect(page.getByRole('dialog')).toBeVisible();
+  });
+
+  test('an address with #cat-<slug> reaches that section', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off#cat-bread`);
+    await expect(page.locator('#cat-bread')).toBeInViewport();
+  });
+
+  test('gate codes use the tenant numerals', async ({ page }) => {
+    await page.goto(`/${boardArabSlug}/en?stage=off`);
+    await expect(page.locator('#cat-patisserie [data-row]').nth(1).locator('[data-code]')).toHaveText('B٢');
+  });
+
+  test('a long dish name wraps inside its row on a phone', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await row.locator('.bd-name').evaluate((node) => {
+      node.textContent = 'AVeryLongUnbrokenDishNameThatKeepsGoingAndGoingAndGoing and then a very long dish name that wraps onto many lines on a phone';
+    });
+    const box = (await row.boundingBox())!;
+    for (const part of ['.bd-name', '[data-code]', '.bd-price']) {
+      const inner = (await row.locator(part).first().boundingBox())!;
+      expect(inner.x).toBeGreaterThanOrEqual(box.x - 1);
+      expect(inner.x + inner.width).toBeLessThanOrEqual(box.x + box.width + 1);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  });
+
+  test('rows flap in with a short stagger when motion is allowed', async ({ page }) => {
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    await expect(rows(page).first()).toHaveCSS('animation-name', 'bd-flap');
+    const delays = await rows(page).evaluateAll((nodes) => nodes.slice(0, 6).map((node) => parseFloat(getComputedStyle(node).animationDelay) * 1000));
+    for (let i = 1; i < delays.length; i += 1) expect(delays[i] - delays[i - 1]).toBeLessThanOrEqual(30.5);
+  });
+
+  test('reduced motion removes the flap', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto(`/${boardSlug}/en?stage=off`);
+    await expect(rows(page).first()).toBeVisible();
+    await expect(rows(page).first()).toHaveCSS('animation-name', 'none');
+    await expect(rows(page).first()).toHaveCSS('animation-duration', /^(0|1e-06)s$/);
+  });
+
+  test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/${boardSlug}/ar?stage=off`);
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+    await expect(rows(page).first()).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   });
 });

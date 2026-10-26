@@ -235,6 +235,7 @@ const ckb: Messages = {
   'tpl.book.dishes_other': '{count} خواردن',
   'tpl.mag.sections_one': '{count} بەش',
   'tpl.mag.sections_other': '{count} بەش',
+  'tpl.board.gate': 'دەرگای {letter}: {name}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

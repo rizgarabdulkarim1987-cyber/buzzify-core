@@ -14,6 +14,7 @@ import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { BoardBody } from './bodies/BoardBody';
 import { BookBody } from './bodies/BookBody';
 import { MagazineBody } from './bodies/MagazineBody';
 import { ProductList } from './cards';
@@ -253,6 +254,8 @@ export function TemplateMenu({
             <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>
           ) : bodyOf(layout) === 'magazine' ? (
             <MagazineBody />
+          ) : bodyOf(layout) === 'board' ? (
+            <BoardBody />
           ) : (
             <BookBody />
           )}
