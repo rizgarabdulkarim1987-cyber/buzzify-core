@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { TEMPLATES } from '@/lib/templates';
+import { contrastRatio } from '@/lib/palette';
 import { withResults } from '@/ui/template/bodies/CabinetBody';
 import { groupHue } from '@/ui/template/bodies/PeriodicBody';
 import { stationHue } from '@/ui/template/bodies/MetroBody';
@@ -14,7 +16,7 @@ describe('the pieces the browse shapes share', () => {
     expect(hueAt(hues, 4)).toBe(20);
     expect(hueAt(hues, -1)).toBe(30);
     expect(stationHue(9)).toBe(stationHue(1));
-    expect(groupHue(-1)).toBeGreaterThanOrEqual(0);
+    expect(groupHue(-1)).toBe(groupHue(7));
   });
 
   it('moves a strip only as far as it takes to show the lit item, on either axis', () => {
@@ -36,5 +38,13 @@ describe('the Drawer Cabinet under a search or a filter', () => {
   it('returns the same set when every drawer with a result is already open', () => {
     const open = new Set(['a', 'b']);
     expect(withResults(open, ['b'])).toBe(open);
+  });
+});
+
+describe('text on the accent in the browse shapes', () => {
+  // Shelves' aisle sign, count and add button and Tabletop's lit napkin draw text on the accent with --on-accent: the
+  // pair reads on each of the shape's palettes, the light "Night market" yellow and the dark "Pale oak" rust included.
+  it.each(['the-supermarket-shelves', 'the-table-from-above'] as const)('reads on every palette of %s', (id) => {
+    for (const { palette } of TEMPLATES[id].palettes) expect(contrastRatio(palette.onAccent, palette.accent)).toBeGreaterThanOrEqual(4.5);
   });
 });

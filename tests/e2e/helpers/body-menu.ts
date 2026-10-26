@@ -29,6 +29,8 @@ export interface BodyMenuOptions {
   /** Layout overrides, `body` among them. */
   layout?: NonNullable<DesignOverrides['layout']>;
   numeralSystem?: 'LATN' | 'ARAB';
+  /** One of the template's curated palettes (an alternative), by id. */
+  paletteId?: string;
 }
 
 export interface BodyMenus {
@@ -45,7 +47,7 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN' } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
@@ -59,8 +61,8 @@ export function bodyMenus(): BodyMenus {
       );
       made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
       await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
-      if (layout) {
-        const design: DesignOverrides = { ...MAISON.brand.design, layout };
+      if (layout || paletteId) {
+        const design: DesignOverrides = { ...MAISON.brand.design, ...(layout ? { layout } : {}), ...(paletteId ? { paletteId } : {}) };
         await prisma.brandConfig.update({ where: { menuId: seeded.menuId }, data: { design: design as Prisma.InputJsonValue } });
       }
       await publishFixture(prisma, seeded.menuId, `${label} body`);
@@ -166,4 +168,53 @@ export async function expectStripStays(page: Page, strip: Locator, button: Locat
       return (await heading.boundingBox())!.y - (bar.y + bar.height);
     }, { message: 'the heading clears the strip' })
     .toBeGreaterThanOrEqual(-1);
+}
+
+/** The contrast ratio of `node`'s text colour on its own (solid) background colour; 0 when the background is not solid. */
+export async function contrastOf(node: Locator): Promise<number> {
+  return node.evaluate((element) => {
+    const style = getComputedStyle(element);
+    if (style.backgroundImage !== 'none') return 0;
+    const luminance = (value: string) => {
+      const [r, g, b] = value.match(/[\d.]+/g)!.slice(0, 3).map((part) => {
+        const c = Number(part) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const [light, dark] = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    return (light! + 0.05) / (dark! + 0.05);
+  });
+}
+
+/**
+ * Keyboard focus on the focused element draws a ring that nothing clips: the ring (an outline of `outset` px around
+ * `ringOf`, or inside it when negative) lies wholly inside every ancestor that clips (overflow other than visible, or a
+ * clip-path), the element itself included. Pass `ringOf` when the ring is drawn around another box (a whole-card tap
+ * area). Checks the outline is really drawn, too.
+ */
+export async function expectFocusRingShows(page: Page, ringOf: Locator, { outset, pseudo }: { outset: number; pseudo?: '::after' }) {
+  const result = await ringOf.evaluate(
+    (box, { outset, pseudo }) => {
+      const focused = document.activeElement as HTMLElement | null;
+      if (!focused) return 'nothing has the focus';
+      const style = getComputedStyle(focused, pseudo ?? null);
+      if (style.outlineStyle === 'none' || parseFloat(style.outlineWidth) === 0) return 'no outline is drawn';
+      const rect = box.getBoundingClientRect();
+      const ring = { top: rect.top - outset, left: rect.left - outset, bottom: rect.bottom + outset, right: rect.right + outset };
+      // A whole-card ring (`::after`) belongs to the card, not to the button, so the button's own clipping does not cut it.
+      for (let node: HTMLElement | null = pseudo ? focused.parentElement : focused; node && node !== document.body; node = node.parentElement) {
+        const own = getComputedStyle(node);
+        const clips = own.overflowX !== 'visible' || own.overflowY !== 'visible' || own.clipPath !== 'none';
+        if (!clips) continue;
+        const edge = node.getBoundingClientRect();
+        if (ring.top < edge.top - 0.5 || ring.left < edge.left - 0.5 || ring.bottom > edge.bottom + 0.5 || ring.right > edge.right + 0.5) {
+          return `clipped by ${node.tagName.toLowerCase()}.${[...node.classList].join('.')}`;
+        }
+      }
+      return 'ok';
+    },
+    { outset, pseudo },
+  );
+  expect(result).toBe('ok');
 }

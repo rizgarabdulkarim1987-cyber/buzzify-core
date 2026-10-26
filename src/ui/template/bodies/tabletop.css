@@ -24,17 +24,9 @@
 [data-body='tabletop'] .tt-napkins {
   padding: 0.25rem var(--gutter, 1rem);
 }
-[data-body='tabletop'] .tt-napkins-list {
-  display: flex;
+[data-body='tabletop'] .tt-strip-list {
   gap: 0.375rem;
-  margin: 0;
   padding: 0 0 0.25rem;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  list-style: none;
-}
-[data-body='tabletop'] .tt-napkins-list > li {
-  flex: none;
 }
 [data-body='tabletop'] .tt-napkin {
   min-block-size: 2.25rem;
@@ -49,7 +41,7 @@
 }
 [data-body='tabletop'] .tt-napkin[aria-current='true'] {
   background: var(--accent);
-  color: #1f1408;
+  color: var(--on-accent);
 }
 
 /* A placemat: a dark cloth in the section's own hue, with a stitched edge. */
@@ -88,7 +80,7 @@
 }
 [data-body='tabletop'] .tt-title small {
   flex: none;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   opacity: 0.9;
@@ -151,7 +143,7 @@
   block-size: 100%;
   object-fit: cover;
 }
-/* The price chip on the lower rim. */
+/* The price chip on the lower rim; taps go through it to the plate, which opens the dish. */
 [data-body='tabletop'] .tt-price {
   position: absolute;
   inset-inline-start: 50%;
@@ -167,20 +159,18 @@
   line-height: 1.2;
   white-space: nowrap;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
 }
 [dir='rtl'] [data-body='tabletop'] .tt-price {
   translate: 50% 0;
-}
-[data-body='tabletop'] .tt-price .tpl-was {
-  display: none;
 }
 /* The add button on the upper rim, on the side away from the cutlery. */
 [data-body='tabletop'] .tt-add {
   position: absolute;
   inset-block-start: -0.25rem;
   inset-inline-end: -0.375rem;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
   min-inline-size: 0;
   min-block-size: 0;
   padding: 0;
@@ -189,15 +179,9 @@
   color: #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
-/* A dish with choices shows a plus too (its label stays for screen readers), so the button never outgrows the rim. */
-[data-body='tabletop'] .tt-add:has(span) span {
-  display: none;
-}
-[data-body='tabletop'] .tt-add:has(span)::before {
-  content: '+';
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1;
+[data-body='tabletop'] .tt-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 [data-body='tabletop'] .tt-name {
   display: block;
@@ -209,9 +193,6 @@
   line-height: 1.25;
   color: #fff;
   overflow-wrap: anywhere;
-}
-[data-body='tabletop'] .tt-badges {
-  display: none;
 }
 
 /* A fork and a knife with a folded napkin lie between placemats: light ornament, never in the way. */

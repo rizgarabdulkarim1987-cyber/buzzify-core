@@ -151,9 +151,10 @@ export function FavoriteButton({ product, className = '' }: { product: MenuProdu
 
 /**
  * The one action a card offers: add a product that needs no choices, or open it to choose. Nothing when the menu takes
- * no orders or the product cannot be ordered now.
+ * no orders or the product cannot be ordered now. `icon` is for small buttons (a shape's tag, rim or stamp): always a
+ * plus, its label still saying "Choose …" for a product with choices.
  */
-export function QuickAction({ product, variant = 'round', className = '' }: { product: MenuProductView; variant?: 'round' | 'label'; className?: string }) {
+export function QuickAction({ product, variant = 'round', className = '' }: { product: MenuProductView; variant?: 'round' | 'label' | 'icon'; className?: string }) {
   const { t } = useApp();
   const { canOrder, quickAdd, openProduct } = useTemplate();
   const { orderable } = useAvailability(product);
@@ -174,7 +175,7 @@ export function QuickAction({ product, variant = 'round', className = '' }: { pr
   }
   return (
     <button type="button" onClick={act} aria-label={label} className={`tpl-add ${className}`}>
-      {choose ? <span className="text-xs leading-none">{t('tpl.choose')}</span> : <PlusIcon />}
+      {choose && variant === 'round' ? <span className="text-xs leading-none">{t('tpl.choose')}</span> : <PlusIcon />}
     </button>
   );
 }

@@ -23,17 +23,9 @@
   padding: 0.25rem var(--gutter, 1rem) 0;
   border-block-end: 3px solid var(--text);
 }
-[data-body='comics'] .cm-chips-list {
-  display: flex;
+[data-body='comics'] .cm-strip-list {
   gap: 0.5rem;
-  margin: 0;
   padding: 0.125rem 0.25rem 0.5rem;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  list-style: none;
-}
-[data-body='comics'] .cm-chips-list > li {
-  flex: none;
 }
 [data-body='comics'] .cm-chip {
   display: inline-flex;
@@ -59,7 +51,7 @@
   border-radius: 50%;
   background: var(--text);
   color: var(--bg);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1;
 }
 [data-body='comics'] .cm-chip[aria-current='true'] {
@@ -99,7 +91,7 @@
   line-height: 1.25;
 }
 [data-body='comics'] .cm-caption small {
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -117,7 +109,10 @@
   line-height: 1.25rem;
 }
 
-/* The panel grid: two columns on a phone, dense so a wide panel never leaves a hole behind it. */
+/*
+ * The panel grid: two columns on a phone, dense so a wide panel never leaves a hole behind it. The panel itself does not
+ * clip (its art does), so the whole-panel focus ring drawn by the shared .tpl-open::after shows around it.
+ */
 [data-body='comics'] .cm-page {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -133,7 +128,6 @@
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);
   min-inline-size: 0;
-  overflow: hidden;
   border: 4px solid var(--cm-ink);
   background: var(--card);
   animation: cm-pop 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
@@ -230,7 +224,7 @@
   background: var(--cm-yellow);
   clip-path: var(--cm-star);
   color: var(--cm-ink);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1;
   white-space: nowrap;
@@ -242,13 +236,15 @@
   min-block-size: 3.5rem;
   font-size: 0.8125rem;
 }
-[data-body='comics'] .cm-burst .tpl-was {
-  display: none;
-}
 
-/* The add button: a red starburst in the opposite bottom corner, over the panel's tap area. */
+/*
+ * The add button: a red starburst in the opposite bottom corner, over the panel's tap area. The star is a layer behind
+ * the button (::before), not a clip of the button, so the button's focus ring is not cut away.
+ */
 [data-body='comics'] .cm-add {
+  position: relative;
   z-index: 3;
+  isolation: isolate;
   align-self: end;
   justify-self: start;
   inline-size: 2.75rem;
@@ -259,27 +255,31 @@
   padding: 0;
   border: 0;
   border-radius: 0;
-  background: var(--cm-red);
-  clip-path: var(--cm-star);
+  background: transparent;
   box-shadow: none;
   color: #fff;
+}
+[data-body='comics'] .cm-add::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--cm-red);
+  clip-path: var(--cm-star);
+}
+[data-body='comics'] .cm-add:is(:hover, :active, :focus-visible) {
+  background: transparent;
+  color: #fff;
+}
+/* A white ring in a black one, so it shows over any photo. */
+[data-body='comics'] .cm-add:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 4px var(--cm-ink);
 }
 [data-body='comics'] .cm-add svg {
   inline-size: 1.125rem;
   block-size: 1.125rem;
-}
-/* A dish with choices shows a plus too (its label stays for screen readers), so the star never outgrows itself. */
-[data-body='comics'] .cm-add:has(span) span {
-  display: none;
-}
-[data-body='comics'] .cm-add:has(span)::before {
-  content: '+';
-  font-size: 1.25rem;
-  font-weight: 800;
-  line-height: 1;
-}
-[data-body='comics'] .cm-badges {
-  display: none;
 }
 
 @keyframes cm-pop {

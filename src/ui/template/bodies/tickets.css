@@ -20,17 +20,9 @@
 [data-body='tickets'] .tk-index {
   padding: 0.25rem var(--gutter, 1rem);
 }
-[data-body='tickets'] .tk-index-list {
-  display: flex;
+[data-body='tickets'] .tk-strip-list {
   gap: 0.375rem;
-  margin: 0;
   padding: 0 0 0.25rem;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  list-style: none;
-}
-[data-body='tickets'] .tk-index-list > li {
-  flex: none;
 }
 [data-body='tickets'] .tk-chip {
   display: flex;
@@ -152,7 +144,7 @@
   flex-basis: 100%;
   color: var(--tk-hot);
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -211,7 +203,7 @@
 [data-body='tickets'] .tk-badges {
   color: var(--tk-ink-soft);
 }
-/* The add button is a small dark stamp, readable on any palette. */
+/* The add button is a small dark stamp, readable on any palette; a plus even for a dish with choices (its label says so). */
 [data-body='tickets'] .tk-add {
   inline-size: 2rem;
   block-size: 2rem;
@@ -234,6 +226,11 @@
   }
 }
 
+/*
+ * From 768px tickets hang side by side, so several can share the band the lit-section tracking watches; the strip then
+ * lights one of that row's tickets (the first the observer reports), which may change as the row scrolls through. Every
+ * ticket of the row is in view either way, so this is accepted rather than worked around.
+ */
 @media (min-width: 768px) {
   [data-body='tickets'] .tk-rail {
     grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));

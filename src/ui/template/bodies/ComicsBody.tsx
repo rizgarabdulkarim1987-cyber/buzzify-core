@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Badges, Price, ProductMedia, QuickAction } from '../parts';
-import { useKeepInView } from './shared/useKeepInView';
+import { Price, ProductMedia, QuickAction } from '../parts';
+import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './comics.css';
 
@@ -36,33 +36,19 @@ export function panelSpans(count: number): Array<1 | 2> {
  */
 export function ComicsBody() {
   const { t, locale, tenant } = useApp();
-  const { categories, byCategory, activeId, jumpTo, reduced } = useTemplate();
-  const strip = useRef<HTMLUListElement>(null);
+  const { categories, byCategory } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-
-  // Keep the lit chip in view, moving only the strip (never the page).
-  useKeepInView(strip, activeId, 'x', reduced);
 
   return (
     <div className="tpl-body" data-body="comics">
-      <nav aria-label={t('menu.categories')} data-pages className="tpl-strip-sticky cm-chips">
-        <ul ref={strip} className="scroll-hidden cm-chips-list">
-          {categories.map((category, index) => (
-            <li key={category.id}>
-              <button
-                type="button"
-                data-category={category.id}
-                aria-current={category.id === activeId ? 'true' : undefined}
-                onClick={() => jumpTo(category.id)}
-                className="cm-chip"
-              >
-                <small aria-hidden>{n(index + 1)}</small>
-                {category.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SectionStrip marker="pages" prefix="cm" className="cm-chips">
+        {(category, index) => (
+          <>
+            <small aria-hidden>{n(index + 1)}</small>
+            {category.name}
+          </>
+        )}
+      </SectionStrip>
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
@@ -75,15 +61,7 @@ export function ComicsBody() {
               data-page={n(index + 1)}
               className="tpl-section tpl-tall-last cm-sheet"
             >
-              <div tabIndex={-1} data-heading className="outline-none cm-head">
-                <h2 id={`h-${category.slug}`} className="tpl-display cm-caption">
-                  <small aria-hidden>{t('tpl.cmc.page', { n: n(index + 1) })}</small>
-                  <span>{category.name}</span>
-                  <b data-count aria-hidden>
-                    {n(products.length)}
-                  </b>
-                </h2>
-              </div>
+              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.cmc.page', { n: n(index + 1) })} count={n(products.length)} className="cm-head" title="cm-caption" />
               <ul className="cm-page">
                 {products.map((product, row) => (
                   <Panel key={product.id} product={product} wide={spans[row] === 2} splash={row === 0} priority={index === 0 && row < 4} order={Math.min(index * 3 + row, 8)} />
@@ -112,9 +90,8 @@ function Panel({ product, wide, splash, priority, order }: { product: MenuProduc
         </div>
         <i aria-hidden className="cm-tail" />
       </div>
-      <Price product={product} className="cm-burst" />
-      <QuickAction product={product} className="cm-add" />
-      <Badges product={product} className="cm-badges" />
+      <Price product={product} className="tpl-price-tight cm-burst" />
+      <QuickAction product={product} variant="icon" className="cm-add" />
     </li>
   );
 }

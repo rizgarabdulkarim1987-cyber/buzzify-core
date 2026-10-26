@@ -22,3 +22,44 @@
 :where([data-body]) .tpl-tall-last:last-child {
   min-block-size: var(--tall-last, 60dvh);
 }
+
+/* The strip's list (`SectionStrip`): one row of chips that scrolls sideways; the shape sets its gap and padding. */
+:where([data-body]) .tpl-strip-list {
+  display: flex;
+  margin: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  list-style: none;
+}
+:where([data-body]) .tpl-strip-list > li {
+  flex: none;
+}
+
+/*
+ * A price in a tight spot (a tag, a rim chip, a burst, a badge) has no room for the crossed-out regular price: it is
+ * kept for screen readers only, so the discount is still announced.
+ */
+:where([data-body]) .tpl-price-tight .tpl-was {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Arabic script has no capitals, and letter spacing breaks its joined letters: the shapes' small labels too. */
+.tpl:is(:lang(ar), :lang(ckb)) [data-body] small {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/*
+ * The strip's list scrolls sideways, so it clips anything outside it: a chip's focus ring is drawn inside the chip, in
+ * the chip's own text colour (which reads on its fill, lit or not).
+ */
+:where([data-body]) .tpl-strip-list button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}

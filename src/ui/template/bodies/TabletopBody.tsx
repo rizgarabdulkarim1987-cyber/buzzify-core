@@ -1,13 +1,13 @@
 'use client';
 
-import { Fragment, useRef, type CSSProperties } from 'react';
+import { Fragment, type CSSProperties } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Badges, Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction } from '../parts';
 import { hueAt } from './shared/hue';
-import { useKeepInView } from './shared/useKeepInView';
+import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './tabletop.css';
 
@@ -29,32 +29,14 @@ export function matHue(index: number): number {
  */
 export function TabletopBody() {
   const { t, locale, tenant } = useApp();
-  const { categories, byCategory, activeId, jumpTo, reduced } = useTemplate();
-  const strip = useRef<HTMLUListElement>(null);
+  const { categories, byCategory } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-
-  // Keep the lit napkin in view, moving only the strip (never the page).
-  useKeepInView(strip, activeId, 'x', reduced);
 
   return (
     <div className="tpl-body" data-body="tabletop">
-      <nav aria-label={t('menu.categories')} data-placemats className="tpl-strip-sticky tt-napkins">
-        <ul ref={strip} className="scroll-hidden tt-napkins-list">
-          {categories.map((category) => (
-            <li key={category.id}>
-              <button
-                type="button"
-                data-category={category.id}
-                aria-current={category.id === activeId ? 'true' : undefined}
-                onClick={() => jumpTo(category.id)}
-                className="tt-napkin"
-              >
-                {category.name}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SectionStrip marker="placemats" prefix="tt" className="tt-napkins" chip="tt-napkin">
+        {(category) => category.name}
+      </SectionStrip>
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
@@ -67,15 +49,7 @@ export function TabletopBody() {
                 style={{ '--mat-h': matHue(index) } as CSSProperties}
                 className="tpl-section tpl-tall-last tt-mat"
               >
-                <div tabIndex={-1} data-heading className="outline-none tt-head">
-                  <h2 id={`h-${category.slug}`} className="tpl-display tt-title">
-                    <small aria-hidden>{t('tpl.top.setting', { n: n(index + 1) })}</small>
-                    <span>{category.name}</span>
-                    <b data-count aria-hidden>
-                      {n(products.length)}
-                    </b>
-                  </h2>
-                </div>
+                <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.top.setting', { n: n(index + 1) })} count={n(products.length)} className="tt-head" title="tt-title" />
                 <ul className="tt-plates">
                   {products.map((product, row) => (
                     <Plate key={product.id} product={product} priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
@@ -105,13 +79,12 @@ function Plate({ product, priority, order }: { product: MenuProductView; priorit
         <div data-photo className="tt-photo">
           <ProductMedia product={product} suffix="tabletop" sizes="120px" priority={priority} className="tt-img" rounded={false} />
         </div>
-        <Price product={product} className="tt-price" />
-        <QuickAction product={product} className="tt-add relative z-[2]" />
+        <Price product={product} className="tpl-price-tight tt-price" />
+        <QuickAction product={product} variant="icon" className="tt-add relative z-[2]" />
       </div>
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tt-name text-center">
         {product.name}
       </button>
-      <Badges product={product} className="tt-badges" />
     </li>
   );
 }

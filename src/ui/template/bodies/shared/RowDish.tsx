@@ -20,6 +20,7 @@ export function RowDish({
   priority,
   order,
   description = false,
+  iconAdd = false,
 }: {
   product: MenuProductView;
   /** The shape's class prefix: `el` gives `el-row`, `el-photo`, `el-text`, `el-name`, `el-meta`, `el-price`… */
@@ -33,6 +34,8 @@ export function RowDish({
   order?: number;
   /** Shows the dish's description on one line (the shape's CSS decides at which widths). */
   description?: boolean;
+  /** A plus on the add button even for a dish with choices (for a small, fixed-size button). */
+  iconAdd?: boolean;
 }) {
   const { openProduct } = useTemplate();
   return (
@@ -50,7 +53,7 @@ export function RowDish({
         </span>
         {description ? <Description product={product} lines={1} className={`${prefix}-desc`} /> : null}
       </div>
-      <QuickAction product={product} className={`${prefix}-add relative z-[2]`} />
+      <QuickAction product={product} variant={iconAdd ? 'icon' : 'round'} className={`${prefix}-add relative z-[2]`} />
     </li>
   );
 }

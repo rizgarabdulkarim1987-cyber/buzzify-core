@@ -1,12 +1,12 @@
 'use client';
 
-import { useRef, type CSSProperties } from 'react';
+import type { CSSProperties } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { hueAt } from './shared/hue';
 import { RowDish } from './shared/RowDish';
-import { useKeepInView } from './shared/useKeepInView';
+import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './metro.css';
 
@@ -27,35 +27,20 @@ export function stationHue(index: number): number {
  */
 export function MetroBody() {
   const { t, locale, tenant } = useApp();
-  const { categories, byCategory, activeId, jumpTo, reduced } = useTemplate();
-  const strip = useRef<HTMLUListElement>(null);
+  const { categories, byCategory } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-
-  // Keep the lit station in view, moving only the route strip (never the page).
-  useKeepInView(strip, activeId, 'x', reduced);
 
   return (
     <div className="tpl-body" data-body="metro">
-      <nav aria-label={t('menu.categories')} data-route className="tpl-strip-sticky mt-route">
-        <ul ref={strip} className="scroll-hidden mt-route-list">
-          {categories.map((category, index) => (
-            <li key={category.id}>
-              <button
-                type="button"
-                data-category={category.id}
-                aria-current={category.id === activeId ? 'true' : undefined}
-                onClick={() => jumpTo(category.id)}
-                className="mt-stop-chip"
-                style={{ '--g': stationHue(index) } as CSSProperties}
-              >
-                <i aria-hidden />
-                <span>{category.name}</span>
-                <b aria-hidden>{n((byCategory.get(category.id) ?? []).length)}</b>
-              </button>
-            </li>
-          ))}
-        </ul>
-      </nav>
+      <SectionStrip marker="route" prefix="mt" className="mt-route" chip="mt-stop-chip" chipStyle={(_, index) => ({ '--g': stationHue(index) }) as CSSProperties}>
+        {(category) => (
+          <>
+            <i aria-hidden />
+            <span>{category.name}</span>
+            <b aria-hidden>{n((byCategory.get(category.id) ?? []).length)}</b>
+          </>
+        )}
+      </SectionStrip>
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
@@ -69,15 +54,7 @@ export function MetroBody() {
               style={{ '--g': stationHue(index) } as CSSProperties}
             >
               <div className="mt-run">
-                <div tabIndex={-1} data-heading className="outline-none">
-                  <h2 id={`h-${category.slug}`} className="tpl-display mt-title">
-                    <small aria-hidden>{t('tpl.met.station', { n: n(index + 1) })}</small>
-                    <span>{category.name}</span>
-                    <b data-count aria-hidden>
-                      {n(products.length)}
-                    </b>
-                  </h2>
-                </div>
+                <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.met.station', { n: n(index + 1) })} count={n(products.length)} title="mt-title" />
                 <ul className="mt-stops">
                   {products.map((product, row) => (
                     <RowDish key={product.id} product={product} prefix="mt" suffix="metro" sizes="56px" priority={index === 0 && row < 5} order={Math.min(index * 3 + row, 8)} />

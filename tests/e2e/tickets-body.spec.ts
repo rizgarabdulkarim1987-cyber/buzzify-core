@@ -69,6 +69,16 @@ test('a line opens its dish and adds one', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible();
 });
 
+test('a dish with choices gets the same small stamp: a plus that fits it, its label saying "Choose"', async ({ page }) => {
+  await openMenu(page, slug, { hash: '#cat-celebration' });
+  const add = page.locator('#cat-celebration').getByRole('button', { name: /^Choose/ }).first();
+  await expect(add).toBeVisible();
+  await expect(add.locator('svg')).toHaveCount(1);
+  const box = (await add.boundingBox())!;
+  expect(box.width).toBeLessThanOrEqual(33);
+  expect(await add.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+});
+
 test('a ticket with one dish is a ticket with one line', async ({ page }) => {
   await openMenu(page, slug, { hash: '#cat-bread' });
   await expect(page.locator('#cat-bread [data-row]')).toHaveCount(1);

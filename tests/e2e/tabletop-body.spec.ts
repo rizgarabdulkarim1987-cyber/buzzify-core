@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, contrastOf, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectFocusRingShows, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
 
 /**
  * The Table from Above body (spec 2026-10-26-menu-styles-in-templates-design.md): a wood table seen from above, every
@@ -10,22 +10,27 @@ import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachabl
 const menus = bodyMenus();
 const slug = menus.slug('top');
 const arabSlug = menus.slug('topar');
+const oakSlug = menus.slug('ttoak');
 
 test.beforeAll(async () => {
   await menus.create(slug, 'tabletop', { templateId: 'the-table-from-above', layout: { body: 'tabletop', hero: 'editorial', nav: 'index' } });
   await menus.create(arabSlug, 'tabletop', { templateId: 'the-table-from-above', numeralSystem: 'ARAB' });
+  // The shape's own palette with a dark accent (a rust on pale oak).
+  await menus.create(oakSlug, 'tabletop', { templateId: 'the-table-from-above', paletteId: 'oak' });
 });
 test.afterAll(() => menus.remove());
 
 const table = (page: Page) => page.locator('[data-body="tabletop"]');
 const mats = (page: Page) => table(page).locator('[data-placemats]');
 const plates = (page: Page) => table(page).locator('[data-row]');
+/** Plates the phone's first screen holds whole: the first placemat's row of three (the next row sits below the fold). */
+const FIRST_SCREEN = 3;
 const entry = (page: Page, categorySlug: string) => mats(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows three plates with photos and prices, and every placemat is one tap away', async ({ page }) => {
+test('on a phone the first screen shows several plates with photos and prices, and every placemat is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(table(page)).toBeVisible();
-  await expectFirstScreen(page, plates(page), { min: 3 });
+  await expectFirstScreen(page, plates(page), { min: FIRST_SCREEN });
   await expectEverySectionReachable(mats(page));
 });
 
@@ -79,6 +84,31 @@ test('a plate opens its dish and adds one', async ({ page }) => {
   const box = (await plates(page).first().locator('[data-photo]').boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
   await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('the lit napkin reads on every palette of the shape, the dark accent included', async ({ page }) => {
+  for (const menu of [slug, oakSlug]) {
+    await openMenu(page, menu);
+    const lit = mats(page).locator('[aria-current="true"]');
+    await expect(lit).toHaveCount(1);
+    expect(await contrastOf(lit), menu).toBeGreaterThanOrEqual(4.5);
+  }
+});
+
+test('keyboard focus rings show in full: a napkin chip and a whole plate', async ({ page }) => {
+  await openMenu(page, slug);
+  const napkin = entry(page, 'patisserie');
+  await napkin.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(napkin).toBeFocused();
+  await expectFocusRingShows(page, napkin, { outset: -4 });
+  const plate = plates(page).first();
+  await plate.locator('.tt-name').focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(plate.locator('.tt-name')).toBeFocused();
+  await expectFocusRingShows(page, plate, { outset: 6, pseudo: '::after' });
 });
 
 test('a placemat with one plate is a placemat with one plate', async ({ page }) => {

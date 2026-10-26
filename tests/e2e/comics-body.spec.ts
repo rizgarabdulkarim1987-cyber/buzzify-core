@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectFocusRingShows, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
 
 /**
  * The Kitchen Comics body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a comic page, a dense
@@ -62,6 +62,26 @@ test('every section is a comic page with its number and panel count', async ({ p
   await expect(sections.first()).toHaveAttribute('data-page', '1');
   await expect(sections.first().locator('[data-count]')).toHaveText('3');
   await expect(comic(page).locator('#cat-bread [data-count]')).toHaveText('1');
+});
+
+test('keyboard focus rings show in full: a whole panel and its add star', async ({ page }) => {
+  await openMenu(page, slug);
+  const panel = panels(page).first();
+  const name = panel.locator('.cm-name');
+  await name.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(name).toBeFocused();
+  await expectFocusRingShows(page, panel, { outset: 6, pseudo: '::after' });
+  await page.keyboard.press('Tab');
+  const add = panel.locator('.cm-add');
+  await expect(add).toBeFocused();
+  await expectFocusRingShows(page, add, { outset: 2 });
+});
+
+test('the price in the burst is at least 12px', async ({ page }) => {
+  await openMenu(page, slug);
+  expect(parseFloat(await panels(page).nth(1).locator('.cm-burst').evaluate((node) => getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(12);
 });
 
 test('a chip on the strip takes you to its page and focuses the heading', async ({ page }) => {
