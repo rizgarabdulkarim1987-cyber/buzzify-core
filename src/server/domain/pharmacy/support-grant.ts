@@ -59,13 +59,15 @@ export function grantStatus(
 /**
  * The one table of what a support actor may read: each pharmacy permission that only reads, and the grant scope that
  * covers it. A permission missing here writes (or is the owner's own, such as `support.grant`), so no grant covers it.
+ * Costs, margins and prescription attachments are missing on purpose: a `stock.read` or `sales.read` grant must never
+ * unlock them; they need their own explicitly confirmed scopes.
+ *
+ * A support actor has `role: null`. A handler that a support actor may reach (a report, say) must hide cost and profit
+ * for it, and must never call `canPh` with a null role: check `actor.support` first.
  */
 export const SUPPORT_READ_SCOPE: Readonly<Partial<Record<PhPermission, SupportScope>>> = Object.freeze({
   'catalog.view': 'catalog.read',
-  'cost.view': 'stock.read',
-  'profit.view': 'sales.read',
   'report.view': 'sales.read',
-  'rx.attachment.view': 'rx.read',
 });
 
 /** The grant scope a support actor needs for `permission`, or null when no grant can cover it. */

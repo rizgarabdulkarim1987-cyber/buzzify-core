@@ -8,7 +8,8 @@ import type { PosPermission } from '@/server/domain/pos/permissions';
 import type { PhActor } from '@/server/pharmacy/actor';
 import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type CheckedTarget, type PhTarget, type PosTarget, type SelfTarget, type Target } from './access';
+import type { ScopedClient } from '@/server/data/tenant-db';
+import { admit, checkDefinition, phScopedClient, type CheckedTarget, type PhTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
@@ -39,6 +40,11 @@ export interface QueryContext {
   pos: PosActor | null;
   /** Who works in the pharmacy, for a query with a `ph` permission; null for every other. */
   ph: PhActor | null;
+  /**
+   * For a `ph` query, a client confined to the actor's pharmacy and branches; null for every other. A ph query reads Ph
+   * models only through this, never `db` (the enforcement test refuses it).
+   */
+  scoped: ScopedClient | null;
 }
 
 // As for actions, the input type comes from the schema alone.
@@ -130,6 +136,7 @@ export async function runQueryForPage<I, O>(
         menuId: access.menuId,
         pos: access.pos ?? null,
         ph: access.ph ?? null,
+        scoped: access.ph ? phScopedClient(prisma, access.ph) : null,
       },
       admitted.input,
     );

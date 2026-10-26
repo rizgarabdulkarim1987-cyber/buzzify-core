@@ -92,14 +92,24 @@ describe('support grant rules', () => {
 
 describe('the read scope a support actor needs for a permission', () => {
   it('maps every read permission to one scope', () => {
-    expect(SUPPORT_READ_SCOPE).toEqual({
-      'catalog.view': 'catalog.read',
-      'cost.view': 'stock.read',
-      'profit.view': 'sales.read',
-      'report.view': 'sales.read',
-      'rx.attachment.view': 'rx.read',
-    });
+    expect(SUPPORT_READ_SCOPE).toEqual({ 'catalog.view': 'catalog.read', 'report.view': 'sales.read' });
     for (const scope of Object.values(SUPPORT_READ_SCOPE)) expect(SUPPORT_SCOPES).toContain(scope);
+  });
+
+  it('a stock.read grant does not unlock cost.view', () => {
+    expect(supportReadScope('cost.view')).toBeNull();
+    expect(Object.values(SUPPORT_READ_SCOPE)).not.toContain('stock.read');
+  });
+
+  it('a sales.read grant does not unlock profit.view', () => {
+    expect(supportReadScope('profit.view')).toBeNull();
+    expect(supportReadScope('report.view')).toBe('sales.read');
+  });
+
+  it('rx.attachment.view is covered by no support scope', () => {
+    expect(supportReadScope('rx.attachment.view')).toBeNull();
+    expect(Object.values(SUPPORT_READ_SCOPE)).not.toContain('rx.read');
+    expect(Object.values(SUPPORT_READ_SCOPE)).not.toContain('patients.read');
   });
 
   it('answers null for anything that writes, so a support actor never holds it', () => {

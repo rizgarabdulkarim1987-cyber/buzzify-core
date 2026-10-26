@@ -198,6 +198,58 @@ describe('the ph target', () => {
     expect(codeOf(await runQuery(prisma(), await studioActor(admin), viewCatalog, {}))).toBe('FORBIDDEN');
   });
 
+  it('a support actor with every non-sensitive scope is still refused a cost.view query', async () => {
+    const a = await pharmacy('A');
+    const admin = await person('admin', { superAdmin: true });
+    await grant(admin, a.id, { scopes: ['catalog.read', 'stock.read', 'sales.read'] });
+    const costs = defineQuery({ name: 'test.ph.costs', permission: null, ph: 'cost.view', input: branchInput, target: phTarget, run: async () => 'costs' });
+    expect(codeOf(await runQuery(prisma(), await studioActor(admin), costs, {}))).toBe('FORBIDDEN');
+  });
+
+  it('a ph query through ctx.scoped cannot read another branch or another restaurant', async () => {
+    const a = await pharmacy('A', { branches: 2 });
+    const b = await pharmacy('B');
+    const clerk = await person('clerk', { staff: [a.id, 'CASHIER', [a.branchIds[0]!]] });
+    await person('other', { staff: [a.id, 'CASHIER', [a.branchIds[1]!]] });
+    await person('elsewhere', { staff: [b.id, 'CASHIER', [b.branchId]] });
+    const otherBranchRow = await prisma().phStaffBranch.findFirstOrThrow({ where: { branchId: a.branchIds[1] } });
+    const otherPharmacyStaff = await prisma().phStaff.findFirstOrThrow({ where: { restaurantId: b.id } });
+
+    const peek = defineQuery({
+      name: 'test.ph.peek',
+      permission: null,
+      ph: 'catalog.view',
+      input: branchInput,
+      target: phTarget,
+      async run(ctx) {
+        const db = ctx.scoped!;
+        return {
+          branches: (await db.phStaffBranch.findMany({ select: { branchId: true } })).map((row) => row.branchId),
+          otherBranch: await db.phStaffBranch.findFirst({ where: { id: otherBranchRow.id } }),
+          staffRestaurants: [...new Set((await db.phStaff.findMany({ select: { restaurantId: true } })).map((row) => row.restaurantId))],
+          otherPharmacy: await db.phStaff.findFirst({ where: { id: otherPharmacyStaff.id } }),
+        };
+      },
+    });
+    expect(await runQuery(prisma(), await studioActor(clerk), peek, {})).toEqual({
+      ok: true,
+      data: { branches: [a.branchIds[0]], otherBranch: null, staffRestaurants: [a.id], otherPharmacy: null },
+    });
+  });
+
+  it('a Studio query and action get no scoped client', async () => {
+    const a = await pharmacy('A', { sector: 'FOOD' });
+    const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
+    const studio = defineQuery({
+      name: 'test.studio.scoped',
+      permission: 'view',
+      input: z.object({ restaurantId: z.string() }),
+      target: (input) => ({ kind: 'restaurant', restaurantId: input.restaurantId }),
+      run: async (ctx) => ({ scoped: ctx.scoped, ph: ctx.ph }),
+    });
+    expect(await runQuery(prisma(), owner, studio, { restaurantId: a.id })).toEqual({ ok: true, data: { scoped: null, ph: null } });
+  });
+
   it('a support grant that has expired gives nothing', async () => {
     const a = await pharmacy('A');
     const admin = await person('admin', { superAdmin: true });
@@ -261,6 +313,12 @@ describe('ph definitions', () => {
     expect(action({ permission: 'content.edit', allowReadOnly: true, target: () => ({ kind: 'platform' }) })).toThrow(/allowReadOnly/);
     expect(action({ permission: null, ph: 'catalog.view', allowLapsed: true, target: phTarget })).toThrow(/lapsed/);
     expect(action({ permission: null, ph: 'catalog.view', target: phTarget })).not.toThrow();
+  });
+
+  it('refuses allowWithoutTwoFactor on a ph definition', () => {
+    expect(action({ permission: null, ph: 'catalog.view', allowWithoutTwoFactor: true, target: phTarget })).toThrow(/allowWithoutTwoFactor/);
+    expect(query({ permission: null, ph: 'catalog.view', allowWithoutTwoFactor: true, target: phTarget })).toThrow(/allowWithoutTwoFactor/);
+    expect(action({ permission: null, ph: 'catalog.view', allowWithoutTwoFactor: false, target: phTarget })).not.toThrow();
   });
 });
 

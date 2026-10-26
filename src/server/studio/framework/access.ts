@@ -9,6 +9,7 @@ import { phGate, resolvePhActor, type PhActor } from '@/server/pharmacy/actor';
 import { posGate, resolvePosActor, type PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import { entitlementsOf, readPlans } from '@/server/data/plans';
+import { scopedClient, type ScopedClient } from '@/server/data/tenant-db';
 import type { PlanAccess } from './plan';
 import { failure, invalidInput, type StudioFailure } from './result';
 
@@ -108,6 +109,7 @@ export function checkDefinition(
     allowLapsed?: unknown;
     ph?: unknown;
     allowReadOnly?: unknown;
+    allowWithoutTwoFactor?: unknown;
     feature?: unknown;
     input: unknown;
     target: unknown;
@@ -135,6 +137,10 @@ export function checkDefinition(
     }
     if (def.permission !== null) throw new Error(`${label} names a pharmacy permission, so its Studio permission is null`);
     if (def.feature !== undefined) throw new Error(`${label} needs a feature, which a pharmacy target has no plan for`);
+    // Enrolling in two-factor is the Studio's own work: a Super Admin without it never reaches pharmacy data.
+    if (def.allowWithoutTwoFactor !== undefined && def.allowWithoutTwoFactor !== false) {
+      throw new Error(`${label} sets allowWithoutTwoFactor, which a pharmacy definition never may`);
+    }
     if (probeKind(def.target) !== 'ph') {
       throw new Error(`${label} names a pharmacy permission, which is only allowed with a ph target`);
     }
@@ -355,6 +361,18 @@ export async function resolvePhAccess(
   }
   // A pharmacy role grants no Studio permission, and the pharmacy has no Studio plan.
   return { restaurantId: phActor.restaurantId, menuId: null, permissions: new Set(), plan: null, ph: phActor };
+}
+
+/**
+ * The client a `ph` definition works through: confined to the actor's pharmacy, and its branch-scoped models to the
+ * actor's branches (every branch of it for an all-branches actor). `ctx.transaction` of a ph action runs on this client,
+ * and `ctx.scoped` of a ph action or query is this client.
+ */
+export function phScopedClient(prisma: PrismaClient, ph: PhActor): ScopedClient {
+  return scopedClient(
+    prisma,
+    ph.allBranches ? { restaurantId: ph.restaurantId, allBranches: true } : { restaurantId: ph.restaurantId, branchIds: ph.branchIds },
+  );
 }
 
 /**

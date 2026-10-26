@@ -13,6 +13,7 @@ import type { Actor } from '@/server/studio/auth/actor';
 import {
   admit,
   checkDefinition,
+  phScopedClient,
   type Access,
   type CheckedTarget,
   type PhTarget,
@@ -71,6 +72,11 @@ export interface ActionContext {
   ph: PhActor | null;
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
+  /**
+   * For a `ph` action, a client confined to the actor's pharmacy and branches, for reads outside the transaction; null for
+   * every other. A ph action reads Ph models only through this or `tx`, never `db` (the enforcement test refuses it).
+   */
+  scoped: ScopedClient | null;
   /**
    * Runs `fn` in one transaction on a client scoped to the target (`scopedClient`, or `globalDb` for platform and self
    * targets). What the scope filters, for top-level queries:
@@ -241,6 +247,7 @@ class Work {
       pos: this.access.pos ?? null,
       ph: this.access.ph ?? null,
       db: this.prisma,
+      scoped: this.access.ph ? phScopedClient(this.prisma, this.access.ph) : null,
       meta: this.meta,
       transaction: (fn) => this.targetTransaction(fn),
       transactionIn: (scope, fn) => {
@@ -279,12 +286,7 @@ class Work {
   /** The target's client: a menu and its restaurant, a restaurant alone, a pharmacy's branches, or global rows only. */
   private client(): ScopedClient {
     const { restaurantId, menuId, ph } = this.access;
-    if (ph) {
-      return scopedClient(
-        this.prisma,
-        ph.allBranches ? { restaurantId: ph.restaurantId, allBranches: true } : { restaurantId: ph.restaurantId, branchIds: ph.branchIds },
-      );
-    }
+    if (ph) return phScopedClient(this.prisma, ph);
     if (restaurantId === null) return globalDb(this.prisma);
     return scopedClient(this.prisma, menuId === null ? { restaurantId } : { menuId, restaurantId });
   }

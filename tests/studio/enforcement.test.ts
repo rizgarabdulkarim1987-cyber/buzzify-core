@@ -154,12 +154,29 @@ const PH_NAMES = phModelNames();
 const studioPhReferences = (source: string) => phReferences(source, PH_NAMES);
 
 /**
- * A pharmacy file that uses a Ph model's delegate gets its client from `ctx`/`tx` (scoped to the actor's pharmacy and
- * branches), never by importing the application's client itself.
+ * Files that resolve who the pharmacy actor is, before any scoped client exists: they may read through the base client.
+ * `support.ts` arrives with the support grants (Task 11).
+ */
+const PHARMACY_BASE_CLIENT_FILES = ['src/server/pharmacy/actor.ts', 'src/server/pharmacy/support.ts'];
+
+/** A Ph delegate reached through the base client by its usual names: `db.ph*` (`ctx.db.ph*` too), `prisma.ph*`, `getPrisma().ph*`. */
+function baseClientPhAccesses(source: string): string[] {
+  return PH.delegates.filter((name) =>
+    new RegExp(`(?:\\bdb|\\bprisma|\\bgetPrisma\\(\\s*\\)|\\bprisma\\(\\s*\\))\\s*\\.\\s*${name}\\b`).test(source),
+  );
+}
+
+/**
+ * What this rule guarantees, in `src/server/pharmacy` and `src/app/pharmacy` outside the allow-listed actor files: no
+ * file names a Ph delegate on a receiver called `db`, `prisma`, `prisma()` or `getPrisma()` (so not `ctx.db.phX`), and
+ * no file that names a Ph delegate imports the database client. Ph models are then read through `tx`, `ctx.scoped` or
+ * a client passed in under another name; a base client renamed to something else is not caught, which review covers.
  */
 function pharmacyClientViolations(path: string, source: string): string[] {
-  const delegates = phReferences(source, PH.delegates);
-  return delegates.length > 0 ? databaseImports(path, source) : [];
+  if (PHARMACY_BASE_CLIENT_FILES.includes(path)) return [];
+  const viaBase = baseClientPhAccesses(source).map((name) => `base client .${name}`);
+  const imports = phReferences(source, PH.delegates).length > 0 ? databaseImports(path, source) : [];
+  return [...viaBase, ...imports];
 }
 
 // --------------------------------------------------------------------------------------------------------------------
@@ -448,20 +465,41 @@ describe('Studio enforcement rules', () => {
     });
   });
 
-  describe('8. pharmacy code reaches Ph models only through ctx and tx', () => {
+  describe('8. pharmacy code reaches Ph models only through tx and ctx.scoped', () => {
     const action = 'src/server/pharmacy/actions/products.ts';
     const viaTx = "export const create = defineAction({\n  async run(ctx) { return ctx.transaction((tx) => tx.phStaff.count()); },\n});";
 
-    it('refuses a file that uses a Ph delegate and imports the client itself', () => {
+    it('accepts tx and ctx.scoped', () => {
       expect(pharmacyClientViolations(action, viaTx)).toEqual([]);
+      expect(pharmacyClientViolations('src/server/pharmacy/queries/staff.ts', 'run: async (ctx) => ctx.scoped!.phStaff.findMany(),')).toEqual([]);
+      // Reading a Studio model through db is not this rule's business.
+      expect(pharmacyClientViolations(action, 'await ctx.db.restaurant.findUnique({ where: { id } });')).toEqual([]);
+    });
+
+    it('refuses a Ph delegate on the base client, however it is named here', () => {
+      expect(pharmacyClientViolations(action, 'await ctx.db.phStaff.findMany();')).toEqual(['base client .phStaff']);
+      expect(pharmacyClientViolations(action, 'const { db } = ctx;\nawait db\n  .phSettings.findFirst();')).toEqual(['base client .phSettings']);
+      expect(pharmacyClientViolations('src/app/pharmacy/(app)/page.tsx', 'await prisma.phStaffBranch.count();')).toEqual([
+        'base client .phStaffBranch',
+      ]);
+      expect(pharmacyClientViolations(action, 'await prisma().phStaff.count();')).toEqual(['base client .phStaff']);
+    });
+
+    it('refuses a file that uses a Ph delegate and imports the client itself', () => {
       expect(pharmacyClientViolations(action, `import { getPrisma } from '@/server/data/prisma';\n${viaTx}`)).toEqual([
         '@/server/data/prisma',
       ]);
-      expect(pharmacyClientViolations(action, "import { getPrisma } from '../../data/prisma';\ngetPrisma().phSettings.findMany();")).toHaveLength(1);
-      // The client imported for something else is the actor's business, not a Ph model read.
-      expect(
-        pharmacyClientViolations('src/server/pharmacy/actor.ts', "import { getPrisma } from '@/server/data/prisma';\ninclude: { phStaffs: true }"),
-      ).toEqual([]);
+      expect(pharmacyClientViolations(action, "import { getPrisma } from '../../data/prisma';\ngetPrisma().phSettings.findMany();")).toEqual([
+        'base client .phSettings',
+        '../../data/prisma',
+      ]);
+    });
+
+    it('allows the actor files, which resolve the actor before any scoped client exists', () => {
+      const resolving = "import { getPrisma } from '@/server/data/prisma';\nawait prisma.phStaff.findMany();";
+      expect(pharmacyClientViolations('src/server/pharmacy/actor.ts', resolving)).toEqual([]);
+      expect(pharmacyClientViolations('src/server/pharmacy/support.ts', resolving)).toEqual([]);
+      expect(pharmacyClientViolations('src/server/pharmacy/stock.ts', resolving)).toHaveLength(2);
     });
 
     it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
