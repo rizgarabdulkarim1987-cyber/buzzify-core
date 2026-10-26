@@ -22,7 +22,7 @@ function newKey(): string {
 
 const FIELD = 'min-h-12 w-full rounded-md border border-line bg-surface px-3 py-2 text-base text-text';
 
-export function ComplaintForm({ slug, table, locale }: { slug: string; table: number; locale: Locale }) {
+export function ComplaintForm({ slug, table, locale }: { slug: string; table: number | null; locale: Locale }) {
   const w = WORDS[locale];
   const [clientKey, setClientKey] = useState(newKey);
   const online = useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
@@ -45,7 +45,7 @@ export function ComplaintForm({ slug, table, locale }: { slug: string; table: nu
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          table,
+          ...(table === null ? {} : { table }),
           locale,
           clientKey,
           body,

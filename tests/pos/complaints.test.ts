@@ -65,12 +65,31 @@ describe('a guest sends a complaint', () => {
     expect(await prisma().posComplaint.count({ where: { restaurantId: a.id } })).toBe(1);
   });
 
-  it('is closed (404) when complaints are off, the table is unknown, or the subscription is gone', async () => {
-    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { complaintsEnabled: false } });
+  it('is closed (404) only when the menu switched its box off or the subscription is gone', async () => {
+    await prisma().menu.updateMany({ where: { slug }, data: { feedbackEnabled: false } });
     expect((await send(complaint())).status).toBe(404);
-    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { complaintsEnabled: true } });
-    expect((await send(complaint({ table: 99 }))).status).toBe(404);
+    await prisma().menu.updateMany({ where: { slug }, data: { feedbackEnabled: true } });
     expect((await send(complaint())).status).toBe(201);
+  });
+
+  it('is kept without a table link when the till is off or the table is unknown', async () => {
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { complaintsEnabled: false } });
+    expect((await send(complaint())).status).toBe(201);
+    expect((await send(complaint({ table: 99 }))).status).toBe(201);
+    const rows = await prisma().posComplaint.findMany({ where: { restaurantId: a.id } });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((row) => row.tableId === null && row.tableNumber === null)).toBe(true);
+  });
+
+  it('takes a suggestion with no table at all, on a menu with no till', async () => {
+    await prisma().posSettings.deleteMany({ where: { restaurantId: a.id } });
+    expect((await send(complaint({ table: undefined, category: 'SUGGESTION', body: 'Add a kids menu' }))).status).toBe(201);
+    expect(await prisma().posComplaint.findFirstOrThrow({ where: { restaurantId: a.id } })).toMatchObject({ category: 'SUGGESTION', tableId: null, tableNumber: null, orderId: null });
+  });
+
+  it('limits a menu with no table to sixty an hour', async () => {
+    for (let i = 0; i < 60; i += 1) await prisma().posComplaint.create({ data: { restaurantId: a.id, clientKey: `seed-${i}-xxxxxxxxxxxxxxxx`, body: 'x', locale: 'en' } });
+    expect((await send(complaint({ table: undefined }))).status).toBe(429);
   });
 
   it('answers the honeypot as accepted without storing anything', async () => {

@@ -3,7 +3,7 @@
  * status moves are allowed.
  */
 
-export const COMPLAINT_CATEGORIES = ['FOOD', 'SERVICE', 'CLEANLINESS', 'PRICE', 'OTHER'] as const;
+export const COMPLAINT_CATEGORIES = ['FOOD', 'SERVICE', 'CLEANLINESS', 'PRICE', 'OTHER', 'SUGGESTION'] as const;
 export const COMPLAINT_STATUSES = ['NEW', 'IN_PROGRESS', 'RESOLVED'] as const;
 export type ComplaintStatusKey = (typeof COMPLAINT_STATUSES)[number];
 

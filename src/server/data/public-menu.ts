@@ -43,7 +43,7 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
  * snapshot itself is not changed, so a plan never touches a revision or its hash.
  */
 export function tenantInfo(
-  menu: { id: string; slug: string; restaurantId: string },
+  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean },
   revisionId: string,
   snapshot: MenuSnapshot,
   entitlements: Entitlements,
@@ -52,6 +52,7 @@ export function tenantInfo(
   return {
     id: menu.id,
     restaurantId: menu.restaurantId,
+    feedbackEnabled: menu.feedbackEnabled ?? true,
     revisionId,
     slug: menu.slug,
     name: settings.displayName,
@@ -83,6 +84,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           slug: true,
           status: true,
           restaurantId: true,
+          feedbackEnabled: true,
           liveRevisionId: true,
           restaurant: {
             select: {
