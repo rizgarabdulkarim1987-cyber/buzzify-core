@@ -25,6 +25,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-2-box': 'the-mailbox-wall',
   'motion-dep': 'the-scroll-depth',
   'motion-kin': 'the-dancing-letters',
+  'motion-thr': 'the-curtain-and-spotlight',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

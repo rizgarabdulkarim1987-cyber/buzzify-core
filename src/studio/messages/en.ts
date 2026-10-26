@@ -2397,6 +2397,7 @@ const en: Messages = {
   'design.body.mailboxes': 'The mailbox wall',
   'design.body.depth': 'Scroll depth',
   'design.body.kinetic': 'Dancing letters',
+  'design.body.theatre': 'The theatre',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

@@ -2426,6 +2426,7 @@ const ar: Messages = {
   'design.body.mailboxes': 'جدار صناديق البريد',
   'design.body.depth': 'عمق التمرير',
   'design.body.kinetic': 'الحروف الراقصة',
+  'design.body.theatre': 'المسرح',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

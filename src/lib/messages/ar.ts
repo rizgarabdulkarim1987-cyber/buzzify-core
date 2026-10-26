@@ -261,6 +261,7 @@ const ar: Messages = {
   'tpl.frg.shelf': 'الرف {n}',
   'tpl.bnt.box': 'العلبة {n}',
   'tpl.box.wall': 'الجدار {n}',
+  'tpl.thr.act': 'الفصل {n}',
   'tpl.lvl.world': 'العالم {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',

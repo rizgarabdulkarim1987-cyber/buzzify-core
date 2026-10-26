@@ -556,4 +556,33 @@ export const theDancingLetters = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters];
+export const theCurtainAndSpotlight = definePreset({
+  id: 'the-curtain-and-spotlight',
+  number: 50,
+  name: 'Curtain and Spotlight',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#14070B', text: '#F5E6C8', accent: '#C9A24A', raised: '#2A0F16' },
+  alternatives: [
+    { id: 'matinee-ivory', name: 'Matinee ivory', seed: { bg: '#F3EADB', text: '#2A1710', accent: '#8E1B2B', raised: '#FFFFFF' } },
+    { id: 'midnight-blue', name: 'Midnight blue', seed: { bg: '#0A1224', text: '#E8EEF9', accent: '#E0B65A', raised: '#14213D' } },
+    { id: 'emerald-house', name: 'Emerald house', seed: { bg: '#07201A', text: '#EAF3E6', accent: '#D9B25B', raised: '#0F3329' } },
+  ],
+  type: { fontPairId: 'palace', scale: 1.0 },
+  layout: {
+    body: 'theatre',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight];

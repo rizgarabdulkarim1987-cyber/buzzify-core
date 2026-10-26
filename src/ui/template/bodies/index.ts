@@ -17,6 +17,7 @@ import { MetroBody } from './MetroBody';
 import { PeriodicBody } from './PeriodicBody';
 import { ShelvesBody } from './ShelvesBody';
 import { TabletopBody } from './TabletopBody';
+import { TheatreBody } from './TheatreBody';
 import { TicketsBody } from './TicketsBody';
 import { TreasureBody } from './TreasureBody';
 
@@ -45,4 +46,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   mailboxes: MailboxesBody,
   depth: DepthBody,
   kinetic: KineticBody,
+  theatre: TheatreBody,
 };

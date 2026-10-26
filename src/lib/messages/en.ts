@@ -247,6 +247,7 @@ const en: Messages = {
   'tpl.frg.shelf': 'Shelf {n}',
   'tpl.bnt.box': 'Box {n}',
   'tpl.box.wall': 'Wall {n}',
+  'tpl.thr.act': 'Act {n}',
   'tpl.lvl.world': 'World {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
