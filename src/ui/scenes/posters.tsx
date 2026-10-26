@@ -535,6 +535,42 @@ const POSTERS: Record<TemplateId, () => ReactNode> = {
       <Glow className="m-cat-light end-[-20%] top-[-10%] size-[60vmax]" strength={0.2} />
     </>
   ),
+  'the-book': () => (
+    <>
+      <Piece className="m-par end-[-14%] top-[6%] w-[46vw] max-w-[16rem]" viewBox="0 0 200 200">
+        <g fill="none" stroke={line} strokeWidth="1.2">
+          <path d="M20 40h160v120H20z" strokeOpacity="0.7" />
+          <path d="M100 40v120" strokeOpacity="0.7" />
+          {[64, 84, 104, 124, 144].map((y) => (
+            <path key={y} d={`M32 ${y}h56M112 ${y}h56`} strokeOpacity="0.35" />
+          ))}
+        </g>
+      </Piece>
+      <Piece className="m-par-deep bottom-[4%] start-[-10%] w-[30vw] max-w-[10rem]" viewBox="0 0 100 100">
+        <path d="M30 10h40v80l-20-16-20 16z" fill={accent} fillOpacity="0.28" />
+      </Piece>
+    </>
+  ),
+  'the-magazine': () => (
+    <>
+      <Piece className="m-par end-[-10%] top-[4%] w-[40vw] max-w-[13rem]" viewBox="0 0 200 200">
+        <rect x="30" y="20" width="140" height="160" fill={accent} fillOpacity="0.1" stroke={line} />
+        <path d="M30 150h140" stroke={text} strokeOpacity="0.4" strokeWidth="3" />
+        <path d="M30 164h90" stroke={text} strokeOpacity="0.25" strokeWidth="2" />
+      </Piece>
+      <Glow className="start-[-24%] bottom-[-16%] size-[60vmax]" strength={0.1} />
+    </>
+  ),
+  'taste-airport': () => (
+    <>
+      <Piece className="m-par end-[-6%] top-[6%] w-[50vw] max-w-[18rem]" viewBox="0 0 200 120">
+        {[10, 40, 70, 100].map((y) => (
+          <rect key={y} x="10" y={y - 8} width="180" height="14" fill={accent} fillOpacity={y === 40 ? 0.3 : 0.12} />
+        ))}
+      </Piece>
+      <Glow className="start-[-24%] bottom-[-16%] size-[60vmax]" strength={0.1} />
+    </>
+  ),
 };
 
 /** The preset's poster. `palette` is accepted so a scene that needs a literal colour can read one. */

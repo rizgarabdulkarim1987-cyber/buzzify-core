@@ -184,7 +184,7 @@ export interface CuratedPalette {
 
 export interface TemplatePreset {
   id: TemplateId;
-  /** 1 to 30, the order of the brief. */
+  /** 1 to 33, the order of the brief. */
   number: number;
   name: string;
   business: BusinessType;
@@ -336,6 +336,9 @@ export const TEMPLATE_IDS = [
   'vanilla-cloud',
   'pop-gelato',
   'frozen-jewel',
+  'the-book',
+  'the-magazine',
+  'taste-airport',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

@@ -126,6 +126,13 @@ test('a chapter turned to after an address stays open when the menu is searched'
   await expect(page.locator('#cat-bread')).toBeHidden();
 });
 
+test('a deep link to a dish opens the detail sheet on the book', async ({ page }) => {
+  await page.goto(`/${slug}/en/p/mille-feuille?stage=off`);
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByRole('heading', { name: named('mille-feuille') })).toBeVisible();
+  await expect(book(page)).toBeAttached();
+});
+
 test('a hero button that jumps to a category opens its chapter', async ({ page }) => {
   await page.goto(`/${slug}/en?stage=off`);
   await page.getByRole('button', { name: 'Go to Pâtisserie' }).first().click();
