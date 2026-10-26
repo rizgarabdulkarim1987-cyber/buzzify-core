@@ -82,11 +82,13 @@ test.describe('from a spreadsheet to a published menu @desktop', () => {
     await page.getByRole('button', { name: en('data.preview.apply') }).click();
     await expect(page.getByText(en('data.applied', { created: '12', changed: '0' }))).toBeVisible();
 
-    // The Fast food look: dark, its preset, the Street pair.
+    // The Fast food look: dark, its preset, the Modern pair (a new restaurant starts on Basic, which has the classic and
+    // modern pairs; Street is a Pro choice).
     await page.goto(`/studio/menus/${menuId}/brand`);
     await page.getByRole('radiogroup', { name: en('brand.theme') }).getByRole('radio', { name: en('brand.theme.dark') }).check();
     await page.getByRole('button', { name: en('brand.preset.fastFood') }).click();
-    await page.getByRole('radio', { name: /^Street/ }).check();
+    await expect(page.getByRole('radio', { name: /^Street/ })).toBeDisabled();
+    await page.getByRole('radio', { name: /^Modern/ }).check();
     await page.getByRole('button', { name: en('brand.save') }).click();
     await expect(page.getByText(en('brand.saved'))).toBeVisible();
 

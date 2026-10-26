@@ -5,6 +5,7 @@ import type { ArtKind } from '@/lib/media';
 import { resolveRailStyle } from '@/lib/rail';
 import type { BrandView } from '@/server/data/tenant';
 import { resolveEngineConfig } from '@/server/domain/config';
+import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { validateForPublish } from '@/server/domain/publish-rules';
 import { buildSnapshot, SNAPSHOT_SCHEMA_VERSION, snapshotHash, type MenuSnapshot } from '@/server/domain/snapshot';
 import { LOCALES, type Catalog, type CatalogProduct, type TranslationMap } from '@/server/domain/types';
@@ -170,6 +171,7 @@ function catalogFor(menuId: string): Catalog {
     allergens: [],
     dietary: [],
     calories: null,
+    serves: null,
     badges: [],
     ingredients: {},
     sortOrder: index,
@@ -179,11 +181,12 @@ function catalogFor(menuId: string): Catalog {
     currency: 'IQD',
     timeZone: 'Asia/Baghdad',
     defaultLocale: 'en',
-    categories: [{ id: categoryId, slug: SHAPE.category.slug, sortOrder: 0, translations: translations(SHAPE.category.name, 'name') }],
+    categories: [{ id: categoryId, slug: SHAPE.category.slug, sortOrder: 0, translations: translations(SHAPE.category.name, 'name'), completesMeal: false }],
     products,
     upsellRules: [],
     pairingRules: [],
     bundles: [],
+    promotions: [],
     schedule: [],
   };
 }
@@ -285,6 +288,8 @@ export async function seedLoad(prisma: PrismaClient, count = 1000): Promise<Load
           type: b.n % 2 === 1 ? 'RESTAURANT' : 'CAFE',
           city: LOAD_CITIES[(b.n - 1) % LOAD_CITIES.length]!,
           country: 'Iraq',
+          // The three plans in turn, so the plan filter and the plan column have every kind of row.
+          plan: PLAN_TIERS[(b.n - 1) % PLAN_TIERS.length]!,
           createdAt: b.createdAt,
         })),
       }),

@@ -71,6 +71,8 @@ export function cached<T>(
 const revisionTag = (revisionId: string) => `revision:${revisionId}`;
 const liveTag = (menuId: string) => `live:${menuId}`;
 const slugTag = (slug: string) => `slug:${slug}`;
+/** What the plans hold: every address carries it too, since what a menu shows guests depends on its plan. */
+const PLANS_TAG = 'plans';
 
 /** A revision's snapshot. Revisions never change, so it is kept until the cache drops it. */
 export function cachedRevisionSnapshot<T>(menuId: string, revisionId: string, load: () => Promise<T>): Promise<T> {
@@ -82,9 +84,20 @@ export function cachedLiveOverlay<T>(menuId: string, load: () => Promise<T>): Pr
   return cached(load, ['live', menuId], { revalidate: 30, tags: [liveTag(menuId)] })();
 }
 
-/** What a slug opens: the menu, its status and its live revision. At most 5 minutes old, and expired by `expireMenu`. */
+/**
+ * What a slug opens: the menu, its status, its live revision and what its plan shows guests. At most 5 minutes old, and
+ * expired by `expireMenu`, or by `expirePlans` with every other address.
+ */
 export function cachedSlugResolution<T>(slug: string, load: () => Promise<T>): Promise<T> {
-  return cached(load, ['slug', slug], { revalidate: 300, tags: [slugTag(slug)] })();
+  // The data cache can outlive a deploy, so a change to what the answer carries moves the key (2: the guest features of
+  // the restaurant's plan; 3: the menu's motions; 4: offers and the labels drawn from guest data), and an answer cached
+  // by the previous version is never read as the new one.
+  return cached(load, ['slug', '4', slug], { revalidate: 300, tags: [slugTag(slug), PLANS_TAG] })();
+}
+
+/** The plans the platform owner set. At most 5 minutes old, and expired by `expirePlans`. */
+export function cachedPlans<T>(load: () => Promise<T>): Promise<T> {
+  return cached(load, ['plans'], { revalidate: 300, tags: [PLANS_TAG] })();
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -115,6 +128,11 @@ function expire(tag: string): void {
 export function expireMenu(slugs: readonly string[], menuId: string): void {
   for (const slug of new Set(slugs)) expire(slugTag(slug));
   expire(liveTag(menuId));
+}
+
+/** After the platform owner changes what the plans hold: the plans and every address, which depend on them. */
+export function expirePlans(): void {
+  expire(PLANS_TAG);
 }
 
 /** After a change to what is live without a publish: availability, hidden products, stock. */

@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
 import { NEVER_GRANTABLE, PERMISSIONS } from '@/server/domain/permissions';
@@ -13,6 +13,7 @@ import type { ActionResult } from '@/server/studio/framework/result';
 import * as session from '@/server/studio/public-actions/session';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { Browser } from '../helpers/browser';
+import { seedApplications } from '../../prisma/seed/applications';
 import { publishFixture, requireTestDb, resetTestData } from '../helpers/db';
 import { devMail } from '../helpers/mail';
 
@@ -76,6 +77,8 @@ interface Side {
   designerId: string;
   invitationId: string;
   assetId: string;
+  /** A GLB model in the restaurant's library. */
+  sceneAssetId: string;
   categoryId: string;
   productId: string;
   variantId: string;
@@ -87,6 +90,17 @@ interface Side {
   qrCodeId: string;
   /** A sheet read for an import, not applied. */
   importJobId: string;
+  /** A second dish, and the sales rules between the two (docs/superpowers/plans/2026-10-18-sales-tools.md). */
+  sideProductId: string;
+  upgradeId: string;
+  pairingId: string;
+  setId: string;
+  offerId: string;
+  /** A design the restaurant saved from a template preset. */
+  designTemplateId: string;
+  /** A paid Menu subscription and its payment (docs/superpowers/plans/2026-10-22-business-core-in-menu.md). */
+  subscriptionId: string;
+  paymentId: string;
 }
 
 interface World {
@@ -132,6 +146,19 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
   const option = await prisma().modifierOption.create({
     data: { menuId: menu.id, groupId: group.id, translations: { en: { name: `${title} bread` } } },
   });
+  const sideDish = await prisma().product.create({
+    data: { menuId: menu.id, categoryId: category.id, slug: `${label}-salad`, basePrice: 500, sortOrder: 1, translations: { en: { name: `${title} salad`, description: 'Fresh' } } },
+  });
+  const upgrade = await prisma().upsellRule.create({ data: { menuId: menu.id, sourceProductId: product.id, targetProductId: sideDish.id, translations: {} } });
+  const pairing = await prisma().pairingRule.create({ data: { menuId: menu.id, sourceType: 'CATEGORY', sourceCategoryId: category.id, targetProductId: sideDish.id, translations: {} } });
+  const set = await prisma().bundle.create({ data: { menuId: menu.id, slug: `${label}-set`, price: 1000, translations: { en: { name: `${title} set` } } } });
+  await prisma().bundleItem.createMany({
+    data: [
+      { menuId: menu.id, bundleId: set.id, productId: product.id },
+      { menuId: menu.id, bundleId: set.id, productId: sideDish.id },
+    ],
+  });
+  const offer = await prisma().promotion.create({ data: { menuId: menu.id, kind: 'SPECIAL', productIds: [product.id], translations: { en: { title: `${title} special` } } } });
   const published = await publishFixture(prisma(), menu.id);
   const live = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
   const pending = await prisma().menuRevision.create({
@@ -166,10 +193,54 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
       variants: { original: `r/${restaurant.id}/${label}hash/original.png` },
     },
   });
+  // A scene file (Template Studio stage 2), which a menu of the restaurant may draw as its background.
+  const sceneAsset = await prisma().mediaAsset.create({
+    data: {
+      restaurantId: restaurant.id,
+      kind: 'MODEL',
+      storageKey: `r/${restaurant.id}/${label}scene`,
+      contentHash: `${label}scene`,
+      mime: 'model/gltf-binary',
+      bytes: 10,
+      storedBytes: 10,
+      variants: { original: `r/${restaurant.id}/${label}scene/original.glb` },
+    },
+  });
   const importJob = await prisma().importJob.create({
     data: { menuId: menu.id, fileName: 'menu.csv', rowCount: 0, draftHash: '', preview: { rows: [], newCategories: [], missing: [], summary: { new: 0, changed: 0, unchanged: 0, invalid: 0, hidden: 0 } } },
   });
   const qrCode = await prisma().qrCode.create({ data: { menuId: menu.id, label: `${title} table 1`, tableNumber: 1 } });
+  const designTemplate = await prisma().designTemplate.create({ data: { restaurantId: restaurant.id, name: `${title} house look`, basePresetId: 'kyoto-ink', overrides: {} } });
+  const periodStart = new Date(Date.now() - 86_400_000);
+  const periodEnd = new Date(Date.now() + 29 * 86_400_000);
+  const subscription = await prisma().subscription.create({
+    data: {
+      restaurantId: restaurant.id,
+      applicationId: 'menu',
+      planCode: 'PREMIUM',
+      status: 'ACTIVE',
+      period: 'MONTHLY',
+      currency: 'IQD',
+      priceMinor: 50000,
+      currentPeriodStart: periodStart,
+      currentPeriodEnd: periodEnd,
+      anchorDay: periodEnd.getUTCDate(),
+      version: 1,
+    },
+  });
+  const payment = await prisma().payment.create({
+    data: {
+      subscriptionId: subscription.id,
+      restaurantId: restaurant.id,
+      amountMinor: 50000,
+      currency: 'IQD',
+      paidAt: periodStart,
+      coversFrom: periodStart,
+      coversTo: periodEnd,
+      idempotencyKey: randomUUID(),
+      recordedById: adminId,
+    },
+  });
   // Something in the restaurant's activity, which a leak would show.
   await prisma().auditLog.create({
     data: { actorId: owner.id, restaurantId: restaurant.id, menuId: menu.id, action: 'menu.published', entityType: 'Menu', entityId: menu.id },
@@ -187,6 +258,7 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     designerId: designer.id,
     invitationId: invitation.id,
     assetId: asset.id,
+    sceneAssetId: sceneAsset.id,
     categoryId: category.id,
     productId: product.id,
     variantId: variant.id,
@@ -195,10 +267,19 @@ async function side(label: 'alpha' | 'bravo', city: string, adminId: string): Pr
     pendingRevisionId: pending.id,
     qrCodeId: qrCode.id,
     importJobId: importJob.id,
+    sideProductId: sideDish.id,
+    upgradeId: upgrade.id,
+    pairingId: pairing.id,
+    setId: set.id,
+    offerId: offer.id,
+    designTemplateId: designTemplate.id,
+    subscriptionId: subscription.id,
+    paymentId: payment.id,
   };
 }
 
 async function buildWorld(): Promise<World> {
+  await seedApplications(prisma());
   const admin = await person('root', 'Root Admin', true);
   const a = await side('alpha', 'Alphaville', admin.id);
   const b = await side('bravo', 'Bravoville', admin.id);
@@ -234,6 +315,10 @@ async function snapshotOfB(w: World): Promise<unknown> {
       options: await db.modifierOption.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       importJobs: await db.importJob.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       qrCodes: await db.qrCode.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      upgrades: await db.upsellRule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      pairings: await db.pairingRule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
+      sets: await db.bundle.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' }, include: { items: { orderBy: { id: 'asc' } } } }),
+      offers: await db.promotion.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       tables: await db.table.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       schedule: await db.daypartSchedule.findMany({ where: { menuId: { in: menuIds } }, orderBy: { id: 'asc' } }),
       branches: await db.branch.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
@@ -252,6 +337,9 @@ async function snapshotOfB(w: World): Promise<unknown> {
       }),
       platformSettings: await db.platformSetting.findMany({ orderBy: { key: 'asc' } }),
       media: await db.mediaAsset.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
+      subscriptions: await db.subscription.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
+      subscriptionEvents: await db.subscriptionEvent.findMany({ where: { subscription: { restaurantId: b.restaurantId } }, orderBy: { id: 'asc' } }),
+      payments: await db.payment.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
     }),
   );
 }
@@ -260,7 +348,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
 function tracesOfB(w: World, value: unknown): string[] {
   const text = JSON.stringify(value) ?? '';
   const { b } = w;
-  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
+  const markers = [b.restaurantId, b.menuId, b.branchId, b.invitationId, b.staffInvitationId, b.ownerSessionId, b.ownerId, b.designerId, b.clientId, b.assetId, b.sceneAssetId, b.categoryId, b.productId, b.variantId, b.optionId, b.revisionId, b.pendingRevisionId];
   return [...markers.filter((marker) => text.includes(marker)), ...(/bravo/i.test(text) ? ['a name of B'] : [])];
 }
 
@@ -304,6 +392,61 @@ const brandKit = () => ({
   railStyle: 'grains',
   motionIntensity: 'subtle',
   logoText: 'Planted',
+});
+
+/** The Sales tab's saves, between the dishes and categories given. */
+const upgradeSave = (sourceProductId: string, targetProductId: string) => ({
+  sourceProductId,
+  targetProductId,
+  pitch: { en: 'Planted' },
+  effect: {},
+  priority: 50,
+  dayparts: [],
+  isActive: true,
+});
+const pairingSave = (categoryId: string, targetProductId: string) => ({
+  source: { kind: 'CATEGORY', id: categoryId },
+  targetProductId,
+  reason: { en: 'Planted' },
+  weight: 50,
+  dayparts: [],
+  isActive: true,
+});
+const setSave = (first: string, second: string) => ({
+  names: { en: 'Planted' },
+  descriptions: {},
+  price: 1,
+  items: [
+    { productId: first, variantId: null, quantity: 1 },
+    { productId: second, variantId: null, quantity: 1 },
+  ],
+  dayparts: [],
+  isActive: true,
+});
+const offerSave = (productIds: string[], categoryIds: string[]) => ({
+  kind: 'SPECIAL',
+  percentOff: null,
+  productIds,
+  categoryIds,
+  startsOn: null,
+  endsOn: null,
+  startMinute: null,
+  endMinute: null,
+  daysOfWeek: 127,
+  title: { en: 'Planted' },
+  text: {},
+  isActive: true,
+});
+const salesSettings = (mealCategoryIds: string[]) => ({
+  version: 1,
+  priceStyle: 'plain',
+  showMostOrdered: true,
+  showLowStock: true,
+  upsellMaxOffers: 3,
+  pairingMaxOffers: 3,
+  upsellDeltaCapRatio: 0.75,
+  cartPairingMaxOffers: 2,
+  mealCategoryIds,
 });
 
 /** A QR code's style as the QR tab saves it. */
@@ -352,6 +495,16 @@ const SWEPT: Record<string, Case[]> = {
   'menus.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   // The Brand tab
   'brand.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  // The Motion tab
+  'motions.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'motions.save': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', motionId: 'golden-particles', params: {}, texts: {}, version: null })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, place: 'category', categoryId: w.b.categoryId, motionId: 'coffee-steam', params: {}, texts: {}, version: null })),
+  ],
+  'motions.remove': [c("B's menu", (w) => ({ menuId: w.b.menuId, place: 'hero', version: 1 }))],
+  // Plans: the tab reads B's plan; the change is the platform owner's alone, so anyone else is refused before B is found
+  'plans.forRestaurant': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId }))],
+  'plans.setRestaurantPlan': [c("B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, plan: 'BASIC', extras: {}, note: 'Planted' }))],
   // QR codes
   'qr.list': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'qr.create': [c("in B's menu", (w) => ({ menuId: w.b.menuId, label: 'Planted', tableNumber: 40 }))],
@@ -420,6 +573,23 @@ const SWEPT: Record<string, Case[]> = {
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), logoAssetId: w.b.assetId })),
     c("B's favicon, through A", (w) => ({ menuId: w.a.menuId, ...brandKit(), favicon: { kind: 'asset', assetId: w.b.assetId } })),
   ],
+  // Template designs
+  'design.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'design.apply': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, choice: { kind: 'preset', templateId: 'copper-roast' } })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, version: 1, choice: { kind: 'custom', customTemplateId: w.b.designTemplateId } })),
+  ],
+  'design.update': [
+    c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1, overrides: { paletteId: 'crema' } })),
+    c("B's scene file, through A", (w) => ({ menuId: w.a.menuId, version: 1, overrides: { sceneAsset: { assetId: w.b.sceneAssetId } } })),
+  ],
+  'design.reset': [c("B's menu", (w) => ({ menuId: w.b.menuId, version: 1 }))],
+  'design.save': [c("B's menu", (w) => ({ menuId: w.b.menuId, name: 'Planted', shared: false, from: 'copper-roast' }))],
+  'design.delete': [
+    c("B's saved design, in B", (w) => ({ menuId: w.b.menuId, id: w.b.designTemplateId })),
+    c("B's saved design, through A", (w) => ({ menuId: w.a.menuId, id: w.b.designTemplateId })),
+  ],
+  'design.poweredBy': [c('B', (w) => ({ restaurantId: w.b.restaurantId, show: false }))],
   'brand.suggestFromLogo': [
     c("B's logo, in B", (w) => ({ menuId: w.b.menuId, assetId: w.b.assetId, theme: 'light' })),
     c("B's logo, through A", (w) => ({ menuId: w.a.menuId, assetId: w.b.assetId, theme: 'light' })),
@@ -519,7 +689,9 @@ const SWEPT: Record<string, Case[]> = {
   'media.list': [
     c("B's library", (w) => ({ restaurantId: w.b.restaurantId })),
     c("B's library alone", (w) => ({ restaurantId: w.b.restaurantId, own: true })),
+    c("B's scene files", (w) => ({ restaurantId: w.b.restaurantId, kinds: 'scene' })),
     c("A's library", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+    c("A's scene files", (w) => ({ restaurantId: w.a.restaurantId, kinds: 'all' }), SHOWS_OWN),
     c('the shared library', () => ({}), SCOPED),
   ],
 
@@ -579,6 +751,60 @@ const SWEPT: Record<string, Case[]> = {
     c("B's option, through A", (w) => ({ menuId: w.a.menuId, optionId: w.b.optionId, isAvailable: false })),
   ],
   'availability.board': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'availability.setStock': [
+    c("B's product, in B", (w) => ({ menuId: w.b.menuId, productId: w.b.productId, stockCount: 1 })),
+    c("B's product, through A", (w) => ({ menuId: w.a.menuId, productId: w.b.productId, stockCount: 1 })),
+  ],
+
+  // The Sales tab
+  'sales.rules': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.settings': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.overview': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
+  'sales.saveUpgrade': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
+    c("B's dishes, through A", (w) => ({ menuId: w.a.menuId, ...upgradeSave(w.b.productId, w.b.sideProductId) })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.upgradeId, version: 1, ...upgradeSave(w.a.sideProductId, w.a.productId) })),
+  ],
+  'sales.deleteUpgrade': [
+    c("B's rule, in B", (w) => ({ menuId: w.b.menuId, ruleId: w.b.upgradeId, version: 1 })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.upgradeId, version: 1 })),
+  ],
+  'sales.savePairing': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...pairingSave(w.b.categoryId, w.b.sideProductId) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...pairingSave(w.b.categoryId, w.a.sideProductId) })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.pairingId, version: 1, ...pairingSave(w.a.categoryId, w.a.sideProductId) })),
+  ],
+  'sales.deletePairing': [
+    c("B's rule, in B", (w) => ({ menuId: w.b.menuId, ruleId: w.b.pairingId, version: 1 })),
+    c("B's rule, through A", (w) => ({ menuId: w.a.menuId, ruleId: w.b.pairingId, version: 1 })),
+  ],
+  'sales.saveSet': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...setSave(w.b.productId, w.b.sideProductId) })),
+    c("B's dishes, through A", (w) => ({ menuId: w.a.menuId, ...setSave(w.b.productId, w.b.sideProductId) })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, bundleId: w.b.setId, version: 1, ...setSave(w.a.productId, w.a.sideProductId) })),
+  ],
+  'sales.deleteSet': [
+    c("B's set, in B", (w) => ({ menuId: w.b.menuId, bundleId: w.b.setId, version: 1 })),
+    c("B's set, through A", (w) => ({ menuId: w.a.menuId, bundleId: w.b.setId, version: 1 })),
+  ],
+  'sales.saveOffer': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...offerSave([w.b.productId], []) })),
+    c("B's dish, through A", (w) => ({ menuId: w.a.menuId, ...offerSave([w.b.productId], []) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...offerSave([], [w.b.categoryId]) })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, offerId: w.b.offerId, version: 1, ...offerSave([w.a.productId], []) })),
+  ],
+  'sales.deleteOffer': [
+    c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: w.b.offerId, version: 1 })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, offerId: w.b.offerId, version: 1 })),
+  ],
+  'sales.reorderOffers': [
+    c("B's offers, in B", (w) => ({ menuId: w.b.menuId, order: [w.b.offerId] })),
+    c("B's offer, through A", (w) => ({ menuId: w.a.menuId, order: [w.b.offerId] })),
+  ],
+  'sales.saveSettings': [
+    c("in B's menu", (w) => ({ menuId: w.b.menuId, ...salesSettings([]) })),
+    c("B's category, through A", (w) => ({ menuId: w.a.menuId, ...salesSettings([w.b.categoryId]) })),
+  ],
 
   // The Prices tab
   'prices.set': [
@@ -605,6 +831,7 @@ const SWEPT: Record<string, Case[]> = {
   // Reads of one restaurant or menu
   'menus.get': [c("B's menu", (w) => ({ menuId: w.b.menuId }))],
   'preview.draft': [c("B's draft", (w) => ({ menuId: w.b.menuId, locale: 'en' }))],
+  'preview.planNote': [c("B's draft", (w) => ({ menuId: w.b.menuId }))],
   'menus.slugAvailability': [c("for B's menu", (w) => ({ slug: 'some-new-address', menuId: w.b.menuId }))],
   'people.listPeople': [
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
@@ -659,6 +886,9 @@ const SWEPT: Record<string, Case[]> = {
  * name B.
  */
 const PLATFORM_ONLY: Record<string, Case[]> = {
+  'billing.restaurants': [c('the billing list', () => ({}), ONLY_FORBIDDEN)],
+  'pos.overview': [c('the cashier overview', () => ({}), ONLY_FORBIDDEN)],
+  'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
@@ -677,8 +907,34 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
     ),
   ],
   'settings.get': [c('the settings', () => ({}), ONLY_FORBIDDEN)],
+  'plans.get': [c('the plans', () => ({}), ONLY_FORBIDDEN)],
+  'plans.update': [c('giving Basic Explore', () => ({ plans: { BASIC: { features: { 'immersive.explore': true } } }, whatsapp: '' }), ONLY_FORBIDDEN)],
   'activity.list': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'search.people': [c("B's people", () => ({ q: 'bravo' }), ONLY_FORBIDDEN)],
+  // Billing: the platform owner's alone (`plans.manage`) or any Super Admin's to read (`platform.settings`)
+  'ai.settings': [c('the AI provider settings', () => ({}), ONLY_FORBIDDEN)],
+  'billing.overview': [c('the products and prices', () => ({}), ONLY_FORBIDDEN)],
+  'billing.restaurant': [c("B's subscriptions and payments", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
+  'ai.saveSettings': [c('saving a key', () => ({ provider: 'openai', anthropic: {}, openai: { apiKey: 'sk-planted-key-0000000000000' } }), ONLY_FORBIDDEN)],
+  'ai.testProvider': [c('testing the provider', () => ({}), ONLY_FORBIDDEN)],
+  'billing.setApplication': [c('turning the Menu off', () => ({ applicationId: 'menu', name: { en: 'Planted', ar: 'Planted', ckb: 'Planted' }, status: 'DISABLED' }), ONLY_FORBIDDEN)],
+  'billing.setPrices': [c("B's plan's prices", () => ({ applicationId: 'menu', planCode: 'PREMIUM', prices: [] }), ONLY_FORBIDDEN)],
+  'billing.startTrial': [
+    c("a trial for B's restaurant", (w) => ({ restaurantId: w.b.restaurantId, applicationId: 'menu', planCode: 'BASIC', trialDays: 14, period: 'MONTHLY', currency: 'IQD' }), ONLY_FORBIDDEN),
+  ],
+  'billing.changePlan': [
+    c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+    c("B's subscription, through A", (w) => ({ restaurantId: w.a.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, planCode: 'BASIC', keepPrice: true }), ONLY_FORBIDDEN),
+  ],
+  'billing.cancel': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1, reason: 'Planted' }), ONLY_FORBIDDEN)],
+  'billing.reactivate': [c("B's subscription", (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, version: 1 }), ONLY_FORBIDDEN)],
+  'billing.recordPayment': [
+    c(
+      "a payment for B's subscription",
+      (w) => ({ restaurantId: w.b.restaurantId, subscriptionId: w.b.subscriptionId, amountMinor: 1, paidAt: new Date().toISOString(), idempotencyKey: randomUUID() }),
+      ONLY_FORBIDDEN,
+    ),
+  ],
 };
 
 /**
@@ -787,10 +1043,25 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
+/**
+ * The till's definitions take no restaurant from their input: the framework resolves it from the person's own staff row or
+ * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
+ * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
+ */
+const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
+  'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
+  'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
+  'pos.importPreview', 'pos.importApply', 'pos.importDiscard',
+  'pos.createArea', 'pos.renameArea', 'pos.deleteArea', 'pos.createTables', 'pos.deleteTable', 'pos.moveTable', 'pos.floor',
+  'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
+  'pos.aiAsk', 'pos.aiPhraseSummary', 'pos.aiLabelComplaints', 'pos.aiSupplyExtract', 'pos.aiState', 'pos.aiSummary', 'pos.aiAlerts', 'pos.aiComplaintLabels',
+  'pos.syncSnapshot', 'pos.discardSyncOperation',
+];
+
 describe('the cross-tenant sweep', () => {
   it('has an entry for every Studio action and query, in exactly one table, and none for one that does not exist', () => {
     expect(DEFINITIONS.size).toBeGreaterThan(50);
-    const tables = [SWEPT, PLATFORM_ONLY, SELF].map((table) => Object.keys(table));
+    const tables = [SWEPT, PLATFORM_ONLY, SELF].map((table) => Object.keys(table)).concat([TILL]);
     const listed = tables.flat();
     expect([...DEFINITIONS.keys()].filter((name) => !listed.includes(name)), 'definitions without an entry').toEqual([]);
     expect(listed.filter((name) => !DEFINITIONS.has(name)), 'entries for no definition').toEqual([]);
@@ -802,6 +1073,15 @@ describe('the cross-tenant sweep', () => {
       const def = DEFINITIONS.get(name)!;
       expect(def.target({} as never), name).toEqual({ kind: 'platform' });
       expect(NEVER_GRANTABLE, name).toContain(def.permission);
+    }
+  });
+
+  it('lists as till only what names a till permission and the pos target', () => {
+    for (const name of TILL) {
+      const def = DEFINITIONS.get(name) as unknown as { pos?: string; permission: unknown; target(input: never): unknown };
+      expect(def.pos, name).toBeTruthy();
+      expect(def.permission, name).toBeNull();
+      expect(def.target(undefined as never), name).toMatchObject({ kind: 'pos' });
     }
   });
 

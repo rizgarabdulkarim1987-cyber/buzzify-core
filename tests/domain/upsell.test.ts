@@ -18,6 +18,39 @@ function run(overrides: Partial<Parameters<typeof suggestUpsells>[0]> = {}) {
   });
 }
 
+describe('suggestUpsells: offers', () => {
+  it('prices a bigger size during a discount as the difference of the two sale prices', () => {
+    const promotions = [
+      {
+        id: 'cold-20',
+        kind: 'DISCOUNT' as const,
+        percentOff: 20,
+        productIds: [IDS.coldBrew],
+        categoryIds: [],
+        startsOn: null,
+        endsOn: null,
+        startMinute: null,
+        endMinute: null,
+        daysOfWeek: 127,
+        roundTo: 5,
+        translations: {},
+        sortOrder: 0,
+      },
+    ];
+    const offers = suggestUpsells({
+      catalog: makeCatalog({ promotions }),
+      productId: IDS.coldBrew,
+      variantId: IDS.varRegular,
+      optionIds: [],
+      now: at(12),
+      locale: 'en',
+      config: DEFAULT_ENGINE_CONFIG,
+    });
+    // 500 and 650 regular; 400 and 520 at 20% off.
+    expect(offers.find((o) => o.kind === 'VARIANT')).toMatchObject({ refId: IDS.varLarge, priceDelta: 120, resultingTotal: 520 });
+  });
+});
+
 describe('suggestUpsells', () => {
   it('offers the burger upgrades ranked by score with exact price effects', () => {
     const offers = run();

@@ -31,6 +31,14 @@ const databaseClient = {
     'never with the database client.',
 };
 
+// The motion library (src/motion) on the guest menu: its catalog and the `Motion` component are only for menus that
+// place a motion, so the menu reaches them through one file, which `MotionSlot` loads on demand.
+const motionLibraryCode = {
+  group: ['@/motion', '@/motion/*'],
+  message: 'The menu loads the motion library only through src/ui/menu/MotionSlotBody.tsx, which MotionSlot loads on demand.',
+};
+const menuMotionSlot = ['src/ui/menu/MotionSlotBody.tsx'];
+
 // Brackets are glob syntax, so the `[tenant]` folders are matched with escaped brackets.
 const publicMenuCode = ['src/app/\\[tenant\\]/**', 'src/app/api/\\[tenant\\]/**', 'src/ui/**'];
 
@@ -51,6 +59,11 @@ export default defineConfig([
   { rules: { 'no-restricted-imports': ['error', { paths: motionLibrary }] } },
   {
     files: publicMenuCode,
+    rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode, motionLibraryCode] }] },
+  },
+  {
+    // The one guest file that mounts a motion; it still keeps the animation library and the Studio out.
+    files: menuMotionSlot,
     rules: { 'no-restricted-imports': ['error', { paths: motionLibrary, patterns: [studioCode] }] },
   },
   {

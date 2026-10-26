@@ -1,7 +1,9 @@
+import { salesSettings } from '@/server/domain/config';
 import '@/app/globals.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { fontVariablesFor } from '@/app/fonts';
+import { guestFontPair, guestTheme } from '@/lib/guest-brand';
 import { direction } from '@/lib/locale';
 import { AppProviders } from '@/ui/AppProviders';
 import { brandCss, themeLogo } from '@/ui/brand';
@@ -23,7 +25,7 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
   const { menuId, revisionId, locale: raw } = await params;
   const { locale, tenant, number } = await loadRevisionPreview(menuId, revisionId, raw);
   return (
-    <html lang={locale} dir={direction(locale)} data-theme={tenant.brand.theme} className={fontVariablesFor(locale, tenant.brand.fontPairId)}>
+    <html lang={locale} dir={direction(locale)} data-theme={guestTheme(tenant.brand)} className={fontVariablesFor(locale, guestFontPair(tenant.brand))}>
       <head>
         <style dangerouslySetInnerHTML={{ __html: brandCss(tenant.brand) }} />
       </head>
@@ -42,6 +44,8 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
             numeralSystem: tenant.numeralSystem,
             locales: tenant.locales,
             defaultLocale: tenant.defaultLocale,
+            features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
+            priceStyle: salesSettings(tenant.engineConfig).priceStyle,
           }}
         >
           {children}

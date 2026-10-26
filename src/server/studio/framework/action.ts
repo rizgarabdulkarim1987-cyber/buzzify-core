@@ -2,13 +2,19 @@ import { unstable_rethrow } from 'next/navigation';
 import type { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
 import { globalDb, scopedClient, type ScopedClient, type ScopedTx } from '@/server/data/tenant-db';
+import type { FeatureKey } from '@/server/domain/entitlements';
 import type { Permission } from '@/server/domain/permissions';
+import type { PosPermission } from '@/server/domain/pos/permissions';
+import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
-import { admit, checkDefinition, type Access, type CheckedTarget, type SelfTarget, type Target } from './access';
+import { admit, checkDefinition, type Access, type CheckedTarget, type PosTarget, type SelfTarget, type Target } from './access';
 import { createId } from './ids';
+import { DuplicateOperationError, type OperationClaim } from './operation';
+import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
 
-export type { CheckedTarget, SelfTarget, Target } from './access';
+export type { CheckedTarget, PosTarget, SelfTarget, Target } from './access';
+export { DuplicateOperationError, type OperationClaim } from './operation';
 
 /** One audit row, as the action describes it. Who, where, when and from which address are added by the framework. */
 export interface AuditEntry {
@@ -45,6 +51,10 @@ export interface ActionContext {
   menuId: string | null;
   /** What the actor may do at the target. */
   permissions: ReadonlySet<Permission>;
+  /** What the target's restaurant has bought; null for platform and self targets. See `requireFeature`. */
+  plan: PlanAccess | null;
+  /** Who is at the till, for an action with a `pos` permission; null for every other. */
+  pos: PosActor | null;
   /** The application's client, for reads before the transaction and for calling other services. */
   db: PrismaClient;
   /**
@@ -100,23 +110,32 @@ export interface ActionContext {
 // than the schema has does not narrow what the handler sees.
 interface ActionFields<I, O> {
   name: string;
+  /** A till definition that still runs when the Cashier subscription has lapsed (closing and reading a shift). */
+  allowLapsed?: true;
   input: z.ZodType<I>;
   run(ctx: ActionContext, input: NoInfer<I>): Promise<O>;
   /** For the steps of enrolling in two-factor (and signing out): a Super Admin without it may still run these. */
   allowWithoutTwoFactor?: boolean;
+  /** A feature the target restaurant's plan must include; refused with `UPGRADE_REQUIRED` after the permission. */
+  feature?: FeatureKey;
 }
 
 /** An action names a permission and a target that checks it, or `permission: null` and the person's own account. */
 export type ActionSpec<I, O> = ActionFields<I, O> &
   (
-    | { permission: Permission; target(input: NoInfer<I>): CheckedTarget }
-    | { permission: null; target(input: NoInfer<I>): SelfTarget }
+    | { permission: Permission; pos?: undefined; target(input: NoInfer<I>): CheckedTarget }
+    | { permission: null; pos?: undefined; target(input: NoInfer<I>): SelfTarget }
+    | { permission: null; pos: PosPermission; target(input: NoInfer<I>): PosTarget }
   );
 
 export interface ActionDef<I, O> {
   readonly kind: 'action';
   readonly name: string;
   readonly permission: Permission | null;
+  /** A till permission instead of a Studio one; the target is then the person's own till. */
+  readonly pos?: PosPermission;
+  readonly allowLapsed?: true;
+  readonly feature?: FeatureKey;
   readonly input: z.ZodType<I>;
   readonly target: (input: I) => Target;
   readonly run: (ctx: ActionContext, input: I) => Promise<O>;
@@ -130,6 +149,9 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
     kind: 'action',
     name: spec.name,
     permission: spec.permission,
+    ...(spec.pos === undefined ? {} : { pos: spec.pos }),
+    ...(spec.allowLapsed === undefined ? {} : { allowLapsed: spec.allowLapsed }),
+    ...(spec.feature === undefined ? {} : { feature: spec.feature }),
     input: spec.input,
     target: spec.target as (input: I) => Target,
     run: spec.run,
@@ -172,7 +194,11 @@ class Work {
     private readonly access: Access,
     private readonly meta: RequestMeta,
     private readonly name: string,
+    private readonly claim?: OperationClaim,
   ) {}
+
+  /** Whether the claimed operation's one transaction has run. */
+  claimed = false;
 
   context(): ActionContext {
     return {
@@ -180,10 +206,15 @@ class Work {
       restaurantId: this.access.restaurantId,
       menuId: this.access.menuId,
       permissions: this.access.permissions,
+      plan: this.access.plan,
+      pos: this.access.pos ?? null,
       db: this.prisma,
       meta: this.meta,
-      transaction: (fn) => this.run(this.client(), this.access, fn),
-      transactionIn: (scope, fn) => this.transactionIn(scope, fn),
+      transaction: (fn) => this.targetTransaction(fn),
+      transactionIn: (scope, fn) => {
+        if (this.claim) throw new Error(`${this.name} runs an operation, which takes the target's one transaction`);
+        return this.transactionIn(scope, fn);
+      },
       newId: () => {
         const id = createId();
         this.generated.add(id);
@@ -197,6 +228,17 @@ class Work {
         this.callbacks.push(fn);
       },
     };
+  }
+
+  /** The action's transaction on the target; with an operation, its only one, which records the operation too. */
+  private targetTransaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
+    if (!this.claim) return this.run(this.client(), this.access, fn);
+    if (this.claimed) return Promise.reject(new Error(`${this.name} runs an operation, which takes one transaction`));
+    return this.run(this.client(), this.access, fn, undefined, this.claim).then((value) => {
+      // A transaction that failed has recorded nothing, so an action that retries it (a lost race for the next number) may.
+      this.claimed = true;
+      return value;
+    });
   }
 
   /** The target's client: a menu and its restaurant, a restaurant alone, or global rows only. */
@@ -237,14 +279,17 @@ class Work {
     place: Place,
     fn: (tx: ScopedTx) => Promise<T>,
     check?: (tx: ScopedTx) => Promise<void>,
+    claim?: OperationClaim,
   ): Promise<T> {
     const auditsBefore = this.audits.length;
     const callbacksBefore = this.callbacks.length;
     let value: T;
     try {
       value = await client.$transaction(async (tx) => {
+        if (claim) await this.record(tx, claim, place);
         const result = await fn(tx);
         if (check) await check(tx);
+        if (claim) await this.complete(tx, claim, place, result);
         if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
         return result;
       });
@@ -257,6 +302,45 @@ class Work {
     this.audits = [];
     this.runCallbacks();
     return value;
+  }
+
+  /** The operation's row, inserted first: a second copy of the same id fails here and none of its change is made. */
+  private async record(tx: ScopedTx, claim: OperationClaim, place: Place): Promise<void> {
+    if (place.restaurantId === null) throw new Error(`${this.name} runs an operation outside a restaurant`);
+    try {
+      await tx.posSyncOperation.create({
+        data: {
+          restaurantId: place.restaurantId,
+          userId: this.actor.userId,
+          deviceId: claim.deviceId,
+          operationId: claim.operationId,
+          kind: claim.kind,
+          payloadHash: claim.payloadHash,
+          result: {},
+          clientAt: claim.clientAt,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      if ((error as { code?: unknown } | null)?.code === 'P2002') throw new DuplicateOperationError(claim.operationId);
+      throw error;
+    }
+  }
+
+  /** The action's answer, stored with the change, and the audit row that says which device sent it and when. */
+  private async complete(tx: ScopedTx, claim: OperationClaim, place: Place, result: unknown): Promise<void> {
+    const stored = JSON.parse(JSON.stringify(result ?? {})) as Prisma.InputJsonObject;
+    const updated = await tx.posSyncOperation.updateMany({
+      where: { restaurantId: place.restaurantId as string, operationId: claim.operationId },
+      data: { result: stored },
+    });
+    if (updated.count !== 1) throw new Error(`${this.name} lost its operation row`);
+    this.audits.push({
+      action: 'pos.sync.apply',
+      entityType: 'PosSyncOperation',
+      entityId: claim.operationId,
+      changes: { kind: { before: null, after: claim.kind }, deviceId: { before: null, after: claim.deviceId }, clientAt: { before: null, after: claim.clientAt.toISOString() } },
+    });
   }
 
   private async transactionIn<T>(scope: TransactionScope, fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
@@ -334,6 +418,7 @@ export async function runAction<I, O>(
   def: ActionDef<I, O>,
   raw: unknown,
   meta: RequestMeta,
+  options: { operation?: OperationClaim } = {},
 ): Promise<ActionResult<O>> {
   try {
     if (def.kind !== 'action') throw new Error(`Studio ${def.name} is not an action`);
@@ -341,8 +426,9 @@ export async function runAction<I, O>(
     if ((def.permission as unknown) === 'view') throw new Error(`Studio action ${def.name} cannot use 'view'`);
     const admitted = await admit(prisma, actor, def, raw);
     if (!admitted.ok) return admitted;
-    const work = new Work(prisma, admitted.actor, admitted.access, clampMeta(meta), def.name);
+    const work = new Work(prisma, admitted.actor, admitted.access, clampMeta(meta), def.name, options.operation);
     const data = await def.run(work.context(), admitted.input);
+    if (options.operation && !work.claimed) throw new Error(`Studio action ${def.name} ran an operation without its transaction`);
     await work.finish();
     return { ok: true, data };
   } catch (error) {

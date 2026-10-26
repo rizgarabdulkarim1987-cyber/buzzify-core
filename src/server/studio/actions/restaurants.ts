@@ -1,8 +1,9 @@
 import { z } from 'zod';
-import { expireMenu } from '@/server/data/cache';
+import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
+import { PICTURE_KINDS } from '@/server/media/kinds';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -11,7 +12,7 @@ import {
   branchInput,
   branchProfileOf,
   changedFields,
-  menuAddresses,
+  expireMenusAfterCommit,
   pickBranch,
   pickProfile,
   profileData,
@@ -44,21 +45,26 @@ function restaurantOf(ctx: ActionContext): string {
 
 // The restaurant ------------------------------------------------------------------------------------------------------
 
+/** The profile fields a menu shows guests: the name on every menu, the rest on template menus (spec 2026-10-18, 4.3). */
+const MENU_FIELDS = new Set(['name', 'address', 'city', 'phone', 'whatsapp', 'mapUrl', 'socialLinks', 'workingHours']);
+
 export const createRestaurant = defineAction({
   name: 'restaurants.create',
   permission: 'restaurant.create',
-  input: restaurantInput,
+  // The plan is the platform owner's to choose; from anyone else it is ignored and the restaurant starts on Basic.
+  input: restaurantInput.extend({ plan: z.enum(PLAN_TIERS, 'Choose one of the plans offered').optional() }),
   target: () => PLATFORM,
-  run: (ctx, input) =>
+  run: (ctx, { plan: chosen, ...input }) =>
     ctx.transaction(async (tx) => {
-      const created = await tx.restaurant.create({ data: profileData(input), select: { id: true } });
+      const plan = ctx.actor.isPlatformOwner ? (chosen ?? 'BASIC') : 'BASIC';
+      const created = await tx.restaurant.create({ data: { ...profileData(input), plan }, select: { id: true } });
       // A platform action has no restaurant of its own, so it names the one it made: its Activity tab starts here.
       ctx.audit({
         action: 'restaurant.created',
         entityType: 'Restaurant',
         entityId: created.id,
         restaurantId: created.id,
-        changes: addedFields(input),
+        changes: { ...addedFields(input), plan: { before: null, after: plan } },
       });
       return { restaurantId: created.id };
     }),
@@ -85,7 +91,11 @@ export const updateRestaurant = defineAction({
       const next = { ...input, notes: seesAgencyNotes(ctx.actor, restaurantId) ? input.notes : before.notes };
       const changes: Record<string, { before: unknown; after: unknown }> = changedFields(before, next);
       const logoChanged = logoAssetId !== undefined && logoAssetId !== row.logoAssetId;
-      if (logoChanged && logoAssetId !== null && !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId }, select: { id: true } }))) {
+      if (
+        logoChanged &&
+        logoAssetId !== null &&
+        !(await tx.mediaAsset.findFirst({ where: { id: logoAssetId, kind: { in: [...PICTURE_KINDS] } }, select: { id: true } }))
+      ) {
         throw new StudioError('NOT_FOUND');
       }
       if (logoChanged) changes.logoAssetId = { before: row.logoAssetId, after: logoAssetId };
@@ -94,9 +104,10 @@ export const updateRestaurant = defineAction({
       const data = { ...profileData(next), ...(logoChanged ? { logoAssetId } : {}) };
       await updateWithVersion(tx.restaurant, { id: restaurantId, version, data, entityType: 'Restaurant' }, tx);
       ctx.audit({ action: 'restaurant.updated', entityType: 'Restaurant', entityId: restaurantId, changes });
-      // Guests see the restaurant's name on every menu (it is part of the published snapshot), so a new name is a change
-      // to each menu's draft; nothing else in the profile reaches a menu.
-      const menuIds = 'name' in changes ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
+      // Guests see the restaurant's name on every menu, and a template menu shows its details too (both are part of the
+      // published snapshot), so a change to any of them is a change to each menu's draft.
+      const shown = Object.keys(changes).some((field) => MENU_FIELDS.has(field));
+      const menuIds = shown ? (await tx.menu.findMany({ select: { id: true } })).map((menu) => menu.id) : [];
       return { version: version + 1, menuIds };
     });
     // Once the rename has committed, and before answering, so the page the person opens next already says the menus
@@ -131,10 +142,7 @@ export const setRestaurantStatus = defineAction({
 
       // The public page reads the restaurant's status live, but it caches what each address resolves to: every address
       // of every menu is expired once this has committed, so guests see the change at once.
-      const menus = await menuAddresses(tx);
-      ctx.afterCommit(() => {
-        for (const { menuId, slugs } of menus) expireMenu(slugs, menuId);
-      });
+      await expireMenusAfterCommit(tx, ctx.afterCommit);
       return { status };
     }),
 });

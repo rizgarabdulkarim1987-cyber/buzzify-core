@@ -356,7 +356,7 @@ describe('signing in', () => {
     const enabled = await auth.api.enableTwoFactor({ body: { password: GOOD }, headers: session });
     if (enabled.method !== 'totp') throw new Error(`unexpected two-factor method ${enabled.method}`);
     expect(enabled.backupCodes).toHaveLength(10);
-    expect(new URL(enabled.totpURI).searchParams.get('issuer')).toBe('Buzzify Studio');
+    expect(new URL(enabled.totpURI).searchParams.get('issuer')).toBe('Buzzify Core');
 
     const verified = await auth.api.verifyTOTP({ body: { code: totpFromUri(enabled.totpURI) }, headers: session, returnHeaders: true });
     expect(verified.headers.getSetCookie().some((line) => line.startsWith('studio.session_token='))).toBe(true);

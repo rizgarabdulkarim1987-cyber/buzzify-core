@@ -2,6 +2,7 @@ import type { RestaurantType } from '@/generated/prisma/enums';
 import type { FontPairId } from '@/lib/font-pairs';
 import type { ArtKind } from '@/lib/media';
 import type { RailStyle } from '@/lib/rail';
+import type { DesignOverrides, TemplateId } from '@/lib/templates/types';
 import type { Daypart, VisualKey } from '@/server/domain/types';
 
 export interface Tri {
@@ -67,6 +68,8 @@ export interface SeedProduct {
   dietary?: string[];
   /** BADGES keys: NEW, POPULAR or RECOMMENDED. */
   badges?: string[];
+  /** How many people the dish is for, from 2. */
+  serves?: number;
   groups?: SeedGroup[];
   variants?: SeedVariant[];
 }
@@ -118,6 +121,10 @@ export interface SeedData {
     whatsapp: string;
     instagram: string;
     description: string;
+    /** Shown in a template menu's details, when the template shows them. */
+    address?: string;
+    mapUrl?: string;
+    workingHours?: Partial<Record<'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun', Array<[string, string]>>>;
   };
   /** The menu's own settings: its slug, currency, locales and domains. The business is `profile`. */
   restaurant: {
@@ -140,14 +147,35 @@ export interface SeedData {
     fontPairId: FontPairId;
     typography: { display: string; text: string; arabic: string };
     tokens: { dark: SeedPalette; light: SeedPalette };
+    /** A template preset the demo is drawn with (src/lib/templates), and what it changes from it. */
+    templateId?: TemplateId;
+    design?: DesignOverrides;
   };
   categories: Array<{ slug: string; name: Tri }>;
   products: SeedProduct[];
   pairingRules: SeedPairingRule[];
   upsellRules: SeedUpsellRule[];
   bundles: SeedBundle[];
+  /** Timed offers (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1), by product and category slugs. */
+  promotions?: SeedPromotion[];
+  /** The slugs of the categories the cart suggests from when the order has none ("complete your meal"). */
+  mealCategories?: string[];
   schedule: Array<{ daypart: Daypart; startMinute: number; endMinute: number; daysOfWeek: number }>;
   tables: number[];
+}
+
+export interface SeedPromotion {
+  kind: 'SPECIAL' | 'DISCOUNT';
+  percentOff?: number;
+  products?: string[];
+  categories?: string[];
+  startsOn?: string;
+  endsOn?: string;
+  startMinute?: number;
+  endMinute?: number;
+  daysOfWeek?: number;
+  title: Tri;
+  text?: Tri;
 }
 
 const t = (en: string, ar: string, ckb: string): Tri => ({ en, ar, ckb });
@@ -717,6 +745,7 @@ export const ATELIER: SeedData = {
       popularity: 70,
       priority: 55,
       slot: 'SIDE',
+      serves: 2,
       art: 'plate',
       tone: '#D9B45A',
       name: t('Truffle Fries', 'بطاطس بالكمأة', 'پەتاتەی سووربەکراوی ترۆفڵ'),
@@ -979,6 +1008,25 @@ export const ATELIER: SeedData = {
       ],
     },
   ],
+  promotions: [
+    {
+      // On the pastries, which no set holds and the end-to-end suites never price, so their totals hold at any hour.
+      kind: 'DISCOUNT',
+      percentOff: 20,
+      categories: ['patisserie'],
+      startMinute: 15 * 60,
+      endMinute: 17 * 60,
+      title: t('Afternoon sweets', 'حلويات العصر', 'شیرینی عەسر'),
+      text: t('20% off every pastry', 'خصم 20% على كل الحلويات', '20% داشکاندن لە هەموو شیرینییەکان'),
+    },
+    {
+      kind: 'SPECIAL',
+      products: ['wagyu-burger'],
+      // No end date, so no time is claimed: the demo never says "this week" forever.
+      title: t('Chef’s choice', 'اختيار الشيف', 'هەڵبژاردەی چێشتلێنەر'),
+    },
+  ],
+  mealCategories: ['patisserie', 'cold'],
   schedule: [
     { daypart: 'BREAKFAST', startMinute: 420, endMinute: 660, daysOfWeek: 127 },
     { daypart: 'LUNCH', startMinute: 660, endMinute: 960, daysOfWeek: 127 },

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { Prisma, PrismaClient } from '@/generated/prisma/client';
+import { expireMenu } from '@/server/data/cache';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { refreshDraftHash } from '@/server/publish/draft';
 import {
@@ -82,6 +83,8 @@ export const restaurantInput = z.object({
   country: text(200),
   phone,
   whatsapp: phone,
+  /** A link to the restaurant on a map, shown with the address on template menus. */
+  mapUrl: link,
   socialLinks: z.object({ instagram: link, facebook: link, tiktok: link, website: link }).default({ instagram: '', facebook: '', tiktok: '', website: '' }),
   workingHours,
   notes: text(5000),
@@ -120,8 +123,8 @@ export type Profile = RestaurantInput;
 
 /** The profile fields of an input that carries more (the restaurant and version an update names). */
 export function pickProfile(input: Profile): Profile {
-  const { name, type, description, address, city, country, phone, whatsapp, socialLinks, workingHours, notes } = input;
-  return { name, type, description, address, city, country, phone, whatsapp, socialLinks, workingHours, notes };
+  const { name, type, description, address, city, country, phone, whatsapp, mapUrl, socialLinks, workingHours, notes } = input;
+  return { name, type, description, address, city, country, phone, whatsapp, mapUrl, socialLinks, workingHours, notes };
 }
 
 interface ProfileRow {
@@ -133,6 +136,7 @@ interface ProfileRow {
   country: string;
   phone: string;
   whatsapp: string;
+  mapUrl: string;
   socialLinks: unknown;
   workingHours: unknown;
   notes: string;
@@ -149,6 +153,7 @@ export function profileOf(row: ProfileRow): Profile {
     country: row.country,
     phone: row.phone,
     whatsapp: row.whatsapp,
+    mapUrl: row.mapUrl,
     socialLinks: readSocialLinks(row.socialLinks),
     workingHours: readWorkingHours(row.workingHours),
     notes: row.notes,
@@ -171,6 +176,7 @@ export function profileData(profile: Profile) {
     country: profile.country,
     phone: profile.phone,
     whatsapp: profile.whatsapp,
+    mapUrl: profile.mapUrl,
     socialLinks: storedLinks(profile.socialLinks),
     workingHours: profile.workingHours as Prisma.InputJsonObject,
     notes: profile.notes,
@@ -230,6 +236,17 @@ export async function menuAddresses(tx: ScopedTx): Promise<Array<{ menuId: strin
 }
 
 /**
+ * Expires every address of every menu of the restaurant (`menuAddresses`) once the transaction has committed, for a
+ * change guests see (its status, its plan). Run it on the restaurant's client, inside the transaction that makes it.
+ */
+export async function expireMenusAfterCommit(tx: ScopedTx, afterCommit: (fn: () => void) => void): Promise<void> {
+  const menus = await menuAddresses(tx);
+  afterCommit(() => {
+    for (const { menuId, slugs } of menus) expireMenu(slugs, menuId);
+  });
+}
+
+/**
  * Recomputes the draft hash of each menu (`refreshDraftHash`) after a change to its restaurant that guests see: the
  * restaurant's name is part of every menu's snapshot, so a rename is an unpublished change of each of them until it is
  * published. Run it with the application's client once the change has committed: a restaurant's client cannot read a
@@ -263,6 +280,11 @@ export async function removeRestaurant(
 ): Promise<{ name: string; memberships: number; invitations: number; branches: number }> {
   const restaurant = await tx.restaurant.findUnique({ where: { id: args.restaurantId }, select: { id: true, name: true } });
   if (!restaurant) throw new StudioError('NOT_FOUND');
+  // Payment history is never deleted, and payments name their subscription: such a restaurant is suspended instead.
+  // Checked before the menus, so the owner learns this before deleting any of them.
+  if ((await tx.subscription.count()) > 0 || (await tx.payment.count()) > 0) {
+    throw new StudioError('CONFLICT', 'This restaurant has subscriptions or payments on record, which are never deleted. Suspend it instead.');
+  }
   if ((await tx.menu.count()) > 0) throw new StudioError('INVALID', 'Delete all of its menus first');
   if (args.confirmName.trim() !== restaurant.name) {
     const message = 'Type the restaurant name exactly to confirm';

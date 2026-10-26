@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { EVENT_TYPES } from '@/server/data/events';
+import { COMPLAINT_CATEGORIES, COMPLAINT_RAW_MAX, CONTACT_NAME_MAX } from '@/server/domain/pos/complaint-rules';
+import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { LOCALES, MAX_LINES, MAX_QUANTITY } from '@/server/domain/types';
 
 const id = z.string().min(1).max(64);
@@ -60,4 +62,39 @@ export const eventsRequestSchema = z.object({
     )
     .min(1)
     .max(20),
+});
+
+/** A guest's QR order. Strict: a price, a total or any field not listed here is refused, never ignored. */
+export const qrOrderSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  locale,
+  cart: z.strictObject({
+    lines: z
+      .array(
+        z.strictObject({
+          productId: id,
+          variantId: id.nullable().default(null),
+          optionIds: z.array(id).max(20).default([]),
+          quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity),
+          note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+        }),
+      )
+      .min(1)
+      .max(QR_LIMITS.maxLines),
+    bundles: z.array(z.strictObject({ bundleId: id, quantity: z.number().int().min(1).max(MAX_QUANTITY) })).max(10).default([]),
+  }),
+  note: z.string().trim().max(QR_LIMITS.maxNote).default(''),
+});
+
+/** A guest's complaint. Strict; `website` is the honeypot, a field no person sees and so one that stays empty. */
+export const complaintSchema = z.strictObject({
+  table: z.number().int().min(1).max(999),
+  locale,
+  clientKey: z.string().min(16).max(64).regex(/^[A-Za-z0-9_-]+$/),
+  body: z.string().max(COMPLAINT_RAW_MAX),
+  category: z.enum(COMPLAINT_CATEGORIES).optional(),
+  contactName: z.string().trim().max(CONTACT_NAME_MAX).optional(),
+  contactPhone: z.string().trim().regex(/^\+?[0-9 ()-]{6,24}$/).optional(),
+  consent: z.boolean().default(false),
+  website: z.string().max(200).default(''),
 });

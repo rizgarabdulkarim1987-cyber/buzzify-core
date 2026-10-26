@@ -21,7 +21,7 @@ Hostinger clones `main` from GitHub, runs `npm install`, then `npm run build:hos
    connect to it`), which failed every build. Local development and `npm run build` still use Turbopack.
 
 Build settings on Hostinger: Node.js 22, framework Next.js, output directory `.next`, build script `build:host`,
-package manager npm, source GitHub `rizgarabdulkarim1987-cyber/buzzify-menu`, branch `main`.
+package manager npm, source GitHub `rizgarabdulkarim1987-cyber/buzzify-core` (renamed from `buzzify-menu`; the website domain stays `buzzify-menu.online`), branch `main`.
 
 ## Settings (Hostinger → Websites → buzzify-menu.online → Node.js → Environment variables)
 
@@ -34,7 +34,7 @@ Already set (not secret):
 | `PUBLIC_MENU_ORIGIN` | `https://buzzify-menu.online` |
 | `PUBLIC_ROOT_REDIRECT` | `https://buzzify.me` (where `buzzify-menu.online/` sends visitors) |
 | `BETTER_AUTH_URL` | `https://studio.buzzify-menu.online` |
-| `EMAIL_FROM` | `Buzzify Studio <studio@buzzify-menu.online>` |
+| `EMAIL_FROM` | `Buzzify Core <studio@buzzify-menu.online>` |
 
 You add these four yourself in hPanel (and the six of "Pictures and scheduled publishing" below) (never paste them into a chat, an email or a file in the repository):
 
@@ -118,6 +118,49 @@ Each call answers `{"activated":0}` when nothing was due, and `401` when the sec
 Then deploy, and run checks 12 and 13 of step 10 in `docs/deploy/production.md` (a 15 MB photo uploaded in Media, and a
 publish scheduled two minutes ahead going live), on this site's addresses.
 
+## Billing: the subscription sweep (cron) and payments
+
+Buzzify Core keeps each restaurant's subscriptions (per product) and the payments the owner records by hand. There is **no
+payment gateway and no provider key**: a payment is recorded in the Studio (cash by default; the other methods are only
+labels).
+
+A second scheduler call moves overdue subscriptions on: a `GET` (only `GET`; a `POST` is answered `405`) of
+`https://studio.buzzify-menu.online/api/cron/subscriptions` every 15 minutes, with the same `CRON_SECRET` and the same
+`Authorization: Bearer` header as the publish scheduler above (no new setting). It answers `401` when the secret is
+missing or wrong.
+
+- **hPanel -> Advanced -> Cron Jobs -> Custom**, every 15 minutes (`*/15 * * * *`), your secret in place of `SECRET` (type
+  it in hPanel yourself; never in a chat or the repository):
+
+  ```bash
+  curl -fsS -H "Authorization: Bearer SECRET" https://studio.buzzify-menu.online/api/cron/subscriptions
+  ```
+
+- or an external scheduler that can send a header: a `GET` of the same address every 15 minutes with
+  `Authorization: Bearer SECRET`.
+
+The sweep moves subscriptions past their end to the grace period and then to expired, and records the matching events.
+Access is judged when a request arrives, so a missed run only delays the stored status and its events; nothing is lost
+and the next run catches up. Add the job after the deploy that brings billing.
+
+## The production migration for billing (once, with the owner's approval)
+
+The release that brings billing includes two migrations (the folders in `prisma/migrations/` ending `_billing`, which
+adds the tables, and `_billing_applications`, which adds the Menu and Cashier products; never run the demo seed on
+production for them), and the Hostinger build runs `prisma migrate deploy` on production. Rehearse it first; do
+not let the first run happen on production.
+
+1. **Snapshot:** in Neon, project `buzzify-menu`, take a snapshot of the `production` branch. This is the way back.
+2. **Rehearse on a branch:** create a Neon branch from `production` (or from that snapshot). With `DIRECT_DATABASE_URL`
+   set to the **branch's** direct address for that one command, run `npx prisma migrate deploy`, then check that it
+   applied cleanly (`npx prisma migrate status`) and that the Studio's restaurants, plans and menus read normally against
+   the branch. Delete the branch afterwards.
+3. **Only then, with the owner's explicit approval:** merge into `main` and let the Hostinger build run
+   `prisma migrate deploy` on production. If the rehearsal failed, do not merge; fix the migration first.
+4. **After the deploy:** add the cron job above, then open Restaurants and check a restaurant's subscriptions.
+
+Never run migrations against the production address from a computer by hand for this release.
+
 ## Neon from the command line
 
 The project is linked to the Neon project `buzzify-menu` (`delicate-pond-39271154`, Frankfurt), branch `production`.
@@ -129,6 +172,23 @@ itself is in the git-ignored `.neon` file. After `npm i -g neon` and `neon login
 - `neon env pull --file <somewhere outside the repository> -e DATABASE_URL,DATABASE_URL_UNPOOLED` fetches the two
   connection strings: `DATABASE_URL` is the pooled one, `DATABASE_URL_UNPOOLED` the direct one that goes into
   `DIRECT_DATABASE_URL` here.
+
+## Plans (once, after the deploy that brings them)
+
+That deploy's migration puts every restaurant, the demos included, on **Premium**, so guests see no change, and makes
+your Super Admin account (the oldest active one) the **platform owner**: the only account that changes plans.
+
+1. **Your WhatsApp number:** open `https://studio.buzzify-menu.online/studio/settings/plans`, type your number with the
+   country code under **Your WhatsApp number** (for example `+964 750 123 4567`), and press **Save plans**. Until it is
+   set, a locked feature shows which plan has it but no WhatsApp button.
+2. **What each plan includes** is on the same page: names in three languages, and a switch per feature and plan.
+   "Coming later" lists the features of the next projects, so you can decide now where each will start.
+3. **A restaurant's plan:** Restaurants → the restaurant → **Plan** tab → choose the plan → **Save plan**. When it takes
+   features away, a window lists what guests stop seeing; confirm it. Guests see the change at once, without a publish,
+   and nothing is deleted: moving back brings everything back.
+4. **Handing the business over** (or getting it back when the owner's account is lost): on your computer, in the project
+   folder, run `npm run studio:set-platform-owner` with `DATABASE_URL` set to the Neon **direct** address for that one
+   command, like the first Super Admin. It asks for the new owner's email and changes nothing until you type `yes`.
 
 ## Later deploys
 

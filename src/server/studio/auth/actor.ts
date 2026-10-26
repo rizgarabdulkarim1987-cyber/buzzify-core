@@ -12,9 +12,13 @@ export interface Actor {
   email: string;
   name: string;
   isSuperAdmin: boolean;
+  /** The one account that sells and alone changes plans; true only while the person is also a Super Admin. */
+  isPlatformOwner: boolean;
   twoFactorEnabled: boolean;
   locale: Locale;
   memberships: Array<{ restaurantId: string; role: MemberRole }>;
+  /** The restaurant a PIN session is bound to: the till works there, whatever else the person has joined. */
+  posRestaurantId?: string;
 }
 
 /** The actor for a user id, or `null` when there is no such user or the user is deactivated. */
@@ -29,6 +33,7 @@ export async function loadActor(prisma: PrismaClient, userId: string): Promise<A
     email: user.email,
     name: user.name,
     isSuperAdmin: user.isSuperAdmin,
+    isPlatformOwner: user.isSuperAdmin && user.isPlatformOwner,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
     locale: isLocale(user.locale) ? user.locale : 'en',
     memberships: user.memberships,
@@ -39,7 +44,9 @@ export async function loadActor(prisma: PrismaClient, userId: string): Promise<A
 export async function actorFromHeaders(prisma: PrismaClient, requestHeaders: Headers): Promise<Actor | null> {
   const session = await authFor(prisma).api.getSession({ headers: requestHeaders });
   if (!session) return null;
-  return loadActor(prisma, session.user.id);
+  const actor = await loadActor(prisma, session.user.id);
+  const bound = (session.session as { posRestaurantId?: string | null }).posRestaurantId;
+  return actor && bound ? { ...actor, posRestaurantId: bound } : actor;
 }
 
 /**

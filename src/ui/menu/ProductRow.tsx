@@ -5,9 +5,10 @@ import { track } from '@/ui/analytics/track';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { PlusIcon } from '@/ui/Icons';
+import { hasSalesPills, SalePrice, SalesFacts, SalesPills } from './SalesLabels';
 
 export function ProductRow({ product, onOpen }: { product: MenuProductView; onOpen: (id: string) => void }) {
-  const { t, money, addLine, announce, preview } = useApp();
+  const { t, addLine, announce, preview } = useApp();
   const orderable = product.orderState === 'OK';
   const canQuickAdd = orderable && !product.needsChoices && !preview;
 
@@ -23,9 +24,10 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
           className="block w-full text-start transition-transform duration-150 ease-out-strong active:scale-[0.985]"
         >
           <span className="block font-display text-xl leading-snug">{product.name}</span>
-          {product.badges && (
+          {(product.badges || hasSalesPills(product)) && (
             <span className="mt-1 flex flex-wrap gap-1.5">
-              {product.badges.map((badge) => (
+              <SalesPills product={product} />
+              {product.badges?.map((badge) => (
                 <span key={badge} className="rounded-full border border-line px-2 py-px text-xs text-muted">
                   {t(`menu.badge.${badge}`)}
                 </span>
@@ -39,7 +41,10 @@ export function ProductRow({ product, onOpen }: { product: MenuProductView; onOp
           )}
         </button>
         <div className="mt-2 flex min-h-11 items-center gap-4">
-          <span className="text-sm tabular-nums text-accent">{money(product.displayPrice)}</span>
+          <span className="flex flex-col gap-0.5">
+            <SalePrice product={product} className="text-sm tabular-nums text-accent" />
+            {orderable && <SalesFacts product={product} />}
+          </span>
           {!orderable && (
             <span className="text-sm text-muted">
               {t(product.orderState === 'OUT_OF_STOCK' ? 'product.soldOut' : 'product.unavailable')}

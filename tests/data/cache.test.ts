@@ -11,10 +11,12 @@ vi.mock('next/cache', () => next);
 const {
   cached,
   cachedLiveOverlay,
+  cachedPlans,
   cachedRevisionSnapshot,
   cachedSlugResolution,
   expireLive,
   expireMenu,
+  expirePlans,
 } = await import('@/server/data/cache');
 
 const load = () => Promise.resolve('value');
@@ -58,10 +60,19 @@ describe('data cache', () => {
       await cachedLiveOverlay('m1', load);
       await cachedSlugResolution('atelier', load);
       expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['live', 'm1'], { revalidate: 30, tags: ['live:m1'] });
-      expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['slug', 'atelier'], {
+      // Keyed by the shape of the answer (2: it carries the guest features), so an answer cached before a deploy that
+      // changed the shape is never read as the new one.
+      expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['slug', '4', 'atelier'], {
         revalidate: 300,
-        tags: ['slug:atelier'],
+        tags: ['slug:atelier', 'plans'],
       });
+    });
+
+    it('keeps the plans for 5 minutes, and expirePlans expires them with every address at once', async () => {
+      await cachedPlans(load);
+      expect(next.unstable_cache).toHaveBeenCalledWith(expect.any(Function), ['plans'], { revalidate: 300, tags: ['plans'] });
+      expirePlans();
+      expect(next.updateTag.mock.calls.map(([tag]) => tag)).toEqual(['plans']);
     });
 
     it('expires every slug of a menu and its overlay with updateTag in a Server Action', () => {

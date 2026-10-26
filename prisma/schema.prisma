@@ -32,6 +32,7 @@ enum RestaurantType {
   FAST_FOOD
   FINE_DINING
   OTHER
+  ICE_CREAM
 }
 
 enum MenuStatus {
@@ -83,21 +84,76 @@ model Restaurant {
   status           RestaurantStatus @default(ACTIVE)
   notes            String           @default("")
   permissionPolicy Json             @default("{}")
+  /// What the restaurant has bought. The default is for rows that existed before plans (they keep every feature); the
+  /// Studio always writes a plan when it creates a restaurant.
+  plan             PlanTier         @default(PREMIUM)
+  /// Features switched on or off for this restaurant beyond its plan: `{ features: { [key]: boolean } }`.
+  planExtras       Json             @default("{}")
+  /// The platform owner's note on the deal (what was agreed, paid until when). Only Super Admins read it.
+  planNote         String           @default("")
   /// The restaurant's logo in its media library; a new menu starts its brand kit with it.
   logoAssetId      String?
+  /// A link to the restaurant on a map (https), shown on template menus that show the address.
+  mapUrl           String           @default("")
+  /// Whether template menus show "Powered by Buzzify". Only a Super Admin changes it.
+  showPoweredBy    Boolean          @default(true)
   version          Int              @default(1)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  branches    Branch[]
-  menus       Menu[]
-  memberships Membership[]
-  invitations Invitation[]
-  mediaAssets MediaAsset[]
+  branches              Branch[]
+  menus                 Menu[]
+  memberships           Membership[]
+  invitations           Invitation[]
+  mediaAssets           MediaAsset[]
+  designTemplates       DesignTemplate[]
+  subscriptions         Subscription[]
+  payments              Payment[]
+  posSettings           PosSettings?
+  posStaffs             PosStaff[]
+  posKitchenSections    PosKitchenSection[]
+  posCategorySettings   PosCategorySetting[]
+  posProductSettings    PosProductSetting[]
+  posAreas              PosArea[]
+  posTables             PosTable[]
+  posOrders             PosOrder[]
+  posOrderLines         PosOrderLine[]
+  posCustomerOrders     PosCustomerOrder[]
+  posDeliveryZones      PosDeliveryZone[]
+  posDrivers            PosDriver[]
+  posCustomerOrderLines PosCustomerOrderLine[]
+  posPayments           PosPayment[]
+  posShifts             PosShift[]
+  posCashExpenses       PosCashExpense[]
+  posSyncOperations     PosSyncOperation[]
+  posPaymentReversals   PosPaymentReversal[]
+  posSharedDevices      PosSharedDevice[]
+  posPinAttempts        PosPinAttempt[]
+  posInventoryItems     PosInventoryItem[]
+  posSuppliers          PosSupplier[]
+  posPurchaseInvoices   PosPurchaseInvoice[]
+  posPurchaseLines      PosPurchaseLine[]
+  posStockCounts        PosStockCount[]
+  posStockMovements     PosStockMovement[]
+  posRecipeLines        PosRecipeLine[]
+  posComplaints         PosComplaint[]
+  posComplaintNotes     PosComplaintNote[]
+  posAiPackage          PosAiPackage?
+  posAiUsageMonths      PosAiUsageMonth[]
+  posAiCalls            PosAiCall[]
+  posAiSummaries        PosAiSummary[]
 
   @@index([name])
   @@index([city])
   @@index([status])
+  @@index([plan])
+}
+
+/// The plans a restaurant can be on (src/server/domain/entitlements.ts).
+enum PlanTier {
+  BASIC
+  PRO
+  PREMIUM
 }
 
 model Branch {
@@ -141,9 +197,9 @@ model Menu {
   createdAt           DateTime      @default(now())
   updatedAt           DateTime      @updatedAt
 
-  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id])
-  liveRevision    MenuRevision?     @relation("LiveRevision", fields: [liveRevisionId], references: [id], onDelete: SetNull)
-  revisions       MenuRevision[]    @relation("MenuRevisions")
+  restaurant      Restaurant           @relation(fields: [restaurantId], references: [id])
+  liveRevision    MenuRevision?        @relation("LiveRevision", fields: [liveRevisionId], references: [id], onDelete: SetNull)
+  revisions       MenuRevision[]       @relation("MenuRevisions")
   slugs           MenuSlug[]
   domains         MenuDomain[]
   brand           BrandConfig?
@@ -156,11 +212,16 @@ model Menu {
   pairingRules    PairingRule[]
   bundles         Bundle[]
   bundleItems     BundleItem[]
+  promotions      Promotion[]
   schedule        DaypartSchedule[]
+  motions         MenuMotion[]
   tables          Table[]
   qrCodes         QrCode[]
   importJobs      ImportJob[]
   analyticsEvents AnalyticsEvent[]
+  cashierLinks    CashierLink[]
+  pairingCodes    CashierPairingCode[]
+  posSettings     PosSettings[]
 
   @@index([restaurantId])
   @@index([status])
@@ -212,40 +273,75 @@ model MenuDomain {
 }
 
 model BrandConfig {
-  id              String    @id @default(cuid())
-  menuId          String    @unique
-  tokens          Json
-  typography      Json
-  theme           ThemeMode @default(DARK)
-  motionIntensity String    @default("subtle")
-  navStyle        String    @default("rail")
+  id               String    @id @default(cuid())
+  menuId           String    @unique
+  tokens           Json
+  typography       Json
+  theme            ThemeMode @default(DARK)
+  motionIntensity  String    @default("subtle")
+  navStyle         String    @default("rail")
   /// How the category rail moves: grains, drum, flap, deck or plain (see src/lib/rail.ts).
-  railStyle       String    @default("grains")
-  logoText        String
+  railStyle        String    @default("grains")
+  logoText         String
   /// The logo from the media library (the restaurant's or the shared one), and one for a dark theme when it differs.
-  logoAssetId     String?
-  logoDarkAssetId String?
+  logoAssetId      String?
+  logoDarkAssetId  String?
   /// An uploaded favicon, or the logo's rendered PNGs when faviconFromLogo; with neither, the accent mark.
-  faviconAssetId  String?
-  faviconFromLogo Boolean   @default(false)
+  faviconAssetId   String?
+  faviconFromLogo  Boolean   @default(false)
   /// One of the curated pairs in src/lib/font-pairs.ts.
-  fontPairId      String    @default("classic")
-  version         Int       @default(1)
-  menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  fontPairId       String    @default("classic")
+  /// The template preset the menu is drawn with (src/lib/templates); null keeps the classic menu.
+  templateId       String?
+  /// What the business changed from its template: `DesignOverrides`, only the fields it changed.
+  design           Json      @default("{}")
+  /// The custom template last applied, when the design came from one (for the Studio only).
+  customTemplateId String?
+  version          Int       @default(1)
+  menu             Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
 }
 
 model Category {
-  id           String    @id @default(cuid())
-  menuId       String
-  slug         String
-  sortOrder    Int       @default(0)
-  translations Json
-  isActive     Boolean   @default(true)
-  version      Int       @default(1)
-  menu         Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  products     Product[]
+  id                 String              @id @default(cuid())
+  menuId             String
+  slug               String
+  sortOrder          Int                 @default(0)
+  translations       Json
+  isActive           Boolean             @default(true)
+  /// The cart suggests one of its dishes when the order has none ("complete your meal").
+  completesMeal      Boolean             @default(false)
+  version            Int                 @default(1)
+  menu               Menu                @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  products           Product[]
+  motions            MenuMotion[]
+  posCategorySetting PosCategorySetting?
 
   @@unique([menuId, slug])
+}
+
+/// A motion from the library at a place on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md). Part of
+/// the draft; published with the revision. Only the motions service writes rows, the slot and the category together.
+model MenuMotion {
+  id         String    @id @default(cuid())
+  menuId     String
+  /// `hero`, `signature`, or `category:<categoryId>`: one motion per place. It carries the uniqueness, since two null
+  /// categories are different to PostgreSQL.
+  slot       String
+  /// The category whose heading it plays over (category places only); deleting the category deletes the motion.
+  categoryId String?
+  /// A motion id from the library's catalog (src/motion/catalog).
+  motionId   String
+  /// The motion's params other than text, resolved.
+  params     Json
+  /// For each text param, its text by language.
+  texts      Json      @default("{}")
+  version    Int       @default(1)
+  updatedAt  DateTime  @updatedAt
+  menu       Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, slot])
+  @@index([categoryId])
 }
 
 model Product {
@@ -270,6 +366,8 @@ model Product {
   allergens          String[]
   dietary            String[]
   calories           Int?
+  /// How many people the dish is for, from 2; null for one.
+  serves             Int?
   /// NEW, POPULAR or RECOMMENDED.
   badges             String[]
   ingredients        Json      @default("{}")
@@ -278,15 +376,19 @@ model Product {
   sortOrder          Int       @default(0)
   version            Int       @default(1)
 
-  menu        Menu             @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  category    Category         @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  variants    ProductVariant[]
-  groups      ModifierGroup[]
-  upsellFrom  UpsellRule[]     @relation("UpsellSource")
-  upsellTo    UpsellRule[]     @relation("UpsellTarget")
-  pairingFrom PairingRule[]    @relation("PairingSource")
-  pairingTo   PairingRule[]    @relation("PairingTarget")
-  bundleItems BundleItem[]
+  menu                  Menu                   @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  category              Category               @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  variants              ProductVariant[]
+  groups                ModifierGroup[]
+  upsellFrom            UpsellRule[]           @relation("UpsellSource")
+  upsellTo              UpsellRule[]           @relation("UpsellTarget")
+  pairingFrom           PairingRule[]          @relation("PairingSource")
+  pairingTo             PairingRule[]          @relation("PairingTarget")
+  bundleItems           BundleItem[]
+  posProductSetting     PosProductSetting?
+  posRecipeLines        PosRecipeLine[]
+  posOrderLines         PosOrderLine[]
+  posCustomerOrderLines PosCustomerOrderLine[]
 
   @@unique([menuId, slug])
   @@index([menuId, categoryId])
@@ -353,6 +455,7 @@ model UpsellRule {
   dayparts        Daypart[]
   translations    Json
   isActive        Boolean   @default(true)
+  version         Int       @default(1)
   menu            Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
   source          Product   @relation("UpsellSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
   target          Product   @relation("UpsellTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
@@ -371,6 +474,7 @@ model PairingRule {
   dayparts         Daypart[]
   translations     Json
   isActive         Boolean           @default(true)
+  version          Int               @default(1)
   menu             Menu              @relation(fields: [menuId], references: [id], onDelete: Cascade)
   source           Product?          @relation("PairingSource", fields: [sourceProductId], references: [id], onDelete: Cascade)
   target           Product           @relation("PairingTarget", fields: [targetProductId], references: [id], onDelete: Cascade)
@@ -386,6 +490,7 @@ model Bundle {
   dayparts     Daypart[]
   translations Json
   isActive     Boolean      @default(true)
+  version      Int          @default(1)
   menu         Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
   items        BundleItem[]
 
@@ -404,6 +509,41 @@ model BundleItem {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@index([menuId, bundleId])
+}
+
+enum PromotionKind {
+  /// A highlight (today's special, a limited-time dish) that changes no price.
+  SPECIAL
+  /// A percentage off its dishes while it is live (a happy hour).
+  DISCOUNT
+}
+
+/// A timed offer on some dishes or categories (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1).
+model Promotion {
+  id           String        @id @default(cuid())
+  menuId       String
+  kind         PromotionKind
+  /// DISCOUNT only: 5 to 90.
+  percentOff   Int?
+  productIds   String[]
+  categoryIds  String[]
+  /// Local dates in the menu's time zone, `YYYY-MM-DD`, both inclusive; null is open-ended.
+  startsOn     String?
+  endsOn       String?
+  /// A daily window in minutes after local midnight; both null for all day. It wraps past midnight when end <= start.
+  startMinute  Int?
+  endMinute    Int?
+  /// Bit 0 is Monday, as `DaypartSchedule.daysOfWeek`.
+  daysOfWeek   Int           @default(127)
+  /// { en: { title, text }, ar: ..., ckb: ... }
+  translations Json
+  isActive     Boolean       @default(true)
+  sortOrder    Int           @default(0)
+  version      Int           @default(1)
+  createdAt    DateTime      @default(now())
+  menu         Menu          @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
 }
 
 model DaypartSchedule {
@@ -500,18 +640,21 @@ enum MemberRole {
 
 /// A person who signs in to the Studio (Better Auth's table). Accounts are created by invitation only.
 model User {
-  id               String       @id
+  id               String               @id
   name             String
   /// Lower case and trimmed, unique.
   email            String
-  emailVerified    Boolean      @default(false)
+  emailVerified    Boolean              @default(false)
   image            String?
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
-  twoFactorEnabled Boolean?     @default(false)
-  isSuperAdmin     Boolean      @default(false)
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+  twoFactorEnabled Boolean?             @default(false)
+  isSuperAdmin     Boolean              @default(false)
+  /// The one account that sells: only it changes plans. At most one row is true (a partial unique index in the
+  /// migration), and it counts only while the person is a Super Admin.
+  isPlatformOwner  Boolean              @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
-  locale           String       @default("en")
+  locale           String               @default("en")
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt    DateTime?
   sessions         Session[]
@@ -519,6 +662,11 @@ model User {
   twofactors       TwoFactor[]
   memberships      Membership[]
   invitationsSent  Invitation[]
+  posStaffs        PosStaff[]
+  posShifts        PosShift[]
+  posCashExpenses  PosCashExpense[]
+  posPayments      PosPayment[]
+  posReversals     PosPaymentReversal[]
 
   @@unique([email])
   @@map("user")
@@ -534,9 +682,14 @@ model Session {
   userAgent String?
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Set only on a session made by PIN sign-in: the shared device and the restaurant it belongs to. Revoking the device
+  /// or clearing the PIN ends these sessions, and the till works in this restaurant whatever else the person joined.
+  posDeviceId     String?
+  posRestaurantId String?
 
   @@unique([token])
   @@index([userId])
+  @@index([posDeviceId])
   @@map("session")
 }
 
@@ -682,11 +835,19 @@ model PlatformSetting {
   updatedById String?
 }
 
-/** What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is. */
+/**
+ * What a media library file is: a photo or drawing (made into variants), an SVG drawing, or an icon kept as it is.
+ */
 enum MediaKind {
   IMAGE
   SVG
   ICON
+  /// A GLB model, for a template menu's background (Template Studio stage 2).
+  MODEL
+  /// An MP4 video with a poster frame, for a template menu's background.
+  VIDEO
+  /// A Lottie animation (JSON, checked to be data only), for a template menu's background.
+  LOTTIE
 }
 
 /**
@@ -711,7 +872,11 @@ model MediaAsset {
   storedBytes  Int
   width        Int?
   height       Int?
-  /// `{ original, avif?: { "320": key, ... }, webp?: { ... }, favicon?: { "32": key, "180": key, "512": key } }`.
+  /// A video's or a Lottie animation's length.
+  durationMs   Int?
+  /// What a scene file holds: a model's triangles, textures and animations; a video's codec and sound; a Lottie's frame rate and layers.
+  meta         Json        @default("{}")
+  /// `{ original, avif?: { "320": key, ... }, webp?: { ... }, favicon?: { "32": key, "180": key, "512": key }, poster?: { avif, webp } }`.
   variants     Json        @default("{}")
   /// A tiny blurred WebP as a data URI; empty for icons.
   placeholder  String      @default("")
@@ -728,4 +893,1051 @@ model MediaAsset {
   @@index([restaurantId, contentHash])
   @@index([restaurantId, folder])
   @@index([storageKey])
+}
+
+/**
+ * A saved design: a template preset and the overrides on top of it, to apply to other menus (spec
+ * 2026-10-18-template-studio-design.md, 4.3). A restaurant's own, or shared across the platform when `restaurantId` is
+ * null (saved by a Super Admin). Applying one copies its overrides into the menu's brand kit; later edits stay apart.
+ */
+model DesignTemplate {
+  id           String      @id @default(cuid())
+  /// Null for a template shared across the platform.
+  restaurantId String?
+  name         String
+  /// The preset it starts from (src/lib/templates).
+  basePresetId String
+  /// `DesignOverrides`.
+  overrides    Json        @default("{}")
+  /// A plain id, not a relation, so removing the person never removes the template.
+  createdById  String?
+  version      Int         @default(1)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+  restaurant   Restaurant? @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Billing: the products a restaurant subscribes to, their prices, and payments recorded by hand (no gateway).
+// ---------------------------------------------------------------------------------------------------------------------
+
+enum AppStatus {
+  ACTIVE
+  DISABLED
+}
+
+/// Money is an Int in minor units (IQD has 0 digits, USD has 2) beside one of these.
+enum Currency {
+  IQD
+  USD
+}
+
+enum BillingPeriod {
+  MONTHLY
+  YEARLY
+}
+
+/// PAST_DUE is folded into GRACE: the period is over, the restaurant is still served, and payment is awaited.
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  GRACE
+  EXPIRED
+  CANCELLED
+}
+
+enum SubscriptionEventType {
+  STARTED_TRIAL
+  ACTIVATED
+  RENEWED
+  PLAN_CHANGED
+  ENTERED_GRACE
+  EXPIRED
+  CANCELLED
+  REACTIVATED
+}
+
+/// How the money reached the person who took it. Payments are recorded by hand; the electronic names are labels only.
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  ZAINCASH
+  FIB
+  QI_CARD
+  OTHER
+}
+
+/// A product that can be subscribed to (`menu`, `cashier`).
+model Application {
+  id        String    @id
+  /// { en, ar, ckb }
+  name      Json
+  status    AppStatus @default(ACTIVE)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  prices        PlanPrice[]
+  subscriptions Subscription[]
+}
+
+model PlanPrice {
+  id            String        @id @default(cuid())
+  applicationId String
+  planCode      String
+  currency      Currency
+  period        BillingPeriod
+  /// Minor units: IQD has 0 digits, USD has 2.
+  amountMinor   Int
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  application   Application   @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, planCode, currency, period])
+}
+
+/// What a restaurant has bought of an application. At most one live (TRIAL, ACTIVE or GRACE) row per restaurant and
+/// application: a partial unique index in the migration enforces it.
+model Subscription {
+  id                 String             @id @default(cuid())
+  restaurantId       String
+  applicationId      String
+  planCode           String
+  status             SubscriptionStatus
+  period             BillingPeriod
+  currency           Currency
+  /// What this subscription renews at, in minor units, copied from the plan price when it started.
+  priceMinor         Int
+  trialEndsAt        DateTime?
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  /// The day of the month periods end on, in Asia/Baghdad; set by the first payment.
+  anchorDay          Int?
+  graceDays          Int                @default(7)
+  cancelledAt        DateTime?
+  version            Int
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  restaurant         Restaurant         @relation(fields: [restaurantId], references: [id])
+  application        Application        @relation(fields: [applicationId], references: [id])
+
+  events   SubscriptionEvent[]
+  payments Payment[]
+
+  @@index([status, currentPeriodEnd])
+  @@index([restaurantId])
+}
+
+model SubscriptionEvent {
+  id             String                @id @default(cuid())
+  subscriptionId String
+  type           SubscriptionEventType
+  fromStatus     SubscriptionStatus?
+  toStatus       SubscriptionStatus
+  data           Json                  @default("{}")
+  actorId        String?
+  occurredAt     DateTime              @default(now())
+  subscription   Subscription          @relation(fields: [subscriptionId], references: [id])
+
+  @@index([subscriptionId, occurredAt])
+}
+
+/// A payment the Super Admin recorded by hand after the money arrived. There is no online payment gateway.
+model Payment {
+  id             String        @id @default(cuid())
+  subscriptionId String
+  restaurantId   String
+  amountMinor    Int
+  currency       Currency
+  method         PaymentMethod @default(CASH)
+  reference      String        @default("")
+  paidAt         DateTime
+  coversFrom     DateTime
+  coversTo       DateTime
+  idempotencyKey String        @unique
+  recordedById   String
+  note           String        @default("")
+  createdAt      DateTime      @default(now())
+  subscription   Subscription  @relation(fields: [subscriptionId], references: [id])
+  restaurant     Restaurant    @relation(fields: [restaurantId], references: [id])
+
+  @@index([subscriptionId])
+  @@index([restaurantId, paidAt])
+}
+
+enum CashierLinkStatus {
+  ACTIVE
+  REVOKED
+}
+
+enum LinkEventType {
+  CATALOG_CHANGED
+  LINK_REVOKED
+  PLAN_CHANGED
+}
+
+/// A menu paired with a Buzzify Cashier business (docs/superpowers/specs/2026-10-24-cashier-link-menu-side.md and the
+/// cashier repo's link contract). At most one ACTIVE link per menu (a partial unique index in the migration). The
+/// secret is stored encrypted (`LINK_ENCRYPTION_KEY`) and is never returned by any API after pairing.
+model CashierLink {
+  id                  String               @id @default(cuid())
+  menuId              String
+  status              CashierLinkStatus    @default(ACTIVE)
+  /// AES-256-GCM of the shared secret, `base64url(iv | tag | ciphertext)`.
+  secretCiphertext    String
+  /// The cashier's origin, checked by the SSRF guard when it paired.
+  cashierBaseUrl      String
+  /// The cashier's Business id: opaque to the menu, shown to staff with the name.
+  cashierBusinessRef  String
+  cashierBusinessName String
+  coreBusinessId      String?
+  pairedAt            DateTime             @default(now())
+  revokedAt           DateTime?
+  lastSeenAt          DateTime?
+  menu                Menu                 @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  events              CashierLinkEvent[]
+  imports             CashierImportBatch[]
+
+  @@index([menuId, status])
+}
+
+/// A single-use code the menu owner generates in the Studio and the cashier owner enters; stored hashed.
+model CashierPairingCode {
+  id          String    @id @default(cuid())
+  menuId      String
+  /// SHA-256 of the 10-character code, in hex.
+  codeHash    String    @unique
+  expiresAt   DateTime
+  usedAt      DateTime?
+  /// Failed pairing attempts that matched this code; five burn it.
+  attempts    Int       @default(0)
+  /// A plain id, not a relation, so removing the person never blocks history.
+  createdById String?
+  createdAt   DateTime  @default(now())
+  menu        Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId])
+}
+
+/// A nudge for the cashier (`catalog.changed`, `link.revoked`, `plan.changed`), written in the same transaction as the
+/// change and delivered after it: once at once, then from the scheduler every minute (contract 6.5). It carries no data.
+model CashierLinkEvent {
+  id            String        @id @default(cuid())
+  linkId        String
+  /// The id the cashier de-duplicates by; the same across retries.
+  eventId       String        @unique @default(uuid())
+  type          LinkEventType
+  occurredAt    DateTime      @default(now())
+  attempts      Int           @default(0)
+  nextAttemptAt DateTime      @default(now())
+  deliveredAt   DateTime?
+  lastError     String?
+  link          CashierLink   @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@index([deliveredAt, nextAttemptAt])
+  @@index([linkId])
+}
+
+/// What an import from the cashier answered, kept so the same `batchKey` returns the first answer (contract 5.4).
+model CashierImportBatch {
+  id        String      @id @default(cuid())
+  linkId    String
+  batchKey  String
+  result    Json
+  createdAt DateTime    @default(now())
+  link      CashierLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+
+  @@unique([linkId, batchKey])
+}
+
+/// A fixed-window counter for the link API (600 requests a minute per link, pairing attempts per address), in the
+/// database so every instance agrees.
+model LinkRateLimit {
+  key         String   @id
+  windowStart DateTime
+  count       Int
+}
+
+/// The roles of the cashier, separate from the Studio's `MemberRole`.
+enum PosRole {
+  OWNER
+  MANAGER
+  CASHIER
+  KITCHEN
+}
+
+enum PosPaymentMethod {
+  CASH
+  ZAINCASH
+  FIB
+  QICARD
+}
+
+/// How one restaurant runs its till: rates, payment methods and the on/off switches of the cashier's features.
+model PosSettings {
+  id                    String             @id @default(cuid())
+  restaurantId          String             @unique
+  /// Whole percent added as a service charge.
+  serviceRatePercent    Int                @default(0)
+  /// Whole percent added as tax.
+  taxRatePercent        Int                @default(0)
+  enabledPaymentMethods PosPaymentMethod[] @default([CASH])
+  kitchenPrintEnabled   Boolean            @default(false)
+  kitchenScreenEnabled  Boolean            @default(false)
+  qrOrderingEnabled     Boolean            @default(false)
+  takeawayEnabled       Boolean            @default(false)
+  deliveryEnabled       Boolean            @default(false)
+  complaintsEnabled     Boolean            @default(false)
+  /// Minutes a table may stay occupied before its ring warns.
+  tableRingMinutes      Int                @default(60)
+  /// The menu whose rows are this restaurant's product list; null until the cashier is first set up.
+  catalogMenuId         String?
+  version               Int                @default(1)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  restaurant            Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  catalogMenu           Menu?              @relation(fields: [catalogMenuId], references: [id], onDelete: SetNull)
+}
+
+/// A person who works the till of one restaurant. An OWNER member of the restaurant is its cashier OWNER without a row.
+model PosStaff {
+  id               String             @id @default(cuid())
+  restaurantId     String
+  userId           String
+  role             PosRole
+  deactivatedAt    DateTime?
+  /// For a KITCHEN member: the only section whose screen they see. Null sees every section.
+  kitchenSectionId String?
+  /// scrypt hash of the quick sign-in PIN, never the PIN.
+  pinHash          String?
+  pinSetAt         DateTime?
+  pinFailedCount   Int                @default(0)
+  pinLockedUntil   DateTime?
+  createdAt        DateTime           @default(now())
+  restaurant       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kitchenSection   PosKitchenSection? @relation(fields: [kitchenSectionId], references: [id], onDelete: SetNull)
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
+  @@index([userId])
+}
+
+/// A part of the kitchen with its own screen (grill, cold, bar). A KITCHEN member may be tied to one.
+model PosKitchenSection {
+  id           String               @id @default(cuid())
+  restaurantId String
+  name         String
+  sortOrder    Int                  @default(0)
+  createdAt    DateTime             @default(now())
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff        PosStaff[]
+  categories   PosCategorySetting[]
+  products     PosProductSetting[]
+
+  @@index([restaurantId])
+}
+
+/// What only the till knows about a menu category: which kitchen section prepares it.
+model PosCategorySetting {
+  id           String             @id @default(cuid())
+  categoryId   String             @unique
+  restaurantId String
+  sectionId    String?
+  category     Category           @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  section      PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// What only the till knows about a menu product: its kitchen section (overriding its category's) and a till-only sold-out switch.
+model PosProductSetting {
+  id              String             @id @default(cuid())
+  productId       String             @unique
+  restaurantId    String
+  sectionId       String?
+  soldOutOverride Boolean            @default(false)
+  product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
+  section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
+  restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum PosOrderStatus {
+  PENDING_APPROVAL
+  OPEN
+  READY
+  BILL_REQUESTED
+  PAID
+  CANCELLED
+  REJECTED
+}
+
+enum PosOrderKind {
+  DINE_IN
+  TAKEAWAY
+  DELIVERY
+}
+
+/// How far a takeaway or delivery order has come. Null for a dine-in order.
+enum PosFulfillment {
+  NEW
+  PREPARING
+  READY
+  OUT
+  DELIVERED
+  PICKED_UP
+}
+
+enum PosDiscountKind {
+  AMOUNT
+  PERCENT
+}
+
+/// A part of the floor (hall, terrace) that groups tables.
+model PosArea {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  sortOrder    Int        @default(0)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  tables       PosTable[]
+
+  @@index([restaurantId])
+}
+
+/// A dining table. Its number is the Menu's QR table number (`/t/<n>`), so there is one numbering.
+model PosTable {
+  id             String             @id @default(cuid())
+  restaurantId   String
+  areaId         String
+  number         Int
+  restaurant     Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  area           PosArea            @relation(fields: [areaId], references: [id], onDelete: Cascade)
+  orders         PosOrder[]
+  customerOrders PosCustomerOrder[]
+
+  @@unique([restaurantId, number])
+  @@index([areaId])
+}
+
+/// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
+model PosOrder {
+  id                   String           @id @default(cuid())
+  restaurantId         String
+  tableId              String?
+  /// Sequence per restaurant.
+  number               Int
+  kind                 PosOrderKind     @default(DINE_IN)
+  status               PosOrderStatus   @default(OPEN)
+  seatedAt             DateTime         @default(now())
+  invoiceDiscountKind  PosDiscountKind?
+  invoiceDiscountValue Int?
+  /// Takeaway and delivery: the Baghdad day ('YYYY-MM-DD') and the number within it. Null for dine-in.
+  queueDay             String?
+  queueNumber          Int?
+  customerName         String           @default("")
+  customerPhone        String           @default("")
+  address              String           @default("")
+  addressNote          String           @default("")
+  /// Plain ids and copies (no relation): a zone or driver edit never changes an order.
+  deliveryZoneId       String?
+  deliveryZoneName     String           @default("")
+  /// Integer IQD added after tax; 0 for anything but a delivery.
+  deliveryFee          Int              @default(0)
+  driverId             String?
+  driverNameSnapshot   String           @default("")
+  fulfillment          PosFulfillment?
+  outAt                DateTime?
+  doneAt               DateTime?
+  /// Optimistic lock: every write to an order or its lines matches it and bumps it by one.
+  version              Int              @default(1)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+  restaurant           Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table                PosTable?        @relation(fields: [tableId], references: [id], onDelete: SetNull)
+  lines                PosOrderLine[]
+  payment              PosPayment?
+
+  @@unique([restaurantId, number])
+  @@unique([restaurantId, queueDay, queueNumber])
+  @@index([tableId])
+  @@index([restaurantId, status])
+  @@index([restaurantId, kind, status])
+  @@index([restaurantId, customerPhone])
+}
+
+/// A delivery area with its fee, picked when a delivery order is opened.
+model PosDeliveryZone {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  /// Integer IQD.
+  fee          Int
+  active       Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// A person who delivers. They never sign in: a name and a phone, nothing more.
+model PosDriver {
+  id           String     @id @default(cuid())
+  restaurantId String
+  name         String
+  phone        String     @default("")
+  active       Boolean    @default(true)
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+model PosOrderLine {
+  id                  String           @id @default(cuid())
+  restaurantId        String
+  orderId             String
+  productId           String?
+  nameSnapshot        String
+  /// Integer IQD: the product's base price when the line was added. Chosen variant and options are in optionsSnapshot.
+  unitPriceSnapshot   Int
+  quantity            Int              @default(1)
+  note                String           @default("")
+  /// [{ id, name, priceDelta }] of the chosen variant (first) and options, copied when the line was added.
+  optionsSnapshot     Json             @default("[]")
+  discountKind        PosDiscountKind?
+  discountValue       Int?
+  cancelledAt         DateTime?
+  cancelReason        String?
+  /// Plain id (no relation): the kitchen section when the line was added; survives a section delete.
+  sectionId           String?
+  sectionNameSnapshot String           @default("")
+  sentAt              DateTime?
+  /// The round it was sent in: 1, 2, 3... per order.
+  batch               Int?
+  readyAt             DateTime?
+  cancelAckAt         DateTime?
+  createdAt           DateTime         @default(now())
+  restaurant          Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order               PosOrder         @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product             Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId])
+  @@index([orderId])
+  @@index([productId])
+  @@index([restaurantId, sentAt])
+}
+
+model PosPayment {
+  id             String              @id @default(cuid())
+  restaurantId   String
+  orderId        String              @unique
+  method         PosPaymentMethod
+  /// Integer IQD handed over by the customer.
+  amountReceived Int
+  reference      String?
+  totalsSnapshot Json
+  userId         String?
+  shiftId        String?
+  paidAt         DateTime            @default(now())
+  restaurant     Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  order          PosOrder            @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift          PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  reversal       PosPaymentReversal?
+
+  @@index([restaurantId, paidAt])
+  @@index([shiftId])
+}
+
+/// One person's cash drawer from opening to count. One open shift per person and restaurant: the partial unique index
+/// "PosShift_one_open_per_user" (raw SQL in the migration).
+model PosShift {
+  id                  String               @id @default(cuid())
+  restaurantId        String
+  userId              String
+  openedAt            DateTime             @default(now())
+  /// Integer IQD in the drawer when the shift opened. Zero is allowed.
+  openingFloat        Int
+  closedAt            DateTime?
+  /// Plain id (no relation) so it records a manager closing someone else's shift.
+  closedByUserId      String?
+  countedCash         Int?
+  /// Integer IQD the drawer should have held at close, frozen when the shift closed.
+  expectedCashAtClose Int?
+  /// countedCash minus expectedCashAtClose: positive is over, negative is short.
+  difference          Int?
+  note                String               @default("")
+  restaurant          Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user                User                 @relation(fields: [userId], references: [id], onDelete: NoAction)
+  payments            PosPayment[]
+  expenses            PosCashExpense[]
+  reversals           PosPaymentReversal[]
+
+  @@index([restaurantId, openedAt])
+  @@index([userId])
+}
+
+/// Cash taken out of the drawer during a shift.
+model PosCashExpense {
+  id           String     @id @default(cuid())
+  restaurantId String
+  shiftId      String
+  userId       String
+  /// Integer IQD.
+  amount       Int
+  reason       String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shift        PosShift   @relation(fields: [shiftId], references: [id], onDelete: Cascade)
+  user         User       @relation(fields: [userId], references: [id], onDelete: NoAction)
+
+  @@index([shiftId])
+  @@index([restaurantId, createdAt])
+}
+
+/// One operation a till device queued while offline, applied exactly once: the action and this row commit together.
+model PosSyncOperation {
+  id           String     @id @default(cuid())
+  restaurantId String
+  /// Plain id (no relation): the person whose till sent it.
+  userId       String
+  deviceId     String
+  /// The client's uuid: the idempotency key, unique per restaurant.
+  operationId  String
+  kind         String
+  /// sha256 of the canonical payload: the same id with another payload is refused.
+  payloadHash  String
+  /// What the action answered, stored in the same transaction; a repeat of the operation answers this.
+  result       Json
+  clientAt     DateTime
+  appliedAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, operationId])
+  @@index([restaurantId, appliedAt])
+}
+
+enum PosCustomerOrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
+/// A guest's order from the Menu's table page, waiting for the cashier. Separate from `PosOrder`, so the one-live-order-per-table
+/// index and the order state machine are untouched. A request older than 60 minutes is expired on read, not by a job.
+model PosCustomerOrder {
+  id              String                 @id @default(cuid())
+  restaurantId    String
+  tableId         String
+  /// The Menu's table number when the guest sent it.
+  tableNumber     Int
+  /// Random and unguessable: the guest reads the request's status with it.
+  publicId        String                 @unique @default(cuid())
+  status          PosCustomerOrderStatus @default(PENDING)
+  customerNote    String                 @default("")
+  locale          String
+  rejectReason    String                 @default("")
+  /// Plain id (no relation): the order the request became or joined.
+  orderId         String?
+  decidedAt       DateTime?
+  /// Plain id (no relation): the person who accepted or rejected it.
+  decidedByUserId String?
+  createdAt       DateTime               @default(now())
+  restaurant      Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table           PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  lines           PosCustomerOrderLine[]
+
+  @@index([restaurantId, status])
+  @@index([tableId, status, createdAt])
+  @@index([restaurantId, createdAt])
+}
+
+model PosCustomerOrderLine {
+  id                   String           @id @default(cuid())
+  restaurantId         String
+  requestId            String
+  productId            String?
+  nameSnapshot         String
+  /// Integer IQD: the product's base price when the guest ordered. The variant and options are in optionsSnapshot.
+  unitPriceSnapshot    Int
+  /// [{ id, name, priceDelta }] of the chosen variant (first) and options.
+  optionsSnapshot      Json             @default("[]")
+  /// Integer IQD per unit the Menu's promotions took off (base + options minus the quoted unit price); 0 for none.
+  promoDiscountPerUnit Int              @default(0)
+  quantity             Int
+  note                 String           @default("")
+  restaurant           Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  request              PosCustomerOrder @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  product              Product?         @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([restaurantId])
+}
+
+/// A full reversal of one payment, recorded as a counter-entry under the reverser's name. One per payment; the payment
+/// row is never edited. It counts in the shift where it was recorded.
+model PosPaymentReversal {
+  id           String           @id @default(cuid())
+  restaurantId String
+  paymentId    String           @unique
+  orderId      String
+  method       PosPaymentMethod
+  /// Integer IQD: the payment's snapshot total.
+  amount       Int
+  /// Free text copied from the terminal for a terminal method.
+  reference    String?
+  reason       String
+  userId       String?
+  shiftId      String?
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  user         User?            @relation(fields: [userId], references: [id], onDelete: SetNull)
+  shift        PosShift?        @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([shiftId])
+}
+
+/// A till device a manager registered for quick PIN sign-in. Only the sha256 of its cookie token is stored.
+model PosSharedDevice {
+  id              String     @id @default(cuid())
+  restaurantId    String
+  name            String
+  tokenHash       String     @unique
+  createdByUserId String?
+  createdAt       DateTime   @default(now())
+  lastUsedAt      DateTime?
+  revokedAt       DateTime?
+  restaurant      Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+/// One PIN attempt on a device, for the per-device limit. Plain ids; never holds the PIN.
+model PosPinAttempt {
+  id           String     @id @default(cuid())
+  restaurantId String
+  deviceId     String
+  staffId      String
+  ok           Boolean
+  at           DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([deviceId, at])
+  @@index([staffId, at])
+}
+
+enum PosStockUnit {
+  GRAM
+  MILLILITER
+  PIECE
+}
+
+enum PosStockMovementKind {
+  PURCHASE
+  PURCHASE_VOID
+  SALE
+  ADJUSTMENT
+  WASTE
+  COUNT
+}
+
+enum PosSupplierPayMethod {
+  CASH
+  BANK
+  ZAINCASH
+  FIB
+  QICARD
+  OTHER
+}
+
+enum PosComplaintStatus {
+  NEW
+  IN_PROGRESS
+  RESOLVED
+}
+
+enum PosComplaintCategory {
+  FOOD
+  SERVICE
+  CLEANLINESS
+  PRICE
+  OTHER
+}
+
+/// An ingredient or supply. `onHand` changes only in the same transaction as a PosStockMovement, by exactly its quantity.
+/// The last cost is lastCostAmount IQD for lastCostQuantity units, both null until the first purchase.
+model PosInventoryItem {
+  id               String             @id @default(cuid())
+  restaurantId     String
+  name             String
+  nameKey          String
+  unit             PosStockUnit
+  onHand           Int                @default(0)
+  reorderLevel     Int                @default(0)
+  active           Boolean            @default(true)
+  lastCostAmount   Int?
+  lastCostQuantity Int?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  restaurant       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements        PosStockMovement[]
+  purchaseLines    PosPurchaseLine[]
+  recipeLines      PosRecipeLine[]
+
+  @@unique([restaurantId, nameKey])
+  @@index([restaurantId, active])
+}
+
+model PosSupplier {
+  id           String               @id @default(cuid())
+  restaurantId String
+  name         String
+  nameKey      String
+  phone        String               @default("")
+  notes        String               @default("")
+  active       Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  restaurant   Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  invoices     PosPurchaseInvoice[]
+
+  @@unique([restaurantId, nameKey])
+}
+
+/// A supplier invoice, posted when saved. Never edited: a wrong one is voided and entered again.
+model PosPurchaseInvoice {
+  id           String                @id @default(cuid())
+  restaurantId String
+  supplierId   String
+  /// 'YYYY-MM-DD', the date printed on the invoice (a Baghdad calendar day).
+  invoiceDay   String
+  number       String?
+  note         String                @default("")
+  /// Integer IQD: the sum of the lines.
+  total        Int
+  clientKey    String
+  paidAt       DateTime?
+  paidMethod   PosSupplierPayMethod?
+  voidedAt     DateTime?
+  voidReason   String?
+  /// Plain id (no relation): the person who saved it.
+  userId       String?
+  createdAt    DateTime              @default(now())
+  restaurant   Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  supplier     PosSupplier           @relation(fields: [supplierId], references: [id], onDelete: NoAction)
+  lines        PosPurchaseLine[]
+
+  @@unique([restaurantId, clientKey])
+  @@unique([restaurantId, supplierId, number])
+  @@index([restaurantId, invoiceDay])
+}
+
+model PosPurchaseLine {
+  id           String             @id @default(cuid())
+  restaurantId String
+  invoiceId    String
+  itemId       String
+  /// In the item's smallest unit.
+  quantity     Int
+  /// Integer IQD as printed on the invoice.
+  lineTotal    Int
+  createdAt    DateTime           @default(now())
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  invoice      PosPurchaseInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  item         PosInventoryItem   @relation(fields: [itemId], references: [id], onDelete: NoAction)
+
+  @@index([invoiceId])
+  @@index([itemId, createdAt])
+}
+
+model PosStockCount {
+  id           String             @id @default(cuid())
+  restaurantId String
+  userId       String?
+  note         String             @default("")
+  createdAt    DateTime           @default(now())
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  movements    PosStockMovement[]
+
+  @@index([restaurantId, createdAt])
+}
+
+/// The append-only stock ledger. Rows are only ever created. quantity is a signed delta; costTotal is IQD (the line total
+/// for a purchase, negated for a void; the last-cost value for a sale or waste; null when unknown). purchaseLineId,
+/// paymentId and orderLineId are plain ids so history outlives the rows.
+model PosStockMovement {
+  id             String               @id @default(cuid())
+  restaurantId   String
+  itemId         String
+  kind           PosStockMovementKind
+  quantity       Int
+  costTotal      Int?
+  reason         String               @default("")
+  purchaseLineId String?
+  paymentId      String?
+  orderLineId    String?
+  countId        String?
+  userId         String?
+  createdAt      DateTime             @default(now())
+  restaurant     Restaurant           @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  item           PosInventoryItem     @relation(fields: [itemId], references: [id], onDelete: NoAction)
+  count          PosStockCount?       @relation(fields: [countId], references: [id], onDelete: SetNull)
+
+  @@index([restaurantId, createdAt])
+  @@index([itemId, createdAt])
+  @@index([paymentId])
+}
+
+/// One ingredient of a product, per ONE unit sold. Configuration, not the ledger.
+model PosRecipeLine {
+  id           String           @id @default(cuid())
+  restaurantId String
+  productId    String
+  itemId       String
+  quantity     Int
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product      Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  item         PosInventoryItem @relation(fields: [itemId], references: [id], onDelete: NoAction)
+
+  @@unique([productId, itemId])
+  @@index([restaurantId])
+  @@index([itemId])
+}
+
+/// A guest complaint or suggestion from a table QR page. The contact is personal data: removable, never audited.
+/// tableId and orderId are plain ids (no relation) so a deleted table or order never deletes a complaint.
+model PosComplaint {
+  id                    String                @id @default(cuid())
+  restaurantId          String
+  clientKey             String
+  status                PosComplaintStatus    @default(NEW)
+  category              PosComplaintCategory?
+  body                  String
+  tableId               String?
+  tableNumber           Int?
+  orderId               String?
+  orderNumber           Int?
+  contactName           String?
+  contactPhone          String?
+  contactConsentAt      DateTime?
+  contactRemovedAt      DateTime?
+  /// Suggestions by the AI package (phase 9); the customer's own category above is never changed.
+  aiCategory            PosComplaintCategory?
+  aiSummary             String?
+  languageGuess         String?
+  aiLabeledAt           DateTime?
+  statusChangedAt       DateTime?
+  statusChangedByUserId String?
+  locale                String                @default("ar")
+  createdAt             DateTime              @default(now())
+  restaurant            Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  notes                 PosComplaintNote[]
+
+  @@unique([restaurantId, clientKey])
+  @@index([restaurantId, status, createdAt])
+  @@index([restaurantId, aiLabeledAt])
+  @@index([tableId, createdAt])
+}
+
+model PosComplaintNote {
+  id           String       @id @default(cuid())
+  restaurantId String
+  complaintId  String
+  userId       String?
+  body         String
+  createdAt    DateTime     @default(now())
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  complaint    PosComplaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId, createdAt])
+}
+
+/// What the AI package may do for a restaurant. Set by the Super Admin (`pos.setAiPackage`) and read locally on every AI
+/// request: Core is never contacted at sale time. `monthlyLimit` 0 with the package on means "no requests left", never "unlimited".
+model PosAiPackage {
+  restaurantId String     @id
+  enabled      Boolean    @default(false)
+  monthlyLimit Int        @default(0)
+  syncedAt     DateTime?
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+/// AI requests per Baghdad calendar month ('YYYY-MM'). A request is one user-started AI operation.
+model PosAiUsageMonth {
+  restaurantId String
+  month        String
+  requests     Int        @default(0)
+  inputTokens  Int        @default(0)
+  outputTokens Int        @default(0)
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@id([restaurantId, month])
+}
+
+enum PosAiFeature {
+  ASK
+  SUMMARY
+  ALERTS
+  SUPPLY_ENTRY
+  COMPLAINTS
+}
+
+enum PosAiCallStatus {
+  OK
+  PROVIDER_ERROR
+  TIMEOUT
+  REFUSED
+  REJECTED_OUTPUT
+}
+
+enum PosAiSummaryKind {
+  DAILY
+  WEEKLY
+  MONTHLY
+  ALERTS
+}
+
+/// Metadata only: never a prompt, an answer, a tool result or a file. staffId is a plain id.
+model PosAiCall {
+  id           String          @id @default(cuid())
+  restaurantId String
+  staffId      String?
+  feature      PosAiFeature
+  model        String
+  status       PosAiCallStatus
+  inputTokens  Int             @default(0)
+  outputTokens Int             @default(0)
+  toolCalls    Int             @default(0)
+  ms           Int
+  createdAt    DateTime        @default(now())
+  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, createdAt])
+}
+
+/// A phrased summary or alerts paragraph, reused while the facts it was written from (factsHash) are unchanged.
+model PosAiSummary {
+  id           String           @id @default(cuid())
+  restaurantId String
+  kind         PosAiSummaryKind
+  periodFrom   String
+  periodTo     String
+  locale       String
+  factsHash    String
+  text         String
+  model        String
+  createdAt    DateTime         @default(now())
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, kind, periodFrom, periodTo, locale])
 }

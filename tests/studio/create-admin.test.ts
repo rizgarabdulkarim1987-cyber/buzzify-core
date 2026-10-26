@@ -111,7 +111,9 @@ describe('npm run studio:create-admin', () => {
     expect(out).toContain('/studio/sign-in');
     expect(out).not.toContain(GOOD);
     const user = await prisma.user.findUniqueOrThrow({ where: { email: 'ada@example.test' }, include: { accounts: true } });
-    expect(user).toMatchObject({ name: 'Ada Admin', isSuperAdmin: true, emailVerified: true, twoFactorEnabled: false, deactivatedAt: null });
+    // The first Super Admin is the one who sells: the platform owner.
+    expect(user).toMatchObject({ name: 'Ada Admin', isSuperAdmin: true, isPlatformOwner: true, emailVerified: true, twoFactorEnabled: false, deactivatedAt: null });
+    expect(out).toContain('platform owner');
     expect(user.accounts[0]).toMatchObject({ providerId: 'credential' });
     expect(user.accounts[0]?.password).not.toContain(GOOD);
     // The password that was typed is the one stored.
@@ -121,7 +123,7 @@ describe('npm run studio:create-admin', () => {
   }, 90_000);
 
   it('refuses when a Super Admin exists, unless --force', async () => {
-    await createPasswordUser(prisma, { email: 'root@example.test', name: 'Root', password: GOOD, isSuperAdmin: true });
+    await createPasswordUser(prisma, { email: 'root@example.test', name: 'Root', password: GOOD, isSuperAdmin: true, isPlatformOwner: true });
 
     const refused = run(['Second', 'second@example.test', GOOD, GOOD]);
     expect(refused.code).toBe(1);
@@ -131,6 +133,8 @@ describe('npm run studio:create-admin', () => {
     const forced = run(['Second', 'second@example.test', GOOD, GOOD], ['--force']);
     expect(forced.code).toBe(0);
     expect(await prisma.user.count({ where: { isSuperAdmin: true } })).toBe(2);
+    // A further Super Admin never takes the platform owner's place.
+    expect(await prisma.user.findUniqueOrThrow({ where: { email: 'second@example.test' } })).toMatchObject({ isPlatformOwner: false });
   }, 90_000);
 
   it('asks again for a weak password, a mismatch and a bad email, and says what is wrong', async () => {

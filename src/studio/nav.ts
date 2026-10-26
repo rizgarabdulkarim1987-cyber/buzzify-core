@@ -1,9 +1,9 @@
 import type { Actor } from '@/server/studio/auth/actor';
 
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
-export type NavIcon = 'overview' | 'restaurants' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'store';
+export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'store';
 
-export type NavKey = 'overview' | 'restaurants' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'myRestaurant';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'styles' | 'people' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview';
 
 export interface NavItem {
   key: NavKey;
@@ -23,6 +23,10 @@ export interface NavItem {
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'overview', href: '/studio', labelKey: 'nav.overview', icon: 'overview', exact: true },
   { key: 'restaurants', href: '/studio/restaurants', labelKey: 'nav.restaurants', icon: 'restaurants' },
+  // Every restaurant's subscriptions and last payment (docs/superpowers/plans/2026-10-22-business-core-in-menu.md).
+  { key: 'billing', href: '/studio/billing', labelKey: 'nav.billing', icon: 'billing' },
+  // The cashier across the platform: who has it, its staff and whether a catalog is set up. The till itself is /pos.
+  { key: 'cashierOverview', href: '/studio/cashier', labelKey: 'nav.cashierOverview', icon: 'store' },
   { key: 'menus', href: '/studio/menus', labelKey: 'nav.menus', icon: 'menus' },
   // The libraries a person manages: Super Admins and designers (spec refinement 20); an owner's pictures are picked in the editor.
   { key: 'media', href: '/studio/media', labelKey: 'nav.media', icon: 'media' },
@@ -36,10 +40,10 @@ export const NAV_ITEMS: readonly NavItem[] = [
 
 /**
  * Areas only Super Admins have. The People page reads every account on the platform, which only they may; an owner
- * allowed to invite does that from their restaurant's People tab. Activity and Settings need `audit.view` and
- * `platform.settings`, which no client policy can grant.
+ * allowed to invite does that from their restaurant's People tab. Billing, Activity and Settings need `platform.settings`
+ * or `audit.view`, which no client policy can grant.
  */
-const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['people', 'activity', 'settings']);
+const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'people', 'activity', 'settings']);
 
 /** What the navigation needs to know about a restaurant an owner holds: its name and its menus. */
 export interface OwnedRestaurant {
@@ -101,8 +105,13 @@ export function isNavItemActive(item: Pick<NavItem, 'href' | 'exact' | 'match'>,
   return [item.href, ...(item.match ?? [])].some((path) => within(pathname, path));
 }
 
-/** A Studio path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
-const STUDIO_PATH = /^\/studio(?:\/[A-Za-z0-9_-]+)*$/;
+/** The one item that leads from the Studio to the till; the shell adds it only for a person with a till (`getPosAccess`). */
+export function posNavItem(): NavItem {
+  return { key: 'cashier', href: '/pos', labelKey: 'nav.cashier', icon: 'store' };
+}
+
+/** A Studio or till path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
+const STUDIO_PATH = /^\/(?:studio|pos)(?:\/[A-Za-z0-9_-]+)*$/;
 
 /**
  * The page to return to after signing in, from an untrusted `next` parameter: a Studio path, or null for anything else,

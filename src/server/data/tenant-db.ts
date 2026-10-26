@@ -12,23 +12,27 @@ export const MENU_SCOPED_MODELS = [
   'PairingRule',
   'Bundle',
   'BundleItem',
+  'Promotion',
   'DaypartSchedule',
+  'MenuMotion',
   'Table',
   'QrCode',
   'ImportJob',
   'AnalyticsEvent',
   'MenuRevision',
+  'CashierLink',
+  'CashierPairingCode',
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
-export const RESTAURANT_SCOPED_MODELS = ['Branch'] as const;
+export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary'] as const;
 
 /**
  * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
  * A client carrying a restaurant reads that restaurant's rows and the shared ones and writes only its own; any other
  * client (a menu's alone, or the platform's) reads and writes the shared rows only.
  */
-export const RESTAURANT_OR_SHARED_MODELS = ['MediaAsset'] as const;
+export const RESTAURANT_OR_SHARED_MODELS = ['MediaAsset', 'DesignTemplate'] as const;
 
 /**
  * Looked up by slug or host before the tenant is known, through the base client. A scoped client still confines `Menu`
@@ -38,10 +42,11 @@ export const UNSCOPED_LOOKUP_MODELS = ['Menu', 'MenuSlug', 'MenuDomain'] as cons
 
 /**
  * Global models that reference a restaurant by design, because they are queried across restaurants: a person's
- * memberships are read by user (with the base client), to learn which restaurants they may open. A client scoped to a
+ * memberships are read by user (with the base client), to learn which restaurants they may open; billing rows are read and swept across
+ * restaurants by the platform owner. A client scoped to a
  * restaurant confines them to it (`RESTAURANT_CONFINED_MODELS`).
  */
-export const CROSS_RESTAURANT_MODELS = ['Membership'] as const;
+export const CROSS_RESTAURANT_MODELS = ['Membership', 'Subscription', 'Payment'] as const;
 
 /**
  * Better Auth's tables (accounts, sessions, tokens, its own HTTP rate limits), the Studio's rate-limit counters, the
@@ -61,6 +66,14 @@ export const GLOBAL_MODELS = [
   'AuditLog',
   'Invitation',
   'PlatformSetting',
+  // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).
+  'Application',
+  'PlanPrice',
+  'SubscriptionEvent',
+  // The cashier link's events, imports and counters are reached through a link, which the base client finds by id.
+  'CashierLinkEvent',
+  'CashierImportBatch',
+  'LinkRateLimit',
 ] as const;
 
 /**
@@ -77,6 +90,8 @@ export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaur
   Restaurant: 'id',
   Menu: 'restaurantId',
   Membership: 'restaurantId',
+  Subscription: 'restaurantId',
+  Payment: 'restaurantId',
 };
 
 /** Which menu and which restaurant a client is confined to. A class of rows whose id is missing is refused outright. */

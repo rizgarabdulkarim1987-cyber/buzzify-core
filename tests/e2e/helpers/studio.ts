@@ -9,6 +9,7 @@ import type { Locale } from '@/lib/locale';
 import { createPrisma } from '@/server/data/prisma';
 import { readDevMail } from '@/server/email/send';
 import { DEV_DB, databaseUrl } from '../../../scripts/db-config';
+import { deleteBillingRows } from '../../helpers/db';
 
 /**
  * Studio people for the end-to-end tests, written straight to the development database the app under test reads.
@@ -292,6 +293,7 @@ export async function removeRestaurants(ids: readonly string[]): Promise<void> {
   const db = prisma();
   try {
     await db.auditLog.deleteMany({ where: { OR: [{ restaurantId: { in: [...ids] } }, { entityId: { in: [...ids] } }] } });
+    await deleteBillingRows(db, ids);
     await db.restaurant.deleteMany({ where: { id: { in: [...ids] } } });
   } finally {
     await db.$disconnect();
@@ -332,6 +334,68 @@ export async function restorePlatformSettings(rows: readonly SettingRow[]): Prom
   try {
     await db.platformSetting.deleteMany();
     if (rows.length > 0) await db.platformSetting.createMany({ data: rows.map((row) => ({ ...row, value: row.value as never })) });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** One plan price of a product, as stored. */
+export interface PlanPriceRow {
+  planCode: string;
+  currency: 'IQD' | 'USD';
+  period: 'MONTHLY' | 'YEARLY';
+  amountMinor: number;
+}
+
+/** A product's plan prices as they are now, so a test that changes them can put them back (`restorePlanPrices`). */
+export async function planPriceRows(applicationId: string): Promise<PlanPriceRow[]> {
+  const db = prisma();
+  try {
+    return await db.planPrice.findMany({ where: { applicationId }, select: { planCode: true, currency: true, period: true, amountMinor: true } });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Puts a product's plan prices back as `rows` had them. */
+export async function restorePlanPrices(applicationId: string, rows: readonly PlanPriceRow[]): Promise<void> {
+  const db = prisma();
+  try {
+    await db.$transaction([
+      db.planPrice.deleteMany({ where: { applicationId } }),
+      db.planPrice.createMany({ data: rows.map((row) => ({ ...row, applicationId })) }),
+    ]);
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/**
+ * Makes `userId` (a Super Admin) the platform owner, the one person who changes plans, and answers who was it before, for
+ * `restorePlatformOwner`. There is at most one owner, so the flag moves in one transaction.
+ */
+export async function makePlatformOwner(userId: string): Promise<string | null> {
+  const db = prisma();
+  try {
+    return await db.$transaction(async (tx) => {
+      const before = await tx.user.findFirst({ where: { isPlatformOwner: true }, select: { id: true } });
+      await tx.user.updateMany({ where: { isPlatformOwner: true }, data: { isPlatformOwner: false } });
+      await tx.user.update({ where: { id: userId }, data: { isPlatformOwner: true } });
+      return before?.id ?? null;
+    });
+  } finally {
+    await db.$disconnect();
+  }
+}
+
+/** Gives the platform owner back to `userId` (none: nobody), as it was before `makePlatformOwner`. */
+export async function restorePlatformOwner(userId: string | null): Promise<void> {
+  const db = prisma();
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.user.updateMany({ where: { isPlatformOwner: true }, data: { isPlatformOwner: false } });
+      if (userId) await tx.user.updateMany({ where: { id: userId }, data: { isPlatformOwner: true } });
+    });
   } finally {
     await db.$disconnect();
   }

@@ -84,7 +84,7 @@ beforeAll(async () => {
   await seedDevUsers(prisma, atelier.restaurant.id);
   vi.restoreAllMocks();
   const user = await prisma.user.findUniqueOrThrow({ where: { email: 'admin@buzzify.test' } });
-  admin = { userId: user.id, email: user.email, name: user.name, isSuperAdmin: true, twoFactorEnabled: true, locale: 'en', memberships: [] };
+  admin = { userId: user.id, email: user.email, name: user.name, isSuperAdmin: true, isPlatformOwner: user.isPlatformOwner, twoFactorEnabled: true, locale: 'en', memberships: [] };
 
   const started = performance.now();
   const seeded = await seedLoad(prisma);

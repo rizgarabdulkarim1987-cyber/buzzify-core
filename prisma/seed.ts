@@ -4,8 +4,13 @@ import { createPrisma } from '@/server/data/prisma';
 import { publishMenu } from '@/server/publish/publish';
 import { ATELIER, type SeedData } from './seed/atelier';
 import { HOT_BRICK } from './seed/hot-brick';
+import { MAISON } from './seed/maison';
+import { NOOR } from './seed/noor';
+import { ONDA } from './seed/onda';
 import { RIVERLIGHT } from './seed/riverlight';
+import { seedApplications } from './seed/applications';
 import { seedMenu } from './seed/apply';
+import { demoRestaurant } from './seed/demo-restaurant';
 import { assertLocalDatabase } from './seed/local-database';
 import { seedDevUsers } from './seed/users';
 import { assertSeedValid } from './seed/validate';
@@ -60,26 +65,28 @@ async function checkSlugIsOurs(prisma: PrismaClient, slug: string): Promise<void
   }
 }
 
-/** The demo menus, each under its own restaurant: ATELIER (with the development users), then the two 2b added. */
-const DEMOS: readonly SeedData[] = [ATELIER, RIVERLIGHT, HOT_BRICK];
+/**
+ * The demo menus, each under its own restaurant: ATELIER (with the development users), the two 2b added, then the three
+ * drawn with template presets (a bakery, a gelateria and a restaurant, each named "(Demo)").
+ */
+const DEMOS: readonly SeedData[] = [ATELIER, RIVERLIGHT, HOT_BRICK, MAISON, ONDA, NOOR];
 
-/** Finds the demo's restaurant by name (a reseed keeps it, and so its client number), or creates it. */
-async function demoRestaurant(prisma: PrismaClient, { profile }: SeedData) {
-  return (
-    (await prisma.restaurant.findFirst({ where: { name: profile.name }, orderBy: { createdAt: 'asc' } })) ??
-    (await prisma.restaurant.create({
-      data: {
-        name: profile.name,
-        type: profile.type,
-        description: profile.description,
-        city: profile.city,
-        country: profile.country,
-        phone: profile.phone,
-        whatsapp: profile.whatsapp,
-        socialLinks: profile.instagram ? { instagram: profile.instagram } : {},
-      },
-    }))
-  );
+/**
+ * `--only=maison-demo,onda-demo` seeds just those demo menus and leaves the others (and the development users) as they
+ * are, so adding a demo to a shared database does not replace menus someone is working with. An unknown slug refuses.
+ */
+function selectedDemos(argv: readonly string[]): readonly SeedData[] {
+  const flag = argv.find((arg) => arg.startsWith('--only='));
+  if (!flag) return DEMOS;
+  const slugs = flag.slice('--only='.length).split(',').map((slug) => slug.trim()).filter(Boolean);
+  const unknown = slugs.filter((slug) => !DEMOS.some((demo) => demo.restaurant.slug === slug));
+  if (unknown.length > 0 || slugs.length === 0) {
+    throw new Error(
+      `--only names no demo menu: ${unknown.join(', ') || '(empty)'}. The demo menus are ` +
+        `${DEMOS.map((demo) => demo.restaurant.slug).join(', ')}. Nothing was changed.`,
+    );
+  }
+  return DEMOS.filter((demo) => slugs.includes(demo.restaurant.slug));
 }
 
 /** Seeds one demo menu under its restaurant and publishes it as revision 1 (guests see only what is published). */
@@ -104,19 +111,23 @@ async function seedDemo(prisma: PrismaClient, data: SeedData): Promise<{ restaur
 }
 
 async function main() {
-  for (const demo of DEMOS) assertSeedValid(demo);
+  const demos = selectedDemos(process.argv.slice(2));
+  for (const demo of demos) assertSeedValid(demo);
   const withDevUsers = checkDevUsers();
   const prisma = createPrisma();
   try {
-    // Every address is checked before anything is written, so a refusal leaves all three menus as they were.
-    for (const demo of DEMOS) await checkSlugIsOurs(prisma, demo.restaurant.slug);
-    const atelier = await seedDemo(prisma, ATELIER);
-    await seedDemo(prisma, RIVERLIGHT);
-    await seedDemo(prisma, HOT_BRICK);
+    await seedApplications(prisma);
+    // Every address is checked before anything is written, so a refusal leaves every menu as it was.
+    for (const demo of demos) await checkSlugIsOurs(prisma, demo.restaurant.slug);
+    let atelier: { restaurantId: string } | undefined;
+    for (const demo of demos) {
+      const seeded = await seedDemo(prisma, demo);
+      if (demo === ATELIER) atelier = seeded;
+    }
 
     // Sign-in users for development, on ATELIER: skipped without DEV_SEED_PASSWORD, and never in production.
-    if (withDevUsers) await seedDevUsers(prisma, atelier.restaurantId);
-    else console.log('Development users skipped (production).');
+    if (atelier && withDevUsers) await seedDevUsers(prisma, atelier.restaurantId);
+    else if (atelier) console.log('Development users skipped (production).');
   } finally {
     await prisma.$disconnect();
   }

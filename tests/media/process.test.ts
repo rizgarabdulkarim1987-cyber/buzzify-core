@@ -4,9 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { faviconFiles, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
+import { VISUALLY_LOSSLESS } from '@/server/media/compress';
+import { faviconFiles, IMAGE_WIDTHS, prepareAsset, storeAsset, type PreparedAsset } from '@/server/media/process';
+import { similarity } from '@/server/media/similarity';
 import { folderStorage } from '@/server/storage/folder';
 import type { Storage } from '@/server/storage/storage';
+import { buildGlb, buildMp4 } from '../helpers/scene-files';
+import { photoLike } from './photo-like';
 
 const jpeg = (width: number, height: number) =>
   sharp({ create: { width, height, channels: 3, background: '#C8261C' } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
@@ -145,6 +149,114 @@ describe('prepareAsset', () => {
   });
 });
 
+describe('prepareAsset: smart compression', () => {
+  /** A photo as a phone uploads it: a photo-like picture saved as a high-quality JPEG. */
+  const photo = async (width: number, height: number) => sharp(await photoLike(width, height)).jpeg({ quality: 92 }).toBuffer();
+
+  /** What the fixed settings stored: the original at full size (JPEG 90), AVIF 55 and WebP 75 at each width. */
+  async function legacyBytes(source: Buffer): Promise<number> {
+    let total = (await sharp(source).jpeg({ quality: 90 }).toBuffer()).length;
+    const { width = 0 } = await sharp(source).metadata();
+    for (const w of IMAGE_WIDTHS.filter((each) => each <= width)) {
+      total += (await sharp(source).resize({ width: w }).avif({ quality: 55, effort: 4 }).toBuffer()).length;
+      total += (await sharp(source).resize({ width: w }).webp({ quality: 75 }).toBuffer()).length;
+    }
+    return total;
+  }
+
+  it('caps the original at 2560 px on its long side, keeping the aspect ratio', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(4000, 3000)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([2560, 1920]);
+    expect([asset.width, asset.height]).toEqual([2560, 1920]);
+  });
+
+  it('caps a portrait photo by its height', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(3024, 4032)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([1920, 2560]);
+    expect([asset.width, asset.height]).toEqual([1920, 2560]);
+  });
+
+  it('never enlarges a photo under 2560 px', async () => {
+    const asset = prepared(await prepareAsset(await jpeg(1200, 800)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect([meta.width, meta.height]).toEqual([1200, 800]);
+  });
+
+  it('keeps every file visually the same as its source', async () => {
+    const source = await photo(2400, 1600);
+    const asset = prepared(await prepareAsset(new Uint8Array(source)));
+    for (const file of asset.files) {
+      const width = file.variant === 'original' ? asset.width! : Number(file.variant.split('-')[1]);
+      expect(await similarity(source, file.body, width), file.variant).toBeGreaterThanOrEqual(VISUALLY_LOSSLESS);
+    }
+  });
+
+  it('keeps a PNG logo transparent', async () => {
+    const mark = await sharp({ create: { width: 300, height: 150, channels: 4, background: '#c8261c' } }).png().toBuffer();
+    const logo = await sharp({ create: { width: 900, height: 450, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: mark, left: 300, top: 150 }])
+      .png()
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(logo)));
+    const original = sharp(fileOf(asset, 'original').body);
+    expect((await original.metadata()).hasAlpha).toBe(true);
+    const { data } = await original.ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    expect(data[3]).toBe(0);
+  });
+
+  it('keeps a flat transparent logo as a palette when that looks the same and is smaller', async () => {
+    const mark = await sharp({ create: { width: 400, height: 160, channels: 4, background: '#c8261c' } })
+      .composite([{ input: await sharp({ create: { width: 200, height: 60, channels: 4, background: '#f4900c' } }).png().toBuffer(), left: 100, top: 50 }])
+      .png()
+      .toBuffer();
+    // The hidden colour of the transparent area is not white, as many design tools leave it.
+    const logo = await sharp({ create: { width: 1200, height: 600, channels: 4, background: { r: 76, g: 105, b: 113, alpha: 0 } } })
+      .composite([{ input: mark, left: 400, top: 220 }])
+      .png()
+      .toBuffer();
+    const asset = prepared(await prepareAsset(new Uint8Array(logo)));
+    const meta = await sharp(fileOf(asset, 'original').body).metadata();
+    expect(meta.isPalette).toBe(true);
+    expect(meta.hasAlpha).toBe(true);
+    expect(await similarity(logo, fileOf(asset, 'original').body, 1200)).toBeGreaterThanOrEqual(VISUALLY_LOSSLESS);
+  });
+
+  it('stores fewer bytes than the fixed settings did for a photo-like image', async () => {
+    const source = await photo(2400, 1600);
+    const now = prepared(await prepareAsset(new Uint8Array(source))).files.reduce((sum, file) => sum + file.body.length, 0);
+    const before = await legacyBytes(source);
+    console.info(`stored bytes for a 2400 × 1600 photo-like image: ${before} before, ${now} now`);
+    expect(now).toBeLessThan(before);
+  });
+
+  it('processes the largest upload allowed (a 50 MP AVIF) well inside the 60 s route on two threads, as on a small host', async () => {
+    const big = await sharp(await photoLike(2000, 1500)).resize(8160, 6120).png().toBuffer();
+    const source = await sharp(big).avif({ quality: 60, effort: 2 }).toBuffer();
+    const threads = sharp.concurrency();
+    sharp.concurrency(2);
+    try {
+      const started = performance.now();
+      prepared(await prepareAsset(new Uint8Array(source)));
+      // Decoded once to a 2560 px master and searched within 25 s: about 20 s here, where every try used to decode it.
+      expect((performance.now() - started) / 1000).toBeLessThan(40);
+    } finally {
+      sharp.concurrency(threads);
+    }
+  }, 180_000);
+
+  // A wall-clock bound: meaningful on a developer machine, not on a shared CI runner.
+  it.skipIf(process.env.CI)('processes a 12 MP photo in under 10 s', async () => {
+    const source = await photo(4000, 3000);
+    const started = performance.now();
+    prepared(await prepareAsset(new Uint8Array(source)));
+    const seconds = (performance.now() - started) / 1000;
+    console.info(`a 12 MP photo-like image took ${seconds.toFixed(1)} s`);
+    expect(seconds).toBeLessThan(10);
+  }, 60_000);
+});
+
 describe('storeAsset', () => {
   let dir: string;
   let storage: Storage;
@@ -187,5 +299,74 @@ describe('faviconFiles', () => {
   it('draws one from an SVG logo', async () => {
     const svg = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20"/></svg>');
     expect((await sharp((await faviconFiles({ kind: 'SVG', original: svg }))['180']).metadata()).width).toBe(180);
+  });
+});
+
+// Scene files (spec 2026-10-18-template-studio-stage-2-scene-files-design.md, 3) --------------------------------------
+
+describe('prepareAsset for scene files', () => {
+  it('keeps a GLB as it is, as a model, with what it holds', async () => {
+    const glb = buildGlb({ triangles: 2 });
+    const asset = prepared(await prepareAsset(glb));
+    expect(asset).toMatchObject({ kind: 'MODEL', mime: 'model/gltf-binary', width: null, height: null, durationMs: null, placeholder: '' });
+    expect(asset.meta).toEqual({ triangles: 2, nodes: 1, materials: 1, textures: 0, animations: 0 });
+    expect(asset.files).toEqual([{ variant: 'original', ext: 'glb', contentType: 'model/gltf-binary', body: glb }]);
+  });
+
+  it('stores a Lottie animation as its checked, minified JSON', async () => {
+    const json = { v: '5.7.4', fr: 25, ip: 0, op: 50, w: 300, h: 200, layers: [{ ty: 3, ind: 1, ks: {}, ip: 0, op: 50, st: 0, ln: 'x' }] };
+    const asset = prepared(await prepareAsset(new TextEncoder().encode(JSON.stringify(json, null, 2))));
+    expect(asset).toMatchObject({ kind: 'LOTTIE', mime: 'application/json', width: 300, height: 200, durationMs: 2000 });
+    expect(asset.meta).toEqual({ frameRate: 25, layers: 1 });
+    const original = fileOf(asset, 'original');
+    expect(original).toMatchObject({ ext: 'json', contentType: 'application/json' });
+    expect(JSON.parse(new TextDecoder().decode(original.body)).layers[0].ln).toBeUndefined();
+  });
+
+  it('keeps a video as it is, with its poster made into widths and a placeholder', async () => {
+    const video = buildMp4({ width: 1080, height: 1920, durationMs: 6000, sound: true });
+    const asset = prepared(await prepareAsset(video, await jpeg(720, 1280)));
+    expect(asset).toMatchObject({ kind: 'VIDEO', mime: 'video/mp4', width: 1080, height: 1920, durationMs: 6000 });
+    expect(asset.meta).toEqual({ codec: 'avc1', hasAudio: true });
+    expect(asset.placeholder).toMatch(/^data:image\/webp;base64,/);
+    expect(variantNames(asset)).toEqual(['original', 'poster-avif-320', 'poster-avif-640', 'poster-webp-320', 'poster-webp-640']);
+    expect(fileOf(asset, 'original')).toMatchObject({ ext: 'mp4', contentType: 'video/mp4', body: video });
+  });
+
+  it('refuses a video without a poster, or with one that is not a picture', async () => {
+    expect(await prepareAsset(buildMp4())).toEqual({ ok: false, reason: 'POSTER' });
+    expect(await prepareAsset(buildMp4(), new TextEncoder().encode('<html></html>'))).toEqual({ ok: false, reason: 'POSTER' });
+  });
+
+  it('passes on why a scene file is refused', async () => {
+    expect(await prepareAsset(buildGlb({ edit: (g) => (g.buffers[0].uri = 'https://example.com/a.bin') }))).toEqual({ ok: false, reason: 'MODEL_EXTERNAL' });
+    expect(await prepareAsset(buildMp4({ codec: 'hvc1' }), await jpeg(100, 100))).toEqual({ ok: false, reason: 'VIDEO_CODEC' });
+    expect(await prepareAsset(new TextEncoder().encode('{"v":"5","layers":[]}'))).toEqual({ ok: false, reason: 'LOTTIE_INVALID' });
+  });
+
+  it('holds each kind to its own limit: a model over 10 MB is refused', async () => {
+    const big = new Uint8Array(10 * 1024 * 1024 + 1);
+    big.set([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0]);
+    expect(await prepareAsset(big)).toEqual({ ok: false, reason: 'SIZE' });
+  });
+
+  it('writes a poster under the video, by format and width', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'buzzify-store-'));
+    try {
+      const storage = folderStorage(dir, '/api/dev-media', 'store-asset-test-secret-long-enough-for-hmac');
+      const asset = prepared(await prepareAsset(buildMp4({ width: 640, height: 360 }), await jpeg(640, 360)));
+      const stored = await storeAsset(storage, { restaurantId: 'cr1' }, asset);
+      const folder = `r/cr1/${asset.contentHash}`;
+      expect(stored.variants).toEqual({
+        original: `${folder}/original.mp4`,
+        poster: {
+          avif: { '320': `${folder}/poster-avif-320.avif`, '640': `${folder}/poster-avif-640.avif` },
+          webp: { '320': `${folder}/poster-webp-320.webp`, '640': `${folder}/poster-webp-640.webp` },
+        },
+      });
+      expect(await storage.head(`${folder}/original.mp4`)).toMatchObject({ contentType: 'video/mp4' });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

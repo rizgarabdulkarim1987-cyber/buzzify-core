@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
-import { setOptionAvailability, setProductAvailability } from '@/server/studio/services/availability';
+import { setOptionAvailability, setProductAvailability, setProductStock } from '@/server/studio/services/availability';
 import { idField } from '@/server/studio/services/content';
 
 /**
@@ -18,6 +18,18 @@ export const setProduct = defineAction({
     .refine((input) => input.isAvailable !== undefined || input.isHidden !== undefined, 'Choose what to change'),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => setProductAvailability(ctx, input),
+});
+
+export const setStock = defineAction({
+  name: 'availability.setStock',
+  permission: 'content.availability',
+  input: z.object({
+    menuId: idField,
+    productId: idField,
+    stockCount: z.number().int().min(0, 'Enter a number from 0 to 9,999').max(9999, 'Enter a number from 0 to 9,999').nullable(),
+  }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => setProductStock(ctx, input),
 });
 
 export const setOption = defineAction({

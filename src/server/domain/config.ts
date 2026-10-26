@@ -7,12 +7,24 @@ export interface EngineWeights {
   stockPenalty: number;
 }
 
+/** How the menu shows its sales labels (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.1). */
+export interface SalesSettings {
+  /** `plain` shows the menu's prices without the currency symbol. */
+  priceStyle: 'symbol' | 'plain';
+  showMostOrdered: boolean;
+  showLowStock: boolean;
+}
+
+export const DEFAULT_SALES_SETTINGS: SalesSettings = { priceStyle: 'symbol', showMostOrdered: true, showLowStock: true };
+
 export interface EngineConfig {
   upsellMaxOffers: number;
   upsellDeltaCapRatio: number;
   pairingMaxOffers: number;
   cartPairingMaxOffers: number;
   weights: EngineWeights;
+  /** Kept only once an owner has saved them, so a menu published before keeps its hash. */
+  sales?: SalesSettings;
 }
 
 export const DEFAULT_ENGINE_CONFIG: EngineConfig = {
@@ -29,8 +41,25 @@ function num(value: unknown, fallback: number, min: number, max: number, integer
   return integer ? Math.round(clamped) : clamped;
 }
 
+function resolveSales(raw: unknown): SalesSettings | undefined {
+  if (typeof raw !== 'object' || raw === null) return undefined;
+  const source = raw as Record<string, unknown>;
+  const d = DEFAULT_SALES_SETTINGS;
+  return {
+    priceStyle: source.priceStyle === 'plain' ? 'plain' : 'symbol',
+    showMostOrdered: typeof source.showMostOrdered === 'boolean' ? source.showMostOrdered : d.showMostOrdered,
+    showLowStock: typeof source.showLowStock === 'boolean' ? source.showLowStock : d.showLowStock,
+  };
+}
+
+/** The menu's sales settings, the defaults until an owner saves them. */
+export function salesSettings(config: EngineConfig): SalesSettings {
+  return config.sales ?? DEFAULT_SALES_SETTINGS;
+}
+
 export function resolveEngineConfig(raw: unknown): EngineConfig {
   const source = (typeof raw === 'object' && raw !== null ? raw : {}) as Record<string, unknown>;
+  const sales = resolveSales(source.sales);
   const weights = (typeof source.weights === 'object' && source.weights !== null ? source.weights : {}) as Record<string, unknown>;
   const d = DEFAULT_ENGINE_CONFIG;
   return {
@@ -46,5 +75,6 @@ export function resolveEngineConfig(raw: unknown): EngineConfig {
       daypart: num(weights.daypart, d.weights.daypart, 0, 1),
       stockPenalty: num(weights.stockPenalty, d.weights.stockPenalty, 0, 1),
     },
+    ...(sales ? { sales } : {}),
   };
 }

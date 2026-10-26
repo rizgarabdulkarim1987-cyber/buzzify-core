@@ -1,19 +1,23 @@
 'use client';
 
 import { Images, RotateCw, Sparkles, Trash2, Upload } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { suggestPalettes, updateBrand } from '@/app/studio/_actions/brand';
 import { HEX, type Palette } from '@/lib/brand';
-import type { FontPairId } from '@/lib/font-pairs';
+import { FONT_PAIR_IDS, type FontPairId } from '@/lib/font-pairs';
 import type { PaletteProblem } from '@/lib/palette';
 import { RAIL_STYLES, type RailStyle } from '@/lib/rail';
-import type { BrandKitView, FaviconChoice } from '@/server/studio/services/brand';
+import type { FeatureKey } from '@/server/domain/entitlements';
+import { railFeature } from '@/server/domain/plan-choices';
+import type { BrandKitView, BrandPlanView, FaviconChoice } from '@/server/studio/services/brand';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
 import { uploadMedia } from '@/studio/media/upload';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
@@ -119,15 +123,41 @@ function LogoSlot({
   );
 }
 
+/** A saved choice the plan no longer includes: kept, and what guests get meanwhile. */
+function LockedChoice({ fallback, choice }: { fallback: string; choice: string }) {
+  const t = useT();
+  return <p className="max-w-[65ch] text-sm text-muted">{t('brand.lockedChoice', { fallback, choice })}</p>;
+}
+
+/** The order the motion section's hint picks the feature to name: the animated rails first, the melting dish last. */
+const MOTION_LOCKS: readonly FeatureKey[] = ['design.railStyles', 'design.expressiveMotion', 'immersive.stage'];
+
 /**
  * The Brand tab (spec 12): logos and favicon, the palette of the theme guests see with its contrast checked live, palettes
  * suggested from the logo, the font pair, the rail and motion, and a sample of the menu drawn from what is on screen.
- * Saving needs every text pair readable; a weak accent is saved and named.
+ * Saving needs every text pair readable; a weak accent is saved and named. A pair, rail or motion level the restaurant's
+ * plan does not include is shown locked with the way to get it; the one already saved is kept and says what guests see.
  */
-export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView }) {
+export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView & { plan: BrandPlanView } }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
+  const { plan } = kit;
+  const planOf = (feature: FeatureKey | null) => (feature === null ? undefined : plan.upgrade.lowest[feature]);
+  /** A rail or motion level as a select option: one the plan lacks is named with its plan and cannot be chosen. */
+  const choiceOption = (value: string, label: string, feature: FeatureKey | null, open: boolean) => {
+    if (open) return { value, label };
+    const lowest = planOf(feature);
+    return {
+      value,
+      label: `${label} · ${lowest ? t('upgrade.partOf', { plan: plan.upgrade.planNames[lowest] }) : t('upgrade.notInPlan')}`,
+      disabled: true,
+    };
+  };
+  const lockedRailFeatures = RAIL_STYLES.filter((style) => !plan.rails.includes(style)).map(railFeature);
+  const motionLock =
+    MOTION_LOCKS.find((feature) => (feature === 'design.expressiveMotion' ? !plan.motions.includes('expressive') : lockedRailFeatures.includes(feature))) ??
+    null;
   const [theme, setTheme] = useState(kit.theme);
   const [palettes, setPalettes] = useState(kit.tokens);
   const [logo, setLogo] = useState<Logo>(kit.logo);
@@ -255,6 +285,19 @@ export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView }
           </fieldset>
         </Section>
 
+        {kit.templateName && (
+          <Section id="brand-template" title={t('brand.template.title')}>
+            <Alert tone="neutral">
+              <span className="flex flex-col gap-2">
+                <span>{t('brand.template.body', { name: kit.templateName })}</span>
+                <Link href={`/studio/menus/${menuId}/design`} className="w-fit font-medium underline underline-offset-2">
+                  {t('brand.template.open')}
+                </Link>
+              </span>
+            </Alert>
+          </Section>
+        )}
+        <div hidden={kit.templateName !== null} className="contents">
         <Section id="brand-colours" title={t('brand.colours')} intro={t('brand.coloursIntro')}>
           <div role="radiogroup" aria-label={t('brand.theme')} className="flex gap-4">
             {(['light', 'dark'] as const).map((value) => (
@@ -301,23 +344,42 @@ export function BrandForm({ menuId, kit }: { menuId: string; kit: BrandKitView }
         </Section>
 
         <Section id="brand-type" title={t('brand.fonts')} intro={t('brand.fontsIntro')}>
-          <FontPairPicker value={fontPairId} onChange={setFontPairId} />
+          <FontPairPicker value={fontPairId} onChange={setFontPairId} allowed={plan.fontPairs} stored={kit.fontPairId} upgrade={plan.upgrade} />
+          {!plan.fontPairs.includes(fontPairId) && (
+            <LockedChoice fallback={t(`brand.pair.name.${plan.guestSees.fontPairId}`)} choice={t(`brand.pair.name.${fontPairId}`)} />
+          )}
+          {plan.fontPairs.length < FONT_PAIR_IDS.length && <UpgradeHint feature="design.fontPairs" info={plan.upgrade} />}
         </Section>
 
         <Section id="brand-motion" title={t('brand.motion.title')} intro={t('brand.motion.intro')}>
           <div className="grid max-w-xl gap-4 sm:grid-cols-2">
             <Field label={t('brand.rail.label')} hint={motion === 'none' ? t('brand.rail.plainWithoutMotion') : undefined}>
-              <Select value={railStyle} onChange={(event) => setRailStyle(event.target.value as RailStyle)} options={RAIL_STYLES.map((style) => ({ value: style, label: t(`brand.rail.${style}`) }))} />
+              <Select
+                value={railStyle}
+                onChange={(event) => setRailStyle(event.target.value as RailStyle)}
+                options={RAIL_STYLES.map((style) => {
+                  const feature = railFeature(style);
+                  return choiceOption(style, t(`brand.rail.${style}`), feature, plan.rails.includes(style) || style === kit.railStyle);
+                })}
+              />
             </Field>
             <Field label={t('brand.motion.label')}>
               <Select
                 value={motion}
                 onChange={(event) => setMotion(event.target.value as typeof motion)}
-                options={(['none', 'subtle', 'expressive'] as const).map((level) => ({ value: level, label: t(`brand.motion.${level}`) }))}
+                options={(['none', 'subtle', 'expressive'] as const).map((level) =>
+                  choiceOption(level, t(`brand.motion.${level}`), 'design.expressiveMotion', plan.motions.includes(level) || level === kit.motionIntensity),
+                )}
               />
             </Field>
           </div>
+          {!plan.rails.includes(railStyle) && <LockedChoice fallback={t(`brand.rail.${plan.guestSees.railStyle}`)} choice={t(`brand.rail.${railStyle}`)} />}
+          {!plan.motions.includes(motion) && (
+            <LockedChoice fallback={t(`brand.motion.${plan.guestSees.motionIntensity}`)} choice={t(`brand.motion.${motion}`)} />
+          )}
+          {motionLock && <UpgradeHint feature={motionLock} info={plan.upgrade} />}
         </Section>
+        </div>
 
         <div className="sticky bottom-0 z-10 flex flex-col gap-3 border-t border-line bg-bg py-3">
           {failure && (

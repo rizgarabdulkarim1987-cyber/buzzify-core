@@ -828,7 +828,8 @@ describe('restaurantActivity', () => {
     expect(page).toMatchObject({ page: 1, pageSize: 25 });
     // Which fields a change touched, and never what they held: one policy with Activity.
     expect(page.rows[1]!.fields).toEqual(['city']);
-    expect([...page.rows[2]!.fields].sort()).toEqual(['name', 'type']);
+    // A new restaurant's row names the plan it started on as well.
+    expect([...page.rows[2]!.fields].sort()).toEqual(['name', 'plan', 'type']);
     expect(page.rows.every((row) => !('changes' in row))).toBe(true);
     expect(JSON.stringify(page)).not.toContain('Zakho');
   });

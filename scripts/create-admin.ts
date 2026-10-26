@@ -80,8 +80,11 @@ async function main(): Promise<void> {
     );
     const password = await askPassword(prompt);
 
+    // The first Super Admin of a database is its platform owner, the one account that changes plans. One made later with
+    // --force never is: the owner moves only with `npm run studio:set-platform-owner`.
+    const isPlatformOwner = (await prisma.user.count({ where: { isPlatformOwner: true } })) === 0;
     try {
-      await createPasswordUser(prisma, { email, name, password, isSuperAdmin: true });
+      await createPasswordUser(prisma, { email, name, password, isSuperAdmin: true, isPlatformOwner });
     } catch (error) {
       if (error instanceof EmailTakenError) {
         console.error(`An account with the email ${email} already exists.`);
@@ -91,6 +94,7 @@ async function main(): Promise<void> {
       throw error;
     }
     console.log(`Created the Super Admin ${email}.`);
+    if (isPlatformOwner) console.log('They are the platform owner: the only account that changes restaurants’ plans.');
     console.log(`Sign in at ${authEnv().baseUrl}/studio/sign-in. Two-factor authentication must be set up on the first sign-in.`);
   } finally {
     prompt.close();

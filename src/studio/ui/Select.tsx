@@ -10,6 +10,8 @@ export interface SelectOption {
   label: string;
   /** The option's own language, when it is a language's name written in that language. */
   lang?: string;
+  /** Shown but not choosable, such as a choice the restaurant's plan does not include. */
+  disabled?: boolean;
 }
 
 export interface SelectProps extends Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> {
@@ -24,7 +26,7 @@ export function Select({ size = 'md', options, className, ...rest }: SelectProps
     <div className={cx('relative', className)}>
       <select {...field} {...rest} className={cx(CONTROL_CLASSES, CONTROL_HEIGHTS[size], 'cursor-pointer appearance-none pe-8')}>
         {options.map((option) => (
-          <option key={option.value} value={option.value} lang={option.lang}>
+          <option key={option.value} value={option.value} lang={option.lang} disabled={option.disabled}>
             {option.label}
           </option>
         ))}

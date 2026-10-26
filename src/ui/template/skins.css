@@ -1,0 +1,1182 @@
+/*
+ * Template menus (spec 2026-10-18-template-studio-design.md, section 5). Everything reads the variables `designStyle`
+ * sets on `.tpl`; per-preset rules at the end add each preset's own touches. Logical properties throughout, so
+ * Arabic and Sorani pages mirror without rules of their own.
+ */
+
+.tpl {
+  --gutter: clamp(1.25rem, 5vw, 2.25rem);
+  --nav-room: 4.75rem;
+  --ease: cubic-bezier(0.23, 1, 0.32, 1);
+  color: var(--text);
+  font-family: var(--font-text-stack);
+  caret-color: var(--accent);
+  scrollbar-color: var(--line) transparent;
+  font-size: calc(var(--type-scale) * 1rem);
+}
+.tpl ::selection {
+  background: color-mix(in oklab, var(--accent) 34%, transparent);
+  color: var(--text);
+}
+.tpl :focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 3px;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Type                                                                                                             */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-display {
+  font-family: var(--font-display-stack);
+  font-weight: 400;
+  text-transform: var(--display-case);
+  letter-spacing: var(--display-tracking);
+  text-wrap: balance;
+}
+/* Arabic script has no capitals, and letter spacing breaks its joined letters. */
+.tpl:is(:lang(ar), :lang(ckb)) .tpl-display {
+  text-transform: none;
+  letter-spacing: 0;
+}
+.tpl-hero-title {
+  font-size: calc(var(--type-scale) * clamp(2.6rem, 11vw, 4.75rem));
+  line-height: 0.96;
+}
+.tpl-h2 {
+  font-size: calc(var(--type-scale) * clamp(1.65rem, 6.2vw, 2.4rem));
+  line-height: 1.08;
+}
+.tpl-name-lg {
+  font-size: calc(var(--type-scale) * 1.6rem);
+  line-height: 1.12;
+}
+.tpl-name {
+  font-size: calc(var(--type-scale) * 1.28rem);
+  line-height: 1.2;
+}
+.tpl-name-sm {
+  font-size: calc(var(--type-scale) * 1.08rem);
+  line-height: 1.25;
+}
+.tpl-detail-title {
+  font-size: calc(var(--type-scale) * clamp(2rem, 8vw, 2.75rem));
+  line-height: 1.02;
+}
+.tpl-brand {
+  font-size: calc(var(--type-scale) * clamp(1.15rem, 5vw, 1.55rem));
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.tpl-tagline {
+  font-size: calc(var(--type-scale) * clamp(1.3rem, 5vw, 1.85rem));
+  line-height: 1.28;
+}
+.tpl-numeral {
+  font-size: 0.72em;
+  color: var(--accent-ink);
+  font-variant-numeric: tabular-nums;
+}
+/* Arabic and Sorani letters sit lower and need taller lines at display sizes. */
+.tpl:is(:lang(ar), :lang(ckb)) :is(.tpl-hero-title, .tpl-detail-title) {
+  line-height: 1.3;
+}
+.tpl:is(:lang(ar), :lang(ckb)) :is(.tpl-h2, .tpl-name-lg, .tpl-name, .tpl-name-sm) {
+  line-height: 1.45;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Frame                                                                                                            */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+/* A soft veil behind the menu's column: the scene stays vivid at the edges and quiet behind the text. */
+.tpl-content::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--bg) 62%, transparent) 14%,
+    color-mix(in srgb, var(--bg) 62%, transparent) 86%,
+    transparent
+  );
+}
+.tpl-skip {
+  position: absolute;
+  inset-inline-start: 0.75rem;
+  top: 0.75rem;
+  z-index: 40;
+  translate: 0 -200%;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-button);
+  background: var(--button);
+  color: var(--on-button);
+}
+.tpl-skip:focus {
+  translate: 0 0;
+}
+.tpl-header {
+  padding-top: calc(var(--space) * 1.25rem);
+}
+.tpl-hero {
+  margin-top: calc(var(--space) * 1.5rem);
+}
+.tpl-tools {
+  margin-top: calc(var(--space) * 1.75rem);
+}
+.tpl-body {
+  margin-top: calc(var(--space) * 1rem);
+}
+.tpl-section {
+  padding-top: calc(var(--space) * 3rem);
+  scroll-margin-top: var(--nav-room);
+}
+.tpl-section-body {
+  margin-top: calc(var(--space) * 1.25rem);
+  padding-inline: var(--gutter);
+}
+.tpl [data-heading] {
+  padding-inline: var(--gutter);
+}
+.tpl[data-nav='dock'] {
+  --nav-room: 1rem;
+}
+.tpl[data-nav='tiles'],
+.tpl[data-nav='segmented'] {
+  --nav-room: 5.25rem;
+}
+@media (min-width: 1024px) {
+  .tpl[data-nav='index'] .tpl-body {
+    display: grid;
+    grid-template-columns: 13rem minmax(0, 1fr);
+    gap: 2rem;
+    padding-inline-start: var(--gutter);
+  }
+  .tpl[data-nav='index'] {
+    --nav-room: 1.5rem;
+  }
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Controls                                                                                                         */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding-inline: 1.25rem;
+  border-radius: var(--radius-button);
+  background: var(--button);
+  color: var(--on-button);
+  font-size: 0.95rem;
+  transition:
+    scale 150ms var(--ease),
+    background-color 150ms var(--ease),
+    opacity 150ms;
+}
+.tpl-button:active {
+  scale: 0.98;
+}
+.tpl-button:disabled {
+  opacity: 0.4;
+}
+.tpl-button-ghost {
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tpl-button-small {
+  min-height: 2.5rem;
+  padding-inline: 1rem;
+  font-size: 0.875rem;
+}
+.tpl-button-wide {
+  min-height: 3.1rem;
+}
+.tpl-add {
+  display: grid;
+  place-items: center;
+  min-width: 2.75rem;
+  height: 2.75rem;
+  padding-inline: 0.6rem;
+  border-radius: 9999px;
+  background: var(--card);
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 55%, transparent);
+  transition:
+    scale 150ms var(--ease),
+    background-color 150ms,
+    color 150ms;
+}
+.tpl-add:active {
+  scale: 0.92;
+}
+@media (hover: hover) {
+  .tpl-add:hover {
+    background: var(--button);
+    color: var(--on-button);
+  }
+}
+.tpl-icon-button {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 9999px;
+}
+.tpl-float {
+  background: color-mix(in srgb, var(--bg) 84%, transparent);
+  color: var(--text);
+}
+.tpl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding-inline: 0.95rem;
+  border-radius: var(--radius-button);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  font-size: 0.9375rem;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms,
+    box-shadow 150ms;
+}
+.tpl-chip-small {
+  min-height: 2.5rem;
+  padding-inline: 0.8rem;
+  font-size: 0.875rem;
+}
+.tpl-chip-quiet {
+  box-shadow: none;
+  background: var(--raised);
+}
+.tpl-chip:is([aria-pressed='true'], [aria-current='true'], [data-checked]) {
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow: inset 0 0 0 1px var(--button);
+}
+.tpl-chip:is([aria-pressed='true'], [aria-current='true'], [data-checked]) .text-\(--muted\) {
+  color: inherit;
+  opacity: 0.8;
+}
+.tpl-badge {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 9999px;
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+/* The Sales tab's labels: a chef's special in the accent ink, a live discount on the button colour. */
+.tpl-badge-special {
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent-ink) 55%, transparent);
+}
+.tpl-badge-sale {
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow: none;
+}
+/* The regular price, crossed out beside the price during a discount, and "Only 2 left". */
+.tpl-was {
+  margin-inline-start: 0.45em;
+  color: var(--muted);
+  font-size: 0.85em;
+  text-decoration-thickness: 1px;
+}
+.tpl-few {
+  color: var(--accent-ink);
+}
+/* On a flavour's own tile they take the tile's text colour. */
+.tpl-flavor :is(.tpl-badge, .tpl-was, .tpl-few) {
+  color: var(--tile-text);
+}
+.tpl-flavor .tpl-badge {
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--tile-text) 40%, transparent);
+}
+.tpl-flavor .tpl-badge-sale {
+  background: var(--tile-text);
+  color: var(--tile);
+}
+/* The tile's round add button sits in its corner: labels and notes under the price leave it room. */
+.tpl-flavor:has(.tpl-add):has(.tpl-badge, .tpl-note) {
+  padding-bottom: 4.1rem;
+}
+.tpl-link {
+  color: var(--accent-ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.tpl-contact {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-height: 2.75rem;
+}
+
+/* The name's button covers the whole card for pointers; the card's own buttons sit above it. */
+.tpl-open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+}
+.tpl-open:focus-visible {
+  outline: none;
+}
+.tpl-open:focus-visible::after {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 4px;
+  border-radius: var(--radius-card);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Search and filters                                                                                               */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-search-input {
+  width: 100%;
+  height: 3rem;
+  padding-inline: 2.75rem 2.75rem;
+  border-radius: var(--radius-button);
+  background: color-mix(in srgb, var(--card) 86%, transparent);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text);
+  font-size: 1rem;
+  transition: box-shadow 150ms;
+}
+.tpl-search-input::placeholder {
+  color: var(--muted);
+}
+.tpl-search-input:focus {
+  outline: none;
+  box-shadow: inset 0 0 0 1.5px var(--accent-ink);
+}
+.tpl-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Navigation                                                                                                       */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-nav {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: color-mix(in srgb, var(--bg) 95%, transparent);
+  box-shadow: 0 1px 0 var(--line);
+}
+.tpl-nav-underline {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+  color: var(--muted);
+  white-space: nowrap;
+  transition: color 150ms;
+}
+.tpl-nav-underline::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--accent);
+  scale: 0 1;
+  transition: scale 260ms var(--ease);
+}
+.tpl-nav-underline[aria-current='true'] {
+  color: var(--text);
+}
+.tpl-nav-underline[aria-current='true']::after {
+  scale: 1 1;
+}
+.tpl-nav-pill {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  padding-inline: 1.1rem;
+  border-radius: var(--radius-button);
+  box-shadow: inset 0 0 0 1px var(--line);
+  white-space: nowrap;
+  transition:
+    background-color 180ms,
+    color 180ms;
+}
+.tpl-nav-pill[aria-current='true'] {
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow: none;
+}
+.tpl-nav-index-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3rem;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.tpl-nav-index-item[aria-current='true'] {
+  color: var(--text);
+}
+.tpl-nav-index-item::before {
+  content: '';
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 9999px;
+  background: var(--accent);
+  scale: 0;
+  transition: scale 200ms var(--ease);
+}
+.tpl-nav-index-item[aria-current='true']::before {
+  scale: 1;
+}
+@media (min-width: 1024px) {
+  .tpl-nav-index {
+    align-self: start;
+    top: 1rem;
+    padding-top: 3rem;
+    background: transparent;
+    box-shadow: none;
+  }
+  .tpl-nav-index-item {
+    min-height: 2.5rem;
+    white-space: normal;
+  }
+}
+.tpl-segmented {
+  gap: 0;
+  padding: 4px;
+  border-radius: var(--radius-button);
+  background: var(--raised);
+}
+.tpl-segment {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 2.6rem;
+  padding-inline: 1rem;
+  border-radius: var(--radius-button);
+  color: var(--muted);
+  white-space: nowrap;
+  transition:
+    background-color 180ms,
+    color 180ms;
+}
+.tpl-segment[aria-current='true'] {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+.tpl-nav-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 3.25rem;
+  padding: 0.3rem 0.95rem 0.3rem 0.3rem;
+  padding-inline: 0.3rem 0.95rem;
+  border-radius: var(--radius-card);
+  box-shadow: inset 0 0 0 1px var(--line);
+  white-space: nowrap;
+  transition: box-shadow 180ms, background-color 180ms;
+}
+.tpl-nav-tile[aria-current='true'] {
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.tpl-panel {
+  position: absolute;
+  inset-inline: var(--gutter);
+  top: calc(100% + 0.5rem);
+  max-height: min(65svh, 30rem);
+  overflow-y: auto;
+  padding: 0.5rem;
+  border-radius: var(--radius-card);
+  background: var(--surface);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 24px 48px -20px rgb(0 0 0 / 0.5);
+  animation: tpl-pop 220ms var(--ease);
+}
+.tpl-panel-item {
+  display: flex;
+  width: 100%;
+  min-height: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-inline: 0.85rem;
+  border-radius: calc(var(--radius-card) * 0.6);
+  text-align: start;
+}
+.tpl-panel-item[aria-current='true'] {
+  background: var(--raised);
+  color: var(--accent-ink);
+}
+.tpl-dock {
+  position: fixed;
+  inset-inline: 0;
+  bottom: max(1rem, env(safe-area-inset-bottom));
+  z-index: 25;
+  width: min(92vw, 26rem);
+  margin-inline: auto;
+  transition: bottom 260ms var(--ease);
+}
+.tpl-dock-lifted {
+  bottom: calc(max(1rem, env(safe-area-inset-bottom)) + 4.5rem);
+}
+.tpl-dock .tpl-panel {
+  inset-inline: 0;
+  top: auto;
+  bottom: calc(100% + 0.6rem);
+}
+.tpl-dock-button {
+  display: flex;
+  width: 100%;
+  min-height: 3.5rem;
+  align-items: center;
+  gap: 0.75rem;
+  padding-inline: 1.1rem;
+  border-radius: var(--radius-button);
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow: 0 18px 36px -16px rgb(0 0 0 / 0.55);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Section headings                                                                                                 */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-heading-arch {
+  width: fit-content;
+  max-width: 100%;
+  margin-inline: auto;
+  padding: 1.35rem 1.9rem 0.4rem;
+  border: 1px solid color-mix(in oklab, var(--accent) 60%, transparent);
+  border-bottom: 0;
+  border-radius: 12rem 12rem 0 0;
+  text-align: center;
+}
+.tpl-seal {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.05rem;
+  line-height: 1;
+}
+.tpl-heading-script {
+  display: flex;
+  flex-direction: column;
+}
+.tpl-heading-band {
+  margin-inline: calc(var(--gutter) * -1);
+  padding: 0.7rem var(--gutter);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.tpl-heading-outline {
+  position: relative;
+  overflow: hidden;
+  padding-top: 1.7rem;
+}
+.tpl-outline-text {
+  position: absolute;
+  inset-inline-start: 0;
+  top: -0.12em;
+  max-width: 100%;
+  overflow: hidden;
+  color: transparent;
+  -webkit-text-stroke: 1px color-mix(in oklab, var(--accent) 42%, transparent);
+  font-size: calc(var(--type-scale) * clamp(3.4rem, 15vw, 6rem));
+  line-height: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Cards                                                                                                            */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-list > li + li {
+  border-top: 1px solid var(--line);
+}
+.tpl-card-row {
+  padding-block: calc(var(--space) * 1.2rem);
+}
+.tpl-card {
+  isolation: isolate;
+}
+.tpl-card-filled {
+  border-radius: var(--radius-card);
+  background: var(--card);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--line) 70%, transparent),
+    var(--shadow-card);
+}
+.tpl-card-body {
+  padding-top: 0.9rem;
+}
+.tpl-card-filled .tpl-card-body {
+  padding: calc(var(--space) * 1rem) calc(var(--space) * 1.1rem) calc(var(--space) * 0.9rem);
+}
+.tpl-leader {
+  flex: 1;
+  min-width: 1.25rem;
+  translate: 0 -0.3em;
+  border-bottom: 1px dotted color-mix(in oklab, var(--muted) 70%, transparent);
+}
+.tpl-plate {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 40%, transparent),
+    0 14px 28px -16px rgb(0 0 0 / 0.7);
+}
+/* Drawings stand on the tile, the card or the pedestal itself, without their own backdrop. */
+:is(.tpl-flavor, .tpl-isolated, .tpl-swatch, .tpl-pedestal-stage) {
+  --art-bg-opacity: 0;
+}
+.tpl-flavor {
+  justify-content: center;
+  min-height: 13.5rem;
+  padding: 1.4rem 0.75rem 1.1rem;
+  border-radius: var(--radius-card);
+  background: var(--tile);
+  color: var(--tile-text);
+}
+.tpl-scoop {
+  filter: drop-shadow(0 12px 14px rgb(0 0 0 / 0.16));
+}
+.tpl-isolated {
+  padding-block: 1.25rem 1.75rem;
+}
+.tpl-isolated::after {
+  content: '';
+  position: absolute;
+  inset-inline: 22%;
+  bottom: 0.75rem;
+  height: 0.9rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.16), transparent);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Heroes                                                                                                           */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-hero-editorial {
+  margin-top: calc(var(--space) * 0.75rem);
+}
+.tpl-hero-editorial .tpl-hero-media {
+  mask-image: linear-gradient(to bottom, #000 62%, transparent);
+}
+.tpl-arch-frame {
+  padding: 0.5rem;
+  border-radius: 999px 999px calc(var(--radius-image) + 0.5rem) calc(var(--radius-image) + 0.5rem);
+  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--accent) 65%, transparent);
+}
+.tpl-chapters > li + li {
+  border-top: 1px solid var(--line);
+}
+.tpl-chapter {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.25rem;
+  padding-block: 0.75rem;
+  text-align: start;
+}
+.tpl-chapter .tpl-numeral {
+  min-width: 1.6rem;
+  font-size: 1rem;
+}
+.tpl-spotlight {
+  padding-block: calc(var(--space) * 1.5rem);
+  background: radial-gradient(60% 55% at 72% 38%, color-mix(in oklab, var(--accent) 20%, transparent), transparent 72%);
+}
+.tpl:is(:lang(ar), :lang(ckb)) .tpl-spotlight {
+  background-position: 0 0;
+  background: radial-gradient(60% 55% at 28% 38%, color-mix(in oklab, var(--accent) 20%, transparent), transparent 72%);
+}
+.tpl-carousel {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  padding-inline: var(--gutter);
+  scroll-padding-inline: var(--gutter);
+}
+.tpl-carousel-item {
+  flex: 0 0 min(76%, 19rem);
+  scroll-snap-align: start;
+}
+.tpl-pedestal {
+  position: absolute;
+  inset-inline: 8%;
+  bottom: -0.4rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(0 0 0 / 0.2), transparent);
+}
+.tpl-tab {
+  position: relative;
+  min-height: 2.75rem;
+  color: var(--muted);
+  font-size: 1.15rem;
+}
+.tpl-tab::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 1.5px;
+  background: var(--accent);
+  scale: 0 1;
+  transition: scale 260ms var(--ease);
+}
+.tpl-tab[aria-selected='true'] {
+  color: var(--text);
+}
+.tpl-tab[aria-selected='true']::after {
+  scale: 1 1;
+}
+.tpl-daily {
+  padding: calc(var(--space) * 1.25rem);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--card) 92%, transparent);
+  box-shadow: 0 0 0 1px var(--line);
+}
+.tpl-occasion {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  color: var(--text);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--line) 70%, transparent),
+    var(--shadow-card);
+}
+/* On a phone the tiles stop at four, so the first products still show on the first screen. */
+@media (max-width: 767px) {
+  .tpl-occasions > li:nth-child(n + 5) {
+    display: none;
+  }
+}
+.tpl-occasion:not([data-cover]) {
+  justify-content: flex-end;
+  min-height: 6rem;
+}
+.tpl-swatch {
+  width: 5.25rem;
+  height: 5.25rem;
+  padding: 0.35rem;
+  border-radius: 9999px;
+  background: var(--swatch);
+  transition: scale 220ms var(--ease);
+}
+@media (hover: hover) {
+  .group:hover .tpl-swatch {
+    scale: 1.05;
+  }
+}
+.tpl-catch {
+  padding-block: 1.25rem;
+  border-block: 1px solid var(--line);
+}
+.tpl-catch-label {
+  color: var(--accent-ink);
+  font-size: calc(var(--type-scale) * 1.1rem);
+}
+.tpl-promo {
+  padding: calc(var(--space) * 1.25rem);
+  border-radius: var(--radius-card);
+  background: var(--raised);
+  margin-top: calc(var(--space) * 1.75rem);
+}
+/* The live offers from the Sales tab: a quiet list under the hero, never a banner. */
+.tpl-offers {
+  margin-top: calc(var(--space) * 1.75rem);
+  border-block: 1px solid var(--line);
+}
+.tpl-offers > li {
+  padding-block: 0.9rem;
+}
+.tpl-offers > li + li {
+  border-top: 1px solid var(--line);
+}
+.tpl-info {
+  margin-top: calc(var(--space) * 4.5rem);
+  padding-top: calc(var(--space) * 2.5rem);
+  border-top: 1px solid var(--line);
+}
+.tpl-footer {
+  margin-top: calc(var(--space) * 3rem);
+  padding-block: 1.25rem;
+  border-top: 1px solid var(--line);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Product surfaces                                                                                                 */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-surface {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  max-width: none;
+  max-height: none;
+  overflow: hidden;
+  background: var(--surface);
+  color: var(--text);
+}
+.tpl-surface::backdrop {
+  background: rgb(0 0 0 / 0.55);
+}
+.tpl-surface-panel {
+  display: flex;
+  flex-direction: column;
+  max-height: inherit;
+  height: 100%;
+}
+.tpl-surface-sheet {
+  margin-top: auto;
+  width: 100%;
+  max-height: 94dvh;
+  border-radius: 1.25rem 1.25rem 0 0;
+}
+.tpl-surface-drawer {
+  margin-top: auto;
+  width: 100%;
+  max-height: 94dvh;
+  border-radius: 1.25rem 1.25rem 0 0;
+}
+.tpl-surface-page {
+  width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+.tpl-surface-card {
+  margin: auto;
+  width: min(34rem, calc(100vw - 2rem));
+  max-height: 88dvh;
+  border-radius: var(--radius-card);
+  box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.6);
+}
+@media (min-width: 640px) {
+  .tpl-surface-sheet {
+    margin: auto;
+    max-width: 36rem;
+    border-radius: var(--radius-card);
+  }
+  .tpl-surface-drawer {
+    margin: 0;
+    margin-inline-start: auto;
+    width: min(32rem, 92vw);
+    height: 100dvh;
+    max-height: 100dvh;
+    border-radius: 0;
+  }
+}
+.tpl-surface[open] .tpl-surface-panel {
+  animation: tpl-rise 320ms var(--ease);
+}
+.tpl-surface-card[open] .tpl-surface-panel {
+  animation: tpl-pop 260ms var(--ease);
+}
+@media (min-width: 640px) {
+  .tpl-surface-drawer[open] .tpl-surface-panel {
+    animation: tpl-slide 320ms var(--ease);
+  }
+  :root[dir='rtl'] .tpl-surface-drawer[open] .tpl-surface-panel {
+    animation-name: tpl-slide-rtl;
+  }
+}
+@keyframes tpl-rise {
+  from {
+    transform: translateY(40px);
+    opacity: 0;
+  }
+}
+@keyframes tpl-pop {
+  from {
+    transform: scale(0.97);
+    opacity: 0;
+  }
+}
+@keyframes tpl-slide {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+}
+@keyframes tpl-slide-rtl {
+  from {
+    transform: translateX(-40px);
+    opacity: 0;
+  }
+}
+.tpl-detail-body {
+  padding: 1.25rem clamp(1.25rem, 4vw, 1.75rem) 1.75rem;
+}
+.tpl-add-bar {
+  padding: 1rem 1.25rem max(1rem, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--line);
+  background: var(--surface);
+}
+.tpl-stepper {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-button);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.tpl-option-chip {
+  cursor: pointer;
+}
+.tpl-option-tile {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-height: 3.5rem;
+  padding: 0.75rem 0.9rem;
+  border-radius: calc(var(--radius-card) * 0.7);
+  box-shadow: inset 0 0 0 1px var(--line);
+  cursor: pointer;
+  transition:
+    box-shadow 150ms,
+    background-color 150ms;
+}
+.tpl-option-tile[data-checked] {
+  background: color-mix(in oklab, var(--button) 14%, transparent);
+  box-shadow: inset 0 0 0 1.5px var(--button);
+}
+:is(.tpl-option-chip, .tpl-option-tile):has(input:focus-visible) {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+.tpl-steps {
+  display: flex;
+  gap: 6px;
+}
+.tpl-steps > li {
+  flex: 1;
+  height: 3px;
+  border-radius: 9999px;
+  background: var(--line);
+  transition: background-color 240ms;
+}
+.tpl-steps > li:is([data-state='done'], [data-state='current']) {
+  background: var(--accent);
+}
+
+/* ---------------------------------------------------------------------------------------------------------------- */
+/* Each preset's own touches                                                                                        */
+/* ---------------------------------------------------------------------------------------------------------------- */
+
+.tpl-obsidian-gold .tpl-brand {
+  letter-spacing: 0.18em;
+}
+.tpl-obsidian-gold .tpl-leader {
+  border-bottom-color: color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.tpl-ivory-marble .tpl-h2 {
+  font-size: calc(var(--type-scale) * 1.15rem);
+  letter-spacing: 0.22em;
+}
+.tpl-ivory-marble .tpl-nav-pill {
+  font-size: 0.82rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.tpl-ivory-marble:is(:lang(ar), :lang(ckb)) :is(.tpl-h2, .tpl-nav-pill) {
+  letter-spacing: 0;
+  text-transform: none;
+  font-size: calc(var(--type-scale) * 1.3rem);
+}
+
+.tpl-emerald-palace .tpl-card-body {
+  text-align: center;
+}
+.tpl-emerald-palace .tpl-card-body > div:first-child {
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+.tpl-emerald-palace .tpl-photo {
+  border-radius: 999px 999px var(--radius-image) var(--radius-image);
+}
+
+.tpl-royal-burgundy .tpl-h2 {
+  font-style: italic;
+}
+.tpl-royal-burgundy .tpl-nav {
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+
+.tpl-kyoto-ink .tpl-list > li + li {
+  border-top-style: dashed;
+}
+.tpl-kyoto-ink .tpl-search-input {
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 var(--line);
+}
+
+.tpl-mediterranean-riviera .tpl-photo {
+  border-radius: var(--radius-card);
+}
+
+.tpl-ember-grill .tpl-heading-band {
+  background: linear-gradient(90deg, var(--accent), color-mix(in oklab, var(--accent) 70%, var(--bg)));
+}
+/* Ember Grill's spotlight: the dish wide and close, in a dark frame, not on a disc. */
+.tpl-ember-grill .tpl-spotlight-media > span {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--radius-card);
+  box-shadow: 0 30px 60px -30px color-mix(in oklab, var(--accent) 60%, transparent);
+}
+.tpl-ember-grill .tpl-hero-title {
+  font-size: calc(var(--type-scale) * clamp(3rem, 14vw, 5.5rem));
+  line-height: 0.9;
+}
+
+.tpl-botanical-table .tpl-chip:not([aria-pressed='true'], [aria-current='true'], [data-checked]) {
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+}
+
+.tpl-saffron-house .tpl-occasion {
+  border-radius: 999px 999px var(--radius-card) var(--radius-card);
+}
+
+.tpl-ocean-pearl .tpl-photo {
+  border-radius: var(--radius-image);
+}
+
+.tpl-copper-roast .tpl-card-filled {
+  background: color-mix(in oklab, var(--card) 90%, var(--accent));
+}
+
+.tpl-cream-studio .tpl-segmented {
+  background: color-mix(in oklab, var(--raised) 80%, transparent);
+}
+
+.tpl-matcha-ritual .tpl-chapter {
+  min-height: 5rem;
+}
+
+/* Midnight Espresso's spotlight: the name set big, the drink small beside it. */
+@media (max-width: 767px) {
+  .tpl-midnight-espresso .tpl-spotlight > div {
+    grid-template-columns: minmax(0, 1fr) 7.5rem;
+    align-items: start;
+  }
+  .tpl-midnight-espresso .tpl-spotlight-media {
+    order: 2;
+  }
+  .tpl-midnight-espresso .tpl-spotlight-media > span {
+    width: 7.5rem;
+  }
+  .tpl-midnight-espresso .tpl-spotlight-text {
+    order: 1;
+  }
+  .tpl-midnight-espresso .tpl-hero-title {
+    font-size: calc(var(--type-scale) * clamp(2.2rem, 9vw, 3rem));
+  }
+}
+.tpl-midnight-espresso .tpl-card-row {
+  padding-block: 0.85rem;
+}
+
+.tpl-terra-cafe .tpl-photo {
+  border-radius: 999px 999px var(--radius-image) var(--radius-image);
+}
+
+.tpl-nordic-brew .tpl-search-input {
+  background: var(--raised);
+  box-shadow: none;
+}
+
+.tpl-neon-noir .tpl-card-filled,
+.tpl-neon-noir .tpl-search-input {
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--accent) 35%, transparent),
+    var(--shadow-card);
+}
+
+.tpl-gallery-blanc .tpl-h2 {
+  font-size: calc(var(--type-scale) * clamp(2rem, 7vw, 3rem));
+}
+
+.tpl-paris-maison .tpl-heading-script .tpl-display,
+.tpl-rose-patisserie .tpl-heading-script .tpl-display,
+.tpl-celebration-house .tpl-heading-script .tpl-display {
+  font-style: italic;
+}
+
+.tpl-butter-and-fold .tpl-heading-band {
+  border-radius: var(--radius-card);
+  margin-inline: 0;
+}
+
+.tpl-cocoa-atelier .tpl-photo {
+  border-radius: var(--radius-image);
+}
+
+.tpl-artisan-crust .tpl-daily {
+  background: transparent;
+  box-shadow: none;
+  padding-inline: 0;
+  border-block: 1px solid var(--line);
+  border-radius: 0;
+}
+
+.tpl-pistachio-boutique .tpl-add {
+  background: var(--raised);
+}
+
+.tpl-gelato-riviera .tpl-flavor,
+.tpl-sorbet-garden .tpl-flavor {
+  aspect-ratio: auto;
+}
+
+.tpl-pop-gelato .tpl-card-filled {
+  box-shadow:
+    0 0 0 2px var(--text),
+    0 18px 30px -18px rgb(0 0 0 / 0.5);
+}
+.tpl-pop-gelato .tpl-add {
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow: none;
+}
+
+.tpl-frozen-jewel .tpl-photo {
+  border-radius: var(--radius-image);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tpl *,
+  .tpl *::before,
+  .tpl *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

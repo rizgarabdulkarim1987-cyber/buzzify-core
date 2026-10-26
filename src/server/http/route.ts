@@ -1,7 +1,8 @@
 import type { z } from 'zod';
+import { getPrisma } from '@/server/data/prisma';
 import { getTenant } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
-import { createRateLimiter } from './rate-limit';
+import { admitRequest, createRateLimiter } from './rate-limit';
 
 const MAX_BODY_BYTES = 32 * 1024;
 const limiters = new Map<string, ReturnType<typeof createRateLimiter>>();
@@ -56,9 +57,13 @@ export async function handleTenantRequest<S extends z.ZodType>(
   if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const verdict = limiterFor(options.route, options.limit, options.windowMs ?? 60_000).check(
-    `${tenant.id}:${ip}`,
-    Date.now(),
+  const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
+  const verdict = await admitRequest(
+    getPrisma(),
+    limiterFor(options.route, rule.limit, rule.windowMs),
+    `${options.route}:${tenant.id}:${ip}`,
+    rule,
+    new Date(),
   );
   if (!verdict.allowed) {
     return problem(429, 'RATE_LIMITED', 'Too many requests', {
@@ -82,4 +87,25 @@ export async function handleTenantRequest<S extends z.ZodType>(
     return problem(400, 'INVALID_REQUEST', message);
   }
   return handler({ tenant, input: parsed.data, now: new Date() });
+}
+
+/**
+ * A GET to a tenant's public API: the same lookup and the shared per-address limit as `handleTenantRequest`, with no body.
+ */
+export async function handleTenantGet(
+  request: Request,
+  ctx: { params: Promise<{ tenant: string }> },
+  options: { route: string; limit: number; windowMs?: number },
+  handler: (args: { tenant: TenantInfo; now: Date }) => Promise<Response>,
+): Promise<Response> {
+  const { tenant: slug } = await ctx.params;
+  const tenant = await getTenant(slug);
+  if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
+  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
+  const verdict = await admitRequest(getPrisma(), limiterFor(options.route, rule.limit, rule.windowMs), `${options.route}:${tenant.id}:${ip}`, rule, new Date());
+  if (!verdict.allowed) {
+    return problem(429, 'RATE_LIMITED', 'Too many requests', { 'Retry-After': String(Math.ceil(verdict.retryAfterMs / 1000)) });
+  }
+  return handler({ tenant, now: new Date() });
 }

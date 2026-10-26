@@ -1,6 +1,6 @@
 import { isLocale, type Locale } from './locale';
 
-export const ART_KINDS = ['cup', 'glass', 'plate', 'pastry', 'bowl', 'burger'] as const;
+export const ART_KINDS = ['cup', 'glass', 'plate', 'pastry', 'bowl', 'burger', 'scoop', 'cake', 'bread'] as const;
 export type ArtKind = (typeof ART_KINDS)[number];
 
 /** A photo or drawing from the media library, resolved when the menu was published (`src/server/media/resolve.ts`). */

@@ -67,7 +67,7 @@ describe('parseHostEnv', () => {
 
 describe('parseMailEnv', () => {
   it('has a default sender and no key', () => {
-    expect(parseMailEnv({})).toEqual({ resendApiKey: null, emailFrom: 'Buzzify Studio <studio@buzzify.me>' });
+    expect(parseMailEnv({})).toEqual({ resendApiKey: null, emailFrom: 'Buzzify Core <studio@buzzify.me>' });
   });
 
   it('reads the email key and sender', () => {
@@ -81,12 +81,12 @@ describe('parseMailEnv', () => {
   it('treats an empty email key or sender as unset', () => {
     expect(parseMailEnv({ RESEND_API_KEY: '', EMAIL_FROM: '  ' })).toEqual({
       resendApiKey: null,
-      emailFrom: 'Buzzify Studio <studio@buzzify.me>',
+      emailFrom: 'Buzzify Core <studio@buzzify.me>',
     });
   });
 
   it('rejects a sender that is not an address, because Resend would only refuse it at send time', () => {
-    expect(() => parseMailEnv({ EMAIL_FROM: 'Buzzify Studio' })).toThrow();
+    expect(() => parseMailEnv({ EMAIL_FROM: 'Buzzify Core' })).toThrow();
     expect(() => parseMailEnv({ EMAIL_FROM: 'Buzzify <studio@buzzify.me' })).toThrow();
   });
 

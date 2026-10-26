@@ -52,7 +52,7 @@ const ask = <I, O>(actor: Actor, def: QueryDef<I, O>, input: unknown = {}) => ru
 
 const SETTINGS = {
   reservedSlugs: [] as string[],
-  emailSenderName: 'Buzzify Studio',
+  emailSenderName: 'Buzzify Core',
   defaults: { locales: ['en', 'ar', 'ckb'], defaultLocale: 'en', currency: 'IQD', timezone: 'Asia/Baghdad' },
 };
 const save = (actor: Actor, change: Record<string, unknown> = {}) => run(actor, settingsActions.updatePlatformSettings, { ...SETTINGS, ...change });
@@ -86,7 +86,7 @@ describe('reading the settings', () => {
   it('gives the built-in defaults when nothing is stored', async () => {
     expect(await getPlatformSettings(prisma())).toEqual({
       reservedSlugs: [],
-      emailSenderName: 'Buzzify Studio',
+      emailSenderName: 'Buzzify Core',
       defaults: { locales: ['en', 'ar', 'ckb'], defaultLocale: 'en', currency: 'IQD', timezone: 'Asia/Baghdad' },
     });
   });
@@ -323,6 +323,6 @@ describe('the email sender name', () => {
     vi.mocked(sendEmail).mockClear();
     sendAfterResponse(to, 'emailChanged', { newEmail: 'new@example.com' });
     await vi.waitFor(() => expect(sendEmail).toHaveBeenCalledTimes(1));
-    expect(vi.mocked(sendEmail).mock.calls[0]![1]).toEqual({ senderName: 'Buzzify Studio' });
+    expect(vi.mocked(sendEmail).mock.calls[0]![1]).toEqual({ senderName: 'Buzzify Core' });
   });
 });

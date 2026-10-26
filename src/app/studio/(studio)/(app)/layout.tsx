@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
+import { getPosAccess } from '@/server/pos/actor';
 import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/invoke';
 import { myRestaurants } from '@/server/studio/queries/account';
 import { getStudioTranslator } from '@/studio/messages';
-import { isOwnerOnly, visibleNav } from '@/studio/nav';
+import { isOwnerOnly, posNavItem, visibleNav } from '@/studio/nav';
 import { Sidebar, type SidebarItem } from '@/studio/shell/Sidebar';
 
 /** The person's role as the sidebar names it: Super Admin, else their role in their restaurants. */
@@ -31,7 +32,10 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         menuIds: restaurant.menus.map((menu) => menu.id),
       }))
     : [];
-  const items: SidebarItem[] = visibleNav(actor, owned).map(({ labelKey, label, ...item }) => ({
+  // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.
+  const pos = await getPosAccess();
+  const navItems = pos.actor && pos.gate?.open ? [...visibleNav(actor, owned), posNavItem()] : visibleNav(actor, owned);
+  const items: SidebarItem[] = navItems.map(({ labelKey, label, ...item }) => ({
     ...item,
     label: label ?? t(labelKey),
   }));

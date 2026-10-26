@@ -9,6 +9,10 @@ import {
   type LiveOverlay,
   type MenuSnapshot,
 } from '@/server/domain/snapshot';
+import { DEFAULT_ENGINE_CONFIG } from '@/server/domain/config';
+import type { CatalogPromotion } from '@/server/domain/types';
+import { TEMPLATES } from '@/lib/templates';
+import { resolveDesign } from '@/lib/templates/resolve';
 import { IDS, makeBrand, makeCatalog, makeMenu, makeSnapshot, product, withProduct } from './fixtures';
 
 const menu = makeMenu();
@@ -183,7 +187,7 @@ describe('toCatalog', () => {
   it('carries the menu settings and the catalog structure over', () => {
     const c = toCatalog('m1', snapshot, NO_OVERLAY);
     expect(c).toMatchObject({ currency: 'USD', timeZone: 'Asia/Baghdad', defaultLocale: 'en' });
-    expect(c.categories).toEqual(snapshot.catalog.categories);
+    expect(c.categories).toEqual(catalog.categories);
     expect(c.schedule).toEqual(snapshot.catalog.schedule);
     expect(c.pairingRules).toEqual(snapshot.catalog.pairingRules);
     expect(c.products.find((p) => p.id === IDS.burger)).toMatchObject({
@@ -332,5 +336,163 @@ describe('2b additions', () => {
     expect(snapshotAssetIds(rich())).toEqual(['asset-logo', 'asset-photo', 'asset-seo']);
     expect(snapshotAssetIds(snapshot)).toEqual([]);
     expect(snapshotAssetIds(parseSnapshot(fixture.snapshot))).toEqual([]);
+  });
+});
+
+describe('sales additions', () => {
+  const offer: CatalogPromotion = {
+    id: 'promo-hh',
+    kind: 'DISCOUNT',
+    percentOff: 20,
+    productIds: [IDS.burger, IDS.fries],
+    categoryIds: ['cat-coffee'],
+    startsOn: '2026-10-01',
+    endsOn: null,
+    startMinute: 1020,
+    endMinute: 1140,
+    daysOfWeek: 127,
+    roundTo: 5,
+    translations: { en: { title: 'Happy hour', text: 'Twenty percent off' } },
+    sortOrder: 0,
+  };
+  const sales = { priceStyle: 'plain', showMostOrdered: false, showLowStock: true } as const;
+  const rich = () =>
+    buildSnapshot({
+      menu: makeMenu({ engineConfig: { ...DEFAULT_ENGINE_CONFIG, sales } }),
+      brand,
+      catalog: {
+        ...withProduct(catalog, IDS.burger, { serves: 2 }),
+        categories: catalog.categories.map((c) => (c.id === 'cat-cold' ? { ...c, completesMeal: true } : c)),
+        promotions: [offer],
+      },
+    });
+
+  it('leaves unused sales fields out of the snapshot', () => {
+    const json = JSON.parse(JSON.stringify(buildSnapshot({ menu, brand, catalog })));
+    expect('promotions' in json.catalog).toBe(false);
+    expect(json.catalog.products.filter((p: object) => 'serves' in p)).toEqual([]);
+    expect(json.catalog.categories.filter((c: object) => 'completesMeal' in c)).toEqual([]);
+    expect('sales' in json.menu.engineConfig).toBe(false);
+  });
+
+  it('round-trips offers, serves, meal categories and sales settings through JSON', () => {
+    const s = rich();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+    expect(parsed.catalog.promotions).toEqual([offer]);
+    expect(parsed.menu.engineConfig.sales).toEqual(sales);
+  });
+
+  it('changes the hash when a dish serves two', () => {
+    const serving = buildSnapshot({ menu, brand, catalog: withProduct(catalog, IDS.burger, { serves: 2 }) });
+    expect(snapshotHash(serving)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it('gives a catalog published without them the defaults', () => {
+    const c = toCatalog('m-test', snapshot, NO_OVERLAY);
+    expect(c.promotions).toEqual([]);
+    expect(c.products.every((p) => p.serves === null)).toBe(true);
+    expect(c.categories.every((category) => category.completesMeal === false)).toBe(true);
+  });
+
+  it('carries offers, serves and meal categories into the catalog', () => {
+    const c = toCatalog('m-test', rich(), NO_OVERLAY);
+    expect(c.promotions).toEqual([offer]);
+    expect(c.products.find((p) => p.id === IDS.burger)?.serves).toBe(2);
+    expect(c.categories.find((category) => category.id === 'cat-cold')?.completesMeal).toBe(true);
+  });
+
+  it('takes a hidden dish out of every offer and drops an offer left with nothing', () => {
+    const lone: CatalogPromotion = { ...offer, id: 'promo-lone', productIds: [IDS.burger], categoryIds: [] };
+    const s = buildSnapshot({ menu, brand, catalog: { ...catalog, promotions: [offer, lone] } });
+    const c = toCatalog('m-test', s, { products: { [IDS.burger]: { isAvailable: true, isHidden: true, stockCount: null } }, options: {} });
+    expect(c.promotions).toEqual([{ ...offer, productIds: [IDS.fries] }]);
+  });
+
+  it('keeps only the dishes and categories the published catalog has, and drops an offer left with none', () => {
+    const stale: CatalogPromotion = { ...offer, id: 'promo-stale', productIds: ['gone-dish'], categoryIds: ['gone-category'] };
+    const mixed: CatalogPromotion = { ...offer, id: 'promo-mixed', productIds: [IDS.burger, 'gone-dish'], categoryIds: ['cat-coffee', 'gone-category'] };
+    const c = toCatalog('m-test', buildSnapshot({ menu, brand, catalog: { ...catalog, promotions: [stale, mixed] } }), NO_OVERLAY);
+    expect(c.promotions).toEqual([{ ...mixed, productIds: [IDS.burger], categoryIds: ['cat-coffee'] }]);
+  });
+
+  it('refuses an offer of an unknown kind', () => {
+    const s = JSON.parse(JSON.stringify(rich()));
+    s.catalog.promotions[0].kind = 'FREEBIE';
+    expect(() => parseSnapshot(s)).toThrow();
+  });
+});
+
+describe('template designs', () => {
+  const withDesign = (): MenuSnapshot => {
+    const design = resolveDesign(
+      TEMPLATES['gelato-riviera'],
+      { featured: { slugs: ['latte'] }, promo: { title: { en: 'Two scoops' }, body: {}, terms: { en: 'Weekdays only' } } },
+      {
+        details: {
+          address: '9 Shore Road',
+          city: 'Duhok',
+          phone: '+964 750 111 2222',
+          whatsapp: '',
+          mapUrl: 'https://maps.example.com/x',
+          socialLinks: { instagram: 'https://instagram.com/gelato' },
+          workingHours: { fri: [['12:00', '23:30']] },
+        },
+        poweredBy: true,
+      },
+    );
+    return buildSnapshot({ menu, brand: { ...brand, design }, catalog });
+  };
+
+  it('round-trips a design through JSON and keeps its hash', () => {
+    const s = withDesign();
+    const parsed = parseSnapshot(JSON.parse(JSON.stringify(s)));
+    expect(parsed).toEqual(s);
+    expect(snapshotHash(parsed)).toBe(snapshotHash(s));
+    expect(snapshotHash(s)).not.toBe(snapshotHash(snapshot));
+  });
+
+  it.each([
+    ['a map link that is not https', (s: MenuSnapshot) => ((s.brand.design!.info as Record<string, unknown>).mapUrl = 'javascript:alert(1)')],
+    ['a colour that is not a colour', (s: MenuSnapshot) => ((s.brand.design!.palette as unknown as Record<string, string>).bg = 'url(x)')],
+    ['an unknown template', (s: MenuSnapshot) => ((s.brand.design as unknown as Record<string, string>).templateId = 'comic')],
+    ['an unknown card kind', (s: MenuSnapshot) => ((s.brand.design!.layout as unknown as Record<string, string>).card = 'marquee')],
+  ])('refuses %s', (_, spoil) => {
+    const s = JSON.parse(JSON.stringify(withDesign())) as MenuSnapshot;
+    spoil(s);
+    expect(() => parseSnapshot(s)).toThrow();
+  });
+
+  const withMedia = (media: NonNullable<MenuSnapshot['brand']['design']>['media']): MenuSnapshot => {
+    const s = withDesign();
+    return buildSnapshot({ menu, brand: { ...s.brand, design: { ...s.brand.design!, media } }, catalog });
+  };
+  const video = {
+    kind: 'video' as const,
+    assetId: 'asset-video',
+    url: '/api/dev-media/r/x/abc/original.mp4',
+    width: 1080,
+    height: 1920,
+    poster: { url: '/api/dev-media/r/x/abc/poster-webp-640.webp', srcset: '/api/dev-media/r/x/abc/poster-webp-320.webp 320w', placeholder: 'data:image/webp;base64,AAAA' },
+  };
+
+  it('keeps a scene file through JSON, and names it among the assets the revision uses', () => {
+    const s = withMedia(video);
+    expect(parseSnapshot(JSON.parse(JSON.stringify(s)))).toEqual(s);
+    expect(snapshotAssetIds(s)).toEqual(['asset-video']);
+    const model = withMedia({ kind: 'model', assetId: 'asset-model', url: 'https://media.example.com/r/x/m/original.glb', framing: { scale: 1, x: 0, y: 0, turn: 0 } });
+    expect(parseSnapshot(JSON.parse(JSON.stringify(model)))).toEqual(model);
+  });
+
+  it.each([
+    ['a scene file over plain http', { ...video, url: 'http://example.com/a.mp4' }],
+    ['a scene file by script URL', { ...video, url: 'javascript:alert(1)' }],
+    ['a poster that is not a safe URL', { ...video, poster: { ...video.poster, url: '//evil.example.com/p.webp' } }],
+    ['an unknown kind', { ...video, kind: 'flash' }],
+  ])('refuses %s', (_, media) => {
+    const s = JSON.parse(JSON.stringify(withMedia(video))) as MenuSnapshot;
+    (s.brand.design as unknown as Record<string, unknown>).media = media;
+    expect(() => parseSnapshot(s)).toThrow();
   });
 });

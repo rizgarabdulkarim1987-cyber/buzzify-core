@@ -5,6 +5,8 @@ import sharp from 'sharp';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
 import { snapshotHash } from '@/server/domain/snapshot';
+import { SCENE_KINDS } from '@/server/media/kinds';
+import { loadAssets } from '@/server/media/resolve';
 import { loadDraftSnapshot } from '@/server/publish/draft';
 import * as media from '@/server/studio/actions/media';
 import * as menuActions from '@/server/studio/actions/menus';
@@ -16,6 +18,7 @@ import * as mediaQueries from '@/server/studio/queries/media';
 import { getStorage, type Storage } from '@/server/storage/storage';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture, publishFixture, requireTestDb, resetTestData } from '../helpers/db';
+import { buildGlb, buildMp4 } from '../helpers/scene-files';
 
 const prisma = () => getPrisma();
 const META = { ip: '203.0.113.7', userAgent: 'vitest' };
@@ -315,5 +318,116 @@ describe('duplicating a menu into another restaurant', () => {
     await useInProduct(a.product.id, assetId);
     const { menuId } = dataOf(await run(designerOfA, menuActions.duplicateMenu, { menuId: a.menu.id, name: 'Copy', slug: 'media-copy-same' }));
     expect((await prisma().product.findFirstOrThrow({ where: { menuId } })).media).toEqual([{ kind: 'asset', assetId }]);
+  });
+});
+
+// Scene files (spec 2026-10-18-template-studio-stage-2-scene-files-design.md, 3) ----------------------------------------
+
+/** What the Studio does for a scene file: a slot for the file, one for a video's poster, then finalize with both. */
+async function uploadScene(actor: Actor, restaurantId: string, body: Uint8Array, mime: string, poster?: Uint8Array) {
+  const slot = dataOf(await run(actor, media.requestUpload, { restaurantId, fileName: 'scene', mime, bytes: body.length }));
+  await storage.put(slot.uploadKey, body, { contentType: mime, cacheControl: 'no-store' });
+  let posterKey: string | undefined;
+  if (poster) {
+    const posterSlot = dataOf(await run(actor, media.requestUpload, { restaurantId, fileName: 'poster.jpg', mime: 'image/jpeg', bytes: poster.length }));
+    await storage.put(posterSlot.uploadKey, poster, { contentType: 'image/jpeg', cacheControl: 'no-store' });
+    posterKey = posterSlot.uploadKey;
+  }
+  const result = await run(actor, media.finalize, { restaurantId, uploadKey: slot.uploadKey, ...(posterKey ? { posterKey } : {}) });
+  return { slot, posterKey, result };
+}
+
+const lottieBytes = () =>
+  new TextEncoder().encode(JSON.stringify({ v: '5.7.4', fr: 30, ip: 0, op: 90, w: 512, h: 512, layers: [{ ty: 3, ind: 1, ks: {}, ip: 0, op: 90, st: 0 }] }));
+const jpegPoster = () => sharp({ create: { width: 720, height: 1280, channels: 3, background: '#2A1B12' } }).jpeg().toBuffer().then((b) => new Uint8Array(b));
+
+describe('scene files', () => {
+  it('takes a GLB, a Lottie animation and a video with its poster into the library', async () => {
+    const model = dataOf((await uploadScene(designerOfA, a.restaurant.id, buildGlb({ triangles: 12 }), 'model/gltf-binary')).result).assetId;
+    const lottie = dataOf((await uploadScene(designerOfA, a.restaurant.id, lottieBytes(), 'application/json')).result).assetId;
+    const { posterKey, result } = await uploadScene(designerOfA, a.restaurant.id, buildMp4({ durationMs: 7000 }), 'video/mp4', await jpegPoster());
+    const video = dataOf(result).assetId;
+
+    expect(await prisma().mediaAsset.findUniqueOrThrow({ where: { id: model } })).toMatchObject({ kind: 'MODEL', mime: 'model/gltf-binary', width: null, meta: { triangles: 12 } });
+    expect(await prisma().mediaAsset.findUniqueOrThrow({ where: { id: lottie } })).toMatchObject({ kind: 'LOTTIE', width: 512, height: 512, durationMs: 3000 });
+    const row = await prisma().mediaAsset.findUniqueOrThrow({ where: { id: video } });
+    expect(row).toMatchObject({ kind: 'VIDEO', mime: 'video/mp4', width: 1080, height: 1920, durationMs: 7000, meta: { codec: 'avc1', hasAudio: false } });
+    expect(row.placeholder).toMatch(/^data:image\/webp/);
+    expect(await storage.head(`${row.storageKey}/original.mp4`)).toMatchObject({ contentType: 'video/mp4' });
+    expect(await storage.head(`${row.storageKey}/poster-webp-640.webp`)).toMatchObject({ contentType: 'image/webp' });
+    expect(await storage.head(posterKey!)).toBeNull();
+  });
+
+  it('refuses a video without a poster, and removes the upload', async () => {
+    const { slot, result } = await uploadScene(designerOfA, a.restaurant.id, buildMp4(), 'video/mp4');
+    expect(failureOf(result)).toMatchObject({ code: 'INVALID', fields: { file: 'POSTER' } });
+    expect(await storage.head(slot.uploadKey)).toBeNull();
+    expect(await prisma().mediaAsset.count()).toBe(0);
+  });
+
+  it('refuses a poster key from another library and leaves it alone', async () => {
+    const owner = await person('owner-b', [[b.restaurant.id, 'OWNER']]);
+    const theirs = dataOf(await run(owner, media.requestUpload, { restaurantId: b.restaurant.id, fileName: 'p.jpg', mime: 'image/jpeg', bytes: 10 }));
+    await storage.put(theirs.uploadKey, await jpegPoster(), { contentType: 'image/jpeg', cacheControl: 'no-store' });
+    const slot = dataOf(await run(designerOfA, media.requestUpload, { restaurantId: a.restaurant.id, fileName: 'v.mp4', mime: 'video/mp4', bytes: 10 }));
+    await storage.put(slot.uploadKey, buildMp4(), { contentType: 'video/mp4', cacheControl: 'no-store' });
+    const result = await run(designerOfA, media.finalize, { restaurantId: a.restaurant.id, uploadKey: slot.uploadKey, posterKey: theirs.uploadKey });
+    expect(failureOf(result).code).toBe('NOT_FOUND');
+    expect(await storage.head(theirs.uploadKey)).not.toBeNull();
+  });
+
+  it('holds each kind to its limit: at the slot as declared, and at finalize as found', async () => {
+    const declared = failureOf(
+      await run(designerOfA, media.requestUpload, { restaurantId: a.restaurant.id, fileName: 'm.glb', mime: 'model/gltf-binary', bytes: 10 * 1024 * 1024 + 1 }),
+    );
+    expect(declared).toMatchObject({ fields: { file: 'SIZE' } });
+    // Declared as a 12 MB video, sent as a 12 MB model: the model's 10 MB is what counts.
+    const big = new Uint8Array(12 * 1024 * 1024);
+    big.set([0x67, 0x6c, 0x54, 0x46, 2, 0, 0, 0]);
+    const { slot, result } = await uploadScene(designerOfA, a.restaurant.id, big, 'video/mp4');
+    expect(failureOf(result)).toMatchObject({ fields: { file: 'SIZE' } });
+    expect(await storage.head(slot.uploadKey)).toBeNull();
+  });
+
+  it('refuses a GLB that reaches outside itself, naming the reason', async () => {
+    const outside = buildGlb({ edit: (g) => (g.images = [{ uri: 'https://example.com/t.png' }]) });
+    expect(failureOf((await uploadScene(designerOfA, a.restaurant.id, outside, 'model/gltf-binary')).result)).toMatchObject({
+      code: 'INVALID',
+      fields: { file: 'MODEL_EXTERNAL' },
+    });
+  });
+
+  it('lists pictures by default, scene files when asked, and both on the Media page', async () => {
+    const picture = dataOf((await upload(designerOfA, a.restaurant.id, await photo())).result).assetId;
+    const model = dataOf((await uploadScene(designerOfA, a.restaurant.id, buildGlb(), 'model/gltf-binary')).result).assetId;
+    const video = dataOf((await uploadScene(designerOfA, a.restaurant.id, buildMp4(), 'video/mp4', await jpegPoster())).result).assetId;
+    const ids = async (kinds?: string) =>
+      dataOf(await ask(designerOfA, mediaQueries.listMedia, { restaurantId: a.restaurant.id, ...(kinds ? { kinds } : {}) }))
+        .rows.map((row) => row.id)
+        .sort();
+    expect(await ids()).toEqual([picture]);
+    expect(await ids('scene')).toEqual([model, video].sort());
+    expect(await ids('all')).toEqual([picture, model, video].sort());
+
+    const rows = dataOf(await ask(designerOfA, mediaQueries.listMedia, { restaurantId: a.restaurant.id, kinds: 'scene' })).rows;
+    expect(rows.find((row) => row.id === model)).toMatchObject({ kind: 'MODEL', thumbUrl: '', originalUrl: expect.stringMatching(/original\.glb$/) });
+    expect(rows.find((row) => row.id === video)).toMatchObject({ kind: 'VIDEO', durationMs: 8000, thumbUrl: expect.stringMatching(/poster-webp-320\.webp$/) });
+    // Resolved as a menu would play it, so the Design tab can preview a file the moment it is picked.
+    expect(rows.find((row) => row.id === video)!.scene).toMatchObject({ kind: 'video', assetId: video, url: expect.stringMatching(/original\.mp4$/) });
+    expect(rows.find((row) => row.id === model)!.scene).toMatchObject({ kind: 'model', framing: { scale: 1, x: 0, y: 0, turn: 0 } });
+  });
+
+  it('pictures never take a scene file', async () => {
+    const model = dataOf((await uploadScene(designerOfA, a.restaurant.id, buildGlb(), 'model/gltf-binary')).result).assetId;
+    expect((await loadAssets(prisma(), a.restaurant.id, [model])).size).toBe(0);
+    expect((await loadAssets(prisma(), a.restaurant.id, [model], SCENE_KINDS)).get(model)).toMatchObject({ kind: 'MODEL' });
+  });
+
+  it('deletes a video with its poster files', async () => {
+    const video = dataOf((await uploadScene(designerOfA, a.restaurant.id, buildMp4(), 'video/mp4', await jpegPoster())).result).assetId;
+    const row = await prisma().mediaAsset.findUniqueOrThrow({ where: { id: video } });
+    dataOf(await run(designerOfA, media.deleteAsset, { restaurantId: a.restaurant.id, assetId: video }));
+    expect(await storage.head(`${row.storageKey}/original.mp4`)).toBeNull();
+    expect(await storage.head(`${row.storageKey}/poster-webp-320.webp`)).toBeNull();
   });
 });

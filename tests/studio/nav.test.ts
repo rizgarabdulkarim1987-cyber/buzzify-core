@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Actor } from '@/server/studio/auth/actor';
-import { isNavItemActive, NAV_ITEMS, safeNextPath, visibleNav } from '@/studio/nav';
+import { isNavItemActive, NAV_ITEMS, posNavItem, safeNextPath, visibleNav } from '@/studio/nav';
 
 function actor(overrides: Partial<Actor>): Actor {
   return {
@@ -8,6 +8,7 @@ function actor(overrides: Partial<Actor>): Actor {
     email: 'person@example.test',
     name: 'Person',
     isSuperAdmin: false,
+    isPlatformOwner: false,
     twoFactorEnabled: true,
     locale: 'en',
     memberships: [],
@@ -19,10 +20,12 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
+      '/studio/billing',
+      '/studio/cashier',
       '/studio/menus',
       '/studio/media',
       '/studio/motion',
@@ -36,15 +39,15 @@ describe('NAV_ITEMS', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'styles', 'people', 'activity', 'settings']);
   });
 
-  it('gives a designer the working areas but not People, Activity or Settings', () => {
+  it('gives a designer the working areas but not Billing, People, Activity or Settings', () => {
     const designer = actor({ memberships: [{ restaurantId: 'r1', role: 'DESIGNER' }] });
     expect(keys(visibleNav(designer))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion', 'styles']);
   });
@@ -137,6 +140,24 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(item!, '/studio/menus/m1')).toBe(true);
     expect(isNavItemActive(item!, '/studio/restaurants/r1/people')).toBe(true);
     expect(isNavItemActive(item!, '/studio/account')).toBe(false);
+  });
+});
+
+describe('the cashier item and the shared sign-in', () => {
+  it('is one item pointing at /pos', () => {
+    expect(posNavItem()).toMatchObject({ key: 'cashier', href: '/pos', labelKey: 'nav.cashier' });
+  });
+
+  it('is not among the Studio areas, so a menu-only user never sees it', () => {
+    expect(NAV_ITEMS.map((item) => item.key)).not.toContain('cashier');
+  });
+
+  it('lets a sign-in return to the till', () => {
+    expect(safeNextPath('/pos')).toBe('/pos');
+    expect(safeNextPath('/pos/settings')).toBe('/pos/settings');
+    for (const value of ['/posters', '/pos/../studio', '//pos', '/pos?x=1', 'https://evil.test/pos']) {
+      expect(safeNextPath(value), value).toBeNull();
+    }
   });
 });
 

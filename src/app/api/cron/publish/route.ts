@@ -1,19 +1,13 @@
-import { timingSafeEqual } from 'node:crypto';
 import { getPrisma } from '@/server/data/prisma';
 import { parseCronEnv } from '@/server/env';
+import { authorized } from '@/server/http/cron-auth';
+import { prunePublicRateLimits } from '@/server/http/rate-limit';
 import { activateDueRevisions } from '@/server/publish/revisions';
 
 /** One run makes up to 100 revisions live; a minute is plenty, and the next run picks up the rest. */
 export const maxDuration = 60;
 
 const NO_STORE = { 'cache-control': 'no-store' };
-
-/** Whether the request carries the scheduler's secret, compared in constant time. */
-function authorized(header: string | null, secret: string): boolean {
-  const expected = Buffer.from(`Bearer ${secret}`);
-  const given = Buffer.from(header ?? '');
-  return given.length === expected.length && timingSafeEqual(given, expected);
-}
 
 /**
  * Scheduled publishing (spec 10.6): the platform's scheduler calls this every minute with `CRON_SECRET`, and every
@@ -24,6 +18,9 @@ export async function GET(request: Request) {
   const { secret } = parseCronEnv(process.env);
   if (!secret) return new Response('Scheduled publishing is not configured', { status: 503, headers: NO_STORE });
   if (!authorized(request.headers.get('authorization'), secret)) return new Response('Unauthorized', { status: 401, headers: NO_STORE });
-  const result = await activateDueRevisions(getPrisma(), new Date());
+  const now = new Date();
+  const result = await activateDueRevisions(getPrisma(), now);
+  // Housekeeping on the same clock: the public API's rate counts whose window is a day old count nothing any more.
+  await prunePublicRateLimits(getPrisma(), new Date(now.getTime() - 86_400_000));
   return Response.json(result, { headers: NO_STORE });
 }

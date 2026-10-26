@@ -1,5 +1,7 @@
 import type { Translate } from '@/lib/i18n';
+import { POS_TEXT } from '@/server/pos/errors';
 import type { Locale } from '@/lib/locale';
+import { DEFAULT_PLAN_NAMES } from '@/server/domain/entitlements';
 import type { StudioFailure } from '@/server/studio/framework/result';
 import { formatDateTime } from './format';
 
@@ -9,6 +11,7 @@ import { formatDateTime } from './format';
  * English on an Arabic or Sorani page. tests/studio/messages.test.ts scans the server code for refusals missing here.
  */
 export const SERVER_TEXT: Readonly<Record<string, string>> = {
+  ...POS_TEXT,
   // The framework's defaults, one per code
   'Sign in to continue': 'error.UNAUTHENTICATED',
   'Set up two-factor authentication to continue': 'error.TWO_FACTOR_REQUIRED',
@@ -17,7 +20,10 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Check the highlighted fields': 'error.INVALID',
   'Someone else changed this while you were editing. Reload to see their changes.': 'error.CONFLICT',
   'Too many attempts. Try again later.': 'error.RATE_LIMITED',
+  'This is not part of this restaurant’s plan': 'error.upgradeGeneric',
   'Something went wrong': 'error.unexpected',
+  // A call that never got an answer (src/studio/settle.ts)
+  'The connection failed before an answer came back. Nothing you typed is lost: try again.': 'error.network',
 
   // Signing in, two-factor, passwords
   'Wrong email or password': 'error.text.signInFailed',
@@ -26,6 +32,14 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This is already your email address': 'error.text.emailSame',
   'This is already their email address': 'error.text.emailSameTheirs',
   'An account with this email already exists': 'error.text.emailTaken',
+  'Cash must stay switched on': 'error.text.posCashRequired',
+  'You cannot change your own role or access': 'error.text.posNotSelf',
+  'The restaurant needs at least one active owner': 'error.text.posLastOwner',
+  'Your role cannot give or change this role': 'error.text.posRoleLimit',
+  'This person already works at this till': 'error.text.posAlreadyStaff',
+  'Choose which menu is the product list': 'error.text.posChooseCatalog',
+  'The product list must be priced in Iraqi dinar': 'error.text.posCatalogDinar',
+  'Could not find a free address for the product list': 'error.text.posCatalogSlug',
   'Change your own address on your account page, where both addresses confirm it': 'error.text.emailOwnOnAccount',
   'Enter your password': 'error.text.passwordEnter',
   'That password is too long': 'error.text.passwordInputTooLong',
@@ -58,6 +72,12 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This invitation was used or withdrawn in the meantime': 'error.text.inviteChanged',
   'This person already has access to this restaurant': 'error.text.personHasAccess',
   'This person already has an account. Assign them to a client instead': 'error.text.personHasAccount',
+  'Only the platform owner can change this account': 'error.text.platformOwnerOnly',
+
+  // Plans
+  'Choose one of the plans offered': 'error.text.planChoose',
+  'Enter the plan’s name': 'error.text.planName',
+  'Enter the number with its country code, digits only': 'error.text.whatsappDigits',
   'This person is already a Super Admin': 'error.text.personIsSuperAdmin',
   'There must always be one active Super Admin': 'error.text.lastSuperAdmin',
   'This account is already deactivated': 'error.text.alreadyDeactivated',
@@ -110,11 +130,25 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Reserve at most 500 words': 'error.text.reservedTooMany',
 
   // The media library
-  'Use a JPEG, PNG, WebP, AVIF, SVG or ICO file': 'media.refusal.TYPE',
-  'Use a file of at most 15 MB': 'media.refusal.SIZE',
+  'Use a JPEG, PNG, WebP, AVIF, SVG or ICO picture, or a GLB, MP4 or Lottie JSON scene file': 'media.refusal.TYPE',
+  'Use a picture of at most 15 MB, a model of at most 10 MB, a video of at most 20 MB or a Lottie file of at most 2 MB': 'media.refusal.SIZE',
   'Use a picture at most 10,000 pixels on a side and at most 8 times longer than it is wide': 'media.refusal.DIMENSIONS',
   'This file could not be read as a picture': 'media.refusal.UNREADABLE',
   'This SVG has no size or nothing that can be drawn safely': 'media.refusal.SVG_UNSAFE',
+  'A video needs a still frame to show before it plays; this browser could not take one from it': 'media.refusal.POSTER',
+  'This file could not be read as a GLB model': 'media.refusal.MODEL_INVALID',
+  'This model loads files from elsewhere; export it as one GLB file with everything inside': 'media.refusal.MODEL_EXTERNAL',
+  'This model needs a decoder the menu does not load (Draco or KTX2); export it without that compression': 'media.refusal.MODEL_EXTENSION',
+  'This model is too heavy for a phone: use at most 300,000 triangles and textures of at most 4096 pixels': 'media.refusal.MODEL_TOO_COMPLEX',
+  'This file could not be read as an MP4 video': 'media.refusal.VIDEO_INVALID',
+  'Use an MP4 video in H.264, which every phone plays': 'media.refusal.VIDEO_CODEC',
+  'Use a video of at most 1920 pixels on its longest side (export it at 1080p)': 'media.refusal.VIDEO_DIMENSIONS',
+  'Use a video of at most 30 seconds': 'media.refusal.VIDEO_DURATION',
+  'This file is not a Lottie animation the menu can play': 'media.refusal.LOTTIE_INVALID',
+  'This Lottie animation uses expressions, which the menu does not run; export it without them': 'media.refusal.LOTTIE_EXPRESSION',
+  'This Lottie animation loads images or fonts from elsewhere; embed them in the file': 'media.refusal.LOTTIE_EXTERNAL',
+  'This Lottie animation is too large: use at most 60 seconds, 4096 pixels a side and 2,000 layers': 'media.refusal.LOTTIE_TOO_COMPLEX',
+  'A shared design can only use a file from the shared library': 'error.text.sharedSceneFile',
   'Use at most 250 characters': 'error.text.altTooLong',
   'Use at most 40 characters': 'error.text.tagTooLong',
   'Use at most 20 tags': 'error.text.tagsTooMany',
@@ -140,6 +174,33 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Move or delete its products first': 'error.text.categoryHasProducts',
   'The categories changed while you were editing. Reload to see them.': 'error.text.categoriesChanged',
   'Choose exactly one default size': 'error.text.sizeDefaultOne',
+  'Choose normal, high or top': 'error.text.strengthChoose',
+  'Choose from the times of day offered': 'error.text.daypartChoose',
+  'Choose a different dish to offer': 'error.text.upgradeSameDish',
+  'This upgrade already exists': 'error.text.upgradeExists',
+  'This pairing already exists': 'error.text.pairingExists',
+  'Choose a different dish to suggest': 'error.text.pairingSameDish',
+  'Use 1 to 10': 'error.text.quantityRange',
+  'Put at least two dishes in a set': 'error.text.setTooFew',
+  'Use at most 8 dishes in a set': 'error.text.setTooMany',
+  'Enter a name for the set': 'error.text.setName',
+  'Price the set below its dishes bought one by one': 'error.text.setNotADeal',
+  'Use a date such as 2026-10-31': 'error.text.dateShape',
+  'Choose a time of day': 'error.text.timeOfDay',
+  'Use 5% to 90% off': 'error.text.percentOffRange',
+  'Choose at least one day': 'error.text.daysNone',
+  'Choose at least one dish or category': 'error.text.offerTargets',
+  'A special changes no price: leave the discount empty': 'error.text.specialNoPercent',
+  'End on or after the start date': 'error.text.offerEndsBefore',
+  'Give both a start and an end time, or neither': 'error.text.offerTimesBoth',
+  'End at a different time than the start': 'error.text.offerTimesSame',
+  'Enter a title in the main language of the menu': 'error.text.offerTitle',
+  'The offers changed while you were editing. Reload to see them.': 'error.text.offersChanged',
+  'Use 1 to 5': 'error.text.oneToFive',
+  'Use 25% to 200%': 'error.text.upsellCapRange',
+  'Use 2 to 20 people': 'error.text.servesRange',
+  'Use 1 to 999': 'error.text.lowStockRange',
+  'Enter a number from 0 to 9,999': 'error.text.stockRange',
   'Use at most the number of options': 'error.text.aboveOptions',
   'Use at least the minimum': 'error.text.belowMinimum',
   'A bundle uses this size. Remove it from the bundle first.': 'error.text.sizeInBundle',
@@ -162,12 +223,18 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This picture could not be read. Upload it again.': 'error.text.pictureUnreadable',
   'Some text would be hard to read on these colours': 'error.text.paletteContrast',
   'Choose a logo first': 'error.text.logoFirst',
+  'Choose one of the places offered': 'error.text.motionPlaceChoose',
+  'Choose a category': 'error.text.motionCategoryChoose',
+  'This place has no category': 'error.text.motionPlaceNoCategory',
+  'Choose one of the motions offered here': 'error.text.motionNotOffered',
   'This revision was never live, so the menu cannot go back to it': 'error.text.neverLive',
   'This revision is already live': 'error.text.alreadyLive',
   'Choose a time at least a minute from now': 'error.text.timeTooSoon',
   'Choose a time within a year': 'error.text.timeTooFar',
   'Another revision is already scheduled': 'error.text.alreadyScheduled',
   'Enter a name for the code': 'error.text.qrLabelEnter',
+  'Enter a name': 'error.text.designNameEnter',
+  'Choose a template first.': 'error.text.templateFirst',
   'Choose a table from 1 to 999': 'error.text.tableRange',
   'This table already has a code': 'error.text.tableHasCode',
   'The last table comes after the first': 'error.text.tableOrder',
@@ -182,9 +249,42 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Upload a CSV or Excel (.xlsx) file': 'error.text.sheetType',
   'Use a file of at most 5 MB': 'error.text.sheetTooLarge',
   'Some columns of this sheet are not right': 'error.text.sheetColumns',
+  'Some rows of this file are not right': 'error.text.posImportRows',
   'This import was already applied or discarded': 'error.text.importDone',
   'The menu changed after this sheet was read. Upload it again.': 'error.text.importStale',
   'Fix the rows marked invalid and upload the sheet again': 'error.text.importInvalidRows',
+
+  // Billing
+  'This restaurant already has a live subscription to this product': 'error.text.billingSecondLive',
+  'Only an active restaurant can start a trial. Activate it first.': 'error.text.billingRestaurantNotActive',
+  'This product is turned off. Turn it on before starting a trial.': 'error.text.billingProductDisabled',
+  'Only an active restaurant can reactivate a subscription. Activate it first.': 'error.text.billingReactivateRestaurantNotActive',
+  'This product is turned off. Turn it on before reactivating.': 'error.text.billingReactivateProductDisabled',
+  'This payment was already recorded for another subscription': 'error.text.billingPaymentKeyUsed',
+  'Choose one of the products offered': 'error.text.billingProductChoose',
+  'Choose a plan': 'error.text.billingPlanEnter',
+  'Choose one of the plans this product offers': 'error.text.billingPlanChoose',
+  'Choose one of the periods offered': 'error.text.billingPeriodChoose',
+  'Choose one of the payment methods offered': 'error.text.billingMethodChoose',
+  'Enter a value': 'error.text.valueEnter',
+  'Use at most 80 characters': 'error.text.max80Characters',
+  'Use at most 500 characters': 'error.text.max500Characters',
+  'Enter a whole number of minor units': 'error.text.billingAmountWhole',
+  'Enter a smaller amount': 'error.text.billingAmountTooHigh',
+  'Enter an amount above zero': 'error.text.billingAmountPositive',
+  'Each currency and period may appear once': 'error.text.billingPriceOnce',
+  'This plan has no price in this currency and period': 'error.text.billingNoPrice',
+  'Enter a whole number of days': 'error.text.billingDaysWhole',
+  'Enter 1 to 60 days': 'error.text.billingTrialDaysRange',
+  'Enter the date the money was received': 'error.text.billingPaidAtEnter',
+  'The payment date cannot be in the future': 'error.text.billingPaidAtFuture',
+  'The subscription is already on this plan': 'error.text.billingSamePlan',
+  'Only a live subscription can be cancelled': 'error.text.billingCancelNotLive',
+  'This subscription has already expired': 'error.text.billingAlreadyExpired',
+  'Only a cancelled subscription can be reactivated': 'error.text.billingReactivateNotCancelled',
+  'What was paid for has ended. Record a payment to start a new period.': 'error.text.billingPaidPeriodEnded',
+  'This subscription is cancelled. Reactivate it before recording a payment.': 'error.text.billingReactivateFirst',
+  'This restaurant has subscriptions or payments on record, which are never deleted. Suspend it instead.': 'error.text.restaurantHasBilling',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -195,7 +295,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
@@ -218,6 +318,12 @@ export function describeFailure(t: Translate, locale: Locale, failure: StudioFai
     const time = formatDateTime(changedAt, locale);
     const by = failure.fields?.changedBy;
     message = by ? t('error.conflictBy', { name: isolate(by), time }) : t('error.conflictAt', { time });
+  }
+  // A feature the restaurant's plan lacks names the lowest plan with it (by its default name; screens that expect the
+  // refusal show the upgrade hint with the platform owner's names instead).
+  if (failure.code === 'UPGRADE_REQUIRED') {
+    const plan = failure.upgrade?.plan;
+    message = plan ? t('error.UPGRADE_REQUIRED', { plan: DEFAULT_PLAN_NAMES[plan][locale] }) : t('error.upgradeGeneric');
   }
   const retryAfter = Number(failure.fields?.retryAfterSec);
   if (failure.code === 'RATE_LIMITED' && Number.isFinite(retryAfter) && retryAfter > 0) {

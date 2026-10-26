@@ -3,13 +3,19 @@ import { DEFAULT_PALETTES, sanitizePalette } from '@/lib/brand';
 import { isLocale, type Locale } from '@/lib/locale';
 import { DEFAULT_FONT_PAIR, isFontPairId } from '@/lib/font-pairs';
 import { isRailStyle, resolveRailStyle } from '@/lib/rail';
+import { isTemplateId, TEMPLATES } from '@/lib/templates';
+import { parseOverrides, resolveDesign, type RestaurantDetails } from '@/lib/templates/resolve';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import type { BrandFavicon, BrandImage, BrandView } from '@/server/data/tenant';
 import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { resolveEngineConfig } from '@/server/domain/config';
+import { slotOf, type SnapshotMotion } from '@/server/domain/menu-motions';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
+import type { CatalogPromotion } from '@/server/domain/types';
+import { SCENE_KINDS } from '@/server/media/kinds';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
+import { sceneMediaOf } from '@/server/media/scene';
 import { getStorage } from '@/server/storage/storage';
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -69,7 +75,6 @@ function snapshotMenu(menu: Menu, displayName: string): SnapshotMenu {
   };
 }
 
-/** The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. */
 /** The library assets a brand kit names: its logos, and the asset its favicon is drawn from. */
 function brandAssetIds(brand: BrandConfig | null): string[] {
   if (!brand) return [];
@@ -95,11 +100,19 @@ function brandFavicon(asset: ResolvableAsset | undefined, mediaUrl: (key: string
  * The brand kit as guests get it. A menu without one gets the default palettes and its restaurant's name as logo. The
  * fields the 2b kit added are left out when unused (the classic pair, no logo), so such a menu hashes as before.
  */
+/** The restaurant's side of a template menu: the details it may show, and whether it shows Powered by Buzzify. */
+export interface DesignContext {
+  details: RestaurantDetails;
+  showPoweredBy: boolean;
+}
+
 function brandView(
   brand: BrandConfig | null,
   displayName: string,
   assets: ReadonlyMap<string, ResolvableAsset> = new Map(),
   mediaUrl: (key: string) => string = (key) => key,
+  context: DesignContext | null = null,
+  scenes: ReadonlyMap<string, ResolvableAsset> = new Map(),
 ): BrandView {
   const tokens = (brand?.tokens ?? {}) as { dark?: unknown; light?: unknown };
   const motionIntensity =
@@ -125,7 +138,28 @@ function brandView(
   const faviconId = brand.faviconFromLogo ? brand.logoAssetId : brand.faviconAssetId;
   const favicon = brandFavicon(faviconId ? assets.get(faviconId) : undefined, mediaUrl);
   if (favicon) view.favicon = favicon;
+  // A template menu: its preset with the business's overrides, frozen here so later changes to the preset never reach a
+  // published revision. The kit's own palette and fonts are kept as they are for the classic menu.
+  if (isTemplateId(brand.templateId)) {
+    const overrides = parseOverrides(brand.design);
+    view.design = resolveDesign(TEMPLATES[brand.templateId], overrides, {
+      details: context?.details ?? null,
+      poweredBy: context?.showPoweredBy ?? true,
+      ...(brand.customTemplateId ? { customTemplateId: brand.customTemplateId } : {}),
+    });
+    // A scene file the restaurant can no longer use is left out: the menu then shows its template's own scene.
+    const scene = overrides.sceneAsset ? scenes.get(overrides.sceneAsset.assetId) : undefined;
+    const media = scene ? sceneMediaOf(scene, mediaUrl, overrides.sceneAsset?.framing) : null;
+    if (media) view.design.media = media;
+  }
   return view;
+}
+
+/** The scene file a brand kit's design names, when the menu is drawn with a template. */
+function sceneAssetIds(brand: BrandConfig | null): string[] {
+  if (!brand || !isTemplateId(brand.templateId)) return [];
+  const choice = parseOverrides(brand.design).sceneAsset;
+  return choice ? [choice.assetId] : [];
 }
 
 /**
@@ -147,7 +181,36 @@ export function brandRowFromSnapshot(brand: BrandView, assetMap?: ReadonlyMap<st
     logoDarkAssetId: mapped(brand.logoDark?.assetId),
     faviconAssetId: fromLogo ? null : mapped(brand.favicon?.assetId),
     faviconFromLogo: fromLogo,
+    templateId: brand.design?.templateId ?? null,
+    design: json(brand.design ? designFromSnapshot(brand.design.source.overrides, assetMap) : {}),
+    customTemplateId: brand.design?.source.customTemplateId ?? null,
   };
+}
+
+/** A snapshot's stored overrides, its scene file renamed through `assetMap` when the file was copied. */
+function designFromSnapshot(stored: unknown, assetMap?: ReadonlyMap<string, string>) {
+  const overrides = parseOverrides(stored);
+  const scene = overrides.sceneAsset;
+  if (scene && assetMap?.has(scene.assetId)) overrides.sceneAsset = { ...scene, assetId: assetMap.get(scene.assetId)! };
+  return overrides;
+}
+
+/** A placement row as the snapshot's builder reads it: the place comes from the slot, which the service writes with it. */
+function motionFromRow(row: { slot: string; categoryId: string | null; motionId: string; params: unknown; texts: unknown }) {
+  const place = row.slot.startsWith('category:') ? 'category' : row.slot;
+  return { place, ...(row.categoryId ? { categoryId: row.categoryId } : {}), motionId: row.motionId, params: row.params, texts: row.texts };
+}
+
+/**
+ * A snapshot's motions as draft rows, each category mapped through `categoryIds` when given (a copy has new ones); a
+ * motion whose category has no new id is left out.
+ */
+function motionRows(menuId: string, motions: readonly SnapshotMotion[] = [], categoryIds?: ReadonlyMap<string, string>) {
+  return motions.flatMap((motion) => {
+    const categoryId = motion.categoryId === undefined ? null : categoryIds ? categoryIds.get(motion.categoryId) : motion.categoryId;
+    if (categoryId === undefined) return [];
+    return [{ menuId, slot: slotOf(motion.place, categoryId), categoryId, motionId: motion.motionId, params: json(motion.params), texts: json(motion.texts) }];
+  });
 }
 
 /**
@@ -159,29 +222,42 @@ export function loadDraftSnapshot(db: ScopedDb, menuId: string): Promise<MenuSna
 export async function loadDraftSnapshot(client: AnyDb | ScopedDb, menuId: string): Promise<MenuSnapshot> {
   const db = delegates(client);
   // One query at a time: inside a transaction they share one connection.
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, include: { restaurant: { select: { name: true } } } });
+  const menu = await db.menu.findUniqueOrThrow({
+    where: { id: menuId },
+    include: {
+      restaurant: {
+        select: { name: true, address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true },
+      },
+    },
+  });
   const brand = await db.brandConfig.findUnique({ where: { menuId } });
   const catalog = await loadDraftCatalog(db, menuId);
+  const motions = await db.menuMotion.findMany({ where: { menuId }, select: { slot: true, categoryId: true, motionId: true, params: true, texts: true } });
   const displayName = menu.restaurant.name;
   const settings = snapshotMenu(menu, displayName);
+  const { showPoweredBy, ...details } = menu.restaurant;
+  const context: DesignContext = { details, showPoweredBy };
 
   // Library photos become the URLs guests load, so the revision never needs the library again.
   const seo = seoMap(menu.seo);
   const productAssets = catalog.products.flatMap((product) => mediaAssetIds(product.media));
   const seoAssets = Object.values(seo).flatMap((entry) => (entry?.imageAssetId ? [entry.imageAssetId] : []));
   const brandAssets = brandAssetIds(brand);
-  if (productAssets.length + seoAssets.length + brandAssets.length === 0) {
+  const sceneAssets = sceneAssetIds(brand);
+  if (productAssets.length + seoAssets.length + brandAssets.length + sceneAssets.length === 0) {
     settings.seo = resolveSeo(seo, new Map(), (key) => key);
-    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName), catalog });
+    return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, new Map(), (key) => key, context), catalog, motions: motions.map(motionFromRow) });
   }
   const assets = await loadAssets(db, menu.restaurantId, [...productAssets, ...seoAssets, ...brandAssets]);
+  // Scene files apart from pictures, so a photo, logo or search image can never resolve to one.
+  const scenes = await loadAssets(db, menu.restaurantId, sceneAssets, SCENE_KINDS);
   const mediaUrl = (key: string) => getStorage().publicUrl(key);
   catalog.products = catalog.products.map((product) => ({
     ...product,
     media: resolveDraftMedia(product.media, assets, settings.defaultLocale, mediaUrl),
   }));
   settings.seo = resolveSeo(seo, assets, mediaUrl);
-  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl), catalog });
+  return buildSnapshot({ menu: settings, brand: brandView(brand, displayName, assets, mediaUrl, context, scenes), catalog, motions: motions.map(motionFromRow) });
 }
 
 /**
@@ -233,7 +309,7 @@ function idMap<A extends { id: string }, B extends { id: string }>(
 }
 
 /**
- * Replaces a menu's draft catalog and brand kit with a snapshot's, in the caller's transaction. Every row is created
+ * Replaces a menu's draft catalog, brand kit and motions with a snapshot's, in the caller's transaction. Every row is created
  * with a new id and every reference is remapped, so a snapshot can be written into its own menu (restore) or into
  * another one (duplicate). Products and options start available, shown and uncounted. Tables are left alone, and the
  * brand kit keeps what a snapshot does not carry (typography, navigation style). Finally the draft hash is refreshed.
@@ -265,10 +341,12 @@ export async function writeDraftFromSnapshot(
   const where = { menuId };
 
   // Children before parents, so nothing relies on a cascade.
+  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
   await tx.pairingRule.deleteMany({ where });
+  await tx.promotion.deleteMany({ where });
   await tx.modifierOption.deleteMany({ where });
   await tx.modifierGroup.deleteMany({ where });
   await tx.productVariant.deleteMany({ where });
@@ -292,11 +370,14 @@ export async function writeDraftFromSnapshot(
             menuId,
             slug: c.slug,
             sortOrder: c.sortOrder,
+            completesMeal: c.completesMeal ?? false,
             translations: json(c.translations),
           })),
           select: { id: true, slug: true },
         });
   const categoryIds = idMap(catalog.categories, (c) => c.slug, categories, (c) => c.slug);
+  const motions = motionRows(menuId, snapshot.motions, categoryIds);
+  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const products =
     catalog.products.length === 0
@@ -319,6 +400,7 @@ export async function writeDraftFromSnapshot(
             allergens: p.allergens,
             dietary: p.dietary,
             calories: p.calories,
+            serves: p.serves ?? null,
             badges: p.badges,
             ingredients: json(p.ingredients),
             // Library photos go back to the assets they came from (copies of them, for another restaurant).
@@ -465,6 +547,21 @@ export async function writeDraftFromSnapshot(
     });
   }
 
+  // An offer keeps the dishes and categories that came across; one left naming nothing is not written.
+  const promotions = (catalog.promotions ?? []).flatMap((p) => {
+    const productIdsHere = p.productIds.flatMap((id) => {
+      const mapped = productIds.get(id);
+      return mapped === undefined ? [] : [mapped];
+    });
+    const categoryIdsHere = p.categoryIds.flatMap((id) => {
+      const mapped = categoryIds.get(id);
+      return mapped === undefined ? [] : [mapped];
+    });
+    if (productIdsHere.length + categoryIdsHere.length === 0) return [];
+    return [{ ...promotionRow(p), menuId, productIds: productIdsHere, categoryIds: categoryIdsHere }];
+  });
+  if (promotions.length > 0) await tx.promotion.createMany({ data: promotions });
+
   if (catalog.schedule.length > 0) {
     await tx.daypartSchedule.createMany({
       data: catalog.schedule.map((window) => ({
@@ -480,6 +577,21 @@ export async function writeDraftFromSnapshot(
   await refreshDraftHash(tx, menuId);
 }
 
+/** A promotion's own columns, as a snapshot holds them (its menu and ids are the caller's). */
+function promotionRow(p: CatalogPromotion) {
+  return {
+    kind: p.kind,
+    percentOff: p.percentOff,
+    startsOn: p.startsOn,
+    endsOn: p.endsOn,
+    startMinute: p.startMinute,
+    endMinute: p.endMinute,
+    daysOfWeek: p.daysOfWeek,
+    translations: json(p.translations),
+    sortOrder: p.sortOrder,
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Restoring a revision into the draft
 // ---------------------------------------------------------------------------------------------------------------------
@@ -492,7 +604,7 @@ const nextVersion = (versions: ReadonlyMap<string, number>, id: string) => (vers
  * so the draft's hash is the revision's and links to products keep working. What guests see changing live stays as it
  * is now: a product that was sold out or hidden, its stock, an option sold out. Every version moves on (a row the
  * revision brings back starts at 1), so an editor opened before cannot save over the restore. The menu's settings
- * that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
+ * and motions that the snapshot holds come back; its tables, name, slug, notes and rounding step do not.
  */
 export function restoreDraftFromSnapshot(db: AnyDb, menuId: string, snapshot: MenuSnapshot): Promise<void>;
 export function restoreDraftFromSnapshot(db: ScopedTx, menuId: string, snapshot: MenuSnapshot): Promise<void>;
@@ -507,17 +619,25 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   const categories = await tx.category.findMany({ where, select: { id: true, version: true } });
   const variantRows = await tx.productVariant.findMany({ where, select: { id: true, version: true } });
   const groupRows = await tx.modifierGroup.findMany({ where, select: { id: true, version: true } });
+  const upsellRows = await tx.upsellRule.findMany({ where, select: { id: true, version: true } });
+  const pairingRows = await tx.pairingRule.findMany({ where, select: { id: true, version: true } });
+  const bundleRows = await tx.bundle.findMany({ where, select: { id: true, version: true } });
+  const promotionRows = await tx.promotion.findMany({ where, select: { id: true, version: true } });
   const versions = new Map<string, number>(
-    [...products, ...options, ...categories, ...variantRows, ...groupRows].map((row) => [row.id, row.version] as const),
+    [...products, ...options, ...categories, ...variantRows, ...groupRows, ...upsellRows, ...pairingRows, ...bundleRows, ...promotionRows].map(
+      (row) => [row.id, row.version] as const,
+    ),
   );
   const productLive = new Map(products.map((row) => [row.id, row]));
   const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
 
   // Children before parents, so nothing relies on a cascade.
+  await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
   await tx.upsellRule.deleteMany({ where });
   await tx.pairingRule.deleteMany({ where });
+  await tx.promotion.deleteMany({ where });
   await tx.modifierOption.deleteMany({ where });
   await tx.modifierGroup.deleteMany({ where });
   await tx.productVariant.deleteMany({ where });
@@ -532,6 +652,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         menuId,
         slug: c.slug,
         sortOrder: c.sortOrder,
+        completesMeal: c.completesMeal ?? false,
         translations: json(c.translations),
         version: nextVersion(versions, c.id),
       })),
@@ -559,6 +680,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
           allergens: p.allergens,
           dietary: p.dietary,
           calories: p.calories,
+          serves: p.serves ?? null,
           badges: p.badges,
           ingredients: json(p.ingredients),
           media: json(draftMediaFromSnapshot(p.media)),
@@ -632,6 +754,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         priority: r.priority,
         dayparts: r.dayparts,
         translations: json(r.translations),
+        version: nextVersion(versions, r.id),
       })),
     });
   }
@@ -647,15 +770,36 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         weight: r.weight,
         dayparts: r.dayparts,
         translations: json(r.translations),
+        version: nextVersion(versions, r.id),
       })),
     });
   }
   if (catalog.bundles.length > 0) {
     await tx.bundle.createMany({
-      data: catalog.bundles.map((b) => ({ id: b.id, menuId, slug: b.slug, price: b.price, dayparts: b.dayparts, translations: json(b.translations) })),
+      data: catalog.bundles.map((b) => ({
+        id: b.id,
+        menuId,
+        slug: b.slug,
+        price: b.price,
+        dayparts: b.dayparts,
+        translations: json(b.translations),
+        version: nextVersion(versions, b.id),
+      })),
     });
     await tx.bundleItem.createMany({
       data: catalog.bundles.flatMap((b) => b.items.map((item) => ({ menuId, bundleId: b.id, ...item }))),
+    });
+  }
+  if (catalog.promotions && catalog.promotions.length > 0) {
+    await tx.promotion.createMany({
+      data: catalog.promotions.map((p) => ({
+        ...promotionRow(p),
+        id: p.id,
+        menuId,
+        productIds: p.productIds,
+        categoryIds: p.categoryIds,
+        version: nextVersion(versions, p.id),
+      })),
     });
   }
   if (catalog.schedule.length > 0) {
@@ -669,6 +813,9 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
       })),
     });
   }
+
+  const motions = motionRows(menuId, snapshot.motions);
+  if (motions.length > 0) await tx.menuMotion.createMany({ data: motions });
 
   const brandFields = brandRowFromSnapshot(brand);
   await tx.brandConfig.upsert({

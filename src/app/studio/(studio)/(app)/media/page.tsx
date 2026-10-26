@@ -40,6 +40,8 @@ export default async function MediaPage({ searchParams }: { searchParams: Search
   const q = one(filters.q);
   const list = await query(listMedia, {
     ...(restaurantId ? { restaurantId, own: true } : {}),
+    // Managing a library shows all of it: pictures and scene files.
+    kinds: 'all',
     page,
     ...(folder ? { folder } : {}),
     ...(tag ? { tag } : {}),

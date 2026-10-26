@@ -72,6 +72,16 @@ function stripIds(snapshot: MenuSnapshot) {
           b.items.map((item) => ({ ...item, productId: path(item.productId), variantId: path(item.variantId) })),
         ),
       })),
+      ...(catalog.promotions
+        ? {
+            promotions: catalog.promotions.map((p) => ({
+              ...p,
+              id: 'promotion',
+              productIds: p.productIds.map((id) => path(id)),
+              categoryIds: p.categoryIds.map((id) => path(id)),
+            })),
+          }
+        : {}),
     },
   };
 }
@@ -89,6 +99,7 @@ function idsOf(snapshot: MenuSnapshot): Set<string> {
     ...catalog.upsellRules.map((r) => r.id),
     ...catalog.pairingRules.map((r) => r.id),
     ...catalog.bundles.map((b) => b.id),
+    ...(catalog.promotions ?? []).map((p) => p.id),
   ]);
 }
 
@@ -164,6 +175,16 @@ describe('draft snapshots', () => {
     expect(snapshot.catalog.products).toHaveLength(24);
   });
 
+  it('carries the demo’s sales tools: a happy hour and a special, meal categories and a dish to share', async () => {
+    const { catalog } = await loadDraftSnapshot(prisma, atelierMenuId);
+    expect(catalog.promotions?.map((p) => [p.kind, p.percentOff, p.startMinute, p.endMinute])).toEqual([
+      ['DISCOUNT', 20, 15 * 60, 17 * 60],
+      ['SPECIAL', null, null, null],
+    ]);
+    expect(catalog.categories.filter((c) => c.completesMeal).map((c) => c.slug)).toEqual(['patisserie', 'cold']);
+    expect(catalog.products.find((p) => p.slug === 'truffle-fries')?.serves).toBe(2);
+  });
+
   it('stores the hash of the draft', async () => {
     const hash = await refreshDraftHash(prisma, atelierMenuId);
     expect(hash).toBe(snapshotHash(await loadDraftSnapshot(prisma, atelierMenuId)));
@@ -232,6 +253,47 @@ describe('draft snapshots', () => {
     }
   });
 
+  it('gives a classic menu no design, so its hash is what it was before templates', async () => {
+    const snapshot = await loadDraftSnapshot(prisma, atelierMenuId);
+    expect(snapshot.brand.design).toBeUndefined();
+    expect(Object.keys(snapshot.brand)).not.toContain('design');
+  });
+
+  it('resolves a template menu with its overrides and the restaurant details it shows', async () => {
+    const target = await emptyMenu();
+    const source = await loadDraftSnapshot(prisma, atelierMenuId);
+    await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, target, source));
+    await prisma.restaurant.update({
+      where: { id: restaurantId },
+      data: { address: '1 Gold Street', city: 'Erbil', phone: '+964 750 000 0000', mapUrl: 'https://maps.example.com/atelier', showPoweredBy: false },
+    });
+    const overrides = { paletteId: 'smoke', layout: { card: 'gallery' }, featured: { slugs: ['atelier-burger'] }, info: { phone: false }, ordering: 'none' };
+    await prisma.brandConfig.update({ where: { menuId: target }, data: { templateId: 'obsidian-gold', design: overrides } });
+    try {
+      const snapshot = await loadDraftSnapshot(prisma, target);
+      const design = snapshot.brand.design!;
+      expect(design.templateId).toBe('obsidian-gold');
+      expect(design.layout.card).toBe('gallery');
+      expect(design.palette.bg).toBe('#1A1816');
+      expect(design.featured.slugs).toEqual(['atelier-burger']);
+      expect(design.ordering).toBe('none');
+      expect(design.poweredBy).toBe(false);
+      expect(design.info).toEqual({ address: '1 Gold Street, Erbil', mapUrl: 'https://maps.example.com/atelier' });
+      expect(design.source).toEqual({ templateVersion: 1, overrides });
+      // The kit's own palette is kept for the classic menu.
+      expect(snapshot.brand.tokens).toEqual(source.brand.tokens);
+
+      // Restoring or duplicating writes back the template and exactly the stored overrides.
+      const copy = await emptyMenu();
+      await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, copy, snapshot));
+      const row = await prisma.brandConfig.findUniqueOrThrow({ where: { menuId: copy } });
+      expect(row).toMatchObject({ templateId: 'obsidian-gold', design: overrides, customTemplateId: null });
+      expect(stripIds(await loadDraftSnapshot(prisma, copy))).toEqual(stripIds(snapshot));
+    } finally {
+      await prisma.restaurant.update({ where: { id: restaurantId }, data: { address: '', city: '', phone: '', mapUrl: '', showPoweredBy: true } });
+    }
+  });
+
   it('writes through a transaction scoped to the target menu', async () => {
     const target = await emptyMenu();
     const source = await loadDraftSnapshot(prisma, atelierMenuId);
@@ -286,5 +348,57 @@ describe('the brand kit written back from a snapshot', () => {
       faviconAssetId: 'icon',
       faviconFromLogo: false,
     });
+  });
+});
+
+describe('sales fields in a written draft', () => {
+  it("copies an offer onto the copy's own dishes and categories, and drops ids that did not come across", async () => {
+    await resetTestData(prisma);
+    const seeded = await seedAtelier(prisma);
+    const source = await loadDraftSnapshot(prisma, seeded.menuId);
+    const [first, second] = source.catalog.products;
+    const category = source.catalog.categories[0]!;
+    source.catalog.promotions = [
+      {
+        id: 'promo-src',
+        kind: 'SPECIAL',
+        percentOff: null,
+        productIds: [first!.id, 'gone-product'],
+        categoryIds: [category.id],
+        startsOn: '2026-10-01',
+        endsOn: '2026-10-31',
+        startMinute: null,
+        endMinute: null,
+        daysOfWeek: 62,
+        roundTo: 5,
+        translations: { en: { title: 'Chef special' } },
+        sortOrder: 0,
+      },
+      { id: 'promo-empty', kind: 'SPECIAL', percentOff: null, productIds: ['gone'], categoryIds: [], startsOn: null, endsOn: null, startMinute: null, endMinute: null, daysOfWeek: 127, roundTo: 5, translations: {}, sortOrder: 1 },
+    ];
+    source.catalog.products = source.catalog.products.map((p) => (p.id === second!.id ? { ...p, serves: 3 } : p));
+    source.catalog.categories = source.catalog.categories.map((c) => (c.id === category.id ? { ...c, completesMeal: true } : c));
+
+    const target = await prisma.menu.create({
+      data: { restaurantId: seeded.restaurant.id, name: 'Sales copy', slug: 'sales-copy', currency: 'USD', defaultLocale: 'en', locales: ['en'], timezone: 'Asia/Baghdad' },
+    });
+    await prisma.$transaction((tx) => writeDraftFromSnapshot(tx, target.id, source));
+
+    const copy = await loadDraftSnapshot(prisma, target.id);
+    const copiedFirst = copy.catalog.products.find((p) => p.slug === first!.slug)!;
+    const copiedCategory = copy.catalog.categories.find((c) => c.slug === category.slug)!;
+    expect(copy.catalog.promotions).toHaveLength(1);
+    expect(copy.catalog.promotions?.[0]).toMatchObject({
+      kind: 'SPECIAL',
+      productIds: [copiedFirst.id],
+      categoryIds: [copiedCategory.id],
+      startsOn: '2026-10-01',
+      endsOn: '2026-10-31',
+      daysOfWeek: 62,
+      translations: { en: { title: 'Chef special' } },
+    });
+    expect(copy.catalog.promotions?.[0]?.id).not.toBe('promo-src');
+    expect(copy.catalog.products.find((p) => p.slug === second!.slug)?.serves).toBe(3);
+    expect(copiedCategory.completesMeal).toBe(true);
   });
 });

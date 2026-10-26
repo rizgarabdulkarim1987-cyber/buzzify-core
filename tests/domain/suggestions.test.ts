@@ -62,6 +62,22 @@ describe('buildSuggestions', () => {
     expect(result.upgrades).toEqual([]);
   });
 
+  it('cart context completes the meal with a dish no pairing offers; other contexts never do', () => {
+    const base = makeCatalog();
+    const catalog = { ...base, categories: base.categories.map((c) => ({ ...c, completesMeal: c.id === 'cat-pastry' })) };
+    const cart: CartInput = { lines: [{ productId: IDS.burger, variantId: null, optionIds: [], quantity: 1 }], bundles: [] };
+    const result = buildSuggestions(catalog, { context: 'cart', locale: 'en', cart, dismissedIds: [] }, noon, DEFAULT_ENGINE_CONFIG);
+    expect(result.meal).toEqual([{ suggestionId: `meal:${IDS.cheesecake}`, productId: IDS.cheesecake, categoryId: 'cat-pastry' }]);
+    expect(result.pairings.map((p) => p.productId)).not.toContain(IDS.cheesecake);
+    const product = buildSuggestions(
+      catalog,
+      { context: 'product', locale: 'en', product: { productId: IDS.burger, variantId: null, optionIds: [] }, cart, dismissedIds: [] },
+      noon,
+      DEFAULT_ENGINE_CONFIG,
+    );
+    expect(product.meal).toEqual([]);
+  });
+
   it('honours dismissed pairings', () => {
     const result = buildSuggestions(
       makeCatalog(),

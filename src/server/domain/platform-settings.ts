@@ -26,7 +26,7 @@ export interface PlatformSettings {
 export function defaultPlatformSettings(): PlatformSettings {
   return {
     reservedSlugs: [],
-    emailSenderName: 'Buzzify Studio',
+    emailSenderName: 'Buzzify Core',
     defaults: { locales: [...LOCALES], defaultLocale: 'en', currency: 'IQD', timezone: 'Asia/Baghdad' },
   };
 }

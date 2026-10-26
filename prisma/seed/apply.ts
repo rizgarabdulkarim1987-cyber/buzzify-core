@@ -43,6 +43,8 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
           railStyle: data.brand.railStyle,
           fontPairId: data.brand.fontPairId,
           logoText: data.brand.logoText,
+          templateId: data.brand.templateId ?? null,
+          design: (data.brand.design ?? {}) as Record<string, unknown> as never,
         },
       },
     },
@@ -52,7 +54,13 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
   const categoryIds = new Map<string, string>();
   for (const [index, category] of data.categories.entries()) {
     const row = await prisma.category.create({
-      data: { menuId, slug: category.slug, sortOrder: index, translations: translations({ name: category.name }) },
+      data: {
+        menuId,
+        slug: category.slug,
+        sortOrder: index,
+        completesMeal: (data.mealCategories ?? []).includes(category.slug),
+        translations: translations({ name: category.name }),
+      },
     });
     categoryIds.set(category.slug, row.id);
   }
@@ -78,6 +86,7 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
         allergens: product.allergens,
         dietary: product.dietary ?? [],
         badges: product.badges ?? [],
+        serves: product.serves ?? null,
         ingredients: product.ingredients as unknown as Record<string, string[]>,
         media: [{ kind: 'art', art: product.art, tone: product.tone, ...(product.model ? { model: product.model } : {}) }],
         translations: translations({ name: product.name, description: product.description }),
@@ -167,6 +176,25 @@ export async function seedMenu(prisma: PrismaClient, data: SeedData, restaurantI
             quantity: item.quantity,
           })),
         },
+      },
+    });
+  }
+
+  for (const [index, promotion] of (data.promotions ?? []).entries()) {
+    await prisma.promotion.create({
+      data: {
+        menuId,
+        kind: promotion.kind,
+        percentOff: promotion.percentOff ?? null,
+        productIds: (promotion.products ?? []).map(productId),
+        categoryIds: (promotion.categories ?? []).map((slug) => categoryIds.get(slug) as string),
+        startsOn: promotion.startsOn ?? null,
+        endsOn: promotion.endsOn ?? null,
+        startMinute: promotion.startMinute ?? null,
+        endMinute: promotion.endMinute ?? null,
+        daysOfWeek: promotion.daysOfWeek ?? 127,
+        translations: translations({ title: promotion.title, ...(promotion.text ? { text: promotion.text } : {}) }),
+        sortOrder: index,
       },
     });
   }

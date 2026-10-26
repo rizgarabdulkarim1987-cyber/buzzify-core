@@ -9,6 +9,7 @@ import { BackIcon, MinusIcon, PlusIcon } from '@/ui/Icons';
 import { PairingList } from '@/ui/product/PairingList';
 import { useSuggestions } from '@/ui/useSuggestions';
 import { BundleSuggestion } from './BundleSuggestion';
+import { SendToWaiter } from './SendToWaiter';
 
 function Stepper({
   quantity,
@@ -78,6 +79,8 @@ export function CartView() {
           <p className="mt-2 text-muted">{t('cart.emptyHint')}</p>
         </div>
       )}
+
+      {empty && <SendToWaiter canSend={false} />}
 
       {!empty && (
         <>
@@ -185,7 +188,23 @@ export function CartView() {
               announce(t('cart.added', { name: offer.name }));
             }}
             onChoose={(offer) => {
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
+              window.location.assign(href(`/p/${offer.slug}`));
+            }}
+            onDismiss={(offer) => dismiss(offer.suggestionId)}
+          />
+
+          <PairingList
+            offers={data?.meal ?? []}
+            title={t('meal.title')}
+            headingId="meal-title"
+            onAdd={(offer) => {
+              addLine({ productId: offer.productId, variantId: null, optionIds: [], quantity: 1 });
               track('PAIRING_ADD', { productId: offer.productId, suggestionId: offer.suggestionId });
+              announce(t('cart.added', { name: offer.name }));
+            }}
+            onChoose={(offer) => {
+              // Opening the dish to choose is not adding it: only a real add counts toward what guests take.
               window.location.assign(href(`/p/${offer.slug}`));
             }}
             onDismiss={(offer) => dismiss(offer.suggestionId)}
@@ -204,6 +223,8 @@ export function CartView() {
             </h3>
             <p className="mt-1 text-sm text-muted">{t('cart.reviewNote')}</p>
           </section>
+
+          <SendToWaiter canSend={!hasIssues && !quoting && quote !== null && cart.lines.length > 0} />
         </>
       )}
     </main>

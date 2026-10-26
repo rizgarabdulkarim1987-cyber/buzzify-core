@@ -40,6 +40,8 @@ export const PERMISSIONS = [
   // Platform
   'audit.view',
   'platform.settings',
+  // Plans: what each restaurant has bought. The platform owner's alone (spec: plans and entitlements, 2.1).
+  'plans.manage',
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -82,7 +84,14 @@ export const NEVER_GRANTABLE: readonly Permission[] = [
   'permissions.manage',
   'audit.view',
   'platform.settings',
+  'plans.manage',
 ];
+
+/**
+ * Keys only the platform owner holds: the one account that sells, which may change a restaurant's plan and what the
+ * plans hold. Every other Super Admin holds every other key.
+ */
+export const OWNER_ONLY_PERMISSIONS: readonly Permission[] = ['plans.manage'];
 
 /** Keys that act on the platform rather than on one restaurant: only Super Admins hold them. */
 export const PLATFORM_PERMISSIONS: readonly Permission[] = [
@@ -134,17 +143,21 @@ export function parsePolicy(json: unknown): PermissionPolicy {
   return policy;
 }
 
+const OWNER_ONLY = new Set<Permission>(OWNER_ONLY_PERMISSIONS);
+
 /**
- * Every permission an actor holds: all of them for a Super Admin, none without a role, otherwise the role defaults
- * plus the client's grants minus its revokes. A revoke wins over a grant, and a never-grantable key is not granted even
- * by a policy that skipped `parsePolicy`.
+ * Every permission an actor holds: all of them for a Super Admin (the owner-only ones for the platform owner alone), none
+ * without a role, otherwise the role defaults plus the client's grants minus its revokes. A revoke wins over a grant,
+ * and a never-grantable key is not granted even by a policy that skipped `parsePolicy`.
  */
 export function effectivePermissions(args: {
   isSuperAdmin: boolean;
+  /** The one account that sells; counts only for a Super Admin. */
+  isPlatformOwner?: boolean;
   role: MemberRole | null;
   policy: PermissionPolicy;
 }): ReadonlySet<Permission> {
-  if (args.isSuperAdmin) return new Set(PERMISSIONS);
+  if (args.isSuperAdmin) return new Set(args.isPlatformOwner ? PERMISSIONS : PERMISSIONS.filter((key) => !OWNER_ONLY.has(key)));
   if (args.role === null) return new Set();
   const set = new Set<Permission>(ROLE_DEFAULTS[args.role]);
   const entry = args.policy[args.role];

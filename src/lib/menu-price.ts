@@ -1,7 +1,50 @@
 import type { MenuProductView } from '@/server/data/menu-view';
+import { salePrice } from '@/server/domain/offers';
 
-/** Mirrors the server's `unitPrice` for display. The cart always uses the server quote. */
+/** Mirrors the server's `priceOf` for display, a live discount included. The cart always uses the server quote. */
 export function unitPriceFromMenu(
+  product: Pick<MenuProductView, 'basePrice' | 'groups' | 'variants' | 'percentOff' | 'roundTo'>,
+  variantId: string | null,
+  optionIds: readonly string[],
+): number {
+  const regular = regularPriceFromMenu(product, variantId, optionIds);
+  return product.percentOff ? salePrice(regular, product.percentOff, product.roundTo ?? 1) : regular;
+}
+
+type PricedView = Pick<MenuProductView, 'basePrice' | 'groups' | 'variants' | 'percentOff' | 'roundTo'>;
+
+/**
+ * What choosing an option adds to the dish's price now, a live discount included: the guest's other choices with the
+ * option, against them without it. The option's own group is left out of both, so a one-of group shows each choice
+ * against choosing none.
+ */
+export function optionExtraFromMenu(
+  product: PricedView,
+  variantId: string | null,
+  selected: readonly string[],
+  groupOptionIds: readonly string[],
+  optionId: string,
+): number {
+  const others = selected.filter((id) => !groupOptionIds.includes(id));
+  return unitPriceFromMenu(product, variantId, [...others, optionId]) - unitPriceFromMenu(product, variantId, others);
+}
+
+/** What a size adds to the dish's price now against another size (usually the default), a live discount included. */
+export function variantExtraFromMenu(product: PricedView, variantId: string | null, baseVariantId: string | null, selected: readonly string[]): number {
+  return unitPriceFromMenu(product, variantId, selected) - unitPriceFromMenu(product, baseVariantId, selected);
+}
+
+/** The lowest price the dish is ordered at with no options (its cheapest size): now, and before any discount. */
+export function lowestPriceFromMenu(product: PricedView): { price: number; regular: number } {
+  const sizes = product.variants.length < 2 ? [null] : product.variants.map((variant) => variant.id);
+  return {
+    price: Math.min(...sizes.map((id) => unitPriceFromMenu(product, id, []))),
+    regular: Math.min(...sizes.map((id) => regularPriceFromMenu(product, id, []))),
+  };
+}
+
+/** Mirrors the server's `unitPrice`: the regular price, before any discount. */
+export function regularPriceFromMenu(
   product: Pick<MenuProductView, 'basePrice' | 'groups' | 'variants'>,
   variantId: string | null,
   optionIds: readonly string[],

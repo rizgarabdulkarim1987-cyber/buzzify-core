@@ -2,12 +2,14 @@
 
 import { useEffect, useRef } from 'react';
 import { stageTone } from '@/lib/stage';
-import type { MenuProductView } from '@/server/data/menu-view';
+import type { MenuProductView, PlacedMotion } from '@/server/data/menu-view';
 import type { Daypart } from '@/server/domain/types';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { ProductStage } from '@/ui/stage/ProductStage';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
+import { MotionSlot } from './MotionSlot';
+import { SalePrice } from './SalesLabels';
 
 /** Scroll distance over which the hero stage drifts and dims, and how far it goes. */
 const DRIFT_RANGE_PX = 420;
@@ -23,15 +25,19 @@ export function SignatureFeature({
   daypart,
   onOpen,
   covered = false,
+  motion,
 }: {
   product: MenuProductView;
   daypart: Daypart | null;
   onOpen: (id: string) => void;
   /** True while the product sheet is open over the hero, so the 3D stage can rest. */
   covered?: boolean;
+  /** A motion from the library placed behind the dish; the 3D stage is transparent, so it shows around the dish. */
+  motion?: PlacedMotion;
 }) {
-  const { t, money } = useApp();
-  const staged = stageTone(product.media) !== null;
+  const { t, tenant } = useApp();
+  // The 3D dish is the plan's to give; without it the dish art is shown, as on a device without WebGL.
+  const staged = tenant.features.stage && stageTone(product.media) !== null;
   const reduced = usePrefersReducedMotion();
   const stage = useRef<HTMLDivElement>(null);
 
@@ -70,6 +76,7 @@ export function SignatureFeature({
         data-hero-stage
         className="stage-light grain relative isolate mt-1 [mask-image:linear-gradient(to_bottom,transparent,#000_16%,#000_70%,transparent)]"
       >
+        {motion && <MotionSlot place="signature" motion={motion} />}
         {staged ? (
           <ProductStage
             product={product}
@@ -105,7 +112,9 @@ export function SignatureFeature({
           {product.name}
         </span>
         {product.description && <span className="mt-3 block max-w-[30ch] text-muted">{product.description}</span>}
-        <span className="mt-4 block text-lg tabular-nums text-accent">{money(product.displayPrice)}</span>
+        <span className="mt-4 block">
+          <SalePrice product={product} className="text-lg tabular-nums text-accent" />
+        </span>
       </button>
     </section>
   );

@@ -6,7 +6,10 @@ import { createId } from '@/server/studio/framework/ids';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
-import { checkUploadRequest, declaredMime, MEDIA_MAX_BYTES } from '@/server/domain/media-type';
+import { checkUploadRequest, declaredMime, MEDIA_MAX_BYTES, UPLOAD_MAX_BYTES } from '@/server/domain/media-type';
+import type { SceneMedia } from '@/lib/templates/types';
+import { isSceneKind, PICTURE_KINDS, SCENE_KINDS } from '@/server/media/kinds';
+import { sceneMediaOf } from '@/server/media/scene';
 import { prepareAsset, storeAsset, type AssetVariants, type MediaRefusal } from '@/server/media/process';
 import { assetUsage, menusUsingInDraft, usageCount } from '@/server/media/usage';
 import { isValidKey, uploadKey } from '@/server/storage/keys';
@@ -28,11 +31,24 @@ export const UPLOAD_SLOT_SECONDS = 300;
 
 /** Why the library refused a file, in words for the person (the Studio shows `media.refusal.*` in their language). */
 export const REFUSAL_MESSAGES: Record<MediaRefusal, string> = {
-  TYPE: 'Use a JPEG, PNG, WebP, AVIF, SVG or ICO file',
-  SIZE: 'Use a file of at most 15 MB',
+  TYPE: 'Use a JPEG, PNG, WebP, AVIF, SVG or ICO picture, or a GLB, MP4 or Lottie JSON scene file',
+  SIZE: 'Use a picture of at most 15 MB, a model of at most 10 MB, a video of at most 20 MB or a Lottie file of at most 2 MB',
   DIMENSIONS: 'Use a picture at most 10,000 pixels on a side and at most 8 times longer than it is wide',
   UNREADABLE: 'This file could not be read as a picture',
   SVG_UNSAFE: 'This SVG has no size or nothing that can be drawn safely',
+  POSTER: 'A video needs a still frame to show before it plays; this browser could not take one from it',
+  MODEL_INVALID: 'This file could not be read as a GLB model',
+  MODEL_EXTERNAL: 'This model loads files from elsewhere; export it as one GLB file with everything inside',
+  MODEL_EXTENSION: 'This model needs a decoder the menu does not load (Draco or KTX2); export it without that compression',
+  MODEL_TOO_COMPLEX: 'This model is too heavy for a phone: use at most 300,000 triangles and textures of at most 4096 pixels',
+  VIDEO_INVALID: 'This file could not be read as an MP4 video',
+  VIDEO_CODEC: 'Use an MP4 video in H.264, which every phone plays',
+  VIDEO_DIMENSIONS: 'Use a video of at most 1920 pixels on its longest side (export it at 1080p)',
+  VIDEO_DURATION: 'Use a video of at most 30 seconds',
+  LOTTIE_INVALID: 'This file is not a Lottie animation the menu can play',
+  LOTTIE_EXPRESSION: 'This Lottie animation uses expressions, which the menu does not run; export it without them',
+  LOTTIE_EXTERNAL: 'This Lottie animation loads images or fonts from elsewhere; embed them in the file',
+  LOTTIE_TOO_COMPLEX: 'This Lottie animation is too large: use at most 60 seconds, 4096 pixels a side and 2,000 layers',
 };
 
 const refuse = (reason: MediaRefusal) => new StudioError('INVALID', REFUSAL_MESSAGES[reason], { file: reason });
@@ -52,6 +68,8 @@ export const uploadRequestFields = {
 
 export const finalizeFields = {
   uploadKey: z.string().min(1).max(300),
+  /** A video's poster frame, uploaded to its own slot beside it. */
+  posterKey: z.string().min(1).max(300).optional(),
   alt: altInput,
   folder: folderField,
 };
@@ -87,36 +105,44 @@ export async function requestUploadSlot(
   return { uploadKey: key, ...slot, expiresAt: new Date(Date.now() + UPLOAD_SLOT_SECONDS * 1000).toISOString() };
 }
 
-/**
- * Turns an uploaded file into an asset of the library: checked from its bytes, made into variants and stored. The same
- * file uploaded to the same library again is the asset it already is. The upload itself is removed whatever happens.
- */
-export async function finalizeUpload(
-  ctx: ActionContext,
-  library: Library,
-  input: { uploadKey: string; alt: Partial<Record<string, string>>; folder: string },
-): Promise<{ assetId: string; deduplicated: boolean }> {
-  const prefix = `${uploadKey(library, 'x').slice(0, -1)}`;
-  if (!isValidKey(input.uploadKey) || !input.uploadKey.startsWith(prefix)) throw new StudioError('NOT_FOUND');
-
+/** An upload's bytes, at most `maxBytes`; a larger one is removed and refused. */
+async function readUpload(key: string, maxBytes: number): Promise<Uint8Array> {
   const storage = getStorage();
-  let object;
   try {
-    object = await storage.get(input.uploadKey, MEDIA_MAX_BYTES);
+    const object = await storage.get(key, maxBytes);
+    if (!object) throw new StudioError('NOT_FOUND');
+    return object.bytes;
   } catch (error) {
     if (error instanceof StorageTooLargeError) {
-      await storage.delete([input.uploadKey]);
+      await storage.delete([key]);
       throw refuse('SIZE');
     }
     throw error;
   }
-  if (!object) throw new StudioError('NOT_FOUND');
+}
 
+/**
+ * Turns an uploaded file into an asset of the library: checked from its bytes, made into variants and stored. A video
+ * comes with its poster frame in a second upload. The same file uploaded to the same library again is the asset it
+ * already is. The uploads themselves are removed whatever happens.
+ */
+export async function finalizeUpload(
+  ctx: ActionContext,
+  library: Library,
+  input: { uploadKey: string; posterKey?: string | undefined; alt: Partial<Record<string, string>>; folder: string },
+): Promise<{ assetId: string; deduplicated: boolean }> {
+  const prefix = `${uploadKey(library, 'x').slice(0, -1)}`;
+  const keys = [input.uploadKey, ...(input.posterKey ? [input.posterKey] : [])];
+  if (keys.some((key) => !isValidKey(key) || !key.startsWith(prefix))) throw new StudioError('NOT_FOUND');
+
+  const storage = getStorage();
   let prepared;
   try {
-    prepared = await prepareAsset(object.bytes);
+    const bytes = await readUpload(input.uploadKey, UPLOAD_MAX_BYTES);
+    const poster = input.posterKey ? await readUpload(input.posterKey, MEDIA_MAX_BYTES) : undefined;
+    prepared = await prepareAsset(bytes, poster);
   } finally {
-    await storage.delete([input.uploadKey]);
+    await storage.delete(keys);
   }
   if (!prepared.ok) throw refuse(prepared.reason);
   const asset = prepared.asset;
@@ -140,6 +166,8 @@ export async function finalizeUpload(
         storedBytes: stored.storedBytes,
         width: asset.width,
         height: asset.height,
+        durationMs: asset.durationMs,
+        meta: asset.meta as Prisma.InputJsonValue,
         variants: stored.variants as unknown as Prisma.InputJsonValue,
         placeholder: asset.placeholder,
         alt: cleanAlt(input.alt),
@@ -206,6 +234,8 @@ function fileKeys(variants: AssetVariants): string[] {
     ...Object.values(variants.avif ?? {}),
     ...Object.values(variants.webp ?? {}),
     ...Object.values(variants.favicon ?? {}),
+    ...Object.values(variants.poster?.avif ?? {}),
+    ...Object.values(variants.poster?.webp ?? {}),
   ].filter((key) => typeof key === 'string' && key !== '');
 }
 
@@ -249,10 +279,17 @@ export const MEDIA_PAGE_SIZE = 48;
 
 export interface MediaRow {
   id: string;
-  kind: 'IMAGE' | 'SVG' | 'ICON';
+  kind: 'IMAGE' | 'SVG' | 'ICON' | 'MODEL' | 'VIDEO' | 'LOTTIE';
+  /** Empty for a model or a Lottie animation, which have no picture of their own. */
   thumbUrl: string;
   width: number | null;
   height: number | null;
+  /** A video's or a Lottie animation's length. */
+  durationMs: number | null;
+  /** What a scene file holds (a model's triangles, a video's codec and sound, a Lottie's frame rate and layers). */
+  meta: Record<string, unknown>;
+  /** A scene file as a menu would play it, for the Design tab's live preview; null for a picture. */
+  scene: SceneMedia | null;
   alt: Record<string, string>;
   folder: string;
   tags: string[];
@@ -267,32 +304,56 @@ export interface MediaRow {
   createdAt: string;
 }
 
-/** The URL of an asset's small picture: its 320 px WebP, or the file itself for an SVG or an icon. */
-export function thumbKey(kind: string, variants: AssetVariants): string {
-  if (kind === 'IMAGE') return variants.webp?.['320'] ?? Object.values(variants.webp ?? {})[0] ?? variants.original;
-  return variants.original;
-}
-
-/** The URL of an asset's larger picture: its 640 px WebP (else its widest), or the file itself for an SVG or an icon. */
-function previewKey(kind: string, variants: AssetVariants): string {
-  if (kind !== 'IMAGE') return variants.original;
-  const widths = Object.keys(variants.webp ?? {}).map(Number).sort((a, b) => a - b);
-  const width = widths.filter((w) => w <= 640).at(-1) ?? widths[0];
-  return width === undefined ? variants.original : variants.webp![String(width)]!;
+/** A WebP rendition: the given width, else the widest no wider than it, else the narrowest. */
+function webpAt(webp: Record<string, string> | undefined, width: number): string | undefined {
+  const widths = Object.keys(webp ?? {}).map(Number).sort((a, b) => a - b);
+  const chosen = widths.filter((w) => w <= width).at(-1) ?? widths[0];
+  return chosen === undefined ? undefined : webp![String(chosen)];
 }
 
 /**
+ * The key of an asset's small picture: its 320 px WebP, a video's poster at 320 px, or the file itself for an SVG or an
+ * icon. Empty for a model or a Lottie animation, which have none.
+ */
+export function thumbKey(kind: string, variants: AssetVariants): string {
+  if (kind === 'IMAGE') return webpAt(variants.webp, 320) ?? variants.original;
+  if (kind === 'VIDEO') return webpAt(variants.poster?.webp, 320) ?? '';
+  if (kind === 'MODEL' || kind === 'LOTTIE') return '';
+  return variants.original;
+}
+
+/** The key of an asset's larger picture: its 640 px WebP (a video's poster), or the file itself for an SVG or an icon. */
+function previewKey(kind: string, variants: AssetVariants): string {
+  if (kind === 'VIDEO') return webpAt(variants.poster?.webp, 640) ?? '';
+  if (kind === 'MODEL' || kind === 'LOTTIE') return '';
+  if (kind !== 'IMAGE') return variants.original;
+  return webpAt(variants.webp, 640) ?? variants.original;
+}
+
+/** Which kinds a listing shows: pictures for the pickers that place them, scene files for the Design tab, all for the Media page. */
+export const LIST_KINDS = ['pictures', 'scene', 'all'] as const;
+export type ListKinds = (typeof LIST_KINDS)[number];
+
+const KINDS_FILTER: Record<ListKinds, Prisma.MediaAssetWhereInput> = {
+  pictures: { kind: { in: [...PICTURE_KINDS] } },
+  scene: { kind: { in: [...SCENE_KINDS] } },
+  all: {},
+};
+
+/**
  * A page of a library: a restaurant's assets with the shared ones (for picking), its own alone (`own`, for managing),
- * or the shared library alone. `storageBytes` is what the library itself keeps in storage.
+ * or the shared library alone; pictures unless `kinds` asks for scene files or everything. `storageBytes` is what the
+ * library itself keeps in storage, whatever the kinds shown.
  */
 export async function listLibrary(
   db: ActionContext['db'],
   library: Library,
-  input: { folder?: string; tag?: string; q?: string; page: number; own?: boolean },
+  input: { folder?: string; tag?: string; q?: string; page: number; own?: boolean; kinds?: ListKinds },
 ): Promise<{ rows: MediaRow[]; folders: string[]; tags: string[]; total: number; storageBytes: number }> {
   const own: Prisma.MediaAssetWhereInput = { restaurantId: library.restaurantId };
-  const scope: Prisma.MediaAssetWhereInput =
-    library.restaurantId === null || input.own ? own : { OR: [{ restaurantId: library.restaurantId }, { restaurantId: null }] };
+  const scope: Prisma.MediaAssetWhereInput = {
+    AND: [library.restaurantId === null || input.own ? own : { OR: [{ restaurantId: library.restaurantId }, { restaurantId: null }] }, KINDS_FILTER[input.kinds ?? 'pictures']],
+  };
   const filters: Prisma.MediaAssetWhereInput[] = [scope];
   if (input.folder !== undefined) filters.push({ folder: input.folder });
   if (input.tag) filters.push({ tags: { has: input.tag.toLowerCase() } });
@@ -313,13 +374,17 @@ export async function listLibrary(
   ]);
 
   const storage = getStorage();
+  const url = (key: string) => (key === '' ? '' : storage.publicUrl(key));
   return {
     rows: rows.map((row) => ({
       id: row.id,
       kind: row.kind,
-      thumbUrl: storage.publicUrl(thumbKey(row.kind, row.variants as unknown as AssetVariants)),
+      thumbUrl: url(thumbKey(row.kind, row.variants as unknown as AssetVariants)),
       width: row.width,
       height: row.height,
+      durationMs: row.durationMs,
+      meta: (row.meta ?? {}) as Record<string, unknown>,
+      scene: isSceneKind(row.kind) ? sceneMediaOf(row, (key) => storage.publicUrl(key)) : null,
       alt: (row.alt ?? {}) as Record<string, string>,
       folder: row.folder,
       tags: row.tags,
@@ -327,7 +392,7 @@ export async function listLibrary(
       version: row.version,
       bytes: row.bytes,
       mime: row.mime,
-      previewUrl: storage.publicUrl(previewKey(row.kind, row.variants as unknown as AssetVariants)),
+      previewUrl: url(previewKey(row.kind, row.variants as unknown as AssetVariants)),
       originalUrl: storage.publicUrl((row.variants as unknown as AssetVariants).original),
       createdAt: row.createdAt.toISOString(),
     })),

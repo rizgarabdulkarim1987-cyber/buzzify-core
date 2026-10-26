@@ -17,6 +17,7 @@ import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
+import { AssetThumb, formatSeconds } from './AssetThumb';
 import { assetName, typeName } from './MediaGrid';
 
 export interface MediaDetailsProps {
@@ -51,6 +52,7 @@ export function MediaDetails({ row, restaurantId, editable, folders, onDeleted }
   const [confirm, setConfirm] = useState(false);
   const [saving, startSaving] = useTransition();
   const shared = restaurantId === null;
+  const scene = row.kind === 'MODEL' || row.kind === 'VIDEO' || row.kind === 'LOTTIE';
 
   // Where the picture is used, read when it is chosen. The shared library's uses span every restaurant: a Super Admin's to read.
   useEffect(() => {
@@ -86,11 +88,21 @@ export function MediaDetails({ row, restaurantId, editable, folders, onDeleted }
       <h2 id={titleId} className="text-md font-semibold text-text">
         {t('media.details.title')}
       </h2>
-      <div className="studio-checker flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-line p-3">
-        {/* eslint-disable-next-line @next/next/no-img-element -- the library's own rendition, at its own size */}
-        <img src={row.previewUrl} alt={assetName(t, locale, row)} className="max-h-full max-w-full object-contain" />
+      <div className="studio-checker relative flex aspect-[4/3] items-center justify-center overflow-hidden rounded-md border border-line p-3">
+        {row.previewUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- the library's own rendition, at its own size
+          <img src={row.previewUrl} alt={assetName(t, locale, row)} className="max-h-full max-w-full object-contain" />
+        ) : (
+          <AssetThumb row={row} />
+        )}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+        {scene && (
+          <>
+            <dt className="text-muted">{t('media.details.kind')}</dt>
+            <dd className="text-text">{t(`media.kind.${row.kind as 'MODEL' | 'VIDEO' | 'LOTTIE'}`)}</dd>
+          </>
+        )}
         <dt className="text-muted">{t('media.details.type')}</dt>
         <dd className="text-text">{typeName(row.mime)}</dd>
         <dt className="text-muted">{t('media.details.size')}</dt>
@@ -103,6 +115,18 @@ export function MediaDetails({ row, restaurantId, editable, folders, onDeleted }
             </dd>
           </>
         )}
+        {row.durationMs !== null && (
+          <>
+            <dt className="text-muted">{t('media.details.duration')}</dt>
+            <dd className="text-text">{t('media.details.seconds', { seconds: formatSeconds(row.durationMs, locale) })}</dd>
+          </>
+        )}
+        {typeof row.meta.triangles === 'number' && (
+          <>
+            <dt className="text-muted">{t('media.details.triangles')}</dt>
+            <dd className="text-text">{number.format(row.meta.triangles)}</dd>
+          </>
+        )}
         <dt className="text-muted">{t('media.details.added')}</dt>
         <dd className="text-text">
           <time dateTime={row.createdAt}>{formatDate(row.createdAt, locale)}</time>
@@ -112,6 +136,7 @@ export function MediaDetails({ row, restaurantId, editable, folders, onDeleted }
         <ExternalLink aria-hidden className="size-3.5" />
         {t('media.details.open')}
       </a>
+      {scene && <p className="text-sm text-muted">{t('media.details.sceneNote')}</p>}
 
       {editable ? (
         <form
@@ -167,8 +192,17 @@ export function MediaDetails({ row, restaurantId, editable, folders, onDeleted }
             <ul className="flex flex-col gap-1 text-sm">
               {usage.drafts.map((use, index) => {
                 const text = `${use.menuName} · ${use.where === 'product' ? use.label : t(`media.usage.${use.where}`)}`;
-                // A restaurant's logo belongs to the restaurant, not to a menu.
-                const href = use.where === 'restaurant' ? (restaurantId ? `/studio/restaurants/${restaurantId}` : null) : `/studio/menus/${use.menuId}`;
+                // A restaurant's logo belongs to the restaurant, not to a menu; a saved design to no page of its own.
+                const href =
+                  use.where === 'restaurant'
+                    ? restaurantId
+                      ? `/studio/restaurants/${restaurantId}`
+                      : null
+                    : use.where === 'savedDesign'
+                      ? null
+                      : use.where === 'scene'
+                        ? `/studio/menus/${use.menuId}/design`
+                        : `/studio/menus/${use.menuId}`;
                 return (
                   <li key={`d${index}`} dir="auto">
                     {href ? (

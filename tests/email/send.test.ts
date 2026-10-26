@@ -152,7 +152,7 @@ describe('production', () => {
     expect(resend.keys).toEqual(['re_test_key']);
     expect(resend.send).toHaveBeenCalledTimes(1);
     expect(resend.send).toHaveBeenCalledWith({
-      from: 'Buzzify Studio <studio@buzzify.me>',
+      from: 'Buzzify Core <studio@buzzify.me>',
       to,
       subject: 'Your invitation',
       html: email.html,
@@ -194,10 +194,10 @@ describe('production', () => {
     resend.send.mockResolvedValue({ data: { id: 'msg_plain' }, error: null, headers: null });
     const { sendEmail, fromWithName } = await load();
     await sendEmail(mail(address('unnamed')), {});
-    expect(resend.send).toHaveBeenCalledWith(expect.objectContaining({ from: 'Buzzify Studio <studio@buzzify.me>' }));
+    expect(resend.send).toHaveBeenCalledWith(expect.objectContaining({ from: 'Buzzify Core <studio@buzzify.me>' }));
     // Whatever the name holds, the header stays one name and the configured address.
-    expect(fromWithName('Buzzify Studio <studio@buzzify.me>', 'Evil <x@y.z>\r\nBcc: a@b.c')).toBe('Buzzify Studio <studio@buzzify.me>');
-    expect(fromWithName('Buzzify Studio <studio@buzzify.me>', 'مطعم الاستوديو')).toBe('مطعم الاستوديو <studio@buzzify.me>');
+    expect(fromWithName('Buzzify Core <studio@buzzify.me>', 'Evil <x@y.z>\r\nBcc: a@b.c')).toBe('Buzzify Core <studio@buzzify.me>');
+    expect(fromWithName('Buzzify Core <studio@buzzify.me>', 'مطعم الاستوديو')).toBe('مطعم الاستوديو <studio@buzzify.me>');
   });
 
   it('surfaces an error result from Resend as a thrown error without the message body', async () => {
