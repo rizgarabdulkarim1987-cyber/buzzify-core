@@ -82,7 +82,7 @@ export type HeadingStyle = (typeof HEADING_STYLES)[number];
  * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
  * replace some of the structural knobs (see `SHAPE_SETS`).
  */
-export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento'] as const;
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes'] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 
 /** The three background modes every preset supports (spec 6). */
@@ -158,6 +158,7 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   levels: ['hero', 'nav', 'card', 'heading'],
   fridge: ['hero', 'nav', 'card', 'heading'],
   bento: ['hero', 'nav', 'card', 'heading'],
+  mailboxes: ['hero', 'nav', 'card', 'heading'],
 };
 
 /** The shape a design browses in; `scroll` when it names none. */
@@ -365,6 +366,7 @@ export const TEMPLATE_IDS = [
   'the-game-levels',
   'the-fridge',
   'the-bento-box',
+  'the-mailbox-wall',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

@@ -10,6 +10,7 @@ import { FridgeBody } from './FridgeBody';
 import { HomescreenBody } from './HomescreenBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
+import { MailboxesBody } from './MailboxesBody';
 import { MetroBody } from './MetroBody';
 import { PeriodicBody } from './PeriodicBody';
 import { ShelvesBody } from './ShelvesBody';
@@ -39,4 +40,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   levels: LevelsBody,
   fridge: FridgeBody,
   bento: BentoBody,
+  mailboxes: MailboxesBody,
 };

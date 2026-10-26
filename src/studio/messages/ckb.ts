@@ -2399,6 +2399,7 @@ const ckb: Messages = {
   'design.body.levels': 'ئاستەکانی یاری',
   'design.body.fridge': 'سەلاجە',
   'design.body.bento': 'سندوقی بێنتۆ',
+  'design.body.mailboxes': 'دیواری سندوقی پۆست',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

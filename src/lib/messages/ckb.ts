@@ -246,6 +246,7 @@ const ckb: Messages = {
   'tpl.cmc.page': 'لاپەڕەی {n}',
   'tpl.frg.shelf': 'ڕەفی {n}',
   'tpl.bnt.box': 'سندوقی {n}',
+  'tpl.box.wall': 'دیواری {n}',
   'tpl.lvl.world': 'جیهانی {n}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',

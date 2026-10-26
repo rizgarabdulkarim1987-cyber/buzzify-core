@@ -469,4 +469,33 @@ export const theBentoBox = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox];
+export const theMailboxWall = definePreset({
+  id: 'the-mailbox-wall',
+  number: 47,
+  name: 'The Mailbox Wall',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#2A3B34', text: '#F3E6C4', accent: '#E2C271', raised: '#34483F' },
+  alternatives: [
+    { id: 'post-office-cream', name: 'Post office cream', seed: { bg: '#F2E9D2', text: '#2A2314', accent: '#8A5A12', raised: '#FFFFFF' } },
+    { id: 'navy-lobby', name: 'Navy lobby', seed: { bg: '#18263A', text: '#EAF0F8', accent: '#E2B85A', raised: '#22344D' } },
+    { id: 'oxblood-hall', name: 'Oxblood hall', seed: { bg: '#3A1D1B', text: '#F6E7D6', accent: '#E8B96A', raised: '#4A2926' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'mailboxes',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall];
