@@ -10,10 +10,11 @@ import { getActor } from '@/server/studio/auth/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posAiState } from '@/server/studio/queries/pos-ai';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
+import { activeAnnouncements } from '@/server/studio/queries/announcements';
+import { posRestaurantLogo } from '@/server/studio/queries/pos-brand';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
-import { getPrisma } from '@/server/data/prisma';
-import { restaurantLogoOf } from '@/server/pos/brand';
+import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
@@ -36,9 +37,11 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
 
   const t = getStudioTranslator(entry.actor.locale);
   // The root layout wears this look; the cache keeps it for the offline till.
-  const look = parseStoredAppearance((await getActor())?.appearance);
+  const studioActor = await getActor();
+  const look = parseStoredAppearance(studioActor?.appearance);
+  const notices = studioActor ? await query(activeAnnouncements, {}) : [];
   const lookVars = appearanceVars(look);
-  const logo = await restaurantLogoOf(getPrisma(), entry.actor.restaurantId);
+  const logo = await query(posRestaurantLogo, {});
   const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
@@ -82,6 +85,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       <AppearanceCache userId={entry.actor.userId} vars={lookVars} shape={Object.keys(lookVars).length > 0 ? look.shape : null} />
       <RegisterSw />
       <OfflineRedirect />
+      <AnnouncementBar userId={entry.actor.userId} initial={notices} />
       <TillNav items={items} />
       <main id="main" className="min-w-0 flex-1">
         {children}
