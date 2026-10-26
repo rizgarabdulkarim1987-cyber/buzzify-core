@@ -1,3 +1,4 @@
+import { DEFAULT_APPEARANCE } from '@/lib/appearance';
 import { cookies, headers } from 'next/headers';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getPrisma } from '@/server/data/prisma';
@@ -67,6 +68,7 @@ describe('getActor', () => {
       isPlatformOwner: false,
       twoFactorEnabled: false,
       locale: 'ckb',
+      appearance: DEFAULT_APPEARANCE,
       memberships: [{ restaurantId: restaurant.id, role: 'DESIGNER' }],
     });
   });
