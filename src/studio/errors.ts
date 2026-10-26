@@ -290,6 +290,15 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'What was paid for has ended. Record a payment to start a new period.': 'error.text.billingPaidPeriodEnded',
   'This subscription is cancelled. Reactivate it before recording a payment.': 'error.text.billingReactivateFirst',
   'This restaurant has subscriptions or payments on record, which are never deleted. Suspend it instead.': 'error.text.restaurantHasBilling',
+  'Use 2 to 40 lower-case letters, digits, dashes or underscores, starting with a letter': 'error.text.appPlanCode',
+  'Enter a whole number': 'error.text.wholeNumber',
+  'Use at most 1,000': 'error.text.max1000',
+  'Enter a smaller number': 'error.text.numberTooHigh',
+  'A plan with this code already exists': 'error.text.appPlanExists',
+  'Use another code: this one is taken': 'error.text.appPlanCodeTaken',
+  'This pharmacy has no live plan, so nothing can be added.': 'error.text.limitNoPlan',
+  'This plan has no room for more branches. Move the pharmacy to a larger plan.': 'error.text.limitBranches',
+  'This plan has no room for more staff. Move the pharmacy to a larger plan.': 'error.text.limitStaff',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -300,7 +309,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

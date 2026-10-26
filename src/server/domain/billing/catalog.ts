@@ -1,12 +1,15 @@
 import { PLAN_TIERS } from '@/server/domain/entitlements';
 
 /** The products a restaurant can subscribe to. */
-export const APPLICATION_IDS = ['menu', 'cashier'] as const;
+export const APPLICATION_IDS = ['menu', 'cashier', 'pharmacy'] as const;
 export type ApplicationId = (typeof APPLICATION_IDS)[number];
 
-/** The plan codes an application sells: the same three tiers for the Menu and the Cashier; only the Menu's move the restaurant's plan. */
-export function planCodesFor(_applicationId: ApplicationId): readonly string[] {
-  return PLAN_TIERS;
+/**
+ * The plan codes the Menu and the Cashier sell: the same three tiers; only the Menu's move the restaurant's plan. The
+ * Pharmacy has no fixed codes: its plans are `AppPlan` rows (`sellablePlanCodes`, in the billing service).
+ */
+export function planCodesFor(applicationId: ApplicationId): readonly string[] {
+  return applicationId === 'pharmacy' ? [] : PLAN_TIERS;
 }
 
 export interface DefaultApplication {

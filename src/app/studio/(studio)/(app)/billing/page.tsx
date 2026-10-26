@@ -1,5 +1,6 @@
 import { CreditCard } from 'lucide-react';
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { getActor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
@@ -7,6 +8,7 @@ import { billingRestaurants } from '@/server/studio/queries/billing';
 import { getPlans } from '@/server/studio/queries/plans';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
+import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { Pagination } from '@/studio/ui/Pagination';
@@ -35,7 +37,15 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
 
   return (
     <>
-      <PageHeader title={t('billing.title')} description={t('billingList.description')} />
+      <PageHeader
+        title={t('billing.title')}
+        description={t('billingList.description')}
+        actions={
+          <Link href="/studio/billing/plans" className={buttonClasses('secondary')}>
+            {t('billingList.pharmacyPlans')}
+          </Link>
+        }
+      />
       <div className="flex flex-col gap-4 px-8 pb-10">
         {list.total === 0 ? (
           <EmptyState icon={<CreditCard aria-hidden />} title={t('billingList.emptyTitle')} body={t('billingList.emptyBody')} />

@@ -1,11 +1,14 @@
 import { z } from 'zod';
+import { delegates } from '@/server/data/tenant-db';
 import { PLAN_TIERS } from '@/server/domain/entitlements';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { describeError, StudioError } from '@/server/studio/framework/result';
 import { provisionPharmacy } from '@/server/pharmacy/provision';
+import { checkCreation } from '@/server/domain/pharmacy/limits';
 import { BUSINESS_SECTORS, PH_CURRENCIES } from '@/server/domain/restaurant-profile';
 import { PICTURE_KINDS } from '@/server/media/kinds';
+import { limitRefusal } from '@/server/studio/services/billing';
 import { deleteUnsharedFiles } from '@/server/studio/services/media';
 import {
   addedFields,
@@ -248,10 +251,18 @@ export const createBranch = defineAction({
   run: (ctx, fields) =>
     ctx.transaction(async (tx) => {
       const input = pickBranch(fields);
+      const restaurantId = restaurantOf(ctx);
+      // A pharmacy adds branches only up to what its live plan allows (provisioning, which runs before any plan exists,
+      // does not come through here). A menu or cashier business has no such limit.
+      const business = await tx.restaurant.findUnique({ where: { id: restaurantId }, select: { sector: true } });
+      if (business?.sector === 'PHARMACY') {
+        const outcome = await checkCreation(delegates(tx), restaurantId, 'branches');
+        if (!outcome.ok) throw limitRefusal('branches', outcome);
+      }
       // New branches go last.
       const last = await tx.branch.aggregate({ _max: { sortOrder: true } });
       const created = await tx.branch.create({
-        data: { ...branchData(input), restaurantId: restaurantOf(ctx), sortOrder: (last._max.sortOrder ?? -1) + 1 },
+        data: { ...branchData(input), restaurantId, sortOrder: (last._max.sortOrder ?? -1) + 1 },
         select: { id: true },
       });
       ctx.audit({ action: 'branch.created', entityType: 'Branch', entityId: created.id, changes: { name: { before: null, after: input.name } } });
