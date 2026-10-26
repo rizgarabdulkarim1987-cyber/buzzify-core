@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
 import { filterStyles } from '@/studio/styles/search';
 import { STUDIO_MESSAGES } from '@/studio/messages';
+import { TEMPLATE_IDS } from '@/lib/templates';
+import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-map';
 
 const ids = MENU_STYLES.map((s) => s.id);
 const arName = (id: string) => STUDIO_MESSAGES.ar[`styles.${id}.name`] ?? id;
@@ -69,6 +71,34 @@ describe('filterStyles', () => {
   it('returns nothing for a miss', () => {
     expect(find('zzz')).toEqual([]);
   });
+});
+
+describe('styles made real as templates', () => {
+  it('maps exactly the three first-batch styles', () => {
+    expect(TEMPLATE_FOR_STYLE).toEqual({ 'themed-book': 'the-book', 'layout-mag': 'the-magazine', 'layout-2-dep': 'taste-airport' });
+    expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(3);
+  });
+  it('maps only catalog styles to known templates', () => {
+    for (const [styleId, templateId] of Object.entries(TEMPLATE_FOR_STYLE)) {
+      expect(ids, styleId).toContain(styleId);
+      expect(TEMPLATE_IDS, templateId).toContain(templateId);
+    }
+  });
+  it('maps each template once', () => {
+    const targets = Object.values(TEMPLATE_FOR_STYLE);
+    expect(new Set(targets).size).toBe(targets.length);
+  });
+  it('makes every catalog style either a template or coming soon', () => {
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) !== null)).toHaveLength(3);
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) === null)).toHaveLength(32);
+    expect(templateForStyle('nope')).toBeNull();
+  });
+  for (const locale of ['en', 'ar', 'ckb'] as const) {
+    it(`${locale} has the gallery's style labels`, () => {
+      const m = STUDIO_MESSAGES[locale];
+      for (const key of ['design.filter.styles', 'design.filter.stylesCount_other', 'design.comingSoon', 'design.comingSoonPreview', 'design.selectSoon']) expect(m[key], key).toBeTruthy();
+    });
+  }
 });
 
 describe('style posters', () => {
