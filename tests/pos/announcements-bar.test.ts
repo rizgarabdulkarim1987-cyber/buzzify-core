@@ -38,3 +38,13 @@ describe('announcement cache', () => {
     expect(readDismissed('u2', store)).toEqual([]);
   });
 });
+
+describe('the offline page', () => {
+  it('shows what the last person here was shown, and nothing when nothing is stored', async () => {
+    const { lastStoredAnnouncements } = await import('@/lib/announcement-state');
+    const store = memory();
+    expect(lastStoredAnnouncements(store)).toBeNull();
+    storeAnnouncements('u9', [note('z')], store);
+    expect(lastStoredAnnouncements(store)).toEqual({ userId: 'u9', list: [note('z')] });
+  });
+});

@@ -157,10 +157,37 @@ function mutedOn(text: string, bg: string): string {
 
 /**
  * The CSS variables that put the look on the page (set on `<html>`). A person who kept the default gets none, so their
- * pages are exactly the stylesheet's. Status colours (danger, success, info, accent) are never in here.
+ * pages are exactly the stylesheet's. Status colours keep their hue (see statusVars) and the accent is never in here.
  */
 export function appearanceVars(a: Appearance): Record<string, string> {
   return sameAsDefault(a) ? {} : fullAppearanceVars(a);
+}
+
+const STATUS_BASE = { '--s-danger': '#b42318', '--s-success': '#067647', '--s-info': '#1d4ed8' } as const;
+
+/**
+ * Danger, success and info keep their hue on any background, but a dark one needs them lighter to stay readable as text
+ * (form errors, badges). Their fills then get dark text instead of white. Nothing is returned when the base colours
+ * already read on the background.
+ */
+function statusVars(bg: string): Record<string, string> {
+  const towards = isDark(bg) ? '#ffffff' : '#000000';
+  const vars: Record<string, string> = {};
+  let changed = false;
+  for (const [name, base] of Object.entries(STATUS_BASE)) {
+    let colour: string = base;
+    for (let amount = 0.05; contrast(colour, bg) < MIN_TEXT_CONTRAST && amount <= 1; amount += 0.05) colour = mix(base, towards, amount);
+    if (colour !== base) changed = true;
+    vars[name] = colour;
+  }
+  if (!changed) return {};
+  const onStatus = Object.values(vars).every((colour) => contrast('#ffffff', colour) >= MIN_TEXT_CONTRAST) ? '#ffffff' : '#111111';
+  vars['--s-on-status'] = onStatus;
+  vars['--s-danger-hover'] = mix(vars['--s-danger']!, towards, 0.15);
+  vars['--s-danger-wash'] = mix(bg, vars['--s-danger']!, 0.16);
+  vars['--s-success-wash'] = mix(bg, vars['--s-success']!, 0.16);
+  vars['--s-info-wash'] = mix(bg, vars['--s-info']!, 0.16);
+  return vars;
 }
 
 /** Every variable for a look, the default included: what the picker's preview needs. */
@@ -179,6 +206,7 @@ export function fullAppearanceVars(a: Appearance): Record<string, string> {
     '--s-ink-hover': mix(a.button, a.buttonText, 0.15),
     '--s-on-ink': a.buttonText,
     '--s-btn-radius': a.shape === 'round' ? '9999px' : '6px',
+    ...statusVars(a.bg),
   };
   const stack = FONTS[a.font].stack;
   if (stack) vars['--s-font'] = stack;

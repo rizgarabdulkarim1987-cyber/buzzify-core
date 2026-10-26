@@ -109,3 +109,19 @@ describe('presets and the full variable set', () => {
     expect(fullAppearanceVars(DEFAULT_APPEARANCE)['--s-btn-radius']).toBe('6px');
   });
 });
+
+describe('status colours on every preset', () => {
+  const BASE = { '--s-danger': '#b42318', '--s-success': '#067647', '--s-info': '#1d4ed8', '--s-on-status': '#ffffff' } as const;
+  for (const preset of PRESETS) {
+    it(`${preset.key}: danger, success and info stay readable on the background, and their fills keep readable text`, () => {
+      const vars = { ...BASE, ...fullAppearanceVars(preset.appearance) } as Record<string, string>;
+      for (const name of ['--s-danger', '--s-success', '--s-info'] as const) {
+        expect(contrast(vars[name]!, preset.appearance.bg), `${name} on bg`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(vars['--s-on-status']!, vars[name]!), `${name} fill`).toBeGreaterThanOrEqual(4.5);
+      }
+    });
+  }
+  it('leaves the status colours alone for the default look', () => {
+    expect(fullAppearanceVars(DEFAULT_APPEARANCE)['--s-danger']).toBeUndefined();
+  });
+});

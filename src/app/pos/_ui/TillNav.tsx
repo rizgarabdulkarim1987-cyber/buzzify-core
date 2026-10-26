@@ -28,7 +28,7 @@ export function TillNav({ items }: { items: ReadonlyArray<{ key: TillPageKey; hr
           >
             {t(`pos.nav.${item.key}`)}
             {item.badge ? (
-              <span className="ms-2 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-info px-1.5 text-sm font-semibold text-on-ink">{formatNumber(item.badge)}</span>
+              <span className="ms-2 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full bg-info px-1.5 text-sm font-semibold text-on-status">{formatNumber(item.badge)}</span>
             ) : null}
           </Link>
         );

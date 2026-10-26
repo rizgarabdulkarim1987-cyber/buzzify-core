@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { OfflineAnnouncements } from '@/studio/shell/AnnouncementBar';
+import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { OfflineAppearance } from '../_ui/sync/AppearanceCache';
 import { OfflineTill } from '../_ui/sync/OfflineTill';
 
@@ -12,7 +14,9 @@ export default function OfflinePage() {
   return (
     <main id="main" className="min-h-dvh">
       <OfflineAppearance />
+      <OfflineAnnouncements />
       <OfflineTill />
+      <BrandFooter />
     </main>
   );
 }

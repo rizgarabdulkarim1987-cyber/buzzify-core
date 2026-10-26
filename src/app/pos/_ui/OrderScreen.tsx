@@ -178,7 +178,7 @@ export function OrderScreen({
                         type="button"
                         disabled={!canChange || pending || !product.available}
                         onClick={() => tapProduct(product)}
-                        className="flex min-h-24 w-full flex-col items-start justify-between gap-1 rounded-lg border border-line-strong bg-raised p-3 text-start hover:bg-hover disabled:opacity-50"
+                        className="s-keep-radius flex min-h-24 w-full flex-col items-start justify-between gap-1 rounded-lg border border-line-strong bg-raised p-3 text-start hover:bg-hover disabled:opacity-50"
                       >
                         <span className="text-base font-medium text-text">{pickName(product.names, locale, fallback)}</span>
                         <span className="text-sm text-muted">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>

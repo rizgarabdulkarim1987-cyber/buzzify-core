@@ -33,14 +33,24 @@ export function storeAnnouncements(userId: string, list: ActiveAnnouncement[], s
   }
 }
 
-/** The last list this person saw on this device; empty for anyone else's, or when nothing usable is stored. */
-export function restoreAnnouncements(userId: string, store: Store): ActiveAnnouncement[] {
-  const value = readJson(store, LIST_KEY) as { userId?: unknown; list?: unknown } | null;
-  if (!value || value.userId !== userId || !Array.isArray(value.list)) return [];
-  return value.list.filter(
+function validList(value: unknown): ActiveAnnouncement[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter(
     (item): item is ActiveAnnouncement =>
       !!item && typeof item.id === 'string' && typeof item.title === 'string' && typeof item.body === 'string' && (item.endsAt === null || typeof item.endsAt === 'string'),
   );
+}
+
+/** The last list this person saw on this device; empty for anyone else's, or when nothing usable is stored. */
+export function restoreAnnouncements(userId: string, store: Store): ActiveAnnouncement[] {
+  const value = readJson(store, LIST_KEY) as { userId?: unknown; list?: unknown } | null;
+  return value && value.userId === userId ? validList(value.list) : [];
+}
+
+/** The offline page has no session: it shows what the last person to use the till here had been shown. */
+export function lastStoredAnnouncements(store: Store): { userId: string; list: ActiveAnnouncement[] } | null {
+  const value = readJson(store, LIST_KEY) as { userId?: unknown; list?: unknown } | null;
+  return value && typeof value.userId === 'string' ? { userId: value.userId, list: validList(value.list) } : null;
 }
 
 export function readDismissed(userId: string, store: Store): string[] {

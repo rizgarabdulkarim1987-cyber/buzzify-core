@@ -112,7 +112,7 @@ export function TablesBoard({ board }: { board: BoardView }) {
                 type="button"
                 onClick={() => tap(table)}
                 disabled={pending}
-                className={cx('relative flex min-h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 text-center transition-colors disabled:opacity-60', TONE[tone])}
+                className={cx('s-keep-radius relative flex min-h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 text-center transition-colors disabled:opacity-60', TONE[tone])}
                 aria-label={t('pos.board.tableLabel', { n: formatNumber(table.number), state: t(`pos.board.state.${tone}`) })}
               >
                 {table.orderId ? (
@@ -122,7 +122,7 @@ export function TablesBoard({ board }: { board: BoardView }) {
                   </svg>
                 ) : null}
                 {table.pendingRequests > 0 ? (
-                  <span className="absolute end-2 top-2 inline-flex min-h-6 items-center rounded-full bg-info px-2 text-sm font-semibold text-on-ink">
+                  <span className="absolute end-2 top-2 inline-flex min-h-6 items-center rounded-full bg-info px-2 text-sm font-semibold text-on-status">
                     {table.orderId ? formatNumber(table.pendingRequests) : t('pos.board.newOrder')}
                   </span>
                 ) : null}

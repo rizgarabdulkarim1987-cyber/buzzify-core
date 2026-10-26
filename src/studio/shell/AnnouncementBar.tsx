@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadActiveAnnouncements } from '@/app/studio/_actions/announcements';
 import type { ActiveAnnouncement } from '@/lib/announcements';
-import { dismissAnnouncement, readDismissed, restoreAnnouncements, storeAnnouncements, visibleAnnouncements } from '@/lib/announcement-state';
+import { dismissAnnouncement, lastStoredAnnouncements, readDismissed, storeAnnouncements, visibleAnnouncements } from '@/lib/announcement-state';
 import { useT } from '@/studio/i18n';
 
 const REFRESH_MS = 60_000;
@@ -24,16 +24,10 @@ export function AnnouncementBar({ userId, initial }: { userId: string; initial: 
     // Read after mount: the server cannot see this device's storage.
     try {
       const kept = readDismissed(userId, window.localStorage);
-      const offline = initial.length === 0 ? restoreAnnouncements(userId, window.localStorage) : null;
-      queueMicrotask(() => {
-        setDismissed(kept);
-        if (offline) setList(offline);
-      });
+      queueMicrotask(() => setDismissed(kept));
     } catch {
       // Storage is not reachable: the bar works for this visit only.
     }
-    // The first load only.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
   const refresh = useCallback(async () => {
@@ -94,4 +88,18 @@ export function AnnouncementBar({ userId, initial }: { userId: string; initial: 
       )}
     </section>
   );
+}
+
+/** The offline till page: it has no session, so it shows the list the last person here had, minus what they dismissed. */
+export function OfflineAnnouncements() {
+  const [last, setLast] = useState<{ userId: string; list: ActiveAnnouncement[] } | null>(null);
+  useEffect(() => {
+    try {
+      const kept = lastStoredAnnouncements(window.localStorage);
+      queueMicrotask(() => setLast(kept));
+    } catch {
+      // Storage is not reachable: nothing to show.
+    }
+  }, []);
+  return last ? <AnnouncementBar userId={last.userId} initial={last.list} /> : null;
 }

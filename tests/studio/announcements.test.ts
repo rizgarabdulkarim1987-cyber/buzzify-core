@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { pickLocalised } from '@/lib/announcements';
+import { pickAnnouncement } from '@/lib/announcements';
 import { archiveAnnouncement, createAnnouncement, updateAnnouncement } from '@/server/studio/actions/announcements';
 import { activeAnnouncements, listAnnouncements } from '@/server/studio/queries/announcements';
 import { ask, codeOf, dataOf, failureOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from '../pos/fixture';
@@ -34,13 +34,17 @@ afterAll(async () => {
   vi.unstubAllEnvs();
 });
 
-describe('pickLocalised', () => {
-  it('uses the viewer’s language, else the first one filled, else nothing', () => {
-    expect(pickLocalised({ en: 'Hello', ar: 'مرحبا' }, 'ar')).toBe('مرحبا');
-    expect(pickLocalised({ ar: 'مرحبا' }, 'en')).toBe('مرحبا');
-    expect(pickLocalised({ ckb: 'سڵاو' }, 'en')).toBe('سڵاو');
-    expect(pickLocalised({ en: '   ' }, 'ar')).toBe('');
-    expect(pickLocalised(null, 'en')).toBe('');
+describe('pickAnnouncement', () => {
+  it('takes the viewer language, else the first language that has both title and body', () => {
+    const titles = { en: 'Hello', ar: 'مرحبا' };
+    const bodies = { en: 'Body', ar: 'نص' };
+    expect(pickAnnouncement(titles, bodies, 'ar')).toEqual({ title: 'مرحبا', body: 'نص' });
+    expect(pickAnnouncement({ ar: 'مرحبا' }, { ar: 'نص' }, 'en')).toEqual({ title: 'مرحبا', body: 'نص' });
+  });
+  it('never mixes languages, and hides one with no language that has both', () => {
+    expect(pickAnnouncement({ en: 'Title' }, { ar: 'نص' }, 'en')).toBeNull();
+    expect(pickAnnouncement({ en: '  ' }, { en: 'x' }, 'en')).toBeNull();
+    expect(pickAnnouncement(null, null, 'en')).toBeNull();
   });
 });
 
@@ -87,6 +91,11 @@ describe('reading announcements', () => {
       expect(list).toHaveLength(1);
       expect(list[0]).toMatchObject({ title: 'Maintenance', body: 'Tonight at 2am' });
     }
+  });
+
+  it('reaches an English reader when it was written only in Arabic', async () => {
+    dataOf(await run(admin, createAnnouncement, { titles: { ar: 'صيانة' }, bodies: { ar: 'الليلة' } }));
+    expect(dataOf(await ask(cashier, activeAnnouncements, {}))[0]).toMatchObject({ title: 'صيانة', body: 'الليلة' });
   });
 
   it('hides future, expired and archived ones', async () => {
