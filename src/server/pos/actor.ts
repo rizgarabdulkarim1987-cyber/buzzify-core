@@ -44,6 +44,15 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
     candidates.set(member.restaurantId, { role: 'OWNER', viaMembership: true, joined: member.createdAt });
   }
 
+  // A pharmacy business has no till: whatever the person holds there, the cashier never resolves it.
+  if (candidates.size > 0) {
+    const pharmacies = await prisma.restaurant.findMany({
+      where: { id: { in: [...candidates.keys()] }, sector: 'PHARMACY' },
+      select: { id: true },
+    });
+    for (const row of pharmacies) candidates.delete(row.id);
+  }
+
   let chosen: readonly [string, (typeof candidates extends Map<string, infer V> ? V : never) | undefined] | undefined;
   if (restaurantId !== undefined) {
     chosen = [restaurantId, candidates.get(restaurantId)];
@@ -75,10 +84,10 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
   };
 }
 
-/** Whether a restaurant may use the till now: ACTIVE, and with a live `cashier` subscription (grace counted as live). */
+/** Whether a restaurant may use the till now: not a pharmacy, ACTIVE, and with a live `cashier` subscription (grace counted as live). */
 export async function posGate(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<PosGate> {
-  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true } });
-  if (!restaurant || restaurant.status !== 'ACTIVE') return { open: false, reason: 'restaurantInactive' };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true, sector: true } });
+  if (!restaurant || restaurant.status !== 'ACTIVE' || restaurant.sector === 'PHARMACY') return { open: false, reason: 'restaurantInactive' };
   const subscription = await prisma.subscription.findFirst({
     where: { restaurantId, applicationId: 'cashier' },
     select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
