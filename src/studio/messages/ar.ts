@@ -2424,6 +2424,7 @@ const ar: Messages = {
   'design.body.fridge': 'الثلاجة',
   'design.body.bento': 'علبة البينتو',
   'design.body.mailboxes': 'جدار صناديق البريد',
+  'design.body.depth': 'عمق التمرير',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

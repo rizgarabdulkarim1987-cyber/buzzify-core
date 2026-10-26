@@ -498,4 +498,33 @@ export const theMailboxWall = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall];
+export const theScrollDepth = definePreset({
+  id: 'the-scroll-depth',
+  number: 48,
+  name: 'Scroll Depth',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#0B0B0C', text: '#F2F2F2', accent: '#F2F2F2', raised: '#17181A' },
+  alternatives: [
+    { id: 'gallery-white', name: 'Gallery white', seed: { bg: '#F4F2EE', text: '#141414', accent: '#141414', raised: '#FFFFFF' } },
+    { id: 'ember-room', name: 'Ember room', seed: { bg: '#14100E', text: '#F5ECE4', accent: '#FF8A4C', raised: '#211915' } },
+    { id: 'deep-sea', name: 'Deep sea', seed: { bg: '#0A1620', text: '#E6EEF5', accent: '#5CC8E8', raised: '#12222F' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'depth',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'portrait',
+    density: 'comfortable',
+    corners: 'soft',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth];

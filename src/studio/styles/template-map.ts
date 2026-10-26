@@ -23,6 +23,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-2-frg': 'the-fridge',
   'layout-2-bnt': 'the-bento-box',
   'layout-2-box': 'the-mailbox-wall',
+  'motion-dep': 'the-scroll-depth',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

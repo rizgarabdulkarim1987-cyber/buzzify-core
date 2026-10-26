@@ -2395,6 +2395,7 @@ const en: Messages = {
   'design.body.fridge': 'The fridge',
   'design.body.bento': 'The bento box',
   'design.body.mailboxes': 'The mailbox wall',
+  'design.body.depth': 'Scroll depth',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',
