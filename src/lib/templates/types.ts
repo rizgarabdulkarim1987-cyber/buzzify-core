@@ -82,7 +82,7 @@ export type HeadingStyle = (typeof HEADING_STYLES)[number];
  * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
  * replace some of the structural knobs (see `SHAPE_SETS`).
  */
-export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen'] as const;
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure'] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 
 /** The three background modes every preset supports (spec 6). */
@@ -154,6 +154,7 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   tabletop: ['hero', 'nav', 'card', 'heading'],
   comics: ['hero', 'nav', 'card', 'heading'],
   homescreen: ['hero', 'nav', 'card', 'heading'],
+  treasure: ['hero', 'nav', 'card', 'heading'],
 };
 
 /** The shape a design browses in; `scroll` when it names none. */
@@ -357,6 +358,7 @@ export const TEMPLATE_IDS = [
   'the-table-from-above',
   'the-kitchen-comics',
   'the-phone-home-screen',
+  'the-treasure-map',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

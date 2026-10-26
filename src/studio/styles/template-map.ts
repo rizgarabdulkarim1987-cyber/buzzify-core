@@ -18,6 +18,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-top': 'the-table-from-above',
   'layout-2-cmc': 'the-kitchen-comics',
   'layout-2-hom': 'the-phone-home-screen',
+  'layout-2-map': 'the-treasure-map',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

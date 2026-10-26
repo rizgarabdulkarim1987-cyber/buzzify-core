@@ -2390,6 +2390,7 @@ const en: Messages = {
   'design.body.tabletop': 'Table from above',
   'design.body.comics': 'Kitchen comics',
   'design.body.homescreen': 'Phone home screen',
+  'design.body.treasure': 'Treasure map',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

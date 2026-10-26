@@ -353,4 +353,33 @@ export const thePhoneHomeScreen = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen];
+export const theTreasureMap = definePreset({
+  id: 'the-treasure-map',
+  number: 43,
+  name: 'Treasure Map',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#EFDCB2', text: '#3A2410', accent: '#8A2A10', raised: '#F8EBCB' },
+  alternatives: [
+    { id: 'sea-chart', name: 'Sea chart', seed: { bg: '#DCE9E4', text: '#12303A', accent: '#0F6E7A', raised: '#EEF6F2' } },
+    { id: 'rose-atlas', name: 'Rose atlas', seed: { bg: '#F3DDD0', text: '#3B1D16', accent: '#A3341F', raised: '#FBEDE4' } },
+    { id: 'night-voyage', name: 'Night voyage', seed: { bg: '#14212E', text: '#F1E6C8', accent: '#E3A33B', raised: '#1F3144' } },
+  ],
+  type: { fontPairId: 'terra', scale: 1.0 },
+  layout: {
+    body: 'treasure',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap];
