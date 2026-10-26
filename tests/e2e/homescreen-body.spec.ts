@@ -12,7 +12,8 @@ const slug = menus.slug('hom');
 const arabSlug = menus.slug('homar');
 
 test.beforeAll(async () => {
-  await menus.create(slug, 'homescreen', { templateId: 'the-phone-home-screen', layout: { body: 'homescreen', hero: 'editorial', nav: 'index' } });
+  // The preset's own layout (its compact hero, its chips): what a restaurant that picks the template gets.
+  await menus.create(slug, 'homescreen', { templateId: 'the-phone-home-screen' });
   await menus.create(arabSlug, 'homescreen', { templateId: 'the-phone-home-screen', numeralSystem: 'ARAB' });
 });
 test.afterAll(() => menus.remove());
@@ -22,11 +23,30 @@ const dock = (page: Page) => home(page).locator('[data-dock]');
 const apps = (page: Page) => home(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => dock(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows many app icons with photos and prices, and every folder is one tap away', async ({ page }) => {
+test('on a phone the first screen shows at least eight app icons with photos, prices and names, and every folder is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(home(page)).toBeVisible();
-  await expectFirstScreen(page, apps(page), { min: 6 });
+  await expectFirstScreen(page, apps(page), { min: 8 });
+  const named = await apps(page).evaluateAll((nodes) =>
+    nodes.filter((node) => {
+      const name = node.querySelector('.hs-name')!.getBoundingClientRect();
+      return name.height > 0 && name.top >= 0 && name.bottom <= window.innerHeight;
+    }).length,
+  );
+  expect(named, 'icons whose name is on the first screen too').toBeGreaterThanOrEqual(8);
   await expectEverySectionReachable(dock(page));
+});
+
+test('the dock is one slim line, and each folder opens with its label tile in the first cell', async ({ page }) => {
+  await openMenu(page, slug);
+  const bar = (await dock(page).boundingBox())!;
+  expect(bar.height, 'a slim dock').toBeLessThanOrEqual(56);
+  const folder = page.locator('#cat-viennoiserie');
+  const label = (await folder.locator('[data-heading]').boundingBox())!;
+  const first = (await folder.locator('[data-row]').first().boundingBox())!;
+  expect(Math.abs(label.y - first.y), 'the label tile shares the first row').toBeLessThanOrEqual(2);
+  expect(label.x + label.width, 'the label tile comes first').toBeLessThanOrEqual(first.x + 1);
+  await expect(folder.getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
 });
 
 test('the icons sit four across, square, with the name below and the price badge on the corner', async ({ page }) => {
@@ -36,6 +56,7 @@ test('the icons sit four across, square, with the name below and the price badge
   const boxes = await Promise.all([0, 1, 2].map(async (i) => (await folder.nth(i).boundingBox())!));
   for (const box of boxes) expect(Math.abs(box.y - boxes[0]!.y), 'they share a row').toBeLessThanOrEqual(2);
   const grid = (await page.locator('#cat-viennoiserie .hs-apps').boundingBox())!;
+  // Three dishes and the label tile: one row of four.
   expect(boxes[0]!.width, 'each cell is a quarter of the grid').toBeLessThanOrEqual(grid.width / 4 + 1);
   const icon = (await folder.first().locator('[data-photo]').boundingBox())!;
   expect(Math.abs(icon.width - icon.height)).toBeLessThanOrEqual(1);

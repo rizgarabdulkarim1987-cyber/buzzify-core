@@ -1,124 +1,144 @@
 /*
  * The Phone Home Screen body (a browse shape of a template menu): the menu is a phone's home screen. Every dish is an
  * app icon (rounded square photo, name below, price as a red notification badge), four across on a phone; every section
- * is a folder band holding its icons; a dock of app tiles stays at the top and jumps. Everything is scoped under
- * [data-body='homescreen']. The wallpaper is the template's accent mixed into near black (dark enough for white text on
- * every palette); text on it is white and the badge is a fixed red with white text, so contrast holds on any palette.
- * Logical properties only (RTL mirrors).
+ * is a folder band whose first cell is its label tile, so a short folder is one row; a slim dock of app tiles stays at
+ * the top and jumps. Everything is scoped under [data-body='homescreen']. The wallpaper is the template's accent mixed
+ * into near black (dark enough for white text on every palette); text on it is white and the badge is a fixed red with
+ * white text, so contrast holds on any palette. Logical properties only (RTL mirrors).
  */
 [data-body='homescreen'] {
   --hs-ink: #fff;
   --hs-folder: rgba(255, 255, 255, 0.14);
   --hs-badge: #c4001a;
   /* The sticky dock's height, so a jumped-to folder lands just below it. */
-  --nav-room: 5.5rem;
+  --nav-room: 3.25rem;
   padding-block-end: 1rem;
   color: var(--hs-ink);
   background:
     linear-gradient(165deg, color-mix(in srgb, var(--accent) 34%, #0c0516), color-mix(in srgb, var(--accent) 26%, #14081f) 55%, color-mix(in srgb, var(--accent) 40%, #1a0a08));
 }
 
-/* The dock (sticky: shared/shapes.css): one app tile per section, in a frosted rounded strip that scrolls sideways. */
+/*
+ * The dock (sticky: shared/shapes.css): one slim app tile per section (a small numbered glyph beside the name), in a
+ * frosted rounded strip that scrolls sideways. One line high, so the icons start high on the first screen.
+ */
 [data-body='homescreen'] .hs-dock {
-  padding: 0.375rem 0.5rem;
+  padding: 0.25rem 0.5rem;
 }
-[data-body='homescreen'] .hs-dock-list {
-  display: flex;
+[data-body='homescreen'] .hs-strip-list {
   gap: 0.25rem;
-  margin: 0;
-  padding: 0.375rem 0.5rem;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  list-style: none;
-  border-radius: 1.5rem;
+  padding: 0.1875rem;
+  border-radius: 999px;
   background: rgba(255, 255, 255, 0.2);
-}
-[data-body='homescreen'] .hs-dock-list > li {
-  flex: none;
 }
 [data-body='homescreen'] .hs-tile {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0.125rem;
-  inline-size: 4.25rem;
-  padding: 0;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-block: 0;
+  padding-inline: 0.25rem 0.75rem;
+  border-radius: 999px;
   color: var(--hs-ink);
+  white-space: nowrap;
+  transition: background-color 160ms;
 }
+/* The glyph: one perceptual lightness in every hue, so its white numeral reads on all of them. */
 [data-body='homescreen'] .hs-glyph {
   display: grid;
   place-items: center;
-  inline-size: 2.5rem;
-  block-size: 2.5rem;
-  border-radius: 0.75rem;
-  background: linear-gradient(160deg, hsl(var(--app-h) 70% 62%), hsl(calc(var(--app-h) + 24) 65% 40%));
-  font-size: 1.0625rem;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(160deg, oklch(0.52 0.15 var(--app-h)), oklch(0.4 0.13 calc(var(--app-h) + 24)));
+  color: #fff;
+  font-size: 0.875rem;
   font-weight: 800;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='homescreen'] .hs-tile[aria-current='true'] {
+  background: rgba(255, 255, 255, 0.24);
 }
 [data-body='homescreen'] .hs-tile[aria-current='true'] .hs-glyph {
   box-shadow:
     0 0 0 2px #fff,
     0 2px 5px rgba(0, 0, 0, 0.3);
-  transform: scale(1.06);
 }
 [data-body='homescreen'] .hs-label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  max-inline-size: 100%;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 0.625rem;
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.15;
-  min-block-size: 1.15em;
+}
+@media (hover: hover) {
+  [data-body='homescreen'] .hs-tile:hover:not([aria-current='true']) {
+    background: rgba(255, 255, 255, 0.12);
+  }
 }
 
-/* A folder: a rounded translucent band with its name and dish count on top, like an opened folder on the home screen. */
+/* A folder: a rounded translucent band; its label tile opens the grid, like a folder's name widget on the home screen. */
 [data-body='homescreen'] .hs-folder {
-  margin: 0.375rem 0.5rem 0.625rem;
-  padding: 0.75rem 0.375rem 0.875rem;
-  border-radius: 1.75rem;
+  margin: 0.1875rem 0.375rem;
+  padding: 0.5rem 0.25rem 0.375rem;
+  border-radius: 1.5rem;
   background: var(--hs-folder);
 }
-[data-body='homescreen'] .hs-head {
-  padding-inline: 0.75rem;
+[data-body='homescreen'] .hs-label-tile {
+  display: flex;
+  justify-content: center;
+  min-inline-size: 0;
+}
+/* The tile is as wide as an icon (the template's heading gutter does not apply inside a grid cell). */
+[data-body='homescreen'] [data-heading].hs-head {
+  inline-size: 76%;
+  padding-inline: 0;
 }
 [data-body='homescreen'] .hs-title {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  margin: 0 0 0.75rem;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0.125rem;
+  border-radius: 22%;
+  background: rgba(255, 255, 255, 0.16);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
   color: var(--hs-ink);
-  font-size: 1rem;
+  font-size: 0.75rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.15;
   text-align: center;
 }
 [data-body='homescreen'] .hs-title span {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  max-inline-size: 100%;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  hyphens: auto;
 }
 [data-body='homescreen'] .hs-title b {
   flex: none;
   padding-inline: 0.4rem;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.22);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.25rem;
 }
 
-/* The icons: four across on a phone. */
+/* The grid: four across on a phone, the label tile first. */
 [data-body='homescreen'] .hs-apps {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 1rem 0.25rem;
+  gap: 0.75rem 0.25rem;
   margin: 0;
-  padding: 0 0.125rem;
+  padding: 0;
   list-style: none;
 }
 [data-body='homescreen'] .hs-app {
@@ -133,7 +153,7 @@
 }
 [data-body='homescreen'] .hs-icon {
   position: relative;
-  inline-size: 82%;
+  inline-size: 76%;
 }
 [data-body='homescreen'] .hs-photo {
   inline-size: 100%;
@@ -149,32 +169,35 @@
   block-size: 100%;
   object-fit: cover;
 }
-/* The price, as the notification badge on the icon's upper corner. */
+/*
+ * The price, as the notification badge on the icon's upper corner. A long price ("From 12,500 IQD") wraps inside the
+ * badge rather than running past the cell. Taps go through it to the icon, which opens the dish.
+ */
 [data-body='homescreen'] .hs-badge {
   position: absolute;
   inset-block-start: -0.4375rem;
   inset-inline-end: -0.5rem;
   z-index: 2;
+  max-inline-size: calc(100% + 0.5rem);
   padding: 0 0.375rem;
-  border-radius: 999px;
+  border-radius: 0.625rem;
   background: var(--hs-badge);
   color: #fff;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1875rem;
-  white-space: nowrap;
+  text-align: center;
+  overflow-wrap: anywhere;
   box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
-}
-[data-body='homescreen'] .hs-badge .tpl-was {
-  display: none;
+  pointer-events: none;
 }
 /* The add button inside the icon's lower corner, away from the badge and clear of the name. */
 [data-body='homescreen'] .hs-add {
   position: absolute;
   inset-block-end: 0.25rem;
   inset-inline-start: 0.25rem;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
   min-inline-size: 0;
   min-block-size: 0;
   padding: 0;
@@ -183,15 +206,9 @@
   color: #1b1030;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
-/* A dish with choices shows a plus too (its label stays for screen readers), so the button never outgrows the icon. */
-[data-body='homescreen'] .hs-add:has(span) span {
-  display: none;
-}
-[data-body='homescreen'] .hs-add:has(span)::before {
-  content: '+';
-  font-size: 1rem;
-  font-weight: 800;
-  line-height: 1;
+[data-body='homescreen'] .hs-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 /* The name below the icon: two lines at most, however long. */
 [data-body='homescreen'] .hs-name {
@@ -205,9 +222,9 @@
   overflow-wrap: anywhere;
   padding: 0;
   color: var(--hs-ink);
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  line-height: 1.2;
+  line-height: 1.15;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
 
@@ -259,7 +276,7 @@
     animation: none;
   }
   [data-body='homescreen'] .hs-photo,
-  [data-body='homescreen'] .hs-glyph {
+  [data-body='homescreen'] .hs-tile {
     transition: none;
   }
 }
