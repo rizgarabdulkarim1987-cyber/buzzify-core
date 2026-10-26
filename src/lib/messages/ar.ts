@@ -253,6 +253,7 @@ const ar: Messages = {
   'tpl.elv.floor': 'الطابق {n}',
   'tpl.elv.goTo': 'الطابق {n}: {name}',
   'tpl.per.group': 'المجموعة {n}',
+  'tpl.met.station': 'المحطة {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',
   'tpl.day.wed': 'الأربعاء',

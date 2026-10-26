@@ -2383,6 +2383,7 @@ const en: Messages = {
   'design.body.board': 'Board',
   'design.body.elevator': 'Elevator',
   'design.body.periodic': 'Periodic table',
+  'design.body.metro': 'Metro line',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

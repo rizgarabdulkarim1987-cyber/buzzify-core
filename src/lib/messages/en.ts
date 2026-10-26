@@ -239,6 +239,7 @@ const en: Messages = {
   'tpl.elv.floor': 'Floor {n}',
   'tpl.elv.goTo': 'Floor {n}: {name}',
   'tpl.per.group': 'Group {n}',
+  'tpl.met.station': 'Station {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',
   'tpl.day.wed': 'Wednesday',

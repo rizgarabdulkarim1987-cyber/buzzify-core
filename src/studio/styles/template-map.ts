@@ -11,6 +11,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-2-dep': 'taste-airport',
   'layout-elv': 'the-elevator',
   'layout-per': 'the-periodic-table',
+  'layout-met': 'the-metro-line',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

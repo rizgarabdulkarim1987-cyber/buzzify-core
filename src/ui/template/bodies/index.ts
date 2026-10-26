@@ -4,6 +4,7 @@ import { BoardBody } from './BoardBody';
 import { BookBody } from './BookBody';
 import { ElevatorBody } from './ElevatorBody';
 import { MagazineBody } from './MagazineBody';
+import { MetroBody } from './MetroBody';
 import { PeriodicBody } from './PeriodicBody';
 
 /**
@@ -17,4 +18,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   board: BoardBody,
   elevator: ElevatorBody,
   periodic: PeriodicBody,
+  metro: MetroBody,
 };

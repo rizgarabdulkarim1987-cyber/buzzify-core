@@ -239,6 +239,7 @@ const ckb: Messages = {
   'tpl.elv.floor': 'نهۆمی {n}',
   'tpl.elv.goTo': 'نهۆمی {n}: {name}',
   'tpl.per.group': 'گروپی {n}',
+  'tpl.met.station': 'وێستگەی {n}',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

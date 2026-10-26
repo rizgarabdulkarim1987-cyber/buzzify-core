@@ -2412,6 +2412,7 @@ const ar: Messages = {
   'design.body.board': 'لوحة',
   'design.body.elevator': 'مصعد',
   'design.body.periodic': 'الجدول الدوري',
+  'design.body.metro': 'خط المترو',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',
