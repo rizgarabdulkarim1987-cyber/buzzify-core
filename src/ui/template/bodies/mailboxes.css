@@ -16,8 +16,8 @@
   --bx-plate: var(--bx-brass);
   /* The sticky strip's height, so a jumped-to wall lands just below it. */
   --nav-room: 4rem;
-  /* The last wall only as tall as the strip needs to light it (the footer does most of the work: see the fridge). */
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   --rim-add-bg: var(--bx-ink);
   --rim-add-ink: var(--bx-brass-hi);
   --sale-bg: var(--bx-ink);
@@ -287,10 +287,8 @@
 
 /* A wide screen keeps a wall tidy: a column of four boxes a row. */
 @media (min-width: 640px) {
-  [data-body='mailboxes'] .bx-tags,
-  [data-body='mailboxes'] main {
-    max-inline-size: 40rem;
-    margin-inline: auto;
+  [data-body='mailboxes'] {
+    --column: 40rem;
   }
   [data-body='mailboxes'] .bx-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));

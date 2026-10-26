@@ -16,12 +16,8 @@
   --lv-road: 0.875rem;
   /* The sticky strip's height, so a jumped-to world lands just below it. */
   --nav-room: 4.25rem;
-  /*
-   * The last section (shared/shapes.css) only as tall as the strip needs to light it. Lit means it covers the band 30%
-   * to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the page's footer, about
-   * 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch into a large empty block.
-   */
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   padding-block-end: 1rem;
   color: var(--text);
 }
@@ -280,12 +276,8 @@
 /* A wide screen keeps the road a tidy column of three: the nodes grow a little. */
 @media (min-width: 640px) {
   [data-body='levels'] {
+    --column: 36rem;
     --lv-photo: 5.5rem;
-  }
-  [data-body='levels'] .lv-worlds,
-  [data-body='levels'] main {
-    max-inline-size: 36rem;
-    margin-inline: auto;
   }
   [data-body='levels'] .lv-name {
     font-size: 0.8125rem;

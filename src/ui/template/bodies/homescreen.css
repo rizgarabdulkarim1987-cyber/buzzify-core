@@ -14,12 +14,8 @@
   --hs-badge: #c4001a;
   /* The sticky dock's height, so a jumped-to folder lands just below it. */
   --nav-room: 3.25rem;
-  /*
-   * The last section (shared/shapes.css) only as tall as the strip needs to light it. Lit means it covers the band 30%
-   * to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the page's footer, about
-   * 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch into a large empty block.
-   */
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   padding-block-end: 1rem;
   color: var(--hs-ink);
   background:

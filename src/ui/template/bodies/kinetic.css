@@ -14,7 +14,8 @@
 [data-body='kinetic'] {
   --kn-line: color-mix(in srgb, var(--text) 85%, transparent);
   --nav-room: 3.5rem;
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   padding-block-end: 1rem;
   color: var(--text);
 }

@@ -19,12 +19,8 @@
   --bn-row: 3.75rem;
   /* The sticky strip's height, so a jumped-to box lands just below it. */
   --nav-room: 4.5rem;
-  /*
-   * The last section (shared/shapes.css) only as tall as the strip needs to light it. Lit means it covers the band 30%
-   * to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the page's footer, about
-   * 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch into a large empty block.
-   */
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   padding-block-end: 1rem;
   color: var(--text);
 }
@@ -337,12 +333,8 @@
 
 /* A wide screen keeps the box a tidy column; its compartments grow with it. */
 @media (min-width: 640px) {
-  [data-body='bento'] .bn-lids,
-  [data-body='bento'] main {
-    max-inline-size: 36rem;
-    margin-inline: auto;
-  }
   [data-body='bento'] {
+    --column: 36rem;
     --bn-row: 6.5rem;
   }
   [data-body='bento'] .bn-name {

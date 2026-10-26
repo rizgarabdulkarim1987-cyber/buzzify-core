@@ -28,14 +28,18 @@ export function useDepthShift(root: RefObject<HTMLElement | null>, reduced: bool
     let queued = 0;
     const paint = () => {
       queued = 0;
+      // Every frame's place is read first, then every shift written: no layout is forced between the writes.
+      const height = window.innerHeight;
+      const shifts: [HTMLElement, string][] = [];
       for (const frame of inView) {
         if (!frame.isConnected) {
           inView.delete(frame);
           continue;
         }
         const box = frame.getBoundingClientRect();
-        frame.style.setProperty('--dp', depthProgress(box.top, box.height, window.innerHeight).toFixed(3));
+        shifts.push([frame, depthProgress(box.top, box.height, height).toFixed(3)]);
       }
+      for (const [frame, shift] of shifts) frame.style.setProperty('--dp', shift);
     };
     const queue = () => {
       if (!queued) queued = requestAnimationFrame(paint);

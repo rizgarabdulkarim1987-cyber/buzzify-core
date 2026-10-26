@@ -16,8 +16,8 @@
   --th-stage: color-mix(in srgb, var(--accent) 18%, var(--th-ink));
   /* The sticky strip's height, so a jumped-to stage lands just below it. */
   --nav-room: 3.75rem;
-  /* The last stage only as tall as the strip needs to light it. */
-  --tall-last: calc(70dvh - 13rem);
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
   --rim-add-bg: var(--th-gold);
   --rim-add-ink: var(--th-ink);
   --sale-bg: var(--th-ink);
@@ -307,10 +307,8 @@
 
 /* A wide screen keeps a stage tidy: four performers a row. */
 @media (min-width: 640px) {
-  [data-body='theatre'] .th-bar,
-  [data-body='theatre'] main {
-    max-inline-size: 40rem;
-    margin-inline: auto;
+  [data-body='theatre'] {
+    --column: 40rem;
   }
   [data-body='theatre'] .th-floor {
     grid-template-columns: repeat(4, minmax(0, 1fr));

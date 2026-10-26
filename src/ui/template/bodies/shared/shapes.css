@@ -22,6 +22,28 @@
 :where([data-body]) .tpl-tall-last:last-child {
   min-block-size: var(--tall-last, 60dvh);
 }
+/*
+ * The usual `--tall-last` of a shape with a panel per section: only as tall as the strip needs to light it. Lit means it
+ * covers the band 30% to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the
+ * page's footer, about 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch
+ * into a large empty block.
+ */
+:where([data-body]) {
+  --tall-last-panel: calc(70dvh - 13rem);
+}
+
+/*
+ * A wide screen keeps a shape a centred column: a shape that sets `--column` (from 640px) has its strip and its
+ * sections that wide, in the middle. Without it both declarations are invalid at computed time and nothing changes (no
+ * `auto` margin, which would shrink a grid or flex item in a shape whose body is a grid).
+ */
+@media (min-width: 640px) {
+  :where([data-body]) > .tpl-strip-sticky,
+  :where([data-body]) > main {
+    max-inline-size: var(--column);
+    margin-inline: max(0px, calc((100% - var(--column)) / 2));
+  }
+}
 
 /* The strip's list (`SectionStrip`): one row of chips that scrolls sideways; the shape sets its gap and padding. */
 :where([data-body]) .tpl-strip-list {
