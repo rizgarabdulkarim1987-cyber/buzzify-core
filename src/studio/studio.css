@@ -231,3 +231,16 @@ html[data-shape] button:not(.s-keep-radius),
 html[data-shape] .s-btn {
   border-radius: var(--s-btn-radius);
 }
+
+/* The Buzzify logo: the white one on dark pages (`data-tone` is set from the person's background), the black one otherwise. */
+.brand-logo-dark {
+  display: none;
+}
+
+html[data-tone='dark'] .brand-logo-dark {
+  display: block;
+}
+
+html[data-tone='dark'] .brand-logo-light {
+  display: none;
+}

@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { getActor } from '@/server/studio/auth/actor';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
+import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { LanguageSwitch } from '@/studio/shell/LanguageSwitch';
 import { Wordmark } from '@/studio/shell/Wordmark';
 
@@ -37,6 +38,7 @@ export default async function AuthLayout({ children }: { children: ReactNode }) 
         <main id="main" className="flex flex-1 flex-col justify-center px-8 pb-24 pt-10">
           {children}
         </main>
+        <BrandFooter />
       </div>
 
       <aside className="hidden flex-col justify-between border-s border-line bg-surface px-12 py-12 lg:flex">

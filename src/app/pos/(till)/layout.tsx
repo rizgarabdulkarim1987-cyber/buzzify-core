@@ -12,6 +12,10 @@ import { posAiState } from '@/server/studio/queries/pos-ai';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
 import { posQrFlags } from '@/server/studio/queries/pos-requests';
 import { getStudioTranslator } from '@/studio/messages';
+import { getPrisma } from '@/server/data/prisma';
+import { restaurantLogoOf } from '@/server/pos/brand';
+import { BrandFooter } from '@/studio/shell/BrandFooter';
+import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
 import { AppearanceCache } from '@/app/pos/_ui/sync/AppearanceCache';
 import { appearanceVars, parseStoredAppearance } from '@/lib/appearance';
@@ -34,6 +38,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   // The root layout wears this look; the cache keeps it for the offline till.
   const look = parseStoredAppearance((await getActor())?.appearance);
   const lookVars = appearanceVars(look);
+  const logo = await restaurantLogoOf(getPrisma(), entry.actor.restaurantId);
   const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const flags = canPos(entry.actor.role, 'order.handle') ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
@@ -48,8 +53,14 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
         {t('common.skipToContent')}
       </a>
       <header className="print:hidden flex flex-wrap items-center justify-between gap-3 border-b border-line px-4 py-3 sm:px-8">
-        <Link href="/pos" className="text-base font-semibold text-text">
-          {t('pos.shell.label')}
+        <Link href="/pos" className="flex items-center gap-3 text-base font-semibold text-text">
+          {logo ? (
+            // eslint-disable-next-line @next/next/no-img-element -- the restaurant's own uploaded file, any size
+            <img src={logo.url} alt="" width={logo.width} height={logo.height} className="h-8 w-auto max-w-40 object-contain" />
+          ) : (
+            <BrandLogo height={20} />
+          )}
+          <span>{t('pos.shell.label')}</span>
         </Link>
         <div className="flex items-center gap-4 text-sm text-muted">
           <SyncIndicator />
@@ -75,6 +86,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       <main id="main" className="min-w-0 flex-1">
         {children}
       </main>
+      <BrandFooter />
     </div>
   );
 }

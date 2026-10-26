@@ -1,9 +1,11 @@
 import type { CSSProperties } from 'react';
-import { appearanceVars, parseStoredAppearance, type Appearance } from '@/lib/appearance';
+import { appearanceVars, parseStoredAppearance, toneOf, type Appearance } from '@/lib/appearance';
 
 export interface AppearanceHtmlProps {
   style?: CSSProperties;
   'data-shape'?: Appearance['shape'];
+  /** Which Buzzify logo to show (studio.css). */
+  'data-tone'?: 'dark' | 'light';
 }
 
 /**
@@ -16,5 +18,5 @@ export function appearanceHtmlProps(stored: Appearance | null | undefined): Appe
   const appearance = parseStoredAppearance(stored);
   const vars = appearanceVars(appearance);
   if (Object.keys(vars).length === 0) return {};
-  return { style: vars as CSSProperties, 'data-shape': appearance.shape };
+  return { style: vars as CSSProperties, 'data-shape': appearance.shape, 'data-tone': toneOf(appearance.bg) };
 }

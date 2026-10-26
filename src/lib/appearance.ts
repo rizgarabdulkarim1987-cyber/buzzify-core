@@ -81,6 +81,11 @@ export function isDark(background: string): boolean {
   return HEX.test(background) && luminance(background) < 0.18;
 }
 
+/** Which Buzzify logo suits a background: the white one on dark pages, the black one otherwise. */
+export function toneOf(background: string): 'dark' | 'light' {
+  return isDark(background) ? 'dark' : 'light';
+}
+
 type Field = 'font' | 'bg' | 'text' | 'button' | 'buttonText' | 'shape';
 /** Why a field was refused: written wrongly, too close in contrast to what it sits on, or not one of the choices. */
 export type AppearanceCode = 'format' | 'contrast' | 'choice';

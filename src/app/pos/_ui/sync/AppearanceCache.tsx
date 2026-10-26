@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect } from 'react';
-import type { Shape } from '@/lib/appearance';
+import { toneOf, type Shape } from '@/lib/appearance';
 import { restoreAppearance, storeAppearance } from './appearance-cache';
 
 /** Online till pages: remembers this person's look on the device for the offline till. Renders nothing. */
@@ -28,6 +28,7 @@ export function OfflineAppearance() {
       const root = document.documentElement;
       for (const [name, value] of Object.entries(cached.vars)) root.style.setProperty(name, value);
       if (cached.shape) root.dataset.shape = cached.shape;
+      root.dataset.tone = toneOf(cached.vars['--s-bg'] ?? '#ffffff');
     } catch {
       // localStorage is not reachable here.
     }
