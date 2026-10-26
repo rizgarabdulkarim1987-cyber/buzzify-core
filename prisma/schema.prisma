@@ -97,6 +97,8 @@ model Restaurant {
   mapUrl           String           @default("")
   /// Whether template menus show "Powered by Buzzify". Only a Super Admin changes it.
   showPoweredBy    Boolean          @default(true)
+  /// Which product family the business is: food (menu, cashier) or pharmacy. Existing rows are FOOD.
+  sector           BusinessSector   @default(FOOD)
   version          Int              @default(1)
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -142,6 +144,10 @@ model Restaurant {
   posAiUsageMonths      PosAiUsageMonth[]
   posAiCalls            PosAiCall[]
   posAiSummaries        PosAiSummary[]
+  phSettings            PhSettings?
+  phStaffs              PhStaff[]
+  phStaffBranches       PhStaffBranch[]
+  supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
   @@index([city])
@@ -168,6 +174,9 @@ model Branch {
   version      Int        @default(1)
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
+  phStaffBranches PhStaffBranch[]
+
+  @@unique([restaurantId, id])
   @@index([restaurantId])
 }
 
@@ -663,6 +672,8 @@ model User {
   memberships      Membership[]
   invitationsSent  Invitation[]
   posStaffs        PosStaff[]
+  phStaffs         PhStaff[]
+  supportAccessGrants SupportAccessGrant[] @relation("SupportGrantee")
   posShifts        PosShift[]
   posCashExpenses  PosCashExpense[]
   posPayments      PosPayment[]
@@ -981,6 +992,7 @@ model Application {
 
   prices        PlanPrice[]
   subscriptions Subscription[]
+  appPlans      AppPlan[]
 }
 
 model PlanPrice {
@@ -1940,4 +1952,108 @@ model PosAiSummary {
   restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
   @@unique([restaurantId, kind, periodFrom, periodTo, locale])
+}
+
+/// Which product family a business is.
+enum BusinessSector {
+  FOOD
+  PHARMACY
+}
+
+/// What a person may do in a pharmacy.
+enum PhRole {
+  OWNER
+  BRANCH_MANAGER
+  PHARMACIST_IN_CHARGE
+  PHARMACIST
+  CASHIER
+  STOCK
+  ACCOUNTANT
+}
+
+/// A pharmacy's settings: which currencies it trades in and how long it keeps prescriptions.
+model PhSettings {
+  id                String     @id @default(cuid())
+  restaurantId      String     @unique
+  enabledCurrencies Currency[] @default([IQD])
+  defaultCurrency   Currency   @default(IQD)
+  /// Days a prescription is kept; null until the owner sets it.
+  rxRetentionDays   Int?
+  version           Int        @default(1)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  restaurant        Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+}
+
+/// A person who works in one pharmacy.
+model PhStaff {
+  id            String     @id @default(cuid())
+  restaurantId  String
+  userId        String
+  role          PhRole
+  deactivatedAt DateTime?
+  createdAt     DateTime   @default(now())
+  restaurant    Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  branches PhStaffBranch[]
+
+  @@unique([restaurantId, userId])
+  @@index([restaurantId])
+  @@index([userId])
+}
+
+/// A branch a staff member may work in. The branch must belong to the same restaurant (composite foreign key).
+model PhStaffBranch {
+  id           String     @id @default(cuid())
+  restaurantId String
+  staffId      String
+  branchId     String
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  staff        PhStaff    @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  branch       Branch     @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: Cascade)
+
+  @@unique([staffId, branchId])
+  @@index([restaurantId])
+  @@index([branchId])
+}
+
+/// A plan of one application, with its features and limits (global catalog).
+model AppPlan {
+  id            String      @id @default(cuid())
+  applicationId String
+  code          String
+  /// { en, ar, ckb }
+  name          Json
+  features      Json        @default("{}")
+  limits        Json        @default("{}")
+  active        Boolean     @default(true)
+  sortOrder     Int         @default(0)
+  version       Int         @default(1)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  @@unique([applicationId, code])
+}
+
+/// A time-boxed, scoped grant that lets one platform user read a restaurant's data to give support.
+model SupportAccessGrant {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  granteeUserId    String
+  scopes           String[]
+  reason           String
+  approvedByUserId String?
+  consentRef       String?
+  startsAt         DateTime
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime   @default(now())
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  grantee          User       @relation("SupportGrantee", fields: [granteeUserId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+  @@index([granteeUserId])
 }

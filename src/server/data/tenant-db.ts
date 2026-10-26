@@ -25,7 +25,7 @@ export const MENU_SCOPED_MODELS = [
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
-export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary'] as const;
+export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary', 'PhSettings', 'PhStaff', 'PhStaffBranch', 'SupportAccessGrant'] as const;
 
 /**
  * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
@@ -69,6 +69,7 @@ export const GLOBAL_MODELS = [
   // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).
   'Application',
   'PlanPrice',
+  'AppPlan',
   'SubscriptionEvent',
   // The cashier link's events, imports and counters are reached through a link, which the base client finds by id.
   'CashierLinkEvent',
