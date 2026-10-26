@@ -31,6 +31,8 @@ export function validateGrantRequest(input: {
   }
   if (input.reason.trim().length < MIN_REASON_LENGTH) return { ok: false, code: 'REASON_REQUIRED' };
   if (input.expiresAt.getTime() <= input.now.getTime()) return { ok: false, code: 'PAST' };
+  // A window that ends at or before it starts can never be active.
+  if (input.expiresAt.getTime() <= input.startsAt.getTime()) return { ok: false, code: 'PAST' };
   if (input.expiresAt.getTime() - input.startsAt.getTime() > MAX_GRANT_HOURS * 3_600_000) {
     return { ok: false, code: 'TOO_LONG' };
   }

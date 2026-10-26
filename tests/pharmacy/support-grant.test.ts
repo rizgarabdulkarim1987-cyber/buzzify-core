@@ -47,6 +47,17 @@ describe('support grant rules', () => {
     });
   });
 
+  it('a grant whose expiresAt is not after startsAt is refused', () => {
+    expect(validateGrantRequest({ ...base, startsAt: hours(5), expiresAt: hours(2) })).toEqual({
+      ok: false,
+      code: 'PAST',
+    });
+    expect(validateGrantRequest({ ...base, startsAt: hours(2), expiresAt: hours(2) })).toEqual({
+      ok: false,
+      code: 'PAST',
+    });
+  });
+
   it('a grant is expired exactly at expiresAt (the boundary instant is expired)', () => {
     const grant = { startsAt: now, expiresAt: hours(1), revokedAt: null };
     expect(grantStatus(grant, new Date(hours(1).getTime() - 1))).toBe('active');
