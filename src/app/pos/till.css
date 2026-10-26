@@ -7,10 +7,14 @@
 
 @media screen {
   .till {
-    --tile-free: #a3a3a0;
-    --tile-busy: #fde8b0;
-    --tile-busy-edge: #e8b84a;
-    --tile-ready-wash: #d6f1e2;
+    --tile-free: #1f7a52;
+    --tile-free-bg: linear-gradient(160deg, #f3fbf7, #d6efe2);
+    --tile-free-edge: #a6d8bf;
+    --tile-busy-bg: linear-gradient(160deg, #fff3c9, #f6d36f);
+    --tile-busy-edge: #d9a62b;
+    --tile-ready-bg: linear-gradient(160deg, #26b982, #0e7a52);
+    --tile-new-bg: linear-gradient(160deg, #4a86f0, #1f4fb0);
+    --tile-bill-bg: linear-gradient(160deg, #de4349, #a21c23);
     --tile-new: var(--s-info);
     --tile-bill: var(--s-danger);
     --tile-ready: var(--s-success);
@@ -42,10 +46,11 @@
   }
 
   html:has(.till[data-layout='night']) .till {
-    --tile-free: #5a5a5a;
-    --tile-busy: #5c4410;
+    --tile-free: #6fdca8;
+    --tile-free-bg: linear-gradient(160deg, #15261e, #0f1d17);
+    --tile-free-edge: #1f5a41;
+    --tile-busy-bg: linear-gradient(160deg, #5a4310, #3f2f09);
     --tile-busy-edge: #a47d1c;
-    --tile-ready-wash: #123c2c;
     --tile-new: #2563c9;
     --tile-bill: #c8262c;
     --tile-ready: #16a36a;
@@ -113,6 +118,12 @@
       color: var(--s-text);
       text-align: start;
       container-type: size;
+      box-shadow: inset 0 1px 0 #ffffff40, 0 1px 2px #00000014;
+    }
+
+    .tile[data-status='FREE'] {
+      background: var(--tile-free-bg);
+      border-color: var(--tile-free-edge);
     }
 
     .tile[data-status='FREE'] .tile-no {
@@ -120,30 +131,30 @@
     }
 
     .tile[data-status='BUSY'] {
-      background: var(--tile-busy);
+      background: var(--tile-busy-bg);
       border-color: var(--tile-busy-edge);
     }
 
     .tile[data-status='PENDING_APPROVAL'] {
-      background: var(--tile-new);
+      background: var(--tile-new-bg);
       border-color: var(--tile-new);
       color: #ffffff;
     }
 
     .tile[data-status='BILL_REQUESTED'] {
-      background: var(--tile-bill);
+      background: var(--tile-bill-bg);
       border-color: var(--tile-bill);
       color: #ffffff;
     }
 
     .tile[data-status='READY'] {
-      background: var(--tile-ready-wash);
-      box-shadow: inset 0 0 0 4px var(--tile-ready);
+      background: var(--tile-ready-bg);
       border-color: var(--tile-ready);
+      color: #ffffff;
     }
 
     .tile[data-status='READY'] .tile-tag {
-      color: var(--s-success);
+      color: #ffffff;
     }
 
     .tile-sub {
@@ -151,7 +162,8 @@
     }
 
     .tile[data-status='PENDING_APPROVAL'] .tile-sub,
-    .tile[data-status='BILL_REQUESTED'] .tile-sub {
+    .tile[data-status='BILL_REQUESTED'] .tile-sub,
+    .tile[data-status='READY'] .tile-sub {
       color: #ffffffd9;
     }
 
@@ -163,7 +175,8 @@
     }
 
     .tile[data-status='PENDING_APPROVAL'] .tile-sub[data-late],
-    .tile[data-status='BILL_REQUESTED'] .tile-sub[data-late] {
+    .tile[data-status='BILL_REQUESTED'] .tile-sub[data-late],
+    .tile[data-status='READY'] .tile-sub[data-late] {
       color: #ffffff;
     }
 
