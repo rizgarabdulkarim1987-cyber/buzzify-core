@@ -245,6 +245,7 @@ const en: Messages = {
   'tpl.top.setting': 'Setting {n}',
   'tpl.cmc.page': 'Page {n}',
   'tpl.frg.shelf': 'Shelf {n}',
+  'tpl.bnt.box': 'Box {n}',
   'tpl.lvl.world': 'World {n}',
   'tpl.day.mon': 'Monday',
   'tpl.day.tue': 'Tuesday',

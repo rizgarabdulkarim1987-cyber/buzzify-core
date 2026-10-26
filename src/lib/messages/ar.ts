@@ -259,6 +259,7 @@ const ar: Messages = {
   'tpl.top.setting': 'الطقم {n}',
   'tpl.cmc.page': 'الصفحة {n}',
   'tpl.frg.shelf': 'الرف {n}',
+  'tpl.bnt.box': 'العلبة {n}',
   'tpl.lvl.world': 'العالم {n}',
   'tpl.day.mon': 'الاثنين',
   'tpl.day.tue': 'الثلاثاء',

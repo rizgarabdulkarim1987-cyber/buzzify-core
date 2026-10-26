@@ -2393,6 +2393,7 @@ const en: Messages = {
   'design.body.treasure': 'Treasure map',
   'design.body.levels': 'Game levels',
   'design.body.fridge': 'The fridge',
+  'design.body.bento': 'The bento box',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

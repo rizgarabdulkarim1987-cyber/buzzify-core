@@ -21,6 +21,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'layout-2-map': 'the-treasure-map',
   'layout-2-lvl': 'the-game-levels',
   'layout-2-frg': 'the-fridge',
+  'layout-2-bnt': 'the-bento-box',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

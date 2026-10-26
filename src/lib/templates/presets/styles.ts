@@ -440,4 +440,33 @@ export const theFridge = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge];
+export const theBentoBox = definePreset({
+  id: 'the-bento-box',
+  number: 46,
+  name: 'The Bento Box',
+  business: 'restaurant',
+  tags: ['dark', 'playful'],
+  seed: { bg: '#3B2A1E', text: '#F5EAD6', accent: '#B3202A', raised: '#4A3626' },
+  alternatives: [
+    { id: 'paper-bright', name: 'Paper bright', seed: { bg: '#F6EEDC', text: '#2B1D14', accent: '#A61E27', raised: '#FFFFFF' } },
+    { id: 'black-lacquer', name: 'Black lacquer', seed: { bg: '#141010', text: '#F3E7D0', accent: '#C62F3A', raised: '#221A1A' } },
+    { id: 'matcha', name: 'Matcha', seed: { bg: '#E8EFDC', text: '#1F2E1A', accent: '#2F6B2F', raised: '#FFFFFF' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'bento',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'comfortable',
+    corners: 'round',
+    shadow: 'soft',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox];
