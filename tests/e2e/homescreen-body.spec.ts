@@ -1,5 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  contrastOf,
+  dishName,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectFocusRingShows,
+  expectJumpsTo,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectReadable,
+  expectStripStays,
+  openMenu,
+  paletteIdsOf,
+} from './helpers/body-menu';
 
 /**
  * The Phone Home Screen body (spec 2026-10-26-menu-styles-in-templates-design.md): every dish an app icon (rounded
@@ -10,11 +26,19 @@ import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachabl
 const menus = bodyMenus();
 const slug = menus.slug('hom');
 const arabSlug = menus.slug('homar');
+/** The shape's own alternative palettes, and a white accent on a light background picked in Customize. */
+const alternatives = paletteIdsOf('the-phone-home-screen').slice(1);
+const paletteSlug = (id: string) => menus.slug(`hom-${id}`);
+const lightSlug = menus.slug('homlight');
+const LIGHT_WHITE_ACCENT = { bg: '#F4F4F4', surface: '#FFFFFF', card: '#FFFFFF', raised: '#EEEEEE', text: '#1B1030', muted: '#4A4060', accent: '#FFFFFF', onAccent: '#111111' };
 
 test.beforeAll(async () => {
   // The preset's own layout (its compact hero, its chips): what a restaurant that picks the template gets.
   await menus.create(slug, 'homescreen', { templateId: 'the-phone-home-screen' });
-  await menus.create(arabSlug, 'homescreen', { templateId: 'the-phone-home-screen', numeralSystem: 'ARAB' });
+  // Arabic-Indic numerals, and the croissant 20% off: the sale chip.
+  await menus.create(arabSlug, 'homescreen', { templateId: 'the-phone-home-screen', numeralSystem: 'ARAB', discount: ['croissant'] });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'homescreen', { templateId: 'the-phone-home-screen', paletteId: id });
+  await menus.create(lightSlug, 'homescreen', { templateId: 'the-phone-home-screen', colors: LIGHT_WHITE_ACCENT });
 });
 test.afterAll(() => menus.remove());
 
@@ -47,6 +71,9 @@ test('the dock is one slim line, and each folder opens with its label tile in th
   expect(Math.abs(label.y - first.y), 'the label tile shares the first row').toBeLessThanOrEqual(2);
   expect(label.x + label.width, 'the label tile comes first').toBeLessThanOrEqual(first.x + 1);
   await expect(folder.getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
+  // The label tile is not one of the list's items: the list holds the three dishes and nothing else, no heading.
+  await expect(folder.getByRole('list').getByRole('listitem')).toHaveCount(3);
+  await expect(folder.getByRole('list').getByRole('heading')).toHaveCount(0);
 });
 
 test('the icons sit four across, square, with the name below and the price badge on the corner', async ({ page }) => {
@@ -55,7 +82,7 @@ test('the icons sit four across, square, with the name below and the price badge
   expect(await folder.count()).toBe(3);
   const boxes = await Promise.all([0, 1, 2].map(async (i) => (await folder.nth(i).boundingBox())!));
   for (const box of boxes) expect(Math.abs(box.y - boxes[0]!.y), 'they share a row').toBeLessThanOrEqual(2);
-  const grid = (await page.locator('#cat-viennoiserie .hs-apps').boundingBox())!;
+  const grid = (await page.locator('#cat-viennoiserie').boundingBox())!;
   // Three dishes and the label tile: one row of four.
   expect(boxes[0]!.width, 'each cell is a quarter of the grid').toBeLessThanOrEqual(grid.width / 4 + 1);
   const icon = (await folder.first().locator('[data-photo]').boundingBox())!;
@@ -148,4 +175,70 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await openMenu(page, slug);
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
+});
+
+test('white text reads on every surface it sits on: every palette of the shape, and a white accent on a light background', async ({ page }) => {
+  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)]), ['white accent, light background', lightSlug]];
+  for (const [menu, menuSlug] of menusToCheck) {
+    await openMenu(page, menuSlug);
+    const folder = page.locator('#cat-viennoiserie');
+    await expectReadable(menu, {
+      'label tile': folder.locator('.hs-title'),
+      'dish count': folder.locator('.hs-title b'),
+      'dish name': folder.locator('.hs-name').first(),
+      'price badge': folder.locator('.hs-badge').first(),
+      'dock tile': dock(page).locator('.hs-tile:not([aria-current="true"])').first(),
+    });
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await expectReadable(menu, { 'lit dock tile': dock(page).locator('.hs-tile[aria-current="true"]') });
+  }
+});
+
+test('keyboard focus rings show in full: a whole app icon (in white, on the band) and a dock tile', async ({ page }) => {
+  await openMenu(page, slug);
+  const app = apps(page).first();
+  const name = app.locator('.hs-name');
+  await name.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(name).toBeFocused();
+  await expectFocusRingShows(page, app, { outset: 4, pseudo: '::after' });
+  expect(await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor)).toBe('rgb(255, 255, 255)');
+  const tile = entry(page, 'patisserie');
+  await tile.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(tile).toBeFocused();
+  await expectFocusRingShows(page, tile, { outset: -4 });
+});
+
+test('a dish on sale shows a −NN% chip in the menu numerals on its icon, and keeps the regular price for screen readers', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const cell = apps(page).filter({ hasText: dishName('croissant') });
+  const chip = cell.locator('.tpl-off');
+  await expect(chip).toHaveText('−٢٠%');
+  await expect(home(page).locator('.tpl-off')).toHaveCount(1);
+  const box = (await cell.boundingBox())!;
+  const at = (await chip.boundingBox())!;
+  expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/\d|[٠-٩]/);
+});
+
+test('a long price wraps inside its badge: the badge stays in the cell, clear of the add button, and nothing scrolls sideways', async ({ page }) => {
+  await openMenu(page, slug);
+  const cell = apps(page).first();
+  const badge = cell.locator('.hs-badge');
+  await badge.evaluate((node) => {
+    node.textContent = 'From 12,500 IQD';
+  });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const box = (await cell.boundingBox())!;
+  const tag = (await badge.boundingBox())!;
+  expect(tag.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(tag.x + tag.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  const add = (await cell.locator('.hs-add').boundingBox())!;
+  const overlaps = tag.x < add.x + add.width && add.x < tag.x + tag.width && tag.y < add.y + add.height && add.y < tag.y + tag.height;
+  expect(overlaps, 'the badge covers the add button').toBe(false);
 });

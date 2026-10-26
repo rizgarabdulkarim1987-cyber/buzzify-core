@@ -1,5 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  contrastOf,
+  dishName,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectFocusRingShows,
+  expectJumpsTo,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectReadable,
+  expectStripStays,
+  openMenu,
+  paletteIdsOf,
+} from './helpers/body-menu';
 
 /**
  * The Fridge body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a glass shelf with a frost label
@@ -10,11 +26,16 @@ import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachabl
 const menus = bodyMenus();
 const slug = menus.slug('frg');
 const arabSlug = menus.slug('frgar');
+/** The shape's own alternative palettes. */
+const alternatives = paletteIdsOf('the-fridge').slice(1);
+const paletteSlug = (id: string) => menus.slug(`frg-${id}`);
 
 test.beforeAll(async () => {
   // The preset's own layout (its compact hero): what a restaurant that picks the template gets.
   await menus.create(slug, 'fridge', { templateId: 'the-fridge' });
-  await menus.create(arabSlug, 'fridge', { templateId: 'the-fridge', numeralSystem: 'ARAB' });
+  // Arabic-Indic numerals, and the croissant 20% off: the sale chip.
+  await menus.create(arabSlug, 'fridge', { templateId: 'the-fridge', numeralSystem: 'ARAB', discount: ['croissant'] });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'fridge', { templateId: 'the-fridge', paletteId: id });
 });
 test.afterAll(() => menus.remove());
 
@@ -139,4 +160,56 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await openMenu(page, slug);
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
+});
+
+test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
+  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
+  for (const [menu, menuSlug] of menusToCheck) {
+    await openMenu(page, menuSlug);
+    // Scrolled a little, so a strip entry is lit; the first section is still on the screen.
+    await page.evaluate(() => window.scrollBy(0, 40));
+    await expect(doors(page).locator('[aria-current="true"]')).toHaveCount(1);
+    const island = page.locator('#cat-viennoiserie');
+    await expectReadable(menu, {
+      'unlit door': doors(page).locator('.fr-door:not([aria-current="true"])').first(),
+      'lit door': doors(page).locator('[aria-current="true"]'),
+      'frost label': island.locator('.fr-frost'),
+      'shelf number': island.locator('.fr-frost small'),
+      'dish count': island.locator('.fr-frost b'),
+      'price lid': island.locator('.fr-lid').first(),
+      'name sticker': island.locator('.fr-name').first(),
+      'add button': island.locator('.fr-add').first(),
+    });
+  }
+});
+
+test('keyboard focus rings show in full: a whole jar and a strip entry', async ({ page }) => {
+  await openMenu(page, slug);
+  const cell = jars(page).first();
+  const name = cell.locator('.fr-name');
+  await name.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(name).toBeFocused();
+  await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+  const chip = entry(page, 'patisserie');
+  await chip.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(chip).toBeFocused();
+  await expectFocusRingShows(page, chip, { outset: -4 });
+});
+
+test('a dish on sale shows a −NN% chip in the menu numerals on its jar, and keeps the regular price for screen readers', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const cell = jars(page).filter({ hasText: dishName('croissant') });
+  const chip = cell.locator('.tpl-off');
+  await expect(chip).toHaveText('−٢٠%');
+  await expect(fridge(page).locator('.tpl-off')).toHaveCount(1);
+  const box = (await cell.boundingBox())!;
+  const at = (await chip.boundingBox())!;
+  expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });

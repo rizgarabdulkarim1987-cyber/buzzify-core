@@ -1,5 +1,21 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  contrastOf,
+  dishName,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectFocusRingShows,
+  expectJumpsTo,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectReadable,
+  expectStripStays,
+  openMenu,
+  paletteIdsOf,
+} from './helpers/body-menu';
 
 /**
  * The Treasure Map body (spec 2026-10-26-menu-styles-in-templates-design.md): old parchment, every section an island with
@@ -10,11 +26,16 @@ import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachabl
 const menus = bodyMenus();
 const slug = menus.slug('map');
 const arabSlug = menus.slug('mapar');
+/** The shape's own alternative palettes. */
+const alternatives = paletteIdsOf('the-treasure-map').slice(1);
+const paletteSlug = (id: string) => menus.slug(`map-${id}`);
 
 test.beforeAll(async () => {
   // The preset's own layout (its compact hero, its chips): what a restaurant that picks the template gets.
   await menus.create(slug, 'treasure', { templateId: 'the-treasure-map' });
-  await menus.create(arabSlug, 'treasure', { templateId: 'the-treasure-map', numeralSystem: 'ARAB' });
+  // Arabic-Indic numerals, and the croissant 20% off: the sale chip.
+  await menus.create(arabSlug, 'treasure', { templateId: 'the-treasure-map', numeralSystem: 'ARAB', discount: ['croissant'] });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'treasure', { templateId: 'the-treasure-map', paletteId: id });
 });
 test.afterAll(() => menus.remove());
 
@@ -142,4 +163,53 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await openMenu(page, slug);
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
+});
+
+test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
+  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
+  for (const [menu, menuSlug] of menusToCheck) {
+    await openMenu(page, menuSlug);
+    // Scrolled a little, so a strip entry is lit; the first section is still on the screen.
+    await page.evaluate(() => window.scrollBy(0, 40));
+    await expect(compass(page).locator('[aria-current="true"]')).toHaveCount(1);
+    const island = page.locator('#cat-viennoiserie');
+    await expectReadable(menu, {
+      'island banner': island.locator('.tm-title'),
+      'dish count': island.locator('.tm-title b'),
+      'price flag': island.locator('.tm-tag').first(),
+      'add button': island.locator('.tm-add').first(),
+      'lit compass point': compass(page).locator('[aria-current="true"]'),
+    });
+  }
+});
+
+test('keyboard focus rings show in full: a whole pin and a strip entry', async ({ page }) => {
+  await openMenu(page, slug);
+  const cell = pins(page).first();
+  const name = cell.locator('.tm-name');
+  await name.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(name).toBeFocused();
+  await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+  const chip = entry(page, 'patisserie');
+  await chip.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(chip).toBeFocused();
+  await expectFocusRingShows(page, chip, { outset: -4 });
+});
+
+test('a dish on sale shows a −NN% chip in the menu numerals on its pin, and keeps the regular price for screen readers', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const cell = pins(page).filter({ hasText: dishName('croissant') });
+  const chip = cell.locator('.tpl-off');
+  await expect(chip).toHaveText('−٢٠%');
+  await expect(map(page).locator('.tpl-off')).toHaveCount(1);
+  const box = (await cell.boundingBox())!;
+  const at = (await chip.boundingBox())!;
+  expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });

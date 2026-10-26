@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Locator, type Page } from '@playwright/test';
 import type { Prisma } from '@/generated/prisma/client';
-import type { DesignOverrides, TemplateId } from '@/lib/templates/types';
+import { TEMPLATES } from '@/lib/templates';
+import type { DesignOverrides, DesignPalette, TemplateId } from '@/lib/templates/types';
 import { createPrisma } from '@/server/data/prisma';
 import { seedMenu } from '../../../prisma/seed/apply';
 import { MAISON } from '../../../prisma/seed/maison';
@@ -31,6 +32,10 @@ export interface BodyMenuOptions {
   numeralSystem?: 'LATN' | 'ARAB';
   /** One of the template's curated palettes (an alternative), by id. */
   paletteId?: string;
+  /** Colours picked in Customize, over the palette (a light accent, a light background). */
+  colors?: Partial<DesignPalette>;
+  /** Dishes (by slug) on a 20% discount all day, so the cards show the sale. */
+  discount?: string[];
 }
 
 export interface BodyMenus {
@@ -47,13 +52,14 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
         {
           ...MAISON,
           products: BODY_PRODUCTS,
+          ...(discount ? { promotions: [{ kind: 'DISCOUNT' as const, percentOff: 20, products: discount, title: { en: 'A fifth off', ar: 'خصم الخُمس', ckb: 'پێنج یەک داشکاندن' } }] } : {}),
           brand: templateId ? { ...MAISON.brand, templateId } : MAISON.brand,
           restaurant: { ...MAISON.restaurant, slug: menuSlug, domains: [], numeralSystem },
         },
@@ -61,8 +67,8 @@ export function bodyMenus(): BodyMenus {
       );
       made.push({ restaurantId: restaurant.id, menuId: seeded.menuId, slug: menuSlug });
       await prisma.menuSlug.create({ data: { slug: menuSlug, menuId: seeded.menuId } });
-      if (layout || paletteId) {
-        const design: DesignOverrides = { ...MAISON.brand.design, ...(layout ? { layout } : {}), ...(paletteId ? { paletteId } : {}) };
+      if (layout || paletteId || colors) {
+        const design: DesignOverrides = { ...MAISON.brand.design, ...(layout ? { layout } : {}), ...(paletteId ? { paletteId } : {}), ...(colors ? { colors } : {}) };
         await prisma.brandConfig.update({ where: { menuId: seeded.menuId }, data: { design: design as Prisma.InputJsonValue } });
       }
       await publishFixture(prisma, seeded.menuId, `${label} body`);
@@ -170,21 +176,52 @@ export async function expectStripStays(page: Page, strip: Locator, button: Locat
     .toBeGreaterThanOrEqual(-1);
 }
 
-/** The contrast ratio of `node`'s text colour on its own (solid) background colour; 0 when the background is not solid. */
+/**
+ * The contrast ratio of `node`'s text colour on the colour behind it: its own background or, where that is transparent
+ * or translucent, its ancestors' composited under it. 0 when a gradient or an image comes before an opaque colour.
+ */
 export async function contrastOf(node: Locator): Promise<number> {
   return node.evaluate((element) => {
-    const style = getComputedStyle(element);
-    if (style.backgroundImage !== 'none') return 0;
-    const luminance = (value: string) => {
-      const [r, g, b] = value.match(/[\d.]+/g)!.slice(0, 3).map((part) => {
-        const c = Number(part) / 255;
-        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-      });
+    // `rgb(a)` (0 to 255) or `color(srgb ...)` (0 to 1, what `color-mix` computes to), as [r, g, b, alpha] from 0 to 1.
+    const parse = (value: string): number[] => {
+      const parts = value.match(/[\d.]+/g)!.map(Number);
+      const srgb = value.startsWith('color(');
+      const [r, g, b] = parts.slice(0, 3).map((part) => (srgb ? part : part / 255));
+      const alpha = value.startsWith('rgba') || value.includes('/') ? parts[3]! : 1;
+      return [r!, g!, b!, alpha];
+    };
+    // The element's own background, then its ancestors', until an opaque one; a gradient or image on the way: unknown.
+    const layers: number[][] = [];
+    for (let at: Element | null = element; at; at = at.parentElement) {
+      const style = getComputedStyle(at);
+      if (style.backgroundImage !== 'none') return 0;
+      const colour = parse(style.backgroundColor);
+      if (colour[3]! > 0) layers.push(colour);
+      if (colour[3] === 1) break;
+    }
+    if (layers.at(-1)?.[3] !== 1) return 0;
+    const ground = layers.reduceRight<number[]>((under, [r, g, b, a]) => [r!, g!, b!].map((c, i) => c * a! + under[i]! * (1 - a!)), [1, 1, 1]);
+    const luminance = (rgb: number[]) => {
+      const [r, g, b] = rgb.slice(0, 3).map((c) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4));
       return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
     };
-    const [light, dark] = [luminance(style.color), luminance(style.backgroundColor)].sort((a, b) => b - a);
+    const [light, dark] = [luminance(parse(getComputedStyle(element).color)), luminance(ground)].sort((a, b) => b - a);
     return (light! + 0.05) / (dark! + 0.05);
   });
+}
+
+/** The template's curated palettes by id: its own first (`signature`), then its alternatives. */
+export const paletteIdsOf = (templateId: TemplateId) => TEMPLATES[templateId].palettes.map(({ id }) => id);
+
+/**
+ * Every pair (a name, and the element whose text sits on a fill) reads at 4.5:1 or more on the menu. Polled, so a fill
+ * still in its colour transition (a chip that just lit) is measured once it has settled.
+ */
+export async function expectReadable(menu: string, pairs: Record<string, Locator>) {
+  for (const [name, node] of Object.entries(pairs)) {
+    await expect(node, `${menu}: ${name}`).toBeVisible();
+    await expect.poll(() => contrastOf(node), { message: `${menu}: ${name}` }).toBeGreaterThanOrEqual(4.5);
+  }
 }
 
 /**
