@@ -1,7 +1,6 @@
 import type { Prisma } from '@/generated/prisma/client';
 import { linkDeps, openLink, type LinkDeps } from '@/server/ai/link-fetch';
 import { readMenu, toMenuSheet } from '@/server/ai/menu-import';
-import { SUPPLY_FILE_MAX_BYTES } from '@/server/ai/supply-limits';
 import type { ImportPreview } from '@/server/domain/import-sheet';
 import { importKey, uploadKey } from '@/server/storage/keys';
 import { getStorage } from '@/server/storage/storage';
@@ -19,15 +18,17 @@ import { finalizeUpload } from './media';
  */
 
 const PHOTOS_MAX = 150;
-const PHOTOS_AT_ONCE = 8;
+/** Few at once and none big: each picture is decoded and resized in memory, and the host is small. */
+const PHOTOS_AT_ONCE = 2;
+const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 /** No new picture is started after this long, so a big menu still answers in time with the pictures already brought. */
-const PHOTOS_BUDGET_MS = 40_000;
+const PHOTOS_BUDGET_MS = 50_000;
 const PHOTO_FOLDER = 'ai-import';
 
 /** A picture's asset in the restaurant's library, or null when it could not be fetched or is not a usable picture. */
 async function bringPhoto(ctx: ActionContext, restaurantId: string, url: string, deps: LinkDeps): Promise<string | null> {
   try {
-    const { type, bytes } = await openLink(url, deps, 'image/avif,image/webp,image/png,image/jpeg,image/*;q=0.5', SUPPLY_FILE_MAX_BYTES);
+    const { type, bytes } = await openLink(url, deps, 'image/avif,image/webp,image/png,image/jpeg,image/*;q=0.5', PHOTO_MAX_BYTES);
     if (!type.startsWith('image/')) return null;
     const key = uploadKey({ restaurantId }, createId());
     await getStorage().put(key, bytes, { contentType: type, cacheControl: 'no-store' });
