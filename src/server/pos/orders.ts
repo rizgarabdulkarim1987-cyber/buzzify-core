@@ -252,12 +252,16 @@ export interface OrderView {
   paid: { paymentId: string; method: string; amountReceived: number; paidAt: Date } | null;
   /** Every payment taken so far, in order: one for the whole bill, or one per guest after a split. */
   parts: { paymentId: string; part: number; method: string; total: number; paidAt: Date; reversed: boolean }[];
+  /** What the parts paid so far took of the invoice discount, service, tax and delivery fee (to price the next part). */
+  taken: { invoiceDiscount: number; service: number; tax: number; deliveryFee: number };
+  /** The bill minus what the parts paid so far: what the next guest, or the rest of the table, still owes. */
+  leftToPay: number;
   /** The ways the till may take payment now; cash is always among them. */
   paymentMethods: PosPaymentMethodKey[];
 }
 
 /** Only the total of a payment's frozen snapshot (totals-snapshot.ts imports this file, so it cannot be used here). */
-const partTotal = z.object({ total: z.number().int() });
+const partTotal = z.object({ total: z.number().int(), invoiceDiscount: z.number().int(), service: z.number().int(), tax: z.number().int(), deliveryFee: z.number().int() });
 
 /** The order, all its lines (cancelled ones included, oldest first), its totals and the rates they were computed with. */
 export async function readOrderView(db: AnyDb, restaurantId: string, orderId: string): Promise<OrderView | null> {
@@ -277,6 +281,13 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
   const { totals, invoiceDiscount } = orderTotals(order, lines, settings);
   const rates = effectiveRates(order.kind, settings);
   const paidLast = order.payments[order.payments.length - 1];
+  const earlier = order.payments.map((p) => partTotal.parse(p.totalsSnapshot));
+  const taken = {
+    invoiceDiscount: earlier.reduce((sum, p) => sum + p.invoiceDiscount, 0),
+    service: earlier.reduce((sum, p) => sum + p.service, 0),
+    tax: earlier.reduce((sum, p) => sum + p.tax, 0),
+    deliveryFee: earlier.reduce((sum, p) => sum + p.deliveryFee, 0),
+  };
   return {
     id: order.id,
     number: order.number,
@@ -330,6 +341,8 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     kitchen: { print: settings.kitchenPrintEnabled, screen: settings.kitchenScreenEnabled },
     paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,
     parts: order.payments.map((p) => ({ paymentId: p.id, part: p.part, method: p.method, total: partTotal.parse(p.totalsSnapshot).total, paidAt: p.paidAt, reversed: p.reversal !== null })),
+    taken,
+    leftToPay: order.status === 'PAID' ? 0 : totals.total - earlier.reduce((sum, p) => sum + p.total, 0),
     paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }

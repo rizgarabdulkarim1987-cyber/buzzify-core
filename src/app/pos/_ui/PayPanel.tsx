@@ -33,6 +33,8 @@ interface Props {
   total: number;
   /** The methods the restaurant has switched on (cash is always one). */
   methods?: readonly PosPaymentMethodKey[];
+  /** Pay only these lines (one guest's share of a split bill); `total` is then that share. */
+  lineIds?: string[];
 }
 
 const TIP_PERCENTS = [5, 10, 15] as const;
@@ -48,6 +50,7 @@ export function PayPanel({
   version,
   total,
   methods = ["CASH"],
+  lineIds,
 }: Props) {
   return (
     <Dialog
@@ -62,6 +65,7 @@ export function PayPanel({
           version={version}
           total={total}
           methods={methods}
+          lineIds={lineIds}
         />
       ) : null}
     </Dialog>
@@ -85,6 +89,7 @@ function PayBody({
   version,
   total,
   methods = ["CASH"],
+  lineIds,
 }: Omit<Props, "open" | "onClose">) {
   const t = useT();
   const money = useMoney();
@@ -134,6 +139,7 @@ function PayBody({
           expectedVersion: version,
           expectedTotal: total,
           legs: toLegs(effective, references, tendered),
+          ...(lineIds ? { lineIds } : {}),
           ...(tip > 0 ? { tip: { amount: tip, method: tipMethod } } : {}),
         }),
       {
