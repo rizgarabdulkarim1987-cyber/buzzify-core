@@ -51,7 +51,7 @@ export function useDepthShift(root: RefObject<HTMLElement | null>, reduced: bool
       }
       queue();
     });
-    const watch = () => host.querySelectorAll<HTMLElement>('[data-photo]').forEach((frame) => watcher.observe(frame));
+    const watch = () => host.querySelectorAll<HTMLElement>('[data-photo], [data-band]').forEach((frame) => watcher.observe(frame));
     watch();
     const changes = new MutationObserver(watch);
     changes.observe(host, { childList: true, subtree: true });

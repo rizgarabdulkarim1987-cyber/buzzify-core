@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
-import { layerNumber, PrinterBody, printedShare, sweepDelay } from '@/ui/template/bodies/PrinterBody';
+import { counterText, PRINT_MS, PrinterBody, sweepDelay } from '@/ui/template/bodies/PrinterBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { riseOf } from '@/ui/template/bodies/shared/rise';
 import { PRINTER } from '@/ui/template/bodies/printer-fills';
 import { MESSAGES } from '@/lib/messages';
 
@@ -47,44 +46,31 @@ describe('the printer fills', () => {
     }
   });
 
-  it('draws the lit rail and printhead in the palette accent lifted towards white, standing out (3:1) from the panel whatever the accent is', () => {
-    for (const accent of ['#000000', '#ffffff', '#ff0000', '#0000ff', '#00ff00', '#ff7a1a', '#2b4fd8', '#7a1f1f']) {
-      expect(contrast(riseOf(accent), PRINTER.panel), accent).toBeGreaterThanOrEqual(3);
-      expect(contrast(riseOf(accent), PRINTER.bg), accent).toBeGreaterThanOrEqual(3);
-    }
-  });
-
   it('draws the focus rings in colours that stand out (3:1) from what they sit on', () => {
     expect(contrast(PRINTER.hot, PRINTER.panel)).toBeGreaterThanOrEqual(3);
     expect(contrast(PRINTER.chipInk, PRINTER.chip)).toBeGreaterThanOrEqual(3);
     expect(contrast(PRINTER.hotInk, PRINTER.hot)).toBeGreaterThanOrEqual(3);
   });
 
-  it('numbers the layers from 001 and keeps the index three digits wide', () => {
-    expect(layerNumber(0)).toBe('001');
-    expect(layerNumber(11)).toBe('012');
-    expect(layerNumber(999)).toBe('1000');
-  });
-
-  it('fills the Z rail with the printed share: the whole rail when nothing is armed, the seen share otherwise, never more than full', () => {
-    expect(printedShare(false, 0, 5)).toBe(1);
-    expect(printedShare(true, 2, 4)).toBe(0.5);
-    expect(printedShare(true, 9, 5)).toBe(1);
-    expect(printedShare(true, 0, 5)).toBe(0);
-    expect(printedShare(true, 0, 0)).toBe(1);
+  it('writes the counter as a percentage in the menu numerals, and a check mark when the print is done', () => {
+    expect(counterText(0, 'latn')).toBe('0%');
+    expect(counterText(0.456, 'latn')).toBe('46%');
+    expect(counterText(0.5, 'arab')).toBe('\u0665\u0660%');
+    expect(counterText(1, 'latn')).toBe('\u2713');
+    expect(counterText(1.4, 'arab')).toBe('\u2713');
   });
 
   it('staggers the printhead sweeps by a capped delay so every motion ends inside five seconds', () => {
     expect(sweepDelay(0)).toBe(0);
     expect(sweepDelay(3)).toBeGreaterThan(sweepDelay(2));
     expect(sweepDelay(500)).toBe(sweepDelay(6));
-    expect(sweepDelay(500) + 1400).toBeLessThan(5000);
+    expect(sweepDelay(500) + PRINT_MS).toBeLessThan(5000);
   });
 
-  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the nozzle grey', () => {
     const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
-    const allowed = ['#000', '#fff'];
-    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+    const allowed = ['#000', '#fff', '#c9ced4'];
+    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
   });
 
   it('resolves the signature palette to the fills the shape was drawn with', () => {
@@ -92,26 +78,28 @@ describe('the printer fills', () => {
     for (const [role, fill] of [['bg', PRINTER.bg], ['surface', PRINTER.panel], ['line', PRINTER.line], ['card', PRINTER.chip], ['text', PRINTER.ink], ['muted', PRINTER.muted], ['accent', PRINTER.hot]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
   });
 
-  it('sweeps the printhead once (no infinite animation), moves only transform and opacity, and uses no physical left/right properties', () => {
+  it('prints once (no infinite animation), moves only transforms, and uses no physical left/right properties', () => {
     const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8');
     expect(css).not.toMatch(/infinite/);
-    expect(css).toMatch(/@keyframes pr-sweep/);
+    expect(css).toMatch(/@keyframes pr-nozzle/);
     expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
     for (const [, property] of css.matchAll(/transition:\s*([a-z-]+)/g)) expect(['transform', 'opacity', 'background-color', 'none']).toContain(property);
-    const keyframes = css.match(/@keyframes pr-sweep\s*\{[\s\S]*?\n\}/)![0];
-    for (const [, property] of keyframes.matchAll(/^\s+([a-z-]+):/gm)) expect(['transform', 'opacity']).toContain(property);
+    for (const name of ['pr-nozzle', 'pr-nozzle-rtl']) {
+      const keyframes = css.match(new RegExp('@keyframes ' + name + '\\s*\\{[\\s\\S]*?\\n\\}'))![0];
+      for (const [, property] of keyframes.matchAll(/^\s+([a-z-]+):/gm)) expect(['transform']).toContain(property);
+    }
   });
 
-  it('lays a part out as a print bed: a ruler heading, a Z rail beside a two-across gridded plate (three on a wide screen), and no meter text', () => {
+  it('lays a section out as dark cards two across (three on a wide screen) with a print bed under a sliding cover, armed only by the page', () => {
     const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8');
     const tsx = readFileSync('src/ui/template/bodies/PrinterBody.tsx', 'utf8');
-    expect(css).toMatch(/\.pr-bed\s*\{[^}]*grid-template-columns:\s*var\(--pr-rail\) minmax\(0, 1fr\)/);
-    expect(css).toMatch(/\.pr-plate\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.pr-plate\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.pr-zrail i\s*\{[^}]*scaleY\(var\(--pr-done/);
-    expect(tsx).toContain('data-bed');
-    expect(tsx).not.toMatch(/pr-meter/);
-    expect(tsx).not.toMatch(/tpl\.prn\.layers/);
+    expect(css).toMatch(/\.pr-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.pr-grid\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\[data-armed\] \.pr-card\[data-print\] \.pr-cover\s*\{[^}]*translateY\(-100%\)/);
+    expect(css).toMatch(/\[data-armed\] \.pr-cover\s*\{[^}]*transition:\s*transform 1600ms linear/);
+    expect(css).toMatch(/prefers-reduced-motion: reduce\)\s*\{\s*\[data-body='printer'\] \.pr-cover\s*\{\s*display:\s*none/);
+    expect(tsx).toContain('data-pct');
+    expect(tsx).not.toMatch(/pr-meter|pr-zrail|pr-plate/);
   });
 
   it('mirrors by direction alone: no html[dir] selectors and no physical transform origins', () => {

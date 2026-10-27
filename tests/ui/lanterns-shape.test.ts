@@ -5,8 +5,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { LanternsBody } from '@/ui/template/bodies/LanternsBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { mix } from '@/lib/templates/palette';
-import { DROPS, dropOf } from '@/ui/template/bodies/lanterns-night';
+import { BUNTING, FLAGS, FLICKER_MS, FLICKER_TIMES, LANTERNS, SWAY_MS, SWAY_TIMES, flagColour, sceneEndsAt } from '@/ui/template/bodies/lanterns-night';
 
 describe('the Ramadan Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -27,23 +26,37 @@ describe('the Ramadan Nights shape', () => {
   });
 });
 
-describe('the lanterns', () => {
-  it('hang on strings of a few lengths that repeat, the same one for the same place', () => {
-    const drops = Array.from({ length: 40 }, (_, at) => dropOf(at));
-    expect(new Set(drops).size).toBeGreaterThanOrEqual(3);
-    expect(dropOf(7)).toBe(dropOf(7));
-    expect(dropOf(DROPS.length + 2)).toBe(dropOf(2));
-    expect(dropOf(-1)).toBe(DROPS[DROPS.length - 1]);
+describe('the lanterns scene', () => {
+  it('hangs four lanterns on cords of different lengths, each inside the sky', () => {
+    expect(LANTERNS).toHaveLength(4);
+    expect(new Set(LANTERNS.map((lantern) => lantern.cord)).size).toBe(4);
+    for (const lantern of LANTERNS) {
+      expect(lantern.at).toBeGreaterThan(0);
+      expect(lantern.at).toBeLessThan(95);
+    }
   });
 
-  it('draws the night from the palette (lanterns.css writes no colour literal but black shadows) and keeps its pairs readable in every palette', () => {
+  it('hangs a bunting of twelve flags in four colours, in a cycle', () => {
+    const flags = Array.from({ length: FLAGS }, (_, at) => flagColour(at));
+    expect(flags).toHaveLength(12);
+    expect(new Set(flags).size).toBe(BUNTING.length);
+    expect(flagColour(-1)).toBe(BUNTING[BUNTING.length - 1]);
+    expect(flagColour(BUNTING.length + 1)).toBe(flagColour(1));
+  });
+
+  it('is at rest within five seconds (the sway and the flicker are counted, not endless)', () => {
+    expect(sceneEndsAt()).toBeLessThanOrEqual(5000);
+    expect(SWAY_MS * SWAY_TIMES).toBeGreaterThan(0);
+    expect(FLICKER_MS * FLICKER_TIMES).toBeGreaterThan(0);
+  });
+
+  it('draws the night from the palette (lanterns.css writes no colour literal) and keeps its pairs readable in every palette', () => {
     const css = readFileSync('src/ui/template/bodies/lanterns.css', 'utf8');
-    expect((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase())).toEqual(['#000']);
+    expect((css.match(/#[0-9a-f]{3,8}/gi) ?? []).map((hex) => hex.toLowerCase())).toEqual([]);
     for (const { id, palette } of TEMPLATES['the-ramadan-nights'].palettes) {
-      const dimPane = mix(palette.raised, palette.text, 0.12);
-      expect(contrast(palette.text, dimPane), id).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette.text, palette.bg), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.raised), id).toBeGreaterThanOrEqual(4.5);
       expect(contrast(palette.accent, palette.bg), id).toBeGreaterThanOrEqual(3);
     }
   });

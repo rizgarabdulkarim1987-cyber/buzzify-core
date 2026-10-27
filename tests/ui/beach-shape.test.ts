@@ -3,9 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
-import { BeachBody, towelLayout } from '@/ui/template/bodies/BeachBody';
+import { BeachBody } from '@/ui/template/bodies/BeachBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { BEACH, riseOf, towelOf } from '@/ui/template/bodies/beach-fills';
 
 describe('the Summer Beach shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -28,64 +27,40 @@ describe('the Summer Beach shape', () => {
 });
 
 describe('the beach fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: bands, chips, badges, towel label, price, sale chip, add', () => {
-    for (const [ink, fill] of [
-      [BEACH.ink, BEACH.sand],
-      [BEACH.ink, BEACH.sea],
-      [BEACH.ink, BEACH.cream],
-      [BEACH.ink, BEACH.strip],
-      [BEACH.deepInk, BEACH.deep],
-      [BEACH.priceInk, BEACH.cream],
-      [BEACH.saleInk, BEACH.sale],
-      [BEACH.addInk, BEACH.add],
-    ] as const) {
-      expect(contrast(ink, fill), `${ink} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+  const css = readFileSync('src/ui/template/bodies/beach.css', 'utf8');
+
+  it('keeps the page text readable (4.5:1) on the sky, the sand and the cards, and the orange add and pill readable, in every palette', () => {
+    for (const { id, palette } of TEMPLATES['the-summer-beach'].palettes) {
+      expect(contrast(palette.text, palette.bg), `${id} on the sky`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.surface), `${id} on the sand`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.card), `${id} on the card`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), `${id} on the orange`).toBeGreaterThanOrEqual(4.5);
     }
+    expect(contrast('#ffffff', '#7a0c2c')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('draws the lit ring in the palette accent lifted towards white, standing out (3:1) from the deep chip whatever the accent is', () => {
-    for (const accent of ['#000000', '#ffffff', '#ff0000', '#0000ff', '#00ff00', '#ff6b35', '#2b4fd8', '#7a1f1f']) {
-      expect(contrast(riseOf(accent), BEACH.deep), accent).toBeGreaterThanOrEqual(3);
-    }
+  it('draws the cards from the card colour, the orange from the accent and the sky from the background', () => {
+    expect(css).toMatch(/--bc-cream:\s*var\(--card\)/);
+    expect(css).toMatch(/--bc-orange:\s*var\(--accent\)/);
+    expect(css).toMatch(/--bc-sand:\s*var\(--surface\)/);
+    expect(css).toMatch(/--bc-ink:\s*var\(--text\)/);
   });
 
-  it('draws the focus rings in colours that stand out (3:1) from what they sit on', () => {
-    expect(contrast(BEACH.ink, BEACH.cream)).toBeGreaterThanOrEqual(3);
-    expect(contrast(BEACH.deepInk, BEACH.deep)).toBeGreaterThanOrEqual(3);
-    expect(contrast(BEACH.addInk, BEACH.add)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('lays the towels out: pairs of landscape towels, the photo at the start and at the end by rows, a lone last towel across the row', () => {
-    const lay = (total: number) => Array.from({ length: total }, (_, at) => towelLayout(at, total));
-    expect(lay(1)).toEqual([{ wide: true, end: false }]);
-    expect(lay(2).map((l) => [l.wide, l.end])).toEqual([[false, false], [false, false]]);
-    expect(lay(3).map((l) => [l.wide, l.end])).toEqual([[false, false], [false, false], [true, true]]);
-    expect(lay(7).map((l) => l.end)).toEqual([false, false, true, true, false, false, true]);
-    expect(lay(7).filter((l) => l.wide)).toHaveLength(1);
-    expect(lay(8).filter((l) => l.wide)).toHaveLength(0);
-  });
-
-  it('colours the towels in turns, four stripe hues', () => {
-    expect(new Set([0, 1, 2, 3].map(towelOf)).size).toBe(4);
-    expect(towelOf(4)).toBe(towelOf(0));
-    expect(towelOf(-1)).toBe(towelOf(3));
-  });
-
-  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
-    const css = readFileSync('src/ui/template/bodies/beach.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
-    const allowed = ['#000', '#fff', '#7a0c2c', '#ffffff'];
-    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
-  });
-
-  it('resolves the signature palette to the fills the shape was drawn with', () => {
+  it('resolves the signature palette to the mockup colours (sky blue, sand, cream and deep sea ink)', () => {
     const palette = TEMPLATES['the-summer-beach'].palette;
-    for (const [role, fill] of [['bg', BEACH.sea], ['surface', BEACH.sand], ['card', BEACH.cream], ['text', BEACH.ink]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
+    for (const [role, fill] of [['bg', '#bfeefc'], ['surface', '#ffe9b8'], ['card', '#fffdf7'], ['text', '#0d3b52']] as const) expect(palette[role].toLowerCase(), role).toBe(fill);
   });
 
-  it('plays the wave drift once (no infinite animation), moves only transform, and uses no physical left/right properties', () => {
-    const css = readFileSync('src/ui/template/bodies/beach.css', 'utf8');
+  it('writes no colour literal but black, white, the fixed sale pair, the sun and the sea of the header', () => {
+    const bare = css.replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff', '#7a0c2c', '#ffffff', '#ffe066'];
+    for (const [literal] of bare.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+
+  it('moves the sun and the waves a few seconds only (no infinite animation), the cards by transform and opacity, and uses no physical left/right properties', () => {
     expect(css).not.toMatch(/infinite/);
-    expect(css).toMatch(/@keyframes bc-drift/);
+    expect(css).toMatch(/@keyframes bc-spin/);
+    expect(css).toMatch(/@keyframes bc-flow/);
     expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
     for (const [, property] of css.matchAll(/transition:\s*([a-z-]+)/g)) expect(['transform', 'opacity', 'background-color', 'none']).toContain(property);
   });

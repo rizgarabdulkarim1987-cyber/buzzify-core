@@ -20,12 +20,13 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Living Steam body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a rack of wide row cards, each
- * dish's photo in a frame by its temperature (read from the names: hot dishes get three wisps of steam, cold ones frost,
- * dew and drips, others a plain frame), a "Hot" or "Cold" chip on the row, and a sticky strip of section chips.
- * Only explicit temperature words count, so the fixture names two of Maison's sections with one: the viennoiserie is
- * "Warm" (hot), the pâtisserie "Chilled" (cold), and every other section (the morning box among them)
- * says nothing and is neutral.
+ * The Living Steam body (poster motion-stm; spec 2026-10-26-menu-styles-in-templates-design.md): a sticky strip of round
+ * chips, the featured dish as a big photo with its name large under it, then every section a heading over a two-column
+ * grid of rounded photos (the name under each, the price and the add on a row). A dish's photo shows how it is served by
+ * its temperature (read from the names: hot dishes get three wisps of steam, cold ones frost, dew and drips, others
+ * nothing) and a "Hot" or "Cold" badge on the photo. Only explicit temperature words count, so the fixture names two of
+ * Maison's sections with one: the viennoiserie is "Warm" (hot), the pâtisserie "Chilled" (cold), and every other section
+ * (the morning box among them) says nothing and is neutral.
  */
 
 const menus = bodyMenus();
@@ -39,6 +40,7 @@ const arabSlug = menus.slug('stmar');
 const manySlug = menus.slug('stmmany');
 const offSlug = menus.slug('stmoff');
 const bareSlug = menus.slug('stmbare');
+const crowdSlug = menus.slug('stmcrowd');
 const bareAt = (id: string) => menus.slug(`stmbare-${id}`);
 const alternatives = paletteIdsOf('the-living-steam').slice(1);
 const paletteSlug = (id: string) => menus.slug(`stm-${id}`);
@@ -48,6 +50,7 @@ test.beforeAll(async () => {
   await menus.create(arabSlug, 'stm', { templateId: 'the-living-steam', sectionNames, numeralSystem: 'ARAB', discount: ['croissant'] });
   await menus.create(manySlug, 'stm', { templateId: 'the-living-steam', sectionNames: { ...sectionNames, bread: { en: 'Warm Bread', ar: 'الخبز الساخن', ckb: 'نانی گەرم' } }, extraSections: 20 });
   await menus.create(offSlug, 'stm', { templateId: 'the-living-steam', sectionNames, ordering: 'none' });
+  await menus.create(crowdSlug, 'stm', { templateId: 'the-living-steam', sectionNames, crowd: 3 });
   await menus.create(bareSlug, 'stm', { templateId: 'the-living-steam', sectionNames, noPhotos: true });
   for (const id of alternatives) await menus.create(bareAt(id), 'stm', { templateId: 'the-living-steam', sectionNames, paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'stm', { templateId: 'the-living-steam', sectionNames, paletteId: id, discount: ['croissant', 'eclair'] });
@@ -56,40 +59,92 @@ test.afterAll(() => menus.remove());
 
 const steam = (page: Page) => page.locator('[data-body="steam"]');
 const chips = (page: Page) => steam(page).locator('[data-chips]');
+/** Takes the fixture's demo card (above the search) off the page: a real menu has none. */
+const dropDemoCard = (page: Page) =>
+  page.evaluate(() => {
+    const search = document.querySelector('input[type="search"], [role="searchbox"]')!;
+    const demo = [...document.querySelectorAll('h1,h2,p,div')].find((node) => node.children.length === 0 && node.textContent === 'Demonstration menu');
+    let at: Element | null = demo ?? null;
+    while (at && !at.parentElement?.contains(search)) at = at.parentElement;
+    at?.remove();
+    // The dietary filter chips of the fixture sit there too: a real menu without dietary tags has none.
+    const chip = [...document.querySelectorAll('button')].find((node) => node.textContent?.trim() === 'Vegetarian');
+    if (chip && !chip.parentElement?.contains(search)) chip.parentElement?.remove();
+  });
 const rows = (page: Page) => steam(page).locator('[data-row]');
 const rowOf = (page: Page, productSlug: string) => rows(page).filter({ hasText: dishName(productSlug) });
 const entry = (page: Page, categorySlug: string) => chips(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
-test('on a phone the first screen shows at least four dishes with photos and prices, and every section is one tap away', async ({ page }) => {
+test('on a phone the strip, the search and the featured dish with its photo and price show on the first screen, and every section is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(steam(page)).toBeVisible();
-  await expectFirstScreen(page, rows(page), { min: 4 });
+  await expect(page.getByRole('searchbox', { name: 'Search the menu' })).toBeInViewport();
+  await expect(chips(page)).toBeInViewport();
+  // The fixture menu carries a demo card and dietary chips above the search (about 450px): the hero dish still shows.
+  await expectFirstScreen(page, rows(page), { min: 1 });
   await expectEverySectionReachable(chips(page));
+  expect(await page.evaluate(() => window.innerWidth)).toBe(390);
+  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('a row is a wide card: the photo, then the name over the price and the chip, then the add, all in one lane on a phone', async ({ page }) => {
+test('in a section of six dishes, with no demo card above the search (a real menu), the hero and at least three more dishes show photos and prices on the first screen', async ({ page }) => {
+  await openMenu(page, crowdSlug);
+  await dropDemoCard(page);
+  await expectFirstScreen(page, rows(page), { min: 4 });
+});
+
+test('the hero is the featured dish: a big photo (wider than a grid photo), its name large under it, its price, its add and its sale cue; the whole cell opens the dish; no dish is shown twice', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const hero = steam(page).locator('[data-hero]');
+  await expect(hero).toHaveCount(1);
+  await expect(steam(page).locator('[data-row]').filter({ hasText: dishName('croissant') })).toHaveCount(1);
+  await expect(hero.locator('.stm-name .sr-only')).toHaveText('Featured: ');
+  await expect(hero.locator('.stm-price')).toContainText('$');
+  await expect(hero.locator('.stm-add')).toBeVisible();
+  await expect(hero.locator('.tpl-photo-off')).toHaveText(/٢٠/);
+  await expect(hero.locator('.tpl-was > [aria-hidden]')).toBeVisible();
+  const photo = (await hero.locator('[data-photo]').boundingBox())!;
+  const tile = (await rows(page).nth(1).locator('[data-photo]').boundingBox())!;
+  expect(photo.width).toBeGreaterThan(tile.width * 1.7);
+  const radius = await hero.locator('[data-photo]').evaluate((node) => parseFloat(getComputedStyle(node).borderTopLeftRadius));
+  expect(radius).toBeGreaterThanOrEqual(12);
+  const cell = (await hero.boundingBox())!;
+  await page.mouse.click(cell.x + cell.width / 2, cell.y + cell.height - 6);
+  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByTestId('cart-bar')).toBeHidden();
+});
+
+test('a search that drops the featured dish takes the hero away and brings it back when cleared', async ({ page }) => {
   await openMenu(page, slug);
-  const row = rowOf(page, 'croissant');
-  const box = (await row.boundingBox())!;
-  expect(box.width).toBeGreaterThan(330);
-  const photo = (await row.locator('[data-photo]').boundingBox())!;
-  const name = (await row.locator('.stm-name').boundingBox())!;
-  const price = (await row.locator('.stm-price').boundingBox())!;
-  const add = (await row.locator('.stm-add').boundingBox())!;
-  expect(photo.x).toBeLessThan(name.x);
-  expect(name.x + name.width).toBeLessThanOrEqual(add.x + 1);
-  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-  expect(photo.width).toBeGreaterThanOrEqual(48);
-  expect(photo.height).toBeCloseTo(photo.width, 0);
-  // One lane: every row of a section is as wide as the next and they stack.
-  const next = (await rows(page).nth(1).boundingBox())!;
-  expect(Math.abs(next.width - box.width)).toBeLessThanOrEqual(1);
-  expect(next.y).toBeGreaterThan(box.y + box.height - 1);
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.fill('sourdough');
+  await expect(steam(page).locator('[data-hero]')).toHaveCount(0);
+  await search.fill('');
+  await expect(steam(page).locator('[data-hero]')).toHaveCount(1);
 });
 
-test('hot dishes get a warm frame, three wisps of steam and a Hot chip; cold ones a frosted frame, dew, two drips and a Cold chip; the rest a plain frame', async ({ page }) => {
+test('a grid dish is a rounded photo with the name under it, then the price and the add on a row, two across on a phone', async ({ page }) => {
+  await openMenu(page, slug);
+  const tiles = page.locator('#cat-viennoiserie [data-row]');
+  await expect(tiles).toHaveCount(2);
+  const [a, b] = [(await tiles.nth(0).boundingBox())!, (await tiles.nth(1).boundingBox())!];
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  expect(a.width).toBeGreaterThan(150);
+  const tile = tiles.first();
+  const [photo, name, price, add] = [(await tile.locator('[data-photo]').boundingBox())!, (await tile.locator('.stm-name').boundingBox())!, (await tile.locator('.stm-price').boundingBox())!, (await tile.locator('.stm-add').boundingBox())!];
+  expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(Math.abs(price.y + price.height / 2 - (add.y + add.height / 2))).toBeLessThan(16);
+  expect(add.width).toBeGreaterThanOrEqual(40);
+  expect(photo.width).toBeGreaterThan(100);
+  expect(await tile.locator('[data-photo]').evaluate((node) => parseFloat(getComputedStyle(node).borderTopLeftRadius))).toBeGreaterThanOrEqual(12);
+});
+
+test('hot dishes get three wisps of steam and a Hot badge; cold ones a frosted rim, dew, two drips and a Cold badge; the rest nothing', async ({ page }) => {
   await openMenu(page, slug);
   const hot = rowOf(page, 'croissant');
   await expect(hot).toHaveAttribute('data-temp', 'hot');
@@ -106,12 +161,12 @@ test('hot dishes get a warm frame, three wisps of steam and a Hot chip; cold one
   await expect(plain).toHaveAttribute('data-temp', 'neutral');
   await expect(plain.locator('.stm-fx')).toHaveCount(0);
   await expect(plain.locator('.stm-temp')).toHaveCount(0);
-  // The lanes differ: the stripe on the start edge and the ring round the photo.
-  const look = (row: typeof hot) =>
-    row.evaluate((node) => ({ stripe: getComputedStyle(node).borderInlineStartColor, ring: getComputedStyle(node.querySelector('[data-photo]')!).boxShadow }));
-  const [a, b, c] = [await look(hot), await look(cold), await look(plain)];
-  expect(new Set([a.stripe, b.stripe, c.stripe]).size).toBe(3);
-  expect(new Set([a.ring, b.ring, c.ring]).size).toBe(3);
+  // The badges differ: a warm fill for hot, a cool one for cold, in the corner at the photo's end.
+  const fill = (row: typeof hot) => row.locator('.stm-temp').evaluate((node) => getComputedStyle(node).backgroundColor);
+  expect(await fill(hot)).not.toBe(await fill(cold));
+  const [photo, badge] = [(await hot.locator('[data-photo]').boundingBox())!, (await hot.locator('.stm-temp').boundingBox())!];
+  expect(badge.x + badge.width).toBeLessThanOrEqual(photo.x + photo.width + 1);
+  expect(badge.y).toBeGreaterThanOrEqual(photo.y);
 });
 
 test('the effects are CSS transform and opacity animations on the wisps and drips, covering the photo without catching a tap', async ({ page }) => {
@@ -205,28 +260,30 @@ test('a menu with twenty-five sections keeps every section one tap away on a scr
   await expect(last).toBeInViewport({ ratio: 1 });
 });
 
-test('a dish adds from its row and opens from its name, and tapping the photo or the row opens it too, without adding', async ({ page }) => {
+test('a dish adds from its cell and opens from its name, and tapping the photo or the cell opens it too, without adding', async ({ page }) => {
   await openMenu(page, slug);
   const first = page.locator('#cat-viennoiserie');
-  await expectOpensProduct(page, first, 'croissant');
-  const photo = (await rowOf(page, 'croissant').locator('[data-photo]').boundingBox())!;
+  await expectOpensProduct(page, first, 'pain-au-chocolat');
+  const photo = (await rowOf(page, 'pain-au-chocolat').locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
-  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('pain-au-chocolat') })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
-  const row = (await rowOf(page, 'croissant').boundingBox())!;
+  await rowOf(page, 'pain-au-chocolat').scrollIntoViewIfNeeded();
+  const row = (await rowOf(page, 'pain-au-chocolat').boundingBox())!;
   await page.mouse.click(row.x + row.width - 70, row.y + row.height - 4);
-  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
+  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('pain-au-chocolat') })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByTestId('cart-bar')).toBeHidden();
-  await expectQuickAdd(page, first, 'croissant');
+  await expectQuickAdd(page, first, 'pain-au-chocolat');
 });
 
-test('ordering off: plain tap-to-open rows, no + button, no cart, and the layout still shows many dishes', async ({ page }) => {
+test('ordering off: plain tap-to-open cells, no + button, no cart, and the layout still shows its dishes', async ({ page }) => {
   await openMenu(page, offSlug);
   await expect(steam(page)).toBeVisible();
   await expect(steam(page).locator('.stm-add')).toHaveCount(0);
-  await expectFirstScreen(page, rows(page), { min: 4 });
+  await dropDemoCard(page);
+  await expectFirstScreen(page, rows(page), { min: 3 });
   const photo = (await rows(page).first().locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
@@ -237,12 +294,12 @@ test('ordering off: plain tap-to-open rows, no + button, no cart, and the layout
 test('a menu whose dishes have no media still shows names, prices, plates, the effects and a working add', async ({ page }) => {
   await openMenu(page, bareSlug);
   const row = page.locator('#cat-viennoiserie [data-row]');
-  await expect(row).toHaveCount(3);
+  await expect(row).toHaveCount(2);
   expect(await steam(page).locator('[data-photo] img').count()).toBe(0);
   const photo = (await row.first().locator('[data-photo]').boundingBox())!;
   expect(photo.width).toBeGreaterThan(50);
   await expect(row.first().locator('.stm-steam > i')).toHaveCount(3);
-  for (const index of [0, 1, 2]) {
+  for (const index of [0, 1]) {
     await expect(row.nth(index).locator('.stm-name')).toBeVisible();
     await expect(row.nth(index).locator('.stm-price')).toContainText('$');
   }
@@ -287,36 +344,34 @@ test('a long dish name and a long price stay inside the row without sideways scr
   expect(await contrastOf(row.locator('.stm-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the rows run in two lanes in a centred column', async ({ page }) => {
+test('on a wide screen the grid runs three across in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
   const a = (await row.nth(0).boundingBox())!;
   const b = (await row.nth(1).boundingBox())!;
-  const c = (await row.nth(2).boundingBox())!;
   expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(c.y).toBeGreaterThan(a.y + a.height - 1);
-  expect(a.width).toBeLessThan(520);
   expect(a.x).toBeGreaterThan(100);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
 test('numbers and counts use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
-  await expect(page.locator('#cat-viennoiserie [data-count]')).toHaveText('٣');
+  // The hero dish is not counted in its section: two dishes are left in the grid.
+  await expect(page.locator('#cat-viennoiserie [data-count]')).toHaveText('٢');
 });
 
-test('in Arabic the page is right to left, the row mirrors, the Arabic temperature words show and nothing scrolls sideways', async ({ page }) => {
+test('in Arabic the page is right to left, the cells mirror, the Arabic temperature words show and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => chips(p));
-  const row = rows(page).first();
-  const photo = (await row.locator('[data-photo]').boundingBox())!;
-  const add = (await row.locator('.stm-add').boundingBox())!;
-  expect(photo.x).toBeGreaterThan(add.x);
-  expect(await row.evaluate((node) => getComputedStyle(node).borderInlineStartWidth)).toBe('4px');
-  expect((await row.boundingBox())!.x + (await row.boundingBox())!.width - (photo.x + photo.width)).toBeLessThan(20);
+  const tiles = page.locator('#cat-viennoiserie [data-row]');
+  const [a, b] = [(await tiles.nth(0).boundingBox())!, (await tiles.nth(1).boundingBox())!];
+  expect(a.x).toBeGreaterThan(b.x);
+  const price = (await tiles.first().locator('.stm-price').boundingBox())!;
+  const add = (await tiles.first().locator('.stm-add').boundingBox())!;
+  expect(price.x).toBeGreaterThan(add.x);
   // The Arabic names put the viennoiserie (hot) and the pâtisserie (cold) in their lanes.
-  await expect(row).toHaveAttribute('data-temp', 'hot');
-  await expect(row.locator('.stm-temp')).toHaveText('ساخن');
+  await expect(tiles.first()).toHaveAttribute('data-temp', 'hot');
+  await expect(tiles.first().locator('.stm-temp')).toHaveText('ساخن');
   const cold = page.locator('#cat-patisserie [data-row]').first();
   await expect(cold).toHaveAttribute('data-temp', 'cold');
   await expect(cold.locator('.stm-temp')).toHaveText('بارد');
@@ -358,7 +413,7 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'cold chip': cold.locator('.stm-temp'),
       'plain row name': plain.locator('.stm-name'),
       'plain row price': plain.locator('.stm-price'),
-      ...(menu === 'signature' ? {} : { 'sale badge': hot.locator('.tpl-badge-sale'), 'cold sale badge': rowOf(page, 'eclair').locator('.tpl-badge-sale') }),
+      ...(menu === 'signature' ? {} : { 'sale chip': hot.locator('.tpl-photo-off'), 'cold sale chip': rowOf(page, 'eclair').locator('.tpl-photo-off') }),
     });
   }
 });
@@ -372,7 +427,7 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
-    await expectFocusRingShows(page, row, { outset: -3, pseudo: '::after' });
+    await expectFocusRingShows(page, row, { outset: 4, pseudo: '::after' });
     const add = row.locator('.stm-add');
     await add.focus();
     await page.keyboard.press('Shift+Tab');
@@ -388,18 +443,19 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
   }
 });
 
-test('a dish on sale shows its -NN% chip in the menu numerals on its row, inside the row, and keeps the regular price for screen readers', async ({ page }) => {
+test('a dish on sale shows its -NN% chip in the menu numerals on its photo, inside its cell, and keeps the regular price for screen readers', async ({ page }) => {
   await openMenu(page, arabSlug);
   const row = rows(page).first();
-  const chip = row.locator('.tpl-badge-sale');
+  const chip = row.locator('.tpl-photo-off');
   await expect(chip).toHaveText(/٢٠%/);
-  await expect(steam(page).locator('.tpl-badge-sale')).toHaveCount(1);
+  await expect(steam(page).locator('.tpl-photo-off')).toHaveCount(1);
   const box = (await row.boundingBox())!;
   const at = (await chip.boundingBox())!;
   expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
   expect(at.y + at.height).toBeLessThanOrEqual(box.y + box.height + 1);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  expect(await row.locator('.tpl-was .sr-only').count()).toBeGreaterThan(0);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 

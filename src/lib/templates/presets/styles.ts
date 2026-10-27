@@ -10,12 +10,14 @@ export const theBook = definePreset({
   number: 31,
   name: 'The Book',
   business: 'restaurant',
-  tags: ['light', 'minimal'],
-  seed: { bg: '#F6F0E3', text: '#2A2420', accent: '#8A3B2B', raised: '#EAE0CC' },
+  tags: ['dark', 'cinematic'],
+  // The printed-book mockup's leather and paper: the stage is `bg`, the cover leather `card`, the gold `accent`, the paper
+  // `text` and its ink `bg` again, the red of the prices, ribbons and cart bar `button` (see book.css).
+  seed: { bg: '#1C140D', text: '#F7EFDC', accent: '#E7C873', raised: '#4A3B2C', card: '#5A1E14', line: '#8A3A28', button: '#6B1D12', onButton: '#F7EFDC' },
   alternatives: [
-    { id: 'vellum', name: 'Vellum', seed: { bg: '#FAF6EC', text: '#26221D', accent: '#3E5C76' } },
-    { id: 'sepia', name: 'Sepia', seed: { bg: '#EBDDC3', text: '#33261A', accent: '#7A4A1F' } },
-    { id: 'night-reading', name: 'Night reading', seed: { bg: '#1F1B17', text: '#EFE6D3', accent: '#D9A66A' } },
+    { id: 'green-leather', name: 'Green leather', seed: { bg: '#0F1A14', text: '#F1EEDC', accent: '#D8C37A', raised: '#2B3B2F', card: '#1F4A38', line: '#3F6B55', button: '#1F4A38', onButton: '#F1EEDC' } },
+    { id: 'navy-leather', name: 'Navy leather', seed: { bg: '#0E1422', text: '#F3EFE3', accent: '#E2C275', raised: '#2A3550', card: '#1D2F57', line: '#3C4F7E', button: '#1D2F57', onButton: '#F3EFE3' } },
+    { id: 'black-leather', name: 'Black leather', seed: { bg: '#121212', text: '#F4EEE0', accent: '#D4AF63', raised: '#2E2A26', card: '#241E1A', line: '#4A4038', button: '#7A2218', onButton: '#F4EEE0' } },
   ],
   type: { fontPairId: 'pearl', scale: 1.04 },
   layout: {
@@ -184,8 +186,8 @@ export const theDrawerCabinet = definePreset({
   number: 37,
   name: 'Drawer Cabinet',
   business: 'restaurant',
-  tags: ['light', 'playful'],
-  seed: { bg: '#F4E9D3', text: '#2A1A0C', accent: '#8A3A12', raised: '#FFFAF0' },
+  tags: ['dark', 'playful'],
+  seed: { bg: '#5A3A22', text: '#F6E2B8', accent: '#F3D488', raised: '#8A5A32', surface: '#6B4529', card: '#6B4529', line: '#A8744A', button: '#F3D488', onButton: '#3E2716' },
   alternatives: [
     { id: 'walnut', name: 'Walnut', seed: { bg: '#2B1B10', text: '#F6E2B8', accent: '#F3D488' } },
     { id: 'whitewashed', name: 'Whitewashed', seed: { bg: '#F5F5F1', text: '#2D3532', accent: '#4F7A6B' } },
@@ -417,7 +419,7 @@ export const theFridge = definePreset({
   name: 'The Fridge',
   business: 'restaurant',
   tags: ['light', 'playful'],
-  seed: { bg: '#E8F4FA', text: '#16324A', accent: '#1565C0', raised: '#FFFFFF' },
+  seed: { bg: '#E8F4FA', text: '#16324A', accent: '#1565C0', raised: '#FFFFFF', button: '#FFD23F', onButton: '#16324A' },
   alternatives: [
     { id: 'night-fridge', name: 'Night fridge', seed: { bg: '#0F2230', text: '#E6F3FA', accent: '#5CC8FF', raised: '#173449' } },
     { id: 'mint-cooler', name: 'Mint cooler', seed: { bg: '#E6F6EF', text: '#123A2C', accent: '#12805C', raised: '#FFFFFF' } },

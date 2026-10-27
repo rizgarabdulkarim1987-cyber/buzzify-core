@@ -1,23 +1,18 @@
 /*
- * The Photo to Details body (a browse shape of a template menu): a photo-first mosaic. Every section is a block with a
- * heading pinned under the strip while its dishes pass, and a dense grid of photo tiles: three across on a phone (so many dishes show at once; then
- * four, and five on a wide screen), tall and short in turn so they interlock like bricks (each tile spans a number of small grid rows,
- * `--span`, and the grid, dense, fills the first free cell), the photo filling the tile above a solid caption bar (the
- * name, the price). A strip of pill chips stays at the top and jumps. Everything is scoped under [data-body='morph'].
- * The colours are the template's own (the bar is `--raised` with `--text`; the lit chip is `--text` on `--bg` reversed).
- * Logical properties only (RTL mirrors). The tapped photo growing into the details is a clone drawn by `morphOpen`
- * (morph-open.ts), outside this body; less motion: no clone and no entrance.
+ * The Photo to Details body (poster motion-mor; a browse shape of a template menu): a calm, photo-first menu. A strip of
+ * pill chips stays at the top and jumps; every section is a plain heading over a two-column grid of big rounded square
+ * photos with a soft shadow, the name under each, the price and the add on a row. Everything is scoped under
+ * [data-body='morph']. The colours are the template's own (the lit chip is `--text` on `--bg` reversed, the add is the
+ * accent pair). Logical properties only (RTL mirrors). The tapped photo growing into the details is a clone drawn by
+ * `morphOpen` (morph-open.ts), outside this body; less motion: no clone and no entrance.
  */
 [data-body='morph'] {
   --mo-line: color-mix(in srgb, var(--text) 18%, transparent);
-  --mo-unit: 0.25rem;
   /* The sticky strip's height (a 2.5rem chip and the list's 0.25rem padding each side), so a jumped-to section lands
      just below it and the pinned heading meets the strip with no slit between them. */
   --nav-room: 3rem;
   /* A dish with no media: the plate's rings (shared/photo-card.css). */
-  --plate-ring: 18%;
-  /* The pinned heading's height. */
-  --mo-head: 2.25rem;
+  --plate-ring: 22%;
   --column: 72rem;
   /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
@@ -55,124 +50,121 @@
   }
 }
 
-/* A section: its heading, pinned under the strip, then the mosaic. */
+/* A section: a plain heading, then the grid. */
 [data-body='morph'] .mo-section {
-  padding-block-start: 0.25rem;
-}
-[data-body='morph'] .mo-head {
-  position: sticky;
-  inset-block-start: var(--nav-room);
-  z-index: 5;
-  background: color-mix(in srgb, var(--bg) 94%, transparent);
+  padding-block-start: 0.5rem;
+  padding-inline: 0.875rem;
 }
 [data-body='morph'] .mo-title {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-block-size: var(--mo-head);
-  margin: 0;
-  line-height: 1.15;
+  display: block;
+  margin: 0 0 0.5rem;
+  line-height: 1.2;
 }
 [data-body='morph'] .mo-title span {
-  min-inline-size: 0;
   font-size: 1.25rem;
   font-weight: 700;
   overflow-wrap: anywhere;
 }
+/* The dish count is not part of this heading. */
 [data-body='morph'] .mo-title b {
-  flex: none;
-  min-inline-size: 1.375rem;
-  padding-inline: 0.375rem;
-  border: 1px solid var(--mo-line);
-  border-radius: 999px;
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.25rem;
-  text-align: center;
+  display: none;
 }
 
-/*
- * The mosaic: columns of equal width over rows one unit tall; a tile spans `--span` of them, so tall and short tiles
- * interlock (a tile goes to the first free cell in reading order, never leaving a hole under a tall neighbour).
- */
+/* The grid: two columns of tiles. */
 [data-body='morph'] .mo-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-auto-rows: var(--mo-unit);
-  grid-auto-flow: row dense;
-  column-gap: 0.375rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem 0.75rem;
   margin: 0;
-  padding: 0.25rem 0.5rem 0;
+  padding: 0;
   list-style: none;
 }
 
-/* A tile: the photo above a solid bar; the whole tile is the dish's tap area (the tile is the positioned ancestor). */
+/* A tile: a big rounded square photo, the name, then the price and the add; the whole tile is the dish's tap area. */
 [data-body='morph'] .mo-tile {
-  --tpl-ring-radius: 0.875rem;
+  --tpl-ring-radius: 1.375rem;
+  --tpl-ring-inset: 2px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) auto;
-  grid-row: span var(--span, 48);
-  margin-block-end: 0.5rem;
-  overflow: hidden;
-  border-radius: 0.875rem;
-  box-shadow: 0 0 0 1px var(--mo-line);
+  grid-template-rows: auto 1fr;
+  gap: 0.25rem;
+  background: transparent;
 }
 [data-body='morph'] .mo-photo {
-  min-block-size: 0;
+  aspect-ratio: 1;
+  border-radius: 1.375rem;
   background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  box-shadow: 0 0.625rem 1.25rem color-mix(in srgb, var(--text) 14%, transparent);
 }
-
-/* The discount sits on the photo's start corner (shared/photo-card.css); the add button on its end corner. */
-[data-body='morph'] .mo-add {
-  z-index: 3;
-  inset-block-end: 0.375rem;
-  inset-inline-end: 0.375rem;
-  border: 1px solid var(--rim-add-ink, var(--on-accent));
+/* The discount on the photo's foot. */
+[data-body='morph'] .mo-off {
+  inset-block-start: auto;
+  inset-block-end: 0.5rem;
+  inset-inline-start: 0.5rem;
 }
-
-/* The caption bar (shared/photo-card.css): a solid fill (never a gradient over the photo), the name, then the price. */
 [data-body='morph'] .mo-bar {
-  padding: 0.375rem 0.375rem 0.4375rem;
-  background: var(--raised);
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'name name'
+    'price add';
+  align-items: center;
+  align-content: space-between;
+  gap: 0 0.25rem;
+  padding: 0.25rem 0.125rem 0;
+}
+[data-body='morph'] .mo-name {
+  grid-area: name;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  text-align: start;
 }
 [data-body='morph'] .mo-price {
-  font-size: 0.75rem;
+  grid-area: price;
+  color: var(--muted);
+  font-size: 0.8125rem;
   font-weight: 600;
 }
+/* The add: a round button on the row, beside the price. */
+[data-body='morph'] .mo-tile .mo-add {
+  --rim-add-size: 2.5rem;
+  --rim-add-bg: var(--text);
+  --rim-add-ink: var(--bg);
+  grid-area: add;
+  position: relative;
+  z-index: 3;
+  inset: auto;
+}
+[data-body='morph'] .mo-tile .mo-add:focus-visible {
+  outline: 2px solid var(--bg);
+  outline-offset: -4px;
+}
 
-/* No transform on the tile: it would trap the add button under the tap area. Feedback is the outline. */
+/* No transform on the tile: it would trap the add button under the tap area. Feedback is the shadow. */
 @media (hover: hover) {
-  [data-body='morph'] .mo-tile:hover {
-    box-shadow: 0 0 0 2px var(--text);
+  [data-body='morph'] .mo-tile:hover .mo-photo {
+    box-shadow: 0 0.75rem 1.5rem color-mix(in srgb, var(--text) 24%, transparent);
   }
 }
-[data-body='morph'] .mo-tile:active {
+[data-body='morph'] .mo-tile:active .mo-photo {
   box-shadow: 0 0 0 2px var(--accent-ink);
 }
 
-/* A wide screen: four columns, then five, in a centred column; taller rows so photos keep their size. */
+/* A wide screen: more columns, in a centred column. */
 @media (min-width: 640px) {
   [data-body='morph'] .mo-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    column-gap: 0.75rem;
-    padding-inline: 0.75rem;
-  }
-  [data-body='morph'] .mo-tile {
-    margin-block-end: 0.75rem;
-    grid-row: span calc(var(--span, 48) + 12);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1rem 0.875rem;
   }
   [data-body='morph'] .mo-title span {
     font-size: 1.5rem;
   }
   [data-body='morph'] .mo-price {
-    font-size: 0.8125rem;
+    font-size: 0.9375rem;
   }
 }
 @media (min-width: 1024px) {
   [data-body='morph'] .mo-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 

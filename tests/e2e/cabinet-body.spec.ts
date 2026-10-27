@@ -12,7 +12,7 @@ const slug = menus.slug('cab');
 const arabSlug = menus.slug('cabar');
 
 test.beforeAll(async () => {
-  await menus.create(slug, 'cabinet', { templateId: 'the-drawer-cabinet', layout: { body: 'cabinet', hero: 'editorial', nav: 'index' } });
+  await menus.create(slug, 'cabinet', { templateId: 'the-drawer-cabinet', layout: { body: 'cabinet', hero: 'compact', nav: 'index' } });
   await menus.create(arabSlug, 'cabinet', { templateId: 'the-drawer-cabinet', numeralSystem: 'ARAB' });
 });
 test.afterAll(() => menus.remove());
@@ -24,23 +24,47 @@ const front = (page: Page, categorySlug: string) => page.locator(`#cat-${categor
 const slugAt = (index: number) => BODY_CATEGORIES[index]!.slug;
 const last = slugAt(BODY_CATEGORIES.length - 1);
 
-test('on a phone the first drawers are open with four dishes, photos and prices, and every drawer front is tappable', async ({ page }) => {
+test('on a phone the first drawers are open with at least three dishes (the three-dish Maison drawer; four or more on a menu with a bigger first drawer), photos and prices, and every drawer front is tappable', async ({ page }) => {
   await openMenu(page, slug);
   await expect(cab(page)).toBeVisible();
-  await expectFirstScreen(page, dishes(page), { min: 4 });
+  // The demo card is demo data a real menu does not have: measured without it.
+  await page.addStyleTag({ content: '.tpl-promo{display:none!important}' });
+  await expectFirstScreen(page, dishes(page), { min: 3 });
   await expectEverySectionReachable(fronts(page));
   await expect(front(page, slugAt(0))).toHaveAttribute('aria-expanded', 'true');
   await expect(front(page, last)).toHaveAttribute('aria-expanded', 'false');
 });
 
-test('a closed drawer renders no dishes and loads no photos', async ({ page }) => {
+test('a closed drawer renders no dishes and only its front: at most four thumbnails of its first dishes', async ({ page }) => {
   await openMenu(page, slug);
   const closed = page.locator(`#cat-${last}`);
   await expect(closed.locator('[data-row]')).toHaveCount(0);
-  await expect(closed.locator('img, svg')).toHaveCount(0);
+  await expect(closed.locator('[data-photo]')).toHaveCount(0);
+  expect(await closed.locator('.cb-thumb').count()).toBeLessThanOrEqual(4);
+  expect(await closed.locator('.cb-thumb').count()).toBeGreaterThan(0);
   await expect(front(page, last)).not.toHaveAttribute('aria-controls', /./);
   await expect(front(page, slugAt(0))).toHaveAttribute('aria-controls', `tray-${slugAt(0)}`);
   expect(await page.locator(`#cat-${slugAt(0)} [data-row]`).count()).toBeGreaterThan(0);
+});
+
+test('an open drawer is two cream cards across with big photos, and the front shows thumbnails and a brass handle', async ({ page }) => {
+  await openMenu(page, slug);
+  const cards = page.locator(`#cat-${slugAt(0)} [data-row]`);
+  const one = (await cards.nth(0).boundingBox())!;
+  const two = (await cards.nth(1).boundingBox())!;
+  expect(Math.abs(one.y - two.y)).toBeLessThan(2);
+  const photo = (await cards.first().locator('[data-photo]').boundingBox())!;
+  expect(photo.width).toBeGreaterThanOrEqual(page.viewportSize()!.width * 0.35);
+  expect(Math.abs(photo.width / photo.height - 1.25)).toBeLessThan(0.05);
+  await expect(page.locator(`#cat-${slugAt(0)} .cb-thumb`).first()).toBeVisible();
+  await expect(page.locator(`#cat-${slugAt(0)} .cb-handle`)).toBeVisible();
+});
+
+test('the default palette is the mockup wood: a walnut page, lighter wood fronts, brass handles', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(cab(page)).toHaveAttribute('data-tone', 'dark');
+  await expect(page.locator('.tpl').first()).toHaveCSS('--bg', '#5A3A22');
+  await expect(page.locator('.cb-drawer').first()).toHaveCSS('background-color', 'rgb(138, 90, 50)');
 });
 
 test('drawers are independent: opening one leaves the others as they were, and a front toggles it shut', async ({ page }) => {
@@ -81,7 +105,7 @@ test('a long dish name stays inside its tile without sideways scrolling', async 
 
 test('counts use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
-  await expect(fronts(page).first().locator('[data-count]')).toHaveText('٣');
+  await expect(fronts(page).first().locator('[data-count]')).toContainText('٣');
   await expect(fronts(page).first().getByRole('button')).toHaveAccessibleName(/٣ dishes/);
 });
 

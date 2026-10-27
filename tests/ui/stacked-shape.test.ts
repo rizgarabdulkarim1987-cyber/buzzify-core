@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { StackedBody } from '@/ui/template/bodies/StackedBody';
-import { STACK_MAX, tabsStack } from '@/ui/template/bodies/stacked-tabs';
+import { coverProgress, litSheet, STACK_DOCK, STACK_HUES, stackHue, stickyTop } from '@/ui/template/bodies/stacked-sheets';
 
 describe('the Stacked Sheets shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -23,12 +23,31 @@ describe('the Stacked Sheets shape', () => {
     expect(templateForStyle('motion-stk')).toBe('the-stacked-sheets');
   });
 
-  it('stacks the tabs of a menu with a few sections and keeps them in a rail beyond that', () => {
-    expect(tabsStack(1)).toBe(true);
-    expect(tabsStack(STACK_MAX)).toBe(true);
-    expect(tabsStack(STACK_MAX + 1)).toBe(false);
-    expect(tabsStack(24)).toBe(false);
-    // Few enough that every tab (both stacks together) leaves most of a phone screen to the dishes.
-    expect(STACK_MAX * 2.75 * 16).toBeLessThanOrEqual(844 * 0.35);
+  it('gives neighbouring sheets different hues and repeats the set once it is used up', () => {
+    for (let at = 1; at < STACK_HUES.length * 2; at++) expect(stackHue(at)).not.toBe(stackHue(at - 1));
+    expect(stackHue(STACK_HUES.length)).toBe(stackHue(0));
+    expect(stackHue(-1)).toBe(STACK_HUES[STACK_HUES.length - 1]);
+  });
+
+  it('sticks a sheet under the strip, and higher when it is taller than the screen so its foot can be reached', () => {
+    expect(stickyTop(52, 844, 300)).toBe(52);
+    expect(stickyTop(52, 844, 2000)).toBe(844 - 2000 - STACK_DOCK);
+    // Exactly as tall as what fits: it still sticks under the strip.
+    expect(stickyTop(52, 844, 844 - 52 - STACK_DOCK)).toBe(52);
+  });
+
+  it('measures how much of a sheet the next one has covered, from 0 to 1', () => {
+    expect(coverProgress(500, 600, 300)).toBe(0);
+    expect(coverProgress(500, 350, 300)).toBeCloseTo(0.5);
+    expect(coverProgress(500, 100, 300)).toBe(1);
+    expect(coverProgress(500, 100, 0)).toBe(0);
+  });
+
+  it('lights the last sheet whose top has reached the reading line, the first before any, the last at the end', () => {
+    expect(litSheet([], 100, false)).toBe(0);
+    expect(litSheet([300, 800, 1300], 100, false)).toBe(0);
+    expect(litSheet([-400, 60, 600], 100, false)).toBe(1);
+    expect(litSheet([-900, -400, 80], 100, false)).toBe(2);
+    expect(litSheet([-900, -400, 300], 100, true)).toBe(2);
   });
 });

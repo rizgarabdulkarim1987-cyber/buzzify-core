@@ -4,7 +4,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { InkBody } from '@/ui/template/bodies/InkBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, inkOn, paperOf } from '@/ui/template/bodies/ink-bands';
+import { INK_BANDS, bandColour, inkOf, inkOn } from '@/ui/template/bodies/ink-bands';
 
 describe('the Section Ink shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -24,42 +24,40 @@ describe('the Section Ink shape', () => {
     expect(templateForStyle('motion-ink')).toBe('the-section-ink');
   });
 
-  describe('the bands', () => {
-    it('has eight different colours, and neighbours (also when the set repeats) differ', () => {
+  describe('the inks', () => {
+    it('has eight different colours, the mockup coral, amber, green and pink first, and neighbours (also when the set repeats) differ', () => {
       expect(new Set(INK_BANDS).size).toBe(INK_BANDS.length);
       expect(INK_BANDS.length).toBeGreaterThanOrEqual(8);
+      expect(INK_BANDS.slice(0, 4)).toEqual(['#FF6B4A', '#FFC43D', '#4CD685', '#FF7EB6']);
       for (let at = 0; at < INK_BANDS.length * 2; at++) expect(bandColour(at)).not.toBe(bandColour(at + 1));
       expect(bandColour(INK_BANDS.length)).toBe(bandColour(0));
       expect(bandColour(-1)).toBe(INK_BANDS.at(-1));
     });
 
-    it('picks, for every band, a text colour that reads on it at 4.5:1', () => {
+    it('picks, for every ink, a text colour that reads on it at 4.5:1', () => {
       for (const band of INK_BANDS) expect(contrast(inkOn(band), band), band).toBeGreaterThanOrEqual(4.5);
     });
 
     it('picks the better of white and near-black', () => {
-      expect(inkOn('#FFFFFF')).toBe(INK_ON_PAPER);
+      expect(inkOn('#FFFFFF')).toBe('#14141A');
       expect(inkOn('#000000')).toBe('#FFFFFF');
-    });
-
-    it('keeps the dish text on paper-white at a safe ratio', () => {
-      expect(contrast(INK_ON_PAPER, INK_PAPER)).toBeGreaterThanOrEqual(7);
     });
   });
 
-  describe('the paper', () => {
-    it('is the lighter of the palette background and text colour, with the darker one as its text, in every palette', () => {
-      for (const { id, palette } of TEMPLATES['the-section-ink'].palettes) {
-        const { paper, onPaper } = paperOf(palette);
-        expect([paper, onPaper].sort()).toEqual([palette.bg, palette.text].sort());
-        expect(contrast(onPaper, paper), id).toBeGreaterThanOrEqual(7);
-      }
+  describe('the ink on the palette', () => {
+    it('keeps the mockup colours as they are on the default dark palette', () => {
+      const { palette } = TEMPLATES['the-section-ink'].palettes[0]!;
+      for (const band of INK_BANDS) expect(inkOf(band, palette).toUpperCase(), band).toBe(band);
     });
 
-    it('is white with near-black text on the default dark palette', () => {
-      const { paper, onPaper } = paperOf(TEMPLATES['the-section-ink'].palettes[0]!.palette);
-      expect(paper).toBe('#FFFFFF');
-      expect(contrast(onPaper, paper)).toBeGreaterThanOrEqual(15);
+    it('reads at 4.5:1 on the background and the card of every palette of the shape', () => {
+      for (const { id, palette } of TEMPLATES['the-section-ink'].palettes) {
+        for (const band of INK_BANDS) {
+          const ink = inkOf(band, palette);
+          expect(contrast(ink, palette.bg), `${id} ${band} on the background`).toBeGreaterThanOrEqual(4.5);
+          expect(contrast(ink, palette.raised), `${id} ${band} on the card`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
     });
   });
 });

@@ -1,263 +1,194 @@
 /*
- * The Section Ink body (a browse shape of a template menu): every section is a full-width colour band in a saturated hue
- * of its own (`--band`, with `--band-ink`, the text colour computed to read on it: ink-bands.ts), its top edge bled
- * like spilt ink (a mask of one of three blobby edges), with the section's name set large and its dish count, and the
- * dishes on it as paper cards three across (photo, name, price, a round add on the photo). The paper is the lighter of the
- * palette's background and text colour with the darker one as its text (InkBody sets `--ik-paper` and `--ik-on-paper`), so
- * a dish always reads and the cards follow the colours picked in Customize; only the band, the strip's chips and the add
- * buttons wear the band colour (the bands are the section's own hues, with the text colour computed to read on each). A band floods in once, the first time it scrolls into view: a circle of its colour grows
- * from its top corner (or from the chip that was tapped, `--fx`) with clip-path alone (useBandFlood.ts). Everything is
- * scoped under [data-body='ink']. Logical properties only (RTL mirrors, the flood starts from the other corner).
- * Less motion: no flood, every band is simply there.
+ * The Section Ink body (a browse shape of a template menu), drawn after the motion-ink mockup: a dark menu where every
+ * section has an ink colour of its own (`--band`, with `--band-ink`, the text colour that reads on it; InkBody pushes the
+ * ink to read on the palette: ink-bands.ts). A strip of pills outlined in their ink stays at the top (the lit one filled);
+ * each section's name is set large in its ink and rises into place the first time the section is seen; the dishes are
+ * cards on the menu's card colour (`--raised`) with a top edge in the ink, two across on a phone: a square photo, the name,
+ * and the price in the ink beside a round add in it. The tap on a pill pours the colour over the screen (useInkSplash.ts,
+ * a layer outside this body). Everything is scoped under [data-body='ink']. Logical properties only (RTL mirrors).
+ * Less motion: the names are simply there and no colour is poured.
  */
 [data-body='ink'] {
-  /* The paper and its text: InkBody overrides both on this element (the lighter and the darker of --bg and --text). */
-  --ik-paper: var(--text);
-  --ik-on-paper: var(--bg);
-  --ik-edge-h: 1.75rem;
-  --ik-overlap: 1.25rem;
-  /* The sticky strip's height, so a jumped-to band lands just below it. */
+  /* The sticky strip's height, so a jumped-to section lands just below it. */
   --nav-room: 3.25rem;
   --column: 72rem;
   --tall-last: var(--tall-last-panel);
-  /* Where the flood starts when a band scrolls in: its top corner on the start side. */
-  --fx-start: 0%;
+  --rim-add-size: 1.875rem;
+  --sale-bg: var(--band);
+  --sale-ink: var(--band-ink);
+  padding-block-end: 1rem;
   color: var(--text);
 }
-[data-body='ink']:dir(rtl) {
-  --fx-start: 100%;
-}
 
-/* The strip: a chip per band, filled with the band's colour; the lit one is bolder and underlined. */
+/* The strip: a pill per section, outlined in its ink; the lit one is filled with it. */
 [data-body='ink'] .ik-strip-list {
-  gap: 0.375rem;
-  padding-inline: 0.5rem;
+  gap: 0.5rem;
+  padding-inline: 0.75rem;
   padding-block: 0.25rem;
 }
 [data-body='ink'] .ik-chip {
-  position: relative;
   display: flex;
   align-items: center;
   min-block-size: 2.5rem;
   padding-inline: 1rem;
+  border: 1.5px solid var(--band);
   border-radius: 999px;
-  background: var(--band);
-  color: var(--band-ink);
+  background: transparent;
+  color: var(--band);
   font-size: 0.875rem;
-  font-weight: 700;
+  font-weight: 500;
   line-height: 1.1;
   white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms;
 }
 [data-body='ink'] .ik-chip[aria-current='true'] {
-  font-weight: 900;
-}
-[data-body='ink'] .ik-chip[aria-current='true']::after {
-  content: '';
-  position: absolute;
-  inset-inline: 1rem;
-  inset-block-end: 0.5rem;
-  block-size: 3px;
-  border-radius: 2px;
-  background: currentColor;
-}
-[data-body='ink'] .ik-chip[aria-current='true'] span {
-  padding-block-end: 0.25rem;
-}
-
-/*
- * A band (the section, which stays unclipped so the template's lit-section tracking sees it) holds the flood layer: its
- * colour, the ink-bleed edge on top (the mask), and the flood (the clip-path). The band overlaps the one
- * before it by the height of the blobby edge, so the previous colour shows through the edge's gaps. The circle's
- * radius, in percent of the band's box, is large enough to cover it from any point of its top edge.
- */
-[data-body='ink'] .ik-band {
-  display: grid;
-  padding: 0;
-}
-[data-body='ink'] .ik-flood {
-  --edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 40' preserveAspectRatio='none'%3E%3Cpath d='M0 40V24C28 6 58 0 92 12c30 11 44 26 84 18 36-7 48-28 88-26 38 2 60 20 88 18 22-1 36-8 48-14V40Z'/%3E%3C/svg%3E");
-  position: relative;
-  box-sizing: border-box;
-  /* It reaches up over the end of the section before it (the sections themselves never overlap, so the lit-section tracking sees one at a time). */
-  margin-block-start: calc(var(--ik-overlap) * -1);
-  padding-block: 1.75rem calc(var(--ik-overlap) + 0.5rem);
   background: var(--band);
   color: var(--band-ink);
-  -webkit-mask-image: var(--edge), linear-gradient(#000, #000);
-  mask-image: var(--edge), linear-gradient(#000, #000);
-  -webkit-mask-repeat: no-repeat;
-  mask-repeat: no-repeat;
-  -webkit-mask-size: 100% var(--ik-edge-h), 100% calc(100% - var(--ik-edge-h) + 1px);
-  mask-size: 100% var(--ik-edge-h), 100% calc(100% - var(--ik-edge-h) + 1px);
-  -webkit-mask-position: 0 0, 0 calc(var(--ik-edge-h) - 1px);
-  mask-position: 0 0, 0 calc(var(--ik-edge-h) - 1px);
-  clip-path: circle(150% at var(--fx, var(--fx-start)) 0%);
+  font-weight: 700;
 }
-/* The flood: only on the way open (a band closing, when the script arms it or a chip resets it, is instant and off the screen). */
-[data-body='ink'] .ik-band[data-in] .ik-flood {
-  transition: clip-path 720ms cubic-bezier(0.23, 1, 0.32, 1);
-}
-/* The other two edges. */
-[data-body='ink'] .ik-band[data-edge='1'] .ik-flood {
-  --edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 40' preserveAspectRatio='none'%3E%3Cpath d='M0 40V10C34 22 52 30 96 20c40-9 54-24 100-18 44 6 52 28 98 26 40-2 62-22 106-8V40Z'/%3E%3C/svg%3E");
-}
-[data-body='ink'] .ik-band[data-edge='2'] .ik-flood {
-  --edge: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 400 40' preserveAspectRatio='none'%3E%3Cpath d='M0 40V16C22 26 44 28 70 18c34-13 60-18 94-6 38 14 56 22 96 12 42-10 62-22 90-14 20 6 36 8 50 4V40Z'/%3E%3C/svg%3E");
+@media (hover: hover) {
+  [data-body='ink'] .ik-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--band) 16%, transparent);
+  }
 }
 
-/* Armed (script running, less motion not asked): a band not yet seen is a closed circle until it scrolls in. */
-[data-body='ink'][data-armed] .ik-band:not([data-in]) .ik-flood {
-  clip-path: circle(0% at var(--fx, var(--fx-start)) 0%);
+/* A section: the name in its ink, then the cards. */
+[data-body='ink'] .ik-band {
+  padding: 1.5rem 0.75rem 0.375rem;
 }
-
-/* The heading: the name set large, the dish count in a ring after it. */
+[data-body='ink'] .ik-head {
+  /* The name rises from under this line: its holder clips it. */
+  overflow: clip;
+}
 [data-body='ink'] .ik-title {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0 0 0.5rem;
-  color: var(--band-ink);
-  line-height: 1.05;
+  margin: 0 0 0.75rem;
+  color: var(--band);
+  font-size: 2.5rem;
+  font-weight: 800;
+  line-height: 1.15;
 }
 [data-body='ink'] .ik-title span {
+  display: inline-block;
   min-inline-size: 0;
-  font-size: 2rem;
-  font-weight: 900;
   overflow-wrap: anywhere;
 }
+/* The dish count is for the shape's tests only (it is aria-hidden); the mockup has none. */
 [data-body='ink'] .ik-title b {
-  display: flex;
-  flex: none;
-  align-items: center;
-  justify-content: center;
-  min-inline-size: 1.75rem;
-  padding-inline: 0.375rem;
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  color: var(--band-ink);
-  font-size: 0.875rem;
-  font-weight: 800;
-  line-height: 1.5rem;
+  display: none;
+}
+/* Armed (script running, less motion not asked): a section not yet seen has its name below its line until it scrolls in. */
+[data-body='ink'][data-armed] .ik-band:not([data-in]) .ik-title span {
+  transform: translateY(105%);
+}
+[data-body='ink'][data-armed] .ik-band[data-in] .ik-title span {
+  transition: transform 520ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 
-/* The dishes: three across on a phone, paper-white cards. */
+/* The dishes: two across on a phone. */
 [data-body='ink'] .ik-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.5rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
   margin: 0;
-  padding: 0 0.5rem;
+  padding: 0;
   list-style: none;
 }
 [data-body='ink'] .ik-card {
-  --sale-bg: var(--ik-on-paper);
-  --sale-ink: var(--ik-paper);
-  --tpl-ring-radius: 0.875rem;
+  --tpl-ring-radius: 1rem;
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr auto;
+  grid-template-rows: auto auto 1fr;
   box-sizing: border-box;
   min-inline-size: 0;
-  padding: 0.25rem;
+  overflow: hidden;
+  border-block-start: 4px solid var(--band);
   border-radius: 1rem;
-  background: var(--ik-paper);
-  color: var(--ik-on-paper);
-  box-shadow: 0 3px 0 color-mix(in srgb, #000 28%, transparent);
+  background: var(--raised);
+  color: var(--text);
 }
 [data-body='ink'] .ik-head-photo {
   display: contents;
 }
 [data-body='ink'] .ik-photo {
   position: relative;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
-  border-radius: 0.75rem;
-  background: color-mix(in srgb, var(--ik-on-paper) 10%, var(--ik-paper));
-}
-/*
- * A dish with no picture: the shared plate (`tpl-plate`, painted on the empty media span), in the paper card's own
- * colours whatever the menu's palette, so it is a grey plate on white rather than a dark hole.
- */
-[data-body='ink'] .ik-photo > :first-child:empty {
-  --text: var(--ik-on-paper);
-  --bg: var(--ik-paper);
+  background: color-mix(in srgb, var(--text) 10%, var(--raised));
 }
 [data-body='ink'] .ik-off {
   position: absolute;
   z-index: 2;
-  inset-block-start: 0.25rem;
-  inset-inline-start: 0.25rem;
-}
-/* The add: the band's colour with its own text colour, on the photo's end corner, above the card's tap area. */
-[data-body='ink'] .ik-add {
-  --rim-add-size: 2.5rem;
-  --rim-add-bg: var(--band);
-  --rim-add-ink: var(--band-ink);
-  position: absolute;
-  z-index: 3;
-  inset-block-end: 0.25rem;
-  inset-inline-end: 0.25rem;
-  border: 2px solid var(--ik-paper);
-  box-shadow: 0 2px 0 color-mix(in srgb, #000 40%, transparent);
-}
-[data-body='ink'] .ik-add svg {
-  inline-size: 1.25rem;
-  block-size: 1.25rem;
-}
-/* The add's ring is drawn inside it (the photo clips). */
-[data-body='ink'] .ik-add:focus-visible {
-  outline: 2px solid var(--band-ink);
-  outline-offset: -5px;
-}
-/* The card's ring sits just inside its edge (the white margin), in near-black. */
-[data-body='ink'] .ik-card .tpl-open:focus-visible::after {
-  outline: 2px solid var(--ik-on-paper);
-  outline-offset: -2px;
+  inset-block-start: 0.375rem;
+  inset-inline-start: 0.375rem;
 }
 
+/* The name, then the price in the ink beside the round add (the card is the add's positioned ancestor). */
 [data-body='ink'] .ik-name {
-  padding: 0.25rem 0.25rem 0;
-  color: var(--ik-on-paper);
-  font-size: 0.8125rem;
+  margin: 0.4375rem 0.5rem 0;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.9063rem;
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.25;
   text-align: start;
 }
 [data-body='ink'] .ik-price {
   display: block;
   min-inline-size: 0;
   max-inline-size: 100%;
-  padding: 0 0.25rem 0.25rem;
-  color: var(--ik-on-paper);
-  font-size: 0.875rem;
-  font-weight: 800;
-  line-height: 1.25;
+  min-block-size: 1.875rem;
+  margin: 0.125rem 0.5rem 0.5rem;
+  padding-inline: 0 2.5rem;
+  color: var(--band);
+  font-size: 0.9063rem;
+  font-weight: 700;
+  line-height: 1.3;
   overflow-wrap: anywhere;
   pointer-events: none;
 }
+/* The add: the ink with its own text colour, at the price row's end, above the card's tap area. */
+[data-body='ink'] .ik-card .ik-add {
+  --rim-add-bg: var(--band);
+  --rim-add-ink: var(--band-ink);
+  z-index: 3;
+  inset-block-end: 0.5rem;
+  inset-inline-end: 0.5rem;
+}
+[data-body='ink'] .ik-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+/* The add's ring is drawn inside it. */
+[data-body='ink'] .ik-add:focus-visible {
+  outline: 2px solid var(--band-ink);
+  outline-offset: -4px;
+}
+/* The card's ring sits just inside its edge. */
+[data-body='ink'] .ik-card .tpl-open:focus-visible::after {
+  outline: 2px solid var(--text);
+  outline-offset: -3px;
+}
 
+/* No transform on the card: it would trap the add under the tap area. Feedback is the top edge. */
 @media (hover: hover) {
   [data-body='ink'] .ik-card:hover {
-    box-shadow: 0 3px 0 var(--band);
-  }
-  /* A ring in the chip's own text colour: the fill is not changed, so the text keeps its computed contrast. */
-  [data-body='ink'] .ik-chip:hover:not([aria-current='true']) {
-    box-shadow: inset 0 0 0 2px currentColor;
+    box-shadow: inset 0 0 0 2px var(--band);
   }
 }
 [data-body='ink'] .ik-card:active {
-  box-shadow: 0 1px 0 color-mix(in srgb, #000 28%, transparent);
+  box-shadow: inset 0 0 0 2px var(--band);
 }
 
-/* A wider screen: three, then four columns in a centred column, a bigger name. */
+/* A wider screen: four, then five columns in a centred column, a bigger name. */
 @media (min-width: 640px) {
   [data-body='ink'] .ik-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
-    padding-inline: 1rem;
   }
-  [data-body='ink'] .ik-title span {
+  [data-body='ink'] .ik-title {
     font-size: 3.5rem;
   }
 }
@@ -267,12 +198,14 @@
   }
 }
 
-/* Less motion: no flood, every band is simply there. */
+/* Less motion: the names are simply there; the pill does not fade. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='ink'] .ik-band[data-in] .ik-flood {
+  [data-body='ink'][data-armed] .ik-band:not([data-in]) .ik-title span,
+  [data-body='ink'][data-armed] .ik-band[data-in] .ik-title span {
+    transform: none;
     transition: none;
   }
-  [data-body='ink'][data-armed] .ik-band:not([data-in]) .ik-flood {
-    clip-path: circle(150% at var(--fx, var(--fx-start)) 0%);
+  [data-body='ink'] .ik-chip {
+    transition: none;
   }
 }

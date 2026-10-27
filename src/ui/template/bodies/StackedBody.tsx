@@ -1,105 +1,94 @@
 'use client';
 
-import { Fragment, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { hueAt, SHAPE_HUES } from './shared/hue';
-import { RowDish } from './shared/RowDish';
-import { SectionStrip } from './shared/SectionStrip';
-import { tabsStack } from './stacked-tabs';
+import { SaleChip } from '../parts';
+import { IconDish } from './shared/IconDish';
+import { useKeepInView } from './shared/useKeepInView';
+import { usePlaceOf } from './shared/usePlaceOf';
+import { stackHue } from './stacked-sheets';
+import { useSheetStack } from './useSheetStack';
 import './shared/shapes.css';
 import './stacked.css';
 
 /**
- * Stacked Sheets (spec 2026-10-26-menu-styles-in-templates-design.md). Every section is a sheet of coloured paper (a hue
- * of its own, rounded top corners) laid over the one before it, with a tab at its top edge (the name and the dish count)
- * and a compact row per dish (photo, name, price, add). The tabs are `position: sticky` (pure CSS, no scripting): the
- * tabs of the sheets above the one in view stack at the top of the screen and the tabs of the sheets below dock at the
- * bottom, so the next sheet is seen sliding over the last and every section is one tap away. A menu with more than
- * `STACK_MAX` sections would lose too much screen to that, so its tabs are a rail instead (one sticky scrollable strip)
- * and each sheet keeps just its own tab pinned under it. The mode follows the menu's whole list of sections, never a
- * search. All sheets are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
+ * Stacked Sheets (the motion-stk mockup, spec 2026-10-26-menu-styles-in-templates-design.md). A dark page with a sticky strip
+ * of pills (the lit one white), and every section a sheet of coloured paper (a pastel of a hue of its own, rounded top
+ * corners) holding its name, its dish count and its dishes as cards two across: a square photo, the name, the price
+ * and a round add. The sheets are `position: sticky`: scrolling, the next sheet slides over the one in view, which
+ * shrinks a little and darkens as it is covered (`useSheetStack`: transform and opacity only, nothing when the guest
+ * prefers less motion). A sheet taller than the screen scrolls until its end shows before the next covers it. All sheets are on
+ * the page; the strip (and the template's own jump) takes the page to a sheet's place in the flow, so a sheet that is
+ * stuck above can be reached again.
  */
 export function StackedBody() {
   const { t, locale, tenant } = useApp();
-  const { view, categories, byCategory, activeId, jumpTo } = useTemplate();
+  const { categories, byCategory, reduced, setCategoryOpener, jumpTo } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-  const stack = tabsStack(view.categories.length);
-  // The sheet in view; the first before the page is scrolled and while a search hides the one that was lit.
-  const lit = categories.some((category) => category.id === activeId) ? activeId : categories[0]?.id;
+  const root = useRef<HTMLDivElement>(null);
+  const strip = useRef<HTMLUListElement>(null);
+  const placeOf = usePlaceOf();
+  const [read, setRead] = useState<string | null>(null);
+  // The sheet being read; the first before the page is scrolled and while a search hides the one that was lit.
+  const lit = categories.some((category) => category.id === read) ? read : categories[0]?.id;
+  const jump = useSheetStack(root, reduced, setRead);
+  useKeepInView(strip, lit ?? null, 'x', reduced);
+  useEffect(() => {
+    setCategoryOpener(jump);
+    return () => setCategoryOpener(null);
+  }, [setCategoryOpener, jump]);
   // A sheet's hue follows its place in the whole menu, so a search does not recolour the sheets.
-  const hueOf = (id: string) => hueAt(SHAPE_HUES, Math.max(0, view.categories.findIndex((category) => category.id === id)));
+  const hueOf = (category: { id: string }) => ({ '--h': stackHue(placeOf(category)) }) as CSSProperties;
 
   return (
-    <div className="tpl-body" data-body="stacked" data-tabs={stack ? 'stack' : 'rail'}>
-      {stack ? null : (
-        <SectionStrip marker="rail" prefix="sk" className="sk-rail" chip="sk-chip" chipStyle={(category) => ({ '--h': hueOf(category.id) }) as CSSProperties}>
-          {(category, index) => (
-            <>
-              <small aria-hidden>{n(index + 1)}</small>
-              <span>{category.name}</span>
-            </>
-          )}
-        </SectionStrip>
-      )}
-      {stack ? (
-        // The tabs are spread through the sheets, so a screen reader also gets them as one list of sections to jump
-        // through (out of the tab order: the visible tabs are the keyboard's).
-        <nav aria-label={t('menu.categories')} className="sr-only">
-          <ol>
-            {categories.map((category) => (
-              <li key={category.id}>
-                <a
-                  href={`#cat-${category.slug}`}
-                  tabIndex={-1}
-                  onClick={(event) => {
-                    event.preventDefault();
-                    jumpTo(category.id);
-                  }}
-                >
-                  {category.name}
-                </a>
-              </li>
-            ))}
-          </ol>
-        </nav>
-      ) : null}
+    <div ref={root} className="tpl-body" data-body="stacked">
+      <nav aria-label={t('menu.categories')} data-chips className="tpl-strip-sticky sk-bar">
+        <ul ref={strip} className="scroll-hidden tpl-strip-list sk-strip-list">
+          {categories.map((category) => (
+            <li key={category.id}>
+              <button type="button" data-category={category.id} aria-current={category.id === lit ? 'true' : undefined} onClick={() => jumpTo(category.id)} className="sk-chip">
+                <span>{category.name}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      </nav>
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
-          const style = { '--h': hueOf(category.id), '--i': stack ? index : 0, '--r': stack ? categories.length - 1 - index : 0 } as CSSProperties;
-          const count = t('tpl.book.dishes', { count: products.length, n: n(products.length) });
           return (
-            <Fragment key={category.id}>
-              {stack ? (
-                <div className="sk-tab" data-tab style={style}>
-                  <button type="button" data-category={category.id} aria-current={category.id === lit ? 'true' : undefined} onClick={() => jumpTo(category.id)} className="sk-tab-button">
-                    <span className="sk-tab-name">{category.name}</span>
-                    <small aria-hidden className="sk-tab-count">
-                      {count}
-                    </small>
-                  </button>
-                </div>
-              ) : (
-                <div className="sk-tab" data-tab aria-hidden style={style}>
-                  <span className="sk-tab-button">
-                    <span className="sk-tab-name">{category.name}</span>
-                    <small className="sk-tab-count">{count}</small>
-                  </span>
-                </div>
-              )}
-              <section id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} data-sheet={category.id} style={style} className="tpl-section tpl-tall-last sk-sheet">
-                <div tabIndex={-1} data-heading className="sr-only outline-none">
-                  <h2 id={`h-${category.slug}`}>{category.name}</h2>
-                </div>
-                <ul className="sk-rows">
-                  {products.map((product, at) => (
-                    <RowDish key={product.id} product={product} prefix="sk" suffix="stacked" sizes="72px" priority={index === 0 && at < 5} description />
-                  ))}
-                </ul>
-              </section>
-            </Fragment>
+            <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} data-sheet={category.id} style={{ ...hueOf(category), '--i': index } as CSSProperties} className="tpl-section tpl-tall-last sk-sheet">
+              <div tabIndex={-1} data-heading className="sk-head outline-none">
+                <h2 id={`h-${category.slug}`} className="tpl-display sk-title">
+                  <span>{category.name}</span>
+                  <small data-count aria-hidden className="sk-count">
+                    {t('tpl.book.dishes', { count: products.length, n: n(products.length) })}
+                  </small>
+                </h2>
+              </div>
+              <ul className="sk-grid">
+                {products.map((product, at) => (
+                  <IconDish
+                    key={product.id}
+                    product={product}
+                    prefix="sk"
+                    suffix="stacked"
+                    cell="sk-card"
+                    head="sk-frame"
+                    price="sk-price"
+                    pricePlace="after"
+                    media="cover"
+                    plate
+                    inPhoto={<SaleChip product={product} className="sk-off" />}
+                    sizes="(min-width: 640px) 300px, 50vw"
+                    priority={index === 0 && at < 4}
+                    order={Math.min(index * 2 + at, 8)}
+                  />
+                ))}
+              </ul>
+            </section>
           );
         })}
       </main>

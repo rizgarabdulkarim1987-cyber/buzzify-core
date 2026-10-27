@@ -1,13 +1,13 @@
 /*
- * The Jajim and Nowruz body (a browse shape of a template menu): Kurdish woven rugs on a bright ivory page. Every section
- * is a rug: a rectangular panel in a woven frame (a repeating geometric border in CSS gradients, its colours and pattern
- * set per rug from rug-weave.ts), its title woven into the top border as an ivory cartouche, and a solid light field
- * holding the dishes as lozenge medallions in an interlocking pattern: rows of two and three, each offset half a
- * medallion from the one before (rows of three and four on a wide screen). The sticky strip is a row of small rug
- * swatches. Everything is scoped under [data-body='rugs'], logical properties only (RTL mirrors). The colours are the
- * template's palette, set below as `--rg-*` (page `--bg`, ink `--text`, red `--accent`, ivory `--raised`),
- * with saffron, green and indigo as the rugs' own dyes (each with a fixed ink that reads on it); every text sits on a solid fill (the patterns are on frames and
- * pseudo-elements) that is the palette's own or a light tint of it.
+ * The Jajim and Nowruz body (a browse shape of a template menu), drawn after the themed-kurd mockup: a Kurdish evening.
+ * A header scene (a dusk sky, two ranges of mountains and the Nowruz fire between them, with a burst of sparks), a
+ * saffron kilim band, a sticky strip of red-bordered tabs, a line of dancers holding hands, a thin kilim band, then each
+ * section as a red display title over its dishes as framed cards, two across: a jajim-striped border (red, saffron,
+ * green, indigo), the photo, the name, the green add and the price, a red fringe under the card. Everything is scoped
+ * under [data-body='rugs'], logical properties only (RTL mirrors). The colours are the template's palette, set below as
+ * `--rg-*` (page `--bg`, ink `--text`, red `--accent`, card ivory `--raised`), so the default palette is the mockup's
+ * cream, brown ink and red; saffron, green and indigo are the rugs' own dyes (each with a fixed ink that reads on it)
+ * and the dusk sky of the scene is its own picture. Every text sits on a solid fill.
  */
 [data-body='rugs'] {
   /* The colours, from the template's palette (saffron, green and indigo are the rugs' own dyes, with a fixed ink that reads on each). */
@@ -15,19 +15,19 @@
   --rg-plate: var(--raised);
   --rg-plate-ink: var(--text);
   --rg-red: var(--accent);
+  --rg-red-ink: var(--on-accent);
   --rg-green: #2f7d4a;
   --rg-green-ink: #ffffff;
   --rg-price-ink: color-mix(in srgb, var(--accent-ink) 80%, var(--text));
   --rg-saffron: #e9a51b;
   --rg-saffron-ink: #2a1810;
   --rg-indigo: #23306b;
-  --rg-strip-backing: color-mix(in srgb, var(--bg) 78%, var(--rg-saffron));
+  --rg-strip-backing: color-mix(in srgb, var(--bg) 95%, transparent);
   --rg-ring: var(--text);
-  --rg-hover: color-mix(in srgb, var(--raised) 70%, var(--rg-saffron));
-  /* The sticky strip's height (44px swatches, 6px above and under them), so a jumped-to rug lands just below it. */
+  /* The sticky strip's height (44px tabs, 6px above and under them), so a jumped-to section lands just below it. */
   --nav-room: 3.5rem;
   --column: 64rem;
-  /* The last rug only as tall as the strip needs to light it (shared/shapes.css). */
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
   /* A dish with no media: the plate's rings (shared/photo-card.css), in the shape's own ink. */
   --plate-ring: 30%;
@@ -36,414 +36,382 @@
   color: var(--rg-ink);
 }
 
-/* ------------------------------------------------------------------ the strip of swatches */
+/* ------------------------------------------------------------------ the scene: dusk, mountains, the Nowruz fire */
+
+[data-body='rugs'] .rg-scene[hidden],
+[data-body='rugs'] .rg-dance[hidden] {
+  display: none;
+}
+[data-body='rugs'] .rg-sky {
+  position: relative;
+  block-size: 6.5rem;
+  overflow: hidden;
+  background: linear-gradient(#2b1a3d, #8a3b2a 70%, #e9a51b);
+}
+[data-body='rugs'] .rg-mountains {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  inline-size: 100%;
+  block-size: 4rem;
+}
+/* The fire: three teardrops pointing up, scaled to the scene; the sparks rise from its heart. */
+[data-body='rugs'] .rg-fire {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0.625rem;
+  z-index: 2;
+  inline-size: 70px;
+  block-size: 90px;
+  margin-inline: auto;
+  scale: 0.58;
+  transform-origin: 50% 100%;
+}
+[data-body='rugs'] .rg-fire i {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 50%;
+  border-radius: 0 50% 50% 50%;
+  transform: rotate(45deg);
+  animation: rg-flame 1.1s ease-in-out 3 alternate;
+}
+[data-body='rugs'] .rg-fire i:nth-child(1) {
+  inline-size: 56px;
+  block-size: 56px;
+  margin-inline-start: -28px;
+  background: radial-gradient(circle at 70% 70%, #ffdc6b, #ff7b1c 45%, #c2241b 80%);
+}
+[data-body='rugs'] .rg-fire i:nth-child(2) {
+  inline-size: 36px;
+  block-size: 36px;
+  margin-inline-start: -26px;
+  inset-block-end: 4px;
+  background: radial-gradient(circle at 70% 70%, #fff2b0, #ffb02e 70%);
+  animation-duration: 0.8s;
+  animation-delay: -0.3s;
+}
+[data-body='rugs'] .rg-fire i:nth-child(3) {
+  inline-size: 28px;
+  block-size: 28px;
+  margin-inline-start: 0;
+  inset-block-end: 6px;
+  background: radial-gradient(circle at 70% 70%, #fff2b0, #ff9a1f 70%);
+  animation-duration: 0.9s;
+  animation-delay: -0.6s;
+}
+[data-body='rugs'] .rg-fire i.rg-spark {
+  inset-block-end: 70px;
+  inset-inline-start: 50%;
+  inline-size: 4px;
+  block-size: 4px;
+  margin-inline-start: 0;
+  border-radius: 50%;
+  background: #ffd36b;
+  transform: none;
+  opacity: 0;
+  animation: rg-spark 2.4s ease-out 2;
+}
+
+/* The kilim band: the mockup's zigzag, saffron ground with red and green teeth. */
+[data-body='rugs'] .rg-kilim {
+  display: block;
+  block-size: 1.375rem;
+  background:
+    linear-gradient(135deg, var(--rg-red) 25%, transparent 25%) -11px 0 / 22px 22px,
+    linear-gradient(225deg, var(--rg-red) 25%, transparent 25%) -11px 0 / 22px 22px,
+    linear-gradient(315deg, var(--rg-green) 25%, transparent 25%) 0 0 / 22px 22px,
+    linear-gradient(45deg, var(--rg-green) 25%, transparent 25%) 0 0 / 22px 22px,
+    var(--rg-saffron);
+}
+[data-body='rugs'] .rg-kilim-thin {
+  block-size: 0.75rem;
+  background-size: 12px 12px;
+}
+
+/* ------------------------------------------------------------------ the strip of tabs */
 
 [data-body='rugs'] .rg-strip {
   background: var(--rg-strip-backing);
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 35%, transparent);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 20%, transparent);
 }
-/* The list scrolls sideways, so it clips: a swatch's ring is drawn outside it, in the padding the list keeps for it. */
+/* The list scrolls sideways, so it clips: a tab's ring is drawn inside it. */
 [data-body='rugs'] .rg-strip-list {
   gap: 0.5rem;
   padding: 0.375rem 0.75rem;
 }
-/* A swatch: a tiny rug, its own frame pattern around a label plate. */
-[data-body='rugs'] .rg-swatch {
-  display: block;
+[data-body='rugs'] .rg-tab {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
   min-block-size: 2.75rem;
   max-inline-size: 12rem;
-  padding: 0.375rem;
-  border-radius: 0.125rem;
-  background: var(--rg-frame);
-  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 35%, transparent);
-}
-[data-body='rugs'] .rg-swatch-label {
-  display: block;
-  box-sizing: border-box;
-  min-block-size: 2rem;
-  padding: 0.3125rem 0.625rem;
-  background: var(--rg-plate);
-  color: var(--rg-plate-ink);
+  padding-inline: 0.75rem;
+  border: 2px solid var(--rg-red);
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--rg-price-ink);
   font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1.3;
+  font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
+  transition:
+    background-color 200ms,
+    color 200ms;
+}
+[data-body='rugs'] .rg-tab-label {
+  min-inline-size: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  transition: background-color 200ms, color 200ms;
 }
-[data-body='rugs'] .rg-swatch[aria-current='true'] .rg-swatch-label {
-  background: var(--rg-saffron);
-  color: var(--rg-saffron-ink);
+[data-body='rugs'] .rg-tab[aria-current='true'] {
+  background: var(--rg-red);
+  color: var(--rg-red-ink);
 }
 [data-body='rugs'] .rg-strip-list button:focus-visible {
   outline: 2px solid var(--rg-ring);
-  outline-offset: 2px;
+  outline-offset: -4px;
+}
+[data-body='rugs'] .rg-tab[aria-current='true']:focus-visible {
+  outline-color: var(--rg-red-ink);
 }
 
-/* ------------------------------------------------------------------ a rug */
+/* ------------------------------------------------------------------ the halparke: dancers holding hands */
+
+[data-body='rugs'] .rg-dance {
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  block-size: 2.75rem;
+  padding-block-start: 0.1875rem;
+  overflow: hidden;
+  color: var(--rg-saffron-ink);
+}
+[data-body='rugs'] .rg-dancer {
+  flex: none;
+  inline-size: 1.625rem;
+  block-size: 2.4375rem;
+  color: var(--rg-ink);
+  animation: rg-dabke 1.2s ease-in-out 3;
+}
+
+/* ------------------------------------------------------------------ a section and its cards */
 
 [data-body='rugs'] .rg-section {
-  padding: 0.375rem 0.5rem 0.125rem;
+  padding: 0.5rem 0.75rem 1rem;
 }
-
-/*
- * The cartouche woven into the top border: the focusable wrapper is the rim (a solid, hexagon-clipped), the heading the
- * ivory plate inside it. It is moved down half its own height, so it straddles the frame whatever its height, and the
- * room it leaves above itself is taken back (about half of a one-line cartouche), so rugs follow each other closely.
- */
 [data-body='rugs'] .rg-front[data-heading] {
-  position: relative;
-  z-index: 2;
-  box-sizing: border-box;
-  inline-size: fit-content;
-  max-inline-size: 86%;
-  margin-block-start: -1.0625rem;
-  margin-inline: auto;
-  padding: 3px;
-  background: var(--rg-red);
-  clip-path: polygon(0.875rem 0, calc(100% - 0.875rem) 0, 100% 50%, calc(100% - 0.875rem) 100%, 0.875rem 100%, 0 50%);
-  translate: 0 50%;
+  display: block;
+  padding-inline: 0;
 }
 [data-body='rugs'] .rg-title {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  min-block-size: 2rem;
-  margin: 0;
-  padding: 0.125rem 1.5rem;
-  background: var(--rg-plate);
-  color: var(--rg-ink);
-  clip-path: polygon(0.75rem 0, calc(100% - 0.75rem) 0, 100% 50%, calc(100% - 0.75rem) 100%, 0.75rem 100%, 0 50%);
-  font-size: 1.125rem;
-  font-weight: 800;
-  line-height: 1.15;
+  margin: 0 0 0.5rem;
+  color: var(--rg-price-ink);
+  font-size: 1.625rem;
+  font-weight: 700;
+  line-height: 1.2;
   text-align: center;
 }
 [data-body='rugs'] .rg-title span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
   min-inline-size: 0;
-  overflow: hidden;
   overflow-wrap: anywhere;
 }
-/* The rug's number: a saffron disc. */
-[data-body='rugs'] .rg-title small {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background: var(--rg-saffron);
-  color: var(--rg-saffron-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
-}
-/* The dish count: a green pill. */
+/* The dish count is read by shapes of other kinds; here the title stands alone, as in the mockup. */
 [data-body='rugs'] .rg-title b {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background: var(--rg-green);
-  color: var(--rg-green-ink);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1;
-}
-/*
- * The Nowruz flame: a tiny static one by the title of the rug in view (CSS only, nothing moves): a teardrop turned to
- * point up, orange at its foot and yellow in its heart.
- */
-[data-body='rugs'] .rg-section[data-lit] .rg-title::before {
-  content: '';
-  flex: none;
-  inline-size: 0.6875rem;
-  block-size: 0.6875rem;
-  margin-inline-end: 0.125rem;
-  border-radius: 0 50% 50% 50%;
-  background: radial-gradient(circle at 70% 70%, rgb(255 226 122) 0 25%, rgb(255 138 31) 55%, rgb(194 36 27));
-  rotate: -45deg;
-  translate: 0 -0.0625rem;
+  display: none;
 }
 
-/* The frame: the rug's woven border, then the field. */
-[data-body='rugs'] .rg-rug {
-  box-sizing: border-box;
-  padding: 0.4375rem;
-  background: var(--rg-frame);
-  box-shadow:
-    0 0 0 2px var(--rg-ink),
-    0 0.375rem 0.625rem color-mix(in srgb, var(--text) 28%, transparent);
-}
-/* The field: a solid tint (the dishes' ground), a faint lattice over it on a pseudo-element, a thin inner border. */
-[data-body='rugs'] .rg-field {
-  position: relative;
-  padding: 1.0625rem 0.25rem 0.125rem;
-  background-color: var(--rg-field);
-  box-shadow: inset 0 0 0 2px var(--rg-ink);
-}
-[data-body='rugs'] .rg-field::before {
-  content: '';
-  position: absolute;
-  inset: 0.25rem;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 12px),
-    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 12px);
-}
-/* The thin fringe line between rugs: short red threads. */
-[data-body='rugs'] .rg-fringe {
-  display: block;
-  block-size: 0.375rem;
-  margin: 0.125rem 0.625rem 0;
-  border-radius: 0 0 0.25rem 0.25rem;
-  background: repeating-linear-gradient(90deg, var(--rg-red) 0 2px, transparent 2px 6px);
-}
-
-/* ------------------------------------------------------------------ the medallions */
-
-/*
- * The interlocking pattern: six tracks, each medallion two wide, in bands of five. A band is a row of two (tracks 2-5,
- * half a medallion in from each side) whose names and prices sit ABOVE their lozenges, and under it a row of three
- * (tracks 1-7) whose names and prices sit BELOW theirs, lifted by half a lozenge so its lozenges nest between the ones
- * above: the two rows interlock like a jajim's own lozenge field, and the offset shows from the first row. A wide
- * screen makes the bands three and four (eight tracks). The grid is a size container, so the lift is half a lozenge's
- * height whatever the width. Logical, so Arabic mirrors it.
- */
 [data-body='rugs'] .rg-grid {
-  --rg-aspect: 0.55;
-  --rg-cells: 3;
-  container-type: inline-size;
-  position: relative;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 0.125rem 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.25rem 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-[data-body='rugs'] .rg-medallion:nth-child(5n + 1) {
-  grid-column: 2 / 4;
-}
-[data-body='rugs'] .rg-medallion:nth-child(5n + 2) {
-  grid-column: 4 / 6;
-}
-[data-body='rugs'] .rg-medallion:nth-child(5n + 3) {
-  grid-column: 1 / 3;
-}
-[data-body='rugs'] .rg-medallion:nth-child(5n + 4) {
-  grid-column: 3 / 5;
-}
-[data-body='rugs'] .rg-medallion:nth-child(5n) {
-  grid-column: 5 / 7;
-}
 /*
- * A short lower row stays centred under the row above and still nests: one alone lies under the point where the two
- * above meet, two lie at the rug's two edges (on a phone only; the wide bands have their own rules below).
+ * The card: the jajim stripe as its border (a repeating gradient painted in the padding box and kept in a 3px frame),
+ * the ivory field inside it. The card is the positioned ancestor of the name's tap area, so the whole card opens the
+ * dish. The red fringe hangs under it.
  */
-@media (max-width: 639.98px) {
-  [data-body='rugs'] .rg-medallion:nth-child(5n + 3):last-child {
-    grid-column: 3 / 5;
-  }
-  [data-body='rugs'] .rg-medallion:nth-child(5n + 4):last-child {
-    grid-column: 5 / 7;
-  }
-}
-/*
- * A medallion: the lozenge (with the add and the discount in its free corners), the price, the name. The cell is the
- * positioned ancestor of the name's tap area, so the whole medallion opens the dish; it is a size container too, so the
- * lower row's tap area can leave out the corners its upper neighbours' lozenges reach into.
- */
-[data-body='rugs'] .rg-medallion {
-  container-type: inline-size;
+[data-body='rugs'] .rg-card {
   position: relative;
-  z-index: 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0.0625rem;
+  gap: 0.25rem;
+  box-sizing: border-box;
   min-inline-size: 0;
-  padding-inline: 0.0625rem;
+  padding: 0.375rem;
+  border: 3px solid transparent;
+  border-image: repeating-linear-gradient(45deg, var(--rg-red) 0 6px, var(--rg-saffron) 6px 12px, var(--rg-green) 12px 18px, var(--rg-indigo) 18px 24px) 6;
+  background: var(--rg-plate);
   color: var(--rg-ink);
 }
-/*
- * The lower row (the default): the words under the lozenge, the row lifted by half a lozenge so its lozenges nest between
- * the upper row's, its tap area leaving out the top corners where those reach in, the add and the discount on the
- * lozenge's foot corners.
- */
-[data-body='rugs'] .rg-medallion {
-  --rg-dir: column;
-  --rg-lift: calc(var(--rg-aspect) * -50cqi / var(--rg-cells) + 0.25rem);
-  --rg-clip: polygon(50% 0, 100% calc(var(--rg-aspect) * 50cqi), 100% 100%, 0 100%, 0 calc(var(--rg-aspect) * 50cqi));
-  --rg-top: auto;
-  --rg-foot: -0.25rem;
-  flex-direction: var(--rg-dir);
-  justify-content: flex-start;
-  margin-block-start: var(--rg-lift);
-}
-/* The upper row: the words above the lozenge (the lozenges level along the row's foot), the add and the discount on top. */
-[data-body='rugs'] .rg-medallion:is(:nth-child(5n + 1), :nth-child(5n + 2)) {
-  --rg-dir: column-reverse;
-  --rg-lift: 0px;
-  --rg-clip: none;
-  --rg-top: -0.25rem;
-  --rg-foot: auto;
-}
-/* The lozenge's box: the add and the discount sit in its free corners (the diamond is clipped inside it). */
-[data-body='rugs'] .rg-tile {
-  position: relative;
-  inline-size: 100%;
-}
-/*
- * Taps: a cell takes none of its own; only the name (whose tap area covers the cell, less a lower cell's top corners)
- * and the add do. So where a lower cell's box reaches over an upper lozenge's foot, the tap falls through to the upper
- * dish.
- */
-[data-body='rugs'] .rg-medallion {
+[data-body='rugs'] .rg-card::after {
+  content: '';
+  position: absolute;
+  inset-inline: 12%;
+  inset-block-end: -0.875rem;
+  block-size: 0.5rem;
   pointer-events: none;
-}
-[data-body='rugs'] :is(.rg-name, .rg-add) {
-  pointer-events: auto;
-}
-/* The lozenge: a wide diamond in a woven rim (the rim's stripes), the photo inside it in a smaller diamond. */
-[data-body='rugs'] .rg-lozenge {
-  position: relative;
-  inline-size: 100%;
-  aspect-ratio: 1 / var(--rg-aspect);
-  background: repeating-linear-gradient(45deg, var(--rg-red) 0 0.25rem, var(--rg-saffron) 0.25rem 0.5rem, var(--rg-indigo) 0.5rem 0.75rem);
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+  background: repeating-linear-gradient(90deg, var(--rg-red) 0 3px, transparent 3px 8px);
 }
 [data-body='rugs'] .rg-photo {
-  position: absolute;
-  inset: 0.3125rem 0.5rem;
+  position: relative;
+  aspect-ratio: 4 / 3;
   overflow: hidden;
   background: var(--rg-plate);
-  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
 }
-/*
- * The discount in the lozenge box's start corner, the add in its end corner: the top corners in the upper row, the foot
- * corners in the lower row (its top corners hold the upper lozenges).
- */
 [data-body='rugs'] .rg-off {
+  inline-size: auto;
+  block-size: auto;
+  --photo-off-at: 0.25rem;
   --sale-bg: var(--rg-saffron);
   --sale-ink: var(--rg-saffron-ink);
-  position: absolute;
-  z-index: 2;
-  inset-block-start: var(--rg-top);
-  inset-block-end: var(--rg-foot);
-  inset-inline-start: 0;
-  max-inline-size: 45%;
-  font-size: 0.75rem;
+}
+[data-body='rugs'] .rg-name {
+  margin-block-start: 0.125rem;
+  color: var(--rg-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+[data-body='rugs'] .tpl-open.rg-name:focus-visible::after {
+  --tpl-ring-radius: 0;
+  outline: 2px solid var(--rg-ring);
+  outline-offset: -3px;
+  border-radius: 0;
+}
+[data-body='rugs'] .rg-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
+[data-body='rugs'] .rg-price {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--rg-price-ink);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 [data-body='rugs'] .rg-add {
-  --rim-add-size: 2.5rem;
-  --rim-add-bg: var(--rg-green);
-  --rim-add-ink: var(--rg-green-ink);
-  z-index: 2;
-  inset-block-start: var(--rg-top);
-  inset-block-end: var(--rg-foot);
-  inset-inline-end: -0.0625rem;
-  border: 2px solid var(--rg-plate);
-  box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 45%, transparent);
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--rg-green);
+  color: var(--rg-green-ink);
 }
 [data-body='rugs'] .rg-add:focus-visible {
   outline: 2px solid var(--rg-ring);
   outline-offset: 1px;
 }
-/* The price: bold red on the field, wrapping rather than overflowing (a long "From ..." price takes two lines). */
-[data-body='rugs'] .rg-price {
-  max-inline-size: 100%;
-  overflow-wrap: anywhere;
-  color: var(--rg-price-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1.2;
-  text-align: center;
-}
-[data-body='rugs'] .rg-name {
-  color: var(--rg-ink);
-  text-align: center;
-}
-/*
- * The lower row's tap area leaves out its top corners, where the upper row's lozenges reach in: a house shape, the
- * diamond's top half and everything under it. With the keyboard ring showing, it is the whole cell again.
- */
-[data-body='rugs'] .tpl-open.rg-name:not(:focus-visible)::after {
-  clip-path: var(--rg-clip);
-}
-/* The whole medallion's ring is drawn inside the cell, in dark ink: it stands out from the field. */
-[data-body='rugs'] .tpl-open.rg-name:focus-visible::after {
-  --tpl-ring-radius: 0.25rem;
-  outline: 2px solid var(--rg-ring);
-  outline-offset: -3px;
-  border-radius: 0.25rem;
+[data-body='rugs'] .rg-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 @media (hover: hover) {
-  [data-body='rugs'] .rg-swatch:not([aria-current='true']):hover .rg-swatch-label {
-    background: var(--rg-hover);
+  [data-body='rugs'] .rg-tab:not([aria-current='true']):hover {
+    background: color-mix(in srgb, var(--rg-red) 14%, var(--bg));
   }
-  [data-body='rugs'] .rg-medallion:hover .rg-lozenge {
-    filter: saturate(1.2);
+  [data-body='rugs'] .rg-card:hover {
+    filter: saturate(1.15);
   }
 }
 
-/* A wide screen: bands of three and four (eight tracks), in a centred column. */
+/* A wide screen: more cards across, the scene and the dance centred over a column. */
 @media (min-width: 640px) {
-  [data-body='rugs'] .rg-grid {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+  [data-body='rugs'] .rg-sky {
+    block-size: 11rem;
+  }
+  [data-body='rugs'] .rg-mountains {
+    block-size: 7rem;
+  }
+  [data-body='rugs'] .rg-fire {
+    scale: 1;
   }
   [data-body='rugs'] .rg-grid {
-    --rg-cells: 4;
-  }
-  [data-body='rugs'] .rg-medallion:nth-child(n) {
-    grid-column: auto / span 2;
-    --rg-dir: column;
-    --rg-lift: calc(var(--rg-aspect) * -50cqi / var(--rg-cells) + 0.25rem);
-    --rg-clip: polygon(50% 0, 100% calc(var(--rg-aspect) * 50cqi), 100% 100%, 0 100%, 0 calc(var(--rg-aspect) * 50cqi));
-    --rg-top: auto;
-    --rg-foot: -0.25rem;
-  }
-  [data-body='rugs'] .rg-medallion:is(:nth-child(7n + 1), :nth-child(7n + 2), :nth-child(7n + 3)) {
-    --rg-dir: column-reverse;
-    --rg-lift: 0px;
-    --rg-clip: none;
-    --rg-top: -0.25rem;
-    --rg-foot: auto;
-  }
-  [data-body='rugs'] .rg-medallion:nth-child(7n + 1) {
-    grid-column: 2 / 4;
-  }
-  [data-body='rugs'] .rg-medallion:nth-child(7n + 4) {
-    grid-column: 1 / 3;
-  }
-  /* A short lower band nests next to the centre: one beside the middle lozenge, two either side of it. */
-  [data-body='rugs'] .rg-medallion:nth-child(7n + 4):is(:last-child, :nth-last-child(2)) {
-    grid-column: 3 / 5;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem 1rem;
   }
   [data-body='rugs'] .rg-title {
-    font-size: 1.5rem;
+    font-size: 2.25rem;
   }
-  [data-body='rugs'] .rg-name {
-    font-size: 0.9375rem;
+  [data-body='rugs'] .rg-dancer {
+    inline-size: 2.125rem;
+    block-size: 3.5rem;
   }
-  [data-body='rugs'] .rg-price {
-    font-size: 0.9375rem;
+  [data-body='rugs'] .rg-dance {
+    block-size: 4rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='rugs'] .rg-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Over: the fire and the dancers stand still (RugsBody marks the body after a few seconds, so a cleared search never replays them). */
+[data-body='rugs'][data-still] :is(.rg-fire i, .rg-dancer) {
+  animation: none;
+}
+[data-body='rugs'][data-still] .rg-spark {
+  display: none;
+}
+
+@keyframes rg-flame {
+  0% {
+    transform: rotate(45deg) scale(1);
+  }
+  50% {
+    transform: rotate(40deg) scale(1.1, 1.18);
+  }
+  100% {
+    transform: rotate(50deg) scale(0.94, 1.06);
+  }
+}
+@keyframes rg-spark {
+  from {
+    transform: translate(0, 0);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--sx), -120px);
+    opacity: 0;
+  }
+}
+@keyframes rg-dabke {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  25% {
+    transform: translateY(-5px) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(0);
+  }
+  75% {
+    transform: translateY(-3px) rotate(3deg);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  [data-body='rugs'] .rg-swatch-label {
+  [data-body='rugs'] :is(.rg-fire i, .rg-dancer) {
+    animation: none;
+  }
+  [data-body='rugs'] .rg-spark {
+    display: none;
+  }
+  [data-body='rugs'] .rg-tab {
     transition: none;
   }
 }

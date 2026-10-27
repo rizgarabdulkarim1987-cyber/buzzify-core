@@ -25,7 +25,9 @@ const entry = (page: Page, categorySlug: string) => chips(page).getByRole('butto
 test('on a phone the first screen shows several panels with photos and prices, and every page is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(comic(page)).toBeVisible();
-  await expectFirstScreen(page, panels(page), { min: 3 });
+  // The demo card is demo data (the thumbnail script hides it too); the first screen is measured without it.
+  await page.addStyleTag({ content: '.tpl-promo { display: none !important; }' });
+  await expectFirstScreen(page, panels(page), { min: 4 });
   await expectEverySectionReachable(chips(page));
 });
 

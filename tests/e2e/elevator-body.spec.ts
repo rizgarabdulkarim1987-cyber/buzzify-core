@@ -21,13 +21,21 @@ const rail = (page: Page) => elevator(page).locator('[data-rail]');
 const floor = (page: Page, n: number) => rail(page).getByRole('button', { name: new RegExp(`^Floor ${n}:`) });
 const rows = (page: Page) => elevator(page).locator('[data-row]');
 
-test('on a phone the first screen shows five dishes with photos and prices, and the rail', async ({ page }) => {
+test('on a phone the first screen shows four dishes with photos and prices, and the rail', async ({ page }) => {
   await openMenu(page, slug);
   await expect(elevator(page)).toBeVisible();
-  await expectFirstScreen(page, rows(page), { min: 5 });
+  await expectFirstScreen(page, rows(page), { min: 4 });
   await expect(floor(page, 1)).toBeInViewport({ ratio: 1 });
   await expect(floor(page, 2)).toBeInViewport({ ratio: 1 });
   for (const category of BODY_CATEGORIES) await expect(rail(page).getByRole('button', { name: new RegExp(category.name.en!) }), category.slug).toBeVisible();
+});
+
+test('a dish has a big photo (76px), the name over the price, and a solid add button', async ({ page }) => {
+  await openMenu(page, slug);
+  const photo = (await rows(page).first().locator('[data-photo]').boundingBox())!;
+  expect(photo.width).toBeGreaterThanOrEqual(75);
+  expect(Math.abs(photo.width - photo.height)).toBeLessThan(1);
+  await expect(rows(page).first().locator('.el-add')).toHaveCSS('background-color', /rgb\(/);
 });
 
 test('the rail sits at the inline end and every floor button is a 44px target', async ({ page }) => {
