@@ -11,7 +11,7 @@ export function normalizeScan(raw: string): string {
 }
 
 /**
- * GS1 check digit for EAN-8, EAN-13 and UPC-A (chosen by length). Any other length, or text with non-digits, is an
+ * GS1 check digit (expects `normalizeScan`'d input) for EAN-8, EAN-13 and UPC-A (chosen by length). Any other length, or text with non-digits, is an
  * internal code: legal, so 'not-applicable' rather than invalid.
  */
 export function checkDigitStatus(code: string): 'valid' | 'invalid' | 'not-applicable' {

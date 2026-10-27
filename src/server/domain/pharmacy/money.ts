@@ -8,6 +8,7 @@ import type { Currency } from '@/server/domain/billing/money';
 import { minorUnitDigits } from '@/server/domain/billing/money';
 import { formatMoney } from '@/server/domain/money';
 import type { Locale } from '@/server/domain/types';
+import { normalizeScan } from './barcode';
 
 export type { Currency };
 export type PhMoney = { amount: bigint; currency: Currency };
@@ -26,30 +27,21 @@ export class CurrencyNotEnabledError extends Error {
   }
 }
 
-/** Arabic-Indic (U+0660..) and Extended Arabic-Indic (U+06F0..) digits to Latin, by code point. */
-function toLatinDigits(text: string): string {
-  return text.replace(/[٠-٩۰-۹]/g, (ch) => {
-    const code = ch.charCodeAt(0);
-    return String(code >= 0x06f0 ? code - 0x06f0 : code - 0x0660);
-  });
-}
-
 /**
- * An amount as a person types it. Digits in Latin or Arabic-Indic; thousands separators `,` `٬` and spaces; a decimal
- * `.` or `٫` only where the currency has minor digits. Null for anything else: empty, negative, signs, scientific
- * notation, more decimals than the currency has.
+ * An amount as a person types it. Digits in Latin or Arabic-Indic; a decimal `.` or `٫` only where the currency has
+ * minor digits; thousands separators `,` `٬` or a space only as proper grouping in the integer part (one to three
+ * digits, then groups of exactly three), so "12,50" is refused rather than read as 1250. Null for anything else:
+ * empty, negative, signs, scientific notation, more decimals than the currency has.
  */
 export function parseMoney(text: string, currency: Currency): PhMoney | null {
   const digits = minorUnitDigits(currency);
-  const cleaned = toLatinDigits(text.trim())
-    .replace(/[,٬\s  ]/g, '')
-    .replace(/٫/g, '.');
-  const match = /^(\d+)(?:\.(\d*))?$/.exec(cleaned);
-  if (!match) return null;
-  const whole = match[1]!;
-  const fraction = match[2];
+  const parts = normalizeScan(text).split(/[.٫]/);
+  if (parts.length > 2) return null;
+  const [integerPart = '', fraction] = parts;
+  if (!/^(?:\d+|\d{1,3}(?:[,٬   ]\d{3})+)$/.test(integerPart)) return null;
+  const whole = integerPart.replace(/\D/g, '');
   if (fraction === undefined) return { amount: BigInt(whole) * 10n ** BigInt(digits), currency };
-  if (digits === 0 || fraction.length === 0 || fraction.length > digits) return null;
+  if (digits === 0 || !/^\d+$/.test(fraction) || fraction.length > digits) return null;
   return { amount: BigInt(whole + fraction.padEnd(digits, '0')), currency };
 }
 

@@ -45,7 +45,7 @@ export function toBaseQty(levels: UnitLevel[], level: number, qty: number): numb
   return total;
 }
 
-/** A base quantity as whole units, largest level first, the remainder carried down. Empty levels are left out. */
+/** A base quantity as whole units (the ladder must pass `validateLadder`), largest level first, the remainder carried down. Empty levels are left out. */
 export function splitQty(levels: UnitLevel[], baseQty: number): { level: number; label: string; qty: number }[] {
   assertWholeQty(baseQty);
   const parts: { level: number; label: string; qty: number }[] = [];

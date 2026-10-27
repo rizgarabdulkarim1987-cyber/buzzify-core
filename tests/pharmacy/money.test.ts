@@ -50,6 +50,24 @@ describe('pharmacy money', () => {
     expect(parseMoney('.', 'USD')).toBeNull();
   });
 
+  it('thousands separators are only proper grouping', () => {
+    expect(parseMoney('12,50', 'USD')).toBeNull();
+    expect(parseMoney('1,2,50', 'USD')).toBeNull();
+    expect(parseMoney('1,25', 'IQD')).toBeNull();
+    expect(parseMoney('1250,000', 'IQD')).toBeNull();
+    expect(parseMoney(',250', 'IQD')).toBeNull();
+    expect(parseMoney('1,250,000', 'IQD')?.amount).toBe(1250000n);
+    expect(parseMoney('1,250.50', 'USD')?.amount).toBe(125050n);
+    expect(parseMoney('١٬٢٥٠٫٥٠', 'USD')?.amount).toBe(125050n);
+    expect(parseMoney('1,250', 'IQD')?.amount).toBe(1250n);
+  });
+
+  it('zero, mixed digits and leading zeros', () => {
+    expect(parseMoney('٠', 'IQD')?.amount).toBe(0n);
+    expect(parseMoney('1٢3٤', 'IQD')?.amount).toBe(1234n);
+    expect(parseMoney('007', 'IQD')?.amount).toBe(7n);
+  });
+
   it('negative amounts are refused by parseMoney', () => {
     expect(parseMoney('-5', 'IQD')).toBeNull();
     expect(parseMoney('-0.50', 'USD')).toBeNull();
@@ -93,6 +111,10 @@ describe('pharmacy money', () => {
     expect(() => mulQty(m, 1.5)).toThrow(RangeError);
     expect(() => mulQty(m, Number.MAX_SAFE_INTEGER + 2)).toThrow(RangeError);
     expect(() => mulQty(m, Number.NaN)).toThrow(RangeError);
+  });
+
+  it('a negative quantity gives a negative amount', () => {
+    expect(mulQty({ amount: 5n, currency: 'IQD' }, -3).amount).toBe(-15n);
   });
 
   it('a USD price on a business that enabled only IQD throws CurrencyNotEnabledError', () => {
