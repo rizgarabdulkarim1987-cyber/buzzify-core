@@ -36,10 +36,16 @@ function applicationInserts(sql: string): string[] {
   return statements(sql).filter((s) => /^INSERT\s+INTO\s+"Application"/i.test(s));
 }
 
+/**
+ * Cashier migrations that touch only POS tables and must change an index and backfill (a split bill needs `PosPayment`
+ * unique per order and part instead of per order). They never touch a pharmacy table. Add a name here only for that case.
+ */
+const POS_ONLY = new Set(['20261028110000_cashier_payment_parts']);
+
 function pharmacyMigrations(): { name: string; sql: string }[] {
   if (!existsSync(MIGRATIONS)) return [];
   return readdirSync(MIGRATIONS)
-    .filter((name) => /^\d{14}_/.test(name) && name > LAST_BEFORE_PHARMACY)
+    .filter((name) => /^\d{14}_/.test(name) && name > LAST_BEFORE_PHARMACY && !POS_ONLY.has(name))
     .sort()
     .map((name) => ({ name, sql: readFileSync(join(MIGRATIONS, name, 'migration.sql'), 'utf8') }));
 }
