@@ -81,6 +81,9 @@ export const POS_TEXT = {
   'The sum of the lines is too large': 'error.text.posInvoiceTooLarge',
   'The complaint was changed by someone else. Reload it.': 'error.text.posComplaintChanged',
   'Agree to be contacted to leave a name or phone': 'error.text.posConsentRequired',
+  'Manager approval is needed': 'error.text.posApprovalNeeded',
+  'The approval PIN is wrong': 'error.text.posApprovalWrong',
+  'This manager is locked for a while': 'error.text.posApprovalLocked',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

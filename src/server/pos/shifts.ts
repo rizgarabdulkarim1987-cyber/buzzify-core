@@ -5,6 +5,7 @@ import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
+import { nextCounterIn } from './counter';
 import { refuse } from './errors';
 import { readUnsettledDeliveries } from './off-premise';
 
@@ -80,11 +81,12 @@ export async function closeShiftIn(db: AnyDb, restaurantId: string, input: { shi
   if (count === 0) throw refuse('CONFLICT', 'The shift is closed');
   const drawer = await drawerOf(db, restaurantId, shift);
   const difference = cashDifference(input.countedCash, drawer.expectedCash);
+  const zNumber = await nextCounterIn(db, restaurantId, 'z');
   await db.posShift.updateMany({
     where: { id: shift.id, restaurantId, closedAt: null },
-    data: { closedAt: new Date(), closedByUserId: input.actor.userId, countedCash: input.countedCash, expectedCashAtClose: drawer.expectedCash, difference, note: input.note },
+    data: { closedAt: new Date(), closedByUserId: input.actor.userId, countedCash: input.countedCash, expectedCashAtClose: drawer.expectedCash, difference, zNumber, note: input.note },
   });
-  return { shiftId: shift.id, expected: drawer.expectedCash, counted: input.countedCash, difference, byOther: shift.userId !== input.actor.userId };
+  return { shiftId: shift.id, expected: drawer.expectedCash, counted: input.countedCash, difference, zNumber, byOther: shift.userId !== input.actor.userId };
 }
 
 export interface ShiftSummary {
@@ -97,6 +99,8 @@ export interface ShiftSummary {
     countedCash: number | null;
     expectedCashAtClose: number | null;
     difference: number | null;
+    /** The Z report number given at close; null while open and for a shift closed before numbering. */
+    zNumber: number | null;
     note: string;
   };
   cashierName: string;
@@ -109,8 +113,8 @@ export interface ShiftSummary {
   cashRefunds: number;
   /** Everything reversed in this shift, by method (cash included). */
   refundsByMethod: Record<PosPaymentMethodKey, number>;
-  /** For an open shift what the drawer should hold now; for a closed one what was frozen at close. */
-  expectedCash: number;
+  /** What the drawer should have held, frozen at close; null while the shift is open, so the count is blind. */
+  expectedCash: number | null;
   openOrdersCount: number;
   /** Delivered orders still unpaid, restaurant-wide: the drivers hold that cash. Counted for the close-shift screen, never blocking it. */
   unsettledDeliveries: { count: number; amount: number };
@@ -135,6 +139,7 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
       countedCash: shift.countedCash,
       expectedCashAtClose: shift.expectedCashAtClose,
       difference: shift.difference,
+      zNumber: shift.zNumber,
       note: shift.note,
     },
     cashierName: shift.user.name,
@@ -145,7 +150,7 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
     expensesTotal: drawer.expensesTotal,
     cashRefunds: drawer.cashRefunds,
     refundsByMethod: drawer.refundsByMethod,
-    expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : drawer.expectedCash,
+    expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : null,
     openOrdersCount,
     unsettledDeliveries,
   };

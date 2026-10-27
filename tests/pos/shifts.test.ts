@@ -90,7 +90,8 @@ describe('expenses and the count', () => {
     await sale(shiftId, cashier, 8_750, 2);
     dataOf(await run(cashier, addPosExpense, { shiftId, amount: 5_000, reason: 'ice' }));
     const mid = dataOf(await ask(cashier, posShift, { shiftId }));
-    expect(mid).toMatchObject({ cashSales: 50_000, expensesTotal: 5_000, expectedCash: 95_000 });
+    // The count is blind: an open shift does not say what the drawer should hold.
+    expect(mid).toMatchObject({ cashSales: 50_000, expensesTotal: 5_000, expectedCash: null });
     // 95,000 expected, 93,000 counted.
     const closed = dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 93_000, note: 'short' }));
     expect(closed).toMatchObject({ expected: 95_000, difference: -2_000 });

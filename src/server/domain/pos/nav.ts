@@ -7,6 +7,7 @@ export const TILL_PAGES = [
   { key: 'shift', href: '/pos/shift', permission: 'shift.use' },
   { key: 'kitchen', href: '/pos/kitchen', permission: 'kitchen.view' },
   { key: 'report', href: '/pos/report', permission: 'report.view' },
+  { key: 'activity', href: '/pos/activity', permission: 'report.view' },
   { key: 'ai', href: '/pos/ai', permission: 'report.view', needsAi: true },
   { key: 'inventory', href: '/pos/inventory', permission: 'inventory.view' },
   { key: 'purchases', href: '/pos/purchases', permission: 'purchase.manage' },

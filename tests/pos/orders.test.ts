@@ -55,8 +55,8 @@ beforeEach(async () => {
   menuA = menu.id;
   await prisma().posSettings.upsert({
     where: { restaurantId: a.id },
-    create: { restaurantId: a.id, catalogMenuId: menuA },
-    update: { catalogMenuId: menuA },
+    create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menuA },
+    update: { requireApproval: false, catalogMenuId: menuA },
   });
   const category = await prisma().category.create({ data: { menuId: menuA, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } });
   const p1 = await prisma().product.create({
@@ -193,15 +193,15 @@ describe('changing lines and discounts', () => {
     const { orderId, lineId, version } = await withLine();
     const updated = dataOf(await run(cashier, updatePosLine, { lineId, quantity: 4, note: 'cold', expectedVersion: version }));
     expect((await view(orderId)).lines[0]).toMatchObject({ quantity: 4, note: 'cold' });
-    expect(failureOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 8001 }, expectedVersion: updated.version })).code).toBe('INVALID');
-    dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 8000 }, expectedVersion: updated.version }));
+    expect(failureOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 8001, reason: 'MANAGER_DECISION' }, expectedVersion: updated.version })).code).toBe('INVALID');
+    dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 8000, reason: 'MANAGER_DECISION' }, expectedVersion: updated.version }));
     expect((await view(orderId)).totals.subtotal).toBe(0);
   });
 
   it('applies an invoice percent discount with service and tax like computeTotals', async () => {
     await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { serviceRatePercent: 10, taxRatePercent: 5 } });
     const { orderId, version } = await withLine();
-    dataOf(await run(cashier, setPosInvoiceDiscount, { orderId, discount: { kind: 'PERCENT', value: 10 }, expectedVersion: version }));
+    dataOf(await run(cashier, setPosInvoiceDiscount, { orderId, discount: { kind: 'PERCENT', value: 10, reason: 'MANAGER_DECISION' }, expectedVersion: version }));
     const v = await view(orderId);
     // 6000 - 600 = 5400; service 540; tax 5% of (5400 + 540) = 297; 6237 in all.
     expect(v.totals).toMatchObject({ subtotal: 6000, invoiceDiscount: 600, service: 540, tax: 297, total: 6237 });

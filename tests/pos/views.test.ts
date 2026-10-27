@@ -24,7 +24,7 @@ describe('the nav', () => {
   it('lists exactly what each role may open', () => {
     expect(keys('CASHIER')).toEqual(['tables', 'shift', 'inventory']);
     expect(keys('KITCHEN')).toEqual(['kitchen']);
-    expect(keys('MANAGER')).toEqual(['tables', 'shift', 'kitchen', 'report', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'settings']);
+    expect(keys('MANAGER')).toEqual(['tables', 'shift', 'kitchen', 'report', 'activity', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'settings']);
     expect(keys('OWNER')).toEqual(keys('MANAGER'));
   });
 
@@ -32,7 +32,7 @@ describe('the nav', () => {
     const withQr = (role: (typeof POS_ROLES)[number]) => tillNav(role, { qrOrdering: true }).map((page) => page.key);
     expect(withQr('CASHIER')).toEqual(['tables', 'requests', 'shift', 'inventory']);
     expect(withQr('KITCHEN')).toEqual(['kitchen']);
-    expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'qr', 'settings']);
+    expect(withQr('MANAGER')).toEqual(['tables', 'requests', 'shift', 'kitchen', 'report', 'activity', 'inventory', 'purchases', 'floor', 'catalog', 'staff', 'qr', 'settings']);
     expect(tillNav('MANAGER').map((page) => page.key)).not.toContain('complaints');
     expect(tillNav('MANAGER', { complaints: true }).map((page) => page.key)).toContain('complaints');
     expect(tillNav('CASHIER', { complaints: true }).map((page) => page.key)).not.toContain('complaints');

@@ -19,6 +19,8 @@ const VALID = {
   takeawayEnabled: true,
   deliveryEnabled: false,
   complaintsEnabled: false,
+  idleMinutes: 15,
+  requireApproval: true,
   version: 0,
 };
 
@@ -72,6 +74,8 @@ describe('posSettings', () => {
       takeawayEnabled: false,
       deliveryEnabled: false,
       complaintsEnabled: false,
+      idleMinutes: 15,
+      requireApproval: true,
       catalogMenuId: null,
       version: 0,
     });

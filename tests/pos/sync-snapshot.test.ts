@@ -39,8 +39,8 @@ beforeEach(async () => {
   });
   await prisma().posSettings.upsert({
     where: { restaurantId: a.id },
-    create: { restaurantId: a.id, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
-    update: { catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
+    create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
+    update: { requireApproval: false, catalogMenuId: menu.id, taxRatePercent: 10, kitchenPrintEnabled: true },
   });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } });
   burger = (await prisma().product.create({ data: { menuId: menu.id, categoryId: category.id, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: names('برغر', 'Burger') } })).id;

@@ -153,7 +153,7 @@ describe('reversing a payment', () => {
     dataOf(await reverse(manager, orderId, version, { reference: ' RF-9 ' }));
     expect(await prisma().posPaymentReversal.findFirstOrThrow({ where: { orderId } })).toMatchObject({ method: 'FIB', reference: 'RF-9', amount: 5_000 });
     const summary = dataOf(await ask(manager, posShift, { shiftId: reverserShift }));
-    expect(summary.expectedCash).toBe(5_000);
+    expect(summary.expectedCash).toBeNull();
     expect(summary.cashRefunds).toBe(0);
     expect(summary.refundsByMethod.FIB).toBe(5_000);
   });
@@ -178,7 +178,7 @@ describe('what a reversal does to the drawer and the reports', () => {
     dataOf(await reverse(manager, orderId, version));
 
     const mine = dataOf(await ask(manager, posShift, { shiftId: reverserShift }));
-    expect(mine).toMatchObject({ cashRefunds: 10_000, expectedCash: 20_000 });
+    expect(mine).toMatchObject({ cashRefunds: 10_000, expectedCash: null });
     const frozen = await prisma().posShift.findUniqueOrThrow({ where: { id: saleShift } });
     expect(frozen).toMatchObject({ expectedCashAtClose: closed.expectedCashAtClose, difference: closed.difference, countedCash: 20_000 });
 

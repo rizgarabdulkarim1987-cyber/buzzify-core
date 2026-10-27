@@ -96,7 +96,9 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
     <section className="flex flex-col gap-3 rounded-[28px] border border-line bg-surface p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-xl font-bold">{shift.cashierName}</h3>
-        <span className="text-sm text-muted">{open ? t('pos.report.stillOpen') : t('pos.report.closed')}</span>
+        <span className="text-sm text-muted">
+          {open ? t('pos.report.xReport') : shift.shift.zNumber !== null ? t('pos.report.zReport', { n: formatNumber(shift.shift.zNumber) }) : t('pos.report.closed')}
+        </span>
       </header>
       <dl className="flex flex-col text-lg">
         <Line label={t('pos.report.netSales')} value={money(shift.netSales)} />

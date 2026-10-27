@@ -60,7 +60,8 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
   const [counted, setCounted] = useState('');
   const { shift } = summary;
   const open = shift.closedAt === null;
-  const difference = open ? (counted === '' ? null : Number(counted) - summary.expectedCash) : shift.difference;
+  // The count is blind: while the shift is open the screen never shows what the drawer should hold, nor how the count compares.
+  const difference = open ? null : shift.difference;
 
   return (
     <div className="flex max-w-5xl flex-col gap-4 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
@@ -70,15 +71,18 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
       </p>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,22rem)] print:block">
         <section className="flex flex-col gap-4 rounded-[28px] border border-line bg-raised p-6">
-          <div className="rounded-2xl bg-hover p-5">
-            <p className="text-base font-semibold text-muted">{t('pos.shift.expected')}</p>
-            <p className="mt-1 font-bold tracking-tight" style={{ fontSize: '3rem', lineHeight: 1 }}>{money(summary.expectedCash)}</p>
-          </div>
+          {summary.expectedCash !== null ? (
+            <div className="rounded-2xl bg-hover p-5">
+              <p className="text-base font-semibold text-muted">{t('pos.shift.expected')}</p>
+              <p className="mt-1 font-bold tracking-tight" style={{ fontSize: '3rem', lineHeight: 1 }}>{money(summary.expectedCash)}</p>
+            </div>
+          ) : null}
           <dl className="flex flex-col text-base">
             <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
-            <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} />
+            {shift.zNumber !== null ? <Row label={t('pos.shift.zNumber')} value={formatNumber(shift.zNumber)} /> : null}
+            {!open ? <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} /> : null}
             <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
-            {summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
+            {!open && summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
             {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
               <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
             ))}
@@ -153,7 +157,7 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         title={t('pos.shift.countAndClose')}
         body={
           <>
-            {summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.countHint', { amount: money(summary.expectedCash) })}
+            {summary.openOrdersCount > 0 ? t('pos.shift.openOrders', { n: formatNumber(summary.openOrdersCount) }) : t('pos.shift.blindHint')}
             {summary.unsettledDeliveries.count > 0 ? (
               <span className="mt-2 block font-medium">{t('pos.shift.unsettled', { n: formatNumber(summary.unsettledDeliveries.count), amount: money(summary.unsettledDeliveries.amount) })}</span>
             ) : null}
@@ -178,11 +182,6 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             <Field label={t('pos.shift.counted')} error={errors.countedCash}>
               <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(amountDigits(event.target.value))} />
             </Field>
-            {difference !== null ? (
-              <dl aria-live="polite">
-                <Verdict difference={difference} />
-              </dl>
-            ) : null}
             <Field label={t('pos.shift.note')} optional>
               <Input name="note" size="lg" maxLength={300} />
             </Field>
