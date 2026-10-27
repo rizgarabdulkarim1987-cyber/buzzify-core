@@ -17,7 +17,7 @@ export function effortFor(purpose: AiPurpose): 'low' | 'medium' {
   return DEFAULTS[purpose].effort;
 }
 
-export const AI_TIMEOUTS_MS: Record<AiPurpose, number> = { ask: 45_000, extract: 60_000, phrase: 20_000, classify: 30_000 };
+export const AI_TIMEOUTS_MS: Record<AiPurpose, number> = { ask: 45_000, extract: 150_000, phrase: 20_000, classify: 30_000 };
 
 export const MAX_TOKENS: Record<AiPurpose, number> = { ask: 4000, extract: 8000, phrase: 1200, classify: 3000 };
 
