@@ -12,6 +12,8 @@ export interface AiMenuReading {
   preview: ImportPreview;
   /** Items left out because no price could be read for them. */
   skipped: number;
+  /** Pictures found for the items, still to be brought in. */
+  photos: number;
   /** The source prints its prices in another currency than the menu uses. */
   currencyMismatch: { source: string; menu: string } | null;
 }
@@ -33,6 +35,24 @@ export function AiMenuImport({ endpoint, onRead }: { endpoint: string; onRead: (
   const [link, setLink] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  /** The pictures come in a few per request, so no single request is long. A failure here only leaves items without pictures. */
+  async function bringPhotos(reading: AiMenuReading) {
+    let left = reading.photos;
+    for (let round = 0; left > 0 && round < 60; round += 1) {
+      setStatus(t('ai.menu.photos', { count: left }));
+      try {
+        const response = await fetch(`${endpoint}/photos`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ importJobId: reading.importJobId }) });
+        const body = (await response.json()) as { data?: { remaining?: number } };
+        const remaining = body.data?.remaining;
+        if (typeof remaining !== 'number' || remaining >= left) return;
+        left = remaining;
+      } catch {
+        return;
+      }
+    }
+  }
 
   async function read() {
     if (!file && link.trim() === '') return setError(t('ai.menu.chooseInput'));
@@ -45,12 +65,16 @@ export function AiMenuImport({ endpoint, onRead }: { endpoint: string; onRead: (
     try {
       const response = await fetch(endpoint, { method: 'POST', body: form });
       const body = (await response.json()) as Answer;
-      if (body.data?.ok) onRead(body.data);
+      if (body.data?.ok) {
+        await bringPhotos(body.data);
+        onRead(body.data);
+      }
       else if (body.data) setError(t(`ai.menu.error.${body.data.code}`));
       else setError(body.error?.message === 'tooLarge' ? t('ai.menu.error.tooLarge') : (body.error?.message ?? t('ai.menu.error.invalid')));
     } catch {
       setError(t('ai.menu.error.aiUnavailable'));
     }
+    setStatus(null);
     setBusy(false);
   }
 
@@ -108,7 +132,7 @@ export function AiMenuImport({ endpoint, onRead }: { endpoint: string; onRead: (
         </Button>
         {busy && (
           <span role="status" className="text-sm text-muted">
-            {t('ai.menu.reading')}
+            {status ?? t('ai.menu.reading')}
           </span>
         )}
         {file && !busy && (

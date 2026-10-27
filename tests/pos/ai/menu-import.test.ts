@@ -7,7 +7,7 @@ import { readMenuImportUpload } from '@/server/ai/menu-import-upload';
 import { setAiProviderForTests } from '@/server/ai/provider';
 import { FakeProvider } from '@/server/ai/provider/fake';
 import { writeAiPackage } from '@/server/ai/package';
-import { posImportAiPreview, posImportApply } from '@/server/studio/actions/pos';
+import { posImportAiPhotos, posImportAiPreview, posImportApply } from '@/server/studio/actions/pos';
 import { aiRead } from '@/server/studio/actions/imports';
 import { dataOf, person, prisma, run, useTestDatabase } from '../fixture';
 import { makeAiWorld, type AiWorld } from './world';
@@ -255,6 +255,7 @@ describe('pictures from a link', () => {
     setLinkDepsForTests(deps({ 'https://menu.example.com/m': { body: html(page('/tea.png')), type: 'text/html' }, 'https://menu.example.com/tea.png': { body: tea, type: 'image/png' } }));
     const shown = ready(dataOf(await run(w.manager, posImportAiPreview, link)));
     expect(shown.photos).toBe(1);
+    expect(dataOf(await run(w.manager, posImportAiPhotos, { importJobId: shown.importJobId }))).toEqual({ remaining: 0 });
     dataOf(await run(w.manager, posImportApply, { importJobId: shown.importJobId }));
     const product = await prisma().product.findFirstOrThrow({ where: { menu: { slug: 'ai-menu-a' }, basePrice: 1500 } });
     const [entry] = product.media as Array<{ kind: string; assetId: string }>;
@@ -265,9 +266,12 @@ describe('pictures from a link', () => {
   it('still imports the products when a picture is on a private address or is not a picture', async () => {
     setLinkDepsForTests(deps({ 'https://menu.example.com/m': { body: html(page('http://10.0.0.1/tea.png')), type: 'text/html' } }));
     const shown = ready(dataOf(await run(w.manager, posImportAiPreview, link)));
-    expect(shown.photos).toBe(0);
     expect(shown.preview.summary.new).toBe(1);
+    expect(dataOf(await run(w.manager, posImportAiPhotos, { importJobId: shown.importJobId }))).toEqual({ remaining: 0 });
+    dataOf(await run(w.manager, posImportApply, { importJobId: shown.importJobId }));
+    expect(await prisma().product.count({ where: { menu: { slug: 'ai-menu-a' }, basePrice: 1500 } })).toBeGreaterThan(0);
     setLinkDepsForTests(deps({ 'https://menu.example.com/m': { body: html(page('/tea.png')), type: 'text/html' }, 'https://menu.example.com/tea.png': { body: 'not a picture', type: 'image/png' } }));
-    expect(ready(dataOf(await run(w.manager, posImportAiPreview, link))).photos).toBe(0);
+    const second = ready(dataOf(await run(w.manager, posImportAiPreview, link)));
+    expect(dataOf(await run(w.manager, posImportAiPhotos, { importJobId: second.importJobId }))).toEqual({ remaining: 0 });
   });
 });
