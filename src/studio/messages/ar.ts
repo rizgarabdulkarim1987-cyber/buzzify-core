@@ -2434,6 +2434,7 @@ const ar: Messages = {
   'design.body.steam': 'بخار حي',
   'design.body.citadel': 'قلعة أربيل',
   'design.body.lanterns': 'فوانيس معلّقة',
+  'design.body.carpet': 'بُسُط سحرية',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

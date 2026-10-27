@@ -13,6 +13,7 @@ import { FridgeBody } from './FridgeBody';
 import { KineticBody } from './KineticBody';
 import { HomescreenBody } from './HomescreenBody';
 import { LanternsBody } from './LanternsBody';
+import { CarpetBody } from './CarpetBody';
 import { InkBody } from './InkBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
@@ -59,6 +60,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   fly: FlyBody,
   citadel: CitadelBody,
   lanterns: LanternsBody,
+  carpet: CarpetBody,
   ink: InkBody,
   steam: SteamBody,
 };

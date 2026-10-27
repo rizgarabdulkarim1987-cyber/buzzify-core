@@ -2405,6 +2405,7 @@ const en: Messages = {
   'design.body.steam': 'Living steam',
   'design.body.citadel': 'Erbil citadel',
   'design.body.lanterns': 'Hanging lanterns',
+  'design.body.carpet': 'Magic carpets',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

@@ -788,4 +788,33 @@ export const theRamadanNights = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights];
+export const theThousandAndOneNights = definePreset({
+  id: 'the-thousand-and-one-nights',
+  number: 58,
+  name: 'One Thousand and One Nights',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#1A0B33', text: '#FFE9C4', accent: '#FFCC66', raised: '#2A1556' },
+  alternatives: [
+    { id: 'sapphire-sky', name: 'Sapphire sky', seed: { bg: '#0B1B3D', text: '#EAF1FF', accent: '#7FB6FF', raised: '#14295A' } },
+    { id: 'emerald-lamp', name: 'Emerald lamp', seed: { bg: '#0A2A2A', text: '#F2EBD3', accent: '#E5B84B', raised: '#123C3A' } },
+    { id: 'rose-palace', name: 'Rose palace', seed: { bg: '#2B0F2E', text: '#FBE9E3', accent: '#F29FB8', raised: '#3C1A40' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'carpet',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights];
