@@ -74,9 +74,9 @@ export const closePosShift = defineAction({
         action: 'pos.shift.close',
         entityType: 'PosShift',
         entityId: done.shiftId,
-        changes: { expected: { before: null, after: done.expected }, counted: { before: null, after: done.counted }, difference: { before: null, after: done.difference } },
+        changes: { expected: { before: null, after: done.expected }, counted: { before: null, after: done.counted }, difference: { before: null, after: done.difference }, zNumber: { before: null, after: done.zNumber } },
       });
-      return { shiftId: done.shiftId, expected: done.expected, counted: done.counted, difference: done.difference };
+      return { shiftId: done.shiftId, expected: done.expected, counted: done.counted, difference: done.difference, zNumber: done.zNumber };
     });
   },
 });

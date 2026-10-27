@@ -381,6 +381,8 @@ const posTill: Messages = {
   'pos.shift.countAndClose': 'ژماردن و داخستن',
   'pos.shift.close': 'داخستنی شیفت',
   'pos.shift.countHint': 'پارەی دڕاوەر بژمێرە. دەبێت {amount} بێت.',
+  'pos.shift.blindHint': 'پارەی دڕاوەر بژمێرە و کۆی گشتی بنووسە. بڕی چاوەڕوانکراو دوای داخستن پیشان دەدرێت.',
+  'pos.shift.zNumber': 'ژمارەی ڕاپۆرتی Z',
   'pos.shift.openOrders': '{n} داواکاری هێشتا کراوەن. ئەگەر دەکرێت یەکەم داخستن یان پارەدانیان بکە.',
   'pos.shift.note': 'تێبینی',
   'pos.shift.refused': 'نەکرا. پەڕەکە نوێ بکەرەوە و دووبارە هەوڵ بدەرەوە.',

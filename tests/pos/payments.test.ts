@@ -148,7 +148,7 @@ describe('paying in cash', () => {
     const shiftId = await shift();
     const { orderId, version } = await orderOf(1);
     dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: version, expectedTotal: 5_000, amountReceived: 20_000 }));
-    expect(dataOf(await ask(cashier, posShift, { shiftId })).expectedCash).toBe(15_000);
+    // The count is blind, so the expected figure shows at close: 15,000 counted against the stored total's 15,000.
     expect(dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 15_000, note: '' })).difference).toBe(0);
   });
 
@@ -174,8 +174,8 @@ describe('paying by terminal (recorded, never verified)', () => {
     const receipt = dataOf(await ask(cashier, posReceipt, { orderId }));
     expect(receipt).toMatchObject({ method: 'FIB', reference: 'TX-778899', change: 0 });
     const summary = dataOf(await ask(cashier, posShift, { shiftId }));
-    expect(summary.expectedCash).toBe(10_000);
     expect(summary.cashSales).toBe(0);
+    expect(dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 10_000, note: '' })).expected).toBe(10_000);
   });
 
   it('stores a blank reference as none and refuses 101 characters', async () => {

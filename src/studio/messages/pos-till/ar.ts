@@ -381,6 +381,8 @@ const posTill: Messages = {
   'pos.shift.countAndClose': 'عدّ وإغلاق',
   'pos.shift.close': 'إغلاق الوردية',
   'pos.shift.countHint': 'عُدّ النقد في الدرج. يُتوقع أن يكون {amount}.',
+  'pos.shift.blindHint': 'عُدّ النقد في الدرج واكتب المجموع. يظهر المبلغ المتوقع بعد الإغلاق.',
+  'pos.shift.zNumber': 'رقم تقرير Z',
   'pos.shift.openOrders': 'يوجد {n} طلبات ما زالت مفتوحة. أغلقها أو ادفعها أولًا إن أمكن.',
   'pos.shift.note': 'ملاحظة',
   'pos.shift.refused': 'تعذّر التنفيذ. أعد تحميل الصفحة وحاول مجددًا.',

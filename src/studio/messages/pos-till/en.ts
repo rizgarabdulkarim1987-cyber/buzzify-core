@@ -381,6 +381,8 @@ const posTill: Messages = {
   'pos.shift.countAndClose': 'Count and close',
   'pos.shift.close': 'Close shift',
   'pos.shift.countHint': 'Count the cash in the drawer. It should hold {amount}.',
+  'pos.shift.blindHint': 'Count the cash in the drawer and type the total. What it should hold is shown after you close.',
+  'pos.shift.zNumber': 'Z report No.',
   'pos.shift.openOrders': '{n} orders are still open. Close or pay them first if you can.',
   'pos.shift.note': 'Note',
   'pos.shift.refused': 'It could not be done. Reload and try again.',

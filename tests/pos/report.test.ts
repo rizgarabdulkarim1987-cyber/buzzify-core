@@ -136,7 +136,9 @@ describe('the daily report', () => {
     dataOf(await run(cashier, addPosExpense, { shiftId, amount: 500, reason: 'tape' }));
     const summary = dataOf(await ask(cashier, posShift, { shiftId }));
     const report = dataOf(await ask(manager, posShiftReport, { shiftId }));
-    expect(report.expectedCash).toBe(summary.expectedCash);
+    expect(summary.expectedCash).toBeNull();
+    const closed = dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 0, note: '' }));
+    expect(report.expectedCash).toBe(closed.expected);
     expect(report.grossSales).toBe(summary.cashSales);
     expect(report.expenses.reduce((sum, e) => sum + e.amount, 0)).toBe(summary.expensesTotal);
   });

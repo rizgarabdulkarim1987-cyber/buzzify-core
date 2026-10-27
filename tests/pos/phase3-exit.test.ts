@@ -129,7 +129,6 @@ describe('the cashier, start to finish', () => {
     // 2,000 out of the drawer, then the exact count closes the shift.
     dataOf(await run(cashier, addPosExpense, { shiftId, amount: 2_000, reason: 'gas' }));
     const expected = 50_000 + total - 2_000;
-    expect(dataOf(await ask(cashier, posShift, { shiftId })).expectedCash).toBe(expected);
     expect(dataOf(await run(cashier, closePosShift, { shiftId, countedCash: expected, note: '' })).difference).toBe(0);
 
     // The manager's report agrees.

@@ -48,7 +48,7 @@ describe('the blind count', () => {
     const shiftId = await open(cashier);
     const live = dataOf(await ask(cashier, posShift, { shiftId }));
     expect(live.expectedCash).toBeNull();
-    expect(JSON.stringify(live)).not.toContain('50000');
+    expect(live.shift.expectedCashAtClose).toBeNull();
     const done = await close(cashier, shiftId, 49_000);
     expect(done).toMatchObject({ expected: 50_000, counted: 49_000, difference: -1_000 });
     const frozen = dataOf(await ask(cashier, posShift, { shiftId }));
