@@ -67,6 +67,9 @@ interface Ids {
   /** The owner's open shift in branch 1 / in branch 2 (phase 3). */
   shift1: string;
   shift2: string;
+  /** A return of the sale in branch 1 / in branch 2 (phase 3, made straight in the database). */
+  return1: string;
+  return2: string;
   lot1: string;
   lot2: string;
   tradeName: string;
@@ -111,12 +114,16 @@ async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'rec
       data: { restaurantId: biz.id, branchId, shiftId: shift.id, number: `20261027-00000${n}`, status: 'COMPLETED', currency: 'IQD', clientKey: `seed-sale-${label}-${n}`, soldById: owner.userId, completedAt: NOW },
       select: { id: true },
     });
-    return { sale: made.id, shift: shift.id };
+    const returned = await prisma().phReturn.create({
+      data: { restaurantId: biz.id, branchId, saleId: made.id, shiftId: shift.id, number: `R20261027-00000${n}`, reason: 'Seed', approvedById: owner.userId, refundMethod: 'CASH', refundMinor: 0n, currency: 'IQD', clientKey: `seed-return-${label}-${n}` },
+      select: { id: true },
+    });
+    return { sale: made.id, shift: shift.id, ret: returned.id };
   };
-  const [{ sale: sale1, shift: shift1 }, { sale: sale2, shift: shift2 }] = [await saleIn(b1, 1), await saleIn(b2, 2)];
+  const [{ sale: sale1, shift: shift1, ret: return1 }, { sale: sale2, shift: shift2, ret: return2 }] = [await saleIn(b1, 1), await saleIn(b2, 2)];
   return {
     owner,
-    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, sale1, sale2, shift1, shift2, lot1, lot2, tradeName },
+    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, sale1, sale2, shift1, shift2, return1, return2, lot1, lot2, tradeName },
   };
 }
 
@@ -173,8 +180,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -185,6 +192,8 @@ const saleBody = (ids: Ids) => ({
   lines: [{ productId: ids.productId, unitId: ids.unitId, qty: 1 }],
   payments: [{ method: 'CASH', amountMinor: 100n, clientKey: key() }],
 });
+
+const returnBody = (saleId: string) => ({ saleId, lines: [{ saleLineId: 'planted', baseQty: 1 }], reason: 'Planted', clientKey: key() });
 
 const CASES: Record<string, Case> = {
   // Changing stock (R2-3, R2-5, R2-6). A batch belongs to the business, so another branch's batch is the same business's own.
@@ -238,6 +247,12 @@ const CASES: Record<string, Case> = {
   'ph.shifts.current': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.shifts.report': { body: (ids, n) => ({ shiftId: pick(ids, n).shiftId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.shifts.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Returns and cancels (phase 3). The approver must have an open shift in a branch of their own; the sale must be in that branch.
+  'ph.returns.create': { body: (ids, n) => returnBody(pick(ids, n).saleId), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.sales.cancel': { body: (ids, n) => ({ saleId: pick(ids, n).saleId, reason: 'Planted', clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.returns.get': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.returns.returnable': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.returns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -266,8 +281,14 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 3 sales definition', () => {
     const sales = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sales.'));
-    expect(sales.sort()).toEqual(['ph.sales.create', 'ph.sales.get', 'ph.sales.list']);
+    expect(sales.sort()).toEqual(['ph.sales.cancel', 'ph.sales.create', 'ph.sales.get', 'ph.sales.list']);
     expect(sales.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 3 return definition', () => {
+    const returns = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.returns.'));
+    expect(returns.sort()).toEqual(['ph.returns.create', 'ph.returns.get', 'ph.returns.list', 'ph.returns.returnable']);
+    expect(returns.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
   it('covers every phase 3 shift and cash definition', () => {
@@ -299,8 +320,12 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const counts = await prisma().phStockCount.findMany({ where, orderBy });
   const sales = await prisma().phSale.findMany({ where, orderBy });
   const shifts = await prisma().phShift.findMany({ where, orderBy });
+  const returns = await prisma().phReturn.findMany({ where, orderBy });
   return json({
     sales,
+    returns,
+    returnLines: await prisma().phReturnLine.findMany({ where: { returnId: { in: returns.map((x) => x.id) } }, orderBy }),
+    allocations: await prisma().phSaleLineAllocation.findMany({ where: { saleLineId: { in: (await prisma().phSaleLine.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, select: { id: true } })).map((l) => l.id) } }, orderBy }),
     saleLines: await prisma().phSaleLine.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, orderBy }),
     payments: await prisma().phPayment.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, orderBy }),
     cash: await prisma().phCashMovement.findMany({ where: { shiftId: { in: shifts.map((x) => x.id) } }, orderBy }),
@@ -323,8 +348,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ...docs(1), ...docs(2)];
