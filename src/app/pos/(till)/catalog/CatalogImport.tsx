@@ -11,17 +11,20 @@ import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { AiMenuImport } from '@/studio/workspace/AiMenuImport';
+import { ImportPreviewPanel, type Status } from '@/studio/workspace/ImportPreview';
+import type { ImportPreview } from '@/server/domain/import-sheet';
 
 interface Shown {
   importJobId: string;
-  summary: { new: number; changed: number; unchanged: number; invalid: number };
+  fileName: string;
+  preview: ImportPreview;
 }
 
 /**
  * Brings in a product list from the cashier's old CSV. The file is read in the browser and sent as text; the server turns
  * it into the Studio's menu sheet and previews it. Nothing is written until the preview is applied.
  */
-export function CatalogImport() {
+export function CatalogImport({ currency: menuCurrency }: { currency: string }) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -30,6 +33,7 @@ export function CatalogImport() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [skipped, setSkipped] = useState(0);
+  const [filter, setFilter] = useState<Status | 'all'>('all');
   const [currency, setCurrency] = useState<{ source: string; menu: string } | null>(null);
 
   function fail(error: Parameters<typeof describeFailure>[2]) {
@@ -44,8 +48,10 @@ export function CatalogImport() {
     setShown(null);
     const result = await settle(async () => posImportPreview({ fileName: file.name, csv: await file.text() }));
     setBusy(false);
-    if (result.ok) setShown({ importJobId: result.data.importJobId, summary: result.data.preview.summary });
-    else fail(result.error);
+    if (result.ok) {
+      setShown({ importJobId: result.data.importJobId, fileName: file.name, preview: result.data.preview });
+      setFilter(result.data.preview.summary.invalid > 0 ? 'invalid' : 'all');
+    } else fail(result.error);
   }
 
   async function finish(apply: boolean) {
@@ -66,7 +72,7 @@ export function CatalogImport() {
   }
 
   return (
-    <section aria-labelledby="pos-import" className="flex max-w-xl flex-col gap-3">
+    <section aria-labelledby="pos-import" className="flex max-w-4xl flex-col gap-3">
       <div className="flex flex-col gap-1">
         <h2 id="pos-import" className="text-base font-semibold text-text">
           {t('pos.import.title')}
@@ -82,7 +88,8 @@ export function CatalogImport() {
               setProblem(null);
               setSkipped(reading.skipped);
               setCurrency(reading.currencyMismatch);
-              setShown({ importJobId: reading.importJobId, summary: reading.preview.summary });
+              setShown({ importJobId: reading.importJobId, fileName: 'AI', preview: reading.preview });
+              setFilter(reading.preview.summary.invalid > 0 ? 'invalid' : 'all');
             }}
           />
         </div>
@@ -105,21 +112,22 @@ export function CatalogImport() {
       )}
       {shown ? (
         <>
-          <p className="text-base text-text">{t('pos.import.summary', shown.summary)}</p>
           {skipped > 0 && <p className="text-sm text-muted">{t('ai.menu.skipped', { count: skipped })}</p>}
           {currency && (
             <p role="alert" className="text-sm text-danger">
               {t('ai.menu.currencyMismatch', currency)}
             </p>
           )}
-          <div className="flex gap-2">
-            <Button pending={busy} disabled={shown.summary.invalid > 0} onClick={() => void finish(true)}>
-              {t('pos.import.apply')}
-            </Button>
-            <Button variant="secondary" disabled={busy} onClick={() => void finish(false)}>
-              {t('pos.import.discard')}
-            </Button>
-          </div>
+          <ImportPreviewPanel
+            job={{ fileName: shown.fileName, preview: shown.preview, hideMissing: false }}
+            currency={menuCurrency}
+            canChangeLive
+            filter={filter}
+            onFilter={setFilter}
+            onApply={() => void finish(true)}
+            onDiscard={() => void finish(false)}
+            pending={busy}
+          />
         </>
       ) : (
         <Button variant="secondary" pending={busy} disabled={!file} onClick={() => void show()} className="self-start">
