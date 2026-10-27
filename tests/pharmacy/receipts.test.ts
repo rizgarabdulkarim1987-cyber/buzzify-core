@@ -307,6 +307,71 @@ describe('confirming a receipt', () => {
     ]);
   });
 
+  it('refuses to add stock to an existing RECALLED or BLOCKED batch (BATCH_NOT_ACTIVE) and rolls the whole confirm back', async () => {
+    const { a, owner, p } = await world();
+    const first = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { qty: 2 })])));
+    dataOf(await act(owner, receiptActions.confirm, place(a, first.id)));
+    const batch = await prisma().phBatch.findFirstOrThrow();
+    for (const status of ['RECALLED', 'BLOCKED'] as const) {
+      await prisma().phBatch.update({ where: { id: batch.id }, data: { status } });
+      const again = dataOf(
+        await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { lot: 'OTHER' }), line(p, { qty: 3 })])),
+      );
+      const r = await act(owner, receiptActions.confirm, place(a, again.id));
+      expect(codeOf(r), status).toBe('CONFLICT');
+      expect(r.ok ? null : r.error.fields, status).toMatchObject({ phCode: 'BATCH_NOT_ACTIVE' });
+      expect(r.ok ? '' : r.error.message).toContain('Panadol');
+      expect(r.ok ? '' : r.error.message).toContain('L-100');
+      expect((await prisma().phReceipt.findUniqueOrThrow({ where: { id: again.id } })).status).toBe('DRAFT');
+      expect(await prisma().phBatch.count()).toBe(1);
+      expect(await prisma().phStockMovement.count()).toBe(1);
+      expect((await balances())[0]).toMatchObject({ available: 20 });
+    }
+  });
+
+  it('an expired line accepted into quarantine may join a BLOCKED batch but never a RECALLED one', async () => {
+    const { a, owner, p } = await world();
+    const first = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { qty: 1, expiry: '2026-09-01', lot: 'E', acceptExpired: true })])));
+    dataOf(await act(owner, receiptActions.confirm, place(a, first.id)));
+    const batch = await prisma().phBatch.findFirstOrThrow();
+    const more = () =>
+      act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { qty: 1, expiry: '2026-09-01', lot: 'E', acceptExpired: true })]));
+
+    await prisma().phBatch.update({ where: { id: batch.id }, data: { status: 'BLOCKED' } });
+    const blocked = dataOf(await more());
+    expect(codeOf(await act(owner, receiptActions.confirm, place(a, blocked.id)))).toBe('OK');
+    expect((await balances())[0]).toMatchObject({ available: 0, quarantine: 20 });
+
+    await prisma().phBatch.update({ where: { id: batch.id }, data: { status: 'RECALLED' } });
+    const recalled = dataOf(await more());
+    const r = await act(owner, receiptActions.confirm, place(a, recalled.id));
+    expect(codeOf(r)).toBe('CONFLICT');
+    expect(r.ok ? null : r.error.fields).toMatchObject({ phCode: 'BATCH_NOT_ACTIVE' });
+    expect((await balances())[0]).toMatchObject({ available: 0, quarantine: 20 });
+  });
+
+  it('refuses a line whose product was archived since the draft', async () => {
+    const { a, owner, p } = await world();
+    const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)])));
+    await prisma().phProduct.update({ where: { id: p.id }, data: { active: false } });
+    const r = await act(owner, receiptActions.confirm, place(a, made.id));
+    expect(codeOf(r)).toBe('INVALID');
+    expect(r.ok ? null : r.error.fields).toHaveProperty('lines.0.productId');
+    expect(await prisma().phBatch.count()).toBe(0);
+    expect((await prisma().phReceipt.findUniqueOrThrow({ where: { id: made.id } })).status).toBe('DRAFT');
+  });
+
+  it('refuses a line whose unit changed size since the draft (LINE_STALE) instead of adding the old quantity', async () => {
+    const { a, owner, p } = await world();
+    const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { qty: 5 })])));
+    await prisma().phProductUnit.update({ where: { id: p.strip }, data: { baseQty: 12 } });
+    const r = await act(owner, receiptActions.confirm, place(a, made.id));
+    expect(codeOf(r)).toBe('CONFLICT');
+    expect(r.ok ? null : r.error.fields).toMatchObject({ phCode: 'LINE_STALE' });
+    expect(await prisma().phStockMovement.count()).toBe(0);
+    expect((await prisma().phReceipt.findUniqueOrThrow({ where: { id: made.id } })).status).toBe('DRAFT');
+  });
+
   it('under a concurrent double confirm exactly one wins and the stock is added once', async () => {
     const { a, owner, p } = await world();
     const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)])));

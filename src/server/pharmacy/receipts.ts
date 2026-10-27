@@ -320,7 +320,7 @@ async function findOrCreateBatch(
   supplierName: string,
 ) {
   const where = { productId: line.productId, lot: line.lot, expiryDate: line.expiryDate };
-  const select = { id: true, unitCostMinor: true, costCurrency: true, costUnitId: true } as const;
+  const select = { id: true, unitCostMinor: true, costCurrency: true, costUnitId: true, status: true } as const;
   const found = await tx.phBatch.findFirst({ where, select, orderBy: { id: 'asc' } });
   if (found) return { batch: found, created: false };
   await tx.phBatch.createMany({
@@ -378,10 +378,46 @@ export async function confirmReceipt(
     }
   });
 
+  // The catalog may have changed since the draft: re-check each product and recompute the quantity from today's ladder.
+  const productIds = [...new Set(lines.map((l) => l.productId))];
+  const [products, units] = await Promise.all([
+    tx.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, active: true, tradeName: true } }),
+    tx.phProductUnit.findMany({ where: { productId: { in: productIds } }, select: { id: true, productId: true, baseQty: true } }),
+  ]);
+  const productById = new Map(products.map((p) => [p.id, p]));
+  const unitById = new Map(units.map((u) => [u.id, u]));
+  lines.forEach((l, i) => {
+    const product = productById.get(l.productId);
+    if (!product || !product.active) {
+      throw invalid(`lines.${i}.productId`, 'This product was archived since the draft: remove the line', { phCode: 'PRODUCT_ARCHIVED' });
+    }
+    const unit = unitById.get(l.unitId);
+    let current: number | null = null;
+    try {
+      current = unit && unit.productId === l.productId ? toBase(l.qty + l.bonusQty, unit.baseQty) : null;
+    } catch {
+      current = null;
+    }
+    if (current === null || current !== l.baseQty) {
+      throw new StudioError('CONFLICT', `${product.tradeName}: its units changed since the draft; save the receipt again`, {
+        phCode: 'LINE_STALE',
+        [`lines.${i}.unitId`]: 'The unit changed since the draft',
+      });
+    }
+  });
+
   const warnings: ConfirmWarning[] = [];
   const planned: { batchId: string; line: (typeof lines)[number]; quarantine: boolean }[] = [];
   for (const line of lines) {
     const { batch, created } = await findOrCreateBatch(tx, args.restaurantId, line, head.supplierName);
+    // New stock never joins a recalled batch, nor a blocked one unless the line goes to quarantine (expired, accepted).
+    if (!created && (batch.status === 'RECALLED' || (batch.status === 'BLOCKED' && iso(line.expiryDate) >= today))) {
+      throw new StudioError(
+        'CONFLICT',
+        `${productById.get(line.productId)!.tradeName}, lot ${line.lot}: this batch is ${batch.status.toLowerCase()}, stock cannot be added to it`,
+        { phCode: 'BATCH_NOT_ACTIVE' },
+      );
+    }
     const differs =
       !created &&
       batch.unitCostMinor !== null &&
