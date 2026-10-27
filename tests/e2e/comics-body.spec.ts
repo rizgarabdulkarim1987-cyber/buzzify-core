@@ -39,7 +39,7 @@ test('a page opens with a wide splash panel, the others are smaller and sit side
   expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
 });
 
-test('the name is in a speech bubble and the price in a burst, both on the panel and solid', async ({ page }) => {
+test('the name is in a speech bubble and the price in a yellow box, both on the panel and solid', async ({ page }) => {
   await openMenu(page, slug);
   const panel = page.locator('#cat-viennoiserie [data-row]').nth(1);
   const box = (await panel.boundingBox())!;
@@ -165,3 +165,36 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
 });
 
 shapeChecks(menus, { kind: 'comics', templateId: 'the-kitchen-comics', checks: ['contrast', 'sale'] });
+
+/** Colours picked in Customize (a green menu with a pink accent): the comic must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#F5C542', onButton: '#111111' };
+const customSlug = menus.slug('cmccol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'comics', { templateId: 'the-kitchen-comics', colors: CUSTOM });
+});
+const rgbOf = (node: ReturnType<Page['locator']>, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const near = (actual: number[], hex: string, message: string) =>
+  [1, 3, 5].forEach((at, i) => expect(Math.abs(actual[i]! - parseInt(hex.slice(at, at + 2), 16)), `${message}: channel ${i}`).toBeLessThanOrEqual(3));
+
+test('Customize colours reach the comic: caption and price box (button), balloon (raised), border (text)', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const sheet = page.locator('#cat-viennoiserie');
+  near(await rgbOf(sheet.locator('.cm-caption'), 'background-color'), CUSTOM.button, 'caption');
+  near(await rgbOf(sheet.locator('.cm-burst').first(), 'background-color'), CUSTOM.button, 'price box');
+  near(await rgbOf(sheet.locator('.cm-bubble').first(), 'background-color'), CUSTOM.raised, 'balloon');
+  near(await rgbOf(sheet.locator('.cm-panel').first(), 'border-top-color'), CUSTOM.text, 'panel border');
+});
+
+test('the price is a small box that leaves the art free: it covers under a fifth of a panel', async ({ page }) => {
+  await openMenu(page, slug);
+  const panel = (await panels(page).nth(1).boundingBox())!;
+  const price = (await panels(page).nth(1).locator('.cm-burst').boundingBox())!;
+  expect((price.width * price.height) / (panel.width * panel.height)).toBeLessThan(0.2);
+});

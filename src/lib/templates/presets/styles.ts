@@ -301,7 +301,7 @@ export const theKitchenComics = definePreset({
   name: 'Kitchen Comics',
   business: 'restaurant',
   tags: ['light', 'playful'],
-  seed: { bg: '#FFFDF4', text: '#111111', accent: '#C1121F', raised: '#FFFFFF' },
+  seed: { bg: '#FFFDF4', text: '#111111', accent: '#D62839', raised: '#FFFFFF', button: '#FFDE21', onButton: '#111111' },
   alternatives: [
     { id: 'midnight-issue', name: 'Midnight issue', seed: { bg: '#14122B', text: '#FFF4C2', accent: '#FFDE21' } },
     { id: 'pop-pink', name: 'Pop pink', seed: { bg: '#FFF0F6', text: '#1A0A12', accent: '#B4125A' } },
@@ -359,7 +359,7 @@ export const theTreasureMap = definePreset({
   name: 'Treasure Map',
   business: 'restaurant',
   tags: ['light', 'playful'],
-  seed: { bg: '#EFDCB2', text: '#3A2410', accent: '#8A2A10', raised: '#F8EBCB' },
+  seed: { bg: '#EFDCB2', text: '#3A2410', accent: '#8A2A10', raised: '#FFF5DC' },
   alternatives: [
     { id: 'sea-chart', name: 'Sea chart', seed: { bg: '#DCE9E4', text: '#12303A', accent: '#0F6E7A', raised: '#EEF6F2' } },
     { id: 'rose-atlas', name: 'Rose atlas', seed: { bg: '#F3DDD0', text: '#3B1D16', accent: '#A3341F', raised: '#FBEDE4' } },
@@ -881,7 +881,7 @@ export const theIshtarGate = definePreset({
   name: 'Ishtar Gate',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#10285A', text: '#FFF3C4', accent: '#E1B64A', raised: '#1B3F86', card: '#1D4B9B', onButton: '#2A1A05' },
+  seed: { bg: '#163A7A', text: '#FFF3C4', accent: '#E1B64A', raised: '#1B3F86', card: '#1D4B9B', onButton: '#2A1A05' },
   alternatives: [
     { id: 'sand-gate', name: 'Sand gate', seed: { bg: '#EFE0BC', text: '#2A1A05', accent: '#1D4B9B', raised: '#F8EFD6' } },
     { id: 'babylon-night', name: 'Babylon night', seed: { bg: '#0A1630', text: '#F3E4B5', accent: '#D9A93C', raised: '#14264F' } },
@@ -910,7 +910,7 @@ export const theSpaceStation = definePreset({
   name: 'Space Station',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#070B1A', text: '#EEF2FF', accent: '#9B8CFF', raised: '#141B35', surface: '#1A2240', card: '#2B3760', line: '#5B6A92' },
+  seed: { bg: '#07051A', text: '#E8E6FF', accent: '#9B8CFF', raised: '#141036', surface: '#1B1440', card: '#241A55', line: '#8D8AA8' },
   alternatives: [
     { id: 'mars-base', name: 'Mars base', seed: { bg: '#1A0D0A', text: '#FFE9DF', accent: '#FF8A5C', raised: '#2B1712', surface: '#2B1712', card: '#40251C', line: '#8A5A48' } },
     { id: 'aurora-deck', name: 'Aurora deck', seed: { bg: '#04161A', text: '#DDFBF3', accent: '#3FE0B5', raised: '#0B2A30', surface: '#0B2A30', card: '#14424A', line: '#4E8A92' } },
@@ -939,7 +939,7 @@ export const theFrostedWindow = definePreset({
   name: 'Frosted Window',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#0B1730', text: '#EAF4FF', accent: '#7FC4FF', raised: '#16294D', surface: '#16294D' },
+  seed: { bg: '#1B2A4A', text: '#FFFFFF', accent: '#2E6CC8', raised: '#2E4A73', surface: '#2E4A73' },
   alternatives: [
     { id: 'aurora-glass', name: 'Aurora glass', seed: { bg: '#05191C', text: '#E3FBF4', accent: '#4FE3B8', raised: '#0D2E33' } },
     { id: 'rose-frost', name: 'Rose frost', seed: { bg: '#241024', text: '#FFE8F4', accent: '#FF8FC2', raised: '#3A1B3A' } },

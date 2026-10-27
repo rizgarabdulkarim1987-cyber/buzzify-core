@@ -5,7 +5,9 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { StationBody } from '@/ui/template/bodies/StationBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { HULL, ledOf } from '@/ui/template/bodies/station-hull';
+import { riseOf } from '@/ui/template/bodies/shared/rise';
+
+const css = () => readFileSync('src/ui/template/bodies/station.css', 'utf8');
 
 describe('the Space Station shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -26,42 +28,47 @@ describe('the Space Station shape', () => {
   });
 });
 
-describe('the hull, bezel and LED fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: label plate, status bar, resting chip, sale chip', () => {
-    expect(contrast(HULL.ice, HULL.plate)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(HULL.ice, HULL.bar)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(HULL.ice, HULL.deep)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(HULL.amberInk, HULL.amber)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(HULL.steelInk, HULL.steel)).toBeGreaterThanOrEqual(4.5);
+describe('the poster palette', () => {
+  it('starts on the poster colours: the dark space ground, the pale violet text, the violet accent', () => {
+    const palette = TEMPLATES['the-space-station'].palette;
+    expect(palette.bg.toLowerCase()).toBe('#07051a');
+    expect(palette.text.toLowerCase()).toBe('#e8e6ff');
+    expect(palette.accent.toLowerCase()).toBe('#9b8cff');
   });
 
-  it('draws the LED text in the palette accent lifted towards white, readable on the LED window whatever the accent is', () => {
-    for (const accent of ['#000000', '#ffffff', '#ff0000', '#0000ff', '#00ff00', '#9b8cff', '#2b4fd8', '#7a1f1f']) {
-      expect(contrast(ledOf(accent), HULL.deep), accent).toBeGreaterThanOrEqual(4.5);
+  it('reads at 4.5:1 on every palette of the shape: the text, the lifted accent (price, tab names) on the ground', () => {
+    for (const palette of TEMPLATES['the-space-station'].palettes) {
+      const colours = palette.palette;
+      expect(contrast(colours.text, colours.bg), palette.id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(riseOf(colours.accent), colours.bg), palette.id).toBeGreaterThanOrEqual(4.5);
     }
   });
 
-  it('draws the focus rings in colours that stand out (3:1) from what they sit on', () => {
-    expect(contrast(HULL.ice, HULL.bar)).toBeGreaterThanOrEqual(3);
-    expect(contrast(HULL.steelInk, HULL.steel)).toBeGreaterThanOrEqual(3);
-    expect(contrast(HULL.ice, HULL.deep)).toBeGreaterThanOrEqual(3);
-    expect(contrast(HULL.ice, HULL.hull)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
-    const css = readFileSync('src/ui/template/bodies/station.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+  it('draws every colour from the palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+    const text = css().replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
     const allowed = ['#000', '#fff', '#ffb454', '#1a0f00'];
-    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+    for (const [literal] of text.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+});
+
+describe('the stylesheet', () => {
+  it('scopes every rule under the shape and never loops: no infinite animation, no physical left/right properties', () => {
+    const text = css();
+    expect(text).not.toMatch(/infinite/);
+    expect(text).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
+    const outside = text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((line) => /^[^\s@}\/].*\{$/.test(line) && !line.startsWith("[data-body='station']"));
+    expect(outside).toEqual([]);
   });
 
-  it('resolves the signature palette to the fills the shape was drawn with', () => {
-    const palette = TEMPLATES['the-space-station'].palette;
-    for (const [role, fill] of [['bg', HULL.space], ['surface', HULL.hull], ['line', HULL.hullEdge], ['card', HULL.plate], ['text', HULL.ice]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
+  it('turns the orbit once in under five seconds, with transform only, and rests with less motion', () => {
+    const text = css();
+    expect(text).toMatch(/animation: st-orbit 4\.5s/);
+    expect(text).toMatch(/@keyframes st-orbit\s*\{[^@]*transform: rotate/);
+    expect(text).toMatch(/prefers-reduced-motion: reduce[\s\S]*st-orbit[\s\S]*animation: none/);
   });
 
-  it('never loops: no infinite animation in the stylesheet, and no physical left/right properties', () => {
-    const css = readFileSync('src/ui/template/bodies/station.css', 'utf8');
-    expect(css).not.toMatch(/infinite/);
-    expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
+  it('puts hover inside the hover media query', () => {
+    const text = css();
+    for (const at of text.matchAll(/:hover/g)) expect(text.slice(0, at.index).lastIndexOf('@media (hover: hover)'), 'a :hover outside @media (hover: hover)').toBeGreaterThan(-1);
   });
 });

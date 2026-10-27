@@ -215,3 +215,52 @@ test('a dish on sale shows a −NN% chip in the menu numerals on its pin, and ke
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });
+
+/** Colours picked in Customize (a green menu with a pink accent): the map must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('mapcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'treasure', { templateId: 'the-treasure-map', colors: CUSTOM });
+});
+const rgbOf = (node: ReturnType<Page['locator']>, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const near = (actual: number[], hex: string, message: string) =>
+  [1, 3, 5].forEach((at, i) => expect(Math.abs(actual[i]! - parseInt(hex.slice(at, at + 2), 16)), `${message}: channel ${i}`).toBeLessThanOrEqual(3));
+
+test('Customize colours reach the map: banner card, pin ring and flag follow the palette', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const island = page.locator('#cat-viennoiserie');
+  near(await rgbOf(island.locator('.tm-title'), 'background-color'), CUSTOM.raised, 'banner');
+  near(await rgbOf(island.locator('.tm-photo').first(), 'border-top-color'), CUSTOM.raised, 'pin ring');
+  near(await rgbOf(island.locator('.tm-tag').first(), 'background-color'), CUSTOM.text, 'price flag');
+});
+
+test('the island is a washed blob with a sandy centre fading to shallows, and the compass turn ends', async ({ page }) => {
+  await openMenu(page, slug);
+  const wash = await page.locator('#cat-viennoiserie').evaluate((node) => getComputedStyle(node, '::before').backgroundImage);
+  expect(wash).toContain('radial-gradient');
+  const spin = await compass(page).evaluate((node) => getComputedStyle(node, '::before').animationIterationCount);
+  expect(spin).toBe('1');
+});
+
+test('with reduced motion the compass does not turn', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  expect(await compass(page).evaluate((node) => getComputedStyle(node, '::before').animationName)).toBe('none');
+});
+
+test('the sale chip and the add sit on the pin rim, clear of the name', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const pin = pins(page).filter({ hasText: dishName('croissant') });
+  const photo = (await pin.locator('[data-photo]').boundingBox())!;
+  const add = (await pin.locator('.tm-add').boundingBox())!;
+  const name = (await pin.locator('.tm-name').boundingBox())!;
+  expect(add.y + add.height).toBeLessThan(name.y);
+  expect(add.y).toBeLessThan(photo.y + photo.height / 2);
+});
