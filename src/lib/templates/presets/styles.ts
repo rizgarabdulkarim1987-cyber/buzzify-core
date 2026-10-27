@@ -875,4 +875,33 @@ export const theBaghdadShanashil = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil];
+export const theIshtarGate = definePreset({
+  id: 'the-ishtar-gate',
+  number: 61,
+  name: 'Ishtar Gate',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#10285A', text: '#F7E7B8', accent: '#E1B64A', raised: '#1B3F86' },
+  alternatives: [
+    { id: 'sand-gate', name: 'Sand gate', seed: { bg: '#EFE0BC', text: '#2A1A05', accent: '#1D4B9B', raised: '#F8EFD6' } },
+    { id: 'babylon-night', name: 'Babylon night', seed: { bg: '#0A1630', text: '#F3E4B5', accent: '#D9A93C', raised: '#14264F' } },
+    { id: 'glaze-teal', name: 'Glaze teal', seed: { bg: '#0B3A44', text: '#F4E9C8', accent: '#E3B955', raised: '#12505C' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'gate',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate];

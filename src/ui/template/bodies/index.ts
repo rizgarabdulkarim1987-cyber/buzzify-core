@@ -6,6 +6,7 @@ import { CabinetBody } from './CabinetBody';
 import { CitadelBody } from './CitadelBody';
 import { ComicsBody } from './ComicsBody';
 import { LatticeBody } from './LatticeBody';
+import { GateBody } from './GateBody';
 import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
 import { DepthBody } from './DepthBody';
@@ -65,6 +66,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   carpet: CarpetBody,
   rugs: RugsBody,
   lattice: LatticeBody,
+  gate: GateBody,
   ink: InkBody,
   steam: SteamBody,
 };

@@ -1,0 +1,386 @@
+/*
+ * The Ishtar Gate body (a browse shape of a template menu): Babylon's glazed lapis-blue gate. Each section is a gate: a
+ * tall arched frame of lapis brick (gradients) edged in gold, a crown of gold rosettes along the arch and a column of
+ * them down each jamb, a lintel with the section's number (a small arch), name and dish count, and the opening, where
+ * the dishes stand as sandy relief tiles three across (a framed photo, the name on a lapis cartouche, the price on a
+ * gold rosette badge). Two door leaves of lapis studded with gold close the opening until the gate first comes into
+ * view, then slide apart once (GateBody arms it; with less motion they are simply open). The sticky strip is a row of
+ * tiny gate-arch chips. Everything is scoped under [data-body='gate'], logical properties only (RTL mirrors). The fills
+ * are the shape's own (gate-brick.ts, the same on every palette), and every text sits on a solid one: the brick and the
+ * rosettes are on frames and pseudo-elements, never behind text. Nothing loops.
+ */
+[data-body='gate'] {
+  --gt-lapis: #1d4b9b;
+  --gt-deep: #10285a;
+  --gt-gold: #e1b64a;
+  --gt-gold-ink: #2a1a05;
+  --gt-cream: #fff3c4;
+  --gt-sand: #e6c98c;
+  --gt-sand-edge: #8a5f1a;
+  --gt-mortar: rgb(0 0 0 / 0.28);
+  /* A gold rosette: eight rays round a pale centre (one layer pair, in the size of the element that carries it). */
+  --gt-rosette-a: radial-gradient(circle, var(--gt-cream) 0 18%, transparent 20%);
+  --gt-rosette-b: repeating-conic-gradient(var(--gt-gold) 0 15deg, transparent 15deg 45deg);
+  /* The same rosette in dark ink, for a spot of gold. */
+  --gt-rosette-ink: radial-gradient(circle, var(--gt-gold-ink) 0 22%, transparent 24%), repeating-conic-gradient(var(--gt-gold-ink) 0 15deg, transparent 15deg 45deg);
+  --gt-arch: 999px 999px 0.125rem 0.125rem;
+  /* The sticky strip's height, so a jumped-to gate lands just below it. */
+  --nav-room: 3.5rem;
+  --column: 64rem;
+  /* The last gate only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 30%;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip of gate chips */
+
+[data-body='gate'] .gt-strip {
+  padding-block-end: 0.625rem;
+  background: var(--gt-deep);
+  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 0.25);
+}
+/* A row of small gold rosettes along the foot of the strip, drawn still. */
+[data-body='gate'] .gt-strip::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0.0625rem;
+  block-size: 0.5rem;
+  background-image: var(--gt-rosette-a), var(--gt-rosette-b);
+  background-size: 0.5rem 0.5rem;
+  background-repeat: repeat-x;
+  pointer-events: none;
+}
+[data-body='gate'] .gt-strip-list {
+  gap: 0.375rem;
+  padding-block: 0.25rem 0;
+  padding-inline: 0.5rem;
+}
+/* A small gate: a gold-edged lapis arch round a deep window that holds the section's number. */
+[data-body='gate'] .gt-chip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0.1875rem;
+  border: 2px solid var(--gt-gold);
+  border-radius: var(--gt-arch);
+  background: var(--gt-lapis);
+  color: var(--gt-cream);
+  transition: background-color 150ms;
+}
+[data-body='gate'] .gt-glass {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 999px 999px 0.0625rem 0.0625rem;
+  background: var(--gt-deep);
+  color: var(--gt-cream);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* The gate in view: a gold arch, its window in gold on deep blue. */
+[data-body='gate'] .gt-chip[aria-current='true'] {
+  background: var(--gt-gold);
+  color: var(--gt-deep);
+}
+[data-body='gate'] .gt-glass[data-pane='active'] {
+  background: var(--gt-lapis);
+  color: var(--gt-cream);
+  font-weight: 800;
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the arch, in the chip's text colour. */
+[data-body='gate'] .gt-strip-list button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+
+/* ------------------------------------------------------------------ a gate */
+
+/* The frame: an arch (an ellipse across the top, square at the foot) of lapis brick with a gold edge. The padding at the
+   sides is the jamb, where a column of rosettes runs (::before, under the content). */
+[data-body='gate'] .gt-gate {
+  position: relative;
+  margin-block: 0.5rem 0.0625rem;
+  margin-inline: 0.375rem;
+  padding: 0.1875rem 1.125rem 0.375rem;
+  border: 3px solid var(--gt-gold);
+  border-radius: 50% 50% 0 0 / 2.75rem 2.75rem 0 0;
+  background:
+    linear-gradient(var(--gt-mortar) 2px, transparent 2px) 0 0 / 100% 1.25rem,
+    linear-gradient(90deg, var(--gt-mortar) 2px, transparent 2px) 0 0 / 2.5rem 1.25rem,
+    var(--gt-lapis);
+  box-shadow: 0 0 0 3px var(--gt-deep);
+}
+[data-body='gate'] .gt-gate::before {
+  content: '';
+  position: absolute;
+  inset-block: 2rem 0.25rem;
+  inset-inline: 0;
+  z-index: 0;
+  background-image: var(--gt-rosette-a), var(--gt-rosette-b), var(--gt-rosette-a), var(--gt-rosette-b);
+  background-position: 0.1875rem 0, 0.1875rem 0, calc(100% - 0.1875rem) 0, calc(100% - 0.1875rem) 0;
+  background-size: 0.875rem 0.875rem;
+  background-repeat: repeat-y;
+  pointer-events: none;
+}
+/* The crown: a row of rosettes along the top of the arch, spaced evenly in the middle of it. */
+[data-body='gate'] .gt-crown {
+  display: block;
+  position: relative;
+  z-index: 1;
+  inline-size: 62%;
+  block-size: 0.625rem;
+  margin: 0 auto 0.1875rem;
+  background-image: var(--gt-rosette-a), var(--gt-rosette-b);
+  background-position: 50% 50%;
+  background-size: 0.625rem 0.625rem;
+  background-repeat: space;
+}
+[data-body='gate'] [data-heading].gt-head {
+  position: relative;
+  z-index: 1;
+  display: block;
+  padding-inline: 0;
+}
+/* The lintel: a solid deep-blue beam with a gold rim, the number a small arch, the count a gold disc. */
+[data-body='gate'] .gt-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 1.75rem;
+  margin: 0;
+  padding: 0 0.5rem;
+  border: 2px solid var(--gt-gold);
+  border-radius: 0.25rem;
+  background: var(--gt-deep);
+  color: var(--gt-cream);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+[data-body='gate'] .gt-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='gate'] .gt-title small {
+  border: 2px solid var(--gt-gold);
+  border-radius: 999px 999px 0.1875rem 0.1875rem;
+  background: var(--gt-lapis);
+  color: var(--gt-cream);
+}
+[data-body='gate'] .gt-title b {
+  background-color: var(--gt-gold);
+  color: var(--gt-gold-ink);
+}
+
+/* The opening: a deep passage edged in gold, the tiles three across, the door leaves over them until the gate opens. */
+[data-body='gate'] .gt-opening {
+  position: relative;
+  z-index: 1;
+  overflow: hidden;
+  margin-block-start: 0.25rem;
+  border: 2px solid var(--gt-gold);
+  border-radius: 0.125rem;
+  background: var(--gt-deep);
+}
+[data-body='gate'] .gt-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3125rem;
+  margin: 0;
+  padding: 0.3125rem;
+  list-style: none;
+}
+
+/* The door leaves: lapis studded with gold, one at each side, drawn over the opening and never taking a tap. At rest
+   (no script, less motion, a gate already seen) they are slid out of the opening. */
+[data-body='gate'] .gt-leaf {
+  --d: -1;
+  position: absolute;
+  inset-block: 0;
+  z-index: 4;
+  box-sizing: border-box;
+  inline-size: 50%;
+  border: 2px solid var(--gt-gold);
+  background:
+    radial-gradient(circle, var(--gt-gold) 0 0.1875rem, transparent 0.25rem) 0 0 / 1.375rem 1.375rem,
+    var(--gt-lapis);
+  pointer-events: none;
+  translate: calc(var(--d) * 100%) 0;
+}
+[data-body='gate'] .gt-leaf-s {
+  inset-inline-start: 0;
+}
+[data-body='gate'] .gt-leaf-e {
+  --d: 1;
+  inset-inline-end: 0;
+}
+[data-body='gate']:dir(rtl) .gt-leaf-s {
+  --d: 1;
+}
+[data-body='gate']:dir(rtl) .gt-leaf-e {
+  --d: -1;
+}
+/* The entrance (armed by the script): shut until the gate first comes into view, then they part once. The gates on the
+   screen when the script arms are opened in the same pass, so the first screen never shows them shut. */
+[data-body='gate'][data-armed] .gt-gate:not([data-open]) .gt-leaf {
+  translate: 0 0;
+}
+[data-body='gate'][data-armed] .gt-gate[data-open] .gt-leaf {
+  transition: translate 500ms cubic-bezier(0.77, 0, 0.175, 1);
+}
+/* Keyboard focus inside a gate opens it at once: a focused dish (and its ring) is never behind a door. */
+[data-body='gate'][data-armed] .gt-gate:focus-within .gt-leaf {
+  translate: calc(var(--d) * 100%) 0;
+  transition: translate 200ms ease-out;
+}
+
+/* ------------------------------------------------------------------ a relief tile */
+
+/* The tile is the positioned ancestor of the name's tap area, so the whole tile (relief, cartouche and badge) opens the dish. */
+[data-body='gate'] .gt-tile {
+  --tpl-ring-radius: 0.375rem;
+  --tpl-ring-inset: -3px;
+  --sale-bg: var(--gt-cream);
+  --sale-ink: var(--gt-deep);
+  --rim-add-bg: var(--gt-gold);
+  --rim-add-ink: var(--gt-gold-ink);
+  --photo-off-at: 0.125rem;
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 0.125rem;
+  min-inline-size: 0;
+  padding: 0.1875rem 0.1875rem 0.25rem;
+  border: 2px solid var(--gt-sand-edge);
+  border-radius: 0.375rem 0.375rem 0.125rem 0.125rem;
+  background: var(--gt-sand);
+}
+/* The relief frame: a lapis rim with a gold line inside it; the photo sits in it, with no ornament over the photo. */
+[data-body='gate'] .gt-relief {
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: 0.1875rem;
+  border-radius: 0.1875rem;
+  background: var(--gt-lapis);
+  box-shadow: inset 0 0 0 1px var(--gt-gold);
+}
+[data-body='gate'] .gt-photo {
+  /* A dish with no media: the plate's rings and ground in the gate's own colours, on every palette. */
+  --text: var(--gt-cream);
+  --bg: var(--gt-deep);
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 0.62;
+  border-radius: 0.125rem;
+  background: var(--gt-deep);
+}
+/* The discount sits on the tile's start corner (shared .tpl-photo-off, over the rim); the add on the photo's end corner at the foot. */
+[data-body='gate'] .gt-add {
+  --rim-add-size: 2.5rem;
+  z-index: 3;
+  inset-block-end: 0.125rem;
+  inset-inline-end: 0.125rem;
+  border: 2px solid var(--rim-add-ink);
+}
+[data-body='gate'] .gt-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='gate'] .gt-add:focus-visible {
+  outline: 2px solid var(--rim-add-ink);
+  outline-offset: -5px;
+}
+/* The cartouche: a small lapis plate with a gold rim, the name on it, two lines at most (shared .tpl-dish-name). */
+[data-body='gate'] .gt-name {
+  box-sizing: border-box;
+  padding: 0 0.25rem;
+  border: 2px solid var(--gt-gold);
+  border-radius: 0.25rem;
+  background: var(--gt-lapis);
+  color: var(--gt-cream);
+  text-align: center;
+}
+/* The whole tile's keyboard ring is drawn inside it, on the sand, in deep blue. */
+[data-body='gate'] .tpl-open.gt-name:focus-visible::after {
+  outline: 2px solid var(--gt-deep);
+  outline-offset: -3px;
+  border-radius: 0.375rem;
+}
+/* The badge: a gold plate with a dark rosette at its start; a long price wraps inside it rather than overflowing. */
+[data-body='gate'] .gt-price {
+  position: relative;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding: 0 0.4375rem;
+  padding-inline-start: 1.375rem;
+  border-radius: 0.75rem;
+  background: var(--gt-gold);
+  color: var(--gt-gold-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+[data-body='gate'] .gt-price::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.3125rem;
+  inset-block-start: 50%;
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  margin-block-start: -0.375rem;
+  background: var(--gt-rosette-ink);
+}
+
+@media (hover: hover) {
+  [data-body='gate'] .gt-tile:hover .gt-relief {
+    filter: brightness(1.15);
+  }
+}
+
+/* A wide screen: four columns, then five, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='gate'] .gt-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.625rem;
+    padding: 0.625rem;
+  }
+  [data-body='gate'] .gt-price {
+    font-size: 0.9375rem;
+  }
+  [data-body='gate'] .gt-title {
+    font-size: 1.5rem;
+  }
+  [data-body='gate'] .gt-gate {
+    border-radius: 50% 50% 0 0 / 4rem 4rem 0 0;
+    padding-inline: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='gate'] .gt-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the doors are simply open, the chips simply change. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='gate'] .gt-chip,
+  [data-body='gate'] .gt-leaf {
+    transition: none !important;
+  }
+}

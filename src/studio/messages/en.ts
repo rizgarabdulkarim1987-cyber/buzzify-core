@@ -2408,6 +2408,7 @@ const en: Messages = {
   'design.body.carpet': 'Magic carpets',
   'design.body.rugs': 'Woven rugs',
   'design.body.lattice': 'Lattice windows',
+  'design.body.gate': 'Ishtar gates',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

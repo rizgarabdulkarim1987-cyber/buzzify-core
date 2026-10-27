@@ -36,6 +36,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'kurd-arab-lyl': 'the-thousand-and-one-nights',
   'themed-kurd': 'the-jajim-and-nowruz',
   'themed-shn': 'the-baghdad-shanashil',
+  'themed-bab': 'the-ishtar-gate',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */
