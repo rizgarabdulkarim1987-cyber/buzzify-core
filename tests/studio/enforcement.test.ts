@@ -167,16 +167,25 @@ const studioPhReferences = (source: string) => phReferences(source, PH_NAMES);
  */
 const PHARMACY_BASE_CLIENT_FILES = ['src/server/pharmacy/actor.ts', 'src/server/pharmacy/support.ts'];
 
-/** A Ph delegate reached through the base client by its usual names: `db.ph*` (`ctx.db.ph*` too), `prisma.ph*`, `getPrisma().ph*`. */
+/**
+ * The names a base client goes by in pharmacy code: `db` (also `ctx.db`), `prisma`, `prisma()`, `getPrisma()` (also
+ * awaited in parentheses), and the names a helper gives a client it was handed (`client`, `baseClient`, `prismaClient`,
+ * `database`, `base`). The pharmacy services receive `tx` (a ScopedTx) or `ctx.scoped`/`scoped`, none of which is here.
+ */
+const BASE_RECEIVER = /(?:\bdb|\bprisma|\bgetPrisma\(\s*\)\s*\)|\bgetPrisma\(\s*\)|\bprisma\(\s*\)|\bclient|\bbaseClient|\bprismaClient|\bdatabase|\bbase)/.source;
+
+/** A Ph delegate reached through the base client by one of those names, or pulled out of one: `const { phBatch } = prisma`. */
 function baseClientPhAccesses(source: string): string[] {
-  return PH.delegates.filter((name) =>
-    new RegExp(`(?:\\bdb|\\bprisma|\\bgetPrisma\\(\\s*\\)|\\bprisma\\(\\s*\\))\\s*\\.\\s*${name}\\b`).test(source),
+  return PH.delegates.filter(
+    (name) =>
+      new RegExp(`${BASE_RECEIVER}\\s*\\.\\s*${name}\\b`).test(source) ||
+      new RegExp(`\\{[^}]*\\b${name}\\b[^}]*\\}\\s*=\\s*(?:await\\s+)?(?:[\\w!?]+\\.)*${BASE_RECEIVER}\\b`).test(source),
   );
 }
 
 /**
  * What this rule guarantees, in `src/server/pharmacy` and `src/app/pharmacy` outside the allow-listed actor files: no
- * file names a Ph delegate on a receiver called `db`, `prisma`, `prisma()` or `getPrisma()` (so not `ctx.db.phX`), and
+ * file names a Ph delegate on a receiver in `BASE_RECEIVER` (`ctx.db.phX` included), and
  * no file that names a Ph delegate imports the database client. Ph models are then read through `tx`, `ctx.scoped` or
  * a client passed in under another name; a base client renamed to something else is not caught, which review covers.
  */
@@ -501,6 +510,32 @@ describe('Studio enforcement rules', () => {
       expect(pharmacyClientViolations(action, 'await prisma().phStaff.count();')).toEqual(['base client .phStaff']);
     });
 
+    it('refuses direct writes to the stock tables on every receiver a base client goes by', () => {
+      const stock = 'src/server/pharmacy/adjustments.ts';
+      const sample = (receiver: string, write: string) => `await ${receiver}.${write};`;
+      const receivers = ['db', 'ctx.db', 'prisma', 'prisma()', 'getPrisma()', '(await getPrisma())', 'this.prisma', 'ctx.prisma', 'client', 'baseClient', 'prismaClient', 'database', 'base'];
+      for (const receiver of receivers) {
+        expect(pharmacyClientViolations(stock, sample(receiver, 'phBatch.create({ data })')), `${receiver}.phBatch`).toEqual(['base client .phBatch']);
+        expect(pharmacyClientViolations(stock, sample(receiver, 'phStockBalance.updateMany({ where, data })')), `${receiver}.phStockBalance`).toEqual([
+          'base client .phStockBalance',
+        ]);
+        expect(pharmacyClientViolations('src/app/pharmacy/(app)/stock/page.tsx', sample(receiver, 'phStockMovement.create({ data })')), `${receiver}.phStockMovement`).toEqual([
+          'base client .phStockMovement',
+        ]);
+      }
+      // A delegate pulled out of a base client is still the base client's.
+      expect(pharmacyClientViolations(stock, 'const { phStockBalance } = prisma;\nawait phStockBalance.upsert({ where, create, update });')).toEqual(['base client .phStockBalance']);
+      expect(pharmacyClientViolations(stock, 'const { phBatch } = await ctx.db;')).toEqual(['base client .phBatch']);
+    });
+
+    it('accepts the receivers the pharmacy services use: tx, scoped and ctx.scoped', () => {
+      const stock = 'src/server/pharmacy/stock.ts';
+      for (const receiver of ['tx', 'scoped', 'ctx.scoped', 'ctx.scoped!', 'work.tx']) {
+        expect(pharmacyClientViolations(stock, `await ${receiver}.phStockBalance.updateMany({ where, data });`), receiver).toEqual([]);
+        expect(pharmacyClientViolations(stock, `await ${receiver}.phBatch.create({ data });`), receiver).toEqual([]);
+      }
+    });
+
     it('refuses a file that uses a Ph delegate and imports the client itself', () => {
       expect(pharmacyClientViolations(action, `import { getPrisma } from '@/server/data/prisma';\n${viaTx}`)).toEqual([
         '@/server/data/prisma',
@@ -516,6 +551,52 @@ describe('Studio enforcement rules', () => {
       expect(pharmacyClientViolations('src/server/pharmacy/actor.ts', resolving)).toEqual([]);
       expect(pharmacyClientViolations('src/server/pharmacy/support.ts', resolving)).toEqual([]);
       expect(pharmacyClientViolations('src/server/pharmacy/stock.ts', resolving)).toHaveLength(2);
+    });
+
+    describe('the stock tables are written by src/server/pharmacy/stock.ts alone', () => {
+      /** Where stock and its ledger may change: `applyMovement` and `reverseMovement` (R2-1). Nothing else, by any receiver. */
+      const STOCK_WRITERS = ['src/server/pharmacy/stock.ts'];
+      /**
+       * Explicit allowances, each with its reason. None today: receipts, counts, adjustments and expiry all call
+       * `applyMovement`; the count and receipt tables are their own services' (`PhStockCount*`, `PhReceipt*`), not the
+       * stock ledger or its balances.
+       */
+      const ALLOWANCES: Record<string, string> = {};
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|upsert|delete|deleteMany)';
+      const STOCK_TABLES = ['PhStockBalance', 'PhStockMovement'];
+
+      /** Writes to a stock delegate by any receiver, a delegate pulled out of a client, or raw SQL that changes the table. */
+      function stockWrites(source: string): string[] {
+        const found: string[] = [];
+        for (const table of STOCK_TABLES) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push(`${delegate}.write`);
+          if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(`${delegate} destructured`);
+          if (new RegExp(`(?:insert\\s+into|update|delete\\s+from)\\s+"?${table}"?`, 'i').test(source)) found.push(`${table} raw sql`);
+        }
+        return found;
+      }
+
+      it('recognises a write however the receiver is spelled', () => {
+        expect(stockWrites('await tx.phStockBalance.updateMany({ where, data });')).toEqual(['phStockBalance.write']);
+        expect(stockWrites('await ctx.scoped!.phStockMovement.create({ data });')).toEqual(['phStockMovement.write']);
+        expect(stockWrites('await getPrisma().phStockBalance.upsert({});')).toEqual(['phStockBalance.write']);
+        expect(stockWrites('const { phStockMovement } = tx;')).toEqual(['phStockMovement destructured']);
+        expect(stockWrites('await tx.$executeRaw`UPDATE "PhStockBalance" SET "available" = 0`;')).toEqual(['PhStockBalance raw sql']);
+        expect(stockWrites('await tx.$executeRaw`DELETE FROM "PhStockMovement"`;')).toEqual(['PhStockMovement raw sql']);
+        expect(stockWrites('await tx.phStockBalance.findMany({ where });\nawait tx.phStockMovement.count();')).toEqual([]);
+      });
+
+      it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
+        const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')]
+          .filter((path) => !STOCK_WRITERS.includes(path) && ALLOWANCES[path] === undefined)
+          .flatMap((path) => stockWrites(read(path)).map((write) => `${path}: ${write}`));
+        expect(offenders).toEqual([]);
+      });
+
+      it('finds the writes in stock.ts, so the check is not passing on a stale path', () => {
+        expect(stockWrites(read('src/server/pharmacy/stock.ts')).sort()).toEqual(['phStockBalance.write', 'phStockMovement.write']);
+      });
     });
 
     it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
