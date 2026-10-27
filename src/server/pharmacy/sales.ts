@@ -30,9 +30,13 @@ import { applyMovement, lockOrder } from './stock';
  * payments and cash movements. Anything that fails throws and the transaction leaves nothing behind.
  *
  * Lock order, always the same, so sales never deadlock: (1) the sale key (a repeat of one key waits for the first and
- * then replays it), (2) the branch's stock balances of the products sold, taken `FOR UPDATE` in batch order, (3) the
- * branch's sale numbering. Allocation reads the balances only after (2), so two sales of the last unit queue up and the
- * second sees the first's result.
+ * then replays it), (2) the seller's shift row `FOR SHARE` (a shift close takes it `FOR UPDATE`, so a sale either
+ * finishes before the close or finds the shift closed: no cash is ever posted into a closed shift), (3) the branch's
+ * stock balances of the products sold, `FOR UPDATE` in batch order (`COLLATE "C"`, a fixed byte order), (4) the sold
+ * batches' rows `FOR SHARE` (a recall or block racing a sale waits for it, or the sale sees it), (5) the branch's sale
+ * numbering. Allocation reads the balances only after (3), so two sales of the last unit queue up and the second sees
+ * the first's result. The advisory locks use the two-int form (namespace, hash of the key): NS_KEY and NS_NUMBER.
+ * (receipts.ts and other files still use the one-int form `pg_advisory_xact_lock(hashtext(...))`; not changed here.)
  *
  * Cost snapshot (decided here): a batch's `unitCostMinor` is per `costUnit` (the unit it was bought in). The cost of an
  * allocation is `unitCostMinor x allocatedBaseQty / costUnit.baseQty` with the division FLOORED, stored with the batch's
@@ -45,6 +49,9 @@ export const MAX_SALE_LINES = 200;
 export const MAX_PAYMENTS = 10;
 export const SALE_TIMEOUT_MS = 60_000;
 const MAX_INT = 2_147_483_647;
+/** Advisory lock namespaces of this file (first int of the two-int form). */
+const NS_KEY = 7101;
+const NS_NUMBER = 7102;
 const WHOLE = 'Enter a whole number';
 
 // Input ---------------------------------------------------------------------------------------------------------------
@@ -251,7 +258,7 @@ export async function createSale(
 
   // (1) One key at a time: a repeat waits for the first and then finds it.
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one sale key
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-sale-key:${restaurantId}:${input.clientKey}`}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_KEY}::int, hashtext(${`${restaurantId}:${input.clientKey}`}))`;
   const earlier = await tx.phSale.findFirst({
     where: { clientKey: input.clientKey },
     select: {
@@ -273,7 +280,8 @@ export async function createSale(
     },
   });
   if (earlier) {
-    if (earlier.branchId !== branchId || earlier.soldById !== ph.userId || earlier.payloadHash !== hash) {
+    // A sale stored without a hash (none are written without one today) replays for the same branch and user only.
+    if (earlier.branchId !== branchId || earlier.soldById !== ph.userId || (earlier.payloadHash !== null && earlier.payloadHash !== hash)) {
       throw conflict('CLIENT_KEY_MISMATCH', 'This key was already used for a different sale');
     }
     return { result: resultOf(earlier, earlier._count.lines, true), audit: null };
@@ -283,9 +291,14 @@ export async function createSale(
   const shift = await tx.phShift.findFirst({ where: { branchId, userId: ph.userId, status: 'OPEN' }, select: { id: true, currency: true } });
   if (!shift) throw conflict('NO_OPEN_SHIFT', 'Open a shift before selling');
   if (shift.currency !== input.currency) throw conflict('SHIFT_CURRENCY', 'Your open shift is in another currency');
+  // Hold the shift open until this sale commits (a close waits for it); if it closed meanwhile there is no row.
+  // eslint-disable-next-line no-restricted-properties -- a row lock on the seller's own shift, found above through the scoped client
+  const heldShift = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhShift" WHERE "id" = ${shift.id} AND "status" = 'OPEN' FOR SHARE`;
+  if (heldShift.length !== 1) throw conflict('NO_OPEN_SHIFT', 'Open a shift before selling');
 
   const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true } });
-  const maxDiscountPercent = settings?.maxDiscountPercent ?? 5;
+  // The column is CHECKed 0..100; clamp anyway so a bad row is never a 500.
+  const maxDiscountPercent = Math.min(100, Math.max(0, settings?.maxDiscountPercent ?? 5));
   const roundingStep = input.currency === 'IQD' ? Number(settings?.roundingStepMinor ?? 0n) : 0;
 
   // (3) Each line against the business's own catalog.
@@ -328,7 +341,8 @@ export async function createSale(
     let unitPriceMinor: bigint;
     let priceId: string | null = null;
     let priceOverrideReason = '';
-    if (line.unitPriceMinor !== undefined && (!listed || line.unitPriceMinor !== listed.amount)) {
+    // An override only replaces an existing price (R3-2): a unit with no list price here is not for sale.
+    if (listed && line.unitPriceMinor !== undefined && line.unitPriceMinor !== listed.amount) {
       if (!canPh(role, 'price.change')) {
         throw new StudioError('FORBIDDEN', 'Changing the price needs permission', { phCode: 'PRICE_OVERRIDE_NOT_ALLOWED', [`lines.${index}.unitPriceMinor`]: 'Changing the price needs permission' });
       }
@@ -404,6 +418,11 @@ export async function createSale(
     const rounded = invoiceRounding(subtotalMinor - discountMinor, roundingStep, input.currency);
     totalMinor = rounded.roundedMinor;
     roundingMinor = rounded.roundingMinor;
+    // Rounding never turns a sale into a free one: a positive total that would round to 0 goes up to one step.
+    if (roundingStep > 0 && subtotalMinor - discountMinor > 0n && totalMinor === 0n) {
+      totalMinor = BigInt(roundingStep);
+      roundingMinor = totalMinor - (subtotalMinor - discountMinor);
+    }
   } catch (error) {
     if (error instanceof SaleMathError) throw conflict('ROUNDING_SETTING_INVALID', 'The rounding setting is not valid');
     throw error;
@@ -436,9 +455,14 @@ export async function createSale(
   const locked = await tx.$queryRaw<{ batchId: string; productId: string; available: number }[]>`
     SELECT "batchId", "productId", "available" FROM "PhStockBalance"
     WHERE "restaurantId" = ${restaurantId} AND "branchId" = ${branchId} AND "productId" = ANY(${soldProducts}) AND "available" > 0
-    ORDER BY "batchId" FOR UPDATE`;
+    ORDER BY "batchId" COLLATE "C" FOR UPDATE`;
   const overrideIds = prepared.flatMap((l) => (l.input.batchId ? [l.input.batchId] : []));
   const batchIds = [...new Set([...locked.map((r) => r.batchId), ...overrideIds])];
+  // The sold batches stay as they are (not recalled or blocked meanwhile) until this sale commits.
+  if (batchIds.length > 0) {
+    // eslint-disable-next-line no-restricted-properties -- row locks on this business's batches, listed by id; the rows are read below through the scoped client
+    await tx.$queryRaw`SELECT "id" FROM "PhBatch" WHERE "restaurantId" = ${restaurantId} AND "id" = ANY(${batchIds}) ORDER BY "id" COLLATE "C" FOR SHARE`;
+  }
   const batches = await tx.phBatch.findMany({
     where: { id: { in: batchIds } },
     select: { id: true, productId: true, lot: true, status: true, expiryDate: true, expiryPrecision: true, unitCostMinor: true, costCurrency: true, costUnitId: true },
@@ -459,7 +483,9 @@ export async function createSale(
     locked.filter((r) => r.productId === productId).reduce((sum, r) => sum + (left.get(r.batchId) ?? 0), 0);
 
   const taken: Taken[] = [];
-  for (const line of prepared) {
+  // Overrides take their chosen batch first, so a FEFO line earlier in the list cannot starve them.
+  const ordered = [...prepared.filter((l) => l.input.batchId !== undefined), ...prepared.filter((l) => l.input.batchId === undefined)];
+  for (const line of ordered) {
     const wanted = line.input.batchId;
     if (wanted !== undefined) {
       const batch = batchById.get(wanted);
@@ -490,7 +516,7 @@ export async function createSale(
 
   // (8) Write. (3) The branch's numbering, last, so it is held for the shortest time.
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's sale numbers
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-sale-number:${branchId}`}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_NUMBER}::int, hashtext(${branchId}))`;
   const issued = await tx.phSale.count({ where: { branchId, number: { startsWith: `${today.replaceAll('-', '')}-` } } });
   const number = saleNumber(now.toISOString(), issued + 1);
   const pharmacistId = prepared.some((l) => l.pharmacistId !== null) ? ph.userId : null;
@@ -552,6 +578,9 @@ export async function createSale(
     let costSnapshotMinor: bigint | null = null;
     let costCurrency: 'IQD' | 'USD' | null = null;
     const per = batch.costUnitId ? costUnitBase.get(batch.costUnitId) : undefined;
+    if (batch.unitCostMinor !== null && (per === undefined || batch.costCurrency === null)) {
+      throw invalid('lines', 'This batch has a cost but no cost unit', 'COST_UNIT_MISSING', { batchId: batch.id });
+    }
     if (batch.unitCostMinor !== null && batch.costCurrency !== null && per !== undefined) {
       costSnapshotMinor = (batch.unitCostMinor * BigInt(t.baseQty)) / BigInt(per);
       if (costSnapshotMinor > PG_BIGINT_MAX) throw conflict('COST_OVERFLOW', 'The cost of this batch is too large to record');
@@ -620,6 +649,8 @@ export async function createSale(
     });
   }
   const cashTendered = input.payments.filter((p) => p.method === 'CASH').reduce((sum, p) => sum + p.amountMinor, 0n);
+  // CHANGE_OUT rows are stored NEGATIVE. expectedCash takes the change as a positive figure to subtract: whoever sums a
+  // shift's cash rows must take the magnitude of CHANGE_OUT, not subtract the stored (negative) amount a second time.
   const cashRows = [
     ...(cashTendered > 0n ? [{ type: 'SALE_CASH' as const, amountMinor: cashTendered }] : []),
     ...(checked.changeMinor > 0n ? [{ type: 'CHANGE_OUT' as const, amountMinor: -checked.changeMinor }] : []),

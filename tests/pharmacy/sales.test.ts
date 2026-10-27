@@ -244,6 +244,26 @@ describe('idempotency', () => {
     expect(await avail(batch, w.b1)).toBe(99);
   });
 
+  it('two different sales racing with one payment key: one wins, the other is told the payment key is used', async () => {
+    const w = await world();
+    const batch = await stock(w);
+    const results = await Promise.all([1, 2, 3, 4].map(() => act(w.cashier, saleActions.create, sale(w, { payments: [{ method: 'CASH', amountMinor: 100n, clientKey: 'racing-payment-key' }] }))));
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    for (const r of results.filter((x) => !x.ok)) expect([codeOf(r), phCodeOf(r)]).toEqual(['CONFLICT', 'PAYMENT_KEY_USED']);
+    expect(await counts()).toMatchObject({ sales: 1, payments: 1, movements: 1 });
+    expect(await avail(batch, w.b1)).toBe(99);
+  });
+
+  it('a sale without a stored hash replays only for the same branch and user', async () => {
+    const w = await world();
+    await stock(w);
+    const input = sale(w);
+    const first = dataOf(await act(w.cashier, saleActions.create, input));
+    await prisma().phSale.update({ where: { id: first.id }, data: { payloadHash: null } });
+    expect(dataOf(await act(w.cashier, saleActions.create, input)).replayed).toBe(true);
+    expect(phCodeOf(await act(w.manager, saleActions.create, input))).toBe('CLIENT_KEY_MISMATCH');
+  });
+
   it('the same payment key twice in one request is refused', async () => {
     const w = await world();
     await stock(w);
@@ -254,6 +274,25 @@ describe('idempotency', () => {
 });
 
 describe('shifts', () => {
+  it('a shift closing while a sale waits never leaves cash in the closed shift', async () => {
+    const w = await world();
+    await stock(w);
+    const shift = await prisma().phShift.findFirstOrThrow({ where: { userId: w.cashier.userId } });
+    let sold: ReturnType<typeof act> | undefined;
+    // The closer holds the shift row (as the close will) while the sale starts, then closes it and commits.
+    await prisma().$transaction(async (t) => {
+      // eslint-disable-next-line no-restricted-properties -- the test plays the closing transaction's row lock
+      await t.$queryRaw`SELECT id FROM "PhShift" WHERE id = ${shift.id} FOR UPDATE`;
+      sold = act(w.cashier, saleActions.create, sale(w));
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      await t.phShift.update({ where: { id: shift.id }, data: { status: 'CLOSED', closedAt: NOW, countedMinor: 0n, expectedMinor: 0n, varianceMinor: 0n } });
+    });
+    const r = await sold!;
+    expect([codeOf(r), phCodeOf(r)]).toEqual(['CONFLICT', 'NO_OPEN_SHIFT']);
+    expect(await prisma().phCashMovement.count({ where: { shiftId: shift.id } })).toBe(0);
+    expect((await counts()).sales).toBe(0);
+  });
+
   it('needs the selling user’s open shift in this branch', async () => {
     const w = await world();
     await stock(w);
@@ -261,8 +300,11 @@ describe('shifts', () => {
     const none = await act(nobody, saleActions.create, sale(w));
     expect([codeOf(none), phCodeOf(none)]).toEqual(['CONFLICT', 'NO_OPEN_SHIFT']);
     // The owner's open shift is in branch 2 as well, a manager's in branch 1 does not help in branch 2.
-    const wrongBranch = await act(w.manager, saleActions.create, sale(w, { branchId: w.b2 }));
-    expect(codeOf(wrongBranch)).not.toBe('OK');
+    const both = await person('manager2', { staff: [w.a.id, 'BRANCH_MANAGER', [w.b1, w.b2]] });
+    await openShift(w.a.id, w.b1, both);
+    await stock(w, { branchId: w.b2, lot: 'L2' });
+    const wrongBranch = await act(both, saleActions.create, sale(w, { branchId: w.b2 }));
+    expect([codeOf(wrongBranch), phCodeOf(wrongBranch)]).toEqual(['CONFLICT', 'NO_OPEN_SHIFT']);
     await prisma().phShift.updateMany({ where: { userId: w.cashier.userId }, data: { status: 'CLOSED', closedAt: NOW, countedMinor: 0n, expectedMinor: 0n, varianceMinor: 0n } });
     const closed = await act(w.cashier, saleActions.create, sale(w));
     expect(phCodeOf(closed)).toBe('NO_OPEN_SHIFT');
@@ -403,6 +445,18 @@ describe('batch override', () => {
     expect(await avail(late, w.b1)).toBe(8);
     expect(await avail(early, w.b1)).toBe(10);
     expect((await prisma().phStockMovement.findFirstOrThrow({ where: { type: 'SALE' } })).reason).toBe('customer asked');
+  });
+
+  it('serves batch overrides before FEFO lines, so an override is not starved by an earlier FEFO line', async () => {
+    const w = await world();
+    const early = await stock(w, { lot: 'EARLY', expiry: '2027-01-31', buckets: { available: 5 } });
+    const late = await stock(w, { lot: 'LATE', expiry: '2028-03-31', buckets: { available: 5 } });
+    dataOf(await act(w.manager, saleActions.create, sale(w, {
+      lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 5 }, { productId: w.p.id, unitId: w.p.tablet, qty: 5, batchId: early, batchReason: 'asked for it' }],
+      payments: [cash(1000n)],
+    })));
+    expect(await avail(early, w.b1)).toBe(0);
+    expect(await avail(late, w.b1)).toBe(0);
   });
 
   it('refuses a batch of another product, an unsellable batch and one that cannot cover the quantity', async () => {
@@ -550,13 +604,13 @@ describe('prices', () => {
     expect(made.totalMinor).toBe('100');
   });
 
-  it('an override can price a unit that has no list price', async () => {
+  it('an override only replaces an existing price: a unit with no list price cannot be sold even by a price.change holder', async () => {
     const w = await world();
     await stock(w);
     await prisma().phPrice.deleteMany();
-    const made = dataOf(await act(w.manager, saleActions.create, sale(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 1, unitPriceMinor: 90n, priceOverrideReason: 'no list price' }], payments: [cash(90n)] })));
-    expect(made.totalMinor).toBe('90');
-    expect((await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: made.id } })).priceId).toBeNull();
+    const r = await act(w.manager, saleActions.create, sale(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 1, unitPriceMinor: 90n, priceOverrideReason: 'no list price' }], payments: [cash(90n)] }));
+    expect([codeOf(r), phCodeOf(r)]).toEqual(['INVALID', 'NO_PRICE']);
+    expect((await counts()).sales).toBe(0);
   });
 });
 
@@ -640,6 +694,14 @@ describe('rounding and payments', () => {
     expect(lineRow.totalMinor).toBe(300n);
     const short = await act(w.cashier, saleActions.create, sale(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 3 }], payments: [cash(200n)] }));
     expect(phCodeOf(short)).toBe('PAYMENT_SHORT');
+  });
+
+  it('never rounds a positive total down to zero: it rounds up to one step', async () => {
+    const w = await world();
+    await stock(w);
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { roundingStepMinor: 250n } });
+    const made = dataOf(await act(w.cashier, saleActions.create, sale(w, { payments: [cash(250n)] })));
+    expect(made).toMatchObject({ subtotalMinor: '100', roundingMinor: '150', totalMinor: '250' });
   });
 
   it('refuses sales when the rounding setting is not an allowed step', async () => {

@@ -52,8 +52,16 @@ export const create = defineAction({
         { timeoutMs: SALE_TIMEOUT_MS },
       );
     } catch (error) {
-      // The key's sale is in a branch this person cannot see, or a unique index we did not pre-check refused a write.
-      if (isUnique(error)) throw new StudioError('CONFLICT', 'This key was already used', { phCode: 'CLIENT_KEY_USED' });
+      // The shift closed between the sale's check and its insert: the database trigger (migration pharmacy_shift_closed_guard) refused it.
+      if (String((error as { message?: unknown } | null)?.message ?? '').includes('PH_SHIFT_CLOSED')) {
+        throw new StudioError('CONFLICT', 'Open a shift before selling', { phCode: 'NO_OPEN_SHIFT' });
+      }
+      // A unique index refused a write: say which key, by the constraint's own name; anything else is not ours to guess.
+      if (isUnique(error)) {
+        const where = JSON.stringify((error as { meta?: unknown }).meta ?? {}) + String((error as { message?: unknown }).message ?? '');
+        if (/PhPayment/.test(where)) throw new StudioError('CONFLICT', 'This payment key was already used', { phCode: 'PAYMENT_KEY_USED' });
+        if (/PhSale/.test(where) && /clientKey/.test(where)) throw new StudioError('CONFLICT', 'This key was already used', { phCode: 'CLIENT_KEY_USED' });
+      }
       throw error;
     }
   },

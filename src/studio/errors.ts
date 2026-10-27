@@ -468,6 +468,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This batch is expired and cannot be sold': 'error.text.phBatchExpiredSell',
   'This batch is not active and cannot be sold': 'error.text.phBatchInactiveSell',
   'The cost of this batch is too large to record': 'error.text.phCostTooLarge',
+  'This batch has a cost but no cost unit': 'error.text.phCostUnitMissing',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

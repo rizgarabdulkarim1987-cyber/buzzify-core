@@ -418,6 +418,7 @@ const pharmacy: Messages = {
   'error.text.phBatchExpiredSell': 'ئەم دەستەیە بەسەرچووە و ناتوانرێت بفرۆشرێت',
   'error.text.phBatchInactiveSell': 'ئەم دەستەیە چالاک نییە و ناتوانرێت بفرۆشرێت',
   'error.text.phCostTooLarge': 'تێچووی ئەم دەستەیە گەورەترە لەوەی تۆمار بکرێت',
+  'error.text.phCostUnitMissing': 'ئەم دەستەیە تێچووی هەیە بەڵام یەکەی تێچووی نییە',
   // Stock and movement screens
   'pharmacy.nav.stock': 'کۆگا',
   'pharmacy.nav.movements': 'جووڵەکانی کۆگا',

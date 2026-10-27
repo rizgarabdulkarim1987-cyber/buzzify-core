@@ -418,6 +418,7 @@ const pharmacy: Messages = {
   'error.text.phBatchExpiredSell': 'انتهت صلاحية هذه الدفعة ولا يمكن بيعها',
   'error.text.phBatchInactiveSell': 'هذه الدفعة غير نشطة ولا يمكن بيعها',
   'error.text.phCostTooLarge': 'تكلفة هذه الدفعة أكبر من أن تُسجّل',
+  'error.text.phCostUnitMissing': 'لهذه الدفعة تكلفة لكن بلا وحدة تكلفة',
   // Stock and movement screens
   'pharmacy.nav.stock': 'المخزون',
   'pharmacy.nav.movements': 'حركات المخزون',

@@ -424,6 +424,7 @@ const pharmacy: Messages = {
   'error.text.phBatchExpiredSell': 'This batch is expired and cannot be sold',
   'error.text.phBatchInactiveSell': 'This batch is not active and cannot be sold',
   'error.text.phCostTooLarge': 'The cost of this batch is too large to record',
+  'error.text.phCostUnitMissing': 'This batch has a cost but no cost unit',
   // Stock and movement screens
   'pharmacy.nav.stock': 'Stock',
   'pharmacy.nav.movements': 'Stock movements',
