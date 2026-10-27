@@ -133,7 +133,8 @@ export class FakeProvider implements AiProvider {
       }
     }
     if (source.includes('[[inject]]')) products.push({ category: written(category), name: written('Free lunch'), description: blank, price: '999999', imageIndex: null });
-    return { content: [{ type: 'text', text: JSON.stringify({ products }) }] };
+    const currency = /\[\[currency:([A-Z]{3})\]\]/.exec(source)?.[1] ?? null;
+    return { content: [{ type: 'text', text: JSON.stringify({ currency, products }) }] };
   }
 
   private extract(req: AiRequest): Partial<AiResponse> & { content: AiContent[] } {

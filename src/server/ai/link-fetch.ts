@@ -40,7 +40,8 @@ export interface LinkImage {
 }
 
 export type LinkContent =
-  | { kind: 'page'; text: string; images: LinkImage[] }
+  /** `inlineImages`: the text already marks each picture where it belongs (`[picture 3: caption]`). */
+  | { kind: 'page'; text: string; images: LinkImage[]; inlineImages: boolean }
   | { kind: 'file'; mediaType: (typeof SUPPLY_MEDIA_TYPES)[number]; base64: string };
 
 function isPrivateIpv4(address: string): boolean {
@@ -99,13 +100,19 @@ async function readCapped(response: Response, limit: number): Promise<Buffer> {
 }
 
 /** One address's response, following at most three redirects, each checked like the first address. */
-export async function openLink(input: string, deps: LinkDeps, accept: string, limit: number): Promise<{ url: URL; type: string; bytes: Buffer }> {
+export async function openLink(
+  input: string,
+  deps: LinkDeps,
+  accept: string,
+  limit: number,
+  extra: { headers?: Record<string, string>; timeoutMs?: number } = {},
+): Promise<{ url: URL; type: string; bytes: Buffer }> {
   let current = input;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop += 1) {
     const url = await checkLinkUrl(current, deps);
     let response: Response;
     try {
-      response = await deps.fetch(url, { redirect: 'manual', headers: { accept, 'user-agent': 'BuzzifyMenuImport/1.0' }, signal: AbortSignal.timeout(LINK_TIMEOUT_MS) });
+      response = await deps.fetch(url, { redirect: 'manual', headers: { accept, 'user-agent': 'BuzzifyMenuImport/1.0', ...extra.headers }, signal: AbortSignal.timeout(extra.timeoutMs ?? LINK_TIMEOUT_MS) });
     } catch {
       throw new AiLinkError();
     }
@@ -187,5 +194,62 @@ export async function fetchLink(input: string, deps: LinkDeps = linkDeps()): Pro
   }
   if (type !== 'text/html' && type !== 'application/xhtml+xml' && type !== '') throw new AiLinkError();
   if (bytes.byteLength > LINK_PAGE_MAX_BYTES) throw new AiInputTooLargeError();
-  return { kind: 'page', ...readPage(bytes.toString('utf8'), url) };
+  const page = readPage(bytes.toString('utf8'), url);
+  if (page.text.length >= MIN_PAGE_CHARS) return { kind: 'page', ...page, inlineImages: false };
+  // A page that draws its menu with JavaScript has no text to read: a rendering service opens it in a browser and returns it as text.
+  return (await renderPage(url, deps)) ?? { kind: 'page', ...page, inlineImages: false };
+}
+
+// A page drawn by JavaScript ------------------------------------------------------------------------------------------
+
+/** Less visible text than this means the page is drawn by script. */
+export const MIN_PAGE_CHARS = 40;
+const RENDER_ENDPOINT = 'https://r.jina.ai/';
+const RENDER_TIMEOUT_MS = 30_000;
+const PICTURE = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)[^)]*\)/g;
+
+/**
+ * A page's text and pictures from its rendered form (markdown with `![caption](address)`). Each picture is replaced by
+ * `[picture N: caption]` where it stood, so the reader knows which item it belongs to; logos, icons and stickers are dropped.
+ */
+export function readRendered(markdown: string): { text: string; images: LinkImage[] } {
+  const images: LinkImage[] = [];
+  const seen = new Map<string, number>();
+  const text = markdown.replace(PICTURE, (_whole, alt: string, address: string) => {
+    let url: URL;
+    try {
+      url = new URL(address);
+    } catch {
+      return '';
+    }
+    if (/\.svg(?:$|\?)/i.test(url.pathname) || SKIPPED_IMAGE.test(url.pathname) || /sticker/i.test(url.pathname)) return '';
+    let index = seen.get(url.href);
+    if (index === undefined) {
+      if (images.length >= LINK_MAX_IMAGES) return '';
+      index = images.length;
+      seen.set(url.href, index);
+      images.push({ url: url.href, alt: alt.replace(/^image \d+:\s*(?:image\s+)?/i, '').slice(0, 120) });
+    }
+    return `[picture ${index}: ${images[index]!.alt || 'no caption'}]`;
+  });
+  return { text: text.replace(/\n{3,}/g, '\n\n').slice(0, LINK_PAGE_MAX_CHARS), images };
+}
+
+/**
+ * The page opened in a browser by a rendering service (Jina Reader; `LINK_RENDER_KEY` raises its limits, `LINK_RENDER=off`
+ * turns this off). The service is sent only the address of a public page that has already passed the checks above.
+ */
+async function renderPage(url: URL, deps: LinkDeps): Promise<Extract<LinkContent, { kind: 'page' }> | null> {
+  if (process.env.LINK_RENDER === 'off') return null;
+  const key = process.env.LINK_RENDER_KEY;
+  try {
+    const { bytes } = await openLink(RENDER_ENDPOINT + url.href, deps, 'text/markdown', LINK_PAGE_MAX_BYTES, {
+      timeoutMs: RENDER_TIMEOUT_MS,
+      headers: key ? { authorization: `Bearer ${key}` } : {},
+    });
+    const page = readRendered(bytes.toString('utf8'));
+    return page.text.length >= MIN_PAGE_CHARS ? { kind: 'page', ...page, inlineImages: true } : null;
+  } catch {
+    return null;
+  }
 }

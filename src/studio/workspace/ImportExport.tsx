@@ -98,6 +98,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
   const [job, setJob] = useState<{ id: string; fileName: string; preview: ImportPreview; hideMissing: boolean } | null>(null);
   const [filter, setFilter] = useState<Status | 'all'>('all');
   const [aiSkipped, setAiSkipped] = useState(0);
+  const [aiCurrency, setAiCurrency] = useState<{ source: string; menu: string } | null>(null);
   const [dragging, setDragging] = useState(false);
   const [exporting, startExporting] = useTransition();
   const [applying, startApplying] = useTransition();
@@ -133,6 +134,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
   const reset = () => {
     setJob(null);
     setAiSkipped(0);
+    setAiCurrency(null);
     setFile(null);
     setFailure(null);
     if (fileInput.current) fileInput.current.value = '';
@@ -195,6 +197,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
             endpoint={`/api/studio/menus/${menuId}/ai-import`}
             onRead={(reading) => {
               setAiSkipped(reading.skipped);
+              setAiCurrency(reading.currencyMismatch);
               setJob({ id: reading.importJobId, fileName: 'AI', preview: reading.preview, hideMissing: false });
               setFilter(reading.preview.summary.invalid > 0 ? 'invalid' : 'all');
             }}
@@ -265,6 +268,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
           ) : (
             <>
               {aiSkipped > 0 && <Alert tone="neutral">{t('ai.menu.skipped', { count: aiSkipped })}</Alert>}
+              {aiCurrency && <Alert tone="danger">{t('ai.menu.currencyMismatch', aiCurrency)}</Alert>}
               <Preview
                 job={job}
                 currency={currency}

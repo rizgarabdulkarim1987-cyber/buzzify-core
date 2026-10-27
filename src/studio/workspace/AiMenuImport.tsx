@@ -12,6 +12,8 @@ export interface AiMenuReading {
   preview: ImportPreview;
   /** Items left out because no price could be read for them. */
   skipped: number;
+  /** The source prints its prices in another currency than the menu uses. */
+  currencyMismatch: { source: string; menu: string } | null;
 }
 
 const FILE_MAX_BYTES = 5 * 1024 * 1024;
