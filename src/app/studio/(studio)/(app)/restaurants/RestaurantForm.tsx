@@ -337,12 +337,19 @@ function PharmacyFields({
 
 /**
  * The form for a new restaurant. On success it opens the restaurant. `planNames` is given to the platform owner, who
- * chooses the plan here (Basic preselected); anyone else's new restaurant starts on Basic.
+ * chooses the plan here (Basic preselected); anyone else's new restaurant starts on Basic. `initialSector` is the sector
+ * the form opens on (the Pharmacy page's "New pharmacy" opens it on PHARMACY); the person can still change it.
  */
-export function CreateRestaurantForm({ planNames = null }: { planNames?: Record<PlanTier, string> | null }) {
+export function CreateRestaurantForm({
+  planNames = null,
+  initialSector = 'FOOD',
+}: {
+  planNames?: Record<PlanTier, string> | null;
+  initialSector?: BusinessSector;
+}) {
   const t = useT();
   const router = useRouter();
-  const [sector, setSector] = useState<BusinessSector>('FOOD');
+  const [sector, setSector] = useState<BusinessSector>(initialSector);
   const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
   const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
   const [ownerEmail, setOwnerEmail] = useState('');

@@ -136,6 +136,14 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.cashierOverview',
       icon: 'store'
     },
+    // Added deliberately on 2026-10-27 (feat(studio): Pharmacy section in the sidebar): the Super Admin's one new
+    // item. The owner's and the designer's navigation below are unchanged.
+    {
+      key: 'pharmacies',
+      href: '/studio/pharmacies',
+      labelKey: 'nav.pharmacies',
+      icon: 'pharmacy'
+    },
     {
       key: 'menus',
       href: '/studio/menus',
