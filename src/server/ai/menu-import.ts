@@ -25,7 +25,7 @@ import { untrusted } from './untrusted';
 export const MENU_IMPORT_MAX_PRODUCTS = 150;
 const NAME_LENGTH = 120;
 const DESCRIPTION_LENGTH = 1_000;
-const MENU_TOKENS = Math.max(MAX_TOKENS.extract, 16_000);
+const MENU_TOKENS = Math.max(MAX_TOKENS.extract, 20_000);
 
 export const menuImportInput = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('file'), mediaType: z.enum(SUPPLY_MEDIA_TYPES), base64: z.string().min(1).max(Math.ceil((SUPPLY_FILE_MAX_BYTES * 4) / 3) + 8) }).strict(),
@@ -33,12 +33,7 @@ export const menuImportInput = z.discriminatedUnion('kind', [
 ]);
 export type MenuImportInput = z.infer<typeof menuImportInput>;
 
-const texts = {
-  type: 'object',
-  properties: { en: { type: ['string', 'null'] }, ar: { type: ['string', 'null'] }, ckb: { type: ['string', 'null'] } },
-  required: ['en', 'ar', 'ckb'],
-  additionalProperties: false,
-} as const;
+const text = { type: ['string', 'null'] } as const;
 
 export const MENU_SCHEMA = {
   type: 'object',
@@ -49,9 +44,9 @@ export const MENU_SCHEMA = {
       items: {
         type: 'object',
         properties: {
-          category: texts,
-          name: texts,
-          description: texts,
+          category: text,
+          name: text,
+          description: text,
           price: { type: ['string', 'null'] },
           imageIndex: { type: ['integer', 'null'] },
         },
@@ -64,17 +59,26 @@ export const MENU_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-const textsOut = z.object({ en: z.string().nullable(), ar: z.string().nullable(), ckb: z.string().nullable() });
 const extraction = z.object({
   currency: z.string().nullable(),
-  products: z.array(z.object({ category: textsOut, name: textsOut, description: textsOut, price: z.string().nullable(), imageIndex: z.number().int().nullable() })),
+  products: z.array(z.object({ category: z.string().nullable(), name: z.string().nullable(), description: z.string().nullable(), price: z.string().nullable(), imageIndex: z.number().int().nullable() })),
 });
+
+/** A printed text goes under the language its letters are in; Sorani Kurdish has letters Arabic does not. */
+function inLocale(value: string | null): { en: string | null; ar: string | null; ckb: string | null } {
+  const out = { en: null as string | null, ar: null as string | null, ckb: null as string | null };
+  if (value === null) return out;
+  if (/[ڕڵۆێە]/.test(value)) out.ckb = value;
+  else if (/[؀-ۿ]/.test(value)) out.ar = value;
+  else out.en = value;
+  return out;
+}
 
 const SYSTEM = [
   'MENU_IMPORT',
   'You read a restaurant menu into the JSON schema, one entry per dish or drink.',
-  'category: the section the item is under, in the languages the menu prints it (en, ar, ckb for Sorani Kurdish); null for a language it does not print. Every item has a category: use the nearest heading, or "Menu" when there is none.',
-  'name and description: copy them as written, in the language they are written in; never translate and never invent a description. Use null when absent.',
+  'category: the section the item is under, as printed (one language: the first when several are printed). Every item has a category: use the nearest heading, or "Menu" when there is none.',
+  'name and description: copy them as written, in one language (the first when several are printed); never translate and never invent a description. Use null when absent. Keep every field short.',
   'price: the price exactly as printed (digits only, with any separator as printed, no currency word). Use null when no price is printed for that item.',
   'imageIndex: the number N of the picture that shows this item (a marker [picture N: caption] right beside the item, or a numbered picture from the list), or null. Never guess; pick a picture only when its caption or position makes it clearly this item.',
   'currency: the three-letter ISO code of the currency the prices are printed in (USD for $, IQD for دينار or د.ع), or null when it is not clear.',
@@ -165,7 +169,7 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
   const products: MenuReadProduct[] = [];
   let skipped = 0;
   for (const item of parsed.products.slice(0, MENU_IMPORT_MAX_PRODUCTS)) {
-    const names = pick(item.name, NAME_LENGTH);
+    const names = pick(inLocale(item.name), NAME_LENGTH);
     if (Object.keys(names).length === 0) continue;
     const price = priceCell(item.price, currency);
     const grounded = price !== null && (pageNumbers === null || extractNumbers(price).every((n) => pageNumbers.has(n)));
@@ -173,11 +177,11 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
       skipped += 1;
       continue;
     }
-    const category = pick(item.category, NAME_LENGTH);
+    const category = pick(inLocale(item.category), NAME_LENGTH);
     products.push({
       category: Object.keys(category).length > 0 ? category : { en: 'Menu' },
       names,
-      descriptions: pick(item.description, DESCRIPTION_LENGTH),
+      descriptions: pick(inLocale(item.description), DESCRIPTION_LENGTH),
       price,
       imageUrl: item.imageIndex === null ? null : (images[item.imageIndex]?.url ?? null),
     });
