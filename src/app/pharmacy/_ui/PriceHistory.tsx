@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleCheck, History, Tag } from 'lucide-react';
+import { CircleAlert, CircleCheck, History, Tag } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { priceHistory, setPrice } from '@/app/pharmacy/_actions/catalog';
 import { formatPhMoney, type Currency } from '@/server/domain/pharmacy/money';
@@ -64,22 +64,26 @@ export function PriceHistory({ productId, units, currencies, initial, branchName
     }
   };
 
+  // Reading the history again (after a change) or further (older rows) can fail: the screen says so and offers the
+  // same read again, never a list that silently stays as it was.
+  const [loadFailed, setLoadFailed] = useState<'refresh' | 'more' | null>(null);
+
   const refresh = async () => {
     const result = await settle(() => priceHistory({ productId }));
-    if (result.ok) {
-      const page = result.data as { items: PriceHistoryRow[]; nextCursor: string | null };
-      setRows(page.items);
-      setCursor(page.nextCursor);
-    }
+    if (!result.ok) return setLoadFailed('refresh');
+    const page = result.data as { items: PriceHistoryRow[]; nextCursor: string | null };
+    setLoadFailed(null);
+    setRows(page.items);
+    setCursor(page.nextCursor);
   };
 
   const more = async () => {
     const result = await settle(() => priceHistory({ productId, cursor }));
-    if (result.ok) {
-      const page = result.data as { items: PriceHistoryRow[]; nextCursor: string | null };
-      setRows((was) => [...was, ...page.items]);
-      setCursor(page.nextCursor);
-    }
+    if (!result.ok) return setLoadFailed('more');
+    const page = result.data as { items: PriceHistoryRow[]; nextCursor: string | null };
+    setLoadFailed(null);
+    setRows((was) => [...was, ...page.items]);
+    setCursor(page.nextCursor);
   };
 
   const submit = async (event: FormEvent) => {
@@ -168,6 +172,19 @@ export function PriceHistory({ productId, units, currencies, initial, branchName
             </li>
           ))}
         </ul>
+      )}
+      {loadFailed && (
+        <div
+          data-testid="price-history-failed"
+          role="alert"
+          className="flex flex-wrap items-start gap-2.5 rounded-md bg-danger-wash px-3 py-2.5 text-sm text-danger"
+        >
+          <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
+          <span className="min-w-0 flex-1">{t('pharmacy.price.loadFailed')}</span>
+          <Button size="sm" onClick={() => void (loadFailed === 'more' ? more() : refresh())}>
+            {t('pharmacy.catalog.retry')}
+          </Button>
+        </div>
       )}
       {cursor && (
         <div>

@@ -152,8 +152,11 @@ export function ProductSearch({ initial, showCost, canManage, canImport, canExpo
   };
 
   const loadList = async (active: ActiveFilter, cursor: string | null) => {
+    // The same counter as the search: a newer list or search makes this answer moot.
+    const ask = ++asked.current;
     setState('loading');
     const result = await settle(() => listProducts({ active, cursor }));
+    if (ask !== asked.current) return;
     if (!result.ok) {
       setState('failed');
       return;

@@ -1,6 +1,6 @@
 'use client';
 
-import { CircleAlert, CircleCheck, FileUp, Info, TriangleAlert } from 'lucide-react';
+import { CircleAlert, CircleCheck, FileUp, Hourglass, Info, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useState, type ReactNode } from 'react';
 import { applyImport } from '@/app/pharmacy/_actions/catalog';
@@ -204,6 +204,12 @@ export function ImportWizard({ canSetPrices }: { canSetPrices: boolean }) {
   return (
     <div className="flex min-w-0 flex-col">
       <FormSection id="import-upload" title={t('pharmacy.import.step.upload')} intro={t('pharmacy.import.intro')}>
+        {!canSetPrices && (
+          <p className="flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
+            <Info aria-hidden className="mt-px size-4 shrink-0 text-muted" />
+            <span className="min-w-0">{t('pharmacy.import.noPrices')}</span>
+          </p>
+        )}
         <Field label={t('pharmacy.import.file')} hint={t('pharmacy.import.fileHint')} error={fileProblem ?? undefined}>
           <Input
             type="file"
@@ -255,7 +261,8 @@ export function ImportWizard({ canSetPrices }: { canSetPrices: boolean }) {
             {duplicateOf !== null ? t('pharmacy.import.previewAnyway') : t('pharmacy.import.preview')}
           </Button>
           {pending && (
-            <span role="status" className="ms-3 text-sm text-muted">
+            <span role="status" className="ms-3 inline-flex items-center gap-1.5 text-sm text-muted">
+              <Hourglass aria-hidden className="size-4 shrink-0" />
               {t('pharmacy.import.sending')}
             </span>
           )}
@@ -306,7 +313,6 @@ export function ImportWizard({ canSetPrices }: { canSetPrices: boolean }) {
                 </div>
               ))}
             </dl>
-            {!canSetPrices && null}
             {preview.firstRowsWithIssues.length === 0 ? (
               <p className="flex items-center gap-2 text-sm text-text">
                 <CircleCheck aria-hidden className="size-4 shrink-0 text-success" />

@@ -407,6 +407,9 @@ async function createChunk(tx: ScopedTx, restaurantId: string, inputs: readonly 
   });
 }
 
+/** The refusal of a new size for a pack that has prices (its prices would belong to another pack). */
+export const UNIT_PRICED = 'This pack has prices, so its size cannot change. Add a new pack instead.';
+
 /**
  * Saves the product if it is still at `expectedVersion` (`updateWithVersion`: `CONFLICT` naming who changed it). Units
  * are matched by level: a new level is added, a level no longer listed is removed, and a unit whose size changes or that
@@ -442,6 +445,13 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const resized = current.units.filter((u) => levels.some((l) => l.level === u.level && l.baseQty !== u.baseQty));
   if ((await unitsWithStock(tx, resized.map((u) => u.id))).length > 0) {
     throw new StudioError('CONFLICT', 'This unit has stock or sales, so its size cannot change', { phCode: 'UNIT_IN_USE' });
+  }
+  // A price is for a pack of a given size. Units are matched by level, so a new size at a level (also what removing a
+  // pack below it looks like: the packs above slide down) would carry that pack's prices to a different pack. Refused;
+  // renaming a priced pack keeps its size and is allowed.
+  const resizedIds = resized.map((u) => u.id);
+  if (resizedIds.length > 0 && (await tx.phPrice.count({ where: { unitId: { in: resizedIds } } })) > 0) {
+    throw new StudioError('CONFLICT', UNIT_PRICED, { phCode: 'UNIT_PRICED' });
   }
   const removedIds = removed.map((u) => u.id);
   const priced = removedIds.length === 0 ? 0 : await tx.phPrice.count({ where: { unitId: { in: removedIds } } });

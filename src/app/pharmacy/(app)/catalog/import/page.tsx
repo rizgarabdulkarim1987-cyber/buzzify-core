@@ -15,7 +15,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * The catalog import. Only a role that may apply imports has this screen; in a read-only pharmacy it says why and offers
- * nothing to upload. Prices in the file are applied only for a role that may change prices (the server decides).
+ * nothing to upload. Prices in the file are applied only for someone who sets prices for every branch (the server
+ * decides; the wizard says so up front to everyone else).
  */
 export default async function ImportPage() {
   const [access, locale] = await Promise.all([catalogAccess(), requestStudioLocale()]);
@@ -23,6 +24,9 @@ export default async function ImportPage() {
   const t = getStudioTranslator(locale);
   const writable = access.writable('import.apply');
   const BackIcon = locale === 'en' ? ArrowLeft : ArrowRight;
+  // The import's own rule (server/pharmacy/imports.ts): prices come in only for someone who sets them for every branch.
+  const { actor } = access;
+  const canSetPrices = actor.support === null && actor.allBranches && roleMay(actor, 'price.change');
   return (
     <>
       <PageHeader
@@ -39,7 +43,7 @@ export default async function ImportPage() {
         description={t('pharmacy.import.intro')}
       />
       <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 sm:px-8">
-        {writable.ok ? <ImportWizard canSetPrices={roleMay(access.actor, 'price.change')} /> : <WriteBlocked writable={writable} />}
+        {writable.ok ? <ImportWizard canSetPrices={canSetPrices} /> : <WriteBlocked writable={writable} />}
       </div>
     </>
   );

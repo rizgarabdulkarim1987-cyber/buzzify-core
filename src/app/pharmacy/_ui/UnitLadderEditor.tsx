@@ -13,7 +13,7 @@ const MAX_LEVELS = 10;
 
 export interface UnitLadderEditorProps {
   levels: LevelDraft[];
-  /** The new ladder; `removed` is the position taken out, so barcodes on it (and above it) can follow. */
+  /** The new ladder; `removed` is the position taken out (always the top pack), so the barcodes on it can go too. */
   onChange: (levels: LevelDraft[], removed?: number) => void;
   disabled: boolean;
   /** Messages by field: `levels` for the ladder as a whole, `levels.<i>.baseQty` for one row. */
@@ -61,7 +61,8 @@ export function UnitLadderEditor({ levels, onChange, disabled, errors }: UnitLad
                   disabled={disabled}
                   onChange={(e) => update(index, { sellable: e.target.checked })}
                 />
-                {index > 0 && !disabled && (
+                {/* Only the top pack: removing one below would slide the packs above into its level, and its prices with them. */}
+                {index > 0 && index === levels.length - 1 && !disabled && (
                   <Button
                     size="sm"
                     variant="ghost"

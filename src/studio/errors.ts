@@ -329,6 +329,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This barcode is already on another product. Mark it as shared to use it on both.': 'error.text.phBarcodeInUse',
   'This unit has stock or sales, so its size cannot change': 'error.text.phUnitResize',
   'This unit has prices, stock or sales, so it cannot be removed': 'error.text.phUnitRemove',
+  'This pack has prices, so its size cannot change. Add a new pack instead.': 'error.text.phUnitResizePriced',
   'This product is on open records, so it cannot be archived': 'error.text.phProductOpenRecords',
   // Pharmacy prices and bulk price changes (src/server/pharmacy/prices.ts)
   'Enter a reason of at least 3 characters': 'error.text.phPriceReason',

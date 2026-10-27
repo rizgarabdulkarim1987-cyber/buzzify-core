@@ -103,6 +103,7 @@ const PRODUCT = {
 
 const editorProps = (over: Record<string, unknown> = {}) => ({
   userId: 'user-1',
+  restaurantId: 'r1',
   product: PRODUCT,
   branches: [{ id: 'b1', name: 'Main street' }],
   categories: [],
@@ -248,7 +249,8 @@ describe('the product editor', () => {
         values.onsuccess = () => resolve(keys.result.map((key, i) => ({ key, value: values.result[i] })));
       };
     });
-    expect(stored.map((s) => s.key)).toEqual(['user-1:product:p1']);
+    // The screen names the business too, so a new product's draft in one pharmacy never opens in another.
+    expect(stored.map((s) => s.key)).toEqual(['user-1:product@r1:p1']);
     expect(JSON.stringify(stored[0]!.value)).toContain('Panadol Cold');
     expect(JSON.stringify(stored[0]!.value)).not.toContain('99887766');
   });
@@ -280,6 +282,106 @@ describe('the product editor', () => {
     expect(text()).toContain(en('pharmacy.catalog.barcode.heldArchived', { name: '⁨Old Panadol⁩' }));
     expect(container.querySelector('a[href="/pharmacy/catalog/old"]')).toBeTruthy();
     expect(button(en('pharmacy.catalog.barcode.share'))).toBeTruthy();
+  });
+
+  it('offers to remove only the top pack, and says its barcodes go with it', async () => {
+    mount(createElement(ProductEditor, editorProps()));
+    await settle();
+    const removers = [...container.querySelectorAll('button')].filter((b) => b.textContent?.startsWith(en('pharmacy.catalog.unit.remove', { unit: '' }).trim()));
+    // tablet / strip / box: only the box can go (taking the strip out would slide the box, and its prices, into its place).
+    expect(removers.map((b) => b.textContent)).toEqual([en('pharmacy.catalog.unit.remove', { unit: 'box' })]);
+
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    await click(removers[0]!);
+    expect(confirm).toHaveBeenCalledWith(en('pharmacy.catalog.unit.removeWithBarcodes', { unit: 'box', codes: '6291234567894' }));
+    expect(text()).toContain('6291234567894');
+    expect(field(`${en('pharmacy.catalog.unit.pack', { n: 2 })}: ${en('pharmacy.catalog.unit.label')}`)).toBeTruthy();
+
+    confirm.mockReturnValue(true);
+    await click(removers[0]!);
+    expect(text()).not.toContain('6291234567894');
+    expect(() => field(`${en('pharmacy.catalog.unit.pack', { n: 2 })}: ${en('pharmacy.catalog.unit.label')}`)).toThrow();
+  });
+
+  it('a draft from an older version of the product says so and is never saved over it silently', async () => {
+    mount(createElement(ProductEditor, editorProps()));
+    await settle();
+    type(field(en('pharmacy.catalog.field.tradeName')), 'Panadol Night');
+    await settle();
+    act(() => root.unmount());
+
+    // Someone else saved the product meanwhile: it is at version 4 now, the draft was made on version 3.
+    actions.updateProduct.mockResolvedValue({
+      ok: false,
+      error: { code: 'CONFLICT', message: 'Someone else changed this', fields: { changedAt: '2026-10-27T08:00:00.000Z' } },
+    });
+    root = createRoot(container);
+    mount(createElement(ProductEditor, editorProps({ product: { ...PRODUCT, version: 4 } })));
+    await settle();
+    expect(text()).toContain(en('pharmacy.catalog.draft.stale'));
+    await click(button(en('pharmacy.catalog.save'))!);
+    await settle();
+    expect(actions.updateProduct.mock.calls[0]![0]).toMatchObject({ expectedVersion: 3 });
+    expect(button(en('pharmacy.catalog.reload'))).toBeTruthy();
+  });
+
+  it('asks before any link takes the person away from unsaved changes', async () => {
+    // A link outside the editor, as the shell's navigation is.
+    const nav = document.createElement('a');
+    nav.href = '/pharmacy/home';
+    nav.textContent = 'Home';
+    document.body.append(nav);
+    mount(createElement(ProductEditor, editorProps()));
+    await settle();
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const press = () => {
+      const event = new MouseEvent('click', { bubbles: true, cancelable: true });
+      act(() => {
+        nav.dispatchEvent(event);
+      });
+      return event;
+    };
+    expect(press().defaultPrevented).toBe(false);
+    expect(confirm).not.toHaveBeenCalled();
+
+    type(field(en('pharmacy.catalog.field.tradeName')), 'Panadol Extra');
+    expect(press().defaultPrevented).toBe(true);
+    expect(confirm).toHaveBeenCalledWith(en('pharmacy.catalog.leaveConfirm'));
+
+    confirm.mockReturnValue(true);
+    expect(press().defaultPrevented).toBe(false);
+  });
+});
+
+describe('the price history', () => {
+  it('says when the history could not be read again, with a way to retry', async () => {
+    const { PriceHistory } = await import('@/app/pharmacy/_ui/PriceHistory');
+    actions.setPrice.mockResolvedValue({ ok: true, data: {} });
+    actions.priceHistory.mockRejectedValueOnce(new Error('offline'));
+    mount(
+      createElement(PriceHistory, {
+        productId: 'p1',
+        units: LADDER,
+        currencies: ['IQD' as const],
+        initial: { items: [], nextCursor: null },
+        branchNames: {},
+        place: { branchId: null, branchName: null },
+        canChange: true,
+      }),
+    );
+    type(field(en('pharmacy.price.amount')), '1250');
+    type(field(en('pharmacy.price.reason')), 'New supplier price');
+    await click(button(en('pharmacy.price.save'))!);
+    await settle();
+    const failed = container.querySelector('[data-testid="price-history-failed"]');
+    expect(failed?.textContent).toContain(en('pharmacy.price.loadFailed'));
+    expect(failed?.querySelector('svg')).toBeTruthy();
+
+    actions.priceHistory.mockResolvedValueOnce({ ok: true, data: { items: [], nextCursor: null } });
+    await click(button(en('pharmacy.catalog.retry'))!);
+    await settle();
+    expect(actions.priceHistory).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('[data-testid="price-history-failed"]')).toBeNull();
   });
 });
 
@@ -377,6 +479,29 @@ describe('the catalog list', () => {
       window.dispatchEvent(new Event('online'));
     });
     expect(container.querySelector('[data-testid="catalog-offline"]')).toBeNull();
+  });
+
+  it('shows the list last asked for, even when an earlier answer arrives after it', async () => {
+    let answerArchived: (value: unknown) => void = () => undefined;
+    actions.listProducts
+      .mockImplementationOnce(() => new Promise((resolve) => (answerArchived = resolve)))
+      .mockResolvedValueOnce({ ok: true, data: { items: [ITEM({ id: 'all', tradeName: 'Every product' })], nextCursor: null } });
+    mount(createElement(ProductSearch, searchProps()));
+    const filter = field(en('pharmacy.catalog.filter.label')) as unknown as HTMLSelectElement;
+    const choose = (value: string) =>
+      act(() => {
+        filter.value = value;
+        filter.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    choose('archived');
+    choose('all');
+    await settle();
+    await act(async () => {
+      answerArchived({ ok: true, data: { items: [ITEM({ id: 'old', tradeName: 'Archived only' })], nextCursor: null } });
+    });
+    await settle();
+    expect(text()).toContain('Every product');
+    expect(text()).not.toContain('Archived only');
   });
 });
 
@@ -489,5 +614,22 @@ describe('the import wizard', () => {
     });
     expect(text()).toContain(en('pharmacy.import.tooBig'));
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('says up front that prices are not imported for a role that may not change them', () => {
+    mount(createElement(ImportWizard, { canSetPrices: false }));
+    expect(text()).toContain(en('pharmacy.import.noPrices'));
+    act(() => root.unmount());
+    root = createRoot(container);
+    mount(createElement(ImportWizard, { canSetPrices: true }));
+    expect(text()).not.toContain(en('pharmacy.import.noPrices'));
+  });
+
+  it('shows an icon beside "Reading the file…" while it is sent', async () => {
+    fetchMock.mockImplementation(() => new Promise(() => undefined));
+    mount(createElement(ImportWizard, { canSetPrices: true }));
+    await upload();
+    const status = [...container.querySelectorAll('[role="status"]')].find((el) => el.textContent?.includes(en('pharmacy.import.sending')));
+    expect(status?.querySelector('svg')).toBeTruthy();
   });
 });

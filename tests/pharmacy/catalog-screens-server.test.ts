@@ -203,3 +203,58 @@ describe('the place the Server Actions fill in', () => {
     expect(codeOf(await act(cashier, productActions.create, withPlace(panadol('evil'), { restaurantId: a.id, branchId: a.branchId })))).toBe('FORBIDDEN');
   });
 });
+
+describe('a pack that has prices', () => {
+  async function pricedPanadol() {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const created = dataOf(await act(owner, productActions.create, panadol(a.id)));
+    const units = await prisma().phProductUnit.findMany({ where: { productId: created.id }, orderBy: { level: 'asc' } });
+    const strip = units.find((u) => u.label === 'strip')!;
+    await prisma().phPrice.create({
+      data: { restaurantId: a.id, productId: created.id, unitId: strip.id, currency: 'IQD', amountMinor: 2500n, validFrom: NOW, changedById: owner.userId },
+    });
+    return { a, owner, created, strip };
+  }
+
+  it('cannot have its middle pack removed: the box would slide into the strip and take its price', async () => {
+    const { a, owner, created, strip } = await pricedPanadol();
+    // What removing the strip sends when levels are numbered by position: the box at level 1.
+    const result = await act(owner, productActions.update, {
+      ...panadol(a.id),
+      productId: created.id,
+      expectedVersion: created.version,
+      levels: [LADDER[0], { level: 1, label: 'box', baseQty: 30, sellable: true }],
+    });
+    expect(result).toMatchObject({ ok: false, error: { code: 'CONFLICT', fields: { phCode: 'UNIT_PRICED' } } });
+    const t = getStudioTranslator('en');
+    if (result.ok) throw new Error('expected a refusal');
+    expect(describeFailure(t, 'en', result.error).message).toBe(t('error.text.phUnitResizePriced'));
+    // Nothing moved: the price is still on the strip of 10.
+    const price = await prisma().phPrice.findFirstOrThrow({ where: { productId: created.id } });
+    expect(price.unitId).toBe(strip.id);
+    expect(await prisma().phProductUnit.findUniqueOrThrow({ where: { id: strip.id } })).toMatchObject({ label: 'strip', baseQty: 10, level: 1 });
+  });
+
+  it('cannot change size, but can be renamed, and keeps its price', async () => {
+    const { a, owner, created, strip } = await pricedPanadol();
+    const resized = await act(owner, productActions.update, {
+      ...panadol(a.id),
+      productId: created.id,
+      expectedVersion: created.version,
+      levels: [LADDER[0], { level: 1, label: 'strip', baseQty: 15, sellable: true }, LADDER[2]],
+    });
+    expect(resized).toMatchObject({ ok: false, error: { code: 'CONFLICT', fields: { phCode: 'UNIT_PRICED' } } });
+
+    dataOf(
+      await act(owner, productActions.update, {
+        ...panadol(a.id),
+        productId: created.id,
+        expectedVersion: created.version,
+        levels: [LADDER[0], { level: 1, label: 'blister', baseQty: 10, sellable: true }, LADDER[2]],
+      }),
+    );
+    expect(await prisma().phProductUnit.findUniqueOrThrow({ where: { id: strip.id } })).toMatchObject({ label: 'blister', baseQty: 10 });
+    expect((await prisma().phPrice.findFirstOrThrow({ where: { productId: created.id } })).unitId).toBe(strip.id);
+  });
+});

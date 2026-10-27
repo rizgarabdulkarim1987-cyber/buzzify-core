@@ -3,9 +3,10 @@
 import { Archive, ArrowLeft, ArrowRight, CircleAlert, History, Save } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useEffect, useId, useState, type KeyboardEvent, type MouseEvent } from 'react';
+import { useId, useState, type KeyboardEvent } from 'react';
 import { archiveProduct, createProduct, updateProduct } from '@/app/pharmacy/_actions/catalog';
 import { draftKey, useDraft } from '@/lib/use-draft';
+import { useLeaveGuard } from '@/lib/use-leave-guard';
 import type { Currency } from '@/server/domain/pharmacy/money';
 import type { PriceHistoryRow } from '@/server/pharmacy/prices';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
@@ -30,6 +31,8 @@ import { isolate, WriteBlocked, type Writable } from './WriteBlocked';
 export interface ProductEditorProps {
   /** Whose draft this is: drafts are kept per person, screen and product on this device. */
   userId: string;
+  /** The business the person works in (from the validated place), so drafts of one pharmacy stay apart from another's. */
+  restaurantId: string;
   /** The stored product; null for a new one. */
   product: EditorProduct | null;
   /** The branches the person works in, for the stock levels. */
@@ -70,15 +73,18 @@ function heldOf(failure: DescribedFailure | null, raw: Record<string, string> | 
  * only looks, support) the fields are read only, there is no save button, and the screen says why. Nothing moves.
  */
 export function ProductEditor(props: ProductEditorProps) {
-  const { userId, product, branches, categories, currencies, history, historyCursor = null, writable, canChangePrice } = props;
+  const { userId, restaurantId, product, branches, categories, currencies, history, historyCursor = null, writable, canChangePrice } = props;
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
   const ids = useId();
   const initial = draftOf(product, branches.map((b) => b.id), t('pharmacy.catalog.unit.defaultBase'));
-  const draft = useDraft<ProductDraft>(draftKey(userId, 'product', product?.id ?? 'new'), initial);
+  // The business is part of the screen's name: a new product's draft in one pharmacy never opens in another.
+  const draft = useDraft<ProductDraft>(draftKey(userId, `product@${restaurantId}`, product?.id ?? 'new'), initial);
   const value = draft.value;
-  const [version, setVersion] = useState(product?.version ?? 0);
+  // A draft made on an older version of the product: someone saved it since. Saving sends the draft's version, so the
+  // server refuses it (CONFLICT, with Reload) rather than the draft silently overwriting their change.
+  const stale = product !== null && value.version !== product.version;
   const [active, setActive] = useState(product?.active ?? true);
   const [tab, setTab] = useState<Tab>('details');
   const [pending, setPending] = useState(false);
@@ -89,16 +95,8 @@ export function ProductEditor(props: ProductEditorProps) {
   const [attempt, setAttempt] = useState(0);
   const editable = writable.ok;
 
-  // Leaving the page (closing, reloading, typing another address) with unsaved changes asks first.
-  useEffect(() => {
-    if (!draft.dirty) return;
-    const warn = (event: BeforeUnloadEvent) => {
-      event.preventDefault();
-      event.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [draft.dirty]);
+  // Leaving with unsaved changes asks first: closing, reloading, another address, or any link on the page.
+  useLeaveGuard(draft.dirty, t('pharmacy.catalog.leaveConfirm'));
 
   const change = (patch: Partial<ProductDraft>) => {
     setSaved(false);
@@ -120,7 +118,7 @@ export function ProductEditor(props: ProductEditorProps) {
     setClientErrors({});
     setPending(true);
     const result = await settle(() =>
-      product ? updateProduct({ ...built.input, productId: product.id, expectedVersion: version }) : createProduct(built.input),
+      product ? updateProduct({ ...built.input, productId: product.id, expectedVersion: value.version }) : createProduct(built.input),
     );
     setPending(false);
     if (!result.ok) {
@@ -129,33 +127,30 @@ export function ProductEditor(props: ProductEditorProps) {
     }
     setFailure(null);
     const data = result.data as { id: string; version: number };
-    draft.clear();
+    draft.clear({ ...value, version: data.version });
     setSaved(true);
     if (!product) {
       router.push(`/pharmacy/catalog/${data.id}`);
       return;
     }
-    setVersion(data.version);
     router.refresh();
   };
 
   const archive = async () => {
     if (!product || !window.confirm(t('pharmacy.catalog.archiveConfirm'))) return;
     setPending(true);
-    const result = await settle(() => archiveProduct({ productId: product.id, expectedVersion: version }));
+    const result = await settle(() => archiveProduct({ productId: product.id, expectedVersion: value.version }));
     setPending(false);
     if (!result.ok) {
       setFailure({ described: describeFailure(t, locale, result.error), raw: result.error.fields });
       return;
     }
     const data = result.data as { version: number };
-    setVersion(data.version);
+    // The edits (if any) stay, now on the archived version.
+    if (draft.dirty) draft.set({ ...value, version: data.version });
+    else draft.clear({ ...value, version: data.version });
     setActive(false);
     router.refresh();
-  };
-
-  const leave = (event: MouseEvent<HTMLAnchorElement>) => {
-    if (draft.dirty && !window.confirm(t('pharmacy.catalog.leaveConfirm'))) event.preventDefault();
   };
 
   const share = () => {
@@ -225,15 +220,14 @@ export function ProductEditor(props: ProductEditorProps) {
           levels={value.levels}
           disabled={!editable}
           errors={errors}
-          onChange={(levels, removed) =>
-            change({
-              levels,
-              barcodes:
-                removed === undefined
-                  ? value.barcodes
-                  : value.barcodes.filter((b) => b.level !== removed).map((b) => (b.level > removed ? { ...b, level: b.level - 1 } : b)),
-            })
-          }
+          onChange={(levels, removed) => {
+            if (removed === undefined) return change({ levels });
+            // Only the top pack is removed, so no other barcode moves; its own go with it, after the person agrees.
+            const going = value.barcodes.filter((b) => b.level === removed);
+            const unit = value.levels[removed]?.label.trim() || t('pharmacy.catalog.unit.pack', { n: removed });
+            if (going.length > 0 && !window.confirm(t('pharmacy.catalog.unit.removeWithBarcodes', { unit, codes: going.map((b) => b.code).join(', ') }))) return;
+            change({ levels, barcodes: value.barcodes.filter((b) => b.level !== removed) });
+          }}
         />
       </FormSection>
 
@@ -295,7 +289,7 @@ export function ProductEditor(props: ProductEditorProps) {
   return (
     <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 pt-6 sm:px-8">
       <div>
-        <Link href="/pharmacy/catalog" onClick={leave} className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-text underline underline-offset-2">
+        <Link href="/pharmacy/catalog" className="inline-flex min-h-11 items-center gap-1.5 rounded-md text-sm font-medium text-text underline underline-offset-2">
           <BackIcon aria-hidden className="size-4 shrink-0" />
           {t('pharmacy.catalog.back')}
         </Link>
@@ -321,7 +315,7 @@ export function ProductEditor(props: ProductEditorProps) {
         <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
           <History aria-hidden className="size-4 shrink-0 text-muted" />
           <span className="min-w-0 flex-1">
-            {t('pharmacy.catalog.draft.restored')}
+            {stale ? t('pharmacy.catalog.draft.stale') : t('pharmacy.catalog.draft.restored')}
             {draft.restoredAt && <span className="text-muted"> ({formatDateTime(draft.restoredAt, locale)})</span>}
           </span>
           <Button size="sm" onClick={() => setRestoreSeen(true)}>

@@ -17,6 +17,8 @@ export interface BarcodeDraft {
 }
 
 export interface ProductDraft {
+  /** The product's version the draft was made on (0 for a new one): saved as the expected version, so a draft older than the stored product is refused, never written over it. */
+  version: number;
   tradeName: string;
   genericName: string;
   activeIngredient: string;
@@ -66,6 +68,7 @@ export function draftOf(product: EditorProduct | null, branchIds: readonly strin
   }
   if (!product) {
     return {
+      version: 0,
       tradeName: '',
       genericName: '',
       activeIngredient: '',
@@ -85,6 +88,7 @@ export function draftOf(product: EditorProduct | null, branchIds: readonly strin
   }
   const units = [...product.units].sort((a, b) => a.level - b.level);
   return {
+    version: product.version,
     tradeName: product.tradeName,
     genericName: product.genericName,
     activeIngredient: product.activeIngredient,

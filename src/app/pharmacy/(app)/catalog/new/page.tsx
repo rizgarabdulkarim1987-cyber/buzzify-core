@@ -27,6 +27,7 @@ export default async function NewProductPage() {
   return (
     <ProductEditor
       userId={access.actor.userId}
+      restaurantId={input.restaurantId}
       product={null}
       branches={shown}
       categories={categoryList}

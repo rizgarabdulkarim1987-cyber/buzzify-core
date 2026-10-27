@@ -215,6 +215,17 @@ test.describe('Pharmacy catalog @desktop', () => {
     await expect(history.getByText('New supplier price')).toBeVisible();
     await expect(history.getByText('Current')).toBeVisible();
 
+    // Unsaved changes: the shell's navigation asks first; "no" stays, "yes" leaves.
+    await page.getByRole('tab', { name: 'Details' }).click();
+    await page.getByLabel('Trade name').fill(`${tradeName} changed`);
+    page.once('dialog', (dialog) => void dialog.dismiss());
+    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await expect(page.getByLabel('Trade name')).toHaveValue(`${tradeName} changed`);
+    expect(page.url()).toBe(productUrl);
+    page.once('dialog', (dialog) => void dialog.accept());
+    await page.getByRole('navigation').getByRole('link', { name: 'Catalog' }).click();
+    await expect(page).toHaveURL(/\/pharmacy\/catalog$/);
+
     // An import of 20 rows, two without a name: they are shown and left out, the rest are added.
     await page.goto('/pharmacy/catalog/import');
     await page.getByLabel('File', { exact: true }).setInputFiles({
