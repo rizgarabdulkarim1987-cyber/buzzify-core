@@ -171,12 +171,16 @@
   pointer-events: none;
 }
 
-/* A cell's entrance: it rises into place, a little after the one before it (`--i`). Less motion: it is simply there. */
+/*
+ * A cell's entrance: it rises into place, a little after the one before it (`--i`). Less motion: it is simply there.
+ * Its keyframes are `tpl-cell-rise`, not `tpl-rise`: keyframes are global, and skins.css's `tpl-rise` is the scroll
+ * menu's product sheet (a 40px rise), so the same name would let load order pick one for both.
+ */
 :where([data-body]) .tpl-rise {
-  animation: tpl-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation: tpl-cell-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
   animation-delay: calc(var(--i, 0) * 28ms);
 }
-@keyframes tpl-rise {
+@keyframes tpl-cell-rise {
   from {
     opacity: 0;
     transform: translateY(6px);
