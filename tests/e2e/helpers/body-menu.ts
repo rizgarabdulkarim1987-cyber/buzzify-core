@@ -207,6 +207,8 @@ export async function openMenu(page: Page, slug: string, { locale = 'en', hash =
  */
 export async function expectFirstScreen(page: Page, dishes: Locator, { min }: { min: number }) {
   await expect(dishes.first()).toBeVisible();
+  // Checked first: a widened layout viewport would make the "inside the viewport" test below lax.
+  await expectNoPageWiden(page);
   const shown = await dishes.evaluateAll((nodes) => {
     const inside = (box: DOMRect) => box.width > 0 && box.height > 0 && box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth;
     return nodes.filter((node) => {
@@ -223,6 +225,18 @@ export async function expectFirstScreen(page: Page, dishes: Locator, { min }: { 
     }).length;
   });
   expect(shown, `dishes with a picture and a price on the first screen`).toBeGreaterThanOrEqual(min);
+}
+
+/**
+ * Nothing widens the page: the layout viewport keeps the window's width (content positioned outside a sideways scroller,
+ * such as a strip chip's absolutely placed screen-reader name, can stretch it on a phone, and then `scrollWidth -
+ * innerWidth` reads 0 although the page has grown), and nothing scrolls sideways.
+ */
+export async function expectNoPageWiden(page: Page) {
+  const width = page.viewportSize()!.width;
+  const sizes = await page.evaluate(() => ({ inner: window.innerWidth, scroll: document.documentElement.scrollWidth }));
+  expect(sizes.inner, 'the layout viewport keeps the window width').toBe(width);
+  expect(sizes.scroll, 'nothing scrolls sideways').toBeLessThanOrEqual(width);
 }
 
 /** Every category is one tap away: `within` holds a visible button naming each of them. */

@@ -7,11 +7,13 @@ import {
   expectEverySectionReachable,
   expectFirstScreen,
   expectJumpsTo,
+  expectNoPageWiden,
   expectOpensProduct,
   expectQuickAdd,
   expectStripStays,
   openMenu,
 } from './helpers/body-menu';
+import { BODY_KINDS, bodyOf, templateList } from '@/lib/templates';
 
 /**
  * The browse bodies of a template menu (spec 2026-10-26-menu-styles-in-templates-design.md): the same template and the
@@ -410,5 +412,27 @@ test.describe('the departures Board', () => {
 
   test('in Arabic it is right to left without sideways scrolling', async ({ page }) => {
     await expectArabicRtl(page, boardSlug, (p) => rows(p).first());
+  });
+});
+
+test.describe('every body keeps the phone page its own width', () => {
+  const wide = bodyMenus();
+  // Every shape, drawn from its own preset (or, for the batch-1 bodies, as an override on Maison's), with twenty-five
+  // sections, so a strip that scrolls sideways is at its fullest.
+  const kinds = BODY_KINDS.filter((kind) => kind !== 'scroll').map((kind) => ({ kind, templateId: templateList().find((preset) => bodyOf(preset.layout) === kind)?.id }));
+  const slugOf = (kind: string) => wide.slug(`wide-${kind}`);
+  test.beforeAll(async () => {
+    test.setTimeout(240_000);
+    for (const { kind, templateId } of kinds) await wide.create(slugOf(kind), kind, { ...(templateId ? { templateId } : { layout: { body: kind } }), extraSections: 20 });
+  });
+  test.afterAll(() => wide.remove());
+
+  test('with twenty-five sections no body widens the layout viewport or scrolls sideways at 390px', async ({ page }) => {
+    test.setTimeout(240_000);
+    for (const { kind } of kinds) {
+      await openMenu(page, slugOf(kind));
+      await expect(page.locator(`[data-body="${kind}"]`), kind).toBeVisible();
+      await expectNoPageWiden(page);
+    }
   });
 });
