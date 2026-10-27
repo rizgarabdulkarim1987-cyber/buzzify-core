@@ -157,7 +157,11 @@ export async function expectOpensProduct(page: Page, scope: Locator, productSlug
 /** The dish's quick add in `scope` puts one in the cart without opening its sheet. */
 export async function expectQuickAdd(page: Page, scope: Locator, productSlug: string) {
   await expect(page.getByTestId('cart-bar')).toBeHidden();
-  await scope.getByRole('button', { name: `Add ${dishName(productSlug)} to your order` }).click();
+  const add = scope.getByRole('button', { name: `Add ${dishName(productSlug)} to your order` });
+  // A tap that lands before the page has hydrated (a loaded machine may still be doing it after the load) adds nothing:
+  // wait until React has the button.
+  await expect.poll(() => add.evaluate((node) => Object.keys(node).some((key) => key.startsWith('__reactProps'))), { timeout: 15_000 }).toBe(true);
+  await add.click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   await expect(page.getByRole('dialog')).toBeHidden();
 }
