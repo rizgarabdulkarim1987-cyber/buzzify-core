@@ -2407,6 +2407,7 @@ const en: Messages = {
   'design.body.lanterns': 'Hanging lanterns',
   'design.body.carpet': 'Magic carpets',
   'design.body.rugs': 'Woven rugs',
+  'design.body.lattice': 'Lattice windows',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

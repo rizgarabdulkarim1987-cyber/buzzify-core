@@ -1,0 +1,310 @@
+/*
+ * The Baghdad Shanashil body (a browse shape of a template menu): the carved wooden oriel windows of old Baghdad. Each
+ * section is a bay: a carved wooden header board (the section's number as a small window, its name, the dish count), a
+ * band of mashrabiya lattice under it edged with a static Tigris wave line, and a dark wooden panel holding the dishes
+ * as window panes three across: the photo in an arch inside a turquoise frame (the lattice is drawn on the frame only,
+ * under the photo), the name on a carved plaque, the price on a brass tag. A corbelled wooden bracket closes each bay.
+ * The sticky strip is a row of tiny oriel-window chips. Everything is scoped under [data-body='lattice'], logical
+ * properties only (RTL mirrors). The fills are the shape's own (lattice-wood.ts, the same on every palette), and every
+ * text sits on a solid one: the patterns are on frames and pseudo-elements, never behind text. Nothing moves.
+ */
+[data-body='lattice'] {
+  --sh-board: #4a2a12;
+  --sh-plaque: #5e3818;
+  --sh-chip: #6b4120;
+  --sh-edge: #2b1709;
+  --sh-cream: #fbeccb;
+  --sh-brass: #e2b04a;
+  --sh-brass-ink: #2a1608;
+  --sh-glass: #0f6767;
+  --sh-lit: #7fe0d6;
+  --sh-lit-ink: #0e2b2a;
+  --sh-turquoise: #1f8a8a;
+  --sh-mesh: #6fd4cb;
+  --sh-ring: #fff4d6;
+  --sh-arch: 999px 999px 0.375rem 0.375rem;
+  /* The sticky strip's height, so a jumped-to bay lands just below it. */
+  --nav-room: 3.5rem;
+  --column: 64rem;
+  /* The last bay only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css). */
+  --plate-ring: 30%;
+  /* The Tigris wave: a scalloped line, one layer to lay along an edge. */
+  --sh-wave: radial-gradient(circle at 50% 100%, transparent 0.3125rem, var(--sh-mesh) 0.3125rem 0.4375rem, transparent 0.4375rem) 0 100% / 0.875rem 0.4375rem repeat-x;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip of oriel chips */
+
+[data-body='lattice'] .sh-strip {
+  padding-block-end: 0.4375rem;
+  background: var(--sh-board);
+  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 0.22);
+}
+[data-body='lattice'] .sh-strip::after {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: 0.4375rem;
+  background: var(--sh-wave);
+  pointer-events: none;
+}
+[data-body='lattice'] .sh-strip-list {
+  gap: 0.375rem;
+  padding-block: 0.25rem 0;
+  padding-inline: 0.5rem;
+}
+/* A small oriel: a wooden frame (the button) round a turquoise arched window that holds the section's number. */
+[data-body='lattice'] .sh-chip {
+  position: relative;
+  display: grid;
+  place-items: center;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  padding: 0.25rem;
+  border-radius: var(--sh-arch);
+  background: var(--sh-chip);
+  color: var(--sh-cream);
+  transition: background-color 150ms;
+}
+[data-body='lattice'] .sh-glass {
+  display: grid;
+  place-items: center;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 999px 999px 0.125rem 0.125rem;
+  background: var(--sh-glass);
+  color: var(--sh-cream);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* The window in view: bright glass in a brass frame. */
+[data-body='lattice'] .sh-chip[aria-current='true'] {
+  background: var(--sh-brass);
+  color: var(--sh-brass-ink);
+}
+[data-body='lattice'] .sh-glass[data-pane='active'] {
+  background: var(--sh-lit);
+  color: var(--sh-lit-ink);
+  font-weight: 800;
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the frame, in the chip's text colour. */
+[data-body='lattice'] .sh-strip-list button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+
+/* ------------------------------------------------------------------ a bay */
+
+[data-body='lattice'] .sh-bay {
+  padding-block-start: 0.125rem;
+}
+[data-body='lattice'] [data-heading].sh-head {
+  display: block;
+  padding-inline: 0;
+}
+/* The carved header board: a solid wooden plank with a carved rim, the number a small window, the count a brass disc. */
+[data-body='lattice'] .sh-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-block-size: 1.875rem;
+  margin: 0;
+  padding: 0.125rem 0.75rem;
+  border-radius: 0.5rem 0.5rem 0 0;
+  background: var(--sh-board);
+  box-shadow:
+    inset 0 0 0 2px #7a5228,
+    inset 0 0 0 4px var(--sh-board);
+  color: var(--sh-cream);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+[data-body='lattice'] .sh-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='lattice'] .sh-title small {
+  border-radius: 999px 999px 0.1875rem 0.1875rem;
+  background: var(--sh-glass);
+  color: var(--sh-cream);
+}
+[data-body='lattice'] .sh-title b {
+  background-color: var(--sh-brass);
+  color: var(--sh-brass-ink);
+}
+/* The lattice band under the board: crossed lattice bars on turquoise, the Tigris wave along its foot. */
+[data-body='lattice'] .sh-head::after {
+  content: '';
+  display: block;
+  block-size: 0.75rem;
+  background:
+    var(--sh-wave),
+    repeating-linear-gradient(45deg, transparent 0 0.3125rem, var(--sh-board) 0.3125rem 0.4375rem),
+    repeating-linear-gradient(-45deg, transparent 0 0.3125rem, var(--sh-board) 0.3125rem 0.4375rem),
+    var(--sh-turquoise);
+}
+/* The panel: dark carved wood, the panes three across. */
+[data-body='lattice'] .sh-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0.375rem 0.5rem 0.375rem;
+  background: var(--sh-board);
+  list-style: none;
+}
+/* The bracket: a wooden shelf under the bay on three stepped corbels (three steps each), then a gap. */
+[data-body='lattice'] .sh-bay::after {
+  content: '';
+  display: block;
+  block-size: 1rem;
+  margin-block-end: 0;
+  background:
+    linear-gradient(var(--sh-board), var(--sh-board)) 0 0 / 100% 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 12% 0.3125rem / 1.5rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 12% 0.625rem / 1rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 12% 0.9375rem / 0.5rem 0.1875rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 50% 0.3125rem / 1.5rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 50% 0.625rem / 1rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 50% 0.9375rem / 0.5rem 0.1875rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 88% 0.3125rem / 1.5rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 88% 0.625rem / 1rem 0.3125rem no-repeat,
+    linear-gradient(var(--sh-board), var(--sh-board)) 88% 0.9375rem / 0.5rem 0.1875rem no-repeat;
+}
+
+/* ------------------------------------------------------------------ a pane */
+
+/* The pane is the positioned ancestor of the name's tap area, so the whole pane (frame, plaque and tag) opens the dish. */
+[data-body='lattice'] .sh-pane {
+  --tpl-ring-radius: var(--sh-arch);
+  --tpl-ring-inset: -3px;
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr auto;
+  justify-items: center;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+/* The frame: an arch of turquoise with the lattice bars drawn on it; the photo covers the middle, so no lattice crosses it. */
+[data-body='lattice'] .sh-frame {
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding: 0.375rem;
+  border: 2px solid var(--sh-edge);
+  border-radius: var(--sh-arch);
+  background:
+    repeating-linear-gradient(45deg, transparent 0 0.25rem, var(--sh-mesh) 0.25rem 0.3125rem),
+    repeating-linear-gradient(-45deg, transparent 0 0.25rem, var(--sh-mesh) 0.25rem 0.3125rem),
+    var(--sh-turquoise);
+}
+[data-body='lattice'] .sh-photo {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 0.78;
+  border-radius: 999px 999px 0.1875rem 0.1875rem;
+  background: color-mix(in srgb, var(--text) 10%, var(--bg));
+}
+/* The discount on the photo's start corner at the foot (the top is the arch); the add on the end corner there. */
+[data-body='lattice'] .sh-off {
+  inset-block-start: auto;
+  inset-block-end: 0.25rem;
+}
+[data-body='lattice'] .sh-add {
+  --rim-add-size: 2.5rem;
+  z-index: 3;
+  inset-block-end: 0.25rem;
+  inset-inline-end: 0.25rem;
+  border: 2px solid var(--rim-add-ink, var(--on-accent));
+}
+[data-body='lattice'] .sh-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='lattice'] .sh-add:focus-visible {
+  outline: 2px solid var(--rim-add-ink, var(--on-accent));
+  outline-offset: -5px;
+}
+/* The carved plaque: a small plank under the pane, the name on it, two lines at most (shared .tpl-dish-name). */
+[data-body='lattice'] .sh-name {
+  box-sizing: border-box;
+  padding: 0.125rem 0.25rem;
+  border: 2px solid var(--sh-edge);
+  border-radius: 0.25rem;
+  background: var(--sh-plaque);
+  color: var(--sh-cream);
+  text-align: center;
+}
+/* The whole pane's keyboard ring is drawn inside it, on the dark rim, in cream. */
+[data-body='lattice'] .tpl-open.sh-name:focus-visible::after {
+  outline: 2px solid var(--sh-ring);
+  outline-offset: -3px;
+  border-radius: var(--sh-arch);
+}
+/* The brass tag: a small tag with its hole at the start; a long price wraps inside it rather than overflowing. */
+[data-body='lattice'] .sh-price {
+  position: relative;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  padding: 0.0625rem 0.4375rem;
+  padding-inline-start: 1rem;
+  border-radius: 0.375rem;
+  background: var(--sh-brass);
+  color: var(--sh-brass-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+[data-body='lattice'] .sh-price::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 0.3125rem;
+  inset-block-start: 50%;
+  inline-size: 0.3125rem;
+  block-size: 0.3125rem;
+  margin-block-start: -0.15625rem;
+  border-radius: 50%;
+  background: var(--sh-edge);
+}
+
+@media (hover: hover) {
+  [data-body='lattice'] .sh-pane:hover .sh-frame {
+    filter: brightness(1.12);
+  }
+}
+
+/* A wide screen: four columns, then five, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='lattice'] .sh-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.875rem 0.75rem;
+    padding-inline: 0.75rem;
+  }
+  [data-body='lattice'] .sh-price {
+    font-size: 0.9375rem;
+  }
+  [data-body='lattice'] .sh-title {
+    font-size: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='lattice'] .sh-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='lattice'] .sh-chip {
+    transition: none;
+  }
+}

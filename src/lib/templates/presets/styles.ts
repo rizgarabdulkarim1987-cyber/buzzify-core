@@ -846,4 +846,33 @@ export const theJajimAndNowruz = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz];
+export const theBaghdadShanashil = definePreset({
+  id: 'the-baghdad-shanashil',
+  number: 60,
+  name: 'Baghdad Shanashil',
+  business: 'restaurant',
+  tags: ['light', 'cinematic'],
+  seed: { bg: '#EFE2C8', text: '#3A210D', accent: '#0E6E6E', raised: '#FAF1DC' },
+  alternatives: [
+    { id: 'tigris-night', name: 'Tigris night', seed: { bg: '#0E2230', text: '#F3E7CC', accent: '#4FC3B8', raised: '#173345' } },
+    { id: 'date-palm', name: 'Date palm', seed: { bg: '#F2E8D0', text: '#2E2010', accent: '#6B3F1A', raised: '#FBF4E2' } },
+    { id: 'lapis', name: 'Lapis', seed: { bg: '#E6EEF2', text: '#12283A', accent: '#1B5E8A', raised: '#F6FAFC' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'lattice',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil];

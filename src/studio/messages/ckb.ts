@@ -2412,6 +2412,7 @@ const ckb: Messages = {
   'design.body.lanterns': 'فانووسە هەڵواسراوەکان',
   'design.body.carpet': 'قاڵیی سیحراوی',
   'design.body.rugs': 'جاجمی چنراو',
+  'design.body.lattice': 'پەنجەرەی شەناشیل',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',
