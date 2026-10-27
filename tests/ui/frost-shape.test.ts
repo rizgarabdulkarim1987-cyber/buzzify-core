@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
-import { FrostBody } from '@/ui/template/bodies/FrostBody';
+import { FrostBody, isTallFrost } from '@/ui/template/bodies/FrostBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { FROST, blendOver, riseOf } from '@/ui/template/bodies/frost-fills';
 
@@ -70,5 +70,21 @@ describe('the frost fills', () => {
     expect(css).not.toMatch(/infinite/);
     expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
     for (const [, property] of css.matchAll(/transition:\s*([a-z-]+)/g)) expect(['transform', 'opacity', 'background-color', 'none']).toContain(property);
+  });
+});
+
+describe('the masonry', () => {
+  it('gives every third dish of a section, from the second, the tall photo (by its place in the full section)', () => {
+    expect([0, 1, 2, 3, 4, 5, 6].map(isTallFrost)).toEqual([false, true, false, false, true, false, false]);
+  });
+
+  it('packs the panes into columns of small rows, the last pane across the wall, and makes the tall photo at least 40% taller', () => {
+    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8');
+    expect(css).toMatch(/\.fr-wall\[data-packed\]\s*\{\s*grid-auto-rows: 0\.5rem;/);
+    expect(css).toMatch(/\.fr-pane:last-child\s*\{\s*grid-column: 1 \/ -1;/);
+    const tall = 1;
+    const short = 9 / 16;
+    expect(tall / short).toBeGreaterThanOrEqual(1.4);
+    expect(css).toContain('aspect-ratio: 16 / 9;');
   });
 });

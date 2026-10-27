@@ -16,17 +16,19 @@ import {
   expectQuickAdd,
   expectReadable,
   expectStripStays,
+  expectWordsWhole,
   openMenu,
   paletteIdsOf,
   silenceObserver,
 } from './helpers/body-menu';
 
 /**
- * The Frosted Window body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a winter window. A sticky
- * strip of icicle chips (a pale pill with the number and the section's name, an icicle under it) jumps to a section;
- * every section is one big window pane (frame, rime, night-blue glass, a label plate with a fringe of icicles) holding
- * frost cards in three staggered columns (tall and short by turns). Condensation lies faintly over a pane still below the
- * screen and is wiped away once, when the pane first comes into view.
+ * The Frosted Window body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a wall of winter windows. A
+ * sticky strip of icicle chips (a pale pill with the number and the section's name, an icicle under it) jumps to a
+ * section; every section is its own window pane (frame, rime, night-blue glass crossed by a mullion and glazing bars, a
+ * label plate with a fringe of icicles), and the panes stand side by side in a MASONRY of two columns: each drops into
+ * the column that frees up first. In a pane the dishes are frost cards one under the other, tall or short. Condensation
+ * lies faintly over a pane still below the screen and is wiped away once, when the pane first comes into view.
  */
 
 const menus = bodyMenus();
@@ -37,6 +39,7 @@ const manySlug = menus.slug('frmany');
 const offSlug = menus.slug('froff');
 const bareSlug = menus.slug('frbare');
 const customSlug = menus.slug('frcustom');
+const crowdSlug = menus.slug('frcrowd');
 // A light menu with a pale yellow accent (Customize): the shape's own dark fills stay, the lit ring follows the accent.
 const LIGHT_YELLOW_ACCENT = { bg: '#F4F4F4', surface: '#FFFFFF', card: '#FFFFFF', raised: '#EEEEEE', text: '#1B1030', muted: '#4A4060', accent: '#FFE066', onAccent: '#111111' };
 const bareAt = (id: string) => menus.slug(`frbare-${id}`);
@@ -50,6 +53,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'fr', { templateId: 'the-frosted-window', extraSections: 20 });
   await menus.create(offSlug, 'fr', { templateId: 'the-frosted-window', ordering: 'none' });
   await menus.create(bareSlug, 'fr', { templateId: 'the-frosted-window', noPhotos: true });
+  await menus.create(crowdSlug, 'fr', { templateId: 'the-frosted-window', crowd: 3 });
   await menus.create(customSlug, 'fr', { templateId: 'the-frosted-window', colors: LIGHT_YELLOW_ACCENT, discount: ['croissant', 'eclair'] });
   for (const id of alternatives) await menus.create(bareAt(id), 'fr', { templateId: 'the-frosted-window', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'fr', { templateId: 'the-frosted-window', paletteId: id, discount: ['croissant', 'eclair'] });
@@ -127,7 +131,7 @@ test('the strip stays at the top: scrolled to the end, the first pane is still o
   await expectStripStays(page, strip(page), chipOf(page, 'viennoiserie'), 'viennoiserie');
 });
 
-test('a section is one big window pane: a pale frame, night-blue glass, and a label plate with the number, the name, the count and a fringe of icicles', async ({ page }) => {
+test('a section is a window pane: a pale frame, night-blue glass crossed by a mullion, and a label plate with the number, the name, the count and a fringe of icicles', async ({ page }) => {
   await openMenu(page, slug);
   const pane = paneOf(page, 'viennoiserie');
   const title = pane.locator('h2');
@@ -145,12 +149,34 @@ test('a section is one big window pane: a pale frame, night-blue glass, and a la
   expect(await title.evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
   expect(await title.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(220, 235, 248)');
   expect(await title.evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('conic-gradient');
-  // The pane is one block holding every card of the section, and it spans the page's column.
-  const [box, grid] = [(await pane.boundingBox())!, (await pane.locator('.fr-grid').boundingBox())!];
-  expect(grid.x).toBeGreaterThanOrEqual(box.x + 4);
-  expect(grid.x + grid.width).toBeLessThanOrEqual(box.x + box.width - 4);
-  expect(box.width).toBeGreaterThan(340);
+  // A glazing bar of the frame crosses the glass in the gap above every card after the first.
+  const bar = await pane.locator('[data-row]').nth(1).evaluate((node) => ({ content: getComputedStyle(node, '::after').content, colour: getComputedStyle(node, '::after').backgroundColor }));
+  expect(bar.content).not.toBe('none');
+  expect(bar.colour).toBe('rgb(220, 235, 248)');
   await expect(pane.locator('[data-row]')).toHaveCount(3);
+});
+
+test('the panes stand side by side in a masonry of two columns: the first two at the top, and the next drops into the column that frees up first, not into a row', async ({ page }) => {
+  await openMenu(page, crowdSlug);
+  // The wall is packed once the script has measured the panes.
+  await expect(page.locator('main#menu')).toHaveAttribute('data-packed', '');
+  await expect.poll(async () => Math.abs((await paneOf(page, 'celebration').boundingBox())!.x - (await paneOf(page, 'patisserie').boundingBox())!.x)).toBeLessThanOrEqual(1);
+  const [one, two, three, four] = await Promise.all(['viennoiserie', 'patisserie', 'celebration', 'boxes'].map(async (categorySlug) => (await paneOf(page, categorySlug).boundingBox())!));
+  // Two columns of the same width, side by side, the first two panes at the top.
+  expect(Math.abs(one!.y - two!.y)).toBeLessThanOrEqual(1);
+  expect(two!.x).toBeGreaterThan(one!.x + one!.width - 1);
+  expect(Math.abs(one!.width - two!.width)).toBeLessThanOrEqual(1);
+  expect(one!.width).toBeLessThan(200);
+  // The first pane holds six dishes, so it is the taller; the third drops under the second, beside the first.
+  expect(one!.height).toBeGreaterThan(two!.height + 100);
+  expect(Math.abs(three!.x - two!.x)).toBeLessThanOrEqual(1);
+  expect(three!.y).toBeLessThan(one!.y + one!.height);
+  expect(three!.y).toBeGreaterThan(two!.y + two!.height - 1);
+  expect(four).toBeTruthy();
+  // The last pane lies across the whole wall.
+  const last = (await paneOf(page, 'bread').boundingBox())!;
+  expect(last.width).toBeGreaterThan(one!.width * 2);
+  await expectNoPageWiden(page);
 });
 
 test('the ground behind the panes is night blue, whatever the palette', async ({ page }) => {
@@ -160,21 +186,20 @@ test('the ground behind the panes is night blue, whatever the palette', async ({
   expect(sky.colour).toBe('rgb(11, 23, 48)');
 });
 
-test('dishes are frost cards in three staggered columns on a phone: tall and short by turns, the tall ones with the taller photo, the price above the name, a solid card with rime on its top edge', async ({ page }) => {
+test('in a pane the dishes are frost cards one under the other, tall and short: every third (from the second) has a photo at least 40% taller; the price above the name, a solid card with rime on its top edge', async ({ page }) => {
   await openMenu(page, slug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   expect(await row.count()).toBe(3);
   const boxes = (await Promise.all([0, 1, 2].map((i) => row.nth(i).boundingBox()))) as DOMRect[];
   const photos = (await Promise.all([0, 1, 2].map((i) => row.nth(i).locator('[data-photo]').boundingBox()))) as DOMRect[];
-  // Three columns on one row.
-  expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x + 40);
-  expect(boxes[2]!.x).toBeGreaterThan(boxes[1]!.x + 40);
-  expect(Math.abs(boxes[0]!.width - boxes[1]!.width)).toBeLessThanOrEqual(1);
-  // Stagger: tall, short, short; the short ones sit at the foot of the row, so the tops are ragged.
-  expect(photos[0]!.height).toBeGreaterThan(photos[1]!.height + 8);
-  expect(Math.abs(photos[1]!.height - photos[2]!.height)).toBeLessThanOrEqual(1);
-  expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + 8);
-  expect(Math.abs(boxes[0]!.y + boxes[0]!.height - (boxes[1]!.y + boxes[1]!.height))).toBeLessThanOrEqual(1);
+  // One column: each card under the one before, as wide as it.
+  expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height - 1);
+  expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + boxes[1]!.height - 1);
+  expect(Math.abs(boxes[0]!.x - boxes[1]!.x)).toBeLessThanOrEqual(1);
+  // Short, tall, short: the tall photo is at least 40% taller.
+  expect(photos[1]!.height).toBeGreaterThanOrEqual(photos[0]!.height * 1.4);
+  expect(Math.abs(photos[0]!.height - photos[2]!.height)).toBeLessThanOrEqual(1);
+  await expect(row.nth(1)).toHaveClass(/fr-tall/);
   // The price is above the name.
   const [price, name] = [(await row.first().locator('.fr-price').boundingBox())!, (await row.first().locator('.fr-name').boundingBox())!];
   expect(price.y).toBeLessThan(name.y);
@@ -184,6 +209,26 @@ test('dishes are frost cards in three staggered columns on a phone: tall and sho
   expect(style.radius).toBeGreaterThanOrEqual(10);
   expect(style.rime).toContain('radial-gradient');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a search never resizes a card: a dish keeps its tall or short photo by its place in the full section', async ({ page }) => {
+  await openMenu(page, slug);
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.fill('Pain au');
+  // Pain au chocolat is now the first card of its section (or near it), yet keeps its tall photo.
+  await expect.poll(() => cards(page).count()).toBeLessThan(4);
+  await expect(cardOf(page, 'pain-au-chocolat')).toHaveClass(/fr-tall/);
+  await search.fill('');
+  await expect(cardOf(page, 'pain-au-chocolat')).toHaveClass(/fr-tall/);
+});
+
+test('names never break inside a word on the first screen, in English and in Arabic', async ({ page }) => {
+  for (const locale of ['en', 'ar']) {
+    await openMenu(page, slug, { locale });
+    await expect(cards(page).first()).toBeVisible();
+    await expectWordsWhole(body(page).locator('#cat-viennoiserie :is(.fr-name, h2 > span), #cat-patisserie :is(.fr-name, h2 > span)'));
+    await expectWordsWhole(strip(page).locator('.fr-chip-name'));
+  }
 });
 
 test('the name and the price sit on the solid card, each in its own ink', async ({ page }) => {
@@ -406,15 +451,14 @@ test('a long dish name and a long price stay inside the card without sideways sc
   expect(await contrastOf(card.locator('.fr-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the cards run four across in a centred column', async ({ page }) => {
+test('on a wide screen the panes stand four across in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
-  const row = page.locator('#cat-viennoiserie [data-row]');
-  const [a, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
-  expect(b.x).toBeGreaterThan(a.x + 40);
-  expect(c.x).toBeGreaterThan(b.x + 40);
-  expect(a.y).toBeLessThan(b.y + b.height);
-  expect(a.x).toBeGreaterThan(100);
+  const boxes = await Promise.all(['viennoiserie', 'patisserie', 'celebration', 'boxes'].map(async (categorySlug) => (await paneOf(page, categorySlug).boundingBox())!));
+  for (const box of boxes.slice(1)) expect(Math.abs(box!.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
+  expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x + 40);
+  expect(boxes[3]!.x).toBeGreaterThan(boxes[2]!.x + 40);
+  expect(boxes[0]!.x).toBeGreaterThan(100);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -425,14 +469,14 @@ test('numbers and counts use the tenant numerals, on the chips too', async ({ pa
   await expect(page.locator('#cat-viennoiserie h2 small')).toHaveText('١');
 });
 
-test('in Arabic the page is right to left, the strip starts at the right, the columns mirror and nothing scrolls sideways', async ({ page }) => {
+test('in Arabic the page is right to left, the strip starts at the right, the columns of panes mirror and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => strip(p));
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
-  const photo = (await cards(page).first().locator('[data-photo]').boundingBox())!;
-  const second = (await cards(page).nth(1).locator('[data-photo]').boundingBox())!;
-  expect(photo.x).toBeGreaterThan(second.x);
+  const one = (await paneOf(page, 'viennoiserie').boundingBox())!;
+  const two = (await paneOf(page, 'patisserie').boundingBox())!;
+  expect(one.x).toBeGreaterThan(two.x);
   const card = cards(page).first();
   const add = (await card.locator('.fr-add').boundingBox())!;
   const frame = (await card.locator('[data-photo]').boundingBox())!;

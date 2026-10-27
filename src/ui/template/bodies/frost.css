@@ -1,14 +1,17 @@
 /*
- * The Frosted Window body (a browse shape of a template menu): a winter window. A sticky strip of icicle chips (a pale pill
- * with the section's number and its name, an icicle hanging under it; the one in view is dark and ringed in the palette
- * accent), and every section one big window pane: a pale frame with rime on its edge, night-blue glass with a muntin line
- * down the middle, a label plate with a fringe of icicles, and the dishes as frost cards in three columns that stagger
- * (tall, short, short, tall: the tall ones have the taller photo). Condensation lies faintly over a pane still below the
- * screen and is wiped away once, the first time the pane comes into view (FrostBody arms it; with less motion there is
- * none). The fog is a layer that takes no tap, never over 30%, and every text sits on a solid card or plate fill, so the
- * text reads on both states. Everything is scoped under [data-body='frost'], logical properties only (RTL mirrors). The
- * fills are the shape's own (frost-fills.ts, the same on every palette); the only palette colour is the lit chip's ring.
- * Nothing loops; the one motion is a transform that ends in about a second.
+ * The Frosted Window body (a browse shape of a template menu): a wall of winter windows. A sticky strip of icicle chips (a
+ * pale pill with the section's number and its name, an icicle hanging under it; the one in view is dark and ringed in the
+ * palette accent), and every section its own window pane. The panes stand in a MASONRY of two columns (three and four on
+ * wider screens): `main` is a grid of small rows and FrostBody gives each pane the span its height needs, so it drops into
+ * the column that frees up first (before the script runs the panes sit in plain rows). A pane: a pale frame with rime on
+ * its edge, night-blue glass crossed by a mullion and by glazing bars between its dishes, a label plate with a fringe of
+ * icicles, and the dishes one under the other as frost cards whose photos are tall or short. The last pane lies across the
+ * whole wall. Condensation lies faintly over a pane still below the screen and is wiped away once, the first time the pane
+ * comes into view (FrostBody arms it; with less motion there is none). The fog is a layer that takes no tap, never over
+ * 30%, and every text sits on a solid card or plate fill, so the text reads on both states. Everything is scoped under
+ * [data-body='frost'], logical properties only (RTL mirrors). The fills are the shape's own (frost-fills.ts, the same on
+ * every palette); the only palette colour is the lit chip's ring. Nothing loops; the one motion is a transform that ends
+ * in about a second.
  */
 [data-body='frost'] {
   --fr-night: #0b1730;
@@ -25,8 +28,8 @@
   --fr-add: #0c1f3a;
   --fr-add-ink: #f2f8ff;
   --fr-fog-opacity: 0.3;
-  /* The lit chip's ring: the palette accent lifted 55% towards white (frost-fills.ts `riseOf`). */
-  --fr-rise: color-mix(in srgb, var(--accent) 45%, #fff);
+  /* The lit chip's ring: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`). */
+  --fr-rise: var(--tpl-rise);
   --nav-room: 4.75rem;
   --column: 64rem;
   /* The last pane only as tall as the strip needs to light it (shared/shapes.css). */
@@ -56,23 +59,11 @@
   padding-block: 0.25rem 0.625rem;
   padding-inline: 0.5rem;
 }
-/* A chip: a pale pill with the section's number in a small dark disc and its name (two lines at most) beside it. */
+/* A chip: a pale pill with the section's number in a small dark disc and its name (shared/name-chip.css). */
 [data-body='frost'] .fr-chip {
-  position: relative;
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  box-sizing: border-box;
-  min-inline-size: 2.75rem;
-  max-inline-size: 10rem;
-  block-size: 2.75rem;
-  padding: 0.25rem;
-  padding-inline-end: 0.75rem;
   border-radius: 1.375rem;
   background-color: var(--fr-frame);
   color: var(--fr-frame-ink);
-  text-align: start;
-  transition: background-color 150ms;
 }
 /* The icicles: two small points hanging under the chip into the strip's foot padding (the chip's own fill). */
 [data-body='frost'] .fr-chip::after,
@@ -95,29 +86,11 @@
   block-size: 0.3125rem;
 }
 [data-body='frost'] .fr-chip-no {
-  display: grid;
-  flex: none;
-  place-items: center;
   inline-size: 2rem;
   block-size: 2rem;
   border-radius: 50%;
   background-color: var(--fr-deep);
   color: var(--fr-ice);
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1;
-}
-[data-body='frost'] .fr-chip-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  min-inline-size: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.15;
 }
 /* The section in view: the chip goes dark with a ring in the lit colour, and its disc goes pale. */
 [data-body='frost'] .fr-chip[aria-current='true'] {
@@ -131,23 +104,41 @@
   font-weight: 800;
 }
 
+/* ------------------------------------------------------------------ the wall of panes */
+
+/* Two columns of panes; once FrostBody has measured them (data-packed) the rows are small and each pane spans its height. */
+[data-body='frost'] .fr-wall {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  column-gap: 0.5rem;
+  padding-inline: 0.375rem;
+}
+[data-body='frost'] .fr-wall[data-packed] {
+  grid-auto-rows: 0.5rem;
+}
+/* The last pane lies across the wall, under every column. */
+[data-body='frost'] .fr-pane:last-child {
+  grid-column: 1 / -1;
+}
+
 /* ------------------------------------------------------------------ a pane */
 
-/* The pane: a window. A pale frame, rime along its top edge, night-blue glass with a muntin line down the middle, a sill. */
+/* The pane: a window. A pale frame, rime along its top edge, night-blue glass with a mullion down the middle, a sill. */
 [data-body='frost'] .fr-pane {
   position: relative;
   isolation: isolate;
-  margin-block: 1.5rem 0.75rem;
-  margin-inline: 0.5rem;
-  padding: 0 0.375rem 0.5rem;
-  border: 0.375rem solid var(--fr-frame);
-  border-radius: 1.25rem;
+  min-inline-size: 0;
+  margin-block: 1.25rem 0.375rem;
+  padding: 0 0.3125rem 0.375rem;
+  border: 0.3125rem solid var(--fr-frame);
+  border-radius: 1rem;
   background-color: var(--fr-dusk);
   background-image:
-    linear-gradient(90deg, transparent calc(50% - 1.5px), rgb(220 235 248 / 0.14) calc(50% - 1.5px) calc(50% + 1.5px), transparent calc(50% + 1.5px)),
+    linear-gradient(90deg, transparent calc(50% - 2px), #dcebf8 calc(50% - 2px) calc(50% + 2px), transparent calc(50% + 2px)),
     radial-gradient(ellipse at 12% 0%, rgb(127 196 255 / 0.28), transparent 55%),
     radial-gradient(ellipse at 90% 100%, rgb(220 235 248 / 0.14), transparent 50%);
-  box-shadow: inset 0 0 0 2px #8fb0d1, inset 0 0 1.5rem rgb(220 235 248 / 0.2), 0 0.375rem 0 #9db9d6, 0 0.75rem 0.875rem rgb(0 0 0 / 0.45);
+  box-shadow: inset 0 0 0 2px #8fb0d1, inset 0 0 1.5rem rgb(220 235 248 / 0.2), 0 0.3125rem 0 #9db9d6, 0 0.625rem 0.75rem rgb(0 0 0 / 0.45);
 }
 /* The rime: frost blobs along the frame's inner top edge. */
 [data-body='frost'] .fr-pane::before {
@@ -170,36 +161,37 @@
   z-index: 2;
   display: block;
   /* The plate straddles the frame's top edge, so the first card is not pushed down the phone. */
-  margin-block: -1.25rem 0.625rem;
+  margin-block: -1.125rem 0.625rem;
   padding-inline: 0;
 }
 [data-body='frost'] .fr-title {
   position: relative;
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-block-size: 2.25rem;
+  gap: 0.375rem;
+  min-block-size: 2rem;
   margin: 0;
-  padding: 0.25rem 0.5rem;
+  padding: 0.1875rem 0.375rem;
   border-radius: 999px;
   background-color: var(--fr-frame);
   color: var(--fr-frame-ink);
-  font-size: 1.125rem;
+  font-size: 0.9375rem;
   font-weight: 800;
   line-height: 1.15;
 }
+/* A narrow pane: the name wraps between words (a word breaks only when it alone is wider than the plate). */
 [data-body='frost'] .fr-title span {
   flex: 1;
   min-inline-size: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 [data-body='frost'] .fr-title :is(small, b) {
   display: grid;
   flex: none;
   place-items: center;
-  min-inline-size: 1.75rem;
-  block-size: 1.75rem;
-  padding-inline: 0.25rem;
+  min-inline-size: 1.375rem;
+  block-size: 1.375rem;
+  padding-inline: 0.1875rem;
   border-radius: 999px;
   background-color: var(--fr-deep);
   color: var(--fr-ice);
@@ -222,18 +214,18 @@
 
 /* ------------------------------------------------------------------ the frost cards */
 
+/* The dishes one under the other; a glazing bar of the frame crosses the glass in each gap between two cards. */
 [data-body='frost'] .fr-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  align-items: start;
-  gap: 0.5rem 0.375rem;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.625rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 /* A card is the positioned ancestor of the name's tap area (shared/photo-card.css), so the whole card opens the dish. */
 [data-body='frost'] .fr-card {
-  --tpl-ring-radius: 0.875rem;
+  --tpl-ring-radius: 0.75rem;
   --tpl-ring-inset: -3px;
   --sale-bg: var(--fr-sale);
   --sale-ink: var(--fr-sale-ink);
@@ -244,10 +236,21 @@
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   padding: 0.3125rem;
-  border-radius: 0.875rem;
+  border-radius: 0.75rem;
   background-color: var(--fr-card);
   color: var(--fr-card-ink);
   box-shadow: 0 0.1875rem 0 #9db9d6, 0 0.5rem 0.75rem rgb(0 0 0 / 0.35);
+}
+/* The glazing bar: the frame's pale wood across the pane, in the gap above a card. */
+[data-body='frost'] .fr-card + .fr-card::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.4375rem;
+  inset-inline: -0.625rem;
+  z-index: -1;
+  block-size: 0.25rem;
+  background: var(--fr-frame);
+  pointer-events: none;
 }
 /* Rime on the card's top edge: frost blobs over its rim (above the photo's corners, clear of the sale chip and the add). */
 [data-body='frost'] .fr-card::before {
@@ -262,21 +265,18 @@
     radial-gradient(circle at 70% 0, #dcebf8 0 0.3125rem, transparent 0.375rem) 0 0 / 3.25rem 100% repeat-x;
   pointer-events: none;
 }
-/* The stagger: a tall card has the taller photo and sits at the top of its row, a short one at the foot. */
+/* The masonry's height: a tall card's photo is square, a short card's is wide (the tall one is about 78% taller). */
 [data-body='frost'] .fr-tall .fr-photo {
-  aspect-ratio: 10 / 9;
-}
-[data-body='frost'] .fr-short {
-  align-self: end;
+  aspect-ratio: 1;
 }
 [data-body='frost'] .fr-short .fr-photo {
-  aspect-ratio: 5 / 4;
+  aspect-ratio: 16 / 9;
 }
 [data-body='frost'] .fr-photo {
   /* A dish with no media: the plate's rings and ground in the card's own colours, on every palette. */
   --text: var(--fr-card-ink);
   --bg: var(--fr-card);
-  border-radius: 0.625rem;
+  border-radius: 0.5rem;
   background-color: var(--fr-card);
 }
 /* The add on the photo's end corner, big enough to tap (40px); the discount is on its start corner (photo-card.css). */
@@ -338,7 +338,7 @@
   inset: 0;
   z-index: 4;
   overflow: hidden;
-  border-radius: 0.875rem;
+  border-radius: 0.75rem;
   pointer-events: none;
 }
 [data-body='frost'] .fr-fog {
@@ -374,11 +374,11 @@
   transition: none;
 }
 
-/* A wide screen: three columns, then four, in a centred column. */
+/* A wide screen: three columns of panes, then four, in a centred column. */
 @media (min-width: 640px) {
-  [data-body='frost'] .fr-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1rem 0.75rem;
+  [data-body='frost'] .fr-wall {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    column-gap: 0.875rem;
   }
   [data-body='frost'] .fr-name {
     font-size: 0.9375rem;
@@ -387,21 +387,17 @@
     font-size: 1rem;
   }
   [data-body='frost'] .fr-title {
-    font-size: 1.5rem;
-  }
-  [data-body='frost'] .fr-pane {
-    padding-inline: 1.25rem;
+    font-size: 1.25rem;
   }
 }
 @media (min-width: 1024px) {
-  [data-body='frost'] .fr-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+  [data-body='frost'] .fr-wall {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
 /* Less motion: the chips simply change. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='frost'] .fr-chip,
   [data-body='frost'] .fr-fog {
     transition: none !important;
   }
