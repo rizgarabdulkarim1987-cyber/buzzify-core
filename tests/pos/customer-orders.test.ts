@@ -113,7 +113,8 @@ describe('accepting a request', () => {
     const order = dataOf(await ask(cashier, posOrder, { orderId: done.orderId }));
     expect(order.lines[0]!.lineTotal).toBe(4500 * 3);
     const line = await prisma().posOrderLine.findFirstOrThrow({ where: { orderId: done.orderId } });
-    expect(line).toMatchObject({ discountKind: 'AMOUNT', discountValue: 1500 });
+    // The offer is its own column now, so the cashier's manual discount stays free and the offer follows the quantity.
+    expect(line).toMatchObject({ promoDiscountPerUnit: 500, discountKind: null, discountValue: null });
   });
 
   it('adds the lines to the live order of the table when given its version, and the total is both sets', async () => {

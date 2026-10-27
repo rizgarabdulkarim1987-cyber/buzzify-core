@@ -2,8 +2,10 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import { scopedClient } from '@/server/data/tenant-db';
+import type { TillOffer } from '@/server/domain/pos/line-offer';
 import type { TranslationMap } from '@/server/domain/types';
 import { catalogMenuOf } from './catalog-menu';
+import { loadTillOffers } from './line-offers';
 
 /** A name in each language the menu has. A language without a name is left out. */
 export type Names = Partial<Record<Locale, string>>;
@@ -61,6 +63,10 @@ export interface TillCatalog {
   defaultLocale: Locale;
   categories: TillCategory[];
   products: TillProduct[];
+  /** The menu's time zone, which its offers are read in. */
+  timeZone: string;
+  /** The menu's DISCOUNT offers (empty without the plan's timed offers). Whether one is live is decided where it is used. */
+  offers: TillOffer[];
 }
 
 function namesOf(map: TranslationMap, locales: readonly Locale[]): Names {
@@ -87,6 +93,7 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
   // Only the menu's own rows and this restaurant's side tables are reachable from these clients.
   const catalog = await loadDraftCatalog(scopedClient(prisma, { menuId: menu.id, restaurantId }), menu.id);
   const side = scopedClient(prisma, { restaurantId });
+  const { offers, timeZone } = await loadTillOffers(prisma, restaurantId, menu.id);
   const [categorySettings, productSettings] = await Promise.all([
     side.posCategorySetting.findMany({ select: { categoryId: true, sectionId: true } }),
     side.posProductSetting.findMany({ select: { productId: true, sectionId: true, soldOutOverride: true } }),
@@ -144,5 +151,5 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
         (categoryRank.get(x.categoryId) ?? 0) - (categoryRank.get(y.categoryId) ?? 0) || x.sortOrder - y.sortOrder || x.id.localeCompare(y.id),
     );
 
-  return { menuId: menu.id, currency: 'IQD', locales, defaultLocale, categories, products };
+  return { menuId: menu.id, currency: 'IQD', locales, defaultLocale, categories, products, timeZone, offers };
 }

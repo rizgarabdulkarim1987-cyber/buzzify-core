@@ -1461,6 +1461,9 @@ model PosOrderLine {
   note                String           @default("")
   /// [{ id, name, priceDelta }] of the chosen variant (first) and options, copied when the line was added.
   optionsSnapshot     Json             @default("[]")
+  /// Integer IQD per unit: what the menu's live offer took off when the line was added (0: none). Kept apart from the
+  /// cashier's own discount, which applies to the price that is left.
+  promoDiscountPerUnit Int @default(0)
   discountKind        PosDiscountKind?
   discountValue       Int?
   cancelledAt         DateTime?

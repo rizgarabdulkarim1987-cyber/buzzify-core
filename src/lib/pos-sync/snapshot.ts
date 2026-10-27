@@ -14,6 +14,8 @@ export interface SnapshotLine {
   name: string;
   quantity: number;
   unitPrice: number;
+  /** What the menu's offer took off one unit, in whole IQD (0: none). */
+  promoPerUnit: number;
   options: { id: string; name: string; priceDelta: number }[];
   note: string;
   discount: Discount | null;

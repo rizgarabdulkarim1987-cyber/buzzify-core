@@ -22,6 +22,7 @@ export function pricedLine(line: PosOrderLine): PricedLine {
     unitPrice: line.unitPriceSnapshot,
     optionsTotal: optionsSnapshotSchema.parse(line.optionsSnapshot).reduce((sum, option) => sum + option.priceDelta, 0),
     quantity: line.quantity,
+    promoPerUnit: line.promoDiscountPerUnit,
     discount: toDiscount(line.discountKind, line.discountValue),
     cancelled: line.cancelledAt !== null,
   };
@@ -193,6 +194,8 @@ export interface OrderLineView {
   unitPrice: number;
   options: OptionSnapshot[];
   note: string;
+  /** What the menu's offer took off one unit when the line was added, in whole IQD (0: none). */
+  offerPerUnit: number;
   discount: Discount | null;
   /** What the line adds to the subtotal (a cancelled line keeps this amount but is not in the total). */
   lineTotal: number;
@@ -290,6 +293,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
         unitPrice: line.unitPriceSnapshot,
         options: optionsSnapshotSchema.parse(line.optionsSnapshot),
         note: line.note,
+        offerPerUnit: line.promoDiscountPerUnit,
         discount: priced.discount ?? null,
         lineTotal: lineTotal(priced),
         cancelled: line.cancelledAt !== null,

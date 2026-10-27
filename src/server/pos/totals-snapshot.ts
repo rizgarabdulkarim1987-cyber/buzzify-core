@@ -24,6 +24,8 @@ export const totalsSnapshotSchema = z.object({
       quantity: z.number().int().min(1),
       unitPrice: amount,
       options: optionsSnapshotSchema,
+      /** What the menu's offer took off one unit (whole IQD); absent in receipts paid before offers reached the till. */
+      promoPerUnit: amount.default(0),
       discount: discountSchema.nullable(),
       lineTotal: amount,
     }),

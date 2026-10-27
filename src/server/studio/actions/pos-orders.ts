@@ -71,6 +71,8 @@ export const addPosLine = defineAction({
     variantId: idField.optional(),
     optionIds: z.array(idField).max(50),
     expectedVersion,
+    /** A till device's own time for the tap, when it replays a line added offline. */
+    clientAt: z.iso.datetime().optional(),
   }),
   target: () => CATALOG,
   run: (ctx, input) => {
@@ -78,7 +80,8 @@ export const addPosLine = defineAction({
     if (ctx.menuId === null) throw new StudioError('NOT_FOUND');
     const menuId = ctx.menuId;
     return ctx.transaction(async (tx) => {
-      const added = await addLineIn(delegates(tx), restaurantId, menuId, input);
+      const { clientAt, ...line } = input;
+      const added = await addLineIn(delegates(tx), restaurantId, menuId, { ...line, ...(clientAt ? { clientAt: new Date(clientAt) } : {}) });
       ctx.audit({
         action: 'pos.order.line.add',
         entityType: 'PosOrderLine',
