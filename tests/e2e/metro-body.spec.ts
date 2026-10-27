@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu, shapeChecks } from './helpers/body-menu';
 
 /**
  * The Metro Line body (spec 2026-10-26-menu-styles-in-templates-design.md): a route strip of stations that jump, one
@@ -108,3 +108,5 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
+
+shapeChecks(menus, { kind: 'metro', templateId: 'the-metro-line', checks: ['focus', 'contrast', 'sale'], entry: station });

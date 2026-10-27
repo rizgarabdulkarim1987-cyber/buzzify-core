@@ -112,6 +112,11 @@
   background: var(--tk-paper);
   color: var(--tk-ink);
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.35);
+  /* The paper is the same on every palette, so the palette's inks that the shared parts use on it (the focus ring, a
+   * "New" label, a chef's special, their outline) are the paper's own: a dark palette's light inks would vanish on it. */
+  --accent-ink: var(--tk-hot);
+  --muted: var(--tk-ink-soft);
+  --line: color-mix(in srgb, var(--tk-ink) 30%, transparent);
 }
 [data-body='tickets'] .tk-slip::after {
   content: '';

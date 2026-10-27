@@ -344,6 +344,15 @@ export async function contrastOf(node: Locator): Promise<number> {
   return node.evaluate((element) => {
     // `rgb(a)` (0 to 255) or `color(srgb ...)` (0 to 1, what `color-mix` computes to), as [r, g, b, alpha] from 0 to 1.
     const parse = (value: string): number[] => {
+      // Another colour space (`oklab(...)`, what a `color-mix` in oklab computes to): let a canvas convert it.
+      if (!value.startsWith('rgb') && !value.startsWith('color(srgb')) {
+        const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = context.getImageData(0, 0, 1, 1).data;
+        return [r! / 255, g! / 255, b! / 255, a! / 255];
+      }
       const parts = value.match(/[\d.]+/g)!.map(Number);
       const srgb = value.startsWith('color(');
       const [r, g, b] = parts.slice(0, 3).map((part) => (srgb ? part : part / 255));
@@ -555,6 +564,14 @@ export async function expectTextReadable(scope: Locator, label: string) {
       if (style.visibility !== 'visible' || element.closest('.sr-only')) continue;
       if (element.closest('[aria-hidden="true"]') && !element.closest('.tpl-was')) continue;
       if (!element.checkVisibility({ opacityProperty: true })) continue;
+      // Inside a box clipped to (almost) nothing: kept for screen readers only (a tight price's regular price).
+      let clipped = false;
+      for (let at = element.parentElement; at && at !== root; at = at.parentElement) {
+        const outer = at.getBoundingClientRect();
+        if ((outer.width < 2 || outer.height < 2) && getComputedStyle(at).overflow !== 'visible') clipped = true;
+        if (getComputedStyle(at).clipPath.startsWith('inset(50%')) clipped = true;
+      }
+      if (clipped) continue;
       element.setAttribute('data-readable-probe', String(count++));
     }
     return count;

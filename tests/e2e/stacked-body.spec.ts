@@ -15,6 +15,7 @@ import {
   expectStripStays,
   openMenu,
   paletteIdsOf,
+  shapeChecks,
 } from './helpers/body-menu';
 
 /**
@@ -424,3 +425,5 @@ test('the docked tabs rise above the cart bar once something is in the cart', as
   const last = (await tabs(page).last().boundingBox())!;
   expect(last.y + last.height).toBeLessThanOrEqual(bar.y + 1);
 });
+
+shapeChecks(menus, { kind: 'stacked', templateId: 'the-stacked-sheets', checks: ['contrast'] });

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectOpensProduct, expectQuickAdd, openMenu, shapeChecks } from './helpers/body-menu';
 
 /**
  * The Drawer Cabinet body (spec 2026-10-26-menu-styles-in-templates-design.md): every section is a drawer front with a
@@ -116,3 +116,5 @@ test('a search keeps main#menu and never steals focus', async ({ page }) => {
   await expect(box).toBeFocused();
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
+
+shapeChecks(menus, { kind: 'cabinet', templateId: 'the-drawer-cabinet', checks: ['focus', 'contrast', 'sale'], entry: front });

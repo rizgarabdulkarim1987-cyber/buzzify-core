@@ -160,4 +160,4 @@ test('a search keeps main#menu and never steals focus', async ({ page }) => {
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
 
-shapeChecks(menus, { kind: 'shelves', templateId: 'the-supermarket-shelves', checks: ['sale'] });
+shapeChecks(menus, { kind: 'shelves', templateId: 'the-supermarket-shelves', checks: ['focus', 'sale'], entry: sign });

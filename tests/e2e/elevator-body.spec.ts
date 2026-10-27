@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, openMenu, shapeChecks } from './helpers/body-menu';
 
 /**
  * The Elevator body (spec 2026-10-26-menu-styles-in-templates-design.md): a floor-button rail pinned at the inline
@@ -133,3 +133,5 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
+
+shapeChecks(menus, { kind: 'elevator', templateId: 'the-elevator', checks: ['focus', 'contrast', 'sale'], entry: (page, categorySlug) => rail(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) }) });

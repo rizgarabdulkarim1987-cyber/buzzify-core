@@ -164,4 +164,4 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
 
-shapeChecks(menus, { kind: 'comics', templateId: 'the-kitchen-comics', checks: ['sale'] });
+shapeChecks(menus, { kind: 'comics', templateId: 'the-kitchen-comics', checks: ['contrast', 'sale'] });
