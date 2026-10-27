@@ -476,6 +476,17 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Ask a manager to close this shift': 'error.text.phNeedsApproval',
   'Check the amounts': 'error.text.phAmountsCheck',
   'This batch has a cost but no cost unit': 'error.text.phCostUnitMissing',
+  'Choose a line of this sale': 'error.text.phReturnLineChoose',
+  'Choose how to refund': 'error.text.phRefundChoose',
+  'Use at most 300 characters': 'error.text.phTextMax300',
+  'You can return only what was sold and not yet returned': 'error.text.phReturnLimit',
+  'This key was already used for a different return': 'error.text.phReturnKeyMismatch',
+  'Open a shift before refunding': 'error.text.phNoShiftRefund',
+  'Nothing is left to return': 'error.text.phNothingToReturn',
+  'This sale cannot be returned': 'error.text.phSaleNotReturnable',
+  'This sale is too old to return without a manager': 'error.text.phReturnWindow',
+  'This sale was not paid this way': 'error.text.phRefundNotPaid',
+  'Return not found': 'error.text.phReturnNotFound',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

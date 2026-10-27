@@ -2841,6 +2841,8 @@ model PhReturn {
   refundMinor   BigInt
   currency      Currency
   clientKey     String
+  /// SHA-256 of the request that created the return (canonical JSON), so a replayed `clientKey` can prove it is the same request.
+  payloadHash   String?
   createdAt     DateTime        @default(now())
   restaurant    Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch        Branch          @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
