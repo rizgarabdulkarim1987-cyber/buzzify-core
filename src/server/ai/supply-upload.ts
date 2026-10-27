@@ -8,7 +8,7 @@ import { SUPPLY_FILE_MAX_BYTES, SUPPLY_MEDIA_TYPES, SUPPLY_TEXT_MAX_CHARS } from
 
 export const SUPPLY_BODY_MAX_BYTES = SUPPLY_FILE_MAX_BYTES + 1024 * 1024;
 
-async function readBytes(request: Request, limit: number): Promise<Uint8Array | null> {
+export async function readBytes(request: Request, limit: number): Promise<Uint8Array | null> {
   const declared = Number(request.headers.get('content-length'));
   if (Number.isFinite(declared) && declared > limit) return null;
   if (!request.body) return new Uint8Array();

@@ -25,7 +25,7 @@ export async function POST(request: Request, ctx: { params: Promise<{ tenant: st
           getPrisma(),
           tenant,
           {
-            table: input.table,
+            table: input.table ?? null,
             locale: input.locale,
             clientKey: input.clientKey,
             body,

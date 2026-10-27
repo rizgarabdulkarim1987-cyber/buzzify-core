@@ -18,6 +18,7 @@ import { Checkbox } from '@/studio/ui/Checkbox';
 import { cx } from '@/studio/ui/cx';
 import { FormSection } from '@/studio/ui/FormSection';
 import { StatusBadge, type StatusTone } from '@/studio/ui/StatusBadge';
+import { AiMenuImport } from './AiMenuImport';
 import { formatMoney } from './content/shared';
 
 export interface ImportExportProps {
@@ -96,6 +97,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
   const [failure, setFailure] = useState<StudioFailure | null>(null);
   const [job, setJob] = useState<{ id: string; fileName: string; preview: ImportPreview; hideMissing: boolean } | null>(null);
   const [filter, setFilter] = useState<Status | 'all'>('all');
+  const [aiSkipped, setAiSkipped] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [exporting, startExporting] = useTransition();
   const [applying, startApplying] = useTransition();
@@ -130,6 +132,7 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
 
   const reset = () => {
     setJob(null);
+    setAiSkipped(0);
     setFile(null);
     setFailure(null);
     if (fileInput.current) fileInput.current.value = '';
@@ -183,6 +186,19 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
           <code dir="ltr" className="block rounded-md bg-surface px-3 py-2 font-mono text-sm leading-relaxed text-text">
             {SHEET_COLUMNS.join(', ')}
           </code>
+        </FormSection>
+      )}
+
+      {canImport && !job && (
+        <FormSection id="ai-import-title" title={t('ai.menu.title')}>
+          <AiMenuImport
+            endpoint={`/api/studio/menus/${menuId}/ai-import`}
+            onRead={(reading) => {
+              setAiSkipped(reading.skipped);
+              setJob({ id: reading.importJobId, fileName: 'AI', preview: reading.preview, hideMissing: false });
+              setFilter(reading.preview.summary.invalid > 0 ? 'invalid' : 'all');
+            }}
+          />
         </FormSection>
       )}
 
@@ -247,16 +263,19 @@ export function ImportExport({ menuId, slug, currency, canImport, canExport, can
               </div>
             </>
           ) : (
-            <Preview
-              job={job}
-              currency={currency}
-              canChangeLive={canChangeLive}
-              filter={filter}
-              onFilter={setFilter}
-              onApply={apply}
-              onDiscard={discard}
-              pending={applying}
-            />
+            <>
+              {aiSkipped > 0 && <Alert tone="neutral">{t('ai.menu.skipped', { count: aiSkipped })}</Alert>}
+              <Preview
+                job={job}
+                currency={currency}
+                canChangeLive={canChangeLive}
+                filter={filter}
+                onFilter={setFilter}
+                onApply={apply}
+                onDiscard={discard}
+                pending={applying}
+              />
+            </>
           )}
         </FormSection>
       )}

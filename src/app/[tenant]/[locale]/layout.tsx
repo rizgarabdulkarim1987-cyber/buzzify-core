@@ -104,6 +104,8 @@ export default async function RootLayout({
             defaultLocale: tenant.defaultLocale,
             features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
+            // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
+            feedback: tenant.feedbackEnabled !== false,
           }}
         >
           {children}

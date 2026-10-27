@@ -44,6 +44,7 @@ export default async function PreviewRootLayout({ children, params }: { children
             defaultLocale: tenant.defaultLocale,
             features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
+            feedback: false,
           }}
         >
           {children}

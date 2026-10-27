@@ -29,16 +29,6 @@ export function baghdadDayOf(now: Date): string {
   return new Date(now.getTime() + BAGHDAD_OFFSET_MS).toISOString().slice(0, 10);
 }
 
-/** The Baghdad time of day of `at`, as 'HH:mm' (24-hour, Latin digits). */
-export function baghdadClock(at: Date): string {
-  return new Date(at.getTime() + BAGHDAD_OFFSET_MS).toISOString().slice(11, 16);
-}
-
-/** The Baghdad time of day of `at` with seconds, as 'HH:mm:ss' (24-hour, Latin digits). */
-export function baghdadClockSeconds(at: Date): string {
-  return new Date(at.getTime() + BAGHDAD_OFFSET_MS).toISOString().slice(11, 19);
-}
-
 /** 'YYYY-MM-DD' in Latin digits and a real calendar date: 2026-02-30 is not one. */
 export function isCalendarDay(day: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return false;

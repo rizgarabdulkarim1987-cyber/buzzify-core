@@ -88,7 +88,7 @@ export const qrOrderSchema = z.strictObject({
 
 /** A guest's complaint. Strict; `website` is the honeypot, a field no person sees and so one that stays empty. */
 export const complaintSchema = z.strictObject({
-  table: z.number().int().min(1).max(999),
+  table: z.number().int().min(1).max(999).optional(),
   locale,
   clientKey: z.string().min(16).max(64).regex(/^[A-Za-z0-9_-]+$/),
   body: z.string().max(COMPLAINT_RAW_MAX),

@@ -73,6 +73,8 @@ export interface TenantInfo {
   /** The menu's id. */
   id: string;
   restaurantId: string;
+  /** Whether guests get the complaints and suggestions box. Read live with the statuses, never part of a snapshot. */
+  feedbackEnabled: boolean;
   /** The live revision everything else here, and the catalog, is read from. */
   revisionId: string;
   /** The menu's current slug. */

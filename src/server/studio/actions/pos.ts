@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import { guardedAi } from '@/server/ai/ai-error-code';
+import { menuImportInput } from '@/server/ai/menu-import';
+import { previewAiMenuImport } from '@/server/studio/services/imports-ai';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { previewPosImport } from '@/server/pos/menu-import';
@@ -349,6 +352,16 @@ export const posImportPreview = defineAction({
   input: z.object({ fileName: sheetFileNameField, csv: z.string().min(1).max(IMPORT_MAX_BYTES) }),
   target: () => CATALOG,
   run: (ctx, input) => previewPosImport(ctx, input),
+});
+
+/** The same reading as the Studio's, for the product list: a photo, a PDF or a link into the usual preview. */
+export const posImportAiPreview = defineAction({
+  name: 'pos.importAiPreview',
+  permission: null,
+  pos: 'catalog.manage',
+  input: menuImportInput,
+  target: () => CATALOG,
+  run: (ctx, input) => guardedAi(() => previewAiMenuImport(ctx, input)),
 });
 
 export const posImportApply = defineAction({

@@ -1,9 +1,9 @@
 import { ZodError } from 'zod';
 import { StudioError } from '@/server/studio/framework/result';
-import { AiProviderError, AiInputTooLargeError, AiLimitReachedError, AiNotEnabledError, AiOutputRejectedError, AiRefusedError, AiUnavailableError, AiUnreadableError } from './errors';
+import { AiLinkError, AiProviderError, AiInputTooLargeError, AiLimitReachedError, AiNotEnabledError, AiOutputRejectedError, AiRefusedError, AiUnavailableError, AiUnreadableError } from './errors';
 
 /** What a screen is told when an AI operation does not produce an answer. */
-export type AiErrorCode = 'aiDisabled' | 'aiLimit' | 'aiUnavailable' | 'aiRefused' | 'ungrounded' | 'unreadable' | 'tooLarge' | 'invalid' | 'notFound' | 'failed';
+export type AiErrorCode = 'aiDisabled' | 'aiLimit' | 'aiUnavailable' | 'aiRefused' | 'ungrounded' | 'unreadable' | 'tooLarge' | 'badLink' | 'invalid' | 'notFound' | 'failed';
 
 export type AiFailure = { ok: false; code: AiErrorCode };
 
@@ -19,6 +19,7 @@ export function aiErrorCode(error: unknown): AiErrorCode {
   if (error instanceof AiOutputRejectedError) return 'ungrounded';
   if (error instanceof AiUnreadableError) return 'unreadable';
   if (error instanceof AiInputTooLargeError) return 'tooLarge';
+  if (error instanceof AiLinkError) return 'badLink';
   if (error instanceof ZodError) return 'invalid';
   if (error instanceof StudioError && error.code === 'NOT_FOUND') return 'notFound';
   if (error instanceof StudioError && error.code === 'INVALID') return 'invalid';

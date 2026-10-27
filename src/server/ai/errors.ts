@@ -85,3 +85,12 @@ export class UnknownToolError extends Error {
     this.name = 'UnknownToolError';
   }
 }
+
+/** A link that cannot be opened: not a public web address, unreachable, redirecting too often or not a page, PDF or picture. */
+export class AiLinkError extends Error {
+  readonly code = 'badLink' as const;
+  constructor() {
+    super('This link cannot be opened');
+    this.name = 'AiLinkError';
+  }
+}
