@@ -47,6 +47,8 @@ export async function requireApprovalIn(args: {
   db: PrismaClient;
   restaurantId: string;
   role: PosRole;
+  /** The signed-in person asking, so a wrong try is filed under their name. */
+  userId: string;
   needed: boolean;
   approval: Approval;
   meta: RequestMeta;
@@ -56,7 +58,7 @@ export async function requireApprovalIn(args: {
   if (settings && !settings.requireApproval) return null;
   if (!args.approval) throw refuse('FORBIDDEN', 'Manager approval is needed');
   try {
-    const done = await verifyApproverPin(args.db, { restaurantId: args.restaurantId, staffId: args.approval.staffId, pin: args.approval.pin, meta: args.meta });
+    const done = await verifyApproverPin(args.db, { restaurantId: args.restaurantId, staffId: args.approval.staffId, pin: args.approval.pin, meta: args.meta, requestedByUserId: args.userId });
     return done.staffId;
   } catch (error) {
     if (error instanceof PinLockedError) throw refuse('FORBIDDEN', 'This manager is locked for a while');

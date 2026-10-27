@@ -88,6 +88,21 @@ describe('verifyApproverPin', () => {
   });
 });
 
+describe('who is asking', () => {
+  it('names the cashier on a wrong-PIN audit row', async () => {
+    await expect(verifyApproverPin(prisma(), { restaurantId: a.id, staffId: await staffId(manager), pin: '1357', meta: META, requestedByUserId: cashier.userId })).rejects.toBeInstanceOf(PinRefusedError);
+    const row = await prisma().auditLog.findFirstOrThrow({ where: { action: 'pos.approval.fail', restaurantId: a.id } });
+    expect(row.actorId).toBe(cashier.userId);
+  });
+
+  it('stops one cashier after 10 wrong tries in 15 minutes, even with the right PIN', async () => {
+    for (let i = 0; i < 10; i += 1) {
+      await prisma().auditLog.create({ data: { actorId: cashier.userId, restaurantId: a.id, action: 'pos.approval.fail', entityType: 'PosStaff', entityId: 'x', changes: {} } });
+    }
+    await expect(verifyApproverPin(prisma(), { restaurantId: a.id, staffId: await staffId(manager), pin: '2580', meta: META, requestedByUserId: cashier.userId })).rejects.toBeInstanceOf(PinLockedError);
+  });
+});
+
 describe('approversFor', () => {
   it('lists active managers and owners with a PIN for a cashier, and nobody for a manager', async () => {
     const forCashier = await approversFor(prisma(), a.id, 'CASHIER');

@@ -110,7 +110,7 @@ export const updatePosLine = defineAction({
     const { pos, restaurantId } = till(ctx);
     // A discount is a permission of its own on top of handling orders.
     if (input.discount !== undefined && !canPos(pos.role, 'order.discount')) throw new StudioError('FORBIDDEN');
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, needed: Boolean(input.discount), approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: Boolean(input.discount), approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const given = input.discount ?? null;
       const done = await updateLineIn(delegates(tx), restaurantId, {
@@ -138,7 +138,7 @@ export const cancelPosLine = defineAction({
     const { pos, restaurantId } = till(ctx);
     // Cancelling something the kitchen already has costs the restaurant: a cashier needs a manager for that.
     const line = await ctx.db.posOrderLine.findFirst({ where: { id: input.lineId, restaurantId }, select: { sentAt: true } });
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, needed: line?.sentAt != null, approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: line?.sentAt != null, approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const done = await cancelLineIn(delegates(tx), restaurantId, input);
       ctx.audit({
@@ -160,7 +160,7 @@ export const setPosInvoiceDiscount = defineAction({
   target: () => TILL,
   run: async (ctx, input) => {
     const { pos, restaurantId } = till(ctx);
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, needed: input.discount !== null, approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: input.discount !== null, approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const given = input.discount;
       const done = await setInvoiceDiscountIn(delegates(tx), restaurantId, {
@@ -202,7 +202,7 @@ export const cancelPosOrder = defineAction({
     const { pos, restaurantId } = till(ctx);
     // An order with nothing on it can be dropped freely; one with items needs a manager when a cashier cancels it.
     const live = await ctx.db.posOrderLine.count({ where: { orderId: input.orderId, restaurantId, cancelledAt: null } });
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, needed: live > 0, approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: live > 0, approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const done = await cancelOrderIn(delegates(tx), restaurantId, input);
       ctx.audit({

@@ -234,7 +234,12 @@ export interface ApproverInput {
   pin: string;
   meta: RequestMeta;
   now?: Date;
+  /** The signed-in person who asks for the approval: named on a wrong try, and limited in how many wrong tries they get. */
+  requestedByUserId?: string;
 }
+
+/** Wrong approval PINs one person may type in the window before they are stopped, whichever manager they try. */
+const APPROVAL_ASKER_LIMIT = 10;
 
 /**
  * Checks the PIN of a manager or owner who approves a cashier's discount, cancel or refund at the till. Unlike
@@ -245,6 +250,12 @@ export async function verifyApproverPin(prisma: PrismaClient, input: ApproverInp
   const now = input.now ?? new Date();
   const { restaurantId } = input;
   const meta = clampMeta(input.meta);
+
+  if (input.requestedByUserId) {
+    const since = new Date(now.getTime() - PIN_LIMITS.staffLockMs);
+    const wrong = await prisma.auditLog.count({ where: { restaurantId, actorId: input.requestedByUserId, action: 'pos.approval.fail', occurredAt: { gte: since } } });
+    if (wrong >= APPROVAL_ASKER_LIMIT) throw new PinLockedError(new Date(now.getTime() + PIN_LIMITS.staffLockMs));
+  }
 
   let staff = await prisma.posStaff.findFirst({
     where: { id: input.staffId, restaurantId, deactivatedAt: null, role: { in: ['OWNER', 'MANAGER'] } },
@@ -285,7 +296,7 @@ export async function verifyApproverPin(prisma: PrismaClient, input: ApproverInp
           data: { pinLockedUntil: new Date(now.getTime() + PIN_LIMITS.staffLockMs) },
         });
       }
-      await audit(tx, 'pos.approval.fail', staff?.id ?? 'unknown', null);
+      await audit(tx, 'pos.approval.fail', staff?.id ?? 'unknown', input.requestedByUserId ?? null);
     });
     throw new PinRefusedError();
   }

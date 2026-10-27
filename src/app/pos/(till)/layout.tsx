@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
+import { idleMinutesFor } from '@/lib/pos-idle';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
 import { currentDevice } from '@/server/pos/device-session';
@@ -98,7 +99,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       <AppearanceCache userId={entry.actor.userId} vars={lookVars} shape={Object.keys(lookVars).length > 0 ? look.shape : null} />
       <RegisterSw />
       <OfflineRedirect />
-      <IdleGuard minutes={idleMinutes} shared={sharedDevice} />
+      <IdleGuard minutes={idleMinutesFor(entry.actor.role, idleMinutes)} shared={sharedDevice} />
       <AnnouncementBar userId={entry.actor.userId} initial={notices} />
       <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto print:block print:overflow-visible">
         {children}

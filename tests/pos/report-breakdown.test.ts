@@ -48,8 +48,9 @@ interface Line {
 }
 
 /** A finished sale at `paidAt` (UTC), taken by `who` with `method`; the total is the lines' sum. */
-async function sale(restaurantId: string, who: Person, paidAt: string, lines: Line[], method: 'CASH' | 'FIB' = 'CASH') {
-  const total = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+async function sale(restaurantId: string, who: Person, paidAt: string, lines: Line[], method: 'CASH' | 'FIB' = 'CASH', service = 0) {
+  const subtotal = lines.reduce((sum, l) => sum + l.lineTotal, 0);
+  const total = subtotal + service;
   n += 1;
   const order = await prisma().posOrder.create({ data: { restaurantId, kind: 'DINE_IN', status: 'PAID', number: n } });
   await prisma().posPayment.create({
@@ -61,9 +62,9 @@ async function sale(restaurantId: string, who: Person, paidAt: string, lines: Li
       paidAt: new Date(paidAt),
       userId: who.userId,
       totalsSnapshot: {
-        subtotal: total,
+        subtotal,
         invoiceDiscount: 0,
-        service: 0,
+        service,
         tax: 0,
         deliveryFee: 0,
         total,
@@ -88,6 +89,15 @@ describe('the sales breakdown', () => {
     for (const key of ['byHour', 'byItem', 'byStaff', 'byMethod'] as const) {
       expect(breakdown[key].reduce((sum, row) => sum + row.total, 0), key).toBe(gross);
     }
+  });
+
+  it('still adds up when service is charged, spreading it over the items', async () => {
+    await sale(a.id, sara, '2026-10-20T10:00:00Z', [burger(1), juice(1)], 'CASH', 700); // 7,000 + 700 service
+    const breakdown = dataOf(await ask(manager, posBreakdown, range));
+    const gross = (await readRangeReport(prisma(), a.id, range)).totals.grossSales;
+    expect(gross).toBe(7700);
+    expect(breakdown.byItem.reduce((sum, row) => sum + row.total, 0)).toBe(gross);
+    expect(breakdown.byItem.map((r) => r.name)).toEqual(['Burger', 'Juice']);
   });
 
   it('groups by the Baghdad hour, across midnight', async () => {

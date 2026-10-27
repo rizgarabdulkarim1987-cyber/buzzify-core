@@ -45,12 +45,19 @@ export async function readSalesBreakdown(db: AnyDb, restaurantId: string, input:
     add(hours, (payment.paidAt.getUTCHours() + BAGHDAD_OFFSET_HOURS) % 24, snapshot.total);
     add(staff, payment.userId ?? '', snapshot.total);
     add(methods, payment.method, snapshot.total);
-    for (const line of snapshot.lines) {
+    // The bill's total also holds the invoice discount, service, tax and delivery fee; they are spread over the lines in
+    // proportion (the last line takes the rounding) so the items add up to the same gross sales as every other table.
+    const lineSum = snapshot.lines.reduce((sum, line) => sum + line.lineTotal, 0);
+    let spread = 0;
+    snapshot.lines.forEach((line, i) => {
+      const last = i === snapshot.lines.length - 1;
+      const share = lineSum === 0 ? 0 : last ? snapshot.total - spread : Math.round((snapshot.total * line.lineTotal) / lineSum);
+      spread += share;
       const item = items.get(line.name) ?? { quantity: 0, total: 0 };
       item.quantity += line.quantity;
-      item.total += line.lineTotal;
+      item.total += share;
       items.set(line.name, item);
-    }
+    });
   }
   return {
     byHour: [...hours].map(([hour, v]) => ({ hour, ...v })).sort((x, y) => x.hour - y.hour),
