@@ -217,7 +217,8 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
 
     // Pictures an AI reading brought from a link, for the new products it creates; only assets of this restaurant's own library.
     const photos = (job.photos ?? {}) as Record<string, string>;
-    const photoIds = [...new Set(Object.values(photos))];
+    // A value that is still an address was never brought in; it is not an asset.
+    const photoIds = [...new Set(Object.values(photos).filter((value) => !/^https?:\/\//.test(value)))];
     const ownedPhotos = new Set(photoIds.length === 0 || ctx.restaurantId === null ? [] : (await ctx.db.mediaAsset.findMany({ where: { id: { in: photoIds }, restaurantId: ctx.restaurantId }, select: { id: true } })).map((asset) => asset.id));
 
     // New categories go after the others, in the order the sheet names them.

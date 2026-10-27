@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { guardedAi } from '@/server/ai/ai-error-code';
 import { menuImportInput } from '@/server/ai/menu-import';
-import { previewAiMenuImport } from '@/server/studio/services/imports-ai';
+import { bringAiPhotos, previewAiMenuImport } from '@/server/studio/services/imports-ai';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { previewPosImport } from '@/server/pos/menu-import';
@@ -362,6 +362,16 @@ export const posImportAiPreview = defineAction({
   input: menuImportInput,
   target: () => CATALOG,
   run: (ctx, input) => guardedAi(() => previewAiMenuImport(ctx, input)),
+});
+
+/** The Studio's picture step, for the product list. */
+export const posImportAiPhotos = defineAction({
+  name: 'pos.importAiPhotos',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ importJobId: idField }),
+  target: () => CATALOG,
+  run: (ctx, input) => bringAiPhotos(ctx, input),
 });
 
 export const posImportApply = defineAction({

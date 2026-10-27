@@ -12,7 +12,7 @@ import {
   sheetFileNameField,
   sheetFormatField,
 } from '@/server/studio/services/imports';
-import { previewAiMenuImport } from '@/server/studio/services/imports-ai';
+import { bringAiPhotos, previewAiMenuImport } from '@/server/studio/services/imports-ai';
 
 /** The Import and export tab (spec 13): a sheet in, previewed and applied to the draft; the draft out as a sheet. */
 
@@ -42,6 +42,15 @@ export const aiRead = defineAction({
   input: z.object({ menuId: idField, source: menuImportInput }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => guardedAi(() => previewAiMenuImport(ctx, input.source)),
+});
+
+/** Brings the next few pictures of an AI reading into the library; the page asks again until none are left. */
+export const aiPhotos = defineAction({
+  name: 'import.aiPhotos',
+  permission: 'import.run',
+  input: jobInput,
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => bringAiPhotos(ctx, input),
 });
 
 export const apply = defineAction({

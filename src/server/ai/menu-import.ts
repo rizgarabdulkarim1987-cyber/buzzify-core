@@ -24,6 +24,7 @@ import { untrusted } from './untrusted';
 
 export const MENU_IMPORT_MAX_PRODUCTS = 150;
 const NAME_LENGTH = 120;
+const TRANSLATE_AFTER_MS = 70_000;
 const DESCRIPTION_LENGTH = 1_000;
 const MENU_TOKENS = Math.max(MAX_TOKENS.extract, 20_000);
 
@@ -200,6 +201,7 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
     feature: 'MENU_IMPORT',
     now,
     work: async (call) => {
+      const started = Date.now();
       const res = await call({ purpose: 'extract', system: SYSTEM, messages: [{ role: 'user', content }], jsonSchema: MENU_SCHEMA, maxTokens: MENU_TOKENS });
       if (res.stop === 'max_tokens') throw new AiInputTooLargeError();
       const text = res.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('');
@@ -209,7 +211,9 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
       } catch {
         throw new AiUnreadableError();
       }
-      return { parsed: read, translated: await translateTexts(call, englishTexts(read.products.slice(0, MENU_IMPORT_MAX_PRODUCTS))) };
+      // A slow reading leaves no time for the translation: the menu then stays in the language it was printed in.
+      const late = Date.now() - started > TRANSLATE_AFTER_MS;
+      return { parsed: read, translated: late ? new Map() : await translateTexts(call, englishTexts(read.products.slice(0, MENU_IMPORT_MAX_PRODUCTS))) };
     },
   });
   if (parsed.products.length === 0) throw new AiUnreadableError();
