@@ -91,6 +91,9 @@ const line = (n: number, over: Partial<CountLineView> = {}): CountLineView => ({
   expiryPrecision: n === 1 ? 'MONTH' : 'DAY',
   countedQty: null,
   expectedQty: 10 * n,
+  quarantine: 0,
+  reserved: 0,
+  sellableHome: true,
   ...over,
 });
 
@@ -159,6 +162,16 @@ describe('the counting sheet', () => {
     mount(createElement(CountWorkspace, props(detail())));
     expect([...container.querySelectorAll('[data-testid="count-expected"]')].map((e) => e.textContent)).toEqual(['10', '20', '30']);
     expect(container.querySelector('[data-testid="count-blind-notice"]')).toBeNull();
+  });
+
+  it('says in words, with an icon, when a line also has quarantine or reserved stock, or cannot go back on sale', () => {
+    mount(createElement(CountWorkspace, props(detail({ lines: [line(1, { quarantine: 4, reserved: 2, sellableHome: false }), line(2)] }))));
+    const quarantine = container.querySelector('[data-testid="count-quarantine"]');
+    expect(quarantine?.textContent).toBe('Also 4 in quarantine: do not count these here');
+    expect(quarantine?.querySelector('svg')).not.toBeNull();
+    expect(container.querySelector('[data-testid="count-reserved"]')?.textContent).toBe('Also 2 reserved: do not count these here');
+    expect(container.querySelector('[data-testid="count-not-sellable"]')?.textContent).toContain('cannot go back on sale');
+    expect(container.querySelectorAll('[data-testid="count-quarantine"]')).toHaveLength(1);
   });
 
   it('shows product, lot left to right, and the expiry as MM/YYYY or DD/MM/YYYY', () => {

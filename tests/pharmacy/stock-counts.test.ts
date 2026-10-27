@@ -3,7 +3,7 @@ import * as countActions from '@/server/pharmacy/actions/counts';
 import * as productActions from '@/server/pharmacy/actions/products';
 import * as countQueries from '@/server/pharmacy/queries/counts';
 import { scopedClient } from '@/server/data/tenant-db';
-import { applyMovement } from '@/server/pharmacy/stock';
+import { applyMovement, reverseMovement } from '@/server/pharmacy/stock';
 import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -63,13 +63,14 @@ async function move(
   restaurantId: string,
   branchId: string,
   batchId: string,
-  type: 'RECEIPT' | 'SALE' | 'ADJUST',
-  deltas: { available?: number; quarantine?: number },
+  type: 'RECEIPT' | 'SALE' | 'ADJUST' | 'DAMAGE',
+  deltas: { available?: number; quarantine?: number; damaged?: number },
   reason = '',
 ) {
   const scoped = scopedClient(prisma(), { restaurantId, allBranches: true });
-  await scoped.$transaction((tx) => applyMovement(tx, { restaurantId, branchId, batchId, type, deltas, reason, userId: 'seed' }));
+  return (await scoped.$transaction((tx) => applyMovement(tx, { restaurantId, branchId, batchId, type, deltas, reason, userId: 'seed' }))).id;
 }
+const clockAt = (seconds: number) => vi.setSystemTime(new Date(NOW.getTime() + seconds * 1000));
 
 async function world() {
   const a = await pharmacy('A', { branches: 2 });
@@ -378,18 +379,6 @@ describe('approving', () => {
     expect(JSON.stringify(audit.changes)).not.toMatch(/cost|price/i);
   });
 
-  it('adds the counted difference to current stock, so a sale made after the count opened is kept', async () => {
-    const w = await world();
-    const r = await openCount(w.owner, w);
-    await move(w.a.id, w.a.branchId, w.b1.id, 'SALE', { available: -3 });
-    dataOf(await countAll(w.owner, w, r.id, { [w.b1.id]: 8 }));
-    dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId: r.id }));
-    const shown = dataOf(await ask(w.owner, countQueries.get, { ...place(w.a), countId: r.id }));
-    expect(shown.lines.find((l) => l.batchId === w.b1.id)).toMatchObject({ expectedQty: 10, countedQty: 8, difference: -2 });
-    dataOf(await act(w.owner, countActions.approve, approveInput(w, r.id)));
-    expect(await avail(w.b1.id, w.a.branchId)).toBe(5);
-  });
-
   it('skipped (uncounted) lines change nothing', async () => {
     const w = await world();
     const r = await openCount(w.owner, w);
@@ -483,6 +472,163 @@ describe('approving', () => {
     const res = await act(w.owner, countActions.approve, approveInput(w, r.id));
     expect(codeOf(res)).toBe('CONFLICT');
     expect(phCodeOf(res)).toBe('NOT_SUBMITTED');
+  });
+});
+
+describe('expected at the moment of counting', () => {
+  const recordAt = async (w: W, countId: string, seconds: number, counted: Record<string, number>) => {
+    clockAt(seconds);
+    dataOf(await countAll(w.owner, w, countId, counted));
+  };
+  const finish = async (w: W, countId: string, seconds: number) => {
+    clockAt(seconds);
+    dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId }));
+    clockAt(seconds + 30);
+    return dataOf(await act(w.owner, countActions.approve, approveInput(w, countId)));
+  };
+  const lineView = async (w: W, countId: string, batchId: string) =>
+    dataOf(await ask(w.owner, countQueries.get, { ...place(w.a), countId })).lines.find((l) => l.batchId === batchId)!;
+
+  it('a receipt of the same lot between open and count is not applied twice', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    clockAt(60);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'RECEIPT', { available: 5 });
+    await recordAt(w, r.id, 120, { [w.b1.id]: 15 });
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedQty: 10, expectedAtCount: 15, countedQty: 15, difference: 0 });
+    const done = await finish(w, r.id, 180);
+    expect(done.movements).toBe(0);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(15);
+  });
+
+  it('a damage between open and count is accounted for', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    clockAt(60);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'DAMAGE', { available: -3, damaged: 3 }, 'dropped');
+    await recordAt(w, r.id, 120, { [w.b1.id]: 7 });
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedQty: 10, expectedAtCount: 7, difference: 0 });
+    expect((await finish(w, r.id, 180)).movements).toBe(0);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(7);
+  });
+
+  it('a sale before the line was counted is accounted for; a real shortage on top is applied', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    clockAt(60);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'SALE', { available: -3 });
+    await recordAt(w, r.id, 120, { [w.b1.id]: 6 });
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedAtCount: 7, difference: -1 });
+    await finish(w, r.id, 180);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(6);
+  });
+
+  it('a sale AFTER the line was counted is preserved', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    await recordAt(w, r.id, 60, { [w.b1.id]: 8 });
+    clockAt(90);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'SALE', { available: -3 });
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedQty: 10, expectedAtCount: 10, difference: -2 });
+    await finish(w, r.id, 120);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(5);
+  });
+
+  it('a receipt that was reversed before the count nets to nothing', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    clockAt(60);
+    const receipt = await move(w.a.id, w.a.branchId, w.b1.id, 'RECEIPT', { available: 5 });
+    clockAt(90);
+    const scoped = scopedClient(prisma(), { restaurantId: w.a.id, allBranches: true });
+    await scoped.$transaction((tx) => reverseMovement(tx, receipt, { userId: 'seed', reason: 'wrong lot' }));
+    await recordAt(w, r.id, 120, { [w.b1.id]: 9 });
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedAtCount: 10, difference: -1 });
+    await finish(w, r.id, 180);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(9);
+  });
+
+  it('recounting a line moves its countedAt and its window', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    await recordAt(w, r.id, 60, { [w.b1.id]: 10 });
+    const first = (await linesOf(r.id)).find((l) => l.batchId === w.b1.id)!.countedAt;
+    expect(first?.toISOString()).toBe(new Date(NOW.getTime() + 60_000).toISOString());
+    clockAt(90);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'RECEIPT', { available: 5 });
+    await recordAt(w, r.id, 120, { [w.b1.id]: 15 });
+    const second = (await linesOf(r.id)).find((l) => l.batchId === w.b1.id)!.countedAt;
+    expect(second?.toISOString()).toBe(new Date(NOW.getTime() + 120_000).toISOString());
+    expect(await lineView(w, r.id, w.b1.id)).toMatchObject({ expectedAtCount: 15, difference: 0 });
+    await finish(w, r.id, 180);
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(15);
+  });
+
+  it('a result below zero is still refused', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    await recordAt(w, r.id, 60, { [w.b1.id]: 0 });
+    clockAt(90);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'SALE', { available: -4 });
+    clockAt(100);
+    dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId: r.id }));
+    const res = await act(w.owner, countActions.approve, approveInput(w, r.id));
+    expect(phCodeOf(res)).toBe('INSUFFICIENT_STOCK');
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(6);
+  });
+});
+
+describe('stock that is not on the shelf', () => {
+  it('the line carries quarantine and reserved quantities for the screen', async () => {
+    const w = await world();
+    await move(w.a.id, w.a.branchId, w.b1.id, 'ADJUST', { available: -4, quarantine: 4 }, 'suspect');
+    const r = await openCount(w.owner, w);
+    const got = dataOf(await ask(w.owner, countQueries.get, { ...place(w.a), countId: r.id }));
+    expect(got.lines.find((l) => l.batchId === w.b1.id)).toMatchObject({ expectedQty: 6, quarantine: 4, reserved: 0 });
+    expect(got.lines.find((l) => l.batchId === w.b2.id)).toMatchObject({ quarantine: 0, reserved: 0 });
+  });
+
+  it('counting more than expected is refused NOT_SELLABLE_HOME for an expired or blocked batch; fewer is fine', async () => {
+    const w = await world();
+    await prisma().phBatch.update({ where: { id: w.b1.id }, data: { expiryDate: new Date('2026-01-31T00:00:00.000Z') } });
+    await prisma().phBatch.update({ where: { id: w.b2.id }, data: { status: 'BLOCKED' } });
+    const up = await submitted(w, { [w.b1.id]: 12 });
+    const expired = await act(w.owner, countActions.approve, approveInput(w, up.id));
+    expect(codeOf(expired)).toBe('CONFLICT');
+    expect(phCodeOf(expired)).toBe('NOT_SELLABLE_HOME');
+    expect(expired.ok ? '' : expired.error.fields?.lineId).toBeTruthy();
+    const blocked = await submitted(w, { [w.b2.id]: 21 });
+    expect(phCodeOf(await act(w.owner, countActions.approve, approveInput(w, blocked.id)))).toBe('NOT_SELLABLE_HOME');
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(10);
+    expect(await avail(w.b2.id, w.a.branchId)).toBe(20);
+    expect(await prisma().phStockMovement.count({ where: { type: 'COUNT' } })).toBe(0);
+    const down = await submitted(w, { [w.b1.id]: 9 });
+    dataOf(await act(w.owner, countActions.approve, approveInput(w, down.id)));
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(9);
+  });
+});
+
+describe('who may cancel', () => {
+  it('an open count: its opener or a holder of stock.adjust; a submitted one also its counter', async () => {
+    const w = await world();
+    const s1 = await person('s1', { staff: [w.a.id, 'STOCK', [w.a.branchId]] });
+    const s2 = await person('s2', { staff: [w.a.id, 'STOCK', [w.a.branchId]] });
+    const cancelAs = (who: Person, countId: string) => act(who, countActions.cancel, { ...place(w.a), countId });
+    const open1 = await openCount(s1, w);
+    const refusedOpen = await cancelAs(s2, open1.id);
+    expect(codeOf(refusedOpen)).toBe('FORBIDDEN');
+    expect(phCodeOf(refusedOpen)).toBe('NOT_YOUR_COUNT');
+    expect(codeOf(await cancelAs(s1, open1.id))).toBe('OK');
+    const open2 = await openCount(s1, w);
+    expect(codeOf(await cancelAs(w.owner, open2.id))).toBe('OK');
+    const sub = await submitted(w, {}, s1);
+    expect(phCodeOf(await cancelAs(s2, sub.id))).toBe('NOT_YOUR_COUNT');
+    expect((await prisma().phStockCount.findUniqueOrThrow({ where: { id: sub.id } })).status).toBe('SUBMITTED');
+    // A different counter than the opener may cancel the submitted count they counted.
+    const o = await openCount(s1, w);
+    dataOf(await countAll(s2, w, o.id, {}));
+    dataOf(await act(s2, countActions.submit, { ...place(w.a), countId: o.id }));
+    expect(codeOf(await cancelAs(s2, o.id))).toBe('OK');
   });
 });
 

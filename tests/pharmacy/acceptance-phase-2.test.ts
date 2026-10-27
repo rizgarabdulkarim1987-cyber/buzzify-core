@@ -159,6 +159,30 @@ describe('phase 2 acceptance', () => {
     expect(await balanceOf(batchId, at.branchId)).toMatchObject({ available: 7 });
   });
 
+  it('a receipt of the same lot while a count is open is not counted twice: the final stock is the physical count', async () => {
+    const { a, owner, at } = await world();
+    const p = await makeProduct(a.id);
+    await receive(owner, at, [receiptLine(p)]);
+    const batch = await prisma().phBatch.findFirstOrThrow({ where: { productId: p.id, lot: 'LOT-1' } });
+    const before = (await balanceOf(batch.id, at.branchId))!.available;
+
+    const count = dataOf(await act(owner, countActions.open, { ...at, scope: 'BRANCH', blind: false, note: '' }));
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    await receive(owner, at, [receiptLine(p, { qty: 2 })]);
+    const physical = (await balanceOf(batch.id, at.branchId))!.available;
+    expect(physical).toBeGreaterThan(before);
+
+    vi.setSystemTime(new Date(NOW.getTime() + 120_000));
+    const line = await prisma().phStockCountLine.findFirstOrThrow({ where: { countId: count.id, batchId: batch.id } });
+    dataOf(await act(owner, countActions.record, { ...at, countId: count.id, lines: [{ lineId: line.id, countedQty: physical }] }));
+    dataOf(await act(owner, countActions.submit, { ...at, countId: count.id }));
+    vi.setSystemTime(new Date(NOW.getTime() + 180_000));
+    const done = dataOf(await act(owner, countActions.approve, { ...at, countId: count.id }));
+    expect(done.movements).toBe(0);
+    expect(await balanceOf(batch.id, at.branchId)).toMatchObject({ available: physical });
+    vi.setSystemTime(NOW);
+  });
+
   it('receiving the same lot twice adds to one batch', async () => {
     const { a, owner, at } = await world();
     const p = await makeProduct(a.id);

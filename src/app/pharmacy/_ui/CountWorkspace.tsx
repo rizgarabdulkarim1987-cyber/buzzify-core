@@ -89,6 +89,24 @@ function LineIdentity({ line, t }: { line: CountLineView; t: Translate }) {
           </bdi>
         </span>
       </span>
+      {line.quarantine > 0 && (
+        <span data-testid="count-quarantine" className="flex items-start gap-1.5 text-sm text-muted [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0">
+          <Info aria-hidden />
+          {t('pharmacy.counts.line.quarantine', { n: formatNumber(line.quarantine) })}
+        </span>
+      )}
+      {line.reserved > 0 && (
+        <span data-testid="count-reserved" className="flex items-start gap-1.5 text-sm text-muted [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0">
+          <Info aria-hidden />
+          {t('pharmacy.counts.line.reserved', { n: formatNumber(line.reserved) })}
+        </span>
+      )}
+      {!line.sellableHome && (
+        <span data-testid="count-not-sellable" className="flex items-start gap-1.5 text-sm text-muted [&_svg]:mt-0.5 [&_svg]:size-3.5 [&_svg]:shrink-0">
+          <CircleAlert aria-hidden />
+          {t('pharmacy.counts.line.notSellable')}
+        </span>
+      )}
     </div>
   );
 }
@@ -357,7 +375,7 @@ export function CountWorkspace({ userId, restaurantId, count, canCount, canAppro
                   <span className="flex items-baseline gap-1.5">
                     <span className="text-muted">{t('pharmacy.counts.col.expected')}</span>
                     <bdi dir="ltr" data-testid="count-expected" className="font-medium tabular-nums text-text">
-                      {line.expectedQty === undefined ? '' : formatNumber(line.expectedQty)}
+                      {line.expectedQty === undefined ? '' : formatNumber(line.expectedAtCount ?? line.expectedQty)}
                     </bdi>
                   </span>
                   <span className="flex items-baseline gap-1.5">

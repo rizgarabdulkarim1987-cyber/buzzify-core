@@ -2556,6 +2556,8 @@ model PhStockCountLine {
   batchId      String
   expectedQty  Int
   countedQty   Int?
+  /// When the line was last counted (the application clock, as movement.createdAt is): the count's expected quantity is the snapshot plus the movements up to this moment.
+  countedAt    DateTime?
   restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   count        PhStockCount @relation(fields: [restaurantId, countId], references: [restaurantId, id], onDelete: Cascade)
   product      PhProduct    @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)

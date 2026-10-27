@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { canPh } from '@/server/domain/pharmacy/permissions';
 import { approveCount, cancelCount, countOpenInput, countRecordInput, openCount, recordCounts, submitCount } from '@/server/pharmacy/counts';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
@@ -102,8 +103,9 @@ export const cancel = defineAction({
   input: phPlaceInput.extend({ countId }),
   target: phTargetOf,
   run(ctx, input) {
+    const { ph } = pharmacyOf(ctx);
     return ctx.transaction(async (tx) => {
-      const done = await cancelCount(tx, input.countId);
+      const done = await cancelCount(tx, { countId: input.countId, userId: ph.userId, canAdjust: ph.role !== null && canPh(ph.role, 'stock.adjust') });
       ctx.audit({
         action: 'ph.count.cancel',
         entityType: 'PhStockCount',

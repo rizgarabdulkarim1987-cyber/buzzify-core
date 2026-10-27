@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
+import { isExpired, utcToday } from '@/server/domain/pharmacy/expiry';
 import { canPh, PH_ROLES } from '@/server/domain/pharmacy/permissions';
+import { assertSellableHome } from './adjustments';
 import { mayViewCost } from '@/server/pharmacy/products';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -164,10 +166,12 @@ export async function recordCounts(
     if (now?.status === 'OPEN') throw conflict('Another person is already counting this; cancel it to count again', 'COUNT_OWNED');
     throw conflict('Only an open count can be changed', 'NOT_OPEN');
   }
+  // The application clock, the one the movements' createdAt uses: the window of a line's expected quantity ends here.
+  const countedAt = new Date();
   const byQty = new Map<number, string[]>();
   for (const l of args.input.lines) byQty.set(l.countedQty, [...(byQty.get(l.countedQty) ?? []), l.lineId]);
   for (const [qty, lineIds] of byQty) {
-    await tx.phStockCountLine.updateMany({ where: { countId: args.countId, id: { in: lineIds } }, data: { countedQty: qty } });
+    await tx.phStockCountLine.updateMany({ where: { countId: args.countId, id: { in: lineIds } }, data: { countedQty: qty, countedAt } });
   }
   const version = (await tx.phStockCount.findFirstOrThrow({ where: { id: args.countId }, select: { version: true } })).version;
   return { id: args.countId, recorded: ids.length, version };
@@ -194,16 +198,68 @@ export async function submitCount(
   return { id: args.countId, status: 'SUBMITTED', uncounted, version };
 }
 
-/** OPEN or SUBMITTED to CANCELLED. Nothing was applied to stock. */
-export async function cancelCount(tx: ScopedTx, countId: string): Promise<{ id: string; status: 'CANCELLED'; from: 'OPEN' | 'SUBMITTED' }> {
-  const head = await tx.phStockCount.findFirst({ where: { id: countId }, select: { status: true } });
+/** Who opened a count: the actor of its `ph.count.open` audit row (the count itself stores only the counter). */
+async function openerOf(tx: Pick<ScopedTx, 'auditLog'>, restaurantId: string, countId: string): Promise<string | null> {
+  const row = await tx.auditLog.findFirst({
+    where: { action: 'ph.count.open', entityType: 'PhStockCount', entityId: countId, restaurantId },
+    select: { actorId: true },
+  });
+  return row?.actorId ?? null;
+}
+
+/**
+ * OPEN or SUBMITTED to CANCELLED. Nothing was applied to stock. An OPEN count is cancelled by the person who opened it or
+ * a holder of `stock.adjust`; a SUBMITTED one also by the person who counted it.
+ */
+export async function cancelCount(
+  tx: ScopedTx,
+  args: { countId: string; userId: string; canAdjust: boolean },
+): Promise<{ id: string; status: 'CANCELLED'; from: 'OPEN' | 'SUBMITTED' }> {
+  const head = await tx.phStockCount.findFirst({ where: { id: args.countId }, select: { status: true, restaurantId: true, countedById: true } });
   if (!head) throw notFound();
+  if (!args.canAdjust && (head.status === 'OPEN' || head.status === 'SUBMITTED')) {
+    const opener = (await openerOf(tx, head.restaurantId, args.countId)) ?? head.countedById;
+    const mine = opener === args.userId || (head.status === 'SUBMITTED' && head.countedById === args.userId);
+    if (!mine) throw new StudioError('FORBIDDEN', 'Only the person who started or counted this, or a stock approver, can cancel it', { phCode: 'NOT_YOUR_COUNT' });
+  }
   const won = await tx.phStockCount.updateMany({
-    where: { id: countId, status: { in: ['OPEN', 'SUBMITTED'] } },
+    where: { id: args.countId, status: { in: ['OPEN', 'SUBMITTED'] } },
     data: { status: 'CANCELLED', version: { increment: 1 } },
   });
   if (won.count !== 1) throw conflict('This count can no longer be cancelled', 'NOT_CANCELLABLE');
-  return { id: countId, status: 'CANCELLED', from: head.status as 'OPEN' | 'SUBMITTED' };
+  return { id: args.countId, status: 'CANCELLED', from: head.status as 'OPEN' | 'SUBMITTED' };
+}
+
+/**
+ * What each counted line should have held at the moment it was counted: the quantity at open plus the `available`
+ * movements of its batch in this branch after the count opened and up to the line's `countedAt`. (COUNT movements of
+ * this very count are left out: they are its own approval.) A receipt, damage, disposal or reversal made while the count
+ * was open is therefore already in the number the shelf is compared with; movements after `countedAt` are not, so they
+ * stay on top of the correction. Both clocks are the application's.
+ */
+async function movedUntilCounted(
+  tx: Pick<ScopedTx, 'phStockMovement'>,
+  head: { id: string; branchId: string; createdAt: Date },
+  lines: readonly { id: string; batchId: string; countedAt: Date | null }[],
+): Promise<Map<string, number>> {
+  const moved = new Map<string, number>();
+  const stamped = lines.filter((l) => l.countedAt !== null);
+  if (stamped.length === 0) return moved;
+  const latest = new Date(Math.max(...stamped.map((l) => l.countedAt!.getTime())));
+  const rows = await tx.phStockMovement.findMany({
+    where: { branchId: head.branchId, batchId: { in: [...new Set(stamped.map((l) => l.batchId))] }, createdAt: { gt: head.createdAt, lte: latest }, availableDelta: { not: 0 } },
+    select: { batchId: true, availableDelta: true, createdAt: true, type: true, countId: true },
+  });
+  const byBatch = new Map<string, typeof rows>();
+  for (const r of rows) {
+    if (r.type === 'COUNT' && r.countId === head.id) continue;
+    byBatch.set(r.batchId, [...(byBatch.get(r.batchId) ?? []), r]);
+  }
+  for (const l of stamped) {
+    const at = l.countedAt!.getTime();
+    moved.set(l.id, (byBatch.get(l.batchId) ?? []).filter((r) => r.createdAt.getTime() <= at).reduce((sum, r) => sum + r.availableDelta, 0));
+  }
+  return moved;
 }
 
 // Approve -------------------------------------------------------------------------------------------------------------
@@ -263,11 +319,15 @@ export async function approveCount(
       batchId: true,
       expectedQty: true,
       countedQty: true,
+      countedAt: true,
       product: { select: { tradeName: true } },
-      batch: { select: { lot: true } },
+      batch: { select: { lot: true, status: true, expiryDate: true } },
     },
   });
-  const diffs = lockOrder(lines.map((l) => ({ ...l, difference: l.countedQty! - l.expectedQty }))).filter((l) => l.difference !== 0);
+  const moved = await movedUntilCounted(tx, head, lines.map((l) => ({ id: l.id, batchId: l.batchId, countedAt: l.countedAt })));
+  const diffs = lockOrder(
+    lines.map((l) => ({ ...l, expectedAtCount: l.expectedQty + (moved.get(l.id) ?? 0), difference: l.countedQty! - l.expectedQty - (moved.get(l.id) ?? 0) })),
+  ).filter((l) => l.difference !== 0);
   const reason = args.reason.trim();
   // The counter is the one who recorded; the opener is in the open audit row (the count stores only the counter).
   const opened = await tx.auditLog.findFirst({
@@ -303,6 +363,20 @@ export async function approveCount(
       if (approvers.size > 1) {
         throw new StudioError('FORBIDDEN', 'Someone else must approve a count you made', { phCode: 'SELF_APPROVAL' });
       }
+    }
+  }
+
+  // Counting more than there should be puts stock on the shelf: not for a batch that may not be sold (expired, recalled, blocked).
+  for (const line of diffs) {
+    if (line.difference <= 0) continue;
+    try {
+      assertSellableHome({ status: line.batch.status, expiryDate: line.batch.expiryDate.toISOString().slice(0, 10) });
+    } catch {
+      throw conflict(
+        `${line.product.tradeName} (lot ${line.batch.lot}) cannot go back on sale, so counting more than expected is refused. Count it as it is, or move the stock to quarantine with an adjustment.`,
+        'NOT_SELLABLE_HOME',
+        { lineId: line.id, batchId: line.batchId, difference: String(line.difference) },
+      );
     }
   }
 
@@ -351,7 +425,7 @@ export async function approveCount(
     selfApproved,
     countedLines: lines.length,
     netDifference: diffs.reduce((sum, l) => sum + l.difference, 0),
-    differences: diffs.map((l) => ({ lineId: l.id, batchId: l.batchId, expected: l.expectedQty, counted: l.countedQty!, difference: l.difference })),
+    differences: diffs.map((l) => ({ lineId: l.id, batchId: l.batchId, expected: l.expectedAtCount, counted: l.countedQty!, difference: l.difference })),
   };
 }
 
@@ -456,10 +530,17 @@ export interface CountLineView {
   expiryDate: string;
   expiryPrecision: 'DAY' | 'MONTH';
   countedQty: number | null;
-  /** Absent (not null) while a blind count is OPEN. */
+  /** Absent (not null) while a blind count is OPEN. The shelf quantity when the count opened. */
   expectedQty?: number;
-  /** `countedQty - expectedQty`; absent while hidden or not counted. */
+  /** The quantity it should have held when this line was counted: `expectedQty` plus the movements between open and then. Absent while hidden or not counted. */
+  expectedAtCount?: number;
+  /** `countedQty - expectedAtCount`, the number approval applies; absent while hidden or not counted. */
   difference?: number;
+  /** Stock of this batch in this branch that is not on the shelf (read now): it is not counted here. */
+  quarantine: number;
+  reserved: number;
+  /** False for a batch that is expired or not ACTIVE: counting more than expected there is refused at approval. */
+  sellableHome: boolean;
   /** Only for a role with `cost.view`: the cost per costing unit, and that unit's size in base units. No computed value. */
   cost?: { unitCostMinor: string; currency: 'IQD' | 'USD'; perUnitLabel: string; perUnitBaseQty: number } | null;
 }
@@ -476,6 +557,7 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
     select: {
       ...SUMMARY_SELECT,
       reason: true,
+      createdAt: true,
       lines: {
         orderBy: [{ product: { tradeName: 'asc' } }, { batchId: 'asc' }],
         select: {
@@ -484,9 +566,10 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
           batchId: true,
           expectedQty: true,
           countedQty: true,
+          countedAt: true,
           product: { select: { tradeName: true } },
           batch: {
-            select: { lot: true, expiryDate: true, expiryPrecision: true, unitCostMinor: true, costCurrency: true, costUnit: { select: { label: true, baseQty: true } } },
+            select: { lot: true, status: true, expiryDate: true, expiryPrecision: true, unitCostMinor: true, costCurrency: true, costUnit: { select: { label: true, baseQty: true } } },
           },
         },
       },
@@ -495,6 +578,15 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
   if (!c) throw notFound();
   const hidden = c.blind && c.status === 'OPEN';
   const withCost = mayViewCost(ph);
+  const [moved, balances] = await Promise.all([
+    hidden ? new Map<string, number>() : movedUntilCounted(scoped, c, c.lines.map((l) => ({ id: l.id, batchId: l.batchId, countedAt: l.countedAt }))),
+    scoped.phStockBalance.findMany({
+      where: { branchId: c.branchId, batchId: { in: c.lines.map((l) => l.batchId) } },
+      select: { batchId: true, quarantine: true, reserved: true },
+    }),
+  ]);
+  const offShelf = new Map(balances.map((b) => [b.batchId, b]));
+  const today = utcToday();
   return {
     ...summaryOf({ ...c, _count: { lines: c.lines.length } } as SummaryRow),
     reason: c.reason,
@@ -507,8 +599,16 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
       expiryDate: l.batch.expiryDate.toISOString().slice(0, 10),
       expiryPrecision: l.batch.expiryPrecision,
       countedQty: l.countedQty,
+      quarantine: offShelf.get(l.batchId)?.quarantine ?? 0,
+      reserved: offShelf.get(l.batchId)?.reserved ?? 0,
+      sellableHome: l.batch.status === 'ACTIVE' && !isExpired({ expiryDate: l.batch.expiryDate.toISOString().slice(0, 10) }, today),
       ...(hidden ? {} : { expectedQty: l.expectedQty }),
-      ...(!hidden && l.countedQty !== null ? { difference: l.countedQty - l.expectedQty } : {}),
+      ...(!hidden && l.countedQty !== null
+        ? {
+            expectedAtCount: l.expectedQty + (moved.get(l.id) ?? 0),
+            difference: l.countedQty - l.expectedQty - (moved.get(l.id) ?? 0),
+          }
+        : {}),
       ...(withCost
         ? {
             cost:

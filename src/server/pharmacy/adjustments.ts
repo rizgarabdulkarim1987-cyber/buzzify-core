@@ -145,7 +145,7 @@ async function baseQtyOf(tx: ScopedTx, productId: string, q: QuantityFields): Pr
 }
 
 /** Stock may not be put into `available` of a batch that cannot be sold (R2-5): expired, recalled or blocked. */
-function assertSellableHome(batch: { status: string; expiryDate: string }): void {
+export function assertSellableHome(batch: { status: string; expiryDate: string }): void {
   if (isExpired(batch, utcToday())) throw refuse('EXPIRED', 'This batch is expired: it cannot go back on sale');
   if (batch.status !== 'ACTIVE') throw refuse('BATCH_NOT_ACTIVE', 'This batch is not active: it cannot go back on sale');
 }
