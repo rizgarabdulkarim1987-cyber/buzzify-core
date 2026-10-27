@@ -51,10 +51,13 @@ export async function phGate(prisma: PrismaClient, restaurantId: string, now: Da
   const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true, sector: true } });
   if (!restaurant || restaurant.status !== 'ACTIVE') return { state: 'closed', reason: 'restaurantInactive' };
   if (restaurant.sector !== 'PHARMACY') return { state: 'closed', reason: 'notPharmacy' };
-  const subscription = await prisma.subscription.findFirst({
+  // Billing may start a new row after a lapse, so a business can hold several: a live one decides, else the newest.
+  const rows = await prisma.subscription.findMany({
     where: { restaurantId, applicationId: 'pharmacy' },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true, cancelledAt: true, application: { select: { status: true } } },
   });
+  const subscription = rows.find((row) => isLive(effectiveStatus(row, now))) ?? rows[0];
   if (!subscription) return { state: 'closed', reason: 'planInactive' };
   // The platform's kill switch for the whole pharmacy product (read with the subscription: no extra query).
   if (subscription.application.status !== 'ACTIVE') return { state: 'closed', reason: 'applicationDisabled' };
