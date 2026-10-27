@@ -347,6 +347,8 @@ const pharmacy: Messages = {
   'error.text.phCountEmptyScope': 'لا يوجد مخزون يطابق هذا النطاق',
   'error.text.phCountBusy': 'شخص آخر يجري جردًا لهذا بالفعل؛ ألغِه لتجرد من جديد',
   'error.text.phCountNotYours': 'لا يلغي هذا الجرد إلا من بدأه أو أجراه، أو من يعتمد تغييرات المخزون',
+  'error.text.phLineArchived': 'أُرشف هذا المنتج بعد حفظ المسودة: احذف السطر',
+  'error.text.phLineStale': 'تغيّر حجم الوحدة بعد حفظ المسودة',
   'error.text.phCountDuplicateLine': 'يظهر سطر مرتين',
   'error.text.phCountLineForeign': 'هذا السطر ليس جزءًا من هذا الجرد',
   'error.text.phCountNotOpen': 'لا يمكن تغيير إلا الجرد المفتوح',

@@ -397,6 +397,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Nothing in stock matches this scope': 'error.text.phCountEmptyScope',
   'Another person is already counting this; cancel it to count again': 'error.text.phCountBusy',
   'Only the person who started or counted this, or a stock approver, can cancel it': 'error.text.phCountNotYours',
+  'This product was archived since the draft: remove the line': 'error.text.phLineArchived',
+  'The unit changed since the draft': 'error.text.phLineStale',
   'A line appears twice': 'error.text.phCountDuplicateLine',
   'This line is not part of this count': 'error.text.phCountLineForeign',
   'Only an open count can be changed': 'error.text.phCountNotOpen',

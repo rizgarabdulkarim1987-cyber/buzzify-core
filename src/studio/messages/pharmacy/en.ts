@@ -353,6 +353,8 @@ const pharmacy: Messages = {
   'error.text.phCountEmptyScope': 'Nothing in stock matches this scope',
   'error.text.phCountBusy': 'Another person is already counting this; cancel it to count again',
   'error.text.phCountNotYours': 'Only the person who started or counted this, or a stock approver, can cancel it',
+  'error.text.phLineArchived': 'This product was archived since the draft: remove the line',
+  'error.text.phLineStale': 'The unit changed since the draft',
   'error.text.phCountDuplicateLine': 'A line appears twice',
   'error.text.phCountLineForeign': 'This line is not part of this count',
   'error.text.phCountNotOpen': 'Only an open count can be changed',

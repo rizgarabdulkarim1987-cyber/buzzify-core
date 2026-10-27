@@ -347,6 +347,8 @@ const pharmacy: Messages = {
   'error.text.phCountEmptyScope': 'هیچ کاڵایەک لەم دەستپێکەدا نییە',
   'error.text.phCountBusy': 'کەسێکی دیکە پێشتر ئەمە دەژمێرێت؛ هەڵیبوەشێنەرەوە بۆ ژماردنی نوێ',
   'error.text.phCountNotYours': 'تەنها ئەو کەسەی دەستی پێکرد یان ژماردی، یان پەسەندکەری کۆگا، دەتوانێت هەڵیبوەشێنێتەوە',
+  'error.text.phLineArchived': 'ئەم کاڵایە دوای هەڵگرتنی ڕەشنووس ئەرشیف کرا: دێڕەکە لابە',
+  'error.text.phLineStale': 'قەبارەی یەکە دوای هەڵگرتنی ڕەشنووس گۆڕا',
   'error.text.phCountDuplicateLine': 'ڕیزێک دوو جار دەردەکەوێت',
   'error.text.phCountLineForeign': 'ئەم ڕیزە بەشێک نییە لەم ژماردنە',
   'error.text.phCountNotOpen': 'تەنها ژماردنی کراوە دەگۆڕدرێت',
