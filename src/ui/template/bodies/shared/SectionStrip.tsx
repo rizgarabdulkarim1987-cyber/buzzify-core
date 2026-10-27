@@ -77,6 +77,7 @@ export function ShapeHeading({
   count,
   className = '',
   title,
+  lead,
 }: {
   id: string;
   name: string;
@@ -86,10 +87,13 @@ export function ShapeHeading({
   className?: string;
   /** Classes for the `<h2>`. */
   title: string;
+  /** An ornament drawn first inside the `<h2>` (a crescent); it is decoration, so mark it `aria-hidden`. */
+  lead?: ReactNode;
 }) {
   return (
     <div tabIndex={-1} data-heading className={`outline-none ${className}`}>
       <h2 id={id} className={`tpl-display ${title}`}>
+        {lead}
         {label ? <small aria-hidden>{label}</small> : null}
         <span>{name}</span>
         <b data-count aria-hidden>

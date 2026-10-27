@@ -2409,6 +2409,7 @@ const ckb: Messages = {
   'design.body.ink': 'مرەکەبی بەشەکان',
   'design.body.steam': 'هەڵمی زیندوو',
   'design.body.citadel': 'قەڵای هەولێر',
+  'design.body.lanterns': 'فانووسە هەڵواسراوەکان',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

@@ -32,6 +32,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'motion-ink': 'the-section-ink',
   'motion-stm': 'the-living-steam',
   'kurd-arab-cit': 'the-erbil-citadel',
+  'kurd-arab-ram': 'the-ramadan-nights',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

@@ -759,4 +759,33 @@ export const theErbilCitadel = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel];
+export const theRamadanNights = definePreset({
+  id: 'the-ramadan-nights',
+  number: 57,
+  name: 'Ramadan Nights',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#0B1430', text: '#F6EFD9', accent: '#E8B94A', raised: '#16214A' },
+  alternatives: [
+    { id: 'iftar-dawn', name: 'Iftar dawn', seed: { bg: '#F6EEDB', text: '#1C2347', accent: '#2B3A8C', raised: '#FFFAEE' } },
+    { id: 'emerald-night', name: 'Emerald night', seed: { bg: '#0A2420', text: '#EFE9D0', accent: '#D9B25A', raised: '#12342E' } },
+    { id: 'plum-night', name: 'Plum night', seed: { bg: '#1D1033', text: '#F4E8D4', accent: '#F0B866', raised: '#2A1A4A' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'lanterns',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights];

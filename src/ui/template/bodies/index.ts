@@ -12,6 +12,7 @@ import { FlyBody } from './FlyBody';
 import { FridgeBody } from './FridgeBody';
 import { KineticBody } from './KineticBody';
 import { HomescreenBody } from './HomescreenBody';
+import { LanternsBody } from './LanternsBody';
 import { InkBody } from './InkBody';
 import { LevelsBody } from './LevelsBody';
 import { MagazineBody } from './MagazineBody';
@@ -57,6 +58,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   morph: MorphBody,
   fly: FlyBody,
   citadel: CitadelBody,
+  lanterns: LanternsBody,
   ink: InkBody,
   steam: SteamBody,
 };
