@@ -54,6 +54,7 @@ export const MOVEMENT_TYPES = [
 export const movementsInput = z.object({
   productId: z.string().min(1).max(64).optional(),
   batchId: z.string().min(1).max(64).optional(),
+  receiptId: z.string().min(1).max(64).optional(),
   type: z.enum(MOVEMENT_TYPES).optional(),
   from: dateText.optional(),
   to: dateText.optional(),
@@ -291,6 +292,7 @@ export async function listMovements(
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.productId ? { productId: input.productId } : {}),
       ...(input.batchId ? { batchId: input.batchId } : {}),
+      ...(input.receiptId ? { receiptId: input.receiptId } : {}),
       ...(input.type ? { type: input.type } : {}),
       ...(at.gte || at.lt ? { createdAt: at } : {}),
     },

@@ -254,6 +254,7 @@ describe('ph.stock.movements', () => {
     expect(paged.nextCursor).not.toBeNull();
     expect(dataOf(await ask(owner, stockQueries.movements, { ...at, pageSize: 1, cursor: paged.nextCursor })).items[0]!.id).not.toBe(paged.items[0]!.id);
     expect(await only({ batchId: 'nope' })).toEqual([]);
+    expect(await only({ receiptId: 'nope' })).toEqual([]);
   });
 
   it('needs report.view and shows a branch-limited actor only their branches', async () => {
