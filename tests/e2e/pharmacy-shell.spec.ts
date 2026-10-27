@@ -212,6 +212,14 @@ test.describe('Pharmacy shell @desktop', () => {
       maxRedirects: 0,
     });
     expect(answer.status()).toBe(404);
+
+    // A forged cookie naming pharmacy A (shape right, signature made up): the home shows the picker, nothing of A.
+    await setPlaceCookie(page, `${shop.id}.${shop.branches[0]!.id}.${'A'.repeat(43)}`);
+    await page.goto('/pharmacy/home');
+    await expect(page).toHaveURL(/\/pharmacy\/select$/);
+    await expect(page.getByText(shop.name)).toHaveCount(0);
+    await expect(page.getByText(shop.branches[0]!.name)).toHaveCount(0);
+    await expect(page.getByRole('group', { name: other.name })).toBeVisible();
     await page.context().close();
 
     const nobody = await createStudioUser({ label: 'ph-none', name: 'No Pharmacy' });

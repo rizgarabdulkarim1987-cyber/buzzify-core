@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { grantStatus } from '@/server/domain/pharmacy/support-grant';
+import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { defineQuery } from '@/server/studio/framework/query';
 
 /** The pharmacy's support grants, newest first, for its owner: who holds each, what it covers and whether it is live. */
@@ -7,8 +8,8 @@ export const listGrants = defineQuery({
   name: 'support.listGrants',
   permission: null,
   ph: 'support.grant',
-  input: z.object({}),
-  target: () => ({ kind: 'ph' }),
+  input: z.object({ restaurantId: phPlaceInput.shape.restaurantId }),
+  target: phTargetOf,
   async run(ctx) {
     const now = new Date();
     const rows = await ctx.scoped!.supportAccessGrant.findMany({

@@ -15,8 +15,8 @@ const codeOf = (result: ActionResult<unknown>) => (result.ok ? 'OK' : result.err
 
 const studioActor = async (who: Person | null): Promise<Actor | null> => (who ? loadActor(prisma(), who.userId) : null);
 
-const branchInput = z.object({ branchId: z.string().optional() });
-const phTarget = (input: { branchId?: string }) => ({ kind: 'ph' as const, branchId: input?.branchId });
+const branchInput = z.object({ restaurantId: z.string(), branchId: z.string().optional() });
+const phTarget = (input: { restaurantId: string; branchId?: string }) => ({ kind: 'ph' as const, restaurantId: input?.restaurantId, branchId: input?.branchId });
 
 /** Writes the pharmacy's settings row and audits it, in one transaction; `fail` throws after both. */
 const saveSettings = defineAction({
@@ -86,7 +86,7 @@ describe('the ph target', () => {
     const a = await pharmacy('A', { branches: 2 });
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
 
-    const result = await runAction(prisma(), owner, saveSettings, {}, META);
+    const result = await runAction(prisma(), owner, saveSettings, { restaurantId: a.id }, META);
     expect(result).toMatchObject({ ok: true, data: { ph: 'OWNER' } });
     const rows = await auditRows(a.id);
     expect(rows).toHaveLength(1);
@@ -95,7 +95,7 @@ describe('the ph target', () => {
     // A transaction that fails keeps neither the change nor its audit row.
     await prisma().phSettings.deleteMany({ where: { restaurantId: a.id } });
     await prisma().auditLog.deleteMany({ where: { restaurantId: a.id } });
-    expect(codeOf(await runAction(prisma(), owner, saveSettings, { fail: true }, META))).toBe('INVALID');
+    expect(codeOf(await runAction(prisma(), owner, saveSettings, { restaurantId: a.id, fail: true }, META))).toBe('INVALID');
     expect(await prisma().phSettings.count({ where: { restaurantId: a.id } })).toBe(0);
     expect(await auditRows(a.id)).toEqual([]);
   });
@@ -107,16 +107,16 @@ describe('the ph target', () => {
     const manager = await studioActor(await person('manager', { staff: [a.id, 'BRANCH_MANAGER', [a.branchIds[1]!]] }));
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
 
-    expect(await runAction(prisma(), manager, saveSettings, {}, META)).toMatchObject({ ok: true, data: { branches: 1 } });
+    expect(await runAction(prisma(), manager, saveSettings, { restaurantId: a.id }, META)).toMatchObject({ ok: true, data: { branches: 1 } });
     await prisma().phSettings.deleteMany({ where: { restaurantId: a.id } });
-    expect(await runAction(prisma(), owner, saveSettings, {}, META)).toMatchObject({ ok: true, data: { branches: 2 } });
+    expect(await runAction(prisma(), owner, saveSettings, { restaurantId: a.id }, META)).toMatchObject({ ok: true, data: { branches: 2 } });
   });
 
   it('a cashier is refused a catalog.manage action', async () => {
     const a = await pharmacy('A');
     const cashier = await studioActor(await person('cashier', { staff: [a.id, 'CASHIER', [a.branchId]] }));
-    expect(codeOf(await runAction(prisma(), cashier, saveSettings, {}, META))).toBe('FORBIDDEN');
-    expect(codeOf(await runQuery(prisma(), cashier, viewCatalog, {}))).toBe('OK');
+    expect(codeOf(await runAction(prisma(), cashier, saveSettings, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), cashier, viewCatalog, { restaurantId: a.id }))).toBe('OK');
     expect(await prisma().phSettings.count()).toBe(0);
   });
 
@@ -126,23 +126,73 @@ describe('the ph target', () => {
     const manager = await studioActor(await person('manager', { staff: [a.id, 'BRANCH_MANAGER', [a.branchIds[0]!]] }));
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
 
-    expect(codeOf(await runAction(prisma(), manager, saveSettings, { branchId: a.branchIds[0] }, META))).toBe('OK');
+    expect(codeOf(await runAction(prisma(), manager, saveSettings, { restaurantId: a.id, branchId: a.branchIds[0] }, META))).toBe('OK');
     await prisma().phSettings.deleteMany({});
-    expect(codeOf(await runAction(prisma(), manager, saveSettings, { branchId: a.branchIds[1] }, META))).toBe('FORBIDDEN');
-    expect(codeOf(await runQuery(prisma(), manager, viewCatalog, { branchId: a.branchIds[1] }))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), manager, saveSettings, { restaurantId: a.id, branchId: a.branchIds[1] }, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), manager, viewCatalog, { restaurantId: a.id, branchId: a.branchIds[1] }))).toBe('FORBIDDEN');
     // The owner holds every branch of their own pharmacy and none of another's.
-    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { branchId: a.branchIds[1] }))).toBe('OK');
-    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { branchId: b.branchId }))).toBe('FORBIDDEN');
-    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { branchId: 'no-such-branch' }))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { restaurantId: a.id, branchId: a.branchIds[1] }))).toBe('OK');
+    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { restaurantId: a.id, branchId: b.branchId }))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { restaurantId: a.id, branchId: 'no-such-branch' }))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { restaurantId: b.id, branchId: b.branchId }))).toBe('FORBIDDEN');
+  });
+
+  it('a person in pharmacies A and B acts in the one the target names, and in no other', async () => {
+    const a = await pharmacy('A');
+    const b = await pharmacy('B', { branches: 2 });
+    const c = await pharmacy('C');
+    // Owner of A (joined first) and branch manager of B's second branch.
+    const both = await studioActor(
+      await person('both', { membership: [a.id, 'OWNER'], staff: [b.id, 'BRANCH_MANAGER', [b.branchIds[1]!]] }),
+    );
+
+    expect(await runQuery(prisma(), both, viewCatalog, { restaurantId: a.id })).toEqual({
+      ok: true,
+      data: { restaurantId: a.id, role: 'OWNER', support: false },
+    });
+    expect(await runQuery(prisma(), both, viewCatalog, { restaurantId: b.id })).toEqual({
+      ok: true,
+      data: { restaurantId: b.id, role: 'BRANCH_MANAGER', support: false },
+    });
+    const inA = await runAction(prisma(), both, saveSettings, { restaurantId: a.id }, META);
+    const inB = await runAction(prisma(), both, saveSettings, { restaurantId: b.id, branchId: b.branchIds[1] }, META);
+    expect(inA).toMatchObject({ ok: true, data: { ph: 'OWNER' } });
+    expect(inB).toMatchObject({ ok: true, data: { ph: 'BRANCH_MANAGER' } });
+    expect(await prisma().phSettings.findMany({ select: { restaurantId: true }, orderBy: { restaurantId: 'asc' } })).toEqual(
+      [{ restaurantId: a.id }, { restaurantId: b.id }].sort((x, y) => x.restaurantId.localeCompare(y.restaurantId)),
+    );
+    expect((await auditRows(a.id)).map((row) => row.action)).toEqual(['ph.settings.save']);
+    expect((await auditRows(b.id)).map((row) => row.action)).toEqual(['ph.settings.save']);
+
+    // Their role in B is B's: A's owner rights do not carry over, and B's other branch is not theirs.
+    expect(codeOf(await runQuery(prisma(), both, viewCatalog, { restaurantId: b.id, branchId: b.branchIds[0] }))).toBe('FORBIDDEN');
+    // A pharmacy they do not belong to is refused, whatever else they hold.
+    expect(codeOf(await runQuery(prisma(), both, viewCatalog, { restaurantId: c.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), both, saveSettings, { restaurantId: c.id }, META))).toBe('FORBIDDEN');
+    expect(await prisma().phSettings.count({ where: { restaurantId: c.id } })).toBe(0);
+  });
+
+  it('when the named pharmacy is closed the work is refused, never run in another open one', async () => {
+    const a = await pharmacy('A', { subscription: 'none' });
+    const b = await pharmacy('B');
+    // Owner of A (closed, joined first) and pharmacist in B (open).
+    const both = await studioActor(await person('both', { membership: [a.id, 'OWNER'], staff: [b.id, 'PHARMACIST', [b.branchId]] }));
+
+    expect(codeOf(await runQuery(prisma(), both, viewCatalog, { restaurantId: a.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), both, saveSettings, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
+    expect(await prisma().phSettings.count()).toBe(0);
+    expect(await prisma().auditLog.count()).toBe(0);
+    // B, named, still works.
+    expect(await runQuery(prisma(), both, viewCatalog, { restaurantId: b.id })).toMatchObject({ ok: true, data: { restaurantId: b.id } });
   });
 
   it('a readOnly pharmacy refuses actions and allows queries and allowReadOnly actions', async () => {
     const a = await pharmacy('A', { subscription: 'ACTIVE', periodEndsInDays: -8, graceDays: 7 });
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
 
-    expect(codeOf(await runAction(prisma(), owner, saveSettings, {}, META))).toBe('FORBIDDEN');
-    expect(await runQuery(prisma(), owner, viewCatalog, {})).toMatchObject({ ok: true, data: { restaurantId: a.id, role: 'OWNER' } });
-    expect(await runAction(prisma(), owner, exportCatalog, {}, META)).toEqual({ ok: true, data: 'exported' });
+    expect(codeOf(await runAction(prisma(), owner, saveSettings, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
+    expect(await runQuery(prisma(), owner, viewCatalog, { restaurantId: a.id })).toMatchObject({ ok: true, data: { restaurantId: a.id, role: 'OWNER' } });
+    expect(await runAction(prisma(), owner, exportCatalog, { restaurantId: a.id }, META)).toEqual({ ok: true, data: 'exported' });
     expect(await auditRows(a.id)).toHaveLength(1);
   });
 
@@ -150,30 +200,31 @@ describe('the ph target', () => {
     const a = await pharmacy('A', { subscription: 'ACTIVE', periodEndsInDays: -98, graceDays: 7 });
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
 
-    expect(codeOf(await runAction(prisma(), owner, saveSettings, {}, META))).toBe('FORBIDDEN');
-    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, {}))).toBe('FORBIDDEN');
-    expect(codeOf(await runAction(prisma(), owner, exportCatalog, {}, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), owner, saveSettings, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), owner, viewCatalog, { restaurantId: a.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), owner, exportCatalog, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
   });
 
   it('a super admin without a grant gets the same refusal as a stranger', async () => {
-    await pharmacy('A');
+    const a = await pharmacy('A');
     const admin = await studioActor(await person('admin', { superAdmin: true }));
     const stranger = await studioActor(await person('stranger'));
     const closed = await pharmacy('Closed', { subscription: 'none' });
     const ownerOfClosed = await studioActor(await person('closedowner', { membership: [closed.id, 'OWNER'] }));
 
     const answers = [
-      await runQuery(prisma(), admin, viewCatalog, {}),
-      await runQuery(prisma(), stranger, viewCatalog, {}),
-      await runQuery(prisma(), ownerOfClosed, viewCatalog, {}),
-      await runAction(prisma(), admin, saveSettings, {}, META),
-      await runAction(prisma(), stranger, saveSettings, {}, META),
-      await runAction(prisma(), ownerOfClosed, saveSettings, {}, META),
+      await runQuery(prisma(), admin, viewCatalog, { restaurantId: a.id }),
+      await runQuery(prisma(), stranger, viewCatalog, { restaurantId: a.id }),
+      await runQuery(prisma(), ownerOfClosed, viewCatalog, { restaurantId: closed.id }),
+      await runQuery(prisma(), stranger, viewCatalog, { restaurantId: 'no-such-pharmacy' }),
+      await runAction(prisma(), admin, saveSettings, { restaurantId: a.id }, META),
+      await runAction(prisma(), stranger, saveSettings, { restaurantId: a.id }, META),
+      await runAction(prisma(), ownerOfClosed, saveSettings, { restaurantId: closed.id }, META),
     ];
     // No actor and a closed gate answer alike, so the answer never says which pharmacies exist or who works there.
     for (const answer of answers) expect(answer).toEqual(answers[0]);
     expect(codeOf(answers[0]!)).toBe('FORBIDDEN');
-    expect(codeOf(await runQuery(prisma(), null, viewCatalog, {}))).toBe('UNAUTHENTICATED');
+    expect(codeOf(await runQuery(prisma(), null, viewCatalog, { restaurantId: a.id }))).toBe('UNAUTHENTICATED');
   });
 
   it('a support actor can run a catalog.view query and cannot run any action', async () => {
@@ -182,12 +233,12 @@ describe('the ph target', () => {
     const g = await grant(admin, a.id, { scopes: ['catalog.read'] });
     const actor = await studioActor(admin);
 
-    expect(await runQuery(prisma(), actor, viewCatalog, {})).toEqual({
+    expect(await runQuery(prisma(), actor, viewCatalog, { restaurantId: a.id })).toEqual({
       ok: true,
       data: { restaurantId: a.id, role: null, support: true },
     });
-    expect(codeOf(await runAction(prisma(), actor, exportCatalog, {}, META))).toBe('FORBIDDEN');
-    expect(codeOf(await runAction(prisma(), actor, saveSettings, {}, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), actor, exportCatalog, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
+    expect(codeOf(await runAction(prisma(), actor, saveSettings, { restaurantId: a.id }, META))).toBe('FORBIDDEN');
     // The read is audited (tests/pharmacy/support.test.ts); the refused actions wrote nothing.
     expect(await auditRows(a.id)).toMatchObject([{ action: 'support.read', entityId: g.id }]);
   });
@@ -196,7 +247,7 @@ describe('the ph target', () => {
     const a = await pharmacy('A');
     const admin = await person('admin', { superAdmin: true });
     await grant(admin, a.id, { scopes: ['stock.read'] });
-    expect(codeOf(await runQuery(prisma(), await studioActor(admin), viewCatalog, {}))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), await studioActor(admin), viewCatalog, { restaurantId: a.id }))).toBe('FORBIDDEN');
   });
 
   it('a support actor with every non-sensitive scope is still refused a cost.view query', async () => {
@@ -204,7 +255,7 @@ describe('the ph target', () => {
     const admin = await person('admin', { superAdmin: true });
     await grant(admin, a.id, { scopes: ['catalog.read', 'stock.read', 'sales.read'] });
     const costs = defineQuery({ name: 'test.ph.costs', permission: null, ph: 'cost.view', input: branchInput, target: phTarget, run: async () => 'costs' });
-    expect(codeOf(await runQuery(prisma(), await studioActor(admin), costs, {}))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), await studioActor(admin), costs, { restaurantId: a.id }))).toBe('FORBIDDEN');
   });
 
   it('a ph query through ctx.scoped cannot read another branch or another restaurant', async () => {
@@ -232,7 +283,7 @@ describe('the ph target', () => {
         };
       },
     });
-    expect(await runQuery(prisma(), await studioActor(clerk), peek, {})).toEqual({
+    expect(await runQuery(prisma(), await studioActor(clerk), peek, { restaurantId: a.id })).toEqual({
       ok: true,
       data: { branches: [a.branchIds[0]], otherBranch: null, staffRestaurants: [a.id], otherPharmacy: null },
     });
@@ -255,7 +306,7 @@ describe('the ph target', () => {
     const a = await pharmacy('A');
     const admin = await person('admin', { superAdmin: true });
     await grant(admin, a.id, { scopes: ['catalog.read'], startsAt: new Date(NOW.getTime() - 2 * DAY), expiresAt: new Date(NOW.getTime() - DAY) });
-    expect(codeOf(await runQuery(prisma(), await studioActor(admin), viewCatalog, {}))).toBe('FORBIDDEN');
+    expect(codeOf(await runQuery(prisma(), await studioActor(admin), viewCatalog, { restaurantId: a.id }))).toBe('FORBIDDEN');
   });
 
   it('an audit entry with patientName fails the action', async () => {
@@ -263,7 +314,7 @@ describe('the ph target', () => {
     const owner = await studioActor(await person('owner', { membership: [a.id, 'OWNER'] }));
     const errors = vi.spyOn(console, 'error').mockImplementation(() => {});
     try {
-      const result = await runAction(prisma(), owner, saveSettings, { audit: { patientName: { before: null, after: 'Sara' } } }, META);
+      const result = await runAction(prisma(), owner, saveSettings, { restaurantId: a.id, audit: { patientName: { before: null, after: 'Sara' } } }, META);
       expect(codeOf(result)).toBe('INVALID');
       // The log names the field, never the value.
       expect(errors.mock.calls.flat().join(' ')).toContain('patientName');

@@ -11,6 +11,7 @@ import { StateNotice } from '@/app/pharmacy/_ui/StateNotice';
  * 404; a person whose place cookie names no place they may use now (none chosen, edited, or no longer theirs) goes to the
  * picker. A closed pharmacy shows its reason instead of the screen; a read-only one shows the screen under a notice.
  */
+// Pages must not rely on this layout's gate for data: they read through ph queries, whose framework checks (person, place, phGate) run on every call.
 export default async function PharmacyAppLayout({ children }: { children: ReactNode }) {
   const access = await getPhAccess();
   if (access.signedIn && !access.place) {

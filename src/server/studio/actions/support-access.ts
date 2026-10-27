@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { createGrant } from '@/server/pharmacy/support';
 import { normalizeEmail } from '@/server/studio/auth/users';
 import { defineAction } from '@/server/studio/framework/action';
@@ -13,7 +14,6 @@ import { StudioError } from '@/server/studio/framework/result';
  * `validateGrantRequest`'s.
  */
 
-const PH = { kind: 'ph' } as const;
 const PLATFORM = { kind: 'platform' } as const;
 
 const grantFields = z.object({
@@ -34,8 +34,8 @@ export const grant = defineAction({
   name: 'support.grant',
   permission: null,
   ph: 'support.grant',
-  input: grantFields,
-  target: () => PH,
+  input: grantFields.extend({ restaurantId: phPlaceInput.shape.restaurantId }),
+  target: phTargetOf,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
       const granted = await createGrant(
@@ -54,8 +54,8 @@ export const revoke = defineAction({
   name: 'support.revoke',
   permission: null,
   ph: 'support.grant',
-  input: z.object({ grantId: z.string().min(1) }),
-  target: () => PH,
+  input: z.object({ restaurantId: phPlaceInput.shape.restaurantId, grantId: z.string().min(1) }),
+  target: phTargetOf,
   run: (ctx, input) =>
     ctx.transaction(async (tx) => {
       // The client finds grants of this pharmacy only: another's id is not found.

@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import { z } from 'zod';
 import type { PhActor, PhGate } from './actor';
 
 /** Where the pharmacy sends a person who is not signed in: the Studio's sign-in, which returns here (one sign-in). */
@@ -58,6 +59,22 @@ export function readPlaceCookie(secret: string, userId: string, value: string | 
   const actual = Buffer.from(given);
   if (actual.length !== expected.length || !timingSafeEqual(actual, expected)) return null;
   return { restaurantId, branchId: branch === ALL ? null : branch };
+}
+
+/**
+ * The input fields every pharmacy definition takes: the pharmacy (and branch) it works on. Its target is `phTargetOf`.
+ * The framework resolves the person's identity in that pharmacy alone and refuses one that is not theirs, so the value is
+ * checked wherever it comes from; server code fills it from the validated chosen place (`currentPhPlaceInput` in
+ * `./actor`), and Server Action wrappers (Task 19+) receive it from pages that got it the same way.
+ */
+export const phPlaceInput = z.object({
+  restaurantId: z.string().min(1).max(64),
+  branchId: z.string().min(1).max(64).optional(),
+});
+
+/** The `ph` target of a pharmacy definition's input. */
+export function phTargetOf(input: { restaurantId: string; branchId?: string }): { kind: 'ph'; restaurantId: string; branchId?: string } {
+  return { kind: 'ph', restaurantId: input.restaurantId, branchId: input.branchId };
 }
 
 /** The cookie's attributes: HttpOnly, Lax, sent to the pharmacy only, Secure everywhere but development and test. */

@@ -20,9 +20,10 @@ import { failure, invalidInput, type StudioFailure } from './result';
  * from the input, and it is the only target a definition with a `pos` permission may name. With `catalog: true` the work
  * is also confined to the restaurant's product-list menu (refused until it exists), and the person holds the Studio's
  * content permissions there and nowhere else: the product list is edited by the Studio's own services.
- * `ph` is the pharmacy the person works in, resolved like `pos` from their membership, staff row or support grant, never
- * from the input; `branchId`, when the input names one, must be one of the person's branches. It is the only target a
- * definition with a `ph` permission may name.
+ * `ph` names one pharmacy (`restaurantId`) and, optionally, a branch: the person's identity there is resolved from their
+ * membership, staff row or support grant for that pharmacy alone, never another one they also work in; `branchId` must
+ * be one of their branches there. Server code builds it from the validated chosen place (`currentPhPlaceInput`). It is
+ * the only target a definition with a `ph` permission may name.
  */
 export type Target =
   | { kind: 'platform' }
@@ -30,7 +31,7 @@ export type Target =
   | { kind: 'menu'; menuId: string }
   | { kind: 'self' }
   | { kind: 'pos'; catalog?: boolean }
-  | { kind: 'ph'; branchId?: string };
+  | { kind: 'ph'; restaurantId: string; branchId?: string };
 
 export type PosTarget = Extract<Target, { kind: 'pos' }>;
 
@@ -82,7 +83,7 @@ const KNOWN = new Set<string>(PERMISSIONS);
 
 const isSelf = (target: unknown) => (target as { kind?: unknown } | null)?.kind === 'self';
 
-/** Input whose every field is missing: a `ph` target may read `branchId` from the input, so it is called with this. */
+/** Input whose every field is missing: a `ph` target reads `restaurantId` and `branchId` from the input, so it is called with this. */
 const EMPTY_INPUT: unknown = new Proxy({}, { get: () => undefined });
 
 /** The kind of target a definition's target function names for an input with no fields; undefined when it throws. */
@@ -323,8 +324,8 @@ export async function resolvePosAccess(
 }
 
 /**
- * The pharmacy check, for a `ph` target. The person's pharmacy, role and branches come from the database
- * (`resolvePhActor`), and the pharmacy must not be closed (`phGate`); while it is read-only (a lapsed subscription
+ * The pharmacy check, for a `ph` target. The person's role and branches in the target's pharmacy come from the database
+ * (`resolvePhActor` for that `restaurantId` only), and that pharmacy must not be closed (`phGate`); while it is read-only (a lapsed subscription
  * inside its retention window) only work that `allowReadOnly` passes runs. Staff need the permission in their role. A
  * support actor (a Super Admin with a live grant) holds no role: it may run a query whose permission maps to a read scope
  * its grant covers (`supportReadScope`), and never an action. A `branchId` must be one of the person's branches. No
@@ -341,7 +342,10 @@ export async function resolvePhAccess(
   if ((target as { kind?: unknown } | null)?.kind !== 'ph') throw new Error('resolvePhAccess: the target is not ph');
   // One clock for the actor (whose grant may expire this instant) and the gate.
   const now = new Date();
-  const phActor = await resolvePhActor(prisma, actor.userId, { now });
+  // Always the named pharmacy: never a fallback to another one the person works in.
+  const restaurantId: unknown = (target as { restaurantId?: unknown }).restaurantId;
+  if (typeof restaurantId !== 'string' || restaurantId === '') return failure('FORBIDDEN');
+  const phActor = await resolvePhActor(prisma, actor.userId, { restaurantId, now });
   if (!phActor) return failure('FORBIDDEN');
   const gate = await phGate(prisma, phActor.restaurantId, now);
   if (gate.state === 'closed') return failure('FORBIDDEN');

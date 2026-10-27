@@ -76,37 +76,23 @@ interface Candidate {
 /**
  * The pharmacy identity of a user. A Studio OWNER member of a PHARMACY restaurant is its OWNER of every branch; anyone
  * else needs an active `PhStaff` row and at least one `PhStaffBranch` row. A Super Admin has an identity only through an
- * active support grant for that restaurant (no role, the grant's scopes). A deactivated user has none. With
- * `restaurantId` the answer is for that restaurant only; without it, the first they joined whose gate is not closed (else
- * the first). With `branchId` a person who may not use that branch has none.
+ * active support grant for that restaurant (no role, the grant's scopes). A deactivated user has none. The answer is
+ * for the named restaurant only: a person who works in several is never answered for another one. With `branchId` a
+ * person who may not use that branch has none.
  */
 export async function resolvePhActor(
   prisma: PrismaClient,
   userId: string,
-  opts: { restaurantId?: string; branchId?: string; now?: Date } = {},
+  opts: { restaurantId: string; branchId?: string; now?: Date },
 ): Promise<PhActor | null> {
   const now = opts.now ?? new Date();
   const found = await candidatesOf(prisma, userId, opts.restaurantId, now);
   if (!found) return null;
   const { user, candidates } = found;
 
-  let chosen: [string, Candidate] | undefined;
-  if (opts.restaurantId !== undefined) {
-    const candidate = candidates.get(opts.restaurantId);
-    if (candidate) chosen = [opts.restaurantId, candidate];
-  } else {
-    const byJoined = [...candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime());
-    chosen = byJoined[0];
-    if (byJoined.length > 1) {
-      for (const entry of byJoined) {
-        if ((await phGate(prisma, entry[0], now)).state !== 'closed') {
-          chosen = entry;
-          break;
-        }
-      }
-    }
-  }
-  if (!chosen) return null;
+  const candidate = candidates.get(opts.restaurantId);
+  if (!candidate) return null;
+  const chosen: [string, Candidate] = [opts.restaurantId, candidate];
 
   const restaurant = await prisma.restaurant.findUnique({ where: { id: chosen[0] }, select: { name: true, sector: true } });
   if (!restaurant || restaurant.sector !== 'PHARMACY') return null;
@@ -195,12 +181,6 @@ async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: 
   return { user, candidates };
 }
 
-/** The pharmacy identity behind the current request, or `null`. Cached for the length of one request. */
-export const getPhActor = cache(async (): Promise<PhActor | null> => {
-  const actor = await getActor();
-  return actor ? resolvePhActor(getPrisma(), actor.userId, { now: new Date() }) : null;
-});
-
 /** A pharmacy a person may choose in the picker, with the branches they may use in it. */
 export interface PhPlaceChoice {
   restaurantId: string;
@@ -285,6 +265,18 @@ export const getPhAccess = cache(async (): Promise<PhAccess> => {
     place: { ...chosen, branchName: found.branchName },
   };
 });
+
+/**
+ * The `ph` definition input for where the person behind the request chose to work, from the validated place cookie
+ * (`getPhAccess`), never from what the browser sends: spread it into the input of every pharmacy query a page runs
+ * (`query(def, { ...(await currentPhPlaceInput()), ... })`) and pass it to the client components whose Server Actions
+ * need it (Task 19+). "All branches" gives no `branchId`. Null when no valid place is chosen.
+ */
+export async function currentPhPlaceInput(): Promise<{ restaurantId: string; branchId?: string } | null> {
+  const { place } = await getPhAccess();
+  if (!place) return null;
+  return place.branchId === null ? { restaurantId: place.restaurantId } : { restaurantId: place.restaurantId, branchId: place.branchId };
+}
 
 /** The picker's choices for the person behind the request; empty when signed out or without a pharmacy. */
 export const getPhPlaces = cache(async (): Promise<PhPlaceChoice[]> => {
