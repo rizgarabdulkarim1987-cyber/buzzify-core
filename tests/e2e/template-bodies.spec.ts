@@ -162,7 +162,12 @@ test('closed pages take no room and the open page is the only one laid out', asy
 
 test('a search that finds nothing keeps the skip link target', async ({ page }) => {
   await page.goto(`/${slug}/en?stage=off`);
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await expect(search).toBeEnabled();
+  await expect(async () => {
+    await search.fill('zzzzqq');
+    await expect(search).toHaveValue('zzzzqq');
+  }).toPass();
   await expect(page.getByText(/zzzzqq/)).toBeVisible();
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
