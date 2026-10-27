@@ -4,6 +4,7 @@ import { menuImportInput } from '@/server/ai/menu-import';
 import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
+import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
@@ -194,7 +195,7 @@ export const posCreateCategory = defineAction({
   pos: 'catalog.manage',
   input: z.object({ names: namesField, slug: contentSlugField.optional() }),
   target: () => CATALOG,
-  run: (ctx, { names, slug }) => content.createCategory(ctx, { names, slug }),
+  run: (ctx, { names, slug }) => publishAfter(ctx, () => content.createCategory(ctx, { names, slug })),
 });
 
 export const posUpdateCategory = defineAction({
@@ -203,7 +204,7 @@ export const posUpdateCategory = defineAction({
   pos: 'catalog.manage',
   input: z.object({ categoryId: idField, version, names: namesField, slug: contentSlugField, isActive: z.boolean() }),
   target: () => CATALOG,
-  run: (ctx, input) => content.updateCategory(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => content.updateCategory(ctx, input)),
 });
 
 export const posDeleteCategory = defineAction({
@@ -212,7 +213,7 @@ export const posDeleteCategory = defineAction({
   pos: 'catalog.manage',
   input: z.object({ categoryId: idField, version }),
   target: () => CATALOG,
-  run: (ctx, input) => content.deleteCategory(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => content.deleteCategory(ctx, input)),
 });
 
 export const posCreateProduct = defineAction({
@@ -221,7 +222,7 @@ export const posCreateProduct = defineAction({
   pos: 'catalog.manage',
   input: z.object({ categoryId: idField, names: namesField, price: priceField }),
   target: () => CATALOG,
-  run: (ctx, input) => content.createProduct(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => content.createProduct(ctx, input)),
 });
 
 export const posSaveProductBasics = defineAction({
@@ -230,7 +231,7 @@ export const posSaveProductBasics = defineAction({
   pos: 'catalog.manage',
   input: z.object({ productId: idField, version, names: namesField, price: priceField, categoryId: idField }),
   target: () => CATALOG,
-  run: (ctx, input) => saveProductBasics(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => saveProductBasics(ctx, input)),
 });
 
 export const posDeleteProduct = defineAction({
@@ -239,7 +240,7 @@ export const posDeleteProduct = defineAction({
   pos: 'catalog.manage',
   input: z.object({ productId: idField, version }),
   target: () => CATALOG,
-  run: (ctx, input) => content.deleteProduct(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => content.deleteProduct(ctx, input)),
 });
 
 export const posSetAvailability = defineAction({
@@ -390,7 +391,7 @@ export const posImportApply = defineAction({
   pos: 'catalog.manage',
   input: z.object({ importJobId: idField }),
   target: () => CATALOG,
-  run: (ctx, input) => applyImport(ctx, input),
+  run: (ctx, input) => publishAfter(ctx, () => applyImport(ctx, input)),
 });
 
 export const posImportDiscard = defineAction({
