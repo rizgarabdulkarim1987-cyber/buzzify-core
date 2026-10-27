@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
+  BODY_PRODUCTS,
   bodyMenus,
   dishName,
   expectArabicRtl,
@@ -239,6 +240,37 @@ test('a search that finds nothing keeps main#menu, and a search keeps the tabs a
   await expect(search).toBeFocused();
   await search.fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
+  await search.fill('');
+  await expect(tabs(page)).toHaveCount(BODY_CATEGORIES.length);
+  // Scrolled into the menu, a search that keeps the page tall enough does not move it: nothing in the shape scrolls
+  // (the browser's own scroll anchoring, which keeps the rows in view steady as others go, is turned off to see that).
+  await page.addStyleTag({ content: 'html, body { overflow-anchor: none; }' });
+  await page.evaluate(() => window.scrollTo(0, 300));
+  await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(300);
+  // Typed in place (a real keystroke would also scroll the browser to the caret, which is off the screen up here).
+  await search.evaluate((node) => {
+    const input = node as HTMLInputElement;
+    input.focus({ preventScroll: true });
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'cake');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await expect(rows(page)).not.toHaveCount(BODY_PRODUCTS.length);
+  await page.waitForTimeout(400);
+  await expect(search).toBeFocused();
+  // Where it was, unless the shorter page cannot scroll that far.
+  expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(await page.evaluate(() => Math.min(300, Math.round(document.documentElement.scrollHeight - window.innerHeight))));
+  expect(await page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(0);
+});
+
+test('in stack mode a screen reader gets the sections as one list under a navigation landmark', async ({ page }) => {
+  await openMenu(page, slug);
+  const nav = stacked(page).getByRole('navigation', { name: 'Categories' });
+  await expect(nav.getByRole('link')).toHaveCount(BODY_CATEGORIES.length);
+  // Out of the tab order (the visible tabs are the keyboard's), and it takes no room on the screen.
+  expect(await nav.getByRole('link').first().getAttribute('tabindex')).toBe('-1');
+  expect(await nav.evaluate((node) => node.getBoundingClientRect().width * node.getBoundingClientRect().height)).toBeLessThanOrEqual(1);
+  await nav.getByRole('link', { name: BODY_CATEGORIES.find((c) => c.slug === 'celebration')!.name.en! }).evaluate((node) => (node as HTMLElement).click());
+  await expect(page.locator('#cat-celebration [data-heading]')).toBeFocused();
 });
 
 test('the sheets do not change colour when a search hides some of them', async ({ page }) => {

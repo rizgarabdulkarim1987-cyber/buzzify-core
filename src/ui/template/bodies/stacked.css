@@ -31,9 +31,12 @@
   /* Its tabs are a single pinned slot under the rail, so they can be low. */
   --sk-h: 2.25rem;
 }
-/* With an order in the cart the bar floats over the bottom edge: the docked tabs sit above it. */
+/*
+ * With an order in the cart the bar floats over the bottom edge: the docked tabs sit above it (the bar is 3.5rem tall
+ * over the same bottom padding the bar takes, the home indicator's room included, and a small gap).
+ */
 body:has([data-testid='cart-bar']) [data-body='stacked'] {
-  --sk-dock: 4.75rem;
+  --sk-dock: calc(3.5rem + max(1rem, env(safe-area-inset-bottom)) + 0.25rem);
 }
 
 /* A sheet's paper and its tab: the hue's pastel. */
@@ -197,7 +200,7 @@ body:has([data-testid='cart-bar']) [data-body='stacked'] {
   background: var(--sk-paper);
   color: var(--sk-ink);
   /* A jumped-to sheet lands just under its own tab (the tabs of the sheets before it are stacked above that). */
-  scroll-margin-top: calc(var(--sk-rail) + var(--i, 0) * var(--sk-step) + var(--sk-h));
+  scroll-margin-block-start: calc(var(--sk-rail) + var(--i, 0) * var(--sk-step) + var(--sk-h));
 }
 /* The last sheet is tall enough to light its tab at the end of the page (shared/shapes.css, `--tall-last`). */
 [data-body='stacked'] .sk-sheet:last-child {

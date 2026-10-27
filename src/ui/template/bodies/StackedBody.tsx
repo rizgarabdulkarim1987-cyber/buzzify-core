@@ -43,6 +43,28 @@ export function StackedBody() {
           )}
         </SectionStrip>
       )}
+      {stack ? (
+        // The tabs are spread through the sheets, so a screen reader also gets them as one list of sections to jump
+        // through (out of the tab order: the visible tabs are the keyboard's).
+        <nav aria-label={t('menu.categories')} className="sr-only">
+          <ol>
+            {categories.map((category) => (
+              <li key={category.id}>
+                <a
+                  href={`#cat-${category.slug}`}
+                  tabIndex={-1}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    jumpTo(category.id);
+                  }}
+                >
+                  {category.name}
+                </a>
+              </li>
+            ))}
+          </ol>
+        </nav>
+      ) : null}
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
