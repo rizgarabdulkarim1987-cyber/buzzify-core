@@ -340,6 +340,7 @@ async function snapshotOfB(w: World): Promise<unknown> {
       subscriptions: await db.subscription.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
       subscriptionEvents: await db.subscriptionEvent.findMany({ where: { subscription: { restaurantId: b.restaurantId } }, orderBy: { id: 'asc' } }),
       payments: await db.payment.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
+      supportGrants: await db.supportAccessGrant.findMany({ where: { restaurantId: b.restaurantId }, orderBy: { id: 'asc' } }),
     }),
   );
 }
@@ -614,6 +615,11 @@ const SWEPT: Record<string, Case[]> = {
     c("copies B's menu into A", (w) => ({ menuId: w.b.menuId, name: 'Copy', slug: 'copy-out-of-b', targetRestaurantId: w.a.restaurantId })),
   ],
   'menus.delete': [c("B's menu", (w) => ({ menuId: w.b.menuId, confirmName: w.b.menuName }))],
+  // The guests' complaints and suggestions box
+  'menus.setFeedback': [
+    c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
+    c("switches off B's box", (w) => ({ menuId: w.b.menuId, enabled: false })),
+  ],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
@@ -852,6 +858,20 @@ const SWEPT: Record<string, Case[]> = {
   'restaurants.branches': [c("B's branches", (w) => ({ restaurantId: w.b.restaurantId }))],
   'restaurants.menus': [c("B's menus", (w) => ({ restaurantId: w.b.restaurantId }))],
   'restaurants.activity': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }))],
+  'restaurants.feedback': [
+    c("B's guest messages", (w) => ({ restaurantId: w.b.restaurantId })),
+    c("A's guest messages", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
+  ],
+
+  // Support access to a pharmacy (`ph` target, `support.grant`, the pharmacy owner's alone). The target is always the
+  // named restaurant, never a fallback, so naming B's must be refused: A's people hold no pharmacy role in B. Both sides
+  // of this world are FOOD restaurants, so the refusal here is the ph actor check on the named restaurant; isolation
+  // between two pharmacies' grants is proven in tests/pharmacy/support.test.ts.
+  'support.grant': [
+    c('for B', (w) => ({ restaurantId: w.b.restaurantId, granteeEmail: address('root'), scopes: ['catalog.read'], reason: 'Planted', hours: 2 })),
+  ],
+  'support.revoke': [c('a grant, in B', (w) => ({ restaurantId: w.b.restaurantId, grantId: 'planted-grant' }))],
+  'support.listGrants': [c("B's grants", (w) => ({ restaurantId: w.b.restaurantId }))],
 
   // Reads across the person's own restaurants: they answer, without B
   'menus.list': [
@@ -916,6 +936,24 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'plans.update': [c('giving Basic Explore', () => ({ plans: { BASIC: { features: { 'immersive.explore': true } } }, whatsapp: '' }), ONLY_FORBIDDEN)],
   'activity.list': [c("B's activity", (w) => ({ restaurantId: w.b.restaurantId }), ONLY_FORBIDDEN)],
   'search.people': [c("B's people", () => ({ q: 'bravo' }), ONLY_FORBIDDEN)],
+  // The pharmacy plans: the platform owner's alone to write (`plans.manage`), any Super Admin's to read
+  'appPlans.list': [c('the pharmacy plans', () => ({}), ONLY_FORBIDDEN)],
+  'appPlans.upsert': [
+    c(
+      'a pharmacy plan',
+      () => ({ code: 'planted', name: { en: 'Planted', ar: 'Planted', ckb: 'Planted' }, limits: { branches: 1, users: 1, storageMb: 1, aiMonthlyBudgetMinor: 0 } }),
+      ONLY_FORBIDDEN,
+    ),
+  ],
+  'appPlans.deactivate': [c('a pharmacy plan', () => ({ code: 'planted', version: 1 }), ONLY_FORBIDDEN)],
+  // Platform staff recording a pharmacy owner's written consent (`people.manage`), here for B
+  'support.recordConsent': [
+    c(
+      'a support grant for B',
+      (w) => ({ restaurantId: w.b.restaurantId, granteeEmail: address('root'), scopes: ['catalog.read'], reason: 'Planted', hours: 2, consentRef: 'Planted consent 0001' }),
+      ONLY_FORBIDDEN,
+    ),
+  ],
   // Billing: the platform owner's alone (`plans.manage`) or any Super Admin's to read (`platform.settings`)
   'ai.settings': [c('the AI provider settings', () => ({}), ONLY_FORBIDDEN)],
   'billing.overview': [c('the products and prices', () => ({}), ONLY_FORBIDDEN)],

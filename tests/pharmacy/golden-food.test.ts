@@ -160,6 +160,13 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.people',
       icon: 'people'
     },
+    // Added on main by the announcements feature (docs/superpowers/specs/2026-10-26-staff-appearance-logo-announcements-design.md): a Super Admin area.
+    {
+      key: 'announcements',
+      href: '/studio/announcements',
+      labelKey: 'nav.announcements',
+      icon: 'announcements'
+    },
     {
       key: 'activity',
       href: '/studio/activity',
