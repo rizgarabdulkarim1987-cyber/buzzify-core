@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { batchHash, PRODUCT_COLUMNS, suggestMapping, validateRows } from '@/server/domain/pharmacy/import-products';
+import { batchHash, PHARMACY_IMPORT_MAX_ROWS, PRODUCT_COLUMNS, suggestMapping, validateRows } from '@/server/domain/pharmacy/import-products';
 import { identityKeyOf } from '@/server/domain/pharmacy/product-identity';
 import { packLabelOf } from '@/server/domain/pharmacy/units';
 import { readSheet, SheetReadError } from '@/server/sheets/read';
@@ -243,5 +243,126 @@ describe('product import rules', () => {
     ]);
     await expect(readSheet(bytes, { maxRows: 2 })).rejects.toEqual(new SheetReadError('TOO_MANY_ROWS'));
     expect((await readSheet(bytes, { maxRows: 3 })).rows).toHaveLength(3);
+  });
+});
+
+describe('product import defaults and fix-round rules', () => {
+  const SHORT = ['Trade name', 'Sale price', 'Barcode'];
+  const shortRows = [
+    ['Panadol', '1500', '6221031234569'],
+    ['Brufen', '2000', '5901234123457'],
+  ];
+  const run = (extra: Partial<Parameters<typeof validateRows>[0]> = {}, rows = shortRows, headers = SHORT) =>
+    validateRows({
+      headers,
+      rows,
+      rowNumbers: rows.map((_, i) => i + 2),
+      mapping: suggestMapping(headers),
+      existingIdentityKeys: new Set(),
+      existingBarcodes: new Map(),
+      enabledCurrencies: ['IQD'],
+      ...extra,
+    });
+  const DEFAULTS = { rxLevel: 'OTC', packLabel: 'box', unitsPerPack: 1 } as const;
+
+  it('without defaults a sheet with only name, price and barcode errors on every row', () => {
+    const result = run();
+    expect(result.rows.map((r) => r.status)).toEqual(['error', 'error']);
+    expect(codes(result.rows[0]!).sort()).toEqual(['BAD_PACK', 'UNKNOWN_RX_LEVEL']);
+  });
+
+  it('defaults fill empty cells, each row says so with DEFAULT_APPLIED, and the identity matches the service', () => {
+    const result = run({ defaults: DEFAULTS });
+    expect(result.rows.map((r) => r.status)).toEqual(['ok', 'ok']);
+    const first = result.rows[0]!;
+    expect(first.values).toMatchObject({ rxLevel: 'OTC', packLabel: 'box', unitsPerPack: 1 });
+    expect(first.issues.filter((i) => i.code === 'DEFAULT_APPLIED').map((i) => i.field).sort()).toEqual(['packLabel', 'rxLevel', 'unitsPerPack']);
+    const serviceKey = identityKeyOf({
+      tradeName: 'Panadol',
+      strength: '',
+      form: '',
+      manufacturer: '',
+      packLabel: packLabelOf([{ level: 0, label: 'box', baseQty: 1, sellable: true }]),
+    });
+    expect(first.identityKey).toBe(serviceKey);
+  });
+
+  it('a default never overwrites a cell with content, and an unknown rx value still errors', () => {
+    const headers = [...SHORT, 'Rx level', 'Pack', 'Units per pack'];
+    const result = run(
+      { defaults: DEFAULTS },
+      [
+        ['A', '1', '', 'RX', 'strip', '10'],
+        ['B', '1', '', 'whatever', 'strip', '10'],
+      ],
+      headers,
+    );
+    expect(result.rows[0]!.values).toMatchObject({ rxLevel: 'RX', packLabel: 'strip', unitsPerPack: 10 });
+    expect(codes(result.rows[0]!)).not.toContain('DEFAULT_APPLIED');
+    expect(codes(result.rows[1]!)).toEqual(['UNKNOWN_RX_LEVEL']);
+    expect(result.rows[1]!.status).toBe('error');
+  });
+
+  it('the batch hash changes with the defaults', () => {
+    const m = suggestMapping(SHORT);
+    const a = run({ defaults: DEFAULTS });
+    expect(batchHash(a.rows, m, DEFAULTS)).not.toBe(batchHash(a.rows, m, { ...DEFAULTS, unitsPerPack: 2 }));
+    expect(batchHash(a.rows, m, DEFAULTS)).toBe(batchHash(a.rows, m, { ...DEFAULTS }));
+  });
+
+  it('an invalid default is refused with defaultsError and no rows', () => {
+    for (const [bad, field] of [
+      [{ rxLevel: 'MAYBE' }, 'rxLevel'],
+      [{ packLabel: '  ' }, 'packLabel'],
+      [{ packLabel: 'x'.repeat(61) }, 'packLabel'],
+      [{ unitsPerPack: 0 }, 'unitsPerPack'],
+      [{ unitsPerPack: 1.5 }, 'unitsPerPack'],
+    ] as const) {
+      const result = run({ defaults: bad as never });
+      expect(result.defaultsError?.field).toBe(field);
+      expect(result.rows).toEqual([]);
+    }
+  });
+
+  it('a price of 0 is a warning ZERO_PRICE and a negative price is BAD_PRICE', () => {
+    const result = validate([row({ 'Sale price': '0' }), row({ 'Trade name': 'B', 'Sale price': '-5' })]);
+    expect(result.rows[0]!.status).toBe('warning');
+    expect(codes(result.rows[0]!)).toEqual(['ZERO_PRICE']);
+    expect(result.rows[1]!.status).toBe('error');
+    expect(codes(result.rows[1]!)).toEqual(['BAD_PRICE']);
+  });
+
+  it('a ladder tablet / 24-tablet box has the same identity as an import row box / 24', () => {
+    const levels = [
+      { level: 0, label: 'tablet', baseQty: 1, sellable: true },
+      { level: 1, label: 'box', baseQty: 24, sellable: true },
+    ];
+    const serviceKey = identityKeyOf({ tradeName: 'Panadol', strength: '500 mg', form: 'tablet', manufacturer: 'GSK', packLabel: packLabelOf(levels) });
+    expect(validate([row()]).rows[0]!.identityKey).toBe(serviceKey);
+  });
+
+  it('an XLSX text cell 0001234 keeps its zeros and is not flagged lossy', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('p');
+    sheet.addRow(['Trade name', 'Rx level', 'Pack', 'Units per pack', 'Barcode']);
+    sheet.addRow(['A', 'OTC', 'box', '1', '0001234']);
+    const read = await readSheet(new Uint8Array(await workbook.xlsx.writeBuffer()));
+    expect(read.rows[0]![4]).toBe('0001234');
+    const result = validateRows({
+      headers: read.headers,
+      rows: read.rows,
+      rowNumbers: read.rowNumbers,
+      numericCells: read.numericCells,
+      mapping: suggestMapping(read.headers),
+      existingIdentityKeys: new Set(),
+      existingBarcodes: new Map(),
+      enabledCurrencies: ['IQD'],
+    });
+    expect(result.rows[0]!.values.barcode).toBe('0001234');
+    expect(result.rows[0]!.status).toBe('ok');
+  });
+
+  it('the pharmacy import row cap is 10,000', () => {
+    expect(PHARMACY_IMPORT_MAX_ROWS).toBe(10_000);
   });
 });

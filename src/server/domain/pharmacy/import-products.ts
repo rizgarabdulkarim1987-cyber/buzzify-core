@@ -13,7 +13,7 @@ import { packLabelOf } from './units';
  */
 
 /** The most data rows a pharmacy product import reads, unless the caller passes another `maxRows` to `readSheet`. */
-export const PHARMACY_IMPORT_MAX_ROWS = 20_000;
+export const PHARMACY_IMPORT_MAX_ROWS = 10_000;
 
 export const PRODUCT_COLUMNS = [
   'tradeName',
@@ -46,7 +46,9 @@ export type ImportIssueCode =
   | 'BARCODE_CHECK_DIGIT'
   | 'BARCODE_IN_USE'
   | 'DUPLICATE_IN_FILE'
-  | 'DUPLICATE_PRODUCT';
+  | 'DUPLICATE_PRODUCT'
+  | 'ZERO_PRICE'
+  | 'DEFAULT_APPLIED';
 
 export type ImportIssue = { code: ImportIssueCode; field: ProductColumn; severity: 'error' | 'warning' | 'info'; message: string };
 
@@ -275,10 +277,36 @@ export type ValidateInput = {
   /** Barcode -> id of the product holding it. */
   existingBarcodes: ReadonlyMap<string, string>;
   enabledCurrencies: readonly Currency[];
+  /**
+   * Chosen by the person in the preview. Fills ONLY an empty or unmapped cell (a cell with content is never replaced, and
+   * an unknown non-empty rx value is still UNKNOWN_RX_LEVEL); each row it fills carries an info issue DEFAULT_APPLIED.
+   */
+  defaults?: ImportDefaults;
 };
 
+export type ImportDefaults = { rxLevel?: RxLevel; packLabel?: string; unitsPerPack?: number };
+
+const DEFAULT_LABEL_MAX = 60;
+
+/** What is wrong with the defaults themselves, or null. Checked before any row: a bad default is the person's mistake, not each row's. */
+function defaultsProblem(d: ImportDefaults): { field: keyof ImportDefaults; message: string } | null {
+  if (d.rxLevel !== undefined && d.rxLevel !== 'OTC' && d.rxLevel !== 'RX' && d.rxLevel !== 'RESTRICTED') {
+    return { field: 'rxLevel', message: 'The default prescription level must be OTC, RX or RESTRICTED' };
+  }
+  if (d.packLabel !== undefined && (d.packLabel.trim() === '' || d.packLabel.trim().length > DEFAULT_LABEL_MAX)) {
+    return { field: 'packLabel', message: `The default pack unit must be 1 to ${DEFAULT_LABEL_MAX} characters` };
+  }
+  if (d.unitsPerPack !== undefined && !(Number.isSafeInteger(d.unitsPerPack) && d.unitsPerPack >= 1 && d.unitsPerPack <= COUNT_MAX)) {
+    return { field: 'unitsPerPack', message: 'The default units per pack must be a whole number, 1 or more' };
+  }
+  return null;
+}
+
 export type ValidateResult = {
+  /** Empty when `defaultsError` is set. */
   rows: ParsedRow[];
+  /** Set when `defaults` is invalid: nothing is validated, and the preview shows this message beside the defaults. */
+  defaultsError?: { field: keyof ImportDefaults; message: string };
   summary: { ok: number; warnings: number; errors: number; duplicates: number };
 };
 
@@ -301,6 +329,9 @@ const emptyValues = (): ParsedProduct => ({
 
 /** Every row of the sheet read and checked; nothing is written. Rows come back in the order given. */
 export function validateRows(input: ValidateInput): ValidateResult {
+  const defaults = input.defaults ?? {};
+  const problem = defaultsProblem(defaults);
+  if (problem) return { rows: [], defaultsError: problem, summary: { ok: 0, warnings: 0, errors: 0, duplicates: 0 } };
   const indexes = columnIndexes(input.headers, input.mapping);
   const firstRowOfKey = new Map<string, number>();
   const firstRowOfBarcode = new Map<string, number>();
@@ -334,16 +365,23 @@ export function validateRows(input: ValidateInput): ValidateResult {
     const rx = cell('rxLevel');
     const level = rx === '' ? undefined : RX_LOOKUP.get(fold(rx));
     if (level) values.rxLevel = level;
-    else add('UNKNOWN_RX_LEVEL', 'rxLevel', 'error', rx === '' ? 'The prescription level is empty' : `"${rx.slice(0, 40)}" is not a prescription level this import knows (OTC, Rx or restricted)`);
+    else if (rx === '' && defaults.rxLevel) {
+      values.rxLevel = defaults.rxLevel;
+      add('DEFAULT_APPLIED', 'rxLevel', 'info', `The prescription level was empty; the default ${defaults.rxLevel} was used`);
+    } else add('UNKNOWN_RX_LEVEL', 'rxLevel', 'error', rx === '' ? 'The prescription level is empty' : `"${rx.slice(0, 40)}" is not a prescription level this import knows (OTC, Rx or restricted)`);
 
     // Pack: both the unit name and how many units it holds.
-    const label = cell('packLabel');
-    const perPack = wholeNumber(cell('unitsPerPack'), 1);
+    const rawLabel = cell('packLabel');
+    const rawPer = cell('unitsPerPack');
+    const label = rawLabel === '' ? (defaults.packLabel?.trim() ?? '') : rawLabel;
+    const perPack = rawPer === '' ? (defaults.unitsPerPack ?? null) : wholeNumber(rawPer, 1);
     if (label === '' || label.length > PACK_LABEL_MAX || perPack === null) {
       add('BAD_PACK', 'packLabel', 'error', 'Give the pack as a unit name (such as box) and the number of units in it (a whole number, 1 or more)');
     } else {
       values.packLabel = label;
       values.unitsPerPack = perPack;
+      if (rawLabel === '') add('DEFAULT_APPLIED', 'packLabel', 'info', `The pack unit was empty; the default "${label}" was used`);
+      if (rawPer === '') add('DEFAULT_APPLIED', 'unitsPerPack', 'info', `The units per pack was empty; the default ${perPack} was used`);
     }
 
     // Barcode.
@@ -374,7 +412,10 @@ export function validateRows(input: ValidateInput): ValidateResult {
           const money = parseMoney(rawPrice.slice(0, 40), currency);
           if (!money || money.amount > BigInt(Number.MAX_SAFE_INTEGER)) {
             add('BAD_PRICE', 'salePrice', 'error', `"${rawPrice.slice(0, 40)}" is not a price in ${currency}: use digits with a point for decimals (and commas only for thousands)`);
-          } else values.salePrice = money;
+          } else {
+            values.salePrice = money;
+            if (money.amount === 0n) add('ZERO_PRICE', 'salePrice', 'warning', 'The price is 0; check it');
+          }
         } catch (error) {
           if (!(error instanceof CurrencyNotEnabledError)) throw error;
           add('CURRENCY_NOT_ENABLED', 'currency', 'error', `${currency} is not enabled for this business`);
@@ -441,8 +482,9 @@ export function validateRows(input: ValidateInput): ValidateResult {
  * A fingerprint of what a batch would do: the checked rows and the mapping they were read with. Stored with a preview
  * and compared when it is applied, as the menu import compares the draft hash, so a changed file or mapping is refused.
  */
-export function batchHash(rows: readonly ParsedRow[], mapping: Record<string, string | null>): string {
+export function batchHash(rows: readonly ParsedRow[], mapping: Record<string, string | null>, defaults: ImportDefaults = {}): string {
   const payload = {
+    defaults: [defaults.rxLevel ?? null, defaults.packLabel?.trim() ?? null, defaults.unitsPerPack ?? null],
     mapping: Object.entries(mapping).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
     rows: rows.map((r) => [r.rowNumber, r.status, r.values, r.issues.map((i) => [i.code, i.field])]),
   };
