@@ -39,6 +39,8 @@ export interface BodyMenuOptions {
   discount?: string[];
   /** This many more sections after Maison's five, each with one dish (a menu with many sections). */
   extraSections?: number;
+  /** This many more dishes in the first section (Viennoiserie, three of its own), for a section of many dishes. */
+  crowd?: number;
   /** Ordering off (`none`): a menu only, no cart and no add buttons. */
   ordering?: 'none';
   /** Every dish has no media at all (no photo, no drawing). */
@@ -61,7 +63,7 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0, ordering, noPhotos = false, sectionNames = {} } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0, crowd = 0, ordering, noPhotos = false, sectionNames = {} } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
@@ -70,6 +72,7 @@ export function bodyMenus(): BodyMenus {
           categories: [...MAISON.categories.map((category) => (sectionNames[category.slug] ? { ...category, name: sectionNames[category.slug]! } : category)), ...Array.from({ length: extraSections }, (_, at) => ({ slug: `more-${at + 1}`, name: { en: `Section ${at + 6}`, ar: `القسم ${at + 6}`, ckb: `بەشی ${at + 6}` } }))],
           products: [
             ...BODY_PRODUCTS,
+            ...Array.from({ length: crowd }, (_, at) => ({ ...MAISON.products[0]!, slug: `crowd-dish-${at + 1}`, signature: false, featured: false, name: { en: `Crowd dish ${at + 1}`, ar: `طبق مزدحم ${at + 1}`, ckb: `خواردنی قەرەباڵغ ${at + 1}` } })),
             ...Array.from({ length: extraSections }, (_, at) => ({ ...MAISON.products[0]!, slug: `more-dish-${at + 1}`, category: `more-${at + 1}`, signature: false, featured: false, name: { en: `Extra dish ${at + 1}`, ar: `طبق إضافي ${at + 1}`, ckb: `خواردنی زیادە ${at + 1}` } })),
           ],
           ...(discount ? { promotions: [{ kind: 'DISCOUNT' as const, percentOff: 20, products: discount, title: { en: 'A fifth off', ar: 'خصم الخُمس', ckb: 'پێنج یەک داشکاندن' } }] } : {}),

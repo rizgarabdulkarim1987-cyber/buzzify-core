@@ -962,4 +962,33 @@ export const theFrostedWindow = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow];
+export const theSummerBeach = definePreset({
+  id: 'the-summer-beach',
+  number: 64,
+  name: 'Summer Beach',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#BFEEFC', text: '#0D3B52', accent: '#E8590C', raised: '#FFFFFF' },
+  alternatives: [
+    { id: 'sunset-cove', name: 'Sunset cove', seed: { bg: '#FFD9A8', text: '#4A1F12', accent: '#C2410C', raised: '#FFF3DD' } },
+    { id: 'palm-shade', name: 'Palm shade', seed: { bg: '#DFF5E3', text: '#0F3D2E', accent: '#B45309', raised: '#FFFFFF' } },
+    { id: 'moonlit-bay', name: 'Moonlit bay', seed: { bg: '#06223A', text: '#E6F7FF', accent: '#FFB454', raised: '#0B3558' } },
+  ],
+  type: { fontPairId: 'pop', scale: 1.0 },
+  layout: {
+    body: 'beach',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow, theSummerBeach];

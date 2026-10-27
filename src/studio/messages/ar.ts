@@ -2440,6 +2440,7 @@ const ar: Messages = {
   'design.body.gate': 'بوابات عشتار',
   'design.body.station': 'وحدات محطة الفضاء',
   'design.body.frost': 'ألواح نافذة مغطاة بالصقيع',
+  'design.body.beach': 'نطاقات أمواج الشاطئ',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',
