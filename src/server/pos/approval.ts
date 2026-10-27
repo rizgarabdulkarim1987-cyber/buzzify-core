@@ -1,14 +1,14 @@
 import { z } from 'zod';
 import type { PrismaClient } from '@/generated/prisma/client';
+import type { Approver, DiscountReason } from '@/lib/pos-approval';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import type { RequestMeta } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import { refuse } from './errors';
 import { PinLockedError, PinRefusedError, verifyApproverPin } from './pin';
 
-/** Why a discount was given: a short list, with a note for the last one. */
-export const DISCOUNT_REASONS = ['MANAGER_DECISION', 'REGULAR_GUEST', 'COMPLAINT', 'STAFF_MEAL', 'OTHER'] as const;
-export type DiscountReason = (typeof DISCOUNT_REASONS)[number];
+// Why a discount was given: a short list, with a note for the last one (shared with the screens).
+export { DISCOUNT_REASONS, type DiscountReason } from '@/lib/pos-approval';
 
 /** The manager who approves at the till: who they are and their own PIN. Optional on every action that may need it. */
 export const approvalField = z.object({ staffId: idField, pin: z.string().regex(/^\d{4,8}$/) }).optional();
@@ -19,6 +19,22 @@ export interface DiscountWhy {
   reason: DiscountReason;
   note: string | null;
   approvedByStaffId: string | null;
+}
+
+/**
+ * The managers and owners who can approve at this till, for the screen to offer; null when the person needs no approval (not
+ * a cashier, or the restaurant switched it off). Only active staff who set a PIN are listed.
+ */
+export async function approversFor(db: PrismaClient, restaurantId: string, role: PosRole): Promise<Approver[] | null> {
+  if (role !== 'CASHIER') return null;
+  const settings = await db.posSettings.findUnique({ where: { restaurantId }, select: { requireApproval: true } });
+  if (settings && !settings.requireApproval) return null;
+  const rows = await db.posStaff.findMany({
+    where: { restaurantId, deactivatedAt: null, role: { in: ['OWNER', 'MANAGER'] }, pinHash: { not: null }, user: { deactivatedAt: null } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: { id: true, user: { select: { name: true } } },
+  });
+  return rows.map((row) => ({ staffId: row.id, name: row.user.name }));
 }
 
 /**

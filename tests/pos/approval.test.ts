@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PIN_LIMITS } from '@/server/domain/pos/pin';
+import { approversFor } from '@/server/pos/approval';
 import { PinLockedError, PinRefusedError, verifyApproverPin } from '@/server/pos/pin';
 import { setOwnPosPin } from '@/server/studio/actions/pos-pin';
 import { dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
@@ -84,5 +85,28 @@ describe('verifyApproverPin', () => {
     const dump = JSON.stringify(await prisma().auditLog.findMany());
     expect(dump).not.toContain('2580');
     expect(dump).not.toContain('1357');
+  });
+});
+
+describe('approversFor', () => {
+  it('lists active managers and owners with a PIN for a cashier, and nobody for a manager', async () => {
+    const forCashier = await approversFor(prisma(), a.id, 'CASHIER');
+    expect(forCashier?.map((p) => p.staffId).sort()).toEqual([await staffId(manager), await staffId(owner)].sort());
+    expect(await approversFor(prisma(), a.id, 'MANAGER')).toBeNull();
+  });
+
+  it('leaves out staff without a PIN, deactivated staff, cashiers and other restaurants', async () => {
+    const noPin = await person('nopin', { staff: [a.id, 'MANAGER'] });
+    await prisma().posStaff.update({ where: { id: await staffId(owner) }, data: { deactivatedAt: new Date() } });
+    const ids = (await approversFor(prisma(), a.id, 'CASHIER'))?.map((p) => p.staffId) ?? [];
+    expect(ids).toEqual([await staffId(manager)]);
+    expect(ids).not.toContain(await staffId(noPin));
+    expect(ids).not.toContain(await staffId(cashier));
+    expect(ids).not.toContain(await staffId(bManager));
+  });
+
+  it('is null for a cashier when the restaurant switched approval off', async () => {
+    await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, requireApproval: false }, update: { requireApproval: false } });
+    expect(await approversFor(prisma(), a.id, 'CASHIER')).toBeNull();
   });
 });
