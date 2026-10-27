@@ -1,10 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { CarpetBody } from '@/ui/template/bodies/CarpetBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { CARPET, WEAVES, weaveOf } from '@/ui/template/bodies/carpet-night';
+import { CARPET, CARPET_VARS, WEAVES, weaveOf } from '@/ui/template/bodies/carpet-night';
 
 describe('the One Thousand and One Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -51,5 +52,24 @@ describe('the carpets', () => {
     expect(contrast(CARPET.ring, CARPET.stripBacking)).toBeGreaterThanOrEqual(3);
     expect(contrast(CARPET.ring, CARPET.chipFill)).toBeGreaterThanOrEqual(3);
     for (const weave of WEAVES) expect(contrast(CARPET.ring, weave.base), weave.base).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('one source for the colours', () => {
+  const css = readFileSync('src/ui/template/bodies/carpet.css', 'utf8');
+  it('sets every fixed colour on the body from the constants, as --cp-<name>', () => {
+    expect(CARPET_VARS['--cp-tag-fill']).toBe(CARPET.tagFill);
+    expect(CARPET_VARS['--cp-gold']).toBe(CARPET.gold);
+    expect(Object.keys(CARPET_VARS)).toHaveLength(Object.keys(CARPET).length);
+  });
+
+  it('writes no colour of the constants in carpet.css, and every --cp-* it reads is set by CarpetBody', () => {
+    const lower = css.toLowerCase();
+    for (const [name, hex] of Object.entries(CARPET)) expect(lower, name).not.toContain(hex.toLowerCase());
+    const perCarpet = ['--cp-base', '--cp-thread'];
+    const declared = [...css.matchAll(/(--cp-[a-z-]+)\s*:/g)].map((match) => match[1]);
+    for (const name of new Set([...css.matchAll(/var\((--cp-[a-z-]+)\)/g)].map((match) => match[1]!))) {
+      expect(name in CARPET_VARS || perCarpet.includes(name) || declared.includes(name), name).toBe(true);
+    }
   });
 });

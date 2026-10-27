@@ -22,7 +22,17 @@ export const CARPET = {
   tagEdge: '#E0A93C',
   /** A keyboard focus ring: seen on the dark strip, the dark weaves and the gold chip's inset. */
   ring: '#FFF4DC',
+  /** The top of the night sky. */
+  sky: '#1A0B33',
 } as const;
+
+/**
+ * The fixed colours as custom properties on the body (`--cp-<name>`, `tagFill` as `--cp-tag-fill`): carpet.css reads
+ * these and writes none of them itself, so the stylesheet and the tested constants are one source.
+ */
+export const CARPET_VARS: Readonly<Record<string, string>> = Object.fromEntries(
+  Object.entries(CARPET).map(([name, hex]) => [`--cp-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, hex]),
+);
 
 export interface Weave {
   /** The carpet's solid ground, which every text on it is measured against. */

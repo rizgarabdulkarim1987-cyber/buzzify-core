@@ -8,15 +8,7 @@
  * a pattern on a pseudo-element over a solid ground, so every pair is a computed, tested contrast.
  */
 [data-body='carpet'] {
-  --cp-ink: #ffe9c4;
-  --cp-gold: #ffcc66;
-  --cp-gold-ink: #1a0b33;
-  --cp-tag: #fff1d6;
-  --cp-tag-ink: #2a1055;
-  --cp-tag-edge: #e0a93c;
-  --cp-ring: #fff4dc;
-  --cp-strip: #140826;
-  --cp-chip: #2a1556;
+  /* The fixed colours (--cp-ink, --cp-gold, --cp-tag-fill ...) are set on this element by CarpetBody from carpet-night.ts. */
   /* The sticky strip's height, so a jumped-to carpet lands just below it. */
   --nav-room: 3.5rem;
   --column: 64rem;
@@ -32,7 +24,7 @@
     radial-gradient(circle, #fff 0 1px, transparent 1.5px) 0 0 / 74px 74px,
     radial-gradient(circle, rgb(255 255 255 / 0.65) 0 1px, transparent 1.5px) 37px 52px / 116px 116px,
     radial-gradient(circle, rgb(255 226 154 / 0.8) 0 1.25px, transparent 2px) 18px 90px / 163px 163px,
-    linear-gradient(#1a0b33, #3b1462 45%, #1d1048 75%, #0f2a45);
+    linear-gradient(var(--cp-sky), #3b1462 45%, #1d1048 75%, #0f2a45);
 }
 /* The twinkling stars: another set, fading slowly in and out. A layer behind the carpets, never in the way of a tap. */
 [data-body='carpet']::before {
@@ -55,7 +47,7 @@
 /* ------------------------------------------------------------------ the strip of rolled carpets */
 
 [data-body='carpet'] .cp-strip {
-  background: var(--cp-strip);
+  background: var(--cp-strip-backing);
   box-shadow:
     0 1px 0 rgb(255 204 102 / 0.55),
     0 0.25rem 0.5rem rgb(0 0 0 / 0.3);
@@ -72,8 +64,8 @@
   max-inline-size: 13rem;
   padding-inline: 0.625rem 0.875rem;
   border-radius: 999px;
-  background: var(--cp-chip);
-  color: var(--cp-ink);
+  background: var(--cp-chip-fill);
+  color: var(--cp-chip-ink);
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1.1;
@@ -88,8 +80,8 @@
   text-overflow: ellipsis;
 }
 [data-body='carpet'] .cp-roll[aria-current='true'] {
-  background: var(--cp-gold);
-  color: var(--cp-gold-ink);
+  background: var(--cp-lit-fill);
+  color: var(--cp-lit-ink);
 }
 /* The strip scrolls sideways, so it clips: the ring is drawn inside the chip, in cream (it stands out from both fills). */
 [data-body='carpet'] .cp-strip-list button:focus-visible {
@@ -97,7 +89,7 @@
   outline-offset: -3px;
 }
 [data-body='carpet'] .cp-roll[aria-current='true']:focus-visible {
-  outline-color: var(--cp-gold-ink);
+  outline-color: var(--cp-lit-ink);
 }
 
 /*
@@ -113,7 +105,7 @@
   border-radius: 0.5rem 0.125rem 0.125rem 0.5rem;
   background:
     linear-gradient(rgb(255 255 255 / 0.22), transparent 40%, rgb(0 0 0 / 0.3)),
-    repeating-linear-gradient(90deg, #b3202a 0 0.1875rem, #ffcc66 0.1875rem 0.3125rem, #7a2142 0.3125rem 0.5rem);
+    repeating-linear-gradient(90deg, #b3202a 0 0.1875rem, var(--cp-gold) 0.1875rem 0.3125rem, #7a2142 0.3125rem 0.5rem);
 }
 [data-body='carpet'] .cp-roll-icon::after {
   content: '';
@@ -122,7 +114,7 @@
   inset-inline-end: -0.3125rem;
   inline-size: 0.625rem;
   border-radius: 50%;
-  background: radial-gradient(circle, #ffcc66 0 0.0625rem, #7a2142 0.0625rem 0.1875rem, #ffcc66 0.1875rem 0.25rem, #b3202a 0.25rem 0.3125rem, #ffcc66 0.3125rem);
+  background: radial-gradient(circle, var(--cp-gold) 0 0.0625rem, #7a2142 0.0625rem 0.1875rem, var(--cp-gold) 0.1875rem 0.25rem, #b3202a 0.25rem 0.3125rem, var(--cp-gold) 0.3125rem);
   box-shadow: 0 0 0 1px #7a2142;
 }
 [data-body='carpet'] .cp-roll-icon:dir(rtl) {
@@ -134,8 +126,11 @@
 [data-body='carpet'] .cp-carpet {
   padding: 0.375rem 0 0.875rem;
 }
-/* Only the carpet in view floats, a few pixels, twice when it comes into view (under 5s: WCAG 2.2.2); the rest lie still. */
-[data-body='carpet'] .cp-carpet[data-lit] {
+/*
+ * A carpet floats a few pixels, twice, the first time it is the one in view (under 5s: WCAG 2.2.2; CarpetBody marks it
+ * `data-float` once and takes the mark off when the float ends); coming back to it later, it lies still like the rest.
+ */
+[data-body='carpet'] .cp-carpet[data-float] {
   animation: cp-float 2.4s ease-in-out 2;
 }
 
@@ -195,7 +190,7 @@
   block-size: 1.5rem;
   padding-inline: 0.25rem;
   border-radius: 999px;
-  background: var(--cp-tag);
+  background: var(--cp-tag-fill);
   color: var(--cp-tag-ink);
   font-size: 0.75rem;
   font-weight: 800;
@@ -318,12 +313,12 @@
   font-size: 0.75rem;
 }
 [data-body='carpet'] .cp-add {
-  --rim-add-size: 2rem;
+  --rim-add-size: 2.5rem;
   --rim-add-bg: var(--cp-gold);
   --rim-add-ink: var(--cp-gold-ink);
   z-index: 2;
-  inset-block-start: -0.125rem;
-  inset-inline-end: -0.375rem;
+  inset-block-start: -0.375rem;
+  inset-inline-end: -0.5rem;
   border: 2px solid var(--cp-gold-ink);
   box-shadow: 0 2px 4px rgb(0 0 0 / 0.4);
 }
@@ -346,19 +341,25 @@
   outline-offset: -3px;
   border-radius: 0.75rem;
 }
-/* The price tag: parchment edged in gold; it wraps rather than overflowing; taps go through it to the cell. */
+/*
+ * The price tag: parchment edged in gold across the photo's foot. As wide as its price, at most as wide as the cell (the
+ * disc is 84% of it): a longer price wraps onto a second line inside the tag (growing upward over the photo's foot),
+ * never past its edge.
+ */
 [data-body='carpet'] .cp-price {
   position: absolute;
   z-index: 2;
   inset-inline-start: 50%;
   inset-block-end: -0.6875rem;
   translate: -50% 0;
+  box-sizing: border-box;
+  inline-size: max-content;
   max-inline-size: 118%;
-  white-space: nowrap;
-  padding: 0.0625rem 0.4375rem;
+  overflow-wrap: anywhere;
+  padding: 0.0625rem 0.375rem;
   border: 1.5px solid var(--cp-tag-edge);
   border-radius: 0.5rem;
-  background: var(--cp-tag);
+  background: var(--cp-tag-fill);
   color: var(--cp-tag-ink);
   font-size: 0.75rem;
   font-weight: 800;
@@ -371,10 +372,10 @@
 
 @media (hover: hover) {
   [data-body='carpet'] .cp-roll:not([aria-current='true']):hover {
-    background: color-mix(in srgb, var(--cp-gold) 28%, var(--cp-chip));
+    background: color-mix(in srgb, var(--cp-gold) 28%, var(--cp-chip-fill));
   }
   [data-body='carpet'] .cp-medallion:hover .cp-photo {
-    border-color: #fff4dc;
+    border-color: var(--cp-ring);
   }
 }
 
@@ -428,7 +429,7 @@
   [data-body='carpet']::before {
     animation: none;
   }
-  [data-body='carpet'] .cp-carpet[data-lit] {
+  [data-body='carpet'] .cp-carpet[data-float] {
     animation: none;
   }
   [data-body='carpet'] .cp-roll {

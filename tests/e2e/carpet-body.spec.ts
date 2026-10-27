@@ -23,7 +23,8 @@ import {
  * The One Thousand and One Nights body (spec 2026-10-26-menu-styles-in-templates-design.md): a purple night sky of static
  * stars (a slow twinkle), where every section is a magic carpet: a woven band with a tassel fringe at both ends, its
  * title embroidered on the front fringe, and the dishes as round medallions (a gold ring, the name under, the price in a
- * gold-edged tag) three across. A sticky strip of rolled-carpet chips jumps to a carpet; the carpet in view floats.
+ * gold-edged tag) three across. A sticky strip of rolled-carpet chips jumps to a carpet; a carpet floats the first time
+ * it is lit, and lies still when it is lit again.
  */
 
 const menus = bodyMenus();
@@ -56,13 +57,16 @@ const cardOf = (page: Page, productSlug: string) => cards(page).filter({ hasText
 const rollOf = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+/** The strip's jump offset (`--nav-room`) in px: a jumped-to carpet lands below the strip only if the strip is no taller. */
+const navRoom = (page: Page) => body(page).evaluate((node) => parseFloat(getComputedStyle(node).getPropertyValue('--nav-room')) * parseFloat(getComputedStyle(document.documentElement).fontSize));
+const floatOf = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`).evaluate((node) => getComputedStyle(node).animationName);
 
 // The carpet in view floats for a few seconds after it lights, and Playwright clicks only a still target: the click tests below run with reduced
 // motion (which stops the float, and is a mode guests really use); the float itself is tested with motion on.
 test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
   await expectFirstScreen(page, cards(page), { min: 4 });
   await expectEverySectionReachable(strip(page));
 });
@@ -136,16 +140,17 @@ test('the sky is static stars (radial gradients) with a twinkle layer that fades
   expect(still).toBe('none');
 });
 
-test('only the carpet in view floats a few pixels; the others lie still, and with reduced motion none floats', async ({ page }) => {
+test('a carpet floats a few pixels the first time it is lit and lies still when it is lit again; the others lie still, and with reduced motion none floats', async ({ page }) => {
   await openMenu(page, slug);
-  const lit = page.locator('.cp-carpet[data-lit]');
-  await expect(lit).toHaveCount(1);
-  await expect(lit).toHaveAttribute('id', 'cat-viennoiserie');
+  const floating = page.locator('.cp-carpet[data-float]');
+  await expect(floating).toHaveCount(1);
+  await expect(floating).toHaveAttribute('id', 'cat-viennoiserie');
   const names = await page.locator('.cp-carpet').evaluateAll((nodes) => nodes.map((node) => [node.id, getComputedStyle(node).animationName]));
   for (const [id, name] of names) expect(name === 'none', id).toBe(id !== 'cat-viennoiserie');
   await rollOf(page, 'bread').click();
-  await expect(page.locator('.cp-carpet[data-lit]')).toHaveAttribute('id', 'cat-bread');
-  expect(await page.locator('#cat-viennoiserie').evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
+  await expect(page.locator('.cp-carpet[data-float]')).toHaveAttribute('id', 'cat-bread');
+  expect(await floatOf(page, 'bread')).toBe('cp-float');
+  expect(await floatOf(page, 'viennoiserie')).toBe('none');
   // The float stays within a few pixels.
   const travel = await page.locator('#cat-bread').evaluate((node) => {
     const frames = (node.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes() ?? [];
@@ -156,8 +161,17 @@ test('only the carpet in view floats a few pixels; the others lie still, and wit
     const shift = Math.abs(parseFloat(/translateY\((-?[\d.]+)px\)/.exec(transform)?.[1] ?? '0'));
     expect(shift).toBeLessThanOrEqual(3);
   }
+  // Back to the first carpet: it is lit again, but it has floated once already, so it lies still (and so does bread).
+  await rollOf(page, 'viennoiserie').click();
+  await expect(rollOf(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
+  await expect(page.locator('.cp-carpet[data-float]')).toHaveCount(0);
+  expect(await floatOf(page, 'viennoiserie')).toBe('none');
+  expect(await floatOf(page, 'bread')).toBe('none');
+  // With reduced motion a carpet lit for the first time does not float either.
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  expect(await page.locator('#cat-bread').evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
+  await page.reload();
+  await expect(page.locator('.cp-carpet[data-float]')).toHaveAttribute('id', 'cat-viennoiserie');
+  expect(await floatOf(page, 'viennoiserie')).toBe('none');
 });
 
 test('dishes are round medallions in three columns: a gold-ringed round photo, the price in a gold-edged tag across its foot, the name under it', async ({ page }) => {
@@ -258,7 +272,7 @@ test('a menu of twenty-five sections keeps every roll one tap away on a scrollin
   await expect(page.locator('#cat-more-20')).toBeInViewport();
   await expect(last).toHaveAttribute('aria-current', 'true');
   await expect(last).toBeInViewport({ ratio: 1 });
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
 });
 
 test('a search that narrows and clears keeps the strip, never moves the focus or the scroll', async ({ page }) => {
@@ -295,6 +309,51 @@ test('a long dish name and a long price stay inside the medallion without sidewa
   const price = (await card.locator('.cp-price').boundingBox())!;
   expect(price.y + price.height).toBeLessThanOrEqual(box.y + box.height + 1);
   expect(await contrastOf(card.locator('.cp-price'))).toBeGreaterThanOrEqual(4.5);
+});
+
+// The price's TEXT (not only its tag's box, which a nowrap line can overflow) stays inside the tag and the cell, on the
+// medallion at the row's end, for a realistic "From" price and very long ones that must wrap, in English and Arabic.
+for (const locale of ['en', 'ar'] as const)
+test(`the price text stays inside its tag and its medallion at the row's end, in ${locale}`, async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug, { locale });
+  // Text set before React hydrates is thrown away by it (and logs a hydration mismatch): let the page settle first.
+  await page.waitForLoadState('networkidle');
+  await page.waitForTimeout(500);
+  const card = page.locator('#cat-viennoiserie [data-row]').nth(2);
+  for (const text of ['From 12,500 IQD', '123,456,789 IQD', 'From 123,456,789 IQD']) {
+    await card.locator('.cp-price').evaluate((node, value) => {
+      node.textContent = value;
+    }, text);
+    await expect(card.locator('.cp-price')).toHaveText(text);
+    const boxes = await card.evaluate((cell) => {
+      const tag = cell.querySelector('.cp-price')!;
+      const range = document.createRange();
+      range.selectNodeContents(tag);
+      const words = range.getBoundingClientRect();
+      return { words: words.toJSON() as DOMRect, tag: tag.getBoundingClientRect().toJSON() as DOMRect, cell: cell.getBoundingClientRect().toJSON() as DOMRect };
+    });
+    for (const [outer, name] of [[boxes.tag, 'tag'], [boxes.cell, 'cell']] as const) {
+      expect(boxes.words.left, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.left - 0.5);
+      expect(boxes.words.right, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.right + 0.5);
+      expect(boxes.words.top, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.top - 0.5);
+      expect(boxes.words.bottom, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.bottom + 0.5);
+    }
+  }
+  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('the add button is at least 40px square and inside its medallion', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  for (const at of [0, 2]) {
+    const cell = page.locator('#cat-viennoiserie [data-row]').nth(at);
+    const [add, box] = [(await cell.locator('.cp-add').boundingBox())!, (await cell.boundingBox())!];
+    expect(add.width).toBeGreaterThanOrEqual(40);
+    expect(add.height).toBeGreaterThanOrEqual(40);
+    expect(add.x).toBeGreaterThanOrEqual(box.x - 1);
+    expect(add.x + add.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  }
 });
 
 test('on a wide screen the medallions run in a centred column, side by side', async ({ page }) => {
@@ -387,7 +446,7 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(add).toBeFocused();
-    await expectFocusRingShows(page, add, { outset: -3 });
+    await expectFocusRingShows(page, add, { outset: 3 });
     const roll = rollOf(page, 'patisserie');
     await roll.focus();
     await page.keyboard.press('Shift+Tab');
@@ -415,7 +474,7 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its medallion, 
 test('nothing moves on its own for more than five seconds (WCAG 2.2.2: the scene is static, so there is no pause control)', async ({ page }) => {
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
-  await expect(body(page).locator('.cp-carpet[data-lit]')).toHaveCSS('animation-name', 'cp-float');
+  await expect(body(page).locator('.cp-carpet[data-float]')).toHaveCSS('animation-name', 'cp-float');
   await expectMotionEnds(body(page));
 });
 
