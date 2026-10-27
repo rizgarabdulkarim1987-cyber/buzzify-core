@@ -71,6 +71,38 @@ export function identityKeyOf(input: ProductIdentityInput): string {
   return [input.tradeName, input.strength, input.form, input.manufacturer, input.packLabel].map(normalizeField).join('|');
 }
 
+/**
+ * One field or a search query in the form the identity key uses: the same unification of case, digit script, letter
+ * variants, diacritics, punctuation and unit spelling, so what a person types meets what the catalog stores. Bounded
+ * and linear on any input (cut to 500 UTF-16 units first). Never throws.
+ */
+export function normalizeForSearch(raw: unknown): string {
+  return normalizeField(raw);
+}
+
+/** The fields a product is found by, in this order: the first is the trade name (a prefix of it ranks first). */
+export type ProductSearchInput = {
+  tradeName: string;
+  genericName: string;
+  activeIngredient: string;
+  strength: string;
+  form: string;
+  manufacturer: string;
+};
+
+/** Between the fields of the search text. Normalisation turns `|` into a space, so it never appears inside a field or a query. */
+export const SEARCH_FIELD_SEPARATOR = '|';
+
+/**
+ * The text `PhProduct.searchText` holds: each field normalised, joined by `|`. A query (normalised the same way) can
+ * never match across two fields, and the trade name is its start.
+ */
+export function searchTextOf(input: ProductSearchInput): string {
+  return [input.tradeName, input.genericName, input.activeIngredient, input.strength, input.form, input.manufacturer]
+    .map(normalizeField)
+    .join(SEARCH_FIELD_SEPARATOR);
+}
+
 export function sameProduct(a: ProductIdentityInput, b: ProductIdentityInput): boolean {
   return identityKeyOf(a) === identityKeyOf(b);
 }

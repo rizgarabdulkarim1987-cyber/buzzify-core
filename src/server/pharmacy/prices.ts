@@ -377,22 +377,58 @@ export async function priceAt(
   query: { productId: string; unitId: string; branchId: string | null; currency: Currency; at: Date },
 ): Promise<PhMoney | null> {
   const rows = await scoped.phPrice.findMany({
-    where: {
-      productId: query.productId,
-      unitId: query.unitId,
-      currency: query.currency,
-      validFrom: { lte: query.at },
-      AND: [
-        { OR: [{ validTo: null }, { validTo: { gt: query.at } }] },
-        { OR: query.branchId === null ? [{ branchId: null }] : [{ branchId: query.branchId }, { branchId: null }] },
-      ],
-    },
+    where: { productId: query.productId, unitId: query.unitId, ...validAt(query) },
     select: { branchId: true, amountMinor: true },
     orderBy: { validFrom: 'desc' },
     take: 4,
   });
   const chosen = rows.find((r) => r.branchId !== null) ?? rows[0];
   return chosen ? { amount: chosen.amountMinor, currency: query.currency } : null;
+}
+
+/** The rows valid at `at` in `currency`, for the branch and the business, or the business alone when `branchId` is null. */
+function validAt(query: { branchId: string | null; currency: Currency; at: Date }) {
+  return {
+    currency: query.currency,
+    validFrom: { lte: query.at },
+    AND: [
+      { OR: [{ validTo: null }, { validTo: { gt: query.at } }] },
+      { OR: query.branchId === null ? [{ branchId: null }] : [{ branchId: query.branchId }, { branchId: null }] },
+    ],
+  };
+}
+
+/**
+ * `priceAt` for many product units in one read (a search result page): the same rule, the branch's own row winning.
+ * Keyed by `productId:unitId`; a unit with no valid price is absent.
+ */
+export async function pricesAt(
+  scoped: ScopedDb,
+  query: { units: readonly { productId: string; unitId: string }[]; branchId: string | null; currency: Currency; at: Date },
+): Promise<Map<string, PhMoney>> {
+  const found = new Map<string, PhMoney>();
+  if (query.units.length === 0) return found;
+  const wanted = new Set(query.units.map((u) => `${u.productId}:${u.unitId}`));
+  const rows = await scoped.phPrice.findMany({
+    where: {
+      productId: { in: [...new Set(query.units.map((u) => u.productId))] },
+      unitId: { in: [...new Set(query.units.map((u) => u.unitId))] },
+      ...validAt(query),
+    },
+    select: { productId: true, unitId: true, branchId: true, amountMinor: true, validFrom: true },
+    orderBy: { validFrom: 'desc' },
+  });
+  const isBranch = new Set<string>();
+  for (const row of rows) {
+    const key = `${row.productId}:${row.unitId}`;
+    if (!wanted.has(key)) continue;
+    // Newest first: the first row of a kind stands, and a branch row replaces a business-wide one.
+    if (!found.has(key) || (row.branchId !== null && !isBranch.has(key))) {
+      found.set(key, { amount: row.amountMinor, currency: query.currency });
+      if (row.branchId !== null) isBranch.add(key);
+    }
+  }
+  return found;
 }
 
 export interface PriceHistoryRow {

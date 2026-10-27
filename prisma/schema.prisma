@@ -2092,6 +2092,9 @@ model PhProduct {
   shelfLocation    String    @default("")
   imageAssetId     String?
   identityKey      String
+  /// The normalised fields search reads (`searchTextOf`: trade name first, fields joined by `|`), kept by the product
+  /// service on every save. A trigram GIN index (pg_trgm, `gin_trgm_ops`) serves `LIKE '%q%'` and `LIKE 'q%'` on it.
+  searchText       String    @default("")
   active           Boolean   @default(true)
   version          Int       @default(1)
   createdAt        DateTime  @default(now())
@@ -2108,6 +2111,7 @@ model PhProduct {
   @@unique([restaurantId, id])
   @@index([restaurantId, active, tradeName])
   @@index([restaurantId, categoryId])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin, map: "PhProduct_searchText_trgm")
 }
 
 /// One way a product is packed and sold: level 0 is the base unit (a tablet), higher levels are packs of it. CHECKs

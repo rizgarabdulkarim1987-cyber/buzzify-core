@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { ScopedClient, ScopedDb, ScopedTx } from '@/server/data/tenant-db';
 import { normalizeScan } from '@/server/domain/pharmacy/barcode';
 import { canPh } from '@/server/domain/pharmacy/permissions';
-import { identityKeyOf } from '@/server/domain/pharmacy/product-identity';
+import { identityKeyOf, searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { validateLadder, type LadderCode, type UnitLevel } from '@/server/domain/pharmacy/units';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -222,7 +222,7 @@ export async function createProduct(tx: ScopedTx, restaurantId: string, input: P
   if (duplicate) throw duplicateOf(duplicate);
 
   const product = await tx.phProduct.create({
-    data: { restaurantId, ...fieldsOf(input), identityKey },
+    data: { restaurantId, ...fieldsOf(input), identityKey, searchText: searchTextOf(input) },
     select: { id: true, restaurantId: true, version: true },
   });
   const unitIdByLevel = new Map<number, string>();
@@ -266,7 +266,7 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const duplicate = await findDuplicate(tx, identityKey, productId);
   if (duplicate) throw duplicateOf(duplicate);
 
-  await updateWithVersion(tx.phProduct, { id: productId, version: expectedVersion, data: { ...fieldsOf(input), identityKey }, entityType: 'PhProduct' }, tx);
+  await updateWithVersion(tx.phProduct, { id: productId, version: expectedVersion, data: { ...fieldsOf(input), identityKey, searchText: searchTextOf(input) }, entityType: 'PhProduct' }, tx);
 
   const removed = current.units.filter((u) => !levels.some((l) => l.level === u.level));
   const resized = current.units.filter((u) => levels.some((l) => l.level === u.level && l.baseQty !== u.baseQty));

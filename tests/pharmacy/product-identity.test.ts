@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { identityKeyOf, sameProduct } from '@/server/domain/pharmacy/product-identity';
+import { identityKeyOf, normalizeForSearch, sameProduct, searchTextOf } from '@/server/domain/pharmacy/product-identity';
 
 const base = { tradeName: 'Panadol', strength: '500 mg', form: 'tablet', manufacturer: 'GSK', packLabel: '24s' };
 
@@ -118,5 +118,19 @@ describe('product identity key', () => {
 
   it('the key is stable (same input twice)', () => {
     expect(identityKeyOf(base)).toBe(identityKeyOf({ ...base }));
+  });
+});
+
+describe('search text', () => {
+  it('normalises a query exactly as the identity key normalises a field', () => {
+    expect(normalizeForSearch('  إموكسيل ٥٠٠ ملغم ')).toBe('اموكسيل 500mg');
+    expect(normalizeForSearch('Panadol 500 MG')).toBe(identityKeyOf({ ...base, tradeName: 'Panadol 500 MG' }).split('|')[0]);
+    expect(normalizeForSearch(' - . , ')).toBe('');
+    expect(normalizeForSearch(42)).toBe('');
+  });
+
+  it('keeps the six fields apart, trade name first', () => {
+    const text = searchTextOf({ tradeName: 'Panadol Extra', genericName: '', activeIngredient: 'Paracetamol|Caffeine', strength: '500 mg', form: 'Tablet', manufacturer: 'GSK' });
+    expect(text).toBe('panadol extra||paracetamol caffeine|500mg|tablet|gsk');
   });
 });
