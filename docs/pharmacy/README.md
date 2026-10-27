@@ -74,9 +74,6 @@ Nothing here is deployed. No migration has been run on production.
   from the policy alone (`docs/superpowers/specs/2026-10-27-pharmacy-rls-spike.md`). Isolation is application-level
   only (`ctx.scoped` plus enforcement tests). The spike script was deleted. It can be recovered from git at
   `7d25a6d` and should be re-run on a Neon branch before launch if RLS is wanted.
-- **A kill switch through the application record.** `phGate` ignores `Application(pharmacy).status`, so disabling the
-  pharmacy application does **not** close `/pharmacy`. To stop a pharmacy today, suspend the business, end its
-  `pharmacy` subscription, or deploy without the route.
 - **Typo-tolerant search.** Search matches each word as a substring. `panadl` finds nothing. Trigram similarity needs
   raw SQL on a tenant table, and that exception to tenant scoping is an owner decision.
 - **Cancelling a scheduled price.** A future price (up to 90 days ahead) cannot be cancelled before it starts.
@@ -113,6 +110,9 @@ profit and prescription attachments are never covered by a grant. Every support 
 naming the grant before the read runs, and the read fails if the audit cannot be written. Recording consent needs a second
 person: the grantee may not be the Super Admin who records it (`CONSENT_SELF`), and the recorder must be a Super Admin
 with a consent reference of at least 10 characters (also for `rx.read` / `patients.read`).
+
+**Kill switch.** Setting `Application(pharmacy).status` to DISABLED closes `/pharmacy` for every pharmacy (gate reason
+`applicationDisabled`, no extra query: it is read with the subscription). Studio billing and provisioning do not use the gate.
 
 **Retention after a subscription ends.** While a `pharmacy` subscription is TRIAL, ACTIVE or GRACE, everything works.
 After it lapses (EXPIRED, or CANCELLED), the pharmacy is **read-only for 90 days**. Reads and exports still work, and
@@ -169,4 +169,4 @@ Do not merge until these steps are done, in this order, or merge with the deploy
   `prisma()` and `getPrisma()`. Re-run the RLS spike, and time a search end to end on Neon.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
-- **Typo-tolerant search, kill switch, scheduled-price cancellation, price caps:** see "What is NOT built".
+- **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".
