@@ -308,6 +308,28 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Grant access for at least one hour': 'error.text.supportTooShort',
   'Confirm that support may see prescriptions or patients': 'error.text.supportSensitive',
   'Enter a reference of at least 10 characters': 'error.text.supportConsentRef',
+  // Pharmacy products, units and barcodes (src/server/pharmacy/products.ts, src/server/pharmacy/barcodes.ts)
+  'Use 1 or more': 'error.text.oneOrMore',
+  'Enter the trade name': 'error.text.phTradeName',
+  'Use at most 10 units': 'error.text.phUnitsTooMany',
+  'Use at most 50 barcodes': 'error.text.phBarcodesTooMany',
+  'Use at most 100 branches': 'error.text.phBranchesTooMany',
+  'Start the units with the base unit at level 0': 'error.text.phLadderNoBase',
+  'The base unit holds exactly 1': 'error.text.phLadderBaseNotOne',
+  'Each unit must hold more than the one below it': 'error.text.phLadderNotAscending',
+  'Each unit must hold a whole number of the one below it': 'error.text.phLadderNotMultiple',
+  'Make at least one unit sellable': 'error.text.phLadderNoneSellable',
+  'Each unit level may appear once': 'error.text.phLadderDuplicateLevel',
+  'Name every unit': 'error.text.phLadderEmptyLabel',
+  'Enter a barcode': 'error.text.phBarcodeEmpty',
+  'Choose one of the product’s units for this barcode': 'error.text.phBarcodeLevel',
+  'Each barcode may appear once': 'error.text.phBarcodeOnce',
+  'Each branch may appear once': 'error.text.phBranchOnce',
+  'This product is already in the catalog': 'error.text.phDuplicateProduct',
+  'This barcode is already on another product. Mark it as shared to use it on both.': 'error.text.phBarcodeInUse',
+  'This unit has stock or sales, so its size cannot change': 'error.text.phUnitResize',
+  'This unit has prices, stock or sales, so it cannot be removed': 'error.text.phUnitRemove',
+  'This product is on open records, so it cannot be archived': 'error.text.phProductOpenRecords',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -318,7 +340,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

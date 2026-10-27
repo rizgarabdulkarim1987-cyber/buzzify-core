@@ -39,6 +39,28 @@ const pharmacy: Messages = {
   'error.text.supportTooShort': 'Grant access for at least one hour',
   'error.text.supportSensitive': 'Confirm that support may see prescriptions or patients',
   'error.text.supportConsentRef': 'Enter a reference of at least 10 characters',
+  // Refusals of a product, its units and barcodes (src/studio/errors.ts)
+  'error.text.oneOrMore': 'Use 1 or more',
+  'error.text.phTradeName': 'Enter the trade name',
+  'error.text.phUnitsTooMany': 'Use at most 10 units',
+  'error.text.phBarcodesTooMany': 'Use at most 50 barcodes',
+  'error.text.phBranchesTooMany': 'Use at most 100 branches',
+  'error.text.phLadderNoBase': 'Start the units with the base unit at level 0',
+  'error.text.phLadderBaseNotOne': 'The base unit holds exactly 1',
+  'error.text.phLadderNotAscending': 'Each unit must hold more than the one below it',
+  'error.text.phLadderNotMultiple': 'Each unit must hold a whole number of the one below it',
+  'error.text.phLadderNoneSellable': 'Make at least one unit sellable',
+  'error.text.phLadderDuplicateLevel': 'Each unit level may appear once',
+  'error.text.phLadderEmptyLabel': 'Name every unit',
+  'error.text.phBarcodeEmpty': 'Enter a barcode',
+  'error.text.phBarcodeLevel': 'Choose one of the product’s units for this barcode',
+  'error.text.phBarcodeOnce': 'Each barcode may appear once',
+  'error.text.phBranchOnce': 'Each branch may appear once',
+  'error.text.phDuplicateProduct': 'This product is already in the catalog',
+  'error.text.phBarcodeInUse': 'This barcode is already on another product. Mark it as shared to use it on both.',
+  'error.text.phUnitResize': 'This unit has stock or sales, so its size cannot change',
+  'error.text.phUnitRemove': 'This unit has prices, stock or sales, so it cannot be removed',
+  'error.text.phProductOpenRecords': 'This product is on open records, so it cannot be archived',
 };
 
 export default pharmacy;
