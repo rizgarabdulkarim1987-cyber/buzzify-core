@@ -64,6 +64,9 @@ interface Ids {
   /** A completed sale in branch 1 / in branch 2 (phase 3). */
   sale1: string;
   sale2: string;
+  /** The owner's open shift in branch 1 / in branch 2 (phase 3). */
+  shift1: string;
+  shift2: string;
   lot1: string;
   lot2: string;
   tradeName: string;
@@ -108,12 +111,12 @@ async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'rec
       data: { restaurantId: biz.id, branchId, shiftId: shift.id, number: `20261027-00000${n}`, status: 'COMPLETED', currency: 'IQD', clientKey: `seed-sale-${label}-${n}`, soldById: owner.userId, completedAt: NOW },
       select: { id: true },
     });
-    return made.id;
+    return { sale: made.id, shift: shift.id };
   };
-  const [sale1, sale2] = [await saleIn(b1, 1), await saleIn(b2, 2)];
+  const [{ sale: sale1, shift: shift1 }, { sale: sale2, shift: shift2 }] = [await saleIn(b1, 1), await saleIn(b2, 2)];
   return {
     owner,
-    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, sale1, sale2, lot1, lot2, tradeName },
+    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, sale1, sale2, shift1, shift2, lot1, lot2, tradeName },
   };
 }
 
@@ -170,8 +173,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -227,6 +230,14 @@ const CASES: Record<string, Case> = {
   'ph.sales.create': { body: (ids) => saleBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.sales.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.sales.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Shifts and cash (phase 3). Open and the cash movements act on the caller's own shift: they name no foreign id.
+  'ph.shifts.open': { body: () => ({ currency: 'IQD', openingFloatMinor: 10n, clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.cash.paidIn': { body: () => ({ amountMinor: 5n, reason: 'Planted', clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.cash.paidOut': { body: () => ({ amountMinor: 5n, reason: 'Planted', clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.shifts.close': { body: (ids, n) => ({ shiftId: pick(ids, n).shiftId, countedMinor: 0n, reason: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.shifts.current': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.shifts.report': { body: (ids, n) => ({ shiftId: pick(ids, n).shiftId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.shifts.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -257,6 +268,12 @@ describe('the pharmacy isolation sweep', () => {
     const sales = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sales.'));
     expect(sales.sort()).toEqual(['ph.sales.create', 'ph.sales.get', 'ph.sales.list']);
     expect(sales.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 3 shift and cash definition', () => {
+    const shifts = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.shifts.') || name.startsWith('ph.cash.'));
+    expect(shifts.sort()).toEqual(['ph.cash.paidIn', 'ph.cash.paidOut', 'ph.shifts.close', 'ph.shifts.current', 'ph.shifts.list', 'ph.shifts.open', 'ph.shifts.report']);
+    expect(shifts.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 });
 
@@ -306,8 +323,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ...docs(1), ...docs(2)];
