@@ -1,6 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Prisma } from '@/generated/prisma/client';
 import { scopedClient } from '@/server/data/tenant-db';
+import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { resolveBarcode } from '@/server/pharmacy/barcodes';
 import { PH_STOCK_RECORD_MODELS } from '@/server/pharmacy/products';
 import * as productActions from '@/server/pharmacy/actions/products';
@@ -404,7 +405,7 @@ describe('pharmacy products', () => {
     const holding = new Promise<void>((resolve) => (inserted = resolve));
     const other = prisma().$transaction(
       async (tx) => {
-        const product = await tx.phProduct.create({ data: { restaurantId: a.id, tradeName: 'Holder', identityKey: 'holder' }, select: { id: true } });
+        const product = await tx.phProduct.create({ data: { restaurantId: a.id, tradeName: 'Holder', identityKey: 'holder', searchText: searchTextOf({ tradeName: 'Holder', genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }) }, select: { id: true } });
         const unit = await tx.phProductUnit.create({
           data: { restaurantId: a.id, productId: product.id, level: 0, label: 'tablet', baseQty: 1 },
           select: { id: true },

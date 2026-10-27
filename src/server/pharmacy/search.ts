@@ -7,10 +7,15 @@ import { pricesAt } from './prices';
 import { packLabelOf } from './products';
 
 /**
+ * DEVIATION FROM THE BRIEF (Task 21, ruling A): no typo tolerance. The brief asked for trigram *similarity*; that needs
+ * a raw SQL query (`similarity()` / `%`) on a tenant table, an exception to the scoped-client rule that waits for an
+ * owner decision. Phase 1 matches each word as a substring through the scoped client; a misspelt word finds nothing.
+ *
  * The central product search: one box for a scanned barcode, a trade name, a generic name or an active ingredient, in
  * Latin or Arabic letters and digits. Every read goes through the scoped client it is given, so another business's
- * products are never seen. The order is: exact barcode, then trade names that start with the query, then every other
- * product whose search text contains each word of the query, best field first.
+ * products are never seen. The order, in tiers, each complete up to the limit before the next: exact barcode; the exact
+ * trade name; trade names that start with the first word and contain the others; then up to 200 other products whose
+ * search text contains every word, ranked best field first.
  *
  * Name matching reads `PhProduct.searchText` (the normalised fields, `searchTextOf`) with `LIKE`, which the trigram GIN
  * index `PhProduct_searchText_trgm` serves; the query is normalised the same way (`normalizeForSearch`), so letter
@@ -122,7 +127,11 @@ export async function searchProducts(scoped: ScopedClient, input: SearchInput): 
   const words = [...new Set(text.split(' ').filter(Boolean))].slice(0, MAX_WORDS);
   const active = input.includeInactive ? {} : { active: true };
 
-  const [settings, barcodes, prefixed, containing] = await Promise.all([
+  const others = words.slice(1).map((w) => ({ searchText: { contains: literal(w) } }));
+  const names = (where: Record<string, unknown>, take: number) =>
+    scoped.phProduct.findMany({ where: { ...active, ...where }, select: PRODUCT, orderBy: [{ tradeName: 'asc' }, { id: 'asc' }], take });
+
+  const [settings, barcodes, exact, prefixed, containing] = await Promise.all([
     scoped.phSettings.findFirst({ select: { defaultCurrency: true } }),
     code === ''
       ? []
@@ -132,22 +141,11 @@ export async function searchProducts(scoped: ScopedClient, input: SearchInput): 
           orderBy: [{ productId: 'asc' }, { unitId: 'asc' }],
           take: limit,
         }),
-    text === ''
-      ? []
-      : scoped.phProduct.findMany({
-          where: { ...active, searchText: { startsWith: literal(text) } },
-          select: PRODUCT,
-          orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
-          take: limit,
-        }),
-    words.length === 0
-      ? []
-      : scoped.phProduct.findMany({
-          where: { ...active, AND: words.map((w) => ({ searchText: { contains: literal(w) } })) },
-          select: PRODUCT,
-          orderBy: [{ tradeName: 'asc' }, { id: 'asc' }],
-          take: CANDIDATES,
-        }),
+    // The trade name is exactly the query: the separator after it ends the trade-name field.
+    text === '' ? [] : names({ searchText: { startsWith: `${literal(text)}${SEARCH_FIELD_SEPARATOR}` } }, limit),
+    // The trade name starts with the first word, and the other words are anywhere ('panadol 500').
+    words.length === 0 ? [] : names({ searchText: { startsWith: literal(words[0]!) }, AND: others }, limit),
+    words.length === 0 ? [] : names({ AND: words.map((w) => ({ searchText: { contains: literal(w) } })) }, CANDIDATES),
   ]);
 
   const picked: { row: Row; unitId: string | undefined; matchedOn: MatchedOn }[] = [];
@@ -158,6 +156,7 @@ export async function searchProducts(scoped: ScopedClient, input: SearchInput): 
     picked.push({ row, unitId, matchedOn });
   };
   for (const hit of [...barcodes].sort((a, b) => byText(a.product, b.product))) add(hit.product, hit.unitId, 'barcode');
+  for (const row of [...exact].sort(byText)) add(row, saleUnitOf(row.units)?.id, 'tradeName');
   for (const row of [...prefixed].sort(byText)) add(row, saleUnitOf(row.units)?.id, 'tradeName');
   const ranked = containing
     .filter((row) => !seen.has(row.id))

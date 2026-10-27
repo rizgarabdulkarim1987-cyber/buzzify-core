@@ -84,8 +84,32 @@ async function inBatches<T>(rows: T[], write: (batch: T[]) => Promise<unknown>):
   for (let i = 0; i < rows.length; i += BATCH) await write(rows.slice(i, i + BATCH));
 }
 
-/** Removes the businesses an earlier run made (their prices first: a price holds its product with RESTRICT). */
+/**
+ * Throws unless the connection `prisma` really has is the private server: asked of the server itself (its address and
+ * port), so a client built from some other URL than the one checked, or a tunnel, is still caught. A Unix socket
+ * (no address) is refused too.
+ */
+export async function assertPrivateConnection(prisma: Pick<PrismaClient, '$queryRawUnsafe'>): Promise<void> {
+  // A fixed statement with no parameters that reads no table, so tenant scoping does not apply.
+  // eslint-disable-next-line no-restricted-properties
+  const rows = await prisma.$queryRawUnsafe<{ port: number | null; addr: string | null }[]>(
+    'SELECT inet_server_port() AS port, host(inet_server_addr()) AS addr',
+  );
+  const { port, addr } = rows[0] ?? { port: null, addr: null };
+  if (String(port) !== PRIVATE_DB_PORT || addr === null || !['127.0.0.1', '::1'].includes(addr)) {
+    throw new Error(
+      `The pharmacy load seed writes only to the private database on 127.0.0.1:${PRIVATE_DB_PORT}; this connection is ` +
+        `${addr ?? 'a socket'}:${port ?? '?'}. Refusing to run.`,
+    );
+  }
+}
+
+/**
+ * Removes the businesses an earlier run made (their prices first: a price holds its product with RESTRICT), after
+ * checking the connection is the private one.
+ */
 export async function clearLoadPharmacy(prisma: PrismaClient): Promise<void> {
+  await assertPrivateConnection(prisma);
   const old = await prisma.restaurant.findMany({ where: { name: { startsWith: LOAD_PHARMACY_PREFIX } }, select: { id: true } });
   if (old.length === 0) return;
   const ids = old.map((r) => r.id);
@@ -101,7 +125,7 @@ export async function seedLoadPharmacy(
   const perBusiness = options.perBusiness ?? LOAD_PHARMACY_PER_BUSINESS;
   const now = options.now ?? new Date();
   const validFrom = new Date(now.getTime() - 30 * 86_400_000);
-  await clearLoadPharmacy(prisma);
+  await clearLoadPharmacy(prisma); // checks the live connection before it deletes or writes anything
 
   const businesses: LoadPharmacyBusiness[] = [];
   for (const b of [0, 1]) {

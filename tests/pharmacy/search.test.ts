@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { scopedClient } from '@/server/data/tenant-db';
+import { identityKeyOf, searchTextOf, type ProductSearchInput } from '@/server/domain/pharmacy/product-identity';
 import * as priceActions from '@/server/pharmacy/actions/prices';
 import * as productActions from '@/server/pharmacy/actions/products';
 import * as productQueries from '@/server/pharmacy/queries/products';
@@ -58,6 +59,15 @@ async function product(b: Biz, spec: ProductSpec): Promise<string> {
     await act(b.owner, productActions.create, { restaurantId: b.id, form: 'tablet', manufacturer: 'GSK', ...fields, levels: BOX_OF(box ?? 20) }),
   );
   return created.id;
+}
+
+/** Many bare products at once (no units, prices or barcodes), with the identity and search text the service would write. */
+async function many(b: Biz, count: number, spec: (i: number) => Partial<ProductSearchInput> & { tradeName: string }) {
+  const data = Array.from({ length: count }, (_, i) => {
+    const fields: ProductSearchInput = { genericName: '', activeIngredient: '', strength: '', form: 'tablet', manufacturer: 'GSK', ...spec(i) };
+    return { restaurantId: b.id, ...fields, identityKey: identityKeyOf({ ...fields, packLabel: '' }), searchText: searchTextOf(fields) };
+  });
+  await prisma().phProduct.createMany({ data });
 }
 
 const unitOf = async (productId: string, level: number) => (await prisma().phProductUnit.findFirstOrThrow({ where: { productId, level } })).id;
@@ -137,6 +147,61 @@ describe('pharmacy product search', () => {
     const extra = await product(a, { tradeName: 'Adol Extra', strength: '500 mg', manufacturer: 'Julphar' });
 
     expect((await search(a, 'adol')).map((r) => r.productId)).toEqual([adol, extra, panadol]);
+  });
+
+  it('a trade name that starts with the first word ranks first even behind more than 200 other matches', async () => {
+    const a = await business('A');
+    // 205 products whose generic name holds both words and whose trade names sort before the target's.
+    await many(a, 205, (i) => ({ tradeName: `A${String(i).padStart(3, '0')}`, genericName: 'Zeta', strength: '500 mg' }));
+    const target = await product(a, { tradeName: 'Zeta', strength: '500 mg' });
+    await product(a, { tradeName: 'Zeta', strength: '250 mg' });
+
+    const results = await search(a, 'zeta ٥٠٠');
+    expect(results[0]).toMatchObject({ productId: target, matchedOn: 'tradeName' });
+    expect(results).toHaveLength(30);
+    expect(results.slice(1).every((r) => r.matchedOn === 'genericName')).toBe(true);
+  });
+
+  it('an exact trade name comes before more than 30 longer names that start with it', async () => {
+    const a = await business('A');
+    // Spelled with alef madda, these sort before the plain alef of the target, and normalise to the same start.
+    await many(a, 35, (i) => ({ tradeName: `آبرة ${String(i).padStart(2, '0')}` }));
+    const target = await product(a, { tradeName: 'ابرة' });
+
+    const results = await search(a, 'ابرة');
+    expect(results[0]).toMatchObject({ productId: target, matchedOn: 'tradeName' });
+    expect(results).toHaveLength(30);
+  });
+
+  it('after an update the new trade name and ingredient find the product and the old ones do not', async () => {
+    const a = await business('A');
+    const id = await product(a, { tradeName: 'Panadol', activeIngredient: 'Paracetamol', strength: '500 mg' });
+    dataOf(
+      await act(a.owner, productActions.update, {
+        restaurantId: a.id,
+        productId: id,
+        expectedVersion: 1,
+        tradeName: 'Brufen',
+        activeIngredient: 'Ibuprofen',
+        strength: '500 mg',
+        form: 'tablet',
+        manufacturer: 'GSK',
+        levels: BOX_OF(20),
+      }),
+    );
+    expect(await search(a, 'panadol')).toEqual([]);
+    expect(await search(a, 'paracetamol')).toEqual([]);
+    expect((await search(a, 'brufen')).map((r) => [r.productId, r.matchedOn, r.label])).toEqual([[id, 'tradeName', 'Brufen']]);
+    expect((await search(a, 'ibuprofen')).map((r) => [r.productId, r.matchedOn])).toEqual([[id, 'activeIngredient']]);
+  });
+
+  it('the database refuses a product without its search text', async () => {
+    const a = await business('A');
+    await expect(prisma().phProduct.create({ data: { restaurantId: a.id, tradeName: 'Bare', identityKey: 'bare' } })).rejects.toThrow(
+      /PhProduct_searchText_present|check constraint/i,
+    );
+    const id = await product(a, { tradeName: 'Panadol', strength: '500 mg' });
+    await expect(prisma().phProduct.update({ where: { id }, data: { searchText: '' } })).rejects.toThrow(/PhProduct_searchText_present|check constraint/i);
   });
 
   it('results show strength, form and pack so 500 mg and 1000 mg are distinguishable', async () => {

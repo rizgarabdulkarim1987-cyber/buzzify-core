@@ -3,7 +3,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { scopedClient } from '@/server/data/tenant-db';
 import { searchProducts, type SearchResult } from '@/server/pharmacy/search';
-import { LOAD_INGREDIENTS, LOAD_PHARMACY_PER_BUSINESS, seedLoadPharmacy, type LoadPharmacyBusiness } from '../../prisma/seed/load-pharmacy';
+import {
+  assertPrivateConnection,
+  LOAD_INGREDIENTS,
+  LOAD_PHARMACY_PER_BUSINESS,
+  seedLoadPharmacy,
+  type LoadPharmacyBusiness,
+} from '../../prisma/seed/load-pharmacy';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { resetTestData, testPrisma } from '../helpers/db';
 
@@ -134,14 +140,25 @@ describe('the pharmacy load seed', () => {
     for (const url of [undefined, 'postgresql://u:p@127.0.0.1:54329/buzzify', 'postgresql://u:p@db.example.com:54381/buzzify', 'postgresql://u:p@127.0.0.1:54381/x?host=db.example.com']) {
       await expect(seedLoadPharmacy(seeder, { databaseUrl: url }), String(url)).rejects.toThrow(/private database/);
     }
+    // The URL is the private one, but the client's live connection is not: refused before anything is deleted.
+    const elsewhere = (port: number | null, addr: string | null) =>
+      ({ $queryRawUnsafe: async () => [{ port, addr }] }) as unknown as PrismaClient;
+    for (const [port, addr] of [[5432, '127.0.0.1'], [54381, '10.0.0.5'], [null, null]] as const) {
+      await expect(seedLoadPharmacy(elsewhere(port, addr), { databaseUrl: databaseUrl(TEST_DB) }), `${addr}:${port}`).rejects.toThrow(
+        /private database/,
+      );
+    }
+    await expect(assertPrivateConnection(seeder)).resolves.toBeUndefined();
+    expect(await seeder.phProduct.count()).toBe(50_000);
   });
 });
 
 describe('pharmacy search at 50,000 products', () => {
   // At this size a full scan still fits the budget on a fast local machine, so the timing alone would not notice a
   // missing index: the plan is checked as well, for selective words (for a word in a quarter of the catalog the planner
-  // may rightly prefer another path). The statement has the shape the service's `contains` and `startsWith` reads send
-  // (Prisma's LIKE with the scoped client's restaurant filter). Arabic words are not checked: under the local database's
+  // may rightly prefer another path, such as walking the trade-name index for a short prefix). The statements have the
+  // shapes the service's exact, prefix and contains reads send (Prisma's LIKE with the scoped client's restaurant
+  // filter). Arabic words are not checked: under the local database's
   // C ctype pg_trgm extracts no trigrams from Arabic letters (see the task report); Neon's UTF-8 ctype does.
   it('reads selective names through the trigram index', async () => {
     const admin = new pg.Client({ connectionString: databaseUrl(TEST_DB) });
@@ -151,13 +168,23 @@ describe('pharmacy search at 50,000 products', () => {
       ...((node.Plans as Record<string, unknown>[] | undefined) ?? []).flatMap(indexesOf),
     ];
     try {
-      for (const pattern of ['%bruzitro%', 'bruzi%', '%zitrocor%', 'neopra%']) {
+      // [what the read is, its LIKE patterns]: contains, prefix + another word, the exact trade name.
+      const reads: [string, string[]][] = [
+        ['contains', ['%bruzitro%']],
+        ['contains', ['%zitrocor%']],
+        ['prefix', ['bruzi%']],
+        ['prefix', ['neoprazol%']],
+        ['prefix and a word', ['bruzi%', '%500mg%']],
+        ['exact trade name', ['bruzitro|%']],
+      ];
+      for (const [read, patterns] of reads) {
+        const likes = patterns.map((_, i) => `AND "searchText" LIKE $${i + 2} `).join('');
         const plan = await admin.query(
-          `EXPLAIN (FORMAT JSON) SELECT "id" FROM "PhProduct" WHERE "restaurantId" = $1 AND "active" = true AND "searchText" LIKE $2 ` +
-            `ORDER BY "tradeName" ASC, "id" ASC LIMIT 200`,
-          [businesses[0]!.id, pattern],
+          `EXPLAIN (FORMAT JSON) SELECT "id" FROM "PhProduct" WHERE "restaurantId" = $1 AND "active" = true ${likes}` +
+            `ORDER BY "tradeName" ASC, "id" ASC LIMIT 30`,
+          [businesses[0]!.id, ...patterns],
         );
-        expect(indexesOf(plan.rows[0]['QUERY PLAN'][0].Plan), pattern).toContain('PhProduct_searchText_trgm');
+        expect(indexesOf(plan.rows[0]['QUERY PLAN'][0].Plan), `${read}: ${patterns.join(' ')}`).toContain('PhProduct_searchText_trgm');
       }
     } finally {
       await admin.end();

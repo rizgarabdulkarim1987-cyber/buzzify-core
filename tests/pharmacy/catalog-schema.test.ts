@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
 
 const globalForPrisma = globalThis as unknown as { __prisma?: unknown };
@@ -14,7 +15,7 @@ afterAll(async () => {
 beforeEach(resetWorld);
 
 const product = (restaurantId: string, identityKey = 'paracetamol|500mg|tablet|acme') =>
-  prisma().phProduct.create({ data: { restaurantId, tradeName: 'Panadol', identityKey }, select: { id: true } });
+  prisma().phProduct.create({ data: { restaurantId, tradeName: 'Panadol', identityKey, searchText: searchTextOf({ tradeName: 'Panadol', genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }) }, select: { id: true } });
 
 const unit = (restaurantId: string, productId: string, level = 0, baseQty = 1) =>
   prisma().phProductUnit.create({
@@ -139,7 +140,7 @@ describe('the catalog tables keep one business and one product together', () => 
     const b = await pharmacy('B');
     const cat = await prisma().phCategory.create({ data: { restaurantId: b.id, name: 'C', nameKey: 'c' } });
     await expect(
-      prisma().phProduct.create({ data: { restaurantId: a.id, tradeName: 'X', identityKey: 'x', categoryId: cat.id } }),
+      prisma().phProduct.create({ data: { restaurantId: a.id, tradeName: 'X', identityKey: 'x', searchText: searchTextOf({ tradeName: 'X', genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }), categoryId: cat.id } }),
     ).rejects.toThrow(FK);
   });
 
