@@ -35,22 +35,29 @@ export interface ReadOptions {
 
 const isBlank = (cells: readonly string[]) => cells.every((cell) => cell.trim() === '');
 
+/** One row of the file, by its number there (1-based). A row the file does not hold at all is simply not listed. */
+interface Line {
+  number: number;
+  cells: string[];
+  numeric: boolean[] | null;
+}
+
 /** The first row with anything in it is the header; the rows after it with anything in them are the data. */
-function sheetOf(lines: string[][], numeric: boolean[][] | null, maxRows: number): ReadSheet {
-  const headerIndex = lines.findIndex((cells) => !isBlank(cells));
+function sheetOf(lines: readonly Line[], maxRows: number): ReadSheet {
+  const headerIndex = lines.findIndex((line) => !isBlank(line.cells));
   if (headerIndex < 0) throw new SheetReadError('EMPTY');
   const rows: string[][] = [];
   const rowNumbers: number[] = [];
   const numericCells: boolean[][] = [];
   for (let index = headerIndex + 1; index < lines.length; index += 1) {
-    const cells = lines[index]!;
+    const { number, cells, numeric } = lines[index]!;
     if (isBlank(cells)) continue;
     if (rows.length === maxRows) throw new SheetReadError('TOO_MANY_ROWS');
     rows.push(cells);
-    rowNumbers.push(index + 1);
-    numericCells.push(numeric ? numeric[index]! : cells.map(() => false));
+    rowNumbers.push(number);
+    numericCells.push(numeric ?? cells.map(() => false));
   }
-  return { headers: lines[headerIndex]!, rows, rowNumbers, numericCells };
+  return { headers: lines[headerIndex]!.cells, rows, rowNumbers, numericCells };
 }
 
 // CSV -----------------------------------------------------------------------------------------------------------------
@@ -65,7 +72,7 @@ function readCsv(bytes: Uint8Array, maxRows: number): ReadSheet {
   }
   const parsed = Papa.parse<string[]>(text.replace(/^﻿/, ''), { delimitersToGuess: [',', ';', '\t'], skipEmptyLines: false });
   if (parsed.errors.some((error) => error.type === 'Quotes')) throw new SheetReadError('UNREADABLE');
-  return sheetOf(parsed.data, null, maxRows);
+  return sheetOf(parsed.data.map((cells, index) => ({ number: index + 1, cells, numeric: null })), maxRows);
 }
 
 // XLSX ----------------------------------------------------------------------------------------------------------------
@@ -100,8 +107,10 @@ function isNumberCell(cell: ExcelJS.Cell): boolean {
 
 /**
  * The most bytes the files inside one workbook may hold once unpacked, as its ZIP directory states them. A real menu or
- * catalog of 10,000 rows unpacks to a few MB; a file far smaller than the upload limit that claims more (a "zip bomb")
- * is refused before anything is unpacked.
+ * catalog of 10,000 rows unpacks to a few MB. A file that declares more is refused before anything is unpacked. The
+ * check trusts the declared sizes: a file that lies about them is still caught by the ZIP reader (JSZip), which checks
+ * each entry's real size after inflating it and fails, refused UNREADABLE. That path fails closed but can cost CPU
+ * time up to the upload limit's worth of inflation.
  */
 export const MAX_XLSX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
 
@@ -159,14 +168,17 @@ async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> 
   if (sheet.actualRowCount > maxRows + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
   const width = sheet.columnCount;
   if (width > MAX_SHEET_COLUMNS) throw new SheetReadError('UNREADABLE');
-  const lines: string[][] = [];
-  const numeric: boolean[][] = [];
-  for (let number = 1; number <= sheet.rowCount; number += 1) {
-    const row = sheet.getRow(number);
-    lines.push(Array.from({ length: width }, (_, index) => cellText(row.getCell(index + 1))));
-    numeric.push(Array.from({ length: width }, (_, index) => isNumberCell(row.getCell(index + 1))));
-  }
-  return sheetOf(lines, numeric, maxRows);
+  // Only the rows the file holds, each by its own number: a stray cell at row 1,048,576 is one row read, not a million
+  // empty ones. (Rows absent from the file would be blank, and blank rows are skipped anyway.)
+  const lines: Line[] = [];
+  sheet.eachRow({ includeEmpty: false }, (row, number) => {
+    lines.push({
+      number,
+      cells: Array.from({ length: width }, (_, index) => cellText(row.getCell(index + 1))),
+      numeric: Array.from({ length: width }, (_, index) => isNumberCell(row.getCell(index + 1))),
+    });
+  });
+  return sheetOf(lines, maxRows);
 }
 
 /** An XLSX file is a ZIP: it starts with `PK\x03\x04`. */

@@ -136,6 +136,24 @@ describe('reading a workbook within its caps', () => {
     expect(performance.now() - started).toBeLessThan(1_000);
   });
 
+  it('reads, fast, a sheet with a stray cell at A1048576, keeping every row its real number', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Menu');
+    sheet.getCell('A1').value = 'name_en';
+    sheet.getCell('A2').value = 'Espresso';
+    // A blank row in the middle stays skipped, and the rows after it keep their numbers.
+    sheet.getCell('A4').value = 'Latte';
+    sheet.getCell('A1048576').value = 'Stray';
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    expect(bytes.length).toBeLessThan(20_000);
+    const started = performance.now();
+    const read = await readSheet(bytes);
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(read.headers).toEqual(['name_en']);
+    expect(read.rows).toEqual([['Espresso'], ['Latte'], ['Stray']]);
+    expect(read.rowNumbers).toEqual([2, 4, 1_048_576]);
+  });
+
   it(`reads a sheet ${MAX_SHEET_COLUMNS} columns wide and refuses one column more`, async () => {
     const wide = (columns: number) => writeXlsx([Array.from({ length: columns }, (_, index) => `c${index}`), Array.from({ length: columns }, () => 'v')]);
     expect((await readSheet(await wide(MAX_SHEET_COLUMNS))).headers).toHaveLength(MAX_SHEET_COLUMNS);
