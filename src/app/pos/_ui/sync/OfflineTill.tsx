@@ -109,7 +109,7 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
                   <button
                     data-testid={`offline-table-${table.number}`}
                     onClick={() => (held ? onPick(held.key) : void open(table.id))}
-                    className={cx('flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 text-center', held ? 'border-accent bg-accent-wash' : 'border-line')}
+                    className={cx('s-keep-radius flex min-h-24 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 text-center', held ? 'border-accent bg-accent-wash' : 'border-line')}
                   >
                     <span className="text-lg font-semibold text-text">{t('pos.offline.table', { n: formatNumber(table.number) })}</span>
                     <span className="text-sm text-muted">{held ? t('pos.offline.tableBusy') : t('pos.offline.tableFree')}</span>

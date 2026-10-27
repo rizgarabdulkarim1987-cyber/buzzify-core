@@ -126,6 +126,10 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   // Settings
   'Enter the sender name': 'error.text.senderEnter',
   'Use at most 60 characters': 'error.text.senderTooLong',
+  'Use a date and time': 'error.text.dateInvalid',
+  'Write a title and a message in at least one language': 'error.text.announcementLanguages',
+  'The end must be after the start': 'error.text.announcementEnd',
+  'Use at most 2000 characters': 'error.text.announcementBodyTooLong',
   'Use letters, digits, spaces and . & ( ) - only': 'error.text.senderCharacters',
   'Reserve at most 500 words': 'error.text.reservedTooMany',
 

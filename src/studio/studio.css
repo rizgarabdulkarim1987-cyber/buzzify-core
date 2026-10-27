@@ -30,6 +30,7 @@
   --s-hover: #efefed;
   --s-pressed: #e7e7e4;
   --s-on-ink: #ffffff;
+  --s-on-status: #ffffff;
   --s-ink-hover: #262625;
   --s-danger-hover: #93190f;
   --s-danger-wash: #fdf1f0;
@@ -65,6 +66,7 @@
   --color-ink: var(--s-ink);
   --color-ink-hover: var(--s-ink-hover);
   --color-on-ink: var(--s-on-ink);
+  --color-on-status: var(--s-on-status);
   --color-accent: var(--s-accent);
   --color-accent-wash: var(--s-accent-wash);
   --color-danger: var(--s-danger);
@@ -157,7 +159,7 @@
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
     scrollbar-color: var(--s-line-strong) transparent;
-    caret-color: var(--s-ink);
+    caret-color: var(--s-text);
   }
 
   body {
@@ -174,7 +176,7 @@
 
   ::selection {
     background: var(--s-accent);
-    color: var(--s-ink);
+    color: #111111;
   }
 
   /*
@@ -186,7 +188,7 @@
     outline-offset: 2px;
   }
   :where(a, button, input, select, textarea, summary, [tabindex]:not([tabindex='-1']), [role='switch'], [role='menuitem']):focus-visible {
-    box-shadow: 0 0 0 1px var(--s-ink);
+    box-shadow: 0 0 0 1px var(--s-text);
   }
 
   /* A menu or dialog that takes focus itself (to hand it to its first item) shows no ring of its own. */
@@ -221,4 +223,26 @@
       transition-duration: 1ms !important;
     }
   }
+}
+
+/*
+ * A person's own button shape (src/lib/appearance.ts). `data-shape` is on <html> only for someone who chose a look, so
+ * everyone else keeps each control's own radius. Round pills (rounded-full) and the till tiles (.s-keep-radius) keep theirs. Unlayered on purpose: it must win over a utility's `rounded-*`.
+ */
+html[data-shape] button:not(.s-keep-radius):not([class*='rounded-full']),
+html[data-shape] .s-btn {
+  border-radius: var(--s-btn-radius);
+}
+
+/* The Buzzify logo: the white one on dark pages (`data-tone` is set from the person's background), the black one otherwise. */
+.brand-logo-dark {
+  display: none;
+}
+
+html[data-tone='dark'] .brand-logo-dark {
+  display: block;
+}
+
+html[data-tone='dark'] .brand-logo-light {
+  display: none;
 }

@@ -3,6 +3,8 @@ import './till.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { direction } from '@/lib/locale';
+import { getActor } from '@/server/studio/auth/actor';
+import { appearanceHtmlProps } from '@/studio/appearance-html';
 import { studioFontVariables } from '@/studio/fonts';
 import { StudioI18nProvider } from '@/studio/i18n';
 import { clientMessages } from '@/studio/messages';
@@ -20,9 +22,9 @@ export const metadata: Metadata = {
  * setting) because one account and one sign-in serve both areas; only the shell inside it differs.
  */
 export default async function PosRootLayout({ children }: { children: ReactNode }) {
-  const locale = await requestStudioLocale();
+  const [locale, actor] = await Promise.all([requestStudioLocale(), getActor()]);
   return (
-    <html lang={locale} dir={direction(locale)} className={studioFontVariables(locale)}>
+    <html lang={locale} dir={direction(locale)} className={studioFontVariables(locale)} {...appearanceHtmlProps(actor?.appearance)}>
       <body>
         <StudioI18nProvider locale={locale} messages={clientMessages(locale)}>
           <SyncProvider>{children}</SyncProvider>
