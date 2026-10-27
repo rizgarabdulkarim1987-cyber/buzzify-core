@@ -40,7 +40,7 @@ export default async function PosCatalogPage() {
       <div className="flex flex-col gap-8 px-8 pb-8">
         {editor ? (
           <>
-            <CatalogImport />
+            <CatalogImport currency={state.menus.find((menu) => menu.id === state.chosenId)?.currency ?? 'IQD'} />
             <CatalogEditor data={editor} />
           </>
         ) : (
