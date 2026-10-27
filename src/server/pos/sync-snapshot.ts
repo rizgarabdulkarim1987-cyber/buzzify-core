@@ -44,6 +44,7 @@ export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Dat
       name: line.nameSnapshot,
       quantity: line.quantity,
       unitPrice: line.unitPriceSnapshot,
+      promoPerUnit: line.promoDiscountPerUnit,
       options: optionsSnapshotSchema.parse(line.optionsSnapshot),
       note: line.note,
       discount: toDiscount(line.discountKind, line.discountValue) ?? null,

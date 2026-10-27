@@ -7,7 +7,7 @@ import type { MenuDesign, SceneMedia } from '@/lib/templates/types';
 import { installStudio } from '@/ui/stage/studio';
 import type { SceneSignal } from '../signal';
 import { ClockProvider, useSceneClock } from './kit/clock';
-import { loadScene, type SceneModule } from './registry';
+import { loadScene, sceneIdFor, type SceneModule } from './registry';
 
 /**
  * The one WebGL canvas of a template menu (spec 6): the preset's own scene, loaded on its own, drawn behind the menu, or
@@ -38,9 +38,10 @@ export default function SceneCanvas({
 
   // A model loads once per file: framing it again (the Studio's sliders) only moves what is already drawn.
   const modelUrl = model?.url ?? null;
+  const sceneId = sceneIdFor(design.templateId, design.palette);
   useEffect(() => {
     let active = true;
-    (modelUrl ? import('./AssetModel').then(({ loadModelScene }) => loadModelScene(modelUrl)) : loadScene(design.templateId))
+    (modelUrl ? import('./AssetModel').then(({ loadModelScene }) => loadModelScene(modelUrl)) : loadScene(sceneId))
       .then((module) => {
         if (active) setScene(() => module);
       })
@@ -50,7 +51,7 @@ export default function SceneCanvas({
     return () => {
       active = false;
     };
-  }, [design.templateId, modelUrl, onFail]);
+  }, [sceneId, modelUrl, onFail]);
 
   if (!scene) return null;
   const camera = scene.camera ?? { position: [0, 0, 10] as [number, number, number], fov: 35 };

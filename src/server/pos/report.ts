@@ -138,6 +138,7 @@ function snapshotDiscounts(paymentId: string, snapshot: TotalsSnapshot): number 
       unitPrice: line.unitPrice,
       optionsTotal: line.options.reduce((s, o) => s + o.priceDelta, 0),
       quantity: line.quantity,
+      promoPerUnit: line.promoPerUnit,
       discount: line.discount ?? undefined,
     };
     if (lineTotal(priced) !== line.lineTotal) throw new Error(`The stored totals of payment ${paymentId} are corrupt: line ${line.id} does not add up`);

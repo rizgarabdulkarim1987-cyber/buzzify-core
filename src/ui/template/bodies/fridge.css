@@ -1,0 +1,259 @@
+/*
+ * The Fridge body (a browse shape of a template menu): the inside of a fridge. Every section is a glass shelf (cool
+ * glass tinted from the template's own accent and background) with a frost label at its top; its dishes are jars (a lid
+ * band with the price, the photo in the jar's glass, a name sticker below) three to a row, each row standing on a rail.
+ * A strip of fridge-door panels (each with a handle) stays at the top and jumps. Everything is scoped under
+ * [data-body='fridge']. Text sits on the template's --bg / --text pair or on --accent with --on-accent, never on a
+ * photo, so contrast holds on every palette. Logical properties only (RTL mirrors).
+ */
+[data-body='fridge'] {
+  --fr-glass: color-mix(in srgb, var(--accent) 9%, var(--bg));
+  --fr-edge: color-mix(in srgb, var(--accent) 30%, var(--bg));
+  --fr-rail: 0.375rem;
+  /* The sticky strip's height, so a jumped-to shelf lands just below it. */
+  --nav-room: 4.75rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of doors (sticky: shared/shapes.css): tall door panels with a handle on the hinge-free edge. */
+[data-body='fridge'] .fr-doors {
+  padding: 0.375rem 0.5rem;
+  border-block-end: 3px solid var(--fr-edge);
+}
+[data-body='fridge'] .fr-strip-list {
+  gap: 0.375rem;
+  padding: 0.125rem 0 0.25rem;
+}
+[data-body='fridge'] .fr-door {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-block: 0;
+  padding-inline: 0.75rem 1.5rem;
+  border: 1px solid var(--fr-edge);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 70%, var(--bg));
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--card) 80%, transparent),
+    0 3px 0 color-mix(in srgb, var(--text) 18%, transparent);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+/* The handle: a slim bar on the door's end edge. */
+[data-body='fridge'] .fr-door::after {
+  content: '';
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-end: 0.5rem;
+  inline-size: 0.3125rem;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.55;
+}
+[data-body='fridge'] .fr-door[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+[data-body='fridge'] .fr-door[aria-current='true']::after {
+  opacity: 0.9;
+}
+@media (hover: hover) {
+  [data-body='fridge'] .fr-door:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--accent) 16%, var(--bg));
+  }
+}
+
+/* A shelf: a pane of cool glass with the frost label sitting on its top edge. */
+[data-body='fridge'] .fr-shelf {
+  position: relative;
+  margin: 1.125rem 0.5rem 0.25rem;
+  padding: 0 0.25rem 0.25rem;
+  border: 2px solid var(--fr-edge);
+  border-radius: 1rem;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--card) 40%, var(--fr-glass)), var(--fr-glass) 45%);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--card) 70%, transparent);
+}
+
+/* The frost label: a frosted tag across the shelf's top, the number, the name, the dish count in a seal. */
+[data-body='fridge'] [data-heading].fr-head {
+  position: relative;
+  z-index: 2;
+  margin-block: -0.875rem 0.25rem;
+  text-align: center;
+}
+[data-body='fridge'] .fr-frost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0.1875rem;
+  padding-inline: 0.75rem;
+  border: 1px solid var(--fr-edge);
+  border-radius: 0.5rem;
+  background: color-mix(in srgb, var(--card) 60%, var(--bg));
+  color: var(--text);
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 14%, transparent);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+[data-body='fridge'] .fr-frost small {
+  flex: none;
+  padding: 0.0625rem 0.375rem;
+  border-radius: 0.25rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='fridge'] .fr-frost span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='fridge'] .fr-frost b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* A row of jars: three columns, no gap between them so each jar's rail meets the next. */
+[data-body='fridge'] .fr-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A jar. Its rail is its own ::before, laid along the foot of its cell, so a row's rail is one unbroken line. */
+[data-body='fridge'] .fr-jar {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.25rem 0.3125rem calc(var(--fr-rail) + 0.375rem);
+}
+[data-body='fridge'] .fr-jar::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-end: 0;
+  block-size: var(--fr-rail);
+  background: linear-gradient(color-mix(in srgb, var(--card) 80%, var(--bg)), var(--fr-edge));
+  box-shadow: 0 2px 3px color-mix(in srgb, var(--text) 18%, transparent);
+  pointer-events: none;
+}
+
+/* The jar's glass: the lid on top, the photo below it, the add button on the photo's foot. */
+[data-body='fridge'] .fr-glass {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+/* The lid band: the price, the inverse pair, a stripe of the shelf's hue on its top edge. A long price wraps. Taps go through. */
+[data-body='fridge'] .fr-lid {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  margin-inline: 0.25rem;
+  padding: 0.25rem 0.25rem 0.125rem;
+  border-radius: 0.5rem 0.5rem 0.125rem 0.125rem;
+  border-block-start: 4px solid hsl(var(--s-h) 70% 50%);
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+[data-body='fridge'] .fr-photo {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 3 / 2;
+  border: 2px solid color-mix(in srgb, var(--card) 70%, var(--fr-edge));
+  border-radius: 0.5rem 0.5rem 1.25rem 1.25rem;
+  background: var(--card, var(--bg));
+  box-shadow:
+    inset 0 0 0 1px var(--fr-edge),
+    0 3px 5px color-mix(in srgb, var(--text) 16%, transparent);
+  transition: box-shadow 160ms;
+}
+/* The photo (laid over its frame: shared/shapes.css) is clipped by its own wrapper so the add button and chip can sit on the rim. */
+[data-body='fridge'] .fr-photo > :first-child {
+  overflow: hidden;
+  border-radius: inherit;
+}
+/* A discount (shared/shapes.css) on the photo's upper start corner, since the lid has no room for the regular price. */
+[data-body='fridge'] .fr-off {
+  position: absolute;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 0.25rem;
+}
+/* The add button (shared/shapes.css) on the photo's lower end corner. */
+[data-body='fridge'] .fr-add {
+  inset-block-end: 0.25rem;
+  inset-inline-end: 0.25rem;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 35%, transparent);
+}
+/* The name sticker below the jar (two lines at most, the whole jar its tap area: shared/shapes.css). */
+[data-body='fridge'] .fr-name {
+  --tpl-ring-radius: 0.5rem;
+  margin-block-start: 0.25rem;
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  background: color-mix(in srgb, var(--card) 55%, var(--bg));
+  color: var(--text);
+}
+
+/* No transform on the photo: it would trap the add button under the jar's tap area. Feedback is a shadow. */
+@media (hover: hover) {
+  [data-body='fridge'] .fr-jar:hover .fr-photo {
+    box-shadow:
+      inset 0 0 0 1px var(--accent),
+      0 4px 8px color-mix(in srgb, var(--text) 22%, transparent);
+  }
+}
+[data-body='fridge'] .fr-jar:active .fr-photo {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+/* A wide screen keeps a shelf a tidy row of three: the column and the jars stay narrow. */
+@media (min-width: 640px) {
+  [data-body='fridge'] {
+    --column: 36rem;
+  }
+  [data-body='fridge'] .fr-name {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Less motion: the jars are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='fridge'] .fr-photo,
+  [data-body='fridge'] .fr-door {
+    transition: none;
+  }
+}

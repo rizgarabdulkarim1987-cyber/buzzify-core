@@ -46,6 +46,11 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
             <span>
               {formatNumber(line.quantity)} × {line.name}
               {line.options.length > 0 ? <span className="block text-sm text-muted">{line.options.map((o) => o.name).join(' · ')}</span> : null}
+              {line.promoPerUnit > 0 ? (
+                <span className="block text-sm text-muted">
+                  {t('pos.requests.offer')} {money(-line.promoPerUnit * line.quantity)}
+                </span>
+              ) : null}
             </span>
             <span className="shrink-0">{money(line.lineTotal)}</span>
           </li>

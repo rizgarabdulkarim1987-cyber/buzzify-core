@@ -8,6 +8,7 @@ import type { OpDraft } from '@/lib/pos-sync/queue';
 import { formatNumber, ltr } from '@/lib/pos-format';
 import { pickName, quickCash } from '@/lib/pos-view';
 import { parseAmount } from '@/server/domain/pos/cash';
+import { offerPerUnit } from '@/server/domain/pos/line-offer';
 import { useLocale, useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
@@ -15,6 +16,7 @@ import { Dialog } from '@/studio/ui/Dialog';
 import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OptionsSheet, type Chosen } from '../OptionsSheet';
+import { useProductOffer } from '../offers';
 import { useMoney } from '../money';
 import { QueuePanel } from './QueuePanel';
 import { useSync } from './SyncProvider';
@@ -132,6 +134,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
   const { locale } = useLocale();
   const snapshot = sync.snapshot!;
   const catalog = snapshot.catalog;
+  const offerFor = useProductOffer(catalog);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -196,7 +199,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
                   </span>
                 ) : null}
               </span>
-              <span className="shrink-0 text-text">{money((line.unitPrice + line.options.reduce((s, o) => s + o.priceDelta, 0)) * line.quantity)}</span>
+              <span className="shrink-0 text-text">{money((line.unitPrice + line.options.reduce((s, o) => s + o.priceDelta, 0) - line.promoPerUnit) * line.quantity)}</span>
             </li>
           ))}
       </ul>
@@ -276,7 +279,8 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
                         <span dir="auto" className="break-words font-medium text-text">
                           {pickName(p.names, locale, catalog.defaultLocale)}
                         </span>
-                        <span className="text-sm text-muted">{p.available ? money(p.price) : t('pos.offline.unavailable')}</span>
+                        <span className="text-sm text-muted">{p.available ? money(p.price - offerPerUnit(p.price, offerFor(p))) : t('pos.offline.unavailable')}</span>
+                        {p.available && offerFor(p) ? <span className="rounded-full bg-ink px-2 text-sm font-bold text-on-ink">−{formatNumber(offerFor(p)!.percent)}%</span> : null}
                       </button>
                     </li>
                   ))}
@@ -286,7 +290,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
         </>
       ) : null}
 
-      {catalog ? <OptionsSheet product={product} fallback={catalog.defaultLocale} pending={false} onClose={() => setPicked(null)} onAdd={(p, chosen) => void add(p, chosen)} /> : null}
+      {catalog ? <OptionsSheet product={product} fallback={catalog.defaultLocale} pending={false} onClose={() => setPicked(null)} onAdd={(p, chosen) => void add(p, chosen)} offer={product ? offerFor(product) : null} /> : null}
 
       <Dialog
         open={dialog === 'cancel'}

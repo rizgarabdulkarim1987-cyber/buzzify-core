@@ -1,0 +1,71 @@
+/*
+ * The photo card (PhotoCard.tsx: Photo to Details, Fly to Cart): the pieces both shapes draw the same way. Zero
+ * specificity beyond one class (`:where`), so each shape's own rules win. Logical properties only.
+ */
+
+/* The card is the positioned ancestor of the name's tap area, so the whole card is the tap target. */
+:where([data-body]) .tpl-photo-card {
+  position: relative;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  background: var(--raised);
+  color: var(--text);
+}
+:where([data-body]) .tpl-photo-card [data-photo] {
+  position: relative;
+  overflow: hidden;
+}
+
+/*
+ * A dish with no media: a tinted plate (two rings) drawn ON the media (the frame's first child, an empty span laid over
+ * the whole frame), so it shows rather than a flat block the colour of the caption bar. `--plate-ring` sets the rings'
+ * strength.
+ */
+:where([data-body]) .tpl-plate > :first-child:empty {
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      transparent 0 22%,
+      color-mix(in srgb, var(--text) var(--plate-ring, 24%), transparent) 22% 25%,
+      transparent 25% 34%,
+      color-mix(in srgb, var(--text) calc(var(--plate-ring, 24%) * 0.75), transparent) 34% 36%,
+      transparent 36%
+    ),
+    color-mix(in srgb, var(--text) 10%, var(--bg));
+}
+
+/* A discount on the photo's start corner, above the photo. */
+:where([data-body]) .tpl-photo-off {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: var(--photo-off-at, 0.375rem);
+  inset-inline-start: var(--photo-off-at, 0.375rem);
+}
+
+/* The bar: the name (two lines at most: shared/shapes.css), then the price, which wraps rather than overflowing. */
+:where([data-body]) .tpl-photo-bar {
+  display: grid;
+  gap: 0.0625rem;
+  min-inline-size: 0;
+  color: var(--text);
+}
+:where([data-body]) .tpl-photo-name {
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: start;
+}
+:where([data-body]) .tpl-photo-price {
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--text);
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+@media (min-width: 640px) {
+  :where([data-body]) .tpl-photo-name {
+    font-size: 0.9375rem;
+  }
+}

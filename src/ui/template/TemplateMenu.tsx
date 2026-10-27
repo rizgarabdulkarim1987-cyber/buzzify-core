@@ -14,9 +14,7 @@ import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
-import { BoardBody } from './bodies/BoardBody';
-import { BookBody } from './bodies/BookBody';
-import { MagazineBody } from './bodies/MagazineBody';
+import { BODIES } from './bodies';
 import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
@@ -195,6 +193,8 @@ export function TemplateMenu({
   // A browse shape that sets the hero or the navigation replaces them: a big hero or a scroll-only navigation left in
   // the layout (from the template it started on) must not reach it. For `scroll` nothing is set, so nothing changes.
   const shapeSets = SHAPE_SETS[body];
+  // A shape's own component (`BODIES`); `scroll` is drawn below and never looked up.
+  const Body = body === 'scroll' ? null : BODIES[body];
   const heroKind = shapeSets.includes('hero') ? 'compact' : layout.hero;
   const navKind = shapeSets.includes('nav') ? undefined : layout.nav;
   const noResults = <p className="px-(--gutter) py-16 text-center text-(--muted)">{t('menu.noResults', { query: query.trim() || '…' })}</p>;
@@ -261,12 +261,8 @@ export function TemplateMenu({
             <main id="menu" className="tpl-main min-w-0">
               {noResults}
             </main>
-          ) : body === 'magazine' ? (
-            <MagazineBody />
-          ) : body === 'board' ? (
-            <BoardBody />
           ) : (
-            <BookBody />
+            Body && <Body />
           )}
           <InfoSection info={design.info} />
           <TemplateFooter poweredBy={design.poweredBy} motion={animated ? { paused: motionPaused, toggle: () => setMotionPaused((value) => !value) } : null} />

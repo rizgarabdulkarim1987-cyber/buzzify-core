@@ -1,0 +1,327 @@
+/*
+ * The Curtain and Spotlight body (a browse shape of a template menu): a theatre. Every section is a stage (a proscenium:
+ * a velvet curtain at each side, a banner on the pelmet); its dishes are performers (arch-topped photo cards) standing
+ * on a gold stage-floor line, three across, each with a gold price ticket and a name plate. A spotlight cone lights the
+ * stage in view; the other stages' backdrops are dimmed (opacity on the backdrop only, never on the dishes). A sticky
+ * strip of programme chips jumps. Everything is scoped under [data-body='theatre']. The velvet, the gold and their inks
+ * are fixed pairs, so contrast holds on every palette; the performer cards use the template's own raised/text pair.
+ * Logical properties only (RTL mirrors).
+ */
+[data-body='theatre'] {
+  --th-velvet: #3a0d16;
+  --th-velvet-hi: #7a0d1c;
+  --th-gold: #d4aa52;
+  --th-gold-hi: #f6e3a8;
+  --th-ink: #1a0a0e;
+  --th-stage: color-mix(in srgb, var(--accent) 18%, var(--th-ink));
+  /* The sticky strip's height, so a jumped-to stage lands just below it. */
+  --nav-room: 3.75rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  --rim-add-bg: var(--th-gold);
+  --rim-add-ink: var(--th-ink);
+  --sale-bg: var(--th-ink);
+  --sale-ink: var(--th-gold-hi);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The programme strip (sticky: shared/shapes.css): velvet with gold chips, its own colours whatever the palette. */
+[data-body='theatre'] .th-bar {
+  padding: 0.375rem 0.5rem;
+  border-block-end: 2px solid var(--th-gold);
+  background: var(--th-ink);
+}
+[data-body='theatre'] .th-strip-list {
+  gap: 0.375rem;
+  padding: 0.125rem 0 0.25rem;
+}
+[data-body='theatre'] .th-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.5rem;
+  padding-block: 0;
+  padding-inline: 0.375rem 0.75rem;
+  border: 1px solid var(--th-gold);
+  border-radius: 999px;
+  background: var(--th-velvet);
+  color: var(--th-gold-hi);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 160ms;
+}
+[data-body='theatre'] .th-chip small {
+  display: grid;
+  place-items: center;
+  min-inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--th-gold);
+  color: var(--th-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+/* The lit chip: the stage in the spotlight; a fixed gold face with dark ink. */
+[data-body='theatre'] .th-chip[aria-current='true'] {
+  background: var(--th-gold);
+  color: var(--th-ink);
+}
+[data-body='theatre'] .th-chip[aria-current='true'] small {
+  background: var(--th-ink);
+  color: var(--th-gold-hi);
+}
+@media (hover: hover) {
+  [data-body='theatre'] .th-chip:hover:not([aria-current='true']) {
+    background: var(--th-velvet-hi);
+  }
+}
+
+/* A stage: the proscenium. Everything is clipped to it (the curtains slide inside); rings are drawn inside the cells. */
+[data-body='theatre'] .th-stage {
+  position: relative;
+  isolation: isolate;
+  margin: 0.625rem 0.5rem 0.25rem;
+  padding-block-start: 0;
+  overflow: clip;
+  border: 2px solid var(--th-gold);
+  border-radius: 0.5rem 0.5rem 0.25rem 0.25rem;
+  background: var(--bg);
+}
+/* The backdrop: the stage's dark wall. Only this layer dims when the stage is not the one in the spotlight. */
+[data-body='theatre'] .th-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  background: linear-gradient(var(--th-stage), color-mix(in srgb, var(--th-stage) 70%, #000));
+  opacity: 0.55;
+  transition: opacity 500ms;
+}
+[data-body='theatre'] .th-stage[data-lit] .th-backdrop {
+  opacity: 1;
+}
+/* The spotlight cone: a soft pool of light from the pelmet, shown on the stage in view. */
+[data-body='theatre'] .th-cone {
+  position: absolute;
+  inset-block-start: 2rem;
+  inset-inline: -10%;
+  block-size: 16rem;
+  z-index: -1;
+  background: radial-gradient(ellipse 55% 100% at 50% 0, rgb(255 236 190 / 0.3), rgb(255 236 190 / 0.08) 55%, transparent 75%);
+  opacity: 0;
+  transition: opacity 500ms;
+  pointer-events: none;
+}
+[data-body='theatre'] .th-stage[data-lit] .th-cone {
+  opacity: 1;
+}
+
+/* The pelmet: a velvet valance across the top with a gold edge; the act, the name and the dish count. */
+[data-body='theatre'] [data-heading].th-pelmet {
+  position: relative;
+  z-index: 1;
+  padding-inline: 0;
+  border-block-end: 3px solid var(--th-gold);
+  background: var(--th-velvet);
+  box-shadow: inset 0 -0.375rem 0.5rem -0.25rem var(--th-velvet-hi);
+}
+[data-body='theatre'] .th-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding-block: 0.375rem;
+  padding-inline: 1.125rem;
+  color: var(--th-gold-hi);
+  font-size: 1.0625rem;
+  line-height: 1.2;
+}
+[data-body='theatre'] .th-banner small {
+  flex: none;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background: var(--th-gold);
+  color: var(--th-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='theatre'] .th-banner span {
+  flex: 1;
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='theatre'] .th-banner b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--th-ink);
+  color: var(--th-gold-hi);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* The curtains: a velvet drape at each side of the stage, gathered at rest; above the dishes, never taking a tap. */
+[data-body='theatre'] .th-curtain {
+  --d: 1;
+  position: absolute;
+  inset-block: 0;
+  z-index: 3;
+  inline-size: 50%;
+  background: repeating-linear-gradient(90deg, #7a0d1c 0 0.75rem, #9e1426 0.75rem 1.25rem, #6a0a17 1.25rem 1.75rem);
+  box-shadow: inset 0 -2.5rem 3rem rgb(0 0 0 / 0.5);
+  pointer-events: none;
+  translate: calc(var(--d) * -92%) 0;
+}
+[data-body='theatre'] .th-curtain-s {
+  inset-inline-start: 0;
+}
+[data-body='theatre'] .th-curtain-e {
+  --d: -1;
+  inset-inline-end: 0;
+}
+[data-body='theatre']:dir(rtl) .th-curtain-s {
+  --d: -1;
+}
+[data-body='theatre']:dir(rtl) .th-curtain-e {
+  --d: 1;
+}
+/* The entrance (armed by the script): drawn shut until the stage first comes into view, then they part once. The
+   stages on the screen when the script arms are opened in the same pass, so the first screen never shows them shut. */
+[data-body='theatre'][data-armed] .th-stage:not([data-open]) .th-curtain {
+  translate: 0 0;
+}
+[data-body='theatre'][data-armed] .th-stage[data-open] .th-curtain {
+  transition: translate 1100ms cubic-bezier(0.77, 0, 0.175, 1) 250ms;
+}
+/* Keyboard focus inside a stage parts its curtains at once: a focused dish (and its ring) is never behind the velvet. */
+[data-body='theatre'][data-armed] .th-stage:focus-within .th-curtain {
+  translate: calc(var(--d) * -92%) 0;
+  transition: translate 200ms ease-out;
+}
+
+/* The stage floor: the performers three across, standing on a gold line each row. */
+[data-body='theatre'] .th-floor {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.875rem 0.5rem;
+  margin: 0;
+  padding: 0.75rem 1.125rem 1rem;
+  list-style: none;
+}
+
+/* A performer: an arch-topped card (the cell itself, so the whole card is the dish's tap area). */
+[data-body='theatre'] .th-performer {
+  /* The ring follows the arch, so it lies on the card everywhere, not on the dark stage at the arch's shoulders. */
+  --tpl-ring-radius: 999px 999px 0.5rem 0.5rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.25rem 0.25rem 0.375rem;
+  border: 1px solid color-mix(in srgb, var(--th-gold) 70%, transparent);
+  border-radius: 999px 999px 0.5rem 0.5rem;
+  background: var(--raised);
+  color: var(--text);
+  text-align: center;
+}
+/* The floor line under the card. */
+[data-body='theatre'] .th-performer::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -0.5rem;
+  inset-inline: -0.375rem;
+  block-size: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, transparent, var(--th-gold) 15% 85%, transparent);
+  pointer-events: none;
+}
+[data-body='theatre'] .th-frame {
+  position: relative;
+  min-inline-size: 0;
+}
+[data-body='theatre'] .th-photo {
+  position: relative;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 999px 999px 0.375rem 0.375rem;
+  background: var(--th-ink);
+}
+/* A discount at the arch's start, the add key at its end (shared/shapes.css), a ticket on the photo's foot. */
+[data-body='theatre'] .th-off {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 38%;
+  inset-inline-start: 0.1875rem;
+}
+[data-body='theatre'] .th-add {
+  z-index: 3;
+  inset-block-start: 38%;
+  inset-inline-end: 0.1875rem;
+  border: 1px solid var(--th-ink);
+}
+/* The price ticket: gold with dark ink, on the photo's foot. A long price wraps. */
+[data-body='theatre'] .th-ticket {
+  position: absolute;
+  inset-block-end: 0.1875rem;
+  inset-inline: 0.1875rem;
+  min-inline-size: 0;
+  padding: 0 0.25rem;
+  border-radius: 0.25rem;
+  background: var(--th-gold);
+  color: var(--th-ink);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.3;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+/* The name plate under the arch: the template's own text on its own raised fill (two lines at most: shared/shapes.css). */
+[data-body='theatre'] .th-name {
+  margin-block-start: 0.3125rem;
+  padding-inline: 0.125rem;
+  color: var(--text);
+}
+/* The keyboard ring is drawn on the card's raised fill: the template's text colour (the name plate's own pair). */
+[data-body='theatre'] .th-name:focus-visible::after {
+  outline-color: var(--text);
+}
+
+/* Feedback is a shadow: a transform on the card would trap the add button under the tap area. */
+@media (hover: hover) {
+  [data-body='theatre'] .th-performer:hover {
+    border-color: var(--th-gold-hi);
+    box-shadow: 0 0 0 2px var(--th-gold-hi);
+  }
+}
+[data-body='theatre'] .th-performer:active {
+  box-shadow: 0 0 0 2px var(--th-gold);
+}
+
+/* A wide screen keeps a stage tidy: four performers a row. */
+@media (min-width: 640px) {
+  [data-body='theatre'] {
+    --column: 40rem;
+  }
+  [data-body='theatre'] .th-floor {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the curtains are simply parted, the light simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='theatre'] .th-chip,
+  [data-body='theatre'] .th-backdrop,
+  [data-body='theatre'] .th-cone,
+  [data-body='theatre'] .th-curtain {
+    transition: none !important;
+  }
+}

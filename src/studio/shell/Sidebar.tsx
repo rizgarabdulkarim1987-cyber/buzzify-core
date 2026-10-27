@@ -8,6 +8,7 @@ import {
   LayoutDashboard,
   LogOut,
   Megaphone,
+  Pill,
   Settings,
   Sparkles,
   Store,
@@ -44,6 +45,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   activity: Activity,
   settings: Settings,
   store: Store,
+  pharmacy: Pill,
 };
 
 /** A navigation item as the layout hands it over: its label already in the person's language. */

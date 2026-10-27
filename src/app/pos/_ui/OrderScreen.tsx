@@ -19,6 +19,7 @@ import { formatNumber } from '@/lib/pos-format';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
+import { offerPerUnit } from '@/server/domain/pos/line-offer';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
@@ -32,6 +33,7 @@ import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { ApprovalFields, approvalOf, DiscountReasonFields } from './ApprovalFields';
 import { useMoney } from './money';
+import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
@@ -87,6 +89,7 @@ export function OrderScreen({
   const [dialog, setDialog] = useState<Dialogs>(() => (initialPaying && can.pay && order.lines.some((line) => !line.cancelled) ? 'pay' : 'none'));
 
   const fallback = catalog?.defaultLocale ?? 'en';
+  const offerFor = useProductOffer(catalog);
   const products = useMemo(() => (catalog ? visibleProducts(catalog, categoryId, search) : []), [catalog, categoryId, search]);
   // With every category showing (and no search), the menu is cut into one titled section per category.
   const sections = useMemo(() => {
@@ -220,6 +223,7 @@ export function OrderScreen({
                       <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
+                          const offer = offerFor(product);
                           return (
                             <li key={product.id} className="flex">
                               <button
@@ -233,7 +237,17 @@ export function OrderScreen({
                               >
                                 <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
-                                  <span className="text-xl font-bold text-text">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>
+                                  <span className="flex flex-wrap items-baseline gap-x-2">
+                                    <span className="text-xl font-bold text-text">{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                                    {product.available && offer ? (
+                                      <>
+                                        <span className="text-sm text-muted line-through">{money(product.price)}</span>
+                                        <span data-testid={`offer-cue-${product.id}`} className="rounded-full bg-ink px-2 text-sm font-bold text-on-ink">
+                                          −{formatNumber(offer.percent)}%
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </span>
                                   {count > 0 ? (
                                     <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="grid min-w-8 place-items-center rounded-full bg-ink px-2 text-base leading-8 font-bold text-on-ink">
                                       {formatNumber(count)}
@@ -274,6 +288,11 @@ export function OrderScreen({
                       </p>
                       {line.options.length > 0 ? <p className="text-sm text-muted">{line.options.map((o) => o.name).join(' · ')}</p> : null}
                       {line.note ? <p className="text-sm text-muted">“{line.note}”</p> : null}
+                      {line.offerPerUnit > 0 ? (
+                        <p data-testid="line-offer" className="text-sm text-muted">
+                          {t('pos.requests.offer')}: {money(-line.offerPerUnit * line.quantity)}
+                        </p>
+                      ) : null}
                       {line.discount ? (
                         <p className="text-sm text-muted">
                           {t('pos.order.lineDiscount')}: {line.discount.kind === 'PERCENT' ? `${formatNumber(line.discount.value)}%` : money(line.discount.value)}
@@ -367,7 +386,7 @@ export function OrderScreen({
         </section>
       </div>
 
-      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} />
+      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
       <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} methods={order.paymentMethods} />
 

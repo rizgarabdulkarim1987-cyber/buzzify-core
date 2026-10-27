@@ -5,6 +5,7 @@ import { localDigits } from '@/lib/digits';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
+import { useKeepInView } from './shared/useKeepInView';
 import { Badges, Description, Price, ProductMedia, QuickAction } from '../parts';
 import './board.css';
 
@@ -30,18 +31,7 @@ export function BoardBody() {
   const strip = useRef<HTMLUListElement>(null);
 
   // Keep the active gate tab in view, moving only the strip (never the page).
-  useEffect(() => {
-    const container = strip.current;
-    const active = activeId ? container?.querySelector<HTMLElement>(`[data-category="${CSS.escape(activeId)}"]`) : null;
-    if (!container || !active) return;
-    const box = container.getBoundingClientRect();
-    const item = active.getBoundingClientRect();
-    const margin = 24;
-    let delta = 0;
-    if (item.left < box.left + margin) delta = item.left - box.left - margin;
-    else if (item.right > box.right - margin) delta = item.right - box.right + margin;
-    if (delta !== 0) container.scrollBy({ left: delta, behavior: reduced ? 'auto' : 'smooth' });
-  }, [activeId, reduced]);
+  useKeepInView(strip, activeId, 'x', reduced, 24);
 
   return (
     <div className="tpl-body" data-body="board">

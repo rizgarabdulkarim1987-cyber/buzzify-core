@@ -225,7 +225,7 @@ export function dominantColors(pixels: Uint8Array, channels: 3 | 4, count: numbe
 // Suggested palettes
 // ---------------------------------------------------------------------------------------------------------------------
 
-interface Hsl {
+export interface Hsl {
   h: number;
   s: number;
   l: number;
@@ -243,7 +243,8 @@ function hslOf(hex: string): Hsl {
   return { h: (h * 60 + 360) % 360, s: s * 100, l: l * 100 };
 }
 
-function hexOfHsl({ h, s, l }: Hsl): string {
+/** The `#RRGGBB` of an HSL colour (hue in degrees, saturation and lightness in percent). */
+export function hexOfHsl({ h, s, l }: Hsl): string {
   const sat = Math.min(100, Math.max(0, s)) / 100;
   const light = Math.min(100, Math.max(0, l)) / 100;
   const c = (1 - Math.abs(2 * light - 1)) * sat;

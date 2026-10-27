@@ -1,9 +1,9 @@
 import type { Actor } from '@/server/studio/auth/actor';
 
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
-export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'store';
+export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview' | 'pharmacies';
 
 export interface NavItem {
   key: NavKey;
@@ -27,6 +27,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'billing', href: '/studio/billing', labelKey: 'nav.billing', icon: 'billing' },
   // The cashier across the platform: who has it, its staff and whether a catalog is set up. The till itself is /pos.
   { key: 'cashierOverview', href: '/studio/cashier', labelKey: 'nav.cashierOverview', icon: 'store' },
+  // Every PHARMACY-sector business on the platform; they also stay in Restaurants, where a Super Admin bills them.
+  { key: 'pharmacies', href: '/studio/pharmacies', labelKey: 'nav.pharmacies', icon: 'pharmacy' },
   { key: 'menus', href: '/studio/menus', labelKey: 'nav.menus', icon: 'menus' },
   // The libraries a person manages: Super Admins and designers (spec refinement 20); an owner's pictures are picked in the editor.
   { key: 'media', href: '/studio/media', labelKey: 'nav.media', icon: 'media' },
@@ -44,7 +46,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
  * allowed to invite does that from their restaurant's People tab. Billing, Activity and Settings need `platform.settings`
  * or `audit.view`, which no client policy can grant.
  */
-const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'people', 'announcements', 'activity', 'settings']);
+const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'pharmacies', 'people', 'announcements', 'activity', 'settings']);
 
 /** What the navigation needs to know about a restaurant an owner holds: its name and its menus. */
 export interface OwnedRestaurant {
