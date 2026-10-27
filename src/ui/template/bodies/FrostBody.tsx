@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, type RefObject } from 'react';
+import { useLayoutEffect, useRef, type RefObject } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
@@ -26,10 +26,12 @@ export function isTallFrost(place: number): boolean {
  * Packs the panes into a MASONRY of columns: each pane (`[data-glass]`) spans as many of the grid's small rows as its
  * height needs, so the grid's own placement drops it into the column that frees up first. Heights are measured with a
  * ResizeObserver (a search, a font or a photo that changes a pane re-packs it); `data-packed` on `main` turns the small
- * rows on, so before the script runs the panes simply sit in rows. Layout only: nothing moves.
+ * rows on, so before the script runs the panes simply sit in rows. It packs in the same commit that hydrates the page
+ * (a layout effect that measures every pane at once), so a jump tapped as soon as the chips work already aims at a
+ * pane's packed place; later changes go through the observer. Layout only: nothing moves.
  */
 function usePackedPanes(main: RefObject<HTMLElement | null>) {
-  useEffect(() => {
+  useLayoutEffect(() => {
     const host = main.current;
     if (!host || typeof ResizeObserver === 'undefined') return;
     const span = (pane: HTMLElement) => {
@@ -39,7 +41,11 @@ function usePackedPanes(main: RefObject<HTMLElement | null>) {
       pane.style.gridRowEnd = `span ${Math.max(1, Math.ceil((pane.getBoundingClientRect().height + room) / PACK_ROW))}`;
     };
     const sizes = new ResizeObserver((entries) => entries.forEach((entry) => span(entry.target as HTMLElement)));
-    const watch = () => host.querySelectorAll<HTMLElement>(':scope > [data-glass]').forEach((pane) => sizes.observe(pane));
+    const watch = () =>
+      host.querySelectorAll<HTMLElement>(':scope > [data-glass]').forEach((pane) => {
+        span(pane);
+        sizes.observe(pane);
+      });
     watch();
     host.setAttribute('data-packed', '');
     const changes = new MutationObserver(watch);
