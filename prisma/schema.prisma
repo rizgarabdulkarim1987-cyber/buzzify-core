@@ -2131,7 +2131,8 @@ model PhProductUnit {
   @@index([restaurantId, productId])
 }
 
-/// A barcode of one unit. `code` is text so leading zeros survive; `shared` marks a code several products use.
+/// A barcode of one unit. `code` is text so leading zeros survive; `shared` marks a code several products use. A code
+/// that is not shared is held once per business: the partial unique index "PhBarcode_one_unshared_code" (raw SQL in the migration).
 model PhBarcode {
   id           String        @id @default(cuid())
   restaurantId String

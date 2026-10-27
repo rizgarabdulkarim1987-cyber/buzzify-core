@@ -7,7 +7,7 @@ import { validateLadder, type LadderCode, type UnitLevel } from '@/server/domain
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
-import { syncBarcodes, type SharedCode } from './barcodes';
+import { barcodeInUse, syncBarcodes, type SharedCode } from './barcodes';
 
 /**
  * A pharmacy's products: the services behind `ph.products.*`. Each takes the scoped client or transaction of the
@@ -143,14 +143,18 @@ async function findDuplicate(scoped: ScopedDb, identityKey: string, exceptId?: s
 }
 
 /**
- * For a write that lost a race on the unique identity (`P2002` from the database, after the check found nothing):
- * the product that won, as `DUPLICATE_PRODUCT`. Any other error is returned as it is.
+ * For a write that lost a race (`P2002` from the database, after the checks in the transaction found nothing): the
+ * unique identity, as `DUPLICATE_PRODUCT` naming the product that won, or a barcode that is not shared
+ * ("PhBarcode_one_unshared_code"), as `BARCODE_IN_USE` naming its holder. Which one is found by reading again, not from
+ * the error's metadata. Any other error is returned as it is. `exceptId` is the product being updated.
  */
-export async function asDuplicate(scoped: ScopedClient, error: unknown, input: ProductInput, exceptId?: string): Promise<unknown> {
+export async function asLostRace(scoped: ScopedClient, error: unknown, input: ProductInput, exceptId?: string): Promise<unknown> {
   if ((error as { code?: unknown } | null)?.code !== 'P2002') return error;
   const levels = [...input.levels].sort((a, b) => a.level - b.level);
   const found = await findDuplicate(scoped, identityOf(input, levels), exceptId);
-  return found ? duplicateOf(found) : error;
+  if (found) return duplicateOf(found);
+  const codes = input.barcodes.map((b, index) => ({ index, code: normalizeScan(b.code), shared: b.shared === true }));
+  return (await barcodeInUse(scoped, codes, exceptId)) ?? error;
 }
 
 // Phase 2 guards ------------------------------------------------------------------------------------------------------

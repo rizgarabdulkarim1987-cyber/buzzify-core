@@ -9,7 +9,7 @@ import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 
 const META = { ip: '203.0.113.19', userAgent: 'vitest' };
 
@@ -216,7 +216,7 @@ describe('pharmacy products', () => {
     // The sharing is audited with codes only.
     const [audit, ...more] = await prisma().auditLog.findMany({ where: { action: 'ph.barcode.share' } });
     expect(more).toEqual([]);
-    expect(audit).toMatchObject({ restaurantId: a.id, actorId: owner.userId, entityType: 'PhBarcode', entityId: second.id });
+    expect(audit).toMatchObject({ restaurantId: a.id, actorId: owner.userId, entityType: 'PhProduct', entityId: second.id });
     expect(audit!.changes).toEqual({
       code: { before: null, after: '6291234567894' },
       sharedWith: { before: null, after: [first.id] },
@@ -305,6 +305,22 @@ describe('pharmacy products', () => {
     expect(dataOf(await ask(cashier, productQueries.get, { restaurantId: a.id, productId: created.id }))).not.toHaveProperty('cost');
   });
 
+  it('a support actor reads the catalog without cost fields and cannot write', async () => {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const admin = await person('admin', { superAdmin: true });
+    await grant(admin, a.id, { scopes: ['catalog.read'] });
+    const created = dataOf(await act(owner, productActions.create, panadol(a.id)));
+
+    const listed = dataOf(await ask(admin, productQueries.list, { restaurantId: a.id })).items;
+    expect(listed.map((p) => p.id)).toEqual([created.id]);
+    expect(listed[0]).not.toHaveProperty('cost');
+    expect(dataOf(await ask(admin, productQueries.get, { restaurantId: a.id, productId: created.id }))).not.toHaveProperty('cost');
+    // Each read is audited by the framework; support never runs an action.
+    expect(await prisma().auditLog.count({ where: { action: 'support.read', actorId: admin.userId } })).toBe(2);
+    expect(codeOf(await act(admin, productActions.archive, { restaurantId: a.id, productId: created.id, expectedVersion: 1 }))).toBe('FORBIDDEN');
+  });
+
   it('a branch manager of branch 1 cannot set branch settings for branch 2', async () => {
     const a = await pharmacy('A', { branches: 2 });
     const [one, two] = a.branchIds as [string, string];
@@ -356,6 +372,60 @@ describe('pharmacy products', () => {
       });
     }
     expect(await prisma().phProductUnit.count()).toBe(3);
+  });
+
+  it('two simultaneous saves of different products with the same barcode end with one holder', async () => {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const actor = await actorOf(owner);
+    const results = await Promise.all(
+      Array.from({ length: 5 }, (_, i) =>
+        runAction(prisma(), actor, productActions.create, panadol(a.id, { tradeName: `Brand ${i}`, barcodes: [{ code: '6291234567894', level: 2 }] }), META),
+      ),
+    );
+
+    const rows = await prisma().phBarcode.findMany({ where: { code: '6291234567894' }, include: { product: true } });
+    expect(rows).toHaveLength(1);
+    const winner = rows[0]!.product;
+    expect(results.filter((r) => r.ok)).toEqual([{ ok: true, data: { id: winner.id, version: 1 } }]);
+    for (const result of results.filter((r) => !r.ok)) {
+      expect(result).toMatchObject({
+        ok: false,
+        error: { code: 'CONFLICT', fields: { phCode: 'BARCODE_IN_USE', productId: winner.id, productName: winner.tradeName } },
+      });
+    }
+    expect(await prisma().phProduct.count()).toBe(1);
+
+    // The same race, made certain: another save holds the code uncommitted while this one checks (finding nothing) and
+    // then waits on the index; when the other commits, this one is refused naming it, never failing as an internal error.
+    let release!: () => void;
+    const held = new Promise<void>((resolve) => (release = resolve));
+    let inserted!: () => void;
+    const holding = new Promise<void>((resolve) => (inserted = resolve));
+    const other = prisma().$transaction(
+      async (tx) => {
+        const product = await tx.phProduct.create({ data: { restaurantId: a.id, tradeName: 'Holder', identityKey: 'holder' }, select: { id: true } });
+        const unit = await tx.phProductUnit.create({
+          data: { restaurantId: a.id, productId: product.id, level: 0, label: 'tablet', baseQty: 1 },
+          select: { id: true },
+        });
+        await tx.phBarcode.create({ data: { restaurantId: a.id, productId: product.id, unitId: unit.id, code: '5000000000001' } });
+        inserted();
+        await held;
+        return product;
+      },
+      { timeout: 20_000 },
+    );
+    await holding;
+    const losing = runAction(prisma(), actor, productActions.create, panadol(a.id, { tradeName: 'Late', barcodes: [{ code: '5000000000001', level: 0 }] }), META);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    release();
+    const holder = await other;
+    expect(await losing).toMatchObject({
+      ok: false,
+      error: { code: 'CONFLICT', fields: { phCode: 'BARCODE_IN_USE', productId: holder.id, productName: 'Holder', 'barcodes.0.code': expect.any(String) } },
+    });
+    expect(await prisma().phProduct.count({ where: { tradeName: 'Late' } })).toBe(0);
   });
 
   it('archive keeps the row and hides it from the default list', async () => {

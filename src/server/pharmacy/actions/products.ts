@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import {
   archiveProduct,
-  asDuplicate,
+  asLostRace,
   assertBranchSettings,
   createProduct,
   pharmacyOf,
@@ -21,13 +21,16 @@ import { defineAction, type ActionContext } from '@/server/studio/framework/acti
 const productId = z.string().min(1).max(64);
 const expectedVersion = z.number().int().min(1);
 
-/** The audit rows of a product write: the product itself, and one line per barcode it shared with other products. */
+/**
+ * The audit rows of a product write: the product itself, and one line per barcode it shared with other products, filed
+ * under the product (the entity id is the product's) so its activity lists the sharing.
+ */
 function auditWrite(ctx: ActionContext, action: string, written: ProductWrite): void {
   ctx.audit({ action, entityType: 'PhProduct', entityId: written.id, changes: written.changes });
   for (const shared of written.shared) {
     ctx.audit({
       action: 'ph.barcode.share',
-      entityType: 'PhBarcode',
+      entityType: 'PhProduct',
       entityId: written.id,
       changes: { code: { before: null, after: shared.code }, sharedWith: { before: null, after: shared.productIds } },
     });
@@ -51,7 +54,7 @@ export const create = defineAction({
       });
     } catch (error) {
       // Two people saving the same product at once: the database keeps one, and the other learns which.
-      throw await asDuplicate(scoped, error, input);
+      throw await asLostRace(scoped, error, input);
     }
   },
 });
@@ -72,7 +75,7 @@ export const update = defineAction({
         return { id: written.id, version: written.version };
       });
     } catch (error) {
-      throw await asDuplicate(scoped, error, input, input.productId);
+      throw await asLostRace(scoped, error, input, input.productId);
     }
   },
 });

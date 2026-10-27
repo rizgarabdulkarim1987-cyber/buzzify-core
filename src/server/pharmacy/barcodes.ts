@@ -43,6 +43,43 @@ export interface SharedCode {
 
 export const BARCODE_IN_USE_MESSAGE = 'This barcode is already on another product. Mark it as shared to use it on both.';
 
+/** The rows of `codes` that products other than `exceptProductId` hold, oldest first, with each holder's name. */
+async function heldElsewhere(scoped: ScopedDb, codes: readonly string[], exceptProductId?: string) {
+  if (codes.length === 0) return [];
+  return scoped.phBarcode.findMany({
+    where: { code: { in: [...new Set(codes)] }, ...(exceptProductId ? { productId: { not: exceptProductId } } : {}) },
+    select: { code: true, productId: true, product: { select: { tradeName: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+}
+
+const inUse = (index: number, holder: { productId: string; product: { tradeName: string } }) =>
+  new StudioError('CONFLICT', BARCODE_IN_USE_MESSAGE, {
+    phCode: 'BARCODE_IN_USE',
+    productId: holder.productId,
+    productName: holder.product.tradeName,
+    [`barcodes.${index}.code`]: BARCODE_IN_USE_MESSAGE,
+  });
+
+/**
+ * The `BARCODE_IN_USE` refusal for the first entry that is not `shared` and whose code (already normalised) another
+ * product holds, naming the oldest holder; null when there is none. Also how a save that lost the race for a code (the
+ * partial unique index "PhBarcode_one_unshared_code") learns who won.
+ */
+export async function barcodeInUse(
+  scoped: ScopedDb,
+  entries: readonly { index: number; code: string; shared: boolean }[],
+  exceptProductId?: string,
+): Promise<StudioError | null> {
+  const unshared = entries.filter((e) => !e.shared);
+  const held = await heldElsewhere(scoped, unshared.map((e) => e.code), exceptProductId);
+  for (const entry of unshared) {
+    const holder = held.find((h) => h.code === entry.code);
+    if (holder) return inUse(entry.index, holder);
+  }
+  return null;
+}
+
 /**
  * Makes the product's barcodes exactly `wanted` (codes already normalised, each on a level of `unitIdByLevel`). A code
  * another product of the business has is refused `BARCODE_IN_USE` (naming that product) unless this entry is `shared`;
@@ -56,29 +93,12 @@ export async function syncBarcodes(
   wanted: readonly BarcodeInput[],
 ): Promise<{ codes: string[]; shared: SharedCode[] }> {
   const entries = wanted.map((b, index) => ({ index, code: b.code, unitId: unitIdByLevel.get(b.level)!, shared: b.shared === true }));
-  const codes = [...new Set(entries.map((e) => e.code))];
-
-  const others =
-    codes.length === 0
-      ? []
-      : await tx.phBarcode.findMany({
-          where: { code: { in: codes }, productId: { not: product.id } },
-          select: { code: true, productId: true, product: { select: { tradeName: true } } },
-          orderBy: { createdAt: 'asc' },
-        });
+  const others = await heldElsewhere(tx, entries.map((e) => e.code), product.id);
   const shared: SharedCode[] = [];
   for (const entry of entries) {
     const clashes = others.filter((o) => o.code === entry.code);
     if (clashes.length === 0) continue;
-    if (!entry.shared) {
-      const first = clashes[0]!;
-      throw new StudioError('CONFLICT', BARCODE_IN_USE_MESSAGE, {
-        phCode: 'BARCODE_IN_USE',
-        productId: first.productId,
-        productName: first.product.tradeName,
-        [`barcodes.${entry.index}.code`]: BARCODE_IN_USE_MESSAGE,
-      });
-    }
+    if (!entry.shared) throw inUse(entry.index, clashes[0]!);
     if (!shared.some((s) => s.code === entry.code)) {
       shared.push({ code: entry.code, productIds: [...new Set(clashes.map((c) => c.productId))] });
     }
