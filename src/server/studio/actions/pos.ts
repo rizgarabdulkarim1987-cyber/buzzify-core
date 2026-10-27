@@ -63,6 +63,9 @@ export const updatePosSettings = defineAction({
     takeawayEnabled: z.boolean(),
     deliveryEnabled: z.boolean(),
     complaintsEnabled: z.boolean(),
+    // 0 switches the idle sign-out off.
+    idleMinutes: z.number().int().min(0).max(240),
+    requireApproval: z.boolean(),
     version: z.number().int().min(0),
   }),
   target: () => TILL,

@@ -1,7 +1,8 @@
 import { pickName } from '@/lib/pos-view';
 import type { OrderStatus } from '@/server/domain/pos/order-state';
+import { tillOfferPerUnit } from '@/server/domain/pos/line-offer';
 import { computeTotals, type Discount, type Rates, type Totals } from '@/server/domain/pos/totals';
-import type { TillProduct } from '@/server/pos/till-catalog';
+import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import type { QueuedOp } from './queue';
 import type { SnapshotLine, SyncSnapshot } from './snapshot';
 
@@ -49,6 +50,7 @@ export function localTotals(order: Pick<LocalOrder, 'lines' | 'invoiceDiscount'>
       unitPrice: line.unitPrice,
       optionsTotal: line.options.reduce((sum, option) => sum + option.priceDelta, 0),
       quantity: line.quantity,
+      promoPerUnit: line.promoPerUnit,
       discount: line.discount ?? undefined,
       cancelled: line.cancelled,
     })),
@@ -60,7 +62,7 @@ export function localTotals(order: Pick<LocalOrder, 'lines' | 'invoiceDiscount'>
 type AddLine = Extract<QueuedOp['op'], { kind: 'addLine' }>;
 
 /** The line as the server will store it: names in the menu default language, the chosen size first, then the options. */
-function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<typeof pickName>[2], operationId: string): SnapshotLine {
+function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<typeof pickName>[2], operationId: string, offers: Pick<TillCatalog, 'offers' | 'timeZone'> | null): SnapshotLine {
   const chosen: SnapshotLine['options'] = [];
   const variant = op.payload.variantId
     ? product.variants.find((v) => v.id === op.payload.variantId)
@@ -72,12 +74,16 @@ function newLine(product: TillProduct, op: AddLine, defaultLocale: Parameters<ty
       if (option) chosen.push({ id: option.id, name: pickName(option.names, defaultLocale, defaultLocale), priceDelta: option.priceDelta });
     }
   }
+  // Priced at the moment the cashier tapped the dish, as the server prices the replay (`pricingMoment`).
+  const regularUnit = product.price + chosen.reduce((sum, option) => sum + option.priceDelta, 0);
+  const promoPerUnit = offers ? tillOfferPerUnit(product, regularUnit, offers.offers ?? [], new Date(op.clientAt), offers.timeZone) : 0;
   return {
     id: `op:${operationId}`,
     productId: product.id,
     name: pickName(product.names, defaultLocale, defaultLocale),
     quantity: op.payload.quantity,
     unitPrice: product.price,
+    promoPerUnit,
     options: chosen,
     note: op.payload.note,
     discount: null,
@@ -110,7 +116,8 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       version: order.version,
       seatedAt: order.seatedAt,
       invoiceDiscount: order.invoiceDiscount,
-      lines: order.lines.map((line) => ({ ...line, options: [...line.options] })),
+      // A snapshot cached by a device before offers reached the till has no `promoPerUnit`: those lines carry none.
+      lines: order.lines.map((line) => ({ ...line, promoPerUnit: line.promoPerUnit ?? 0, options: [...line.options] })),
       waiting: 0,
       attention: false,
       paid: null,
@@ -154,7 +161,7 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
     switch (op.kind) {
       case 'addLine': {
         const product = products.get(op.payload.productId);
-        if (product) order.lines.push(newLine(product, op, defaultLocale, q.operationId));
+        if (product) order.lines.push(newLine(product, op, defaultLocale, q.operationId, snapshot.catalog));
         if (order.status === 'READY' || order.status === 'BILL_REQUESTED') order.status = 'OPEN';
         break;
       }

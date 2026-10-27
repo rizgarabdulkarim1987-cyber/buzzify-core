@@ -18,6 +18,8 @@ export interface PosSettingsView {
   takeawayEnabled: boolean;
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
+  idleMinutes: number;
+  requireApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 }
@@ -36,6 +38,8 @@ export const POS_SETTINGS_DEFAULTS: PosSettingsView = {
   takeawayEnabled: false,
   deliveryEnabled: false,
   complaintsEnabled: false,
+  idleMinutes: 15,
+  requireApproval: true,
   catalogMenuId: null,
   version: 0,
 };
@@ -51,6 +55,8 @@ type Row = {
   takeawayEnabled: boolean;
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
+  idleMinutes: number;
+  requireApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 };
@@ -67,6 +73,8 @@ function view(row: Row): PosSettingsView {
     takeawayEnabled: row.takeawayEnabled,
     deliveryEnabled: row.deliveryEnabled,
     complaintsEnabled: row.complaintsEnabled,
+    idleMinutes: row.idleMinutes,
+    requireApproval: row.requireApproval,
     catalogMenuId: row.catalogMenuId,
     version: row.version,
   };

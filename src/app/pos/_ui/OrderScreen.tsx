@@ -14,11 +14,14 @@ import {
   setPosInvoiceDiscount,
   updatePosLine,
 } from '@/app/studio/_actions/pos';
+import type { Approver } from '@/lib/pos-approval';
 import { formatNumber } from '@/lib/pos-format';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
+import { offerPerUnit } from '@/server/domain/pos/line-offer';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
+import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { Alert } from '@/studio/ui/Alert';
 import { Button } from '@/studio/ui/Button';
@@ -28,7 +31,9 @@ import { EmptyState } from '@/studio/ui/EmptyState';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
+import { ApprovalFields, approvalOf, DiscountReasonFields } from './ApprovalFields';
 import { useMoney } from './money';
+import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
@@ -59,11 +64,14 @@ export function OrderScreen({
   can,
   freeTables,
   delivery,
+  approvers,
   initialPaying = false,
 }: {
   order: OrderView;
   catalog: TillCatalog | null;
   can: OrderCan;
+  /** Managers who can approve a cashier's discount or cancel; null when the person needs no approval. */
+  approvers: Approver[] | null;
   freeTables: FreeTable[];
   delivery: DeliveryChoices;
   /** Open on the payment step (the board's "Pay", `?pay=1`). Ignored without the payment permission or a live line. */
@@ -81,6 +89,7 @@ export function OrderScreen({
   const [dialog, setDialog] = useState<Dialogs>(() => (initialPaying && can.pay && order.lines.some((line) => !line.cancelled) ? 'pay' : 'none'));
 
   const fallback = catalog?.defaultLocale ?? 'en';
+  const offerFor = useProductOffer(catalog);
   const products = useMemo(() => (catalog ? visibleProducts(catalog, categoryId, search) : []), [catalog, categoryId, search]);
   // With every category showing (and no search), the menu is cut into one titled section per category.
   const sections = useMemo(() => {
@@ -124,6 +133,12 @@ export function OrderScreen({
 
   const reasonOf = (form: FormData) => String(form.get('reason') ?? '').trim();
   const failed = { message: t('pos.order.actionRefused') };
+  /** A refusal for a dialog: a manager's approval that failed goes under the PIN field, the rest as before. */
+  const problemOf = (error: Parameters<typeof describeFailure>[2], field: 'reason' | 'value'): { message?: string; fields?: Record<string, string> } => {
+    if (error.code === 'FORBIDDEN') return { fields: { approvalPin: describeFailure(t, locale, error).message } };
+    if (error.fields?.note) return { fields: { note: error.fields.note } };
+    return error.fields?.[field] ? { fields: { [field]: error.fields[field] } } : failed;
+  };
 
   return (
     <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
@@ -208,6 +223,7 @@ export function OrderScreen({
                       <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
+                          const offer = offerFor(product);
                           return (
                             <li key={product.id} className="flex">
                               <button
@@ -221,7 +237,17 @@ export function OrderScreen({
                               >
                                 <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
-                                  <span className="text-xl font-bold text-text">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>
+                                  <span className="flex flex-wrap items-baseline gap-x-2">
+                                    <span className="text-xl font-bold text-text">{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                                    {product.available && offer ? (
+                                      <>
+                                        <span className="text-sm text-muted line-through">{money(product.price)}</span>
+                                        <span data-testid={`offer-cue-${product.id}`} className="rounded-full bg-ink px-2 text-sm font-bold text-on-ink">
+                                          −{formatNumber(offer.percent)}%
+                                        </span>
+                                      </>
+                                    ) : null}
+                                  </span>
                                   {count > 0 ? (
                                     <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="grid min-w-8 place-items-center rounded-full bg-ink px-2 text-base leading-8 font-bold text-on-ink">
                                       {formatNumber(count)}
@@ -262,6 +288,11 @@ export function OrderScreen({
                       </p>
                       {line.options.length > 0 ? <p className="text-sm text-muted">{line.options.map((o) => o.name).join(' · ')}</p> : null}
                       {line.note ? <p className="text-sm text-muted">“{line.note}”</p> : null}
+                      {line.offerPerUnit > 0 ? (
+                        <p data-testid="line-offer" className="text-sm text-muted">
+                          {t('pos.requests.offer')}: {money(-line.offerPerUnit * line.quantity)}
+                        </p>
+                      ) : null}
                       {line.discount ? (
                         <p className="text-sm text-muted">
                           {t('pos.order.lineDiscount')}: {line.discount.kind === 'PERCENT' ? `${formatNumber(line.discount.value)}%` : money(line.discount.value)}
@@ -355,7 +386,7 @@ export function OrderScreen({
         </section>
       </div>
 
-      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} />
+      <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
       <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} methods={order.paymentMethods} />
 
@@ -366,18 +397,21 @@ export function OrderScreen({
         body={t('pos.order.cancelOrderBody')}
         confirmLabel={t('pos.order.cancelOrder')}
         onConfirm={async (form) => {
-          const result = await call(() => cancelPosOrder({ orderId: order.id, expectedVersion: order.version, reason: reasonOf(form) }), { quiet: true });
+          const result = await call(() => cancelPosOrder({ orderId: order.id, expectedVersion: order.version, reason: reasonOf(form), approval: approvalOf(form) }), { quiet: true });
           if (result.ok) {
             router.push('/pos/tables');
             return true;
           }
-          return result.error.fields?.reason ? { fields: { reason: result.error.fields.reason } } : failed;
+          return problemOf(result.error, 'reason');
         }}
       >
         {(errors) => (
-          <Field label={t('pos.order.reason')} error={errors.reason}>
-            <Input name="reason" size="lg" maxLength={300} />
-          </Field>
+          <div className="flex flex-col gap-3">
+            <Field label={t('pos.order.reason')} error={errors.reason}>
+              <Input name="reason" size="lg" maxLength={300} />
+            </Field>
+            {approvers && liveLines.length > 0 ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
+          </div>
         )}
       </ConfirmDialog>
 
@@ -389,14 +423,17 @@ export function OrderScreen({
         confirmLabel={t('pos.order.cancelLine')}
         onConfirm={async (form) => {
           if (typeof dialog !== 'object') return true;
-          const result = await call(() => cancelPosLine({ lineId: dialog.line.id, expectedVersion: order.version, reason: reasonOf(form) }), { quiet: true });
-          return result.ok ? true : result.error.fields?.reason ? { fields: { reason: result.error.fields.reason } } : failed;
+          const result = await call(() => cancelPosLine({ lineId: dialog.line.id, expectedVersion: order.version, reason: reasonOf(form), approval: approvalOf(form) }), { quiet: true });
+          return result.ok ? true : problemOf(result.error, 'reason');
         }}
       >
         {(errors) => (
-          <Field label={t('pos.order.reason')} error={errors.reason}>
-            <Input name="reason" size="lg" maxLength={300} />
-          </Field>
+          <div className="flex flex-col gap-3">
+            <Field label={t('pos.order.reason')} error={errors.reason}>
+              <Input name="reason" size="lg" maxLength={300} />
+            </Field>
+            {approvers && typeof dialog === 'object' && dialog.line.sent ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
+          </div>
         )}
       </ConfirmDialog>
 
@@ -405,15 +442,18 @@ export function OrderScreen({
         title={dialog === 'invoiceDiscount' ? t('pos.order.invoiceDiscount') : t('pos.order.discount')}
         current={dialog === 'invoiceDiscount' ? order.invoiceDiscount : typeof dialog === 'object' ? dialog.line.discount : null}
         onClose={() => setDialog('none')}
-        onSave={async (discount) => {
+        approvers={approvers}
+        onSave={async (discount, form) => {
+          const given = discount && { ...discount, reason: String(form.get('reason') ?? 'MANAGER_DECISION'), note: String(form.get('note') ?? '').trim() || undefined };
+          const approval = approvalOf(form);
           const result = await call(
             () =>
               typeof dialog === 'object'
-                ? updatePosLine({ lineId: dialog.line.id, expectedVersion: order.version, discount })
-                : setPosInvoiceDiscount({ orderId: order.id, expectedVersion: order.version, discount }),
+                ? updatePosLine({ lineId: dialog.line.id, expectedVersion: order.version, discount: given, approval })
+                : setPosInvoiceDiscount({ orderId: order.id, expectedVersion: order.version, discount: given, approval }),
             { quiet: true },
           );
-          return result.ok ? true : result.error.fields?.value ? { fields: { value: result.error.fields.value } } : failed;
+          return result.ok ? true : problemOf(result.error, 'value');
         }}
       />
 
@@ -452,14 +492,17 @@ function DiscountDialog({
   open,
   title,
   current,
+  approvers,
   onClose,
   onSave,
 }: {
   open: boolean;
   title: string;
   current: Discount;
+  /** Managers who can approve a cashier's discount; null when the person needs no approval. */
+  approvers: Approver[] | null;
   onClose: () => void;
-  onSave: (discount: Discount) => Promise<true | { message?: string; fields?: Record<string, string> }>;
+  onSave: (discount: Discount, form: FormData) => Promise<true | { message?: string; fields?: Record<string, string> }>;
 }) {
   const t = useT();
   return (
@@ -474,20 +517,24 @@ function DiscountDialog({
       onConfirm={(form) => {
         const raw = String(form.get('value') ?? '').trim();
         const kind = form.get('kind') === 'AMOUNT' ? 'AMOUNT' : 'PERCENT';
-        if (raw === '') return onSave(null);
+        if (raw === '') return onSave(null, form);
         const value = typedAmount(raw);
         if (value === null) return Promise.resolve({ fields: { value: t('pos.order.discountDigits') } });
-        return onSave({ kind, value });
+        return onSave({ kind, value }, form);
       }}
     >
       {(errors) => (
-        <div className="flex flex-wrap items-end gap-3">
-          <Field label={t('pos.order.discountKind')} className="w-40">
-            <Select name="kind" size="lg" defaultValue={current?.kind ?? 'PERCENT'} options={[{ value: 'PERCENT', label: t('pos.order.percent') }, { value: 'AMOUNT', label: t('pos.order.amount') }]} />
-          </Field>
-          <Field label={t('pos.order.discountValue')} error={errors.value} className="w-40">
-            <Input name="value" size="lg" inputMode="numeric" dir="ltr" defaultValue={current ? String(current.value) : ''} />
-          </Field>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label={t('pos.order.discountKind')} className="w-40">
+              <Select name="kind" size="lg" defaultValue={current?.kind ?? 'PERCENT'} options={[{ value: 'PERCENT', label: t('pos.order.percent') }, { value: 'AMOUNT', label: t('pos.order.amount') }]} />
+            </Field>
+            <Field label={t('pos.order.discountValue')} error={errors.value} className="w-40">
+              <Input name="value" size="lg" inputMode="numeric" dir="ltr" defaultValue={current ? String(current.value) : ''} />
+            </Field>
+          </div>
+          <DiscountReasonFields errors={errors} />
+          {approvers ? <ApprovalFields approvers={approvers} errors={errors} /> : null}
         </div>
       )}
     </ConfirmDialog>

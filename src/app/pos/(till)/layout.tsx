@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
+import { idleMinutesFor } from '@/lib/pos-idle';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
 import { currentDevice } from '@/server/pos/device-session';
@@ -12,6 +13,7 @@ import { getActor } from '@/server/studio/auth/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posMyShift } from '@/server/studio/queries/pos';
 import { posAiState } from '@/server/studio/queries/pos-ai';
+import { posIdleMinutes } from '@/server/studio/queries/pos-idle';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
 import { activeAnnouncements } from '@/server/studio/queries/announcements';
 import { posRestaurantLogo } from '@/server/studio/queries/pos-brand';
@@ -20,6 +22,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { BrandLogo } from '@/studio/shell/BrandLogo';
+import { IdleGuard } from '@/app/pos/_ui/IdleGuard';
 import { LayoutPicker } from '@/app/pos/_ui/floor/LayoutPicker';
 import { ShiftPill } from '@/app/pos/_ui/ShiftPill';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
@@ -55,6 +58,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const ai = canPos(entry.actor.role, 'report.view') ? await query(posAiState, {}) : { enabled: false };
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
+  const idleMinutes = await query(posIdleMinutes, {});
   const layout = layoutOf((await cookies()).get(LAYOUT_COOKIE)?.value);
   // From lg up the till is one screen: the page never scrolls, a page taller than the screen scrolls inside <main>.
   return (
@@ -95,6 +99,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       <AppearanceCache userId={entry.actor.userId} vars={lookVars} shape={Object.keys(lookVars).length > 0 ? look.shape : null} />
       <RegisterSw />
       <OfflineRedirect />
+      <IdleGuard minutes={idleMinutesFor(entry.actor.role, idleMinutes)} shared={sharedDevice} />
       <AnnouncementBar userId={entry.actor.userId} initial={notices} />
       <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto print:block print:overflow-visible">
         {children}

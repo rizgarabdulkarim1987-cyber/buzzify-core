@@ -33,6 +33,8 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         serviceRatePercent: whole(values.serviceRatePercent),
         taxRatePercent: whole(values.taxRatePercent),
         tableRingMinutes: whole(values.tableRingMinutes),
+        idleMinutes: whole(values.idleMinutes),
+        requireApproval: values.requireApproval === 'on',
         // Cash is always sent: its box is checked and disabled, and a disabled field is not part of the form.
         enabledPaymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || values[`method.${method}`] === 'on'),
         ...Object.fromEntries(SWITCHES.map(([key]) => [key, values[key] === 'on'])),
@@ -41,7 +43,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         version: settings.version,
       }),
     {
-      keep: ['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes'],
+      keep: ['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes'],
       onSuccess: () => {
         toast.success(t('pos.settings.saved'));
         router.refresh();
@@ -52,7 +54,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
 
   return (
     <form key={settings.version} {...form.props} className="flex max-w-2xl flex-col gap-6 rounded-[28px] border border-line bg-surface p-6">
-      <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'enabledPaymentMethods']} />
+      <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'idleMinutes', 'enabledPaymentMethods']} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('pos.settings.service')} error={form.fieldError('serviceRatePercent')}>
           <Input name="serviceRatePercent" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('serviceRatePercent') ?? String(settings.serviceRatePercent)} />
@@ -63,7 +65,16 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
         <Field label={t('pos.settings.ring')} error={form.fieldError('tableRingMinutes')}>
           <Input name="tableRingMinutes" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('tableRingMinutes') ?? String(settings.tableRingMinutes)} />
         </Field>
+        <Field label={t('pos.settings.idle')} hint={t('pos.settings.idleHint')} error={form.fieldError('idleMinutes')}>
+          <Input name="idleMinutes" inputMode="numeric" dir="ltr" className="rtl:text-right" defaultValue={form.value('idleMinutes') ?? String(settings.idleMinutes)} />
+        </Field>
       </div>
+
+      <fieldset className="flex flex-col gap-2">
+        <legend className="text-lg font-bold text-text">{t('pos.settings.trust')}</legend>
+        <Checkbox name="requireApproval" label={t('pos.settings.requireApproval')} defaultChecked={settings.requireApproval} />
+        <p className="text-sm text-muted">{t('pos.settings.requireApprovalHint')}</p>
+      </fieldset>
 
       <fieldset className="flex flex-col gap-2">
         <legend className="text-lg font-bold text-text">{t('pos.settings.methods')}</legend>

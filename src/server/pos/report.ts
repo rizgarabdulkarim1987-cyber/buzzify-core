@@ -14,6 +14,8 @@ const LINE_CANCEL = 'pos.order.line.cancel';
 export type MethodSales = Record<PosPaymentMethod, { count: number; total: number }>;
 
 export interface ShiftReport {
+  /** X is the live report of an open shift (it changes nothing); Z is a closed shift's report, numbered in `shift.zNumber`. */
+  kind: 'X' | 'Z';
   shift: PosShift;
   cashierName: string;
   /** The name of whoever closed it when that is not the shift's own person; null otherwise, and while open. */
@@ -136,6 +138,7 @@ function snapshotDiscounts(paymentId: string, snapshot: TotalsSnapshot): number 
       unitPrice: line.unitPrice,
       optionsTotal: line.options.reduce((s, o) => s + o.priceDelta, 0),
       quantity: line.quantity,
+      promoPerUnit: line.promoPerUnit,
       discount: line.discount ?? undefined,
     };
     if (lineTotal(priced) !== line.lineTotal) throw new Error(`The stored totals of payment ${paymentId} are corrupt: line ${line.id} does not add up`);
@@ -212,6 +215,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
   const refundsTotal = reversals.reduce((s, r) => s + r.amount, 0);
   const own = cancels.filter((c) => inShiftWindow(c, shift, now));
   return {
+    kind: shift.closedAt ? 'Z' : 'X',
     shift,
     cashierName: user.name,
     closedByName,

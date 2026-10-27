@@ -64,6 +64,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
         quantity: line.quantity,
         unitPrice: line.unitPriceSnapshot,
         options: optionsSnapshotSchema.parse(line.optionsSnapshot),
+        promoPerUnit: line.promoDiscountPerUnit,
         discount: priced.discount ?? null,
         lineTotal: lineTotal(priced),
       };

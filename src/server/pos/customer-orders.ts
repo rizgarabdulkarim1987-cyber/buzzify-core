@@ -239,7 +239,7 @@ export async function acceptRequestIn(db: AnyDb, restaurantId: string, input: Ac
         quantity: line.quantity,
         note: line.note,
         optionsSnapshot: line.optionsSnapshot as Prisma.InputJsonValue,
-        ...(line.promoDiscountPerUnit > 0 ? { discountKind: 'AMOUNT' as const, discountValue: line.promoDiscountPerUnit * line.quantity } : {}),
+        promoDiscountPerUnit: line.promoDiscountPerUnit,
         sectionId,
         sectionNameSnapshot: sectionId ? (sectionName.get(sectionId) ?? '') : '',
       };

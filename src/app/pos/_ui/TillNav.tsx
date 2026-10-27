@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { BookOpen, ChefHat, FileText, Inbox, LayoutGrid, Map as MapIcon, MessageSquareWarning, Package, QrCode, Settings, ShoppingCart, Sparkles, Truck, Users, Wallet, type LucideIcon } from 'lucide-react';
+import { BookOpen, ChefHat, FileText, Inbox, LayoutGrid, Map as MapIcon, MessageSquareWarning, Package, QrCode, Settings, ShieldAlert, ShoppingCart, Sparkles, Truck, Users, Wallet, type LucideIcon } from 'lucide-react';
 import { formatNumber } from '@/lib/pos-format';
 import type { TillPageKey } from '@/server/domain/pos/nav';
 import { useT } from '@/studio/i18n';
@@ -14,6 +14,7 @@ const ICONS: Record<TillPageKey, LucideIcon> = {
   shift: Wallet,
   kitchen: ChefHat,
   report: FileText,
+  activity: ShieldAlert,
   ai: Sparkles,
   inventory: Package,
   purchases: ShoppingCart,
