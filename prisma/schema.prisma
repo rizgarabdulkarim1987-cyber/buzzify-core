@@ -1420,7 +1420,8 @@ model PosOrder {
   restaurant                       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   table                            PosTable?          @relation(fields: [tableId], references: [id], onDelete: SetNull)
   lines                            PosOrderLine[]
-  payment                          PosPayment?
+  /// One payment for the whole bill, or one per guest when the bill was split (`part` 1, 2, 3...).
+  payments                         PosPayment[]
 
   @@unique([restaurantId, number])
   @@unique([restaurantId, queueDay, queueNumber])
@@ -1488,13 +1489,17 @@ model PosOrderLine {
   batch                     Int?
   readyAt                   DateTime?
   cancelAckAt               DateTime?
+  /// The payment that paid this line; null while unpaid. A paid line can no longer change.
+  paymentId                 String?
   createdAt                 DateTime           @default(now())
   restaurant                Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   order                     PosOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product                   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payment                   PosPayment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
   @@index([orderId])
+  @@index([paymentId])
   @@index([productId])
   @@index([restaurantId, sentAt])
 }
@@ -1502,7 +1507,9 @@ model PosOrderLine {
 model PosPayment {
   id             String              @id @default(cuid())
   restaurantId   String
-  orderId        String              @unique
+  orderId        String
+  /// 1 for a bill paid at once; 2, 3... for the next guest's share of a split bill.
+  part           Int                 @default(1)
   method         PosPaymentMethod
   /// Integer IQD handed over by the customer.
   amountReceived Int
@@ -1520,7 +1527,9 @@ model PosPayment {
   shift          PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   reversal       PosPaymentReversal?
   legs           PosPaymentLeg[]
+  lines          PosOrderLine[]
 
+  @@unique([orderId, part])
   @@index([restaurantId, paidAt])
   @@index([shiftId])
 }
