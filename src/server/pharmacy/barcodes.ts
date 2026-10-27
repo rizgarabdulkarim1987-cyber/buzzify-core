@@ -44,7 +44,7 @@ export interface SharedCode {
 export const BARCODE_IN_USE_MESSAGE = 'This barcode is already on another product. Mark it as shared to use it on both.';
 
 /** The rows of `codes` that products other than `exceptProductId` hold, oldest first, with each holder's name. */
-async function heldElsewhere(scoped: ScopedDb, codes: readonly string[], exceptProductId?: string) {
+export async function heldElsewhere(scoped: ScopedDb, codes: readonly string[], exceptProductId?: string) {
   if (codes.length === 0) return [];
   return scoped.phBarcode.findMany({
     where: { code: { in: [...new Set(codes)] }, ...(exceptProductId ? { productId: { not: exceptProductId } } : {}) },
@@ -53,7 +53,7 @@ async function heldElsewhere(scoped: ScopedDb, codes: readonly string[], exceptP
   });
 }
 
-const inUse = (index: number, holder: { productId: string; product: { tradeName: string } }) =>
+export const inUse = (index: number, holder: { productId: string; product: { tradeName: string } }) =>
   new StudioError('CONFLICT', BARCODE_IN_USE_MESSAGE, {
     phCode: 'BARCODE_IN_USE',
     productId: holder.productId,

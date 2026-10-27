@@ -56,6 +56,11 @@ export interface TransactionScope {
   menuId?: string;
 }
 
+/** How long one transaction may run, for the few actions that write many rows (see `ActionContext.transaction`). */
+export interface TransactionOptions {
+  timeoutMs: number;
+}
+
 /** What an action's handler receives, besides its parsed input. */
 export interface ActionContext {
   actor: Actor;
@@ -102,8 +107,11 @@ export interface ActionContext {
    * The audit entries queued so far are written inside the transaction before it commits; `afterCommit` callbacks run
    * once it has committed. A failed transaction drops the entries and callbacks queued during it. Run one transaction
    * at a time.
+   *
+   * `options.timeoutMs` raises Prisma's interactive-transaction limit (5 s by default) for an action that knowingly
+   * writes many rows at once (a catalog import); every other action keeps the default.
    */
-  transaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T>;
+  transaction<T>(fn: (tx: ScopedTx) => Promise<T>, options?: TransactionOptions): Promise<T>;
   /**
    * Like `transaction`, on a client scoped to `scope` instead of the target: for an action that makes a menu (whose rows
    * need a client scoped to it) or that works in another restaurant (a Super Admin duplicating a menu into it).
@@ -249,7 +257,7 @@ class Work {
       db: this.prisma,
       scoped: this.access.ph ? phScopedClient(this.prisma, this.access.ph) : null,
       meta: this.meta,
-      transaction: (fn) => this.targetTransaction(fn),
+      transaction: (fn, options) => this.targetTransaction(fn, options),
       transactionIn: (scope, fn) => {
         if (this.claim) throw new Error(`${this.name} runs an operation, which takes the target's one transaction`);
         if (this.access.ph) throw new Error(`${this.name} is a pharmacy action, which works in its own pharmacy: use transaction`);
@@ -273,10 +281,10 @@ class Work {
   }
 
   /** The action's transaction on the target; with an operation, its only one, which records the operation too. */
-  private targetTransaction<T>(fn: (tx: ScopedTx) => Promise<T>): Promise<T> {
-    if (!this.claim) return this.run(this.client(), this.access, fn);
+  private targetTransaction<T>(fn: (tx: ScopedTx) => Promise<T>, options?: TransactionOptions): Promise<T> {
+    if (!this.claim) return this.run(this.client(), this.access, fn, undefined, undefined, options);
     if (this.claimed) return Promise.reject(new Error(`${this.name} runs an operation, which takes one transaction`));
-    return this.run(this.client(), this.access, fn, undefined, this.claim).then((value) => {
+    return this.run(this.client(), this.access, fn, undefined, this.claim, options).then((value) => {
       // A transaction that failed has recorded nothing, so an action that retries it (a lost race for the next number) may.
       this.claimed = true;
       return value;
@@ -323,19 +331,24 @@ class Work {
     fn: (tx: ScopedTx) => Promise<T>,
     check?: (tx: ScopedTx) => Promise<void>,
     claim?: OperationClaim,
+    options?: TransactionOptions,
   ): Promise<T> {
     const auditsBefore = this.audits.length;
     const callbacksBefore = this.callbacks.length;
     let value: T;
     try {
-      value = await client.$transaction(async (tx) => {
-        if (claim) await this.record(tx, claim, place);
-        const result = await fn(tx);
-        if (check) await check(tx);
-        if (claim) await this.complete(tx, claim, place, result);
-        if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
-        return result;
-      });
+      value = await client.$transaction(
+        async (tx) => {
+          if (claim) await this.record(tx, claim, place);
+          const result = await fn(tx);
+          if (check) await check(tx);
+          if (claim) await this.complete(tx, claim, place, result);
+          if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
+          return result;
+        },
+        // maxWait is the wait for a connection, not the work: kept short so a busy pool still answers soon.
+        options ? { timeout: options.timeoutMs, maxWait: Math.min(options.timeoutMs, 10_000) } : undefined,
+      );
     } catch (error) {
       // What was queued during the failed transaction belonged to it; what was queued before waits for the next one.
       this.audits.length = auditsBefore;

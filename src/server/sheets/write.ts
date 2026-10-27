@@ -15,9 +15,9 @@ export function writeCsv(rows: string[][]): Uint8Array {
 }
 
 /** One worksheet, every column formatted as text (so `0012` and `4.50` stay as written), the header row bold and frozen. */
-export async function writeXlsx(rows: string[][]): Promise<Uint8Array> {
+export async function writeXlsx(rows: string[][], sheetName = 'Menu'): Promise<Uint8Array> {
   const workbook = new ExcelJS.Workbook();
-  const sheet = workbook.addWorksheet('Menu', { views: [{ state: 'frozen', ySplit: 1 }] });
+  const sheet = workbook.addWorksheet(sheetName, { views: [{ state: 'frozen', ySplit: 1 }] });
   const width = Math.max(0, ...rows.map((row) => row.length));
   sheet.columns = Array.from({ length: width }, (_, index) => ({ width: Math.min(40, Math.max(10, ...rows.slice(0, 50).map((row) => (row[index] ?? '').length + 2))), style: { numFmt: '@' } }));
   sheet.addRows(rows);

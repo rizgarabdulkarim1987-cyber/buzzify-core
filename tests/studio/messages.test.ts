@@ -142,6 +142,8 @@ describe('server texts', () => {
     'A pharmacy definition ran without its pharmacy',
     'A pharmacy needs at least one branch',
     'A pharmacy needs at least one currency',
+    'Import defaults passed the input schema but not the row rules',
+    'A list of products is created without shared barcodes',
     'An owner invitation needs the person sending it',
     'Super Admin',
   ]);

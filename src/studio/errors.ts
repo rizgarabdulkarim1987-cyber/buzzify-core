@@ -347,6 +347,14 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This change takes a price below zero': 'error.text.phBulkNegative',
   'Choose a start at most 90 days ahead': 'error.text.phPriceTooFar',
   'This change takes a price above the largest allowed': 'error.text.phBulkTooHigh',
+  // Pharmacy product import and export (src/server/pharmacy/imports.ts, exports.ts)
+  'This file is not what its name says. Save it again as CSV or Excel (.xlsx).': 'error.text.phImportFileMismatch',
+  'Use at most 10,000 rows': 'error.text.phImportTooManyRows',
+  'This file was already imported. Give a reason to import it again.': 'error.text.phImportDuplicate',
+  'This import changed since its preview. Preview the file again.': 'error.text.phImportStale',
+  'Some rows have errors. Fix them in the file or leave them out.': 'error.text.phImportHasErrors',
+  'There are no rows to import': 'error.text.phImportNothing',
+  'This catalog has too many products for one file': 'error.text.phExportTooLarge',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -357,7 +365,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'unitId', 'currentFrom']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'previewedAt']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

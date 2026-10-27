@@ -121,7 +121,7 @@ async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> 
 }
 
 /** An XLSX file is a ZIP: it starts with `PK\x03\x04`. */
-const isZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+export const isZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 
 /** The sheet in `bytes`: an Excel workbook by its signature, a CSV otherwise. Throws `SheetReadError`. */
 export async function readSheet(bytes: Uint8Array, options: ReadOptions = {}): Promise<ReadSheet> {

@@ -4,6 +4,7 @@ import { BulkPriceError, previewBulk, type BulkChange, type BulkRowPreview } fro
 import { assertEnabledCurrency, CurrencyNotEnabledError, parseMoney, type Currency, type PhMoney } from '@/server/domain/pharmacy/money';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { ListEntryError } from './products';
 
 /**
  * A pharmacy's sale prices: the services behind `ph.prices.*`. A price is a row per product unit, branch (or the whole
@@ -213,6 +214,59 @@ export async function setPrice(tx: ScopedTx, ph: PhActor, input: PriceSetInput):
   if (!unit) throw new StudioError('NOT_FOUND');
   const key: PriceKey = { productId: input.productId, unitId: input.unitId, branchId: input.branchId ?? null, currency: input.currency };
   return appendPrice(tx, ph, key, amountMinor, input.validFrom, input.reason);
+}
+
+/**
+ * The first price of each of many products (a catalog import writes the products, then their prices): `setPrice`'s
+ * checks on every entry (start horizon, enabled currency, the amount as `parseMoney` reads it, a unit of that product)
+ * and its row, written together. A key that already has an open price is refused `PRICE_CONFLICT`: closing one is
+ * `setPrice`'s. The first refusal by position is thrown as a `ListEntryError`, before any row is written. Branches must
+ * be checked first with `assertPriceBranch`.
+ */
+export async function setFirstPrices(tx: ScopedTx, ph: PhActor, inputs: readonly PriceSetInput[]): Promise<number> {
+  if (inputs.length === 0) return 0;
+  const enabled = new Map<Currency, unknown>();
+  for (const currency of new Set(inputs.map((input) => input.currency))) {
+    try {
+      await assertCurrency(tx, currency);
+    } catch (error) {
+      enabled.set(currency, error);
+    }
+  }
+  const unitIds = [...new Set(inputs.map((input) => input.unitId))];
+  const units = new Map<string, string>();
+  const open = new Set<string>();
+  for (let at = 0; at < unitIds.length; at += 5_000) {
+    const chunk = unitIds.slice(at, at + 5_000);
+    for (const unit of await tx.phProductUnit.findMany({ where: { id: { in: chunk } }, select: { id: true, productId: true } })) units.set(unit.id, unit.productId);
+    const rows = await tx.phPrice.findMany({ where: { unitId: { in: chunk }, validTo: null }, select: { productId: true, unitId: true, branchId: true, currency: true } });
+    for (const row of rows) open.add([row.productId, row.unitId, row.branchId ?? '', row.currency].join('\n'));
+  }
+  const data = inputs.map((input, index) => {
+    try {
+      assertHorizon(input.validFrom);
+      if (enabled.has(input.currency)) throw enabled.get(input.currency);
+      const amountMinor = amountOf(input.amount, input.currency, 'amount');
+      if (units.get(input.unitId) !== input.productId) throw new StudioError('NOT_FOUND');
+      if (open.has([input.productId, input.unitId, input.branchId ?? '', input.currency].join('\n'))) throw priceConflict();
+      return {
+        restaurantId: ph.restaurantId,
+        productId: input.productId,
+        unitId: input.unitId,
+        branchId: input.branchId ?? null,
+        currency: input.currency,
+        amountMinor,
+        validFrom: input.validFrom,
+        validTo: null,
+        reason: input.reason,
+        changedById: ph.userId,
+      };
+    } catch (error) {
+      throw new ListEntryError(index, error);
+    }
+  });
+  for (let at = 0; at < data.length; at += 1_000) await tx.phPrice.createMany({ data: data.slice(at, at + 1_000) });
+  return data.length;
 }
 
 /** What a stored batch asks for: the bulk input but its date (a column of its own), with the amounts as typed. */

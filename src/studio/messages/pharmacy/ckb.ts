@@ -73,6 +73,13 @@ const pharmacy: Messages = {
   'error.text.phBulkNegative': 'ئەم گۆڕانکارییە نرخێک دەباتە خوار سفر',
   'error.text.phPriceTooFar': 'دەستپێکێک هەڵبژێرە کە زۆرترین 90 ڕۆژ لە پێشەوە بێت',
   'error.text.phBulkTooHigh': 'ئەم گۆڕانکارییە نرخێک دەباتە سەرووی زۆرترین ڕێگەپێدراو',
+  'error.text.phImportFileMismatch': 'ناوەڕۆکی ئەم فایلە لەگەڵ ناوەکەی ناگونجێت. دووبارە وەک CSV یان Excel (.xlsx) پاشەکەوتی بکە.',
+  'error.text.phImportTooManyRows': 'زۆرترین 10,000 ڕیز بەکاربهێنە',
+  'error.text.phImportDuplicate': 'ئەم فایلە پێشتر هاوردە کراوە. هۆیەک بنووسە بۆ دووبارە هاوردەکردنی.',
+  'error.text.phImportStale': 'ئەم هاوردەکردنە لە دوای پێشبینینەکەی گۆڕاوە. دووبارە فایلەکە پێشبینی بکە.',
+  'error.text.phImportHasErrors': 'هەندێک ڕیز هەڵەیان تێدایە. لە فایلەکەدا چاکیان بکە یان دەریان بهێنە.',
+  'error.text.phImportNothing': 'هیچ ڕیزێک نییە بۆ هاوردەکردن',
+  'error.text.phExportTooLarge': 'ئەم لیستە بەرهەمی زیاترە لەوەی لە یەک فایلدا جێی ببێتەوە',
 };
 
 export default pharmacy;

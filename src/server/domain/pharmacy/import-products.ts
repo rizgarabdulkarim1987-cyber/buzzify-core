@@ -48,7 +48,11 @@ export type ImportIssueCode =
   | 'DUPLICATE_IN_FILE'
   | 'DUPLICATE_PRODUCT'
   | 'ZERO_PRICE'
-  | 'DEFAULT_APPLIED';
+  | 'DEFAULT_APPLIED'
+  // Added by the import service (src/server/pharmacy/imports.ts) from who imports and where, all of severity info:
+  | 'MIN_QTY_IGNORED'
+  | 'PRICE_IGNORED'
+  | 'NOT_IMPORTED';
 
 export type ImportIssue = { code: ImportIssueCode; field: ProductColumn; severity: 'error' | 'warning' | 'info'; message: string };
 
@@ -476,6 +480,24 @@ export function validateRows(input: ValidateInput): ValidateResult {
     result.rows.push({ rowNumber, status, issues, values, identityKey });
   });
   return result;
+}
+
+/**
+ * What the import will leave out for this person and place, added to each row it concerns as an info issue (the status
+ * is unchanged): a minimum quantity when no single branch is in scope (`minQty` false), a sale price when the person may
+ * not set business-wide prices (`prices` false), and a category or shelf, which products do not hold yet. Call it
+ * before `batchHash`, so the hash covers it.
+ */
+export function addScopeIssues(rows: readonly ParsedRow[], scope: { minQty: boolean; prices: boolean }): void {
+  for (const row of rows) {
+    const add = (code: ImportIssueCode, field: ProductColumn, message: string) => row.issues.push({ code, field, severity: 'info', message });
+    if (row.values.minQty !== null && !scope.minQty) {
+      add('MIN_QTY_IGNORED', 'minQty', 'The minimum quantity is left out: choose one branch to import it for that branch');
+    }
+    if (row.values.salePrice !== null && !scope.prices) add('PRICE_IGNORED', 'salePrice', 'The price is left out: only someone who sets prices for every branch imports them');
+    if (row.values.category !== '') add('NOT_IMPORTED', 'category', 'The category is not imported yet');
+    if (row.values.shelfLocation !== '') add('NOT_IMPORTED', 'shelfLocation', 'The shelf location is not imported yet');
+  }
 }
 
 /**

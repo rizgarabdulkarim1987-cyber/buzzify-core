@@ -7,7 +7,7 @@ import { packLabelOf, validateLadder, type LadderCode, type UnitLevel } from '@/
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
-import { barcodeInUse, syncBarcodes, type SharedCode } from './barcodes';
+import { BARCODE_IN_USE_MESSAGE, barcodeInUse, heldElsewhere, inUse, syncBarcodes, type SharedCode } from './barcodes';
 
 /**
  * A pharmacy's products: the services behind `ph.products.*`. Each takes the scoped client or transaction of the
@@ -237,6 +237,120 @@ export async function createProduct(tx: ScopedTx, restaurantId: string, input: P
   if (synced.codes.length > 0) changes.barcodes = { before: null, after: synced.codes };
   if (input.branchSettings.length > 0) changes.branchSettings = { before: null, after: input.branchSettings };
   return { id: product.id, version: product.version, changes, shared: synced.shared };
+}
+
+/** A refusal of one entry of a list written together (`createProducts`, `setFirstPrices`): `index` is its position. */
+export class ListEntryError extends Error {
+  constructor(
+    readonly index: number,
+    readonly refusal: unknown,
+  ) {
+    super(`List entry ${index} was refused`);
+    this.name = 'ListEntryError';
+  }
+}
+
+/** How many products `createProducts` writes per statement. */
+const LIST_CHUNK = 1_000;
+
+/**
+ * Creates many new products (a catalog import) in a few statements per thousand, with `createProduct`'s checks and
+ * exactly its rows: each entry passes `checkProduct`, its identity is `identityOf` and its search text `searchTextOf`; an
+ * entry already in the catalog (or written by an earlier chunk) is `DUPLICATE_PRODUCT` naming it, and a barcode another
+ * product holds is `BARCODE_IN_USE` naming the holder. An entry the same as an earlier entry, or with an earlier entry's
+ * barcode, is refused the same way, without a holder (it does not exist yet). The first refusal by position is thrown
+ * as a `ListEntryError`, before anything of that chunk is written. Barcodes are never shared here: sharing is the single
+ * save's, with its audit line. Branch settings must be checked first, as for `createProduct`. A test in
+ * tests/pharmacy/imports.test.ts compares the rows of both paths.
+ */
+export async function createProducts(
+  tx: ScopedTx,
+  restaurantId: string,
+  inputs: readonly ProductInput[],
+): Promise<{ id: string; unitIds: Record<number, string> }[]> {
+  const written: { id: string; unitIds: Record<number, string> }[] = [];
+  for (let at = 0; at < inputs.length; at += LIST_CHUNK) written.push(...(await createChunk(tx, restaurantId, inputs.slice(at, at + LIST_CHUNK), at)));
+  return written;
+}
+
+async function createChunk(tx: ScopedTx, restaurantId: string, inputs: readonly ProductInput[], offset: number) {
+  // Per entry, the first refusal in the order the single save meets them: the input, the identity, the barcodes.
+  const refusals = new Map<number, unknown>();
+  const note = (index: number, refusal: unknown) => {
+    if (!refusals.has(index)) refusals.set(index, refusal);
+  };
+  const checked = inputs.map((input, index) => {
+    if (input.barcodes.some((b) => b.shared === true)) throw new Error('A list of products is created without shared barcodes');
+    try {
+      const { levels, barcodes } = checkProduct(input);
+      return { input, levels, barcodes, identityKey: identityOf(input, levels) };
+    } catch (error) {
+      note(index, error);
+      return null;
+    }
+  });
+
+  const firstOfKey = new Map<string, number>();
+  checked.forEach((entry, index) => {
+    if (!entry) return;
+    if (firstOfKey.has(entry.identityKey)) note(index, new StudioError('CONFLICT', DUPLICATE_PRODUCT_MESSAGE, { phCode: 'DUPLICATE_PRODUCT' }));
+    else firstOfKey.set(entry.identityKey, index);
+  });
+  const found = firstOfKey.size === 0 ? [] : await tx.phProduct.findMany({ where: { identityKey: { in: [...firstOfKey.keys()] } }, select: { id: true, tradeName: true, identityKey: true } });
+  const foundByKey = new Map(found.map((row) => [row.identityKey, row]));
+  checked.forEach((entry, index) => {
+    const duplicate = entry && foundByKey.get(entry.identityKey);
+    if (duplicate) note(index, duplicateOf(duplicate));
+  });
+
+  const held = await heldElsewhere(tx, checked.flatMap((entry) => entry?.barcodes.map((b) => b.code) ?? []));
+  const holderOf = new Map<string, (typeof held)[number]>();
+  for (const row of held) if (!holderOf.has(row.code)) holderOf.set(row.code, row);
+  const firstOfCode = new Map<string, number>();
+  checked.forEach((entry, index) => {
+    entry?.barcodes.forEach((b, position) => {
+      const holder = holderOf.get(b.code);
+      if (holder) note(index, inUse(position, holder));
+      else if (firstOfCode.has(b.code)) {
+        note(index, new StudioError('CONFLICT', BARCODE_IN_USE_MESSAGE, { phCode: 'BARCODE_IN_USE', [`barcodes.${position}.code`]: BARCODE_IN_USE_MESSAGE }));
+      } else firstOfCode.set(b.code, index);
+    });
+  });
+  if (refusals.size > 0) {
+    const first = Math.min(...refusals.keys());
+    throw new ListEntryError(offset + first, refusals.get(first));
+  }
+
+  const entries = checked as NonNullable<(typeof checked)[number]>[];
+  const products = await tx.phProduct.createManyAndReturn({
+    data: entries.map((e) => ({ restaurantId, ...fieldsOf(e.input), identityKey: e.identityKey, searchText: searchTextOf(e.input) })),
+    select: { id: true, identityKey: true },
+  });
+  // Matched by identity (unique in the chunk), not by the order the database returns the rows in.
+  const idOf = new Map(products.map((p) => [p.identityKey, p.id]));
+  const units = await tx.phProductUnit.createManyAndReturn({
+    data: entries.flatMap((e) =>
+      e.levels.map((l) => ({ restaurantId, productId: idOf.get(e.identityKey)!, level: l.level, label: l.label, baseQty: l.baseQty, sellable: l.sellable })),
+    ),
+    select: { id: true, productId: true, level: true },
+  });
+  const unitOf = new Map(units.map((u) => [`${u.productId}\n${u.level}`, u.id]));
+  const codes = entries.flatMap((e) =>
+    e.barcodes.map((b) => {
+      const productId = idOf.get(e.identityKey)!;
+      return { restaurantId, productId, unitId: unitOf.get(`${productId}\n${b.level}`)!, code: b.code, shared: false };
+    }),
+  );
+  if (codes.length > 0) await tx.phBarcode.createMany({ data: codes });
+  const settings = entries.flatMap((e) =>
+    e.input.branchSettings.map((s) => ({ restaurantId, branchId: s.branchId, productId: idOf.get(e.identityKey)!, minQty: s.minQty, reorderQty: s.reorderQty })),
+  );
+  if (settings.length > 0) await tx.phProductBranch.createMany({ data: settings });
+
+  return entries.map((e) => {
+    const id = idOf.get(e.identityKey)!;
+    return { id, unitIds: Object.fromEntries(e.levels.map((l) => [l.level, unitOf.get(`${id}\n${l.level}`)!])) };
+  });
 }
 
 /**

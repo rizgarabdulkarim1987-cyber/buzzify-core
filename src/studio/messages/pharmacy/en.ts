@@ -78,6 +78,14 @@ const pharmacy: Messages = {
   'error.text.phBulkNegative': 'This change takes a price below zero',
   'error.text.phPriceTooFar': 'Choose a start at most 90 days ahead',
   'error.text.phBulkTooHigh': 'This change takes a price above the largest allowed',
+  // Refusals of a product import or export (src/studio/errors.ts)
+  'error.text.phImportFileMismatch': 'This file is not what its name says. Save it again as CSV or Excel (.xlsx).',
+  'error.text.phImportTooManyRows': 'Use at most 10,000 rows',
+  'error.text.phImportDuplicate': 'This file was already imported. Give a reason to import it again.',
+  'error.text.phImportStale': 'This import changed since its preview. Preview the file again.',
+  'error.text.phImportHasErrors': 'Some rows have errors. Fix them in the file or leave them out.',
+  'error.text.phImportNothing': 'There are no rows to import',
+  'error.text.phExportTooLarge': 'This catalog has too many products for one file',
 };
 
 export default pharmacy;

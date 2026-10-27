@@ -73,6 +73,13 @@ const pharmacy: Messages = {
   'error.text.phBulkNegative': 'هذا التغيير يجعل سعرًا أقل من الصفر',
   'error.text.phPriceTooFar': 'اختر تاريخ بدء خلال 90 يومًا على الأكثر',
   'error.text.phBulkTooHigh': 'هذا التغيير يجعل سعرًا أعلى من الحد المسموح',
+  'error.text.phImportFileMismatch': 'محتوى هذا الملف لا يطابق اسمه. احفظه مرة أخرى بصيغة CSV أو Excel (.xlsx).',
+  'error.text.phImportTooManyRows': 'استخدم 10,000 صف على الأكثر',
+  'error.text.phImportDuplicate': 'هذا الملف استُورد من قبل. اذكر سببًا لاستيراده مرة أخرى.',
+  'error.text.phImportStale': 'تغيّر هذا الاستيراد منذ معاينته. عاين الملف مرة أخرى.',
+  'error.text.phImportHasErrors': 'في بعض الصفوف أخطاء. صحّحها في الملف أو استبعدها.',
+  'error.text.phImportNothing': 'لا توجد صفوف للاستيراد',
+  'error.text.phExportTooLarge': 'في هذا الدليل منتجات أكثر مما يتسع له ملف واحد',
 };
 
 export default pharmacy;
