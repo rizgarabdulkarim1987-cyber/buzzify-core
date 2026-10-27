@@ -25,7 +25,7 @@ export const MENU_SCOPED_MODELS = [
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
-export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary', 'PhSettings', 'PhStaff', 'PhStaffBranch', 'PhCategory', 'PhProduct', 'PhProductUnit', 'PhBarcode', 'PhProductBranch', 'PhPrice', 'PhPriceChangeBatch', 'PhImportBatch', 'PhImportRow', 'PhBatch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhReceiptLine', 'PhStockCount', 'PhStockCountLine', 'PhExpiryAction', 'SupportAccessGrant'] as const;
+export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary', 'PhSettings', 'PhStaff', 'PhStaffBranch', 'PhCategory', 'PhProduct', 'PhProductUnit', 'PhBarcode', 'PhProductBranch', 'PhPrice', 'PhPriceChangeBatch', 'PhImportBatch', 'PhImportRow', 'PhBatch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhReceiptLine', 'PhStockCount', 'PhStockCountLine', 'PhExpiryAction', 'PhShift', 'PhCashMovement', 'PhSale', 'PhSaleLine', 'PhSaleLineAllocation', 'PhPayment', 'PhReturn', 'PhReturnLine', 'PhReceiptReprint', 'SupportAccessGrant'] as const;
 
 /**
  * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
@@ -101,9 +101,11 @@ export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaur
  * Rows that belong to one branch of one restaurant and carry a required `branchId`. A client confines them to the
  * branches in its scope (`Scope.branchIds`), or reads every branch of its restaurant when it is the owner's
  * (`Scope.allBranches`). The pharmacy's models join this list as they are added; `PhPrice` has an optional `branchId` and
- * is not on it (its branch membership is checked by the action that writes it).
+ * is not on it (its branch membership is checked by the action that writes it). The child rows of a sale, shift or return
+ * (`PhCashMovement`, `PhSaleLine`, `PhSaleLineAllocation`, `PhPayment`, `PhReturnLine`, `PhReceiptReprint`) carry no
+ * `branchId`: like receipt lines, they are reached through their parent, which is on this list.
  */
-export const PHARMACY_BRANCH_SCOPED_MODELS: readonly string[] = ['PhStaffBranch', 'PhProductBranch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhStockCount', 'PhExpiryAction'];
+export const PHARMACY_BRANCH_SCOPED_MODELS: readonly string[] = ['PhStaffBranch', 'PhProductBranch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhStockCount', 'PhExpiryAction', 'PhShift', 'PhSale', 'PhReturn'];
 
 let branchScoped = new Set<string>(PHARMACY_BRANCH_SCOPED_MODELS);
 
