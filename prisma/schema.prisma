@@ -2718,6 +2718,8 @@ model PhSale {
   paidMinor     BigInt       @default(0)
   changeMinor   BigInt       @default(0)
   clientKey     String
+  /// SHA-256 of the request that created the sale (canonical JSON), so a replayed `clientKey` can prove it is the same request.
+  payloadHash   String?
   soldById      String
   pharmacistId  String?
   heldUntil     DateTime?
