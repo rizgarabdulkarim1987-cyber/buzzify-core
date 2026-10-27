@@ -55,7 +55,7 @@
   background: oklch(0.4 0.14 var(--g));
   color: #fff;
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.25rem;
 }
 /* The legend scrolls inside itself, so it clips anything outside a chip: the focus ring is drawn inside, in the chip's
@@ -106,7 +106,7 @@
 [data-body='periodic'] .pt-title small {
   color: var(--muted);
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -166,7 +166,7 @@
   background: oklch(0.4 0.14 var(--g));
   color: #fff;
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.625rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
   text-align: center;

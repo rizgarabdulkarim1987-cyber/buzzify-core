@@ -6,7 +6,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
-import { frameOf, RUG_VARS, weaveOf } from './rug-weave';
+import { frameOf, RUG_VARS, rugWeaveOf } from './rug-weave';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/photo-card.css';
@@ -71,7 +71,7 @@ export function RugsBody() {
 
 /** A rug's frame (its pattern at `tile` px) and its field's tint as custom properties, read by the rug and the swatch. */
 function weaveStyle(place: number, tile: number): CSSProperties {
-  const weave = weaveOf(place);
+  const weave = rugWeaveOf(place);
   return { '--rg-frame': frameOf(weave, tile), '--rg-field': weave.field, '--rg-rim': weave.one } as CSSProperties;
 }
 

@@ -59,7 +59,7 @@
   background: oklch(0.42 0.15 var(--g));
   color: #fff;
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   line-height: 1.25rem;
 }
 [data-body='metro'] .mt-stop-chip[aria-current='true'] {
@@ -143,7 +143,7 @@
   flex-basis: 100%;
   color: var(--muted);
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;

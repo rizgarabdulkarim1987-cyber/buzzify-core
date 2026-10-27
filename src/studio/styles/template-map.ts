@@ -1,9 +1,10 @@
 import type { TemplateId } from '@/lib/templates';
 
 /**
- * The catalog styles that are real templates, by catalog id. Every other style in the catalog is coming soon: the
- * Templates gallery shows its poster and its mockup, and it cannot be applied. A style leaves "coming soon" by
- * getting a line here.
+ * The catalog styles that are real templates, by catalog id. Today every style in the catalog has a line here (a test
+ * holds it). The coming-soon path (Gallery's `isSoon` and `soonStyleOf`, the Studio's coming-soon labels) is kept for
+ * a style added to the catalog before its template: the Templates gallery then shows its poster and its mockup, it
+ * cannot be applied, and it leaves "coming soon" by getting a line here.
  */
 export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'themed-book': 'the-book',

@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { BODY_KINDS, SHAPE_SETS, templateList } from '@/lib/templates';
@@ -75,5 +75,21 @@ describe('the body registry', () => {
       expect(presets.length, kind).toBeGreaterThanOrEqual(1);
       expect(SHAPE_SETS[kind], kind).toBeDefined();
     }
+  });
+});
+
+describe('the shapes text size', () => {
+  it('sets no font size under 12px (0.75rem) in any shape stylesheet', () => {
+    const dir = join(process.cwd(), 'src/ui/template/bodies');
+    const sheets = readdirSync(dir, { recursive: true, encoding: 'utf8' }).filter((file) => file.endsWith('.css'));
+    const small: string[] = [];
+    for (const file of sheets) {
+      const css = readFileSync(join(dir, file), 'utf8');
+      for (const match of css.matchAll(/font-size:\s*([\d.]+)(rem|px)\b/g)) {
+        const px = match[2] === 'rem' ? Number(match[1]) * 16 : Number(match[1]);
+        if (px < 12) small.push(`${file}: ${match[0]}`);
+      }
+    }
+    expect(small).toEqual([]);
   });
 });

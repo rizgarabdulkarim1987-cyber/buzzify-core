@@ -83,7 +83,7 @@ export const WEAVES: readonly Weave[] = [
 ];
 
 /** The weave of the rug at `index`: a place in the cycle, wrapping both ways. */
-export function weaveOf(index: number): Weave & { index: number } {
+export function rugWeaveOf(index: number): Weave & { index: number } {
   const at = ((index % WEAVES.length) + WEAVES.length) % WEAVES.length;
   return { ...WEAVES[at]!, index: at };
 }

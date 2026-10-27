@@ -5,7 +5,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { CarpetBody } from '@/ui/template/bodies/CarpetBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { CARPET, CARPET_VARS, WEAVES, weaveOf } from '@/ui/template/bodies/carpet-night';
+import { CARPET, CARPET_VARS, WEAVES, carpetWeaveOf } from '@/ui/template/bodies/carpet-night';
 
 describe('the One Thousand and One Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -28,10 +28,10 @@ describe('the One Thousand and One Nights shape', () => {
 
 describe('the carpets', () => {
   it('weaves each carpet from a cycle of a few colourways, the same one for the same place', () => {
-    const picked = Array.from({ length: 30 }, (_, at) => weaveOf(at));
+    const picked = Array.from({ length: 30 }, (_, at) => carpetWeaveOf(at));
     expect(new Set(picked).size).toBeGreaterThanOrEqual(3);
-    expect(weaveOf(2)).toBe(weaveOf(2 + WEAVES.length));
-    expect(weaveOf(-1)).toBe(WEAVES[WEAVES.length - 1]);
+    expect(carpetWeaveOf(2)).toBe(carpetWeaveOf(2 + WEAVES.length));
+    expect(carpetWeaveOf(-1)).toBe(WEAVES[WEAVES.length - 1]);
   });
 
   it('keeps every text on its fixed fill at 4.5:1: names on each weave and its thread, the section strip, the gold tags', () => {

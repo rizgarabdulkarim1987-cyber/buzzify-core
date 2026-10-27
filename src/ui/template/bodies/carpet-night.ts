@@ -50,6 +50,6 @@ export const WEAVES: readonly Weave[] = [
 ];
 
 /** The weave of the carpet at `index`: a place in the cycle, wrapping both ways. */
-export function weaveOf(index: number): Weave {
+export function carpetWeaveOf(index: number): Weave {
   return WEAVES[((index % WEAVES.length) + WEAVES.length) % WEAVES.length]!;
 }

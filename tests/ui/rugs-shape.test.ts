@@ -5,7 +5,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { RugsBody } from '@/ui/template/bodies/RugsBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { RUG, RUG_VARS, WEAVES, weaveOf } from '@/ui/template/bodies/rug-weave';
+import { RUG, RUG_VARS, WEAVES, rugWeaveOf } from '@/ui/template/bodies/rug-weave';
 
 describe('the Jajim and Nowruz shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -33,8 +33,8 @@ describe('the Jajim and Nowruz shape', () => {
 describe('the rugs', () => {
   it('weaves each rug from a cycle of four patterns and colourways, the same one for the same place', () => {
     expect(new Set(WEAVES.map((weave) => weave.pattern)).size).toBe(4);
-    expect(weaveOf(2)).toEqual(weaveOf(2 + WEAVES.length));
-    expect(weaveOf(-1).index).toBe(WEAVES.length - 1);
+    expect(rugWeaveOf(2)).toEqual(rugWeaveOf(2 + WEAVES.length));
+    expect(rugWeaveOf(-1).index).toBe(WEAVES.length - 1);
   });
 
   it('keeps every text on its fixed fill at 4.5:1: names and prices on each field, the cartouche, the pills, the swatches', () => {

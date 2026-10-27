@@ -6,7 +6,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
-import { CARPET_VARS, weaveOf } from './carpet-night';
+import { CARPET_VARS, carpetWeaveOf } from './carpet-night';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/photo-card.css';
@@ -63,7 +63,7 @@ export function CarpetBody() {
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
-          const weave = weaveOf(placeOf(category));
+          const weave = carpetWeaveOf(placeOf(category));
           return (
             <section
               key={category.id}

@@ -83,7 +83,7 @@
   inline-size: 4.25rem;
   min-block-size: 3.5rem;
   padding-block: 0.25rem;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.1;
   color: #1a1611;
@@ -163,7 +163,7 @@
 [data-body='elevator'] .el-title small {
   color: var(--accent-ink);
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 0.6875rem;
+  font-size: 0.75rem;
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
