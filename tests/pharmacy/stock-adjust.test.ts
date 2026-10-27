@@ -2,7 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import * as stockActions from '@/server/pharmacy/actions/stock';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
-import { act, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
+import { act, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf, stockInto } from './stock-helpers';
 
 beforeAll(() => {
   useTestDatabase();
@@ -85,7 +85,7 @@ describe('ph.stock.adjust', () => {
       { baseQty: undefined, unitId: p.strip },
       { direction: 'move', bucketTo: 'available' },
       { direction: 'move', bucketFrom: 'available', bucketTo: 'available' },
-      { direction: 'in', bucketTo: 'damaged' },
+      { direction: 'in', bucketFrom: 'available' },
       { direction: 'out', bucketFrom: undefined, bucketTo: 'available' },
     ];
     for (const over of cases) {
@@ -144,6 +144,47 @@ describe('ph.stock.adjust', () => {
     expect(phCodeOf(r)).toBe('EXPIRED');
     const out = await act(owner, stockActions.adjust, { ...at, batchId, direction: 'out', bucketFrom: 'available', baseQty: 10, reason: 'Destroyed', clientKey: key() });
     expect(codeOf(out)).toBe('OK');
+  });
+});
+
+describe('fix round: in, reverse guard, replay, branches', () => {
+  it('in may target quarantine or damaged (found expired stock), available stays guarded', async () => {
+    const { owner, at, batchId } = await world({ expiry: '2026-10-01', buckets: { available: 1 } });
+    dataOf(await act(owner, stockActions.adjust, { ...at, batchId, direction: 'in', bucketTo: 'quarantine', baseQty: 4, reason: 'Found expired', clientKey: key() }));
+    dataOf(await act(owner, stockActions.adjust, { ...at, batchId, direction: 'in', bucketTo: 'damaged', baseQty: 2, reason: 'Found broken', clientKey: key() }));
+    expect(await balanceOf(batchId, at.branchId)).toEqual({ available: 1, reserved: 0, quarantine: 4, damaged: 2 });
+    const r = await act(owner, stockActions.adjust, { ...at, batchId, direction: 'in', bucketTo: 'available', baseQty: 1, reason: 'Found expired', clientKey: key() });
+    expect(phCodeOf(r)).toBe('EXPIRED');
+    expect(phCodeOf(await act(owner, stockActions.adjust, { ...at, batchId, direction: 'in', baseQty: 1, reason: 'Found expired', clientKey: key() }))).toBe('EXPIRED');
+  });
+
+  it('reversing a DAMAGE of an expired batch (it would add to available) is refused', async () => {
+    const { owner, at, batchId } = await world({ expiry: '2026-10-01', buckets: { available: 10 } });
+    const dmg = dataOf(await act(owner, stockActions.damage, { ...at, batchId, fromBucket: 'available', baseQty: 5, reason: 'Dropped' }));
+    const r = await act(owner, stockActions.reverse, { ...at, movementId: dmg.id, reason: 'Not damaged after all' });
+    expect(phCodeOf(r)).toBe('EXPIRED');
+    expect(await balanceOf(batchId, at.branchId)).toMatchObject({ available: 5, damaged: 5 });
+  });
+
+  it('a replay after the movement was reversed says reversed: true', async () => {
+    const { owner, at, batchId } = await world();
+    const input = { ...at, batchId, direction: 'out', bucketFrom: 'available', baseQty: 3, reason: 'Broken box', clientKey: 'idem-rev-2' };
+    const first = dataOf(await act(owner, stockActions.adjust, input));
+    expect(first.reversed).toBe(false);
+    expect(dataOf(await act(owner, stockActions.adjust, input))).toMatchObject({ replayed: true, reversed: false });
+    dataOf(await act(owner, stockActions.reverse, { ...at, movementId: first.id, reason: 'Undo it' }));
+    expect(dataOf(await act(owner, stockActions.adjust, input))).toMatchObject({ id: first.id, replayed: true, reversed: true });
+  });
+
+  it('the same clientKey in two different branches succeeds in both', async () => {
+    const { a, owner, batchId, at } = await world();
+    const other = a.branchIds[1]!;
+    await stockInto(a.id, other, batchId, { available: 20 });
+    const base = { restaurantId: a.id, batchId, direction: 'out', bucketFrom: 'available', baseQty: 2, reason: 'Same key', clientKey: 'shared-key-1' };
+    const one = dataOf(await act(owner, stockActions.adjust, { ...base, branchId: at.branchId }));
+    const two = dataOf(await act(owner, stockActions.adjust, { ...base, branchId: other }));
+    expect(two.id).not.toBe(one.id);
+    expect(two.replayed).toBe(false);
   });
 });
 

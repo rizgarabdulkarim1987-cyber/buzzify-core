@@ -41,7 +41,7 @@ const changes = (done: MovementDone, reason: string) => ({
   reason: { before: null, after: reason.slice(0, 300) },
 });
 
-const answer = (done: MovementDone) => ({ id: done.id, replayed: done.replayed });
+const answer = (done: MovementDone) => ({ id: done.id, replayed: done.replayed, reversed: done.reversed });
 
 export const adjust = defineAction({
   name: 'ph.stock.adjust',

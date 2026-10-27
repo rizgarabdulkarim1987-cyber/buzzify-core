@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { StudioError } from '@/server/studio/framework/result';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { fefoOrder, sellableStock, type BatchStatus } from '@/server/domain/pharmacy/stock';
 import { isExpired, utcToday, type ExpiryPrecision } from '@/server/domain/pharmacy/expiry';
@@ -111,17 +112,32 @@ const hasStock = (b: Record<Bucket, number>) => BUCKETS.some((k) => b[k] > 0);
 
 type Place = { branchId?: string | undefined };
 
+/**
+ * The most products a stock filter may keep. The ids go back to the database as one `id IN (...)` list: fine for a few
+ * thousand products, so a bigger answer is refused (narrow it with a search or a branch) instead of failing slowly.
+ */
+export const MAX_FILTERED_PRODUCTS = 5000;
+
 /** The products a stock filter keeps, as ids; null when no filter is on. */
 async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesInput> & Place): Promise<string[] | null> {
   if (!input.onlyWithStock && !input.lowStock) return null;
   const branch = input.branchId ? { branchId: input.branchId } : {};
   const product = input.productId ? { productId: input.productId } : {};
-  const [sums, minimums] = await Promise.all([
+  const today = new Date(`${utcToday()}T00:00:00.000Z`);
+  const [sums, sellableSums, minimums] = await Promise.all([
     scoped.phStockBalance.groupBy({
       by: ['productId', 'branchId'],
       where: { ...branch, ...product },
       _sum: { available: true, reserved: true, quarantine: true, damaged: true },
     }),
+    // R2-5: only `available` of an ACTIVE batch that has not expired counts as stock to sell.
+    input.lowStock
+      ? scoped.phStockBalance.groupBy({
+          by: ['productId', 'branchId'],
+          where: { ...branch, ...product, batch: { status: 'ACTIVE', expiryDate: { gte: today } } },
+          _sum: { available: true },
+        })
+      : Promise.resolve([]),
     input.lowStock ? scoped.phProductBranch.findMany({ where: { ...branch, ...product, minQty: { gt: 0 } }, select: { productId: true, branchId: true, minQty: true } }) : Promise.resolve([]),
   ]);
   let ids: Set<string> | null = null;
@@ -132,10 +148,14 @@ async function filteredIds(scoped: ScopedClient, input: z.infer<typeof balancesI
     narrow(new Set(sums.filter((s) => (s._sum.available ?? 0) + (s._sum.reserved ?? 0) + (s._sum.quarantine ?? 0) + (s._sum.damaged ?? 0) > 0).map((s) => s.productId)));
   }
   if (input.lowStock) {
-    const availableAt = new Map(sums.map((s) => [`${s.productId}|${s.branchId}`, s._sum.available ?? 0]));
+    const availableAt = new Map(sellableSums.map((s) => [`${s.productId}|${s.branchId}`, s._sum.available ?? 0]));
     narrow(new Set(minimums.filter((m) => (availableAt.get(`${m.productId}|${m.branchId}`) ?? 0) < m.minQty).map((m) => m.productId)));
   }
-  return [...(ids ?? [])];
+  const kept = [...(ids ?? [])];
+  if (kept.length > MAX_FILTERED_PRODUCTS) {
+    throw new StudioError('CONFLICT', 'Too many products match: narrow the search or choose a branch', { phCode: 'TOO_MANY' });
+  }
+  return kept;
 }
 
 /** Products by trade name, each with its branch totals and its batches earliest expiry first. */

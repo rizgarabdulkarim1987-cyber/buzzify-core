@@ -57,7 +57,6 @@ export function checkAdjust(value: AdjustFields, ctx: z.RefinementCtx): void {
   const issue = (path: string, message: string) => ctx.addIssue({ code: 'custom', path: [path], message });
   if (value.direction === 'in') {
     if (value.bucketFrom !== undefined) issue('bucketFrom', 'Stock coming in has no source bucket');
-    if (value.bucketTo !== undefined && value.bucketTo !== 'available') issue('bucketTo', 'Stock coming in goes to available');
   } else if (value.direction === 'out') {
     if (value.bucketFrom === undefined) issue('bucketFrom', 'Choose the bucket to take it from');
     if (value.bucketTo !== undefined) issue('bucketTo', 'Stock going out has no destination bucket');
@@ -102,6 +101,8 @@ export interface Who {
 export interface MovementDone {
   id: string;
   replayed: boolean;
+  /** On a replay: whether the movement has been reversed since. */
+  reversed: boolean;
   type: string;
   batchId: string;
   from: Bucket | null;
@@ -164,7 +165,7 @@ const sameDeltas = (row: Record<`${Bucket}Delta`, number>, deltas: Deltas) => BU
 
 /** Writes the movement, or finds the one this key wrote before. The caller has checked the batch and the quantity. */
 async function perform(tx: ScopedTx, who: Who, spec: Spec, batch: BatchRow, baseQty: number): Promise<MovementDone> {
-  const done = (id: string, replayed: boolean): MovementDone => ({ id, replayed, type: spec.type, batchId: spec.batchId, from: fromOf(spec.deltas), to: toOf(spec.deltas), baseQty });
+  const done = (id: string, replayed: boolean, reversed = false): MovementDone => ({ id, replayed, reversed, type: spec.type, batchId: spec.batchId, from: fromOf(spec.deltas), to: toOf(spec.deltas), baseQty });
   if (spec.clientKey !== undefined) {
     const earlier = await tx.phStockMovement.findFirst({
       where: { branchId: who.branchId, refType: CLIENT_KEY, refId: spec.clientKey, reversesId: null },
@@ -172,7 +173,8 @@ async function perform(tx: ScopedTx, who: Who, spec: Spec, batch: BatchRow, base
     if (earlier) {
       const same = earlier.type === spec.type && earlier.batchId === spec.batchId && earlier.reason === spec.reason.trim() && sameDeltas(earlier, spec.deltas);
       if (!same) throw refuse('CLIENT_KEY_MISMATCH', 'This key was already used for a different change');
-      return done(earlier.id, true);
+      const reversal = await tx.phStockMovement.findFirst({ where: { reversesId: earlier.id }, select: { id: true } });
+      return done(earlier.id, true, reversal !== null);
     }
   }
   // A repeat is answered above, before the batch is judged again: it was fine when it was written.
@@ -194,7 +196,7 @@ export async function adjustStock(tx: ScopedTx, who: Who, input: AdjustFields & 
   const batch = await batchOf(tx, who.restaurantId, input.batchId);
   const n = await baseQtyOf(tx, batch.productId, input);
   const deltas: Deltas = {};
-  if (input.direction === 'in') deltas.available = n;
+  if (input.direction === 'in') deltas[input.bucketTo ?? 'available'] = n;
   else if (input.direction === 'out') deltas[input.bucketFrom!] = -n;
   else {
     deltas[input.bucketFrom!] = -n;
@@ -229,10 +231,12 @@ export async function releaseQuarantine(
 export async function reverseStock(tx: ScopedTx, who: Who, input: { movementId: string; reason: string }): Promise<{ id: string; reversesId: string; type: string; batchId: string }> {
   const original = await tx.phStockMovement.findFirst({
     where: { id: input.movementId, branchId: who.branchId },
-    select: { id: true, type: true, batchId: true },
+    select: { id: true, type: true, batchId: true, availableDelta: true },
   });
   if (!original) throw new StudioError('NOT_FOUND', 'Movement not found');
   if (!REVERSIBLE.has(original.type)) throw refuse('REVERSE_NOT_ALLOWED', 'This kind of movement cannot be reversed here');
+  // A reversal that gives stock back to `available` is held to the same rule as any other way in (R2-5).
+  if (original.availableDelta < 0) assertSellableHome(await batchOf(tx, who.restaurantId, original.batchId));
   const reversal = await reverseMovement(tx, original.id, { userId: who.userId, reason: input.reason });
   return { id: reversal.id, reversesId: original.id, type: original.type, batchId: original.batchId };
 }

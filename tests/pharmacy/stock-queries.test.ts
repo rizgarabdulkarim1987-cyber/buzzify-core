@@ -18,7 +18,7 @@ beforeAll(() => {
 afterAll(() => {
   vi.useRealTimers();
 });
-beforeEach(resetWorld);
+beforeEach(resetWorld, 60_000);
 
 async function world() {
   const a = await pharmacy('A', { branches: 2 });
@@ -79,6 +79,43 @@ describe('ph.stock.balances', () => {
     const onlyB2 = dataOf(await ask(owner, stockQueries.balances, { ...at, branchId: b2, productId: pa.id })).items[0]!;
     expect(onlyB2.branches).toEqual([]);
     expect(onlyB2.batches).toEqual([]);
+  });
+
+  it('lowStock compares the SELLABLE total with the minimum (R2-5)', async () => {
+    const { a, owner, at, b1 } = await world();
+    const expiredOnly = await makeProduct(a.id, 'ExpiredOnly');
+    const enough = await makeProduct(a.id, 'Enough');
+    const mixed = await makeProduct(a.id, 'Mixed');
+    await makeBatch(a.id, b1, expiredOnly.id, { expiry: '2026-10-01', buckets: { available: 100 } });
+    await makeBatch(a.id, b1, enough.id, { buckets: { available: 100 } });
+    await makeBatch(a.id, b1, mixed.id, { lot: 'X', status: 'RECALLED', buckets: { available: 100 } });
+    await makeBatch(a.id, b1, mixed.id, { lot: 'Y', buckets: { available: 5, quarantine: 50 } });
+    for (const p of [expiredOnly, enough, mixed]) await prisma().phProductBranch.create({ data: { restaurantId: a.id, branchId: b1, productId: p.id, minQty: 10 } });
+    const low = dataOf(await ask(owner, stockQueries.balances, { ...at, lowStock: true })).items.map((i) => i.tradeName);
+    expect(low).toEqual(['ExpiredOnly', 'Mixed']);
+  });
+
+  it('refuses a stock filter over too many products with TOO_MANY', async () => {
+    const { a, owner, at, b1 } = await world();
+    const products = Array.from({ length: 5001 }, (_, i) => ({ restaurantId: a.id, tradeName: 'P' + i, identityKey: 'k' + i, searchText: 'p' + i }));
+    await prisma().phProduct.createMany({ data: products });
+    const rows = await prisma().phProduct.findMany({ where: { restaurantId: a.id }, select: { id: true } });
+    await prisma().phBatch.createMany({ data: rows.map((r) => ({ restaurantId: a.id, productId: r.id, lot: 'L', expiryDate: new Date('2028-01-31T00:00:00.000Z') })) });
+    const batches = await prisma().phBatch.findMany({ where: { restaurantId: a.id }, select: { id: true, productId: true } });
+    await prisma().phStockBalance.createMany({ data: batches.map((x) => ({ restaurantId: a.id, branchId: b1, productId: x.productId, batchId: x.id, available: 1 })) });
+    const r = await ask(owner, stockQueries.balances, { ...at, onlyWithStock: true });
+    expect(codeOf(r)).toBe('CONFLICT');
+    expect(r.ok ? null : r.error.fields?.phCode).toBe('TOO_MANY');
+    expect(dataOf(await ask(owner, stockQueries.balances, at)).items).toHaveLength(50);
+  }, 60_000);
+
+  it('a search never returns another business’s product', async () => {
+    const { owner, at } = await world();
+    const b = await pharmacy('B');
+    const bp = await makeProduct(b.id, 'Secretin');
+    await makeBatch(b.id, b.branchId, bp.id, { buckets: { available: 5 } });
+    expect(dataOf(await ask(owner, stockQueries.balances, { ...at, search: 'secretin' })).items).toEqual([]);
+    expect(dataOf(await ask(owner, stockQueries.balances, { ...at, search: 'secretin', onlyWithStock: true })).items).toEqual([]);
   });
 
   it('pages by cursor', async () => {
