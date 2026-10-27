@@ -381,7 +381,7 @@ export const posImportAiTranslate = defineAction({
   pos: 'catalog.manage',
   input: z.object({ importJobId: idField }),
   target: () => CATALOG,
-  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input)),
+  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input), { refuseAsError: true }),
 });
 
 export const posImportApply = defineAction({

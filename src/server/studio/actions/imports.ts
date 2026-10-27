@@ -59,7 +59,7 @@ export const aiTranslate = defineAction({
   permission: 'import.run',
   input: jobInput,
   target: (i) => atMenu(i.menuId),
-  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input)),
+  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input), { refuseAsError: true }),
 });
 
 export const apply = defineAction({

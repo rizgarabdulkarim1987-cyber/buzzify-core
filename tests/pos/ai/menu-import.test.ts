@@ -259,7 +259,7 @@ describe('Arabic and Kurdish for an English menu', () => {
   });
 
   it('is refused for an import that is not there', async () => {
-    expect(dataOf(await run(w.manager, posImportAiTranslate, { importJobId: 'a'.repeat(26) }))).toMatchObject({ ok: false });
+    expect((await run(w.manager, posImportAiTranslate, { importJobId: 'a'.repeat(26) })).ok).toBe(false);
   });
 });
 
