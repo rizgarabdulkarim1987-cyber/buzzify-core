@@ -142,9 +142,9 @@ describe('a dish under a live menu offer, added at the till', () => {
     expect(view.lines[0]).toMatchObject({ offerPerUnit: 1000, lineTotal: 10800 });
     expect(view.totals.subtotal).toBe(10800);
     // An amount larger than what the offer left is refused: 12,000 is all that can still come off.
-    const tooMuch = await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 12001 }, expectedVersion: manual.version });
+    const tooMuch = await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 12001, reason: 'MANAGER_DECISION' }, expectedVersion: manual.version });
     expect(tooMuch.ok).toBe(false);
-    dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 12000 }, expectedVersion: manual.version }));
+    dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'AMOUNT', value: 12000, reason: 'MANAGER_DECISION' }, expectedVersion: manual.version }));
     view = dataOf(await ask(cashier, posOrder, { orderId }));
     expect(view.totals.subtotal).toBe(0);
   });
