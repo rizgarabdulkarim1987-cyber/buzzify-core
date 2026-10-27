@@ -3,12 +3,29 @@
 import { Box, Check, Sparkles } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { FONT_PAIR_VARIABLES } from '@/lib/font-pairs';
-import { BUSINESS_TYPES, STYLE_TAGS, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
+import { BUSINESS_TYPES, STYLE_TAGS, TEMPLATES, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
 import { useT } from '@/studio/i18n';
+import { MENU_STYLES, menuStyleById, type MenuStyle } from '@/studio/styles/catalog';
+import { templateForStyle } from '@/studio/styles/template-map';
 import { cx } from '@/studio/ui/cx';
 import { face } from '@/studio/workspace/brand/FontPairPicker';
 
-export type GallerySelection = TemplateId | 'classic';
+/** A style that is not a template yet: `soon:<catalog id>`. It can be previewed as a mockup but never applied. */
+export type SoonSelection = `soon:${string}`;
+export type GallerySelection = TemplateId | 'classic' | SoonSelection;
+
+export const soonSelection = (style: MenuStyle): SoonSelection => `soon:${style.id}`;
+
+export function isSoon(selection: GallerySelection): selection is SoonSelection {
+  return selection.startsWith('soon:');
+}
+
+/** The coming-soon style a selection names, or null for Classic, a template, or an id the catalog no longer has. */
+export function soonStyleOf(selection: GallerySelection): MenuStyle | null {
+  if (!isSoon(selection)) return null;
+  const style = menuStyleById(selection.slice('soon:'.length));
+  return style && !templateForStyle(style.id) ? style : null;
+}
 
 /** Which business type a restaurant's type suggests for the first filter. */
 export function businessOf(restaurantType: string): BusinessType | 'all' {
@@ -36,7 +53,7 @@ function TemplateCard({ preset, selected, current, onSelect }: { preset: Templat
         aria-label={t('design.select', { name: preset.name })}
         onClick={onSelect}
         className={cx(
-          'group flex w-full flex-col overflow-hidden rounded-lg border text-start transition-[border-color,box-shadow]',
+          'group flex h-full w-full flex-col overflow-hidden rounded-lg border text-start transition-[border-color,box-shadow]',
           selected ? 'border-ink ring-2 ring-ink' : 'border-line hover:border-line-strong',
         )}
       >
@@ -89,6 +106,40 @@ function TemplateCard({ preset, selected, current, onSelect }: { preset: Templat
   );
 }
 
+/**
+ * A catalog style that is not a template yet: its poster (a still of the mockup, from the signed-in route), a plain
+ * "Coming soon" label and its name. Choosing it shows the mockup in the preview; nothing here can be applied.
+ */
+function SoonCard({ style, selected, onSelect }: { style: MenuStyle; selected: boolean; onSelect: () => void }) {
+  const t = useT();
+  const name = t(`styles.${style.id}.name`);
+  return (
+    <li>
+      <button
+        type="button"
+        aria-pressed={selected}
+        aria-label={t('design.selectSoon', { name })}
+        onClick={onSelect}
+        className={cx('flex h-full w-full flex-col overflow-hidden rounded-lg border text-start', selected ? 'border-ink ring-2 ring-ink' : 'border-line hover:border-line-strong')}
+      >
+        <span className="relative block aspect-[3/4] w-full overflow-hidden bg-surface">
+          {/* A signed-in route serves the poster, so it is a plain image: the optimizer would fetch it without the session. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={`/studio/style-files/poster/${style.id}`} alt="" width={344} height={720} loading="lazy" decoding="async" className="absolute inset-0 size-full object-cover object-top" />
+          <span className="absolute start-2 top-2 inline-flex items-center rounded-full border border-line bg-surface px-2 py-0.5 text-xs font-medium text-text">{t('design.comingSoon')}</span>
+        </span>
+        <span className="flex flex-1 flex-col gap-1 border-t border-line bg-surface p-3">
+          <span className="line-clamp-2 break-words text-sm font-semibold text-text">
+            <span className="me-1.5 tabular-nums text-muted">{String(style.number).padStart(2, '0')}</span>
+            {name}
+          </span>
+          <span className="line-clamp-2 break-words text-xs text-muted">{t(`styles.${style.id}.line`)}</span>
+        </span>
+      </button>
+    </li>
+  );
+}
+
 function ClassicCard({ selected, current, onSelect }: { selected: boolean; current: boolean; onSelect: () => void }) {
   const t = useT();
   return (
@@ -130,15 +181,21 @@ export function Gallery({
   current,
   selected,
   onSelect,
+  canSeeStyles,
 }: {
   restaurantType: string;
   current: GallerySelection;
   selected: GallerySelection;
   onSelect: (selection: GallerySelection) => void;
+  /** Whether the visitor may read the style files (posters and mockups); without them the Styles view is not offered. */
+  canSeeStyles: boolean;
 }) {
   const t = useT();
   const [business, setBusiness] = useState<BusinessType | 'all'>(() => businessOf(restaurantType));
   const [styles, setStyles] = useState<ReadonlySet<StyleTag>>(new Set());
+  // The catalog view: the 35 picked styles in the library's order. The three that are real show as their templates.
+  const [catalogOn, setCatalog] = useState(false);
+  const catalog = canSeeStyles && catalogOn;
   const presets = useMemo(
     () => templateList().filter((preset) => (business === 'all' || preset.business === business) && [...styles].every((style) => preset.tags.includes(style))),
     [business, styles],
@@ -147,48 +204,79 @@ export function Gallery({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3">
-        <div role="group" aria-label={t('design.filter.business')} className="flex flex-wrap gap-1.5">
-          {(['all', ...BUSINESS_TYPES] as const).map((value) => (
-            <button
-              key={value}
-              type="button"
-              aria-pressed={business === value}
-              onClick={() => setBusiness(value)}
-              className={cx('h-7 rounded-full border px-3 text-sm transition-colors', business === value ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
-            >
-              {value === 'all' ? t('design.filter.all') : t(`design.business.${value}`)}
-            </button>
-          ))}
-        </div>
-        <div role="group" aria-label={t('design.filter.style')} className="flex flex-wrap gap-1.5">
-          {STYLE_TAGS.map((style) => (
-            <button
-              key={style}
-              type="button"
-              aria-pressed={styles.has(style)}
-              onClick={() =>
-                setStyles((currentStyles) => {
-                  const next = new Set(currentStyles);
-                  if (next.has(style)) next.delete(style);
-                  else next.add(style);
-                  return next;
-                })
-              }
-              className={cx('h-7 rounded-full border px-3 text-sm transition-colors', styles.has(style) ? 'border-ink bg-hover text-text' : 'border-line text-muted hover:text-text')}
-            >
-              {t(`design.style.${style}`)}
-            </button>
-          ))}
-        </div>
+        {canSeeStyles && (
+          <button
+            type="button"
+            aria-pressed={catalog}
+            onClick={() => {
+              // A coming-soon card exists only in the Styles view: leaving it goes back to the template in use.
+              if (catalog && isSoon(selected)) onSelect(current);
+              setCatalog(!catalog);
+            }}
+            className={cx('h-7 self-start rounded-full border px-3 text-sm transition-colors', catalog ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
+          >
+            {t('design.filter.styles')}
+          </button>
+        )}
+        {!catalog && (
+          <>
+            <div role="group" aria-label={t('design.filter.business')} className="flex flex-wrap gap-1.5">
+              {(['all', ...BUSINESS_TYPES] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={business === value}
+                  onClick={() => setBusiness(value)}
+                  className={cx('h-7 rounded-full border px-3 text-sm transition-colors', business === value ? 'border-ink bg-ink text-on-ink' : 'border-line text-muted hover:text-text')}
+                >
+                  {value === 'all' ? t('design.filter.all') : t(`design.business.${value}`)}
+                </button>
+              ))}
+            </div>
+            <div role="group" aria-label={t('design.filter.style')} className="flex flex-wrap gap-1.5">
+              {STYLE_TAGS.map((style) => (
+                <button
+                  key={style}
+                  type="button"
+                  aria-pressed={styles.has(style)}
+                  onClick={() =>
+                    setStyles((currentStyles) => {
+                      const next = new Set(currentStyles);
+                      if (next.has(style)) next.delete(style);
+                      else next.add(style);
+                      return next;
+                    })
+                  }
+                  className={cx('h-7 rounded-full border px-3 text-sm transition-colors', styles.has(style) ? 'border-ink bg-hover text-text' : 'border-line text-muted hover:text-text')}
+                >
+                  {t(`design.style.${style}`)}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
         <p className="text-sm text-muted" aria-live="polite">
-          {t('design.filter.count', { count: presets.length })}
+          {catalog ? t('design.filter.stylesCount', { count: MENU_STYLES.length }) : t('design.filter.count', { count: presets.length })}
         </p>
       </div>
-      <ul className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
-        {business === 'all' && styles.size === 0 && <ClassicCard selected={selected === 'classic'} current={current === 'classic'} onSelect={() => onSelect('classic')} />}
-        {presets.map((preset) => (
-          <TemplateCard key={preset.id} preset={preset} selected={selected === preset.id} current={current === preset.id} onSelect={() => onSelect(preset.id)} />
-        ))}
+      <ul data-styles={catalog ? '' : undefined} className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
+        {catalog ? (
+          MENU_STYLES.map((style) => {
+            const templateId = templateForStyle(style.id);
+            return templateId ? (
+              <TemplateCard key={style.id} preset={TEMPLATES[templateId]} selected={selected === templateId} current={current === templateId} onSelect={() => onSelect(templateId)} />
+            ) : (
+              <SoonCard key={style.id} style={style} selected={selected === soonSelection(style)} onSelect={() => onSelect(soonSelection(style))} />
+            );
+          })
+        ) : (
+          <>
+            {business === 'all' && styles.size === 0 && <ClassicCard selected={selected === 'classic'} current={current === 'classic'} onSelect={() => onSelect('classic')} />}
+            {presets.map((preset) => (
+              <TemplateCard key={preset.id} preset={preset} selected={selected === preset.id} current={current === preset.id} onSelect={() => onSelect(preset.id)} />
+            ))}
+          </>
+        )}
       </ul>
     </div>
   );

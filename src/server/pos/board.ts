@@ -8,7 +8,18 @@ import { orderTotals, readRates } from './orders';
 
 export interface BoardView {
   areas: { id: string; name: string; tableCount: number; busyCount: number }[];
-  tables: { id: string; number: number; areaId: string; status: TableStatus; seatedAt: Date | null; total: number; orderId: string | null; pendingRequests: number }[];
+  tables: {
+    id: string;
+    number: number;
+    areaId: string;
+    status: TableStatus;
+    seatedAt: Date | null;
+    total: number;
+    orderId: string | null;
+    pendingRequests: number;
+    /** The open order's live lines, for the bill and the slips on the board. */
+    lines: { name: string; quantity: number }[];
+  }[];
   busyCount: number;
   todaySales: number;
   ringMinutes: number;
@@ -47,6 +58,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
       total: order ? orderTotals(order, order.lines, settings).totals.total : 0,
       orderId: order?.id ?? null,
       pendingRequests: pending.get(table.id) ?? 0,
+      lines: order ? order.lines.filter((line) => line.cancelledAt === null).map((line) => ({ name: line.nameSnapshot, quantity: line.quantity })) : [],
     };
   });
   const tableIds = new Set(tables.map((t) => t.id));

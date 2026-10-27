@@ -50,7 +50,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
   const enabled = new Set<PosPaymentMethodKey>(settings.enabledPaymentMethods);
 
   return (
-    <form key={settings.version} {...form.props} className="flex max-w-xl flex-col gap-6">
+    <form key={settings.version} {...form.props} className="flex max-w-2xl flex-col gap-6 rounded-[28px] border border-line bg-surface p-6">
       <FormError form={form} fields={['serviceRatePercent', 'taxRatePercent', 'tableRingMinutes', 'enabledPaymentMethods']} />
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={t('pos.settings.service')} error={form.fieldError('serviceRatePercent')}>
@@ -65,7 +65,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
       </div>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-text">{t('pos.settings.methods')}</legend>
+        <legend className="text-lg font-bold text-text">{t('pos.settings.methods')}</legend>
         <p className="text-sm text-muted">{t('pos.settings.methodsHint')}</p>
         {POS_PAYMENT_METHODS.map((method) => (
           <Checkbox
@@ -79,7 +79,7 @@ export function SettingsForm({ settings }: { settings: PosSettingsView }) {
       </fieldset>
 
       <fieldset className="flex flex-col gap-2">
-        <legend className="text-sm font-medium text-text">{t('pos.settings.switches')}</legend>
+        <legend className="text-lg font-bold text-text">{t('pos.settings.switches')}</legend>
         {SWITCHES.map(([key, label]) => (
           <Checkbox key={key} name={key} label={t(label)} defaultChecked={settings[key]} />
         ))}

@@ -78,6 +78,13 @@ export type Shadow = (typeof SHADOWS)[number];
 export const HEADING_STYLES = ['rule', 'numbered', 'arch', 'plain', 'seal', 'script', 'band', 'ornament', 'outline'] as const;
 export type HeadingStyle = (typeof HEADING_STYLES)[number];
 
+/**
+ * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
+ * replace some of the structural knobs (see `SHAPE_SETS`).
+ */
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board'] as const;
+export type BodyKind = (typeof BODY_KINDS)[number];
+
 /** The three background modes every preset supports (spec 6). */
 export const VISUAL_MODES = ['static', 'motion', '3d'] as const;
 export type VisualMode = (typeof VISUAL_MODES)[number];
@@ -118,6 +125,8 @@ export interface DesignType {
 }
 
 export interface DesignLayout {
+  /** Absent means `scroll`: a design stored before shapes existed, and every scroll template, carries no body. */
+  body?: BodyKind;
   hero: HeroKind;
   nav: NavKind;
   card: CardKind;
@@ -128,6 +137,19 @@ export interface DesignLayout {
   corners: Corners;
   shadow: Shadow;
   heading: HeadingStyle;
+}
+
+/** The layout knobs a body sets itself. Customize hides these while that body is chosen. */
+export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
+  scroll: [],
+  book: ['hero', 'nav'],
+  magazine: ['hero'],
+  board: ['hero', 'nav', 'card', 'heading'],
+};
+
+/** The shape a design browses in; `scroll` when it names none. */
+export function bodyOf(layout: Pick<DesignLayout, 'body'>): BodyKind {
+  return layout.body ?? 'scroll';
 }
 
 export interface SceneSettings {
@@ -162,7 +184,7 @@ export interface CuratedPalette {
 
 export interface TemplatePreset {
   id: TemplateId;
-  /** 1 to 30, the order of the brief. */
+  /** 1 to 33, the order of the brief. */
   number: number;
   name: string;
   business: BusinessType;
@@ -314,6 +336,9 @@ export const TEMPLATE_IDS = [
   'vanilla-cloud',
   'pop-gelato',
   'frozen-jewel',
+  'the-book',
+  'the-magazine',
+  'taste-airport',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

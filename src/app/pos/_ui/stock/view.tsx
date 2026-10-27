@@ -27,17 +27,19 @@ export function StockState({ t, state }: { t: Translate; state: 'negative' | 'lo
 /** A row of links for the sections of one area (items, count, recipes), the current one marked. */
 export function SectionTabs({ items, current, label }: { items: readonly { key: string; href: string; label: string }[]; current: string; label: string }) {
   return (
-    <nav aria-label={label} className="flex gap-1 overflow-x-auto px-8 pb-4">
-      {items.map((item) => (
-        <Link
-          key={item.key}
-          href={item.href}
-          aria-current={item.key === current ? 'page' : undefined}
-          className={`inline-flex min-h-12 shrink-0 items-center rounded-md px-4 text-base font-medium whitespace-nowrap ${item.key === current ? 'bg-ink text-on-ink' : 'text-text hover:bg-hover'}`}
-        >
-          {item.label}
-        </Link>
-      ))}
+    <nav aria-label={label} className="flex px-8 pb-4">
+      <div className="till-tabs flex max-w-full gap-1 overflow-x-auto rounded-2xl p-1.5">
+        {items.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            aria-current={item.key === current ? 'page' : undefined}
+            className="till-tab inline-flex min-h-11 shrink-0 items-center rounded-xl px-5 text-base font-semibold whitespace-nowrap"
+          >
+            {item.label}
+          </Link>
+        ))}
+      </div>
     </nav>
   );
 }

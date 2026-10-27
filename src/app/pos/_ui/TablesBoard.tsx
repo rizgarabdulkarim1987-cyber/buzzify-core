@@ -1,41 +1,61 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { openPosOrder } from '@/app/studio/_actions/pos';
-import { elapsedLabel, elapsedMinutes, formatNumber, type ElapsedText } from '@/lib/pos-format';
-import { tableTone, type TableTone } from '@/lib/pos-view';
-import { ringProgress } from '@/server/domain/pos/table-status';
+import { formatNumber, type ElapsedText } from '@/lib/pos-format';
+import { SELECTING, type LayoutId } from '@/lib/pos-floor';
 import type { BoardView } from '@/server/pos/board';
-import { useLocale, useT } from '@/studio/i18n';
-import { Alert } from '@/studio/ui/Alert';
+import type { OffPremiseCard } from '@/server/pos/off-premise';
+import { useT } from '@/studio/i18n';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { Floor, type FloorTable } from './floor/Floor';
 import { useLiveRefresh, useNow } from './live';
 import { useMoney } from './money';
 import { usePosCall } from './use-pos-call';
 
 const REFRESH_MS = 10_000;
-const TONE: Record<TableTone, string> = {
-  free: 'border-line-strong bg-raised text-text',
-  busy: 'border-accent bg-accent-wash text-text',
-  ready: 'border-success bg-success-wash text-text',
-  bill: 'border-danger bg-danger-wash text-text',
-  pending: 'border-info bg-info-wash text-text',
-};
-const RING = 2 * Math.PI * 46;
 
-export function TablesBoard({ board }: { board: BoardView }) {
+const LEGEND = [
+  { status: 'FREE', key: 'pos.board.state.free' },
+  { status: 'PENDING_APPROVAL', key: 'pos.calm.legendNew' },
+  { status: 'BUSY', key: 'pos.calm.legendBusy' },
+  { status: 'READY', key: 'pos.calm.ready' },
+  { status: 'BILL_REQUESTED', key: 'pos.calm.legendBill' },
+] as const;
+
+type Props = {
+  board: BoardView;
+  /** This device's arrangement of the floor (the pos-layout cookie). */
+  layout: LayoutId;
+  /** Live takeaway and delivery orders, for the areas-as-rows layout. */
+  offCards: OffPremiseCard[];
+  offPremise: { takeaway: boolean; delivery: boolean };
+};
+
+/** The tables screen: today's figures, the area tabs and the floor in this device's layout, fitted to one screen. */
+export function TablesBoard({ board, layout, offCards, offPremise }: Props) {
   const t = useT();
-  const { locale } = useLocale();
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
   const [areaId, setAreaId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
   const now = useNow(new Date(board.readAt).getTime());
   useLiveRefresh(REFRESH_MS);
 
-  const text: ElapsedText = useMemo(
+  // The busy table whose bill shows, in the layouts with a bill area. Escape lets it go.
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSelectedId(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const elapsed: ElapsedText = useMemo(
     () => ({
       justNow: t('pos.time.justNow'),
       one: t('pos.time.one'),
@@ -47,19 +67,37 @@ export function TablesBoard({ board }: { board: BoardView }) {
     }),
     [t],
   );
-  const tables = areaId === null ? board.tables : board.tables.filter((table) => table.areaId === areaId);
-  const areaName = (id: string) => board.areas.find((area) => area.id === id)?.name ?? '';
 
-  const tap = (table: BoardView['tables'][number]) => {
+  const showTabs = board.areas.length > 1 && layout !== 'zones';
+  const tables = !showTabs || areaId === null ? board.tables : board.tables.filter((table) => table.areaId === areaId);
+
+  const navigate = (table: FloorTable, href: string) => {
+    setOpeningId(table.id);
+    router.push(href);
+  };
+
+  const go = (table: FloorTable, pay = false) => {
+    if (table.orderId) navigate(table, `/pos/orders/${table.orderId}${pay ? '?pay=1' : ''}`);
+  };
+
+  const press = (table: FloorTable) => {
     if (table.pendingRequests > 0) {
-      router.push('/pos/requests');
+      navigate(table, '/pos/requests');
       return;
     }
     if (table.orderId) {
-      router.push(`/pos/orders/${table.orderId}`);
+      // In a layout with a bill area the first press on a busy table shows its bill; the second opens it.
+      if (SELECTING.has(layout) && selectedId !== table.id) {
+        setSelectedId(table.id);
+        return;
+      }
+      go(table);
       return;
     }
-    void call(() => openPosOrder({ tableId: table.id }), { onOk: (data) => router.push(`/pos/orders/${data.orderId}`) });
+    setOpeningId(table.id);
+    void call(() => openPosOrder({ tableId: table.id }), { onOk: (data) => router.push(`/pos/orders/${data.orderId}`), keepPage: true }).then((result) => {
+      if (!result.ok) setOpeningId(null);
+    });
   };
 
   if (board.areas.length === 0 || board.tables.length === 0) {
@@ -67,78 +105,79 @@ export function TablesBoard({ board }: { board: BoardView }) {
   }
 
   return (
-    <div className="flex flex-col gap-4 px-4 pb-8 sm:px-8">
-      <dl className="flex flex-wrap gap-x-8 gap-y-2 text-base">
-        <div className="flex gap-2">
-          <dt className="text-muted">{t('pos.board.busy')}</dt>
-          <dd className="font-semibold text-text">{formatNumber(board.busyCount)}</dd>
-        </div>
-        <div className="flex gap-2">
-          <dt className="text-muted">{t('pos.board.todaySales')}</dt>
-          <dd className="font-semibold text-text">{money(board.todaySales)}</dd>
-        </div>
-      </dl>
+    <div data-layout={layout} className="till-floor flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4 sm:px-8">
+      {/* One bar across the top: the title, the area tabs and today's two figures. */}
+      <div className="flex shrink-0 flex-wrap items-center gap-x-4 gap-y-3">
+        <h1 className="shrink-0 text-3xl font-bold leading-tight sm:text-4xl">{t('pos.board.title')}</h1>
+        {showTabs ? (
+          <div className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]">
+            <div role="tablist" aria-label={t('pos.board.areas')} className="till-tabs inline-flex min-w-max gap-1 rounded-2xl p-1.5">
+              {[{ id: null, name: t('pos.board.allAreas'), busyCount: board.busyCount }, ...board.areas].map((area) => (
+                <button
+                  key={area.id ?? 'all'}
+                  type="button"
+                  role="tab"
+                  aria-selected={areaId === area.id}
+                  onClick={() => setAreaId(area.id)}
+                  className="till-tab inline-flex min-h-11 items-center gap-2 rounded-xl px-5 text-base font-semibold whitespace-nowrap"
+                >
+                  <span className="max-w-[14ch] truncate">{area.name}</span>
+                  <span className={cx('min-w-7 rounded-full px-2 text-center text-sm font-bold leading-6', area.busyCount > 0 ? 'bg-raised text-text' : 'bg-bg text-muted')}>{formatNumber(area.busyCount)}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <span className="flex-1" />
+        )}
+        <dl className="flex shrink-0 gap-2">
+          <div className="till-stat rounded-2xl px-4 py-1.5">
+            <dt className="text-xs font-semibold text-muted">{t('pos.board.busy')}</dt>
+            <dd className="flex items-baseline gap-1.5">
+              <span className="text-2xl leading-tight font-bold">{formatNumber(board.busyCount)}</span>
+              <span className="text-sm text-muted">{t('pos.calm.busyOf', { total: formatNumber(board.tables.length) })}</span>
+            </dd>
+          </div>
+          <div className="till-stat rounded-2xl px-4 py-1.5">
+            <dt className="text-xs font-semibold text-muted">{t('pos.board.todaySales')}</dt>
+            <dd className="text-2xl leading-tight font-bold">{money(board.todaySales)}</dd>
+          </div>
+        </dl>
+      </div>
 
-      {board.areas.length > 1 ? (
-        <div role="tablist" aria-label={t('pos.board.areas')} className="flex gap-1 overflow-x-auto">
-          {[{ id: null, name: t('pos.board.allAreas'), busyCount: board.busyCount }, ...board.areas].map((area) => (
-            <button
-              key={area.id ?? 'all'}
-              type="button"
-              role="tab"
-              aria-selected={areaId === area.id}
-              onClick={() => setAreaId(area.id)}
-              className={cx(
-                'inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md border px-4 text-base whitespace-nowrap',
-                areaId === area.id ? 'border-ink bg-ink text-on-ink' : 'border-line-strong text-text hover:bg-hover',
-              )}
-            >
-              {area.name}
-              {area.busyCount > 0 ? <span className="text-sm opacity-75">{formatNumber(area.busyCount)}</span> : null}
-            </button>
-          ))}
-        </div>
+      {pending ? (
+        <span className="sr-only" role="status">
+          {t('common.loading')}
+        </span>
       ) : null}
-
-      {pending ? <span className="sr-only" role="status">{t('common.loading')}</span> : null}
-      <ul className="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-3">
-        {tables.map((table) => {
-          const tone = tableTone(table.status);
-          const progress = table.seatedAt ? ringProgress(new Date(table.seatedAt), new Date(now), board.ringMinutes) : 0;
-          const minutes = table.seatedAt ? elapsedMinutes(new Date(table.seatedAt).getTime(), now) : 0;
-          return (
-            <li key={table.id}>
-              <button
-                type="button"
-                onClick={() => tap(table)}
-                disabled={pending}
-                className={cx('s-keep-radius relative flex min-h-32 w-full flex-col items-center justify-center gap-1 rounded-lg border-2 p-3 text-center transition-colors disabled:opacity-60', TONE[tone])}
-                aria-label={t('pos.board.tableLabel', { n: formatNumber(table.number), state: t(`pos.board.state.${tone}`) })}
-              >
-                {table.orderId ? (
-                  <svg aria-hidden viewBox="0 0 100 100" className="absolute inset-2 -rotate-90">
-                    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="3" />
-                    <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeDasharray={RING} strokeDashoffset={RING * (1 - progress)} />
-                  </svg>
-                ) : null}
-                {table.pendingRequests > 0 ? (
-                  <span className="absolute end-2 top-2 inline-flex min-h-6 items-center rounded-full bg-info px-2 text-sm font-semibold text-on-status">
-                    {table.orderId ? formatNumber(table.pendingRequests) : t('pos.board.newOrder')}
-                  </span>
-                ) : null}
-                <span className="relative text-2xl font-semibold" dir="ltr">{formatNumber(table.number)}</span>
-                <span className="relative text-sm text-muted">{areaId === null && board.areas.length > 1 ? areaName(table.areaId) : t(`pos.board.state.${tone}`)}</span>
-                {table.orderId ? (
-                  <span className="relative text-sm font-medium">
-                    {money(table.total)} · {elapsedLabel(minutes, text, locale)}
-                  </span>
-                ) : null}
-              </button>
+      <Floor
+        layout={layout}
+        now={now}
+        ringMinutes={board.ringMinutes}
+        elapsed={elapsed}
+        busy={pending || openingId !== null}
+        openingId={openingId}
+        selectedId={selectedId}
+        tables={tables}
+        allTables={board.tables}
+        areas={board.areas}
+        offCards={layout === 'zones' ? offCards : []}
+        offPremise={offPremise}
+        onPress={press}
+        onGo={go}
+        onClear={() => setSelectedId(null)}
+      />
+      <div className="flex shrink-0 flex-col">
+        <h2 className="sr-only">{t('pos.calm.legend')}</h2>
+        <ul className="flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm text-muted">
+          {LEGEND.filter((item) => item.status !== 'PENDING_APPROVAL' || board.tables.some((x) => x.status === 'PENDING_APPROVAL')).map((item) => (
+            <li key={item.status} className="inline-flex items-center gap-2">
+              <span aria-hidden="true" className="state-dot" data-status={item.status} />
+              {t(item.key)}
             </li>
-          );
-        })}
-      </ul>
-      {tables.length === 0 ? <Alert>{t('pos.board.noTablesInArea')}</Alert> : null}
+          ))}
+        </ul>
+      </div>
     </div>
   );
 }

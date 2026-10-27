@@ -1,0 +1,127 @@
+/*
+ * The Magazine body (a browse shape of a template menu). Everything is scoped under [data-body='magazine']; the menu's
+ * palette, fonts, corners and density arrive as the template's CSS variables. Logical properties only.
+ */
+[data-body='magazine'] .mg-mast {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-inline: var(--gutter, 1rem);
+  /* Room under the sticky section strip, so the name's capitals are never tucked beneath it. */
+  padding-block: calc(var(--space) * 0.5rem) calc(var(--space) * 0.375rem);
+  border-block-end: 4px solid var(--text);
+}
+[data-body='magazine'] .mg-name {
+  margin: 0;
+  font-size: calc(var(--type-scale) * clamp(1.7rem, 7.5vw, 4.2rem));
+  line-height: 1;
+  overflow-wrap: anywhere;
+}
+[data-body='magazine'] .mg-issue {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* A spread: the section heading, a lead photo with its caption over it, the rest below. */
+[data-body='magazine'] .mg-spread {
+  padding-top: calc(var(--space) * 0.75rem);
+}
+[data-body='magazine'] .mg-spread:not(:first-of-type) {
+  padding-top: calc(var(--space) * 2rem);
+}
+[data-body='magazine'] .mg-lead {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border-radius: var(--radius-card);
+  background: var(--card);
+  isolation: isolate;
+}
+/* Photo and caption share one cell; the caption is not positioned, so the name's stretched target covers the whole lead. */
+[data-body='magazine'] .mg-photo,
+[data-body='magazine'] .mg-cap {
+  grid-area: 1 / 1;
+}
+[data-body='magazine'] .mg-photo {
+  /* A minimum height: the photo stretches to the cell, so a tall caption (a long name) always sits on it. */
+  align-self: stretch;
+  min-block-size: 0;
+  aspect-ratio: 21 / 9;
+  overflow: hidden;
+  transition: transform 500ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+[data-body='magazine'] .mg-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+@media (hover: hover) {
+  [data-body='magazine'] .mg-lead:hover .mg-photo {
+    transform: scale(1.03);
+  }
+}
+[data-body='magazine'] .mg-cap {
+  z-index: 2;
+  align-self: end;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 0.25rem 0.75rem;
+  padding: 2.5rem 0.9rem 0.8rem;
+  color: #fff;
+  /*
+   * The scrim fades in above the text only: from 2.25rem down it is at least 60% black, so white text over a white
+   * plate still reads at 5.7:1 (black 60% over white is sRGB 0.40, luminance 0.133; (1 + 0.05) / (0.133 + 0.05)).
+   */
+  background: linear-gradient(rgb(0 0 0 / 0) 0, rgb(0 0 0 / 0.6) 2.25rem, rgb(0 0 0 / 0.85) 100%);
+}
+[data-body='magazine'] .mg-lead-name {
+  grid-column: 1;
+  min-block-size: 2.75rem;
+  padding: 0;
+  color: #fff;
+  font-size: calc(var(--type-scale) * clamp(1.4rem, 6vw, 2rem));
+  line-height: 1.1;
+}
+[data-body='magazine'] .mg-lead-price {
+  grid-column: 2;
+  grid-row: 1;
+  color: #fff;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+[data-body='magazine'] .mg-lead-price .tpl-was {
+  color: rgb(255 255 255 / 0.85);
+}
+[data-body='magazine'] .mg-badges {
+  grid-column: 1;
+}
+[data-body='magazine'] .mg-add {
+  grid-column: 2;
+  grid-row: 2;
+  justify-self: end;
+}
+[data-body='magazine'] .mg-rest {
+  margin-block-start: calc(var(--space) * 0.75rem);
+}
+
+@media (min-width: 768px) {
+  [data-body='magazine'] .mg-photo {
+    aspect-ratio: 16 / 7;
+  }
+}
+
+/* Less motion: the photo does not move. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='magazine'] .mg-photo {
+    transition: none;
+  }
+  [data-body='magazine'] .mg-lead:hover .mg-photo {
+    transform: none;
+  }
+}

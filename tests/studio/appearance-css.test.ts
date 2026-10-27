@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(path, 'utf8');
 describe('the look in the stylesheet', () => {
   it('keeps the shape radius off round pills and off the till tiles', () => {
     expect(css).toMatch(/html\[data-shape\] button:not\(\.s-keep-radius\):not\(\[class\*='rounded-full'\]\)/);
-    for (const file of ['src/app/pos/_ui/OrderScreen.tsx', 'src/app/pos/_ui/TablesBoard.tsx', 'src/app/pos/_ui/sync/OfflineTill.tsx']) {
+    for (const file of ['src/app/pos/_ui/OrderScreen.tsx', 'src/app/pos/_ui/floor/Floor.tsx', 'src/app/pos/_ui/sync/OfflineTill.tsx']) {
       expect(read(file), file).toContain('s-keep-radius');
     }
   });

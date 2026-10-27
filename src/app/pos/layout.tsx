@@ -1,4 +1,5 @@
 import '@/studio/studio.css';
+import './till.css';
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { direction } from '@/lib/locale';
