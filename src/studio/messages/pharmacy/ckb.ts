@@ -27,6 +27,7 @@ const pharmacy: Messages = {
   'pharmacy.state.closed.restaurantInactive': 'ئەم کارە چالاک نییە. داوا لە Buzzify بکە دووبارە چالاکی بکاتەوە.',
   'pharmacy.state.closed.notPharmacy': 'ئەم کارە دەرمانخانە نییە.',
   'pharmacy.state.closed.planInactive': 'ئەم دەرمانخانەیە بەشداریکردنی نییە. داوا لە Buzzify بکە یەکێک دەست پێ بکات.',
+  'pharmacy.state.closed.applicationDisabled': 'خزمەتگوزاری دەرمانخانە لەلایەن Buzzify ڕاگیراوە. پەیوەندی بە Buzzify بکە.',
   'pharmacy.state.closed.archived': 'بەشداریکردنەکە بەسەرچوو و ماوەی خوێندنەوەش کۆتایی هات، بۆیە دەرمانخانەکە ئەرشیف کرا.',
   'error.text.supportGrantee': 'ئەندامێکی تیمی پشتگیریی Buzzify دیاری بکە',
   'error.text.supportNoScope': 'لانیکەم جۆرێک لە دەستگەیشتن هەڵبژێرە',

@@ -27,6 +27,7 @@ const pharmacy: Messages = {
   'pharmacy.state.closed.restaurantInactive': 'هذا النشاط غير مفعّل. اطلب من Buzzify إعادة تفعيله.',
   'pharmacy.state.closed.notPharmacy': 'هذا النشاط ليس صيدلية.',
   'pharmacy.state.closed.planInactive': 'لا يوجد اشتراك لهذه الصيدلية. اطلب من Buzzify بدء اشتراك.',
+  'pharmacy.state.closed.applicationDisabled': 'تم إيقاف خدمة الصيدلية مؤقتًا من Buzzify. تواصل مع Buzzify.',
   'pharmacy.state.closed.archived': 'انتهى الاشتراك وانقضت مدة القراءة، فأُرشفت الصيدلية.',
   'error.text.supportGrantee': 'اختر أحد أعضاء فريق دعم Buzzify',
   'error.text.supportNoScope': 'اختر نوعًا واحدًا من الوصول على الأقل',

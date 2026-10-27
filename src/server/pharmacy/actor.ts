@@ -34,7 +34,7 @@ export interface PhActor {
 export type PhGate =
   | { state: 'open' }
   | { state: 'readOnly'; until: Date }
-  | { state: 'closed'; reason: 'restaurantInactive' | 'notPharmacy' | 'planInactive' | 'archived' };
+  | { state: 'closed'; reason: 'restaurantInactive' | 'notPharmacy' | 'planInactive' | 'applicationDisabled' | 'archived' };
 
 /** The retention window in days: the `pharmacyRetentionDays` platform setting when it holds a positive whole number. */
 async function retentionDays(prisma: PrismaClient): Promise<number> {
@@ -53,9 +53,11 @@ export async function phGate(prisma: PrismaClient, restaurantId: string, now: Da
   if (restaurant.sector !== 'PHARMACY') return { state: 'closed', reason: 'notPharmacy' };
   const subscription = await prisma.subscription.findFirst({
     where: { restaurantId, applicationId: 'pharmacy' },
-    select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true, cancelledAt: true },
+    select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true, cancelledAt: true, application: { select: { status: true } } },
   });
   if (!subscription) return { state: 'closed', reason: 'planInactive' };
+  // The platform's kill switch for the whole pharmacy product (read with the subscription: no extra query).
+  if (subscription.application.status !== 'ACTIVE') return { state: 'closed', reason: 'applicationDisabled' };
   const status = effectiveStatus(subscription, now);
   if (isLive(status)) return { state: 'open' };
 

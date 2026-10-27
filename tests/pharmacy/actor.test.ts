@@ -163,6 +163,17 @@ describe('phGate', () => {
     expect(await gate(p.id)).toEqual({ state: 'closed', reason: 'planInactive' });
   });
 
+  it('a disabled pharmacy application closes every pharmacy (kill switch), a FOOD restaurant is not asked', async () => {
+    const p = await pharmacy('K');
+    const food = await pharmacy('Diner', { sector: 'FOOD' });
+    expect(await gate(p.id)).toEqual({ state: 'open' });
+    await prisma().application.update({ where: { id: 'pharmacy' }, data: { status: 'DISABLED' } });
+    expect(await gate(p.id)).toEqual({ state: 'closed', reason: 'applicationDisabled' });
+    expect(await gate(food.id)).toEqual({ state: 'closed', reason: 'notPharmacy' });
+    await prisma().application.update({ where: { id: 'pharmacy' }, data: { status: 'ACTIVE' } });
+    expect(await gate(p.id)).toEqual({ state: 'open' });
+  });
+
   it('a retention setting of 30 days changes the archive boundary', async () => {
     const p = await pharmacy('R', { subscription: 'ACTIVE', periodEndsInDays: -48, graceDays: 7 }); // grace ended 41 days ago
     expect(await gate(p.id)).toMatchObject({ state: 'readOnly' });

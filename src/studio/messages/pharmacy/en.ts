@@ -29,6 +29,7 @@ const pharmacy: Messages = {
   'pharmacy.state.closed.restaurantInactive': 'This business is not active. Ask Buzzify to reactivate it.',
   'pharmacy.state.closed.notPharmacy': 'This business is not a pharmacy.',
   'pharmacy.state.closed.planInactive': 'This pharmacy has no subscription. Ask Buzzify to start one.',
+  'pharmacy.state.closed.applicationDisabled': 'This pharmacy service is paused by Buzzify. Contact Buzzify.',
   'pharmacy.state.closed.archived': 'The subscription lapsed and the reading period has ended, so the pharmacy is archived.',
   // Refusals of a support grant (src/studio/errors.ts)
   'error.text.supportGrantee': 'Name a member of Buzzify support',

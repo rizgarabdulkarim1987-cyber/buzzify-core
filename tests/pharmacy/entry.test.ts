@@ -34,7 +34,7 @@ describe('phEntry', () => {
   });
 
   it('a closed gate shows its reason', () => {
-    for (const reason of ['restaurantInactive', 'notPharmacy', 'planInactive', 'archived'] as const) {
+    for (const reason of ['restaurantInactive', 'notPharmacy', 'planInactive', 'applicationDisabled', 'archived'] as const) {
       expect(phEntry({ signedIn: true, actor, gate: { state: 'closed', reason } })).toEqual({ kind: 'closed', reason });
     }
   });
