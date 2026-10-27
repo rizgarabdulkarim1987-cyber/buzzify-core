@@ -4,11 +4,13 @@ import { baghdadDay, baghdadDayOf, baghdadMonthOf, DAY_MS, isCalendarDay } from 
 import { formatNumber } from '@/lib/pos-format';
 import { checkRange } from '@/server/pos/range-report';
 import { query } from '@/server/studio/framework/invoke';
+import { posBreakdown } from '@/server/studio/queries/pos-breakdown';
 import { posRangeReport } from '@/server/studio/queries/pos-inventory';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
+import { BreakdownTables } from '@/app/pos/_ui/BreakdownTables';
 import { moneyLabel } from '@/app/pos/_ui/stock/view';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -40,7 +42,7 @@ export default async function RangePage({ searchParams }: { searchParams: Promis
   const checked = checkRange(from, to);
   const problem = 'problem' in checked ? checked.problem : null;
   const active = preset === 'month' || preset === 'lastMonth' ? preset : askedFrom && askedTo ? 'custom' : 'week';
-  const report = problem === null ? await query(posRangeReport, { from, to }) : null;
+  const [report, breakdown] = problem === null ? await Promise.all([query(posRangeReport, { from, to }), query(posBreakdown, { from, to })]) : [null, null];
   const presets = [
     { key: 'week', href: '/pos/report/range', label: t('pos.range.week') },
     { key: 'month', href: '/pos/report/range?preset=month', label: t('pos.range.month') },
@@ -187,6 +189,8 @@ export default async function RangePage({ searchParams }: { searchParams: Promis
                 </ul>
               )}
             </section>
+
+            {breakdown ? <BreakdownTables t={t} breakdown={breakdown} from={from} to={to} /> : null}
           </>
         ) : null}
       </div>
