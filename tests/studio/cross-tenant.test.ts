@@ -623,6 +623,7 @@ const SWEPT: Record<string, Case[]> = {
     c("copies B's menu into A", (w) => ({ menuId: w.b.menuId, name: 'Copy', slug: 'copy-out-of-b', targetRestaurantId: w.a.restaurantId })),
   ],
   'menus.delete': [c("B's menu", (w) => ({ menuId: w.b.menuId, confirmName: w.b.menuName }))],
+  'menus.bulkDelete': [c("deletes B's menu", (w) => ({ menuIds: [w.b.menuId], confirm: 'DELETE' }), { kind: 'perItem' })],
   // The guests' complaints and suggestions box
   'menus.setFeedback': [
     c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
