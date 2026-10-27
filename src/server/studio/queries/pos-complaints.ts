@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { canPos } from '@/server/domain/pos/permissions';
 import { COMPLAINT_STATUSES } from '@/server/domain/pos/complaint-rules';
-import { countNewComplaints, hasAnyComplaint, listComplaints, readComplaint } from '@/server/pos/complaints';
+import { countNewComplaints, listComplaints, readComplaint } from '@/server/pos/complaints';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
 
@@ -32,7 +32,7 @@ export const posComplaint = defineQuery({
   run: (ctx, input) => readComplaint(ctx.db, restaurantOf(ctx), input.complaintId, ctx.pos !== null && canPos(ctx.pos.role, 'complaint.manage')),
 });
 
-/** For the till frame's navigation: whether to list the page, and how many are new. */
+/** For the till frame's navigation: the page is always listed, and this says how many are new. */
 export const posComplaintBadge = defineQuery({
   name: 'pos.complaintBadge',
   permission: null,
@@ -40,9 +40,7 @@ export const posComplaintBadge = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => {
-    const db = ctx.db;
-    const restaurantId = restaurantOf(ctx);
-    const [settings, any, count] = await Promise.all([db.posSettings.findFirst({ where: { restaurantId }, select: { complaintsEnabled: true } }), hasAnyComplaint(db, restaurantId), countNewComplaints(db, restaurantId)]);
-    return { show: (settings?.complaintsEnabled ?? false) || any, count };
+    // The box belongs to the menu, which every restaurant has, so the page is always in the till's navigation.
+    return { show: true, count: await countNewComplaints(ctx.db, restaurantOf(ctx)) };
   },
 });

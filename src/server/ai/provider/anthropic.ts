@@ -100,8 +100,8 @@ export function createAnthropicProvider(apiKey: string, models: { ask?: string |
       try {
         // The SDK's request types are narrower than this neutral mapping, which the mapping test pins.
         const message = beta
-          ? await client.beta.messages.create(body as unknown as Parameters<typeof client.beta.messages.create>[0], { signal: req.signal, timeout: 60_000 })
-          : await client.messages.create(body as unknown as Parameters<typeof client.messages.create>[0], { signal: req.signal, timeout: 60_000 });
+          ? await client.beta.messages.create(body as unknown as Parameters<typeof client.beta.messages.create>[0], { signal: req.signal, timeout: 160_000 })
+          : await client.messages.create(body as unknown as Parameters<typeof client.messages.create>[0], { signal: req.signal, timeout: 160_000 });
         return fromAnthropicMessage(message as unknown as Parameters<typeof fromAnthropicMessage>[0]);
       } catch (error) {
         if (error instanceof Anthropic.APIConnectionTimeoutError || error instanceof Anthropic.APIUserAbortError || (error instanceof Error && error.name === 'TimeoutError')) throw new AiTimeoutError();

@@ -1,5 +1,5 @@
 import { deleteValue, deviceId, getValue, putValue, readQueue, updateQueue, countOtherScopes, type PosDb } from './idb';
-import { operationSchema, type Op, type OpAnswer, type OpKind, type OrderRef, type SyncErrorCode } from './op-schema';
+import { operationSchema, type Op, type OpAnswer, type OpKind, type SyncErrorCode } from './op-schema';
 import type { Scope } from './scope';
 import type { SyncSnapshot } from './snapshot';
 
@@ -53,8 +53,6 @@ export function orderKeys(queue: readonly QueuedOp[]): (q: QueuedOp) => string {
     return opened.get(ref.id) ?? `id:${ref.id}`;
   };
 }
-
-export const refOf = (ref: OrderRef): string => ('id' in ref ? ref.id : ref.op);
 
 async function nextProvisional(db: PosDb, id: string): Promise<string> {
   const n = ((await getValue<number>(db, 'meta', 'provisional')) ?? 0) + 1;

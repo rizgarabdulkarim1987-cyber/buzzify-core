@@ -1,7 +1,9 @@
 import { headers } from 'next/headers';
 import QRCode from 'qrcode';
 import { z } from 'zod';
+import { checkAppearance, DEFAULT_APPEARANCE } from '@/lib/appearance';
 import { LOCALES } from '@/lib/locale';
+import { Prisma } from '@/generated/prisma/client';
 import { authFor, sendAfterResponse } from '@/server/studio/auth/auth';
 import { authErrorCode, policyProblemOf } from '@/server/studio/auth/errors';
 import { currentPasswordField, emailField, newPasswordField, totpCodeField } from '@/server/studio/auth/fields';
@@ -218,6 +220,58 @@ export const setStudioLanguage = defineAction({
         changes: { locale: { before: before.locale, after: locale } },
       });
       return { locale };
+    }),
+});
+
+const appearanceInput = z.object({
+  font: z.string().max(32),
+  bg: z.string().max(16),
+  text: z.string().max(16),
+  button: z.string().max(16),
+  buttonText: z.string().max(16),
+  shape: z.string().max(16),
+});
+
+/** The person's own look. Keyed by the actor, so nobody can change another person's; unreadable colour sets are refused. */
+export const setAppearance = defineAction({
+  name: 'account.setAppearance',
+  permission: null,
+  input: appearanceInput,
+  target: () => SELF,
+  run: (ctx, input) => {
+    const checked = checkAppearance(input);
+    if (!checked.ok) throw new StudioError('INVALID', undefined, { [checked.field]: checked.reason });
+    const { value } = checked;
+    return ctx.transaction(async (tx) => {
+      const before = await tx.user.findUniqueOrThrow({ where: { id: ctx.actor.userId }, select: { appearance: true } });
+      await tx.user.update({ where: { id: ctx.actor.userId }, data: { appearance: { ...value } } });
+      ctx.audit({
+        action: 'account.appearance_changed',
+        entityType: 'User',
+        entityId: ctx.actor.userId,
+        changes: { appearance: { before: before.appearance, after: value } },
+      });
+      return value;
+    });
+  },
+});
+
+export const resetAppearance = defineAction({
+  name: 'account.resetAppearance',
+  permission: null,
+  input: nothing,
+  target: () => SELF,
+  run: (ctx) =>
+    ctx.transaction(async (tx) => {
+      const before = await tx.user.findUniqueOrThrow({ where: { id: ctx.actor.userId }, select: { appearance: true } });
+      await tx.user.update({ where: { id: ctx.actor.userId }, data: { appearance: Prisma.DbNull } });
+      ctx.audit({
+        action: 'account.appearance_changed',
+        entityType: 'User',
+        entityId: ctx.actor.userId,
+        changes: { appearance: { before: before.appearance, after: null } },
+      });
+      return DEFAULT_APPEARANCE;
     }),
 });
 

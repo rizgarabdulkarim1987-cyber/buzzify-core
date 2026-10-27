@@ -5,7 +5,7 @@ import { toLatinDigits } from './grounding';
  * and its angle brackets are escaped so it cannot close the wrapper early.
  */
 
-export type UntrustedSource = 'invoice' | 'complaint' | 'toolResult' | 'question';
+export type UntrustedSource = 'invoice' | 'menu' | 'complaint' | 'toolResult' | 'question';
 
 export function untrusted(source: UntrustedSource, text: string): string {
   return `<untrusted_data source="${source}">${text.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</untrusted_data>`;

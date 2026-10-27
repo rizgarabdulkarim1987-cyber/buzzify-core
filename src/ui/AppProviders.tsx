@@ -37,6 +37,8 @@ export interface TenantClientInfo {
   defaultLocale: Locale;
   /** What the restaurant's plan lets these pages show: Explore, the 3D dish, and the rails `?rail=` may preview. */
   features: { explore: boolean; stage: boolean; rails: RailStyle[] };
+  /** Whether the menu carries the complaints and suggestions box. */
+  feedback: boolean;
   /** `plain` shows the menu's prices without the currency symbol (the cart keeps it). */
   priceStyle: 'symbol' | 'plain';
 }

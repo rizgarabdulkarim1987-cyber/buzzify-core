@@ -72,12 +72,6 @@ export const ListIcon = (props: SVGProps<SVGSVGElement>) => (
   </svg>
 );
 
-export const FilterIcon = (props: SVGProps<SVGSVGElement>) => (
-  <svg {...base(props)}>
-    <path d="M3.5 6h13M6 10h8M8.5 14h3" />
-  </svg>
-);
-
 export const ClockIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...base(props)}>
     <circle cx="10" cy="10" r="6.5" />
@@ -109,6 +103,14 @@ export const GlobeIcon = (props: SVGProps<SVGSVGElement>) => (
   <svg {...base(props)}>
     <circle cx="10" cy="10" r="6.5" />
     <path d="M3.5 10h13M10 3.5c1.8 2 2.6 4.1 2.6 6.5s-.8 4.5-2.6 6.5c-1.8-2-2.6-4.1-2.6-6.5S8.2 5.5 10 3.5z" />
+  </svg>
+);
+
+/** The wire globe of the language button: a circle, its axis and meridian, and the equator with two parallels. */
+export const LanguageIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...base(props)}>
+    <circle cx="10" cy="10" r="7.5" />
+    <path d="M10 2.5v15M2.5 10h15M4 6.4c4-1 8-1 12 0M4 13.6c4 1 8 1 12 0M10 2.5c-2.6 2-3.8 4.6-3.8 7.5s1.2 5.5 3.8 7.5c2.6-2 3.8-4.6 3.8-7.5S12.6 4.5 10 2.5z" />
   </svg>
 );
 

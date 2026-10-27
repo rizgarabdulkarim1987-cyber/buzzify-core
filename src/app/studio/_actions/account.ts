@@ -24,6 +24,14 @@ export async function changePassword(input: unknown) {
   return invoke(account.changePassword, input);
 }
 
+export async function setAppearance(input: unknown) {
+  return invoke(account.setAppearance, input);
+}
+
+export async function resetAppearance(input: unknown) {
+  return invoke(account.resetAppearance, input);
+}
+
 export async function requestEmailChange(input: unknown) {
   return invoke(account.requestEmailChange, input);
 }

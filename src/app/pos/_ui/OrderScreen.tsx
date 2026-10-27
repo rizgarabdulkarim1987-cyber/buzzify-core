@@ -138,7 +138,7 @@ export function OrderScreen({
               ? t('pos.calm.table', { n: formatNumber(order.tableNumber) })
               : t('pos.order.headingNoTable', { n: formatNumber(order.number) })}
         </h1>
-        <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-ink' : 'bg-hover text-text')}>
+        <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-status' : 'bg-hover text-text')}>
           {t(`pos.order.status.${order.status}`)}
         </span>
         {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
@@ -215,7 +215,7 @@ export function OrderScreen({
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  'relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
+                                  's-keep-radius relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
                                   count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
                                 )}
                               >

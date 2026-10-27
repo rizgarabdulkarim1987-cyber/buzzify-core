@@ -1,7 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { TenantInfo } from '@/server/data/tenant';
 import { scopedClient } from '@/server/data/tenant-db';
-import { COMPLAINT_LIMITS } from '@/server/domain/pos/complaint-rules';
+import { COMPLAINT_CATEGORIES, COMPLAINT_LIMITS } from '@/server/domain/pos/complaint-rules';
 import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
 import { posGate } from './actor';
 import { isUniqueViolation } from './errors';
@@ -29,24 +29,40 @@ export type ComplaintGate = { open: true; restaurantId: string; tableId: string 
 
 const CLOSED: ComplaintGate = { open: false };
 
-/** Whether guests of this menu may send a complaint from this table. The subscription is read first. */
+/** Whether this menu is the till's and the table is one of its tables, so a message can be linked to it. The subscription is read first. */
 export async function complaintGate(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, tableNumber: number, now: Date = new Date()): Promise<ComplaintGate> {
   if (!Number.isInteger(tableNumber) || tableNumber < 1) return CLOSED;
   const gate = await posGate(prisma, tenant.restaurantId, now);
   if (!gate.open) return CLOSED;
   const till = scopedClient(prisma, { restaurantId: tenant.restaurantId });
-  const settings = await till.posSettings.findFirst({ where: { restaurantId: tenant.restaurantId }, select: { complaintsEnabled: true, catalogMenuId: true } });
-  if (!settings?.complaintsEnabled || settings.catalogMenuId !== tenant.id) return CLOSED;
+  const settings = await till.posSettings.findFirst({ where: { restaurantId: tenant.restaurantId }, select: { catalogMenuId: true } });
+  // The till's own switch no longer decides: the menu's box is open to every guest, and this only finds the table to link.
+  if (!settings || settings.catalogMenuId !== tenant.id) return CLOSED;
   const table = await till.posTable.findFirst({ where: { restaurantId: tenant.restaurantId, number: tableNumber }, select: { id: true } });
   return table ? { open: true, restaurantId: tenant.restaurantId, tableId: table.id } : CLOSED;
 }
 
+export type FeedbackGate = { open: true; restaurantId: string; tableId: string | null } | { open: false };
+
+/**
+ * Whether guests of this menu may leave a message, and which table it belongs to. The box belongs to the menu, not the till:
+ * it is open unless the menu switched it off (read live, so the switch is immediate). A table number the till knows links the
+ * message to that table; any other number, or none, stores it without one.
+ */
+export async function feedbackGate(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, tableNumber: number | null, now: Date = new Date()): Promise<FeedbackGate> {
+  const menu = await prisma.menu.findUnique({ where: { id: tenant.id }, select: { feedbackEnabled: true } });
+  if (!menu?.feedbackEnabled) return { open: false };
+  if (tableNumber === null) return { open: true, restaurantId: tenant.restaurantId, tableId: null };
+  const table = await complaintGate(prisma, tenant, tableNumber, now);
+  return { open: true, restaurantId: tenant.restaurantId, tableId: table.open ? table.tableId : null };
+}
+
 export interface GuestComplaint {
-  table: number;
+  table: number | null;
   locale: string;
   clientKey: string;
   body: string;
-  category?: 'FOOD' | 'SERVICE' | 'CLEANLINESS' | 'PRICE' | 'OTHER';
+  category?: (typeof COMPLAINT_CATEGORIES)[number];
   contactName?: string;
   contactPhone?: string;
 }
@@ -56,26 +72,37 @@ export interface GuestComplaint {
  * in the database under a lock on the table, so a flood cannot slip past. Returns whether a row was written.
  */
 export async function submitComplaint(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, input: GuestComplaint, now: Date = new Date()): Promise<{ stored: boolean }> {
-  const gate = await complaintGate(prisma, tenant, input.table, now);
+  const gate = await feedbackGate(prisma, tenant, input.table, now);
   if (!gate.open) throw new ComplaintGateClosed();
+  // A table number that the till does not know is not stored: the message is kept without a table.
+  const tableNumber = gate.tableId === null ? null : input.table;
   const till = scopedClient(prisma, { restaurantId: gate.restaurantId });
   if (await till.posComplaint.findFirst({ where: { restaurantId: gate.restaurantId, clientKey: input.clientKey }, select: { id: true } })) return { stored: false };
   try {
     return await till.$transaction(async (tx) => {
       await tx.posSettings.updateMany({ where: { restaurantId: gate.restaurantId }, data: { restaurantId: gate.restaurantId } });
-      const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
-      if (locked.count === 0) throw new ComplaintGateClosed();
+      const tableId = gate.tableId;
+      if (tableId === null) {
+        // No table to lock on: the restaurant's settings row (when it has a till) or nothing; the hourly limit is the guard.
+        await tx.posSettings.updateMany({ where: { restaurantId: gate.restaurantId }, data: { restaurantId: gate.restaurantId } });
+      } else {
+        const locked = await tx.posTable.updateMany({ where: { id: tableId, restaurantId: gate.restaurantId }, data: { number: input.table ?? undefined } });
+        if (locked.count === 0) throw new ComplaintGateClosed();
+      }
       const [recentTable, dayTable, recentRestaurant] = await Promise.all([
-        tx.posComplaint.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, createdAt: { gt: new Date(now.getTime() - 10 * 60_000) } } }),
-        tx.posComplaint.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, createdAt: { gt: new Date(now.getTime() - 24 * 3_600_000) } } }),
+        tableId === null ? 0 : tx.posComplaint.count({ where: { restaurantId: gate.restaurantId, tableId, createdAt: { gt: new Date(now.getTime() - 10 * 60_000) } } }),
+        tableId === null ? 0 : tx.posComplaint.count({ where: { restaurantId: gate.restaurantId, tableId, createdAt: { gt: new Date(now.getTime() - 24 * 3_600_000) } } }),
         tx.posComplaint.count({ where: { restaurantId: gate.restaurantId, createdAt: { gt: new Date(now.getTime() - 3_600_000) } } }),
       ]);
       if (recentTable >= COMPLAINT_LIMITS.perTablePer10Minutes || dayTable >= COMPLAINT_LIMITS.perTablePerDay || recentRestaurant >= COMPLAINT_LIMITS.perRestaurantPerHour) throw new ComplaintTooMany();
       // The live order of the table, only when there is one: guessing the previous party's order could blame the wrong people.
-      const order = await tx.posOrder.findFirst({
-        where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: { notIn: [...LOCKED_STATUSES] } },
-        select: { id: true, number: true },
-      });
+      const order =
+        tableId === null
+          ? null
+          : await tx.posOrder.findFirst({
+              where: { restaurantId: gate.restaurantId, tableId, status: { notIn: [...LOCKED_STATUSES] } },
+              select: { id: true, number: true },
+            });
       const hasContact = Boolean(input.contactName || input.contactPhone);
       const complaint = await tx.posComplaint.create({
         data: {
@@ -83,8 +110,8 @@ export async function submitComplaint(prisma: PrismaClient, tenant: Pick<TenantI
           clientKey: input.clientKey,
           category: input.category ?? null,
           body: input.body,
-          tableId: gate.tableId,
-          tableNumber: input.table,
+          tableId,
+          tableNumber,
           orderId: order?.id ?? null,
           orderNumber: order?.number ?? null,
           contactName: input.contactName ?? null,

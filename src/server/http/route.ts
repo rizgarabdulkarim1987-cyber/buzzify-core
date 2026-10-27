@@ -46,15 +46,18 @@ export function problem(status: number, code: string, message: string, headers?:
   return Response.json({ error: { code, message } }, { status, headers });
 }
 
-export async function handleTenantRequest<S extends z.ZodType>(
+/**
+ * The tenant a public API call is for, once the call is under the per-address limit; otherwise the answer to send (an
+ * unknown restaurant, or too many requests).
+ */
+async function admitTenant(
   request: Request,
   ctx: { params: Promise<{ tenant: string }> },
-  options: { schema: S; route: string; limit: number; windowMs?: number },
-  handler: (args: { tenant: TenantInfo; input: z.infer<S>; now: Date }) => Promise<Response>,
-): Promise<Response> {
+  options: { route: string; limit: number; windowMs?: number },
+): Promise<{ tenant: TenantInfo } | { refusal: Response }> {
   const { tenant: slug } = await ctx.params;
   const tenant = await getTenant(slug);
-  if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
+  if (!tenant) return { refusal: problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant') };
 
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
@@ -66,10 +69,22 @@ export async function handleTenantRequest<S extends z.ZodType>(
     new Date(),
   );
   if (!verdict.allowed) {
-    return problem(429, 'RATE_LIMITED', 'Too many requests', {
-      'Retry-After': String(Math.ceil(verdict.retryAfterMs / 1000)),
-    });
+    return {
+      refusal: problem(429, 'RATE_LIMITED', 'Too many requests', { 'Retry-After': String(Math.ceil(verdict.retryAfterMs / 1000)) }),
+    };
   }
+  return { tenant };
+}
+
+export async function handleTenantRequest<S extends z.ZodType>(
+  request: Request,
+  ctx: { params: Promise<{ tenant: string }> },
+  options: { schema: S; route: string; limit: number; windowMs?: number },
+  handler: (args: { tenant: TenantInfo; input: z.infer<S>; now: Date }) => Promise<Response>,
+): Promise<Response> {
+  const admitted = await admitTenant(request, ctx, options);
+  if ('refusal' in admitted) return admitted.refusal;
+  const { tenant } = admitted;
 
   const text = await readBodyWithLimit(request, MAX_BODY_BYTES);
   if (text === null) return problem(413, 'PAYLOAD_TOO_LARGE', 'Request body is too large');
@@ -98,14 +113,7 @@ export async function handleTenantGet(
   options: { route: string; limit: number; windowMs?: number },
   handler: (args: { tenant: TenantInfo; now: Date }) => Promise<Response>,
 ): Promise<Response> {
-  const { tenant: slug } = await ctx.params;
-  const tenant = await getTenant(slug);
-  if (!tenant) return problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant');
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
-  const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
-  const verdict = await admitRequest(getPrisma(), limiterFor(options.route, rule.limit, rule.windowMs), `${options.route}:${tenant.id}:${ip}`, rule, new Date());
-  if (!verdict.allowed) {
-    return problem(429, 'RATE_LIMITED', 'Too many requests', { 'Retry-After': String(Math.ceil(verdict.retryAfterMs / 1000)) });
-  }
-  return handler({ tenant, now: new Date() });
+  const admitted = await admitTenant(request, ctx, options);
+  if ('refusal' in admitted) return admitted.refusal;
+  return handler({ tenant: admitted.tenant, now: new Date() });
 }

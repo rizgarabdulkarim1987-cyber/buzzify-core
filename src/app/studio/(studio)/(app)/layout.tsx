@@ -3,9 +3,12 @@ import type { ReactNode } from 'react';
 import { getPosAccess } from '@/server/pos/actor';
 import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH, TWO_FACTOR_SETUP_PATH } from '@/server/studio/framework/invoke';
+import { activeAnnouncements } from '@/server/studio/queries/announcements';
 import { myRestaurants } from '@/server/studio/queries/account';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly, posNavItem, visibleNav } from '@/studio/nav';
+import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
+import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { Sidebar, type SidebarItem } from '@/studio/shell/Sidebar';
 
 /** The person's role as the sidebar names it: Super Admin, else their role in their restaurants. */
@@ -49,9 +52,13 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         {t('common.skipToContent')}
       </a>
       <Sidebar items={items} user={{ name: actor.name, email: actor.email, role: t(roleKey(actor)) }} />
-      <main id="main" className="min-w-0 flex-1">
-        {children}
-      </main>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <AnnouncementBar userId={actor.userId} initial={await query(activeAnnouncements, {})} />
+        <main id="main" className="min-w-0 flex-1">
+          {children}
+        </main>
+        <BrandFooter />
+      </div>
     </div>
   );
 }

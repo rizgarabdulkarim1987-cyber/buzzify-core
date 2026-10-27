@@ -4,7 +4,7 @@ import type { Messages } from '@/lib/i18n';
 const posStock: Messages = {
   'pos.nav.inventory': 'کۆگا',
   'pos.nav.purchases': 'کڕین',
-  'pos.nav.complaints': 'سکاڵاکان',
+  'pos.nav.complaints': 'سکاڵا و پێشنیار',
 
   'error.text.posItemNameTaken': 'بەندێک بەم ناوەوە هەیە',
   'error.text.posItemInRecipe': 'سەرەتا بەندەکە لە ڕەچەتەکانی لابە',
@@ -167,8 +167,8 @@ const posStock: Messages = {
   'pos.buy.listOwed': 'نەدراو',
 
   // سکاڵاکان
-  'pos.complaints.title': 'سکاڵاکان',
-  'pos.complaints.intro': 'ئەوەی میوانان لە مێزەکانیانەوە ناردوویانە. تەنها بەڕێوەبەر ناو یان تەلەفۆن دەبینێت.',
+  'pos.complaints.title': 'سکاڵا و پێشنیار',
+  'pos.complaints.intro': 'ئەوەی میوانان لە مێنیووەوە ناردوویانە. تەنها بەڕێوەبەر ناو یان تەلەفۆن دەبینێت.',
   'pos.complaints.filters': 'پاڵاوتنی سکاڵاکان',
   'pos.complaints.all': 'هەموو',
   'pos.complaints.status.NEW': 'نوێ',
@@ -179,7 +179,8 @@ const posStock: Messages = {
   'pos.complaints.category.CLEANLINESS': 'پاکوخاوێنی',
   'pos.complaints.category.PRICE': 'نرخ',
   'pos.complaints.category.OTHER': 'هی تر',
-  'pos.complaints.empty': 'هیچ سکاڵایەک نییە',
+  'pos.complaints.category.SUGGESTION': 'پێشنیار',
+  'pos.complaints.empty': 'هیچ سکاڵا یان پێشنیارێک نییە',
   'pos.complaints.table': 'مێزی {n}',
   'pos.complaints.order': 'داواکاری {n}',
   'pos.complaints.orderGone': 'داواکارییەکە چیتر بەردەست نییە.',

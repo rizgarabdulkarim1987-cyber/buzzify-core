@@ -4,7 +4,7 @@ import type { Messages } from '@/lib/i18n';
 const posStock: Messages = {
   'pos.nav.inventory': 'Stock',
   'pos.nav.purchases': 'Purchases',
-  'pos.nav.complaints': 'Complaints',
+  'pos.nav.complaints': 'Complaints and suggestions',
 
   'error.text.posItemNameTaken': 'An item with this name already exists',
   'error.text.posItemInRecipe': 'Remove the item from its recipes first',
@@ -167,8 +167,8 @@ const posStock: Messages = {
   'pos.buy.listOwed': 'Unpaid',
 
   // Complaints
-  'pos.complaints.title': 'Complaints',
-  'pos.complaints.intro': 'What guests sent from their table. Only the manager sees a name or phone.',
+  'pos.complaints.title': 'Complaints and suggestions',
+  'pos.complaints.intro': 'What guests sent from the menu. Only the manager sees a name or phone.',
   'pos.complaints.filters': 'Complaint filter',
   'pos.complaints.all': 'All',
   'pos.complaints.status.NEW': 'New',
@@ -179,7 +179,8 @@ const posStock: Messages = {
   'pos.complaints.category.CLEANLINESS': 'Cleanliness',
   'pos.complaints.category.PRICE': 'Price',
   'pos.complaints.category.OTHER': 'Other',
-  'pos.complaints.empty': 'No complaints',
+  'pos.complaints.category.SUGGESTION': 'Suggestion',
+  'pos.complaints.empty': 'No complaints or suggestions',
   'pos.complaints.table': 'Table {n}',
   'pos.complaints.order': 'Order {n}',
   'pos.complaints.orderGone': 'The order is no longer available.',

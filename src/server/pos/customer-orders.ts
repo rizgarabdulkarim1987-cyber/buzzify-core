@@ -66,23 +66,6 @@ function lineView(line: LineRow): RequestLineView {
 
 const waiting = (now: Date) => ({ status: 'PENDING' as const, createdAt: { gt: expiryCutoff(now) } });
 
-/** Requests waiting for the cashier, oldest first. A request nobody decided in an hour is not listed. */
-export async function listPendingRequests(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<RequestSummary[]> {
-  const rows = await db.posCustomerOrder.findMany({
-    where: { restaurantId, ...waiting(now) },
-    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-    include: { lines: true },
-  });
-  return rows.map((row) => ({
-    id: row.id,
-    tableId: row.tableId,
-    tableNumber: row.tableNumber,
-    createdAt: row.createdAt,
-    lineCount: row.lines.length,
-    total: row.lines.reduce((sum, line) => sum + lineView(line).lineTotal, 0),
-  }));
-}
-
 /** How many requests wait per table, for the board. One query however many tables there are. */
 export async function pendingByTable(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<Map<string, number>> {
   const groups = await db.posCustomerOrder.groupBy({ by: ['tableId'], where: { restaurantId, ...waiting(now) }, _count: { _all: true } });
