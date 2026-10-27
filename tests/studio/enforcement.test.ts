@@ -70,6 +70,14 @@ const ACTION_EXPORT =
 
 const actionsFileViolations = (source: string) => exportsNotMatching(source, ACTION_EXPORT);
 
+/**
+ * The pharmacy's Server Actions forward through `invokePh` or `invokePhQuery`, which put the place the person chose (the
+ * signed cookie, checked again) in place of any restaurant or branch the browser sent: never `invoke` directly.
+ */
+const PH_ACTION_EXPORT = /export async function (\w+)\(input: unknown\)\s*\{\s*return (invokePh|invokePhQuery)\(\w+\.\w+, input\);\s*\}/;
+
+const pharmacyActionsFileViolations = (source: string) => exportsNotMatching(source, PH_ACTION_EXPORT);
+
 // Rule 3 -------------------------------------------------------------------------------------------------------------
 
 const DEFINE_ACTION = /export const (\w+) = defineAction\(/;
@@ -258,10 +266,18 @@ describe('Studio enforcement rules', () => {
       expect(offenders).toEqual([]);
     });
 
+    it('makes the pharmacy forward through invokePh or invokePhQuery only', () => {
+      expect(pharmacyActionsFileViolations('export async function save(input: unknown) { return invokePh(products.create, input); }')).toEqual([]);
+      expect(pharmacyActionsFileViolations('export async function find(input: unknown) { return invokePhQuery(products.search, input); }')).toEqual([]);
+      // Straight to the framework: the browser's restaurant would be used as sent.
+      expect(pharmacyActionsFileViolations('export async function save(input: unknown) { return invoke(products.create, input); }')).toHaveLength(1);
+      expect(pharmacyActionsFileViolations('export async function find(input: unknown) { return invokeQuery(products.search, input); }')).toHaveLength(1);
+    });
+
     it('holds for every file in src/app/pharmacy/_actions', () => {
-      const offenders = sourceFiles(PHARMACY_ACTIONS_DIR).flatMap((path) =>
-        actionsFileViolations(read(path)).map((line) => `${path}: ${line}`),
-      );
+      const files = sourceFiles(PHARMACY_ACTIONS_DIR);
+      expect(files.length).toBeGreaterThan(0);
+      const offenders = files.flatMap((path) => pharmacyActionsFileViolations(read(path)).map((line) => `${path}: ${line}`));
       expect(offenders).toEqual([]);
     });
   });

@@ -21,7 +21,8 @@ export default async function PharmacyRootLayout({ children }: { children: React
   const locale = await requestStudioLocale();
   return (
     <html lang={locale} dir={direction(locale)} className={studioFontVariables(locale)}>
-      <body>
+      {/* No motion anywhere in the pharmacy, toasts included: see [data-motion='none'] in studio.css. */}
+      <body data-motion="none">
         <StudioI18nProvider locale={locale} messages={clientMessages(locale)}>
           {children}
           <Toaster />

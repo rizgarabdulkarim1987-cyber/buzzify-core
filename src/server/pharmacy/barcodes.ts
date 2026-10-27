@@ -53,16 +53,18 @@ export async function heldElsewhere(scoped: ScopedDb, codes: readonly string[], 
   if (codes.length === 0) return [];
   return scoped.phBarcode.findMany({
     where: { code: { in: [...new Set(codes)] }, ...(exceptProductId ? { productId: { not: exceptProductId } } : {}) },
-    select: { code: true, productId: true, product: { select: { tradeName: true } } },
+    select: { code: true, productId: true, product: { select: { tradeName: true, active: true } } },
     orderBy: { createdAt: 'asc' },
   });
 }
 
-export const inUse = (index: number, holder: { productId: string; product: { tradeName: string } }) =>
+/** `productArchived` ('true') says the holder is archived, so the screen can offer to edit it or share the code. */
+export const inUse = (index: number, holder: { productId: string; product: { tradeName: string; active?: boolean } }) =>
   new StudioError('CONFLICT', BARCODE_IN_USE_MESSAGE, {
     phCode: 'BARCODE_IN_USE',
     productId: holder.productId,
     productName: holder.product.tradeName,
+    ...(holder.product.active === false ? { productArchived: 'true' } : {}),
     [`barcodes.${index}.code`]: BARCODE_IN_USE_MESSAGE,
   });
 

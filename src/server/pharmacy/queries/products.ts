@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
-import { getProduct, listProducts, mayViewCost, pharmacyOf, productListInput } from '@/server/pharmacy/products';
+import { getProduct, listProducts, mayViewCost, NO_COST, pharmacyOf, productListInput } from '@/server/pharmacy/products';
 import { searchInput, searchProducts } from '@/server/pharmacy/search';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
@@ -32,10 +32,12 @@ export const search = defineQuery({
   ph: 'catalog.view',
   input: searchInput.extend(phPlaceInput.shape),
   target: phTargetOf,
-  run(ctx, input) {
+  async run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     if (input.branchId !== undefined && !ph.branchIds.includes(input.branchId)) throw new StudioError('FORBIDDEN');
-    return searchProducts(scoped, input);
+    const found = await searchProducts(scoped, input);
+    // The cost key, shaped as the list's, only for a role with cost.view: absent from what anyone else receives.
+    return mayViewCost(ph) ? found.map((item) => ({ ...item, cost: { ...NO_COST } })) : found;
   },
 });
 
@@ -48,5 +50,18 @@ export const list = defineQuery({
   run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     return listProducts(scoped, input, mayViewCost(ph));
+  },
+});
+
+/** The business's categories, by name, for the product editor's choice. */
+export const categories = defineQuery({
+  name: 'ph.products.categories',
+  permission: null,
+  ph: 'catalog.view',
+  input: phPlaceInput,
+  target: phTargetOf,
+  run(ctx) {
+    const { scoped } = pharmacyOf(ctx);
+    return scoped.phCategory.findMany({ select: { id: true, name: true }, orderBy: [{ name: 'asc' }, { id: 'asc' }] });
   },
 });

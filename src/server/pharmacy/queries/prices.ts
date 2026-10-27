@@ -18,3 +18,17 @@ export const history = defineQuery({
     return priceHistory(scoped, ph, input);
   },
 });
+
+/** The currencies the pharmacy prices in (its settings; IQD alone until set), for the price form's choice. */
+export const currencies = defineQuery({
+  name: 'ph.prices.currencies',
+  permission: null,
+  ph: 'catalog.view',
+  input: phPlaceInput,
+  target: phTargetOf,
+  async run(ctx) {
+    const { scoped } = pharmacyOf(ctx);
+    const settings = await scoped.phSettings.findFirst({ select: { enabledCurrencies: true } });
+    return settings?.enabledCurrencies ?? ['IQD' as const];
+  },
+});

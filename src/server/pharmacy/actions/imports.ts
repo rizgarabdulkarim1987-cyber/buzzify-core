@@ -51,6 +51,8 @@ export const preview = defineAction({
     return {
       batchId,
       batchHash: prepared.batchHash,
+      // The header row as written, repeats included: the mapping is keyed by header text, so a repeated one is read once.
+      headers: prepared.headers,
       suggestedMapping: prepared.suggestedMapping,
       mapping: prepared.config.columns,
       summary: prepared.summary,

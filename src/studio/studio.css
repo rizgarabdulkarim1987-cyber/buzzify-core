@@ -221,4 +221,15 @@
       transition-duration: 1ms !important;
     }
   }
+
+  /* The pharmacy has no motion at all (a busy counter, older devices): nothing spins, fades or slides, whatever the
+     shared controls do elsewhere. A pending button keeps its still icon and its words. */
+  [data-motion='none'],
+  [data-motion='none'] *,
+  [data-motion='none'] *::before,
+  [data-motion='none'] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }

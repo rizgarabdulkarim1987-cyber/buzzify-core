@@ -61,6 +61,12 @@ export const productInput = z.object({
   levels: z.array(unitLevelInput).max(10, 'Use at most 10 units'),
   barcodes: z.array(barcodeInput).max(50, 'Use at most 50 barcodes').default([]),
   branchSettings: z.array(branchSettingInput).max(100, 'Use at most 100 branches').default([]),
+  // Where it lives and how it is kept. The category and the image must be the business's own (`assertMembership`).
+  categoryId: z.string().min(1).max(64).nullish(),
+  requiresCold: z.boolean().default(false),
+  storageNote: text,
+  shelfLocation: text,
+  imageAssetId: z.string().min(1).max(64).nullish(),
 });
 export type ProductInput = z.infer<typeof productInput>;
 
@@ -114,6 +120,24 @@ export function checkProduct(input: ProductInput): { levels: UnitLevel[]; barcod
     branches.add(s.branchId);
   });
   return { levels, barcodes };
+}
+
+export const CATEGORY_NOT_OURS = 'Choose one of this pharmacy’s categories';
+export const IMAGE_NOT_OURS = 'Choose an image from this pharmacy’s library';
+
+/**
+ * The category and the image a product names must belong to the business: a category of its own, an image of its own
+ * library or the shared one. Both are read through the scoped transaction, so another business's row is not found.
+ */
+async function assertMembership(tx: ScopedTx, input: ProductInput): Promise<void> {
+  if (input.categoryId) {
+    const found = await tx.phCategory.findFirst({ where: { id: input.categoryId }, select: { id: true } });
+    if (!found) throw invalid('categoryId', CATEGORY_NOT_OURS);
+  }
+  if (input.imageAssetId) {
+    const found = await tx.mediaAsset.findFirst({ where: { id: input.imageAssetId }, select: { id: true } });
+    if (!found) throw invalid('imageAssetId', IMAGE_NOT_OURS);
+  }
 }
 
 /** A person writes stock levels only for branches they work in (the owner: every branch of the business). */
@@ -186,6 +210,23 @@ const FIELDS = ['tradeName', 'genericName', 'activeIngredient', 'strength', 'for
 type Fields = Pick<ProductInput, (typeof FIELDS)[number]>;
 const fieldsOf = (input: Fields): Fields => Object.fromEntries(FIELDS.map((f) => [f, input[f]])) as Fields;
 
+/** Where a product lives and how it is kept: not part of its identity or search text. */
+const EXTRAS = ['categoryId', 'requiresCold', 'storageNote', 'shelfLocation', 'imageAssetId'] as const;
+export interface Extras {
+  categoryId: string | null;
+  requiresCold: boolean;
+  storageNote: string;
+  shelfLocation: string;
+  imageAssetId: string | null;
+}
+const extrasOf = (input: Partial<ProductInput>): Extras => ({
+  categoryId: input.categoryId ?? null,
+  requiresCold: input.requiresCold ?? false,
+  storageNote: input.storageNote ?? '',
+  shelfLocation: input.shelfLocation ?? '',
+  imageAssetId: input.imageAssetId ?? null,
+});
+
 export type Changes = Record<string, { before: unknown; after: unknown }>;
 
 /** What a product write did, for the action to audit and answer with. */
@@ -201,7 +242,7 @@ export interface ProductWrite {
 
 /** A product row: its fields, the identity that stops duplicates and the text the search reads. */
 function productRow(restaurantId: string, input: ProductInput, identityKey: string) {
-  return { restaurantId, ...fieldsOf(input), identityKey, searchText: searchTextOf(input) };
+  return { restaurantId, ...fieldsOf(input), ...extrasOf(input), identityKey, searchText: searchTextOf(input) };
 }
 
 /** A unit row of a product. */
@@ -234,6 +275,7 @@ export async function createProduct(tx: ScopedTx, restaurantId: string, input: P
   const identityKey = identityOf(input, levels);
   const duplicate = await findDuplicate(tx, identityKey);
   if (duplicate) throw duplicateOf(duplicate);
+  await assertMembership(tx, input);
 
   const product = await tx.phProduct.create({
     data: productRow(restaurantId, input, identityKey),
@@ -248,6 +290,7 @@ export async function createProduct(tx: ScopedTx, restaurantId: string, input: P
   await writeBranchSettings(tx, product, input.branchSettings);
 
   const changes: Changes = Object.fromEntries(FIELDS.map((f) => [f, { before: null, after: input[f] }]));
+  for (const [f, value] of Object.entries(extrasOf(input))) if (value !== null && value !== '' && value !== false) changes[f] = { before: null, after: value };
   changes.units = { before: null, after: ladderText(levels) };
   if (synced.codes.length > 0) changes.barcodes = { before: null, after: synced.codes };
   if (input.branchSettings.length > 0) changes.branchSettings = { before: null, after: input.branchSettings };
@@ -377,7 +420,7 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
     select: {
       id: true,
       restaurantId: true,
-      ...Object.fromEntries(FIELDS.map((f) => [f, true])),
+      ...Object.fromEntries([...FIELDS, ...EXTRAS].map((f) => [f, true])),
       units: { select: { id: true, level: true, label: true, baseQty: true, sellable: true } },
       barcodes: { select: { code: true } },
     },
@@ -386,8 +429,14 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const identityKey = identityOf(input, levels);
   const duplicate = await findDuplicate(tx, identityKey, productId);
   if (duplicate) throw duplicateOf(duplicate);
+  await assertMembership(tx, input);
 
-  await updateWithVersion(tx.phProduct, { id: productId, version: expectedVersion, data: { ...fieldsOf(input), identityKey, searchText: searchTextOf(input) }, entityType: 'PhProduct' }, tx);
+  const extras = extrasOf(input);
+  await updateWithVersion(
+    tx.phProduct,
+    { id: productId, version: expectedVersion, data: { ...fieldsOf(input), ...extras, identityKey, searchText: searchTextOf(input) }, entityType: 'PhProduct' },
+    tx,
+  );
 
   const removed = current.units.filter((u) => !levels.some((l) => l.level === u.level));
   const resized = current.units.filter((u) => levels.some((l) => l.level === u.level && l.baseQty !== u.baseQty));
@@ -424,6 +473,7 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const changes: Changes = {};
   const was = current as unknown as Record<string, unknown>;
   for (const f of FIELDS) if (was[f] !== input[f]) changes[f] = { before: was[f], after: input[f] };
+  for (const f of EXTRAS) if (was[f] !== extras[f]) changes[f] = { before: was[f], after: extras[f] };
   const [ladderBefore, ladderAfter] = [ladderText(current.units), ladderText(levels)];
   if (ladderBefore.join('|') !== ladderAfter.join('|')) changes.units = { before: ladderBefore, after: ladderAfter };
   const codesBefore = [...new Set(current.barcodes.map((b) => b.code))].sort();
@@ -464,7 +514,7 @@ export interface ProductCost {
   currency: 'IQD' | 'USD' | null;
 }
 
-const NO_COST: ProductCost = { lastPurchaseMinor: null, currency: null };
+export const NO_COST: ProductCost = { lastPurchaseMinor: null, currency: null };
 
 export interface ProductUnitView {
   id: string;
@@ -490,7 +540,7 @@ export interface ProductSummary {
   cost?: ProductCost;
 }
 
-export interface ProductDetail extends ProductSummary {
+export interface ProductDetail extends ProductSummary, Extras {
   barcodes: { code: string; level: number; shared: boolean }[];
   /** The stock levels of the branches the actor works in. */
   branchSettings: { branchId: string; minQty: number; reorderQty: number }[];
@@ -516,8 +566,12 @@ const summaryOf = (row: SummaryRow, withCost: boolean): ProductSummary => ({
 export async function getProduct(scoped: ScopedClient, productId: string, withCost: boolean): Promise<ProductDetail> {
   const row = (await scoped.phProduct.findFirst({
     where: { id: productId },
-    select: { ...SUMMARY, barcodes: { select: { code: true, shared: true, unit: { select: { level: true } } }, orderBy: { code: 'asc' } } },
-  })) as (SummaryRow & { barcodes: { code: string; shared: boolean; unit: { level: number } }[] }) | null;
+    select: {
+      ...SUMMARY,
+      ...Object.fromEntries(EXTRAS.map((f) => [f, true])),
+      barcodes: { select: { code: true, shared: true, unit: { select: { level: true } } }, orderBy: { code: 'asc' } },
+    },
+  })) as (SummaryRow & Extras & { barcodes: { code: string; shared: boolean; unit: { level: number } }[] }) | null;
   if (!row) throw new StudioError('NOT_FOUND');
   // A top-level read, so the client keeps a branch-limited actor to their own branches.
   const settings = await scoped.phProductBranch.findMany({
@@ -525,9 +579,14 @@ export async function getProduct(scoped: ScopedClient, productId: string, withCo
     select: { branchId: true, minQty: true, reorderQty: true },
     orderBy: { branchId: 'asc' },
   });
-  const { barcodes, ...summary } = row;
+  const { barcodes, categoryId, requiresCold, storageNote, shelfLocation, imageAssetId, ...summary } = row;
   return {
     ...summaryOf(summary, withCost),
+    categoryId,
+    requiresCold,
+    storageNote,
+    shelfLocation,
+    imageAssetId,
     barcodes: barcodes.map((b) => ({ code: b.code, level: b.unit.level, shared: b.shared })),
     branchSettings: settings,
   };

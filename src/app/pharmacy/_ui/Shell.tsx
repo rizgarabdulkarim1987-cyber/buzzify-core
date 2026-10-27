@@ -11,7 +11,8 @@ const LINK = 'inline-flex min-h-11 items-center rounded-md px-2 text-sm font-med
 /**
  * The frame of every pharmacy screen once a place is chosen: the support strip for a support actor, a header saying
  * where the person works (pharmacy and branch, with the way to change it) and who they are, then the page. Server
- * rendered, no motion; it wraps on a phone and never scrolls sideways.
+ * rendered, no motion (the pharmacy's document is marked `data-motion="none"`); it wraps on a phone and never scrolls
+ * sideways.
  */
 export function Shell({
   actor,
@@ -67,6 +68,14 @@ export function Shell({
           <SignOutButton />
         </div>
       </header>
+      <nav aria-label={t('pharmacy.nav.label')} className="flex flex-wrap items-center gap-x-2 border-b border-line px-2 sm:px-6">
+        <Link href="/pharmacy/home" className={LINK}>
+          {t('pharmacy.nav.home')}
+        </Link>
+        <Link href="/pharmacy/catalog" className={LINK}>
+          {t('pharmacy.nav.catalog')}
+        </Link>
+      </nav>
       {notice}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
         {children}
