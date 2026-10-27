@@ -2720,6 +2720,8 @@ model PhSale {
   clientKey     String
   /// SHA-256 of the request that created the sale (canonical JSON), so a replayed `clientKey` can prove it is the same request.
   payloadHash   String?
+  /// A HELD sale only: the cart exactly as it was entered (money as decimal text), so resuming gives it back unchanged. Null on every other sale.
+  holdPayload   Json?
   soldById      String
   pharmacistId  String?
   heldUntil     DateTime?
