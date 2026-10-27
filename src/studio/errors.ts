@@ -330,6 +330,21 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This unit has stock or sales, so its size cannot change': 'error.text.phUnitResize',
   'This unit has prices, stock or sales, so it cannot be removed': 'error.text.phUnitRemove',
   'This product is on open records, so it cannot be archived': 'error.text.phProductOpenRecords',
+  // Pharmacy prices and bulk price changes (src/server/pharmacy/prices.ts)
+  'Enter a reason of at least 3 characters': 'error.text.phPriceReason',
+  'Choose at least one product': 'error.text.phBulkNoProduct',
+  'Choose fewer products': 'error.text.phBulkFewerProducts',
+  'A price can go down by at most 100%': 'error.text.phBulkCutMax',
+  'A price can go up by at most 1000%': 'error.text.phBulkRiseMax',
+  'Someone changed this price at the same time. Reload and try again.': 'error.text.phPriceConflict',
+  'Prices changed since this preview. Preview the change again.': 'error.text.phPreviewStale',
+  'Choose a start after the current price’s start': 'error.text.phPriceBackdated',
+  'This pharmacy does not price in this currency': 'error.text.phCurrencyNotEnabled',
+  'Enter an amount of 0 or more, like 1,250': 'error.text.phPriceAmount',
+  'There are no prices to change': 'error.text.phBulkNoPrices',
+  'This change covers too many prices. Choose fewer products.': 'error.text.phBulkTooLarge',
+  'Round to a step above zero': 'error.text.phBulkStep',
+  'This change takes a price below zero': 'error.text.phBulkNegative',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -340,7 +355,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'unitId']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

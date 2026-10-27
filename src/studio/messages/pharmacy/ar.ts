@@ -57,6 +57,20 @@ const pharmacy: Messages = {
   'error.text.phUnitResize': 'لهذه الوحدة مخزون أو مبيعات، فلا يمكن تغيير حجمها',
   'error.text.phUnitRemove': 'لهذه الوحدة أسعار أو مخزون أو مبيعات، فلا يمكن حذفها',
   'error.text.phProductOpenRecords': 'هذا المنتج مرتبط بسجلات مفتوحة، فلا يمكن أرشفته',
+  'error.text.phPriceReason': 'اكتب سببًا من 3 أحرف على الأقل',
+  'error.text.phBulkNoProduct': 'اختر منتجًا واحدًا على الأقل',
+  'error.text.phBulkFewerProducts': 'اختر منتجات أقل',
+  'error.text.phBulkCutMax': 'يمكن خفض السعر بنسبة 100% على الأكثر',
+  'error.text.phBulkRiseMax': 'يمكن رفع السعر بنسبة 1000% على الأكثر',
+  'error.text.phPriceConflict': 'غيّر شخص آخر هذا السعر في الوقت نفسه. أعد التحميل وحاول مرة أخرى.',
+  'error.text.phPreviewStale': 'تغيّرت الأسعار منذ هذه المعاينة. عاين التغيير مرة أخرى.',
+  'error.text.phPriceBackdated': 'اختر تاريخ بدء بعد بداية السعر الحالي',
+  'error.text.phCurrencyNotEnabled': 'هذه الصيدلية لا تسعّر بهذه العملة',
+  'error.text.phPriceAmount': 'أدخل مبلغًا يساوي 0 أو أكثر، مثل 1,250',
+  'error.text.phBulkNoPrices': 'لا توجد أسعار لتغييرها',
+  'error.text.phBulkTooLarge': 'يشمل هذا التغيير أسعارًا كثيرة جدًا. اختر منتجات أقل.',
+  'error.text.phBulkStep': 'اختر خطوة تقريب أكبر من الصفر',
+  'error.text.phBulkNegative': 'هذا التغيير يجعل سعرًا أقل من الصفر',
 };
 
 export default pharmacy;

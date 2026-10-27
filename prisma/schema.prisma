@@ -2168,6 +2168,8 @@ model PhProductBranch {
 /// A sell price for one unit, in minor units of one currency, valid from a date. A null `branchId` is a business-wide
 /// price. The client does not branch-scope this model: the price service checks the branch. CHECKs (amountMinor >= 0;
 /// validTo after validFrom) are in the migration. `changedById` names the person (kept as text, not a foreign key, so history outlives the account).
+/// One row per product unit, branch-or-null and currency is open (validTo null): the partial unique index
+/// "PhPrice_one_open_price" (raw SQL in the migration). A row is never updated but to set its validTo once.
 model PhPrice {
   id           String        @id @default(cuid())
   restaurantId String
@@ -2197,6 +2199,8 @@ model PhPriceChangeBatch {
   status       PhPriceChangeStatus @default(PREVIEW)
   previewHash  String
   validFrom    DateTime
+  /// What the change asks for (branch, currency, products, change, rounding, reason), to work the preview out again.
+  change       Json                @default("{}")
   createdById  String
   createdAt    DateTime            @default(now())
   restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

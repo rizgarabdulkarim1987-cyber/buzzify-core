@@ -57,6 +57,20 @@ const pharmacy: Messages = {
   'error.text.phUnitRemove': 'ئەم یەکەیە نرخ، کۆگا یان فرۆشتنی هەیە، بۆیە ناسڕدرێتەوە',
   'error.text.phProductOpenRecords': 'ئەم بەرهەمە لەسەر تۆمارە کراوەکانە، بۆیە ئەرشیف ناکرێت',
   'error.text.supportConsentRef': 'ژمارەی سەرچاوەیەک بنووسە کە لانیکەم 10 پیت بێت',
+  'error.text.phPriceReason': 'هۆکارێک بنووسە کە لانیکەم 3 پیت بێت',
+  'error.text.phBulkNoProduct': 'لانیکەم یەک بەرهەم هەڵبژێرە',
+  'error.text.phBulkFewerProducts': 'بەرهەمی کەمتر هەڵبژێرە',
+  'error.text.phBulkCutMax': 'نرخ دەتوانێت زۆرترین 100% دابەزێت',
+  'error.text.phBulkRiseMax': 'نرخ دەتوانێت زۆرترین 1000% بەرز بێتەوە',
+  'error.text.phPriceConflict': 'کەسێکی تر لە هەمان کاتدا ئەم نرخەی گۆڕی. نوێی بکەرەوە و دووبارە هەوڵ بدەرەوە.',
+  'error.text.phPreviewStale': 'نرخەکان لەم پێشبینینەوە گۆڕاون. دووبارە پێشبینینی گۆڕانکارییەکە بکە.',
+  'error.text.phPriceBackdated': 'دەستپێکێک هەڵبژێرە کە دوای دەستپێکی نرخی ئێستا بێت',
+  'error.text.phCurrencyNotEnabled': 'ئەم دەرمانخانەیە بەم دراوە نرخ دانانێت',
+  'error.text.phPriceAmount': 'بڕێکی 0 یان زیاتر بنووسە، وەک 1,250',
+  'error.text.phBulkNoPrices': 'هیچ نرخێک نییە بۆ گۆڕین',
+  'error.text.phBulkTooLarge': 'ئەم گۆڕانکارییە نرخێکی زۆر دەگرێتەوە. بەرهەمی کەمتر هەڵبژێرە.',
+  'error.text.phBulkStep': 'هەنگاوێکی خڕکردنەوە لە سەرووی سفر هەڵبژێرە',
+  'error.text.phBulkNegative': 'ئەم گۆڕانکارییە نرخێک دەباتە خوار سفر',
 };
 
 export default pharmacy;

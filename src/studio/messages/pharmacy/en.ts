@@ -61,6 +61,21 @@ const pharmacy: Messages = {
   'error.text.phUnitResize': 'This unit has stock or sales, so its size cannot change',
   'error.text.phUnitRemove': 'This unit has prices, stock or sales, so it cannot be removed',
   'error.text.phProductOpenRecords': 'This product is on open records, so it cannot be archived',
+  // Refusals of a price or a bulk price change (src/studio/errors.ts)
+  'error.text.phPriceReason': 'Enter a reason of at least 3 characters',
+  'error.text.phBulkNoProduct': 'Choose at least one product',
+  'error.text.phBulkFewerProducts': 'Choose fewer products',
+  'error.text.phBulkCutMax': 'A price can go down by at most 100%',
+  'error.text.phBulkRiseMax': 'A price can go up by at most 1000%',
+  'error.text.phPriceConflict': 'Someone changed this price at the same time. Reload and try again.',
+  'error.text.phPreviewStale': 'Prices changed since this preview. Preview the change again.',
+  'error.text.phPriceBackdated': 'Choose a start after the current price’s start',
+  'error.text.phCurrencyNotEnabled': 'This pharmacy does not price in this currency',
+  'error.text.phPriceAmount': 'Enter an amount of 0 or more, like 1,250',
+  'error.text.phBulkNoPrices': 'There are no prices to change',
+  'error.text.phBulkTooLarge': 'This change covers too many prices. Choose fewer products.',
+  'error.text.phBulkStep': 'Round to a step above zero',
+  'error.text.phBulkNegative': 'This change takes a price below zero',
 };
 
 export default pharmacy;
