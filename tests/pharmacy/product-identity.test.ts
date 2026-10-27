@@ -101,6 +101,21 @@ describe('product identity key', () => {
     expect(sameProduct({ ...base, tradeName: '💊' }, { ...base, tradeName: '💉' })).toBe(false);
   });
 
+  it('long adversarial input is fast and never throws', () => {
+    const inputs = ['1'.repeat(200_000), '1.'.repeat(100_000), '1 '.repeat(100_000), 'ـ'.repeat(200_000), '.'.repeat(200_000), '٥'.repeat(200_000)];
+    for (const s of inputs) {
+      const started = performance.now();
+      expect(() => identityKeyOf({ ...base, tradeName: s, strength: s, packLabel: s })).not.toThrow();
+      expect(performance.now() - started).toBeLessThan(1000);
+    }
+    const a = identityKeyOf({ ...base, tradeName: 'x'.repeat(100_000) + 'a' });
+    expect(typeof a).toBe('string');
+  });
+
+  it('a literal control character does not look like a decimal point', () => {
+    expect(identityKeyOf({ ...base, strength: '1\u00012 mg' })).not.toBe(identityKeyOf({ ...base, strength: '1.2 mg' }));
+  });
+
   it('the key is stable (same input twice)', () => {
     expect(identityKeyOf(base)).toBe(identityKeyOf({ ...base }));
   });

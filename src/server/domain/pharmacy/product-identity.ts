@@ -39,10 +39,14 @@ unit('mcg', ['µg', 'μg', 'ug', 'microgram', 'micrograms', 'مكغ', 'مكغم'
 unit('ml', ['milliliter', 'milliliters', 'millilitre', 'millilitres', 'مل', 'ملل', 'ملي']);
 unit('g', ['gm', 'gram', 'grams', 'غ', 'غم', 'غرام']);
 
+/** Each field is cut to this many UTF-16 units before anything else, bounding the work on hostile input. Real names are far shorter. */
+const MAX_FIELD_LENGTH = 500;
+
 function normalizeField(raw: unknown): string {
-  let text = typeof raw === 'string' ? raw : '';
+  let text = typeof raw === 'string' ? raw.slice(0, MAX_FIELD_LENGTH) : '';
   text = text.normalize('NFKC'); // also turns the micro sign into mu and Arabic presentation forms into base letters
   text = normalizeScan(text); // Arabic-Indic and Persian digits to Latin
+  text = text.replace(/\p{Cc}/gu, ' '); // control characters out first, so \u0001 below can only be our own placeholder
   text = text.replace(/٫/g, '.').toLowerCase().replace(ARABIC_MARKS, '');
   text = foldLetters(text);
   // keep a decimal point between digits (2.5 and 25 differ); every other punctuation or space run becomes one space
@@ -50,7 +54,8 @@ function normalizeField(raw: unknown): string {
   text = text.replace(/[^\p{L}\p{M}\p{N}\p{So}%\u0001]+/gu, ' ').replace(/\u0001/g, '.');
   text = text.replace(/\s+/g, ' ').trim();
   // a unit stays attached to its number, in one spelling: '٥٠٠ ملغم', '500 MG' and '500mg' all become '500mg'
-  return text.replace(/(\d+(?:\.\d+)?) ?([\p{L}\p{M}]+)/gu, (whole, num: string, word: string) => {
+  // (?<![\d.]) lets only a number's first digit start a match, which keeps this linear on long digit runs
+  return text.replace(/(?<![\d.])(\d+(?:\.\d+)?) ?([\p{L}\p{M}]+)/gu, (whole, num: string, word: string) => {
     const canonical = UNITS[word];
     return canonical ? num + canonical : whole;
   });
