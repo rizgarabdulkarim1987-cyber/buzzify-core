@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { SteamBody } from '@/ui/template/bodies/SteamBody';
-import { contrast } from '@/ui/template/bodies/ink-bands';
+import { contrastRatio as contrast } from '@/lib/palette';
 import { LANES, temperatureOf } from '@/ui/template/bodies/temperature';
 
 const dish = (name: string, dietary: string[] = []) => ({ name, description: '', dietary });
@@ -29,60 +29,121 @@ describe('the Living Steam shape', () => {
 });
 
 describe('temperatureOf', () => {
-  it('reads hot and cold from the dish name in English', () => {
-    expect(temperatureOf(dish('Lentil soup'), section('Starters'))).toBe('hot');
-    expect(temperatureOf(dish('Mixed grill'), section('Mains'))).toBe('hot');
-    expect(temperatureOf(dish('Cappuccino'), section('Drinks'))).toBe('hot');
-    expect(temperatureOf(dish('Fresh orange juice'), section('Drinks'))).toBe('cold');
+  it('reads the explicit temperature words of the dish name in English', () => {
+    expect(temperatureOf(dish('Hot chocolate'), section('Drinks'))).toBe('hot');
+    expect(temperatureOf(dish('Warm brownie'), section('Sweets'))).toBe('hot');
     expect(temperatureOf(dish('Iced latte'), section('Coffee'))).toBe('cold');
-    expect(temperatureOf(dish('Mango smoothie'), section('Drinks'))).toBe('cold');
-    expect(temperatureOf(dish('Vanilla ice cream'), section('Desserts'))).toBe('cold');
+    expect(temperatureOf(dish('Cold brew'), section('Coffee'))).toBe('cold');
+    expect(temperatureOf(dish('Chilled melon'), section('Fruit'))).toBe('cold');
+    expect(temperatureOf(dish('Frozen yoghurt'), section('Sweets'))).toBe('cold');
+    expect(temperatureOf(dish('Vanilla ice cream'), section('Sweets'))).toBe('cold');
+    expect(temperatureOf(dish('HOT-POT'), section('Mains'))).toBe('hot');
   });
 
   it('lets the dish name win over its section', () => {
     expect(temperatureOf(dish('Iced tea'), section('Hot drinks'))).toBe('cold');
     expect(temperatureOf(dish('Hot chocolate'), section('Cold drinks'))).toBe('hot');
-    expect(temperatureOf(dish('Fish soup'), section('Cold plates'))).toBe('hot');
   });
 
-  it('falls back to the section when the dish name says nothing', () => {
-    expect(temperatureOf(dish('Chef special'), section('Grills'))).toBe('hot');
-    expect(temperatureOf(dish('Chef special'), section('Desserts'))).toBe('cold');
+  it('falls back to the explicit words of the section when the dish name says nothing', () => {
     expect(temperatureOf(dish('Chef special'), section('Cold drinks'))).toBe('cold');
     expect(temperatureOf(dish('Chef special'), section('Hot drinks'))).toBe('hot');
+    expect(temperatureOf(dish('طبق اليوم'), section('المشروبات الباردة'))).toBe('cold');
   });
 
-  it('is neutral when nothing hints at a temperature', () => {
-    expect(temperatureOf(dish('Morning box'), section('Gift boxes'))).toBe('neutral');
-    expect(temperatureOf(dish(''), section(''))).toBe('neutral');
+  it('decides nothing from a name that holds a hot word and a cold word', () => {
+    expect(temperatureOf(dish('Hot and cold platter'), section('Hot drinks'))).toBe('hot');
+    expect(temperatureOf(dish('Hot and cold platter'), section('Specials'))).toBe('neutral');
   });
 
-  it('matches words, not parts of other words', () => {
-    expect(temperatureOf(dish('Shot of the day'), section('Specials'))).toBe('neutral');
-    expect(temperatureOf(dish('Rice pudding'), section('Specials'))).toBe('neutral');
-    expect(temperatureOf(dish('Coffee cake'), section('Specials'))).toBe('neutral');
-    expect(temperatureOf(dish('Spice bag'), section('Specials'))).toBe('neutral');
-    expect(temperatureOf(dish('Chocolate'), section('Sweets'))).not.toBe('hot');
+  it('is neutral when no explicit temperature word is there: dish kinds are not guessed', () => {
+    for (const [name, category] of [
+      ['Lentil soup', 'Starters'],
+      ['Mixed grill', 'Mains'],
+      ['Cappuccino', 'Coffee'],
+      ['Fresh orange juice', 'Drinks'],
+      ['Mango smoothie', 'Drinks'],
+      ['Butter croissant', 'Viennoiserie'],
+      ['Sourdough', 'Bread'],
+      ['Opera cake', 'Celebration cakes'],
+      ['Chef special', 'Desserts'],
+      ['Morning box', 'Gift boxes'],
+      ['', ''],
+    ])
+      expect(temperatureOf(dish(name!), section(category!)), `${name} in ${category}`).toBe('neutral');
   });
 
-  it('reads Arabic names', () => {
-    expect(temperatureOf(dish('شوربة العدس'), section('المقبلات'))).toBe('hot');
-    expect(temperatureOf(dish('مشاوي مشكلة'), section('الأطباق'))).toBe('hot');
-    expect(temperatureOf(dish('عصير برتقال'), section('المشروبات'))).toBe('cold');
-    expect(temperatureOf(dish('طبق اليوم'), section('الحلويات'))).toBe('cold');
+  it('never matches part of another word, and never reads spicy as hot (the false positives of the batch-7 review)', () => {
+    for (const [name, category] of [
+      ['Spicy chicken', 'Mains'],
+      ['Spice bag', 'Specials'],
+      ['Shot of the day', 'Specials'],
+      ['Fried rice', 'Mains'],
+      ['Rice pudding', 'Specials'],
+      ['Price of the day', 'Specials'],
+      ['Sweet and sour chicken', 'Mains'],
+      ['Fish cakes', 'Starters'],
+      ['Pancakes', 'Breakfast'],
+      ['Cheese fries', 'Sides'],
+      ['Sardines', 'Starters'],
+      ['Oysters', 'Starters'],
+      ['Kunafa', 'Desserts'],
+      ['Sticky toffee pudding', 'Desserts'],
+      ['Hotdog', 'Snacks'],
+      ['Coldstone', 'Snacks'],
+      ['Warmer', 'Snacks'],
+      ['Icelandic lamb', 'Mains'],
+      ['دجاج سبايسي', 'الأطباق'],
+      ['زنگر سبايسي', 'الأطباق'],
+      ['فرايد رايس', 'الأطباق'],
+      ['تشكن رايس', 'الأطباق'],
+      ['سلطة حارة', 'السلطات'],
+      ['شوربة حارة', 'المقبلات'],
+      ['محار', 'المقبلات'],
+      ['بان كيك', 'الفطور'],
+      ['تشيز فرايز', 'المقبلات'],
+      ['كنافة', 'الحلويات'],
+      ['شوربة العدس', 'المقبلات'],
+      ['عصير برتقال', 'المشروبات'],
+      ['ساردين مشوي', 'المقبلات'],
+      ['پانکێک', 'بەیانیان'],
+      ['ئاوی گۆشت', 'شۆربا'],
+      ['کێکی شوکولاتە', 'شیرینی'],
+      ['چای', 'خواردنەوە'],
+    ])
+      expect(temperatureOf(dish(name!), section(category!)), `${name} in ${category}`).toBe('neutral');
+  });
+
+  it('reads Arabic explicit words as whole words, with or without the article', () => {
     expect(temperatureOf(dish('قهوة مثلجة'), section('المشروبات'))).toBe('cold');
-    expect(temperatureOf(dish('طبق اليوم'), section('كعكات المناسبات'))).toBe('cold');
+    expect(temperatureOf(dish('شاي بارد'), section('المشروبات'))).toBe('cold');
+    expect(temperatureOf(dish('آيس لاتيه'), section('القهوة'))).toBe('cold');
+    expect(temperatureOf(dish('ايس كريم'), section('الحلويات'))).toBe('cold');
+    expect(temperatureOf(dish('حليب ساخن'), section('المشروبات'))).toBe('hot');
+    expect(temperatureOf(dish('خبز دافئ'), section('المخبوزات'))).toBe('hot');
+    expect(temperatureOf(dish('طبق اليوم'), section('المشروبات الساخنة'))).toBe('hot');
   });
 
-  it('reads Sorani names', () => {
-    expect(temperatureOf(dish('شۆربای نیسک'), section('پێشخوارن'))).toBe('hot');
-    expect(temperatureOf(dish('کەبابی تیکە'), section('خواردن'))).toBe('hot');
-    expect(temperatureOf(dish('ئاوی پرتەقاڵ'), section('خواردنەوە'))).toBe('cold');
+  it('folds Arabic spelling first: tashkeel, tatweel, alef and hamza forms, ta marbuta, Persian kaf and yeh', () => {
+    expect(temperatureOf(dish('قهوة مُثلَّجة'), section(''))).toBe('cold');
+    expect(temperatureOf(dish('قهوه مثلجه'), section(''))).toBe('cold');
+    expect(temperatureOf(dish('شاي بـــارد'), section(''))).toBe('cold');
+    expect(temperatureOf(dish('اَيس لاتيه'), section(''))).toBe('cold');
+    expect(temperatureOf(dish('إيس تي'), section(''))).toBe('cold');
+    expect(temperatureOf(dish('خبز دافى'), section(''))).toBe('hot');
+    expect(temperatureOf(dish('خبز دافيء'), section(''))).toBe('hot');
+    expect(temperatureOf(dish('مشروبات ساخنه'), section(''))).toBe('hot');
+    expect(temperatureOf(dish('چاي گەرم'), section(''))).toBe('hot');
+    expect(temperatureOf(dish('چاى گەرم'), section(''))).toBe('hot');
+  });
+
+  it('reads Sorani explicit words', () => {
     expect(temperatureOf(dish('ئاوی گەرم'), section('خواردنەوە'))).toBe('hot');
-    expect(temperatureOf(dish('شەربەتی لیمۆ'), section('خواردنەوە'))).toBe('cold');
     expect(temperatureOf(dish('قاوەی گەرم'), section('خواردنەوە'))).toBe('hot');
-    expect(temperatureOf(dish('خواردنی ڕۆژ'), section('شیرینی فەڕەنسی'))).toBe('cold');
-    expect(temperatureOf(dish('چای'), section('خواردنەوە'))).toBe('hot');
+    expect(temperatureOf(dish('چای سارد'), section('خواردنەوە'))).toBe('cold');
+    expect(temperatureOf(dish('ئایس لاتێ'), section('قاوە'))).toBe('cold');
+    expect(temperatureOf(dish('خواردنی ڕۆژ'), section('خواردنەوەی سارد'))).toBe('cold');
+    expect(temperatureOf(dish('خواردنی ڕۆژ'), section('خواردنەوەی گەرم'))).toBe('hot');
   });
 
   it('does not read the diet tags: they say nothing about temperature', () => {
@@ -90,20 +151,8 @@ describe('temperatureOf', () => {
   });
 
   it('is pure: the same dish gives the same answer', () => {
-    const product = dish('Lentil soup');
-    expect(temperatureOf(product, section('Starters'))).toBe(temperatureOf(product, section('Starters')));
-  });
-
-  it('classes the Maison Lumière demo so every temperature shows', () => {
-    const answers = [
-      ['Butter croissant', 'Viennoiserie'],
-      ['Pain au chocolat', 'Viennoiserie'],
-      ['Mille-feuille', 'Pâtisserie'],
-      ['Opera cake', 'Celebration cakes'],
-      ['Morning box', 'Gift boxes'],
-      ['Sourdough', 'Bread'],
-    ].map(([name, category]) => temperatureOf(dish(name!), section(category!)));
-    expect(answers).toEqual(['hot', 'hot', 'cold', 'cold', 'neutral', 'hot']);
+    const product = dish('Hot chocolate');
+    expect(temperatureOf(product, section('Drinks'))).toBe(temperatureOf(product, section('Drinks')));
   });
 });
 

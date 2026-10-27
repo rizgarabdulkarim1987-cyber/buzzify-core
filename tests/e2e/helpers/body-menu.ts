@@ -43,6 +43,8 @@ export interface BodyMenuOptions {
   ordering?: 'none';
   /** Every dish has no media at all (no photo, no drawing). */
   noPhotos?: boolean;
+  /** Section names put in place of Maison's, by category slug (e.g. a section named with a temperature word). */
+  sectionNames?: Record<string, { en: string; ar: string; ckb: string }>;
 }
 
 export interface BodyMenus {
@@ -59,13 +61,13 @@ export function bodyMenus(): BodyMenus {
   const made: { restaurantId: string; menuId: string; slug: string }[] = [];
   return {
     slug: (label) => `e2e-${run}-${label}`,
-    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0, ordering, noPhotos = false } = {}) {
+    async create(menuSlug, label, { templateId, layout, numeralSystem = 'LATN', paletteId, colors, discount, extraSections = 0, ordering, noPhotos = false, sectionNames = {} } = {}) {
       const restaurant = await prisma.restaurant.create({ data: { name: `${MAISON.profile.name} ${label} e2e-${run}`, type: MAISON.profile.type } });
       const seeded = await seedMenu(
         prisma,
         {
           ...MAISON,
-          categories: [...MAISON.categories, ...Array.from({ length: extraSections }, (_, at) => ({ slug: `more-${at + 1}`, name: { en: `Section ${at + 6}`, ar: `القسم ${at + 6}`, ckb: `بەشی ${at + 6}` } }))],
+          categories: [...MAISON.categories.map((category) => (sectionNames[category.slug] ? { ...category, name: sectionNames[category.slug]! } : category)), ...Array.from({ length: extraSections }, (_, at) => ({ slug: `more-${at + 1}`, name: { en: `Section ${at + 6}`, ar: `القسم ${at + 6}`, ckb: `بەشی ${at + 6}` } }))],
           products: [
             ...BODY_PRODUCTS,
             ...Array.from({ length: extraSections }, (_, at) => ({ ...MAISON.products[0]!, slug: `more-dish-${at + 1}`, category: `more-${at + 1}`, signature: false, featured: false, name: { en: `Extra dish ${at + 1}`, ar: `طبق إضافي ${at + 1}`, ckb: `خواردنی زیادە ${at + 1}` } })),

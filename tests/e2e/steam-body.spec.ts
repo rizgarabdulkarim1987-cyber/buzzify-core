@@ -21,11 +21,17 @@ import {
  * The Living Steam body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a rack of wide row cards, each
  * dish's photo in a frame by its temperature (read from the names: hot dishes get three wisps of steam, cold ones frost,
  * dew and drips, others a plain frame), a "Hot" or "Cold" chip on the row, and a sticky strip of section chips.
- * In the Maison Lumière demo: the viennoiserie and the bread are hot, the pâtisserie, the cakes and the macarons cold,
- * the morning box neither.
+ * Only explicit temperature words count, so the fixture names two of Maison's sections with one: the viennoiserie is
+ * "Warm" (hot), the pâtisserie "Chilled" (cold), and every other section (the morning box among them)
+ * says nothing and is neutral.
  */
 
 const menus = bodyMenus();
+/** Maison's first two sections, named with an explicit temperature word in each language. */
+const sectionNames = {
+  viennoiserie: { en: 'Warm Viennoiserie', ar: 'المعجنات الفرنسية الدافئة', ckb: 'هەویری فەڕەنسی گەرم' },
+  patisserie: { en: 'Chilled Pâtisserie', ar: 'الحلويات الفرنسية المبردة', ckb: 'شیرینی فەڕەنسی سارد' },
+};
 const slug = menus.slug('stm');
 const arabSlug = menus.slug('stmar');
 const manySlug = menus.slug('stmmany');
@@ -35,12 +41,12 @@ const alternatives = paletteIdsOf('the-living-steam').slice(1);
 const paletteSlug = (id: string) => menus.slug(`stm-${id}`);
 
 test.beforeAll(async () => {
-  await menus.create(slug, 'stm', { templateId: 'the-living-steam' });
-  await menus.create(arabSlug, 'stm', { templateId: 'the-living-steam', numeralSystem: 'ARAB', discount: ['croissant'] });
-  await menus.create(manySlug, 'stm', { templateId: 'the-living-steam', extraSections: 20 });
-  await menus.create(offSlug, 'stm', { templateId: 'the-living-steam', ordering: 'none' });
-  await menus.create(bareSlug, 'stm', { templateId: 'the-living-steam', noPhotos: true });
-  for (const id of alternatives) await menus.create(paletteSlug(id), 'stm', { templateId: 'the-living-steam', paletteId: id, discount: ['croissant', 'eclair'] });
+  await menus.create(slug, 'stm', { templateId: 'the-living-steam', sectionNames });
+  await menus.create(arabSlug, 'stm', { templateId: 'the-living-steam', sectionNames, numeralSystem: 'ARAB', discount: ['croissant'] });
+  await menus.create(manySlug, 'stm', { templateId: 'the-living-steam', sectionNames: { ...sectionNames, bread: { en: 'Warm Bread', ar: 'الخبز الساخن', ckb: 'نانی گەرم' } }, extraSections: 20 });
+  await menus.create(offSlug, 'stm', { templateId: 'the-living-steam', sectionNames, ordering: 'none' });
+  await menus.create(bareSlug, 'stm', { templateId: 'the-living-steam', sectionNames, noPhotos: true });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'stm', { templateId: 'the-living-steam', sectionNames, paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
 
