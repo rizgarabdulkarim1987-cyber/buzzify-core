@@ -53,7 +53,7 @@ export function LanternsBody() {
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(index + 1)} count={n(products.length)} className="rm-head" title="rm-title" lead={<i aria-hidden className="rm-moon" />} />
               <ul className="rm-list">
                 {products.map((product, at) => (
-                  <RowDish key={product.id} product={product} prefix="rm" suffix="lanterns" sizes="72px" priority={index < 2 && at < 6} iconAdd />
+                  <RowDish key={product.id} product={product} prefix="rm" suffix="lanterns" sizes="72px" priority={index < 2 && at < 6} iconAdd plate />
                 ))}
               </ul>
             </section>

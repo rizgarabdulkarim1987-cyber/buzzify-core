@@ -77,6 +77,7 @@ export function InkBody() {
                       pricePlace='below'
                       media='cover'
                       addInPhoto
+                      plate
                       inPhoto={
                         <SaleChip product={product} className='ik-off' />
                       }

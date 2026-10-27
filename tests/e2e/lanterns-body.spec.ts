@@ -10,6 +10,7 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectOpensProduct,
+  expectPlatePainted,
   expectQuickAdd,
   expectReadable,
   expectStripStays,
@@ -30,6 +31,7 @@ const arabSlug = menus.slug('ramar');
 const manySlug = menus.slug('rammany');
 const offSlug = menus.slug('ramoff');
 const bareSlug = menus.slug('rambare');
+const bareAt = (id: string) => menus.slug(`rambare-${id}`);
 const alternatives = paletteIdsOf('the-ramadan-nights').slice(1);
 const paletteSlug = (id: string) => menus.slug(`ram-${id}`);
 
@@ -40,6 +42,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'ram', { templateId: 'the-ramadan-nights', extraSections: 20 });
   await menus.create(offSlug, 'ram', { templateId: 'the-ramadan-nights', ordering: 'none' });
   await menus.create(bareSlug, 'ram', { templateId: 'the-ramadan-nights', noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'ram', { templateId: 'the-ramadan-nights', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'ram', { templateId: 'the-ramadan-nights', paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
@@ -212,13 +215,18 @@ test('a menu whose dishes have no media still shows names, prices, a frame and a
     await expect(rows.nth(index).locator('.rm-name')).toBeVisible();
     await expect(rows.nth(index).locator('.rm-price')).toContainText('$');
   }
-  // The empty frame is still an arch with a ground of its own (not the card's colour).
-  const ground = await rows.first().locator('[data-photo]').evaluate((node) => getComputedStyle(node).backgroundColor);
-  const card = await rows.first().evaluate((node) => getComputedStyle(node).backgroundColor);
-  expect(ground).not.toBe(card);
   await addOf(page, 'croissant').click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a dish with no media shows a plate painted in its frame (rings, a ground of its own), in every palette', async ({ page }) => {
+  for (const menuSlug of [bareSlug, ...alternatives.map(bareAt)]) {
+    await openMenu(page, menuSlug);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await expectPlatePainted(row.locator('[data-photo]'), row);
+  }
 });
 
 test('a menu of twenty-five sections keeps every lantern one tap away on a scrolling strip that keeps the lit lantern in view', async ({ page }) => {

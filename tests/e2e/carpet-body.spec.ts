@@ -10,6 +10,7 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectOpensProduct,
+  expectPlatePainted,
   expectQuickAdd,
   expectReadable,
   expectStripStays,
@@ -31,6 +32,7 @@ const arabSlug = menus.slug('lylar');
 const manySlug = menus.slug('lylmany');
 const offSlug = menus.slug('lyloff');
 const bareSlug = menus.slug('lylbare');
+const bareAt = (id: string) => menus.slug(`lylbare-${id}`);
 const alternatives = paletteIdsOf('the-thousand-and-one-nights').slice(1);
 const paletteSlug = (id: string) => menus.slug(`lyl-${id}`);
 
@@ -41,6 +43,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'lyl', { templateId: 'the-thousand-and-one-nights', extraSections: 20 });
   await menus.create(offSlug, 'lyl', { templateId: 'the-thousand-and-one-nights', ordering: 'none' });
   await menus.create(bareSlug, 'lyl', { templateId: 'the-thousand-and-one-nights', noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'lyl', { templateId: 'the-thousand-and-one-nights', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'lyl', { templateId: 'the-thousand-and-one-nights', paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
@@ -230,6 +233,15 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   await addOf(page, 'croissant').click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a dish with no media shows a plate painted in its frame (rings, a ground of its own), in every palette', async ({ page }) => {
+  for (const menuSlug of [bareSlug, ...alternatives.map(bareAt)]) {
+    await openMenu(page, menuSlug);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await expectPlatePainted(row.locator('[data-photo]'), row);
+  }
 });
 
 test('a menu of twenty-five sections keeps every roll one tap away on a scrolling strip that keeps the lit roll in view', async ({ page }) => {

@@ -10,6 +10,7 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectOpensProduct,
+  expectPlatePainted,
   expectQuickAdd,
   expectReadable,
   expectStripStays,
@@ -37,6 +38,7 @@ const arabSlug = menus.slug('stmar');
 const manySlug = menus.slug('stmmany');
 const offSlug = menus.slug('stmoff');
 const bareSlug = menus.slug('stmbare');
+const bareAt = (id: string) => menus.slug(`stmbare-${id}`);
 const alternatives = paletteIdsOf('the-living-steam').slice(1);
 const paletteSlug = (id: string) => menus.slug(`stm-${id}`);
 
@@ -46,6 +48,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'stm', { templateId: 'the-living-steam', sectionNames: { ...sectionNames, bread: { en: 'Warm Bread', ar: 'الخبز الساخن', ckb: 'نانی گەرم' } }, extraSections: 20 });
   await menus.create(offSlug, 'stm', { templateId: 'the-living-steam', sectionNames, ordering: 'none' });
   await menus.create(bareSlug, 'stm', { templateId: 'the-living-steam', sectionNames, noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'stm', { templateId: 'the-living-steam', sectionNames, paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'stm', { templateId: 'the-living-steam', sectionNames, paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
@@ -246,6 +249,15 @@ test('a menu whose dishes have no media still shows names, prices, plates, the e
   await addOf(page, 'croissant').click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a dish with no media shows a plate painted in its frame (rings, a ground of its own), in every palette', async ({ page }) => {
+  for (const menuSlug of [bareSlug, ...alternatives.map(bareAt)]) {
+    await openMenu(page, menuSlug);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await expectPlatePainted(row.locator('[data-photo]'), row);
+  }
 });
 
 test('a long dish name and a long price stay inside the row without sideways scrolling', async ({ page }) => {

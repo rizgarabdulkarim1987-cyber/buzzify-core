@@ -10,6 +10,7 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectOpensProduct,
+  expectPlatePainted,
   expectQuickAdd,
   expectReadable,
   expectStripStays,
@@ -29,6 +30,7 @@ const arabSlug = menus.slug('citar');
 const manySlug = menus.slug('citmany');
 const offSlug = menus.slug('citoff');
 const bareSlug = menus.slug('citbare');
+const bareAt = (id: string) => menus.slug(`citbare-${id}`);
 const alternatives = paletteIdsOf('the-erbil-citadel').slice(1);
 const paletteSlug = (id: string) => menus.slug(`cit-${id}`);
 
@@ -38,6 +40,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'cit', { templateId: 'the-erbil-citadel', extraSections: 20 });
   await menus.create(offSlug, 'cit', { templateId: 'the-erbil-citadel', ordering: 'none' });
   await menus.create(bareSlug, 'cit', { templateId: 'the-erbil-citadel', noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'cit', { templateId: 'the-erbil-citadel', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'cit', { templateId: 'the-erbil-citadel', paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
@@ -190,6 +193,15 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   await addOf(page, 'croissant').click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a dish with no media shows a plate painted in its frame (rings, a ground of its own), in every palette', async ({ page }) => {
+  for (const menuSlug of [bareSlug, ...alternatives.map(bareAt)]) {
+    await openMenu(page, menuSlug);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await expectPlatePainted(row.locator('[data-photo]'), row);
+  }
 });
 
 test('a menu of twenty-five sections keeps every window one tap away on a scrolling skyline that keeps the lit window in view', async ({ page }) => {

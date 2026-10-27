@@ -56,6 +56,7 @@ export function SteamBody() {
                     prefix="stm"
                     suffix="steam"
                     sizes="72px"
+                    plate
                     priority={index === 0 && at < 5}
                     rowProps={{ 'data-temp': temperature, 'data-fx': temperature === 'neutral' ? undefined : '' }}
                     photoExtras={<Effect temperature={temperature} />}

@@ -10,6 +10,7 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectOpensProduct,
+  expectPlatePainted,
   expectQuickAdd,
   expectReadable,
   expectStripStays,
@@ -30,6 +31,7 @@ const arabSlug = menus.slug('inkar');
 const manySlug = menus.slug('inkmany');
 const offSlug = menus.slug('inkoff');
 const bareSlug = menus.slug('inkbare');
+const bareAt = (id: string) => menus.slug(`inkbare-${id}`);
 const alternatives = paletteIdsOf('the-section-ink').slice(1);
 const paletteSlug = (id: string) => menus.slug(`ink-${id}`);
 
@@ -39,6 +41,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'ink', { templateId: 'the-section-ink', extraSections: 20 });
   await menus.create(offSlug, 'ink', { templateId: 'the-section-ink', ordering: 'none' });
   await menus.create(bareSlug, 'ink', { templateId: 'the-section-ink', noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'ink', { templateId: 'the-section-ink', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'ink', { templateId: 'the-section-ink', paletteId: id, discount: ['eclair'] });
 });
 test.afterAll(() => menus.remove());
@@ -291,7 +294,6 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   expect(await ink(page).locator('[data-photo] img, [data-photo] svg:not(.ik-add svg)').count()).toBe(0);
   const photo = (await row.first().locator('[data-photo]').boundingBox())!;
   expect(photo.width).toBeGreaterThan(80);
-  expect(await row.first().locator('[data-photo]').evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('radial-gradient');
   for (const index of [0, 1, 2]) {
     await expect(row.nth(index).locator('.ik-name')).toBeVisible();
     await expect(row.nth(index).locator('.ik-price')).toContainText('$');
@@ -299,6 +301,15 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   await addOf(page, 'croissant').click();
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+test('a dish with no media shows a plate painted in its frame (rings, a ground of its own), in every palette', async ({ page }) => {
+  for (const menuSlug of [bareSlug, ...alternatives.map(bareAt)]) {
+    await openMenu(page, menuSlug);
+    const row = page.locator('#cat-viennoiserie [data-row]').first();
+    await expect(row).toBeVisible();
+    await expectPlatePainted(row.locator('[data-photo]'), row, { maxContrast: 1.6 });
+  }
 });
 
 test('a long dish name and a long price stay inside the card without sideways scrolling', async ({ page }) => {

@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useTemplate } from '../../context';
 import { Price, ProductMedia, QuickAction } from '../../parts';
+import './photo-card.css';
 
 export interface IconDishProps {
   product: MenuProductView;
@@ -27,6 +28,8 @@ export interface IconDishProps {
   /** Drawn inside the photo frame after the photo, and the add button there too (for a frame that is the head's foot). */
   inPhoto?: ReactNode;
   addInPhoto?: boolean;
+  /** A dish with no media shows the shared tinted plate (`tpl-plate`, photo-card.css) in its frame. */
+  plate?: boolean;
   sizes: string;
   priority: boolean;
   /** The entrance order (`--i`). */
@@ -43,7 +46,7 @@ export interface IconDishProps {
  * this way (the home screen's apps, the map's pins, the game's levels, the fridge's jars) keep only their frame and
  * decoration.
  */
-export function IconDish({ product, prefix, suffix, cell, head, price, pricePlace, media = 'fill', extras, inPhoto, addInPhoto = false, sizes, priority, order, cellProps, style }: IconDishProps) {
+export function IconDish({ product, prefix, suffix, cell, head, price, pricePlace, media = 'fill', extras, inPhoto, addInPhoto = false, plate = false, sizes, priority, order, cellProps, style }: IconDishProps) {
   const { openProduct } = useTemplate();
   const priceTag = <Price product={product} className={`tpl-price-tight ${price}`} />;
   const add = <QuickAction product={product} variant="icon" className={`tpl-rim-add ${prefix}-add relative z-[2]`} />;
@@ -51,7 +54,7 @@ export function IconDish({ product, prefix, suffix, cell, head, price, pricePlac
     <li data-row {...cellProps} className={cell} style={{ ...style, '--i': order } as CSSProperties}>
       <div className={head}>
         {pricePlace === 'top' && priceTag}
-        <div data-photo className={`${prefix}-photo ${media === 'cover' ? 'tpl-cover-media' : 'tpl-fill-media'}`}>
+        <div data-photo className={`${prefix}-photo ${media === 'cover' ? 'tpl-cover-media' : 'tpl-fill-media'}${plate ? ' tpl-plate' : ''}`}>
           <ProductMedia product={product} suffix={suffix} sizes={sizes} priority={priority} className={`${prefix}-img`} rounded={false} />
           {inPhoto}
           {addInPhoto && add}

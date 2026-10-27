@@ -176,11 +176,13 @@
   border-radius: 0.75rem;
   background: color-mix(in srgb, var(--ik-on-paper) 10%, var(--ik-paper));
 }
-/* A dish with no picture: a plain tinted plate (two rings) rather than a hole. */
-[data-body='ink'] .ik-photo:not(:has(.ik-img img, .ik-img svg)) {
-  background:
-    radial-gradient(circle at 50% 50%, transparent 0 22%, color-mix(in srgb, var(--ik-on-paper) 30%, transparent) 22% 25%, transparent 25% 34%, color-mix(in srgb, var(--ik-on-paper) 22%, transparent) 34% 36%, transparent 36%),
-    color-mix(in srgb, var(--ik-on-paper) 12%, var(--ik-paper));
+/*
+ * A dish with no picture: the shared plate (`tpl-plate`, painted on the empty media span), in the paper card's own
+ * colours whatever the menu's palette, so it is a grey plate on white rather than a dark hole.
+ */
+[data-body='ink'] .ik-photo > :first-child:empty {
+  --text: var(--ik-on-paper);
+  --bg: var(--ik-paper);
 }
 [data-body='ink'] .ik-off {
   position: absolute;

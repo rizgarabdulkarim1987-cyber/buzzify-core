@@ -279,6 +279,10 @@
   border-radius: 999px 999px 0.375rem 0.375rem;
   background: color-mix(in srgb, var(--accent) 18%, var(--raised));
 }
+/* A dish with no picture: the shared plate (`tpl-plate`, on the empty media span) on the arch's own accent ground. */
+[data-body='lanterns'] .rm-photo > :first-child:empty {
+  --bg: color-mix(in srgb, var(--accent) 18%, var(--raised));
+}
 [data-body='lanterns'] .rm-name {
   display: -webkit-box;
   -webkit-box-orient: vertical;

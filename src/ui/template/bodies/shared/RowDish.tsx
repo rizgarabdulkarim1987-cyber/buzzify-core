@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useTemplate } from '../../context';
 import { Badges, Description, Price, ProductMedia, QuickAction } from '../../parts';
+import './photo-card.css';
 import './rows.css';
 
 /**
@@ -21,6 +22,7 @@ export function RowDish({
   order,
   description = false,
   iconAdd = false,
+  plate = false,
   photoExtras,
   metaExtras,
   rowProps,
@@ -39,6 +41,8 @@ export function RowDish({
   description?: boolean;
   /** A plus on the add button even for a dish with choices (for a small, fixed-size button). */
   iconAdd?: boolean;
+  /** A dish with no media shows the shared tinted plate (`tpl-plate`, photo-card.css) in its frame. */
+  plate?: boolean;
   /** Drawn inside the photo frame after the photo (an effect laid over it); the frame clips it. */
   photoExtras?: ReactNode;
   /** Drawn in the price line after the badges (a chip). */
@@ -49,7 +53,7 @@ export function RowDish({
   const { openProduct } = useTemplate();
   return (
     <li data-row {...rowProps} className={`rd-row ${prefix}-row`} style={order === undefined ? undefined : ({ '--i': order } as CSSProperties)}>
-      <div data-photo className={`rd-photo ${prefix}-photo`}>
+      <div data-photo className={`rd-photo ${prefix}-photo${plate ? ' tpl-plate' : ''}`}>
         <ProductMedia product={product} suffix={suffix} sizes={sizes} priority={priority} className={`${prefix}-img`} />
         {photoExtras}
       </div>

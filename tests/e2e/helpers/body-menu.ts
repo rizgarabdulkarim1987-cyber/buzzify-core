@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { expect, type Locator, type Page } from '@playwright/test';
-import sharp from 'sharp';
+import sharp, { type OutputInfo } from 'sharp';
 import type { Prisma } from '@/generated/prisma/client';
 import { TEMPLATES } from '@/lib/templates';
 import type { DesignOverrides, DesignPalette, TemplateId } from '@/lib/templates/types';
@@ -101,6 +101,63 @@ export function bodyMenus(): BodyMenus {
       }
     },
   };
+}
+
+/**
+ * A media-less dish's photo frame shows a painted plate, measured in pixels (not the frame's computed background, which
+ * the empty media span covers): the media (the frame's first child) is empty, the capture of it holds the plate's rings
+ * (more than three colours), and its ground (a corner pixel) differs from the card around it, so the frame is neither
+ * invisible nor, with `maxContrast`, a dark hole in a light card.
+ */
+export async function expectPlatePainted(photo: Locator, card: Locator, { maxContrast }: { maxContrast?: number } = {}) {
+  const media = photo.locator('> :first-child');
+  expect(await media.evaluate((node) => node.childElementCount), 'the media is empty').toBe(0);
+  // Everything else in the card (an add button, a sale chip or an effect laid over the frame) is hidden for the
+  // capture, so only the plate itself is measured. Retried: a re-render while the page settles detaches the node.
+  let shot!: { data: Buffer; info: OutputInfo };
+  await expect(async () => {
+    await card.evaluate((node, hide) => {
+      const plate = node.querySelector('[data-photo] > :first-child');
+      for (const el of node.querySelectorAll<HTMLElement>('*')) if (plate && el !== plate && !el.contains(plate)) el.style.visibility = hide ? 'hidden' : '';
+    }, true);
+    shot = await sharp(await media.screenshot({ animations: 'disabled' })).raw().toBuffer({ resolveWithObject: true });
+    await card.evaluate((node) => node.querySelectorAll<HTMLElement>('*').forEach((el) => (el.style.visibility = '')));
+  }).toPass({ timeout: 10_000 });
+  // The rings, counted in the frame's inner part only (a rounded corner or an inset ring at the edge is not a plate).
+  const colours = new Set<string>();
+  const { width, height, channels } = shot.info;
+  for (let y = Math.round(height * 0.15); y < height * 0.85; y++)
+    for (let x = Math.round(width * 0.15); x < width * 0.85; x++) {
+      const at = (y * width + x) * channels;
+      colours.add(`${shot.data[at]},${shot.data[at + 1]},${shot.data[at + 2]}`);
+    }
+  expect(colours.size, 'the plate draws rings').toBeGreaterThan(3);
+  // The ground: a pixel a little in from the corner (clear of a rounded corner and of the rings).
+  const x = Math.round(shot.info.width * 0.5);
+  const y = Math.round(shot.info.height * 0.06);
+  const at = (y * shot.info.width + x) * shot.info.channels;
+  const ground = [shot.data[at]!, shot.data[at + 1]!, shot.data[at + 2]!];
+  const around = await card.evaluate((node) => {
+    for (let el: Element | null = node; el; el = el.parentElement) {
+      const colour = getComputedStyle(el).backgroundColor;
+      const parts = colour.match(/[\d.]+/g)?.map(Number) ?? [];
+      if (parts.length >= 3 && (parts.length < 4 || parts[3]! > 0.5)) return parts.slice(0, 3);
+    }
+    return [255, 255, 255];
+  });
+  const distance = ground.reduce((sum, channel, i) => sum + Math.abs(channel - around[i]!), 0);
+  expect(distance, `the plate's ground rgb(${ground.join(',')}) differs from the card rgb(${around.join(',')})`).toBeGreaterThan(18);
+  if (maxContrast !== undefined) {
+    const lum = (rgb: number[]) => {
+      const [r, g, b] = rgb.map((c) => {
+        const v = c / 255;
+        return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+    };
+    const [light, dark] = [lum(ground), lum(around)].sort((p, q) => q - p);
+    expect((light! + 0.05) / (dark! + 0.05), 'the plate sits quietly in the card, not as a hole').toBeLessThanOrEqual(maxContrast);
+  }
 }
 
 /** Replaces IntersectionObserver with one that never reports (a background tab, an unpainted preview), from the first script on. */
