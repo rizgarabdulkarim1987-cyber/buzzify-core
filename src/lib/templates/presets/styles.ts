@@ -914,7 +914,7 @@ export const theSpaceStation = definePreset({
   alternatives: [
     { id: 'mars-base', name: 'Mars base', seed: { bg: '#1A0D0A', text: '#FFE9DF', accent: '#FF8A5C', raised: '#2B1712' } },
     { id: 'aurora-deck', name: 'Aurora deck', seed: { bg: '#04161A', text: '#DDFBF3', accent: '#3FE0B5', raised: '#0B2A30' } },
-    { id: 'white-hull', name: 'White hull', seed: { bg: '#E8ECF5', text: '#0B1226', accent: '#2B4FD8', raised: '#F7F9FD' } },
+    { id: 'nebula-rose', name: 'Nebula rose', seed: { bg: '#1A0B1C', text: '#FFE6F6', accent: '#FF7AC8', raised: '#2C1430' } },
   ],
   type: { fontPairId: 'modern', scale: 1.0 },
   layout: {
@@ -943,7 +943,7 @@ export const theFrostedWindow = definePreset({
   alternatives: [
     { id: 'aurora-glass', name: 'Aurora glass', seed: { bg: '#05191C', text: '#E3FBF4', accent: '#4FE3B8', raised: '#0D2E33' } },
     { id: 'rose-frost', name: 'Rose frost', seed: { bg: '#241024', text: '#FFE8F4', accent: '#FF8FC2', raised: '#3A1B3A' } },
-    { id: 'white-out', name: 'White out', seed: { bg: '#EAF1F8', text: '#0C1F3A', accent: '#1F5FBF', raised: '#F8FBFF' } },
+    { id: 'polar-night', name: 'Polar night', seed: { bg: '#0A1222', text: '#E8F0FF', accent: '#A5B8FF', raised: '#16213A' } },
   ],
   type: { fontPairId: 'modern', scale: 1.0 },
   layout: {
@@ -972,7 +972,7 @@ export const theSummerBeach = definePreset({
   alternatives: [
     { id: 'sunset-cove', name: 'Sunset cove', seed: { bg: '#FFD9A8', text: '#4A1F12', accent: '#C2410C', raised: '#FFF3DD' } },
     { id: 'palm-shade', name: 'Palm shade', seed: { bg: '#DFF5E3', text: '#0F3D2E', accent: '#B45309', raised: '#FFFFFF' } },
-    { id: 'moonlit-bay', name: 'Moonlit bay', seed: { bg: '#06223A', text: '#E6F7FF', accent: '#FFB454', raised: '#0B3558' } },
+    { id: 'lagoon-noon', name: 'Lagoon noon', seed: { bg: '#C9F3EC', text: '#0B3B36', accent: '#0F766E', raised: '#FFFFFF' } },
   ],
   type: { fontPairId: 'pop', scale: 1.0 },
   layout: {
@@ -999,9 +999,9 @@ export const theThreeDPrinter = definePreset({
   tags: ['dark', 'cinematic'],
   seed: { bg: '#121417', text: '#E9ECEF', accent: '#FF7A1A', raised: '#1A1D21' },
   alternatives: [
-    { id: 'cyan-bed', name: 'Cyan bed', seed: { bg: '#0A161B', text: '#E3F6FB', accent: '#22D3EE', raised: '#10252D' } },
-    { id: 'resin-violet', name: 'Resin violet', seed: { bg: '#14101C', text: '#EEEAFB', accent: '#A78BFA', raised: '#1F1830' } },
-    { id: 'steel-light', name: 'Steel light', seed: { bg: '#ECEFF2', text: '#1B1F24', accent: '#C2410C', raised: '#FFFFFF' } },
+    { id: 'cyan-rail', name: 'Cyan rail', seed: { bg: '#0A161B', text: '#E3F6FB', accent: '#22D3EE', raised: '#10252D' } },
+    { id: 'violet-rail', name: 'Violet rail', seed: { bg: '#14101C', text: '#EEEAFB', accent: '#A78BFA', raised: '#1F1830' } },
+    { id: 'lime-rail', name: 'Lime rail', seed: { bg: '#0F130E', text: '#ECF5E6', accent: '#A3E635', raised: '#171D15' } },
   ],
   type: { fontPairId: 'modern', scale: 1.0 },
   layout: {
