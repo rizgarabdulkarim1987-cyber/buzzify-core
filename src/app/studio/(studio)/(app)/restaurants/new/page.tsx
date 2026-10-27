@@ -9,19 +9,28 @@ import { getPlans } from '@/server/studio/queries/plans';
 import { newRestaurantAccess } from '@/server/studio/queries/restaurants';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
+import { initialSectorOf } from '@/studio/sector-param';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { CreateRestaurantForm } from '../RestaurantForm';
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: getStudioTranslator(await requestStudioLocale())('restaurants.new') };
+type Params = { searchParams: Promise<Record<string, string | string[] | undefined>> };
+
+export async function generateMetadata({ searchParams }: Params): Promise<Metadata> {
+  const pharmacy = initialSectorOf(await searchParams) === 'PHARMACY';
+  return { title: getStudioTranslator(await requestStudioLocale())(pharmacy ? 'pharmacies.new' : 'restaurants.new') };
 }
 
-/** A new client. Only Super Admins create restaurants: everyone else gets the not-found page. */
-export default async function NewRestaurantPage() {
+/**
+ * A new client. Only Super Admins create restaurants: everyone else gets the not-found page. `?sector=PHARMACY` (the
+ * Pharmacy page's "New pharmacy") opens the same form on the Pharmacy sector, with the way back to the Pharmacy page.
+ */
+export default async function NewRestaurantPage({ searchParams }: Params) {
   const actor = await getActor();
   if (!actor) redirect(SIGN_IN_PATH);
   await query(newRestaurantAccess, {});
   const t = getStudioTranslator(actor.locale);
+  const sector = initialSectorOf(await searchParams);
+  const pharmacy = sector === 'PHARMACY';
   // The platform owner chooses the new restaurant's plan; it is the plans' names they need, in their language.
   const planNames = actor.isPlatformOwner
     ? (Object.fromEntries(Object.entries((await query(getPlans, {})).plans).map(([tier, plan]) => [tier, plan.names[actor.locale]])) as Record<
@@ -34,16 +43,19 @@ export default async function NewRestaurantPage() {
     <>
       <PageHeader
         above={
-          <Link href="/studio/restaurants" className="inline-flex w-fit items-center gap-1 text-sm text-muted transition-colors hover:text-text">
+          <Link
+            href={pharmacy ? '/studio/pharmacies' : '/studio/restaurants'}
+            className="inline-flex w-fit items-center gap-1 text-sm text-muted transition-colors hover:text-text"
+          >
             <ChevronLeft aria-hidden className="size-4 rtl:-scale-x-100" />
-            {t('restaurants.title')}
+            {t(pharmacy ? 'pharmacies.title' : 'restaurants.title')}
           </Link>
         }
-        title={t('restaurants.new')}
-        description={t('restaurants.newDescription')}
+        title={t(pharmacy ? 'pharmacies.new' : 'restaurants.new')}
+        description={t(pharmacy ? 'pharmacies.newDescription' : 'restaurants.newDescription')}
       />
       <div className="px-8 pb-2">
-        <CreateRestaurantForm planNames={planNames} />
+        <CreateRestaurantForm planNames={planNames} initialSector={sector} />
       </div>
     </>
   );

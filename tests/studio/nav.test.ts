@@ -20,12 +20,13 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
       '/studio/billing',
       '/studio/cashier',
+      '/studio/pharmacies',
       '/studio/menus',
       '/studio/media',
       '/studio/motion',
@@ -46,12 +47,24 @@ describe('the Menu Styles area', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+  });
+
+  it('gives a Super Admin the Pharmacy area right after the Cashier, with its own pill icon', () => {
+    const items = visibleNav(actor({ isSuperAdmin: true }));
+    const at = items.findIndex((item) => item.key === 'cashierOverview');
+    expect(items[at + 1]).toEqual({ key: 'pharmacies', href: '/studio/pharmacies', labelKey: 'nav.pharmacies', icon: 'pharmacy' });
+  });
+
+  it('never shows the Pharmacy area to a designer or an owner', () => {
+    for (const memberships of [[{ restaurantId: 'r1', role: 'DESIGNER' as const }], [{ restaurantId: 'r1', role: 'OWNER' as const }], []]) {
+      expect(keys(visibleNav(actor({ memberships })))).not.toContain('pharmacies');
+    }
   });
 
   it('gives a designer the working areas but not Billing, People, Activity or Settings', () => {
