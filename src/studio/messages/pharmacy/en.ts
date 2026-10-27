@@ -76,6 +76,8 @@ const pharmacy: Messages = {
   'error.text.phBulkTooLarge': 'This change covers too many prices. Choose fewer products.',
   'error.text.phBulkStep': 'Round to a step above zero',
   'error.text.phBulkNegative': 'This change takes a price below zero',
+  'error.text.phPriceTooFar': 'Choose a start at most 90 days ahead',
+  'error.text.phBulkTooHigh': 'This change takes a price above the largest allowed',
 };
 
 export default pharmacy;

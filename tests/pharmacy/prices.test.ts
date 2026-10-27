@@ -211,6 +211,59 @@ describe('pharmacy prices', () => {
     expect(await prisma().phPrice.count()).toBe(3);
   });
 
+  it('a start more than 90 days ahead is refused; a past start follows the open-price rule', async () => {
+    const w = await world();
+    const p = await product(w, 'Panadol');
+    for (const when of [days(91), new Date('2062-10-27T09:00:00.000Z')]) {
+      const refused = await act(w.owner, priceActions.set, setInput(w, p, '1000', when));
+      expect(refused, when.toISOString()).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { validFrom: 'Choose a start at most 90 days ahead' } } });
+    }
+    expect(await prisma().phPrice.count()).toBe(0);
+    dataOf(await act(w.owner, priceActions.set, setInput(w, p, '1000', days(90))));
+
+    // A past start is allowed when it is after the open price's start, and refused (naming that start) when it is not.
+    const q = await product(w, 'Brufen');
+    dataOf(await act(w.owner, priceActions.set, setInput(w, q, '500', days(-30))));
+    dataOf(await act(w.owner, priceActions.set, setInput(w, q, '600', days(-20))));
+    const backdated = await act(w.owner, priceActions.set, setInput(w, q, '700', days(-25)));
+    expect(backdated).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'PRICE_BACKDATED', currentFrom: days(-20).toISOString() } } });
+
+    // A bulk batch: refused at the preview past the horizon, and checked again when applied (a preview may be old).
+    const bulk = { restaurantId: w.a.id, currency: 'IQD', productIds: [q.productId], change: { kind: 'percent', basisPoints: 1000 }, rounding: { step: '1', mode: 'nearest' }, reason: 'Rise' };
+    expect(codeOf(await act(w.owner, priceActions.previewBulk, { ...bulk, validFrom: days(91) }))).toBe('INVALID');
+    const preview = dataOf(await act(w.owner, priceActions.previewBulk, { ...bulk, validFrom: days(10) }));
+    // As if the batch had been stored with a start beyond today's horizon.
+    await prisma().phPriceChangeBatch.update({ where: { id: preview.batchId }, data: { validFrom: days(200) } });
+    const late = await act(w.owner, priceActions.applyBulk, { restaurantId: w.a.id, batchId: preview.batchId, previewHash: preview.previewHash });
+    expect(late).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'PRICE_TOO_FAR' } } });
+    expect(await prisma().phPrice.count()).toBe(3);
+  });
+
+  it('an amount beyond the largest allowed is refused, not an internal error', async () => {
+    const w = await world();
+    const p = await product(w, 'Panadol');
+    const huge = await act(w.owner, priceActions.set, setInput(w, p, '9000000000000000001', days(-2)));
+    expect(huge).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { amount: 'Enter a smaller amount', phCode: 'AMOUNT_TOO_LARGE' } } });
+    const overflow = await act(w.owner, priceActions.set, setInput(w, p, '99999999999999999999', days(-2)));
+    expect(overflow).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'AMOUNT_TOO_LARGE' } } });
+    expect(await prisma().phPrice.count()).toBe(0);
+    // The largest itself is a price.
+    dataOf(await act(w.owner, priceActions.set, setInput(w, p, '9000000000000000000', days(-2))));
+
+    // +1000% on it would pass the column's limit: refused at the preview, and no batch is stored.
+    const bulk = await act(w.owner, priceActions.previewBulk, {
+      restaurantId: w.a.id,
+      currency: 'IQD',
+      change: { kind: 'percent', basisPoints: 100_000 },
+      rounding: { step: '1', mode: 'nearest' },
+      validFrom: NOW,
+      reason: 'Rise',
+    });
+    expect(bulk).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'AMOUNT_TOO_LARGE', productId: p.productId } } });
+    expect(await prisma().phPriceChangeBatch.count()).toBe(0);
+    expect(await prisma().phPrice.count()).toBe(1);
+  });
+
   it('a cashier cannot set a price', async () => {
     const w = await world();
     const cashier = await person('cashier', { staff: [w.a.id, 'CASHIER', [w.a.branchId]] });
@@ -294,6 +347,34 @@ describe('pharmacy prices', () => {
       expect(await prisma().auditLog.count({ where: { action: 'ph.price.bulkApply' } })).toBe(0);
     });
 
+    it('a price for another product added after the preview makes the apply stale', async () => {
+      const w = await world();
+      const p1 = await product(w, 'Panadol');
+      const p2 = await product(w, 'Brufen');
+      dataOf(await act(w.owner, priceActions.set, setInput(w, p1, '1250', days(-10))));
+      const preview = dataOf(await act(w.owner, priceActions.previewBulk, bulkInput(w)));
+      expect(preview.rows).toHaveLength(1);
+
+      // The batch covers every product: a new price row joins the set it would change.
+      dataOf(await act(w.owner, priceActions.set, setInput(w, p2, '2000', days(-1))));
+      const stale = await act(w.owner, priceActions.applyBulk, { restaurantId: w.a.id, batchId: preview.batchId, previewHash: preview.previewHash });
+      expect(stale).toMatchObject({ ok: false, error: { code: 'CONFLICT', fields: { phCode: 'PREVIEW_STALE' } } });
+      expect(await prisma().phPrice.count()).toBe(2);
+      expect((await prisma().phPriceChangeBatch.findUniqueOrThrow({ where: { id: preview.batchId } })).status).toBe('PREVIEW');
+    });
+
+    it('a batch whose stored change cannot be read is refused cleanly', async () => {
+      const w = await world();
+      const p1 = await product(w, 'Panadol');
+      dataOf(await act(w.owner, priceActions.set, setInput(w, p1, '1250', days(-10))));
+      const preview = dataOf(await act(w.owner, priceActions.previewBulk, bulkInput(w)));
+      await prisma().phPriceChangeBatch.update({ where: { id: preview.batchId }, data: { change: { kind: 'unknown' } } });
+
+      const refused = await act(w.owner, priceActions.applyBulk, { restaurantId: w.a.id, batchId: preview.batchId, previewHash: preview.previewHash });
+      expect(refused).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'BATCH_UNREADABLE' } } });
+      expect(await prisma().phPrice.count()).toBe(1);
+    });
+
     it('a bulk apply is all or nothing (one failing row leaves every price unchanged)', async () => {
       const w = await world();
       const made = [await product(w, 'Panadol'), await product(w, 'Brufen')];
@@ -310,7 +391,7 @@ describe('pharmacy prices', () => {
       const countBefore = await prisma().phPrice.count();
 
       const refused = await act(w.owner, priceActions.applyBulk, { restaurantId: w.a.id, batchId: preview.batchId, previewHash: preview.previewHash });
-      expect(refused).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'PRICE_BACKDATED', productId: second.productId } } });
+      expect(refused).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'PRICE_BACKDATED', productId: second.productId, currentFrom: days(2).toISOString() } } });
       expect(await openRows()).toEqual(openBefore);
       expect(await prisma().phPrice.count()).toBe(countBefore);
       expect((await prisma().phPriceChangeBatch.findUniqueOrThrow({ where: { id: preview.batchId } })).status).toBe('PREVIEW');

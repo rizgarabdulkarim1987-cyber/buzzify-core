@@ -19,7 +19,21 @@ const CURRENCY = z.enum(['IQD', 'USD']);
 
 export const REASON_SHORT = 'Enter a reason of at least 3 characters';
 const reason = z.string(REASON_SHORT).trim().min(3, REASON_SHORT).max(200, 'Use at most 200 characters');
-const validFrom = z.coerce.date({ error: 'Enter a valid date' });
+const DAY_MS = 86_400_000;
+
+/**
+ * How far ahead a price may be set: at most 90 days from now. A start further out is almost always a typing slip (2062
+ * for 2026), and a scheduled price blocks every price that would start before it. Checked on the input and again by the
+ * services (a bulk batch's stored start is checked again when it is applied).
+ */
+export const PRICE_MAX_FUTURE_DAYS = 90;
+export const PRICE_TOO_FAR_MESSAGE = 'Choose a start at most 90 days ahead';
+
+/** The largest amount a price may hold, in minor units: below Postgres's BIGINT maximum (9,223,372,036,854,775,807). */
+export const PH_MAX_AMOUNT_MINOR = 9_000_000_000_000_000_000n;
+
+const withinHorizon = (date: Date) => date.getTime() <= Date.now() + PRICE_MAX_FUTURE_DAYS * DAY_MS;
+const validFrom = z.coerce.date({ error: 'Enter a valid date' }).refine(withinHorizon, PRICE_TOO_FAR_MESSAGE);
 
 /** One price as the person enters it. `branchId` (absent: every branch) is the definition's branch too. */
 export const priceSetInput = z.object({
@@ -74,10 +88,12 @@ export const PREVIEW_STALE_MESSAGE = 'Prices changed since this preview. Preview
 
 const priceConflict = () => new StudioError('CONFLICT', PRICE_CONFLICT_MESSAGE, { phCode: 'PRICE_CONFLICT' });
 const previewStale = () => new StudioError('CONFLICT', PREVIEW_STALE_MESSAGE, { phCode: 'PREVIEW_STALE' });
-const backdated = (key: { productId: string; unitId: string }, inBulk: boolean) =>
+/** A start at or before the open price's start; `currentFrom` (ISO) names that start so the form can show it. */
+const backdated = (key: { productId: string; unitId: string }, currentFrom: Date, inBulk: boolean) =>
   new StudioError('INVALID', undefined, {
     validFrom: 'Choose a start after the current price’s start',
     phCode: 'PRICE_BACKDATED',
+    currentFrom: currentFrom.toISOString(),
     ...(inBulk ? { productId: key.productId, unitId: key.unitId } : {}),
   });
 
@@ -113,10 +129,19 @@ async function assertCurrency(scoped: ScopedDb, currency: Currency): Promise<voi
   }
 }
 
-/** An amount typed by a person, in minor units; null for anything `parseMoney` refuses (a sign, a bad grouping, ...). */
+/** A start the services accept: at most `PRICE_MAX_FUTURE_DAYS` ahead of now. */
+function assertHorizon(from: Date): void {
+  if (!withinHorizon(from)) throw new StudioError('INVALID', undefined, { validFrom: PRICE_TOO_FAR_MESSAGE, phCode: 'PRICE_TOO_FAR' });
+}
+
+/**
+ * An amount typed by a person, in minor units: refused for anything `parseMoney` refuses (a sign, a bad grouping, ...)
+ * and above `PH_MAX_AMOUNT_MINOR` (the database column would overflow).
+ */
 function amountOf(text: string, currency: Currency, field: string): bigint {
   const parsed = parseMoney(text, currency);
   if (!parsed) throw new StudioError('INVALID', undefined, { [field]: 'Enter an amount of 0 or more, like 1,250', phCode: 'INVALID_AMOUNT' });
+  if (parsed.amount > PH_MAX_AMOUNT_MINOR) throw new StudioError('INVALID', undefined, { [field]: 'Enter a smaller amount', phCode: 'AMOUNT_TOO_LARGE' });
   return parsed.amount;
 }
 
@@ -145,8 +170,10 @@ export interface PriceWrite {
 
 /**
  * Appends the price of `key` from `from`: the open row (if any) must have started before `from`, and is closed at `from`;
- * then the new row is written. `expectedOpenId` (a bulk change) is the open row the preview was worked out from: another
- * one now is a lost race. Closing a row someone else closed first, like a second open row, is `PRICE_CONFLICT`.
+ * then the new row is written. `expectedOpenId` (a bulk change) is the open row the preview read earlier in this same
+ * transaction; a different one here means another save committed in between, refused `PRICE_CONFLICT`. That check only
+ * narrows the window: what makes the write safe is the close itself (`updateMany` on `validTo: null`, count must be 1)
+ * and the one-open-row index, each also `PRICE_CONFLICT` when another save got there first.
  */
 async function appendPrice(
   tx: ScopedTx,
@@ -162,7 +189,7 @@ async function appendPrice(
     select: { id: true, amountMinor: true, validFrom: true },
   });
   if (bulk && (open?.id ?? null) !== bulk.expectedOpenId) throw priceConflict();
-  if (open && from.getTime() <= open.validFrom.getTime()) throw backdated(key, bulk !== undefined);
+  if (open && from.getTime() <= open.validFrom.getTime()) throw backdated(key, open.validFrom, bulk !== undefined);
   if (open) {
     // The only update a price row ever gets: its validTo, once, from null.
     const closed = await tx.phPrice.updateMany({ where: { id: open.id, validTo: null }, data: { validTo: from } });
@@ -179,6 +206,7 @@ async function appendPrice(
 
 /** Sets one price (the branch must be checked first with `assertPriceBranch`). */
 export async function setPrice(tx: ScopedTx, ph: PhActor, input: PriceSetInput): Promise<PriceWrite> {
+  assertHorizon(input.validFrom);
   await assertCurrency(tx, input.currency);
   const amountMinor = amountOf(input.amount, input.currency, 'amount');
   const unit = await tx.phProductUnit.findFirst({ where: { id: input.unitId, productId: input.productId }, select: { id: true } });
@@ -250,7 +278,15 @@ async function workOut(scoped: ScopedDb, params: BulkParams, from: Date, checkDa
   const openOf = new Map(open.map((r) => [`${r.productId} ${r.unitId}`, r]));
   const rows = preview.rows.map((row) => {
     const source = openOf.get(`${row.productId} ${row.unitId}`)!;
-    if (checkDates && from.getTime() <= source.validFrom.getTime()) throw backdated(row, true);
+    if (row.after > PH_MAX_AMOUNT_MINOR) {
+      throw new StudioError('INVALID', undefined, {
+        change: 'This change takes a price above the largest allowed',
+        phCode: 'AMOUNT_TOO_LARGE',
+        productId: row.productId,
+        unitId: row.unitId,
+      });
+    }
+    if (checkDates && from.getTime() <= source.validFrom.getTime()) throw backdated(row, source.validFrom, true);
     return { ...row, openId: source.id, openFrom: source.validFrom };
   });
   return { previewHash: preview.previewHash, rows };
@@ -262,6 +298,7 @@ export async function previewBulkPrices(
   ph: PhActor,
   input: BulkPreviewInput,
 ): Promise<{ batchId: string; preview: BulkPreview; params: BulkParams }> {
+  assertHorizon(input.validFrom);
   await assertCurrency(tx, input.currency);
   const params: BulkParams = {
     branchId: input.branchId ?? null,
@@ -295,7 +332,10 @@ export async function applyBulkPrices(tx: ScopedTx, ph: PhActor, input: z.infer<
     select: { id: true, status: true, previewHash: true, validFrom: true, change: true },
   });
   if (!batch) throw new StudioError('NOT_FOUND');
-  const params = bulkParams.parse(batch.change);
+  const parsed = bulkParams.safeParse(batch.change);
+  // A batch whose stored change cannot be read (an older version wrote it, or a hand edit) is never guessed at.
+  if (!parsed.success) throw new StudioError('INVALID', PREVIEW_STALE_MESSAGE, { phCode: 'BATCH_UNREADABLE' });
+  const params = parsed.data;
   assertPriceBranch(ph, params.branchId);
   if (batch.previewHash !== input.previewHash) throw previewStale();
   if (batch.status === 'APPLIED') return { alreadyApplied: true };
@@ -309,6 +349,8 @@ export async function applyBulkPrices(tx: ScopedTx, ph: PhActor, input: z.infer<
     throw previewStale();
   }
 
+  // A preview may be old: its stored start is checked again against today's horizon.
+  assertHorizon(batch.validFrom);
   await assertCurrency(tx, params.currency);
   // The dates are checked row by row as each is written, so one late row undoes the rows written before it.
   const preview = await workOut(tx, params, batch.validFrom, false);

@@ -71,6 +71,8 @@ const pharmacy: Messages = {
   'error.text.phBulkTooLarge': 'يشمل هذا التغيير أسعارًا كثيرة جدًا. اختر منتجات أقل.',
   'error.text.phBulkStep': 'اختر خطوة تقريب أكبر من الصفر',
   'error.text.phBulkNegative': 'هذا التغيير يجعل سعرًا أقل من الصفر',
+  'error.text.phPriceTooFar': 'اختر تاريخ بدء خلال 90 يومًا على الأكثر',
+  'error.text.phBulkTooHigh': 'هذا التغيير يجعل سعرًا أعلى من الحد المسموح',
 };
 
 export default pharmacy;

@@ -71,6 +71,8 @@ const pharmacy: Messages = {
   'error.text.phBulkTooLarge': 'ئەم گۆڕانکارییە نرخێکی زۆر دەگرێتەوە. بەرهەمی کەمتر هەڵبژێرە.',
   'error.text.phBulkStep': 'هەنگاوێکی خڕکردنەوە لە سەرووی سفر هەڵبژێرە',
   'error.text.phBulkNegative': 'ئەم گۆڕانکارییە نرخێک دەباتە خوار سفر',
+  'error.text.phPriceTooFar': 'دەستپێکێک هەڵبژێرە کە زۆرترین 90 ڕۆژ لە پێشەوە بێت',
+  'error.text.phBulkTooHigh': 'ئەم گۆڕانکارییە نرخێک دەباتە سەرووی زۆرترین ڕێگەپێدراو',
 };
 
 export default pharmacy;

@@ -345,6 +345,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This change covers too many prices. Choose fewer products.': 'error.text.phBulkTooLarge',
   'Round to a step above zero': 'error.text.phBulkStep',
   'This change takes a price below zero': 'error.text.phBulkNegative',
+  'Choose a start at most 90 days ahead': 'error.text.phPriceTooFar',
+  'This change takes a price above the largest allowed': 'error.text.phBulkTooHigh',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -355,7 +357,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'unitId']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'unitId', 'currentFrom']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
