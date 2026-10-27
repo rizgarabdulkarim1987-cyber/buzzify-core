@@ -1,9 +1,9 @@
-# Buzzify Pharmacy: phases 0 and 1
+# Buzzify Pharmacy: phases 0 to 2
 
 The pharmacy module runs a pharmacy business (sector `PHARMACY`) inside this repository, next to the menu and the
-cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plan:
-`docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md`. This file covers what phases 0 and 1 built, what they did
-not build, and the policies in force.
+cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plans:
+`docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md` and `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md`.
+This file covers what phases 0, 1 and 2 built, what they did not build, and the policies in force.
 
 Nothing here is deployed. No migration has been run on production.
 
@@ -71,8 +71,84 @@ Nothing here is deployed. No migration has been run on production.
 - Catalog screens: list and search, product editor (ladder, barcodes, price history), new product, and the import
   wizard. Unsaved drafts are kept on the device and leaving the page asks first.
 
+**Phase 2: stock, receiving, counts and expiry**
+
+Quantities are whole numbers in the product's base unit. Money is `BigInt` minor units with a currency beside it.
+
+- **Stock ledger** (`PhBatch`, `PhStockBalance`, `PhStockMovement`; one writer, `src/server/pharmacy/stock.ts`). A batch is
+  a lot with an expiry (day or month precision) of one product. Each branch holds four buckets per batch: available,
+  reserved, quarantine, damaged. A database CHECK refuses a negative bucket even for a direct write, and the service
+  refuses first (`INSUFFICIENT_STOCK`, nothing written). A trigger makes movements append-only (update and delete are
+  refused; deleting a whole business still works). A correction is a **reversing entry**: the original row stays, a new
+  row with the opposite deltas points to it (`reversesId`), a second reversal of the same movement and a reversal of a
+  reversal are refused. Enforcement tests allow only `stock.ts` to write the stock tables.
+- **Batch identity** is business, product, lot and expiry. The supplier is not part of it: the same lot received twice
+  (even from another supplier, even written `lot-1` and `LOT-1`) adds to one batch. A batch keeps the cost of its first
+  receipt; a receipt line with another cost raises a `COST_DIFFERS` warning and keeps its own cost on the line.
+- **Manual receiving** (`ph.stock.receipt.*`, screen `/pharmacy/stock/receive`): a draft with lines (pack, quantity, bonus
+  quantity, lot, expiry as `MM/YYYY`, `DD/MM/YYYY` or ISO, cost, free-of-charge flag), kept on the device while typing.
+  Confirm creates or finds the batches, writes one RECEIPT movement per line, and gives the receipt a number (`R-000001`,
+  per branch, no gaps because only confirmed receipts get one). Create is idempotent by client key; the same key with
+  other content is refused. A past expiry is refused unless the line is marked "accept although expired", and then the
+  stock goes straight to quarantine. A draft can be voided; a confirmed receipt is corrected by reversing its stock.
+- **Manual stock changes** (`ph.stock.adjust`, `damage`, `quarantineRelease`, `reverse`): add, remove, move between
+  buckets, write off as damaged, release quarantine (restock or damage). A reason of 3 to 300 characters is required.
+  Adding to available is refused for an expired, recalled or blocked batch.
+- **Stock counts** (`ph.stock.count.*`, screens `/pharmacy/stock/counts`): open a count of a branch, a category or a
+  shelf-location prefix (at most 5,000 lines), optionally blind (expected quantities are not sent to the browser until
+  submit). Counted values are saved, submitted, then approved. A count with differences needs a reason and an approval,
+  and the differences are applied **once**, as COUNT movements added to the current stock (a sale made while counting is
+  kept). Rules in force: one counter per count (`COUNT_OWNED`); the approver may not be the counter when another holder
+  of `stock.adjust` exists in the branch (`SELF_APPROVAL`; a lone holder may approve and the result says
+  `selfApproved`); a count is refused at approve if another count changed the same batch since it opened
+  (`STALE_COUNT`, recount); a result below zero refuses the whole approve and rolls everything back.
+- **Expiry alerts** (`ph.stock.expiry`, screen `/pharmacy/stock/expiry`): horizons 30, 60, 90, 180 days, bands with
+  totals, only batches with sellable, reserved or quarantine stock. Month-precision batches alert from the first of the
+  month. The 90-day list equals an independent computation (acceptance test). A follow-up status per batch and branch
+  (new, in progress, disposed, moved, returned) with an assignee and a note; DISPOSED writes the remaining stock off as
+  damaged and needs the exact quantity left.
+- **Screens**: stock overview with batches in FEFO order and the change forms, stock movements with reverse, receiving,
+  expiry, counts. en, ar and ckb, RTL, no motion (a scan test enforces it), states shown with icon and text, 375/768/1280
+  without horizontal scroll and axe-clean in the Playwright runs of each screen.
+- **Cost** appears only for holders of `cost.view`: balances, expiry and receipt reads omit the cost keys otherwise.
+- **Kill switch**: `Application(pharmacy).status = DISABLED` closes `/pharmacy` (see Policies).
+- **Second-person consent rule** for support access: the Super Admin who records a consent may not be the grantee
+  (`CONSENT_SELF`).
+- **Stale batches**: a PREVIEW price batch or PREVIEWED import batch older than 7 days is cancelled when the next
+  preview of that business is stored; bulk price changes leave archived products out unless `includeArchived`.
+- **Isolation sweep** (`tests/pharmacy/isolation.test.ts`): every phase 2 definition is tried against another business,
+  another branch and a branch-limited person; a new `ph.*` definition without an entry fails the test.
+- **Request-level reuse** (search latency): `invokePh` and `invokePhQuery` hand the actor and gate that
+  `getPhAccess` resolved to the framework, so it does not resolve them again. Queries counted by
+  `tests/pharmacy/request-reuse.test.ts`: product search 34 to 25, stock balances 28 to 19 (9 fewer per call). A
+  query count, not a time measurement.
+
 ## What is NOT built
 
+- **Phase 3 onward**: sales, shifts, receipts and scanner/printer support (phase 3); purchasing (4); AI intake (5);
+  transfers and chain reports (6); assistant, prescriptions, credit, advanced printing (7). Offline selling.
+- **A supplier link for receipts.** A receipt carries a supplier name as text; there is no supplier record, and the
+  supplier is not part of batch identity.
+- **Expiry MOVED and RETURNED are labels.** They record a decision and move no stock. Only DISPOSED changes stock.
+- **Opening a count is not idempotent.** There is no client key on a count: a double click or two tabs can open two
+  counts (the result reports how many others are open). Overlap is caught later, at approve (`STALE_COUNT`).
+- **The STOCK role cannot adjust or damage stock.** It holds `stock.count` and `purchase.manage` but not `stock.adjust`;
+  the pharmacist in charge, manager and owner adjust. This is a ruling awaiting the owner.
+- **Quantities are in base units only in the screens.** The server accepts a pack and a quantity for adjustments, but
+  the balances payload carries no ladder, so the forms, counts and expiry disposal ask for base units.
+- **Assignee choice is limited.** The expiry follow-up offers Me, Nobody or keep; assigning someone else needs a branch
+  staff list. People are shown as "You" and "Someone else".
+- **A 5,000-line count is not windowed.** All lines are rendered; this was not exercised with 5,000 lines in a browser.
+- **`/pharmacy` is closed until it is switched on.** `Application(pharmacy)` ships `DISABLED` (phase 0 migration), and
+  the kill switch built in phase 2 honours it, so every pharmacy is paused until the row is set `ACTIVE`. There is no
+  Studio screen for this toggle; it is a launch step.
+- **ar and ckb are machine drafts.** No native speaker has reviewed any pharmacy string, including the roughly 470 keys
+  added in phase 2 (about 400 screen strings and 66 server sentences) (terms to check: lot, quarantine, blind count, surplus/shortage, write off).
+- **End-to-end latency on Neon is not measured**, for search or for the stock screens. Only query counts are.
+- **RLS was not re-run** for the phase 2 tables (see below).
+- Smaller gaps: the movement list shows who as the start of a user id; the approval record shows time and reason, not
+  the approver's name; the receipts screen has no scanner wedge (typed or pasted barcodes work); USD entry in receiving
+  is unit-tested but was not exercised in a browser.
 - **Row-level security.** The RLS spike decided DEFER: the safety properties held, but product search lost +137% p95
   from the policy alone (`docs/superpowers/specs/2026-10-27-pharmacy-rls-spike.md`). Isolation is application-level
   only (`ctx.scoped` plus enforcement tests). The spike script was deleted. It can be recovered from git at
@@ -82,9 +158,6 @@ Nothing here is deployed. No migration has been run on production.
 - **Cancelling a scheduled price.** A future price (up to 90 days ahead) cannot be cancelled before it starts.
 - **Retail price caps.** No official maximum price is enforced anywhere, and the price actions have no cap hook yet
   (open owner question A).
-- Stock, batches, receiving, counts (phase 2). Sales, shifts, receipts, scanner and printer support (phase 3).
-  Purchasing (4), AI intake (5), transfers and chain reports (6), assistant, prescriptions, credit, advanced printing (7).
-  Offline selling.
 - **Screens for support access and bulk prices.** Granting, revoking, recording consent and listing support grants,
   and the bulk price preview and apply, exist as server actions with tests. None of them has a Server Action wrapper
   or a screen yet.
@@ -118,6 +191,7 @@ with a consent reference of at least 10 characters (also for `rx.read` / `patien
 
 **Kill switch.** Setting `Application(pharmacy).status` to DISABLED closes `/pharmacy` for every pharmacy (gate reason
 `applicationDisabled`, no extra query: it is read with the subscription). Studio billing and provisioning do not use the gate.
+The row **ships DISABLED** (phase 0 migration), so a new deployment has `/pharmacy` closed until someone sets it ACTIVE.
 
 **Retention after a subscription ends.** While a `pharmacy` subscription is TRIAL, ACTIVE or GRACE, everything works.
 After it lapses (EXPIRED, or CANCELLED), the pharmacy is **read-only for 90 days**. Reads and exports still work, and
@@ -139,7 +213,8 @@ BUZZIFY_DB_PORT=<port> npm run test:load     # seeds 50,000 products in the test
 E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-shell.spec.ts tests/e2e/pharmacy-catalog.spec.ts
 ```
 
-The phase 0 and 1 acceptance scenarios are in `tests/pharmacy/acceptance-phase-0-1.test.ts`. The standard
+The phase 0 and 1 acceptance scenarios are in `tests/pharmacy/acceptance-phase-0-1.test.ts`, those of phase 2 in
+`tests/pharmacy/acceptance-phase-2.test.ts`. Run one test file at a time: the suites share one test database. The standard
 `npm run test:e2e` setup needs the seeded ATELIER menu (`prisma db seed`) in the database it runs against.
 
 For a local catalog to browse, `npx tsx prisma/seed-load-pharmacy.ts` seeds 50,000 products. It refuses any database
@@ -150,7 +225,18 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-six pharmacy migrations on production unattended (`20261027100000` to `20261027150000`).
+ten pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the four of phase 2, all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+
+- `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
+  append-only trigger on `PhStockMovement`.
+- `20261027170000_pharmacy_receipt_fields`: receipt number and its unique key, bonus quantity, free-of-charge and
+  accept-expired flags on lines.
+- `20261027180000_pharmacy_batch_identity_unique`: unique index on business, product, lot and expiry.
+- `20261027190000_pharmacy_movement_client_key`: partial unique index for idempotent stock changes.
+
+Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
+is not available yet, so none of the ten has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -169,6 +255,9 @@ Do not merge until these steps are done, in this order, or merge with the deploy
 
 ## Open items
 
+- **Owner decisions pending from phase 2:** the STOCK role cannot adjust; receiving needs `purchase.manage` and the
+  pharmacist in charge holds it; the one-counter and second-person count rules; the `STALE_COUNT` refusal instead of
+  merging overlapping counts; the default DISABLED state of the application. See section 16 of the spec.
 - **Before phase 3:** the isolation layer was re-tested for the phase 2 stock definitions
   (`tests/pharmacy/isolation.test.ts`: other business, other branch, a branch-1-only person; it fails when a new `ph.*`
   definition has no entry). Rule 8 in `tests/studio/enforcement.test.ts` now recognises more base-client receivers and
