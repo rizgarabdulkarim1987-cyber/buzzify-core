@@ -1,4 +1,16 @@
-import type { PhMovementType } from "@/generated/prisma/client";
+/** The ledger's movement kinds (the `PhMovementType` enum of the schema); named here so this file imports nothing from the database layer. */
+export type PhMovementType =
+  | 'RECEIPT'
+  | 'SALE'
+  | 'RETURN_IN'
+  | 'RETURN_QUARANTINE'
+  | 'ADJUST'
+  | 'DAMAGE'
+  | 'TRANSFER_OUT'
+  | 'TRANSFER_IN'
+  | 'SUPPLIER_RETURN'
+  | 'COUNT'
+  | 'QUARANTINE_RELEASE';
 import type { ScopedTx } from "@/server/data/tenant-db";
 import { StudioError } from "@/server/studio/framework/result";
 
