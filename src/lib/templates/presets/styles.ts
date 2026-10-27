@@ -817,4 +817,33 @@ export const theThousandAndOneNights = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights];
+export const theJajimAndNowruz = definePreset({
+  id: 'the-jajim-and-nowruz',
+  number: 59,
+  name: 'Jajim and Nowruz',
+  business: 'restaurant',
+  tags: ['light', 'playful'],
+  seed: { bg: '#F6EAD2', text: '#2A1810', accent: '#B3202A', raised: '#FFFAF0' },
+  alternatives: [
+    { id: 'saffron-field', name: 'Saffron field', seed: { bg: '#FBEFD0', text: '#3A2410', accent: '#A8480B', raised: '#FFF8E6' } },
+    { id: 'indigo-dusk', name: 'Indigo dusk', seed: { bg: '#1F2447', text: '#F4EAD4', accent: '#E9A51B', raised: '#2B3263' } },
+    { id: 'green-valley', name: 'Green valley', seed: { bg: '#E8EEDC', text: '#1D2B1A', accent: '#2F7D4A', raised: '#F7FAEE' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'rugs',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz];

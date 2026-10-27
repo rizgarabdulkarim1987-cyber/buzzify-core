@@ -2435,6 +2435,7 @@ const ar: Messages = {
   'design.body.citadel': 'قلعة أربيل',
   'design.body.lanterns': 'فوانيس معلّقة',
   'design.body.carpet': 'بُسُط سحرية',
+  'design.body.rugs': 'سجاد منسوج',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',
