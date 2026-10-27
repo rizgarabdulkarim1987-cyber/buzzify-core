@@ -16,17 +16,19 @@ import {
   expectReadable,
   silenceObserver,
   expectStripStays,
+  expectWordsWhole,
   openMenu,
   paletteIdsOf,
 } from './helpers/body-menu';
 
 /**
  * The Space Station body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a modular station. A sticky
- * command strip of round docking-port chips jumps to a section; the featured dish is a small planet (a round photo on an
- * orbit ring, its name and price) at the head of the first module; every section is a module, a capsule-shaped corridor
- * panel with rivets and a label plate, whose dishes are portholes three across: a round steel bezel round the photo, the
- * name on a status-bar label under it, the price on an LED chip. The glass of a module opens once, the first time it
- * comes into view.
+ * command strip of docking-port chips (a round port with the number, the section's name beside it) jumps to a section;
+ * every section is a module, a capsule hull with rivets and a label plate, holding a CORRIDOR: a ribbed spine down the
+ * middle with the dishes as capsule pods docked to it, alternately on its start and end side, each half a pod lower than
+ * the one before. A pod holds the round steel porthole, the LED price and the add beside it, and the name across its
+ * foot. The featured dish's own pod is the planet (a dashed orbit ring round its porthole). The glass of a module opens
+ * once, the first time it comes into view.
  */
 
 const menus = bodyMenus();
@@ -64,8 +66,8 @@ const chipOf = (page: Page, categorySlug: string) => strip(page).getByRole('butt
 const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 const moduleOf = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`);
-// What a guest sees as a dish with a picture and a price: the portholes and the planet (the featured dish).
-const dishes = (page: Page) => body(page).locator('[data-row], [data-planet]');
+// What a guest sees as a dish with a picture and a price: the pods (the planet is the featured dish's own pod).
+const dishes = (page: Page) => body(page).locator('[data-row]');
 const planet = (page: Page) => body(page).locator('[data-planet]');
 
 test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
@@ -84,19 +86,29 @@ test('with the offers banner above the menu (it and the hero take about 630px of
   await expectFirstScreen(page, dishes(page), { min: 2 });
 });
 
-test('the strip is a row of docking ports: a round steel ring round a numbered dashed window, 44px to tap', async ({ page }) => {
+test('the strip is a row of docking-port chips: a round steel port with the number and the section NAME visible beside it, 44px to tap', async ({ page }) => {
   await openMenu(page, slug);
   const chips = strip(page).locator('button');
   await expect(chips).toHaveCount(BODY_CATEGORIES.length);
   const box = (await chips.first().boundingBox())!;
   expect(box.width).toBeGreaterThanOrEqual(44);
   expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(Math.abs(box.width - box.height)).toBeLessThanOrEqual(1);
   await expect(chips.first().locator('.st-port-no')).toHaveText('1');
   await expect(chips.nth(2).locator('.st-port-no')).toHaveText('3');
-  for (const part of [chips.first(), chips.first().locator('.st-port-no')]) expect(await part.evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe('50%');
-  expect(await chips.nth(1).evaluate((node) => getComputedStyle(node).borderTopColor)).toBe('rgb(207, 216, 240)');
-  expect(await chips.first().locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopStyle)).toBe('dashed');
+  expect(await chips.first().locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe('50%');
+  expect(await chips.nth(1).locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopColor)).toBe('rgb(207, 216, 240)');
+  for (const category of BODY_CATEGORIES) {
+    const chip = chipOf(page, category.slug);
+    // A sighted guest reads the name: it is visible text in the chip, not a screen-reader-only label.
+    expect(await chip.evaluate((node) => (node as HTMLElement).innerText)).toContain(category.name.en!);
+    await expect(chip.locator('.sr-only')).toHaveCount(0);
+    const label = chip.locator('.st-chip-name');
+    await expect(label).toBeVisible();
+    const [inner, outer] = [(await label.boundingBox())!, (await chip.boundingBox())!];
+    expect(inner.x).toBeGreaterThanOrEqual(outer.x - 1);
+    expect(inner.x + inner.width).toBeLessThanOrEqual(outer.x + outer.width + 1);
+    expect(parseFloat(await label.evaluate((node) => getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(12);
+  }
 });
 
 test('the port of the section in view is lit and the others are not', async ({ page }) => {
@@ -140,30 +152,28 @@ test('a section is a module: a capsule with rounded ends, seams and rivets, a la
   // The plate is a solid pill above the first row of portholes, as wide as the module's inside.
   expect(await title.evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
   expect(parseFloat(await title.evaluate((node) => getComputedStyle(node).borderTopLeftRadius))).toBeGreaterThan(20);
-  const [plate, grid, whole] = [(await title.boundingBox())!, (await deck.locator('.st-grid').boundingBox())!, (await deck.boundingBox())!];
+  const [plate, grid, whole] = [(await title.boundingBox())!, (await deck.locator('.st-corridor').boundingBox())!, (await deck.boundingBox())!];
   expect(grid.y).toBeGreaterThanOrEqual(plate.y + plate.height - 1);
-  expect(grid.x).toBeGreaterThanOrEqual(whole.x + 8);
-  expect(grid.x + grid.width).toBeLessThanOrEqual(whole.x + whole.width - 8);
+  expect(grid.x).toBeGreaterThanOrEqual(whole.x + 6);
+  expect(grid.x + grid.width).toBeLessThanOrEqual(whole.x + whole.width - 6);
 });
 
-test('the featured dish is a small planet, the first cell of the first module only: a round photo on a dashed orbit ring, its name and price; the whole planet opens the dish', async ({ page }) => {
-  await openMenu(page, slug);
+test('the featured dish is the planet: its OWN pod (no other cell shows it), with a dashed orbit ring and a moon round its porthole, its price, its add and its sale chip; the whole pod opens the dish', async ({ page }) => {
+  await openMenu(page, promoSlug);
   await expect(planet(page)).toHaveCount(1);
-  const first = moduleOf(page, 'viennoiserie');
-  await expect(first.locator('[data-planet]')).toHaveCount(1);
-  const [cell, head, port] = [(await planet(page).boundingBox())!, (await first.locator('[data-heading]').boundingBox())!, (await first.locator('[data-row]').first().boundingBox())!];
-  expect(cell.y).toBeGreaterThanOrEqual(head.y + head.height - 1);
-  // The first cell of the row: the portholes follow it on the same row.
-  expect(Math.abs(cell.y - port.y)).toBeLessThanOrEqual(1);
-  expect(cell.x).toBeLessThan(port.x);
-  await expect(planet(page).locator('.st-planet-name')).toContainText(dishName('croissant'));
-  await expect(planet(page).locator('.st-planet-name .sr-only')).toHaveText('Featured: ');
-  await expect(planet(page).locator('.st-led')).toContainText('$');
-  const orb = (await planet(page).locator('.st-orb').boundingBox())!;
+  // No dish is shown twice: the croissant is one cell only, and that cell is the planet.
+  await expect(body(page).locator('[data-row]').filter({ hasText: dishName('croissant') })).toHaveCount(1);
+  await expect(planet(page)).toHaveAttribute('data-row');
+  await expect(planet(page).locator('.st-name')).toContainText(dishName('croissant'));
+  await expect(planet(page).locator('.st-name .sr-only')).toHaveText('Featured: ');
+  await expect(planet(page).locator('.st-price')).toContainText('$');
+  await expect(planet(page).locator('.st-add')).toBeVisible();
+  await expect(planet(page).locator('.tpl-photo-off')).toBeVisible();
+  const orbit = planet(page).locator('.st-orbit');
+  expect(await orbit.evaluate((node) => getComputedStyle(node).borderTopStyle)).toBe('dashed');
+  expect(await orbit.evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('radial-gradient');
+  const orb = (await orbit.boundingBox())!;
   expect(Math.abs(orb.width - orb.height)).toBeLessThanOrEqual(1);
-  expect(await planet(page).locator('.st-orb').evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe('50%');
-  expect(await planet(page).locator('.st-orbit').evaluate((node) => getComputedStyle(node).borderTopStyle)).toBe('dashed');
-  // Tapping the planet's photo opens the dish (the name button's overlay covers the whole cell).
   await page.mouse.click(orb.x + orb.width / 2, orb.y + orb.height / 2);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -180,48 +190,62 @@ test('a search that drops the featured dish takes the planet away and brings it 
   await expect(planet(page)).toHaveCount(1);
 });
 
-test('dishes are portholes, four columns on a phone: a round steel bezel round the photo, then the name on a status bar, then the LED price chip under it', async ({ page }) => {
+test('a section is a corridor, not a grid: a spine down the middle and the pods docked to it alternately on its start and end side, each half a pod lower than the one before', async ({ page }) => {
   await openMenu(page, slug);
-  const row = page.locator('#cat-viennoiserie [data-row]');
-  await expect(row).toHaveCount(3);
-  const [a, b, c] = [await row.nth(0).boundingBox(), await row.nth(1).boundingBox(), await row.nth(2).boundingBox()] as [DOMRect, DOMRect, DOMRect];
-  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.y - c.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
-  const grid = (await page.locator('#cat-viennoiserie .st-grid').boundingBox())!;
-  expect(a.x).toBeGreaterThanOrEqual(grid.x - 1);
-  expect(c.x + c.width).toBeLessThanOrEqual(grid.x + grid.width + 1);
-  const port = row.first();
-  const bezel = (await port.locator('.st-bezel').boundingBox())!;
-  const glass = (await port.locator('[data-photo]').boundingBox())!;
-  const name = (await port.locator('.st-name').boundingBox())!;
-  const price = (await port.locator('.st-price').boundingBox())!;
-  // Round: the bezel and the glass are circles, the glass inside the bezel.
-  expect(Math.abs(bezel.width - bezel.height)).toBeLessThanOrEqual(1);
-  expect(Math.abs(glass.width - glass.height)).toBeLessThanOrEqual(1);
-  expect(glass.width).toBeGreaterThanOrEqual(64);
-  expect(glass.x).toBeGreaterThan(bezel.x + 2);
-  expect(glass.x + glass.width).toBeLessThan(bezel.x + bezel.width - 2);
-  expect(name.y).toBeGreaterThanOrEqual(bezel.y + bezel.height - 1);
-  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-  const shape = await port.evaluate((node) => {
+  for (const categorySlug of ['viennoiserie', 'patisserie']) {
+    const corridor = page.locator(`#cat-${categorySlug} [data-corridor]`);
+    const pods = corridor.locator('[data-row]');
+    await expect(pods).toHaveCount(3);
+    const boxes = (await Promise.all([0, 1, 2].map((i) => pods.nth(i).boundingBox()))) as DOMRect[];
+    const lane = (await corridor.boundingBox())!;
+    const middle = lane.x + lane.width / 2;
+    // Never side by side in one row: one pod per side, the next one on the other side, half a pod lower.
+    expect(boxes[0]!.x + boxes[0]!.width).toBeLessThan(middle);
+    expect(boxes[1]!.x).toBeGreaterThan(middle);
+    expect(boxes[2]!.x + boxes[2]!.width).toBeLessThan(middle);
+    for (const [one, two] of [[boxes[0]!, boxes[1]!], [boxes[1]!, boxes[2]!]] as const) {
+      const step = two.y - one.y;
+      expect(step).toBeGreaterThan(one.height * 0.35);
+      expect(step).toBeLessThan(one.height * 0.75);
+    }
+    // The spine runs down the middle between the two sides.
+    const spine = await corridor.evaluate((node) => {
+      const style = getComputedStyle(node, '::before');
+      return { image: style.backgroundImage, width: parseFloat(style.width), height: parseFloat(style.height) };
+    });
+    expect(spine.image).toContain('gradient');
+    expect(spine.width).toBeGreaterThanOrEqual(8);
+    expect(spine.height).toBeGreaterThan(boxes[0]!.height);
+    // Each pod is a capsule: rounded, the porthole round, the price and the add beside it, the name across its foot.
+    const pod = pods.nth(1);
+    expect(parseFloat(await pod.evaluate((node) => getComputedStyle(node).borderTopLeftRadius))).toBeGreaterThanOrEqual(20);
+    const [bezel, price, add, name] = [(await pod.locator('.st-bezel').boundingBox())!, (await pod.locator('.st-price').boundingBox())!, (await pod.locator('.st-add').boundingBox())!, (await pod.locator('.st-name').boundingBox())!];
+    expect(Math.abs(bezel.width - bezel.height)).toBeLessThanOrEqual(1);
+    expect(bezel.width).toBeGreaterThanOrEqual(56);
+    expect(price.x).toBeGreaterThanOrEqual(bezel.x + bezel.width - 1);
+    expect(add.x).toBeGreaterThanOrEqual(bezel.x + bezel.width - 1);
+    expect(name.y).toBeGreaterThanOrEqual(bezel.y + bezel.height - 1);
+    expect(name.width).toBeGreaterThan(bezel.width + 40);
+  }
+  const shape = await tileOf(page, 'pain-au-chocolat').evaluate((node) => {
     const photoNode = node.querySelector('[data-photo]')!;
     const bezelStyle = getComputedStyle(node.querySelector('.st-bezel')!);
-    return {
-      bezel: bezelStyle.backgroundImage,
-      bezelRadius: bezelStyle.borderTopLeftRadius,
-      glassRadius: getComputedStyle(photoNode).borderTopLeftRadius,
-      photoImage: getComputedStyle(photoNode).backgroundImage,
-      photoBefore: getComputedStyle(photoNode, '::before').content,
-      photoAfter: getComputedStyle(photoNode, '::after').content,
-    };
+    return { bezel: bezelStyle.backgroundImage, bezelRadius: bezelStyle.borderTopLeftRadius, glassRadius: getComputedStyle(photoNode).borderTopLeftRadius, photoImage: getComputedStyle(photoNode).backgroundImage };
   });
   expect(shape.bezel).toContain('conic-gradient');
   expect(shape.bezelRadius).toBe('50%');
   expect(shape.glassRadius).toBe('50%');
   expect(shape.photoImage).toBe('none');
-  expect([shape.photoBefore, shape.photoAfter].every((content) => content === 'none' || content === 'normal')).toBe(true);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('names never break inside a word on the first screen, in English and in Arabic', async ({ page }) => {
+  for (const locale of ['en', 'ar']) {
+    await openMenu(page, slug, { locale });
+    await expect(tiles(page).first()).toBeVisible();
+    await expectWordsWhole(body(page).locator('#cat-viennoiserie .st-name, #cat-patisserie .st-name'));
+    await expectWordsWhole(strip(page).locator('.st-chip-name'));
+  }
 });
 
 test('the name is on a dark status bar with an LED stripe and the price on an LED chip, each on a solid fill of its own', async ({ page }) => {
@@ -328,8 +352,9 @@ test('nothing in the shape loops: no animation that repeats forever', async ({ p
 
 test('a dish adds from its pane and opens from its name, and tapping the photo or the pane opens it too, without adding', async ({ page }) => {
   await openMenu(page, slug);
-  const first = page.locator('#cat-viennoiserie .st-grid');
-  await expectOpensProduct(page, first, 'croissant');
+  const first = page.locator('#cat-viennoiserie .st-corridor');
+  // The planet's name carries "Featured: " for screen readers; a plain pod opens from its bare name.
+  await expectOpensProduct(page, first, 'pain-au-chocolat');
   const photo = (await tileOf(page, 'croissant').locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 3);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
@@ -360,8 +385,8 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   const row = page.locator('#cat-viennoiserie [data-row]');
   await expect(row).toHaveCount(3);
   expect(await body(page).locator('[data-photo] img').count()).toBe(0);
-  const photo = (await row.first().locator('[data-photo]').boundingBox())!;
-  expect(photo.width).toBeGreaterThan(60);
+  const photo = (await row.nth(1).locator('[data-photo]').boundingBox())!;
+  expect(photo.width).toBeGreaterThan(48);
   for (const index of [0, 1, 2]) {
     await expect(row.nth(index).locator('.st-name')).toBeVisible();
     await expect(row.nth(index).locator('.st-price')).toContainText('$');
@@ -438,16 +463,16 @@ test('a long dish name and a long price stay inside the pane without sideways sc
   expect(await contrastOf(pane.locator('.st-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the portholes run five across, with the planet the first of them, in a centred column', async ({ page }) => {
+test('on a wide screen the corridor keeps its zigzag, with bigger portholes, in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
   const a = (await row.nth(0).boundingBox())!;
   const b = (await row.nth(1).boundingBox())!;
-  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(b.x).toBeGreaterThan(a.x + a.width);
+  expect(b.y).toBeGreaterThan(a.y + a.height * 0.35);
   expect(a.x).toBeGreaterThan(100);
-  const cell = (await planet(page).boundingBox())!;
-  expect(Math.abs(cell.y - a.y)).toBeLessThanOrEqual(1);
+  expect((await row.nth(1).locator('.st-bezel').boundingBox())!.width).toBeGreaterThanOrEqual(90);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -466,12 +491,11 @@ test('in Arabic the page is right to left, the strip starts at the right, and no
   const photo = (await tiles(page).first().locator('[data-photo]').boundingBox())!;
   const second = (await tiles(page).nth(1).locator('[data-photo]').boundingBox())!;
   expect(photo.x).toBeGreaterThan(second.x);
-  // The add button is on the left corner of the bezel (the end).
+  // The porthole is at the pod's start (the right), the add beside it towards the end (the left).
   const pane = tiles(page).first();
   const add = (await pane.locator('.st-add').boundingBox())!;
   const frame = (await pane.locator('.st-bezel').boundingBox())!;
-  expect(add.x - frame.x).toBeLessThan(frame.x + frame.width - (add.x + add.width));
-  expect(add.x + add.width / 2).toBeLessThan(frame.x + frame.width / 2);
+  expect(add.x + add.width).toBeLessThanOrEqual(frame.x + 1);
 });
 
 test('a search that finds nothing keeps main#menu', async ({ page }) => {
@@ -498,8 +522,10 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'plate number': first.locator('h2 small'),
       'status bar name': pane.locator('.st-name'),
       'LED price chip': pane.locator('.st-price'),
-      'planet name': planet(page).locator('.st-planet-name'),
-      'planet price': planet(page).locator('.st-planet-price'),
+      'planet name': planet(page).locator('.st-name'),
+      'planet price': planet(page).locator('.st-price'),
+      'name of a lit chip': strip(page).locator('[aria-current="true"] .st-chip-name'),
+      'name of a resting chip': strip(page).locator('button:not([aria-current]) .st-chip-name').first(),
       'add button': pane.locator('.st-add'),
       ...(menu === 'signature' ? {} : { 'sale chip': pane.locator('.tpl-photo-off'), 'second sale chip': tileOf(page, 'eclair').locator('.tpl-photo-off') }),
     });
@@ -509,13 +535,13 @@ test('text reads on every fill it sits on, in every palette of the shape', async
 test('keyboard focus rings show in full and stand out, in every palette: a whole tile, its add button and a strip chip', async ({ page }) => {
   for (const menuSlug of [slug, customSlug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
-    const orbName = planet(page).locator('.st-planet-name');
+    const orbName = planet(page).locator('.st-name');
     await orbName.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(orbName).toBeFocused();
     await expectFocusRingShows(page, planet(page), { outset: -3, pseudo: '::after' });
-    const pane = tiles(page).first();
+    const pane = tileOf(page, 'pain-au-chocolat');
     const name = pane.locator('.st-name');
     await name.focus();
     await page.keyboard.press('Shift+Tab');
@@ -534,7 +560,7 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
       await page.keyboard.press('Shift+Tab');
       await page.keyboard.press('Tab');
       await expect(chip).toBeFocused();
-      await expectFocusRingShows(page, chip, { outset: -5 });
+      await expectFocusRingShows(page, chip, { outset: -4 });
     }
   }
 });

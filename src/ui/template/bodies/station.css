@@ -1,14 +1,16 @@
 /*
- * The Space Station body (a browse shape of a template menu): a modular station. A sticky command strip of round docking-port
- * chips (a steel ring round a numbered window; the one in view is lit in the palette accent), a small planet (the featured
- * dish on a dashed orbit ring) at the head of the first module, and every section a module: a capsule-shaped corridor panel
- * (rounded ends, panel seams and a row of rivets drawn with gradients) with a label plate, whose dishes are portholes three
- * across: a round steel bezel round the photo, the name on a status-bar label under it, the price on an LED chip. The
- * portholes of a module open once, the first time it comes into view (StationBody arms it; with less motion they are simply
- * open). Everything is scoped under [data-body='station'], logical properties only (RTL mirrors). The fills are the
- * shape's own (station-hull.ts, the same on every palette) and every text sits on a solid one; the starfield, seams,
- * rivets and bezels are gradients on frames and pseudo-elements, never behind text. The only palette colour is the LED
- * (the accent lifted towards white, so it reads on the dark LED window). Nothing loops.
+ * The Space Station body (a browse shape of a template menu): a modular station. A sticky command strip of docking-port
+ * chips (a round steel port with the section's number and the section's name beside it; the one in view is lit in the
+ * LED colour), and every section a module: a capsule-shaped hull with a label plate, and a CORRIDOR down its middle, a
+ * ribbed spine running top to bottom with the dishes as capsule pods docked to it by short arms, alternately on its start
+ * and its end side, each pod half a pod lower than the one before (a zigzag). A pod holds the photo in a round steel
+ * porthole, the LED price and the add beside it, the name on a status bar across its foot. The featured dish's own
+ * pod is the planet (its porthole a dashed orbit ring with a moon). The portholes of a module open once, the first time it comes into
+ * view (StationBody arms it; with less motion they are simply open). Everything is scoped under [data-body='station'],
+ * logical properties only (RTL mirrors). The fills are the shape's own (station-hull.ts, the same on every palette) and
+ * every text sits on a solid one; the starfield, seams, rivets, the spine and the bezels are gradients on frames and
+ * pseudo-elements, never behind text. The only palette colour is the LED (the accent lifted towards white, so it reads on
+ * the dark LED window). Nothing loops.
  */
 [data-body='station'] {
   --st-space: #070b1a;
@@ -22,12 +24,16 @@
   --st-steel-ink: #0a1226;
   --st-amber: #ffb454;
   --st-amber-ink: #1a0f00;
-  /* The LED: the palette accent lifted 55% towards white (station-hull.ts `ledOf`). */
-  --st-led: color-mix(in srgb, var(--accent) 45%, #fff);
+  /* The LED: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`, shared/rise.ts `riseOf`). */
+  --st-led: var(--tpl-rise);
   /* A bezel's brushed steel. */
   --st-bezel: conic-gradient(from 30deg, #8d9bc4, #eef2ff, #5b6a92, #cfd8f0, #7d8bb4, #eef2ff, #8d9bc4);
+  /* The corridor: the spine's width, and the arm from a pod's edge to the spine's middle. */
+  --st-spine: 1rem;
+  --st-gap: 0.25rem;
+  --st-port-size: 3.75rem;
   --nav-room: 4rem;
-  --column: 64rem;
+  --column: 48rem;
   /* The last module only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
   /* A dish with no media: the plate's rings (shared/photo-card.css). */
@@ -57,61 +63,56 @@
   padding-block: 0.25rem 0;
   padding-inline: 0.5rem;
 }
-/* A docking port: a round steel ring round a dashed window that holds the section's number. */
+/* A docking port chip: a plate-blue pill, the round steel port with the number at its start, the name beside it. */
 [data-body='station'] .st-chip {
-  position: relative;
-  display: grid;
-  place-items: center;
+  padding: 0.1875rem;
+  padding-inline-end: 0.75rem;
+  border-radius: 999px;
+  background-color: var(--st-plate);
+  box-shadow: inset 0 0 0 1px var(--st-hull-edge);
+  color: var(--st-ice);
+}
+/* The port: a steel ring round a dark window with a dashed rim, the number in it. */
+[data-body='station'] .st-port-no {
   box-sizing: border-box;
-  inline-size: 2.75rem;
-  block-size: 2.75rem;
-  padding: 0.125rem;
+  inline-size: 2.375rem;
+  block-size: 2.375rem;
   border: 3px solid var(--st-steel);
   border-radius: 50%;
-  background: var(--st-plate);
+  background-color: var(--st-bar);
+  box-shadow: inset 0 0 0 2px var(--st-bar), inset 0 0 0 3px var(--st-hull-edge);
   color: var(--st-ice);
-  transition: background-color 150ms, border-color 150ms;
 }
-[data-body='station'] .st-port-no {
-  display: grid;
-  place-items: center;
-  inline-size: 100%;
-  block-size: 100%;
-  border: 1px dashed currentColor;
-  border-radius: 50%;
-  font-size: 0.875rem;
-  font-weight: 700;
-  line-height: 1;
-}
-/* The port in view: its ring and number light up in the LED colour, on the dark window. */
+/* The port in view: the chip goes to the dark LED window, its ring and number and name light in the LED colour. */
 [data-body='station'] .st-chip[aria-current='true'] {
-  border-color: var(--st-led);
-  background: var(--st-deep);
+  background-color: var(--st-deep);
+  box-shadow: inset 0 0 0 1px var(--st-led), 0 0 0.5rem color-mix(in srgb, var(--st-led) 45%, transparent);
   color: var(--st-led);
-  box-shadow: 0 0 0.5rem color-mix(in srgb, var(--st-led) 55%, transparent);
 }
 [data-body='station'] .st-port-no[data-pane='active'] {
+  border-color: var(--st-led);
+  background-color: var(--st-deep);
+  color: var(--st-led);
   font-weight: 800;
 }
 /* The strip scrolls sideways, so it clips: the ring is drawn inside the chip, in the chip's text colour. */
 [data-body='station'] .st-strip-list button:focus-visible {
   outline: 2px solid currentColor;
-  outline-offset: -5px;
+  outline-offset: -4px;
 }
 
 /* ------------------------------------------------------------------ a module */
 
-/* The capsule: a corridor panel with rounded ends, panel seams (gradients) and a row of rivets along its top edge. */
+/* The capsule: a hull with rounded ends, panel seams (gradients) and a row of rivets along its top edge. */
 [data-body='station'] .st-module {
   position: relative;
   isolation: isolate;
-  margin-block: 0.875rem 0.25rem;
-  margin-inline: 0.5rem;
-  padding: 0.75rem 0.625rem 1.125rem;
+  margin-block: 0.5rem 0.25rem;
+  margin-inline: 0.375rem;
+  padding: 0.375rem 0.375rem 0.5rem;
   border: 3px solid var(--st-hull-edge);
-  border-radius: 2.5rem;
+  border-radius: 2rem;
   background:
-    linear-gradient(90deg, transparent calc(100% - 2px), rgb(255 255 255 / 0.07) 0) 0 0 / 33.3334% 100%,
     linear-gradient(transparent calc(100% - 2px), rgb(255 255 255 / 0.05) 0) 0 0 / 100% 7rem,
     var(--st-hull);
   box-shadow: 0 0 0 2px var(--st-deep), 0 0.5rem 1rem rgb(0 0 0 / 0.45);
@@ -152,14 +153,14 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  min-block-size: 2rem;
+  min-block-size: 1.75rem;
   margin: 0;
-  padding: 0.125rem 0.25rem;
+  padding: 0.0625rem 0.25rem;
   border: 2px solid var(--st-steel);
   border-radius: 999px;
   background: var(--st-plate);
   color: var(--st-ice);
-  font-size: 1.125rem;
+  font-size: 1.0625rem;
   font-weight: 800;
   line-height: 1.15;
 }
@@ -183,103 +184,100 @@
   line-height: 1;
 }
 
-/* ------------------------------------------------------------------ the planet */
+/* ------------------------------------------------------------------ the corridor */
 
-/* The planet is the first cell of the first module: a round photo on a dashed orbit ring in the LED colour with a moon on it. */
-[data-body='station'] .st-planet {
-  --tpl-ring-radius: 0.5rem;
-  --tpl-ring-inset: -3px;
+/*
+ * Three tracks: the start side, the spine, the end side. Each pod spans two rows and starts one row below the one
+ * before it (StationBody sets its row), so the pods zigzag down the spine, half a pod apart. The rows grow if a pod's
+ * text needs more room.
+ */
+[data-body='station'] .st-corridor {
   position: relative;
-  box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  gap: 0.25rem;
-  min-inline-size: 0;
-}
-[data-body='station'] .st-orbit {
-  position: relative;
-  box-sizing: border-box;
-  inline-size: 100%;
-  padding: 0.3125rem;
-  border: 2px dashed var(--st-led);
-  border-radius: 50%;
-}
-[data-body='station'] .st-orbit::after {
-  content: '';
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline-start: 6%;
-  inline-size: 0.625rem;
-  block-size: 0.625rem;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 35%, #fff, #b9b3d9 55%, #5a5480);
-}
-[data-body='station'] .st-orb {
-  --text: var(--st-ice);
-  --bg: var(--st-deep);
-  position: relative;
-  aspect-ratio: 1;
-  overflow: hidden;
-  border-radius: 50%;
-  background: var(--st-deep);
-  box-shadow: 0 0 0 3px var(--st-steel);
-}
-/* The planet name: the status bar of a porthole, edged all round in the LED colour. */
-[data-body='station'] .st-planet-name {
-  box-sizing: border-box;
-  padding: 0.0625rem 0.375rem;
-  border: 1px solid var(--st-led);
-  border-radius: 0.375rem;
-  background: var(--st-bar);
-  color: var(--st-ice);
-  text-align: center;
-}
-[data-body='station'] .tpl-open.st-planet-name:focus-visible::after {
-  outline: 2px solid var(--st-ice);
-  outline-offset: -3px;
-  border-radius: 0.5rem;
-}
-
-/* ------------------------------------------------------------------ the portholes */
-
-[data-body='station'] .st-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem 0.375rem;
+  grid-template-columns: minmax(0, 1fr) var(--st-spine) minmax(0, 1fr);
+  grid-auto-rows: minmax(2.875rem, auto);
+  gap: 0.25rem var(--st-gap);
   margin: 0;
-  margin-block-start: 0.5rem;
+  margin-block-start: 0.375rem;
   padding: 0;
   list-style: none;
 }
-/* The cell is the positioned ancestor of the name's tap area, so the whole porthole (bezel, label and LED) opens the dish. */
+[data-body='station'] .st-corridor:empty {
+  display: none;
+}
+/* The spine: a ribbed steel tube down the corridor's middle, from its top to its foot. */
+[data-body='station'] .st-corridor::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: calc(50% - 0.375rem);
+  inline-size: 0.75rem;
+  border-radius: 999px;
+  background:
+    repeating-linear-gradient(to bottom, transparent 0 0.625rem, var(--st-deep) 0.625rem 0.75rem),
+    linear-gradient(90deg, #5b6a92, #cfd8f0 45%, #8d9bc4 60%, #5b6a92);
+  pointer-events: none;
+}
+
+/* A pod: a capsule of plate blue docked to the spine; it is the positioned ancestor of the name's tap area. */
 [data-body='station'] .st-port {
-  --tpl-ring-radius: 0.5rem;
+  --tpl-ring-radius: 1.5rem;
   --tpl-ring-inset: -3px;
   --sale-bg: var(--st-amber);
   --sale-ink: var(--st-amber-ink);
   --rim-add-bg: var(--st-steel);
   --rim-add-ink: var(--st-steel-ink);
-  --photo-off-at: 0;
+  --photo-off-at: -0.125rem;
   position: relative;
   box-sizing: border-box;
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: var(--st-port-size) minmax(0, 1fr);
   grid-template-rows: auto 1fr auto;
-  justify-items: center;
-  gap: 0.25rem;
+  grid-template-areas:
+    'photo price'
+    'photo add'
+    'name name';
+  gap: 0.25rem 0.375rem;
   min-inline-size: 0;
+  padding: 0.25rem;
+  border: 2px solid var(--st-hull-edge);
+  border-radius: 1.75rem;
+  background: var(--st-plate);
+  box-shadow: inset 0 0 0 2px var(--st-hull), 0 0.25rem 0.5rem rgb(0 0 0 / 0.45);
 }
-/* The bezel: a ring of brushed steel with four bolts on it, round the glass (the add and the discount sit on its rim). */
+[data-body='station'] .st-port[data-side='start'] {
+  grid-column: 1;
+}
+[data-body='station'] .st-port[data-side='end'] {
+  grid-column: 3;
+}
+/* The arm: a short steel strut from the pod's spine side to the middle of the spine, level with the porthole. */
+[data-body='station'] .st-port::before {
+  content: '';
+  position: absolute;
+  inset-block-start: calc(0.25rem + var(--st-port-size) / 2 - 0.1875rem);
+  inline-size: calc(var(--st-gap) + var(--st-spine) / 2 + 2px);
+  block-size: 0.375rem;
+  background: linear-gradient(#cfd8f0, #5b6a92);
+  pointer-events: none;
+}
+[data-body='station'] .st-port[data-side='start']::before {
+  inset-inline-start: 100%;
+}
+[data-body='station'] .st-port[data-side='end']::before {
+  inset-inline-end: 100%;
+}
+/* The porthole: a ring of brushed steel with four bolts on it, round the glass. */
 [data-body='station'] .st-bezel {
+  grid-area: photo;
   position: relative;
   box-sizing: border-box;
-  inline-size: 100%;
+  inline-size: var(--st-port-size);
+  block-size: var(--st-port-size);
   padding: 0.3125rem;
   border-radius: 50%;
   background: var(--st-bezel);
-  box-shadow: 0 0 0 2px var(--st-deep), 0 0.25rem 0.5rem rgb(0 0 0 / 0.5);
+  box-shadow: 0 0 0 2px var(--st-deep);
 }
 [data-body='station'] .st-bezel::after {
   content: '';
@@ -319,12 +317,35 @@
   clip-path: circle(72% at 50% 50%);
   transition: clip-path 200ms ease-out;
 }
-/* The discount on the bezel's start corner, outside the round glass; the add on its end corner at the foot. */
+/* The LED chip: the price in the LED colour on the dark window; a long price wraps inside it rather than overflowing. */
+[data-body='station'] .st-led {
+  box-sizing: border-box;
+  justify-self: start;
+  max-inline-size: 100%;
+  padding: 0 0.375rem;
+  border: 1px solid var(--st-hull-edge);
+  border-radius: 0.375rem;
+  background: var(--st-deep);
+  color: var(--st-led);
+  font-family: ui-monospace, 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+[data-body='station'] .st-price {
+  grid-area: price;
+  align-self: start;
+}
+/* The add: a 40px steel key beside the porthole, under the price (never over the photo). */
 [data-body='station'] .st-add {
   --rim-add-size: 2.5rem;
+  grid-area: add;
+  position: relative;
   z-index: 3;
-  inset-block-end: 0;
-  inset-inline-end: 0;
+  align-self: end;
+  justify-self: start;
   border: 2px solid var(--st-deep);
 }
 [data-body='station'] .st-add svg {
@@ -335,38 +356,56 @@
   outline: 2px solid var(--st-steel-ink);
   outline-offset: -5px;
 }
-/* The status bar: the name on a dark label with an LED stripe at its start, two lines at most (shared .tpl-dish-name). */
+/* The discount on the porthole's rim, at its start. */
+[data-body='station'] .st-off {
+  z-index: 2;
+}
+/*
+ * The status bar: the name on a dark label with an LED stripe at its start, across the pod's foot, two lines at most
+ * (shared .tpl-dish-name). A word breaks only when it alone is wider than the bar, never in the middle otherwise.
+ */
 [data-body='station'] .st-name {
   box-sizing: border-box;
-  padding: 0.0625rem 0.375rem;
+  padding: 0.125rem 0.375rem;
   border: 1px solid var(--st-hull-edge);
   border-inline-start: 0.25rem solid var(--st-led);
   border-radius: 0.375rem;
   background: var(--st-bar);
   color: var(--st-ice);
-  text-align: center;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  text-align: start;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
-/* The whole porthole's keyboard ring is drawn inside the cell, over the bezel, in light steel. */
+[data-body='station'] .st-name {
+  grid-area: name;
+}
+/* The whole pod's keyboard ring is drawn inside it, in light steel. */
 [data-body='station'] .tpl-open.st-name:focus-visible::after {
   outline: 2px solid var(--st-ice);
   outline-offset: -3px;
-  border-radius: 0.5rem;
+  border-radius: var(--tpl-ring-radius);
 }
-/* The LED chip: the price in the LED colour on the dark window; a long price wraps inside it rather than overflowing. */
-[data-body='station'] .st-led {
-  box-sizing: border-box;
-  max-inline-size: 100%;
-  padding: 0 0.5rem;
-  border: 1px solid var(--st-hull-edge);
-  border-radius: 0.375rem;
+
+/* ------------------------------------------------------------------ the planet */
+
+/* The featured dish's own pod: its porthole is a dashed orbit ring in the LED colour round the glass, with a moon on it. */
+[data-body='station'] .st-orbit {
+  padding: 0.25rem;
+  border: 2px dashed var(--st-led);
   background: var(--st-deep);
-  color: var(--st-led);
-  font-family: ui-monospace, 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
-  font-size: 0.8125rem;
-  font-weight: 700;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
-  text-align: center;
+}
+[data-body='station'] .st-orbit::after {
+  inset: auto;
+  inset-block-start: -0.125rem;
+  inset-inline-start: 4%;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  background: radial-gradient(circle at 35% 35%, #fff, #b9b3d9 55%, #5a5480);
+}
+[data-body='station'] .st-port[data-planet] {
+  border-color: var(--st-led);
 }
 
 @media (hover: hover) {
@@ -375,13 +414,17 @@
   }
 }
 
-/* A wide screen: four columns, then five, in a centred column. */
+/* A wide screen: bigger portholes and a wider spine, in a centred column. */
 @media (min-width: 640px) {
-  [data-body='station'] .st-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 1rem 0.75rem;
+  [data-body='station'] {
+    --st-spine: 2rem;
+    --st-gap: 0.5rem;
+    --st-port-size: 6rem;
   }
   [data-body='station'] .st-led {
+    font-size: 0.9375rem;
+  }
+  [data-body='station'] .st-name {
     font-size: 0.9375rem;
   }
   [data-body='station'] .st-title {
@@ -389,11 +432,6 @@
   }
   [data-body='station'] .st-module {
     padding-inline: 1.5rem;
-  }
-}
-@media (min-width: 1024px) {
-  [data-body='station'] .st-grid {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

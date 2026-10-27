@@ -10,19 +10,22 @@ import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/shapes.css';
+import './shared/name-chip.css';
 import './station.css';
 
 /**
  * Space Station (spec 2026-10-26-menu-styles-in-templates-design.md). The menu is a modular station. A sticky command strip
- * holds one round docking-port chip per section (a steel ring, the number in the menu's numerals; the one in view is
- * lit in the palette's accent) that jumps. The menu's featured dish (the first featured one, else the first dish) is a
- * small planet, the first cell of the first module (so the first screen keeps its dishes): a round photo on a dashed orbit ring with a moon, its name and price. Each
- * section is a module, a capsule-shaped corridor panel (rounded ends, rivets and panel lines drawn with gradients) with
- * a label plate (number, name, dish count on an LED), and its dishes are portholes three across: a round steel bezel
- * round the photo, the name on a status-bar label under it, the price on an LED chip. The portholes of a module open
- * once, the first time it comes into view (`useOnceInView` on `[data-module]`; a clip-path transition, off with less
- * motion, never replayed, never hiding a dish when the observer does not report). All modules are on the page, so the
- * template's own jump and `#cat-<slug>` scrolling reach them.
+ * holds one docking-port chip per section (a round steel port with the section's number, and its name beside it; the one
+ * in view is lit in the palette's LED colour) that jumps. Each section is a module: a capsule-shaped hull with a label
+ * plate (number, name, dish count on an LED) and a CORRIDOR down its middle: a ribbed spine that runs top to bottom, with
+ * the dishes as capsule pods docked to it by short arms, alternately on its start and its end side, each pod half a pod
+ * lower than the one before (a zigzag down the spine). A pod holds the photo in a round steel porthole, the price and the
+ * add beside it, and the name across its foot. The menu's featured dish (the first featured one, else the first dish) is
+ * the planet: its OWN pod, with the porthole drawn as a dashed orbit ring in the LED colour with a moon (and "Featured"
+ * for screen readers), so it stands out in place and no dish is ever shown twice. The portholes of a module open once, the
+ * first time it comes into view (`useOnceInView` on `[data-module]`; a clip-path transition, off with less motion, never
+ * replayed, never hiding a dish when the observer does not report). All modules are on the page, so the template's own
+ * jump and `#cat-<slug>` scrolling reach them.
  */
 export function StationBody() {
   const { locale, tenant, t } = useApp();
@@ -39,13 +42,13 @@ export function StationBody() {
 
   return (
     <div ref={root} className="tpl-body" data-body="station">
-      <SectionStrip marker="ports" prefix="st" className="st-strip" chip="st-chip">
+      <SectionStrip marker="ports" prefix="st" className="st-strip" chip="tpl-name-chip st-chip">
         {(category) => (
           <>
-            <span aria-hidden data-pane={category.id === activeId ? 'active' : 'rest'} className="st-port-no">
+            <span aria-hidden data-pane={category.id === activeId ? 'active' : 'rest'} className="tpl-chip-no st-port-no">
               {n(placeOf(category) + 1)}
             </span>
-            <span className="sr-only">{category.name}</span>
+            <span className="tpl-chip-name st-chip-name">{category.name}</span>
           </>
         )}
       </SectionStrip>
@@ -55,10 +58,9 @@ export function StationBody() {
           return (
             <section key={category.id} id={`cat-${category.slug}`} data-module={category.id} aria-labelledby={`h-${category.slug}`} className="tpl-section tpl-tall-last st-module">
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(placeOf(category) + 1)} count={n(products.length)} className="st-head" title="st-title" />
-              <ul className="st-grid">
-                {index === 0 && planet ? <Planet product={planet} label={t('tpl.featured')} /> : null}
+              <ul className="st-corridor" data-corridor>
                 {products.map((product, at) => (
-                  <Porthole key={product.id} product={product} at={at} priority={index < 1 && at < 6} />
+                  <Pod key={product.id} product={product} at={at} planet={product.id === planet?.id ? t('tpl.featured') : undefined} priority={index < 1 && at < 6} />
                 ))}
               </ul>
             </section>
@@ -70,44 +72,26 @@ export function StationBody() {
 }
 
 /**
- * The featured dish as a small planet: the first cell of the first module, a round photo on a dashed orbit ring with a moon,
- * its name (the screen-reader label says "Featured") and its price on an LED chip. The whole cell opens the dish (its add
- * is on its porthole below).
+ * A dish as a capsule pod docked to the spine: the photo in a round steel porthole (the discount on its rim), the price on
+ * an LED chip and the add beside it, the name on a status bar across the pod's foot. Pods alternate sides down the spine,
+ * each half a pod lower than the one before (`--at` places it). The whole pod opens the dish.
  */
-function Planet({ product, label }: { product: MenuProductView; label: string }) {
+function Pod({ product, at, planet, priority }: { product: MenuProductView; at: number; planet?: string; priority: boolean }) {
   const { openProduct } = useTemplate();
   return (
-    <li className="st-planet" data-planet>
-      <div className="st-orbit" aria-hidden>
-        <div className="st-orb tpl-cover-media tpl-plate">
-          <ProductMedia product={product} suffix="station-planet" sizes="(min-width: 640px) 18vw, 28vw" priority className="st-img" rounded={false} />
-        </div>
-      </div>
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name st-planet-name">
-        <span className="sr-only">{label}: </span>
-        {product.name}
-      </button>
-      <Price product={product} className="tpl-price-tight st-led st-planet-price" />
-    </li>
-  );
-}
-
-/** A dish as a porthole: the photo in a round steel bezel (the add on the bezel foot, the discount on its start), the name on a status bar under it, the price on an LED chip. The whole cell opens the dish. */
-function Porthole({ product, at, priority }: { product: MenuProductView; at: number; priority: boolean }) {
-  const { openProduct } = useTemplate();
-  return (
-    <li data-row className="st-port" style={{ '--at': at } as CSSProperties}>
-      <div className="st-bezel">
+    <li data-row data-planet={planet ? '' : undefined} data-side={at % 2 === 0 ? 'start' : 'end'} className="st-port" style={{ gridRow: `${at + 1} / span 2` } as CSSProperties}>
+      <div className={planet ? 'st-bezel st-orbit' : 'st-bezel'}>
         <div data-photo className="st-glass tpl-cover-media tpl-plate">
-          <ProductMedia product={product} suffix="station" sizes="(min-width: 1024px) 150px, (min-width: 640px) 18vw, 28vw" priority={priority} className="st-img" rounded={false} />
+          <ProductMedia product={product} suffix="station" sizes="(min-width: 640px) 96px, 20vw" priority={priority} className="st-img" rounded={false} />
         </div>
         <SaleChip product={product} className="tpl-photo-off st-off" />
-        <QuickAction product={product} variant="icon" className="tpl-rim-add st-add" />
       </div>
+      <Price product={product} className="tpl-price-tight st-led st-price" />
+      <QuickAction product={product} variant="icon" className="tpl-rim-add st-add" />
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name st-name">
+        {planet ? <span className="sr-only">{planet}: </span> : null}
         {product.name}
       </button>
-      <Price product={product} className="tpl-price-tight st-led st-price" />
     </li>
   );
 }
