@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRightLeft, Ban, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -8,6 +8,7 @@ import {
   addPosLine,
   cancelPosLine,
   cancelPosOrder,
+  mergePosOrders,
   movePosOrderToTable,
   requestPosBill,
   sendPosToKitchen,
@@ -52,7 +53,15 @@ export interface FreeTable {
   areaName: string;
 }
 
-type Dialogs = 'none' | 'pay' | 'paySelected' | 'invoiceDiscount' | 'cancelOrder' | 'move' | { line: OrderLineView; kind: 'cancel' | 'discount' };
+/** Another table's open order that this one can be merged into. */
+export interface MergeTarget {
+  orderId: string;
+  version: number;
+  number: number;
+  areaName: string;
+}
+
+type Dialogs = 'none' | 'pay' | 'paySelected' | 'invoiceDiscount' | 'cancelOrder' | 'move' | 'merge' | { line: OrderLineView; kind: 'cancel' | 'discount' };
 
 export interface DeliveryChoices {
   zones: ZoneRow[];
@@ -64,6 +73,7 @@ export function OrderScreen({
   catalog,
   can,
   freeTables,
+  mergeTargets = [],
   delivery,
   approvers,
   initialPaying = false,
@@ -74,6 +84,8 @@ export function OrderScreen({
   /** Managers who can approve a cashier's discount or cancel; null when the person needs no approval. */
   approvers: Approver[] | null;
   freeTables: FreeTable[];
+  /** Other tables with an open order, to merge this one into. */
+  mergeTargets?: MergeTarget[];
   delivery: DeliveryChoices;
   /** Open on the payment step (the board's "Pay", `?pay=1`). Ignored without the payment permission or a live line. */
   initialPaying?: boolean;
@@ -395,6 +407,12 @@ export function OrderScreen({
                   {t('pos.calm.moveTo')}
                 </button>
               ) : null}
+              {order.tableId && order.parts.length === 0 && mergeTargets.length > 0 ? (
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('merge')}>
+                  <Merge size={20} aria-hidden />
+                  {t('pos.merge.button')}
+                </button>
+              ) : null}
               {order.status !== 'BILL_REQUESTED' ? (
                 <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
                   <ReceiptText size={20} aria-hidden />
@@ -530,6 +548,26 @@ export function OrderScreen({
       >
         <Field label={t('pos.order.toTable')}>
           <Select name="tableId" size="lg" options={freeTables.map((table) => ({ value: table.id, label: `${formatNumber(table.number)} · ${table.areaName}` }))} />
+        </Field>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog === 'merge'}
+        onOpenChange={(open) => !open && setDialog('none')}
+        title={t('pos.merge.title')}
+        body={t('pos.merge.body')}
+        confirmLabel={t('pos.merge.confirm')}
+        tone="primary"
+        onConfirm={async (form) => {
+          const target = mergeTargets.find((x) => x.orderId === String(form.get('intoOrderId') ?? ''));
+          if (!target) return failed;
+          const result = await call(() => mergePosOrders({ fromOrderId: order.id, intoOrderId: target.orderId, fromVersion: order.version, intoVersion: target.version }), { quiet: true });
+          if (!result.ok) return failed;
+          router.push(`/pos/orders/${target.orderId}`);
+          return true;
+        }}
+      >
+        <Field label={t('pos.merge.into')}>
+          <Select name="intoOrderId" size="lg" options={mergeTargets.map((target) => ({ value: target.orderId, label: `${formatNumber(target.number)} · ${target.areaName}` }))} />
         </Field>
       </ConfirmDialog>
     </div>
