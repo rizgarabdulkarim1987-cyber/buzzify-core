@@ -437,3 +437,21 @@ test('a dish on sale shows a -NN% chip in the menu numerals on its photo, and ke
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });
+
+test('a search keeps each band its own colour (by its place in the full menu), and a dish card reads its name before its price', async ({ page }) => {
+  await openMenu(page, slug);
+  const colour = () => page.locator('#cat-bread .ik-flood').evaluate((node) => getComputedStyle(node).backgroundColor);
+  const chipColour = () => entry(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor);
+  const [band, chip] = [await colour(), await chipColour()];
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
+  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  expect(await colour()).toBe(band);
+  expect(await chipColour()).toBe(chip);
+  // The name comes first in the markup (a screen reader reads it before the price), and the price shows under it.
+  const cell = cards(page).first();
+  expect(await cell.evaluate((node) => Boolean(node.querySelector('.ik-name')!.compareDocumentPosition(node.querySelector('.ik-price')!) & Node.DOCUMENT_POSITION_FOLLOWING))).toBe(true);
+  const name = (await cell.locator('.ik-name').boundingBox())!;
+  const price = (await cell.locator('.ik-price').boundingBox())!;
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+});

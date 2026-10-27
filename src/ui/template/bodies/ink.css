@@ -2,7 +2,7 @@
  * The Section Ink body (a browse shape of a template menu): every section is a full-width colour band in a saturated hue
  * of its own (`--band`, with `--band-ink`, the text colour computed to read on it: ink-bands.ts), its top edge bled
  * like spilt ink (a mask of one of three blobby edges), with the section's name set large and its dish count, and the
- * dishes on it as paper-white cards two across (photo, name, price, a round add on the photo). The cards are white with
+ * dishes on it as paper-white cards three across (photo, name, price, a round add on the photo). The cards are white with
  * near-black text whatever the menu's palette, so a dish always reads; only the band, the strip's chips and the add
  * buttons wear the band colour. A band floods in once, the first time it scrolls into view: a circle of its colour grows
  * from its top corner (or from the chip that was tapped, `--fx`) with clip-path alone (useBandFlood.ts). Everything is
@@ -22,7 +22,7 @@
   --fx-start: 0%;
   color: var(--text);
 }
-[dir='rtl'] [data-body='ink'] {
+[data-body='ink']:dir(rtl) {
   --fx-start: 100%;
 }
 
@@ -236,16 +236,15 @@
   line-height: 1.25;
   overflow-wrap: anywhere;
   pointer-events: none;
-  /* The price comes before the name in the cell's markup; it is shown under it. */
-  order: 3;
 }
 
 @media (hover: hover) {
   [data-body='ink'] .ik-card:hover {
     box-shadow: 0 3px 0 var(--band);
   }
+  /* A ring in the chip's own text colour: the fill is not changed, so the text keeps its computed contrast. */
   [data-body='ink'] .ik-chip:hover:not([aria-current='true']) {
-    filter: brightness(1.08);
+    box-shadow: inset 0 0 0 2px currentColor;
   }
 }
 [data-body='ink'] .ik-card:active {

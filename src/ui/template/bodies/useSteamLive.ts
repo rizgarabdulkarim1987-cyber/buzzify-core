@@ -29,8 +29,24 @@ export function useSteamLive(root: RefObject<HTMLElement | null>, reduced: boole
         watching.add(row);
         watcher.observe(row);
       });
+    // Rows a search removed are no longer watched (the observer would keep the detached nodes until cleanup).
+    const forget = (records: MutationRecord[]) => {
+      for (const record of records)
+        record.removedNodes.forEach((node) => {
+          if (!(node instanceof Element)) return;
+          const gone = node.matches('[data-fx]') ? [node, ...node.querySelectorAll('[data-fx]')] : [...node.querySelectorAll('[data-fx]')];
+          for (const row of gone) {
+            if (row.isConnected) continue;
+            watcher.unobserve(row);
+            watching.delete(row);
+          }
+        });
+    };
     watch();
-    const mutations = new MutationObserver(watch);
+    const mutations = new MutationObserver((records) => {
+      forget(records);
+      watch();
+    });
     mutations.observe(host, { childList: true, subtree: true });
     return () => {
       mutations.disconnect();

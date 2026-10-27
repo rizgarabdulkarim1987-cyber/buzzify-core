@@ -9,6 +9,7 @@ import {
   expectFirstScreen,
   expectFocusRingShows,
   expectJumpsTo,
+  expectMotionEnds,
   expectOpensProduct,
   expectPlatePainted,
   expectQuickAdd,
@@ -117,7 +118,7 @@ test('the effects are CSS transform and opacity animations on the wisps and drip
   await openMenu(page, slug);
   const wisp = rowOf(page, 'croissant').locator('.stm-steam > i').first();
   await expect(wisp).toHaveCSS('animation-name', 'stm-rise');
-  await expect(wisp).toHaveCSS('animation-iteration-count', 'infinite');
+  await expect(wisp).toHaveCSS('animation-iteration-count', '1');
   const drip = rowOf(page, 'mille-feuille').locator('.stm-frost > i').first();
   await expect(drip).toHaveCSS('animation-name', 'stm-drip');
   await expect(rowOf(page, 'croissant').locator('.stm-fx')).toHaveCSS('pointer-events', 'none');
@@ -279,6 +280,10 @@ test('a long dish name and a long price stay inside the row without sideways scr
     expect(at.x + at.width, part).toBeLessThanOrEqual(box.x + box.width + 1);
     expect(at.y + at.height, part).toBeLessThanOrEqual(box.y + box.height + 1);
   }
+  // The price wraps in the text column: it ends before the add button starts.
+  const price = (await row.locator('.stm-price').boundingBox())!;
+  const add = (await row.locator('.stm-add').boundingBox())!;
+  expect(price.x + price.width).toBeLessThanOrEqual(add.x + 1);
   expect(await contrastOf(row.locator('.stm-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
@@ -396,4 +401,11 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its row, inside
   expect(at.y + at.height).toBeLessThanOrEqual(box.y + box.height + 1);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('nothing moves on its own for more than five seconds (WCAG 2.2.2: the scene is static, so there is no pause control)', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(steam(page)).toBeVisible();
+  await expect(steam(page).locator('.stm-steam > i').first()).toHaveCSS('animation-name', 'stm-rise');
+  await expectMotionEnds(steam(page));
 });

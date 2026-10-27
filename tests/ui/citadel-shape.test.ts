@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { CitadelBody } from '@/ui/template/bodies/CitadelBody';
-import { contrast } from '@/ui/template/bodies/ink-bands';
+import { contrastRatio as contrast } from '@/lib/palette';
 import { roofOf, SKY, windowState } from '@/ui/template/bodies/citadel-skyline';
 
 describe('the Erbil Citadel shape', () => {

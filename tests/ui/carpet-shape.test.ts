@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { CarpetBody } from '@/ui/template/bodies/CarpetBody';
-import { contrast } from '@/ui/template/bodies/ink-bands';
+import { contrastRatio as contrast } from '@/lib/palette';
 import { CARPET, WEAVES, weaveOf } from '@/ui/template/bodies/carpet-night';
 
 describe('the One Thousand and One Nights shape', () => {

@@ -191,3 +191,25 @@
     animation: none;
   }
 }
+
+/*
+ * A banner heading's number and dish count (`tpl-banner` on the ShapeHeading title): small pills in the banner. The
+ * count is the on-accent pill with accent text (a pair the palette rules keep readable); a shape colours its number.
+ */
+:where([data-body]) .tpl-banner :is(small, b) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1;
+}
+:where([data-body]) .tpl-banner b {
+  border-radius: 999px;
+  background-color: var(--on-accent);
+  color: var(--accent);
+  font-size: 0.75rem;
+}

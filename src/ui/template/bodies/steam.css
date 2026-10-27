@@ -71,7 +71,7 @@
   background: linear-gradient(to right, var(--hot-stripe), var(--cold-stripe));
   opacity: 0.85;
 }
-[dir='rtl'] [data-body='steam'] .stm-head::after {
+[data-body='steam'] .stm-head:dir(rtl)::after {
   background: linear-gradient(to left, var(--hot-stripe), var(--cold-stripe));
 }
 [data-body='steam'] .stm-title {
@@ -114,7 +114,8 @@
   border: 1px solid var(--line);
   border-inline-start: 4px solid var(--lane);
   border-radius: var(--radius-card, 0.875rem);
-  background: color-mix(in srgb, var(--lane) 9%, var(--card));
+  /* The tint (`--stm-tint`, from ROW_TINT in temperature.ts) is unit-tested to keep every text pair at 4.5:1. */
+  background: color-mix(in srgb, var(--lane) var(--stm-tint, 6%), var(--card));
 }
 [data-body='steam'] .stm-row[data-temp='hot'] {
   --lane: var(--hot-stripe);
@@ -126,8 +127,10 @@
   --lane: color-mix(in srgb, var(--text) 30%, transparent);
 }
 @media (hover: hover) {
+  /* Hover shows on the edge, not by a deeper tint (which would lower the text's contrast). */
   [data-body='steam'] .stm-row:hover {
-    background: color-mix(in srgb, var(--lane) 16%, var(--card));
+    border-color: color-mix(in srgb, var(--text) 45%, transparent);
+    border-inline-start-color: var(--lane);
   }
 }
 /* The tap area is the whole card; the card's rounded edge keeps its ring inside (the focus ring is drawn inset). */
@@ -146,8 +149,12 @@
   align-items: center;
   gap: 0.25rem 0.5rem;
 }
+/* A long price ("From 123,456,789 IQD") wraps in its column rather than running under the add button. */
 [data-body='steam'] .stm-price {
+  min-inline-size: 0;
   font-variant-numeric: tabular-nums;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 /* The temperature chip: words and a small drawn icon, on a fixed fill with its own ink. */
@@ -220,10 +227,12 @@
 [data-body='steam'] .stm-fx > i {
   position: absolute;
   display: block;
-  will-change: transform, opacity;
 }
 
-/* Steam: three soft wisps that rise, sway and thin out, a second apart. */
+/*
+ * Steam: three soft wisps that rise, sway and thin out, less than a second apart, once (all done within 5s, so
+ * nothing moves on its own for longer: WCAG 2.2.2), then they rest as a still, faint wisp (the reduced-motion look).
+ */
 [data-body='steam'] .stm-steam > i {
   inset-block-end: -8%;
   inline-size: 36%;
@@ -232,19 +241,20 @@
   background:
     radial-gradient(ellipse 45% 38% at 50% 72%, rgb(255 255 255 / 0.85), transparent 72%),
     radial-gradient(ellipse 38% 34% at 46% 36%, rgb(255 255 255 / 0.6), transparent 74%);
-  opacity: 0;
-  animation: stm-rise 3.4s ease-out infinite;
+  opacity: 0.4;
+  transform: translateY(-20%);
+  animation: stm-rise 3.4s ease-out 1 backwards;
 }
 [data-body='steam'] .stm-steam > i:nth-child(1) {
   inset-inline-start: 4%;
 }
 [data-body='steam'] .stm-steam > i:nth-child(2) {
   inset-inline-start: 32%;
-  animation-delay: 1.1s;
+  animation-delay: 0.8s;
 }
 [data-body='steam'] .stm-steam > i:nth-child(3) {
   inset-inline-start: 58%;
-  animation-delay: 2.2s;
+  animation-delay: 1.6s;
 }
 @keyframes stm-rise {
   0% {
@@ -257,13 +267,17 @@
   55% {
     transform: translate(-14%, -22%) rotate(-9deg) scale(0.95, 1);
   }
-  100% {
+  80% {
     opacity: 0;
     transform: translate(16%, -78%) rotate(13deg) scale(1.3, 1.25);
   }
+  100% {
+    opacity: 0.4;
+    transform: translateY(-20%);
+  }
 }
 
-/* Frost: a pale rim, beads of dew that stay, and two drips that run slowly down. */
+/* Frost: a pale rim, beads of dew that stay, and two drips that run slowly down, once each (done within 5s). */
 [data-body='steam'] .stm-frost {
   box-shadow:
     inset 0 0 0.875rem rgb(214 240 255 / 0.8),
@@ -284,15 +298,15 @@
   background: rgb(240 249 255 / 0.95);
   box-shadow: inset -1px -1px 1px rgb(60 110 150 / 0.35);
   opacity: 0;
-  animation: stm-drip 7s ease-in infinite;
+  animation: stm-drip 4.5s ease-in 1;
 }
 [data-body='steam'] .stm-frost > i:nth-child(1) {
   inset-inline-start: 30%;
 }
 [data-body='steam'] .stm-frost > i:nth-child(2) {
   inset-inline-start: 66%;
-  animation-duration: 9s;
-  animation-delay: 3.2s;
+  animation-duration: 4s;
+  animation-delay: 0.9s;
 }
 @keyframes stm-drip {
   0%,
@@ -337,7 +351,6 @@
 @media (prefers-reduced-motion: reduce) {
   [data-body='steam'] .stm-fx > i {
     animation: none;
-    will-change: auto;
   }
   [data-body='steam'] .stm-steam > i {
     opacity: 0.4;

@@ -9,6 +9,7 @@ import {
   expectFirstScreen,
   expectFocusRingShows,
   expectJumpsTo,
+  expectMotionEnds,
   expectOpensProduct,
   expectPlatePainted,
   expectQuickAdd,
@@ -56,7 +57,7 @@ const rollOf = (page: Page, categorySlug: string) => strip(page).getByRole('butt
 const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 
-// The carpet in view floats for ever, and Playwright clicks only a still target: the click tests below run with reduced
+// The carpet in view floats for a few seconds after it lights, and Playwright clicks only a still target: the click tests below run with reduced
 // motion (which stops the float, and is a mode guests really use); the float itself is tested with motion on.
 test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
   await openMenu(page, slug);
@@ -409,4 +410,24 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its medallion, 
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(card.locator('.cp-price .sr-only')).toContainText(/\d|[٠-٩]/);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('nothing moves on its own for more than five seconds (WCAG 2.2.2: the scene is static, so there is no pause control)', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(body(page)).toBeVisible();
+  await expect(body(page).locator('.cp-carpet[data-lit]')).toHaveCSS('animation-name', 'cp-float');
+  await expectMotionEnds(body(page));
+});
+
+test('a search keeps each carpet its own number and weave (by its place in the full menu)', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  const weave = () => page.locator('#cat-bread').evaluate((node) => getComputedStyle(node).getPropertyValue('--cp-base'));
+  const before = await weave();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
+  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  expect(await weave()).toBe(before);
 });

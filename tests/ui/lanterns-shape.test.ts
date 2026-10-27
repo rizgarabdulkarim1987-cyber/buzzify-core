@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { LanternsBody } from '@/ui/template/bodies/LanternsBody';
-import { contrast } from '@/ui/template/bodies/ink-bands';
+import { contrastRatio as contrast } from '@/lib/palette';
 import { DROPS, dropOf, NIGHT } from '@/ui/template/bodies/lanterns-night';
 
 describe('the Ramadan Nights shape', () => {
@@ -41,5 +41,11 @@ describe('the lanterns', () => {
     expect(contrast(NIGHT.labelLit, NIGHT.sky)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(NIGHT.ring, NIGHT.sky)).toBeGreaterThanOrEqual(3);
     expect(contrast(NIGHT.rope, NIGHT.sky)).toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('the add button and its hover', () => {
+  it('draws its plus in on-accent on the accent (at rest and on hover) at 4.5:1 in every palette', () => {
+    for (const { id, palette } of TEMPLATES['the-ramadan-nights'].palettes) expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
   });
 });

@@ -9,6 +9,7 @@ import {
   expectFirstScreen,
   expectFocusRingShows,
   expectJumpsTo,
+  expectMotionEnds,
   expectOpensProduct,
   expectPlatePainted,
   expectQuickAdd,
@@ -399,4 +400,41 @@ test('a dish on sale shows its -NN% chip in the menu numerals inside its card, w
   await expect(card.locator('.rm-price s')).toHaveCount(1);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('nothing moves on its own for more than five seconds (WCAG 2.2.2: the scene is static, so there is no pause control)', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(body(page)).toBeVisible();
+  await expect(body(page).locator('[aria-current="true"] .rm-hang')).toHaveCSS('animation-name', 'rm-sway');
+  await expectMotionEnds(body(page));
+});
+
+test('the add button is at least 40px square, inside its card, with the sale chip clear of it', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const row = body(page).locator('[data-row]').first();
+  const add = (await row.locator('.rm-add').boundingBox())!;
+  expect(add.width).toBeGreaterThanOrEqual(40);
+  expect(add.height).toBeGreaterThanOrEqual(40);
+  const card = (await row.boundingBox())!;
+  expect(add.x).toBeGreaterThanOrEqual(card.x - 1);
+  expect(add.x + add.width).toBeLessThanOrEqual(card.x + card.width + 1);
+  expect(add.y + add.height).toBeLessThanOrEqual(card.y + card.height + 1);
+  const sale = row.locator('.tpl-off, .tpl-badge-sale').first();
+  const chip = (await sale.boundingBox())!;
+  const overlaps = chip.x < add.x + add.width && add.x < chip.x + chip.width && chip.y < add.y + add.height && add.y < chip.y + chip.height;
+  expect(overlaps).toBe(false);
+});
+
+test('a search keeps each section its own numeral and drop (by its place in the full menu)', async ({ page }) => {
+  await openMenu(page, slug);
+  const lantern = lanternOf(page, 'bread');
+  const drop = () => lantern.evaluate((node) => getComputedStyle(node).getPropertyValue('--drop'));
+  const before = await drop();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
+  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  await expect(lantern.locator('.rm-pane')).toHaveText('5');
+  expect(await drop()).toBe(before);
 });

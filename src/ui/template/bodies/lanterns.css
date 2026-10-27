@@ -125,14 +125,19 @@
   font-weight: 800;
   box-shadow: 0 0 0.75rem 0.125rem rgb(255 211 107 / 0.75);
 }
+/* The lit lantern sways twice when it lights (under 5s, so nothing moves on its own for longer: WCAG 2.2.2), then hangs still. */
 [data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-hang {
-  animation: rm-sway 3s ease-in-out infinite alternate;
+  animation: rm-sway 2.4s ease-in-out 2;
 }
 @keyframes rm-sway {
-  from {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
     transform: rotate(-5deg);
   }
-  to {
+  75% {
     transform: rotate(5deg);
   }
 }
@@ -205,39 +210,16 @@
   border-radius: 50%;
   box-shadow: 0.3125rem -0.0625rem 0 0 var(--on-accent);
 }
-[dir='rtl'] [data-body='lanterns'] .rm-moon {
+[data-body='lanterns'] .rm-moon:dir(rtl) {
   transform: scaleX(-1);
 }
 /* The section's number: a small lit window, the one in the strip. */
 [data-body='lanterns'] .rm-title small {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
   border-radius: 0.5rem 0.5rem 0.625rem 0.625rem;
   background-color: var(--on-accent);
   color: var(--accent);
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
 }
-/* The dish count. */
-[data-body='lanterns'] .rm-title b {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background-color: var(--on-accent);
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1;
-}
+/* The dish count: the shared banner count (shapes.css `.tpl-banner b`). */
 /* A lattice band under the banner (the mashrabiya): small diamonds in the accent. */
 [data-body='lanterns'] .rm-head::after {
   content: '';
@@ -303,7 +285,7 @@
   box-shadow: 0.1875rem -0.0625rem 0 0 var(--accent-ink);
   vertical-align: -0.0625em;
 }
-[dir='rtl'] [data-body='lanterns'] .rm-name::before {
+[data-body='lanterns'] .rm-name:dir(rtl)::before {
   transform: scaleX(-1);
 }
 /* The whole card is the tap area; its keyboard ring is drawn inside the card, following its corners. */
@@ -325,9 +307,9 @@
   white-space: normal;
 }
 [data-body='lanterns'] .rm-add {
-  inline-size: 2.25rem;
+  inline-size: 2.5rem;
   min-inline-size: 0;
-  block-size: 2.25rem;
+  block-size: 2.5rem;
   padding: 0;
   background: var(--accent);
   color: var(--on-accent);

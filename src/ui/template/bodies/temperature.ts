@@ -104,3 +104,9 @@ export const LANES = {
   hot: { fill: '#F4A259', ink: '#2B1407', stripe: '#E8742A' },
   cold: { fill: '#A9DCF5', ink: '#0B2A3B', stripe: '#4FA9DC' },
 } as const;
+
+/**
+ * How much of its lane's stripe colour a row's ground takes (mixed into the card), as a fraction: low enough that the
+ * price (`--accent-ink`), the name and the muted text keep 4.5:1 on every palette (unit-tested). The hover keeps it.
+ */
+export const ROW_TINT = 0.06;

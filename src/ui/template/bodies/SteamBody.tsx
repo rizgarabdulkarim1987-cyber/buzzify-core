@@ -6,7 +6,7 @@ import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { RowDish } from './shared/RowDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
-import { LANES, temperatureOf, type Temperature } from './temperature';
+import { LANES, ROW_TINT, temperatureOf, type Temperature } from './temperature';
 import { useSteamLive } from './useSteamLive';
 import './shared/shapes.css';
 import './steam.css';
@@ -35,6 +35,7 @@ export function SteamBody() {
     '--cold-fill': LANES.cold.fill,
     '--cold-ink': LANES.cold.ink,
     '--cold-stripe': LANES.cold.stripe,
+    '--stm-tint': `${ROW_TINT * 100}%`,
   } as CSSProperties;
 
   return (

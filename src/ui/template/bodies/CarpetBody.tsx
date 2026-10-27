@@ -8,6 +8,7 @@ import { useTemplate } from '../context';
 import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { weaveOf } from './carpet-night';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
+import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/shapes.css';
 import './carpet.css';
 
@@ -24,6 +25,8 @@ export function CarpetBody() {
   const { locale, tenant } = useApp();
   const { categories, byCategory, activeId } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
+  // Weaves and numbers go by the section's place in the full menu, so a search never recolours or renumbers a carpet.
+  const placeOf = usePlaceOf();
 
   return (
     <div className="tpl-body" data-body="carpet">
@@ -38,7 +41,7 @@ export function CarpetBody() {
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
-          const weave = weaveOf(index);
+          const weave = weaveOf(placeOf(category));
           return (
             <section
               key={category.id}
@@ -48,7 +51,7 @@ export function CarpetBody() {
               style={{ '--cp-base': weave.base, '--cp-thread': weave.thread } as CSSProperties}
               className="tpl-section tpl-tall-last cp-carpet"
             >
-              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(index + 1)} count={n(products.length)} className="cp-front" title="cp-title" />
+              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(placeOf(category) + 1)} count={n(products.length)} className="cp-front" title="cp-title" />
               <div className="cp-rug">
                 <i aria-hidden className="cp-tassel" />
                 <i aria-hidden className="cp-tassel" />

@@ -8,6 +8,7 @@ import { SaleChip } from '../parts';
 import { bandColour, inkOn } from './ink-bands';
 import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
+import { usePlaceOf } from './shared/usePlaceOf';
 import { useBandFlood } from './useBandFlood';
 import './shared/shapes.css';
 import './ink.css';
@@ -27,8 +28,10 @@ export function InkBody() {
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   const root = useRef<HTMLDivElement>(null);
   const flood = useBandFlood(root, reduced);
-  const colours = (index: number) => {
-    const band = bandColour(index);
+  const placeOf = usePlaceOf();
+  // By the section's place in the full menu, so a search never recolours the bands it leaves.
+  const colours = (category: { id: string }) => {
+    const band = bandColour(placeOf(category));
     return { '--band': band, '--band-ink': inkOn(band) } as CSSProperties;
   };
 
@@ -37,7 +40,7 @@ export function InkBody() {
       <SectionStrip
         marker='chips'
         prefix='ik'
-        chipStyle={(_, index) => colours(index)}
+        chipStyle={(category) => colours(category)}
         onPick={(category, button) => flood(category.id, button)}
       >
         {(category) => <span>{category.name}</span>}
@@ -52,9 +55,9 @@ export function InkBody() {
               aria-labelledby={`h-${category.slug}`}
               data-band
               data-id={category.id}
-              data-edge={index % 3}
+              data-edge={placeOf(category) % 3}
               className='tpl-section tpl-tall-last ik-band'
-              style={colours(index)}
+              style={colours(category)}
             >
               <div className='ik-flood'>
                 <ShapeHeading
@@ -74,7 +77,7 @@ export function InkBody() {
                       cell='ik-card'
                       head='ik-head-photo'
                       price='ik-price'
-                      pricePlace='below'
+                      pricePlace='after'
                       media='cover'
                       addInPhoto
                       plate

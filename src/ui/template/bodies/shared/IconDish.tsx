@@ -19,8 +19,11 @@ export interface IconDishProps {
   head: string;
   /** The price's own class (a tag, a pill, a badge, a lid). */
   price: string;
-  /** Where the price sits: above the photo inside the head, in the head after the photo, or under the head. */
-  pricePlace: 'top' | 'head' | 'below';
+  /**
+   * Where the price sits: above the photo inside the head, in the head after the photo, under the head (before the
+   * name in the markup), or after the name (so a screen reader reads the name first).
+   */
+  pricePlace: 'top' | 'head' | 'below' | 'after';
   /** The photo covers its frame (`tpl-cover-media`, the frame sized elsewhere) or fills it (`tpl-fill-media`). */
   media?: 'fill' | 'cover';
   /** Drawn in the head after the photo (a level number, a sale chip), under the add button. */
@@ -67,6 +70,7 @@ export function IconDish({ product, prefix, suffix, cell, head, price, pricePlac
       <button type="button" onClick={() => openProduct(product.id)} className={`tpl-open tpl-dish-name ${prefix}-name text-center`}>
         {product.name}
       </button>
+      {pricePlace === 'after' && priceTag}
     </li>
   );
 }

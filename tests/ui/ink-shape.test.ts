@@ -3,7 +3,8 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { InkBody } from '@/ui/template/bodies/InkBody';
-import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, contrast, inkOn } from '@/ui/template/bodies/ink-bands';
+import { contrastRatio as contrast } from '@/lib/palette';
+import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, inkOn } from '@/ui/template/bodies/ink-bands';
 
 describe('the Section Ink shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {

@@ -4,7 +4,8 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { SteamBody } from '@/ui/template/bodies/SteamBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { LANES, temperatureOf } from '@/ui/template/bodies/temperature';
+import { accentInk, mix } from '@/lib/templates/palette';
+import { LANES, ROW_TINT, temperatureOf } from '@/ui/template/bodies/temperature';
 
 const dish = (name: string, dietary: string[] = []) => ({ name, description: '', dietary });
 const section = (name: string) => ({ name });
@@ -159,5 +160,22 @@ describe('temperatureOf', () => {
 describe('the lanes', () => {
   it('has a chip text colour that reads on the fill of each lane at 4.5:1', () => {
     for (const lane of Object.values(LANES)) expect(contrast(lane.ink, lane.fill)).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
+describe('the rows', () => {
+  it('keep the price, the name and the muted text (was-price, badges) at 4.5:1 on every lane tint, in every palette', () => {
+    const preset = TEMPLATES['the-living-steam'];
+    expect(ROW_TINT).toBeLessThanOrEqual(0.06);
+    for (const { id, palette } of preset.palettes) {
+      // The row's ground: the lane colour mixed into the card (CSS: color-mix(var(--lane) var(--stm-tint), var(--card))).
+      const lanes = { hot: LANES.hot.stripe, cold: LANES.cold.stripe, neutral: mix(palette.card, palette.text, 0.3) };
+      for (const [lane, colour] of Object.entries(lanes)) {
+        const row = mix(palette.card, colour, ROW_TINT);
+        expect(contrast(accentInk(palette), row), `${id} ${lane} price`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(palette.text, row), `${id} ${lane} name`).toBeGreaterThanOrEqual(4.5);
+        expect(contrast(palette.muted, row), `${id} ${lane} muted`).toBeGreaterThanOrEqual(4.5);
+      }
+    }
   });
 });

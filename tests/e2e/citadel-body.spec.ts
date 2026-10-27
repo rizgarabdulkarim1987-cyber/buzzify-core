@@ -355,3 +355,33 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its card, insid
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
+
+test('the add button is at least 40px square, inside its card, with the sale chip clear of it', async ({ page }) => {
+  await openMenu(page, arabSlug);
+  const row = citadel(page).locator('[data-row]').first();
+  const add = (await row.locator('.ct-add').boundingBox())!;
+  expect(add.width).toBeGreaterThanOrEqual(40);
+  expect(add.height).toBeGreaterThanOrEqual(40);
+  const card = (await row.boundingBox())!;
+  expect(add.x).toBeGreaterThanOrEqual(card.x - 1);
+  expect(add.x + add.width).toBeLessThanOrEqual(card.x + card.width + 1);
+  expect(add.y + add.height).toBeLessThanOrEqual(card.y + card.height + 1);
+  const sale = row.locator('.tpl-off, .tpl-badge-sale').first();
+  const chip = (await sale.boundingBox())!;
+  const overlaps = chip.x < add.x + add.width && add.x < chip.x + chip.width && chip.y < add.y + add.height && add.y < chip.y + chip.height;
+  expect(overlaps).toBe(false);
+});
+
+test('a search keeps each section its own number, window and roof (by its place in the full menu)', async ({ page }) => {
+  await openMenu(page, slug);
+  const house = windowOf(page, 'bread');
+  const roof = () => house.locator('.ct-roof').getAttribute('data-roof');
+  const before = await roof();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
+  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
+  await expect(page.locator('#cat-bread')).toBeVisible();
+  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
+  await expect(paneOf(house)).toHaveText('5');
+  expect(await roof()).toBe(before);
+});

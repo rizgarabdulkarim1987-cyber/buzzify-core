@@ -6,6 +6,7 @@ import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { dropOf } from './lanterns-night';
 import { RowDish } from './shared/RowDish';
+import { usePlaceOf } from './shared/usePlaceOf';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './lanterns.css';
@@ -23,6 +24,8 @@ export function LanternsBody() {
   const { locale, tenant } = useApp();
   const { categories, byCategory } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
+  // Drops and numerals go by the section's place in the full menu, so a search never renumbers the lanterns.
+  const placeOf = usePlaceOf();
 
   return (
     <div className="tpl-body" data-body="lanterns">
@@ -31,14 +34,14 @@ export function LanternsBody() {
         prefix="rm"
         className="rm-strip"
         chip="rm-lantern"
-        chipStyle={(_, index) => ({ '--drop': `${dropOf(index)}rem` }) as CSSProperties}
+        chipStyle={(category) => ({ '--drop': `${dropOf(placeOf(category))}rem` }) as CSSProperties}
       >
-        {(category, index) => (
+        {(category) => (
           <>
             <span aria-hidden className="rm-hang">
               <i className="rm-string" />
               <i className="rm-cap" />
-              <span className="rm-pane">{n(index + 1)}</span>
+              <span className="rm-pane">{n(placeOf(category) + 1)}</span>
               <i className="rm-base" />
             </span>
             <span className="rm-label">{category.name}</span>
@@ -50,7 +53,7 @@ export function LanternsBody() {
           const products = byCategory.get(category.id) ?? [];
           return (
             <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section tpl-tall-last rm-niche">
-              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(index + 1)} count={n(products.length)} className="rm-head" title="rm-title" lead={<i aria-hidden className="rm-moon" />} />
+              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(placeOf(category) + 1)} count={n(products.length)} className="rm-head" title="rm-title tpl-banner" lead={<i aria-hidden className="rm-moon" />} />
               <ul className="rm-list">
                 {products.map((product, at) => (
                   <RowDish key={product.id} product={product} prefix="rm" suffix="lanterns" sizes="72px" priority={index < 2 && at < 6} iconAdd plate />

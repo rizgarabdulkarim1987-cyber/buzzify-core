@@ -160,6 +160,24 @@ export async function expectPlatePainted(photo: Locator, card: Locator, { maxCon
   }
 }
 
+/**
+ * WCAG 2.2.2: no CSS animation in `scope` (its pseudo-elements included) that started on its own runs for longer than
+ * `max` ms in all (delay plus every iteration), since a static scene offers no pause control.
+ */
+export async function expectMotionEnds(scope: Locator, max = 5000) {
+  const long = await scope.evaluate(
+    (root, limit) =>
+      root
+        .getAnimations({ subtree: true })
+        .filter((animation) => animation instanceof CSSAnimation)
+        .map((animation) => ({ name: (animation as CSSAnimation).animationName, end: Number(animation.effect?.getComputedTiming().endTime) }))
+        .filter((animation) => !(animation.end <= limit))
+        .map((animation) => `${animation.name} ends at ${animation.end}ms`),
+    max,
+  );
+  expect(long, 'animations that run past five seconds').toEqual([]);
+}
+
 /** Replaces IntersectionObserver with one that never reports (a background tab, an unpainted preview), from the first script on. */
 export const silenceObserver = (page: Page) =>
   page.addInitScript(() => {

@@ -200,34 +200,11 @@
 }
 /* The terrace's number: a small lit window, the one on the skyline. */
 [data-body='citadel'] .ct-title small {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
   border-radius: 999px 999px 0.1875rem 0.1875rem;
   background: #ffe29a;
   color: #2a1408;
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
 }
-/* The dish count. */
-[data-body='citadel'] .ct-title b {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background: var(--on-accent);
-  color: var(--accent);
-  font-size: 0.75rem;
-  font-weight: 800;
-  line-height: 1;
-}
+/* The dish count: the shared banner count (shapes.css `.tpl-banner b`). */
 /* The second step: a band wider than the banner, edged with a small zigzag (a row of teeth). */
 [data-body='citadel'] .ct-head::after {
   content: '';
@@ -276,7 +253,7 @@
   inset-block-end: 0.25rem;
 }
 [data-body='citadel'] .ct-add {
-  --rim-add-size: 2rem;
+  --rim-add-size: 2.5rem;
   z-index: 3;
   inset-block-end: 0.25rem;
   inset-inline-end: 0.25rem;

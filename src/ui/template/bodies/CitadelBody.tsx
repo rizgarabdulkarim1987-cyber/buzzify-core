@@ -6,6 +6,7 @@ import { useTemplate } from '../context';
 import { QuickAction } from '../parts';
 import { roofOf, windowState } from './citadel-skyline';
 import { PhotoCard } from './shared/PhotoCard';
+import { usePlaceOf } from './shared/usePlaceOf';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './citadel.css';
@@ -24,8 +25,11 @@ export function CitadelBody() {
   const { locale, tenant } = useApp();
   const { categories, byCategory, activeId } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-  const activeAt = categories.findIndex((category) => category.id === activeId);
-  const shown = categories[Math.max(0, activeAt)];
+  // Numbers, roofs and the lit window go by the section's place in the full menu, so a search never renumbers them.
+  const placeOf = usePlaceOf();
+  const lit = categories.find((category) => category.id === activeId);
+  const shown = lit ?? categories[0];
+  const activeAt = lit ? placeOf(lit) : -1;
 
   return (
     <div className="tpl-body" data-body="citadel">
@@ -40,11 +44,11 @@ export function CitadelBody() {
           </p>
         }
       >
-        {(category, index) => (
+        {(category) => (
           <>
-            <span aria-hidden data-roof={roofOf(index)} className="ct-roof" />
-            <span aria-hidden data-pane={windowState(index, activeAt)} className="ct-pane">
-              {n(index + 1)}
+            <span aria-hidden data-roof={roofOf(placeOf(category))} className="ct-roof" />
+            <span aria-hidden data-pane={windowState(placeOf(category), activeAt)} className="ct-pane">
+              {n(placeOf(category) + 1)}
             </span>
             <span className="sr-only">{category.name}</span>
           </>
@@ -55,7 +59,7 @@ export function CitadelBody() {
           const products = byCategory.get(category.id) ?? [];
           return (
             <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} className="tpl-section tpl-tall-last ct-terrace">
-              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(index + 1)} count={n(products.length)} className="ct-head" title="ct-title" />
+              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(placeOf(category) + 1)} count={n(products.length)} className="ct-head" title="ct-title tpl-banner" />
               <ul className="ct-grid">
                 {products.map((product, at) => (
                   <PhotoCard
