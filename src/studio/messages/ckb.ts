@@ -2414,6 +2414,7 @@ const ckb: Messages = {
   'design.body.rugs': 'جاجمی چنراو',
   'design.body.lattice': 'پەنجەرەی شەناشیل',
   'design.body.gate': 'دەروازەکانی ئیشتار',
+  'design.body.station': 'مۆدیوڵەکانی وێستگەی ئاسمانی',
   'design.setByShape': 'لەلایەن شێوەی {shape} دیاری کراوە',
   'design.hero.editorial': 'خواردنی ناسراو، گەورە',
   'design.hero.asymmetric': 'دیارەکان، ناڕێک',

@@ -904,4 +904,33 @@ export const theIshtarGate = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate];
+export const theSpaceStation = definePreset({
+  id: 'the-space-station',
+  number: 62,
+  name: 'Space Station',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#070B1A', text: '#E8E6FF', accent: '#9B8CFF', raised: '#141B35' },
+  alternatives: [
+    { id: 'mars-base', name: 'Mars base', seed: { bg: '#1A0D0A', text: '#FFE9DF', accent: '#FF8A5C', raised: '#2B1712' } },
+    { id: 'aurora-deck', name: 'Aurora deck', seed: { bg: '#04161A', text: '#DDFBF3', accent: '#3FE0B5', raised: '#0B2A30' } },
+    { id: 'white-hull', name: 'White hull', seed: { bg: '#E8ECF5', text: '#0B1226', accent: '#2B4FD8', raised: '#F7F9FD' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'station',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation];
