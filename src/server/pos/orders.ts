@@ -5,6 +5,7 @@ import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/p
 import { canTransition, isLocked, LOCKED_STATUSES, type OrderStatus } from '@/server/domain/pos/order-state';
 import { computeTotals, lineTotal, type Discount, type PricedLine, type Rates, type Totals } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
+import type { DiscountWhy } from './approval';
 import { isUniqueViolation, refuse } from './errors';
 import { kitchenDone } from './kitchen-state';
 
@@ -134,12 +135,21 @@ export async function openOrderIn(db: AnyDb, restaurantId: string, tableId: stri
   return { orderId: order.id, number: order.number, version: order.version };
 }
 
-export async function setInvoiceDiscountIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; discount: Discount | null }) {
+export async function setInvoiceDiscountIn(
+  db: AnyDb,
+  restaurantId: string,
+  input: { orderId: string; expectedVersion: number; discount: Discount | null; why?: DiscountWhy },
+) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
+  // The reason lives with the discount: clearing the discount clears it too.
+  const why = input.discount ? input.why : undefined;
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {
     invoiceDiscountKind: input.discount?.kind ?? null,
     invoiceDiscountValue: input.discount?.value ?? null,
+    invoiceDiscountReason: why?.reason ?? null,
+    invoiceDiscountNote: why?.note ?? null,
+    invoiceDiscountApprovedByStaffId: why?.approvedByStaffId ?? null,
   });
   return { orderId: order.id, version, before: toDiscount(order.invoiceDiscountKind, order.invoiceDiscountValue) ?? null, after: input.discount };
 }

@@ -36,8 +36,8 @@ beforeEach(async () => {
   });
   await prisma().posSettings.upsert({
     where: { restaurantId: a.id },
-    create: { restaurantId: a.id, catalogMenuId: menu.id, takeawayEnabled: true, deliveryEnabled: true },
-    update: { catalogMenuId: menu.id, takeawayEnabled: true, deliveryEnabled: true },
+    create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menu.id, takeawayEnabled: true, deliveryEnabled: true },
+    update: { requireApproval: false, catalogMenuId: menu.id, takeawayEnabled: true, deliveryEnabled: true },
   });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'food', sortOrder: 1, translations: { ar: { name: 'أكل' }, en: { name: 'Food' } } } });
   burger = (await prisma().product.create({ data: { menuId: menu.id, categoryId: category.id, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: { ar: { name: 'برغر' }, en: { name: 'Burger' } } } })).id;

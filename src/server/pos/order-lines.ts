@@ -2,6 +2,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { isLocale, type Locale } from '@/lib/locale';
 import { lineTotal, type Discount } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
+import type { DiscountWhy } from './approval';
 import { refuse } from './errors';
 import {
   bumpOrder,
@@ -141,6 +142,8 @@ export interface UpdateLineInput {
   quantity?: number;
   note?: string;
   discount?: Discount | null;
+  /** Why a discount was given and who approved it; stored with the discount, cleared with it. */
+  why?: DiscountWhy;
 }
 
 async function loadLineForChange(db: AnyDb, restaurantId: string, lineId: string, expected: number) {
@@ -169,7 +172,15 @@ export async function updateLineIn(db: AnyDb, restaurantId: string, input: Updat
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, status !== order.status ? { status } : {});
 
   const changes: Record<string, { before: unknown; after: unknown }> = {};
-  const data: { quantity?: number; note?: string; discountKind?: Discount['kind'] | null; discountValue?: number | null } = {};
+  const data: {
+    quantity?: number;
+    note?: string;
+    discountKind?: Discount['kind'] | null;
+    discountValue?: number | null;
+    discountReason?: DiscountWhy['reason'] | null;
+    discountNote?: string | null;
+    discountApprovedByStaffId?: string | null;
+  } = {};
   if (input.quantity !== undefined) {
     data.quantity = input.quantity;
     changes.quantity = { before: line.quantity, after: input.quantity };
@@ -181,6 +192,10 @@ export async function updateLineIn(db: AnyDb, restaurantId: string, input: Updat
   if (input.discount !== undefined) {
     data.discountKind = input.discount?.kind ?? null;
     data.discountValue = input.discount?.value ?? null;
+    const why = input.discount ? input.why : undefined;
+    data.discountReason = why?.reason ?? null;
+    data.discountNote = why?.note ?? null;
+    data.discountApprovedByStaffId = why?.approvedByStaffId ?? null;
     changes.discount = { before: toDiscount(line.discountKind, line.discountValue) ?? null, after: input.discount };
   }
   // sentAt: null too when the quantity or note changes, so a send that won the row lock first cannot be overwritten.

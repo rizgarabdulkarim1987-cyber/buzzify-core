@@ -33,7 +33,7 @@ beforeEach(async () => {
   const menu = await prisma().menu.create({
     data: { restaurantId: a.id, name: 'm', slug: 'menu-a', currency: 'IQD', locales: ['ar', 'en'], defaultLocale: 'ar', timezone: 'Asia/Baghdad' },
   });
-  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, catalogMenuId: menu.id }, update: { catalogMenuId: menu.id } });
+  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menu.id }, update: { requireApproval: false, catalogMenuId: menu.id } });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } });
   burger = (await prisma().product.create({ data: { menuId: menu.id, categoryId: category.id, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: names('برغر', 'Burger') } })).id;
   const areaId = dataOf(await run(manager, createPosArea, { name: 'Hall' })).areaId;
@@ -109,7 +109,7 @@ describe('paying in cash', () => {
   it('pays a free order (everything discounted) with nothing received', async () => {
     await shift();
     const { orderId, version } = await orderOf(1);
-    const free = dataOf(await run(cashier, setPosInvoiceDiscount, { orderId, discount: { kind: 'PERCENT', value: 100 }, expectedVersion: version }));
+    const free = dataOf(await run(cashier, setPosInvoiceDiscount, { orderId, discount: { kind: 'PERCENT', value: 100, reason: 'MANAGER_DECISION' }, expectedVersion: version }));
     expect(dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: free.version, expectedTotal: 0, amountReceived: 0 })).total).toBe(0);
   });
 

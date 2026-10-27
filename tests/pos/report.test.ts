@@ -41,7 +41,7 @@ beforeEach(async () => {
   const menu = await prisma().menu.create({
     data: { restaurantId: a.id, name: 'm', slug: 'menu-a', currency: 'IQD', locales: ['ar', 'en'], defaultLocale: 'ar', timezone: 'Asia/Baghdad' },
   });
-  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, catalogMenuId: menu.id }, update: { catalogMenuId: menu.id } });
+  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, requireApproval: false, catalogMenuId: menu.id }, update: { requireApproval: false, catalogMenuId: menu.id } });
   const category = await prisma().category.create({ data: { menuId: menu.id, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } });
   burger = (await prisma().product.create({ data: { menuId: menu.id, categoryId: category.id, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: names('برغر', 'Burger') } })).id;
   const areaId = dataOf(await run(manager, createPosArea, { name: 'Hall' })).areaId;
@@ -78,11 +78,11 @@ describe('the daily report', () => {
     const s2 = dataOf(await run(other, openPosShift, { openingFloat: 5_000 })).shiftId;
     // Shift 1: 30,000 from six burgers where 10% is taken off the invoice -> 27,000.
     const big = await order(cashier, 6);
-    const discounted = dataOf(await run(cashier, setPosInvoiceDiscount, { orderId: big.orderId, discount: { kind: 'PERCENT', value: 10 }, expectedVersion: big.version }));
+    const discounted = dataOf(await run(cashier, setPosInvoiceDiscount, { orderId: big.orderId, discount: { kind: 'PERCENT', value: 10, reason: 'MANAGER_DECISION' }, expectedVersion: big.version }));
     dataOf(await run(cashier, payPosOrder, { orderId: big.orderId, expectedVersion: discounted.version, expectedTotal: 27_000, amountReceived: 27_000 }));
     // Shift 1 also: 10,000 from two burgers where one line has 1,000 off -> 9,000.
     const small = await order(cashier, 2);
-    const lined = dataOf(await run(cashier, updatePosLine, { lineId: small.lineId, discount: { kind: 'AMOUNT', value: 1_000 }, expectedVersion: small.version }));
+    const lined = dataOf(await run(cashier, updatePosLine, { lineId: small.lineId, discount: { kind: 'AMOUNT', value: 1_000, reason: 'MANAGER_DECISION' }, expectedVersion: small.version }));
     dataOf(await run(cashier, payPosOrder, { orderId: small.orderId, expectedVersion: lined.version, expectedTotal: 9_000, amountReceived: 9_000 }));
     // Shift 2: 10,000 from two burgers.
     await paid(other, 2);
