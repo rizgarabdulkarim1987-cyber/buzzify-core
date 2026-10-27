@@ -204,9 +204,10 @@ export async function openMenu(page: Page, slug: string, { locale = 'en', hash =
 }
 
 /**
- * The first-screen rule: at least `min` of `dishes` show a picture and a price both wholly inside the viewport. A
- * dish's picture is its first `<img>` or `<svg>`; its price is the first text that reads like one (`$` and a digit,
- * Latin or Arabic-Indic).
+ * The first-screen rule: at least `min` DIFFERENT dishes among `dishes` show a picture and a price both wholly inside
+ * the viewport. A dish's picture is its first `<img>` or `<svg>`; its price is the first text that reads like one (`$`
+ * and a digit, Latin or Arabic-Indic). Dishes are told apart by the text of their open button (`.tpl-open`), so a dish
+ * drawn twice (a featured copy beside its own cell) counts once.
  */
 export async function expectFirstScreen(page: Page, dishes: Locator, { min }: { min: number }) {
   await expect(dishes.first()).toBeVisible();
@@ -214,7 +215,7 @@ export async function expectFirstScreen(page: Page, dishes: Locator, { min }: { 
   await expectNoPageWiden(page);
   const shown = await dishes.evaluateAll((nodes) => {
     const inside = (box: DOMRect) => box.width > 0 && box.height > 0 && box.top >= 0 && box.left >= 0 && box.bottom <= window.innerHeight && box.right <= window.innerWidth;
-    return nodes.filter((node) => {
+    const seen = nodes.filter((node) => {
       const picture = node.querySelector('img, svg');
       if (!picture || !inside(picture.getBoundingClientRect())) return false;
       const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
@@ -225,9 +226,36 @@ export async function expectFirstScreen(page: Page, dishes: Locator, { min }: { 
         return inside(range.getBoundingClientRect());
       }
       return false;
-    }).length;
+    });
+    return new Set(seen.map((node, at) => node.querySelector('.tpl-open')?.textContent?.trim() || `#${at}`)).size;
   });
-  expect(shown, `dishes with a picture and a price on the first screen`).toBeGreaterThanOrEqual(min);
+  expect(shown, `different dishes with a picture and a price on the first screen`).toBeGreaterThanOrEqual(min);
+}
+
+/**
+ * No word in `names` breaks across lines: each word's characters lie on one line (a word that is wider than its whole
+ * line may still break; pass names that fit). Measured with a Range over every word of every text node, in whatever
+ * script the page is in.
+ */
+export async function expectWordsWhole(names: Locator) {
+  const broken = await names.evaluateAll((nodes) =>
+    nodes.flatMap((node) => {
+      const out: string[] = [];
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      for (let text = walker.nextNode(); text; text = walker.nextNode()) {
+        const value = text.textContent ?? '';
+        for (const match of value.matchAll(/\S+/g)) {
+          const range = document.createRange();
+          range.setStart(text, match.index!);
+          range.setEnd(text, match.index! + match[0].length);
+          const tops = new Set([...range.getClientRects()].filter((rect) => rect.width > 0).map((rect) => Math.round(rect.top / 4)));
+          if (tops.size > 1) out.push(match[0]);
+        }
+      }
+      return out;
+    }),
+  );
+  expect(broken, 'words broken across lines').toEqual([]);
 }
 
 /**
