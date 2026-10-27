@@ -41,8 +41,5 @@ export function towelOf(at: number): string {
   return TOWELS[((at % TOWELS.length) + TOWELS.length) % TOWELS.length]!;
 }
 
-/** The lit ring colour for an accent: the accent lifted 55% towards white. Mirrors the CSS `color-mix`. */
-export function riseOf(accent: string): string {
-  const lifted = [1, 3, 5].map((at) => Math.round(parseInt(accent.slice(at, at + 2), 16) * 0.45 + 255 * 0.55));
-  return `#${lifted.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
-}
+/** The lit ring colour for an accent (shared/rise.ts: the accent lifted 55% towards white, as the CSS draws it). */
+export { riseOf } from './shared/rise';

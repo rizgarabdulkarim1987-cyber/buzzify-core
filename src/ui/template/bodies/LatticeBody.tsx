@@ -10,6 +10,7 @@ import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/shapes.css';
 import './shared/photo-card.css';
 import './shared/arch-chip.css';
+import './shared/name-chip.css';
 import './lattice.css';
 
 /**
@@ -39,7 +40,7 @@ export function LatticeBody() {
             <span aria-hidden data-pane={category.id === activeId ? 'active' : 'rest'} className="tpl-arch-glass sh-glass">
               {n(placeOf(category) + 1)}
             </span>
-            <span className="tpl-arch-label">{category.name}</span>
+            <span className="tpl-chip-name tpl-arch-label">{category.name}</span>
           </>
         )}
       </SectionStrip>

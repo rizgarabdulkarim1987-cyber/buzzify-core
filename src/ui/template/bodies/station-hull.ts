@@ -29,8 +29,5 @@ export const HULL = {
   amberInk: '#1a0f00',
 } as const;
 
-/** The LED colour for an accent: the accent lifted 55% towards white (a lightness floor, so it reads on `HULL.deep`). Mirrors the CSS `color-mix`. */
-export function ledOf(accent: string): string {
-  const lifted = [1, 3, 5].map((at) => Math.round(parseInt(accent.slice(at, at + 2), 16) * 0.45 + 255 * 0.55));
-  return `#${lifted.map((channel) => channel.toString(16).padStart(2, '0')).join('')}`;
-}
+/** The LED colour for an accent: the accent lifted 55% towards white (shared/rise.ts), so it reads on `HULL.deep`. */
+export { riseOf as ledOf } from './shared/rise';

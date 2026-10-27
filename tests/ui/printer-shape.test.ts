@@ -5,7 +5,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { layerNumber, PrinterBody, printedShare, sweepDelay } from '@/ui/template/bodies/PrinterBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { riseOf } from '@/ui/template/bodies/beach-fills';
+import { riseOf } from '@/ui/template/bodies/shared/rise';
 import { PRINTER } from '@/ui/template/bodies/printer-fills';
 import { MESSAGES } from '@/lib/messages';
 

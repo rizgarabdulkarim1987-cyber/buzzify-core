@@ -6,7 +6,8 @@
 
 /*
  * A strip chip: an arched frame holding a small window with the section's number (`.tpl-arch-glass`) and, beside it, the
- * section's name on two lines at most (`.tpl-arch-label`), so a guest can aim a tap by name.
+ * section's name on two lines at most (`.tpl-arch-label`, drawn by shared/name-chip.css `.tpl-chip-name`), so a guest can
+ * aim a tap by name.
  */
 :where([data-body]) .tpl-arch-chip {
   position: relative;
@@ -37,19 +38,6 @@
   font-size: 0.875rem;
   font-weight: 700;
   line-height: 1;
-}
-:where([data-body]) .tpl-arch-label {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  min-inline-size: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.15;
-  text-align: start;
 }
 /* The section in view: the frame and its window lit. */
 :where([data-body]) .tpl-arch-chip[aria-current='true'] {
