@@ -15,6 +15,7 @@ import {
   expectStripStays,
   openMenu,
   paletteIdsOf,
+  silenceObserver,
 } from './helpers/body-menu';
 
 /**
@@ -147,10 +148,46 @@ test('a band floods in with its colour when it first scrolls into view: a clip-p
   await settled(page, 'bread');
   // Only clip-path moves (no layout property), and it is the only transition.
   expect(await page.locator('#cat-bread .ik-flood').evaluate((node) => getComputedStyle(node).transitionProperty)).toBe('clip-path');
-  // Back up and down again: the band stays flooded, nothing replays.
+  // Back up and down again: the band stays flooded, nothing replays. Sampled every frame for 400ms after the band
+  // comes back in (an observer re-entry that replayed would show a smaller circle).
   await page.evaluate(() => window.scrollTo(0, 0));
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  expect(await page.locator('#cat-bread .ik-flood').evaluate((node) => getComputedStyle(node).clipPath)).toMatch(/circle\(150%/);
+  await page.waitForTimeout(300);
+  const clips = await page.evaluate(async () => {
+    window.scrollTo(0, document.body.scrollHeight);
+    const flood = document.querySelector('#cat-bread .ik-flood')!;
+    const seen: string[] = [];
+    const start = performance.now();
+    while (performance.now() - start < 400) {
+      seen.push(getComputedStyle(flood).clipPath);
+      await new Promise((done) => requestAnimationFrame(done));
+    }
+    return seen;
+  });
+  expect(clips.length).toBeGreaterThan(3);
+  for (const clip of clips) expect(clip).toMatch(/circle\(150%/);
+  expect(await flooded(page, 'bread')).toBe(true);
+});
+
+test('with an observer that never reports, no band stays hidden: the first screen is flooded, and a band floods when scrolled to', async ({ page }) => {
+  await silenceObserver(page);
+  await openMenu(page, slug);
+  await expect(ink(page)).toHaveAttribute('data-armed', '');
+  await expect.poll(() => flooded(page, 'viennoiserie')).toBe(true);
+  await page.locator('#cat-bread').scrollIntoViewIfNeeded();
+  await expect.poll(() => flooded(page, 'bread'), { timeout: 2000 }).toBe(true);
+  await settled(page, 'bread');
+});
+
+test('keyboard focus in a band that has not flooded floods it, without any scroll', async ({ page }) => {
+  await silenceObserver(page);
+  await openMenu(page, slug);
+  await expect(ink(page)).toHaveAttribute('data-armed', '');
+  // Past the one late pass after arming, so only the focus can flood it.
+  await page.waitForTimeout(1500);
+  expect(await flooded(page, 'bread')).toBe(false);
+  await page.locator('#cat-bread .ik-name').first().evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await expect.poll(() => flooded(page, 'bread')).toBe(true);
+  await settled(page, 'bread');
 });
 
 test('tapping a chip floods that band from the chip as the page scrolls to it', async ({ page }) => {

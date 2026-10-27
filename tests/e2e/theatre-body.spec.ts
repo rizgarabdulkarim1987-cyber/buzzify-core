@@ -15,6 +15,7 @@ import {
   expectStripStays,
   openMenu,
   paletteIdsOf,
+  silenceObserver,
 } from './helpers/body-menu';
 
 /**
@@ -296,22 +297,6 @@ const drawnAcross = (page: Page, stageId: string) =>
     const curtain = stage.querySelector('.th-curtain-s')!.getBoundingClientRect();
     const box = stage.getBoundingClientRect();
     return getComputedStyle(document.documentElement).direction === 'rtl' ? box.right - curtain.left : curtain.right - box.left;
-  });
-
-/** An IntersectionObserver that never reports (a background tab, an unpainted preview). */
-const silenceObserver = (page: Page) =>
-  page.addInitScript(() => {
-    window.IntersectionObserver = class {
-      readonly root = null;
-      readonly rootMargin = '';
-      readonly thresholds = [];
-      observe() {}
-      unobserve() {}
-      disconnect() {}
-      takeRecords() {
-        return [];
-      }
-    } as unknown as typeof IntersectionObserver;
   });
 
 test('the first screen is never covered: the stages on it at load are never seen with their curtains shut', async ({ page }) => {

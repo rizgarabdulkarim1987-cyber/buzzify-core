@@ -103,6 +103,22 @@ export function bodyMenus(): BodyMenus {
   };
 }
 
+/** Replaces IntersectionObserver with one that never reports (a background tab, an unpainted preview), from the first script on. */
+export const silenceObserver = (page: Page) =>
+  page.addInitScript(() => {
+    window.IntersectionObserver = class {
+      readonly root = null;
+      readonly rootMargin = '';
+      readonly thresholds = [];
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    } as unknown as typeof IntersectionObserver;
+  });
+
 /** Opens the menu without the stage intro; on a phone (390 x 844) unless `phone` is false. */
 export async function openMenu(page: Page, slug: string, { locale = 'en', hash = '', phone = true }: { locale?: string; hash?: string; phone?: boolean } = {}) {
   if (phone) await page.setViewportSize(PHONE);

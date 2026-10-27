@@ -15,6 +15,7 @@ import {
   expectStripStays,
   openMenu,
   paletteIdsOf,
+  silenceObserver,
 } from './helpers/body-menu';
 
 /**
@@ -102,6 +103,22 @@ test('the chip strip lights the section in view and stays at the top', async ({ 
   await expect(chips(page).locator('[aria-current="true"]')).toHaveCount(1);
   await expect(entry(page, 'bread')).toHaveAttribute('aria-current', 'true');
   await expectStripStays(page, chips(page), entry(page, 'viennoiserie'), 'viennoiserie');
+});
+
+test('with an observer that never reports, no row stays hidden: a far row shows when scrolled to, or when focused', async ({ page }) => {
+  await silenceObserver(page);
+  await openMenu(page, slug);
+  await expect(kinetic(page)).toHaveAttribute('data-armed', '');
+  await expect(rows(page).first()).toHaveAttribute('data-in', '');
+  await page.waitForTimeout(1500);
+  const far = page.locator('#cat-bread [data-row]').first();
+  await expect(far).not.toHaveAttribute('data-in', '');
+  await far.locator('.kn-name').evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await expect(far).toHaveAttribute('data-in', '');
+  const cake = page.locator('#cat-celebration [data-row]').first();
+  await cake.scrollIntoViewIfNeeded();
+  await expect(cake).toHaveAttribute('data-in', '', { timeout: 2000 });
+  await expect.poll(() => riseOf(cake)).toBe(0);
 });
 
 test('a row below the screen holds its words and price until it enters view; then they rise and flip, once', async ({ page }) => {

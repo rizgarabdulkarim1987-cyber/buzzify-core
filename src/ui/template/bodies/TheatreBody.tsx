@@ -7,7 +7,7 @@ import { useTemplate } from '../context';
 import { SaleChip } from '../parts';
 import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
-import { useStageOpen } from './useStageOpen';
+import { useOnceInView } from './shared/useOnceInView';
 import './shared/shapes.css';
 import './theatre.css';
 
@@ -17,15 +17,14 @@ import './theatre.css';
  * count in the menu's numerals); its dishes stand on the stage floor as spotlit performers, arch-topped photo cards
  * with a price ticket and a name plate, three across. A spotlight cone lights the stage in view and the others dim
  * (opacity on the stage's backdrop only: the dishes' own text is never dimmed). A sticky programme strip of act chips
- * jumps. The first time a stage comes into view its curtains part once (`useStageOpen`; a translate, off with less
+ * jumps. The first time a stage comes into view its curtains part once (`useOnceInView` on `[data-stage]`; a translate, off with less
  * motion, never replayed). All stages are on the page, so the template's own jump and `#cat-<slug>` scrolling work.
  */
 export function TheatreBody() {
   const { t, locale, tenant } = useApp();
   const { categories, byCategory, activeId, reduced } = useTemplate();
   const root = useRef<HTMLDivElement>(null);
-  const seen = useRef<Set<string>>(new Set());
-  useStageOpen(root, seen, reduced);
+  useOnceInView(root, reduced, { item: 'data-stage', id: 'data-stage', mark: 'data-open' });
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   const lit = activeId ?? categories[0]?.id;
 
