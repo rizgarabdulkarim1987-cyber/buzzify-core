@@ -87,7 +87,9 @@ Nothing here is deployed. No migration has been run on production.
   or a screen yet.
 - **Deleting a pharmacy or one of its branches from Studio.** Both are refused with a clear message (a pharmacy is
   suspended, never deleted). FOOD restaurants and their branches are deleted as before.
-- Smaller gaps: stale PREVIEW import or price batches are never marked cancelled. Browser Back is not caught by the
+- Stale previews: a PREVIEW price batch or PREVIEWED import batch older than 7 days is cancelled when the next preview of
+  that business is stored (queries cannot write). Bulk price changes leave archived products out unless `includeArchived`.
+- Smaller gaps: Browser Back is not caught by the
   leave guard (the draft stays on the device). There is no image picker and no category creation screen. The
   category and shelf location columns are not imported. The ar and ckb strings are machine drafts awaiting native review.
 

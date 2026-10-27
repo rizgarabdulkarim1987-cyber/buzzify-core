@@ -570,4 +570,57 @@ describe('pharmacy prices', () => {
     expect(lost).toMatchObject({ ok: false, error: { code: 'CONFLICT', fields: { phCode: 'PRICE_CONFLICT' } } });
     expect(await prisma().phPrice.findMany({ where: { productId: usdKey.productId } })).toHaveLength(1);
   });
+
+  describe('carry-forwards', () => {
+    const bulkBase = (w: World) => ({
+      restaurantId: w.a.id,
+      currency: 'IQD',
+      change: { kind: 'percent', basisPoints: 1000 },
+      rounding: { step: '1', mode: 'nearest' },
+      validFrom: days(1),
+      reason: 'Rise',
+    });
+
+    it('archived products are out of the default bulk scope, in only with includeArchived', async () => {
+      const w = await world();
+      const live = await product(w, 'Panadol');
+      const old = await product(w, 'Brufen');
+      dataOf(await act(w.owner, priceActions.set, setInput(w, live, '1000', days(-10))));
+      dataOf(await act(w.owner, priceActions.set, setInput(w, old, '2000', days(-10))));
+      await prisma().phProduct.update({ where: { id: old.productId }, data: { active: false } });
+
+      const byDefault = dataOf(await act(w.owner, priceActions.previewBulk, bulkBase(w)));
+      expect(byDefault.rows.map((r) => r.productId)).toEqual([live.productId]);
+      const withArchived = dataOf(await act(w.owner, priceActions.previewBulk, { ...bulkBase(w), includeArchived: true }));
+      expect(withArchived.rows.map((r) => r.productId).sort()).toEqual([live.productId, old.productId].sort());
+      // The stored batch applies the scope it was previewed with.
+      dataOf(await act(w.owner, priceActions.applyBulk, { restaurantId: w.a.id, batchId: byDefault.batchId, previewHash: byDefault.previewHash }));
+      expect((await openRows()).map((r) => [r.productId, r.amountMinor])).toEqual(
+        expect.arrayContaining([[old.productId, 2000n]]),
+      );
+    });
+
+    it('a PREVIEW price batch older than 7 days is cancelled when the next one is previewed', async () => {
+      const w = await world();
+      const p = await product(w, 'Panadol');
+      dataOf(await act(w.owner, priceActions.set, setInput(w, p, '1000', days(-10))));
+      const other = await pharmacy('B');
+      const mk = (restaurantId: string, ageDays: number, status: 'PREVIEW' | 'APPLIED') =>
+        prisma().phPriceChangeBatch.create({
+          data: { restaurantId, status, previewHash: 'h', validFrom: NOW, createdById: w.owner.userId, createdAt: days(-ageDays) },
+          select: { id: true },
+        });
+      const stale = await mk(w.a.id, 8, 'PREVIEW');
+      const fresh = await mk(w.a.id, 6, 'PREVIEW');
+      const appliedOld = await mk(w.a.id, 30, 'APPLIED');
+      const foreign = await mk(other.id, 30, 'PREVIEW');
+
+      dataOf(await act(w.owner, priceActions.previewBulk, bulkBase(w)));
+      const status = async (id: string) => (await prisma().phPriceChangeBatch.findUniqueOrThrow({ where: { id } })).status;
+      expect(await status(stale.id)).toBe('CANCELLED');
+      expect(await status(fresh.id)).toBe('PREVIEW');
+      expect(await status(appliedOld.id)).toBe('APPLIED');
+      expect(await status(foreign.id)).toBe('PREVIEW');
+    });
+  });
 });
