@@ -2,9 +2,10 @@
  * The Summer Beach body (a browse shape of a template menu): a stretch of beach. A sticky strip of buoy chips (a cream pill
  * with a lifebuoy ring around the section's number, and its name; the one in view goes dark and is ringed in the palette
  * accent), and every section a full-width band of sand or sea in turns, its top edge a wave. The dishes are striped beach
- * towels in two columns: the first, and a last one left alone, lie wide with the photo to one side; the rest go in pairs,
- * hung photo-first and label-first by turns. A towel is a frame of stripes (a hue of its own, four in turns) around the
- * photo and a solid cream label that carries the text, with a fringe of threads hanging under it. The wave drifts once,
+ * towels in two columns: landscape towels in pairs, the photo at the start in one row of pairs and at the end in the next
+ * (BeachBody writes it in that order in the page), and a last one left alone lies across the row. A towel is a frame of
+ * stripes (a hue of its own by its place in the full section, four in turns) around the photo and a solid cream label
+ * that carries the text (the price and the add side by side, the name under them), with a fringe of threads under it. The wave drifts once,
  * the first time its band comes into view (BeachBody arms it; with less motion there is none): a transform on a layer
  * that takes no tap. Everything is scoped under [data-body='beach'], logical properties only (RTL mirrors). The fills
  * are the shape's own (beach-fills.ts, the same on every palette); the only palette colour is the lit chip's ring.
@@ -23,8 +24,8 @@
   --bc-sale-ink: #ffffff;
   --bc-add: #0d3b52;
   --bc-add-ink: #fffdf7;
-  /* The lit chip's ring: the palette accent lifted 55% towards white (beach-fills.ts `riseOf`). */
-  --bc-rise: color-mix(in srgb, var(--accent) 45%, #fff);
+  /* The lit chip's ring: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`). */
+  --bc-rise: var(--tpl-rise);
   --bc-period: 2.5rem;
   --nav-room: 4.75rem;
   --column: 44rem;
@@ -49,27 +50,13 @@
   padding-block: 0.3125rem;
   padding-inline: 0.5rem;
 }
-/* A chip: a cream pill with a buoy (a ring of coral and sand stripes round the number) and the name (two lines at most). */
+/* A chip: a cream pill with a buoy (a ring of coral and sand stripes round the number) and the name (shared/name-chip.css). */
 [data-body='beach'] .bc-chip {
-  display: flex;
-  align-items: center;
-  gap: 0.375rem;
-  box-sizing: border-box;
-  min-inline-size: 2.75rem;
-  max-inline-size: 10rem;
-  block-size: 2.75rem;
-  padding: 0.25rem;
-  padding-inline-end: 0.75rem;
   border-radius: 1.375rem;
   background-color: var(--bc-cream);
   color: var(--bc-ink);
-  text-align: start;
-  transition: background-color 150ms;
 }
 [data-body='beach'] .bc-chip-no {
-  display: grid;
-  flex: none;
-  place-items: center;
   inline-size: 2.25rem;
   block-size: 2.25rem;
   border-radius: 50%;
@@ -87,18 +74,6 @@
   font-size: 0.8125rem;
   font-weight: 800;
   line-height: 1;
-}
-[data-body='beach'] .bc-chip-name {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  min-inline-size: 0;
-  overflow: hidden;
-  overflow-wrap: anywhere;
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.15;
 }
 /* The section in view: the chip goes dark with a ring in the lit colour. */
 [data-body='beach'] .bc-chip[aria-current='true'] {
@@ -237,38 +212,46 @@
   border-radius: 0.375rem;
   background-color: var(--bc-cream);
 }
-/* The add on the photo's end corner, big enough to tap (40px); the discount is on its start corner (photo-card.css). */
+/* The add on the label beside the price, big enough to tap (40px), clear of the photo; the discount is on the photo. */
 [data-body='beach'] .bc-add {
   --rim-add-size: 2.5rem;
+  position: relative;
   z-index: 3;
-  inset-block-end: 0.25rem;
-  inset-inline-end: 0.25rem;
+  grid-area: add;
+  align-self: center;
   border: 2px solid var(--bc-add-ink);
 }
 [data-body='beach'] .bc-add svg {
   inline-size: 1.125rem;
   block-size: 1.125rem;
 }
-/* The add button's ring is drawn inside it (the photo clips). */
+/* The add button's ring is drawn inside it. */
 [data-body='beach'] .bc-add:focus-visible {
   outline: 2px solid var(--bc-add-ink);
   outline-offset: -5px;
 }
-/* The label: a solid cream patch that carries the text; the price comes first, so a towel's photo and price are seen together. */
+/* The label: a solid cream patch that carries the text; the price and the add first, the name under them. */
 [data-body='beach'] .bc-bar {
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'price add' 'name name';
   align-content: center;
-  padding: 0.25rem 0.375rem;
+  column-gap: 0.1875rem;
+  padding: 0.25rem 0.3125rem;
   border-radius: 0.375rem;
   background-color: var(--bc-cream);
   color: var(--bc-ink);
 }
 [data-body='beach'] .bc-name {
+  grid-area: name;
   color: var(--bc-ink);
   font-size: 0.75rem;
   font-weight: 800;
 }
 [data-body='beach'] .bc-price {
-  order: -1;
+  grid-area: price;
+  align-self: center;
+  /* A price breaks between its words only (never inside a number), unless one word alone is wider than the label. */
+  overflow-wrap: break-word;
   color: var(--bc-price-ink);
   font-size: 0.8125rem;
   font-weight: 800;
@@ -282,17 +265,25 @@
 
 /* A towel is landscape: the photo beside the label, in a column of its own (the discount stays on the photo's top, the add on its foot). */
 [data-body='beach'] .bc-tile {
-  grid-template-columns: 4.75rem minmax(0, 1fr);
+  grid-template-columns: 4rem minmax(0, 1fr);
   align-items: stretch;
 }
-/* The alternate side: the photo at the end of the row, one row in two. */
-[data-body='beach'] .bc-end .bc-photo {
-  order: 2;
+/* In a landscape towel the photo fills its column as tall as the label (a square would widen past its column). */
+[data-body='beach'] .bc-tile:not(.bc-wide) .bc-photo {
+  aspect-ratio: auto;
+  min-block-size: 4rem;
+}
+/* The alternate side: the photo at the end of the row, one row in two (it comes after the label in the page too). */
+[data-body='beach'] .bc-end {
+  grid-template-columns: minmax(0, 1fr) 4rem;
 }
 /* A last towel left alone lies across the whole row, with a bigger photo. */
 [data-body='beach'] .bc-wide {
   grid-column: 1 / -1;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+}
+[data-body='beach'] .bc-wide.bc-end {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
 }
 [data-body='beach'] .bc-wide .bc-photo {
   aspect-ratio: 2 / 1;
@@ -331,9 +322,6 @@
 
 /* Less motion: the chips simply change and the waves rest. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='beach'] .bc-chip {
-    transition: none !important;
-  }
   [data-body='beach'] .bc-wave {
     animation: none !important;
   }

@@ -10,6 +10,8 @@ import { PhotoCard } from './shared/PhotoCard';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { usePlaceOf } from './shared/usePlaceOf';
+import { useProductPlace } from './shared/useProductPlace';
+import './shared/name-chip.css';
 import './shared/shapes.css';
 import './beach.css';
 
@@ -27,7 +29,8 @@ export function towelLayout(at: number, total: number): { wide: boolean; end: bo
  * buoy chips (a cream pill with a lifebuoy ring around the section's number, and its name; the one in view is dark and
  * ringed) jumps to a section. Each section is a full-width band of sand or sea in turns, its top edge a wave; the dishes
  * are striped beach towels in two columns (landscape, in pairs, the photo at the start in one row and at the end in
- * the next; a last one left alone lies across the row). The wave drifts once, the first time its band comes
+ * the next, written in that order in the page; a last one left alone lies across the row), the price and the add side by
+ * side on the towel's label, the name under them. The wave drifts once, the first time its band comes
  * into view (`useOnceInView` on `[data-band]`; a transform on a layer that takes no tap, off with less motion, never
  * replayed). All bands are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
  */
@@ -39,16 +42,19 @@ export function BeachBody() {
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   // Numbers and the sand/sea turn go by the section's place in the full menu, so a search never renumbers or recolours a band.
   const placeOf = usePlaceOf();
+  // A towel's hue goes by the dish's place in the full section, so a search never recolours it; its side and width go by
+  // the towels shown, so the pairs always line up.
+  const dishPlace = useProductPlace();
 
   return (
     <div ref={root} className="tpl-body" data-body="beach">
-      <SectionStrip marker="buoys" prefix="bc" className="bc-strip" chip="bc-chip">
+      <SectionStrip marker="buoys" prefix="bc" className="bc-strip" chip="tpl-name-chip bc-chip">
         {(category) => (
           <>
-            <span aria-hidden className="bc-chip-no">
+            <span aria-hidden className="tpl-chip-no bc-chip-no">
               <b data-pane={category.id === activeId ? 'active' : 'rest'}>{n(placeOf(category) + 1)}</b>
             </span>
-            <span className="bc-chip-name">{category.name}</span>
+            <span className="tpl-chip-name bc-chip-name">{category.name}</span>
           </>
         )}
       </SectionStrip>
@@ -77,10 +83,12 @@ export function BeachBody() {
                       prefix="bc"
                       suffix="beach"
                       className={`bc-tile${wide ? ' bc-wide' : ''}${end ? ' bc-end' : ''}`}
-                      style={{ '--towel': towelOf(at) } as CSSProperties}
+                      style={{ '--towel': towelOf(dishPlace(product)) } as CSSProperties}
                       sizes="(min-width: 640px) 320px, 50vw"
                       priority={index < 1 && at < 6}
                       add={<QuickAction product={product} variant="icon" className="tpl-rim-add bc-add" />}
+                      addOnBar
+                      photoLast={end}
                     />
                   );
                 })}

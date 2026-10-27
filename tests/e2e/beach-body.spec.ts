@@ -211,6 +211,37 @@ test('the fourth and later towels keep the pattern: the photo side alternates by
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
+test('a towel keeps its hue and the photo side is in the page order: an end towel has its photo after its label in the DOM, not moved by CSS', async ({ page }) => {
+  await openMenu(page, crowdSlug);
+  const row = bandOf(page, 'viennoiserie').locator('[data-row]');
+  const first = (index: number) => row.nth(index).evaluate((node) => [...node.children].map((child) => (child.hasAttribute('data-photo') ? 'photo' : 'label')));
+  expect(await first(0)).toEqual(['photo', 'label']);
+  expect(await first(2)).toEqual(['label', 'photo']);
+  expect(await row.nth(2).locator('[data-photo]').evaluate((node) => getComputedStyle(node).order)).toBe('0');
+});
+
+test('a search never recolours a towel: its hue goes by its place in the full section', async ({ page }) => {
+  await openMenu(page, slug);
+  const hue = () => tileOf(page, 'pain-au-chocolat').evaluate((node) => getComputedStyle(node).getPropertyValue('--towel').trim());
+  const before = await hue();
+  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('Pain au');
+  // Pain au chocolat is now the first towel of its section (the morning box lists it as an ingredient, in another one).
+  await expect(bandOf(page, 'viennoiserie').locator('[data-row]')).toHaveCount(1);
+  expect(await hue()).toBe(before);
+});
+
+test('the add sits on the label beside the price, never over the photo', async ({ page }) => {
+  await openMenu(page, slug);
+  for (const productSlug of ['croissant', 'pain-au-chocolat', 'kouign-amann']) {
+    const tile = tileOf(page, productSlug);
+    const [add, photo, price] = [(await tile.locator('.bc-add').boundingBox())!, (await tile.locator('[data-photo]').boundingBox())!, (await tile.locator('.bc-price').boundingBox())!];
+    const overlaps = add.x < photo.x + photo.width && photo.x < add.x + add.width && add.y < photo.y + photo.height && photo.y < add.y + add.height;
+    expect(overlaps, productSlug).toBe(false);
+    expect(Math.abs(add.y + add.height / 2 - (price.y + price.height / 2)), productSlug).toBeLessThanOrEqual(12);
+    await expect(tile.locator('.bc-bar .bc-add')).toHaveCount(1);
+  }
+});
+
 test('the name and the price sit on the cream label, each in its own ink', async ({ page }) => {
   await openMenu(page, slug);
   const tile = tileOf(page, 'croissant');
