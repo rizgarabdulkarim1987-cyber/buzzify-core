@@ -94,3 +94,12 @@ export class AiLinkError extends Error {
     this.name = 'AiLinkError';
   }
 }
+
+/** A link whose page has no readable menu in it, because the page draws its menu with JavaScript. */
+export class AiEmptyPageError extends Error {
+  readonly code = 'emptyPage' as const;
+  constructor() {
+    super('The page has no readable menu');
+    this.name = 'AiEmptyPageError';
+  }
+}

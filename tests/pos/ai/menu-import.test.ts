@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { AiLinkError, AiNotEnabledError, AiUnreadableError } from '@/server/ai/errors';
+import { AiEmptyPageError, AiLinkError, AiNotEnabledError, AiUnreadableError } from '@/server/ai/errors';
 import sharp from 'sharp';
-import { checkLinkUrl, fetchLink, isPrivateAddress, setLinkDepsForTests, type LinkDeps } from '@/server/ai/link-fetch';
+import { checkLinkUrl, fetchLink, isPrivateAddress, readRendered, setLinkDepsForTests, type LinkDeps } from '@/server/ai/link-fetch';
 import { priceCell, readMenu, toMenuSheet } from '@/server/ai/menu-import';
 import { readMenuImportUpload } from '@/server/ai/menu-import-upload';
 import { setAiProviderForTests } from '@/server/ai/provider';
@@ -114,12 +114,44 @@ describe('reading a menu from a link', () => {
   });
 
   it('refuses a page that shows nothing to read', async () => {
-    await expect(readMenu(env(), { kind: 'link', url: 'https://menu.example.com/m' }, 'IQD', deps({ 'https://menu.example.com/m': { body: html('<div id="app"></div><script>boot()</script>'), type: 'text/html' } }))).rejects.toBeInstanceOf(AiUnreadableError);
+    await expect(readMenu(env(), { kind: 'link', url: 'https://menu.example.com/m' }, 'IQD', deps({ 'https://menu.example.com/m': { body: html('<div id="app"></div><script>boot()</script>'), type: 'text/html' } }))).rejects.toBeInstanceOf(AiEmptyPageError);
   });
 
   it('reads a PDF the link points straight at', async () => {
     const reading = await readMenu(env(), { kind: 'link', url: 'https://menu.example.com/m.pdf' }, 'IQD', deps({ 'https://menu.example.com/m.pdf': { body: Buffer.from(`%PDF-1.4\n${MENU}`), type: 'application/pdf' } }));
     expect(reading.products).toHaveLength(3);
+  });
+});
+
+describe('a page drawn by JavaScript', () => {
+  const empty = html('<div id="app"></div><script>boot()</script>');
+  const markdown = ['## BAR SNACKS', '### Mix Nuts', '#### 5', '![Image 1: image Mix Nuts](https://media.example.com/nuts.png)', '![Image 2: New](https://media.example.com/new.svg)', 'Olives | 2 | | 1'].join('\n');
+  const pages = { 'https://menu.example.com/m': { body: empty, type: 'text/html' }, 'https://r.jina.ai/https://menu.example.com/m': { body: markdown, type: 'text/markdown' } };
+
+  it('is read through the rendering service, with each picture marked where it stood', async () => {
+    const page = await fetchLink('https://menu.example.com/m', deps(pages));
+    expect(page).toMatchObject({ kind: 'page', inlineImages: true });
+    if (page.kind !== 'page') throw new Error('a page');
+    expect(page.text).toContain('[picture 0: Mix Nuts]');
+    expect(page.images.map((image) => image.url)).toEqual(['https://media.example.com/nuts.png']);
+  });
+
+  it('reads the products and gives each its picture', async () => {
+    const reading = await readMenu(env(), { kind: 'link', url: 'https://menu.example.com/m' }, 'IQD', deps({ ...pages, 'https://r.jina.ai/https://menu.example.com/m': { body: `# Snacks
+Mix Nuts | 5 | | 0
+![Image 1: image Mix Nuts](https://media.example.com/nuts.png)
+${'x'.repeat(40)}`, type: 'text/markdown' } }));
+    expect(reading.products.map((p) => [p.names.en, p.price, p.imageUrl])).toEqual([['Mix Nuts', '5', 'https://media.example.com/nuts.png']]);
+  });
+
+  it('is refused, with its own error, when the rendering service gives nothing', async () => {
+    await expect(readMenu(env(), { kind: 'link', url: 'https://menu.example.com/m' }, 'IQD', deps({ 'https://menu.example.com/m': { body: empty, type: 'text/html' } }))).rejects.toBeInstanceOf(AiEmptyPageError);
+  });
+
+  it('drops logos and stickers and keeps the order', () => {
+    const page = readRendered('![a](https://x.example.com/logo.png)![Image 2: image item](https://x.example.com/a.jpg)![Image 3: image item](https://x.example.com/a.jpg)');
+    expect(page.images).toHaveLength(1);
+    expect(page.text).toBe('[picture 0: item][picture 0: item]');
   });
 });
 
@@ -177,6 +209,14 @@ describe('the upload', () => {
 });
 
 describe('the actions', () => {
+  it('warns when the source prints its prices in another currency than the menu', async () => {
+    const shown = ready(dataOf(await run(w.manager, posImportAiPreview, png(`${MENU}
+[[currency:USD]]`))));
+    expect(shown.currencyMismatch).toEqual({ source: 'USD', menu: 'IQD' });
+    expect(ready(dataOf(await run(w.manager, posImportAiPreview, png(`${MENU}
+[[currency:IQD]]`)))).currencyMismatch).toBeNull();
+  });
+
   it('the cashier previews and applies an AI reading, and the till catalog shows it', async () => {
     const shown = ready(dataOf(await run(w.manager, posImportAiPreview, png(MENU))));
     expect(shown.skipped).toBe(1);

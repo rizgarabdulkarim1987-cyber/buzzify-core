@@ -30,6 +30,7 @@ export function CatalogImport() {
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [skipped, setSkipped] = useState(0);
+  const [currency, setCurrency] = useState<{ source: string; menu: string } | null>(null);
 
   function fail(error: Parameters<typeof describeFailure>[2]) {
     const lines = error.fields?.rows;
@@ -59,6 +60,7 @@ export function CatalogImport() {
     setShown(null);
     setFile(null);
     setSkipped(0);
+    setCurrency(null);
     if (apply) toast.success(t('pos.import.done'));
     router.refresh();
   }
@@ -79,6 +81,7 @@ export function CatalogImport() {
             onRead={(reading) => {
               setProblem(null);
               setSkipped(reading.skipped);
+              setCurrency(reading.currencyMismatch);
               setShown({ importJobId: reading.importJobId, summary: reading.preview.summary });
             }}
           />
@@ -104,6 +107,11 @@ export function CatalogImport() {
         <>
           <p className="text-base text-text">{t('pos.import.summary', shown.summary)}</p>
           {skipped > 0 && <p className="text-sm text-muted">{t('ai.menu.skipped', { count: skipped })}</p>}
+          {currency && (
+            <p role="alert" className="text-sm text-danger">
+              {t('ai.menu.currencyMismatch', currency)}
+            </p>
+          )}
           <div className="flex gap-2">
             <Button pending={busy} disabled={shown.summary.invalid > 0} onClick={() => void finish(true)}>
               {t('pos.import.apply')}

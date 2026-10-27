@@ -18,8 +18,10 @@ import { finalizeUpload } from './media';
  * library now and attached to the products the import creates, when it is applied.
  */
 
-const PHOTOS_MAX = 40;
-const PHOTOS_AT_ONCE = 4;
+const PHOTOS_MAX = 150;
+const PHOTOS_AT_ONCE = 8;
+/** No new picture is started after this long, so a big menu still answers in time with the pictures already brought. */
+const PHOTOS_BUDGET_MS = 40_000;
 const PHOTO_FOLDER = 'ai-import';
 
 /** A picture's asset in the restaurant's library, or null when it could not be fetched or is not a usable picture. */
@@ -40,7 +42,7 @@ export async function previewAiMenuImport(
   ctx: ActionContext,
   input: unknown,
   deps: LinkDeps = linkDeps(),
-): Promise<{ importJobId: string; preview: ImportPreview; skipped: number; photos: number }> {
+): Promise<{ importJobId: string; preview: ImportPreview; skipped: number; photos: number; currencyMismatch: { source: string; menu: string } | null }> {
   if (ctx.menuId === null || ctx.restaurantId === null) throw new Error('A menu import ran without a menu');
   const { menuId, restaurantId } = ctx;
   const draft = await ctx.transaction((tx) => loadImportDraft(tx, menuId));
@@ -50,7 +52,8 @@ export async function previewAiMenuImport(
   const wanted = rows.filter((row) => row.product.imageUrl !== null).slice(0, PHOTOS_MAX);
   const urls = [...new Set(wanted.map((row) => row.product.imageUrl!))];
   const assets = new Map<string, string>();
-  for (let at = 0; at < urls.length; at += PHOTOS_AT_ONCE) {
+  const started = Date.now();
+  for (let at = 0; at < urls.length && Date.now() - started < PHOTOS_BUDGET_MS; at += PHOTOS_AT_ONCE) {
     await Promise.all(
       urls.slice(at, at + PHOTOS_AT_ONCE).map(async (url) => {
         const assetId = await bringPhoto(ctx, restaurantId, url, deps);
@@ -66,5 +69,6 @@ export async function previewAiMenuImport(
   if (Object.keys(photos).length > 0) {
     await ctx.transaction((tx) => tx.importJob.updateMany({ where: { id: parsed.importJobId }, data: { photos: photos as Prisma.InputJsonValue } }));
   }
-  return { ...parsed, skipped: reading.skipped, photos: Object.keys(photos).length };
+  const mismatch = reading.sourceCurrency !== null && reading.sourceCurrency !== draft.currency;
+  return { ...parsed, skipped: reading.skipped, photos: Object.keys(photos).length, currencyMismatch: mismatch ? { source: reading.sourceCurrency!, menu: draft.currency } : null };
 }

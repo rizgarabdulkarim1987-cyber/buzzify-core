@@ -196,6 +196,8 @@ const en: Messages = {
   'ai.menu.error.unreadable': 'The menu could not be read. Try a clearer photo, a PDF or another page.',
   'ai.menu.error.tooLarge': 'That is too large. Use a file under 5 MB, or a shorter menu.',
   'ai.menu.error.badLink': 'This link could not be opened. Use the address of a public menu page, or upload a photo or PDF.',
+  'ai.menu.currencyMismatch': 'The prices on that menu are in {source}, but this menu uses {menu}. They were copied as printed, so check them before applying.',
+  'ai.menu.error.emptyPage': 'This page draws its menu with JavaScript, so it cannot be read from the link. Save the page as a PDF (Ctrl+P) or take a screenshot, and upload that instead.',
   'ai.menu.error.invalid': 'Check what you entered and try again.',
   'ai.menu.error.notFound': 'Not found.',
   'ai.menu.error.failed': 'Something went wrong. Try again.',
