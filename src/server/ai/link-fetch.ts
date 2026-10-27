@@ -12,8 +12,8 @@ import { SUPPLY_FILE_MAX_BYTES, SUPPLY_MEDIA_TYPES } from './supply-limits';
 
 export const LINK_PAGE_MAX_BYTES = 2 * 1024 * 1024;
 export const LINK_TIMEOUT_MS = 10_000;
-export const LINK_PAGE_MAX_CHARS = 60_000;
-export const LINK_MAX_IMAGES = 80;
+export const LINK_PAGE_MAX_CHARS = 100_000;
+export const LINK_MAX_IMAGES = 250;
 const MAX_REDIRECTS = 3;
 
 export interface LinkDeps {
@@ -206,7 +206,7 @@ export async function fetchLink(input: string, deps: LinkDeps = linkDeps()): Pro
 export const MIN_PAGE_CHARS = 40;
 const RENDER_ENDPOINT = 'https://r.jina.ai/';
 const RENDER_TIMEOUT_MS = 30_000;
-const PICTURE = /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)[^)]*\)/g;
+const PICTURE = /!\[([^\]]*)\]\((https?:\/\/(?:[^()\s]|\([^()\s]*\))+)[^)]*\)/g;
 
 /**
  * A page's text and pictures from its rendered form (markdown with `![caption](address)`). Each picture is replaced by

@@ -138,6 +138,11 @@ export class FakeProvider implements AiProvider {
   }
 
   private extract(req: AiRequest): Partial<AiResponse> & { content: AiContent[] } {
+    if (req.system.includes('MENU_TRANSLATE')) {
+      const asked = req.messages.at(-1)?.content.map((c) => (c.type === 'text' ? c.text : '')).join('') ?? '';
+      const list = JSON.parse(/\[.*\]/s.exec(asked)?.[0] ?? '[]') as string[];
+      return { content: [{ type: 'text', text: JSON.stringify({ translations: list.map((t) => ({ ar: `ع ${t}`, ckb: `ک ${t}` })) }) }] };
+    }
     if (req.system.includes('MENU_IMPORT')) return this.menu(req);
     const parts = (req.messages.at(-1)?.content ?? []).map((c) => (c.type === 'text' ? c.text : c.type === 'document' || c.type === 'image' ? Buffer.from(c.base64, 'base64').toString('latin1') : ''));
     // The wrapper around pasted invoice text is not part of the invoice.

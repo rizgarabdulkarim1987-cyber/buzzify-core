@@ -74,11 +74,11 @@ describe('reading a menu from a file', () => {
   it('reads categories, names, descriptions and prices, and leaves out an item with no price', async () => {
     const reading = await readMenu(env(), png(MENU), 'IQD');
     expect(reading.products.map((p) => [p.category, p.names, p.price])).toEqual([
-      [{ en: 'Drinks' }, { en: 'Tea' }, '1,500'],
-      [{ en: 'Drinks' }, { en: 'Coffee' }, '2500'],
+      [{ en: 'Drinks', ar: 'ع Drinks', ckb: 'ک Drinks' }, { en: 'Tea', ar: 'ع Tea', ckb: 'ک Tea' }, '1,500'],
+      [{ en: 'Drinks', ar: 'ع Drinks', ckb: 'ک Drinks' }, { en: 'Coffee', ar: 'ع Coffee', ckb: 'ک Coffee' }, '2500'],
       [{ ar: 'مأكولات' }, { ar: 'برغر' }, '8500'],
     ]);
-    expect(reading.products[1]!.descriptions).toEqual({ en: 'Strong' });
+    expect(reading.products[1]!.descriptions).toEqual({ en: 'Strong', ar: 'ع Strong', ckb: 'ک Strong' });
     expect(reading.skipped).toBe(1);
   });
 
@@ -152,6 +152,8 @@ ${'x'.repeat(40)}`, type: 'text/markdown' } }));
     const page = readRendered('![a](https://x.example.com/logo.png)![Image 2: image item](https://x.example.com/a.jpg)![Image 3: image item](https://x.example.com/a.jpg)');
     expect(page.images).toHaveLength(1);
     expect(page.text).toBe('[picture 0: item][picture 0: item]');
+    // An address with brackets in it (media.example.com/dish(8).jpg) is one address.
+    expect(readRendered('![Image 4: image Soup](https://x.example.com/i/dish(8).jpg)').images[0]!.url).toBe('https://x.example.com/i/dish(8).jpg');
   });
 });
 
