@@ -88,7 +88,7 @@ describe('applyMovement', () => {
     expect(await s.bal()).toMatchObject({ available: 5 });
   });
 
-  it('rolls back earlier buckets of a movement when a later one fails', async () => {
+  it('applies no bucket of a movement when a later bucket is short', async () => {
     const s = await stocked();
     await s.run((tx) => applyMovement(tx, s.input()));
     await refusal(s.run((tx) => applyMovement(tx, s.input({ type: 'ADJUST', deltas: { available: 1, damaged: -1 }, reason: 'x' }))));
@@ -165,6 +165,60 @@ describe('applyMovement', () => {
     await s.run((tx) => applyMovement(tx, s.input({ type: 'SALE', deltas: { available: -1 } })));
   });
 
+  it('undoes the balance when the movement insert fails after the balance update', async () => {
+    const s = await stocked();
+    await s.run((tx) => applyMovement(tx, s.input()));
+    await expect(s.run((tx) => applyMovement(tx, s.input({ type: 'SALE', deltas: { available: -2 }, receiptId: 'no-such-receipt' })))).rejects.toThrow();
+    expect(await s.bal()).toMatchObject({ available: 5 });
+    expect(await prisma().phStockMovement.count()).toBe(1);
+  });
+
+  it('ignores a smuggled reversesId and cannot lift the receipt rule with it', async () => {
+    const s = await stocked();
+    const first = await s.run((tx) => applyMovement(tx, s.input()));
+    const smuggled = { ...s.input({ type: 'RECEIPT', deltas: { available: -1 } }), reversesId: first.id } as MovementInput;
+    expect((await refusal(s.run((tx) => applyMovement(tx, smuggled)))).code).toBe('INVALID');
+    const ok = { ...s.input({ type: 'ADJUST', deltas: { available: 1 }, reason: 'x' }), reversesId: first.id } as MovementInput;
+    const m = await s.run((tx) => applyMovement(tx, ok));
+    expect((await prisma().phStockMovement.findUniqueOrThrow({ where: { id: m.id } })).reversesId).toBeNull();
+  });
+
+  it.each([
+    ['SALE', { available: 1 }],
+    ['DAMAGE', { available: 1 }],
+    ['SUPPLIER_RETURN', { available: 1 }],
+    ['TRANSFER_OUT', { available: 1 }],
+    ['RECEIPT', { available: -1 }],
+    ['RETURN_IN', { available: -1 }],
+    ['TRANSFER_IN', { available: -1 }],
+    ['RECEIPT', { available: 1, damaged: 1 }],
+  ] as const)('refuses a %s with deltas that contradict its type', async (type, deltas) => {
+    const s = await stocked();
+    await s.run((tx) => applyMovement(tx, s.input({ deltas: { available: 5 } })));
+    expect((await refusal(s.run((tx) => applyMovement(tx, s.input({ type, deltas, reason: 'r' }))))).code).toBe('INVALID');
+  });
+
+  it('refuses a delta beyond the 32-bit range', async () => {
+    const s = await stocked();
+    expect((await refusal(s.run((tx) => applyMovement(tx, s.input({ deltas: { available: 2147483648 } }))))).code).toBe('INVALID');
+    expect((await refusal(s.run((tx) => applyMovement(tx, s.input({ type: 'ADJUST', reason: 'r', deltas: { available: -2147483648 } }))))).code).toBe('INVALID');
+  });
+
+  it('refuses a branch outside a branch-limited client with a StudioError', async () => {
+    const biz = await pharmacy('C', { branches: 2 });
+    const product = await prisma().phProduct.create({
+      data: { restaurantId: biz.id, tradeName: 'P', identityKey: 'c|1', searchText: 'p' },
+      select: { id: true },
+    });
+    const batch = await prisma().phBatch.create({ data: { restaurantId: biz.id, productId: product.id, lot: 'L', expiryDate: EXPIRY }, select: { id: true } });
+    const limited = scopedClient(prisma(), { restaurantId: biz.id, branchIds: [biz.branchIds[0]!] });
+    const base: MovementInput = { restaurantId: biz.id, branchId: biz.branchIds[1]!, batchId: batch.id, type: 'RECEIPT', deltas: { available: 1 }, reason: '', userId: 'u' };
+    const error = await refusal(limited.$transaction((tx) => applyMovement(tx, base)));
+    expect(error).toBeInstanceOf(StudioError);
+    expect(error.code).toBe('FORBIDDEN');
+    await limited.$transaction((tx) => applyMovement(tx, { ...base, branchId: biz.branchIds[0]! }));
+  });
+
   it('lockOrder sorts by batch id without changing its input', () => {
     const rows = [{ batchId: 'b' }, { batchId: 'a' }, { batchId: 'c' }];
     expect(lockOrder(rows).map((r) => r.batchId)).toEqual(['a', 'b', 'c']);
@@ -211,6 +265,20 @@ describe('reverseMovement', () => {
     const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!;
     expect((failure.reason as StudioError).fields?.phCode).toBe('ALREADY_REVERSED');
     expect(await s.bal()).toMatchObject({ available: 0 });
+  });
+
+  it('with enough stock, of two parallel reversals one wins and the other is ALREADY_REVERSED', async () => {
+    const s = await stocked();
+    await s.run((tx) => applyMovement(tx, s.input({ deltas: { available: 10 } })));
+    const m = await s.run((tx) => applyMovement(tx, s.input()));
+    const results = await Promise.allSettled([
+      s.run((tx) => reverseMovement(tx, m.id, { userId: 'u', reason: 'r' })),
+      s.run((tx) => reverseMovement(tx, m.id, { userId: 'u', reason: 'r' })),
+    ]);
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
+    const failure = results.find((r): r is PromiseRejectedResult => r.status === 'rejected')!;
+    expect((failure.reason as StudioError).fields?.phCode).toBe('ALREADY_REVERSED');
+    expect(await s.bal()).toMatchObject({ available: 10 });
   });
 
   it('refuses reversing a reversal', async () => {
