@@ -21,4 +21,10 @@ describe('the look in the stylesheet', () => {
     expect(read('src/app/pos/_ui/TillNav.tsx')).not.toMatch(/bg-info[^"]*text-on-ink/);
     expect(read('src/app/pos/_ui/TablesBoard.tsx')).not.toMatch(/bg-info[^"]*text-on-ink/);
   });
+  it('shows the white logo and dark-on-light status text in the night look of the till', () => {
+    const till = read('src/app/pos/till.css');
+    expect(till).toMatch(/\.till\[data-layout='night'\]\):not\(\[data-tone\]\) \.brand-logo-dark\s*\{\s*display: block/);
+    expect(till).toMatch(/\.till\[data-layout='night'\]\):not\(\[data-tone\]\) \.brand-logo-light\s*\{\s*display: none/);
+    expect(till).toMatch(/--s-on-status: #111111/);
+  });
 });

@@ -36,6 +36,7 @@
     --s-ink: #f2f2f2;
     --s-ink-hover: #dddddd;
     --s-on-ink: #111111;
+    --s-on-status: #111111;
     --s-danger: #ff8a80;
     --s-success: #6fdca8;
     --s-info: #8fb4ff;
@@ -43,6 +44,15 @@
     --s-success-wash: #10301f;
     --s-info-wash: #142a52;
     --s-accent-wash: #3a3015;
+  }
+
+  /* The night look is dark with no data-tone of its own (a person's own look sets one): show the white logo. */
+  html:has(.till[data-layout='night']):not([data-tone]) .brand-logo-dark {
+    display: block;
+  }
+
+  html:has(.till[data-layout='night']):not([data-tone]) .brand-logo-light {
+    display: none;
   }
 
   html:has(.till[data-layout='night']) .till {
