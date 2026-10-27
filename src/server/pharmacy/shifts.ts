@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import type { ScopedTx } from '@/server/data/tenant-db';
-import { canPh, PH_ROLES } from '@/server/domain/pharmacy/permissions';
+import { canPh } from '@/server/domain/pharmacy/permissions';
 import { MAX_AMOUNT_MINOR, SaleMathError, shiftVariance } from '@/server/domain/pharmacy/sale';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -16,9 +16,10 @@ import { cashTotals } from './shifts-reads';
  * counted) or finds the shift closed (NO_OPEN_SHIFT). The migration's trigger on PhSale, PhCashMovement and PhReturn is
  * the backstop: nothing can be posted into a shift that is not OPEN, whatever code tries.
  *
- * Approval (a ruling, task 4): a variance above `PhSettings.shiftVarianceLimitMinor` (when it is above 0) needs an
- * approver, another person who holds `report.view` in the branch (the owner, a manager, the pharmacist in charge, an
- * accountant). The approver is named by id and recorded; they do not sign in here.
+ * Approval (a ruling, task 4): a variance above `PhSettings.shiftVarianceLimitMinor` (when it is above 0) can only be
+ * closed by a person who holds `report.view` (the owner, a manager, the pharmacist in charge, an accountant). That
+ * person is the signed-in actor, so `approvedById` is authenticated; nobody is named by id. A cashier meets
+ * NEEDS_APPROVAL and asks a manager to close the shift.
  */
 
 const REASON_MIN = 3;
@@ -50,7 +51,6 @@ export const closeInput = z.object({
   shiftId: z.string().min(1).max(64),
   countedMinor: money,
   reason: reasonText.optional(),
-  approval: z.object({ approverUserId: z.string().min(1).max(64) }).optional(),
 });
 export type CloseInput = z.infer<typeof closeInput>;
 
@@ -252,22 +252,9 @@ export interface CloseAudit {
   approvedById: string | null;
 }
 
-const APPROVER_ROLES = PH_ROLES.filter((r) => canPh(r, 'report.view'));
-
-/** The approver works here with `report.view` (the owner, or active staff of this branch with such a role) and is not the closer. */
-async function assertApprover(tx: ScopedTx, branchId: string, closerId: string, approverId: string): Promise<void> {
-  if (approverId === closerId) throw invalid('approval', 'You cannot approve your own close', 'SELF_APPROVAL');
-  const [owner, staff, user] = await Promise.all([
-    tx.membership.findFirst({ where: { userId: approverId, role: 'OWNER' }, select: { userId: true } }),
-    tx.phStaff.findFirst({ where: { userId: approverId, deactivatedAt: null, role: { in: APPROVER_ROLES }, branches: { some: { branchId } } }, select: { userId: true } }),
-    tx.user.findFirst({ where: { id: approverId, deactivatedAt: null }, select: { id: true } }),
-  ]);
-  if (!user || (!owner && !staff)) throw invalid('approval', 'Choose a manager who works in this branch', 'APPROVER_NOT_ALLOWED');
-}
-
 /**
  * Closes a shift: expected cash from the movements (under the shift's row lock), variance = counted - expected. A
- * difference needs a reason; one above the limit (when set) also an approver. The owner of the shift closes it; someone
+ * difference needs a reason; one above the limit (when set) can only be closed by a `report.view` holder, who is recorded. The owner of the shift closes it; someone
  * else needs `report.view` and a reason. Closing a closed shift is CONFLICT ALREADY_CLOSED.
  */
 export async function closeShift(
@@ -302,12 +289,10 @@ export async function closeShift(
 
   const settings = await tx.phSettings.findFirst({ select: { shiftVarianceLimitMinor: true } });
   const limit = settings?.shiftVarianceLimitMinor ?? 0n;
-  const approverId = input.approval?.approverUserId ?? null;
-  if (approverId) await assertApprover(tx, shift.branchId, userId, approverId);
   const magnitude = variance < 0n ? -variance : variance;
-  if (limit > 0n && magnitude > limit && !approverId) {
-    throw conflict('NEEDS_APPROVAL', 'A manager must approve this difference', { limit: String(limit) });
-  }
+  const overLimit = limit > 0n && magnitude > limit;
+  if (overLimit && !canPh(role, 'report.view')) throw conflict('NEEDS_APPROVAL', 'Ask a manager to close this shift', { limit: String(limit) });
+  const approverId = overLimit ? userId : null;
 
   const done = await tx.phShift.updateMany({
     where: { id: shift.id, status: 'OPEN' },

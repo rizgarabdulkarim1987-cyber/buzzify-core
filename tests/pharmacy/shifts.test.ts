@@ -371,7 +371,7 @@ describe('closing a shift', () => {
     expect(dataOf(await close(w, w.cashier2, id2, 1015n, { reason: 'Customer left a tip' })).varianceMinor).toBe('15');
   });
 
-  it('judges the limit: at the limit a reason is enough, above it an approver is needed too', async () => {
+  it('judges the limit: at the limit a reason is enough, above it a manager must close it', async () => {
     const w = await world({ limit: 100n });
     const id = await opened(w, w.cashier, 1000n);
     // Exactly at the limit, short and over: a reason only.
@@ -389,51 +389,54 @@ describe('closing a shift', () => {
     expect((await shiftRow(id)).approvedById).toBeNull();
   });
 
-  it('accepts an approver who holds report.view in the branch and is not the closer', async () => {
+  it('an over-limit difference is closed by a report.view holder, who is recorded as the approver', async () => {
     const w = await world({ limit: 100n });
     const id = await opened(w, w.cashier, 1000n);
-    const closed = dataOf(await close(w, w.cashier, id, 500n, { reason: 'Drawer was short', approval: { approverUserId: w.manager.userId } }));
+    // The cashier cannot close it, and cannot name anybody to approve it.
+    const refused = await close(w, w.cashier, id, 500n, { reason: 'Drawer was short' });
+    expect(phCodeOf(refused)).toBe('NEEDS_APPROVAL');
+    expect(await shiftRow(id)).toMatchObject({ status: 'OPEN', approvedById: null });
+    const named = await close(w, w.cashier, id, 500n, { reason: 'Drawer was short', approval: { approverUserId: w.manager.userId } });
+    expect(phCodeOf(named)).toBe('NEEDS_APPROVAL');
+    expect((await shiftRow(id)).status).toBe('OPEN');
+    // A manager of the branch closes it: the actor is the approver.
+    const closed = dataOf(await close(w, w.manager, id, 500n, { reason: 'Drawer was short' }));
     expect(closed).toMatchObject({ varianceMinor: '-500', approvedById: w.manager.userId });
-    expect(await shiftRow(id)).toMatchObject({ varianceMinor: -500n, approvedById: w.manager.userId, closeReason: 'Drawer was short' });
+    expect(await shiftRow(id)).toMatchObject({ varianceMinor: -500n, approvedById: w.manager.userId, closeReason: 'Drawer was short', userId: w.cashier.userId });
     const log = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.shift.close', entityId: id } });
     expect(JSON.stringify(log.changes)).toContain(w.manager.userId);
 
-    // The owner (a member of every branch) and an accountant (report.view) can approve as well.
+    // The owner and an accountant (report.view) can close an over-limit shift as well.
     const id2 = await opened(w, w.cashier2, 1000n);
-    expect(dataOf(await close(w, w.cashier2, id2, 1500n, { reason: 'Found extra', approval: { approverUserId: w.owner.userId } })).approvedById).toBe(w.owner.userId);
+    expect(dataOf(await close(w, w.owner, id2, 1500n, { reason: 'Found extra' })).approvedById).toBe(w.owner.userId);
     const id3 = await opened(w, w.pharmacist, 1000n);
-    expect(dataOf(await close(w, w.pharmacist, id3, 1500n, { reason: 'Found extra', approval: { approverUserId: w.accountant.userId } })).approvedById).toBe(w.accountant.userId);
+    expect(dataOf(await close(w, w.accountant, id3, 1500n, { reason: 'Found extra' })).approvedById).toBe(w.accountant.userId);
   });
 
-  it('refuses self-approval, an approver without report.view, from another branch, deactivated or from another business', async () => {
+  it('refuses the over-limit close to a role without report.view, a manager of another branch, and another business', async () => {
     const w = await world({ limit: 100n });
-    const mgrShift = await opened(w, w.manager, 1000n);
-    // The manager closes their own shift and names themselves.
-    const self = await close(w, w.manager, mgrShift, 500n, { reason: 'Drawer was short', approval: { approverUserId: w.manager.userId } });
-    expect(codeOf(self)).toBe('INVALID');
-    expect(phCodeOf(self)).toBe('SELF_APPROVAL');
     const id = await opened(w, w.cashier, 1000n);
     const base = { reason: 'Drawer was short' };
-    const refusedApprovers: [string, string][] = [
-      ['cashier without report.view', w.cashier2.userId],
-      ['pharmacist without report.view', w.pharmacist.userId],
-      ['the closer', w.cashier.userId],
-      ['manager of branch 2 only', w.manager2.userId],
-      ['owner of another business', w.other.owner.userId],
-      ['an id that is no user', 'no-such-user-id'],
-    ];
-    for (const [label, approverUserId] of refusedApprovers) {
-      const r = await close(w, w.cashier, id, 500n, { ...base, approval: { approverUserId } });
-      expect(codeOf(r), label).toBe('INVALID');
-      expect(['SELF_APPROVAL', 'APPROVER_NOT_ALLOWED'], label).toContain(phCodeOf(r));
-    }
-    await prisma().phStaff.updateMany({ where: { userId: w.manager.userId }, data: { deactivatedAt: NOW } });
-    expect(phCodeOf(await close(w, w.cashier, id, 500n, { ...base, approval: { approverUserId: w.manager.userId } }))).toBe('APPROVER_NOT_ALLOWED');
-    await prisma().phStaff.updateMany({ where: { userId: w.manager.userId }, data: { deactivatedAt: null } });
-    await prisma().user.update({ where: { id: w.owner.userId }, data: { deactivatedAt: NOW } });
-    expect(phCodeOf(await close(w, w.cashier, id, 500n, { ...base, approval: { approverUserId: w.owner.userId } }))).toBe('APPROVER_NOT_ALLOWED');
+    // Pharmacist and cashier colleagues hold no report.view: FORBIDDEN (not their shift).
+    expect(codeOf(await close(w, w.pharmacist, id, 500n, base))).toBe('FORBIDDEN');
+    expect(codeOf(await close(w, w.cashier2, id, 500n, base))).toBe('FORBIDDEN');
+    // A manager of branch 2 only does not reach branch 1's shift.
+    expect(codeOf(await close(w, w.manager2, id, 500n, { ...base, branchId: w.b2 }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(w.manager2, shiftActions.close, { restaurantId: w.a.id, shiftId: id, countedMinor: 500n, ...base }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(w.other.owner, shiftActions.close, { restaurantId: w.other.id, shiftId: id, countedMinor: 500n, ...base }))).toBe('NOT_FOUND');
+    // A manager closing their own over-limit shift is allowed with a reason, and is recorded as the approver.
+    const own = await opened(w, w.manager, 1000n);
+    expect(codeOf(await close(w, w.manager, own, 500n))).toBe('INVALID');
+    expect(dataOf(await close(w, w.manager, own, 500n, base)).approvedById).toBe(w.manager.userId);
     expect((await shiftRow(id)).status).toBe('OPEN');
-    expect(await prisma().auditLog.count({ where: { action: 'ph.shift.close' } })).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.shift.close' } })).toBe(1);
+  });
+
+  it('a difference within the limit is closed by its cashier with a reason and has no approver', async () => {
+    const w = await world({ limit: 100n });
+    const id = await opened(w, w.cashier, 1000n);
+    dataOf(await close(w, w.cashier, id, 950n, { reason: 'Gave the wrong change' }));
+    expect((await shiftRow(id)).approvedById).toBeNull();
   });
 
   it('closing twice is CONFLICT ALREADY_CLOSED and changes nothing', async () => {
@@ -693,7 +696,7 @@ describe('the shift report', () => {
     const w = await world({ limit: 100n });
     const { id } = await busyShift(w);
     const exp = BigInt((loose<{ totals: { expectedMinor: string } }>(dataOf(await report(w, w.cashier, id)))).totals.expectedMinor);
-    dataOf(await close(w, w.cashier, id, exp - 500n, { reason: 'Drawer was short', approval: { approverUserId: w.manager.userId } }));
+    dataOf(await close(w, w.manager, id, exp - 500n, { reason: 'Drawer was short' }));
     const got = loose<{ shift: Record<string, unknown>; totals: { expectedMinor: string } }>(dataOf(await report(w, w.cashier, id)));
     expect(got.shift).toMatchObject({ status: 'CLOSED', expectedMinor: String(exp), countedMinor: String(exp - 500n), varianceMinor: '-500', closeReason: 'Drawer was short', approvedById: w.manager.userId, closedAt: NOW.toISOString() });
     expect(got.totals.expectedMinor).toBe(String(exp));

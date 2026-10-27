@@ -429,9 +429,7 @@ const pharmacy: Messages = {
   'error.text.phShiftNone': 'You have no open shift here',
   'error.text.phCashShort': 'There is not enough cash in the drawer',
   'error.text.phShiftClosed': 'This shift is already closed',
-  'error.text.phNeedsApproval': 'A manager must approve this difference',
-  'error.text.phSelfApproval': 'You cannot approve your own close',
-  'error.text.phApproverChoose': 'Choose a manager who works in this branch',
+  'error.text.phNeedsApproval': 'Ask a manager to close this shift',
   'error.text.phAmountsCheck': 'Check the amounts',
   'error.text.phCostUnitMissing': 'This batch has a cost but no cost unit',
   // Stock and movement screens

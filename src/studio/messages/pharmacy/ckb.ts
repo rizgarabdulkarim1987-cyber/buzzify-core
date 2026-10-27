@@ -423,9 +423,7 @@ const pharmacy: Messages = {
   'error.text.phShiftNone': 'ئیشمەی کراوەت لێرە نییە',
   'error.text.phCashShort': 'پارەی پێویست لە کێشەکەدا نییە',
   'error.text.phShiftClosed': 'ئەم ئیشمەیە پێشتر داخراوە',
-  'error.text.phNeedsApproval': 'دەبێت بەڕێوەبەرێک ئەم جیاوازییە پەسەند بکات',
-  'error.text.phSelfApproval': 'ناتوانیت داخستنی خۆت پەسەند بکەیت',
-  'error.text.phApproverChoose': 'بەڕێوەبەرێک هەڵبژێرە کە لەم لقەدا کار دەکات',
+  'error.text.phNeedsApproval': 'داوا لە بەڕێوەبەرێک بکە ئەم ئیشمەیە دابخات',
   'error.text.phAmountsCheck': 'بڕەکان بپشکنە',
   'error.text.phCostUnitMissing': 'ئەم دەستەیە تێچووی هەیە بەڵام یەکەی تێچووی نییە',
   // Stock and movement screens

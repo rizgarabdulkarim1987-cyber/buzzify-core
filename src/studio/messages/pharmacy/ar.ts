@@ -423,9 +423,7 @@ const pharmacy: Messages = {
   'error.text.phShiftNone': 'ليس لديك وردية مفتوحة هنا',
   'error.text.phCashShort': 'لا يوجد نقد كافٍ في الدرج',
   'error.text.phShiftClosed': 'هذه الوردية مغلقة بالفعل',
-  'error.text.phNeedsApproval': 'يجب أن يوافق مدير على هذا الفرق',
-  'error.text.phSelfApproval': 'لا يمكنك الموافقة على إغلاقك بنفسك',
-  'error.text.phApproverChoose': 'اختر مديرًا يعمل في هذا الفرع',
+  'error.text.phNeedsApproval': 'اطلب من مدير إغلاق هذه الوردية',
   'error.text.phAmountsCheck': 'تحقق من المبالغ',
   'error.text.phCostUnitMissing': 'لهذه الدفعة تكلفة لكن بلا وحدة تكلفة',
   // Stock and movement screens
