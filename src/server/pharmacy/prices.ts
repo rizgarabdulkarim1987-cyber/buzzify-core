@@ -478,6 +478,19 @@ export async function pricesAt(
   query: { units: readonly { productId: string; unitId: string }[]; branchId: string | null; currency: Currency; at: Date },
 ): Promise<Map<string, PhMoney>> {
   const found = new Map<string, PhMoney>();
+  for (const [key, row] of await priceRowsAt(scoped, query)) found.set(key, { amount: row.amount, currency: query.currency });
+  return found;
+}
+
+/**
+ * `pricesAt` with the id of the price row that applies, so a sale line can record which row it was charged from. Same
+ * rule: the branch's own row wins over the business-wide one; keyed by `productId:unitId`.
+ */
+export async function priceRowsAt(
+  scoped: ScopedDb,
+  query: { units: readonly { productId: string; unitId: string }[]; branchId: string | null; currency: Currency; at: Date },
+): Promise<Map<string, { id: string; amount: bigint }>> {
+  const found = new Map<string, { id: string; amount: bigint }>();
   if (query.units.length === 0) return found;
   const wanted = new Set(query.units.map((u) => `${u.productId}:${u.unitId}`));
   const rows = await scoped.phPrice.findMany({
@@ -486,7 +499,7 @@ export async function pricesAt(
       unitId: { in: [...new Set(query.units.map((u) => u.unitId))] },
       ...validAt(query),
     },
-    select: { productId: true, unitId: true, branchId: true, amountMinor: true, validFrom: true },
+    select: { id: true, productId: true, unitId: true, branchId: true, amountMinor: true, validFrom: true },
     orderBy: { validFrom: 'desc' },
   });
   const isBranch = new Set<string>();
@@ -495,7 +508,7 @@ export async function pricesAt(
     if (!wanted.has(key)) continue;
     // Newest first: the first row of a kind stands, and a branch row replaces a business-wide one.
     if (!found.has(key) || (row.branchId !== null && !isBranch.has(key))) {
-      found.set(key, { amount: row.amountMinor, currency: query.currency });
+      found.set(key, { id: row.id, amount: row.amountMinor });
       if (row.branchId !== null) isBranch.add(key);
     }
   }
