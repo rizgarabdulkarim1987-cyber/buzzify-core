@@ -52,7 +52,7 @@ Nothing here is deployed. No migration has been run on production.
   - the framework's `admit`, which resolves the actor and the gate again: 4 to 5 more;
   - then the search itself: one wave of 5 parallel queries, then `pricesAt`.
 
-  That is roughly **12 to 14 sequential round trips per search**. The parallel wave holds 5 of the default 10 pool
+  That is roughly **12 to 14 sequential round trips per search** (estimated from the code by the final review, not measured). The parallel wave holds 5 of the default 10 pool
   connections at once, so two concurrent tills fill one process's pool. End-to-end timing on Neon is **not
   measured** and must be done before phase 3 (sales). Reusing the resolved actor and gate within a request
   (`cache()` or passing them from `invokePh*`) is a recorded follow-up.
