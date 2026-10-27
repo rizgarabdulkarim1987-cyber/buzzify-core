@@ -20,11 +20,11 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Baghdad Shanashil body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a MASHRABIYA SCREEN: a
- * carved header board over a band of lattice with a static wave line, then the dishes as a dense lattice of small window
- * cells, three across on a phone, in a grid of wooden bars with a bead at each joint: each cell the photo cut to an
- * octagon on turquoise lattice, a ledge with the brass price tag and the add, the name under it; a corbelled bracket
- * closes the screen. A sticky strip of oriel-window chips, each a numbered window with the section's name beside it.
+ * The Baghdad Shanashil body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a MASHRABIYA FACADE: a
+ * carved header board over a band of lattice with a static wave line, then the dishes as full-width carved bands on a
+ * lattice ground, one a row on a phone (two, mirrored, on a wide screen): an arched window beside a plaque with the name
+ * and a ledge holding the brass price tag and the add, the window side changing band by band, a stepped corbel under
+ * each window; a corbelled bracket closes the facade. A sticky strip of oriel-window chips, each a numbered window with the section's name beside it.
  */
 
 const menus = bodyMenus();
@@ -156,43 +156,55 @@ test('a section is a screen: a carved wooden board with the number, the name and
   expect(bracket.height).toBeGreaterThanOrEqual(16);
 });
 
-test('dishes are a dense lattice of window cells, three across on a phone, not a list: an octagonal photo on turquoise lattice, the brass tag and the add on a ledge under it, the name under that, a bead on every joint', async ({ page }) => {
+test('dishes are carved bands, one a row on a phone, not a grid of cells: an arched window beside a plaque, the window side changing band by band, a corbel under each window', async ({ page }) => {
   await openMenu(page, slug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   await expect(row).toHaveCount(3);
   const screen = (await page.locator('#cat-viennoiserie [data-screen]').boundingBox())!;
   const boxes = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
-  // Three across in one row, each about a third of the screen, separated by thin bars.
-  for (const box of boxes.slice(1)) expect(Math.abs(box.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
-  expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x + boxes[0]!.width - 1);
-  expect(boxes[2]!.x).toBeGreaterThan(boxes[1]!.x + boxes[1]!.width - 1);
-  expect(boxes[1]!.x - (boxes[0]!.x + boxes[0]!.width)).toBeLessThanOrEqual(8);
-  for (const box of boxes) expect(box.width).toBeLessThan(screen.width * 0.36);
+  // One band a row, each the whole facade wide (the Erbil Citadel's three windows a row would fail here), stacked.
+  for (const box of boxes) expect(box.width).toBeGreaterThan(screen.width * 0.9);
+  expect(boxes[1]!.y).toBeGreaterThan(boxes[0]!.y + boxes[0]!.height - 1);
+  expect(boxes[2]!.y).toBeGreaterThan(boxes[1]!.y + boxes[1]!.height - 1);
+  // Window and plaque side by side; the window at the start of the first band, at the end of the second, then back.
+  const side = async (at: number) => {
+    const [window, plaque] = (await Promise.all(['.sh-window', '.sh-plaque'].map((part) => row.nth(at).locator(part).boundingBox()))) as DOMRect[];
+    expect(Math.abs(window!.y - plaque!.y)).toBeLessThan(window!.height);
+    expect(window!.width).toBeLessThan(boxes[at]!.width * 0.4);
+    return window!.x < plaque!.x ? 'start' : 'end';
+  };
+  expect([await side(0), await side(1), await side(2)]).toEqual(['start', 'end', 'start']);
+  // On the plaque: the name, the brass tag under it, the add at the end beside both; the band no taller than it needs.
   const cell = row.first();
-  const [window, photo, price, add, name] = (await Promise.all(['.sh-window', '[data-photo]', '.sh-price', '.sh-add', '.sh-name'].map((part) => cell.locator(part).boundingBox()))) as DOMRect[];
-  // The window on top, the ledge (tag at the start, add at the end) under it, the name under the ledge.
-  expect(price!.y).toBeGreaterThanOrEqual(window!.y + window!.height - 1);
-  expect(Math.abs(price!.y + price!.height / 2 - (add!.y + add!.height / 2))).toBeLessThanOrEqual(2);
+  const [name, price, add] = (await Promise.all(['.sh-name', '.sh-price', '.sh-add'].map((part) => cell.locator(part).boundingBox()))) as DOMRect[];
+  expect(price!.y).toBeGreaterThanOrEqual(name!.y + name!.height - 1);
   expect(price!.x + price!.width).toBeLessThanOrEqual(add!.x + 1);
-  expect(name!.y).toBeGreaterThanOrEqual(add!.y + add!.height - 1);
-  expect(photo!.x).toBeGreaterThan(window!.x + 1);
-  // The photo is cut to an octagon on the lattice ground, with nothing drawn over it; a bead sits on the joint.
-  const shape = await cell.evaluate((node) => {
-    const photoNode = node.querySelector('[data-photo]')!;
-    return {
-      clip: getComputedStyle(photoNode).clipPath,
-      ground: getComputedStyle(node.querySelector('.sh-window')!).backgroundImage,
-      photoImage: getComputedStyle(photoNode).backgroundImage,
-      bead: getComputedStyle(node, '::before').transform,
-      cellImage: getComputedStyle(node).backgroundImage,
-    };
-  });
-  expect(shape.clip).toMatch(/^polygon/);
-  expect(shape.clip.split(',').length).toBe(8);
-  expect(shape.ground.match(/repeating-linear-gradient/g)?.length).toBe(2);
-  expect(shape.photoImage).toBe('none');
-  expect(shape.bead).not.toBe('none');
-  expect(shape.cellImage).toBe('none');
+  expect(name!.x + name!.width).toBeLessThanOrEqual(add!.x + 1);
+  expect(add!.y).toBeLessThan(price!.y + price!.height);
+  expect(add!.y + add!.height).toBeGreaterThan(name!.y);
+  // The photo is an arch (round at the top, square at the foot) on the turquoise lattice ground, nothing drawn over it;
+  // a stepped corbel hangs under the window of every band but the last.
+  const shape = await row.evaluateAll((nodes) =>
+    nodes.map((node) => {
+      const photo = getComputedStyle(node.querySelector('[data-photo]')!);
+      return {
+        top: parseFloat(photo.borderStartStartRadius),
+        foot: parseFloat(photo.borderEndStartRadius),
+        ground: getComputedStyle(node.querySelector('.sh-window')!).backgroundImage,
+        photoImage: photo.backgroundImage,
+        corbel: getComputedStyle(node, '::after').backgroundImage,
+        cellImage: getComputedStyle(node).backgroundImage,
+      };
+    }),
+  );
+  expect(shape[0]!.top).toBeGreaterThan(shape[0]!.foot * 4);
+  expect(shape[0]!.ground.match(/repeating-linear-gradient/g)?.length).toBe(2);
+  expect(shape[0]!.photoImage).toBe('none');
+  expect(shape[0]!.cellImage).toBe('none');
+  expect(shape[0]!.corbel.match(/linear-gradient/g)?.length).toBe(3);
+  expect(shape[2]!.corbel).toBe('none');
+  // The gaps between the bands show the lattice ground.
+  expect(await page.locator('#cat-viennoiserie [data-screen]').evaluate((node) => getComputedStyle(node).backgroundImage.match(/repeating-linear-gradient/g)?.length)).toBe(2);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -338,15 +350,22 @@ test('a long dish name and a long price stay inside the cell without sideways sc
   expect(await contrastOf(pane.locator('.sh-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the cells run six across in a centred column', async ({ page }) => {
+test('on a wide screen the bands run two across in a centred column, mirrored like a pair of oriels', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
   const [a, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
-  for (const box of [b, c]) expect(Math.abs(box.y - a.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.y - a.y)).toBeLessThanOrEqual(1);
+  expect(c.y).toBeGreaterThan(a.y + a.height - 1);
   const screen = (await page.locator('#cat-viennoiserie [data-screen]').boundingBox())!;
-  expect(a.width).toBeLessThan(screen.width / 5);
+  expect(a.width).toBeLessThan(screen.width / 2);
   expect(a.x).toBeGreaterThan(100);
+  // The windows sit at the outer edges of the pair.
+  const windowA = (await row.nth(0).locator('.sh-window').boundingBox())!;
+  const windowB = (await row.nth(1).locator('.sh-window').boundingBox())!;
+  expect(windowA.x).toBeLessThan(a.x + a.width / 2);
+  expect(windowB.x).toBeGreaterThan(b.x + b.width / 2);
+  await expectFirstScreen(page, page.locator('[data-body="lattice"] [data-row]'), { min: 4 });
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -362,13 +381,13 @@ test('in Arabic the page is right to left, the strip starts at the right, and no
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
-  // The first cell is at the right (the start), the next to its left; on the ledge the tag is at the right and the add at
-  // the left; the tag's hole at its right (the start).
+  // The first band's window is at the right (the start), the second band's at the left; on the ledge the tag is at the
+  // right and the add at the left; the tag's hole at its right (the start).
   const pane = panes(page).first();
   const add = (await pane.locator('.sh-add').boundingBox())!;
   const tag = (await pane.locator('.sh-price').boundingBox())!;
   expect(tag.x).toBeGreaterThan(add.x);
-  expect((await panes(page).first().boundingBox())!.x).toBeGreaterThan((await panes(page).nth(1).boundingBox())!.x);
+  expect((await panes(page).first().locator('.sh-window').boundingBox())!.x).toBeGreaterThan((await panes(page).nth(1).locator('.sh-window').boundingBox())!.x);
   const hole = await pane.locator('.sh-price').evaluate((node) => getComputedStyle(node, '::before').right);
   expect(hole).not.toBe('auto');
   expect(parseFloat(hole)).toBeLessThan(10);

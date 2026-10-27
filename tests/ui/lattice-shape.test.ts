@@ -65,15 +65,21 @@ describe('the wood and glass fills', () => {
   });
 });
 
-describe('the mashrabiya screen', () => {
-  it('lays the dishes out as a lattice of window cells: three across, then four and six, octagonal photos, no list of panes', () => {
-    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
-    const tsx = readFileSync('src/ui/template/bodies/LatticeBody.tsx', 'utf8');
-    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.sh-photo\s*\{[^}]*clip-path:\s*polygon\(/);
+describe('the mashrabiya bands', () => {
+  const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
+  const tsx = readFileSync('src/ui/template/bodies/LatticeBody.tsx', 'utf8');
+
+  it('is not a grid of window cells (the Erbil Citadel skeleton): one wide pane per band on a phone', () => {
+    expect(css).not.toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\((3|4|5|6), minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)\s*;/);
+    expect(tsx).not.toMatch(/sh-cell|data-cell/);
+  });
+
+  it('lays each pane out as an arched window beside a carved plaque, the window side alternating band by band', () => {
+    expect(css).toMatch(/\.sh-pane\s*\{[^}]*grid-template-areas:\s*'window plaque'/);
+    expect(css).toMatch(/\.sh-pane:nth-child\(even\)\s*\{[^}]*grid-template-areas:\s*'plaque window'/);
+    expect(css).toMatch(/\.sh-photo\s*\{[^}]*border-start-start-radius/);
     expect(tsx).toContain('data-screen');
-    expect(tsx).not.toMatch(/sh-list|sh-pane|Description/);
+    expect(tsx).toContain('sh-plaque');
   });
 });
