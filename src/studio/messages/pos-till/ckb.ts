@@ -368,6 +368,7 @@ const posTill: Messages = {
   'pos.receipt.thanks': 'سوپاس',
   'pos.receipt.parts': 'پارەدانەکانی ئەم فاتورەیە',
   'pos.receipt.part': 'میوان {n}',
+  'pos.shortcuts.help': 'کلیلەکان: / گەڕان · F2 پارەدان · Esc داخستن',
   'pos.merge.button': 'تێکەڵکردن لەگەڵ مێزێکی تر',
   'pos.merge.title': 'تێکەڵکردنی مێزەکان',
   'pos.merge.body': 'هەموو خواردنەکان دەچنە سەر ئەو مێزەی هەڵیدەبژێریت و ئەم مێزە بەتاڵ دەبێت. کاتێک دوو مێز یەک فاتورە دەخوازن بەکاری بهێنە.',

@@ -368,6 +368,7 @@ const posTill: Messages = {
   'pos.receipt.thanks': 'شكرًا لزيارتكم',
   'pos.receipt.parts': 'دفعات هذه الفاتورة',
   'pos.receipt.part': 'الضيف {n}',
+  'pos.shortcuts.help': 'المفاتيح: / بحث · F2 دفع · Esc إغلاق',
   'pos.merge.button': 'دمج مع طاولة أخرى',
   'pos.merge.title': 'دمج الطاولات',
   'pos.merge.body': 'تنتقل كل الأصناف إلى الطاولة التي تختارها وتصبح هذه الطاولة فارغة. استخدمها عندما تطلب طاولتان فاتورة واحدة.',

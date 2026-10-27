@@ -18,6 +18,7 @@ import {
 import type { Approver } from '@/lib/pos-approval';
 import { formatNumber } from '@/lib/pos-format';
 import { evenGroups, partTotalOf, toggleLine, unpaidLineIds } from '@/lib/pos-split';
+import type { Shortcut } from '@/lib/pos-shortcuts';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
@@ -39,6 +40,7 @@ import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
+import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
 export interface OrderCan {
@@ -163,8 +165,26 @@ export function OrderScreen({
     return error.fields?.[field] ? { fields: { [field]: error.fields[field] } } : failed;
   };
 
+  const onShortcut = (shortcut: Shortcut) => {
+    if (shortcut === 'search') {
+      setTab('menu');
+      // The search box is on screen only after the menu tab shows, so focus it on the next frame.
+      requestAnimationFrame(() => document.getElementById('pos-menu-search')?.focus());
+    } else if (shortcut === 'pay') {
+      if (can.pay && canChange && stillUnpaid.length > 0 && dialog === 'none' && !pending) setDialog('pay');
+    } else if (dialog !== 'none') {
+      setDialog('none');
+    } else if (splitting) {
+      leaveSplit();
+    } else if (search !== '') {
+      setSearch('');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+      <Shortcuts onShortcut={onShortcut} />
+      <p className="hidden text-sm text-muted lg:block">{t('pos.shortcuts.help')}</p>
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-14 place-items-center rounded-2xl border border-line bg-raised text-text hover:bg-hover">
           <ArrowLeft size={26} aria-hidden className="rtl:rotate-180" />
@@ -212,6 +232,7 @@ export function OrderScreen({
           ) : (
             <>
               <Input
+                id="pos-menu-search"
                 type="search"
                 size="lg"
                 value={search}

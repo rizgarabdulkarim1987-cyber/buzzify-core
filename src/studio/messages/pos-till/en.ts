@@ -368,6 +368,7 @@ const posTill: Messages = {
   'pos.receipt.thanks': 'Thank you',
   'pos.receipt.parts': 'Payments of this bill',
   'pos.receipt.part': 'Guest {n}',
+  'pos.shortcuts.help': 'Keys: / search · F2 pay · Esc close',
   'pos.merge.button': 'Merge into another table',
   'pos.merge.title': 'Merge tables',
   'pos.merge.body': 'All items move to the table you choose, and this table becomes free. Do this when two tables ask for one bill.',
