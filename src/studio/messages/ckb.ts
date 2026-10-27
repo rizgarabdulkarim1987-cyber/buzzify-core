@@ -7,6 +7,7 @@ import aiSettings from './ai-settings/ckb';
 import posAi from './pos-ai/ckb';
 import posStock from './pos-stock/ckb';
 import posTill from './pos-till/ckb';
+import pharmacy from './pharmacy/ckb';
 
 const ckb: Messages = {
   // Shared words of the interface
@@ -2818,6 +2819,8 @@ const ckb: Messages = {
   // The AI package: Ask, summary, alerts, supply entry, complaint labels (pos-ai/ckb.ts)
   ...posAi,
   ...aiSettings,
+  // The pharmacy (pharmacy/ckb.ts)
+  ...pharmacy,
 };
 
 export default ckb;

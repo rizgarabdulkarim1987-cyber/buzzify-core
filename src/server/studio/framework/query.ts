@@ -6,6 +6,7 @@ import type { PhPermission } from '@/server/domain/pharmacy/permissions';
 import type { Permission } from '@/server/domain/permissions';
 import type { PosPermission } from '@/server/domain/pos/permissions';
 import type { PhActor } from '@/server/pharmacy/actor';
+import { auditSupportRead } from '@/server/pharmacy/support';
 import type { PosActor } from '@/server/pos/actor';
 import type { Actor } from '@/server/studio/auth/actor';
 import type { ScopedClient } from '@/server/data/tenant-db';
@@ -125,6 +126,8 @@ export async function runQueryForPage<I, O>(
     const admitted = await admit(prisma, actor, def, raw);
     if (!admitted.ok) return admitted;
     const { access } = admitted;
+    // Every read a support actor makes is audited here, before the handler runs, whatever the handler does.
+    if (access.ph?.support) await auditSupportRead(prisma, access.ph, def.name);
     const data = await def.run(
       {
         actor: admitted.actor,

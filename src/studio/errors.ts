@@ -299,6 +299,15 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This pharmacy has no live plan, so nothing can be added.': 'error.text.limitNoPlan',
   'This plan has no room for more branches. Move the pharmacy to a larger plan.': 'error.text.limitBranches',
   'This plan has no room for more staff. Move the pharmacy to a larger plan.': 'error.text.limitStaff',
+  // Support access to a pharmacy (src/server/pharmacy/support.ts, src/server/studio/actions/support-access.ts)
+  'Name a member of Buzzify support': 'error.text.supportGrantee',
+  'Choose at least one kind of access': 'error.text.supportNoScope',
+  'Choose from the listed kinds of access': 'error.text.supportUnknownScope',
+  'Give a reason of at least 10 characters': 'error.text.supportReason',
+  'Grant access for at most 72 hours': 'error.text.supportTooLong',
+  'Grant access for at least one hour': 'error.text.supportTooShort',
+  'Confirm that support may see prescriptions or patients': 'error.text.supportSensitive',
+  'Enter a reference of at least 10 characters': 'error.text.supportConsentRef',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

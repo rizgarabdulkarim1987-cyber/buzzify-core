@@ -179,7 +179,7 @@ describe('the ph target', () => {
   it('a support actor can run a catalog.view query and cannot run any action', async () => {
     const a = await pharmacy('A');
     const admin = await person('admin', { superAdmin: true });
-    await grant(admin, a.id, { scopes: ['catalog.read'] });
+    const g = await grant(admin, a.id, { scopes: ['catalog.read'] });
     const actor = await studioActor(admin);
 
     expect(await runQuery(prisma(), actor, viewCatalog, {})).toEqual({
@@ -188,7 +188,8 @@ describe('the ph target', () => {
     });
     expect(codeOf(await runAction(prisma(), actor, exportCatalog, {}, META))).toBe('FORBIDDEN');
     expect(codeOf(await runAction(prisma(), actor, saveSettings, {}, META))).toBe('FORBIDDEN');
-    expect(await auditRows(a.id)).toEqual([]);
+    // The read is audited (tests/pharmacy/support.test.ts); the refused actions wrote nothing.
+    expect(await auditRows(a.id)).toMatchObject([{ action: 'support.read', entityId: g.id }]);
   });
 
   it('a support actor whose grant lacks the mapped read scope is refused the query', async () => {

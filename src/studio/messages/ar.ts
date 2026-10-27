@@ -7,6 +7,7 @@ import aiSettings from './ai-settings/ar';
 import posAi from './pos-ai/ar';
 import posStock from './pos-stock/ar';
 import posTill from './pos-till/ar';
+import pharmacy from './pharmacy/ar';
 
 const ar: Messages = {
   // Shared words of the interface
@@ -2842,6 +2843,8 @@ const ar: Messages = {
   // The AI package: Ask, summary, alerts, supply entry, complaint labels (pos-ai/ar.ts)
   ...posAi,
   ...aiSettings,
+  // The pharmacy (pharmacy/ar.ts)
+  ...pharmacy,
 };
 
 export default ar;
