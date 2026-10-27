@@ -437,6 +437,37 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose the branch': 'error.text.phChooseBranch',
   'Choose the branch that receives the goods': 'error.text.phChooseBranchReceive',
   'This key was already used': 'error.text.phKeyUsed',
+  'Sale not found': 'error.text.phSaleNotFound',
+  'Enter an amount': 'error.text.phAmountEnter',
+  'Enter a number': 'error.text.phNumberEnter',
+  'Choose how it was paid': 'error.text.phPayMethod',
+  'Use at most 10 payments': 'error.text.phPayTooMany',
+  'Not enough sellable stock for this product': 'error.text.phSaleNoStock',
+  'The discount is more than the sale': 'error.text.phDiscountTooLarge',
+  'Check this amount': 'error.text.phAmountCheck',
+  'Use at most 2 decimal places': 'error.text.phDecimals',
+  'This key was already used for a different sale': 'error.text.phSaleKeyMismatch',
+  'Open a shift before selling': 'error.text.phNoShift',
+  'Your open shift is in another currency': 'error.text.phShiftCurrency',
+  'Controlled medicines cannot be sold yet': 'error.text.phRestricted',
+  'A pharmacist must sell this medicine': 'error.text.phRxPharmacist',
+  'Changing the price needs permission': 'error.text.phPriceChangeNeeds',
+  'This product has no price in this currency': 'error.text.phNoPrice',
+  'Choosing the batch needs permission': 'error.text.phBatchPickNeeds',
+  'This discount is above your limit': 'error.text.phDiscountOverLimit',
+  'You may not give discounts': 'error.text.phDiscountNotAllowed',
+  'Enter a reason for this discount': 'error.text.phDiscountReason',
+  'The rounding setting is not valid': 'error.text.phRoundingInvalid',
+  'A payment key appears twice': 'error.text.phPayKeyTwice',
+  'The payments do not cover the total': 'error.text.phPayShort',
+  'Card and transfer payments cannot be more than the total': 'error.text.phPayNonCashOver',
+  'Card and transfer payments already cover the total: remove the cash': 'error.text.phPayCashNotNeeded',
+  'Check the payments': 'error.text.phPayCheck',
+  'This payment key was already used': 'error.text.phPayKeyUsed',
+  'Choose a batch of this product': 'error.text.phBatchOfProduct',
+  'This batch is expired and cannot be sold': 'error.text.phBatchExpiredSell',
+  'This batch is not active and cannot be sold': 'error.text.phBatchInactiveSell',
+  'The cost of this batch is too large to record': 'error.text.phCostTooLarge',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -447,7 +478,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

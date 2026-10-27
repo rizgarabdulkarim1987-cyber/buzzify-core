@@ -61,6 +61,9 @@ interface Ids {
   count2: string;
   line1: string;
   line2: string;
+  /** A completed sale in branch 1 / in branch 2 (phase 3). */
+  sale1: string;
+  sale2: string;
   lot1: string;
   lot2: string;
   tradeName: string;
@@ -98,9 +101,19 @@ async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'rec
   const batch2 = await makeBatch(biz.id, b2, product.id, { lot: lot2, buckets: { available: 40 } });
   const move1 = (await prisma().phStockMovement.findFirstOrThrow({ where: { batchId: batch1, branchId: b1 }, select: { id: true } })).id;
   const move2 = (await prisma().phStockMovement.findFirstOrThrow({ where: { batchId: batch2, branchId: b2 }, select: { id: true } })).id;
+  // The owner works a shift in each branch, with a completed sale in it (made straight in the database).
+  const saleIn = async (branchId: string, n: number) => {
+    const shift = await prisma().phShift.create({ data: { restaurantId: biz.id, branchId, userId: owner.userId, currency: 'IQD' }, select: { id: true } });
+    const made = await prisma().phSale.create({
+      data: { restaurantId: biz.id, branchId, shiftId: shift.id, number: `20261027-00000${n}`, status: 'COMPLETED', currency: 'IQD', clientKey: `seed-sale-${label}-${n}`, soldById: owner.userId, completedAt: NOW },
+      select: { id: true },
+    });
+    return made.id;
+  };
+  const [sale1, sale2] = [await saleIn(b1, 1), await saleIn(b2, 2)];
   return {
     owner,
-    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, lot1, lot2, tradeName },
+    ids: { restaurantId: biz.id, b1, b2, categoryId: category.id, productId: product.id, unitId: product.strip, batch1, batch2, move1, move2, sale1, sale2, lot1, lot2, tradeName },
   };
 }
 
@@ -128,6 +141,7 @@ beforeAll(async () => {
   await resetWorld();
   const [a, b] = [await seedSide('ALPHA'), await seedSide('BRAVO')];
   const managerA1 = await person('managerA1', { staff: [a.ids.restaurantId, 'BRANCH_MANAGER', [a.ids.b1]] });
+  await prisma().phShift.create({ data: { restaurantId: a.ids.restaurantId, branchId: a.ids.b1, userId: managerA1.userId, currency: 'IQD' } });
   world = { a: await seedDocuments(a.ids, a.owner), b: await seedDocuments(b.ids, b.owner), ownerA: a.owner, ownerB: b.owner, managerA1 };
 }, 120_000);
 afterEach(() => {
@@ -156,12 +170,18 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
 const draftBody = (ids: Ids) => ({ supplierName: 'Planted', reference: 'P-1', receivedOn: '2026-10-27', lines: [line(ids)] });
+const saleBody = (ids: Ids) => ({
+  currency: 'IQD',
+  clientKey: key(),
+  lines: [{ productId: ids.productId, unitId: ids.unitId, qty: 1 }],
+  payments: [{ method: 'CASH', amountMinor: 100n, clientKey: key() }],
+});
 
 const CASES: Record<string, Case> = {
   // Changing stock (R2-3, R2-5, R2-6). A batch belongs to the business, so another branch's batch is the same business's own.
@@ -203,6 +223,10 @@ const CASES: Record<string, Case> = {
   // Expiry
   'ph.stock.expiry.setStatus': { body: (ids, n) => ({ batchId: pick(ids, n).batchId, status: 'IN_PROGRESS', note: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.stock.expiry': { body: () => ({ days: 180, includeExpired: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Selling (phase 3). The seller must be in a branch of their own with an open shift; a product of the other business is refused.
+  'ph.sales.create': { body: (ids) => saleBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.sales.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.sales.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -228,6 +252,12 @@ describe('the pharmacy isolation sweep', () => {
     expect(phase2.length).toBeGreaterThanOrEqual(21);
     expect(phase2.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
+
+  it('covers every phase 3 sales definition', () => {
+    const sales = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sales.'));
+    expect(sales.sort()).toEqual(['ph.sales.create', 'ph.sales.get', 'ph.sales.list']);
+    expect(sales.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
 });
 
 // Running -----------------------------------------------------------------------------------------------------------------
@@ -250,7 +280,13 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const orderBy = { id: 'asc' as const };
   const receipts = await prisma().phReceipt.findMany({ where, orderBy });
   const counts = await prisma().phStockCount.findMany({ where, orderBy });
+  const sales = await prisma().phSale.findMany({ where, orderBy });
+  const shifts = await prisma().phShift.findMany({ where, orderBy });
   return json({
+    sales,
+    saleLines: await prisma().phSaleLine.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, orderBy }),
+    payments: await prisma().phPayment.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, orderBy }),
+    cash: await prisma().phCashMovement.findMany({ where: { shiftId: { in: shifts.map((x) => x.id) } }, orderBy }),
     batches: branchId ? undefined : await prisma().phBatch.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     balances: await prisma().phStockBalance.findMany({ where, orderBy }),
     movements: await prisma().phStockMovement.findMany({ where, orderBy }),
@@ -270,8 +306,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId];
+    const { movementId, receiptId, countId, lineId, saleId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ...docs(1), ...docs(2)];
