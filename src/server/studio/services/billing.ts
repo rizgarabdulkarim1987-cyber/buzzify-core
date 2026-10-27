@@ -402,8 +402,9 @@ export async function reactivate(tx: ScopedTx, work: BillingWork, input: z.infer
   if (sub.status !== 'CANCELLED') throw new StudioError('CONFLICT', 'Only a cancelled subscription can be reactivated');
   if (!(now < sub.currentPeriodEnd)) throw new StudioError('CONFLICT', 'What was paid for has ended. Record a payment to start a new period.');
   // As for a trial: a suspended or archived restaurant, or a product turned off, gets nothing live again.
-  const restaurant = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { status: true } });
+  const restaurant = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { status: true, sector: true } });
   if (!restaurant) throw new StudioError('NOT_FOUND');
+  if (!offeredTo(restaurant.sector, sub.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', REACTIVATE_RESTAURANT_NOT_ACTIVE);
   const application = await tx.application.findUnique({ where: { id: sub.applicationId }, select: { status: true } });
   if (!application) throw new StudioError('NOT_FOUND');
@@ -477,6 +478,9 @@ export async function recordPayment(tx: ScopedTx, work: BillingWork, input: z.in
   const first = await earlier(tx, input.idempotencyKey, input.subscriptionId);
   if (first) return first;
   if (!sub) throw new StudioError('NOT_FOUND');
+  const business = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { sector: true } });
+  if (!business) throw new StudioError('NOT_FOUND');
+  if (!offeredTo(business.sector, sub.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   // Cancelled while paid time is left: reactivating gives that time back, so a payment waits for it. Once the paid time
   // has run out there is nothing to reactivate, and a payment starts afresh as after expiry.
   const endedCancel = sub.status === 'CANCELLED' && now.getTime() >= sub.currentPeriodEnd.getTime();
