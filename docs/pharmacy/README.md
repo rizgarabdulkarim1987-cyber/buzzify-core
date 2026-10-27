@@ -93,10 +93,22 @@ Quantities are whole numbers in the product's base unit. Money is `BigInt` minor
   stock goes straight to quarantine. A draft can be voided; a confirmed receipt is corrected by reversing its stock.
 - **Manual stock changes** (`ph.stock.adjust`, `damage`, `quarantineRelease`, `reverse`): add, remove, move between
   buckets, write off as damaged, release quarantine (restock or damage). A reason of 3 to 300 characters is required.
-  Adding to available is refused for an expired, recalled or blocked batch.
+  Adding to available is refused for an expired, recalled or blocked batch. Confirming a receipt line into an
+  **existing** batch is refused (`CONFLICT`, `BATCH_NOT_ACTIVE`, naming product and lot, the whole confirm rolls back)
+  when that batch is RECALLED, or BLOCKED; the one exception is an expired line accepted into quarantine, which may
+  join a BLOCKED batch (it stays unsellable) but never a RECALLED one. Confirm also re-checks each line against the
+  catalog as it is now: an archived product is refused (`PRODUCT_ARCHIVED`), and if the unit's size changed since the
+  draft the base quantity no longer matches (`LINE_STALE`, save the receipt again).
 - **Stock counts** (`ph.stock.count.*`, screens `/pharmacy/stock/counts`): open a count of a branch, a category or a
   shelf-location prefix (at most 5,000 lines), optionally blind (expected quantities are not sent to the browser until
-  submit). Counted values are saved, submitted, then approved. A count with differences needs a reason and an approval,
+  submit). Counted values are saved, submitted, then approved. Each counted line is stamped with `countedAt`, and its
+  `expectedAtCount` is the quantity at open plus the available movements of that batch between open and `countedAt`
+  (this count's own movements excluded): a sale or receipt made while counting is already in the number the shelf is
+  compared with, and movements after `countedAt` stay on top of the correction. The difference applied is
+  `counted - expectedAtCount`. Count lines also show the batch's quarantine and reserved stock (they are not on the
+  shelf and not part of the expected quantity). More counted than expected is refused (`NOT_SELLABLE_HOME`) for an
+  expired, recalled or blocked batch. Cancel needs ownership: an OPEN count is cancelled by whoever opened it or a
+  holder of `stock.adjust`, a SUBMITTED one also by whoever counted it (`NOT_YOUR_COUNT` otherwise). A count with differences needs a reason and an approval,
   and the differences are applied **once**, as COUNT movements added to the current stock (a sale made while counting is
   kept). Rules in force: one counter per count (`COUNT_OWNED`); the approver may not be the counter when another holder
   of `stock.adjust` exists in the branch (`SELF_APPROVAL`; a lone holder may approve and the result says
@@ -110,10 +122,17 @@ Quantities are whole numbers in the product's base unit. Money is `BigInt` minor
 - **Screens**: stock overview with batches in FEFO order and the change forms, stock movements with reverse, receiving,
   expiry, counts. en, ar and ckb, RTL, no motion (a scan test enforces it), states shown with icon and text, 375/768/1280
   without horizontal scroll and axe-clean in the Playwright runs of each screen.
+- **What a blind count hides.** Blind hides the expected quantities **only in the count screens and the count query**.
+  The stock overview and the expiry list show `available` to every role that can open them, so a counter who looks
+  there can see the expected figure. Blind is a convenience against anchoring, not a control.
 - **Cost** appears only for holders of `cost.view`: balances, expiry and receipt reads omit the cost keys otherwise.
 - **Kill switch**: `Application(pharmacy).status = DISABLED` closes `/pharmacy` (see Policies).
 - **Second-person consent rule** for support access: the Super Admin who records a consent may not be the grantee
-  (`CONSENT_SELF`).
+  (`CONSENT_SELF`), checked by user id after the grantee is found by email, and by email before.
+- **Subscription row choice.** Billing can start a new `pharmacy` subscription row after a lapse, so a business can
+  hold several. The gate reads them in one query and uses a live row (TRIAL, ACTIVE, GRACE) if there is one, else the
+  newest by `createdAt`, `id`. `posGate` (`src/server/pos/actor.ts`) still uses an unordered `findFirst` on the
+  `cashier` subscription with the same weakness; it was reported and left unchanged on purpose.
 - **Stale batches**: a PREVIEW price batch or PREVIEWED import batch older than 7 days is cancelled when the next
   preview of that business is stored; bulk price changes leave archived products out unless `includeArchived`.
 - **Isolation sweep** (`tests/pharmacy/isolation.test.ts`): every phase 2 definition is tried against another business,
@@ -183,7 +202,11 @@ for now: there is no Server Action and no screen for granting, revoking or recor
 - immediate revocation. This also works while the pharmacy is read-only. A closed (archived) pharmacy refuses the
   revoke, but it also refuses every support read, so an unrevoked grant there reads nothing.
 
-A support actor only reads: today `catalog.read` covers `catalog.view` and `sales.read` covers `report.view`. Cost,
+A support actor only reads: today `catalog.read` covers `catalog.view` and `sales.read` covers `report.view`.
+**`stock.read` unlocks nothing yet**: no permission maps to it. Also, a `catalog.read` grant passes the framework for the
+stock, expiry and receipt queries (they are declared with `catalog.view` or `report.view`), but those handlers refuse a
+support actor (`FORBIDDEN`) **after** the `support.read` audit row is written, so such a read leaves an audit row and
+returns nothing. Cost,
 profit and prescription attachments are never covered by a grant. Every support read writes a `support.read` audit row
 naming the grant before the read runs, and the read fails if the audit cannot be written. Recording consent needs a second
 person: the grantee may not be the Super Admin who records it (`CONSENT_SELF`), and the recorder must be a Super Admin
@@ -225,8 +248,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-ten pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the four of phase 2, all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+eleven pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2, all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -234,9 +257,21 @@ the four of phase 2, all additive (new tables, columns with defaults, indexes, a
   accept-expired flags on lines.
 - `20261027180000_pharmacy_batch_identity_unique`: unique index on business, product, lot and expiry.
 - `20261027190000_pharmacy_movement_client_key`: partial unique index for idempotent stock changes.
+- `20261027200000_pharmacy_count_counted_at`: `countedAt` on count lines.
+
+`main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
+`20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
+`20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other eleven folders). They run on
+production in the same `migrate deploy`, so they need the same dry run.
+
+Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
+are added, which blocks writes to those tables (not reads) for the duration, and **no `lock_timeout` is set** in any
+of the migrations. The old five-column batch unique index (business, product, lot, expiry, supplier) is now redundant
+next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the ten has been run against Neon.
+is not available yet, so none of the eleven has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -248,6 +283,10 @@ Do not merge until these steps are done, in this order, or merge with the deploy
    the failed state, and **every later build fails, FOOD included**, until someone runs `prisma migrate resolve`.
 3. **Backup** of the production database.
 4. **Deploy** with the owner's explicit approval (spec section 13). Record the results of steps 1 to 3 in the ledger.
+
+Order at launch: **enable the application before starting subscriptions.** Billing refuses to start a pharmacy
+subscription while `Application(pharmacy)` is DISABLED (`PRODUCT_DISABLED`: "Turn it on before starting a trial"), and
+the row ships DISABLED. So set it ACTIVE first, then start the trials, then give out the address.
 
 `lock_timeout` is **not set** in the foundation migration `20261027100000`. Its `ALTER TABLE "Restaurant"` takes an
 `ACCESS EXCLUSIVE` lock, which can queue behind a long query and stall menu traffic. Consider adding
