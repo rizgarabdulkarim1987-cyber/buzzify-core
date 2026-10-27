@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 import { TEMPLATE_IDS } from '@/lib/templates';
+import { STYLE_PRESETS } from '@/lib/templates/presets/styles';
 import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-map';
 
 const ids = MENU_STYLES.map((s) => s.id);
@@ -55,9 +56,9 @@ describe('Menu styles messages', () => {
 });
 
 describe('styles made real as templates', () => {
-  it('maps exactly the three first-batch styles', () => {
-    expect(TEMPLATE_FOR_STYLE).toEqual({ 'themed-book': 'the-book', 'layout-mag': 'the-magazine', 'layout-2-dep': 'taste-airport' });
-    expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(3);
+  it('keeps the three first-batch styles and maps every style preset from one catalog style', () => {
+    expect(TEMPLATE_FOR_STYLE).toMatchObject({ 'themed-book': 'the-book', 'layout-mag': 'the-magazine', 'layout-2-dep': 'taste-airport' });
+    expect(Object.values(TEMPLATE_FOR_STYLE).sort()).toEqual(STYLE_PRESETS.map((preset) => preset.id).sort());
   });
   it('maps only catalog styles to known templates', () => {
     for (const [styleId, templateId] of Object.entries(TEMPLATE_FOR_STYLE)) {
@@ -70,8 +71,10 @@ describe('styles made real as templates', () => {
     expect(new Set(targets).size).toBe(targets.length);
   });
   it('makes every catalog style either a template or coming soon', () => {
-    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) !== null)).toHaveLength(3);
-    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) === null)).toHaveLength(32);
+    const real = Object.keys(TEMPLATE_FOR_STYLE).length;
+    expect(real).toBeGreaterThanOrEqual(3);
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) !== null)).toHaveLength(real);
+    expect(MENU_STYLES.filter((s) => templateForStyle(s.id) === null)).toHaveLength(MENU_STYLES.length - real);
     expect(templateForStyle('nope')).toBeNull();
   });
   for (const locale of ['en', 'ar', 'ckb'] as const) {

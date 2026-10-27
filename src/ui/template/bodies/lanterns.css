@@ -1,0 +1,363 @@
+/*
+ * The Ramadan Nights body (a browse shape of a template menu): a night sky. The sticky strip is a row of lanterns on
+ * strings under a rope: a numeral in each lantern's window, the section's name under it, the lantern in view lit and
+ * swaying a little. Below, each section is a niche: a pointed-arch banner with a crescent, a lattice band, then one list
+ * of round-arch dish cards (two columns on a wide screen). Everything is scoped under [data-body='lanterns'], logical
+ * properties only (RTL mirrors).
+ * The strip's colours are the shape's own (lanterns-night.ts, the same on every palette: a navy night with gold
+ * lanterns); the niches use the template's tokens: the banner is `--accent` with `--on-accent`, the cards `--raised`.
+ */
+[data-body='lanterns'] {
+  --rm-sky: #0b1430;
+  --rm-rope: #c9a24a;
+  --rm-dim-pane: #27336e;
+  --rm-dim-ink: #f6e6b8;
+  --rm-lit-pane: #ffd36b;
+  --rm-lit-ink: #1a1033;
+  --rm-label: #f3e3b5;
+  --rm-label-lit: #ffe7a0;
+  --rm-ring: #fff4dc;
+  /* The sticky strip's height (a rope, strings, lanterns and their names), so a jumped-to section lands just below it. */
+  --nav-room: 4.75rem;
+  --column: 64rem;
+  /* The last niche only as tall as the strip needs to light its lantern (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  --rm-edge: color-mix(in srgb, var(--accent) 50%, var(--raised));
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the lanterns */
+
+/* The night: a solid navy (so every name on it has a known ground) with a scatter of stars laid over it. */
+[data-body='lanterns'] .rm-strip {
+  overflow: hidden;
+  background-color: var(--rm-sky);
+  box-shadow: 0 0.25rem 0.5rem rgb(0 0 0 / 0.25);
+}
+[data-body='lanterns'] .rm-strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 12% 70%, rgb(255 244 220 / 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 38%, rgb(255 244 220 / 0.55) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 57% 78%, rgb(255 244 220 / 0.6) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 42%, rgb(255 244 220 / 0.7) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 93% 66%, rgb(255 244 220 / 0.55) 0 1px, transparent 1.5px);
+  background-size: 11rem 100%;
+  pointer-events: none;
+}
+
+/* One row that scrolls sideways; each item carries its stretch of the rope along its top, so the rope never breaks. */
+[data-body='lanterns'] .rm-strip-list {
+  position: relative;
+  gap: 0;
+  padding: 0.25rem 0.25rem 0.125rem;
+}
+[data-body='lanterns'] .rm-strip-list > li {
+  position: relative;
+}
+[data-body='lanterns'] .rm-strip-list > li::before {
+  content: '';
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 0;
+  block-size: 2px;
+  background: var(--rm-rope);
+}
+
+/* A lantern: its string, cap, window and base hang together (and sway together); its name stays still under it. */
+[data-body='lanterns'] .rm-lantern {
+  display: grid;
+  grid-template-rows: 3.125rem auto;
+  justify-items: center;
+  inline-size: 4.5rem;
+  padding: 0;
+  color: var(--rm-label);
+}
+[data-body='lanterns'] .rm-hang {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  block-size: 3.125rem;
+  transform-origin: 50% 0;
+}
+[data-body='lanterns'] .rm-string {
+  inline-size: 2px;
+  block-size: var(--drop, 0.5rem);
+  background: var(--rm-rope);
+}
+[data-body='lanterns'] .rm-cap {
+  inline-size: 1.375rem;
+  block-size: 0.4375rem;
+  border-radius: 999px 999px 0 0;
+  background: var(--rm-rope);
+}
+[data-body='lanterns'] .rm-base {
+  inline-size: 1rem;
+  block-size: 0.25rem;
+  border-radius: 0 0 0.25rem 0.25rem;
+  background: var(--rm-rope);
+}
+/* The window: a dim indigo until its lantern is the one in view, then warm and bright with a glow. */
+[data-body='lanterns'] .rm-pane {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border: 2px solid var(--rm-rope);
+  border-radius: 0.625rem 0.625rem 0.75rem 0.75rem;
+  background-color: var(--rm-dim-pane);
+  color: var(--rm-dim-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1;
+  transition:
+    background-color 200ms,
+    box-shadow 200ms;
+}
+[data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-pane {
+  border-color: var(--rm-label-lit);
+  background-color: var(--rm-lit-pane);
+  color: var(--rm-lit-ink);
+  font-weight: 800;
+  box-shadow: 0 0 0.75rem 0.125rem rgb(255 211 107 / 0.75);
+}
+/* The lit lantern sways twice when it lights (under 5s, so nothing moves on its own for longer: WCAG 2.2.2), then hangs still. */
+[data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-hang {
+  animation: rm-sway 2.4s ease-in-out 2;
+}
+@keyframes rm-sway {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+[data-body='lanterns'] .rm-label {
+  display: block;
+  box-sizing: border-box;
+  inline-size: 100%;
+  padding-inline: 0.125rem;
+  overflow: hidden;
+  background-color: var(--rm-sky);
+  color: var(--rm-label);
+  font-size: 0.75rem;
+  line-height: 1rem;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-label {
+  color: var(--rm-label-lit);
+  font-weight: 700;
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the lantern's box, on the night. */
+[data-body='lanterns'] .rm-strip-list button:focus-visible {
+  outline: 2px solid var(--rm-ring);
+  outline-offset: -3px;
+  border-radius: 0.5rem;
+}
+
+/* ------------------------------------------------------------------ a niche */
+
+[data-body='lanterns'] .rm-niche {
+  padding-block-start: 0.375rem;
+}
+[data-body='lanterns'] .rm-niche + .rm-niche {
+  margin-block-start: 0.25rem;
+}
+[data-body='lanterns'] .rm-head {
+  display: block;
+}
+/* The banner: a pointed arch (two arcs meeting at the top), the section's name between a crescent and its number. */
+[data-body='lanterns'] .rm-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  inline-size: fit-content;
+  min-inline-size: min(100%, 15rem);
+  max-inline-size: 100%;
+  margin: 0;
+  margin-inline: auto;
+  padding: 0.8125rem 1.75rem 0.125rem;
+  background-color: var(--accent);
+  clip-path: polygon(0 100%, 0 62%, 2% 46%, 6% 33%, 12% 23%, 20% 15%, 30% 9%, 40% 4.5%, 50% 0, 60% 4.5%, 70% 9%, 80% 15%, 88% 23%, 94% 33%, 98% 46%, 100% 62%, 100% 100%);
+  color: var(--on-accent);
+  font-size: 1.0625rem;
+  font-weight: 800;
+  line-height: 1.15;
+  text-align: center;
+}
+[data-body='lanterns'] .rm-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+/* The crescent: a disc with a shifted shadow, so only the shadow's rim shows (RTL turns it to face the other way). */
+[data-body='lanterns'] .rm-moon {
+  flex: none;
+  inline-size: 1rem;
+  block-size: 1rem;
+  margin-inline-end: 0.25rem;
+  border-radius: 50%;
+  box-shadow: 0.3125rem -0.0625rem 0 0 var(--on-accent);
+}
+[data-body='lanterns'] .rm-moon:dir(rtl) {
+  transform: scaleX(-1);
+}
+/* The section's number: a small lit window, the one in the strip. */
+[data-body='lanterns'] .rm-title small {
+  border-radius: 0.5rem 0.5rem 0.625rem 0.625rem;
+  background-color: var(--on-accent);
+  color: var(--accent);
+}
+/* The dish count: the shared banner count (shapes.css `.tpl-banner b`). */
+/* A lattice band under the banner (the mashrabiya): small diamonds in the accent. */
+[data-body='lanterns'] .rm-head::after {
+  content: '';
+  display: block;
+  block-size: 0.375rem;
+  background:
+    linear-gradient(45deg, transparent 44%, color-mix(in srgb, var(--accent) 75%, transparent) 44% 56%, transparent 56%) 0 0 / 0.375rem 0.375rem,
+    linear-gradient(-45deg, transparent 44%, color-mix(in srgb, var(--accent) 75%, transparent) 44% 56%, transparent 56%) 0 0 / 0.375rem 0.375rem;
+}
+/* The niche's wall: the dishes between two accent edges. */
+[data-body='lanterns'] .rm-list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0.25rem 0.5rem;
+  border-inline: 2px solid color-mix(in srgb, var(--accent) 40%, var(--bg));
+  background: color-mix(in srgb, var(--accent) 7%, var(--bg));
+  list-style: none;
+}
+
+/* A round-arch card: the photo's arch on one side inside the card's own rounded start, the name and price on the other. */
+[data-body='lanterns'] .rm-row {
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  gap: 0.625rem;
+  padding-block: 0.25rem;
+  padding-inline: 0.25rem 0.5rem;
+  border: 2px solid var(--rm-edge);
+  border-start-start-radius: 2rem;
+  border-start-end-radius: 0.75rem;
+  border-end-end-radius: 0.75rem;
+  border-end-start-radius: 0.75rem;
+  background: var(--raised);
+  color: var(--text);
+}
+[data-body='lanterns'] .rm-photo {
+  inline-size: 3rem;
+  block-size: 3.25rem;
+  border-radius: 999px 999px 0.375rem 0.375rem;
+  background: color-mix(in srgb, var(--accent) 18%, var(--raised));
+}
+/* A dish with no picture: the shared plate (`tpl-plate`, on the empty media span) on the arch's own accent ground. */
+[data-body='lanterns'] .rm-photo > :first-child:empty {
+  --bg: color-mix(in srgb, var(--accent) 18%, var(--raised));
+}
+[data-body='lanterns'] .rm-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  font-size: 0.9375rem;
+  text-align: start;
+}
+/* The crescent bullet before the name. */
+[data-body='lanterns'] .rm-name::before {
+  content: '';
+  display: inline-block;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  margin-inline-end: 0.4375rem;
+  border-radius: 50%;
+  box-shadow: 0.1875rem -0.0625rem 0 0 var(--accent-ink);
+  vertical-align: -0.0625em;
+}
+[data-body='lanterns'] .rm-name:dir(rtl)::before {
+  transform: scaleX(-1);
+}
+/* The whole card is the tap area; its keyboard ring is drawn inside the card, following its corners. */
+[data-body='lanterns'] .rm-name:focus-visible::after {
+  outline-offset: -3px;
+  border-start-start-radius: 2rem;
+  border-start-end-radius: 0.75rem;
+  border-end-end-radius: 0.75rem;
+  border-end-start-radius: 0.75rem;
+}
+/* A price (From …, a sale, many digits) wraps rather than pushing the add button out. */
+[data-body='lanterns'] .rm-meta {
+  min-inline-size: 0;
+}
+[data-body='lanterns'] .rm-price {
+  min-inline-size: 0;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+[data-body='lanterns'] .rm-add {
+  inline-size: 2.5rem;
+  min-inline-size: 0;
+  block-size: 2.5rem;
+  padding: 0;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+[data-body='lanterns'] .rm-add svg {
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+}
+[data-body='lanterns'] .rm-add:focus-visible {
+  outline: 2px solid var(--on-accent);
+  outline-offset: -3px;
+}
+
+@media (hover: hover) {
+  [data-body='lanterns'] .rm-row:hover {
+    border-color: var(--accent);
+  }
+  [data-body='lanterns'] .rm-add:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+}
+
+/* A wide screen: two columns of cards in a centred column. */
+@media (min-width: 640px) {
+  [data-body='lanterns'] .rm-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.625rem 0.75rem;
+    padding: 0.75rem;
+  }
+  [data-body='lanterns'] .rm-row {
+    grid-template-columns: 4.25rem minmax(0, 1fr) auto;
+  }
+  [data-body='lanterns'] .rm-photo {
+    inline-size: 4.25rem;
+    block-size: 4.5rem;
+  }
+  [data-body='lanterns'] .rm-title {
+    font-size: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-hang {
+    animation: none;
+  }
+  [data-body='lanterns'] .rm-pane {
+    transition: none;
+  }
+}

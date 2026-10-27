@@ -1,0 +1,293 @@
+/*
+ * The Phone Home Screen body (a browse shape of a template menu): the menu is a phone's home screen. Every dish is an
+ * app icon (rounded square photo, name below, price as a red notification badge), four across on a phone; every section
+ * is a folder band whose first cell is its label tile, so a short folder is one row; a slim dock of app tiles stays at
+ * the top and jumps. Everything is scoped under [data-body='homescreen']. Every surface under white text (the wallpaper,
+ * the folder band, the label tile, the dock and its strip) is the template's accent mixed into a fixed dark, at most a
+ * share of it (--hs-*, set by HomescreenBody from HOMESCREEN_FILLS, where a unit test checks them), so white text reads
+ * on any accent, a light one picked in Customize included, and the dock never sits on the page's own --bg. The badge is a
+ * fixed red with white text; the lit dock tile and the count are white with dark ink. Logical properties only (RTL
+ * mirrors).
+ */
+[data-body='homescreen'] {
+  --hs-ink: #fff;
+  --hs-badge: #c4001a;
+  /* The sticky dock's height, so a jumped-to folder lands just below it. */
+  --nav-room: 3.25rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--hs-ink);
+  background:
+    linear-gradient(165deg, var(--hs-wall-top), var(--hs-wall-mid) 55%, var(--hs-wall-end));
+}
+
+/*
+ * The dock (sticky: shared/shapes.css): one slim app tile per section (a small numbered glyph beside the name), in a
+ * rounded strip that scrolls sideways. One line high, so the icons start high on the first screen. Its own dark backing,
+ * not the page's --bg, so its white labels read whatever background the restaurant picks.
+ */
+[data-body='homescreen'] .hs-dock {
+  padding: 0.25rem 0.5rem;
+  background: var(--hs-dock);
+}
+[data-body='homescreen'] .hs-strip-list {
+  gap: 0.25rem;
+  padding: 0.1875rem;
+  border-radius: 999px;
+  background: var(--hs-strip);
+}
+[data-body='homescreen'] .hs-tile {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-block: 0;
+  padding-inline: 0.25rem 0.75rem;
+  border-radius: 999px;
+  color: var(--hs-ink);
+  white-space: nowrap;
+  transition: background-color 160ms;
+}
+/* The glyph: one perceptual lightness in every hue, so its white numeral reads on all of them. */
+[data-body='homescreen'] .hs-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.75rem;
+  block-size: 1.75rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(160deg, oklch(0.52 0.15 var(--app-h)), oklch(0.4 0.13 calc(var(--app-h) + 24)));
+  color: #fff;
+  font-size: 0.875rem;
+  font-weight: 800;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+/* The lit tile: white with dark ink, whatever the accent. */
+[data-body='homescreen'] .hs-tile[aria-current='true'] {
+  background: #fff;
+  color: #1b1030;
+}
+[data-body='homescreen'] .hs-label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.15;
+}
+@media (hover: hover) {
+  [data-body='homescreen'] .hs-tile:hover:not([aria-current='true']) {
+    background: var(--hs-tile);
+  }
+}
+
+/*
+ * A folder: a rounded band a step lighter than the wallpaper, and the grid of its icons (four across on a phone): its
+ * label tile opens the grid, like a folder's name widget on the home screen, and the list of dishes follows (display:
+ * contents, so its items are the grid's next cells). Rows keep their own height when the last folder is made taller.
+ */
+[data-body='homescreen'] .hs-folder {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-content: start;
+  gap: 0.75rem 0.25rem;
+  margin: 0.1875rem 0.375rem;
+  padding: 0.5rem 0.25rem 0.375rem;
+  border-radius: 1.5rem;
+  background: var(--hs-band);
+}
+[data-body='homescreen'] .hs-label-tile {
+  display: flex;
+  justify-content: center;
+  min-inline-size: 0;
+}
+/* The tile is as wide as an icon (the template's heading gutter does not apply inside a grid cell). */
+[data-body='homescreen'] [data-heading].hs-head {
+  inline-size: 76%;
+  padding-inline: 0;
+}
+[data-body='homescreen'] .hs-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  box-sizing: border-box;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  margin: 0;
+  padding: 0.125rem;
+  border-radius: 22%;
+  background: var(--hs-tile);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  color: var(--hs-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.15;
+  text-align: center;
+}
+[data-body='homescreen'] .hs-title span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  max-inline-size: 100%;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  hyphens: auto;
+}
+[data-body='homescreen'] .hs-title b {
+  flex: none;
+  padding-inline: 0.4rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #1b1030;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
+/* The grid: four across on a phone, the label tile first. */
+[data-body='homescreen'] .hs-apps {
+  display: contents;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='homescreen'] .hs-app {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3125rem;
+  min-inline-size: 0;
+  animation: hs-in 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 24ms);
+}
+[data-body='homescreen'] .hs-icon {
+  position: relative;
+  inline-size: 76%;
+}
+[data-body='homescreen'] .hs-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 22%;
+  background: var(--card);
+  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/*
+ * The price, as the notification badge on the icon's upper corner. A long price ("From 12,500 IQD") wraps inside the
+ * badge, which may grow toward the cell's start edge (the icon is 76% of the cell, centred), and keeps to two lines so
+ * it never reaches the add button on the icon's lower corner; the whole price is in the dish's sheet. Taps go through
+ * it to the icon, which opens the dish.
+ */
+[data-body='homescreen'] .hs-badge {
+  position: absolute;
+  inset-block-start: -0.4375rem;
+  inset-inline-end: -0.5rem;
+  z-index: 2;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  max-inline-size: calc(115% + 0.5rem);
+  padding: 0 0.375rem;
+  border-radius: 0.625rem;
+  background: var(--hs-badge);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.1875rem;
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+/*
+ * A discount (shared/shapes.css): the badge has no room for the regular price, so a "−NN%" chip sits on the icon's lower
+ * end corner, opposite the add button and a little outside the icon so the two never meet; white with the badge's red.
+ */
+[data-body='homescreen'] .hs-off {
+  --sale-bg: #fff;
+  --sale-ink: var(--hs-badge);
+  position: absolute;
+  inset-block-end: -0.25rem;
+  inset-inline-end: -0.375rem;
+  z-index: 1;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+/* The add button (shared/shapes.css) inside the icon's lower corner, away from the badge and clear of the name. */
+[data-body='homescreen'] .hs-add {
+  --rim-add-size: 1.625rem;
+  --rim-add-bg: #fff;
+  --rim-add-ink: #1b1030;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+}
+/* The name below the icon (two lines at most: shared/shapes.css). */
+[data-body='homescreen'] .hs-name {
+  --tpl-ring-inset: 4px;
+  --tpl-ring-radius: var(--radius-card);
+  color: var(--hs-ink);
+  font-weight: 600;
+  line-height: 1.15;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+}
+/* The cell's focus ring in white: it reads on the band (the accent-tinted ink would not). */
+[data-body='homescreen'] .hs-name:focus-visible::after {
+  outline-color: #fff;
+}
+
+@media (hover: hover) {
+  [data-body='homescreen'] .hs-app:hover .hs-photo {
+    transform: scale(1.05);
+  }
+}
+[data-body='homescreen'] .hs-app:active .hs-photo {
+  transform: scale(0.94);
+}
+
+@keyframes hs-in {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='homescreen'] .hs-folder {
+    margin-inline: auto;
+    max-inline-size: 46rem;
+  }
+  [data-body='homescreen'] .hs-folder {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+  [data-body='homescreen'] .hs-dock {
+    max-inline-size: 46rem;
+    margin-inline: auto;
+  }
+  [data-body='homescreen'] .hs-name {
+    font-size: 0.8125rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='homescreen'] .hs-folder {
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+  }
+}
+
+/* Less motion: the icons are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='homescreen'] .hs-app {
+    animation: none;
+  }
+  [data-body='homescreen'] .hs-photo,
+  [data-body='homescreen'] .hs-tile {
+    transition: none;
+  }
+}

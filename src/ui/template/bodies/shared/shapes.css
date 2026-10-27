@@ -1,0 +1,230 @@
+/*
+ * Layout helpers the browse shapes share. `:where()` keeps them at one class of specificity, so a shape's own
+ * `[data-body='<kind>']` rules can still adjust them.
+ */
+
+/*
+ * A shape's strip of sections (route, legend, aisle signs) stays at the top of the viewport while the menu scrolls, so
+ * every section stays one tap away. The header does not stick, so the strip pins at 0. A shape sets `--nav-room` on its
+ * `[data-body]` to the strip's height, so a jumped-to section lands just below it.
+ */
+:where([data-body]) .tpl-strip-sticky {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+}
+
+/*
+ * The last section is tall enough for the lit-section tracking (a band 30% to 40% down the viewport) to reach it when
+ * the page is scrolled to the end, so its entry on the strip lights. A shape can set `--tall-last` (default 60dvh).
+ */
+:where([data-body]) .tpl-tall-last:last-child {
+  min-block-size: var(--tall-last, 60dvh);
+}
+/*
+ * The usual `--tall-last` of a shape with a panel per section: only as tall as the strip needs to light it. Lit means it
+ * covers the band 30% to 40% down the viewport when the page is scrolled to its end, so it and what follows it (the
+ * page's footer, about 16rem) must fill 70% of the viewport: the footer does most of it, so the panel does not stretch
+ * into a large empty block.
+ */
+:where([data-body]) {
+  --tall-last-panel: calc(70dvh - 13rem);
+}
+
+/*
+ * A wide screen keeps a shape a centred column: a shape that sets `--column` (from 640px) has its strip and its
+ * sections that wide, in the middle. Without it both declarations are invalid at computed time and nothing changes (no
+ * `auto` margin, which would shrink a grid or flex item in a shape whose body is a grid).
+ */
+@media (min-width: 640px) {
+  :where([data-body]) > .tpl-strip-sticky,
+  :where([data-body]) > main {
+    max-inline-size: var(--column);
+    margin-inline: max(0px, calc((100% - var(--column)) / 2));
+  }
+}
+
+/* The strip's list (`SectionStrip`): one row of chips that scrolls sideways; the shape sets its gap and padding. */
+:where([data-body]) .tpl-strip-list {
+  display: flex;
+  margin: 0;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  list-style: none;
+}
+:where([data-body]) .tpl-strip-list > li {
+  flex: none;
+}
+
+/*
+ * A price in a tight spot (a tag, a rim chip, a burst, a badge) has no room for the crossed-out regular price: it is
+ * kept for screen readers only, so the discount is still announced.
+ */
+:where([data-body]) .tpl-price-tight .tpl-was {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  margin: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Arabic script has no capitals, and letter spacing breaks its joined letters: the shapes' small labels too. */
+.tpl:is(:lang(ar), :lang(ckb)) [data-body] small {
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/*
+ * The strip's list scrolls sideways, so it clips anything outside it: a chip's focus ring is drawn inside the chip, in
+ * the chip's own text colour (which reads on its fill, lit or not).
+ */
+:where([data-body]) .tpl-strip-list button:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+
+/*
+ * The icon-sized dish cell (`IconDish`, and the Bento compartment): its parts that every such shape draws the same way.
+ * A shape keeps its frame and decoration and sets the custom properties below to adjust them.
+ */
+
+/* The name under the picture: two lines at most however long. */
+:where([data-body]) .tpl-dish-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  inline-size: 100%;
+  min-block-size: 0;
+  padding: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+/*
+ * The whole cell is the name's tap area (the cell is the positioned ancestor of its overlay); the cell or its frame may
+ * clip, so the ring is drawn inside it. `--tpl-ring-inset` and `--tpl-ring-radius` adjust it.
+ */
+:where([data-body]) .tpl-open.tpl-dish-name:focus-visible::after {
+  outline-offset: var(--tpl-ring-inset, -2px);
+  border-radius: var(--tpl-ring-radius, 0.75rem);
+}
+
+/* The photo fills its frame (the frame sets the size and the clipping). */
+:where([data-body]) .tpl-fill-media > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The photo covers a frame whose size comes from elsewhere (an aspect ratio, a grid area): laid over it. */
+:where([data-body]) .tpl-cover-media > :first-child {
+  position: absolute;
+  inset: 0;
+  aspect-ratio: auto;
+  inline-size: 100%;
+  block-size: 100%;
+}
+:where([data-body]) .tpl-cover-media img,
+:where([data-body]) .tpl-cover-media svg {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/*
+ * The add button sitting on a photo's rim or corner (the shape places it): a small round plus. `--rim-add-size`,
+ * `--rim-add-bg` and `--rim-add-ink` adjust it; the default is the accent pair.
+ */
+:where([data-body]) .tpl-add.tpl-rim-add {
+  position: absolute;
+  inline-size: var(--rim-add-size, 1.75rem);
+  block-size: var(--rim-add-size, 1.75rem);
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--rim-add-bg, var(--accent));
+  color: var(--rim-add-ink, var(--on-accent));
+}
+/*
+ * An add button under the pointer takes the button pair (skins.css `.tpl-add:hover`) over a shape's own colours of the
+ * same weight. A shape's stylesheet loads on its own, after skins.css (bodies/index.ts), so skins.css no longer wins a
+ * tie by coming last: this rule is one class heavier, and a shape's rule of more weight (its own `:hover`) still wins.
+ */
+@media (hover: hover) {
+  :where(.tpl) [data-body] .tpl-add:hover {
+    background: var(--button);
+    color: var(--on-button);
+  }
+}
+:where([data-body]) .tpl-rim-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+
+/*
+ * A discount in a tight spot (`SaleChip`): the price there has no room for the regular price, so a compact "−NN%" chip
+ * shows the sale. The shape places it; `--sale-bg` and `--sale-ink` adjust its pair (default the accent pair).
+ */
+:where([data-body]) .tpl-off {
+  padding: 0.0625rem 0.3125rem;
+  border-radius: 999px;
+  background: var(--sale-bg, var(--accent));
+  color: var(--sale-ink, var(--on-accent));
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.2;
+  pointer-events: none;
+}
+
+/*
+ * A cell's entrance: it rises into place, a little after the one before it (`--i`). Less motion: it is simply there.
+ * Its keyframes are `tpl-cell-rise`, not `tpl-rise`: keyframes are global, and skins.css's `tpl-rise` is the scroll
+ * menu's product sheet (a 40px rise), so the same name would let load order pick one for both.
+ */
+:where([data-body]) .tpl-rise {
+  animation: tpl-cell-rise 240ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 28ms);
+}
+@keyframes tpl-cell-rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :where([data-body]) .tpl-rise {
+    animation: none;
+  }
+}
+
+/*
+ * A banner heading's number and dish count (`tpl-banner` on the ShapeHeading title): small pills in the banner. The
+ * count is the on-accent pill with accent text (a pair the palette rules keep readable); a shape colours its number.
+ */
+:where([data-body]) .tpl-banner :is(small, b) {
+  display: grid;
+  flex: none;
+  place-items: center;
+  min-inline-size: 1.5rem;
+  block-size: 1.5rem;
+  padding-inline: 0.25rem;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1;
+}
+:where([data-body]) .tpl-banner b {
+  border-radius: 999px;
+  background-color: var(--on-accent);
+  color: var(--accent);
+  font-size: 0.75rem;
+}

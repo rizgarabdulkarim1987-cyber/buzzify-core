@@ -82,7 +82,7 @@ export type HeadingStyle = (typeof HEADING_STYLES)[number];
  * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
  * replace some of the structural knobs (see `SHAPE_SETS`).
  */
-export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board'] as const;
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes', 'depth', 'kinetic', 'theatre', 'stacked', 'morph', 'fly', 'ink', 'steam', 'citadel', 'lanterns', 'carpet', 'rugs', 'lattice', 'gate', 'station', 'frost', 'beach', 'printer'] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 
 /** The three background modes every preset supports (spec 6). */
@@ -145,6 +145,38 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   book: ['hero', 'nav'],
   magazine: ['hero'],
   board: ['hero', 'nav', 'card', 'heading'],
+  elevator: ['hero', 'nav', 'card', 'heading'],
+  periodic: ['hero', 'nav', 'card', 'heading', 'imageRatio'],
+  metro: ['hero', 'nav', 'card', 'heading'],
+  cabinet: ['hero', 'nav', 'card', 'heading'],
+  shelves: ['hero', 'nav', 'card', 'heading', 'imageRatio'],
+  tickets: ['hero', 'nav', 'card', 'heading'],
+  tabletop: ['hero', 'nav', 'card', 'heading'],
+  comics: ['hero', 'nav', 'card', 'heading'],
+  homescreen: ['hero', 'nav', 'card', 'heading'],
+  treasure: ['hero', 'nav', 'card', 'heading'],
+  levels: ['hero', 'nav', 'card', 'heading'],
+  fridge: ['hero', 'nav', 'card', 'heading'],
+  bento: ['hero', 'nav', 'card', 'heading'],
+  mailboxes: ['hero', 'nav', 'card', 'heading'],
+  depth: ['hero', 'nav', 'card', 'heading'],
+  kinetic: ['hero', 'nav', 'card', 'heading'],
+  theatre: ['hero', 'nav', 'card', 'heading'],
+  stacked: ['hero', 'nav', 'card', 'heading'],
+  morph: ['hero', 'nav', 'card', 'heading'],
+  fly: ['hero', 'nav', 'card', 'heading'],
+  ink: ['hero', 'nav', 'card', 'heading'],
+  steam: ['hero', 'nav', 'card', 'heading'],
+  citadel: ['hero', 'nav', 'card', 'heading'],
+  lanterns: ['hero', 'nav', 'card', 'heading'],
+  carpet: ['hero', 'nav', 'card', 'heading'],
+  rugs: ['hero', 'nav', 'card', 'heading'],
+  lattice: ['hero', 'nav', 'card', 'heading'],
+  gate: ['hero', 'nav', 'card', 'heading'],
+  station: ['hero', 'nav', 'card', 'heading'],
+  frost: ['hero', 'nav', 'card', 'heading'],
+  beach: ['hero', 'nav', 'card', 'heading'],
+  printer: ['hero', 'nav', 'card', 'heading'],
 };
 
 /** The shape a design browses in; `scroll` when it names none. */
@@ -339,6 +371,38 @@ export const TEMPLATE_IDS = [
   'the-book',
   'the-magazine',
   'taste-airport',
+  'the-elevator',
+  'the-periodic-table',
+  'the-metro-line',
+  'the-drawer-cabinet',
+  'the-supermarket-shelves',
+  'the-kitchen-ticket-rail',
+  'the-table-from-above',
+  'the-kitchen-comics',
+  'the-phone-home-screen',
+  'the-treasure-map',
+  'the-game-levels',
+  'the-fridge',
+  'the-bento-box',
+  'the-mailbox-wall',
+  'the-scroll-depth',
+  'the-dancing-letters',
+  'the-curtain-and-spotlight',
+  'the-stacked-sheets',
+  'the-photo-to-details',
+  'the-fly-to-cart',
+  'the-section-ink',
+  'the-living-steam',
+  'the-erbil-citadel',
+  'the-ramadan-nights',
+  'the-thousand-and-one-nights',
+  'the-jajim-and-nowruz',
+  'the-baghdad-shanashil',
+  'the-ishtar-gate',
+  'the-space-station',
+  'the-frosted-window',
+  'the-summer-beach',
+  'the-3d-printer',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

@@ -1,0 +1,293 @@
+/*
+ * The Game Levels body (a browse shape of a template menu): a game map. Every section is a world, a rounded panel
+ * washed with its own hue, a ribbon banner across its top (number, name, dish count); its dishes are level nodes (a
+ * round photo in a ring, the level number on it, the price on a pill, the name below) three to a row on a dashed road
+ * that winds back and forth: the first row runs from the start side to the end, the next back, and the road turns down
+ * at each row end. A strip of worlds stays at the top and jumps. Everything is scoped under [data-body='levels']. The
+ * page is the template's --bg, text --text; banners, pills and the lit world are the inverse pair (--bg on --text) or
+ * --on-accent on --accent, and the numbers on a world's hue take the ink that reads on it (--w-ink on --w-fill, chosen in
+ * LevelsBody), so contrast holds on every palette. Logical properties only (RTL mirrors).
+ */
+[data-body='levels'] {
+  --lv-gap: 0.625rem;
+  --lv-photo: 4.25rem;
+  /* From a node's top edge to its photo's centre: the road runs through it. */
+  --lv-mid: calc(0.5rem + var(--lv-photo) / 2);
+  --lv-road: 0.875rem;
+  /* The sticky strip's height, so a jumped-to world lands just below it. */
+  --nav-room: 4.25rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* The strip of worlds (sticky: shared/shapes.css): chunky game buttons in a row that scrolls sideways. */
+[data-body='levels'] .lv-worlds {
+  padding: 0.375rem 0.5rem;
+  border-block-end: 3px solid color-mix(in srgb, var(--text) 18%, transparent);
+}
+[data-body='levels'] .lv-strip-list {
+  gap: 0.375rem;
+  padding: 0.125rem 0 0.25rem;
+}
+[data-body='levels'] .lv-world-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding-block: 0;
+  padding-inline: 0.3125rem 0.75rem;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 14%, var(--bg));
+  box-shadow: 0 3px 0 color-mix(in srgb, var(--text) 24%, transparent);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 160ms,
+    color 160ms;
+}
+[data-body='levels'] .lv-number {
+  display: grid;
+  place-items: center;
+  flex: none;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: 50%;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+[data-body='levels'] .lv-world-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+@media (hover: hover) {
+  [data-body='levels'] .lv-world-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--text) 24%, var(--bg));
+  }
+}
+
+/* A world: a rounded panel washed with its hue. */
+[data-body='levels'] .lv-world {
+  position: relative;
+  margin: 1.625rem 0.5rem 0.5rem;
+  padding: 0 0.5rem 0.75rem;
+  border-radius: 1.5rem;
+  background: color-mix(in srgb, hsl(var(--w-h) 70% 55%) 22%, var(--bg));
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, hsl(var(--w-h) 70% 55%) 45%, transparent);
+}
+
+/* The banner: a ribbon with swallowtail ends across the world's top, the inverse pair, the count in a round seal. */
+[data-body='levels'] [data-heading].lv-head {
+  position: relative;
+  z-index: 2;
+  margin-block: -0.9375rem 0.125rem;
+  text-align: center;
+}
+[data-body='levels'] .lv-banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin: 0;
+  padding-block: 0.1875rem;
+  padding-inline: 1.5rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 1.0625rem;
+  line-height: 1.2;
+  clip-path: polygon(0 0, 100% 0, calc(100% - 0.75rem) 50%, 100% 100%, 0 100%, 0.75rem 50%);
+  filter: drop-shadow(0 3px 0 color-mix(in srgb, var(--text) 30%, transparent));
+}
+[data-body='levels'] .lv-banner small {
+  flex: none;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 999px;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='levels'] .lv-banner span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='levels'] .lv-banner b {
+  flex: none;
+  min-inline-size: 1.375rem;
+  padding-inline: 0.25rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  line-height: 1.375rem;
+  text-align: center;
+}
+
+/* The road: three columns, the nodes placed in a snake by their inline grid row and column. */
+[data-body='levels'] .lv-road {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--lv-gap) 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  isolation: isolate;
+}
+[data-body='levels'] .lv-node {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.5rem 0.125rem 0;
+}
+
+/*
+ * The road from a node to the next: a band with white dots, from the photo's centre to the next photo's centre. Across
+ * it runs one column to the end side (to the start side on a backwards row); down it runs through the gap to the row below.
+ */
+[data-body='levels'] .lv-node::after {
+  content: none;
+  position: absolute;
+  z-index: -1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at center, color-mix(in srgb, var(--text) 90%, #fff) 0.1875rem, transparent 0.25rem) 0 0 / var(--lv-road) var(--lv-road),
+    color-mix(in srgb, var(--text) 16%, transparent);
+  pointer-events: none;
+}
+[data-body='levels'] .lv-node[data-link='across']::after {
+  content: '';
+  inset-block-start: calc(var(--lv-mid) - var(--lv-road) / 2);
+  inset-inline-start: 50%;
+  inline-size: 100%;
+  block-size: var(--lv-road);
+  background-repeat: repeat-x, no-repeat;
+}
+[data-body='levels'] .lv-node[data-link='across'][data-back]::after {
+  inset-inline-start: auto;
+  inset-inline-end: 50%;
+}
+[data-body='levels'] .lv-node[data-link='down']::after {
+  content: '';
+  inset-block-start: 100%;
+  inset-block-end: calc(-1 * (var(--lv-gap) + var(--lv-mid)));
+  inset-inline-start: calc(50% - var(--lv-road) / 2);
+  inline-size: var(--lv-road);
+  background-repeat: repeat-y, no-repeat;
+}
+
+/* The node's head: the photo in a round frame with a ring of three arcs (like stars) around it. */
+[data-body='levels'] .lv-disc {
+  position: relative;
+  inline-size: var(--lv-photo);
+}
+[data-body='levels'] .lv-disc::before {
+  content: '';
+  position: absolute;
+  inset: -0.3125rem;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from -50deg, hsl(var(--w-h) 90% 55%) 0 100deg, transparent 100deg 120deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.1875rem));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 0.25rem), #000 calc(100% - 0.1875rem));
+  pointer-events: none;
+}
+[data-body='levels'] .lv-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 3px solid #fff;
+  border-radius: 50%;
+  background: var(--card);
+  box-shadow: 0 4px 0 color-mix(in srgb, var(--text) 28%, transparent);
+  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The level number, on the photo's lower start rim. */
+[data-body='levels'] .lv-level {
+  position: absolute;
+  inset-block-end: -0.125rem;
+  inset-inline-start: -0.375rem;
+  display: grid;
+  place-items: center;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border: 2px solid #fff;
+  border-radius: 50%;
+  background: var(--w-fill);
+  color: var(--w-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+  pointer-events: none;
+}
+/* A discount (shared/shapes.css) on the photo's upper start rim, since the pill has no room for the regular price. */
+[data-body='levels'] .lv-off {
+  position: absolute;
+  inset-block-start: -0.25rem;
+  inset-inline-start: -0.5rem;
+}
+/* The add button (shared/shapes.css) on the photo's upper end rim. */
+[data-body='levels'] .lv-add {
+  inset-block-start: -0.25rem;
+  inset-inline-end: -0.5rem;
+  box-shadow: 0 2px 0 color-mix(in srgb, var(--text) 35%, transparent);
+}
+/* The price pill under the photo, the inverse pair. A long price wraps inside the node. Taps go through to the node. */
+[data-body='levels'] .lv-pill {
+  position: relative;
+  z-index: 1;
+  box-sizing: border-box;
+  max-inline-size: 100%;
+  margin-block: 0.25rem 0.125rem;
+  padding: 0.0625rem 0.5rem;
+  border-radius: 0.75rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+/* The name below (two lines at most, the whole node its tap area: shared/shapes.css). */
+[data-body='levels'] .lv-name {
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  [data-body='levels'] .lv-node:hover .lv-photo {
+    transform: scale(1.06);
+  }
+}
+[data-body='levels'] .lv-node:active .lv-photo {
+  transform: scale(0.95);
+}
+
+/* A wide screen keeps the road a tidy column of three: the nodes grow a little. */
+@media (min-width: 640px) {
+  [data-body='levels'] {
+    --column: 36rem;
+    --lv-photo: 5.5rem;
+  }
+  [data-body='levels'] .lv-name {
+    font-size: 0.8125rem;
+  }
+}
+
+/* Less motion: the nodes are simply there. */
+@media (prefers-reduced-motion: reduce) {
+  [data-body='levels'] .lv-photo,
+  [data-body='levels'] .lv-world-chip {
+    transition: none;
+  }
+}

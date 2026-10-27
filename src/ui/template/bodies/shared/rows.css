@@ -1,0 +1,49 @@
+/*
+ * The shared row card of the browse shapes (`RowDish`): photo, name over price and badges, add button. Only what every
+ * shape that uses it agrees on lives here; gaps, padding, borders, fonts and the wider-screen sizes stay in the shape's
+ * own CSS. `:where()` keeps these rules at one class of specificity, so any `[data-body='<kind>'] .<prefix>-*` rule wins.
+ */
+:where([data-body]) .rd-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto;
+  align-items: center;
+}
+:where([data-body]) .rd-photo {
+  inline-size: 3rem;
+  block-size: 3rem;
+  overflow: hidden;
+  border-radius: var(--radius-image, 0.5rem);
+  background: var(--card);
+}
+:where([data-body]) .rd-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+:where([data-body]) .rd-text {
+  min-inline-size: 0;
+}
+:where([data-body]) .rd-name {
+  display: block;
+  inline-size: 100%;
+  min-block-size: 0;
+  padding: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+:where([data-body]) .rd-meta {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.5rem;
+  margin-block-start: 0.15rem;
+}
+:where([data-body]) .rd-price {
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
