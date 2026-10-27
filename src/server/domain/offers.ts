@@ -19,10 +19,13 @@ function dayBefore(date: string): string {
   return day.toISOString().slice(0, 10);
 }
 
+/** The part of an offer that says when it runs: the till's copy of an offer carries only this. */
+export type OfferWindow = Pick<CatalogPromotion, 'daysOfWeek' | 'startsOn' | 'endsOn' | 'startMinute' | 'endMinute'>;
+
 const onDay = (mask: number, day: number) => (mask & (1 << day)) !== 0;
 
 /** Whether the offer runs on that weekday and date (its dates are inclusive and either may be open). */
-function runsOn(offer: CatalogPromotion, day: number, date: string): boolean {
+function runsOn(offer: OfferWindow, day: number, date: string): boolean {
   return (
     onDay(offer.daysOfWeek, day) &&
     (offer.startsOn === null || date >= offer.startsOn) &&
@@ -34,7 +37,7 @@ function runsOn(offer: CatalogPromotion, day: number, date: string): boolean {
  * Whether the offer is live at `now`. Without a daily window it runs all day on its days. A window whose end is not
  * after its start wraps past midnight, and its hours after midnight belong to the day, and the date, it started on.
  */
-export function isOfferLive(offer: CatalogPromotion, now: Date, timeZone: string): boolean {
+export function isOfferLive(offer: OfferWindow, now: Date, timeZone: string): boolean {
   const { day, minute } = localClock(now, timeZone);
   const date = localDate(now, timeZone);
   const { startMinute: start, endMinute: end } = offer;
@@ -50,11 +53,11 @@ export function liveOffers(catalog: Catalog, now: Date): CatalogPromotion[] {
   return catalog.promotions.filter((offer) => isOfferLive(offer, now, catalog.timeZone));
 }
 
-const names = (offer: CatalogPromotion, product: CatalogProduct) =>
+const names = (offer: Pick<CatalogPromotion, 'productIds' | 'categoryIds'>, product: Pick<CatalogProduct, 'id' | 'categoryId'>) =>
   offer.productIds.includes(product.id) || offer.categoryIds.includes(product.categoryId);
 
 /** The largest live discount that names the dish or its category, with the step its price rounds to. */
-export function discountFor(product: CatalogProduct, live: readonly CatalogPromotion[]): { percent: number; roundTo: number } | null {
+export function discountFor(product: Pick<CatalogProduct, 'id' | 'categoryId'>, live: readonly CatalogPromotion[]): { percent: number; roundTo: number } | null {
   let best: { percent: number; roundTo: number } | null = null;
   for (const offer of live) {
     if (offer.kind !== 'DISCOUNT' || offer.percentOff === null || !names(offer, product)) continue;

@@ -4,6 +4,9 @@ export type PricedLine = {
   unitPrice: number;
   optionsTotal: number;
   quantity: number;
+  /** What the menu's live offer took off one unit when the line was added, in whole IQD (0 or missing: no offer). */
+  promoPerUnit?: number;
+  /** The cashier's own discount, taken from what is left after the offer. */
   discount?: Discount;
   cancelled?: boolean;
 };
@@ -39,9 +42,18 @@ function lineGross(line: PricedLine): number {
   return (line.unitPrice + line.optionsTotal) * line.quantity;
 }
 
-/** The amount the line's own discount takes off its gross, in whole IQD: gross = lineTotal + lineDiscount. */
+/** The menu offer on the whole line, in whole IQD, never more than the gross. */
+export function lineOffer(line: PricedLine): number {
+  return Math.min(Math.max(Math.floor(line.promoPerUnit ?? 0), 0) * line.quantity, lineGross(line));
+}
+
+/**
+ * The amount the line's discounts take off its gross, in whole IQD: gross = lineTotal + lineDiscount. The menu's offer
+ * comes first; the cashier's own discount applies to the price that is left, so the two never count the same money twice.
+ */
 export function lineDiscount(line: PricedLine): number {
-  return discountAmount(lineGross(line), line.discount);
+  const offer = lineOffer(line);
+  return offer + discountAmount(lineGross(line) - offer, line.discount);
 }
 
 /** What one line adds to the subtotal: its gross minus its own discount. A cancelled line still has this amount. */

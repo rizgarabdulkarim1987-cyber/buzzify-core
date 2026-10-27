@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { formatNumber } from '@/lib/pos-format';
 import { pickName } from '@/lib/pos-view';
 import type { Locale } from '@/lib/locale';
+import { offerPerUnit, type LineOffer } from '@/server/domain/pos/line-offer';
 import type { TillProduct } from '@/server/pos/till-catalog';
 import { useLocale, useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -25,19 +26,21 @@ interface Props {
   pending: boolean;
   onClose: () => void;
   onAdd: (product: TillProduct, chosen: Chosen) => void;
+  /** The menu offer the dish is under now: the add button then shows the sale price. */
+  offer?: LineOffer | null;
 }
 
 /** The sizes, option groups, quantity and note of one product, chosen before it joins the order. */
-export function OptionsSheet({ product, fallback, pending, onClose, onAdd }: Props) {
+export function OptionsSheet({ product, fallback, pending, onClose, onAdd, offer = null }: Props) {
   const { locale } = useLocale();
   return (
     <Dialog open={product !== null} onOpenChange={(open) => !open && onClose()} title={product ? pickName(product.names, locale, fallback) : ''} width="md">
-      {product ? <SheetBody key={product.id} product={product} fallback={fallback} pending={pending} onAdd={onAdd} /> : null}
+      {product ? <SheetBody key={product.id} product={product} fallback={fallback} pending={pending} onAdd={onAdd} offer={offer} /> : null}
     </Dialog>
   );
 }
 
-function SheetBody({ product, fallback, pending, onAdd }: { product: TillProduct; fallback: Locale; pending: boolean; onAdd: Props['onAdd'] }) {
+function SheetBody({ product, fallback, pending, onAdd, offer }: { product: TillProduct; fallback: Locale; pending: boolean; onAdd: Props['onAdd']; offer: LineOffer | null }) {
   const t = useT();
   const { locale } = useLocale();
   const money = useMoney();
@@ -63,6 +66,7 @@ function SheetBody({ product, fallback, pending, onAdd }: { product: TillProduct
   const variant = product.variants.find((v) => v.id === variantId);
   const picked = product.groups.flatMap((group) => group.options).filter((option) => optionIds.includes(option.id));
   const unit = product.price + (variant?.priceDelta ?? 0) + picked.reduce((sum, option) => sum + option.priceDelta, 0);
+  const unitOffer = offerPerUnit(unit, offer);
   const missing = product.groups.filter((group) => group.options.filter((option) => optionIds.includes(option.id)).length < group.minSelect);
 
   return (
@@ -114,7 +118,7 @@ function SheetBody({ product, fallback, pending, onAdd }: { product: TillProduct
           disabled={pending || missing.length > 0}
           onClick={() => onAdd(product, { variantId, optionIds, quantity, note: note.trim() })}
         >
-          {t('pos.order.add')} · {money(unit * quantity)}
+          {t('pos.order.add')} · {money((unit - unitOffer) * quantity)}
         </Button>
       </div>
       {missing.length > 0 ? <p className="text-sm text-muted">{t('pos.order.chooseRequired')}</p> : null}

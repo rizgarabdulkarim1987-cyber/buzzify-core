@@ -42,7 +42,7 @@ function inputFor(op: Op, orderId: string): unknown {
     case 'openOrder':
       return op.payload;
     case 'addLine':
-      return { orderId, expectedVersion: op.expectedVersion, ...op.payload };
+      return { orderId, expectedVersion: op.expectedVersion, ...op.payload, clientAt: op.clientAt };
     case 'sendToKitchen':
     case 'requestBill':
       return { orderId, expectedVersion: op.expectedVersion };

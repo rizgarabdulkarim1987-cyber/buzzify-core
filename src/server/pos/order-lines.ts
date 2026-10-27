@@ -1,8 +1,10 @@
 import type { AnyDb } from '@/server/data/tenant-db';
 import { isLocale, type Locale } from '@/lib/locale';
+import { tillOfferPerUnit } from '@/server/domain/pos/line-offer';
 import { lineTotal, type Discount } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
+import { loadTillOffers, pricingMoment } from './line-offers';
 import {
   bumpOrder,
   assertNotHandedOver,
@@ -87,13 +89,16 @@ export interface AddLineInput {
   variantId?: string;
   optionIds: string[];
   expectedVersion: number;
+  /** When a till device tapped the dish while offline: the moment the menu's offers are read at (see `pricingMoment`). */
+  clientAt?: Date;
 }
 
 /**
  * Adds a product of the catalog menu to the order, copying its name, price, section and the chosen variant and options as
- * they are now. A product that is switched off, sold out at the till, or in an inactive category cannot be added.
+ * they are now, and what the menu's live offer takes off a unit (kept apart from the regular price, so reports and the
+ * receipt show it as a discount). A product that is switched off, sold out at the till, or in an inactive category cannot be added.
  */
-export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string, input: AddLineInput) {
+export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string, input: AddLineInput, now: Date = new Date()) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
   const product = await db.product.findFirst({
@@ -112,6 +117,9 @@ export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string,
   if (!product.isAvailable || setting?.soldOutOverride) throw refuse('CONFLICT', 'This product is not available');
   const defaultLocale: Locale | string = menu?.defaultLocale ?? 'en';
   const options = chooseForLine(product, defaultLocale, input.variantId, input.optionIds);
+  const { offers, timeZone } = await loadTillOffers(db, restaurantId, menuId);
+  const regularUnit = product.basePrice + options.reduce((sum, option) => sum + option.priceDelta, 0);
+  const promoDiscountPerUnit = tillOfferPerUnit(product, regularUnit, offers, pricingMoment(input.clientAt, now), timeZone);
 
   const sectionId = setting?.sectionId ?? categorySetting?.sectionId ?? null;
   const section = sectionId ? await db.posKitchenSection.findFirst({ where: { id: sectionId, restaurantId }, select: { id: true, name: true } }) : null;
@@ -125,6 +133,7 @@ export async function addLineIn(db: AnyDb, restaurantId: string, menuId: string,
       productId: product.id,
       nameSnapshot: nameOf(product.translations, defaultLocale),
       unitPriceSnapshot: product.basePrice,
+      promoDiscountPerUnit,
       quantity: input.quantity,
       note: input.note,
       optionsSnapshot: options,
