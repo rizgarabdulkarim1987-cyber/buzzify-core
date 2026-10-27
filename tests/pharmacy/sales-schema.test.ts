@@ -176,7 +176,7 @@ describe('the sale', () => {
     await expect(sale(w, sh.id, { totalMinor: -1n })).rejects.toThrow(/PhSale_totalMinor_nonnegative/);
     await expect(sale(w, sh.id, { paidMinor: -1n })).rejects.toThrow(/PhSale_paidMinor_nonnegative/);
     await expect(sale(w, sh.id, { changeMinor: -1n })).rejects.toThrow(/PhSale_changeMinor_nonnegative/);
-    await expect(sale(w, sh.id, { subtotalMinor: 100n, discountMinor: 101n })).rejects.toThrow(/PhSale_within_subtotal/);
+    await expect(sale(w, sh.id, { subtotalMinor: 100n, discountMinor: 101n })).rejects.toThrow(/PhSale_(within_subtotal|total_identity)/); // a discount above the subtotal breaks both rules
     await expect(sale(w, sh.id, { subtotalMinor: 100n, discountMinor: 100n, totalMinor: 0n })).resolves.toHaveProperty('id');
   });
 
@@ -430,5 +430,75 @@ describe('the pharmacy settings', () => {
     await expect(make({ maxDiscountPercent: -1 })).rejects.toThrow(/PhSettings_maxDiscountPercent_range/);
     await expect(make({ shiftVarianceLimitMinor: -1n })).rejects.toThrow(/PhSettings_shiftVarianceLimitMinor_nonnegative/);
     await expect(make({ returnWindowDays: -1 })).rejects.toThrow(/PhSettings_returnWindowDays_nonnegative/);
+  });
+});
+
+describe('integrity: one currency per shift, totals that add up, idempotent cash movements', () => {
+  it('refuses a sale, a cash movement or a return posted into a shift of another currency', async () => {
+    const w = await world();
+    const sh = await shift(w); // IQD
+    await expect(sale(w, sh.id, { currency: 'USD' })).rejects.toMatchObject({ code: 'P2003' });
+    await expect(
+      prisma().phCashMovement.create({
+        data: { restaurantId: w.biz.id, shiftId: sh.id, type: 'PAID_IN', amountMinor: 5n, currency: 'USD', userId: 'u' },
+      }),
+    ).rejects.toMatchObject({ code: 'P2003' });
+    const done = await completed(w, sh.id);
+    const usd = await shift(w, { userId: 'cashier-2', currency: 'USD' });
+    await expect(
+      prisma().phReturn.create({
+        data: {
+          restaurantId: w.biz.id,
+          branchId: w.biz.branchId,
+          saleId: done.id,
+          shiftId: usd.id,
+          reason: 'r',
+          approvedById: 'm',
+          refundMethod: 'CASH',
+          refundMinor: 1n,
+          currency: 'IQD',
+          clientKey: 'ret-usd-shift',
+        },
+      }),
+    ).rejects.toMatchObject({ code: 'P2003' });
+    await expect(sale(w, usd.id, { currency: 'USD' })).resolves.toHaveProperty('id');
+  });
+
+  it('refuses a sale whose total is not subtotal - discount + rounding', async () => {
+    const { w, sh } = await lineWorld();
+    await expect(sale(w, sh.id, { subtotalMinor: 1000n, discountMinor: 100n, totalMinor: 1000n })).rejects.toThrow(/PhSale_total_identity/);
+    await expect(sale(w, sh.id, { subtotalMinor: 1000n, roundingMinor: -10n, totalMinor: 1000n })).rejects.toThrow(/PhSale_total_identity/);
+    await expect(sale(w, sh.id, { subtotalMinor: 1000n, discountMinor: 100n, roundingMinor: 5n, totalMinor: 905n })).resolves.toHaveProperty('id');
+  });
+
+  it('refuses a done sale whose change is not what was paid above the total, or with no completion time', async () => {
+    const { w, sh } = await lineWorld();
+    await expect(completed(w, sh.id, { paidMinor: 1500n, changeMinor: 0n })).rejects.toThrow(/PhSale_paid_overpay_is_change/);
+    await expect(completed(w, sh.id, { paidMinor: 1000n, changeMinor: 1n })).rejects.toThrow(/PhSale_paid_overpay_is_change/);
+    await expect(completed(w, sh.id, { completedAt: null })).rejects.toThrow(/PhSale_completed_when_done/);
+    await expect(completed(w, sh.id, { status: 'RETURNED_PARTIAL', completedAt: null })).rejects.toThrow(/PhSale_completed_when_done/);
+  });
+
+  it('refuses a line whose total is not qty x price - discount', async () => {
+    const { w, s } = await lineWorld();
+    await expect(line(w, s.id, { totalMinor: 999n })).rejects.toThrow(/PhSaleLine_within_gross_total/);
+    await expect(line(w, s.id, { discountMinor: 100n, totalMinor: 1000n })).rejects.toThrow(/PhSaleLine_within_gross_total/);
+    await expect(line(w, s.id, { discountMinor: 100n, totalMinor: 900n })).resolves.toHaveProperty('id');
+  });
+
+  it('keeps a cash movement idempotent by clientKey when it has one', async () => {
+    const w = await world();
+    const sh = await shift(w);
+    const other = await world('B');
+    const shB = await shift(other);
+    const move = (biz: World, shiftId: string, clientKey: string | null) =>
+      prisma().phCashMovement.create({
+        data: { restaurantId: biz.biz.id, shiftId, type: 'PAID_IN', amountMinor: 5n, currency: 'IQD', userId: 'u', clientKey },
+      });
+    await move(w, sh.id, 'm1');
+    await expect(move(w, sh.id, 'm1')).rejects.toMatchObject({ code: 'P2002' });
+    await expect(move(other, shB.id, 'm1')).resolves.toHaveProperty('id');
+    await move(w, sh.id, null);
+    await expect(move(w, sh.id, null)).resolves.toHaveProperty('id');
   });
 });

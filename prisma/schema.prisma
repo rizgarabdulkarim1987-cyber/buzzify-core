@@ -2661,12 +2661,16 @@ model PhShift {
   restaurant        Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch            Branch        @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
 
-  movements PhCashMovement[]
-  sales     PhSale[]
-  returns   PhReturn[]
+  movements        PhCashMovement[] @relation("PhCashMovementShift")
+  movementCurrency PhCashMovement[] @relation("PhCashMovementShiftCurrency")
+  sales            PhSale[]         @relation("PhSaleShift")
+  saleCurrency     PhSale[]         @relation("PhSaleShiftCurrency")
+  returns          PhReturn[]       @relation("PhReturnShift")
+  returnCurrency   PhReturn[]       @relation("PhReturnShiftCurrency")
 
   @@unique([restaurantId, id])
   @@unique([id, branchId])
+  @@unique([id, currency])
   @@index([restaurantId, branchId, status])
 }
 
@@ -2674,20 +2678,24 @@ model PhShift {
 /// (CHANGE_OUT, REFUND_CASH, PAID_OUT). No `branchId` of its own: it is reached through its shift (like receipt lines
 /// through the receipt). CHECK on the sign by type is in the migration.
 model PhCashMovement {
-  id           String             @id @default(cuid())
-  restaurantId String
-  shiftId      String
-  type         PhCashMovementType
-  amountMinor  BigInt
-  currency     Currency
-  reason       String             @default("")
-  refType      String?
-  refId        String?
-  userId       String
-  createdAt    DateTime           @default(now())
-  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  shift        PhShift            @relation(fields: [restaurantId, shiftId], references: [restaurantId, id], onDelete: NoAction)
+  id            String             @id @default(cuid())
+  restaurantId  String
+  shiftId       String
+  type          PhCashMovementType
+  amountMinor   BigInt
+  currency      Currency
+  reason        String             @default("")
+  refType       String?
+  refId         String?
+  /// Set by paid in/out so a repeat is idempotent; null for movements the sale/return code writes.
+  clientKey     String?
+  userId        String
+  createdAt     DateTime           @default(now())
+  restaurant    Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  shift         PhShift            @relation("PhCashMovementShift", fields: [restaurantId, shiftId], references: [restaurantId, id], onDelete: NoAction)
+  shiftCurrency PhShift            @relation("PhCashMovementShiftCurrency", fields: [shiftId, currency], references: [id, currency], onDelete: NoAction)
 
+  @@unique([restaurantId, clientKey])
   @@index([restaurantId, shiftId, createdAt])
 }
 
@@ -2718,7 +2726,8 @@ model PhSale {
   completedAt   DateTime?
   restaurant    Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch        Branch       @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
-  shift         PhShift      @relation(fields: [shiftId, branchId], references: [id, branchId], onDelete: NoAction)
+  shift         PhShift      @relation("PhSaleShift", fields: [shiftId, branchId], references: [id, branchId], onDelete: NoAction)
+  shiftCurrency PhShift      @relation("PhSaleShiftCurrency", fields: [shiftId, currency], references: [id, currency], onDelete: NoAction)
 
   lines            PhSaleLine[]
   payments         PhPayment[]        @relation("PhPaymentSale")
@@ -2818,24 +2827,25 @@ model PhPayment {
 /// sale's currency and recorded as a cash movement of `shiftId` (a shift of the same branch, composite foreign key).
 /// Numbered per branch; idempotent by `clientKey`.
 model PhReturn {
-  id           String          @id @default(cuid())
-  restaurantId String
-  branchId     String
-  saleId       String
-  shiftId      String
-  number       String?
-  reason       String
-  approvedById String
-  refundMethod PhPaymentMethod
-  refundMinor  BigInt
-  currency     Currency
-  clientKey    String
-  createdAt    DateTime        @default(now())
-  restaurant   Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  branch       Branch          @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
-  sale         PhSale          @relation("PhReturnSale", fields: [saleId, branchId], references: [id, branchId], onDelete: NoAction)
-  saleCurrency PhSale          @relation("PhReturnCurrency", fields: [saleId, currency], references: [id, currency], onDelete: NoAction)
-  shift        PhShift         @relation(fields: [shiftId, branchId], references: [id, branchId], onDelete: NoAction)
+  id            String          @id @default(cuid())
+  restaurantId  String
+  branchId      String
+  saleId        String
+  shiftId       String
+  number        String?
+  reason        String
+  approvedById  String
+  refundMethod  PhPaymentMethod
+  refundMinor   BigInt
+  currency      Currency
+  clientKey     String
+  createdAt     DateTime        @default(now())
+  restaurant    Restaurant      @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch        Branch          @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  sale          PhSale          @relation("PhReturnSale", fields: [saleId, branchId], references: [id, branchId], onDelete: NoAction)
+  saleCurrency  PhSale          @relation("PhReturnCurrency", fields: [saleId, currency], references: [id, currency], onDelete: NoAction)
+  shift         PhShift         @relation("PhReturnShift", fields: [shiftId, branchId], references: [id, branchId], onDelete: NoAction)
+  shiftCurrency PhShift         @relation("PhReturnShiftCurrency", fields: [shiftId, currency], references: [id, currency], onDelete: NoAction)
 
   lines    PhReturnLine[]
   reprints PhReceiptReprint[]
