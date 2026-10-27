@@ -6,12 +6,14 @@ import { getActor, type Actor } from '@/server/studio/auth/actor';
 import { query, SIGN_IN_PATH } from '@/server/studio/framework/invoke';
 import { listMySessions } from '@/server/studio/queries/account';
 import { describeUserAgent, formatDateTime } from '@/studio/format';
+import { DEFAULT_APPEARANCE } from '@/lib/appearance';
 import { getStudioTranslator } from '@/studio/messages';
 import { isOwnerOnly } from '@/studio/nav';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { isolated } from '@/studio/ui/isolate';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { EmailChangeForm, LanguageForm, PasswordForm } from './AccountForms';
+import { AppearanceForm } from './AppearanceForm';
 import { SessionsTable, type SessionView } from './SessionsTable';
 import { TwoFactorPanel } from './TwoFactorPanel';
 
@@ -85,6 +87,10 @@ export default async function AccountPage() {
 
         <Section id="language" title={t('account.language.title')} intro={t('account.language.intro')}>
           <LanguageForm />
+        </Section>
+
+        <Section id="appearance" title={t('account.appearance.title')} intro={t('account.appearance.intro')}>
+          <AppearanceForm initial={actor.appearance ?? DEFAULT_APPEARANCE} />
         </Section>
 
         <Section id="password" title={t('account.password.title')} intro={t('account.password.intro')}>

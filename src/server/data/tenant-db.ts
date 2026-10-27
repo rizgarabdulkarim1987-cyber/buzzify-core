@@ -66,6 +66,8 @@ export const GLOBAL_MODELS = [
   'AuditLog',
   'Invitation',
   'PlatformSetting',
+  // Written by the Buzzify team for everyone; no restaurant owns one.
+  'Announcement',
   // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).
   'Application',
   'PlanPrice',

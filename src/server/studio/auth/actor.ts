@@ -1,6 +1,7 @@
 import { cookies, headers } from 'next/headers';
 import { cache } from 'react';
 import type { PrismaClient } from '@/generated/prisma/client';
+import { parseStoredAppearance, type Appearance } from '@/lib/appearance';
 import { isLocale, type Locale } from '@/lib/locale';
 import { getPrisma } from '@/server/data/prisma';
 import type { MemberRole } from '@/server/domain/permissions';
@@ -16,6 +17,8 @@ export interface Actor {
   isPlatformOwner: boolean;
   twoFactorEnabled: boolean;
   locale: Locale;
+  /** The person's own look (the default until they choose); applied by the Studio and till layouts. */
+  appearance?: Appearance;
   memberships: Array<{ restaurantId: string; role: MemberRole }>;
   /** The restaurant a PIN session is bound to: the till works there, whatever else the person has joined. */
   posRestaurantId?: string;
@@ -36,6 +39,7 @@ export async function loadActor(prisma: PrismaClient, userId: string): Promise<A
     isPlatformOwner: user.isSuperAdmin && user.isPlatformOwner,
     twoFactorEnabled: user.twoFactorEnabled ?? false,
     locale: isLocale(user.locale) ? user.locale : 'en',
+    appearance: parseStoredAppearance(user.appearance),
     memberships: user.memberships,
   };
 }

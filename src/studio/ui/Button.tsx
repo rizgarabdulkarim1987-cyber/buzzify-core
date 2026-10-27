@@ -6,14 +6,14 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BASE =
-  'inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ' +
+  's-btn inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-md font-medium ' +
   'transition-colors duration-150 ease-out disabled:cursor-not-allowed disabled:opacity-45 aria-busy:cursor-progress';
 
 const VARIANTS: Record<ButtonVariant, string> = {
   primary: 'bg-ink text-on-ink hover:bg-ink-hover active:bg-ink-hover',
   secondary: 'border border-line-strong bg-raised text-text hover:bg-hover active:bg-pressed',
   ghost: 'text-text hover:bg-hover active:bg-pressed',
-  danger: 'bg-danger text-on-ink hover:bg-danger-hover active:bg-danger-hover',
+  danger: 'bg-danger text-on-status hover:bg-danger-hover active:bg-danger-hover',
 };
 
 const SIZES: Record<ButtonSize, string> = {

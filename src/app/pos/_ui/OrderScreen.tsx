@@ -1,5 +1,7 @@
 'use client';
 
+import { ArrowLeft, ArrowRightLeft, Ban, Percent, ReceiptText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import {
@@ -57,12 +59,15 @@ export function OrderScreen({
   can,
   freeTables,
   delivery,
+  initialPaying = false,
 }: {
   order: OrderView;
   catalog: TillCatalog | null;
   can: OrderCan;
   freeTables: FreeTable[];
   delivery: DeliveryChoices;
+  /** Open on the payment step (the board's "Pay", `?pay=1`). Ignored without the payment permission or a live line. */
+  initialPaying?: boolean;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -73,11 +78,25 @@ export function OrderScreen({
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sheet, setSheet] = useState<TillProduct | null>(null);
-  const [dialog, setDialog] = useState<Dialogs>('none');
+  const [dialog, setDialog] = useState<Dialogs>(() => (initialPaying && can.pay && order.lines.some((line) => !line.cancelled) ? 'pay' : 'none'));
 
   const fallback = catalog?.defaultLocale ?? 'en';
   const products = useMemo(() => (catalog ? visibleProducts(catalog, categoryId, search) : []), [catalog, categoryId, search]);
+  // With every category showing (and no search), the menu is cut into one titled section per category.
+  const sections = useMemo(() => {
+    if (!catalog || categoryId !== null || search.trim() !== '' || catalog.categories.length < 2) return [{ id: categoryId, label: null as string | null, products }];
+    return [...catalog.categories]
+      .sort((a, b) => a.sortOrder - b.sortOrder)
+      .map((category) => ({ id: category.id as string | null, label: pickName(category.names, locale, fallback) as string | null, products: products.filter((product) => product.categoryId === category.id) }))
+      .filter((section) => section.products.length > 0);
+  }, [catalog, categoryId, search, products, locale, fallback]);
   const liveLines = order.lines.filter((line) => !line.cancelled);
+  /** How many of each product are on the order now, for the count on its button. */
+  const onOrder = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const line of order.lines) if (!line.cancelled && line.productId) counts.set(line.productId, (counts.get(line.productId) ?? 0) + line.quantity);
+    return counts;
+  }, [order.lines]);
   const unsent = liveLines.filter((line) => !line.sent);
   const kitchenOn = order.kitchen.print || order.kitchen.screen;
   const itemCount = liveLines.reduce((sum, line) => sum + line.quantity, 0);
@@ -107,18 +126,29 @@ export function OrderScreen({
   const failed = { message: t('pos.order.actionRefused') };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:pb-8">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h1 className="text-xl font-semibold text-text">
+    <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-14 place-items-center rounded-2xl border border-line bg-raised text-text hover:bg-hover">
+          <ArrowLeft size={26} aria-hidden className="rtl:rotate-180" />
+        </Link>
+        <h1 className="text-3xl font-bold sm:text-4xl">
           {order.offPremise
             ? t(order.kind === 'DELIVERY' ? 'pos.offp.headingDelivery' : 'pos.offp.headingTakeaway', { n: formatNumber(order.number), q: formatNumber(order.offPremise.queueNumber) })
             : order.tableNumber !== null
-              ? t('pos.order.heading', { n: formatNumber(order.number), table: formatNumber(order.tableNumber) })
+              ? t('pos.calm.table', { n: formatNumber(order.tableNumber) })
               : t('pos.order.headingNoTable', { n: formatNumber(order.number) })}
-          {order.areaName ? <span className="ms-2 text-base font-normal text-muted">{order.areaName}</span> : null}
         </h1>
-        <span className="text-sm text-muted">{t(`pos.order.status.${order.status}`)}</span>
-      </div>
+        <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-status' : 'bg-hover text-text')}>
+          {t(`pos.order.status.${order.status}`)}
+        </span>
+        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        {canChange && can.cancel ? (
+          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} className="ms-auto inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-base font-semibold text-danger hover:bg-hover disabled:opacity-60">
+            <Ban size={20} aria-hidden />
+            {t('pos.order.cancelOrder')}
+          </button>
+        ) : null}
+      </header>
 
       <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
@@ -137,8 +167,8 @@ export function OrderScreen({
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_24rem]">
-        <section aria-label={t('pos.order.tabMenu')} className={cx('flex min-w-0 flex-col gap-3', tab === 'order' && 'hidden lg:flex')}>
+      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section aria-label={t('pos.order.tabMenu')} className={cx('flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0', tab === 'order' && 'hidden lg:flex')}>
           {!catalog ? (
             <Alert>{t('pos.order.noCatalog')}</Alert>
           ) : (
@@ -160,8 +190,8 @@ export function OrderScreen({
                     aria-selected={categoryId === category.id}
                     onClick={() => setCategoryId(category.id)}
                     className={cx(
-                      'min-h-11 shrink-0 rounded-md border px-4 text-base whitespace-nowrap',
-                      categoryId === category.id ? 'border-ink bg-ink text-on-ink' : 'border-line-strong bg-raised text-text hover:bg-hover',
+                      'min-h-12 shrink-0 rounded-full border px-5 text-base font-semibold whitespace-nowrap',
+                      categoryId === category.id ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text hover:bg-hover',
                     )}
                   >
                     {category.label}
@@ -171,27 +201,53 @@ export function OrderScreen({
               {products.length === 0 ? (
                 <EmptyState title={t('pos.order.noProducts')} />
               ) : (
-                <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
-                  {products.map((product) => (
-                    <li key={product.id}>
-                      <button
-                        type="button"
-                        disabled={!canChange || pending || !product.available}
-                        onClick={() => tapProduct(product)}
-                        className="flex min-h-24 w-full flex-col items-start justify-between gap-1 rounded-lg border border-line-strong bg-raised p-3 text-start hover:bg-hover disabled:opacity-50"
-                      >
-                        <span className="text-base font-medium text-text">{pickName(product.names, locale, fallback)}</span>
-                        <span className="text-sm text-muted">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>
-                      </button>
-                    </li>
+                <div className="flex flex-col gap-6">
+                  {sections.map((section) => (
+                    <section key={section.id ?? 'all'} aria-label={section.label ?? undefined}>
+                      {section.label ? <h2 className="mb-3 text-lg font-bold text-muted">{section.label}</h2> : null}
+                      <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                        {section.products.map((product) => {
+                          const count = onOrder.get(product.id) ?? 0;
+                          return (
+                            <li key={product.id} className="flex">
+                              <button
+                                type="button"
+                                disabled={!canChange || pending || !product.available}
+                                onClick={() => tapProduct(product)}
+                                className={cx(
+                                  's-keep-radius relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
+                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
+                                )}
+                              >
+                                <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
+                                <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
+                                  <span className="text-xl font-bold text-text">{product.available ? money(product.price) : t('pos.order.soldOut')}</span>
+                                  {count > 0 ? (
+                                    <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="grid min-w-8 place-items-center rounded-full bg-ink px-2 text-base leading-8 font-bold text-on-ink">
+                                      {formatNumber(count)}
+                                    </span>
+                                  ) : needsSheet(product) ? (
+                                    <SlidersHorizontal size={18} aria-hidden className="text-muted" />
+                                  ) : null}
+                                </span>
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )}
             </>
           )}
         </section>
 
-        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-lg border border-line p-3', tab === 'menu' && 'hidden lg:flex')}>
+        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-[28px] border border-line bg-raised p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0', tab === 'menu' && 'hidden lg:flex')}>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-2xl font-bold">{t('pos.calm.ticket')}</h2>
+            <span className="text-base text-muted">{t('pos.calm.items', { n: formatNumber(itemCount) })}</span>
+          </div>
           {order.lines.length === 0 ? (
             <p className="py-6 text-center text-base text-muted">{t('pos.order.empty')}</p>
           ) : (
@@ -200,7 +256,7 @@ export function OrderScreen({
                 <li key={line.id} className="flex flex-col gap-2 py-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <p className={cx('text-base font-medium', line.cancelled ? 'text-muted line-through' : 'text-text')}>
+                      <p className={cx('text-lg font-bold', line.cancelled ? 'text-muted line-through' : 'text-text')}>
                         {line.name}
                         {line.quantity > 1 && !canChange ? <span className="ms-2 text-muted">× {formatNumber(line.quantity)}</span> : null}
                       </p>
@@ -214,7 +270,7 @@ export function OrderScreen({
                       {line.cancelled ? <p className="text-sm text-danger">{t('pos.order.cancelledBecause', { reason: line.cancelReason ?? '' })}</p> : null}
                       {!line.cancelled && line.sent ? <p className="text-sm text-muted">{line.ready ? t('pos.order.lineReady') : t('pos.order.lineSent')}</p> : null}
                     </div>
-                    <span className={cx('shrink-0 text-base font-semibold', line.cancelled && 'text-muted line-through')}>{money(line.lineTotal)}</span>
+                    <span className={cx('shrink-0 text-lg font-bold', line.cancelled && 'text-muted line-through')}>{money(line.lineTotal)}</span>
                   </div>
                   {!line.cancelled && canChange ? (
                     <div className="flex flex-wrap items-center gap-2">
@@ -232,13 +288,14 @@ export function OrderScreen({
                       )}
                       <span className="flex-1" />
                       {can.discount && !line.sent ? (
-                        <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog({ line, kind: 'discount' })}>
+                        <button type="button" disabled={pending} onClick={() => setDialog({ line, kind: 'discount' })} className="inline-flex min-h-12 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-muted hover:bg-hover disabled:opacity-60">
+                          <Percent size={20} aria-hidden />
                           {t('pos.order.discount')}
-                        </Button>
+                        </button>
                       ) : null}
-                      <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog({ line, kind: 'cancel' })}>
-                        {t('pos.order.cancelLine')}
-                      </Button>
+                      <button type="button" disabled={pending} onClick={() => setDialog({ line, kind: 'cancel' })} aria-label={t('pos.order.cancelLine')} title={t('pos.order.cancelLine')} className="grid size-12 place-items-center rounded-xl text-danger hover:bg-hover disabled:opacity-60">
+                        <Trash2 size={20} aria-hidden />
+                      </button>
                     </div>
                   ) : null}
                 </li>
@@ -247,62 +304,52 @@ export function OrderScreen({
           )}
 
           <dl className="flex flex-col gap-1 border-t border-line pt-3 text-base">
-            <Row label={t('pos.totals.subtotal')} value={money(order.totals.subtotal)} />
+            <Row label={t('pos.calm.subtotal')} value={money(order.totals.subtotal)} />
             {order.totals.invoiceDiscount > 0 ? <Row label={t('pos.totals.discount')} value={`− ${money(order.totals.invoiceDiscount)}`} /> : null}
             {order.totals.service > 0 ? <Row label={t('pos.totals.service')} value={money(order.totals.service)} /> : null}
             {order.totals.tax > 0 ? <Row label={t('pos.totals.tax')} value={money(order.totals.tax)} /> : null}
             {order.totals.deliveryFee > 0 ? <Row label={t('pos.totals.deliveryFee')} value={money(order.totals.deliveryFee)} /> : null}
-            <div className="flex items-baseline justify-between gap-3 text-xl font-semibold">
-              <dt>{t('pos.totals.total')}</dt>
-              <dd>{money(order.totals.total)}</dd>
+            <div className="mt-2 flex items-baseline justify-between gap-3 rounded-2xl bg-hover px-4 py-3">
+              <dt className="text-lg font-bold">{t('pos.calm.finalTotal')}</dt>
+              <dd className="text-3xl font-bold tracking-tight">{money(order.totals.total)}</dd>
             </div>
           </dl>
 
           {canChange ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-col gap-2">
               {kitchenOn ? (
-                <Button
-                  variant="secondary"
-                  size="lg"
-                  className="min-h-12 flex-1"
-                  disabled={pending || unsent.length === 0}
-                  onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }))}
-                >
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }))}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
-                </Button>
+                </button>
+              ) : null}
+              {can.discount ? (
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
+                  <Percent size={20} aria-hidden />
+                  {t('pos.calm.invoiceDiscount')}
+                </button>
+              ) : null}
+              {order.tableId ? (
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
+                  <ArrowRightLeft size={20} aria-hidden />
+                  {t('pos.calm.moveTo')}
+                </button>
               ) : null}
               {order.status !== 'BILL_REQUESTED' ? (
-                <Button variant="secondary" size="lg" className="min-h-12 flex-1" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
+                  <ReceiptText size={20} aria-hidden />
                   {t('pos.order.bill')}
-                </Button>
+                </button>
+              ) : null}
+              {kitchenOn ? (
+                <a className="inline-flex min-h-12 items-center justify-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
+                  {t('pos.order.printTicket')}
+                </a>
               ) : null}
               {can.pay ? (
-                <Button variant="primary" size="lg" className="min-h-12 flex-1" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
-                  {t('pos.order.pay')}
+                <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
+                  {t('pos.calm.payButton')}
                 </Button>
               ) : null}
-              <div className="flex w-full flex-wrap gap-2">
-                {can.discount ? (
-                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
-                    {t('pos.order.invoiceDiscount')}
-                  </Button>
-                ) : null}
-                {order.tableId ? (
-                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
-                    {t('pos.order.moveTable')}
-                  </Button>
-                ) : null}
-                {can.cancel ? (
-                  <Button variant="ghost" size="lg" className="min-h-12" disabled={pending} onClick={() => setDialog('cancelOrder')}>
-                    {t('pos.order.cancelOrder')}
-                  </Button>
-                ) : null}
-                {kitchenOn ? (
-                  <a className="inline-flex min-h-12 items-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
-                    {t('pos.order.printTicket')}
-                  </a>
-                ) : null}
-              </div>
             </div>
           ) : null}
         </section>

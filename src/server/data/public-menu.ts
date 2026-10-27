@@ -1,6 +1,6 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
-import { productRuns } from '@/server/domain/billing/subscriptions';
+import { productRuns, type LifecycleView } from '@/server/domain/billing/subscriptions';
 import { allows, parsePlans, type Entitlements, type Plans } from '@/server/domain/entitlements';
 import { clampBrandView, guestFeatures, servedCatalog } from '@/server/domain/plan-choices';
 import { parseSnapshot, toCatalog, type MenuSnapshot } from '@/server/domain/snapshot';
@@ -14,14 +14,40 @@ import type { TenantInfo } from './tenant';
 
 /**
  * What a public slug opens. `live`: the menu's live revision. `redirect`: a slug the menu used to have; `slug` is the
- * current one. `unavailable`: the menu or its restaurant is suspended or archived, so guests get a neutral page in the
- * menu's languages. `missing`: no such slug, a deleted menu, or a menu that has never been published.
+ * current one. `unavailable`: the menu or its restaurant is suspended or archived, or its Menu subscription has ended,
+ * so guests get a neutral page in the menu's languages. `missing`: no such slug, a deleted menu, or a menu that has
+ * never been published.
  */
 export type PublicMenuResult =
   | { kind: 'live'; tenant: TenantInfo }
   | { kind: 'redirect'; slug: string; tenant: TenantInfo }
-  | { kind: 'unavailable'; name: string; defaultLocale: Locale; locales: Locale[] }
+  | { kind: 'unavailable'; menuId: string; name: string; defaultLocale: Locale; locales: Locale[] }
   | { kind: 'missing' };
+
+/** What decides whether guests are served, read live on every request (`resolvePublicMenu`). */
+const GATE_SELECT = {
+  status: true,
+  restaurant: {
+    select: {
+      status: true,
+      subscriptions: {
+        where: { applicationId: 'menu' },
+        select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
+      },
+    },
+  },
+} as const;
+
+type GateView = { status: string; restaurant: { status: string; subscriptions: LifecycleView[] } };
+
+/**
+ * Only a published menu of an active restaurant whose Menu subscription still runs is served (grace still serves; no
+ * subscription at all serves as before billing). A draft never has a live revision, since publishing makes it
+ * PUBLISHED, so this leaves suspended and archived menus and restaurants, and ended subscriptions.
+ */
+function servesGuests(menu: GateView, now: Date): boolean {
+  return menu.status === 'PUBLISHED' && menu.restaurant.status === 'ACTIVE' && productRuns(menu.restaurant.subscriptions, now);
+}
 
 /** Slug syntax (lowercase letters, digits and hyphens, up to 48), checked before anything reaches the database. */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,47}$/;
@@ -86,17 +112,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           restaurantId: true,
           feedbackEnabled: true,
           liveRevisionId: true,
-          restaurant: {
-            select: {
-              status: true,
-              plan: true,
-              planExtras: true,
-              subscriptions: {
-                where: { applicationId: 'menu' },
-                select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
-              },
-            },
-          },
+          restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true } },
         },
       },
     },
@@ -106,12 +122,9 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
   if (!menu?.liveRevisionId) return MISSING;
 
   const snapshot = await loadRevisionSnapshot(prisma, menu.id, menu.liveRevisionId);
-  // Only a published menu of an active restaurant is served. A draft never has a live revision, since publishing
-  // makes it PUBLISHED, so this leaves suspended and archived menus and restaurants, and restaurants whose Menu
-  // subscription was cancelled or has expired (grace still serves; no subscription at all serves as before billing).
-  if (menu.status !== 'PUBLISHED' || menu.restaurant.status !== 'ACTIVE' || !productRuns(menu.restaurant.subscriptions, new Date())) {
+  if (!servesGuests(menu, new Date())) {
     const { displayName, defaultLocale, locales } = snapshot.menu;
-    return { kind: 'unavailable', name: displayName, defaultLocale, locales };
+    return { kind: 'unavailable', menuId: menu.id, name: displayName, defaultLocale, locales };
   }
 
   // The plan is read live, like the statuses: a change of plan reaches guests without a publish.
@@ -128,10 +141,28 @@ export async function livePlans(prisma: PrismaClient): Promise<Plans> {
   return parsePlans(await cachedPlans(() => readPlansSetting(prisma)));
 }
 
-/** What a public slug opens, from the data cache (at most 5 minutes old; `expireMenu` expires it). */
-export function resolvePublicMenu(slug: string): Promise<PublicMenuResult> {
-  if (!SLUG.test(slug)) return Promise.resolve(MISSING);
-  return cachedSlugResolution(slug, () => findPublicMenu(getPrisma(), slug));
+/**
+ * What a public slug opens, from the data cache (at most 5 minutes old; `expireMenu` expires it), with whether guests
+ * are served read live. Production runs several server processes, and `expireMenu` reaches only the one that ran the
+ * Studio action: the others kept a suspended or cancelled menu open, or a restored one closed, for up to ten minutes.
+ * So the cached answer is checked against the gate's rows on every request, and a closed answer that is open again is
+ * read afresh.
+ */
+export async function resolvePublicMenu(slug: string): Promise<PublicMenuResult> {
+  if (!SLUG.test(slug)) return MISSING;
+  const prisma = getPrisma();
+  const result = await cachedSlugResolution(slug, () => findPublicMenu(prisma, slug));
+  if (result.kind === 'missing') return result;
+
+  const menuId = result.kind === 'unavailable' ? result.menuId : result.tenant.id;
+  const gate = await prisma.menu.findUnique({ where: { id: menuId }, select: GATE_SELECT });
+  // Deleted since it was cached: its slug is a tombstone now.
+  if (!gate) return MISSING;
+  const open = servesGuests(gate, new Date());
+  if (result.kind === 'unavailable') return open ? findPublicMenu(prisma, slug) : result;
+  if (open) return result;
+  const { name, defaultLocale, locales } = result.tenant;
+  return { kind: 'unavailable', menuId, name, defaultLocale, locales };
 }
 
 /**

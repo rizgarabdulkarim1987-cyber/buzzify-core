@@ -17,7 +17,7 @@ export function DailyReportView({ report }: { report: DailyReport }) {
   const money = useMoney();
   const totals = report.totals;
   return (
-    <div className="flex max-w-3xl flex-col gap-5 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
+    <div className="flex flex-col gap-6 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
       <form method="get" className="flex flex-wrap items-end gap-3 print:hidden">
         <label className="flex flex-col gap-1.5 text-base font-medium">
           {t('pos.report.day')}
@@ -31,12 +31,12 @@ export function DailyReportView({ report }: { report: DailyReport }) {
         </Button>
       </form>
 
-      <h2 className="text-lg font-semibold" dir="ltr">
+      <h2 className="text-2xl font-bold" dir="ltr">
         {report.day}
       </h2>
 
-      <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label={t('pos.report.netSales')} value={money(totals.netSales)} strong />
+      <dl className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Stat label={t('pos.report.netSales')} value={money(totals.netSales)} />
         <Stat label={t('pos.report.discounts')} value={money(totals.discountsTotal)} />
         {totals.refundsTotal > 0 ? (
           <Stat
@@ -59,8 +59,8 @@ export function DailyReportView({ report }: { report: DailyReport }) {
       )}
 
       {report.outsideShifts ? (
-        <section className="rounded-lg border border-line p-4">
-          <h3 className="text-base font-semibold">{t('pos.report.outside')}</h3>
+        <section className="rounded-[28px] border border-line bg-surface p-6">
+          <h3 className="text-xl font-bold">{t('pos.report.outside')}</h3>
           <p className="text-base text-muted">
             {t('pos.report.outsideCounts', { orders: formatNumber(report.outsideShifts.cancelledOrders), lines: formatNumber(report.outsideShifts.cancelledLines) })}
           </p>
@@ -77,11 +77,11 @@ export function DailyReportView({ report }: { report: DailyReport }) {
   );
 }
 
-function Stat({ label, value, hint, strong }: { label: string; value: string; hint?: string; strong?: boolean }) {
+function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
-    <div className="rounded-lg border border-line p-3">
-      <dt className="text-sm text-muted">{label}</dt>
-      <dd className={cx('mt-1', strong ? 'text-xl font-semibold' : 'text-lg font-medium')}>{value}</dd>
+    <div className="rounded-[22px] border border-line bg-surface p-5">
+      <dt className="text-base text-muted">{label}</dt>
+      <dd className="mt-2 text-3xl font-bold">{value}</dd>
       {hint ? <dd className="text-xs text-muted">{hint}</dd> : null}
     </div>
   );
@@ -93,12 +93,12 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
   const open = shift.shift.closedAt === null;
   const kind = shift.difference === null ? null : countKind(shift.difference);
   return (
-    <section className="flex flex-col gap-2 rounded-lg border border-line p-4">
+    <section className="flex flex-col gap-3 rounded-[28px] border border-line bg-surface p-6">
       <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-base font-semibold">{shift.cashierName}</h3>
+        <h3 className="text-xl font-bold">{shift.cashierName}</h3>
         <span className="text-sm text-muted">{open ? t('pos.report.stillOpen') : t('pos.report.closed')}</span>
       </header>
-      <dl className="flex flex-col gap-1 text-base">
+      <dl className="flex flex-col text-lg">
         <Line label={t('pos.report.netSales')} value={money(shift.netSales)} />
         <Line label={t('pos.report.discounts')} value={money(shift.discountsTotal)} />
         {shift.refundsTotal > 0 ? <Line label={t('pos.report.refunds')} value={money(shift.refundsTotal)} /> : null}
@@ -126,9 +126,9 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
 
 function Line({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex justify-between gap-3 border-b border-line py-2.5 last:border-b-0">
       <dt className="text-muted">{label}</dt>
-      <dd>{value}</dd>
+      <dd className="font-bold">{value}</dd>
     </div>
   );
 }

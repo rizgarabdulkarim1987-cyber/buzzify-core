@@ -659,6 +659,8 @@ model User {
   isPlatformOwner  Boolean              @default(false)
   /// The language of the Studio and of the emails sent to this person: en, ar or ckb.
   locale           String               @default("en")
+  /// The look this person chose for the Studio and the till (src/lib/appearance.ts); null until they choose. Read only through parseStoredAppearance.
+  appearance       Json?
   /// Set when the person is switched off. They keep their history but have no actor and no session.
   deactivatedAt    DateTime?
   sessions         Session[]
@@ -837,6 +839,25 @@ model PlatformSetting {
   updatedAt   DateTime @updatedAt
   /// The person who last saved it. A plain id, not a relation, so removing the person never blocks the setting.
   updatedById String?
+}
+
+/**
+ * A message from the Buzzify team to every till and Studio user (spec 2026-10-26, part 4). Written by Super Admins;
+ * titles and bodies are { en?, ar?, ckb? }. Shown from startsAt until endsAt (open-ended when null), unless archived.
+ */
+model Announcement {
+  id          String    @id @default(cuid())
+  titles      Json
+  bodies      Json
+  startsAt    DateTime  @default(now())
+  endsAt      DateTime?
+  archivedAt  DateTime?
+  /// A plain id, not a relation, so removing the person never removes the announcement.
+  createdById String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([archivedAt, startsAt])
 }
 
 /**

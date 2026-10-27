@@ -63,57 +63,62 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
   const difference = open ? (counted === '' ? null : Number(counted) - summary.expectedCash) : shift.difference;
 
   return (
-    <div className="flex max-w-xl flex-col gap-4 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
+    <div className="flex max-w-5xl flex-col gap-4 px-4 pb-8 sm:px-8 print:max-w-none print:p-0">
       <p className="text-base text-muted">
         {summary.cashierName} · {t('pos.shift.openedAt')} {formatStamp(shift.openedAt)}
         {shift.closedAt ? ` · ${t('pos.shift.closedAt')} ${formatStamp(shift.closedAt)}` : ''}
       </p>
-      <dl className="flex flex-col gap-2 rounded-lg border border-line p-4 text-base">
-        <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
-        <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} />
-        <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
-        {summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
-        {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
-          <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
-        ))}
-        <div className="flex justify-between border-t border-line pt-2 text-lg font-semibold">
-          <dt>{t('pos.shift.expected')}</dt>
-          <dd>{money(summary.expectedCash)}</dd>
-        </div>
-        {!open && shift.countedCash !== null ? <Row label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}
-        {!open && difference !== null ? <Verdict difference={difference} /> : null}
-      </dl>
-
-      {summary.expenses.length > 0 ? (
-        <section aria-label={t('pos.shift.expenses')}>
-          <ul className="flex flex-col divide-y divide-line text-base">
-            {summary.expenses.map((expense) => (
-              <li key={expense.id} className="flex justify-between gap-3 py-2">
-                <span>{expense.reason}</span>
-                <span>{money(expense.amount)}</span>
-              </li>
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,34rem)_minmax(0,22rem)] print:block">
+        <section className="flex flex-col gap-4 rounded-[28px] border border-line bg-raised p-6">
+          <div className="rounded-2xl bg-hover p-5">
+            <p className="text-base font-semibold text-muted">{t('pos.shift.expected')}</p>
+            <p className="mt-1 font-bold tracking-tight" style={{ fontSize: '3rem', lineHeight: 1 }}>{money(summary.expectedCash)}</p>
+          </div>
+          <dl className="flex flex-col text-base">
+            <Row label={t('pos.shift.openingFloat')} value={money(shift.openingFloat)} />
+            <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} />
+            <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
+            {summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
+            {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
+              <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
             ))}
-          </ul>
-        </section>
-      ) : null}
-      {shift.note ? <p className="text-base text-muted">{shift.note}</p> : null}
-
-      {open ? (
-        <div className="flex flex-wrap gap-2 print:hidden">
-          <Button variant="secondary" size="lg" className="min-h-12 flex-1" disabled={pending} onClick={() => setDialog('expense')}>
-            {t('pos.shift.addExpense')}
-          </Button>
-          {canClose ? (
-            <Button variant="primary" size="lg" className="min-h-12 flex-1" disabled={pending} onClick={() => setDialog('close')}>
-              {t('pos.shift.countAndClose')}
+            {!open && shift.countedCash !== null ? <Row label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}
+            {!open && difference !== null ? <Verdict difference={difference} /> : null}
+          </dl>
+          {shift.note ? <p className="text-base text-muted">{shift.note}</p> : null}
+          {open ? (
+            <div className="grid gap-2 sm:grid-cols-2 print:hidden">
+              <Button variant="secondary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('expense')}>
+                {t('pos.shift.addExpense')}
+              </Button>
+              {canClose ? (
+                <Button variant="primary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('close')}>
+                  {t('pos.shift.countAndClose')}
+                </Button>
+              ) : null}
+            </div>
+          ) : (
+            <Button variant="primary" size="lg" className="min-h-14 print:hidden" onClick={() => window.print()}>
+              {t('pos.receipt.print')}
             </Button>
-          ) : null}
-        </div>
-      ) : (
-        <Button variant="primary" size="lg" className="min-h-12 print:hidden" onClick={() => window.print()}>
-          {t('pos.receipt.print')}
-        </Button>
-      )}
+          )}
+        </section>
+        <section aria-label={t('pos.shift.expenses')} className="flex flex-col gap-3 rounded-[28px] border border-line bg-raised p-6">
+          <h2 className="text-xl font-bold">{t('pos.shift.expenses')}</h2>
+          {summary.expenses.length > 0 ? (
+            <ul className="flex flex-col divide-y divide-line text-base">
+              {summary.expenses.map((expense) => (
+                <li key={expense.id} className="flex justify-between gap-3 py-2">
+                  <span>{expense.reason}</span>
+                  <span className="font-semibold">{money(expense.amount)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-base text-muted">{t('pos.calm.noExpenses')}</p>
+          )}
+        </section>
+      </div>
 
       <ConfirmDialog
         open={dialog === 'expense'}
@@ -190,9 +195,9 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3">
+    <div className="flex items-baseline justify-between gap-3 border-b border-line py-3">
       <dt className="text-muted">{label}</dt>
-      <dd>{value}</dd>
+      <dd className="text-lg font-bold">{value}</dd>
     </div>
   );
 }

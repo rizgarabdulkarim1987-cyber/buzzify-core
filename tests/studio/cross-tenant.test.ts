@@ -907,6 +907,10 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
       ONLY_FORBIDDEN,
     ),
   ],
+  'announcements.list': [c('the announcements', () => ({}), ONLY_FORBIDDEN)],
+  'announcement.create': [c('an announcement', () => ({ titles: { en: 'Planted' }, bodies: { en: 'Planted' } }), ONLY_FORBIDDEN)],
+  'announcement.update': [c('an announcement', () => ({ id: 'nope', titles: { en: 'Planted' }, bodies: { en: 'Planted' } }), ONLY_FORBIDDEN)],
+  'announcement.archive': [c('an announcement', () => ({ id: 'nope' }), ONLY_FORBIDDEN)],
   'settings.get': [c('the settings', () => ({}), ONLY_FORBIDDEN)],
   'plans.get': [c('the plans', () => ({}), ONLY_FORBIDDEN)],
   'plans.update': [c('giving Basic Explore', () => ({ plans: { BASIC: { features: { 'immersive.explore': true } } }, whatsapp: '' }), ONLY_FORBIDDEN)],
@@ -950,6 +954,9 @@ const SELF: Record<string, Case[]> = {
   'account.disableTwoFactor': [c('with a wrong password', () => ({ password: 'not the password at all' }), { kind: 'self' })],
   'account.changePassword': [c('with a wrong password', () => ({ current: 'not the password at all', next: 'another long passphrase 2027' }), { kind: 'self' })],
   'account.requestEmailChange': [c("to B's owner's address", (w) => ({ newEmail: w.b.ownerEmail }), { kind: 'self' })],
+  'account.setAppearance': [c('a look', () => ({ font: 'serif', bg: '#ffffff', text: '#111111', button: '#000000', buttonText: '#ffffff', shape: 'round' }), { kind: 'self', code: 'OK' })],
+  'account.resetAppearance': [c('the default look', () => ({}), { kind: 'self', code: 'OK' })],
+  'announcements.active': [c('the active announcements', () => ({}), { kind: 'self', code: 'OK' })],
   'account.setStudioLanguage': [c('to Arabic', () => ({ locale: 'ar' }), { kind: 'self', code: 'OK' })],
   'account.endSession': [c("B's owner's session", (w) => ({ sessionId: w.b.ownerSessionId }), { kind: 'self', code: 'NOT_FOUND' })],
   'account.endOtherSessions': [c('the other sessions', () => ({}), { kind: 'self', code: 'OK' })],
@@ -1056,7 +1063,7 @@ const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'p
   'pos.createArea', 'pos.renameArea', 'pos.deleteArea', 'pos.createTables', 'pos.deleteTable', 'pos.moveTable', 'pos.floor',
   'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
   'pos.aiAsk', 'pos.aiPhraseSummary', 'pos.aiLabelComplaints', 'pos.aiSupplyExtract', 'pos.aiState', 'pos.aiSummary', 'pos.aiAlerts', 'pos.aiComplaintLabels',
-  'pos.syncSnapshot', 'pos.discardSyncOperation',
+  'pos.syncSnapshot', 'pos.discardSyncOperation', 'pos.restaurantLogo',
 ];
 
 describe('the cross-tenant sweep', () => {

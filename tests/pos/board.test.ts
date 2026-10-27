@@ -83,6 +83,16 @@ describe('the tables board', () => {
     expect(view.busyCount).toBe(2);
   });
 
+  it('gives each open table its live lines, without the cancelled ones', async () => {
+    const { orderId } = await seat(1, 2);
+    const line = await prisma().posOrderLine.findFirstOrThrow({ where: { orderId } });
+    const byNumber = async () => new Map((await board()).tables.map((t) => [t.number, t]));
+    expect((await byNumber()).get(1)!.lines).toEqual([{ name: line.nameSnapshot, quantity: 2 }]);
+    expect((await byNumber()).get(3)!.lines).toEqual([]);
+    await prisma().posOrderLine.update({ where: { id: line.id }, data: { cancelledAt: new Date() } });
+    expect((await byNumber()).get(1)!.lines).toEqual([]);
+  });
+
   it('shows READY when the order is ready', async () => {
     const { orderId } = await seat(1);
     await prisma().posOrder.update({ where: { id: orderId }, data: { status: 'READY' } });
