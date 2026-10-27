@@ -239,6 +239,12 @@ const CASES: Record<string, Case> = {
   'ph.sales.create': { body: (ids) => saleBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.sales.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.sales.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Holds and the sale screen's search (phase 3, task 3b). They need a branch (the place), so with none they answer INVALID: harmless.
+  'ph.sales.hold': { body: (ids) => ({ currency: 'IQD', clientKey: key(), lines: [{ productId: ids.productId, unitId: ids.unitId, qty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.sales.resume': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.sales.discardHold': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.sales.holds': { body: () => ({}), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.sell.search': { body: (ids) => ({ q: ids.tradeName }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Shifts and cash (phase 3). Open and the cash movements act on the caller's own shift: they name no foreign id.
   'ph.shifts.open': { body: () => ({ currency: 'IQD', openingFloatMinor: 10n, clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.cash.paidIn': { body: () => ({ amountMinor: 5n, reason: 'Planted', clientKey: key() }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
@@ -281,8 +287,14 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 3 sales definition', () => {
     const sales = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sales.'));
-    expect(sales.sort()).toEqual(['ph.sales.cancel', 'ph.sales.create', 'ph.sales.get', 'ph.sales.list']);
+    expect(sales.sort()).toEqual(['ph.sales.cancel', 'ph.sales.create', 'ph.sales.discardHold', 'ph.sales.get', 'ph.sales.hold', 'ph.sales.holds', 'ph.sales.list', 'ph.sales.resume']);
     expect(sales.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers the sale screen search', () => {
+    const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
+    expect(sell).toEqual(['ph.sell.search']);
+    expect(sell.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
   it('covers every phase 3 return definition', () => {
