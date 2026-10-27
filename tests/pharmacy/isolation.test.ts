@@ -259,6 +259,10 @@ const CASES: Record<string, Case> = {
   'ph.returns.get': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.returnable': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Printing (phase 3, task 6): a sale or return of another branch or business is NOT_FOUND; a reprint logs nothing then.
+  'ph.receipts.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.receipts.returnReceipt': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.receipts.reprint': { body: (ids, n) => ({ saleId: pick(ids, n).saleId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -303,6 +307,12 @@ describe('the pharmacy isolation sweep', () => {
     expect(returns.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
+  it('covers every phase 3 printing definition', () => {
+    const prints = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.receipts.'));
+    expect(prints.sort()).toEqual(['ph.receipts.get', 'ph.receipts.reprint', 'ph.receipts.returnReceipt']);
+    expect(prints.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
   it('covers every phase 3 shift and cash definition', () => {
     const shifts = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.shifts.') || name.startsWith('ph.cash.'));
     expect(shifts.sort()).toEqual(['ph.cash.paidIn', 'ph.cash.paidOut', 'ph.shifts.close', 'ph.shifts.current', 'ph.shifts.list', 'ph.shifts.open', 'ph.shifts.report']);
@@ -336,6 +346,7 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   return json({
     sales,
     returns,
+    reprints: await prisma().phReceiptReprint.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     returnLines: await prisma().phReturnLine.findMany({ where: { returnId: { in: returns.map((x) => x.id) } }, orderBy }),
     allocations: await prisma().phSaleLineAllocation.findMany({ where: { saleLineId: { in: (await prisma().phSaleLine.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, select: { id: true } })).map((l) => l.id) } }, orderBy }),
     saleLines: await prisma().phSaleLine.findMany({ where: { saleId: { in: sales.map((x) => x.id) } }, orderBy }),
