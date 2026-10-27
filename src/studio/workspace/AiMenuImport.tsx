@@ -54,6 +54,20 @@ export function AiMenuImport({ endpoint, onRead }: { endpoint: string; onRead: (
     }
   }
 
+  /** Arabic and Kurdish for English-only items, a batch per request; a failure only leaves the menu in its own language. */
+  async function translate(reading: AiMenuReading) {
+    setStatus(t('ai.menu.translating'));
+    for (let round = 0; round < 10; round += 1) {
+      try {
+        const response = await fetch(`${endpoint}/translate`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ importJobId: reading.importJobId }) });
+        const body = (await response.json()) as { data?: { ok?: boolean; remaining?: number } };
+        if (!body.data?.ok || !body.data.remaining) return;
+      } catch {
+        return;
+      }
+    }
+  }
+
   async function read() {
     if (!file && link.trim() === '') return setError(t('ai.menu.chooseInput'));
     if (file && file.size > FILE_MAX_BYTES) return setError(t('ai.menu.error.tooLarge'));
@@ -67,6 +81,7 @@ export function AiMenuImport({ endpoint, onRead }: { endpoint: string; onRead: (
       const body = (await response.json()) as Answer;
       if (body.data?.ok) {
         await bringPhotos(body.data);
+        await translate(body.data);
         onRead(body.data);
       }
       else if (body.data) setError(t(`ai.menu.error.${body.data.code}`));

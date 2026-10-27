@@ -7,7 +7,7 @@ import { readMenuImportUpload } from '@/server/ai/menu-import-upload';
 import { setAiProviderForTests } from '@/server/ai/provider';
 import { FakeProvider } from '@/server/ai/provider/fake';
 import { writeAiPackage } from '@/server/ai/package';
-import { posImportAiPhotos, posImportAiPreview, posImportApply } from '@/server/studio/actions/pos';
+import { posImportAiPhotos, posImportAiPreview, posImportAiTranslate, posImportApply } from '@/server/studio/actions/pos';
 import { aiRead } from '@/server/studio/actions/imports';
 import { dataOf, person, prisma, run, useTestDatabase } from '../fixture';
 import { makeAiWorld, type AiWorld } from './world';
@@ -74,11 +74,11 @@ describe('reading a menu from a file', () => {
   it('reads categories, names, descriptions and prices, and leaves out an item with no price', async () => {
     const reading = await readMenu(env(), png(MENU), 'IQD');
     expect(reading.products.map((p) => [p.category, p.names, p.price])).toEqual([
-      [{ en: 'Drinks', ar: 'ع Drinks', ckb: 'ک Drinks' }, { en: 'Tea', ar: 'ع Tea', ckb: 'ک Tea' }, '1,500'],
-      [{ en: 'Drinks', ar: 'ع Drinks', ckb: 'ک Drinks' }, { en: 'Coffee', ar: 'ع Coffee', ckb: 'ک Coffee' }, '2500'],
+      [{ en: 'Drinks' }, { en: 'Tea' }, '1,500'],
+      [{ en: 'Drinks' }, { en: 'Coffee' }, '2500'],
       [{ ar: 'مأكولات' }, { ar: 'برغر' }, '8500'],
     ]);
-    expect(reading.products[1]!.descriptions).toEqual({ en: 'Strong', ar: 'ع Strong', ckb: 'ک Strong' });
+    expect(reading.products[1]!.descriptions).toEqual({ en: 'Strong' });
     expect(reading.skipped).toBe(1);
   });
 
@@ -243,6 +243,23 @@ describe('the actions', () => {
     const menu = await prisma().menu.findFirstOrThrow({ where: { slug: 'ai-menu-a' } });
     const shown = ready(dataOf(await run(designer, aiRead, { menuId: menu.id, source: png(MENU) })));
     expect(shown.preview.summary).toMatchObject({ new: 3 });
+  });
+});
+
+describe('Arabic and Kurdish for an English menu', () => {
+  it('translates what the import creates, in steps, and leaves Arabic the menu already has alone', async () => {
+    const shown = ready(dataOf(await run(w.manager, posImportAiPreview, png(MENU))));
+    expect(dataOf(await run(w.manager, posImportAiTranslate, { importJobId: shown.importJobId }))).toMatchObject({ ok: true, remaining: 0 });
+    dataOf(await run(w.manager, posImportApply, { importJobId: shown.importJobId }));
+    const tea = await prisma().product.findFirstOrThrow({ where: { menu: { slug: 'ai-menu-a' }, basePrice: 1500 } });
+    expect(tea.translations).toMatchObject({ en: { name: 'Tea' }, ar: { name: 'ع Tea' }, ckb: { name: 'ک Tea' } });
+    const burger = await prisma().product.findFirstOrThrow({ where: { menu: { slug: 'ai-menu-a' }, basePrice: 8500 } });
+    expect(burger.translations).toMatchObject({ ar: { name: 'برغر' } });
+    expect((burger.translations as Record<string, unknown>).ckb).toBeUndefined();
+  });
+
+  it('is refused for an import that is not there', async () => {
+    expect((await run(w.manager, posImportAiTranslate, { importJobId: 'a'.repeat(26) })).ok).toBe(false);
   });
 });
 

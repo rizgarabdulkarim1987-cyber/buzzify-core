@@ -29,10 +29,12 @@ export function aiErrorCode(error: unknown): AiErrorCode {
 }
 
 /** Runs an AI operation and returns its result or the failure code. */
-export async function guardedAi<T>(work: () => Promise<T>): Promise<({ ok: true } & T) | AiFailure> {
+export async function guardedAi<T>(work: () => Promise<T>, options: { refuseAsError?: boolean } = {}): Promise<({ ok: true } & T) | AiFailure> {
   try {
     return { ok: true, ...(await work()) };
   } catch (error) {
+    // A step that works on one stored job refuses a job that is not the caller's like any other action: as an error.
+    if (options.refuseAsError && error instanceof StudioError) throw error;
     return { ok: false, code: aiErrorCode(error) };
   }
 }

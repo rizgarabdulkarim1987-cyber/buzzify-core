@@ -24,7 +24,6 @@ import { untrusted } from './untrusted';
 
 export const MENU_IMPORT_MAX_PRODUCTS = 150;
 const NAME_LENGTH = 120;
-const TRANSLATE_AFTER_MS = 70_000;
 const DESCRIPTION_LENGTH = 1_000;
 const MENU_TOKENS = Math.max(MAX_TOKENS.extract, 20_000);
 
@@ -66,7 +65,7 @@ const extraction = z.object({
 });
 
 /** A printed text goes under the language its letters are in; Sorani Kurdish has letters Arabic does not. */
-function inLocale(value: string | null): { en: string | null; ar: string | null; ckb: string | null } {
+export function inLocale(value: string | null): { en: string | null; ar: string | null; ckb: string | null } {
   const out = { en: null as string | null, ar: null as string | null, ckb: null as string | null };
   if (value === null) return out;
   if (/[ڕڵۆێە]/.test(value)) out.ckb = value;
@@ -89,17 +88,10 @@ const TRANSLATE_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-type Translations = Map<string, { ar: string | null; ckb: string | null }>;
-
-/** The distinct English texts of a reading, which are the ones the menu does not print in Arabic or Kurdish. */
-function englishTexts(items: { category: string | null; name: string | null; description: string | null }[]): string[] {
-  const texts = new Set<string>();
-  for (const item of items) for (const value of [item.category, item.name, item.description]) if (value !== null && inLocale(value).en !== null) texts.add(value.trim().slice(0, DESCRIPTION_LENGTH));
-  return [...texts].filter((value) => value !== '');
-}
+export type Translations = Map<string, { ar: string | null; ckb: string | null }>;
 
 /** Arabic and Kurdish for English texts. Best effort: any failure leaves the menu in the language it was printed in. */
-async function translateTexts(call: AiCaller, texts: string[]): Promise<Translations> {
+export async function translateTexts(call: AiCaller, texts: string[]): Promise<Translations> {
   const out: Translations = new Map();
   if (texts.length === 0) return out;
   try {
@@ -108,17 +100,11 @@ async function translateTexts(call: AiCaller, texts: string[]): Promise<Translat
     const body = z.object({ translations: z.array(z.object({ ar: z.string().nullable(), ckb: z.string().nullable() })) }).parse(JSON.parse(res.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('')));
     if (body.translations.length !== texts.length) return out;
     texts.forEach((text, index) => out.set(text, body.translations[index]!));
-  } catch {
+  } catch (error) {
+    console.error('menu translation failed', error instanceof Error ? error.name : typeof error);
     return new Map();
   }
   return out;
-}
-
-/** A printed text in its own language, plus the Arabic and Kurdish of an English one when they were worked out. */
-function withTranslation(value: string | null, translated: Translations) {
-  const base = inLocale(value);
-  const more = base.en !== null ? translated.get(base.en.trim().slice(0, DESCRIPTION_LENGTH)) : undefined;
-  return more ? { ...base, ar: more.ar, ckb: more.ckb } : base;
 }
 
 const SYSTEM = [
@@ -197,23 +183,18 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
   const input = menuImportInput.parse(rawInput);
   const { content, pageNumbers, images } = await contentOf(input, deps);
 
-  const { parsed, translated } = await runAi(env, {
+  const parsed = await runAi(env, {
     feature: 'MENU_IMPORT',
     now,
     work: async (call) => {
-      const started = Date.now();
       const res = await call({ purpose: 'extract', system: SYSTEM, messages: [{ role: 'user', content }], jsonSchema: MENU_SCHEMA, maxTokens: MENU_TOKENS });
       if (res.stop === 'max_tokens') throw new AiInputTooLargeError();
       const text = res.content.flatMap((c) => (c.type === 'text' ? [c.text] : [])).join('');
-      let read: z.infer<typeof extraction>;
       try {
-        read = extraction.parse(JSON.parse(text));
+        return extraction.parse(JSON.parse(text));
       } catch {
         throw new AiUnreadableError();
       }
-      // A slow reading leaves no time for the translation: the menu then stays in the language it was printed in.
-      const late = Date.now() - started > TRANSLATE_AFTER_MS;
-      return { parsed: read, translated: late ? new Map() : await translateTexts(call, englishTexts(read.products.slice(0, MENU_IMPORT_MAX_PRODUCTS))) };
     },
   });
   if (parsed.products.length === 0) throw new AiUnreadableError();
@@ -221,7 +202,7 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
   const products: MenuReadProduct[] = [];
   let skipped = 0;
   for (const item of parsed.products.slice(0, MENU_IMPORT_MAX_PRODUCTS)) {
-    const names = pick(withTranslation(item.name, translated), NAME_LENGTH);
+    const names = pick(inLocale(item.name), NAME_LENGTH);
     if (Object.keys(names).length === 0) continue;
     const price = priceCell(item.price, currency);
     const grounded = price !== null && (pageNumbers === null || extractNumbers(price).every((n) => pageNumbers.has(n)));
@@ -229,11 +210,11 @@ export async function readMenu(env: AiEnv, rawInput: unknown, currency: string, 
       skipped += 1;
       continue;
     }
-    const category = pick(withTranslation(item.category, translated), NAME_LENGTH);
+    const category = pick(inLocale(item.category), NAME_LENGTH);
     products.push({
       category: Object.keys(category).length > 0 ? category : { en: 'Menu' },
       names,
-      descriptions: pick(withTranslation(item.description, translated), DESCRIPTION_LENGTH),
+      descriptions: pick(inLocale(item.description), DESCRIPTION_LENGTH),
       price,
       imageUrl: item.imageIndex === null ? null : (images[item.imageIndex]?.url ?? null),
     });

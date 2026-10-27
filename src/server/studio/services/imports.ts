@@ -217,6 +217,8 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
 
     // Pictures an AI reading brought from a link, for the new products it creates; only assets of this restaurant's own library.
     const photos = (job.photos ?? {}) as Record<string, string>;
+    // Arabic and Kurdish the AI worked out for English-only texts, by the English text; they go to new products and categories only.
+    const worked = (job.translations ?? {}) as Record<string, { ar: string | null; ckb: string | null }>;
     // A value that is still an address was never brought in; it is not an asset.
     const photoIds = [...new Set(Object.values(photos).filter((value) => !/^https?:\/\//.test(value)))];
     const ownedPhotos = new Set(photoIds.length === 0 || ctx.restaurantId === null ? [] : (await ctx.db.mediaAsset.findMany({ where: { id: { in: photoIds }, restaurantId: ctx.restaurantId }, select: { id: true } })).map((asset) => asset.id));
@@ -227,6 +229,9 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
     let nextCategory = categories.reduce((max, category) => Math.max(max, category.sortOrder + 1), 0);
     for (const category of preview.newCategories) {
       const translations = Object.fromEntries(Object.entries(category.names).map(([locale, name]) => [locale, { name }]));
+      const spoken = category.names.en && !category.names.ar && !category.names.ckb ? worked[category.names.en] : undefined;
+      if (spoken?.ar) translations.ar = { name: spoken.ar };
+      if (spoken?.ckb) translations.ckb = { name: spoken.ckb };
       const row = await tx.category.create({ data: { menuId, slug: category.slug, sortOrder: nextCategory++, translations }, select: { id: true } });
       categoryIds.set(category.slug, row.id);
       ctx.audit({ action: 'category.created', entityType: 'Category', entityId: row.id, changes: { names: { before: null, after: category.names }, slug: { before: null, after: category.slug } } });
@@ -270,6 +275,12 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
         takenSlugs.add(slug);
         const sortOrder = (data.sortOrder as number | undefined) ?? nextSort.get(categoryId) ?? 0;
         nextSort.set(categoryId, Math.max(nextSort.get(categoryId) ?? 0, sortOrder + 1));
+        for (const field of ['name', 'description'] as const) {
+          const english = translations.en?.[field];
+          const spoken = english && !translations.ar?.[field] && !translations.ckb?.[field] ? worked[english] : undefined;
+          if (spoken?.ar) setText(translations, 'ar', field, spoken.ar);
+          if (spoken?.ckb) setText(translations, 'ckb', field, spoken.ckb);
+        }
         const photo = photos[`${String(row.changes?.find((change) => change.field === 'category')?.after ?? '')}\n${row.name.toLowerCase()}`];
         const media = photo !== undefined && ownedPhotos.has(photo) ? { media: [{ kind: 'asset', assetId: photo }] } : {};
         const created = await tx.product.create({ data: { ...data, ...live, ...media, menuId, categoryId, slug, sortOrder, basePrice: data.basePrice as number, translations } as never, select: { id: true } });

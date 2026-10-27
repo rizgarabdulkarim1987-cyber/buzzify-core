@@ -532,6 +532,10 @@ const SWEPT: Record<string, Case[]> = {
     c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
     c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
   ],
+  'import.aiTranslate': [
+    c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
+    c("B's import, through A", (w) => ({ menuId: w.a.menuId, importJobId: w.b.importJobId })),
+  ],
   'import.aiRead': [c("B's menu", (w) => ({ menuId: w.b.menuId, source: { kind: 'link', url: 'https://menu.example.com/m' } }))],
   'import.apply': [
     c("B's import, in B", (w) => ({ menuId: w.b.menuId, importJobId: w.b.importJobId })),
@@ -1063,7 +1067,7 @@ afterAll(async () => {
 const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
   'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
   'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
-  'pos.importPreview', 'pos.importAiPreview', 'pos.importAiPhotos', 'pos.importApply', 'pos.importDiscard',
+  'pos.importPreview', 'pos.importAiPreview', 'pos.importAiPhotos', 'pos.importAiTranslate', 'pos.importApply', 'pos.importDiscard',
   'pos.createArea', 'pos.renameArea', 'pos.deleteArea', 'pos.createTables', 'pos.deleteTable', 'pos.moveTable', 'pos.floor',
   'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
   'pos.aiAsk', 'pos.aiPhraseSummary', 'pos.aiLabelComplaints', 'pos.aiSupplyExtract', 'pos.aiState', 'pos.aiSummary', 'pos.aiAlerts', 'pos.aiComplaintLabels',
