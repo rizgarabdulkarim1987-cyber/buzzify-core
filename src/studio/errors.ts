@@ -468,6 +468,15 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This batch is expired and cannot be sold': 'error.text.phBatchExpiredSell',
   'This batch is not active and cannot be sold': 'error.text.phBatchInactiveSell',
   'The cost of this batch is too large to record': 'error.text.phCostTooLarge',
+  'You already have an open shift here': 'error.text.phShiftOpenAlready',
+  'Shift not found': 'error.text.phShiftNotFound',
+  'You have no open shift here': 'error.text.phShiftNone',
+  'There is not enough cash in the drawer': 'error.text.phCashShort',
+  'This shift is already closed': 'error.text.phShiftClosed',
+  'A manager must approve this difference': 'error.text.phNeedsApproval',
+  'You cannot approve your own close': 'error.text.phSelfApproval',
+  'Choose a manager who works in this branch': 'error.text.phApproverChoose',
+  'Check the amounts': 'error.text.phAmountsCheck',
   'This batch has a cost but no cost unit': 'error.text.phCostUnitMissing',
 };
 
