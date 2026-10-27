@@ -44,6 +44,8 @@ export const payPosOrder = defineAction({
     /** The bill paid with several methods; used instead of `method` and `amountReceived` when given. */
     legs: z.array(leg).min(1).max(POS_PAYMENT_METHODS.length).optional(),
     tip: z.object({ amount: z.number().int().min(0).max(INT32), method: z.enum(POS_PAYMENT_METHODS) }).optional(),
+    /** Pay only these lines (one guest's share); without it, every line still unpaid. */
+    lineIds: z.array(idField).min(1).max(200).optional(),
   }),
   target: () => TILL,
   run: (ctx, input) => {
@@ -62,7 +64,8 @@ export const payPosOrder = defineAction({
           ...(input.legs === undefined ? {} : { legs: { before: null, after: input.legs.map((l) => ({ method: l.method, amount: l.amount })) } }),
           ...(done.tip > 0 ? { tip: { before: null, after: done.tip } } : {}),
           ...(input.reference === undefined ? {} : { reference: { before: null, after: input.reference } }),
-          status: { before: done.from, after: 'PAID' },
+          ...(done.part > 1 || !done.paid ? { part: { before: null, after: done.part } } : {}),
+          status: { before: done.from, after: done.paid ? 'PAID' : done.from },
         },
       });
       if (done.consumed > 0) {

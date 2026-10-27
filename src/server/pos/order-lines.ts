@@ -161,6 +161,7 @@ async function loadLineForChange(db: AnyDb, restaurantId: string, lineId: string
   const order = await loadOrderForChange(db, restaurantId, line.orderId, expected);
   assertNotHandedOver(order);
   if (line.cancelledAt) throw refuse('CONFLICT', 'The line is cancelled');
+  if (line.paymentId !== null) throw refuse('CONFLICT', 'This line is already paid');
   return { line, order };
 }
 

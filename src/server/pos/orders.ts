@@ -169,6 +169,7 @@ export async function requestBillIn(db: AnyDb, restaurantId: string, input: { or
 export async function cancelOrderIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; reason: string }) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   if (!canTransition(order.status, 'CANCELLED')) throw refuse('CONFLICT', 'The order cannot be cancelled');
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
   const liveLines = await db.posOrderLine.count({ where: { orderId: order.id, restaurantId, cancelledAt: null } });
   if (liveLines > 0 && input.reason === '') {
     throw new StudioError('INVALID', 'Enter a reason', { reason: 'Enter a reason' });

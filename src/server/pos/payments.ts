@@ -1,5 +1,6 @@
 import type { AnyDb } from '@/server/data/tenant-db';
 import { canTransition } from '@/server/domain/pos/order-state';
+import { partTotals } from '@/server/domain/pos/split';
 import { lineTotal } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
@@ -23,8 +24,12 @@ export interface PayInput {
   legs?: LegInput[];
   /** A tip on top of the bill; it is not part of the total. */
   tip?: TipInput;
+  /** Pay only these lines (one guest's share of a split bill); without it, every line still unpaid. */
+  lineIds?: string[];
   userId: string;
 }
+
+const sumOf = (snapshots: TotalsSnapshot[], key: 'invoiceDiscount' | 'service' | 'tax' | 'deliveryFee') => snapshots.reduce((sum, s) => sum + s[key], 0);
 
 /** The original single-method call as one leg: cash is handed over `amountReceived`, a terminal method takes the exact total. */
 function singleLeg(input: PayInput, total: number): LegInput {
@@ -44,14 +49,28 @@ function singleLeg(input: PayInput, total: number): LegInput {
 export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInput) {
   const shiftId = await lockOpenShiftOf(db, restaurantId, input.userId);
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
-  if (!canTransition(order.status, 'PAID')) throw refuse('CONFLICT', 'The order cannot be paid');
-  const [lines, rates] = await Promise.all([
+  const [lines, rates, earlier] = await Promise.all([
     db.posOrderLine.findMany({ where: { orderId: order.id, restaurantId }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] }),
     readRates(db, restaurantId),
+    db.posPayment.findMany({ where: { orderId: order.id, restaurantId }, select: { id: true, part: true, totalsSnapshot: true } }),
   ]);
-  const live = lines.filter((line) => line.cancelledAt === null);
-  if (live.length === 0) throw refuse('CONFLICT', 'Cannot pay an empty order');
-  const { totals, invoiceDiscount } = orderTotals(order, lines, rates);
+  const everLive = lines.filter((line) => line.cancelledAt === null);
+  if (everLive.length === 0) throw refuse('CONFLICT', 'Cannot pay an empty order');
+  // The lines this payment takes: the chosen ones, or every line still unpaid. A paid or cancelled line cannot be chosen.
+  const unpaid = everLive.filter((line) => line.paymentId === null);
+  const chosen = input.lineIds === undefined ? unpaid : unpaid.filter((line) => input.lineIds!.includes(line.id));
+  if (chosen.length === 0 || (input.lineIds !== undefined && chosen.length !== new Set(input.lineIds).size)) throw refuse('CONFLICT', 'Choose lines that are still unpaid');
+  const finishes = chosen.length === unpaid.length;
+  if (finishes && !canTransition(order.status, 'PAID')) throw refuse('CONFLICT', 'The order cannot be paid');
+  const live = chosen;
+  const { totals: whole, invoiceDiscount } = orderTotals(order, lines, rates);
+  const taken = earlier.map((p) => parseTotalsSnapshot(p.id, p.totalsSnapshot));
+  const totals = partTotals(
+    whole,
+    everLive.map((line) => ({ id: line.id, total: lineTotal(pricedLine(line)), paid: line.paymentId !== null })),
+    chosen.map((line) => line.id),
+    { invoiceDiscount: sumOf(taken, 'invoiceDiscount'), service: sumOf(taken, 'service'), tax: sumOf(taken, 'tax'), deliveryFee: sumOf(taken, 'deliveryFee') },
+  );
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
   const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
   const enabled = (settings?.enabledPaymentMethods ?? []) as PosPaymentMethodKey[];
@@ -84,13 +103,15 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
 
   const { count } = await db.posOrder.updateMany({
     where: { id: order.id, restaurantId, version: input.expectedVersion },
-    data: { status: 'PAID', version: { increment: 1 } },
+    data: { ...(finishes ? { status: 'PAID' as const } : {}), version: { increment: 1 } },
   });
   if (count === 0) throw refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
+  const part = earlier.reduce((max, p) => Math.max(max, p.part), 0) + 1;
   const payment = await db.posPayment.create({
     data: {
       restaurantId,
       orderId: order.id,
+      part,
       method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method,
       amountReceived: checked.amountReceived,
       reference: checked.legs.length === 1 ? checked.legs[0]!.reference : null,
@@ -105,9 +126,15 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
   await db.posPaymentLeg.createMany({
     data: checked.legs.map((leg) => ({ restaurantId, paymentId: payment.id, method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference })),
   });
+  // The chosen lines belong to this payment now; a line another cashier paid a moment ago matches nothing here.
+  const locked = await db.posOrderLine.updateMany({
+    where: { id: { in: chosen.map((line) => line.id) }, orderId: order.id, restaurantId, paymentId: null, cancelledAt: null },
+    data: { paymentId: payment.id },
+  });
+  if (locked.count !== chosen.length) throw refuse('CONFLICT', 'This line is already paid');
   // Stock: a product with a recipe takes its ingredients out in this same transaction (never refused for lack of stock).
   const consumed = await consumeForPayment(db, restaurantId, input.userId, { paymentId: payment.id, lines: live.map((line) => ({ orderLineId: line.id, productId: line.productId, quantity: line.quantity })) });
-  return { paymentId: payment.id, method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method, orderId: order.id, number: order.number, change: checked.change, tip: checked.tip?.amount ?? 0, total: totals.total, from: order.status, shiftId, consumed };
+  return { paymentId: payment.id, method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method, orderId: order.id, number: order.number, change: checked.change, tip: checked.tip?.amount ?? 0, total: totals.total, from: order.status, shiftId, consumed, part, paid: finishes };
 }
 
 export interface Receipt {
