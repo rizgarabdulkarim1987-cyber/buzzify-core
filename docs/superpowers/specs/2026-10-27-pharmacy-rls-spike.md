@@ -1,7 +1,7 @@
 # Pharmacy RLS spike (Task 13): result
 
-Date: 2026-10-27. Time-boxed spike, report only. Script: `scripts/spikes/rls-spike.ts` (THROWAWAY; Task 25 deletes it,
-since the decision is DEFER).
+Date: 2026-10-27. Time-boxed spike, report only. Script: `scripts/spikes/rls-spike.ts` (THROWAWAY; deleted in Task 25
+since the decision is DEFER; recover it from git at commit `7d25a6d` to re-run the spike).
 
 ## Decision: DEFER
 
