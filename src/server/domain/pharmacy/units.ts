@@ -61,3 +61,9 @@ export function splitQty(levels: UnitLevel[], baseQty: number): { level: number;
 export function sellableLevels(levels: UnitLevel[]): UnitLevel[] {
   return levels.filter((l) => l.sellable);
 }
+
+/** The pack a product is sold in, for its identity and its label: the top unit's size and name (`30 box`). */
+export function packLabelOf(levels: readonly UnitLevel[]): string {
+  const top = [...levels].sort((a, b) => b.level - a.level)[0];
+  return top ? `${top.baseQty} ${top.label}` : '';
+}

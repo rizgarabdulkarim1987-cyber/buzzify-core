@@ -3,7 +3,7 @@ import type { ScopedClient, ScopedDb, ScopedTx } from '@/server/data/tenant-db';
 import { normalizeScan } from '@/server/domain/pharmacy/barcode';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import { identityKeyOf, searchTextOf } from '@/server/domain/pharmacy/product-identity';
-import { validateLadder, type LadderCode, type UnitLevel } from '@/server/domain/pharmacy/units';
+import { packLabelOf, validateLadder, type LadderCode, type UnitLevel } from '@/server/domain/pharmacy/units';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -86,11 +86,7 @@ const LADDER_MESSAGES: Record<LadderCode, string> = {
 const invalid = (field: string, message: string, extra: Record<string, string> = {}) =>
   new StudioError('INVALID', undefined, { [field]: message, ...extra });
 
-/** The pack a product is sold in, for its identity and its label: the top unit's size and name (`30 box`). */
-export function packLabelOf(levels: readonly UnitLevel[]): string {
-  const top = [...levels].sort((a, b) => b.level - a.level)[0];
-  return top ? `${top.baseQty} ${top.label}` : '';
-}
+export { packLabelOf };
 
 /**
  * The input checked beyond its shape: the ladder (`validateLadder`, refused on `levels` with its code in `phCode`),

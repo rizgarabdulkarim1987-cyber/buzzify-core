@@ -24,29 +24,38 @@ export interface ReadSheet {
   rows: string[][];
   /** Each row's number in the file, the header being row 1 when it is the first. */
   rowNumbers: number[];
+  /** Per row and cell: whether the cell held a number (an Excel number cell), not text. Always false in a CSV. */
+  numericCells: boolean[][];
+}
+
+export interface ReadOptions {
+  /** The most data rows read; the menu import's {@link MAX_SHEET_ROWS} when not given. */
+  maxRows?: number;
 }
 
 const isBlank = (cells: readonly string[]) => cells.every((cell) => cell.trim() === '');
 
 /** The first row with anything in it is the header; the rows after it with anything in them are the data. */
-function sheetOf(lines: string[][]): ReadSheet {
+function sheetOf(lines: string[][], numeric: boolean[][] | null, maxRows: number): ReadSheet {
   const headerIndex = lines.findIndex((cells) => !isBlank(cells));
   if (headerIndex < 0) throw new SheetReadError('EMPTY');
   const rows: string[][] = [];
   const rowNumbers: number[] = [];
+  const numericCells: boolean[][] = [];
   for (let index = headerIndex + 1; index < lines.length; index += 1) {
     const cells = lines[index]!;
     if (isBlank(cells)) continue;
-    if (rows.length === MAX_SHEET_ROWS) throw new SheetReadError('TOO_MANY_ROWS');
+    if (rows.length === maxRows) throw new SheetReadError('TOO_MANY_ROWS');
     rows.push(cells);
     rowNumbers.push(index + 1);
+    numericCells.push(numeric ? numeric[index]! : cells.map(() => false));
   }
-  return { headers: lines[headerIndex]!, rows, rowNumbers };
+  return { headers: lines[headerIndex]!, rows, rowNumbers, numericCells };
 }
 
 // CSV -----------------------------------------------------------------------------------------------------------------
 
-function readCsv(bytes: Uint8Array): ReadSheet {
+function readCsv(bytes: Uint8Array, maxRows: number): ReadSheet {
   let text: string;
   try {
     // Fatal: a sheet saved in Windows-1256 (Excel's "CSV" in Arabic Windows) is refused, never read as garbage.
@@ -56,7 +65,7 @@ function readCsv(bytes: Uint8Array): ReadSheet {
   }
   const parsed = Papa.parse<string[]>(text.replace(/^﻿/, ''), { delimitersToGuess: [',', ';', '\t'], skipEmptyLines: false });
   if (parsed.errors.some((error) => error.type === 'Quotes')) throw new SheetReadError('UNREADABLE');
-  return sheetOf(parsed.data);
+  return sheetOf(parsed.data, null, maxRows);
 }
 
 // XLSX ----------------------------------------------------------------------------------------------------------------
@@ -82,7 +91,14 @@ function cellText(cell: ExcelJS.Cell): string {
   return cell.text ?? '';
 }
 
-async function readXlsx(bytes: Uint8Array): Promise<ReadSheet> {
+/** A cell that holds a number (or a formula that gives one): a spreadsheet may have shown a code in it as a number. */
+function isNumberCell(cell: ExcelJS.Cell): boolean {
+  const value = cell.value;
+  if (typeof value === 'number') return true;
+  return typeof value === 'object' && value !== null && 'result' in value && typeof (value as { result?: unknown }).result === 'number';
+}
+
+async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> {
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(Buffer.from(bytes) as never);
@@ -92,20 +108,23 @@ async function readXlsx(bytes: Uint8Array): Promise<ReadSheet> {
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new SheetReadError('EMPTY');
   // Refused before reading every cell: a sheet with many rows is not worth the work.
-  if (sheet.actualRowCount > MAX_SHEET_ROWS + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
+  if (sheet.actualRowCount > maxRows + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
   const width = sheet.columnCount;
   const lines: string[][] = [];
+  const numeric: boolean[][] = [];
   for (let number = 1; number <= sheet.rowCount; number += 1) {
     const row = sheet.getRow(number);
     lines.push(Array.from({ length: width }, (_, index) => cellText(row.getCell(index + 1))));
+    numeric.push(Array.from({ length: width }, (_, index) => isNumberCell(row.getCell(index + 1))));
   }
-  return sheetOf(lines);
+  return sheetOf(lines, numeric, maxRows);
 }
 
 /** An XLSX file is a ZIP: it starts with `PK\x03\x04`. */
 const isZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 
 /** The sheet in `bytes`: an Excel workbook by its signature, a CSV otherwise. Throws `SheetReadError`. */
-export async function readSheet(bytes: Uint8Array): Promise<ReadSheet> {
-  return isZip(bytes) ? readXlsx(bytes) : readCsv(bytes);
+export async function readSheet(bytes: Uint8Array, options: ReadOptions = {}): Promise<ReadSheet> {
+  const maxRows = options.maxRows ?? MAX_SHEET_ROWS;
+  return isZip(bytes) ? readXlsx(bytes, maxRows) : readCsv(bytes, maxRows);
 }
