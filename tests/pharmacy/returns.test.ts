@@ -1,9 +1,11 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as saleActions from '@/server/pharmacy/actions/sales';
+import * as shiftActions from '@/server/pharmacy/actions/shifts';
 import * as stockActions from '@/server/pharmacy/actions/stock';
 import * as returnQueries from '@/server/pharmacy/queries/returns';
 import * as saleQueries from '@/server/pharmacy/queries/sales';
+import * as shiftQueries from '@/server/pharmacy/queries/shifts';
 import { DAY, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
@@ -96,6 +98,18 @@ const counts = async () => ({
   audit: await prisma().auditLog.count({ where: { action: { in: ['ph.return.create', 'ph.sale.cancel'] } } }),
 });
 const ZERO = { returns: 0, lines: 0, movements: 0, cash: 0, audit: 0 };
+
+/** Waits (bounded) until some backend of this database is waiting on a lock: the return queued behind the held shift row. */
+async function untilBlockedOnALock(timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  for (;;) {
+    // eslint-disable-next-line no-restricted-properties -- the test inspects the database's own lock waits, no tenant rows
+    const rows = await prisma().$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if ((rows[0]?.n ?? 0n) > 0n) return;
+    if (Date.now() > until) throw new Error('no backend ever waited on a lock');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
 beforeAll(() => {
   useTestDatabase();
@@ -395,6 +409,74 @@ describe('refunds', () => {
   });
 });
 
+describe('cash and refund arithmetic end to end (independent hand figures)', () => {
+  it('the shift identity: float + cash paid - change - refund + paid in - paid out = expected = what the report and the close say', async () => {
+    const w = await world();
+    await stock(w);
+    const till = await person('till', { staff: [w.a.id, 'BRANCH_MANAGER', [w.b1]] });
+    const opened = dataOf(await act(till, shiftActions.open, { ...at(w), currency: 'IQD', openingFloatMinor: 5000n, clientKey: key('open') }));
+
+    // 7 tablets at 100 = 700, paid 1000 in cash, 300 given back.
+    const made = dataOf(await act(till, saleActions.create, saleBody(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 7 }], payments: [cash(1000n)] })));
+    expect(made).toMatchObject({ totalMinor: '700', paidMinor: '1000', changeMinor: '300' });
+    const line = (await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: made.id } })).id;
+    // 3 of them come back: 300.
+    expect(dataOf(await act(till, returnActions.create, ret(w, made.id, [byLine(line, 3)]))).refundMinor).toBe('300');
+    dataOf(await act(till, shiftActions.paidIn, { ...at(w), amountMinor: 400n, reason: 'Change from the safe', clientKey: key('in') }));
+    dataOf(await act(till, shiftActions.paidOut, { ...at(w), amountMinor: 250n, reason: 'Courier fee', clientKey: key('out') }));
+
+    // 5000 + 1000 - 300 - 300 + 400 - 250
+    const expected = 5550n;
+    const report = dataOf(await ask(till, shiftQueries.report, { ...at(w), shiftId: opened.id })) as { totals: object };
+    expect(report.totals).toMatchObject({
+      openingFloatMinor: '5000',
+      expectedMinor: String(expected),
+      cash: { tenderedMinor: '1000', changeMinor: '300', refundsMinor: '300', paidInMinor: '400', paidOutMinor: '250' },
+      returns: { count: 1, refundMinor: '300' },
+    });
+    const closed = dataOf(await act(till, shiftActions.close, { ...at(w), shiftId: opened.id, countedMinor: expected }));
+    expect(closed).toMatchObject({ status: 'CLOSED', expectedMinor: '5550', countedMinor: '5550', varianceMinor: '0' });
+  });
+
+  it('a 50% invoice discount with a rounding step: line by line returns, an uneven split, and the last return takes the rounding', async () => {
+    const w = await world();
+    await stock(w);
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { roundingStepMinor: 250n } });
+    // 4 tablets (400) + 1 strip (900, ten base units) = 1300; 50% off = 650 off; split 200 + 450; 650 rounds to 750 (+100).
+    const s = await sell(
+      w,
+      { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 4 }, { productId: w.p.id, unitId: w.p.strip, qty: 1 }], invoiceDiscount: { kind: 'percent', value: 50, reason: 'Staff discount' }, payments: [cash(750n)] },
+      w.manager,
+    );
+    expect(s).toMatchObject({ subtotalMinor: '1300', discountMinor: '650', roundingMinor: '100', totalMinor: '750' });
+    const [tab, strip] = s.row.lines;
+    expect([tab!.totalMinor, strip!.totalMinor, strip!.baseQty]).toEqual([200n, 450n, 10]);
+
+    // Per unit: tablet 200 / 4 = 50, strip 450 / 10 = 45.
+    const plan: [string, number, bigint][] = [
+      [tab!.id, 2, 100n], //   2 * 50
+      [strip!.id, 4, 180n], // 4 * 45
+      [tab!.id, 2, 100n], //   the tablet line is done
+      [strip!.id, 6, 370n], // 6 * 45 = 270, plus the 100 of rounding: 750 - 380
+    ];
+    const lineStored: bigint[] = [];
+    let running = 0n;
+    for (const [lineId, n, refund] of plan) {
+      const r = dataOf(await act(w.manager, returnActions.create, ret(w, s.id, [byLine(lineId, n)])));
+      expect(r.refundMinor).toBe(String(refund));
+      running += refund;
+      const lines = await prisma().phReturnLine.findMany({ where: { returnId: r.id } });
+      lineStored.push(sum(lines.map((l) => l.refundMinor)));
+    }
+    expect(lineStored).toEqual([100n, 180n, 100n, 270n]);
+    expect(await refundsOf(s.id)).toEqual([100n, 180n, 100n, 370n]);
+    expect(running).toBe(750n);
+    // Stored line refunds leave the rounding out: 650 = 750 - 100.
+    expect(sum(lineStored)).toBe(650n);
+    expect(await statusOf(s.id)).toBe('RETURNED_FULL');
+  });
+});
+
 describe('who may return, and when', () => {
   it('refuses a cashier, and a role without return.approve, and writes nothing', async () => {
     const w = await world();
@@ -517,11 +599,11 @@ describe('who may return, and when', () => {
       // eslint-disable-next-line no-restricted-properties -- the test plays a shift close holding the row
       await tx.$queryRaw`SELECT "id" FROM "PhShift" WHERE "id" = ${shift.id} FOR UPDATE`;
       pending = act(w.manager, returnActions.create, ret(w, s.id, [byLine(s.line.id, 1)]));
-      await new Promise((r) => setTimeout(r, 300));
+      await untilBlockedOnALock();
       await tx.phShift.update({ where: { id: shift.id }, data: { status: 'CLOSED', closedAt: NOW, countedMinor: 0n, expectedMinor: 0n, varianceMinor: 0n } });
     });
     const holder = await pending!;
-    expect(['NO_OPEN_SHIFT']).toContain(phCodeOf(holder));
+    expect(phCodeOf(holder)).toBe('NO_OPEN_SHIFT');
     expect(await counts()).toEqual(ZERO);
   });
 });

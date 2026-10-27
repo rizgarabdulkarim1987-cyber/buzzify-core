@@ -321,6 +321,9 @@ export async function createReturn(
     if (error instanceof SaleMathError) throw conflict('REFUND_MATH', 'Check the amounts');
     throw error;
   }
+  // The stored line refunds (PhReturnLine.refundMinor) are the pure pro rata shares of the lines, so they never include the
+  // invoice's final rounding difference: that is added only to the return's own total below (saleRefundTotal), on the return
+  // that completes the sale. A return's refundMinor can therefore exceed the sum of its line refunds by exactly the rounding.
   const isFinalReturn = allocations.every((a) => a.returnedBaseQty + (take.get(a.id) ?? 0) === a.baseQty);
   let refundMinor: bigint;
   try {
