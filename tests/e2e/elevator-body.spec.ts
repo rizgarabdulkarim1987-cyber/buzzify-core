@@ -48,6 +48,19 @@ test('a floor button rides to its floor, focuses the heading and lights up', asy
   await expect(rail(page).locator('[data-display]')).toHaveText('3');
 });
 
+test('after a ride the floor stays lit until the guest scrolls, then the light follows the page again', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectJumpsTo(page, floor(page, 3), 'celebration');
+  // The ride is over and the page is still: the lit floor is the one ridden to, not the floor whose rows fill the band.
+  await page.waitForTimeout(600);
+  await expect(floor(page, 3)).toHaveAttribute('aria-current', 'true');
+  // The guest scrolls back to the top themselves (the Home key; a phone's swipe is a touch, handled the same way): the
+  // light follows the page to the first floor.
+  await page.keyboard.press('Home');
+  await expect(floor(page, 1)).toHaveAttribute('aria-current', 'true');
+  await expect(rail(page).locator('[data-display]')).toHaveText('1');
+});
+
 test('the lit floor number reads at 4.5:1 or more on its button', async ({ page }) => {
   await openMenu(page, slug);
   const lit = rail(page).locator('[aria-current="true"] [data-floor-no]');

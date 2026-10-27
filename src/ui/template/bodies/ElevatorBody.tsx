@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
@@ -8,6 +8,9 @@ import { RowDish } from './shared/RowDish';
 import { useKeepInView } from './shared/useKeepInView';
 import './shared/shapes.css';
 import './elevator.css';
+
+/** The keys that scroll the page: pressing one hands the lit floor back to the tracking. */
+const SCROLL_KEYS = new Set(['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' ']);
 
 /**
  * An elevator (spec 2026-10-26-menu-styles-in-templates-design.md). A brass button panel stays pinned at the inline
@@ -20,11 +23,36 @@ export function ElevatorBody() {
   const { categories, byCategory, activeId, jumpTo, reduced } = useTemplate();
   const strip = useRef<HTMLUListElement>(null);
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
-  // The floor in view; -1 when a search or a filter hides it, and then the display shows no floor (no button is lit).
-  const current = categories.findIndex((category) => category.id === activeId);
+  // The floor a button rode to stays lit until the guest moves the page themselves: the shared tracking watches a band
+  // 30% to 40% down the viewport, so a short floor landed at the top could hand the light to the floor below it.
+  const [pinned, setPinned] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pinned) return;
+    const release = () => setPinned(null);
+    const onKey = (event: KeyboardEvent) => {
+      if (SCROLL_KEYS.has(event.key)) release();
+    };
+    const onPointer = (event: PointerEvent) => {
+      if (!(event.target instanceof Node && strip.current?.contains(event.target))) release();
+    };
+    window.addEventListener('wheel', release, { passive: true });
+    window.addEventListener('touchstart', release, { passive: true });
+    window.addEventListener('keydown', onKey);
+    window.addEventListener('pointerdown', onPointer);
+    return () => {
+      window.removeEventListener('wheel', release);
+      window.removeEventListener('touchstart', release);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('pointerdown', onPointer);
+    };
+  }, [pinned]);
+  // A pin a search or a filter has hidden gives way to the tracking.
+  const lit = pinned && categories.some((category) => category.id === pinned) ? pinned : activeId;
+  // The floor lit; -1 when a search or a filter hides it, and then the display shows no floor (no button is lit).
+  const current = categories.findIndex((category) => category.id === lit);
 
   // Keep the lit button in view, moving only the panel (never the page).
-  useKeepInView(strip, activeId, 'y', reduced);
+  useKeepInView(strip, lit, 'y', reduced);
 
   return (
     <div className="tpl-body" data-body="elevator">
@@ -38,9 +66,12 @@ export function ElevatorBody() {
               <button
                 type="button"
                 data-category={category.id}
-                aria-current={category.id === activeId ? 'true' : undefined}
+                aria-current={category.id === lit ? 'true' : undefined}
                 aria-label={t('tpl.elv.goTo', { n: n(index + 1), name: category.name })}
-                onClick={() => jumpTo(category.id)}
+                onClick={() => {
+                  setPinned(category.id);
+                  jumpTo(category.id);
+                }}
                 className="el-button"
               >
                 <b data-floor-no aria-hidden>
