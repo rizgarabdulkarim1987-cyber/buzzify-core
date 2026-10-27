@@ -147,6 +147,15 @@ model Restaurant {
   phSettings            PhSettings?
   phStaffs              PhStaff[]
   phStaffBranches       PhStaffBranch[]
+  phCategories          PhCategory[]
+  phProducts            PhProduct[]
+  phProductUnits        PhProductUnit[]
+  phBarcodes            PhBarcode[]
+  phProductBranches     PhProductBranch[]
+  phPrices              PhPrice[]
+  phPriceChangeBatches  PhPriceChangeBatch[]
+  phImportBatches       PhImportBatch[]
+  phImportRows          PhImportRow[]
   supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
@@ -174,7 +183,9 @@ model Branch {
   version      Int        @default(1)
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
 
-  phStaffBranches PhStaffBranch[]
+  phStaffBranches   PhStaffBranch[]
+  phProductBranches PhProductBranch[]
+  phPrices          PhPrice[]
 
   @@unique([restaurantId, id])
   @@index([restaurantId])
@@ -2017,6 +2028,211 @@ model PhStaffBranch {
   @@unique([staffId, branchId])
   @@index([restaurantId])
   @@index([branchId])
+}
+
+/// How tightly a medicine is controlled: sold freely, on prescription, or on prescription with extra records.
+enum PhRxLevel {
+  OTC
+  RX
+  RESTRICTED
+}
+
+enum PhPriceChangeStatus {
+  PREVIEW
+  APPLIED
+  CANCELLED
+}
+
+enum PhImportStatus {
+  UPLOADED
+  MAPPED
+  PREVIEWED
+  COMMITTED
+  FAILED
+  CANCELLED
+}
+
+enum PhImportRowStatus {
+  OK
+  WARNING
+  ERROR
+  SKIPPED
+  IMPORTED
+}
+
+/// A pharmacy's product category. `nameKey` is the normalised name that makes a name unique within one business.
+model PhCategory {
+  id           String      @id @default(cuid())
+  restaurantId String
+  name         String
+  nameKey      String
+  createdAt    DateTime    @default(now())
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  products     PhProduct[]
+
+  @@unique([restaurantId, nameKey])
+}
+
+/// A medicine or other product a pharmacy sells. `identityKey` is the normalised identity that stops duplicates;
+/// `version` is for optimistic locking.
+model PhProduct {
+  id               String    @id @default(cuid())
+  restaurantId     String
+  tradeName        String
+  genericName      String    @default("")
+  activeIngredient String    @default("")
+  strength         String    @default("")
+  form             String    @default("")
+  manufacturer     String    @default("")
+  categoryId       String?
+  rxLevel          PhRxLevel @default(OTC)
+  requiresCold     Boolean   @default(false)
+  storageNote      String    @default("")
+  shelfLocation    String    @default("")
+  imageAssetId     String?
+  identityKey      String
+  active           Boolean   @default(true)
+  version          Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  category   PhCategory?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  units      PhProductUnit[]
+  barcodes   PhBarcode[]
+  branches   PhProductBranch[]
+  prices     PhPrice[]
+
+  @@unique([restaurantId, identityKey])
+  @@index([restaurantId, active, tradeName])
+  @@index([restaurantId, categoryId])
+}
+
+/// One way a product is packed and sold: level 0 is the base unit (a tablet), higher levels are packs of it. CHECKs
+/// (baseQty >= 1; level 0 has baseQty 1) are in the migration.
+model PhProductUnit {
+  id           String      @id @default(cuid())
+  restaurantId String
+  productId    String
+  level        Int
+  label        String
+  /// How many base units are in one of this unit.
+  baseQty      Int
+  sellable     Boolean     @default(true)
+  restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product      PhProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  barcodes     PhBarcode[]
+  prices       PhPrice[]
+
+  @@unique([productId, level])
+  @@index([restaurantId, productId])
+}
+
+/// A barcode of one unit. `code` is text so leading zeros survive; `shared` marks a code several products use.
+model PhBarcode {
+  id           String        @id @default(cuid())
+  restaurantId String
+  productId    String
+  unitId       String
+  code         String
+  shared       Boolean       @default(false)
+  createdAt    DateTime      @default(now())
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product      PhProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  unit         PhProductUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, code, unitId])
+  @@index([restaurantId, code])
+  @@index([productId])
+}
+
+/// A product's stock thresholds in one branch.
+model PhProductBranch {
+  id           String     @id @default(cuid())
+  restaurantId String
+  branchId     String
+  productId    String
+  minQty       Int        @default(0)
+  reorderQty   Int        @default(0)
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch     @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: Cascade)
+  product      PhProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, productId])
+  @@index([restaurantId, productId])
+}
+
+/// A sell price for one unit, in minor units of one currency, valid from a date. A null `branchId` is a business-wide
+/// price. The client does not branch-scope this model: the price service checks the branch. CHECK amountMinor >= 0 is
+/// in the migration. `changedById` names the person (kept as text, not a foreign key, so history outlives the account).
+model PhPrice {
+  id           String        @id @default(cuid())
+  restaurantId String
+  productId    String
+  unitId       String
+  branchId     String?
+  currency     Currency
+  amountMinor  BigInt
+  validFrom    DateTime
+  validTo      DateTime?
+  reason       String        @default("")
+  changedById  String
+  createdAt    DateTime      @default(now())
+  restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product      PhProduct     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  unit         PhProductUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([restaurantId, productId, unitId, currency, validFrom])
+  @@index([restaurantId, validFrom])
+}
+
+/// A bulk price change, previewed before it is applied; `previewHash` pins what the person saw.
+model PhPriceChangeBatch {
+  id           String              @id @default(cuid())
+  restaurantId String
+  status       PhPriceChangeStatus @default(PREVIEW)
+  previewHash  String
+  validFrom    DateTime
+  createdById  String
+  createdAt    DateTime            @default(now())
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, createdAt])
+}
+
+/// A catalog file import: the file's hash, the column mapping and the preview summary.
+model PhImportBatch {
+  id           String         @id @default(cuid())
+  restaurantId String
+  status       PhImportStatus @default(UPLOADED)
+  fileSha256   String
+  mapping      Json           @default("{}")
+  summary      Json           @default("{}")
+  createdById  String
+  createdAt    DateTime       @default(now())
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  rows         PhImportRow[]
+
+  @@index([restaurantId, createdAt])
+  @@index([restaurantId, fileSha256])
+}
+
+/// One row of an import: as read, as parsed, and the problems found.
+model PhImportRow {
+  id           String            @id @default(cuid())
+  restaurantId String
+  batchId      String
+  rowNumber    Int
+  raw          Json
+  parsed       Json              @default("{}")
+  issues       Json              @default("[]")
+  status       PhImportRowStatus @default(OK)
+  restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  batch        PhImportBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, rowNumber])
+  @@index([restaurantId, batchId, status])
 }
 
 /// A plan of one application, with its features and limits (global catalog).
