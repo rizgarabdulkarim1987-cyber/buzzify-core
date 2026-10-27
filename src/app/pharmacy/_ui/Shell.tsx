@@ -2,6 +2,7 @@ import { MapPin } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
+import { canPh } from '@/server/domain/pharmacy/permissions';
 import type { PhActor } from '@/server/pharmacy/actor';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
 import { SupportBanner } from './SupportBanner';
@@ -75,6 +76,16 @@ export function Shell({
         <Link href="/pharmacy/catalog" className={LINK}>
           {t('pharmacy.nav.catalog')}
         </Link>
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/stock" className={LINK}>
+            {t('pharmacy.nav.stock')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'report.view') && (
+          <Link href="/pharmacy/stock/movements" className={LINK}>
+            {t('pharmacy.nav.movements')}
+          </Link>
+        )}
       </nav>
       {notice}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
