@@ -16,17 +16,19 @@ import {
   expectQuickAdd,
   expectReadable,
   expectStripStays,
+  expectWordsWhole,
   openMenu,
   paletteIdsOf,
   silenceObserver,
 } from './helpers/body-menu';
 
 /**
- * The 3D Printer body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a print job's spec sheet. A sticky
- * strip of nozzle chips (the part's number on a nozzle tip, and its name) jumps to a part; every section is a part with a
- * layer gauge down its start edge (a rail, and a layer code such as L012 on it), its dishes are full-width slabs stacked
- * one per layer, and its heading carries an "n of N layers" meter. A printhead sweeps across a slab once, the first time it
- * comes into view; the layers themselves are always readable.
+ * The 3D Printer body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a print job. A sticky strip of
+ * nozzle chips (the part's number on a nozzle tip, and its name) jumps to a part; every section is a PRINT BED: its heading
+ * is the X-axis ruler across the top (tick marks along its foot), a Z-axis rail runs down the bed's start edge (its fill
+ * rises with the cells printed), and the dishes are printed parts on a gridded build plate, two across: a low photo slab
+ * with layer lines, its layer code (L001) on a corner, the price tag and the add at its foot, the name under it. A
+ * printhead sweeps across a cell once, the first time it comes into view; the cells themselves are always readable.
  */
 
 type Box = { x: number; y: number; width: number; height: number };
@@ -134,55 +136,75 @@ test('the heading shows the part label, the name and the layer count in the menu
   await expect(title.locator('span')).toHaveText('Viennoiserie');
 });
 
-test('dishes are slabs stacked one per layer, full width: a code on the gauge rail at the start, then a ruled slab with the photo first, the name over the price, the add at the end', async ({ page }) => {
+test('a part is a print bed: the heading is a ruler with ticks across the top, a Z rail down the start edge, and the dishes stand two across on a gridded plate, not one per row', async ({ page }) => {
   await openMenu(page, slug);
-  const row = partOf(page, 'viennoiserie').locator('[data-row]');
+  const part = partOf(page, 'patisserie');
+  const row = part.locator('[data-row]');
   expect(await row.count()).toBe(3);
   const [a, b, c] = await boxes(row);
-  const stack = (await partOf(page, 'viennoiserie').locator('.pr-stack').boundingBox())!;
-  // One slab per row, each the whole width of the stack, one under the other with a small gap.
-  for (const slab of [a!, b!, c!]) expect(slab.width).toBeGreaterThanOrEqual(stack.width - 1);
-  expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
-  expect(c!.y).toBeGreaterThan(b!.y + b!.height - 1);
-  expect(b!.y - (a!.y + a!.height)).toBeLessThan(12);
-  // A slab: the code, then the photo, then the text, then the add, in a line.
+  const plate = (await part.locator('.pr-plate').boundingBox())!;
+  // Two cells side by side on the first row, the third under the first; each well under the plate's width.
+  expect(Math.abs(a!.y - b!.y)).toBeLessThanOrEqual(1);
+  expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1);
+  expect(Math.abs(a!.width - b!.width)).toBeLessThanOrEqual(1);
+  expect(a!.width).toBeLessThan(plate.width * 0.55);
+  expect(c!.y).toBeGreaterThan(a!.y + a!.height - 1);
+  expect(Math.abs(c!.x - a!.x)).toBeLessThanOrEqual(1);
+  // The plate is gridded; the heading carries the ruler's ticks along its foot.
+  expect(await part.locator('.pr-plate').evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('repeating-linear-gradient');
+  expect(await part.locator('[data-heading]').evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('repeating-linear-gradient');
+  // The Z rail stands at the bed's start edge, beside the plate, as tall as it.
+  const rail = (await part.locator('.pr-zrail').boundingBox())!;
+  expect(rail.x + rail.width).toBeLessThanOrEqual(plate.x + 1);
+  expect(rail.height).toBeGreaterThanOrEqual(plate.height - 2);
+  expect(rail.width).toBeLessThanOrEqual(24);
+  // A cell: the photo slab on top (code, price and add inside it), the name under it.
   const first = row.first();
-  const [code, photo, text, add] = (await Promise.all(['.pr-code', '[data-photo]', '.pr-text', '.pr-add'].map((part) => first.locator(part).boundingBox()))) as DOMRect[];
-  expect(code!.x + code!.width).toBeLessThanOrEqual(photo!.x + 1);
-  expect(photo!.x + photo!.width).toBeLessThanOrEqual(text!.x + 1);
-  expect(text!.x + text!.width).toBeLessThanOrEqual(add!.x + 1);
-  // The name sits over the price.
-  const [name, price] = (await Promise.all(['.pr-name', '.pr-price'].map((part) => first.locator(part).boundingBox()))) as DOMRect[];
-  expect(price!.y).toBeGreaterThanOrEqual(name!.y + name!.height - 1);
-  // The slab is a solid ruled panel; the codes count the layers 001, 002, 003 in a monospace face.
-  expect(await first.locator('.pr-body').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(26, 29, 33)');
+  const photo = (await first.locator('[data-photo]').boundingBox())!;
+  for (const piece of ['.pr-code', '.pr-price', '.pr-add']) {
+    const at = (await first.locator(piece).boundingBox())!;
+    expect(at.x, piece).toBeGreaterThanOrEqual(photo.x - 1);
+    expect(at.x + at.width, piece).toBeLessThanOrEqual(photo.x + photo.width + 1);
+    expect(at.y, piece).toBeGreaterThanOrEqual(photo.y - 1);
+    expect(at.y + at.height, piece).toBeLessThanOrEqual(photo.y + photo.height + 1);
+  }
+  const [code, price, add, name] = (await Promise.all(['.pr-code', '.pr-price', '.pr-add', '.pr-name'].map((piece) => first.locator(piece).boundingBox()))) as DOMRect[];
+  expect(code!.y + code!.height).toBeLessThan(price!.y);
+  expect(price!.x + price!.width).toBeLessThanOrEqual(add!.x + 1);
+  expect(name!.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  // The slab is a solid panel; the codes count the layers 001, 002, 003 in a monospace face, the photo has layer lines.
+  expect(await first.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(26, 29, 33)');
+  expect(await first.locator('[data-photo]').evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('repeating-linear-gradient');
   await expect(row.nth(0).locator('.pr-code')).toHaveText('L001');
   await expect(row.nth(1).locator('.pr-code')).toHaveText('L002');
   await expect(row.nth(2).locator('.pr-code')).toHaveText('L003');
   expect(await first.locator('.pr-code').evaluate((node) => getComputedStyle(node).fontFamily)).toMatch(/mono/i);
-  // The gauge: a rail with ticks down the start edge (a pseudo-element of the stack), and its fill.
-  const rail = await partOf(page, 'viennoiserie').locator('.pr-stack').evaluate((node) => ({ ticks: getComputedStyle(node, '::before').backgroundImage, fill: getComputedStyle(node, '::after').backgroundColor, width: getComputedStyle(node, '::after').width }));
-  expect(rail.ticks).toContain('repeating-linear-gradient');
-  expect(rail.width).toBe('2px');
-  expect(rail.fill).not.toBe('rgba(0, 0, 0, 0)');
-  const railBox = (await partOf(page, 'viennoiserie').locator('.pr-code').first().boundingBox())!;
-  expect(railBox.x).toBeLessThan(photo!.x);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('the fourth and later layers keep the pattern: stacked, numbered in turn, each with its price and add; the gauge fill is the printed share', async ({ page }) => {
+test('names never break inside a word on the first screen, in English and in Arabic', async ({ page }) => {
+  for (const locale of ['en', 'ar']) {
+    await openMenu(page, slug, { locale });
+    await expect(slabs(page).first()).toBeVisible();
+    await expectWordsWhole(body(page).locator('#cat-viennoiserie :is(.pr-name, h2 > span), #cat-patisserie :is(.pr-name, h2 > span)'));
+    await expectWordsWhole(strip(page).locator('.pr-chip-name'));
+  }
+});
+
+test('the fourth and later layers keep the pattern: two across, numbered in turn, each with its price and add; the rail is full once all are printed', async ({ page }) => {
   await openMenu(page, crowdSlug);
   const row = partOf(page, 'viennoiserie').locator('[data-row]');
   expect(await row.count()).toBe(7);
   const all = await boxes(row);
-  for (let at = 1; at < all.length; at++) expect(all[at]!.y).toBeGreaterThan(all[at - 1]!.y + all[at - 1]!.height - 1);
+  for (let at = 2; at < all.length; at++) expect(all[at]!.y).toBeGreaterThan(all[at - 2]!.y + all[at - 2]!.height - 1);
+  for (let at = 1; at < all.length; at += 2) expect(Math.abs(all[at]!.y - all[at - 1]!.y)).toBeLessThanOrEqual(1);
   for (let at = 0; at < 7; at++) {
     await row.nth(at).scrollIntoViewIfNeeded();
     await expect(row.nth(at).locator('.pr-code')).toHaveText(`L00${at + 1}`);
     await expect(row.nth(at).locator('.pr-price')).toContainText('$');
     await expect(row.nth(at).locator('.pr-add')).toBeVisible();
   }
-  await expect(partOf(page, 'viennoiserie').locator('.pr-meter-text')).toHaveText('7 of 7 layers');
+  await expect.poll(() => partOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).getPropertyValue('--pr-done').trim())).toBe('1');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -194,26 +216,21 @@ test('the name and the price sit on the slab, each in its own ink', async ({ pag
   expect(await slab.locator('.pr-price').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(255, 122, 26)');
 });
 
-test('the meter says "n of N layers" in its part: layers not yet seen are not counted, and it reads N of N once the printhead has been over them', async ({ page }) => {
+test('the Z rail fills with the share of cells printed: empty on a part not yet seen, full once the printhead has been over it; it is a scale on a decoration, with no text', async ({ page }) => {
   await openMenu(page, slug);
-  const first = partOf(page, 'viennoiserie');
-  await expect(first.locator('.pr-meter-text')).toHaveText('3 of 3 layers');
+  const done = (category: string) => partOf(page, category).evaluate((node) => getComputedStyle(node).getPropertyValue('--pr-done').trim());
+  await expect.poll(() => done('viennoiserie')).toBe('1');
   const far = partOf(page, 'celebration');
-  const total = await far.locator('[data-row]').count();
-  await expect(far.locator('.pr-meter-text')).toHaveText(`0 of ${total} layers`);
-  await expect(far.locator('.pr-name').first()).toBeVisible();
+  await expect.poll(() => done('celebration')).toBe('0');
+  // A cell is readable before it is printed.
+  await expect(far.locator('.pr-name').first()).toBeAttached();
   expect(await far.locator('.pr-name').first().evaluate((node) => getComputedStyle(node).opacity)).toBe('1');
   await far.scrollIntoViewIfNeeded();
-  await expect(far.locator('.pr-meter-text')).toHaveText(`${total} of ${total} layers`);
-  // The track's fill follows: the whole way once every layer is printed, by transform alone.
-  await expect.poll(() => far.locator('.pr-meter-track i').evaluate((node) => getComputedStyle(node).transform)).toMatch(/^(matrix\(1, 0, 0, 1|none)/);
-});
-
-test('a single layer reads "1 of 1 layer" (the singular)', async ({ page }) => {
-  await openMenu(page, manySlug);
-  const one = partOf(page, 'more-1');
-  await one.scrollIntoViewIfNeeded();
-  await expect(one.locator('.pr-meter-text')).toHaveText('1 of 1 layer');
+  await expect.poll(() => done('celebration')).toBe('1');
+  await expect.poll(() => far.locator('.pr-zrail i').evaluate((node) => getComputedStyle(node).transform)).toMatch(/^(matrix\(1, 0, 0, 1|none)/);
+  await expect(far.locator('.pr-zrail')).toHaveAttribute('aria-hidden', 'true');
+  // No meter text: the old "n of N layers" line is gone.
+  await expect(body(page).getByText(/ of \d+ layers?/)).toHaveCount(0);
 });
 
 test('the printhead sweeps a slab once when it first comes into view and then rests: it ends, nothing loops, and it never plays twice', async ({ page }) => {
@@ -251,7 +268,7 @@ test('the sweep moves by transform and opacity only, lies over the slab without 
   await expect(slabOf(page, 'sourdough').locator('.pr-name')).toBeVisible();
 });
 
-test('less motion: the layers are simply there, nothing armed, no animation, every layer counted', async ({ page }) => {
+test('less motion: the cells are simply there, nothing armed, no animation, every rail full', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
@@ -259,7 +276,8 @@ test('less motion: the layers are simply there, nothing armed, no animation, eve
   expect(await body(page).evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
   const far = partOf(page, 'celebration');
   const total = await far.locator('[data-row]').count();
-  await expect(far.locator('.pr-meter-text')).toHaveText(`${total} of ${total} layers`);
+  expect(total).toBeGreaterThan(0);
+  await expect.poll(() => far.evaluate((node) => getComputedStyle(node).getPropertyValue('--pr-done').trim())).toBe('1');
   await expect(slabOf(page, 'sourdough').locator('.pr-name')).toBeAttached();
   expect(await headOf(slabOf(page, 'sourdough')).evaluate((node) => getComputedStyle(node).animationName)).toBe('none');
 });
@@ -272,7 +290,7 @@ test('every motion in the shape ends within five seconds, and nothing loops', as
 
 test('a dish adds from its slab and opens from its name, and tapping the photo, the code or the slab opens it too, without adding', async ({ page }) => {
   await openMenu(page, slug);
-  const first = page.locator('#cat-viennoiserie .pr-stack');
+  const first = page.locator('#cat-viennoiserie .pr-plate');
   await expectOpensProduct(page, first, 'croissant');
   const photo = (await slabOf(page, 'croissant').locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 3);
@@ -379,38 +397,41 @@ test('a long dish name and a long price stay inside the slab without sideways sc
   expect(await contrastOf(slab.locator('.pr-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the slabs stay one per row in a centred column', async ({ page }) => {
+test('on a wide screen the parts stand three across the bed in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
-  const [a, b] = await boxes(page.locator('#cat-viennoiserie [data-row]'));
-  expect(b!.y).toBeGreaterThan(a!.y + a!.height - 1);
+  const [a, b, c] = await boxes(page.locator('#cat-viennoiserie [data-row]'));
+  for (const box of [b!, c!]) expect(Math.abs(box.y - a!.y)).toBeLessThanOrEqual(1);
+  expect(b!.x).toBeGreaterThan(a!.x + a!.width - 1);
+  expect(c!.x).toBeGreaterThan(b!.x + b!.width - 1);
   expect(a!.x).toBeGreaterThan(100);
-  expect(a!.width).toBeLessThanOrEqual(44 * 16);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('numbers, counts, layer codes and the meter use the tenant numerals, on the chips too', async ({ page }) => {
+test('numbers, counts and layer codes use the tenant numerals, on the chips too', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
   await expect(page.locator('#cat-viennoiserie [data-count]')).toHaveText('٣');
   await expect(strip(page).locator('button').nth(1).locator('.pr-chip-no')).toHaveText('٢');
   await expect(page.locator('#cat-viennoiserie h2 small')).toHaveText('Part ١');
   await expect(page.locator('#cat-viennoiserie .pr-code').first()).toHaveText('L٠٠١');
-  await expect(page.locator('#cat-viennoiserie .pr-meter-text')).toHaveText('٣ of ٣ layers');
 });
 
-test('in Arabic the page is right to left, the strip starts at the right, the code and photo are at the start (the right), the add at the end (the left), and the head sweeps from the right', async ({ page }) => {
+test('in Arabic the page is right to left, the strip starts at the right, the Z rail and the first cell are at the start (the right), the code on the right corner of the photo, the add at its left foot, and the head sweeps from the right', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => strip(p));
   await expectNoPageWiden(page);
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
   const slab = slabs(page).first();
-  const [code, photo, add] = (await Promise.all(['.pr-code', '[data-photo]', '.pr-add'].map((part) => slab.locator(part).boundingBox()))) as DOMRect[];
-  expect(code!.x).toBeGreaterThan(photo!.x);
-  expect(photo!.x).toBeGreaterThan(add!.x);
+  const [code, photo, add, price] = (await Promise.all(['.pr-code', '[data-photo]', '.pr-add', '.pr-price'].map((part) => slab.locator(part).boundingBox()))) as DOMRect[];
+  expect(code!.x + code!.width).toBeGreaterThan(photo!.x + photo!.width - 8);
+  expect(add!.x).toBeLessThan(photo!.x + 8);
+  expect(price!.x).toBeGreaterThan(add!.x + add!.width - 1);
+  const rail = (await partOf(page, 'viennoiserie').locator('.pr-zrail').boundingBox())!;
+  expect(rail.x).toBeGreaterThan(photo!.x + photo!.width - 1);
+  const second = (await slabs(page).nth(1).boundingBox())!;
+  expect(second.x).toBeLessThan((await slab.boundingBox())!.x);
   expect(await slab.locator('.pr-lane').evaluate((node) => getComputedStyle(node).getPropertyValue('--pr-from').trim())).toBe('100%');
-  // The meter's text is Arabic with the plural form of its count.
-  await expect(partOf(page, 'viennoiserie').locator('.pr-meter-text')).toHaveText('3 من 3 طبقات');
 });
 
 test('a search that finds nothing keeps main#menu', async ({ page }) => {
@@ -437,7 +458,6 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'part heading count': first.locator('h2 b'),
       'part heading label': first.locator('h2 small'),
       'second part heading name': second.locator('h2 > span'),
-      'meter text': first.locator('.pr-meter-text'),
       'layer code': slab.locator('.pr-code'),
       'slab name': slab.locator('.pr-name'),
       'slab price': slab.locator('.pr-price'),
@@ -462,7 +482,7 @@ test('contrast holds mid-sweep too: with the printhead over a slab its name and 
       const f = (c: number) => ((c / 255) <= 0.03928 ? c / 255 / 12.92 : (((c / 255) + 0.055) / 1.055) ** 2.4);
       return 0.2126 * f(r!) + 0.7152 * f(g!) + 0.0722 * f(b!);
     };
-    const panel = parse(getComputedStyle(node.querySelector('.pr-body')!).backgroundColor);
+    const panel = parse(getComputedStyle(node).backgroundColor);
     const gradient = head.backgroundImage.match(/rgba?\([^)]*\)|color\([^)]*\)/g)?.pop() ?? '';
     const tint = parse(gradient);
     const alpha = tint[3] ?? 1;
@@ -551,7 +571,7 @@ test('the add button is at least 40px square, inside its slab, clear of the chip
   }
 });
 
-test('a search keeps each part its own number and chip (by its place in the full menu) and the meter counts what is shown', async ({ page }) => {
+test('a search keeps each part its own number and chip (by its place in the full menu), and its codes', async ({ page }) => {
   await openMenu(page, slug);
   const chip = chipOf(page, 'bread');
   await expect(page.locator('#cat-bread h2 small')).toHaveText('Part 5');
@@ -560,7 +580,6 @@ test('a search keeps each part its own number and chip (by its place in the full
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('Part 5');
   await expect(chip.locator('.pr-chip-no')).toHaveText('5');
-  await expect(page.locator('#cat-bread .pr-meter-text')).toHaveText('1 of 1 layer');
   await expect(page.locator('#cat-bread .pr-code')).toHaveText('L001');
 });
 

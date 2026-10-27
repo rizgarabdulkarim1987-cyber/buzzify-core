@@ -252,8 +252,6 @@ const ckb: Messages = {
   'tpl.thr.act': 'پەردەی {n}',
   'tpl.lvl.world': 'جیهانی {n}',
   'tpl.prn.part': 'پارچەی {n}',
-  'tpl.prn.layers_one': '{n} لە {total} چین',
-  'tpl.prn.layers_other': '{n} لە {total} چین',
   'tpl.day.mon': 'دووشەممە',
   'tpl.day.tue': 'سێشەممە',
   'tpl.day.wed': 'چوارشەممە',

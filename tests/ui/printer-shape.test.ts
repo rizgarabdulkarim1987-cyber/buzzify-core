@@ -3,11 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
-import { layerNumber, PrinterBody, printedOf, sweepDelay } from '@/ui/template/bodies/PrinterBody';
+import { layerNumber, PrinterBody, printedShare, sweepDelay } from '@/ui/template/bodies/PrinterBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { riseOf } from '@/ui/template/bodies/beach-fills';
 import { PRINTER } from '@/ui/template/bodies/printer-fills';
-import { createTranslator } from '@/lib/i18n';
 import { MESSAGES } from '@/lib/messages';
 
 describe('the 3D Printer shape', () => {
@@ -67,11 +66,12 @@ describe('the printer fills', () => {
     expect(layerNumber(999)).toBe('1000');
   });
 
-  it('counts the printed layers: all of them when nothing is armed, what has been seen otherwise, never more than the section holds', () => {
-    expect(printedOf(null, 'a', 5)).toBe(5);
-    expect(printedOf({ a: 2 }, 'a', 5)).toBe(2);
-    expect(printedOf({ a: 9 }, 'a', 5)).toBe(5);
-    expect(printedOf({}, 'a', 5)).toBe(0);
+  it('fills the Z rail with the printed share: the whole rail when nothing is armed, the seen share otherwise, never more than full', () => {
+    expect(printedShare(false, 0, 5)).toBe(1);
+    expect(printedShare(true, 2, 4)).toBe(0.5);
+    expect(printedShare(true, 9, 5)).toBe(1);
+    expect(printedShare(true, 0, 5)).toBe(0);
+    expect(printedShare(true, 0, 0)).toBe(1);
   });
 
   it('staggers the printhead sweeps by a capped delay so every motion ends inside five seconds', () => {
@@ -96,13 +96,26 @@ describe('the printer fills', () => {
     for (const [, property] of keyframes.matchAll(/^\s+([a-z-]+):/gm)) expect(['transform', 'opacity']).toContain(property);
   });
 
-  it('says "n of N layers" in every language, with the plural forms of each', () => {
-    const t = (locale: 'en' | 'ar' | 'ckb') => createTranslator(locale, MESSAGES);
-    expect(t('en')('tpl.prn.layers', { count: 1, n: '1', total: '1' })).toBe('1 of 1 layer');
-    expect(t('en')('tpl.prn.layers', { count: 5, n: '3', total: '5' })).toBe('3 of 5 layers');
-    const ar = t('ar');
-    const forms = new Set([0, 1, 2, 3, 11, 100].map((count) => ar('tpl.prn.layers', { count, n: '1', total: String(count) })));
-    expect(forms.size).toBeGreaterThanOrEqual(5);
-    expect(t('ckb')('tpl.prn.layers', { count: 4, n: '٢', total: '٤' })).toContain('٤');
+  it('lays a part out as a print bed: a ruler heading, a Z rail beside a two-across gridded plate (three on a wide screen), and no meter text', () => {
+    const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8');
+    const tsx = readFileSync('src/ui/template/bodies/PrinterBody.tsx', 'utf8');
+    expect(css).toMatch(/\.pr-bed\s*\{[^}]*grid-template-columns:\s*var\(--pr-rail\) minmax\(0, 1fr\)/);
+    expect(css).toMatch(/\.pr-plate\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.pr-plate\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.pr-zrail i\s*\{[^}]*scaleY\(var\(--pr-done/);
+    expect(tsx).toContain('data-bed');
+    expect(tsx).not.toMatch(/pr-meter/);
+    expect(tsx).not.toMatch(/tpl\.prn\.layers/);
+  });
+
+  it('mirrors by direction alone: no html[dir] selectors and no physical transform origins', () => {
+    const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8');
+    expect(css).not.toMatch(/html\[dir/);
+    expect(css).toMatch(/:dir\(rtl\)/);
+    expect(css).not.toMatch(/transform-origin:[^;]*\b(left|right)\b/);
+  });
+
+  it('no longer carries the "n of N layers" strings in any language', () => {
+    for (const locale of ['en', 'ar', 'ckb'] as const) expect(Object.keys(MESSAGES[locale]).filter((key) => key.startsWith('tpl.prn.layers'))).toEqual([]);
   });
 });
