@@ -6,7 +6,7 @@
 export const WOOD = {
   /** The carved header board, the pane panel and the strip behind the chips. */
   board: '#4a2a12',
-  /** The name plaque under a pane. */
+  /** A pane's plank and carved plaque (the name, the description, the tag sit on it). */
   plaque: '#5e3818',
   /** A strip chip's frame (the window it holds is `glass`). */
   chip: '#6b4120',
@@ -14,6 +14,8 @@ export const WOOD = {
   edge: '#2b1709',
   /** Text on wood. */
   cream: '#fbeccb',
+  /** The description line on a pane's plaque. */
+  creamSoft: '#e8cfa0',
   /** The price tag, the dish count and the lit chip's frame. */
   brass: '#e2b04a',
   brassInk: '#2a1608',
@@ -27,4 +29,6 @@ export const WOOD = {
   mesh: '#6fd4cb',
   /** The keyboard focus ring. */
   ring: '#fff4d6',
+  /** The carved rim along the bracket's shelf, so a bay stays closed on a dark page. */
+  rim: '#a8794a',
 } as const;

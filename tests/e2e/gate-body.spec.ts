@@ -23,9 +23,10 @@ import {
 /**
  * The Ishtar Gate body (spec 2026-10-26-menu-styles-in-templates-design.md): every section is a gate, a tall arched
  * frame of glazed lapis brick with rows of gold rosettes along the arch and the jambs, a lintel with the section's
- * number, name and dish count, and the dishes standing inside the opening as sandy relief tiles three across (a framed
- * photo, the name on a cartouche, the price on a gold rosette badge). The doors of a gate part once, the first time it
- * comes into view. A sticky strip of tiny gate-arch chips.
+ * number, name and dish count, and in the opening the gate's first dish as one big hero tile across it (a large arched
+ * photo beside the name cartouche, a line of description and the gold rosette price badge) followed by the rest as
+ * compact relief tiles in two columns (a small framed photo beside the name and the price). The doors of a gate part
+ * once, the first time it comes into view. A sticky strip of gate-arch chips, each a numbered arch with the name beside it.
  */
 
 const menus = bodyMenus();
@@ -58,11 +59,13 @@ const tileOf = (page: Page, productSlug: string) => tiles(page).filter({ hasText
 const chipOf = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+/** The strip's jump offset (`--nav-room`) in px: a jumped-to gate lands below the strip only if the strip is no taller. */
+const navRoom = (page: Page) => body(page).evaluate((node) => parseFloat(getComputedStyle(node).getPropertyValue('--nav-room')) * parseFloat(getComputedStyle(document.documentElement).fontSize));
 
-test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
+test('on a phone the strip is no taller than its jump offset and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
   await expectFirstScreen(page, tiles(page), { min: 4 });
   await expectEverySectionReachable(strip(page));
   // The strip does not widen the phone's layout viewport.
@@ -75,7 +78,7 @@ test('with the offers banner above the menu (it and the hero take about 630px of
   await expectFirstScreen(page, tiles(page), { min: 2 });
 });
 
-test('the strip is a row of tiny gates: a gold-edged lapis arch round a numbered window, 44px to tap', async ({ page }) => {
+test('the strip is a row of gate chips: a gold-edged lapis arch round a numbered window with the section name beside it, 44px to tap', async ({ page }) => {
   await openMenu(page, slug);
   const chips = strip(page).locator('button');
   await expect(chips).toHaveCount(BODY_CATEGORIES.length);
@@ -89,6 +92,17 @@ test('the strip is a row of tiny gates: a gold-edged lapis arch round a numbered
     const radius = await part.evaluate((node) => ({ top: getComputedStyle(node).borderTopLeftRadius, foot: getComputedStyle(node).borderBottomLeftRadius }));
     expect(parseFloat(radius.top)).toBeGreaterThan(parseFloat(radius.foot) * 4);
   }
+  // Every chip shows its section's name to sighted guests (not only to screen readers): a visible label inside the chip.
+  for (const [at, category] of BODY_CATEGORIES.entries()) {
+    const label = chips.nth(at).locator('.tpl-arch-label');
+    await expect(label).toBeVisible();
+    expect(await chips.nth(at).evaluate((node) => (node as HTMLElement).innerText)).toContain(category.name.en!);
+    const [box, inside] = [(await label.boundingBox())!, (await chips.nth(at).boundingBox())!];
+    expect(box.width).toBeGreaterThan(24);
+    expect(box.x).toBeGreaterThanOrEqual(inside.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(inside.x + inside.width + 1);
+  }
+  await expect(strip(page).locator('.sr-only')).toHaveCount(0);
   // A gold edge round the arch, and a row of gold rosettes along the foot of the strip.
   expect(await chips.first().evaluate((node) => getComputedStyle(node).borderTopColor)).toBe('rgb(225, 182, 74)');
   const rosettes = await strip(page).evaluate((node) => getComputedStyle(node, '::after').backgroundImage);
@@ -150,43 +164,71 @@ test('a section is a gate: an arched frame of lapis brick with a crown of gold r
   expect(opening.width).toBeLessThan(whole.width - 24);
 });
 
-test('dishes stand inside the opening as relief tiles in three columns: a sandy tile, a framed photo, the name cartouche and then the gold price badge under it', async ({ page }) => {
+test('in each opening the first dish is one big hero tile across it and the rest follow as compact tiles two across', async ({ page }) => {
   await openMenu(page, slug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   await expect(row).toHaveCount(3);
-  const [a, b, c] = [await row.nth(0).boundingBox(), await row.nth(1).boundingBox(), await row.nth(2).boundingBox()] as [DOMRect, DOMRect, DOMRect];
-  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(b.y - c.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  await expect(row.nth(0)).toHaveAttribute('data-tile', 'hero');
+  await expect(row.nth(1)).toHaveAttribute('data-tile', 'compact');
+  await expect(row.nth(2)).toHaveAttribute('data-tile', 'compact');
   const opening = (await page.locator('#cat-viennoiserie .gt-opening').boundingBox())!;
-  expect(a.x).toBeGreaterThanOrEqual(opening.x);
+  const [hero, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
+  // The hero spans the opening; the compact tiles share the row under it, half as wide each, every dish on the page
+  // (nothing hidden in a sideways row).
+  expect(hero.width).toBeGreaterThan(opening.width - 16);
+  expect(b.y).toBeGreaterThanOrEqual(hero.y + hero.height - 1);
+  expect(Math.abs(b.y - c.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.width - c.width)).toBeLessThanOrEqual(1);
+  expect(b.width).toBeLessThan(hero.width * 0.55);
   expect(c.x + c.width).toBeLessThanOrEqual(opening.x + opening.width + 1);
-  const tile = row.first();
-  const photo = (await tile.locator('[data-photo]').boundingBox())!;
-  const relief = (await tile.locator('.gt-relief').boundingBox())!;
-  const name = (await tile.locator('.gt-name').boundingBox())!;
-  const price = (await tile.locator('.gt-price').boundingBox())!;
-  expect(name.y).toBeGreaterThanOrEqual(relief.y + relief.height - 1);
+  expect(await page.locator('#cat-viennoiserie .gt-grid').evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+  // The hero's photo is large (several times a compact one) and arched; its name, description and price stand beside it.
+  const heroTile = row.nth(0);
+  const heroPhoto = (await heroTile.locator('[data-photo]').boundingBox())!;
+  const smallPhoto = (await row.nth(1).locator('[data-photo]').boundingBox())!;
+  expect(heroPhoto.width * heroPhoto.height).toBeGreaterThan(smallPhoto.width * smallPhoto.height * 3);
+  expect(parseFloat(await heroTile.locator('.gt-relief').evaluate((node) => getComputedStyle(node).borderTopLeftRadius))).toBeGreaterThan(20);
+  const words = (await heroTile.locator('.gt-words').boundingBox())!;
+  expect(words.x).toBeGreaterThanOrEqual(heroPhoto.x + heroPhoto.width - 1);
+  await expect(heroTile.locator('.gt-desc')).toContainText('Laminated');
+  const [name, price] = [(await heroTile.locator('.gt-name').boundingBox())!, (await heroTile.locator('.gt-price').boundingBox())!];
   expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-  // The tile has a sandy ground of its own (never the photo); the photo sits inside the relief frame, clear of every ornament layer.
-  const shape = await tile.evaluate((node) => {
-    const photoNode = node.querySelector('[data-photo]')!;
-    const photoStyle = getComputedStyle(photoNode);
-    return {
-      ground: getComputedStyle(node).backgroundColor,
-      groundImage: getComputedStyle(node).backgroundImage,
-      photoImage: photoStyle.backgroundImage,
-      photoBefore: getComputedStyle(photoNode, '::before').content,
-      photoAfter: getComputedStyle(photoNode, '::after').content,
-    };
-  });
-  expect(shape.ground).toBe('rgb(230, 201, 140)');
-  expect(shape.groundImage).toBe('none');
-  expect(shape.photoImage).toBe('none');
-  expect([shape.photoBefore, shape.photoAfter].every((content) => content === 'none' || content === 'normal')).toBe(true);
-  expect(photo.x).toBeGreaterThan(relief.x + 2);
-  expect(photo.y).toBeGreaterThan(relief.y + 2);
-  expect(photo.x + photo.width).toBeLessThan(relief.x + relief.width - 2);
+  // A compact tile: the name's cartouche across the top (one line for a one-word name, never broken inside the word),
+  // under it the framed photo at the start with the price beside it.
+  const compact = row.nth(1);
+  const [relief, cname, cprice] = [(await compact.locator('.gt-relief').boundingBox())!, (await compact.locator('.gt-name').boundingBox())!, (await compact.locator('.gt-price').boundingBox())!];
+  expect(relief.y).toBeGreaterThanOrEqual(cname.y + cname.height - 1);
+  expect(cprice.x).toBeGreaterThanOrEqual(relief.x + relief.width - 1);
+  expect(cprice.y).toBeGreaterThanOrEqual(cname.y + cname.height - 1);
+  for (const at of [1, 2]) {
+    const name = row.nth(at).locator('.gt-name');
+    if (!(await name.innerText()).trim().includes(' ')) expect(await name.evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)))).toBe(1);
+  }
+  // Every tile has a sandy ground of its own (never the photo); the photo sits inside the relief frame, clear of every ornament layer.
+  for (const tile of [heroTile, compact]) {
+    const shape = await tile.evaluate((node) => {
+      const photoNode = node.querySelector('[data-photo]')!;
+      const photoStyle = getComputedStyle(photoNode);
+      return {
+        ground: getComputedStyle(node).backgroundColor,
+        groundImage: getComputedStyle(node).backgroundImage,
+        photoImage: photoStyle.backgroundImage,
+        photoBefore: getComputedStyle(photoNode, '::before').content,
+        photoAfter: getComputedStyle(photoNode, '::after').content,
+      };
+    });
+    expect(shape.ground).toBe('rgb(230, 201, 140)');
+    expect(shape.groundImage).toBe('none');
+    expect(shape.photoImage).toBe('none');
+    expect([shape.photoBefore, shape.photoAfter].every((content) => content === 'none' || content === 'normal')).toBe(true);
+    const [photo, frame] = [(await tile.locator('[data-photo]').boundingBox())!, (await tile.locator('.gt-relief').boundingBox())!];
+    expect(photo.x).toBeGreaterThan(frame.x + 2);
+    expect(photo.y).toBeGreaterThan(frame.y + 2);
+    expect(photo.x + photo.width).toBeLessThan(frame.x + frame.width - 2);
+  }
+  // A gate with one dish has only its hero.
+  await expect(page.locator('#cat-bread [data-row]')).toHaveCount(1);
+  await expect(page.locator('#cat-bread [data-row]')).toHaveAttribute('data-tile', 'hero');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -359,8 +401,9 @@ test('a menu of twenty-five sections keeps every window one tap away on a scroll
   await expect(page.locator('#cat-more-20')).toBeInViewport();
   await expect(last).toHaveAttribute('aria-current', 'true');
   await expect(last).toBeInViewport({ ratio: 1 });
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
   await expect(last.locator('.gt-glass')).toHaveText('25');
+  await expect(last.locator('.tpl-arch-label')).toHaveText('Section 25');
 });
 
 test('a search that narrows and clears keeps the strip, never moves the focus or the scroll', async ({ page }) => {
@@ -376,9 +419,10 @@ test('a search that narrows and clears keeps the strip, never moves the focus or
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(400);
 });
 
-test('a long dish name and a long price stay inside the pane without sideways scrolling', async ({ page }) => {
+for (const which of ['hero', 'compact'] as const)
+test(`a long dish name and a long price stay inside the ${which} tile without sideways scrolling`, async ({ page }) => {
   await openMenu(page, slug);
-  const pane = tiles(page).first();
+  const pane = tiles(page).nth(which === 'hero' ? 0 : 2);
   await pane.locator('.gt-name').evaluate((node) => {
     node.textContent = 'A very long dish name that keeps going and going so that it wraps onto many many lines';
   });
@@ -403,14 +447,19 @@ test('a long dish name and a long price stay inside the pane without sideways sc
   expect(await contrastOf(pane.locator('.gt-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the panes run four across in a centred column', async ({ page }) => {
+test('on a wide screen the hero takes two columns and two rows of a four-column opening, in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
-  const a = (await row.nth(0).boundingBox())!;
-  const b = (await row.nth(1).boundingBox())!;
-  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(a.x).toBeGreaterThan(100);
+  const [hero, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
+  expect(Math.abs(hero.y - b.y)).toBeLessThanOrEqual(1);
+  expect(b.x).toBeGreaterThan(hero.x + hero.width - 1);
+  expect(hero.width).toBeGreaterThan(b.width * 1.8);
+  // Two rows tall (a gate of three dishes leaves the second row to the hero alone, so its height is the hero's own).
+  expect(await row.nth(0).evaluate((node) => getComputedStyle(node).gridRowStart)).toBe('span 2');
+  expect(hero.height).toBeGreaterThanOrEqual(b.height);
+  expect(Math.abs(c.x - b.x)).toBeGreaterThan(10);
+  expect(hero.x).toBeGreaterThan(100);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -426,14 +475,16 @@ test('in Arabic the page is right to left, the strip starts at the right, and no
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
-  const photo = (await tiles(page).first().locator('[data-photo]').boundingBox())!;
-  const second = (await tiles(page).nth(1).locator('[data-photo]').boundingBox())!;
-  expect(photo.x).toBeGreaterThan(second.x);
-  // The add button is on the left corner of the photo (the end), the tag's hole at the right (the start).
+  // The hero's photo is at its right (the start), its words to the left and the add at the left end; the compact tiles
+  // run from the right; the badge's rosette at the right (the start).
   const pane = tiles(page).first();
   const add = (await pane.locator('.gt-add').boundingBox())!;
   const frame = (await pane.locator('.gt-relief').boundingBox())!;
-  expect(add.x - frame.x).toBeLessThan(frame.x + frame.width - (add.x + add.width));
+  const words = (await pane.locator('.gt-words').boundingBox())!;
+  expect(frame.x).toBeGreaterThan(words.x);
+  expect(add.x).toBeLessThan(words.x + 1);
+  const [second, third] = [(await tiles(page).nth(1).boundingBox())!, (await tiles(page).nth(2).boundingBox())!];
+  expect(second.x).toBeGreaterThan(third.x);
   const hole = await pane.locator('.gt-price').evaluate((node) => getComputedStyle(node, '::before').right);
   expect(hole).not.toBe('auto');
   expect(parseFloat(hole)).toBeLessThan(10);
@@ -463,6 +514,12 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'lintel number': first.locator('h2 small'),
       'cartouche name': pane.locator('.gt-name'),
       'gold price badge': pane.locator('.gt-price'),
+      'hero description': pane.locator('.gt-desc'),
+      'compact cartouche name': tileOf(page, 'pain-au-chocolat').locator('.gt-name'),
+      'compact price badge': tileOf(page, 'pain-au-chocolat').locator('.gt-price'),
+      'compact add button': tileOf(page, 'pain-au-chocolat').locator('.gt-add'),
+      'section name on a resting chip': strip(page).locator('button:not([aria-current]) .tpl-arch-label').first(),
+      'section name on the lit chip': strip(page).locator('[aria-current="true"] .tpl-arch-label'),
       'add button': pane.locator('.gt-add'),
       ...(menu === 'signature' ? {} : { 'sale chip': pane.locator('.tpl-photo-off'), 'second sale chip': tileOf(page, 'eclair').locator('.tpl-photo-off') }),
     });
@@ -485,6 +542,11 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Tab');
     await expect(add).toBeFocused();
     await expectFocusRingShows(page, add, { outset: -5 });
+    const small = tiles(page).nth(1);
+    await small.locator('.gt-name').focus();
+    await expectFocusRingShows(page, small, { outset: -3, pseudo: '::after' });
+    await small.locator('.gt-add').focus();
+    await expectFocusRingShows(page, small.locator('.gt-add'), { outset: -5 });
     for (const categorySlug of ['viennoiserie', 'patisserie']) {
       const chip = chipOf(page, categorySlug);
       await chip.focus();
@@ -514,7 +576,21 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its pane, insid
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('the add button is at least 40px square, inside its pane, with the sale chip clear of it', async ({ page }) => {
+test('a compact tile keeps a 36px add inside it, at its end, clear of the name and the price', async ({ page }) => {
+  await openMenu(page, slug);
+  const tile = tileOf(page, 'pain-au-chocolat');
+  const [add, box, name, price] = [(await tile.locator('.gt-add').boundingBox())!, (await tile.boundingBox())!, (await tile.locator('.gt-name').boundingBox())!, (await tile.locator('.gt-price').boundingBox())!];
+  expect(add.width).toBeGreaterThanOrEqual(36);
+  expect(add.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(add.x + add.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(add.y).toBeGreaterThanOrEqual(box.y - 1);
+  for (const part of [name, price]) {
+    const overlaps = part.x < add.x + add.width && add.x < part.x + part.width && part.y < add.y + add.height && add.y < part.y + part.height;
+    expect(overlaps).toBe(false);
+  }
+});
+
+test('the hero add button is at least 40px square, inside its tile, with the sale chip clear of it', async ({ page }) => {
   await openMenu(page, arabSlug);
   const row = body(page).locator('[data-row]').first();
   const add = (await row.locator('.gt-add').boundingBox())!;

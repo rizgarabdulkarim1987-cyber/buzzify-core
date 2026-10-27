@@ -35,6 +35,16 @@ describe('the wood and glass fills', () => {
     expect(contrast(WOOD.litInk, WOOD.lit)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(WOOD.cream, WOOD.chip)).toBeGreaterThanOrEqual(4.5);
+    // The description line and the names beside the window, on the pane's plaque; a lit chip's name on brass.
+    expect(contrast(WOOD.creamSoft, WOOD.plaque)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  it('keeps the bay closed on every palette: the bracket or its carved rim stands out from the page (3:1)', () => {
+    for (const palette of TEMPLATES['the-baghdad-shanashil'].palettes) {
+      const bg = palette.palette.bg;
+      expect(Math.max(contrast(WOOD.board, bg), contrast(WOOD.rim, bg)), palette.id).toBeGreaterThanOrEqual(3);
+    }
   });
 
   it('draws the focus ring in a colour that stands out from the pane edge, the strip chip and the brass chip (3:1)', () => {
@@ -45,8 +55,12 @@ describe('the wood and glass fills', () => {
     expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8').toLowerCase();
-    for (const [name, hex] of Object.entries(WOOD)) expect(css, name).toContain(hex.toLowerCase());
+  it('keeps the stylesheet and the constants in step: each constant is declared by name (--sh-<name>) with the same value', () => {
+    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
+    const declared = Object.fromEntries([...css.matchAll(/(--sh-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
+    for (const [name, hex] of Object.entries(WOOD)) {
+      const property = `--sh-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+      expect(declared[property], property).toBe(hex.toLowerCase());
+    }
   });
 });

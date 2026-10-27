@@ -30,6 +30,8 @@ describe('the lapis, gold and sand fills', () => {
   it('keeps every text on its fixed fill at 4.5:1: cartouche, lintel, strip chip, badge, lit chip, count', () => {
     expect(contrast(BRICK.cream, BRICK.lapis)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(BRICK.cream, BRICK.deep)).toBeGreaterThanOrEqual(4.5);
+    // The hero tile's description line, on the sand.
+    expect(contrast(BRICK.deep, BRICK.sand)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(BRICK.goldInk, BRICK.gold)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(BRICK.deep, BRICK.gold)).toBeGreaterThanOrEqual(4.5);
     expect(contrast(BRICK.goldInk, BRICK.sand)).toBeGreaterThanOrEqual(4.5);
@@ -42,9 +44,13 @@ describe('the lapis, gold and sand fills', () => {
     expect(contrast(BRICK.gold, BRICK.deep)).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8').toLowerCase();
-    for (const [name, hex] of Object.entries(BRICK)) expect(css, name).toContain(hex.toLowerCase());
+  it('keeps the stylesheet and the constants in step: each constant is declared by name (--gt-<name>) with the same value', () => {
+    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8');
+    const declared = Object.fromEntries([...css.matchAll(/(--gt-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
+    for (const [name, hex] of Object.entries(BRICK)) {
+      const property = `--gt-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
+      expect(declared[property], property).toBe(hex.toLowerCase());
+    }
   });
 
   it('never loops: no infinite animation in the stylesheet, and no physical left/right properties', () => {
