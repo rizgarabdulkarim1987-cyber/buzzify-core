@@ -11,6 +11,9 @@ import { StudioError } from '@/server/studio/framework/result';
  * `stock.adjust` cannot receive yet). The branch is the validated place's; a receipt is created in it and nowhere else.
  */
 
+/** Up to 200 lines, each a batch lookup and a few writes: more than the default transaction time on a slow day. */
+const CONFIRM_TIMEOUT_MS = 60_000;
+
 const receiptId = z.string().min(1).max(64);
 const clientKey = z.string().trim().min(8, 'Use at least 8 characters').max(100, 'Use at most 100 characters');
 
@@ -23,11 +26,11 @@ export const create = defineAction({
   input: receiptInput.extend(phPlaceInput.shape).extend({ clientKey }),
   target: phTargetOf,
   async run(ctx, input) {
-    const { ph, scoped } = pharmacyOf(ctx);
+    const { ph } = pharmacyOf(ctx);
     if (!input.branchId) throw new StudioError('INVALID', 'Choose the branch that receives the goods', { branchId: 'Choose a branch' });
     const branchId = input.branchId;
-    try {
-      return await ctx.transaction(async (tx) => {
+    const attempt = () =>
+      ctx.transaction(async (tx) => {
         const made = await createDraft(tx, { restaurantId: ph.restaurantId, branchId, clientKey: input.clientKey, userId: ph.userId, input });
         if (!made.replayed) {
           // Ids, counts and status only.
@@ -40,16 +43,17 @@ export const create = defineAction({
         }
         return made;
       });
+    try {
+      return await attempt();
     } catch (error) {
       if (!isUnique(error)) throw error;
-      // Two saves with one key at once: the database kept one. Return it (when this actor may see it).
-      const winner = await scoped.phReceipt.findFirst({
-        where: { clientKey: input.clientKey },
-        select: { id: true, version: true, status: true, _count: { select: { lines: true } } },
-      });
-      if (!winner) throw new StudioError('CONFLICT', 'This key was already used', { phCode: 'CLIENT_KEY_USED' });
-      if (winner.status !== 'DRAFT') throw new StudioError('CONFLICT', 'This receipt was already processed', { phCode: 'NOT_DRAFT' });
-      return { id: winner.id, version: winner.version, status: 'DRAFT' as const, replayed: true, lineCount: winner._count.lines };
+      // Two saves with one key at once: the database kept one. Run again: it is found, compared and returned.
+      try {
+        return await attempt();
+      } catch (again) {
+        if (!isUnique(again)) throw again;
+        throw new StudioError('CONFLICT', 'This key was already used', { phCode: 'CLIENT_KEY_USED' });
+      }
     }
   },
 });
@@ -98,7 +102,7 @@ export const confirm = defineAction({
         },
       });
       return done;
-    });
+    }, { timeoutMs: CONFIRM_TIMEOUT_MS });
   },
 });
 

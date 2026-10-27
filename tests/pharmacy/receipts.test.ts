@@ -173,6 +173,80 @@ describe('receipt drafts', () => {
   });
 });
 
+describe('batch identity, load and replays', () => {
+  it('a second supplier with the same lot and expiry adds to the existing batch', async () => {
+    const { a, owner, p } = await world();
+    for (const supplierName of ['Acme', 'Beta']) {
+      const r = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)], { supplierName })));
+      dataOf(await act(owner, receiptActions.confirm, place(a, r.id)));
+    }
+    const batches = await prisma().phBatch.findMany();
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.supplierName).toBe('Acme');
+    expect((await balances())[0]).toMatchObject({ available: 100 });
+  });
+
+  it('two confirms of the same new lot in two branches at once make one batch and sum the stock', async () => {
+    const { a, owner, p } = await world();
+    for (let round = 0; round < 3; round += 1) {
+      const lot = `RACE${round}`;
+      const ids: string[] = [];
+      for (const i of [0, 1]) {
+        ids.push(dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchIds[i]!, [line(p, { lot })], { supplierName: `S${i}` }))).id);
+      }
+      const results = await Promise.all(
+        ids.map((id, i) => act(owner, receiptActions.confirm, { restaurantId: a.id, branchId: a.branchIds[i]!, receiptId: id })),
+      );
+      expect(results.map(codeOf)).toEqual(['OK', 'OK']);
+      const batches = await prisma().phBatch.findMany({ where: { lot } });
+      expect(batches).toHaveLength(1);
+      const rows = await prisma().phStockBalance.findMany({ where: { batchId: batches[0]!.id } });
+      expect(rows.map((r) => r.available)).toEqual([50, 50]);
+    }
+  });
+
+  it('confirms a 200-line receipt', async () => {
+    const { a, owner, p } = await world();
+    const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, Array.from({ length: 200 }, (_, i) => line(p, { lot: `B${i}` })))));
+    const done = dataOf(await act(owner, receiptActions.confirm, place(a, made.id)));
+    expect(done.lines).toBe(200);
+    expect(await prisma().phStockMovement.count()).toBe(200);
+  }, 90_000);
+
+  it('a repeated clientKey with another branch or other lines is refused', async () => {
+    const { a, owner, p } = await world();
+    const input = draft(a.id, a.branchId, [line(p)]);
+    dataOf(await act(owner, receiptActions.create, input));
+    const otherBranch = await act(owner, receiptActions.create, { ...input, branchId: a.branchIds[1] });
+    expect(codeOf(otherBranch)).toBe('CONFLICT');
+    expect(otherBranch.ok ? null : otherBranch.error.fields).toMatchObject({ phCode: 'CLIENT_KEY_MISMATCH' });
+    const otherLines = await act(owner, receiptActions.create, { ...input, lines: [line(p, { qty: 9 })] });
+    expect(otherLines.ok ? null : otherLines.error.fields).toMatchObject({ phCode: 'CLIENT_KEY_MISMATCH' });
+    expect(codeOf(await act(owner, receiptActions.create, input))).toBe('OK');
+    expect(await prisma().phReceipt.count()).toBe(1);
+  });
+
+  it('refuses an archived product on a line', async () => {
+    const { a, owner, p } = await world();
+    await prisma().phProduct.update({ where: { id: p.id }, data: { active: false } });
+    const r = await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)]));
+    expect(codeOf(r)).toBe('INVALID');
+    expect(r.ok ? null : r.error.fields).toHaveProperty('lines.0.productId');
+  });
+
+  it('a confirm that fails on a later line leaves nothing behind', async () => {
+    const { a, owner, p } = await world();
+    const made = dataOf(
+      await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p, { lot: 'OKAY' }), line(p, { lot: 'OLD', expiry: '2026-01-01' })])),
+    );
+    const r = await act(owner, receiptActions.confirm, place(a, made.id));
+    expect(r.ok ? null : r.error.fields).toHaveProperty('lines.1.expiry');
+    expect(await prisma().phBatch.count()).toBe(0);
+    expect(await prisma().phStockMovement.count()).toBe(0);
+    expect(await prisma().phReceipt.findUniqueOrThrow({ where: { id: made.id } })).toMatchObject({ status: 'DRAFT', number: null });
+  });
+});
+
 describe('confirming a receipt', () => {
   it('creates the batch, the balance and a RECEIPT movement, numbers the receipt and audits it', async () => {
     const { a, owner, p } = await world();
@@ -295,7 +369,7 @@ describe('permissions and branches', () => {
   it('refuses every write to a role without purchase.manage', async () => {
     const { a, owner, p } = await world();
     const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)])));
-    for (const role of ['PHARMACIST', 'CASHIER', 'PHARMACIST_IN_CHARGE'] as const) {
+    for (const role of ['PHARMACIST', 'CASHIER'] as const) {
       const who = await person(role.toLowerCase(), { staff: [a.id, role, [a.branchId]] });
       expect(codeOf(await act(who, receiptActions.create, draft(a.id, a.branchId, [line(p)])))).toBe('FORBIDDEN');
       const edit = { ...draft(a.id, a.branchId, [line(p)]), receiptId: made.id, expectedVersion: 1 };
@@ -306,9 +380,32 @@ describe('permissions and branches', () => {
     expect(await prisma().phReceipt.count()).toBe(1);
   });
 
+  it('a pharmacist in charge can receive', async () => {
+    const { a, p } = await world();
+    const pic = await person('pic', { staff: [a.id, 'PHARMACIST_IN_CHARGE', [a.branchId]] });
+    const made = dataOf(await act(pic, receiptActions.create, draft(a.id, a.branchId, [line(p)])));
+    expect(codeOf(await act(pic, receiptActions.confirm, place(a, made.id)))).toBe('OK');
+  });
+
+  it('another business cannot read, confirm, update or void a receipt by its id', async () => {
+    const { a, owner, p } = await world();
+    const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)])));
+    const b = await pharmacy('B');
+    const bOwner = await person('bowner2', { membership: [b.id, 'OWNER'] });
+    const bp = await product(b.id, bOwner);
+    const there = { restaurantId: b.id, branchId: b.branchId, receiptId: made.id };
+    expect(codeOf(await act(bOwner, receiptActions.confirm, there))).toBe('NOT_FOUND');
+    expect(codeOf(await act(bOwner, receiptActions.voidReceipt, there))).toBe('NOT_FOUND');
+    expect(codeOf(await act(bOwner, receiptActions.update, { ...draft(b.id, b.branchId, [line(bp)]), receiptId: made.id, expectedVersion: 1 }))).toBe('NOT_FOUND');
+    expect(codeOf((await ask(bOwner, receiptQueries.get, there)) as ActionResult<unknown>)).toBe('NOT_FOUND');
+    expect((await prisma().phReceipt.findUniqueOrThrow({ where: { id: made.id } })).status).toBe('DRAFT');
+  });
+
   it('hides cost values from list and get for a role without cost.view', async () => {
     const { a, owner, p } = await world();
     const made = dataOf(await act(owner, receiptActions.create, draft(a.id, a.branchId, [line(p)])));
+    const cashier = await person('csh', { staff: [a.id, 'CASHIER', [a.branchId]] });
+    expect(JSON.stringify(dataOf(await ask(cashier, receiptQueries.get, { restaurantId: a.id, receiptId: made.id })))).not.toMatch(/2500|unitCost|currency/);
     const pharmacist = await person('rph', { staff: [a.id, 'PHARMACIST', [a.branchId]] });
     const seen = dataOf(await ask(pharmacist, receiptQueries.get, { restaurantId: a.id, receiptId: made.id }));
     expect(JSON.stringify(seen)).not.toMatch(/2500|unitCostMinor|currency/);

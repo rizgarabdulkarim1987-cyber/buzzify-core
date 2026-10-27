@@ -105,13 +105,13 @@ interface LineRow {
 async function lineRows(tx: ScopedTx, restaurantId: string, receiptId: string, lines: ReceiptInput['lines']): Promise<LineRow[]> {
   const productIds = [...new Set(lines.map((l) => l.productId))];
   const [products, units] = await Promise.all([
-    tx.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true } }),
+    tx.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, active: true } }),
     tx.phProductUnit.findMany({ where: { productId: { in: productIds } }, select: { id: true, productId: true, baseQty: true } }),
   ]);
-  const known = new Set(products.map((p) => p.id));
+  const known = new Set(products.filter((p) => p.active).map((p) => p.id));
   const unitById = new Map(units.map((u) => [u.id, u]));
   return lines.map((l, i) => {
-    if (!known.has(l.productId)) throw invalid(`lines.${i}.productId`, 'Choose one of this pharmacy’s products');
+    if (!known.has(l.productId)) throw invalid(`lines.${i}.productId`, 'Choose one of this pharmacy’s active products');
     const unit = unitById.get(l.unitId);
     if (!unit || unit.productId !== l.productId) throw invalid(`lines.${i}.unitId`, 'Choose one of this product’s units');
     let baseQty: number;
@@ -153,6 +153,71 @@ export interface DraftResult {
   lineCount: number;
 }
 
+const REPLAY_SELECT = {
+  id: true,
+  version: true,
+  status: true,
+  branchId: true,
+  supplierName: true,
+  invoiceRef: true,
+  receivedOn: true,
+  note: true,
+  lines: { orderBy: { lineNo: 'asc' } },
+} as const;
+
+const keyMismatch = () =>
+  new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
+
+type ReplayRow = {
+  id: string;
+  version: number;
+  status: 'DRAFT' | 'CONFIRMED' | 'VOID';
+  branchId: string;
+  supplierName: string;
+  invoiceRef: string;
+  receivedOn: Date;
+  note: string;
+  lines: (LineRow & { id: string })[];
+};
+
+/**
+ * A repeated `clientKey` returns its receipt only when it is the same request: same branch, header and lines. Nothing
+ * is written. (The lines are validated again so a bad repeat is refused the same way as the first.)
+ */
+async function replayOf(
+  tx: ScopedTx,
+  existing: ReplayRow,
+  args: { restaurantId: string; branchId: string; input: ReceiptInput },
+): Promise<DraftResult> {
+  const { input } = args;
+  const rows = await lineRows(tx, args.restaurantId, existing.id, input.lines);
+  const same =
+    existing.branchId === args.branchId &&
+    existing.supplierName === input.supplierName &&
+    existing.invoiceRef === input.reference &&
+    iso(existing.receivedOn) === input.receivedOn &&
+    existing.note === input.note &&
+    existing.lines.length === rows.length &&
+    rows.every((r, i) => {
+      const e = existing.lines[i]!;
+      return (
+        e.productId === r.productId &&
+        e.unitId === r.unitId &&
+        e.qty === r.qty &&
+        e.bonusQty === r.bonusQty &&
+        e.lot === r.lot &&
+        e.expiryDate.getTime() === r.expiryDate.getTime() &&
+        e.unitCostMinor === r.unitCostMinor &&
+        e.costCurrency === r.costCurrency &&
+        e.freeOfCharge === r.freeOfCharge &&
+        e.acceptExpired === r.acceptExpired
+      );
+    });
+  if (!same) throw keyMismatch();
+  if (existing.status !== 'DRAFT') throw new StudioError('CONFLICT', 'This receipt was already processed', { phCode: 'NOT_DRAFT' });
+  return { id: existing.id, version: existing.version, status: 'DRAFT', replayed: true, lineCount: existing.lines.length };
+}
+
 /**
  * A new draft in `branchId`, or the receipt the same `clientKey` already made (idempotent: a repeat changes nothing).
  * The caller has checked that `branchId` is one of the actor's branches.
@@ -161,14 +226,8 @@ export async function createDraft(
   tx: ScopedTx,
   args: { restaurantId: string; branchId: string; clientKey: string; userId: string; input: ReceiptInput },
 ): Promise<DraftResult> {
-  const existing = await tx.phReceipt.findFirst({
-    where: { clientKey: args.clientKey },
-    select: { id: true, version: true, status: true, _count: { select: { lines: true } } },
-  });
-  if (existing) {
-    if (existing.status !== 'DRAFT') throw new StudioError('CONFLICT', 'This receipt was already processed', { phCode: 'NOT_DRAFT' });
-    return { id: existing.id, version: existing.version, status: 'DRAFT', replayed: true, lineCount: existing._count.lines };
-  }
+  const existing = await tx.phReceipt.findFirst({ where: { clientKey: args.clientKey }, select: REPLAY_SELECT });
+  if (existing) return replayOf(tx, existing as unknown as ReplayRow, args);
   const receipt = await tx.phReceipt.create({
     data: {
       restaurantId: args.restaurantId,
@@ -249,7 +308,11 @@ export interface ConfirmResult {
 
 const numberOf = (n: number) => `R-${String(n).padStart(6, '0')}`;
 
-/** The batch of `(product, lot, expiry)`, created on first use. Racing creations are folded by the unique index. */
+/**
+ * The batch of `(product, lot, expiry)` for the business, created on first use. The supplier is not part of a batch's
+ * identity (`supplierName` records the first one). The unique index on that identity folds racing creations (another
+ * branch or supplier confirming the same new lot): createMany skips the duplicate and the lookup finds the winner.
+ */
 async function findOrCreateBatch(
   tx: ScopedTx,
   restaurantId: string,
@@ -258,7 +321,7 @@ async function findOrCreateBatch(
 ) {
   const where = { productId: line.productId, lot: line.lot, expiryDate: line.expiryDate };
   const select = { id: true, unitCostMinor: true, costCurrency: true, costUnitId: true } as const;
-  const found = await tx.phBatch.findFirst({ where, select });
+  const found = await tx.phBatch.findFirst({ where, select, orderBy: { id: 'asc' } });
   if (found) return { batch: found, created: false };
   await tx.phBatch.createMany({
     data: [
@@ -277,7 +340,7 @@ async function findOrCreateBatch(
     ],
     skipDuplicates: true,
   });
-  const made = await tx.phBatch.findFirst({ where, select });
+  const made = await tx.phBatch.findFirst({ where, select, orderBy: { id: 'asc' } });
   if (!made) throw new Error('A batch was created and cannot be found');
   return { batch: made, created: true };
 }

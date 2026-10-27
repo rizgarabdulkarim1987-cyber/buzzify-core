@@ -107,12 +107,13 @@ describe('the stock balance', () => {
 });
 
 describe('the batch', () => {
-  it('is one row per product, lot, expiry date and supplier name', async () => {
+  it('is one row per product, lot and expiry date, whatever the supplier', async () => {
     const s = await stocked();
     const again = (over: Record<string, unknown> = {}) =>
       prisma().phBatch.create({ data: { restaurantId: s.biz.id, productId: s.productId, lot: 'L1', expiryDate: EXPIRY, ...over } });
     await expect(again()).rejects.toMatchObject({ code: 'P2002' });
-    await expect(again({ supplierName: 'Acme' })).resolves.toHaveProperty('id');
+    await expect(again({ supplierName: 'Acme' })).rejects.toMatchObject({ code: 'P2002' });
+    await expect(again({ expiryDate: new Date('2031-01-01T00:00:00.000Z') })).resolves.toHaveProperty('id');
     await expect(again({ lot: 'L2' })).resolves.toHaveProperty('id');
   });
 

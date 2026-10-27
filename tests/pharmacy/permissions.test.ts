@@ -28,6 +28,13 @@ describe('pharmacy permissions', () => {
     expect(canPh('ACCOUNTANT', 'stock.count')).toBe(false);
   });
 
+  it('receiving (purchase.manage) is for managers, the pharmacist in charge, stock and accounts, not pharmacists or cashiers', () => {
+    for (const role of PH_ROLES) {
+      expect(canPh(role, 'purchase.manage')).toBe(['OWNER', 'BRANCH_MANAGER', 'PHARMACIST_IN_CHARGE', 'STOCK', 'ACCOUNTANT'].includes(role));
+      if (canPh(role, 'purchase.manage')) expect(canPh(role, 'cost.view')).toBe(true);
+    }
+  });
+
   it('the matrix has a row for every role and every permission key exists in at least one role', () => {
     const rows = roleMatrix();
     expect(rows.map((r) => r.role)).toEqual([...PH_ROLES]);

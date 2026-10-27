@@ -2387,6 +2387,7 @@ model PhBatch {
   receiptLines PhReceiptLine[]
 
   @@unique([restaurantId, productId, lot, expiryDate, supplierName])
+  @@unique([restaurantId, productId, lot, expiryDate])
   @@unique([restaurantId, id])
   @@index([restaurantId, productId])
   @@index([restaurantId, expiryDate])

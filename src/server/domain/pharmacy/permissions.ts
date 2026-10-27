@@ -57,6 +57,7 @@ const MATRIX: Record<PhRole, readonly PhPermission[]> = {
     'return.approve',
     'stock.adjust',
     'stock.count',
+    'purchase.manage',
     'shift.use',
     'report.view',
     'ai.use',
