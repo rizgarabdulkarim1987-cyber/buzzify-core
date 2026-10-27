@@ -215,6 +215,11 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
     const preview = job.preview as unknown as ImportPreview;
     if (preview.summary.invalid > 0) throw new StudioError('INVALID', 'Fix the rows marked invalid and upload the sheet again');
 
+    // Pictures an AI reading brought from a link, for the new products it creates; only assets of this restaurant's own library.
+    const photos = (job.photos ?? {}) as Record<string, string>;
+    const photoIds = [...new Set(Object.values(photos))];
+    const ownedPhotos = new Set(photoIds.length === 0 || ctx.restaurantId === null ? [] : (await ctx.db.mediaAsset.findMany({ where: { id: { in: photoIds }, restaurantId: ctx.restaurantId }, select: { id: true } })).map((asset) => asset.id));
+
     // New categories go after the others, in the order the sheet names them.
     const categories = await tx.category.findMany({ select: { id: true, slug: true, sortOrder: true } });
     const categoryIds = new Map(categories.map((category) => [category.slug, category.id]));
@@ -264,7 +269,9 @@ export async function applyImport(ctx: ActionContext, input: { importJobId: stri
         takenSlugs.add(slug);
         const sortOrder = (data.sortOrder as number | undefined) ?? nextSort.get(categoryId) ?? 0;
         nextSort.set(categoryId, Math.max(nextSort.get(categoryId) ?? 0, sortOrder + 1));
-        const created = await tx.product.create({ data: { ...data, ...live, menuId, categoryId, slug, sortOrder, basePrice: data.basePrice as number, translations } as never, select: { id: true } });
+        const photo = photos[`${String(row.changes?.find((change) => change.field === 'category')?.after ?? '')}\n${row.name.toLowerCase()}`];
+        const media = photo !== undefined && ownedPhotos.has(photo) ? { media: [{ kind: 'asset', assetId: photo }] } : {};
+        const created = await tx.product.create({ data: { ...data, ...live, ...media, menuId, categoryId, slug, sortOrder, basePrice: data.basePrice as number, translations } as never, select: { id: true } });
         ctx.audit({ action: 'product.created', entityType: 'Product', entityId: created.id, changes: { names: { before: null, after: { en: row.name } }, price: { before: null, after: data.basePrice } } });
         continue;
       }

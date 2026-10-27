@@ -10,6 +10,7 @@ import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
+import { AiMenuImport } from '@/studio/workspace/AiMenuImport';
 
 interface Shown {
   importJobId: string;
@@ -28,6 +29,7 @@ export function CatalogImport() {
   const [shown, setShown] = useState<Shown | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [skipped, setSkipped] = useState(0);
 
   function fail(error: Parameters<typeof describeFailure>[2]) {
     const lines = error.fields?.rows;
@@ -56,6 +58,7 @@ export function CatalogImport() {
     }
     setShown(null);
     setFile(null);
+    setSkipped(0);
     if (apply) toast.success(t('pos.import.done'));
     router.refresh();
   }
@@ -68,6 +71,19 @@ export function CatalogImport() {
         </h2>
         <p className="text-sm text-muted">{t('pos.import.intro')}</p>
       </div>
+      {!shown && (
+        <div className="flex flex-col gap-2 rounded-lg border border-line p-4">
+          <h3 className="text-base font-semibold text-text">{t('ai.menu.title')}</h3>
+          <AiMenuImport
+            endpoint="/api/pos/ai/menu-import"
+            onRead={(reading) => {
+              setProblem(null);
+              setSkipped(reading.skipped);
+              setShown({ importJobId: reading.importJobId, summary: reading.preview.summary });
+            }}
+          />
+        </div>
+      )}
       <Field label={t('pos.import.file')}>
         <Input
           type="file"
@@ -87,6 +103,7 @@ export function CatalogImport() {
       {shown ? (
         <>
           <p className="text-base text-text">{t('pos.import.summary', shown.summary)}</p>
+          {skipped > 0 && <p className="text-sm text-muted">{t('ai.menu.skipped', { count: skipped })}</p>}
           <div className="flex gap-2">
             <Button pending={busy} disabled={shown.summary.invalid > 0} onClick={() => void finish(true)}>
               {t('pos.import.apply')}

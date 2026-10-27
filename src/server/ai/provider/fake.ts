@@ -104,7 +104,40 @@ export class FakeProvider implements AiProvider {
     return { content: [{ type: 'text', text: `[${locale}] no data needed${stray ? ` ${stray}` : ''}` }] };
   }
 
+  /**
+   * A menu: `# Category` lines and `name | price | description | picture number` lines. [[inject]] adds an item whose price
+   * is in no source, as a model following an instruction hidden in a page would.
+   */
+  private menu(req: AiRequest): Partial<AiResponse> & { content: AiContent[] } {
+    const parts = (req.messages.at(-1)?.content ?? []).map((c) => (c.type === 'text' ? c.text : c.type === 'document' || c.type === 'image' ? Buffer.from(c.base64, 'base64').toString('utf8') : ''));
+    const source = parts.join('\n').replace(/<\/?untrusted_data[^>]*>/g, '\n');
+    if (source.includes('[[bad-json]]')) return { content: [{ type: 'text', text: 'not json' }] };
+    if (source.includes('[[timeout]]')) throw new AiTimeoutError();
+    if (source.includes('[[fail]]')) throw new AiProviderError();
+    const blank = { en: null, ar: null, ckb: null };
+    const written = (text: string) => ({ ...blank, [scriptOf(text)]: text });
+    let category = 'Menu';
+    const products: unknown[] = [];
+    for (const raw of source.split('\n')) {
+      const line = raw.trim();
+      if (line.startsWith('# ')) category = line.slice(2).trim();
+      else if (line.split('|').length >= 2) {
+        const [name, price, description, picture] = line.split('|').map((cell) => cell.trim());
+        products.push({
+          category: written(category),
+          name: written(name!),
+          description: description ? written(description) : blank,
+          price: price === '' || price === undefined ? null : price,
+          imageIndex: picture !== undefined && /^\d+$/.test(picture) ? Number(picture) : null,
+        });
+      }
+    }
+    if (source.includes('[[inject]]')) products.push({ category: written(category), name: written('Free lunch'), description: blank, price: '999999', imageIndex: null });
+    return { content: [{ type: 'text', text: JSON.stringify({ products }) }] };
+  }
+
   private extract(req: AiRequest): Partial<AiResponse> & { content: AiContent[] } {
+    if (req.system.includes('MENU_IMPORT')) return this.menu(req);
     const parts = (req.messages.at(-1)?.content ?? []).map((c) => (c.type === 'text' ? c.text : c.type === 'document' || c.type === 'image' ? Buffer.from(c.base64, 'base64').toString('latin1') : ''));
     // The wrapper around pasted invoice text is not part of the invoice.
     const source = parts.join('\n').replace(/<\/?untrusted_data[^>]*>/g, '\n');

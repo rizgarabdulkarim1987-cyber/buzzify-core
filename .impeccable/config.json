@@ -291,6 +291,15 @@
         ],
         "createdAt": "2026-10-26T03:06:00.000Z",
         "reason": "a menu style's own effect, shown as-is in the Studio showroom"
+      },
+      {
+        "rule": "broken-image",
+        "value": "*",
+        "files": [
+          "src/server/ai/link-fetch.ts"
+        ],
+        "createdAt": "2026-10-27T11:29:51.452Z",
+        "reason": "agent: server-side HTML parser regex that reads img tags from other sites, not UI markup"
       }
     ]
   }

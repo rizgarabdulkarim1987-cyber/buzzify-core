@@ -589,6 +589,8 @@ model ImportJob {
   /// The draft the preview compared with: applying it to a draft that changed since is refused.
   draftHash   String
   hideMissing Boolean      @default(false)
+  /// An AI reading from a link: the pictures to give the new products it creates, by category slug and lower-case name, as asset ids.
+  photos      Json?
   createdById String?
   appliedAt   DateTime?
   createdAt   DateTime     @default(now())
@@ -1893,6 +1895,7 @@ enum PosAiFeature {
   ALERTS
   SUPPLY_ENTRY
   COMPLAINTS
+  MENU_IMPORT
 }
 
 enum PosAiCallStatus {

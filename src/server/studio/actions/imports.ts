@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { guardedAi } from '@/server/ai/ai-error-code';
+import { menuImportInput } from '@/server/ai/menu-import';
 import { defineAction } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import {
@@ -10,6 +12,7 @@ import {
   sheetFileNameField,
   sheetFormatField,
 } from '@/server/studio/services/imports';
+import { previewAiMenuImport } from '@/server/studio/services/imports-ai';
 
 /** The Import and export tab (spec 13): a sheet in, previewed and applied to the draft; the draft out as a sheet. */
 
@@ -30,6 +33,15 @@ export const parse = defineAction({
   input: z.object({ menuId: idField, uploadKey: z.string().min(1).max(300), fileName: sheetFileNameField, hideMissing: z.boolean() }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => parseImport(ctx, input),
+});
+
+/** Reads another menu (a photo, a PDF or a link) with AI into the usual import preview. Saves nothing. */
+export const aiRead = defineAction({
+  name: 'import.aiRead',
+  permission: 'import.run',
+  input: z.object({ menuId: idField, source: menuImportInput }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => guardedAi(() => previewAiMenuImport(ctx, input.source)),
 });
 
 export const apply = defineAction({
