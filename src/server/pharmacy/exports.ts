@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import type { Currency } from '@/server/domain/billing/money';
+import { escapeCell } from '@/server/domain/sheet-cells';
 import { writeCsv, writeXlsx } from '@/server/sheets/write';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -28,13 +29,6 @@ const CONTENT_TYPES = {
   xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
 } as const;
 
-/**
- * A cell a spreadsheet keeps as text: one starting with `=`, `+`, `-` or `@` (a formula), or with a tab or carriage
- * return (which some spreadsheets strip before reading a formula), gets a leading quote.
- */
-export function escapeCell(text: string): string {
-  return /^[=+\-@\t\r]/.test(text) ? `'${text}` : text;
-}
 
 /**
  * The cost columns, for a role with `cost.view` only (never a cashier, never support). Products hold no cost yet

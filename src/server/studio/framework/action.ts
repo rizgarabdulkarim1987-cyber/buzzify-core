@@ -56,6 +56,19 @@ export interface TransactionScope {
   menuId?: string;
 }
 
+/** The longest any action's transaction may hold its connection and locks, whatever it asks for: 2 minutes. */
+export const MAX_TRANSACTION_TIMEOUT_MS = 120_000;
+
+/**
+ * Prisma's options for a transaction that asked for `options`: its time limit clamped to `MAX_TRANSACTION_TIMEOUT_MS`
+ * (and to at least Prisma's own 5 s), and a short wait for a connection (the wait, not the work: kept short so a busy
+ * pool still answers soon).
+ */
+export function prismaTransactionOptions(options: TransactionOptions): { timeout: number; maxWait: number } {
+  const timeout = Math.min(Math.max(options.timeoutMs, 5_000), MAX_TRANSACTION_TIMEOUT_MS);
+  return { timeout, maxWait: Math.min(timeout, 10_000) };
+}
+
 /** How long one transaction may run, for the few actions that write many rows (see `ActionContext.transaction`). */
 export interface TransactionOptions {
   timeoutMs: number;
@@ -109,7 +122,8 @@ export interface ActionContext {
    * at a time.
    *
    * `options.timeoutMs` raises Prisma's interactive-transaction limit (5 s by default) for an action that knowingly
-   * writes many rows at once (a catalog import); every other action keeps the default.
+   * writes many rows at once (a catalog import), never past `MAX_TRANSACTION_TIMEOUT_MS`; every other action keeps the
+   * default.
    */
   transaction<T>(fn: (tx: ScopedTx) => Promise<T>, options?: TransactionOptions): Promise<T>;
   /**
@@ -346,8 +360,7 @@ class Work {
           if (this.audits.length > 0) await tx.auditLog.createMany({ data: this.rows(this.audits, place) });
           return result;
         },
-        // maxWait is the wait for a connection, not the work: kept short so a busy pool still answers soon.
-        options ? { timeout: options.timeoutMs, maxWait: Math.min(options.timeoutMs, 10_000) } : undefined,
+        options ? prismaTransactionOptions(options) : undefined,
       );
     } catch (error) {
       // What was queued during the failed transaction belonged to it; what was queued before waits for the next one.

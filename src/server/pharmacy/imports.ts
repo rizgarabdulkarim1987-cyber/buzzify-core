@@ -171,8 +171,11 @@ const storedValues = (values: ParsedProduct) => ({
 
 /** A stored row as `validateRows` returned it; null when what is stored is not a row (then the hash cannot match). */
 function restoreRow(row: { rowNumber: number; status: StoredStatus | 'IMPORTED'; parsed: unknown; issues: unknown }): ParsedRow | null {
-  const parsed = row.parsed as { values?: Record<string, unknown>; identityKey?: unknown } | null;
-  if (!parsed?.values || !Array.isArray(row.issues) || row.status === 'IMPORTED') return null;
+  const parsed = row.parsed as { values?: Record<string, unknown>; identityKey?: unknown; status?: unknown } | null;
+  if (!parsed?.values || !Array.isArray(row.issues)) return null;
+  // An imported row was an ok or warning row when previewed: that status (kept in `parsed`) is what the hash covered.
+  const status = row.status === 'IMPORTED' ? (parsed.status === 'ok' || parsed.status === 'warning' ? parsed.status : null) : PARSED_STATUS[row.status];
+  if (status === null) return null;
   const values: Record<string, unknown> = {};
   for (const key of VALUE_KEYS) values[key] = parsed.values[key];
   const price = values.salePrice as { amount?: unknown; currency?: unknown } | null;
@@ -182,7 +185,7 @@ function restoreRow(row: { rowNumber: number; status: StoredStatus | 'IMPORTED';
   }
   return {
     rowNumber: row.rowNumber,
-    status: PARSED_STATUS[row.status],
+    status,
     issues: row.issues as ImportIssue[],
     values: values as ParsedProduct,
     identityKey: typeof parsed.identityKey === 'string' ? parsed.identityKey : null,
@@ -227,16 +230,19 @@ export async function prepareImport(scoped: ScopedClient, ph: PhActor, input: Im
   formatOf(input.fileName, bytes);
   const fileSha256 = createHash('sha256').update(bytes).digest('hex');
 
+  // Only an applied import blocks: a preview that was never applied may be previewed again (another mapping, defaults
+  // or branch) as often as the person likes.
   const earlier = await scoped.phImportBatch.findFirst({
-    where: { fileSha256, status: { not: 'CANCELLED' } },
+    where: { fileSha256, status: 'COMMITTED' },
     orderBy: { createdAt: 'asc' },
-    select: { id: true, createdAt: true },
+    select: { id: true, createdAt: true, summary: true },
   });
   if (earlier && input.overrideReason === undefined) {
+    const appliedAt = (earlier.summary as { applied?: { appliedAt?: unknown } } | null)?.applied?.appliedAt;
     throw new StudioError('CONFLICT', 'This file was already imported. Give a reason to import it again.', {
       phCode: 'DUPLICATE_IMPORT',
       batchId: earlier.id,
-      previewedAt: earlier.createdAt.toISOString(),
+      importedAt: typeof appliedAt === 'string' ? appliedAt : earlier.createdAt.toISOString(),
     });
   }
 
@@ -315,7 +321,7 @@ export async function storeImport(tx: ScopedTx, ph: PhActor, prepared: PreparedI
         batchId: batch.id,
         rowNumber: row.rowNumber,
         raw: prepared.cells[at + offset]!,
-        parsed: { values: storedValues(row.values), identityKey: row.identityKey },
+        parsed: { values: storedValues(row.values), identityKey: row.identityKey, status: row.status },
         issues: row.issues as never,
         status: ROW_STATUS[row.status],
       })),
@@ -473,7 +479,17 @@ export async function applyImport(tx: ScopedTx, ph: PhActor, input: ImportApplyI
   const summary = (batch.summary ?? {}) as Record<string, unknown>;
   await tx.phImportBatch.updateMany({
     where: { id: batch.id },
-    data: { summary: { ...summary, applied: { created, prices: priced, skipped: result.skipped, excluded: excludedCount, acceptWarnings: input.acceptWarnings } } },
+    data: {
+      summary: {
+        ...summary,
+        applied: { appliedAt: from.toISOString(), created, prices: priced, skipped: result.skipped, excluded: excludedCount, acceptWarnings: input.acceptWarnings },
+      },
+    },
   });
+  // The rows written are marked IMPORTED (their preview status stays in `parsed`, for the batch hash).
+  const importedRows = chosen.map((row) => row.rowNumber);
+  for (let at = 0; at < importedRows.length; at += LOOKUP_CHUNK) {
+    await tx.phImportRow.updateMany({ where: { batchId: batch.id, rowNumber: { in: importedRows.slice(at, at + LOOKUP_CHUNK) } }, data: { status: 'IMPORTED' } });
+  }
   return result;
 }

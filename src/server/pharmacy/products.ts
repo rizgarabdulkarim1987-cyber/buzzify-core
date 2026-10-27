@@ -7,7 +7,7 @@ import { packLabelOf, validateLadder, type LadderCode, type UnitLevel } from '@/
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
-import { BARCODE_IN_USE_MESSAGE, barcodeInUse, heldElsewhere, inUse, syncBarcodes, type SharedCode } from './barcodes';
+import { BARCODE_IN_USE_MESSAGE, barcodeInUse, barcodeRow, heldElsewhere, inUse, syncBarcodes, type SharedCode } from './barcodes';
 
 /**
  * A pharmacy's products: the services behind `ph.products.*`. Each takes the scoped client or transaction of the
@@ -196,6 +196,24 @@ export interface ProductWrite {
   shared: SharedCode[];
 }
 
+// Row builders: the single save and the list form (`createProducts`) both write through these, so the rows they store
+// cannot drift apart.
+
+/** A product row: its fields, the identity that stops duplicates and the text the search reads. */
+function productRow(restaurantId: string, input: ProductInput, identityKey: string) {
+  return { restaurantId, ...fieldsOf(input), identityKey, searchText: searchTextOf(input) };
+}
+
+/** A unit row of a product. */
+function unitRow(restaurantId: string, productId: string, l: UnitLevel) {
+  return { restaurantId, productId, level: l.level, label: l.label, baseQty: l.baseQty, sellable: l.sellable };
+}
+
+/** A branch's minimum and reorder quantities of a product. */
+function branchSettingRow(restaurantId: string, productId: string, s: ProductInput['branchSettings'][number]) {
+  return { restaurantId, branchId: s.branchId, productId, minQty: s.minQty, reorderQty: s.reorderQty };
+}
+
 const ladderText = (levels: readonly Pick<UnitLevel, 'level' | 'label' | 'baseQty' | 'sellable'>[]) =>
   [...levels].sort((a, b) => a.level - b.level).map((l) => `${l.level}:${l.label}:${l.baseQty}${l.sellable ? '' : ':not sold'}`);
 
@@ -203,7 +221,7 @@ async function writeBranchSettings(tx: ScopedTx, product: { id: string; restaura
   for (const s of settings) {
     await tx.phProductBranch.upsert({
       where: { branchId_productId: { branchId: s.branchId, productId: product.id } },
-      create: { restaurantId: product.restaurantId, branchId: s.branchId, productId: product.id, minQty: s.minQty, reorderQty: s.reorderQty },
+      create: branchSettingRow(product.restaurantId, product.id, s),
       update: { minQty: s.minQty, reorderQty: s.reorderQty },
       select: { id: true },
     });
@@ -218,15 +236,12 @@ export async function createProduct(tx: ScopedTx, restaurantId: string, input: P
   if (duplicate) throw duplicateOf(duplicate);
 
   const product = await tx.phProduct.create({
-    data: { restaurantId, ...fieldsOf(input), identityKey, searchText: searchTextOf(input) },
+    data: productRow(restaurantId, input, identityKey),
     select: { id: true, restaurantId: true, version: true },
   });
   const unitIdByLevel = new Map<number, string>();
   for (const l of levels) {
-    const unit = await tx.phProductUnit.create({
-      data: { restaurantId: product.restaurantId, productId: product.id, level: l.level, label: l.label, baseQty: l.baseQty, sellable: l.sellable },
-      select: { id: true },
-    });
+    const unit = await tx.phProductUnit.create({ data: unitRow(product.restaurantId, product.id, l), select: { id: true } });
     unitIdByLevel.set(l.level, unit.id);
   }
   const synced = await syncBarcodes(tx, product, unitIdByLevel, barcodes);
@@ -323,28 +338,24 @@ async function createChunk(tx: ScopedTx, restaurantId: string, inputs: readonly 
 
   const entries = checked as NonNullable<(typeof checked)[number]>[];
   const products = await tx.phProduct.createManyAndReturn({
-    data: entries.map((e) => ({ restaurantId, ...fieldsOf(e.input), identityKey: e.identityKey, searchText: searchTextOf(e.input) })),
+    data: entries.map((e) => productRow(restaurantId, e.input, e.identityKey)),
     select: { id: true, identityKey: true },
   });
   // Matched by identity (unique in the chunk), not by the order the database returns the rows in.
   const idOf = new Map(products.map((p) => [p.identityKey, p.id]));
   const units = await tx.phProductUnit.createManyAndReturn({
-    data: entries.flatMap((e) =>
-      e.levels.map((l) => ({ restaurantId, productId: idOf.get(e.identityKey)!, level: l.level, label: l.label, baseQty: l.baseQty, sellable: l.sellable })),
-    ),
+    data: entries.flatMap((e) => e.levels.map((l) => unitRow(restaurantId, idOf.get(e.identityKey)!, l))),
     select: { id: true, productId: true, level: true },
   });
   const unitOf = new Map(units.map((u) => [`${u.productId}\n${u.level}`, u.id]));
   const codes = entries.flatMap((e) =>
     e.barcodes.map((b) => {
       const productId = idOf.get(e.identityKey)!;
-      return { restaurantId, productId, unitId: unitOf.get(`${productId}\n${b.level}`)!, code: b.code, shared: false };
+      return barcodeRow(restaurantId, productId, unitOf.get(`${productId}\n${b.level}`)!, b.code, false);
     }),
   );
   if (codes.length > 0) await tx.phBarcode.createMany({ data: codes });
-  const settings = entries.flatMap((e) =>
-    e.input.branchSettings.map((s) => ({ restaurantId, branchId: s.branchId, productId: idOf.get(e.identityKey)!, minQty: s.minQty, reorderQty: s.reorderQty })),
-  );
+  const settings = entries.flatMap((e) => e.input.branchSettings.map((s) => branchSettingRow(restaurantId, idOf.get(e.identityKey)!, s)));
   if (settings.length > 0) await tx.phProductBranch.createMany({ data: settings });
 
   return entries.map((e) => {
@@ -394,10 +405,7 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   for (const l of levels) {
     const unit = current.units.find((u) => u.level === l.level);
     if (!unit) {
-      const created = await tx.phProductUnit.create({
-        data: { restaurantId: current.restaurantId, productId, level: l.level, label: l.label, baseQty: l.baseQty, sellable: l.sellable },
-        select: { id: true },
-      });
+      const created = await tx.phProductUnit.create({ data: unitRow(current.restaurantId, productId, l), select: { id: true } });
       unitIdByLevel.set(l.level, created.id);
       continue;
     }

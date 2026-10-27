@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
 import type { Currency } from '@/server/domain/billing/money';
+import { unescapeCell } from '@/server/domain/sheet-cells';
 import { checkDigitStatus, looksNumericLossy, normalizeScan } from './barcode';
 import { assertEnabledCurrency, CurrencyNotEnabledError, parseMoney, type PhMoney } from './money';
 import { identityKeyOf } from './product-identity';
@@ -349,7 +350,8 @@ export function validateRows(input: ValidateInput): ValidateResult {
       issues.push({ code, field, severity, message });
     const cell = (column: ProductColumn) => {
       const index = indexes.get(column);
-      return index === undefined ? '' : (cells[index] ?? '').slice(0, 5_000).trim();
+      // The quote an export puts before a formula start comes off, so an exported catalog imports as the same products.
+      return index === undefined ? '' : unescapeCell((cells[index] ?? '').slice(0, 5_000).trim()).trim();
     };
     const values = emptyValues();
 

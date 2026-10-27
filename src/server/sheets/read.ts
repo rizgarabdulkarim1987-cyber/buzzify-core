@@ -98,7 +98,55 @@ function isNumberCell(cell: ExcelJS.Cell): boolean {
   return typeof value === 'object' && value !== null && 'result' in value && typeof (value as { result?: unknown }).result === 'number';
 }
 
+/**
+ * The most bytes the files inside one workbook may hold once unpacked, as its ZIP directory states them. A real menu or
+ * catalog of 10,000 rows unpacks to a few MB; a file far smaller than the upload limit that claims more (a "zip bomb")
+ * is refused before anything is unpacked.
+ */
+export const MAX_XLSX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
+
+/**
+ * The most columns a worksheet may span. Every row is read across the sheet's full width, so one stray cell far to the
+ * right (column XFD is the 16,384th) would multiply the work by thousands; a real sheet has a few dozen columns.
+ */
+export const MAX_SHEET_COLUMNS = 200;
+
+/**
+ * The total unpacked size the ZIP central directory states for its entries, or null when the bytes have no readable
+ * directory. An entry whose size is in a ZIP64 record (stated as 0xFFFFFFFF) counts as too large: no workbook of the
+ * size we accept needs one.
+ */
+export function zipUncompressedSize(bytes: Uint8Array): number | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // The end-of-central-directory record: 22 bytes, then a comment of at most 65,535 bytes.
+  const lowest = Math.max(0, bytes.length - 22 - 0xffff);
+  let end = -1;
+  for (let at = bytes.length - 22; at >= lowest; at -= 1) {
+    if (view.getUint32(at, true) === 0x06054b50) {
+      end = at;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const entries = view.getUint16(end + 10, true);
+  const size = view.getUint32(end + 12, true);
+  const offset = view.getUint32(end + 16, true);
+  if (offset + size > end) return null;
+  let total = 0;
+  let at = offset;
+  for (let index = 0; index < entries; index += 1) {
+    if (at + 46 > end || view.getUint32(at, true) !== 0x02014b50) return null;
+    const uncompressed = view.getUint32(at + 24, true);
+    if (uncompressed === 0xffffffff) return Number.POSITIVE_INFINITY;
+    total += uncompressed;
+    at += 46 + view.getUint16(at + 28, true) + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+  return total;
+}
+
 async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> {
+  const unpacked = zipUncompressedSize(bytes);
+  if (unpacked === null || unpacked > MAX_XLSX_UNCOMPRESSED_BYTES) throw new SheetReadError('UNREADABLE');
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(Buffer.from(bytes) as never);
@@ -110,6 +158,7 @@ async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> 
   // Refused before reading every cell: a sheet with many rows is not worth the work.
   if (sheet.actualRowCount > maxRows + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
   const width = sheet.columnCount;
+  if (width > MAX_SHEET_COLUMNS) throw new SheetReadError('UNREADABLE');
   const lines: string[][] = [];
   const numeric: boolean[][] = [];
   for (let number = 1; number <= sheet.rowCount; number += 1) {

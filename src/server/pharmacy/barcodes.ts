@@ -41,6 +41,11 @@ export interface SharedCode {
   productIds: string[];
 }
 
+/** A barcode row as every save writes it: the single save (`syncBarcodes`) and the list form (`createProducts`). */
+export function barcodeRow(restaurantId: string, productId: string, unitId: string, code: string, shared: boolean) {
+  return { restaurantId, productId, unitId, code, shared };
+}
+
 export const BARCODE_IN_USE_MESSAGE = 'This barcode is already on another product. Mark it as shared to use it on both.';
 
 /** The rows of `codes` that products other than `exceptProductId` hold, oldest first, with each holder's name. */
@@ -116,10 +121,7 @@ export async function syncBarcodes(
     const row = existing.find((r) => r.code === entry.code && r.unitId === entry.unitId);
     const isShared = entry.shared || shared.some((s) => s.code === entry.code);
     if (!row) {
-      await tx.phBarcode.create({
-        data: { restaurantId: product.restaurantId, productId: product.id, unitId: entry.unitId, code: entry.code, shared: isShared },
-        select: { id: true },
-      });
+      await tx.phBarcode.create({ data: barcodeRow(product.restaurantId, product.id, entry.unitId, entry.code, isShared), select: { id: true } });
     } else if (isShared && !row.shared) {
       await tx.phBarcode.updateMany({ where: { id: row.id }, data: { shared: true } });
     }

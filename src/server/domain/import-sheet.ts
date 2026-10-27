@@ -1,6 +1,7 @@
 import { LOCALES, type Locale } from '@/lib/locale';
 import { formatPriceInput, parsePriceInput } from '@/lib/money-input';
 import { ALLERGENS, BADGES, DIETARY_TAGS, type Allergen, type Badge, type DietaryTag } from '@/lib/product-tags';
+import { escapeCell, unescapeCell } from './sheet-cells';
 import { SLUG_MAX } from './slug';
 
 /**
@@ -123,16 +124,6 @@ export function readHeaders(
 }
 
 // Rows ----------------------------------------------------------------------------------------------------------------
-
-/** A cell as written, without the quote an export puts before `=`, `+`, `-` or `@` so spreadsheets keep it as text. */
-function unescapeCell(cell: string): string {
-  return /^'[=+\-@]/.test(cell) ? cell.slice(1) : cell;
-}
-
-/** A cell an export writes, with that quote when the text would read as a formula. */
-function escapeCell(text: string): string {
-  return /^[=+\-@]/.test(text) ? `'${text}` : text;
-}
 
 /** Latin digits for Arabic-Indic and Persian (Sorani) ones. */
 function latinDigits(text: string): string {

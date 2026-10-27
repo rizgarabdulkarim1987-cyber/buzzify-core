@@ -169,6 +169,11 @@ export interface PriceWrite {
   previous: { id: string; amountMinor: bigint; validFrom: Date } | null;
 }
 
+/** A new open price row, as `setPrice` and `setFirstPrices` both write it. */
+function priceRow(ph: PhActor, key: PriceKey, amountMinor: bigint, from: Date, why: string) {
+  return { restaurantId: ph.restaurantId, ...key, amountMinor, validFrom: from, validTo: null, reason: why, changedById: ph.userId };
+}
+
 /**
  * Appends the price of `key` from `from`: the open row (if any) must have started before `from`, and is closed at `from`;
  * then the new row is written. `expectedOpenId` (a bulk change) is the open row the preview read earlier in this same
@@ -196,10 +201,7 @@ async function appendPrice(
     const closed = await tx.phPrice.updateMany({ where: { id: open.id, validTo: null }, data: { validTo: from } });
     if (closed.count !== 1) throw priceConflict();
   }
-  const row = await tx.phPrice.create({
-    data: { restaurantId: ph.restaurantId, ...key, amountMinor, validFrom: from, validTo: null, reason: why, changedById: ph.userId },
-    select: { id: true },
-  });
+  const row = await tx.phPrice.create({ data: priceRow(ph, key, amountMinor, from, why), select: { id: true } });
   return { id: row.id, key, amountMinor, validFrom: from, previous: open };
 }
 
@@ -219,7 +221,7 @@ export async function setPrice(tx: ScopedTx, ph: PhActor, input: PriceSetInput):
 /**
  * The first price of each of many products (a catalog import writes the products, then their prices): `setPrice`'s
  * checks on every entry (start horizon, enabled currency, the amount as `parseMoney` reads it, a unit of that product)
- * and its row, written together. A key that already has an open price is refused `PRICE_CONFLICT`: closing one is
+ * and its row, written together. A key that already has an open price, or that an earlier entry of the list sets, is refused `PRICE_CONFLICT`: closing one is
  * `setPrice`'s. The first refusal by position is thrown as a `ListEntryError`, before any row is written. Branches must
  * be checked first with `assertPriceBranch`.
  */
@@ -248,19 +250,12 @@ export async function setFirstPrices(tx: ScopedTx, ph: PhActor, inputs: readonly
       if (enabled.has(input.currency)) throw enabled.get(input.currency);
       const amountMinor = amountOf(input.amount, input.currency, 'amount');
       if (units.get(input.unitId) !== input.productId) throw new StudioError('NOT_FOUND');
-      if (open.has([input.productId, input.unitId, input.branchId ?? '', input.currency].join('\n'))) throw priceConflict();
-      return {
-        restaurantId: ph.restaurantId,
-        productId: input.productId,
-        unitId: input.unitId,
-        branchId: input.branchId ?? null,
-        currency: input.currency,
-        amountMinor,
-        validFrom: input.validFrom,
-        validTo: null,
-        reason: input.reason,
-        changedById: ph.userId,
-      };
+      const key: PriceKey = { productId: input.productId, unitId: input.unitId, branchId: input.branchId ?? null, currency: input.currency };
+      const keyText = [key.productId, key.unitId, key.branchId ?? '', key.currency].join('\n');
+      // An open price already stored, or one an earlier entry of this list sets: either way the key is taken.
+      if (open.has(keyText)) throw priceConflict();
+      open.add(keyText);
+      return priceRow(ph, key, amountMinor, input.validFrom, input.reason);
     } catch (error) {
       throw new ListEntryError(index, error);
     }

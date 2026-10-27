@@ -6,7 +6,7 @@ import * as importActions from '@/server/pharmacy/actions/imports';
 import * as priceActions from '@/server/pharmacy/actions/prices';
 import * as productActions from '@/server/pharmacy/actions/products';
 import { exportProducts, PH_EXPORT_MAX_ROWS } from '@/server/pharmacy/exports';
-import { setFirstPrices } from '@/server/pharmacy/prices';
+import { PH_MAX_AMOUNT_MINOR, setFirstPrices, setPrice } from '@/server/pharmacy/prices';
 import { createProduct, createProducts, ListEntryError, productInput } from '@/server/pharmacy/products';
 import * as exportQueries from '@/server/pharmacy/queries/exports';
 import { readSheet } from '@/server/sheets/read';
@@ -275,28 +275,37 @@ describe('pharmacy product import', () => {
     expect((await prisma().phProduct.findMany({ orderBy: { tradeName: 'asc' } })).map((p) => p.tradeName)).toEqual(['Drug 1', 'Drug 3']);
   });
 
-  it('the same file uploaded again is flagged DUPLICATE_IMPORT', async () => {
+  it('the same file uploaded again is flagged DUPLICATE_IMPORT only once it was imported', async () => {
     const a = await pharmacy('A');
     const owner = await person('owner', { membership: [a.id, 'OWNER'] });
-    const file = csvFile([drug(1)]);
+    const file = csvFile([drug(1, { min: '5' })]);
+    // Previewed only: previewing it again (here with another mapping) is the normal way to correct a preview.
     const first = dataOf(await preview(owner, { restaurantId: a.id }, file));
-    const firstBatch = await prisma().phImportBatch.findUniqueOrThrow({ where: { id: first.batchId } });
+    const remapped = dataOf(await preview(owner, { restaurantId: a.id }, file, { mapping: { 'Min qty': null } }));
+    expect(remapped.batchId).not.toBe(first.batchId);
+    // A cancelled batch does not block either.
+    await prisma().phImportBatch.update({ where: { id: first.batchId }, data: { status: 'CANCELLED' } });
+    const third = dataOf(await preview(owner, { restaurantId: a.id }, file));
 
+    // Imported: the same bytes again (under another name) are refused, naming the import and when it was committed.
+    dataOf(await apply(owner, { restaurantId: a.id }, { batchId: third.batchId, batchHash: third.batchHash, acceptWarnings: false }));
+    const importedAt = NOW.toISOString();
     vi.setSystemTime(new Date(NOW.getTime() + DAY));
-    // Another name, the same bytes.
     const again = await preview(owner, { restaurantId: a.id }, { ...file, fileName: 'renamed.csv' });
     expect(again).toMatchObject({
       ok: false,
-      error: { code: 'CONFLICT', fields: { phCode: 'DUPLICATE_IMPORT', batchId: first.batchId, previewedAt: firstBatch.createdAt.toISOString() } },
+      error: { code: 'CONFLICT', message: 'This file was already imported. Give a reason to import it again.', fields: { phCode: 'DUPLICATE_IMPORT', batchId: third.batchId, importedAt } },
     });
-    expect(await prisma().phImportBatch.count()).toBe(1);
+    expect(await prisma().phImportBatch.count()).toBe(3);
 
     // Previewing it again needs a reason, which the audit keeps.
     expect(codeOf(await preview(owner, { restaurantId: a.id }, file, { overrideReason: 'no' }))).toBe('INVALID');
     const forced = dataOf(await preview(owner, { restaurantId: a.id }, file, { overrideReason: 'Supplier sent the list again' }));
-    expect(forced.batchId).not.toBe(first.batchId);
+    expect(forced.batchId).not.toBe(third.batchId);
     const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.import.preview', entityId: forced.batchId } });
-    expect(audit.changes).toMatchObject({ overrideReason: { after: 'Supplier sent the list again' }, duplicateOf: { after: first.batchId } });
+    expect(audit.changes).toMatchObject({ overrideReason: { after: 'Supplier sent the list again' }, duplicateOf: { after: third.batchId } });
+    // Its one row is the product already imported.
+    expect(forced.summary).toMatchObject({ duplicates: 1, ok: 0 });
 
     // Another business may import the same file.
     const b = await pharmacy('B');
@@ -381,8 +390,9 @@ describe('pharmacy product import', () => {
     const owner = await person('owner', { membership: [a.id, 'OWNER'] });
     const pre = dataOf(await preview(owner, { restaurantId: a.id }, csvFile(Array.from({ length: 1_200 }, (_, i) => drug(i + 1)))));
 
-    // After the preview, someone saves row 1,101's product by hand. The first 1,000 rows (one chunk, with their barcodes
-    // and prices) are written before the second chunk meets it and is refused.
+    // After the preview, someone saves row 1,101's product by hand. The first 1,000 rows (one chunk: products, units,
+    // barcodes) are written before the second chunk meets it and is refused; prices come after every product, so none
+    // were written yet.
     const twin = panadol(a.id, { tradeName: 'Drug 1100', strength: '500 mg', manufacturer: 'ACME' });
     dataOf(await act(owner, productActions.create, twin));
     const input = { batchId: pre.batchId, batchHash: pre.batchHash, acceptWarnings: false };
@@ -400,6 +410,54 @@ describe('pharmacy product import', () => {
     // Because the claim rolled back, the batch can still be applied, leaving that row out.
     expect(dataOf(await apply(owner, { restaurantId: a.id }, { ...input, excludeRowNumbers: [1101] }))).toMatchObject({ created: 1_199, excluded: 1 });
   }, 60_000);
+
+  it('a price refused after every product was written rolls the whole import back', async () => {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const pre = dataOf(await preview(owner, { restaurantId: a.id }, csvFile([drug(1), drug(2), drug(3)])));
+
+    // After the preview, the owner stops pricing in IQD: the products go in, then the first price is refused.
+    await prisma().phSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, enabledCurrencies: ['USD'], defaultCurrency: 'USD' }, update: { enabledCurrencies: ['USD'], defaultCurrency: 'USD' } });
+    const failed = await apply(owner, { restaurantId: a.id }, { batchId: pre.batchId, batchHash: pre.batchHash, acceptWarnings: false });
+    expect(failed).toMatchObject({ ok: false, error: { code: 'INVALID', fields: { phCode: 'CURRENCY_NOT_ENABLED', rowNumber: '2' } } });
+
+    expect(await prisma().phProduct.count()).toBe(0);
+    expect(await prisma().phProductUnit.count()).toBe(0);
+    expect(await prisma().phBarcode.count()).toBe(0);
+    expect(await prisma().phPrice.count()).toBe(0);
+    expect((await prisma().phImportBatch.findUniqueOrThrow({ where: { id: pre.batchId } })).status).toBe('PREVIEWED');
+    expect(await prisma().phImportRow.count({ where: { batchId: pre.batchId, status: 'IMPORTED' } })).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.import.apply' } })).toBe(0);
+  });
+
+  it('marks the rows it created IMPORTED, and a second apply still answers alreadyApplied', async () => {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const pre = dataOf(await preview(owner, { restaurantId: a.id }, csvFile([drug(1), drug(2, { price: '0' }), drug(3, { rx: 'maybe' })])));
+    const input = { batchId: pre.batchId, batchHash: pre.batchHash, acceptWarnings: false, excludeRowNumbers: [4] };
+    expect(dataOf(await apply(owner, { restaurantId: a.id }, input))).toMatchObject({ created: 1, skipped: 1, excluded: 1 });
+
+    const rows = await prisma().phImportRow.findMany({ where: { batchId: pre.batchId }, orderBy: { rowNumber: 'asc' } });
+    expect(rows.map((r) => [r.rowNumber, r.status])).toEqual([
+      [2, 'IMPORTED'],
+      [3, 'WARNING'],
+      [4, 'ERROR'],
+    ]);
+    expect(dataOf(await apply(owner, { restaurantId: a.id }, input))).toMatchObject({ created: 0, alreadyApplied: true });
+  });
+
+  it('an exported catalog previews as duplicates, formula-escaped cells included', async () => {
+    const a = await pharmacy('A');
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    for (const over of [{}, { tradeName: '=Calc', manufacturer: '@GSK' }, { tradeName: '-Minus', form: '+tab', strength: '=1' }]) {
+      dataOf(await act(owner, productActions.create, panadol(a.id, over)));
+    }
+    for (const format of ['csv', 'xlsx'] as const) {
+      const file = dataOf(await exported(owner, { restaurantId: a.id }, format));
+      const pre = dataOf(await preview(owner, { restaurantId: a.id }, { fileName: file.fileName, fileBase64: file.base64 }));
+      expect(pre.summary).toMatchObject({ rows: 3, duplicates: 3, ok: 0, errors: 0 });
+    }
+  });
 
   it('the list path writes the rows the single save writes and refuses what it refuses', async () => {
     const a = await pharmacy('A');
@@ -441,20 +499,26 @@ describe('pharmacy product import', () => {
       return written;
     });
 
+    // Whole rows, every column but the ones that differ by nature (ids, the business, the branch, who, when); a unit is
+    // named by its level. A column added later is compared too, so the two write paths cannot drift apart unseen.
+    const OWN = ['id', 'restaurantId', 'productId', 'unitId', 'branchId', 'changedById', 'createdAt', 'updatedAt'];
+    const strip = (row: object) => Object.fromEntries(Object.entries(row).filter(([key]) => !OWN.includes(key)));
     const rowsOf = async (productId: string) => {
-      const product = await prisma().phProduct.findUniqueOrThrow({ where: { id: productId }, include: { units: { orderBy: { level: 'asc' } } } });
-      const levelOf = new Map(product.units.map((u) => [u.id, u.level]));
-      const { units, ...row } = product;
-      const same = Object.fromEntries(Object.entries(row).filter(([key]) => !['id', 'restaurantId', 'createdAt', 'updatedAt'].includes(key)));
+      const product = await prisma().phProduct.findUniqueOrThrow({ where: { id: productId } });
+      const units = await prisma().phProductUnit.findMany({ where: { productId }, orderBy: { level: 'asc' } });
+      const levelOf = new Map(units.map((u) => [u.id, u.level]));
+      const withLevel = <R extends { unitId: string }>(row: R) => ({ ...strip(row), level: levelOf.get(row.unitId) });
       return {
-        product: same,
-        units: units.map((u) => [u.level, u.label, u.baseQty, u.sellable]),
-        barcodes: (await prisma().phBarcode.findMany({ where: { productId }, orderBy: { code: 'asc' } })).map((x) => [x.code, x.shared, levelOf.get(x.unitId)]),
-        settings: (await prisma().phProductBranch.findMany({ where: { productId } })).map((s) => [s.minQty, s.reorderQty]),
-        prices: (await prisma().phPrice.findMany({ where: { productId } })).map((p) => [levelOf.get(p.unitId), p.branchId, p.currency, p.amountMinor, p.validFrom.toISOString(), p.validTo, p.reason]),
+        product: strip(product),
+        units: units.map(strip),
+        barcodes: (await prisma().phBarcode.findMany({ where: { productId }, orderBy: { code: 'asc' } })).map(withLevel),
+        settings: (await prisma().phProductBranch.findMany({ where: { productId } })).map(strip),
+        prices: (await prisma().phPrice.findMany({ where: { productId } })).map(withLevel),
       };
     };
-    expect(await rowsOf(listed!.id)).toEqual(await rowsOf(single.id));
+    const fromList = await rowsOf(listed!.id);
+    expect(fromList).toEqual(await rowsOf(single.id));
+    expect([fromList.units.length, fromList.barcodes.length, fromList.settings.length, fromList.prices.length]).toEqual([3, 2, 1, 1]);
 
     // The same refusals, from the same checks: a bad ladder, a product already in the catalog, a barcode held by another.
     const phA = (await asPh(ownerA.userId, a.id))!;
@@ -479,6 +543,30 @@ describe('pharmacy product import', () => {
       expect(list).toEqual(one);
       expect(one.code).not.toBeUndefined();
     }
+
+    // Prices: the same refusals from setFirstPrices as from setPrice.
+    const other = dataOf(await act(ownerA, productActions.create, panadol(a.id, { tradeName: 'Other drug' })));
+    const otherUnit = await prisma().phProductUnit.findFirstOrThrow({ where: { productId: other.id, level: 1 } });
+    const price = { productId: single.id, unitId: boxA.id, currency: 'IQD' as const, amount: '1,500', validFrom: new Date(NOW.getTime() + DAY), reason: 'import x' };
+    const badPrices = [
+      ['too far ahead', { ...price, validFrom: new Date(NOW.getTime() + 91 * DAY) }],
+      ['a currency not enabled', { ...price, currency: 'USD' as const }],
+      ['an amount over the most', { ...price, amount: String(PH_MAX_AMOUNT_MINOR + 1n) }],
+      ['a unit of another product', { ...price, unitId: otherUnit.id }],
+    ] as const;
+    for (const [why, input] of badPrices) {
+      const one = await refusalOf((tx) => setPrice(tx, phA, input));
+      const list = await refusalOf((tx) => setFirstPrices(tx, phA, [input]));
+      expect(list, why).toEqual(one);
+      expect(one.code, why).not.toBeUndefined();
+    }
+    // The same key twice in one list: the second entry is refused cleanly, as a price conflict, and nothing is written.
+    const fresh = { ...price, productId: other.id, unitId: otherUnit.id, validFrom: NOW };
+    let twice: unknown;
+    await scopedA.$transaction((tx) => setFirstPrices(tx, phA, [fresh, { ...fresh, amount: '2,000' }])).catch((error: unknown) => (twice = error));
+    expect(twice).toBeInstanceOf(ListEntryError);
+    expect(twice).toMatchObject({ index: 1, refusal: { code: 'CONFLICT', fields: { phCode: 'PRICE_CONFLICT' } } });
+    expect(await prisma().phPrice.count({ where: { productId: other.id } })).toBe(0);
   });
 
   it('min qty is written only when exactly one branch is in scope', async () => {
@@ -514,7 +602,10 @@ describe('pharmacy product import', () => {
     const a = await pharmacy('A');
     const owner = await person('owner', { membership: [a.id, 'OWNER'] });
     const pre = dataOf(await preview(owner, { restaurantId: a.id }, csvFile(Array.from({ length: 1_000 }, (_, i) => drug(i + 1)))));
+    const started = performance.now();
     const done = dataOf(await apply(owner, { restaurantId: a.id }, { batchId: pre.batchId, batchHash: pre.batchHash, acceptWarnings: false }));
+    // A loose bound (about 1 s measured): the one-save-per-row path took about 8 s for 1,000 rows.
+    expect(performance.now() - started).toBeLessThan(15_000);
     expect(done).toMatchObject({ created: 1_000, prices: 1_000 });
     expect(await prisma().phProduct.count()).toBe(1_000);
     expect(await prisma().phBarcode.count()).toBe(1_000);
