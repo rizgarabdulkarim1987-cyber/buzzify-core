@@ -156,6 +156,14 @@ model Restaurant {
   phPriceChangeBatches  PhPriceChangeBatch[]
   phImportBatches       PhImportBatch[]
   phImportRows          PhImportRow[]
+  phBatches             PhBatch[]
+  phStockBalances       PhStockBalance[]
+  phStockMovements      PhStockMovement[]
+  phReceipts            PhReceipt[]
+  phReceiptLines        PhReceiptLine[]
+  phStockCounts         PhStockCount[]
+  phStockCountLines     PhStockCountLine[]
+  phExpiryActions       PhExpiryAction[]
   supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
@@ -186,6 +194,11 @@ model Branch {
   phStaffBranches   PhStaffBranch[]
   phProductBranches PhProductBranch[]
   phPrices          PhPrice[]
+  phStockBalances   PhStockBalance[]
+  phStockMovements  PhStockMovement[]
+  phReceipts        PhReceipt[]
+  phStockCounts     PhStockCount[]
+  phExpiryActions   PhExpiryAction[]
 
   @@unique([restaurantId, id])
   @@index([restaurantId])
@@ -2136,6 +2149,11 @@ model PhProduct {
   barcodes   PhBarcode[]
   branches   PhProductBranch[]
   prices     PhPrice[]
+  batches    PhBatch[]
+  balances   PhStockBalance[]
+  movements  PhStockMovement[]
+  receiptLines PhReceiptLine[]
+  countLines PhStockCountLine[]
 
   @@unique([restaurantId, identityKey])
   @@unique([restaurantId, id])
@@ -2159,6 +2177,8 @@ model PhProductUnit {
   product      PhProduct   @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: Cascade)
   barcodes     PhBarcode[]
   prices       PhPrice[]
+  costBatches  PhBatch[]
+  receiptLines PhReceiptLine[]
 
   @@unique([productId, level])
   @@unique([productId, id])
@@ -2275,6 +2295,285 @@ model PhImportRow {
 
   @@unique([batchId, rowNumber])
   @@index([restaurantId, batchId, status])
+}
+
+enum PhBatchStatus {
+  ACTIVE
+  RECALLED
+  BLOCKED
+}
+
+enum PhExpiryPrecision {
+  DAY
+  MONTH
+}
+
+enum PhMovementType {
+  RECEIPT
+  SALE
+  RETURN_IN
+  RETURN_QUARANTINE
+  ADJUST
+  DAMAGE
+  TRANSFER_OUT
+  TRANSFER_IN
+  SUPPLIER_RETURN
+  COUNT
+  QUARANTINE_RELEASE
+}
+
+enum PhStockBucket {
+  AVAILABLE
+  RESERVED
+  QUARANTINE
+  DAMAGED
+}
+
+enum PhReceiptStatus {
+  DRAFT
+  CONFIRMED
+  VOID
+}
+
+enum PhCountStatus {
+  OPEN
+  SUBMITTED
+  APPROVED
+  CANCELLED
+}
+
+enum PhCountScope {
+  BRANCH
+  CATEGORY
+  LOCATION
+}
+
+enum PhExpiryStatus {
+  NEW
+  IN_PROGRESS
+  MOVED
+  DISPOSED
+  RETURNED
+}
+
+/// One lot of one product, business-wide: identified by (product, lot, expiry date, supplier name). A month-only expiry is
+/// stored as the last day of the month with `expiryPrecision` MONTH. The cost is for one `costUnitId` (the unit it was
+/// bought in), never a per-base fraction; cost, currency and unit are all set or all null. CHECKs (cost >= 0; the cost
+/// triple) are in the migration.
+model PhBatch {
+  id              String            @id @default(cuid())
+  restaurantId    String
+  productId       String
+  lot             String
+  expiryDate      DateTime          @db.Date
+  expiryPrecision PhExpiryPrecision @default(DAY)
+  supplierName    String            @default("")
+  status          PhBatchStatus     @default(ACTIVE)
+  unitCostMinor   BigInt?
+  costCurrency    Currency?
+  costUnitId      String?
+  receiptLineId   String?
+  version         Int               @default(1)
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  product         PhProduct         @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  costUnit        PhProductUnit?    @relation(fields: [productId, costUnitId], references: [productId, id], onDelete: NoAction)
+
+  balances     PhStockBalance[]
+  movements    PhStockMovement[]
+  expiryItems  PhExpiryAction[]
+  countLines   PhStockCountLine[]
+  receiptLines PhReceiptLine[]
+
+  @@unique([restaurantId, productId, lot, expiryDate, supplierName])
+  @@unique([restaurantId, id])
+  @@index([restaurantId, productId])
+  @@index([restaurantId, expiryDate])
+}
+
+/// What one batch holds in one branch, in four whole-number buckets of the product's base unit. Only `applyMovement`
+/// writes it. CHECK >= 0 on each bucket is in the migration. `productId` repeats the batch's, for lookups.
+model PhStockBalance {
+  id           String     @id @default(cuid())
+  restaurantId String
+  branchId     String
+  productId    String
+  batchId      String
+  available    Int        @default(0)
+  reserved     Int        @default(0)
+  quarantine   Int        @default(0)
+  damaged      Int        @default(0)
+  updatedAt    DateTime   @updatedAt
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch     @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  product      PhProduct  @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  batch        PhBatch    @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([batchId, branchId])
+  @@index([restaurantId, branchId, productId])
+}
+
+/// An entry in the stock ledger: append-only (a trigger refuses UPDATE and any direct DELETE). The four deltas are signed
+/// whole numbers of the base unit; a correction is a new movement whose `reversesId` names the original, once (partial
+/// unique index "PhStockMovement_one_reversal"). `userId` is text, not a foreign key, so history outlives the account.
+/// `refType`/`refId` link a later sale or transfer. CHECKs (not all deltas zero; a RECEIPT adds to available only) are in
+/// the migration.
+model PhStockMovement {
+  id              String            @id @default(cuid())
+  restaurantId    String
+  branchId        String
+  productId       String
+  batchId         String
+  type            PhMovementType
+  availableDelta  Int               @default(0)
+  reservedDelta   Int               @default(0)
+  quarantineDelta Int               @default(0)
+  damagedDelta    Int               @default(0)
+  reason          String            @default("")
+  userId          String
+  reversesId      String?
+  receiptId       String?
+  countId         String?
+  refType         String?
+  refId           String?
+  createdAt       DateTime          @default(now())
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch          Branch            @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  product         PhProduct         @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  batch           PhBatch           @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+  reverses        PhStockMovement?  @relation("PhMovementReversal", fields: [reversesId], references: [id], onDelete: NoAction)
+  reversedBy      PhStockMovement[] @relation("PhMovementReversal")
+  receipt         PhReceipt?        @relation(fields: [restaurantId, receiptId], references: [restaurantId, id], onDelete: NoAction)
+  count           PhStockCount?     @relation(fields: [restaurantId, countId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@index([restaurantId, branchId, productId, createdAt])
+  @@index([restaurantId, batchId, createdAt])
+  @@index([receiptId])
+  @@index([countId])
+}
+
+/// Goods received into one branch, with the supplier as free text (phase 4 links a supplier record). Idempotent by
+/// `clientKey` per business. A receipt is edited while DRAFT, then CONFIRMED once (or VOID before that).
+model PhReceipt {
+  id            String            @id @default(cuid())
+  restaurantId  String
+  branchId      String
+  status        PhReceiptStatus   @default(DRAFT)
+  clientKey     String
+  supplierName  String            @default("")
+  invoiceRef    String            @default("")
+  receivedOn    DateTime          @db.Date
+  note          String            @default("")
+  createdById   String
+  confirmedById String?
+  confirmedAt   DateTime?
+  voidedAt      DateTime?
+  version       Int               @default(1)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  restaurant    Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch        Branch            @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  lines         PhReceiptLine[]
+  movements     PhStockMovement[]
+
+  @@unique([restaurantId, clientKey])
+  @@unique([restaurantId, id])
+  @@index([restaurantId, branchId, status, createdAt])
+}
+
+/// One line of a receipt: `qty` of `unitId`, `baseQty` the same in base units (the unit's size at the time). CHECKs
+/// (qty >= 1; baseQty >= 1; cost >= 0; cost and currency together) are in the migration. `batchId` is set on confirm.
+model PhReceiptLine {
+  id              String            @id @default(cuid())
+  restaurantId    String
+  receiptId       String
+  lineNo          Int
+  productId       String
+  unitId          String
+  qty             Int
+  baseQty         Int
+  lot             String
+  expiryDate      DateTime          @db.Date
+  expiryPrecision PhExpiryPrecision @default(DAY)
+  unitCostMinor   BigInt?
+  costCurrency    Currency?
+  batchId         String?
+  restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  receipt         PhReceipt         @relation(fields: [restaurantId, receiptId], references: [restaurantId, id], onDelete: Cascade)
+  product         PhProduct         @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  unit            PhProductUnit     @relation(fields: [productId, unitId], references: [productId, id], onDelete: NoAction)
+  batch           PhBatch?          @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([receiptId, lineNo])
+  @@index([restaurantId, productId])
+}
+
+/// A stock count of one branch: of everything, a category or a shelf location (`scopeValue`). A blind count hides the
+/// expected quantities from the counter until it is submitted.
+model PhStockCount {
+  id           String             @id @default(cuid())
+  restaurantId String
+  branchId     String
+  status       PhCountStatus      @default(OPEN)
+  scope        PhCountScope       @default(BRANCH)
+  scopeValue   String             @default("")
+  blind        Boolean            @default(false)
+  countedById  String
+  approvedById String?
+  reason       String             @default("")
+  note         String             @default("")
+  submittedAt  DateTime?
+  approvedAt   DateTime?
+  version      Int                @default(1)
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch             @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  lines        PhStockCountLine[]
+  movements    PhStockMovement[]
+
+  @@unique([restaurantId, id])
+  @@index([restaurantId, branchId, status, createdAt])
+}
+
+/// What was expected (the available bucket when the count opened) and counted for one batch. CHECKs (both >= 0) are in
+/// the migration.
+model PhStockCountLine {
+  id           String       @id @default(cuid())
+  restaurantId String
+  countId      String
+  productId    String
+  batchId      String
+  expectedQty  Int
+  countedQty   Int?
+  restaurant   Restaurant   @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  count        PhStockCount @relation(fields: [restaurantId, countId], references: [restaurantId, id], onDelete: Cascade)
+  product      PhProduct    @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  batch        PhBatch      @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([countId, batchId])
+  @@index([restaurantId, productId])
+}
+
+/// The follow-up on a batch that is expired or near expiry, one row per (batch, branch).
+model PhExpiryAction {
+  id           String         @id @default(cuid())
+  restaurantId String
+  branchId     String
+  batchId      String
+  status       PhExpiryStatus @default(NEW)
+  assigneeId   String?
+  note         String         @default("")
+  updatedById  String
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch         @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  batch        PhBatch        @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([batchId, branchId])
+  @@index([restaurantId, branchId, status])
 }
 
 /// A plan of one application, with its features and limits (global catalog).

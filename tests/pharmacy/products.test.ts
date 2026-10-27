@@ -494,3 +494,43 @@ describe('pharmacy products', () => {
     expect(unclassified).toEqual([]);
   });
 });
+
+describe('the stock guards on a product', () => {
+  const EXPIRY = new Date('2027-03-31T00:00:00.000Z');
+
+  async function withBatch(stock: { available?: number; quarantine?: number }) {
+    const a = await pharmacy('A', { branches: 2 });
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const created = dataOf(await act(owner, productActions.create, panadol(a.id)));
+    const units = await prisma().phProductUnit.findMany({ where: { productId: created.id }, orderBy: { level: 'asc' } });
+    const batch = await prisma().phBatch.create({
+      data: { restaurantId: a.id, productId: created.id, lot: 'L1', expiryDate: EXPIRY, unitCostMinor: 1000n, costCurrency: 'IQD', costUnitId: units[1]!.id },
+    });
+    await prisma().phStockBalance.create({
+      data: { restaurantId: a.id, branchId: a.branchIds[1]!, productId: created.id, batchId: batch.id, available: stock.available ?? 0, quarantine: stock.quarantine ?? 0 },
+    });
+    return { a, owner, created, units };
+  }
+
+  it('refuses to archive a product that has stock in any bucket of any branch', async () => {
+    for (const stock of [{ available: 4 }, { quarantine: 2 }]) {
+      await resetWorld();
+      const { a, owner, created } = await withBatch(stock);
+      const result = await act(owner, productActions.archive, { restaurantId: a.id, productId: created.id, expectedVersion: created.version });
+      expect(codeOf(result)).toBe('CONFLICT');
+    }
+  });
+
+  it('archives a product whose batches are empty', async () => {
+    const { a, owner, created } = await withBatch({});
+    const result = await act(owner, productActions.archive, { restaurantId: a.id, productId: created.id, expectedVersion: created.version });
+    expect(codeOf(result)).toBe('OK');
+  });
+
+  it('refuses to resize a unit that a batch was costed in', async () => {
+    const { a, owner, created } = await withBatch({});
+    const resized = LADDER.map((l) => (l.level === 1 ? { ...l, baseQty: 15 } : l));
+    const result = await act(owner, productActions.update, { ...panadol(a.id, { levels: resized }), productId: created.id, expectedVersion: created.version });
+    expect(codeOf(result)).toBe('CONFLICT');
+  });
+});
