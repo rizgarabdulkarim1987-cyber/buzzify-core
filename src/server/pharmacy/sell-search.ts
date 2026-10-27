@@ -45,6 +45,15 @@ export interface SellBatch {
   available: number;
 }
 
+/** What the sale screen needs to show a total the way the sale will make it (display only; the sale judges them again). */
+export interface SellSettings {
+  defaultCurrency: 'IQD' | 'USD';
+  enabledCurrencies: ('IQD' | 'USD')[];
+  /** Invoice rounding step in minor units, as text; "0" = none. */
+  roundingStepMinor: string;
+  maxDiscountPercent: number;
+}
+
 export interface SellItem {
   productId: string;
   tradeName: string;
@@ -76,17 +85,23 @@ export async function sellSearch(
   ph: PhActor,
   input: z.infer<typeof sellSearchInput> & { branchId?: string },
   now: Date = new Date(),
-): Promise<{ branchId: string; currency: 'IQD' | 'USD'; items: SellItem[] }> {
+): Promise<{ branchId: string; currency: 'IQD' | 'USD'; settings: SellSettings; items: SellItem[] }> {
   if (ph.role === null || ph.support !== null) throw new StudioError('FORBIDDEN');
   if (!canPh(ph.role, 'shift.use') && !canPh(ph.role, 'report.view')) throw new StudioError('FORBIDDEN');
   const branchId = input.branchId;
   if (!branchId) throw new StudioError('INVALID', 'Choose the branch', { branchId: 'Choose the branch' });
   if (!ph.branchIds.includes(branchId)) throw new StudioError('FORBIDDEN');
 
-  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true } });
+  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true, enabledCurrencies: true, roundingStepMinor: true, maxDiscountPercent: true } });
   const currency = input.currency ?? settings?.defaultCurrency ?? 'IQD';
+  const sellSettings: SellSettings = {
+    defaultCurrency: settings?.defaultCurrency ?? 'IQD',
+    enabledCurrencies: settings?.enabledCurrencies ?? ['IQD'],
+    roundingStepMinor: String(settings?.roundingStepMinor ?? 0n),
+    maxDiscountPercent: settings?.maxDiscountPercent ?? 5,
+  };
   const found = await searchProducts(scoped, { q: input.q, branchId, limit: input.limit });
-  if (found.length === 0) return { branchId, currency, items: [] };
+  if (found.length === 0) return { branchId, currency, settings: sellSettings, items: [] };
 
   const ids = found.map((f) => f.productId);
   const [products, balances] = await Promise.all([
@@ -153,5 +168,5 @@ export async function sellSearch(
         .map((b) => ({ batchId: b.fefo.id, lot: b.fefo.lot, expiryDate: b.fefo.expiryDate, available: b.available })),
     });
   }
-  return { branchId, currency, items };
+  return { branchId, currency, settings: sellSettings, items };
 }
