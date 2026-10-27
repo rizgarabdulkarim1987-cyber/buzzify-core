@@ -19,6 +19,7 @@ export function SectionStrip({
   chip,
   chipStyle,
   onPick,
+  lead,
   children,
 }: {
   marker: string;
@@ -31,6 +32,8 @@ export function SectionStrip({
   chipStyle?: (category: MenuCategory, index: number) => CSSProperties | undefined;
   /** Called with the tapped chip just before the page jumps (a shape that answers the tap with its own effect). */
   onPick?: (category: MenuCategory, button: HTMLButtonElement) => void;
+  /** Drawn in the nav before the list (a caption for the lit section); the buttons stay the strip's own. */
+  lead?: ReactNode;
   children: (category: MenuCategory, index: number) => ReactNode;
 }) {
   const { t } = useApp();
@@ -39,6 +42,7 @@ export function SectionStrip({
   useKeepInView(strip, activeId, 'x', reduced);
   return (
     <nav aria-label={t('menu.categories')} {...{ [`data-${marker}`]: '' }} className={`tpl-strip-sticky ${className}`}>
+      {lead}
       <ul ref={strip} className={`scroll-hidden tpl-strip-list ${prefix}-strip-list`}>
         {categories.map((category, index) => (
           <li key={category.id}>

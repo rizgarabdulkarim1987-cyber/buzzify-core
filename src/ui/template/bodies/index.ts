@@ -3,6 +3,7 @@ import type { BodyKind } from '@/lib/templates/types';
 import { BoardBody } from './BoardBody';
 import { BookBody } from './BookBody';
 import { CabinetBody } from './CabinetBody';
+import { CitadelBody } from './CitadelBody';
 import { ComicsBody } from './ComicsBody';
 import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
@@ -55,6 +56,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   stacked: StackedBody,
   morph: MorphBody,
   fly: FlyBody,
+  citadel: CitadelBody,
   ink: InkBody,
   steam: SteamBody,
 };

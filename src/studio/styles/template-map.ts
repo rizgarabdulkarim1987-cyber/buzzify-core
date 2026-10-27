@@ -31,6 +31,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'motion-fly': 'the-fly-to-cart',
   'motion-ink': 'the-section-ink',
   'motion-stm': 'the-living-steam',
+  'kurd-arab-cit': 'the-erbil-citadel',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

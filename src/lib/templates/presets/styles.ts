@@ -730,4 +730,33 @@ export const theLivingSteam = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam];
+export const theErbilCitadel = definePreset({
+  id: 'the-erbil-citadel',
+  number: 56,
+  name: 'Erbil Citadel',
+  business: 'restaurant',
+  tags: ['light', 'cinematic'],
+  seed: { bg: '#F1E3C4', text: '#3B2614', accent: '#A8431A', raised: '#FBF1DA' },
+  alternatives: [
+    { id: 'dusk-violet', name: 'Dusk violet', seed: { bg: '#1E1535', text: '#F6E6CF', accent: '#F2A65A', raised: '#2C1F4A' } },
+    { id: 'pomegranate', name: 'Pomegranate', seed: { bg: '#F7E9DD', text: '#3A1620', accent: '#9E1F3A', raised: '#FFF8F1' } },
+    { id: 'oasis', name: 'Oasis', seed: { bg: '#E9EEDC', text: '#1F2E1A', accent: '#2F6B4F', raised: '#F8FAF0' } },
+  ],
+  type: { fontPairId: 'souk', scale: 1.0 },
+  layout: {
+    body: 'citadel',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel];

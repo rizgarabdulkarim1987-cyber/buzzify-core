@@ -2432,6 +2432,7 @@ const ar: Messages = {
   'design.body.fly': 'الطيران للسلة',
   'design.body.ink': 'حبر الأقسام',
   'design.body.steam': 'بخار حي',
+  'design.body.citadel': 'قلعة أربيل',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',
