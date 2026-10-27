@@ -84,6 +84,9 @@ export const POS_TEXT = {
   'Manager approval is needed': 'error.text.posApprovalNeeded',
   'The approval PIN is wrong': 'error.text.posApprovalWrong',
   'This manager is locked for a while': 'error.text.posApprovalLocked',
+  'The payments must add up to the total': 'error.text.posLegsSum',
+  'Use each payment method once': 'error.text.posLegsOnce',
+  'The tip cannot be more than the bill': 'error.text.posTipTooBig',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

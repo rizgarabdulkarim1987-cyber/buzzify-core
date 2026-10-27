@@ -1,6 +1,7 @@
 import type { AnyDb } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
 import { isUniqueViolation, refuse } from './errors';
+import { legsOf } from './payment-legs';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot } from './totals-snapshot';
 
@@ -24,7 +25,7 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
   const order = await db.posOrder.findFirst({ where: { id: input.orderId, restaurantId }, select: { id: true, status: true } });
   if (!order) throw new StudioError('NOT_FOUND');
   if (order.status !== 'PAID') throw refuse('CONFLICT', 'The order is not paid yet');
-  const payment = await db.posPayment.findFirst({ where: { orderId: order.id, restaurantId } });
+  const payment = await db.posPayment.findFirst({ where: { orderId: order.id, restaurantId }, include: { legs: true } });
   if (!payment) throw refuse('CONFLICT', 'The order is not paid yet');
   if (await db.posPaymentReversal.findFirst({ where: { paymentId: payment.id, restaurantId }, select: { id: true } })) throw alreadyReversed();
 
@@ -36,6 +37,10 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
   if (count === 0) throw refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
 
   const amount = parseTotalsSnapshot(payment.id, payment.totalsSnapshot).total;
+  // Only the cash that stayed in the drawer goes back out of it: the cash legs (and a cash tip is the guest's to keep).
+  const cashPart = legsOf(payment, amount)
+    .filter((leg) => leg.method === 'CASH')
+    .reduce((sum, leg) => sum + leg.amount, 0);
   try {
     const reversal = await db.posPaymentReversal.create({
       data: {
@@ -44,6 +49,7 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
         orderId: order.id,
         method: payment.method,
         amount,
+        cashPart,
         reference: payment.method === 'CASH' ? null : (input.reference ?? null),
         reason: input.reason,
         userId: input.userId,

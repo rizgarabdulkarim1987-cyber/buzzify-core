@@ -58,7 +58,7 @@ beforeEach(async () => {
     data: { restaurantId: a.id, name: 'm', slug: 'menu-offers', currency: 'IQD', priceStep: 250, locales: ['ar', 'en'], defaultLocale: 'ar', timezone: 'Asia/Baghdad' },
   });
   menuId = menu.id;
-  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, catalogMenuId: menuId }, update: { catalogMenuId: menuId } });
+  await prisma().posSettings.upsert({ where: { restaurantId: a.id }, create: { restaurantId: a.id, catalogMenuId: menuId, requireApproval: false }, update: { catalogMenuId: menuId, requireApproval: false } });
   foodId = (await prisma().category.create({ data: { menuId, slug: 'food', sortOrder: 1, translations: names('أكل', 'Food') } })).id;
   drinksId = (await prisma().category.create({ data: { menuId, slug: 'drinks', sortOrder: 2, translations: names('مشروبات', 'Drinks') } })).id;
   burger = (await prisma().product.create({ data: { menuId, categoryId: foodId, slug: 'burger', sortOrder: 1, basePrice: 5000, translations: names('برغر', 'Burger') } })).id;
@@ -137,7 +137,7 @@ describe('a dish under a live menu offer, added at the till', () => {
     let view = dataOf(await ask(cashier, posOrder, { orderId }));
     expect(view.lines[0]).toMatchObject({ offerPerUnit: 1000, lineTotal: 12000 });
     // 10% of the 12,000 that is left, not of the 15,000 gross.
-    const manual = dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'PERCENT', value: 10 }, expectedVersion: more.version }));
+    const manual = dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'PERCENT', value: 10, reason: 'MANAGER_DECISION' }, expectedVersion: more.version }));
     view = dataOf(await ask(cashier, posOrder, { orderId }));
     expect(view.lines[0]).toMatchObject({ offerPerUnit: 1000, lineTotal: 10800 });
     expect(view.totals.subtotal).toBe(10800);
@@ -181,7 +181,7 @@ describe('paying and reporting a line sold with the offer', () => {
     const shiftId = dataOf(await run(cashier, openPosShift, { openingFloat: 0 })).shiftId;
     const { orderId, lineId, version } = await add(burger, { quantity: 2 });
     // A manual 10% on top: 10% of the 8,000 that is left = 800.
-    const manual = dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'PERCENT', value: 10 }, expectedVersion: version }));
+    const manual = dataOf(await run(cashier, updatePosLine, { lineId, discount: { kind: 'PERCENT', value: 10, reason: 'MANAGER_DECISION' }, expectedVersion: version }));
     dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: manual.version, expectedTotal: 7200, amountReceived: 7200 }));
 
     const receipt = dataOf(await ask(cashier, posReceipt, { orderId }));

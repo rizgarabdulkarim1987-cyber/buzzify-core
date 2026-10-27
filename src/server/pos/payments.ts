@@ -5,6 +5,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { effectiveRates, loadOrderForChange, optionsSnapshotSchema, orderTotals, pricedLine, readRates } from './orders';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import { checkLegs, type LegInput, type TipInput } from './payment-legs';
 import { consumeForPayment } from './recipes';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
@@ -14,10 +15,25 @@ export interface PayInput {
   expectedVersion: number;
   /** The total on the screen the cashier looked at: if the order changed since, it no longer matches and nothing is taken. */
   expectedTotal: number;
-  amountReceived: number;
-  method: PosPaymentMethodKey;
+  /** One method for the whole bill (the till's original way); `legs` is used instead when it is given. */
+  amountReceived?: number;
+  method?: PosPaymentMethodKey;
   reference?: string;
+  /** The bill paid with several methods; their amounts add up to the total. */
+  legs?: LegInput[];
+  /** A tip on top of the bill; it is not part of the total. */
+  tip?: TipInput;
   userId: string;
+}
+
+/** The original single-method call as one leg: cash is handed over `amountReceived`, a terminal method takes the exact total. */
+function singleLeg(input: PayInput, total: number): LegInput {
+  const method = input.method ?? 'CASH';
+  const received = input.amountReceived ?? total;
+  if (method !== 'CASH' && received !== total) {
+    throw new StudioError('INVALID', 'Card and wallet payments take the exact total', { amountReceived: 'Card and wallet payments take the exact total' });
+  }
+  return method === 'CASH' ? { method, amount: total, tendered: received } : { method, amount: total, reference: input.reference };
 }
 
 /**
@@ -37,15 +53,10 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
   if (live.length === 0) throw refuse('CONFLICT', 'Cannot pay an empty order');
   const { totals, invoiceDiscount } = orderTotals(order, lines, rates);
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
-  if (input.method !== 'CASH') {
-    const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
-    if (!(settings?.enabledPaymentMethods ?? []).includes(input.method)) throw refuse('CONFLICT', 'This payment method is switched off');
-    if (input.amountReceived !== totals.total) {
-      throw new StudioError('INVALID', 'Card and wallet payments take the exact total', { amountReceived: 'Card and wallet payments take the exact total' });
-    }
-  } else if (input.amountReceived < totals.total) {
-    throw new StudioError('INVALID', 'The amount is less than the total', { amountReceived: 'The amount is less than the total' });
-  }
+  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
+  const enabled = (settings?.enabledPaymentMethods ?? []) as PosPaymentMethodKey[];
+  const legs = input.legs ?? [singleLeg(input, totals.total)];
+  const checked = checkLegs(totals.total, legs, input.tip ?? null, enabled);
 
   const snapshot: TotalsSnapshot = {
     subtotal: totals.subtotal,
@@ -80,18 +91,23 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     data: {
       restaurantId,
       orderId: order.id,
-      method: input.method,
-      amountReceived: input.amountReceived,
-      reference: input.method === 'CASH' ? null : (input.reference ?? null),
+      method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method,
+      amountReceived: checked.amountReceived,
+      reference: checked.legs.length === 1 ? checked.legs[0]!.reference : null,
       totalsSnapshot: snapshot,
+      tipAmount: checked.tip?.amount ?? 0,
+      tipMethod: checked.tip?.method ?? null,
       userId: input.userId,
       shiftId,
     },
     select: { id: true },
   });
+  await db.posPaymentLeg.createMany({
+    data: checked.legs.map((leg) => ({ restaurantId, paymentId: payment.id, method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference })),
+  });
   // Stock: a product with a recipe takes its ingredients out in this same transaction (never refused for lack of stock).
   const consumed = await consumeForPayment(db, restaurantId, input.userId, { paymentId: payment.id, lines: live.map((line) => ({ orderLineId: line.id, productId: line.productId, quantity: line.quantity })) });
-  return { paymentId: payment.id, method: input.method, orderId: order.id, number: order.number, change: input.amountReceived - totals.total, total: totals.total, from: order.status, shiftId, consumed };
+  return { paymentId: payment.id, method: [...checked.legs].sort((x, y) => y.amount - x.amount)[0]!.method, orderId: order.id, number: order.number, change: checked.change, tip: checked.tip?.amount ?? 0, total: totals.total, from: order.status, shiftId, consumed };
 }
 
 export interface Receipt {
