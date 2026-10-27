@@ -1,7 +1,7 @@
 'use client';
 
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
-import { RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
+import { BUSINESS_SECTORS, RESTAURANT_STATUSES, RESTAURANT_TYPES } from '@/server/domain/restaurant-profile';
 import { useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { FilterBar, SearchFilter, useFilterParams } from '@/studio/ui/FilterBar';
@@ -37,6 +37,16 @@ export function RestaurantFilters({ cities, planNames }: { cities: readonly stri
           options={[
             { value: '', label: t('restaurants.filter.allTypes') },
             ...RESTAURANT_TYPES.map((type) => ({ value: type, label: t(`restaurants.type.${type}`) })),
+          ]}
+        />
+      </Field>
+      <Field label={t('restaurants.filter.sector')} hideLabel className="w-36">
+        <Select
+          value={params.get('sector') ?? ''}
+          onChange={(event) => set({ sector: event.target.value || null })}
+          options={[
+            { value: '', label: t('restaurants.filter.allSectors') },
+            ...BUSINESS_SECTORS.map((sector) => ({ value: sector, label: t(`restaurants.sector.${sector}`) })),
           ]}
         />
       </Field>

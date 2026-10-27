@@ -35,6 +35,8 @@ const config: NextConfig = {
       { source: '/studio/:path*', headers: STUDIO_HEADERS },
       // The till is framed by no one else either: a frame over a payment screen is a clickjacking surface.
       { source: '/pos/:path*', headers: STUDIO_HEADERS },
+      // The pharmacy too: its screens sell and dispense.
+      { source: '/pharmacy/:path*', headers: STUDIO_HEADERS },
       // The service worker must never be served from a stale cache, and may control only the till.
       {
         source: '/pos/sw.js',

@@ -123,7 +123,7 @@ export const posOverview = defineQuery({
     const chosen = new Set(settings.map((row) => row.restaurantId));
     const ids = [...new Set([...newest.keys(), ...staffOf.keys()])];
     const restaurants = await ctx.db.restaurant.findMany({
-      where: { id: { in: ids } },
+      where: { id: { in: ids }, sector: 'FOOD' },
       orderBy: [{ name: 'asc' }, { id: 'asc' }],
       select: { id: true, name: true },
     });

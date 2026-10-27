@@ -24,29 +24,45 @@ export interface ReadSheet {
   rows: string[][];
   /** Each row's number in the file, the header being row 1 when it is the first. */
   rowNumbers: number[];
+  /** Per row and cell: whether the cell held a number (an Excel number cell), not text. Always false in a CSV. */
+  numericCells: boolean[][];
+}
+
+export interface ReadOptions {
+  /** The most data rows read; the menu import's {@link MAX_SHEET_ROWS} when not given. */
+  maxRows?: number;
 }
 
 const isBlank = (cells: readonly string[]) => cells.every((cell) => cell.trim() === '');
 
+/** One row of the file, by its number there (1-based). A row the file does not hold at all is simply not listed. */
+interface Line {
+  number: number;
+  cells: string[];
+  numeric: boolean[] | null;
+}
+
 /** The first row with anything in it is the header; the rows after it with anything in them are the data. */
-function sheetOf(lines: string[][]): ReadSheet {
-  const headerIndex = lines.findIndex((cells) => !isBlank(cells));
+function sheetOf(lines: readonly Line[], maxRows: number): ReadSheet {
+  const headerIndex = lines.findIndex((line) => !isBlank(line.cells));
   if (headerIndex < 0) throw new SheetReadError('EMPTY');
   const rows: string[][] = [];
   const rowNumbers: number[] = [];
+  const numericCells: boolean[][] = [];
   for (let index = headerIndex + 1; index < lines.length; index += 1) {
-    const cells = lines[index]!;
+    const { number, cells, numeric } = lines[index]!;
     if (isBlank(cells)) continue;
-    if (rows.length === MAX_SHEET_ROWS) throw new SheetReadError('TOO_MANY_ROWS');
+    if (rows.length === maxRows) throw new SheetReadError('TOO_MANY_ROWS');
     rows.push(cells);
-    rowNumbers.push(index + 1);
+    rowNumbers.push(number);
+    numericCells.push(numeric ?? cells.map(() => false));
   }
-  return { headers: lines[headerIndex]!, rows, rowNumbers };
+  return { headers: lines[headerIndex]!.cells, rows, rowNumbers, numericCells };
 }
 
 // CSV -----------------------------------------------------------------------------------------------------------------
 
-function readCsv(bytes: Uint8Array): ReadSheet {
+function readCsv(bytes: Uint8Array, maxRows: number): ReadSheet {
   let text: string;
   try {
     // Fatal: a sheet saved in Windows-1256 (Excel's "CSV" in Arabic Windows) is refused, never read as garbage.
@@ -56,7 +72,7 @@ function readCsv(bytes: Uint8Array): ReadSheet {
   }
   const parsed = Papa.parse<string[]>(text.replace(/^﻿/, ''), { delimitersToGuess: [',', ';', '\t'], skipEmptyLines: false });
   if (parsed.errors.some((error) => error.type === 'Quotes')) throw new SheetReadError('UNREADABLE');
-  return sheetOf(parsed.data);
+  return sheetOf(parsed.data.map((cells, index) => ({ number: index + 1, cells, numeric: null })), maxRows);
 }
 
 // XLSX ----------------------------------------------------------------------------------------------------------------
@@ -82,7 +98,64 @@ function cellText(cell: ExcelJS.Cell): string {
   return cell.text ?? '';
 }
 
-async function readXlsx(bytes: Uint8Array): Promise<ReadSheet> {
+/** A cell that holds a number (or a formula that gives one): a spreadsheet may have shown a code in it as a number. */
+function isNumberCell(cell: ExcelJS.Cell): boolean {
+  const value = cell.value;
+  if (typeof value === 'number') return true;
+  return typeof value === 'object' && value !== null && 'result' in value && typeof (value as { result?: unknown }).result === 'number';
+}
+
+/**
+ * The most bytes the files inside one workbook may hold once unpacked, as its ZIP directory states them. A real menu or
+ * catalog of 10,000 rows unpacks to a few MB. A file that declares more is refused before anything is unpacked. The
+ * check trusts the declared sizes: a file that lies about them is still caught by the ZIP reader (JSZip), which checks
+ * each entry's real size after inflating it and fails, refused UNREADABLE. That path fails closed but can cost CPU
+ * time up to the upload limit's worth of inflation.
+ */
+export const MAX_XLSX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024;
+
+/**
+ * The most columns a worksheet may span. Every row is read across the sheet's full width, so one stray cell far to the
+ * right (column XFD is the 16,384th) would multiply the work by thousands; a real sheet has a few dozen columns.
+ */
+export const MAX_SHEET_COLUMNS = 200;
+
+/**
+ * The total unpacked size the ZIP central directory states for its entries, or null when the bytes have no readable
+ * directory. An entry whose size is in a ZIP64 record (stated as 0xFFFFFFFF) counts as too large: no workbook of the
+ * size we accept needs one.
+ */
+export function zipUncompressedSize(bytes: Uint8Array): number | null {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  // The end-of-central-directory record: 22 bytes, then a comment of at most 65,535 bytes.
+  const lowest = Math.max(0, bytes.length - 22 - 0xffff);
+  let end = -1;
+  for (let at = bytes.length - 22; at >= lowest; at -= 1) {
+    if (view.getUint32(at, true) === 0x06054b50) {
+      end = at;
+      break;
+    }
+  }
+  if (end < 0) return null;
+  const entries = view.getUint16(end + 10, true);
+  const size = view.getUint32(end + 12, true);
+  const offset = view.getUint32(end + 16, true);
+  if (offset + size > end) return null;
+  let total = 0;
+  let at = offset;
+  for (let index = 0; index < entries; index += 1) {
+    if (at + 46 > end || view.getUint32(at, true) !== 0x02014b50) return null;
+    const uncompressed = view.getUint32(at + 24, true);
+    if (uncompressed === 0xffffffff) return Number.POSITIVE_INFINITY;
+    total += uncompressed;
+    at += 46 + view.getUint16(at + 28, true) + view.getUint16(at + 30, true) + view.getUint16(at + 32, true);
+  }
+  return total;
+}
+
+async function readXlsx(bytes: Uint8Array, maxRows: number): Promise<ReadSheet> {
+  const unpacked = zipUncompressedSize(bytes);
+  if (unpacked === null || unpacked > MAX_XLSX_UNCOMPRESSED_BYTES) throw new SheetReadError('UNREADABLE');
   const workbook = new ExcelJS.Workbook();
   try {
     await workbook.xlsx.load(Buffer.from(bytes) as never);
@@ -92,20 +165,27 @@ async function readXlsx(bytes: Uint8Array): Promise<ReadSheet> {
   const sheet = workbook.worksheets[0];
   if (!sheet) throw new SheetReadError('EMPTY');
   // Refused before reading every cell: a sheet with many rows is not worth the work.
-  if (sheet.actualRowCount > MAX_SHEET_ROWS + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
+  if (sheet.actualRowCount > maxRows + 1 + 50) throw new SheetReadError('TOO_MANY_ROWS');
   const width = sheet.columnCount;
-  const lines: string[][] = [];
-  for (let number = 1; number <= sheet.rowCount; number += 1) {
-    const row = sheet.getRow(number);
-    lines.push(Array.from({ length: width }, (_, index) => cellText(row.getCell(index + 1))));
-  }
-  return sheetOf(lines);
+  if (width > MAX_SHEET_COLUMNS) throw new SheetReadError('UNREADABLE');
+  // Only the rows the file holds, each by its own number: a stray cell at row 1,048,576 is one row read, not a million
+  // empty ones. (Rows absent from the file would be blank, and blank rows are skipped anyway.)
+  const lines: Line[] = [];
+  sheet.eachRow({ includeEmpty: false }, (row, number) => {
+    lines.push({
+      number,
+      cells: Array.from({ length: width }, (_, index) => cellText(row.getCell(index + 1))),
+      numeric: Array.from({ length: width }, (_, index) => isNumberCell(row.getCell(index + 1))),
+    });
+  });
+  return sheetOf(lines, maxRows);
 }
 
 /** An XLSX file is a ZIP: it starts with `PK\x03\x04`. */
-const isZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
+export const isZip = (bytes: Uint8Array) => bytes[0] === 0x50 && bytes[1] === 0x4b && bytes[2] === 0x03 && bytes[3] === 0x04;
 
 /** The sheet in `bytes`: an Excel workbook by its signature, a CSV otherwise. Throws `SheetReadError`. */
-export async function readSheet(bytes: Uint8Array): Promise<ReadSheet> {
-  return isZip(bytes) ? readXlsx(bytes) : readCsv(bytes);
+export async function readSheet(bytes: Uint8Array, options: ReadOptions = {}): Promise<ReadSheet> {
+  const maxRows = options.maxRows ?? MAX_SHEET_ROWS;
+  return isZip(bytes) ? readXlsx(bytes, maxRows) : readCsv(bytes, maxRows);
 }

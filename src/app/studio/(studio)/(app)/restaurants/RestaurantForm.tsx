@@ -1,16 +1,20 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { ImagePlus, Trash2 } from 'lucide-react';
+import { ImagePlus, Plus, Trash2 } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { createRestaurant, updateRestaurant } from '@/app/studio/_actions/restaurants';
 import { PLAN_TIERS, type PlanTier } from '@/server/domain/entitlements';
 import {
+  BUSINESS_SECTORS,
   emptyWorkingHours,
+  PH_CURRENCIES,
+  type PhCurrency,
   readWorkingHours,
   RESTAURANT_TYPES,
   SOCIAL_NETWORKS,
+  type BusinessSector,
   type RestaurantType,
   type SocialLinks,
   type WorkingHours,
@@ -19,6 +23,7 @@ import { useActionForm, type ActionForm, type FormValues } from '@/studio/forms'
 import { useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
 import { Button } from '@/studio/ui/Button';
+import { Checkbox } from '@/studio/ui/Checkbox';
 import { Field } from '@/studio/ui/Field';
 import { FormError } from '@/studio/ui/FormError';
 import { IconButton } from '@/studio/ui/IconButton';
@@ -62,7 +67,7 @@ const BLANK: ProfileValues = {
 const TEXT_FIELDS = ['name', 'type', 'description', 'address', 'city', 'country', 'phone', 'whatsapp', 'mapUrl', 'notes', 'workingHours'] as const;
 const LINK_FIELDS = SOCIAL_NETWORKS.map((network) => `socialLinks.${network}`);
 const KEPT = [...TEXT_FIELDS, ...LINK_FIELDS];
-const FIELD_ORDER = ['name', 'type', 'description', 'address', 'city', 'country', 'mapUrl', 'phone', 'whatsapp', ...LINK_FIELDS, 'workingHours', 'notes'];
+const FIELD_ORDER = ['sector', 'name', 'type', 'branches', 'currencies', 'ownerEmail','description', 'address', 'city', 'country', 'mapUrl', 'phone', 'whatsapp', ...LINK_FIELDS, 'workingHours', 'notes'];
 
 /** The profile a form's values make, in the shape the actions take. Notes go only when the person may write them. */
 function profileOf(values: FormValues, withNotes: boolean) {
@@ -105,7 +110,18 @@ const LINK_PLACEHOLDERS: Record<(typeof SOCIAL_NETWORKS)[number], string> = {
 };
 
 /** The fields of a restaurant's profile, for the form that creates one and the form that edits one. */
-function ProfileFields({ form, initial, withNotes }: { form: ActionForm<unknown>; initial: ProfileValues; withNotes: boolean }) {
+function ProfileFields({
+  form,
+  initial,
+  withNotes,
+  showType = true,
+}: {
+  form: ActionForm<unknown>;
+  initial: ProfileValues;
+  withNotes: boolean;
+  /** A pharmacy has no restaurant type. */
+  showType?: boolean;
+}) {
   const t = useT();
   const kept = (name: string, fallback: string) => form.value(name) ?? fallback;
   const hoursMessage = Object.entries(form.errors).find(([name]) => name === 'workingHours' || name.startsWith('workingHours.'))?.[1];
@@ -117,13 +133,15 @@ function ProfileFields({ form, initial, withNotes }: { form: ActionForm<unknown>
         <Field label={t('restaurants.form.name')} error={form.fieldError('name')}>
           <Input name="name" autoComplete="off" defaultValue={kept('name', initial.name)} maxLength={200} />
         </Field>
-        <Field label={t('restaurants.form.type')} error={form.fieldError('type')}>
-          <Select
-            name="type"
-            defaultValue={kept('type', initial.type)}
-            options={RESTAURANT_TYPES.map((type) => ({ value: type, label: t(`restaurants.type.${type}`) }))}
-          />
-        </Field>
+        {showType && (
+          <Field label={t('restaurants.form.type')} error={form.fieldError('type')}>
+            <Select
+              name="type"
+              defaultValue={kept('type', initial.type)}
+              options={RESTAURANT_TYPES.map((type) => ({ value: type, label: t(`restaurants.type.${type}`) }))}
+            />
+          </Field>
+        )}
         <Field label={t('restaurants.form.description')} optional error={form.fieldError('description')}>
           <Textarea name="description" rows={4} defaultValue={kept('description', initial.description)} />
         </Field>
@@ -206,6 +224,117 @@ function SaveBar({ form, reload, children }: { form: ActionForm<unknown>; reload
   );
 }
 
+interface BranchRow {
+  name: string;
+  city: string;
+}
+
+/** What only a pharmacy has to say when it is created: its branches, its currencies and who owns it. */
+function PharmacyFields({
+  form,
+  branches,
+  onBranches,
+  currencies,
+  onCurrencies,
+  ownerEmail,
+  onOwnerEmail,
+}: {
+  form: ActionForm<unknown>;
+  branches: BranchRow[];
+  onBranches: (next: BranchRow[]) => void;
+  currencies: readonly PhCurrency[];
+  onCurrencies: (next: readonly PhCurrency[]) => void;
+  ownerEmail: string;
+  onOwnerEmail: (next: string) => void;
+}) {
+  const t = useT();
+  const change = (index: number, patch: Partial<BranchRow>) => onBranches(branches.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  const branchesError = form.fieldError('branches');
+  const currenciesError = form.fieldError('currencies');
+
+  return (
+    <>
+      <Section id="branches" title={t('restaurants.form.branches')} intro={t('restaurants.form.branchesIntro')}>
+        {branches.map((row, index) => (
+          <div key={index} className="flex items-start gap-2">
+            <Field label={t('restaurants.form.branchName', { n: index + 1 })} hideLabel error={form.fieldError(`branches.${index}.name`)} className="min-w-0 flex-1">
+              <Input
+                name={`branches.${index}.name`}
+                autoComplete="off"
+                maxLength={120}
+                placeholder={t('restaurants.form.branchName', { n: index + 1 })}
+                value={row.name}
+                onChange={(event) => change(index, { name: event.target.value })}
+              />
+            </Field>
+            <Field label={t('restaurants.form.branchCity', { n: index + 1 })} hideLabel error={form.fieldError(`branches.${index}.city`)} className="w-40 shrink-0">
+              <Input
+                name={`branches.${index}.city`}
+                autoComplete="off"
+                placeholder={t('restaurants.form.city')}
+                value={row.city}
+                onChange={(event) => change(index, { city: event.target.value })}
+              />
+            </Field>
+            <IconButton
+              size="sm"
+              icon={<Trash2 aria-hidden />}
+              label={t('restaurants.form.removeBranch', { n: index + 1 })}
+              disabled={branches.length === 1}
+              onClick={() => onBranches(branches.filter((_, i) => i !== index))}
+            />
+          </div>
+        ))}
+        {branchesError && (
+          <p role="alert" className="text-sm text-danger">
+            {branchesError}
+          </p>
+        )}
+        <div>
+          <Button size="sm" icon={<Plus aria-hidden />} disabled={branches.length >= 20} onClick={() => onBranches([...branches, { name: '', city: '' }])}>
+            {t('restaurants.form.addBranch')}
+          </Button>
+        </div>
+      </Section>
+
+      <Section id="currencies" title={t('restaurants.form.currencies')} intro={t('restaurants.form.currenciesIntro')}>
+        <fieldset className="flex flex-col gap-2" aria-describedby={currenciesError ? 'currencies-error' : undefined}>
+          <legend className="sr-only">{t('restaurants.form.currencies')}</legend>
+          {PH_CURRENCIES.map((currency) => (
+            <Checkbox
+              key={currency}
+              name="currencies"
+              value={currency}
+              label={t(`restaurants.currency.${currency}`)}
+              checked={currencies.includes(currency)}
+              onChange={(event) => onCurrencies(event.target.checked ? [...currencies, currency] : currencies.filter((c) => c !== currency))}
+            />
+          ))}
+        </fieldset>
+        {currenciesError && (
+          <p id="currencies-error" role="alert" className="text-sm text-danger">
+            {currenciesError}
+          </p>
+        )}
+      </Section>
+
+      <Section id="owner" title={t('restaurants.form.ownerEmail')}>
+        <Field label={t('restaurants.form.ownerEmail')} hint={t('restaurants.form.ownerEmailHint')} optional error={form.fieldError('ownerEmail')}>
+          <Input
+            name="ownerEmail"
+            type="email"
+            dir="ltr"
+            className="rtl:text-right"
+            autoComplete="off"
+            value={ownerEmail}
+            onChange={(event) => onOwnerEmail(event.target.value)}
+          />
+        </Field>
+      </Section>
+    </>
+  );
+}
+
 /**
  * The form for a new restaurant. On success it opens the restaurant. `planNames` is given to the platform owner, who
  * chooses the plan here (Basic preselected); anyone else's new restaurant starts on Basic.
@@ -213,8 +342,28 @@ function SaveBar({ form, reload, children }: { form: ActionForm<unknown>; reload
 export function CreateRestaurantForm({ planNames = null }: { planNames?: Record<PlanTier, string> | null }) {
   const t = useT();
   const router = useRouter();
+  const [sector, setSector] = useState<BusinessSector>('FOOD');
+  const [branches, setBranches] = useState<BranchRow[]>([{ name: '', city: '' }]);
+  const [currencies, setCurrencies] = useState<readonly PhCurrency[]>(['IQD']);
+  const [ownerEmail, setOwnerEmail] = useState('');
+  const pharmacy = sector === 'PHARMACY';
   const form = useActionForm(
-    (values) => createRestaurant({ ...profileOf(values, true), ...(planNames && values.plan ? { plan: values.plan } : {}) }),
+    (values) =>
+      createRestaurant({
+        ...profileOf(values, true),
+        // A pharmacy has no restaurant type and no menu plan.
+        ...(pharmacy
+          ? {
+              type: 'OTHER',
+              sector,
+              branches: branches.map(({ name, city }) => ({ name, ...(city.trim() ? { city } : {}) })),
+              currencies: PH_CURRENCIES.filter((currency) => currencies.includes(currency)),
+              ...(ownerEmail.trim() ? { ownerEmail } : {}),
+            }
+          : planNames && values.plan
+            ? { plan: values.plan }
+            : {}),
+      }),
     {
       keep: KEPT,
       onSuccess: ({ restaurantId }) => {
@@ -226,14 +375,33 @@ export function CreateRestaurantForm({ planNames = null }: { planNames?: Record<
 
   return (
     <form {...form.props} className="flex max-w-6xl flex-col">
-      {planNames && (
-        <div className="max-w-xs pb-6">
-          <Field label={t('restaurants.form.plan')} hint={t('restaurants.form.planHint')} error={form.errors.plan}>
+      <div className="grid max-w-2xl gap-4 pb-6 sm:grid-cols-2">
+        <Field label={t('restaurants.form.sector')} hint={t('restaurants.form.sectorHint')} error={form.fieldError('sector')} className="sm:col-span-2">
+          <Select
+            name="sector"
+            value={sector}
+            onChange={(event) => setSector(event.target.value as BusinessSector)}
+            options={BUSINESS_SECTORS.map((value) => ({ value, label: t(`restaurants.sector.${value}`) }))}
+          />
+        </Field>
+        {planNames && !pharmacy && (
+          <Field label={t('restaurants.form.plan')} hint={t('restaurants.form.planHint')} error={form.errors.plan} className="sm:col-span-2 sm:max-w-xs">
             <Select name="plan" defaultValue="BASIC" options={PLAN_TIERS.map((tier) => ({ value: tier, label: planNames[tier] }))} />
           </Field>
-        </div>
+        )}
+      </div>
+      <ProfileFields form={form} initial={BLANK} withNotes showType={!pharmacy} />
+      {pharmacy && (
+        <PharmacyFields
+          form={form}
+          branches={branches}
+          onBranches={setBranches}
+          currencies={currencies}
+          onCurrencies={setCurrencies}
+          ownerEmail={ownerEmail}
+          onOwnerEmail={setOwnerEmail}
+        />
       )}
-      <ProfileFields form={form} initial={BLANK} withNotes />
       <SaveBar form={form}>
         <Button type="submit" variant="primary" pending={form.pending}>
           {form.pending ? t('restaurants.form.creating') : t('restaurants.form.create')}

@@ -111,8 +111,8 @@ export function posNavItem(): NavItem {
   return { key: 'cashier', href: '/pos', labelKey: 'nav.cashier', icon: 'store' };
 }
 
-/** A Studio or till path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
-const STUDIO_PATH = /^\/(?:studio|pos)(?:\/[A-Za-z0-9_-]+)*$/;
+/** A Studio, till or pharmacy path of plain segments: what a `next` parameter may name. No query, no `..`, no other host. */
+const STUDIO_PATH = /^\/(?:studio|pos|pharmacy)(?:\/[A-Za-z0-9_-]+)*$/;
 
 /**
  * The page to return to after signing in, from an untrusted `next` parameter: a Studio path, or null for anything else,

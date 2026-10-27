@@ -1,0 +1,11 @@
+-- Every product saved from now on carries its search text: a row written without it (a direct insert, an import that
+-- bypasses the product service) would be invisible to name search, so the database refuses it. `searchTextOf` always
+-- returns at least the five '|' separators, so the product service never writes ''.
+-- NOT VALID: the rule holds for every new or updated row, while a row saved before 20261027140000 (none exist: the
+-- pharmacy has not shipped) is not rechecked here, since a migration may not rewrite rows.
+--
+-- Before deploying to Neon, on the target branch: run `CREATE EXTENSION IF NOT EXISTS pg_trgm` (20261027140000 does)
+-- and check `SELECT datctype FROM pg_database WHERE datname = current_database()` is a UTF-8 locale (C.UTF-8 or
+-- en_US.UTF-8). Under the C ctype pg_trgm takes no trigrams from Arabic letters, so Arabic name search would scan the
+-- business's catalog instead of using "PhProduct_searchText_trgm". Then re-measure the search p95 there.
+ALTER TABLE "PhProduct" ADD CONSTRAINT "PhProduct_searchText_present" CHECK ("searchText" <> '') NOT VALID;

@@ -113,6 +113,9 @@ describe('server texts', () => {
     ...files('src/server/studio/public-actions'),
     ...files('src/server/studio/queries'),
     ...files('src/server/studio/services'),
+    ...files('src/server/pharmacy'),
+    ...files('src/server/pharmacy/actions'),
+    ...files('src/server/pharmacy/queries'),
     'src/server/studio/auth/fields.ts',
     'src/server/studio/auth/password-policy.ts',
     'src/server/studio/framework/result.ts',
@@ -138,6 +141,12 @@ describe('server texts', () => {
     'The brand kit is saved on a menu, whose restaurant has a plan',
     'A design is saved on a menu, whose restaurant has a plan',
     'An audit entry names a restaurant other than its target',
+    'A pharmacy definition ran without its pharmacy',
+    'A pharmacy needs at least one branch',
+    'A pharmacy needs at least one currency',
+    'Import defaults passed the input schema but not the row rules',
+    'A list of products is created without shared barcodes',
+    'An owner invitation needs the person sending it',
     'Super Admin',
   ]);
 

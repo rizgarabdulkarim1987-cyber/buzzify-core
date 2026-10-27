@@ -29,8 +29,10 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      memberships: { where: { role: 'OWNER' }, select: { restaurantId: true, createdAt: true } },
-      posStaffs: { where: { deactivatedAt: null }, select: { restaurantId: true, role: true, createdAt: true } },
+      // A pharmacy business has no till: whatever the person holds there, the cashier never resolves it. The sector
+      // is filtered inside these reads so a FOOD till pays no extra round trip for it.
+      memberships: { where: { role: 'OWNER', restaurant: { sector: 'FOOD' } }, select: { restaurantId: true, createdAt: true } },
+      posStaffs: { where: { deactivatedAt: null, restaurant: { sector: 'FOOD' } }, select: { restaurantId: true, role: true, createdAt: true } },
     },
   });
   if (!user || user.deactivatedAt || user.isSuperAdmin) return null;
@@ -75,10 +77,10 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
   };
 }
 
-/** Whether a restaurant may use the till now: ACTIVE, and with a live `cashier` subscription (grace counted as live). */
+/** Whether a restaurant may use the till now: not a pharmacy, ACTIVE, and with a live `cashier` subscription (grace counted as live). */
 export async function posGate(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<PosGate> {
-  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true } });
-  if (!restaurant || restaurant.status !== 'ACTIVE') return { open: false, reason: 'restaurantInactive' };
+  const restaurant = await prisma.restaurant.findUnique({ where: { id: restaurantId }, select: { status: true, sector: true } });
+  if (!restaurant || restaurant.status !== 'ACTIVE' || restaurant.sector === 'PHARMACY') return { open: false, reason: 'restaurantInactive' };
   const subscription = await prisma.subscription.findFirst({
     where: { restaurantId, applicationId: 'cashier' },
     select: { status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },

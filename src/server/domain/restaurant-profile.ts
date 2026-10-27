@@ -7,6 +7,14 @@
 export const RESTAURANT_TYPES = ['CAFE', 'RESTAURANT', 'BAKERY', 'ICE_CREAM', 'FAST_FOOD', 'FINE_DINING', 'OTHER'] as const;
 export type RestaurantType = (typeof RESTAURANT_TYPES)[number];
 
+/** What kind of business it is: a menu or cashier customer (food), or a pharmacy. */
+export const BUSINESS_SECTORS = ['FOOD', 'PHARMACY'] as const;
+export type BusinessSector = (typeof BUSINESS_SECTORS)[number];
+
+/** The currencies a pharmacy may price in (money is kept per currency, never converted). */
+export const PH_CURRENCIES = ['IQD', 'USD'] as const;
+export type PhCurrency = (typeof PH_CURRENCIES)[number];
+
 export const RESTAURANT_STATUSES = ['ACTIVE', 'SUSPENDED', 'ARCHIVED'] as const;
 export type RestaurantStatus = (typeof RESTAURANT_STATUSES)[number];
 

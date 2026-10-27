@@ -4,12 +4,13 @@ import type { ColumnDef, OnChangeFn, SortingState } from '@tanstack/react-table'
 import Link from 'next/link';
 import { useMemo } from 'react';
 import type { PlanTier } from '@/server/domain/entitlements';
-import type { RestaurantStatus, RestaurantType } from '@/server/domain/restaurant-profile';
+import type { BusinessSector, RestaurantStatus, RestaurantType } from '@/server/domain/restaurant-profile';
 import { formatDate, numberFormat } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { DataTable } from '@/studio/ui/DataTable';
 import { useFilterParams } from '@/studio/ui/FilterBar';
 import { RestaurantStatusBadge } from './RestaurantStatusBadge';
+import { SectorBadge } from './SectorBadge';
 import type { SortKey } from './list-params';
 
 export interface RestaurantRow {
@@ -17,6 +18,7 @@ export interface RestaurantRow {
   clientId: string;
   name: string;
   type: RestaurantType;
+  sector: BusinessSector;
   city: string;
   status: RestaurantStatus;
   plan: PlanTier;
@@ -72,7 +74,14 @@ export function RestaurantsTable({
         accessorKey: 'type',
         header: t('restaurants.list.type'),
         enableSorting: false,
-        cell: ({ row }) => t(`restaurants.type.${row.original.type}`),
+        cell: ({ row }) => (row.original.sector === 'PHARMACY' ? <span className="text-muted">–</span> : t(`restaurants.type.${row.original.type}`)),
+      },
+      {
+        id: 'sector',
+        accessorKey: 'sector',
+        header: t('restaurants.list.sector'),
+        enableSorting: false,
+        cell: ({ row }) => <SectorBadge sector={row.original.sector} t={t} />,
       },
       {
         id: 'city',
@@ -100,7 +109,8 @@ export function RestaurantsTable({
         header: t('restaurants.list.menus'),
         enableSorting: false,
         meta: { align: 'end', width: '80px' },
-        cell: ({ row }) => <span className="tabular-nums">{number.format(row.original.menuCount)}</span>,
+        cell: ({ row }) =>
+          row.original.sector === 'PHARMACY' ? <span className="text-muted">–</span> : <span className="tabular-nums">{number.format(row.original.menuCount)}</span>,
       },
       {
         id: 'createdAt',

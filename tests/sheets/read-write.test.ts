@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { MAX_SHEET_ROWS, readSheet, SheetReadError } from '@/server/sheets/read';
+import { MAX_SHEET_COLUMNS, MAX_SHEET_ROWS, MAX_XLSX_UNCOMPRESSED_BYTES, readSheet, SheetReadError, zipUncompressedSize } from '@/server/sheets/read';
 import { writeCsv, writeXlsx } from '@/server/sheets/write';
 
 const utf8 = (text: string) => new TextEncoder().encode(text);
@@ -86,5 +86,77 @@ describe('writing a sheet', () => {
     expect(sheet.getCell('A1').font?.bold).toBe(true);
     expect(sheet.getCell('F2').value).toBe('6000');
     expect(sheet.getColumn(6).numFmt).toBe('@');
+  });
+});
+
+describe('reading a workbook within its caps', () => {
+  /** The workbook with the first entry of its ZIP directory claiming `size` unpacked bytes (the packed data unchanged). */
+  function claiming(bytes: Uint8Array, size: number): Uint8Array {
+    const copy = new Uint8Array(bytes);
+    const view = new DataView(copy.buffer);
+    for (let at = copy.length - 22; at >= 0; at -= 1) {
+      if (view.getUint32(at, true) !== 0x06054b50) continue;
+      view.setUint32(view.getUint32(at + 16, true) + 24, size, true);
+      return copy;
+    }
+    throw new Error('No ZIP directory');
+  }
+
+  it('reads the unpacked size a normal workbook states, well under the cap', async () => {
+    const bytes = await writeXlsx([['name_en', 'price'], ['Espresso', '3.00']]);
+    const size = zipUncompressedSize(bytes)!;
+    expect(size).toBeGreaterThan(0);
+    expect(size).toBeLessThan(MAX_XLSX_UNCOMPRESSED_BYTES);
+    expect((await readSheet(bytes)).rows).toEqual([['Espresso', '3.00']]);
+  });
+
+  it('refuses, before unpacking, a small file that claims more than 50 MB unpacked', async () => {
+    const bytes = claiming(await writeXlsx([['name_en'], ['Espresso']]), 60 * 1024 * 1024);
+    expect(bytes.length).toBeLessThan(20_000);
+    const started = performance.now();
+    await expect(readSheet(bytes)).rejects.toEqual(new SheetReadError('UNREADABLE'));
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it('refuses an entry whose size is only in a ZIP64 record, and a ZIP with no directory', async () => {
+    const bytes = await writeXlsx([['name_en'], ['Espresso']]);
+    await expect(readSheet(claiming(bytes, 0xffffffff))).rejects.toEqual(new SheetReadError('UNREADABLE'));
+    await expect(readSheet(bytes.slice(0, bytes.length - 30))).rejects.toEqual(new SheetReadError('UNREADABLE'));
+  });
+
+  it('refuses, fast, a sheet with a stray cell at column XFD row 10,050', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Menu');
+    sheet.getCell('A1').value = 'name_en';
+    sheet.getCell('A2').value = 'Espresso';
+    sheet.getCell('XFD10050').value = 'x';
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    const started = performance.now();
+    await expect(readSheet(bytes, { maxRows: 10_000 })).rejects.toEqual(new SheetReadError('UNREADABLE'));
+    expect(performance.now() - started).toBeLessThan(1_000);
+  });
+
+  it('reads, fast, a sheet with a stray cell at A1048576, keeping every row its real number', async () => {
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Menu');
+    sheet.getCell('A1').value = 'name_en';
+    sheet.getCell('A2').value = 'Espresso';
+    // A blank row in the middle stays skipped, and the rows after it keep their numbers.
+    sheet.getCell('A4').value = 'Latte';
+    sheet.getCell('A1048576').value = 'Stray';
+    const bytes = new Uint8Array(await workbook.xlsx.writeBuffer());
+    expect(bytes.length).toBeLessThan(20_000);
+    const started = performance.now();
+    const read = await readSheet(bytes);
+    expect(performance.now() - started).toBeLessThan(1_000);
+    expect(read.headers).toEqual(['name_en']);
+    expect(read.rows).toEqual([['Espresso'], ['Latte'], ['Stray']]);
+    expect(read.rowNumbers).toEqual([2, 4, 1_048_576]);
+  });
+
+  it(`reads a sheet ${MAX_SHEET_COLUMNS} columns wide and refuses one column more`, async () => {
+    const wide = (columns: number) => writeXlsx([Array.from({ length: columns }, (_, index) => `c${index}`), Array.from({ length: columns }, () => 'v')]);
+    expect((await readSheet(await wide(MAX_SHEET_COLUMNS))).headers).toHaveLength(MAX_SHEET_COLUMNS);
+    await expect(readSheet(await wide(MAX_SHEET_COLUMNS + 1))).rejects.toEqual(new SheetReadError('UNREADABLE'));
   });
 });

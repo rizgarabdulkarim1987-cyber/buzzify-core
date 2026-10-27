@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
-import { defineAction, runAction, type CheckedTarget } from '@/server/studio/framework/action';
+import { defineAction, MAX_TRANSACTION_TIMEOUT_MS, prismaTransactionOptions, runAction, type CheckedTarget } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { actorScope, defineQuery, runQuery } from '@/server/studio/framework/query';
 import { StudioError, type ActionResult } from '@/server/studio/framework/result';
@@ -812,5 +812,14 @@ describe('Studio action framework', () => {
         data: { restaurantId: a.restaurant.id, menuId: a.menu.id },
       });
     });
+  });
+});
+
+describe("a transaction's time limit", () => {
+  it("is clamped to 2 minutes at most and Prisma's 5 s at least, with a short wait for a connection", () => {
+    expect(MAX_TRANSACTION_TIMEOUT_MS).toBe(120_000);
+    expect(prismaTransactionOptions({ timeoutMs: 60_000 })).toEqual({ timeout: 60_000, maxWait: 10_000 });
+    expect(prismaTransactionOptions({ timeoutMs: 10 * 60_000 })).toEqual({ timeout: 120_000, maxWait: 10_000 });
+    expect(prismaTransactionOptions({ timeoutMs: 1 })).toEqual({ timeout: 5_000, maxWait: 5_000 });
   });
 });

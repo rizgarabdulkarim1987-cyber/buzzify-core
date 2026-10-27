@@ -1,8 +1,10 @@
 import { z } from 'zod';
-import { planCodesFor, type ApplicationId } from '@/server/domain/billing/catalog';
+import type { PrismaClient } from '@/generated/prisma/client';
+import type { ApplicationId } from '@/server/domain/billing/catalog';
 import { effectiveStatus, isLive } from '@/server/domain/billing/subscriptions';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { sellablePlanCodes } from '@/server/studio/services/billing';
 
 /**
  * Billing reads (Task 3 of docs/superpowers/plans/2026-10-22-business-core-in-menu.md): `platform.settings`, which every
@@ -15,6 +17,13 @@ const priceOrder = [{ currency: 'asc' }, { period: 'asc' }] as const;
 
 type Names = { en: string; ar: string; ckb: string };
 
+/** What each product sells now: its plan codes by application id. */
+async function planCodesByApplication(db: PrismaClient, ids: string[]) {
+  const codes = new Map<string, string[]>();
+  for (const id of ids) codes.set(id, await sellablePlanCodes(db, id as ApplicationId));
+  return codes;
+}
+
 export const billingOverview = defineQuery({
   name: 'billing.overview',
   permission: 'platform.settings',
@@ -25,13 +34,14 @@ export const billingOverview = defineQuery({
       orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
       include: { prices: { orderBy: [...priceOrder] } },
     });
+    const codes = await planCodesByApplication(ctx.db, applications.map((app) => app.id));
     return {
       applications: applications.map((app) => ({
         id: app.id,
         name: app.name as Names,
         status: app.status,
         sortOrder: app.sortOrder,
-        plans: planCodesFor(app.id as ApplicationId).map((code) => ({
+        plans: (codes.get(app.id) ?? []).map((code) => ({
           code,
           prices: app.prices
             .filter((price) => price.planCode === code)
@@ -137,9 +147,10 @@ export const restaurantBilling = defineQuery({
     const people = new Map(
       (await ctx.db.user.findMany({ where: { id: { in: peopleIds } }, select: { id: true, name: true } })).map((person) => [person.id, person.name]),
     );
+    const codes = await planCodesByApplication(ctx.db, applications.map((app) => app.id));
     return {
       restaurant,
-      applications: applications.map((app) => ({ id: app.id, name: app.name as Names, status: app.status, planCodes: [...planCodesFor(app.id as ApplicationId)] })),
+      applications: applications.map((app) => ({ id: app.id, name: app.name as Names, status: app.status, planCodes: codes.get(app.id) ?? [] })),
       subscriptions: subscriptions.map((sub) => ({
         id: sub.id,
         applicationId: sub.applicationId,

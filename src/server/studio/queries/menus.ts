@@ -76,8 +76,9 @@ export const listMenus = defineQuery({
   }),
   target: () => PLATFORM,
   run: async (ctx, input) => {
-    const scope: Prisma.MenuWhereInput = ctx.scope.kind === 'all' ? {} : { restaurantId: { in: ctx.scope.ids } };
-    const restaurantScope: Prisma.RestaurantWhereInput = ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } };
+    // A pharmacy business has no menus: it never shows in this list or its filters.
+    const scope: Prisma.MenuWhereInput = { restaurant: { sector: 'FOOD' }, ...(ctx.scope.kind === 'all' ? {} : { restaurantId: { in: ctx.scope.ids } }) };
+    const restaurantScope: Prisma.RestaurantWhereInput = { sector: 'FOOD', ...(ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } }) };
 
     const filters: Prisma.MenuWhereInput[] = [scope];
     const search = input.q ?? '';
@@ -183,7 +184,7 @@ export const getMenu = defineQuery({
       loadDraftSnapshot(ctx.db, menuId),
       // Where a Super Admin may duplicate it to; anyone else duplicates within the restaurant.
       ctx.actor.isSuperAdmin
-        ? ctx.db.restaurant.findMany({ orderBy: [{ name: 'asc' }, { id: 'asc' }], select: { id: true, name: true, clientNumber: true } })
+        ? ctx.db.restaurant.findMany({ where: { sector: 'FOOD' }, orderBy: [{ name: 'asc' }, { id: 'asc' }], select: { id: true, name: true, clientNumber: true } })
         : [],
     ]);
     const can = (key: Parameters<typeof ctx.permissions.has>[0]) => ctx.permissions.has(key);
@@ -260,7 +261,7 @@ export const newMenuOptions = defineQuery({
   input: z.object({}),
   target: () => PLATFORM,
   run: async (ctx) => {
-    const restaurantScope: Prisma.RestaurantWhereInput = ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } };
+    const restaurantScope: Prisma.RestaurantWhereInput = { sector: 'FOOD', ...(ctx.scope.kind === 'all' ? {} : { id: { in: ctx.scope.ids } }) };
     const found = await ctx.db.restaurant.findMany({
       where: restaurantScope,
       orderBy: [{ name: 'asc' }, { id: 'asc' }],

@@ -5,6 +5,7 @@ import {
   GLOBAL_MODELS,
   MENU_CONFINED_MODELS,
   MENU_SCOPED_MODELS,
+  PHARMACY_BRANCH_SCOPED_MODELS,
   RESTAURANT_CONFINED_MODELS,
   RESTAURANT_OR_SHARED_MODELS,
   RESTAURANT_SCOPED_MODELS,
@@ -56,6 +57,13 @@ describe('tenant scoping registry', () => {
   it('registers every model with an optional restaurantId column', () => {
     const withOptional = names((body) => /^\s*restaurantId\s+String\?/m.test(body));
     expect(withOptional).toEqual([...RESTAURANT_OR_SHARED_MODELS, 'AuditLog', 'Invitation'].sort());
+  });
+
+  // A required branchId names a branch of the row's restaurant: such a model is confined to the branches in a client's scope.
+  it('lists every model with a required branchId column as branch-scoped, and only real models', () => {
+    const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body));
+    expect([...PHARMACY_BRANCH_SCOPED_MODELS].sort()).toEqual(withBranch);
+    for (const model of PHARMACY_BRANCH_SCOPED_MODELS) expect(models.has(model), `${model} is a model`).toBe(true);
   });
 
   it('confines only models outside the scoped classes, each by a required column it has', () => {

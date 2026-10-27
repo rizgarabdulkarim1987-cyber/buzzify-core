@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import type { Prisma } from '@/generated/prisma/client';
-import type { ScopedTx } from '@/server/data/tenant-db';
+import { delegates, type AnyDb, type ScopedTx } from '@/server/data/tenant-db';
 import { APPLICATION_IDS, planCodesFor, type ApplicationId } from '@/server/domain/billing/catalog';
 import { MAX_AMOUNT_MINOR } from '@/server/domain/billing/money';
 import { addPeriod, BAGHDAD_OFFSET_MS } from '@/server/domain/billing/periods';
 import { effectiveStatus, isLive, lifecycleSteps, type LifecycleStep, type SubscriptionStatus } from '@/server/domain/billing/subscriptions';
 import type { PlanTier } from '@/server/domain/entitlements';
+import type { LimitKind, LimitOutcome } from '@/server/domain/pharmacy/limits';
 import type { ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -32,6 +33,13 @@ const PRODUCT_DISABLED = 'This product is turned off. Turn it on before starting
 const DUPLICATE_KEY = 'This payment was already recorded for another subscription';
 const REACTIVATE_RESTAURANT_NOT_ACTIVE = 'Only an active restaurant can reactivate a subscription. Activate it first.';
 const REACTIVATE_PRODUCT_DISABLED = 'This product is turned off. Turn it on before reactivating.';
+
+const WRONG_SECTOR = 'This product is not offered to this kind of business';
+
+/** The products a business of each sector can subscribe to: the pharmacy alone, or the menu and the cashier. */
+function offeredTo(sector: string, applicationId: string): boolean {
+  return sector === 'PHARMACY' ? applicationId === 'pharmacy' : applicationId !== 'pharmacy';
+}
 
 /** What the billing functions need of the action: who acts, and where its audit rows and callbacks go. */
 export type BillingWork = Pick<ActionContext, 'actor' | 'audit' | 'afterCommit'>;
@@ -103,9 +111,39 @@ export const paymentInput = z.object({
   note: z.string().trim().max(1000, 'Use at most 1,000 characters').default(''),
 });
 
+/**
+ * The plan codes an application sells now: the tiers for the Menu and the Cashier, and for the Pharmacy the `AppPlan`
+ * rows that are on sale (a plan taken off sale cannot be subscribed to or priced, but stays on the subscriptions it has).
+ */
+export async function sellablePlanCodes(db: AnyDb, application: ApplicationId): Promise<string[]> {
+  if (application !== 'pharmacy') return [...planCodesFor(application)];
+  const plans = await db.appPlan.findMany({
+    where: { applicationId: application, active: true },
+    orderBy: [{ sortOrder: 'asc' }, { code: 'asc' }],
+    select: { code: true },
+  });
+  return plans.map((plan) => plan.code);
+}
+
 /** A plan code the application sells, or `INVALID` on `planCode`. */
-function checkPlanCode(application: ApplicationId, code: string): void {
-  if (!planCodesFor(application).includes(code)) throw invalid('planCode', 'Choose one of the plans this product offers');
+async function checkPlanCode(tx: ScopedTx, application: ApplicationId, code: string): Promise<void> {
+  if (!(await sellablePlanCodes(delegates(tx), application)).includes(code)) throw invalid('planCode', 'Choose one of the plans this product offers');
+}
+
+const NO_PLAN = 'This pharmacy has no live plan, so nothing can be added.';
+const NO_ROOM: Record<LimitKind, string> = {
+  branches: 'This plan has no room for more branches. Move the pharmacy to a larger plan.',
+  users: 'This plan has no room for more staff. Move the pharmacy to a larger plan.',
+};
+
+/**
+ * The refusal for a branch or staff member the live plan has no room for (`LIMIT_REACHED`), or for a pharmacy with no
+ * live plan at all (`NO_PLAN`). `fields.limitCode`, `limitKind` and `limit` carry what was refused and the limit, for
+ * the screens (they are details, not fields the person filled in).
+ */
+export function limitRefusal(kind: LimitKind, outcome: Extract<LimitOutcome, { ok: false }>): StudioError {
+  const message = outcome.code === 'NO_PLAN' ? NO_PLAN : NO_ROOM[kind];
+  return new StudioError('CONFLICT', message, { limitCode: outcome.code, limitKind: kind, limit: String(outcome.limit) });
 }
 
 // Products and prices --------------------------------------------------------------------------------------------------
@@ -129,7 +167,7 @@ export async function setApplication(tx: ScopedTx, work: BillingWork, input: z.i
 /** Replaces one plan's prices with the list given (an empty list removes them all). */
 export async function setPrices(tx: ScopedTx, work: BillingWork, input: z.infer<typeof pricesInput>) {
   if (!(await tx.application.findUnique({ where: { id: input.applicationId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
-  checkPlanCode(input.applicationId, input.planCode);
+  await checkPlanCode(tx, input.applicationId, input.planCode);
   const where = { applicationId: input.applicationId, planCode: input.planCode };
   const order: Prisma.PlanPriceOrderByWithRelationInput[] = [{ currency: 'asc' }, { period: 'asc' }];
   const select = { currency: true, period: true, amountMinor: true } as const;
@@ -196,14 +234,15 @@ async function applyMenuPlan(tx: ScopedTx, work: BillingWork, restaurantId: stri
 
 /** Starts a trial of a product for a restaurant, priced from the plan's price in the currency and period given. */
 export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer<typeof trialInput>, now: Date) {
-  const restaurant = await tx.restaurant.findUnique({ where: { id: input.restaurantId }, select: { status: true } });
+  const restaurant = await tx.restaurant.findUnique({ where: { id: input.restaurantId }, select: { status: true, sector: true } });
   if (!restaurant) throw new StudioError('NOT_FOUND');
   // Checked here and not only by hiding the button: a suspended or archived restaurant starts nothing.
   if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', RESTAURANT_NOT_ACTIVE);
+  if (!offeredTo(restaurant.sector, input.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   const application = await tx.application.findUnique({ where: { id: input.applicationId }, select: { status: true } });
   if (!application) throw new StudioError('NOT_FOUND');
   if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', PRODUCT_DISABLED);
-  checkPlanCode(input.applicationId, input.planCode);
+  await checkPlanCode(tx, input.applicationId, input.planCode);
   const priceMinor = await planPrice(tx, input.applicationId, input.planCode, input.currency, input.period);
 
   const live = await tx.subscription.findFirst({
@@ -282,7 +321,10 @@ export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer
  */
 export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer<typeof changePlanInput>, now: Date) {
   const sub = await loadSubscription(tx, input.subscriptionId);
-  checkPlanCode(sub.applicationId as ApplicationId, input.planCode);
+  const business = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { sector: true } });
+  if (!business) throw new StudioError('NOT_FOUND');
+  if (!offeredTo(business.sector, sub.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
+  await checkPlanCode(tx, sub.applicationId as ApplicationId, input.planCode);
   if (input.planCode === sub.planCode) throw invalid('planCode', 'The subscription is already on this plan');
   const priceMinor = input.keepPrice ? sub.priceMinor : await planPrice(tx, sub.applicationId, input.planCode, sub.currency, sub.period);
 
