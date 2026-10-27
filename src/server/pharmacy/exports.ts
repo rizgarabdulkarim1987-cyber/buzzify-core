@@ -13,6 +13,10 @@ import { mayViewCost } from './products';
  * are the import's own (`PRODUCT_COLUMNS` names), so an exported file maps itself when imported again. What a person
  * sees is what they may see: the minimum quantity of their branches only, and cost columns only with `cost.view`.
  * Every cell that a spreadsheet would read as a formula is written as text.
+ *
+ * A round trip is exact only for a two-level ladder: the export writes the top pack alone (`packLabel`, and
+ * `unitsPerPack` as its base quantity), so box/strip/tablet comes back as two levels; and with several branches in view
+ * the per-branch `minQty <branch name>` columns do not map back on import.
  */
 
 /** The most products one export holds; a bigger catalog is refused rather than cut short. */

@@ -34,6 +34,13 @@ const DUPLICATE_KEY = 'This payment was already recorded for another subscriptio
 const REACTIVATE_RESTAURANT_NOT_ACTIVE = 'Only an active restaurant can reactivate a subscription. Activate it first.';
 const REACTIVATE_PRODUCT_DISABLED = 'This product is turned off. Turn it on before reactivating.';
 
+const WRONG_SECTOR = 'This product is not offered to this kind of business';
+
+/** The products a business of each sector can subscribe to: the pharmacy alone, or the menu and the cashier. */
+function offeredTo(sector: string, applicationId: string): boolean {
+  return sector === 'PHARMACY' ? applicationId === 'pharmacy' : applicationId !== 'pharmacy';
+}
+
 /** What the billing functions need of the action: who acts, and where its audit rows and callbacks go. */
 export type BillingWork = Pick<ActionContext, 'actor' | 'audit' | 'afterCommit'>;
 
@@ -227,10 +234,11 @@ async function applyMenuPlan(tx: ScopedTx, work: BillingWork, restaurantId: stri
 
 /** Starts a trial of a product for a restaurant, priced from the plan's price in the currency and period given. */
 export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer<typeof trialInput>, now: Date) {
-  const restaurant = await tx.restaurant.findUnique({ where: { id: input.restaurantId }, select: { status: true } });
+  const restaurant = await tx.restaurant.findUnique({ where: { id: input.restaurantId }, select: { status: true, sector: true } });
   if (!restaurant) throw new StudioError('NOT_FOUND');
   // Checked here and not only by hiding the button: a suspended or archived restaurant starts nothing.
   if (restaurant.status !== 'ACTIVE') throw new StudioError('CONFLICT', RESTAURANT_NOT_ACTIVE);
+  if (!offeredTo(restaurant.sector, input.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   const application = await tx.application.findUnique({ where: { id: input.applicationId }, select: { status: true } });
   if (!application) throw new StudioError('NOT_FOUND');
   if (application.status !== 'ACTIVE') throw new StudioError('CONFLICT', PRODUCT_DISABLED);
@@ -313,6 +321,9 @@ export async function startTrial(tx: ScopedTx, work: BillingWork, input: z.infer
  */
 export async function changePlan(tx: ScopedTx, work: BillingWork, input: z.infer<typeof changePlanInput>, now: Date) {
   const sub = await loadSubscription(tx, input.subscriptionId);
+  const business = await tx.restaurant.findUnique({ where: { id: sub.restaurantId }, select: { sector: true } });
+  if (!business) throw new StudioError('NOT_FOUND');
+  if (!offeredTo(business.sector, sub.applicationId)) throw new StudioError('CONFLICT', WRONG_SECTOR);
   await checkPlanCode(tx, sub.applicationId as ApplicationId, input.planCode);
   if (input.planCode === sub.planCode) throw invalid('planCode', 'The subscription is already on this plan');
   const priceMinor = input.keepPrice ? sub.priceMinor : await planPrice(tx, sub.applicationId, input.planCode, sub.currency, sub.period);

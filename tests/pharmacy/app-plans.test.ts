@@ -35,6 +35,8 @@ async function superAdmin(email: string, isPlatformOwner: boolean): Promise<Acto
   return (await loadActor(prisma(), userId))!;
 }
 
+const WRONG_SECTOR = 'This product is not offered to this kind of business';
+
 const row = (code = 'starter') => prisma().appPlan.findUniqueOrThrow({ where: { applicationId_code: { applicationId: 'pharmacy', code } } });
 
 let owner: Actor;
@@ -118,6 +120,40 @@ describe('pharmacy plans', () => {
     expect(await prisma().subscription.findFirstOrThrow({ where: { restaurantId: id } })).toMatchObject({ applicationId: 'pharmacy', planCode: 'starter', status: 'TRIAL' });
     const overview = dataOf(await runQuery(prisma(), owner, billingOverview, {}));
     expect(overview.applications.find((a) => a.id === 'pharmacy')?.plans.map((p) => p.code)).toEqual(['starter']);
+  });
+
+  it('a product of the other sector is refused: no pharmacy plan for a FOOD business, no menu or cashier plan for a pharmacy', async () => {
+    const shop = await pharmacy('Shop', { subscription: 'none' });
+    const cafe = await pharmacy('Cafe', { sector: 'FOOD', subscription: 'none' });
+    const trial = (restaurantId: string, applicationId: string, planCode: string) => ({ restaurantId, applicationId, planCode, trialDays: 14, period: 'MONTHLY', currency: 'IQD' });
+    dataOf(await run(owner, appPlans.upsert, planInput()));
+    dataOf(await run(owner, billing.setPrices, { applicationId: 'pharmacy', planCode: 'starter', prices: [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 1_000 }] }));
+    for (const applicationId of ['menu', 'cashier']) {
+      dataOf(await run(owner, billing.setPrices, { applicationId, planCode: 'PRO', prices: [{ currency: 'IQD', period: 'MONTHLY', amountMinor: 1_000 }] }));
+    }
+
+    for (const [restaurantId, applicationId, planCode] of [
+      [cafe.id, 'pharmacy', 'starter'],
+      [shop.id, 'menu', 'PRO'],
+      [shop.id, 'cashier', 'PRO'],
+    ] as const) {
+      expect(await run(owner, billing.startTrial, trial(restaurantId, applicationId, planCode))).toMatchObject({
+        ok: false,
+        error: { code: 'CONFLICT', message: WRONG_SECTOR },
+      });
+    }
+    expect(await prisma().subscription.count()).toBe(0);
+    // The matching pairs still start.
+    dataOf(await run(owner, billing.startTrial, trial(shop.id, 'pharmacy', 'starter')));
+    dataOf(await run(owner, billing.startTrial, trial(cafe.id, 'menu', 'PRO')));
+
+    // A mismatched subscription written before this rule cannot move to another plan either.
+    const legacy = await prisma().subscription.create({
+      data: { restaurantId: shop.id, applicationId: 'menu', planCode: 'PRO', status: 'ACTIVE', period: 'MONTHLY', currency: 'IQD', priceMinor: 0, currentPeriodStart: new Date(), currentPeriodEnd: new Date(Date.now() + 86_400_000), graceDays: 7, version: 1 },
+    });
+    const change = await run(owner, billing.changePlan, { restaurantId: shop.id, subscriptionId: legacy.id, version: 1, planCode: 'BASIC', keepPrice: true });
+    expect(change).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: WRONG_SECTOR } });
+    expect(await prisma().subscription.findUniqueOrThrow({ where: { id: legacy.id } })).toMatchObject({ planCode: 'PRO', version: 1 });
   });
 
   it('a plan taken off sale cannot be chosen again but keeps its subscribers', async () => {

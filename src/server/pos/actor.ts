@@ -29,8 +29,10 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
   const user = await prisma.user.findUnique({
     where: { id: userId },
     include: {
-      memberships: { where: { role: 'OWNER' }, select: { restaurantId: true, createdAt: true } },
-      posStaffs: { where: { deactivatedAt: null }, select: { restaurantId: true, role: true, createdAt: true } },
+      // A pharmacy business has no till: whatever the person holds there, the cashier never resolves it. The sector
+      // is filtered inside these reads so a FOOD till pays no extra round trip for it.
+      memberships: { where: { role: 'OWNER', restaurant: { sector: 'FOOD' } }, select: { restaurantId: true, createdAt: true } },
+      posStaffs: { where: { deactivatedAt: null, restaurant: { sector: 'FOOD' } }, select: { restaurantId: true, role: true, createdAt: true } },
     },
   });
   if (!user || user.deactivatedAt || user.isSuperAdmin) return null;
@@ -42,15 +44,6 @@ export async function resolvePosActor(prisma: PrismaClient, userId: string, rest
   // The membership wins over a staff row of the same restaurant: an owner is always the owner.
   for (const member of user.memberships) {
     candidates.set(member.restaurantId, { role: 'OWNER', viaMembership: true, joined: member.createdAt });
-  }
-
-  // A pharmacy business has no till: whatever the person holds there, the cashier never resolves it.
-  if (candidates.size > 0) {
-    const pharmacies = await prisma.restaurant.findMany({
-      where: { id: { in: [...candidates.keys()] }, sector: 'PHARMACY' },
-      select: { id: true },
-    });
-    for (const row of pharmacies) candidates.delete(row.id);
   }
 
   let chosen: readonly [string, (typeof candidates extends Map<string, infer V> ? V : never) | undefined] | undefined;

@@ -197,6 +197,33 @@ describe('support access grants', () => {
     expect(await ask(owner, supportQueries.listGrants, { restaurantId: a.id })).toMatchObject({ ok: true, data: [{ status: 'revoked' }] });
   });
 
+  it('the owner can revoke a grant while the pharmacy is read-only', async () => {
+    // Lapsed 3 days ago (period ended 10 days ago, 7 days of grace): read-only for the retention window.
+    const a = await pharmacy('A', { subscription: 'EXPIRED', periodEndsInDays: -10 });
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const admin = await person('admin', { superAdmin: true });
+    const g = await grant(admin, a.id, { scopes: ['catalog.read'] });
+    const session = await actorOf(admin);
+    // Support reads keep working in read-only, so revoking must too.
+    expect(codeOf(await ask(session, peek, { restaurantId: a.id }))).toBe('OK');
+
+    expect(codeOf(await act(owner, supportAccess.revoke, { restaurantId: a.id, grantId: g.id }))).toBe('OK');
+    expect(codeOf(await ask(session, peek, { restaurantId: a.id }))).toBe('FORBIDDEN');
+    expect(await prisma().supportAccessGrant.findUniqueOrThrow({ where: { id: g.id } })).toMatchObject({ revokedAt: NOW });
+    // Creating a grant is still a write a read-only pharmacy refuses.
+    expect(codeOf(await act(owner, supportAccess.grant, { ...goodGrant(admin.email), restaurantId: a.id }))).toBe('FORBIDDEN');
+  });
+
+  it('a closed (archived) pharmacy refuses the revoke, and every support read too', async () => {
+    // Lapsed long past the 90-day window: closed. Nothing runs there, so an unrevoked grant reads nothing either.
+    const a = await pharmacy('A', { subscription: 'EXPIRED', periodEndsInDays: -200 });
+    const owner = await person('owner', { membership: [a.id, 'OWNER'] });
+    const admin = await person('admin', { superAdmin: true });
+    const g = await grant(admin, a.id, { scopes: ['catalog.read'] });
+    expect(codeOf(await act(owner, supportAccess.revoke, { restaurantId: a.id, grantId: g.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await ask(await actorOf(admin), peek, { restaurantId: a.id }))).toBe('FORBIDDEN');
+  });
+
   it('a grant issued for pharmacy A is refused on pharmacy B', async () => {
     const a = await pharmacy('A');
     const b = await pharmacy('B');

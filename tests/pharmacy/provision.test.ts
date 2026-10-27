@@ -28,6 +28,9 @@ const actorOf = async (userId: string) => (await loadActor(prisma(), userId)) as
 const PROFILE = { name: 'Rizgar Pharmacy', type: 'RESTAURANT', city: 'Erbil' };
 const PHARMACY = { ...PROFILE, sector: 'PHARMACY', branches: [{ name: 'Main', city: 'Erbil' }, { name: 'Ankawa' }] };
 
+const PHARMACY_NOT_DELETED = 'A pharmacy is never deleted: its catalog and history are kept. Suspend it instead.';
+const PHARMACY_BRANCH_NOT_DELETED = 'A pharmacy branch is never deleted: its staff, prices and settings depend on it.';
+
 let admin: Actor;
 
 beforeAll(() => {
@@ -131,6 +134,44 @@ describe('creating a pharmacy', () => {
     ]);
     const only = dataOf(await runQuery(prisma(), admin, listRestaurants, { sector: 'PHARMACY' }));
     expect(only.rows.map((r) => r.name)).toEqual(['Rizgar Pharmacy']);
+  });
+
+  it('a pharmacy is never deleted from Studio: its catalog and branches stay', async () => {
+    const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, PHARMACY));
+    await prisma().phProduct.create({
+      data: { restaurantId, tradeName: 'Panadol', strength: '500 mg', form: 'tablet', manufacturer: 'GSK', rxLevel: 'OTC', identityKey: 'k', searchText: 'panadol' },
+    });
+
+    const refused = await run(admin, restaurants.deleteRestaurant, { restaurantId, confirmName: 'Rizgar Pharmacy' });
+    expect(refused).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: PHARMACY_NOT_DELETED } });
+    expect(await prisma().restaurant.count({ where: { id: restaurantId } })).toBe(1);
+    expect(await prisma().branch.count({ where: { restaurantId } })).toBe(2);
+    expect(await prisma().phProduct.count({ where: { restaurantId } })).toBe(1);
+
+    // An empty pharmacy is refused the same way.
+    const empty = dataOf(await run(admin, restaurants.createRestaurant, { ...PHARMACY, name: 'Empty' })).restaurantId;
+    expect(codeOf(await run(admin, restaurants.deleteRestaurant, { restaurantId: empty, confirmName: 'Empty' }))).toBe('CONFLICT');
+    expect(await prisma().restaurant.count({ where: { id: empty } })).toBe(1);
+
+    // A FOOD restaurant is deleted as before.
+    const food = dataOf(await run(admin, restaurants.createRestaurant, { ...PROFILE, name: 'A cafe' })).restaurantId;
+    expect(codeOf(await run(admin, restaurants.deleteRestaurant, { restaurantId: food, confirmName: 'A cafe' }))).toBe('OK');
+  });
+
+  it('a pharmacy branch is never deleted from Studio, the last one included', async () => {
+    const { restaurantId } = dataOf(await run(admin, restaurants.createRestaurant, PHARMACY));
+    const [main, ankawa] = await prisma().branch.findMany({ where: { restaurantId }, orderBy: { sortOrder: 'asc' } });
+    for (const branch of [ankawa!, main!]) {
+      const refused = await run(admin, restaurants.deleteBranch, { restaurantId, branchId: branch.id });
+      expect(refused).toMatchObject({ ok: false, error: { code: 'CONFLICT', message: PHARMACY_BRANCH_NOT_DELETED } });
+    }
+    expect(await prisma().branch.count({ where: { restaurantId } })).toBe(2);
+    expect(await prisma().auditLog.count({ where: { action: 'branch.deleted' } })).toBe(0);
+
+    // A FOOD restaurant's branch is deleted as before.
+    const food = await pharmacy('Some cafe', { sector: 'FOOD' });
+    expect(codeOf(await run(admin, restaurants.deleteBranch, { restaurantId: food.id, branchId: food.branchId }))).toBe('OK');
+    expect(await prisma().branch.count({ where: { restaurantId: food.id } })).toBe(0);
   });
 
   it('a pharmacy with an email already owning another business is allowed (same person, two businesses)', async () => {

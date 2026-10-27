@@ -54,6 +54,8 @@ export const revoke = defineAction({
   name: 'support.revoke',
   permission: null,
   ph: 'support.grant',
+  // Revocation is immediate in every state the support reads still work in: a read-only pharmacy included.
+  allowReadOnly: true,
   input: z.object({ restaurantId: phPlaceInput.shape.restaurantId, grantId: z.string().min(1) }),
   target: phTargetOf,
   run: (ctx, input) =>

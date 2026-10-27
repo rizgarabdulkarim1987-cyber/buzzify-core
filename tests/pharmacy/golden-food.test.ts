@@ -7,7 +7,11 @@ import type { Actor } from '@/server/studio/auth/actor';
 import { visibleNav } from '@/studio/nav';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { createMenuFixture } from '../helpers/db';
-import { resetWorld, useTestDatabase } from './fixture';
+import { posGate, resolvePosActor } from '@/server/pos/actor';
+import { DAY, person as fixturePerson, pharmacy, resetWorld, useTestDatabase } from './fixture';
+
+/** Queries a FOOD till's actor and gate took before the pharmacy plan (59d9cf5's src/server/pos/actor.ts). */
+const POS_QUERIES = { actor: 4, gate: 2 };
 
 // The golden snapshots of what a menu-only or cashier-only restaurant (sector FOOD) does today. They were computed
 // from the permission and navigation code before the pharmacy plan touched anything, and are stored here as literals:
@@ -251,5 +255,41 @@ describe('golden: the public menu', () => {
     // The log is live: the loader did query, and none of it touched a pharmacy table.
     expect(queries.length).toBeGreaterThan(0);
     expect(queries.filter((sql) => /"Ph[A-Z][A-Za-z]*"/.test(sql))).toEqual([]);
+  });
+
+  // The counts are those of the code before the pharmacy plan (59d9cf5): the till of a FOOD restaurant must not pay a
+  // round trip for the pharmacy sector.
+  it("golden: a FOOD till resolves its actor and gate in the same number of queries as before the pharmacy plan", async () => {
+    const cafe = await pharmacy('Golden cafe', { sector: 'FOOD', subscription: 'none' });
+    await logged.subscription.create({
+      data: {
+        restaurantId: cafe.id,
+        applicationId: 'cashier',
+        planCode: 'standard',
+        status: 'ACTIVE',
+        period: 'MONTHLY',
+        currency: 'IQD',
+        priceMinor: 0,
+        currentPeriodStart: new Date(Date.now() - 5 * DAY),
+        currentPeriodEnd: new Date(Date.now() + 25 * DAY),
+        graceDays: 7,
+        version: 1,
+      },
+    });
+    const owner = await fixturePerson('golden-owner', { membership: [cafe.id, 'OWNER'] });
+    const cashier = await fixturePerson('golden-cashier', { posStaff: [cafe.id, 'CASHIER'] });
+
+    for (const [who, restaurantId] of [
+      [owner, cafe.id],
+      [owner, undefined],
+      [cashier, undefined],
+    ] as const) {
+      queries.length = 0;
+      const actor = await resolvePosActor(logged, who.userId, restaurantId);
+      expect(actor?.restaurantId).toBe(cafe.id);
+      const afterActor = queries.length;
+      expect(await posGate(logged, cafe.id)).toEqual({ open: true });
+      expect({ actor: afterActor, gate: queries.length - afterActor }).toEqual(POS_QUERIES);
+    }
   });
 });

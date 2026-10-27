@@ -18,6 +18,7 @@ import {
   branchProfileOf,
   changedFields,
   expireMenusAfterCommit,
+  PHARMACY_BRANCH_NOT_DELETED,
   pickBranch,
   pickProfile,
   profileData,
@@ -298,6 +299,9 @@ export const deleteBranch = defineAction({
     ctx.transaction(async (tx) => {
       const row = await tx.branch.findFirst({ where: { id: branchId }, select: { id: true, name: true } });
       if (!row) throw new StudioError('NOT_FOUND');
+      // A pharmacy branch carries staff access, prices and stock settings: deleting it would cascade into them silently.
+      const business = await tx.restaurant.findUnique({ where: { id: restaurantOf(ctx) }, select: { sector: true } });
+      if (business?.sector === 'PHARMACY') throw new StudioError('CONFLICT', PHARMACY_BRANCH_NOT_DELETED);
       await tx.branch.deleteMany({ where: { id: row.id } });
       ctx.audit({ action: 'branch.deleted', entityType: 'Branch', entityId: row.id, changes: { name: { before: row.name, after: null } } });
       return { deleted: true as const };
