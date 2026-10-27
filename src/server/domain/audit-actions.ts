@@ -83,6 +83,10 @@ export const AUDIT_ACTIONS = [
   'app_plan.created',
   'app_plan.updated',
   'app_plan.deactivated',
+  // Support access to a pharmacy (src/server/studio/actions/support-access.ts; reads: src/server/pharmacy/support.ts)
+  'support.grant',
+  'support.revoke',
+  'support.read',
   'subscription.trial_started',
   'subscription.plan_changed',
   'subscription.cancelled',
@@ -221,6 +225,7 @@ export const AUDIT_ENTITY_TYPES = [
   'Application',
   'PlanPrices',
   'AppPlan',
+  'SupportAccessGrant',
   'Subscription',
   'Payment',
   'MediaAsset',
