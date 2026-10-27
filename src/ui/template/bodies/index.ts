@@ -10,6 +10,7 @@ import { GateBody } from './GateBody';
 import { StationBody } from './StationBody';
 import { FrostBody } from './FrostBody';
 import { BeachBody } from './BeachBody';
+import { PrinterBody } from './PrinterBody';
 import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
 import { DepthBody } from './DepthBody';
@@ -73,6 +74,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   station: StationBody,
   frost: FrostBody,
   beach: BeachBody,
+  printer: PrinterBody,
   ink: InkBody,
   steam: SteamBody,
 };

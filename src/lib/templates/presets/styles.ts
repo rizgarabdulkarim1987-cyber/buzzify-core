@@ -991,4 +991,33 @@ export const theSummerBeach = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow, theSummerBeach];
+export const theThreeDPrinter = definePreset({
+  id: 'the-3d-printer',
+  number: 65,
+  name: '3D Printer',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#121417', text: '#E9ECEF', accent: '#FF7A1A', raised: '#1A1D21' },
+  alternatives: [
+    { id: 'cyan-bed', name: 'Cyan bed', seed: { bg: '#0A161B', text: '#E3F6FB', accent: '#22D3EE', raised: '#10252D' } },
+    { id: 'resin-violet', name: 'Resin violet', seed: { bg: '#14101C', text: '#EEEAFB', accent: '#A78BFA', raised: '#1F1830' } },
+    { id: 'steel-light', name: 'Steel light', seed: { bg: '#ECEFF2', text: '#1B1F24', accent: '#C2410C', raised: '#FFFFFF' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'printer',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'none',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow, theSummerBeach, theThreeDPrinter];

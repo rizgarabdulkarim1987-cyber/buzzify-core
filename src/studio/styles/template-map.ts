@@ -40,6 +40,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'themed-spc': 'the-space-station',
   'themed-win': 'the-frosted-window',
   'themed-sum': 'the-summer-beach',
+  'themed-prn': 'the-3d-printer',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

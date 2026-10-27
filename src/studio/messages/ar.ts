@@ -2441,6 +2441,7 @@ const ar: Messages = {
   'design.body.station': 'وحدات محطة الفضاء',
   'design.body.frost': 'ألواح نافذة مغطاة بالصقيع',
   'design.body.beach': 'نطاقات أمواج الشاطئ',
+  'design.body.printer': 'شرائح الطبقات المطبوعة',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

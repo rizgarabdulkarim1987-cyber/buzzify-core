@@ -2412,6 +2412,7 @@ const en: Messages = {
   'design.body.station': 'Space station modules',
   'design.body.frost': 'Frosted window panes',
   'design.body.beach': 'Beach wave bands',
+  'design.body.printer': 'Printed layer slabs',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',
