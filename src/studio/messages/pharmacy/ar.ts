@@ -440,6 +440,10 @@ const pharmacy: Messages = {
   'error.text.phHoldNotFound': 'لم يتم العثور على السلة المعلّقة',
   'error.text.phHoldNotAvailable': 'تم استخدام هذه السلة المعلّقة أو حذفها من قبل',
   'error.text.phHoldExpired': 'انتهت صلاحية هذه السلة المعلّقة',
+  'error.text.phReceiptWidth': 'اختر عرض الإيصال',
+  'error.text.phReceiptLanguage': 'اختر اللغة',
+  'error.text.phReceiptChoose': 'اختر عملية بيع أو إرجاع',
+  'error.text.phSaleNoReceipt': 'لا يوجد إيصال لهذا البيع',
   // Stock and movement screens
   'pharmacy.nav.stock': 'المخزون',
   'pharmacy.nav.movements': 'حركات المخزون',

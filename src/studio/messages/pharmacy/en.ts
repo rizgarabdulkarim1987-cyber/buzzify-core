@@ -446,6 +446,10 @@ const pharmacy: Messages = {
   'error.text.phHoldNotFound': 'Held cart not found',
   'error.text.phHoldNotAvailable': 'This held cart was already used or discarded',
   'error.text.phHoldExpired': 'This held cart has expired',
+  'error.text.phReceiptWidth': 'Choose a receipt width',
+  'error.text.phReceiptLanguage': 'Choose a language',
+  'error.text.phReceiptChoose': 'Choose a sale or a return',
+  'error.text.phSaleNoReceipt': 'This sale has no receipt',
   // Stock and movement screens
   'pharmacy.nav.stock': 'Stock',
   'pharmacy.nav.movements': 'Stock movements',

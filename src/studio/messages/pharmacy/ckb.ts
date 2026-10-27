@@ -440,6 +440,10 @@ const pharmacy: Messages = {
   'error.text.phHoldNotFound': 'سەبەتە ڕاگیراوەکە نەدۆزرایەوە',
   'error.text.phHoldNotAvailable': 'ئەم سەبەتە ڕاگیراوە پێشتر بەکارهاتووە یان سڕاوەتەوە',
   'error.text.phHoldExpired': 'ماوەی ئەم سەبەتە ڕاگیراوە بەسەرچووە',
+  'error.text.phReceiptWidth': 'پانی وەسڵ هەڵبژێرە',
+  'error.text.phReceiptLanguage': 'زمان هەڵبژێرە',
+  'error.text.phReceiptChoose': 'فرۆشتن یان گەڕاندنەوەیەک هەڵبژێرە',
+  'error.text.phSaleNoReceipt': 'ئەم فرۆشتنە وەسڵی نییە',
   // Stock and movement screens
   'pharmacy.nav.stock': 'کۆگا',
   'pharmacy.nav.movements': 'جووڵەکانی کۆگا',

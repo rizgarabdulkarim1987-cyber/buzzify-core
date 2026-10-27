@@ -490,6 +490,10 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Held cart not found': 'error.text.phHoldNotFound',
   'This held cart was already used or discarded': 'error.text.phHoldNotAvailable',
   'This held cart has expired': 'error.text.phHoldExpired',
+  'Choose a receipt width': 'error.text.phReceiptWidth',
+  'Choose a language': 'error.text.phReceiptLanguage',
+  'Choose a sale or a return': 'error.text.phReceiptChoose',
+  'This sale has no receipt': 'error.text.phSaleNoReceipt',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

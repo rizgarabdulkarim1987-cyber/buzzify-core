@@ -2889,6 +2889,12 @@ model PhReceiptReprint {
   returnId     String?
   userId       String
   copyNumber   Int
+  /// Paper width printed: 80 or 58 (mm). CHECK in the migration.
+  width        Int        @default(80)
+  /// Makes a repeated reprint request return the copy already logged. Null on rows written before it existed.
+  clientKey    String?
+  /// Why the copy was printed (capped at 200 characters); never a customer or patient detail.
+  reason       String     @default("")
   printedAt    DateTime   @default(now())
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   sale         PhSale?    @relation(fields: [restaurantId, saleId], references: [restaurantId, id], onDelete: NoAction)
@@ -2896,6 +2902,7 @@ model PhReceiptReprint {
 
   @@unique([saleId, copyNumber])
   @@unique([returnId, copyNumber])
+  @@unique([restaurantId, clientKey])
 }
 
 /// A plan of one application, with its features and limits (global catalog).
