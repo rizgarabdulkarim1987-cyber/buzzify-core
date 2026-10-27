@@ -158,6 +158,14 @@ describe('the cashier item and the shared sign-in', () => {
     expect(NAV_ITEMS.map((item) => item.key)).not.toContain('cashier');
   });
 
+  it('lets a sign-in return to the pharmacy', () => {
+    expect(safeNextPath('/pharmacy')).toBe('/pharmacy');
+    expect(safeNextPath('/pharmacy/select')).toBe('/pharmacy/select');
+    for (const value of ['/pharmacys', '/pharmacy/../studio', '//pharmacy', '/pharmacy?x=1']) {
+      expect(safeNextPath(value), value).toBeNull();
+    }
+  });
+
   it('lets a sign-in return to the till', () => {
     expect(safeNextPath('/pos')).toBe('/pos');
     expect(safeNextPath('/pos/settings')).toBe('/pos/settings');

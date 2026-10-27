@@ -1,11 +1,14 @@
+import { cookies } from 'next/headers';
 import { cache } from 'react';
 import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
 import { getPrisma } from '@/server/data/prisma';
+import { authEnv } from '@/server/env';
 import { effectiveStatus, graceEndsAt, isLive } from '@/server/domain/billing/subscriptions';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import { grantStatus } from '@/server/domain/pharmacy/support-grant';
 import { getActor } from '@/server/studio/auth/actor';
+import { PH_PLACE_COOKIE, readPlaceCookie, signPlaceCookie, type PhPlace } from './entry';
 
 const DAY_MS = 86_400_000;
 
@@ -83,64 +86,14 @@ export async function resolvePhActor(
   opts: { restaurantId?: string; branchId?: string; now?: Date } = {},
 ): Promise<PhActor | null> {
   const now = opts.now ?? new Date();
-  const user = await prisma.user.findUnique({
-    where: { id: userId },
-    include: {
-      memberships: { where: { role: 'OWNER' }, select: { restaurantId: true, createdAt: true } },
-      phStaffs: {
-        where: { deactivatedAt: null },
-        select: { restaurantId: true, role: true, createdAt: true, branches: { select: { branchId: true } } },
-      },
-    },
-  });
-  if (!user || user.deactivatedAt) return null;
-
-  const candidates = new Map<string, Candidate>();
-  if (user.isSuperAdmin) {
-    const grants = await prisma.supportAccessGrant.findMany({
-      where: { granteeUserId: userId, ...(opts.restaurantId ? { restaurantId: opts.restaurantId } : {}) },
-      orderBy: { createdAt: 'asc' },
-    });
-    for (const grant of grants) {
-      if (grantStatus(grant, now) !== 'active' || candidates.has(grant.restaurantId)) continue;
-      candidates.set(grant.restaurantId, {
-        role: null,
-        viaMembership: false,
-        allBranches: true,
-        branchIds: [],
-        joined: grant.createdAt,
-        support: { grantId: grant.id, scopes: new Set(grant.scopes), expiresAt: grant.expiresAt },
-      });
-    }
-  } else {
-    for (const staff of user.phStaffs) {
-      if (staff.branches.length === 0) continue;
-      candidates.set(staff.restaurantId, {
-        role: staff.role,
-        viaMembership: false,
-        allBranches: false,
-        branchIds: staff.branches.map((b) => b.branchId),
-        joined: staff.createdAt,
-        support: null,
-      });
-    }
-    // The membership wins over a staff row of the same restaurant: an owner is always the owner.
-    for (const member of user.memberships) {
-      candidates.set(member.restaurantId, {
-        role: 'OWNER',
-        viaMembership: true,
-        allBranches: true,
-        branchIds: [],
-        joined: member.createdAt,
-        support: null,
-      });
-    }
-  }
+  const found = await candidatesOf(prisma, userId, opts.restaurantId, now);
+  if (!found) return null;
+  const { user, candidates } = found;
 
   let chosen: [string, Candidate] | undefined;
   if (opts.restaurantId !== undefined) {
-    const found = candidates.get(opts.restaurantId);
-    if (found) chosen = [opts.restaurantId, found];
+    const candidate = candidates.get(opts.restaurantId);
+    if (candidate) chosen = [opts.restaurantId, candidate];
   } else {
     const byJoined = [...candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime());
     chosen = byJoined[0];
@@ -183,8 +136,169 @@ export async function resolvePhActor(
   };
 }
 
+/** The restaurants a user may have a pharmacy identity in, before the sector and branches are checked. */
+async function candidatesOf(prisma: PrismaClient, userId: string, restaurantId: string | undefined, now: Date) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      memberships: { where: { role: 'OWNER' }, select: { restaurantId: true, createdAt: true } },
+      phStaffs: {
+        where: { deactivatedAt: null },
+        select: { restaurantId: true, role: true, createdAt: true, branches: { select: { branchId: true } } },
+      },
+    },
+  });
+  if (!user || user.deactivatedAt) return null;
+
+  const candidates = new Map<string, Candidate>();
+  if (user.isSuperAdmin) {
+    const grants = await prisma.supportAccessGrant.findMany({
+      where: { granteeUserId: userId, ...(restaurantId ? { restaurantId } : {}) },
+      orderBy: { createdAt: 'asc' },
+    });
+    for (const grant of grants) {
+      if (grantStatus(grant, now) !== 'active' || candidates.has(grant.restaurantId)) continue;
+      candidates.set(grant.restaurantId, {
+        role: null,
+        viaMembership: false,
+        allBranches: true,
+        branchIds: [],
+        joined: grant.createdAt,
+        support: { grantId: grant.id, scopes: new Set(grant.scopes), expiresAt: grant.expiresAt },
+      });
+    }
+  } else {
+    for (const staff of user.phStaffs) {
+      if (staff.branches.length === 0) continue;
+      candidates.set(staff.restaurantId, {
+        role: staff.role,
+        viaMembership: false,
+        allBranches: false,
+        branchIds: staff.branches.map((b) => b.branchId),
+        joined: staff.createdAt,
+        support: null,
+      });
+    }
+    // The membership wins over a staff row of the same restaurant: an owner is always the owner.
+    for (const member of user.memberships) {
+      candidates.set(member.restaurantId, {
+        role: 'OWNER',
+        viaMembership: true,
+        allBranches: true,
+        branchIds: [],
+        joined: member.createdAt,
+        support: null,
+      });
+    }
+  }
+
+  return { user, candidates };
+}
+
 /** The pharmacy identity behind the current request, or `null`. Cached for the length of one request. */
 export const getPhActor = cache(async (): Promise<PhActor | null> => {
   const actor = await getActor();
   return actor ? resolvePhActor(getPrisma(), actor.userId, { now: new Date() }) : null;
 });
+
+/** A pharmacy a person may choose in the picker, with the branches they may use in it. */
+export interface PhPlaceChoice {
+  restaurantId: string;
+  restaurantName: string;
+  /** Whether "All branches" is a choice: the owner (and a support actor) work across every branch. */
+  allBranches: boolean;
+  branches: Array<{ id: string; name: string }>;
+}
+
+async function branchesNamed(prisma: PrismaClient, restaurantId: string, ids: string[]) {
+  return prisma.branch.findMany({
+    where: { restaurantId, id: { in: ids } },
+    select: { id: true, name: true },
+    orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+  });
+}
+
+/**
+ * Every pharmacy the person has an identity in, in the order they joined, each with the branches they may use: what the
+ * picker lists. Identity only (names of the business and its branches), never pharmacy data.
+ */
+export async function listPhPlaces(prisma: PrismaClient, userId: string, now: Date): Promise<PhPlaceChoice[]> {
+  const found = await candidatesOf(prisma, userId, undefined, now);
+  if (!found) return [];
+  const byJoined = [...found.candidates.entries()].sort((x, y) => x[1].joined.getTime() - y[1].joined.getTime());
+  const places: PhPlaceChoice[] = [];
+  for (const [restaurantId] of byJoined) {
+    const actor = await resolvePhActor(prisma, userId, { restaurantId, now });
+    if (!actor || actor.branchIds.length === 0) continue;
+    places.push({
+      restaurantId,
+      restaurantName: actor.restaurantName,
+      allBranches: actor.allBranches,
+      branches: await branchesNamed(prisma, restaurantId, actor.branchIds),
+    });
+  }
+  return places;
+}
+
+/**
+ * The person's identity in a chosen place, checked against the database now: the pharmacy must be theirs, the branch one
+ * they may use, and "All branches" (`branchId` null) only for an all-branches actor. Null when any of it fails.
+ */
+export async function phPlaceFor(
+  prisma: PrismaClient,
+  userId: string,
+  place: PhPlace,
+  now: Date,
+): Promise<{ actor: PhActor; branchName: string | null } | null> {
+  const actor = await resolvePhActor(prisma, userId, { restaurantId: place.restaurantId, branchId: place.branchId ?? undefined, now });
+  if (!actor) return null;
+  if (place.branchId === null) return actor.allBranches ? { actor, branchName: null } : null;
+  const [branch] = await branchesNamed(prisma, actor.restaurantId, [place.branchId]);
+  return branch ? { actor, branchName: branch.name } : null;
+}
+
+export interface PhAccess {
+  signedIn: boolean;
+  /** The person's identity in the place their cookie names, or null when it names none they may use now. */
+  actor: PhActor | null;
+  gate: PhGate | null;
+  place: (PhPlace & { branchName: string | null }) | null;
+}
+
+/**
+ * Who is asking and where they chose to work, for the pharmacy's pages: the signed place cookie is read, its signature
+ * checked for this person, and the place it names checked again against the database on every request, so an edited or
+ * stale cookie gives no place. Identity, gate and place only; pharmacy data is read through the framework's queries.
+ */
+export const getPhAccess = cache(async (): Promise<PhAccess> => {
+  const studioActor = await getActor();
+  if (!studioActor) return { signedIn: false, actor: null, gate: null, place: null };
+  const prisma = getPrisma();
+  const now = new Date();
+  const chosen = readPlaceCookie(authEnv().secret, studioActor.userId, (await cookies()).get(PH_PLACE_COOKIE)?.value);
+  const found = chosen ? await phPlaceFor(prisma, studioActor.userId, chosen, now) : null;
+  if (!chosen || !found) return { signedIn: true, actor: null, gate: null, place: null };
+  return {
+    signedIn: true,
+    actor: found.actor,
+    gate: await phGate(prisma, found.actor.restaurantId, now),
+    place: { ...chosen, branchName: found.branchName },
+  };
+});
+
+/** The picker's choices for the person behind the request; empty when signed out or without a pharmacy. */
+export const getPhPlaces = cache(async (): Promise<PhPlaceChoice[]> => {
+  const studioActor = await getActor();
+  return studioActor ? listPhPlaces(getPrisma(), studioActor.userId, new Date()) : [];
+});
+
+/**
+ * The signed cookie value for a place the person behind the request chose, or null when the place is not theirs (or
+ * nobody is signed in). The picker's form posts here through `/pharmacy/select/choose`.
+ */
+export async function signPhPlaceChoice(place: PhPlace): Promise<string | null> {
+  const studioActor = await getActor();
+  if (!studioActor) return null;
+  const found = await phPlaceFor(getPrisma(), studioActor.userId, place, new Date());
+  return found ? signPlaceCookie(authEnv().secret, studioActor.userId, place) : null;
+}

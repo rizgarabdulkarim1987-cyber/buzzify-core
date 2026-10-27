@@ -42,6 +42,14 @@ describe('security headers', () => {
     }
   });
 
+  it('the pharmacy can be framed only by itself, like the till', async () => {
+    for (const path of ['/pharmacy', '/pharmacy/select']) {
+      const pharmacy = await headersFor(path);
+      expect(pharmacy['x-frame-options']).toBe('SAMEORIGIN');
+      expect(pharmacy['content-security-policy']).toContain("frame-ancestors 'self'");
+    }
+  });
+
   it('the Studio root itself is covered, not only the pages under it', async () => {
     expect((await headersFor('/studio'))['x-frame-options']).toBe('SAMEORIGIN');
   });
