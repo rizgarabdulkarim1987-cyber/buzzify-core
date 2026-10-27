@@ -238,6 +238,8 @@ const ckb: Messages = {
   'tpl.board.gate': 'دەرگای {letter}: {name}',
   'tpl.elv.floor': 'نهۆمی {n}',
   'tpl.elv.goTo': 'نهۆمی {n}: {name}',
+  'tpl.stm.hot': 'گەرم',
+  'tpl.stm.cold': 'سارد',
   'tpl.per.group': 'گروپی {n}',
   'tpl.met.station': 'وێستگەی {n}',
   'tpl.shf.aisle': 'ڕێڕەوی {n}',

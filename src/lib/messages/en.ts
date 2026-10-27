@@ -238,6 +238,8 @@ const en: Messages = {
   'tpl.board.gate': 'Gate {letter}: {name}',
   'tpl.elv.floor': 'Floor {n}',
   'tpl.elv.goTo': 'Floor {n}: {name}',
+  'tpl.stm.hot': 'Hot',
+  'tpl.stm.cold': 'Cold',
   'tpl.per.group': 'Group {n}',
   'tpl.met.station': 'Station {n}',
   'tpl.shf.aisle': 'Aisle {n}',

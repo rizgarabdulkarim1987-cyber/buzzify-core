@@ -2431,6 +2431,7 @@ const ar: Messages = {
   'design.body.morph': 'من الصورة للتفاصيل',
   'design.body.fly': 'الطيران للسلة',
   'design.body.ink': 'حبر الأقسام',
+  'design.body.steam': 'بخار حي',
   'design.setByShape': 'يحدّده شكل {shape}',
   'design.hero.editorial': 'الطبق المميز بحجم كبير',
   'design.hero.asymmetric': 'المميز بترتيب متقابل',

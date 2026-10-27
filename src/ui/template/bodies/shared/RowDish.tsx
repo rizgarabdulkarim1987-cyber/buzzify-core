@@ -1,6 +1,6 @@
 'use client';
 
-import type { CSSProperties } from 'react';
+import type { CSSProperties, HTMLAttributes, ReactNode } from 'react';
 import type { MenuProductView } from '@/server/data/menu-view';
 import { useTemplate } from '../../context';
 import { Badges, Description, Price, ProductMedia, QuickAction } from '../../parts';
@@ -21,6 +21,9 @@ export function RowDish({
   order,
   description = false,
   iconAdd = false,
+  photoExtras,
+  metaExtras,
+  rowProps,
 }: {
   product: MenuProductView;
   /** The shape's class prefix: `el` gives `el-row`, `el-photo`, `el-text`, `el-name`, `el-meta`, `el-price`… */
@@ -36,12 +39,19 @@ export function RowDish({
   description?: boolean;
   /** A plus on the add button even for a dish with choices (for a small, fixed-size button). */
   iconAdd?: boolean;
+  /** Drawn inside the photo frame after the photo (an effect laid over it); the frame clips it. */
+  photoExtras?: ReactNode;
+  /** Drawn in the price line after the badges (a chip). */
+  metaExtras?: ReactNode;
+  /** More attributes for the row (a `data-*` the shape's CSS reads). */
+  rowProps?: HTMLAttributes<HTMLLIElement> & Record<`data-${string}`, string | undefined>;
 }) {
   const { openProduct } = useTemplate();
   return (
-    <li data-row className={`rd-row ${prefix}-row`} style={order === undefined ? undefined : ({ '--i': order } as CSSProperties)}>
+    <li data-row {...rowProps} className={`rd-row ${prefix}-row`} style={order === undefined ? undefined : ({ '--i': order } as CSSProperties)}>
       <div data-photo className={`rd-photo ${prefix}-photo`}>
         <ProductMedia product={product} suffix={suffix} sizes={sizes} priority={priority} className={`${prefix}-img`} />
+        {photoExtras}
       </div>
       <div className={`rd-text ${prefix}-text`}>
         <button type="button" onClick={() => openProduct(product.id)} className={`tpl-open rd-name ${prefix}-name text-start`}>
@@ -50,6 +60,7 @@ export function RowDish({
         <span className={`rd-meta ${prefix}-meta`}>
           <Price product={product} className={`rd-price ${prefix}-price`} />
           <Badges product={product} className={`${prefix}-badges`} />
+          {metaExtras}
         </span>
         {description ? <Description product={product} lines={1} className={`${prefix}-desc`} /> : null}
       </div>

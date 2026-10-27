@@ -2402,6 +2402,7 @@ const en: Messages = {
   'design.body.morph': 'Photo to details',
   'design.body.fly': 'Fly to cart',
   'design.body.ink': 'Section ink',
+  'design.body.steam': 'Living steam',
   'design.setByShape': 'Set by the {shape} shape',
   'design.hero.editorial': 'Signature dish, large',
   'design.hero.asymmetric': 'Featured, offset',

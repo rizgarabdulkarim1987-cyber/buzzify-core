@@ -19,6 +19,7 @@ import { MetroBody } from './MetroBody';
 import { MorphBody } from './MorphBody';
 import { PeriodicBody } from './PeriodicBody';
 import { ShelvesBody } from './ShelvesBody';
+import { SteamBody } from './SteamBody';
 import { StackedBody } from './StackedBody';
 import { TabletopBody } from './TabletopBody';
 import { TheatreBody } from './TheatreBody';
@@ -55,4 +56,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   morph: MorphBody,
   fly: FlyBody,
   ink: InkBody,
+  steam: SteamBody,
 };

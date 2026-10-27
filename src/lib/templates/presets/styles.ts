@@ -701,4 +701,33 @@ export const theSectionInk = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk];
+export const theLivingSteam = definePreset({
+  id: 'the-living-steam',
+  number: 55,
+  name: 'Living Steam',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#1D1410', text: '#F6EAD8', accent: '#E8A25A', raised: '#2A1D15' },
+  alternatives: [
+    { id: 'ice-bar', name: 'Ice bar', seed: { bg: '#F1F7FA', text: '#12232E', accent: '#1F6F9F', raised: '#FFFFFF' } },
+    { id: 'copper-pan', name: 'Copper pan', seed: { bg: '#F8EFE4', text: '#2A1A10', accent: '#B4531A', raised: '#FFFFFF' } },
+    { id: 'night-kitchen', name: 'Night kitchen', seed: { bg: '#0F1B1A', text: '#E6F4F0', accent: '#4FD1B0', raised: '#18302D' } },
+  ],
+  type: { fontPairId: 'cafe', scale: 1.0 },
+  layout: {
+    body: 'steam',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam];

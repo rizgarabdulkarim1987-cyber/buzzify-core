@@ -252,6 +252,8 @@ const ar: Messages = {
   'tpl.board.gate': 'البوابة {letter}: {name}',
   'tpl.elv.floor': 'الطابق {n}',
   'tpl.elv.goTo': 'الطابق {n}: {name}',
+  'tpl.stm.hot': 'ساخن',
+  'tpl.stm.cold': 'بارد',
   'tpl.per.group': 'المجموعة {n}',
   'tpl.met.station': 'المحطة {n}',
   'tpl.shf.aisle': 'الممر {n}',
