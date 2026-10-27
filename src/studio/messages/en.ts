@@ -186,6 +186,7 @@ const en: Messages = {
   'ai.menu.read': 'Read the menu with AI',
   'ai.menu.reading': 'Reading the menu… this can take up to a minute.',
   'ai.menu.photos': 'Bringing the pictures… {count} left.',
+  'ai.menu.translating': 'Writing the Arabic and Kurdish…',
   'ai.menu.skipped': '{count} items had no readable price and were left out.',
   'ai.menu.note': 'Prices are copied as printed, so check them in the preview. Pictures come only from a link.',
   'ai.menu.chooseInput': 'Choose a photo or PDF, or paste a link.',

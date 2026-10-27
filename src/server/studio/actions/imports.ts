@@ -12,7 +12,7 @@ import {
   sheetFileNameField,
   sheetFormatField,
 } from '@/server/studio/services/imports';
-import { bringAiPhotos, previewAiMenuImport } from '@/server/studio/services/imports-ai';
+import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
 
 /** The Import and export tab (spec 13): a sheet in, previewed and applied to the draft; the draft out as a sheet. */
 
@@ -51,6 +51,15 @@ export const aiPhotos = defineAction({
   input: jobInput,
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => bringAiPhotos(ctx, input),
+});
+
+/** Works out Arabic and Kurdish for what an AI reading is about to create; the page asks again until none is left. */
+export const aiTranslate = defineAction({
+  name: 'import.aiTranslate',
+  permission: 'import.run',
+  input: jobInput,
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input)),
 });
 
 export const apply = defineAction({

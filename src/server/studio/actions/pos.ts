@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { guardedAi } from '@/server/ai/ai-error-code';
 import { menuImportInput } from '@/server/ai/menu-import';
-import { bringAiPhotos, previewAiMenuImport } from '@/server/studio/services/imports-ai';
+import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { previewPosImport } from '@/server/pos/menu-import';
@@ -372,6 +372,16 @@ export const posImportAiPhotos = defineAction({
   input: z.object({ importJobId: idField }),
   target: () => CATALOG,
   run: (ctx, input) => bringAiPhotos(ctx, input),
+});
+
+/** The Studio's translation step, for the product list. */
+export const posImportAiTranslate = defineAction({
+  name: 'pos.importAiTranslate',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ importJobId: idField }),
+  target: () => CATALOG,
+  run: (ctx, input) => guardedAi(() => translateAiMenu(ctx, input)),
 });
 
 export const posImportApply = defineAction({
