@@ -3,6 +3,9 @@ import {
   SaleMathError,
   expectedCash,
   discountPolicy,
+  effectiveDiscount,
+  saleRefundTotal,
+  MAX_QTY,
   invoiceDiscountAllocation,
   invoiceRounding,
   isWithinReturnWindow,
@@ -69,12 +72,15 @@ describe('lineGross', () => {
   it('refuses at the Postgres bigint maximum without wrapping', () => {
     expect(code(() => lineGross(PG_MAX, PG_MAX))).toBe('OVERFLOW');
     expect(code(() => lineGross(PG_MAX + 1n, 1n))).toBe('OVERFLOW');
+    expect(MAX_QTY).toBe(2147483647n);
+    expect(lineGross(MAX_QTY, 1n)).toBe(MAX_QTY);
+    expect(code(() => lineGross(MAX_QTY + 1n, 1n))).toBe('OVERFLOW');
     expect(code(() => lineGross(1n, PG_MAX))).toBe('OVERFLOW');
   });
   it('property: result is exact or refused, never above the cap', () => {
     const r = rng(1);
     for (let i = 0; i < 500; i++) {
-      const q = pick(r, 10n ** 12n) + 1n;
+      const q = pick(r, MAX_QTY - 1n) + 1n;
       const p = pick(r, 10n ** 14n);
       const c = code(() => lineGross(q, p));
       if (q * p > MAX_AMOUNT_MINOR) expect(c).toBe('OVERFLOW');
@@ -167,26 +173,30 @@ describe('invoiceDiscountAllocation (largest remainder)', () => {
 
 describe('invoiceRounding', () => {
   it('step 0 means no rounding', () => {
-    expect(invoiceRounding(1234n, 0)).toEqual({ roundedMinor: 1234n, roundingMinor: 0n });
+    expect(invoiceRounding(1234n, 0, 'IQD')).toEqual({ roundedMinor: 1234n, roundingMinor: 0n });
   });
   it('rounds to the nearest step, ties up, with a signed difference', () => {
-    expect(invoiceRounding(1237n, 250)).toEqual({ roundedMinor: 1250n, roundingMinor: 13n });
-    expect(invoiceRounding(1120n, 250)).toEqual({ roundedMinor: 1000n, roundingMinor: -120n });
-    expect(invoiceRounding(1125n, 250)).toEqual({ roundedMinor: 1250n, roundingMinor: 125n }); // tie goes up
-    expect(invoiceRounding(1124n, 250)).toEqual({ roundedMinor: 1000n, roundingMinor: -124n });
-    expect(invoiceRounding(10n, 25)).toEqual({ roundedMinor: 0n, roundingMinor: -10n });
-    expect(invoiceRounding(0n, 1000)).toEqual({ roundedMinor: 0n, roundingMinor: 0n });
+    expect(invoiceRounding(1237n, 250, 'IQD')).toEqual({ roundedMinor: 1250n, roundingMinor: 13n });
+    expect(invoiceRounding(1120n, 250, 'IQD')).toEqual({ roundedMinor: 1000n, roundingMinor: -120n });
+    expect(invoiceRounding(1125n, 250, 'IQD')).toEqual({ roundedMinor: 1250n, roundingMinor: 125n }); // tie goes up
+    expect(invoiceRounding(1124n, 250, 'IQD')).toEqual({ roundedMinor: 1000n, roundingMinor: -124n });
+    expect(invoiceRounding(10n, 25, 'IQD')).toEqual({ roundedMinor: 0n, roundingMinor: -10n });
+    expect(invoiceRounding(0n, 1000, 'IQD')).toEqual({ roundedMinor: 0n, roundingMinor: 0n });
+  });
+  it('never rounds USD: a non-zero step with USD is refused, step 0 is fine', () => {
+    expect(code(() => invoiceRounding(1234n, 25, 'USD'))).toBe('ROUNDING_NOT_FOR_CURRENCY');
+    expect(invoiceRounding(1234n, 0, 'USD')).toEqual({ roundedMinor: 1234n, roundingMinor: 0n });
   });
   it('refuses steps outside the allowed set and a negative total', () => {
-    for (const s of [1, 10, 100, 249, 2500, -25, 25.5]) expect(code(() => invoiceRounding(100n, s))).toBe('INVALID_ROUNDING_STEP');
-    expect(code(() => invoiceRounding(-1n, 25))).toBe('INVALID_AMOUNT');
+    for (const s of [1, 10, 100, 249, 2500, -25, 25.5]) expect(code(() => invoiceRounding(100n, s, 'IQD'))).toBe('INVALID_ROUNDING_STEP');
+    expect(code(() => invoiceRounding(-1n, 25, 'IQD'))).toBe('INVALID_AMOUNT');
   });
   it('property: on a step, within half a step, idempotent, never negative, fine at the cap', () => {
     const r = rng(4);
     for (const step of [0, 25, 50, 250, 500, 1000, 5000]) {
       for (let i = 0; i < 200; i++) {
         const t = pick(r, MAX_AMOUNT_MINOR);
-        const { roundedMinor, roundingMinor } = invoiceRounding(t, step);
+        const { roundedMinor, roundingMinor } = invoiceRounding(t, step, 'IQD');
         expect(roundedMinor).toBe(t + roundingMinor);
         expect(roundedMinor >= 0n).toBe(true);
         if (step > 0) {
@@ -194,7 +204,7 @@ describe('invoiceRounding', () => {
           expect(roundedMinor % s).toBe(0n);
           expect(2n * (roundingMinor < 0n ? -roundingMinor : roundingMinor) <= s).toBe(true);
         }
-        expect(invoiceRounding(roundedMinor, step)).toEqual({ roundedMinor, roundingMinor: 0n });
+        expect(invoiceRounding(roundedMinor, step, 'IQD')).toEqual({ roundedMinor, roundingMinor: 0n });
       }
     }
   });
@@ -222,6 +232,15 @@ describe('paymentCheck', () => {
     expect(paymentCheck({ totalMinor: 1000n, payments: [cash(0n), cash(1000n)] })).toMatchObject({ ok: false, reason: 'INVALID_PAYMENT' });
     expect(paymentCheck({ totalMinor: 1000n, payments: [cash(-5n), cash(1005n)] })).toMatchObject({ ok: false, reason: 'INVALID_PAYMENT' });
     expect(paymentCheck({ totalMinor: 1000n, payments: [{ method: 'BITCOIN' as never, amountMinor: 1000n }] })).toMatchObject({ ok: false, reason: 'INVALID_PAYMENT' });
+  });
+  it('refuses cash when non-cash already covers the total', () => {
+    expect(paymentCheck({ totalMinor: 1000n, payments: [card(1000n), cash(100n)] })).toMatchObject({ ok: false, reason: 'CASH_NOT_NEEDED', changeMinor: 0n });
+    expect(paymentCheck({ totalMinor: 0n, payments: [cash(100n)] })).toMatchObject({ ok: false, reason: 'CASH_NOT_NEEDED' });
+  });
+  it('caps each payment and the sum at the amount cap', () => {
+    expect(paymentCheck({ totalMinor: 1000n, payments: [cash(MAX_AMOUNT_MINOR)] })).toMatchObject({ ok: true });
+    expect(paymentCheck({ totalMinor: 1000n, payments: [cash(MAX_AMOUNT_MINOR + 1n)] })).toMatchObject({ ok: false, reason: 'INVALID_PAYMENT' });
+    expect(paymentCheck({ totalMinor: 1000n, payments: [cash(MAX_AMOUNT_MINOR), cash(1n)] })).toMatchObject({ ok: false, reason: 'INVALID_PAYMENT' });
   });
   it('a zero total needs no payment', () => {
     expect(paymentCheck({ totalMinor: 0n, payments: [] })).toEqual({ ok: true, paidMinor: 0n, changeMinor: 0n });
@@ -277,10 +296,46 @@ describe('discountPolicy (exact integer comparison)', () => {
   });
 });
 
+describe('effectiveDiscount: line and invoice discounts judged together', () => {
+  const lines = [{ grossMinor: 6000n, lineDiscountMinor: 300n }, { grossMinor: 4000n, lineDiscountMinor: 200n }]; // 5% on each line
+  const policy = (discountMinor: bigint, grossMinor: bigint, canOverLimit = false) =>
+    discountPolicy({ discountMinor, grossMinor, maxPercentBp: 500, canApply: true, canOverLimit });
+  it('5% on the lines plus 5% on the invoice is judged as the combined figure', () => {
+    const e = effectiveDiscount({ lines, invoiceDiscountMinor: 475n }); // 5% of the 9500 left
+    expect(e).toEqual({ grossMinor: 10000n, totalDiscountMinor: 975n, basisPoints: 975 });
+    expect(policy(500n, 10000n)).toBe('ok'); // each half alone is within 5%
+    expect(policy(e.totalDiscountMinor, e.grossMinor)).toBe('forbidden');
+    expect(policy(e.totalDiscountMinor, e.grossMinor, true)).toBe('needs_over_limit');
+  });
+  it('is exact at the boundary and handles an empty or zero-gross sale', () => {
+    const e = effectiveDiscount({ lines, invoiceDiscountMinor: 0n });
+    expect(e.totalDiscountMinor).toBe(500n);
+    expect(policy(e.totalDiscountMinor, e.grossMinor)).toBe('ok');
+    expect(effectiveDiscount({ lines: [], invoiceDiscountMinor: 0n })).toEqual({ grossMinor: 0n, totalDiscountMinor: 0n, basisPoints: 0 });
+  });
+  it('refuses a line discount above its gross and an invoice discount above what is left', () => {
+    expect(code(() => effectiveDiscount({ lines: [{ grossMinor: 10n, lineDiscountMinor: 11n }], invoiceDiscountMinor: 0n }))).toBe('INVALID_DISCOUNT');
+    expect(code(() => effectiveDiscount({ lines, invoiceDiscountMinor: 9501n }))).toBe('DISCOUNT_EXCEEDS_TOTAL');
+    expect(code(() => effectiveDiscount({ lines, invoiceDiscountMinor: -1n }))).toBe('INVALID_DISCOUNT');
+  });
+  it('a 100% discount sale: total 0, no payment needed, payment check ok', () => {
+    const gross = lineGross(2n, 1250n);
+    const ld = lineDiscount(gross, { kind: 'percent', value: 10000 });
+    expect(ld).toBe(gross);
+    expect(invoiceDiscountAllocation([{ totalMinor: gross - ld }], 0n)).toEqual([0n]);
+    const { roundedMinor } = invoiceRounding(0n, 250, 'IQD');
+    expect(roundedMinor).toBe(0n);
+    expect(paymentCheck({ totalMinor: roundedMinor, payments: [] })).toEqual({ ok: true, paidMinor: 0n, changeMinor: 0n });
+  });
+});
+
 describe('returnLimits', () => {
   it('allows up to what is left', () => {
     expect(returnLimits({ soldBaseQty: 10n, returnedBaseQty: 3n, requestedBaseQty: 7n })).toEqual({ ok: true, remainingBaseQty: 7n });
     expect(returnLimits({ soldBaseQty: 10n, returnedBaseQty: 3n, requestedBaseQty: 1n })).toEqual({ ok: true, remainingBaseQty: 7n });
+  });
+  it('refuses a quantity above the 32-bit cap', () => {
+    expect(returnLimits({ soldBaseQty: MAX_QTY + 1n, returnedBaseQty: 0n, requestedBaseQty: 1n })).toMatchObject({ ok: false, reason: 'INVALID_QUANTITY' });
   });
   it('refuses more than is left, nothing, and inconsistent history', () => {
     expect(returnLimits({ soldBaseQty: 10n, returnedBaseQty: 3n, requestedBaseQty: 8n })).toEqual({ ok: false, remainingBaseQty: 7n, reason: 'EXCEEDS_SOLD' });
@@ -329,6 +384,54 @@ describe('refundForReturn', () => {
   });
 });
 
+describe('saleRefundTotal (rounding comes back with the final return)', () => {
+  it('a partial return refunds its lines; the final one refunds what is left including the rounding difference', () => {
+    // Lines add up to 1237, rounded up to 1250 (rounding +13).
+    expect(saleRefundTotal({ totalMinor: 1250n, alreadyRefundedMinor: 0n, isFinalReturn: false, lineRefundSumMinor: 600n, roundingMinor: 13n })).toBe(600n);
+    expect(saleRefundTotal({ totalMinor: 1250n, alreadyRefundedMinor: 600n, isFinalReturn: true, lineRefundSumMinor: 637n, roundingMinor: 13n })).toBe(650n);
+  });
+  it('rounded down: the final return refunds less than its lines', () => {
+    expect(saleRefundTotal({ totalMinor: 1000n, alreadyRefundedMinor: 400n, isFinalReturn: true, lineRefundSumMinor: 720n, roundingMinor: -120n })).toBe(600n);
+  });
+  it('a partial return never refunds above what is left of the sale', () => {
+    expect(saleRefundTotal({ totalMinor: 1000n, alreadyRefundedMinor: 900n, isFinalReturn: false, lineRefundSumMinor: 500n, roundingMinor: 0n })).toBe(100n);
+    expect(saleRefundTotal({ totalMinor: 1000n, alreadyRefundedMinor: 0n, isFinalReturn: false, lineRefundSumMinor: 1120n, roundingMinor: -120n })).toBe(1000n);
+  });
+  it('refuses a history above the total', () => {
+    expect(code(() => saleRefundTotal({ totalMinor: 10n, alreadyRefundedMinor: 11n, isFinalReturn: true, lineRefundSumMinor: 0n, roundingMinor: 0n }))).toBe('INVALID_AMOUNT');
+  });
+  it('property: any partial sequence ending in a full return refunds exactly the total, never above at any step', () => {
+    const r = rng(7);
+    const steps = [0, 25, 50, 250, 500, 1000, 5000];
+    for (let i = 0; i < 300; i++) {
+      const n = 1 + Math.floor(r() * 5);
+      const lns = Array.from({ length: n }, () => ({ total: pick(r, MAX_AMOUNT_MINOR / 10n), qty: 1n + pick(r, 12n), returned: 0n, refunded: 0n }));
+      const lineSum = lns.reduce((s, l) => s + l.total, 0n);
+      const { roundedMinor, roundingMinor } = invoiceRounding(lineSum, steps[Math.floor(r() * steps.length)]!, 'IQD');
+      let refunded = 0n;
+      for (;;) {
+        const open = lns.filter((l) => l.returned < l.qty);
+        if (open.length === 0) break;
+        let lineRefundSum = 0n;
+        for (const l of open) {
+          if (r() < 0.5 && open.length > 1) continue;
+          const take = 1n + pick(r, l.qty - l.returned - 1n);
+          const part = refundForReturn({ lineTotalMinor: l.total, lineBaseQty: l.qty, returnBaseQty: take, alreadyReturnedBaseQty: l.returned, alreadyRefundedMinor: l.refunded });
+          l.returned += take;
+          l.refunded += part;
+          lineRefundSum += part;
+        }
+        const isFinalReturn = lns.every((l) => l.returned === l.qty);
+        const part = saleRefundTotal({ totalMinor: roundedMinor, alreadyRefundedMinor: refunded, isFinalReturn, lineRefundSumMinor: lineRefundSum, roundingMinor });
+        expect(part >= 0n).toBe(true);
+        refunded += part;
+        expect(refunded <= roundedMinor).toBe(true);
+      }
+      expect(refunded).toBe(roundedMinor);
+    }
+  });
+});
+
 describe('expectedCash and shiftVariance', () => {
   it('opening + cash sales - change - refunds + paid in - paid out', () => {
     expect(expectedCash({ openingFloat: 10000n, cashSales: 50000n, cashChange: 2000n, cashRefunds: 3000n, paidIn: 500n, paidOut: 1500n })).toBe(54000n);
@@ -353,12 +456,17 @@ describe('saleNumber', () => {
     expect(saleNumber('2026-10-28T23:59:59.000Z', 1)).toBe('20261028-000001');
     expect(saleNumber('2026-01-02', 999999)).toBe('20260102-999999');
   });
+  it('converts an offset timestamp to its UTC day', () => {
+    expect(saleNumber('2026-10-28T23:30:00-02:00', 5)).toBe('20261029-000005');
+  });
   it('keeps going past six digits instead of wrapping', () => {
     expect(saleNumber('2026-10-28', 1234567)).toBe('20261028-1234567');
   });
   it('refuses a bad date or sequence', () => {
     expect(code(() => saleNumber('28/10/2026', 1))).toBe('INVALID_DATE');
     expect(code(() => saleNumber('2026-13-40', 1))).toBe('INVALID_DATE');
+    expect(code(() => saleNumber('2026-02-30', 1))).toBe('INVALID_DATE');
+    expect(code(() => saleNumber('2026-10-28T10:00:00', 1))).toBe('INVALID_DATE'); // a time without Z or an offset is ambiguous
     expect(code(() => saleNumber('2026-10-28', 0))).toBe('INVALID_SEQUENCE');
     expect(code(() => saleNumber('2026-10-28', 1.5))).toBe('INVALID_SEQUENCE');
   });

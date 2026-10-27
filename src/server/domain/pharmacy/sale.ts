@@ -16,6 +16,8 @@
 export const PG_BIGINT_MAX = 9223372036854775807n;
 /** An application sanity cap on any single amount (10^15 minor units), far below the Postgres limit. */
 export const MAX_AMOUNT_MINOR = 10n ** 15n;
+/** A quantity (sold or base) fits a 32-bit integer column. */
+export const MAX_QTY = 2147483647n;
 /** The invoice rounding steps a branch may choose (0 = none). */
 export const ROUNDING_STEPS = [0, 25, 50, 250, 500, 1000, 5000] as const;
 export type RoundingStep = (typeof ROUNDING_STEPS)[number];
@@ -27,6 +29,7 @@ export type SaleMathCode =
   | 'INVALID_AMOUNT'
   | 'INVALID_DISCOUNT'
   | 'INVALID_ROUNDING_STEP'
+  | 'ROUNDING_NOT_FOR_CURRENCY'
   | 'INVALID_DATE'
   | 'INVALID_SEQUENCE'
   | 'INVALID_DAYS'
@@ -55,7 +58,7 @@ function amount(value: bigint): bigint {
 export function lineGross(qty: bigint, unitPriceMinor: bigint): bigint {
   if (qty < 1n) throw new SaleMathError('INVALID_QUANTITY', 'A line needs at least one unit');
   if (unitPriceMinor < 0n) throw new SaleMathError('INVALID_PRICE', 'A price cannot be negative');
-  if (qty > PG_BIGINT_MAX || unitPriceMinor > PG_BIGINT_MAX) throw new SaleMathError('OVERFLOW');
+  if (qty > MAX_QTY || unitPriceMinor > PG_BIGINT_MAX) throw new SaleMathError('OVERFLOW');
   const gross = qty * unitPriceMinor;
   if (gross > MAX_AMOUNT_MINOR) throw new SaleMathError('OVERFLOW', 'The line total is above the allowed maximum');
   return gross;
@@ -107,11 +110,15 @@ export function invoiceDiscountAllocation(lines: readonly { totalMinor: bigint }
   return parts;
 }
 
-/** The invoice total rounded to the nearest step (a tie goes up) and the signed difference. Step 0 changes nothing. */
-export function invoiceRounding(totalMinor: bigint, stepMinor: number): { roundedMinor: bigint; roundingMinor: bigint } {
+/**
+ * The invoice total rounded to the nearest step (a tie goes up) and the signed difference. Step 0 changes nothing.
+ * Only IQD is rounded: a non-zero step with any other currency is REFUSED (ROUNDING_NOT_FOR_CURRENCY), never silently ignored.
+ */
+export function invoiceRounding(totalMinor: bigint, stepMinor: number, currency: 'IQD' | 'USD'): { roundedMinor: bigint; roundingMinor: bigint } {
   if (!(ROUNDING_STEPS as readonly number[]).includes(stepMinor)) {
     throw new SaleMathError('INVALID_ROUNDING_STEP', 'The rounding step is not one of the allowed steps');
   }
+  if (stepMinor !== 0 && currency !== 'IQD') throw new SaleMathError('ROUNDING_NOT_FOR_CURRENCY', 'Only IQD invoices are rounded');
   amount(totalMinor);
   if (stepMinor === 0) return { roundedMinor: totalMinor, roundingMinor: 0n };
   const step = BigInt(stepMinor);
@@ -125,7 +132,7 @@ export interface PaymentInput {
 }
 export type PaymentCheck =
   | { ok: true; paidMinor: bigint; changeMinor: bigint }
-  | { ok: false; reason: 'SHORT' | 'NON_CASH_OVERPAY' | 'INVALID_PAYMENT'; paidMinor: bigint; changeMinor: 0n };
+  | { ok: false; reason: 'SHORT' | 'NON_CASH_OVERPAY' | 'CASH_NOT_NEEDED' | 'INVALID_PAYMENT'; paidMinor: bigint; changeMinor: 0n };
 
 const METHODS: readonly string[] = ['CASH', 'CARD_MANUAL', 'TRANSFER_MANUAL'];
 
@@ -138,11 +145,14 @@ export function paymentCheck(input: { totalMinor: bigint; payments: readonly Pay
   let paid = 0n;
   let nonCash = 0n;
   for (const p of input.payments) {
-    if (!METHODS.includes(p.method) || p.amountMinor <= 0n) return { ok: false, reason: 'INVALID_PAYMENT', paidMinor: 0n, changeMinor: 0n };
+    if (!METHODS.includes(p.method) || p.amountMinor <= 0n || p.amountMinor > MAX_AMOUNT_MINOR) return { ok: false, reason: 'INVALID_PAYMENT', paidMinor: 0n, changeMinor: 0n };
     paid += p.amountMinor;
     if (p.method !== 'CASH') nonCash += p.amountMinor;
+    if (paid > MAX_AMOUNT_MINOR) return { ok: false, reason: 'INVALID_PAYMENT', paidMinor: 0n, changeMinor: 0n };
   }
+  const cash = paid - nonCash;
   if (nonCash > total) return { ok: false, reason: 'NON_CASH_OVERPAY', paidMinor: paid, changeMinor: 0n };
+  if (cash > 0n && nonCash >= total) return { ok: false, reason: 'CASH_NOT_NEEDED', paidMinor: paid, changeMinor: 0n };
   if (paid < total) return { ok: false, reason: 'SHORT', paidMinor: paid, changeMinor: 0n };
   return { ok: true, paidMinor: paid, changeMinor: paid - total };
 }
@@ -172,6 +182,30 @@ export function discountPolicy(input: {
   return input.canOverLimit ? 'needs_over_limit' : 'forbidden';
 }
 
+/**
+ * Line and invoice discounts judged together: the total given away and its share of the total gross in whole basis
+ * points (rounded down). Feed `totalDiscountMinor` and `grossMinor` to discountPolicy, so 5% on a line plus 5% on the
+ * invoice is judged as the combined figure, not as two small ones.
+ */
+export function effectiveDiscount(input: {
+  lines: readonly { grossMinor: bigint; lineDiscountMinor: bigint }[];
+  invoiceDiscountMinor: bigint;
+}): { grossMinor: bigint; totalDiscountMinor: bigint; basisPoints: number } {
+  let gross = 0n;
+  let lineDiscounts = 0n;
+  for (const l of input.lines) {
+    amount(l.grossMinor);
+    if (l.lineDiscountMinor < 0n || l.lineDiscountMinor > l.grossMinor) throw new SaleMathError('INVALID_DISCOUNT', 'A line discount must fit its line');
+    gross += l.grossMinor;
+    lineDiscounts += l.lineDiscountMinor;
+  }
+  if (input.invoiceDiscountMinor < 0n) throw new SaleMathError('INVALID_DISCOUNT', 'A discount cannot be negative');
+  if (input.invoiceDiscountMinor > gross - lineDiscounts) throw new SaleMathError('DISCOUNT_EXCEEDS_TOTAL', 'The discount is more than the lines add up to');
+  const totalDiscountMinor = lineDiscounts + input.invoiceDiscountMinor;
+  const basisPoints = gross === 0n ? 0 : Number((totalDiscountMinor * BASIS) / gross);
+  return { grossMinor: gross, totalDiscountMinor, basisPoints };
+}
+
 export type ReturnLimit =
   | { ok: true; remainingBaseQty: bigint }
   | { ok: false; remainingBaseQty: bigint; reason: 'EXCEEDS_SOLD' | 'INVALID_QUANTITY' };
@@ -179,7 +213,7 @@ export type ReturnLimit =
 /** A return is limited to what was sold minus what already came back. */
 export function returnLimits(input: { soldBaseQty: bigint; returnedBaseQty: bigint; requestedBaseQty: bigint }): ReturnLimit {
   const { soldBaseQty, returnedBaseQty, requestedBaseQty } = input;
-  if (soldBaseQty < 1n || returnedBaseQty < 0n || returnedBaseQty > soldBaseQty || requestedBaseQty < 1n) {
+  if (soldBaseQty < 1n || soldBaseQty > MAX_QTY || returnedBaseQty < 0n || returnedBaseQty > soldBaseQty || requestedBaseQty < 1n) {
     return { ok: false, remainingBaseQty: 0n, reason: 'INVALID_QUANTITY' };
   }
   const remainingBaseQty = soldBaseQty - returnedBaseQty;
@@ -199,7 +233,7 @@ export function refundForReturn(input: {
   alreadyRefundedMinor: bigint;
 }): bigint {
   const { lineTotalMinor, lineBaseQty, returnBaseQty, alreadyReturnedBaseQty, alreadyRefundedMinor } = input;
-  if (lineBaseQty < 1n || returnBaseQty < 1n || alreadyReturnedBaseQty < 0n || alreadyReturnedBaseQty + returnBaseQty > lineBaseQty) {
+  if (lineBaseQty < 1n || lineBaseQty > MAX_QTY || returnBaseQty < 1n || alreadyReturnedBaseQty < 0n || alreadyReturnedBaseQty + returnBaseQty > lineBaseQty) {
     throw new SaleMathError('INVALID_QUANTITY', 'The returned quantity does not fit the line');
   }
   amount(lineTotalMinor);
@@ -210,6 +244,32 @@ export function refundForReturn(input: {
   const target = returnedAfter === lineBaseQty ? lineTotalMinor : (lineTotalMinor * returnedAfter) / lineBaseQty;
   const refund = target - alreadyRefundedMinor;
   return refund > 0n ? refund : 0n;
+}
+
+/**
+ * What one return refunds at sale level. A partial return refunds the sum of its line refunds, but never more than is
+ * left of the sale total. The return that completes the sale (every line fully returned) refunds everything still
+ * unrefunded, so the invoice rounding difference goes back too and the refunds over all returns equal `totalMinor`
+ * (what was paid net of change) exactly, never above it at any step.
+ */
+export function saleRefundTotal(input: {
+  totalMinor: bigint;
+  alreadyRefundedMinor: bigint;
+  isFinalReturn: boolean;
+  lineRefundSumMinor: bigint;
+  roundingMinor: bigint;
+}): bigint {
+  const { totalMinor, alreadyRefundedMinor, isFinalReturn, lineRefundSumMinor, roundingMinor } = input;
+  amount(totalMinor);
+  amount(lineRefundSumMinor);
+  if (alreadyRefundedMinor < 0n || alreadyRefundedMinor > totalMinor) throw new SaleMathError('INVALID_AMOUNT', 'The refund history does not fit the sale total');
+  const left = totalMinor - alreadyRefundedMinor;
+  if (isFinalReturn) return left;
+  // Without the rounding difference the lines add up to total - rounding; a partial return never goes past that.
+  const lineCeiling = totalMinor - roundingMinor - alreadyRefundedMinor;
+  const room = lineCeiling < left ? lineCeiling : left;
+  const cap = room > 0n ? room : 0n;
+  return lineRefundSumMinor < cap ? lineRefundSumMinor : cap;
 }
 
 /**
@@ -235,7 +295,8 @@ export function shiftVariance(counted: bigint, expected: bigint): bigint {
 
 /** `YYYYMMDD-000123`: the UTC day of the sale and its per-branch sequence (more than six digits when it needs them). */
 export function saleNumber(dateISO: string, sequence: number): string {
-  const m = /^(\d{4})-(\d{2})-(\d{2})(T.*)?$/.exec(dateISO);
+  // A date alone, or a full timestamp with Z or an offset (a time without one is ambiguous and refused).
+  const m = /^(\d{4})-(\d{2})-(\d{2})(T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))?$/.exec(dateISO);
   const parsed = m ? new Date(m[4] ? dateISO : `${dateISO}T00:00:00.000Z`) : null;
   if (!m || !parsed || Number.isNaN(parsed.getTime())) throw new SaleMathError('INVALID_DATE', 'Not an ISO date');
   const day = parsed.toISOString().slice(0, 10);
