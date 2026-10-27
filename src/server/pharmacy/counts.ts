@@ -454,6 +454,7 @@ export interface CountLineView {
   batchId: string;
   lot: string;
   expiryDate: string;
+  expiryPrecision: 'DAY' | 'MONTH';
   countedQty: number | null;
   /** Absent (not null) while a blind count is OPEN. */
   expectedQty?: number;
@@ -485,7 +486,7 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
           countedQty: true,
           product: { select: { tradeName: true } },
           batch: {
-            select: { lot: true, expiryDate: true, unitCostMinor: true, costCurrency: true, costUnit: { select: { label: true, baseQty: true } } },
+            select: { lot: true, expiryDate: true, expiryPrecision: true, unitCostMinor: true, costCurrency: true, costUnit: { select: { label: true, baseQty: true } } },
           },
         },
       },
@@ -504,6 +505,7 @@ export async function getCount(scoped: ScopedClient, ph: PhActor, countId: strin
       batchId: l.batchId,
       lot: l.batch.lot,
       expiryDate: l.batch.expiryDate.toISOString().slice(0, 10),
+      expiryPrecision: l.batch.expiryPrecision,
       countedQty: l.countedQty,
       ...(hidden ? {} : { expectedQty: l.expectedQty }),
       ...(!hidden && l.countedQty !== null ? { difference: l.countedQty - l.expectedQty } : {}),
