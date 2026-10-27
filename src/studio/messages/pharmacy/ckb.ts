@@ -437,6 +437,9 @@ const pharmacy: Messages = {
   'error.text.phReturnWindow': 'ئەم فرۆشتنە کۆنترە لەوەی بەبێ بەڕێوەبەر بگەڕێتەوە',
   'error.text.phRefundNotPaid': 'ئەم فرۆشتنە بەم شێوازە نەدراوە',
   'error.text.phReturnNotFound': 'گەڕاندنەوەکە نەدۆزرایەوە',
+  'error.text.phHoldNotFound': 'سەبەتە ڕاگیراوەکە نەدۆزرایەوە',
+  'error.text.phHoldNotAvailable': 'ئەم سەبەتە ڕاگیراوە پێشتر بەکارهاتووە یان سڕاوەتەوە',
+  'error.text.phHoldExpired': 'ماوەی ئەم سەبەتە ڕاگیراوە بەسەرچووە',
   // Stock and movement screens
   'pharmacy.nav.stock': 'کۆگا',
   'pharmacy.nav.movements': 'جووڵەکانی کۆگا',

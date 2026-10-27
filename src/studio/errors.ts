@@ -487,6 +487,9 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This sale is too old to return without a manager': 'error.text.phReturnWindow',
   'This sale was not paid this way': 'error.text.phRefundNotPaid',
   'Return not found': 'error.text.phReturnNotFound',
+  'Held cart not found': 'error.text.phHoldNotFound',
+  'This held cart was already used or discarded': 'error.text.phHoldNotAvailable',
+  'This held cart has expired': 'error.text.phHoldExpired',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

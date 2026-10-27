@@ -50,7 +50,7 @@ export const MAX_PAYMENTS = 10;
 export const SALE_TIMEOUT_MS = 60_000;
 const MAX_INT = 2_147_483_647;
 /** Advisory lock namespaces of this file (first int of the two-int form). */
-const NS_KEY = 7101;
+export const NS_KEY = 7101;
 const NS_NUMBER = 7102;
 const WHOLE = 'Enter a whole number';
 
@@ -94,14 +94,16 @@ export const saleInput = z.object({
   invoiceDiscount: discountInput.optional(),
   payments: z.array(salePaymentInput).max(MAX_PAYMENTS, 'Use at most 10 payments'),
   note: z.string().trim().max(1000, 'Use at most 1000 characters').default(''),
+  /** A held cart this sale completes: the hold is consumed in the same transaction (exactly one completion wins). */
+  fromHoldId: z.string().min(1).max(64).optional(),
 });
 export type SaleInput = z.infer<typeof saleInput>;
 
 // Refusals ------------------------------------------------------------------------------------------------------------
 
-const invalid = (field: string, message: string, phCode?: string, extra: Record<string, string> = {}) =>
+export const invalid = (field: string, message: string, phCode?: string, extra: Record<string, string> = {}) =>
   new StudioError('INVALID', message, { [field]: message, ...(phCode ? { phCode } : {}), ...extra });
-const conflict = (phCode: string, message: string, extra: Record<string, string> = {}) => new StudioError('CONFLICT', message, { phCode, ...extra });
+export const conflict = (phCode: string, message: string, extra: Record<string, string> = {}) => new StudioError('CONFLICT', message, { phCode, ...extra });
 
 const insufficient = (product: { id: string; tradeName: string }, available: number, requested: number) =>
   conflict('INSUFFICIENT_STOCK', 'Not enough sellable stock for this product', {
@@ -112,7 +114,7 @@ const insufficient = (product: { id: string; tradeName: string }, available: num
   });
 
 /** The amount arithmetic refuses an input: say which field, in the person's terms. */
-function math<T>(field: string, run: () => T): T {
+export function math<T>(field: string, run: () => T): T {
   try {
     return run();
   } catch (error) {
@@ -131,7 +133,7 @@ function percentToBp(value: number, field: string): number {
   return bp;
 }
 
-function discountOf(gross: bigint, d: DiscountInput | undefined, field: string): bigint {
+export function discountOf(gross: bigint, d: DiscountInput | undefined, field: string): bigint {
   if (!d) return 0n;
   if (d.kind === 'amount' && d.value > gross) throw invalid(`${field}.value`, 'The discount is more than the sale', 'DISCOUNT_TOO_LARGE');
   const asked: LineDiscountInput = d.kind === 'amount' ? { kind: 'amount', value: d.value } : { kind: 'percent', value: percentToBp(d.value, `${field}.value`) };
@@ -150,6 +152,8 @@ export function payloadHash(input: SaleInput): string {
     d(input.invoiceDiscount),
     input.lines.map((l) => [l.productId, l.unitId, l.qty, l.batchId ?? null, l.batchReason ?? '', l.unitPriceMinor === undefined ? null : String(l.unitPriceMinor), l.priceOverrideReason ?? '', d(l.discount)]),
     input.payments.map((p) => [p.method, String(p.amountMinor), p.reference, p.clientKey]),
+    // Only when present, so the hash of a sale that completes no hold is what it always was.
+    ...(input.fromHoldId === undefined ? [] : [input.fromHoldId]),
   ];
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
@@ -182,6 +186,8 @@ export interface SaleAudit {
   priceOverrides: number;
   batchOverrides: number;
   discountMinor: string;
+  /** The hold this sale consumed, when it completed one. */
+  fromHoldId: string | null;
 }
 
 interface SaleRow {
@@ -280,6 +286,8 @@ export async function createSale(
     },
   });
   if (earlier) {
+    // The key belongs to a hold (live or expired), not to a sale: a completing sale cannot reuse it.
+    if (earlier.status === 'HELD' || earlier.status === 'HOLD_EXPIRED') throw conflict('CLIENT_KEY_USED', 'This key was already used');
     // A sale stored without a hash (none are written without one today) replays for the same branch and user only.
     if (earlier.branchId !== branchId || earlier.soldById !== ph.userId || (earlier.payloadHash !== null && earlier.payloadHash !== hash)) {
       throw conflict('CLIENT_KEY_MISMATCH', 'This key was already used for a different sale');
@@ -295,6 +303,18 @@ export async function createSale(
   // eslint-disable-next-line no-restricted-properties -- a row lock on the seller's own shift, found above through the scoped client
   const heldShift = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhShift" WHERE "id" = ${shift.id} AND "status" = 'OPEN' FOR SHARE`;
   if (heldShift.length !== 1) throw conflict('NO_OPEN_SHIFT', 'Open a shift before selling');
+
+  // Completing a hold: it is consumed here, in this transaction, by a guarded delete (its lines go with it). Two
+  // completions of one hold: the second waits on the row, then finds it gone. A later failure rolls the delete back.
+  // Any seller of the branch may complete it (holds are branch-level); the cash goes into THIS seller's shift, above.
+  if (input.fromHoldId !== undefined) {
+    const consumed = await tx.phSale.deleteMany({ where: { id: input.fromHoldId, branchId, status: 'HELD', heldUntil: { gt: now } } });
+    if (consumed.count !== 1) {
+      const stale = await tx.phSale.findFirst({ where: { id: input.fromHoldId, branchId, status: { in: ['HELD', 'HOLD_EXPIRED'] } }, select: { id: true } });
+      if (stale) throw conflict('HOLD_EXPIRED', 'This held cart has expired');
+      throw conflict('HOLD_NOT_AVAILABLE', 'This held cart was already used or discarded');
+    }
+  }
 
   const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true } });
   // The column is CHECKed 0..100; clamp anyway so a bad row is never a 500.
@@ -687,6 +707,7 @@ export async function createSale(
       priceOverrides,
       batchOverrides,
       discountMinor: String(discountMinor),
+      fromHoldId: input.fromHoldId ?? null,
     },
   };
 }

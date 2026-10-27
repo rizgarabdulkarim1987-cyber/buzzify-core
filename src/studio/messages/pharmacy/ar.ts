@@ -437,6 +437,9 @@ const pharmacy: Messages = {
   'error.text.phReturnWindow': 'هذه العملية أقدم من أن تُرجع دون مدير',
   'error.text.phRefundNotPaid': 'لم تدفع هذه العملية بهذه الطريقة',
   'error.text.phReturnNotFound': 'لم يتم العثور على الإرجاع',
+  'error.text.phHoldNotFound': 'لم يتم العثور على السلة المعلّقة',
+  'error.text.phHoldNotAvailable': 'تم استخدام هذه السلة المعلّقة أو حذفها من قبل',
+  'error.text.phHoldExpired': 'انتهت صلاحية هذه السلة المعلّقة',
   // Stock and movement screens
   'pharmacy.nav.stock': 'المخزون',
   'pharmacy.nav.movements': 'حركات المخزون',

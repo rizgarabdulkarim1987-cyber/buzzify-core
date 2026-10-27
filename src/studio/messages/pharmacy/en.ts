@@ -443,6 +443,9 @@ const pharmacy: Messages = {
   'error.text.phReturnWindow': 'This sale is too old to return without a manager',
   'error.text.phRefundNotPaid': 'This sale was not paid this way',
   'error.text.phReturnNotFound': 'Return not found',
+  'error.text.phHoldNotFound': 'Held cart not found',
+  'error.text.phHoldNotAvailable': 'This held cart was already used or discarded',
+  'error.text.phHoldExpired': 'This held cart has expired',
   // Stock and movement screens
   'pharmacy.nav.stock': 'Stock',
   'pharmacy.nav.movements': 'Stock movements',
