@@ -44,7 +44,7 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     await openStyles(page);
     const cards = page.locator('ul[data-styles] > li');
     await expect(cards).toHaveCount(35);
-    await expect(page.getByText(en('design.filter.stylesCount_other', { count: 35 }))).toBeVisible();
+    await expect(page.getByText(en('design.filter.stylesCount_other', { count: 36 }))).toBeVisible();
     // Every catalog style maps to a template, so none is coming soon (the coming-soon path stays for a future style).
     expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(MENU_STYLES.length);
     await expect(cards.getByText(en('design.comingSoon'), { exact: true })).toHaveCount(0);

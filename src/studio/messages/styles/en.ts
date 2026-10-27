@@ -43,5 +43,6 @@ export default styleMessages(
     'layout-2-frg': ['The Fridge', 'The doors open on glass shelves of tubs and jars'],
     'layout-2-bnt': ['Bento Box', 'A lid lifts to show compartments of dishes with paper flags'],
     'layout-2-box': ['Mailbox Wall', 'Brass mailboxes with each dish behind a glass window'],
+    'heritage-crazy-misb': ['The Prayer Beads', 'One amber misbaha: every dish a bead on the thread, every section a tassel'],
   },
 );

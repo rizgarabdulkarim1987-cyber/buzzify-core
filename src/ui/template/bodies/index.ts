@@ -49,4 +49,5 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   printer: dynamic(() => import('./PrinterBody').then((m) => m.PrinterBody)),
   ink: dynamic(() => import('./InkBody').then((m) => m.InkBody)),
   steam: dynamic(() => import('./SteamBody').then((m) => m.SteamBody)),
+  spine: dynamic(() => import('./SpineBody').then((m) => m.SpineBody)),
 };

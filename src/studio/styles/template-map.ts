@@ -42,6 +42,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'themed-win': 'the-frosted-window',
   'themed-sum': 'the-summer-beach',
   'themed-prn': 'the-3d-printer',
+  'heritage-crazy-misb': 'the-prayer-beads',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

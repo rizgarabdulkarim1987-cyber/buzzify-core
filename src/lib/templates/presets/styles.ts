@@ -1020,4 +1020,33 @@ export const theThreeDPrinter = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow, theSummerBeach, theThreeDPrinter];
+export const thePrayerBeads = definePreset({
+  id: 'the-prayer-beads',
+  number: 66,
+  name: 'The Prayer Beads',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#0D2219', text: '#F6E7C1', accent: '#F0B429', raised: '#16362A' },
+  alternatives: [
+    { id: 'garnet', name: 'Garnet', seed: { bg: '#2A0F1A', text: '#F7E6D6', accent: '#E9A23B', raised: '#3A1724' } },
+    { id: 'ivory-amber', name: 'Ivory amber', seed: { bg: '#F6EEDD', text: '#2B1C0E', accent: '#B5651D', raised: '#FFF9EC' } },
+    { id: 'turquoise', name: 'Turquoise', seed: { bg: '#0B2630', text: '#EAF4F0', accent: '#E8B04A', raised: '#12363F' } },
+  ],
+  type: { fontPairId: 'palace', scale: 1.0 },
+  layout: {
+    body: 'spine',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow, theSummerBeach, theThreeDPrinter, thePrayerBeads];
