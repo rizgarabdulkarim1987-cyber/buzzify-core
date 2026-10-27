@@ -88,6 +88,8 @@ describe('the cashier, start to finish', () => {
         takeawayEnabled: false,
         deliveryEnabled: false,
         complaintsEnabled: settings.complaintsEnabled,
+        idleMinutes: settings.idleMinutes,
+        requireApproval: settings.requireApproval,
         version: settings.version,
       }),
     );

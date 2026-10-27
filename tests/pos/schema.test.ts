@@ -38,6 +38,8 @@ describe('PosSettings', () => {
       takeawayEnabled: false,
       deliveryEnabled: false,
       complaintsEnabled: false,
+      idleMinutes: 15,
+      requireApproval: true,
       tableRingMinutes: 60,
       catalogMenuId: null,
       version: 1,
