@@ -329,6 +329,18 @@ describe('support access grants', () => {
     expect(codeOf(ok)).toBe('OK');
   });
 
+  it('recordConsent compares user ids, not only emails: the recorder under another address is still refused', async () => {
+    const a = await pharmacy('A');
+    const admin = await person('admin', { superAdmin: true });
+    const actor = await actorOf(admin); // loaded with the old address
+    await prisma().user.update({ where: { id: admin.userId }, data: { email: 'renamed-admin@ph-test.example' } });
+    const input = { ...goodGrant('renamed-admin@ph-test.example'), restaurantId: a.id, consentRef: 'Signed letter 2026-118', scopes: ['catalog.read'] };
+    const result = await act(actor, supportAccess.recordConsent, input);
+    expect(codeOf(result)).toBe('INVALID');
+    if (!result.ok) expect(result.error.message).toContain('CONSENT_SELF');
+    expect(await prisma().supportAccessGrant.count()).toBe(0);
+  });
+
   it('a support actor cannot run any write action', async () => {
     const a = await pharmacy('A');
     const admin = await person('admin', { superAdmin: true });

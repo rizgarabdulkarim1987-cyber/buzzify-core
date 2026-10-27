@@ -107,6 +107,7 @@ export const recordConsent = defineAction({
         input,
         { approvedByUserId: null, consentRef: input.consentRef },
         new Date(),
+        ctx.actor.userId,
       );
       ctx.audit({
         action: 'support.grant',
