@@ -413,6 +413,8 @@ const posTill: Messages = {
   'pos.report.cancelledHint': 'داواکاری / دێڕ',
   'pos.report.noShifts': 'لەم ڕۆژەدا شیفت نییە',
   'pos.report.stillOpen': 'هێشتا کراوەیە',
+  'pos.report.xReport': 'ڕاپۆرتی X · هێشتا کراوەیە',
+  'pos.report.zReport': 'ڕاپۆرتی Z ژمارە {n}',
   'pos.report.closed': 'داخراوە',
   'pos.report.noReason': 'بێ هۆکار',
   'pos.report.openShift': 'کردنەوەی شیفت',

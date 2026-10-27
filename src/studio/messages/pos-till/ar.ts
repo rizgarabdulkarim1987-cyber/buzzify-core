@@ -413,6 +413,8 @@ const posTill: Messages = {
   'pos.report.cancelledHint': 'طلبات / بنود',
   'pos.report.noShifts': 'لا ورديات في هذا اليوم',
   'pos.report.stillOpen': 'ما زالت مفتوحة',
+  'pos.report.xReport': 'تقرير X · ما زالت مفتوحة',
+  'pos.report.zReport': 'تقرير Z رقم {n}',
   'pos.report.closed': 'مغلقة',
   'pos.report.noReason': 'بلا سبب',
   'pos.report.openShift': 'فتح الوردية',

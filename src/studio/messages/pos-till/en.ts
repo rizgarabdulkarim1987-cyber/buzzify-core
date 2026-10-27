@@ -413,6 +413,8 @@ const posTill: Messages = {
   'pos.report.cancelledHint': 'orders / lines',
   'pos.report.noShifts': 'No shifts on this day',
   'pos.report.stillOpen': 'Still open',
+  'pos.report.xReport': 'X report · still open',
+  'pos.report.zReport': 'Z report No. {n}',
   'pos.report.closed': 'Closed',
   'pos.report.noReason': 'No reason',
   'pos.report.openShift': 'Open the shift',
