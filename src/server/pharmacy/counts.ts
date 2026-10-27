@@ -88,7 +88,7 @@ export async function openCount(
     productWhere = { categoryId: category.id };
   } else if (input.scope === 'LOCATION') {
     scopeValue = input.location!;
-    productWhere = { shelfLocation: { startsWith: scopeValue, mode: 'insensitive' } };
+    productWhere = { shelfLocation: { startsWith: scopeValue.replace(/[\\%_]/g, '\\$&'), mode: 'insensitive' } };
   }
 
   const balances = await tx.phStockBalance.findMany({
@@ -141,8 +141,12 @@ export async function recordCounts(
   tx: ScopedTx,
   args: { countId: string; userId: string; input: z.infer<typeof countRecordInput> },
 ): Promise<{ id: string; recorded: number; version: number }> {
-  const head = await tx.phStockCount.findFirst({ where: { id: args.countId }, select: { id: true } });
+  const head = await tx.phStockCount.findFirst({ where: { id: args.countId }, select: { id: true, countedById: true } });
   if (!head) throw notFound();
+  // One counter per count: once a line is counted, only that person records (the owner may cancel and reopen).
+  if (head.countedById !== args.userId && (await tx.phStockCountLine.count({ where: { countId: args.countId, countedQty: { not: null } } })) > 0) {
+    throw conflict('Another person is already counting this; cancel it to count again', 'COUNT_OWNED');
+  }
   const ids = args.input.lines.map((l) => l.lineId);
   if (new Set(ids).size !== ids.length) throw invalid('lines', 'A line appears twice');
   const owned = await tx.phStockCountLine.findMany({ where: { countId: args.countId, id: { in: ids } }, select: { id: true } });
@@ -152,10 +156,14 @@ export async function recordCounts(
     throw invalid(`lines.${at}.lineId`, 'This line is not part of this count');
   }
   const won = await tx.phStockCount.updateMany({
-    where: { id: args.countId, status: 'OPEN' },
+    where: { id: args.countId, status: 'OPEN', countedById: head.countedById },
     data: { countedById: args.userId, version: { increment: 1 } },
   });
-  if (won.count !== 1) throw conflict('Only an open count can be changed', 'NOT_OPEN');
+  if (won.count !== 1) {
+    const now = await tx.phStockCount.findFirst({ where: { id: args.countId }, select: { status: true } });
+    if (now?.status === 'OPEN') throw conflict('Another person is already counting this; cancel it to count again', 'COUNT_OWNED');
+    throw conflict('Only an open count can be changed', 'NOT_OPEN');
+  }
   const byQty = new Map<number, string[]>();
   for (const l of args.input.lines) byQty.set(l.countedQty, [...(byQty.get(l.countedQty) ?? []), l.lineId]);
   for (const [qty, lineIds] of byQty) {
@@ -223,7 +231,7 @@ export interface ApproveResult {
   version: number;
   movements: number;
   selfApproved: boolean;
-  lineCount: number;
+  countedLines: number;
   netDifference: number;
   differences: { lineId: string; batchId: string; expected: number; counted: number; difference: number }[];
 }
@@ -240,9 +248,12 @@ export async function approveCount(
 ): Promise<ApproveResult> {
   const head = await tx.phStockCount.findFirst({
     where: { id: args.countId },
-    select: { id: true, status: true, branchId: true, restaurantId: true, countedById: true },
+    select: { id: true, status: true, branchId: true, restaurantId: true, countedById: true, createdAt: true },
   });
   if (!head) throw notFound();
+  // Approvals of one branch queue, so the stale check below sees every earlier approval's movements.
+  // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's count approvals
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-count:${head.branchId}`}))`;
   if (head.status !== 'SUBMITTED') throw conflict('Only a submitted count can be approved', 'NOT_SUBMITTED');
 
   const lines = await tx.phStockCountLine.findMany({
@@ -258,7 +269,32 @@ export async function approveCount(
   });
   const diffs = lockOrder(lines.map((l) => ({ ...l, difference: l.countedQty! - l.expectedQty }))).filter((l) => l.difference !== 0);
   const reason = args.reason.trim();
-  const selfApproved = head.countedById === args.userId;
+  // The counter is the one who recorded; the opener is in the open audit row (the count stores only the counter).
+  const opened = await tx.auditLog.findFirst({
+    where: { action: 'ph.count.open', entityType: 'PhStockCount', entityId: args.countId, restaurantId: head.restaurantId },
+    select: { actorId: true },
+  });
+  const selfApproved = head.countedById === args.userId || opened?.actorId === args.userId;
+
+  // Another count already corrected one of these batches here since this count opened: its numbers are out of date.
+  const stale = await tx.phStockMovement.findFirst({
+    where: {
+      branchId: head.branchId,
+      type: 'COUNT',
+      batchId: { in: lines.map((l) => l.batchId) },
+      createdAt: { gt: head.createdAt },
+      OR: [{ countId: null }, { countId: { not: args.countId } }],
+    },
+    select: { batchId: true },
+  });
+  if (stale) {
+    const line = lines.find((l) => l.batchId === stale.batchId)!;
+    throw conflict(
+      `${line.product.tradeName} (lot ${line.batch.lot}) was already corrected by another count: cancel this count and count again`,
+      'STALE_COUNT',
+      { lineId: line.id, batchId: line.batchId },
+    );
+  }
 
   if (diffs.length > 0) {
     if (reason.length < 3 || reason.length > 300) throw invalid('reason', 'Enter the reason (3 to 300 characters)');
@@ -313,7 +349,7 @@ export async function approveCount(
     version,
     movements: diffs.length,
     selfApproved,
-    lineCount: lines.length,
+    countedLines: lines.length,
     netDifference: diffs.reduce((sum, l) => sum + l.difference, 0),
     differences: diffs.map((l) => ({ lineId: l.id, batchId: l.batchId, expected: l.expectedQty, counted: l.countedQty!, difference: l.difference })),
   };

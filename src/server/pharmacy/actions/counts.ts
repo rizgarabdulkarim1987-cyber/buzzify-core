@@ -138,7 +138,7 @@ export const approve = defineAction({
             status: { before: 'SUBMITTED', after: 'APPROVED' },
             reason: { before: null, after: input.reason },
             selfApproved: { before: null, after: done.selfApproved },
-            lineCount: { before: null, after: done.lineCount },
+            countedLines: { before: null, after: done.countedLines },
             differenceCount: { before: null, after: done.movements },
             netDifference: { before: null, after: done.netDifference },
             differences: { before: null, after: done.differences.slice(0, AUDIT_LINES) },

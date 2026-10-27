@@ -108,6 +108,13 @@ async function countAll(who: Person, w: W, countId: string, counted: Record<stri
 const avail = async (batchId: string, branchId: string) => (await prisma().phStockBalance.findFirst({ where: { batchId, branchId } }))?.available ?? 0;
 const approveInput = (w: W, countId: string, over: Record<string, unknown> = {}) => ({ ...place(w.a), countId, reason: 'Recount found a difference', ...over });
 
+async function submitted(w: W, counted: Record<string, number>, by: Person = w.owner) {
+  const r = await openCount(by, w);
+  dataOf(await countAll(by, w, r.id, counted));
+  dataOf(await act(by, countActions.submit, { ...place(w.a), countId: r.id }));
+  return r;
+}
+
 describe('opening a count', () => {
   it('a branch count snapshots one line per batch with stock in that branch only', async () => {
     const w = await world();
@@ -340,13 +347,6 @@ describe('blind counts and reads', () => {
 });
 
 describe('approving', () => {
-  async function submitted(w: W, counted: Record<string, number>, by: Person = w.owner) {
-    const r = await openCount(by, w);
-    dataOf(await countAll(by, w, r.id, counted));
-    dataOf(await act(by, countActions.submit, { ...place(w.a), countId: r.id }));
-    return r;
-  }
-
   it('a difference needs a reason of 3..300 characters; no difference needs none', async () => {
     const w = await world();
     const r = await submitted(w, { [w.b1.id]: 8 });
@@ -483,6 +483,124 @@ describe('approving', () => {
     const res = await act(w.owner, countActions.approve, approveInput(w, r.id));
     expect(codeOf(res)).toBe('CONFLICT');
     expect(phCodeOf(res)).toBe('NOT_SUBMITTED');
+  });
+});
+
+describe('overlapping counts and one counter', () => {
+  it('a second count of a batch another count already corrected is refused STALE_COUNT; sales alone do not make it stale', async () => {
+    const w = await world();
+    const first = await openCount(w.owner, w);
+    const second = await openCount(w.owner, w);
+    for (const id of [first.id, second.id]) {
+      dataOf(await countAll(w.owner, w, id, { [w.b1.id]: id === first.id ? 8 : 9 }));
+      dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId: id }));
+    }
+    await move(w.a.id, w.a.branchId, w.b2.id, 'SALE', { available: -1 });
+    vi.setSystemTime(new Date(NOW.getTime() + 60_000));
+    dataOf(await act(w.owner, countActions.approve, approveInput(w, first.id)));
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(8);
+    const refused = await act(w.owner, countActions.approve, approveInput(w, second.id));
+    expect(codeOf(refused)).toBe('CONFLICT');
+    expect(phCodeOf(refused)).toBe('STALE_COUNT');
+    expect(refused.ok ? '' : refused.error.message).toContain('Panadol');
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(8);
+    expect(await prisma().phStockMovement.count({ where: { countId: second.id } })).toBe(0);
+    expect((await prisma().phStockCount.findUniqueOrThrow({ where: { id: second.id } })).status).toBe('SUBMITTED');
+    // Cancel and recount works.
+    vi.setSystemTime(new Date(NOW.getTime() + 120_000));
+    dataOf(await act(w.owner, countActions.cancel, { ...place(w.a), countId: second.id }));
+    const again = await submitted(w, { [w.b1.id]: 9 });
+    dataOf(await act(w.owner, countActions.approve, approveInput(w, again.id)));
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(9);
+  });
+
+  it('a count whose batches saw only sales and receipts still approves', async () => {
+    const w = await world();
+    const r = await openCount(w.owner, w);
+    await move(w.a.id, w.a.branchId, w.b1.id, 'SALE', { available: -2 });
+    await move(w.a.id, w.a.branchId, w.b1.id, 'RECEIPT', { available: 5 });
+    dataOf(await countAll(w.owner, w, r.id, { [w.b1.id]: 9 }));
+    dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId: r.id }));
+    dataOf(await act(w.owner, countActions.approve, approveInput(w, r.id)));
+    expect(await avail(w.b1.id, w.a.branchId)).toBe(12);
+  });
+
+  it('one counter per count: a second user cannot record once lines are counted, and cannot dodge the second-person rule', async () => {
+    const w = await world();
+    const a = await person('pic-a', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.a.branchId]] });
+    const b = await person('pic-b', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.a.branchId]] });
+    const r = await openCount(a, w);
+    const lines = await linesOf(r.id);
+    dataOf(await act(a, countActions.record, { ...place(w.a), countId: r.id, lines: [{ lineId: lines[0]!.id, countedQty: 1 }] }));
+    const owned = await act(b, countActions.record, { ...place(w.a), countId: r.id, lines: [{ lineId: lines[1]!.id, countedQty: 2 }] });
+    expect(codeOf(owned)).toBe('CONFLICT');
+    expect(phCodeOf(owned)).toBe('COUNT_OWNED');
+    const after = await linesOf(r.id);
+    expect(after.filter((l) => l.countedQty !== null)).toHaveLength(1);
+    expect((await prisma().phStockCount.findUniqueOrThrow({ where: { id: r.id } })).countedById).toBe(a.userId);
+    // The same counter keeps recording.
+    dataOf(await act(a, countActions.record, { ...place(w.a), countId: r.id, lines: [{ lineId: lines[1]!.id, countedQty: 2 }, { lineId: lines[2]!.id, countedQty: 3 }] }));
+    dataOf(await act(a, countActions.submit, { ...place(w.a), countId: r.id }));
+    expect(phCodeOf(await act(a, countActions.approve, approveInput(w, r.id)))).toBe('SELF_APPROVAL');
+    expect(codeOf(await act(b, countActions.approve, approveInput(w, r.id)))).toBe('OK');
+  });
+
+  it('the opener may not approve even when another user did the counting', async () => {
+    const w = await world();
+    const opener = await person('opener', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.a.branchId]] });
+    const counter = await person('counter', { staff: [w.a.id, 'STOCK', [w.a.branchId]] });
+    const r = await openCount(opener, w);
+    dataOf(await countAll(counter, w, r.id, { [w.b1.id]: 9 }));
+    expect((await prisma().phStockCount.findUniqueOrThrow({ where: { id: r.id } })).countedById).toBe(counter.userId);
+    dataOf(await act(counter, countActions.submit, { ...place(w.a), countId: r.id }));
+    expect(phCodeOf(await act(opener, countActions.approve, approveInput(w, r.id)))).toBe('SELF_APPROVAL');
+    expect(codeOf(await act(w.owner, countActions.approve, approveInput(w, r.id)))).toBe('OK');
+  });
+});
+
+describe('size and matching', () => {
+  it('approves a count of 300 lines well inside the time limit', async () => {
+    const w = await world();
+    const batches = await Promise.all(Array.from({ length: 300 }, (_, i) => makeBatch(w.a.id, w.p1.id, `M${i}`)));
+    await prisma().phStockBalance.createMany({
+      data: batches.map((b) => ({ restaurantId: w.a.id, branchId: w.a.branchId, productId: w.p1.id, batchId: b.id, available: 4 })),
+    });
+    const r = await openCount(w.owner, w, { scope: 'LOCATION', location: 'A-1' });
+    expect(r.lineCount).toBe(300 + 1);
+    const counted: Record<string, number> = {};
+    for (const b of batches) counted[b.id] = 5;
+    dataOf(await countAll(w.owner, w, r.id, counted));
+    dataOf(await act(w.owner, countActions.submit, { ...place(w.a), countId: r.id }));
+    const started = performance.now();
+    const done = dataOf(await act(w.owner, countActions.approve, approveInput(w, r.id)));
+    const seconds = (performance.now() - started) / 1000;
+    expect(done).toMatchObject({ movements: 300, countedLines: 301 });
+    expect(seconds).toBeLessThan(30);
+    expect(await avail(batches[0]!.id, w.a.branchId)).toBe(5);
+  }, 90_000);
+
+  it('a location with % and _ matches literally', async () => {
+    const w = await world();
+    const p = await makeProduct(w.a.id, 'Wild1', { shelfLocation: '50%_x' });
+    const q = await makeProduct(w.a.id, 'Wild2', { shelfLocation: '50ab' });
+    const bp = await makeBatch(w.a.id, p.id, 'W1');
+    const bq = await makeBatch(w.a.id, q.id, 'W2');
+    await move(w.a.id, w.a.branchId, bp.id, 'RECEIPT', { available: 1 });
+    await move(w.a.id, w.a.branchId, bq.id, 'RECEIPT', { available: 1 });
+    const r = await openCount(w.owner, w, { scope: 'LOCATION', location: '50%_' });
+    expect((await linesOf(r.id)).map((l) => l.batchId)).toEqual([bp.id]);
+    const none = await act(w.owner, countActions.open, openInput(w, { scope: 'LOCATION', location: '50_' }));
+    expect(phCodeOf(none)).toBe('EMPTY_SCOPE');
+  });
+
+  it('a deactivated PhStaff row does not count as another approver', async () => {
+    const w = await world();
+    const pic = await person('pic', { staff: [w.a.id, 'PHARMACIST_IN_CHARGE', [w.a.branchId]] });
+    const gone = await person('gone', { staff: [w.a.id, 'BRANCH_MANAGER', [w.a.branchId]] });
+    await prisma().membership.deleteMany({ where: { userId: w.owner.userId } });
+    await prisma().phStaff.updateMany({ where: { userId: gone.userId }, data: { deactivatedAt: NOW } });
+    const r = await submitted(w, { [w.b1.id]: 9 }, pic);
+    expect(dataOf(await act(pic, countActions.approve, approveInput(w, r.id))).selfApproved).toBe(true);
   });
 });
 
