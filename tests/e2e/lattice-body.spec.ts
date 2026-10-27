@@ -14,16 +14,17 @@ import {
   expectQuickAdd,
   expectReadable,
   expectStripStays,
+  expectWordsWhole,
   openMenu,
   paletteIdsOf,
 } from './helpers/body-menu';
 
 /**
- * The Baghdad Shanashil body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a bay of a wooden oriel
- * facade: a carved header board over a band of mashrabiya lattice with a static wave line, then a LIST of wide oriel
- * panes (one column on a phone, two from 768px: an arched photo in a turquoise lattice window at the pane's start, a
- * carved plaque beside it with the name, a line of description and a brass price tag) in a dark wooden panel, closed by
- * a corbelled bracket; a sticky strip of oriel-window chips, each a numbered window with the section's name beside it.
+ * The Baghdad Shanashil body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a MASHRABIYA SCREEN: a
+ * carved header board over a band of lattice with a static wave line, then the dishes as a dense lattice of small window
+ * cells, three across on a phone, in a grid of wooden bars with a bead at each joint: each cell the photo cut to an
+ * octagon on turquoise lattice, a ledge with the brass price tag and the add, the name under it; a corbelled bracket
+ * closes the screen. A sticky strip of oriel-window chips, each a numbered window with the section's name beside it.
  */
 
 const menus = bodyMenus();
@@ -126,7 +127,7 @@ test('the strip stays at the top: scrolled to the end, the first bay is still on
   await expectStripStays(page, strip(page), chipOf(page, 'viennoiserie'), 'viennoiserie');
 });
 
-test('a section is a bay: a carved wooden board with the number, the name and the count, a lattice band with a wave under it, the panel, and a corbelled bracket', async ({ page }) => {
+test('a section is a screen: a carved wooden board with the number, the name and the count, a lattice band with a wave under it, the screen of bars, and a corbelled bracket', async ({ page }) => {
   await openMenu(page, slug);
   const bay = page.locator('#cat-viennoiserie');
   const title = bay.locator('h2');
@@ -142,7 +143,7 @@ test('a section is a bay: a carved wooden board with the number, the name and th
   expect(band.image).toContain('radial-gradient');
   expect(band.height).toBeGreaterThanOrEqual(10);
   const board = (await title.boundingBox())!;
-  const panel = (await bay.locator('.sh-list').boundingBox())!;
+  const panel = (await bay.locator('[data-screen]').boundingBox())!;
   const under = (await bay.locator('[data-heading]').boundingBox())!;
   expect(under.y + under.height).toBeLessThanOrEqual(panel.y + 1);
   expect(Math.abs(board.width - panel.width)).toBeLessThanOrEqual(1);
@@ -155,61 +156,56 @@ test('a section is a bay: a carved wooden board with the number, the name and th
   expect(bracket.height).toBeGreaterThanOrEqual(16);
 });
 
-test('dishes are wide oriel panes one under the other: the arched photo in a turquoise lattice window at the start, the plaque beside it with the name, a line of description and the brass price tag', async ({ page }) => {
+test('dishes are a dense lattice of window cells, three across on a phone, not a list: an octagonal photo on turquoise lattice, the brass tag and the add on a ledge under it, the name under that, a bead on every joint', async ({ page }) => {
   await openMenu(page, slug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   await expect(row).toHaveCount(3);
-  const list = (await page.locator('#cat-viennoiserie .sh-list').boundingBox())!;
+  const screen = (await page.locator('#cat-viennoiserie [data-screen]').boundingBox())!;
   const boxes = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
-  // One column: the same start, each pane below the one before, nearly as wide as the panel.
-  for (const box of boxes.slice(1)) expect(Math.abs(box.x - boxes[0]!.x)).toBeLessThanOrEqual(1);
-  expect(boxes[1]!.y).toBeGreaterThanOrEqual(boxes[0]!.y + boxes[0]!.height - 1);
-  expect(boxes[2]!.y).toBeGreaterThanOrEqual(boxes[1]!.y + boxes[1]!.height - 1);
-  expect(boxes[0]!.width).toBeGreaterThan(list.width * 0.9);
-  const pane = row.first();
-  const photo = (await pane.locator('[data-photo]').boundingBox())!;
-  const frame = (await pane.locator('.sh-frame').boundingBox())!;
-  const plaque = (await pane.locator('.sh-plaque').boundingBox())!;
-  const name = (await pane.locator('.sh-name').boundingBox())!;
-  const desc = (await pane.locator('.sh-desc').boundingBox())!;
-  const price = (await pane.locator('.sh-price').boundingBox())!;
-  // The window is at the start, the plaque beside it (not under it); on the plaque the name, the description, the tag.
-  expect(plaque.x).toBeGreaterThanOrEqual(frame.x + frame.width - 1);
-  expect(plaque.y).toBeLessThan(frame.y + frame.height / 2);
-  expect(frame.width).toBeGreaterThan(80);
-  expect(desc.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
-  expect(price.y).toBeGreaterThanOrEqual(desc.y + desc.height - 1);
-  await expect(pane.locator('.sh-desc')).toContainText('Laminated');
-  // The frame is an arch with the lattice bars drawn on it; the photo sits inside it, clear of every lattice layer.
-  const shape = await pane.evaluate((node) => {
-    const frameStyle = getComputedStyle(node.querySelector('.sh-frame')!);
+  // Three across in one row, each about a third of the screen, separated by thin bars.
+  for (const box of boxes.slice(1)) expect(Math.abs(box.y - boxes[0]!.y)).toBeLessThanOrEqual(1);
+  expect(boxes[1]!.x).toBeGreaterThan(boxes[0]!.x + boxes[0]!.width - 1);
+  expect(boxes[2]!.x).toBeGreaterThan(boxes[1]!.x + boxes[1]!.width - 1);
+  expect(boxes[1]!.x - (boxes[0]!.x + boxes[0]!.width)).toBeLessThanOrEqual(8);
+  for (const box of boxes) expect(box.width).toBeLessThan(screen.width * 0.36);
+  const cell = row.first();
+  const [window, photo, price, add, name] = (await Promise.all(['.sh-window', '[data-photo]', '.sh-price', '.sh-add', '.sh-name'].map((part) => cell.locator(part).boundingBox()))) as DOMRect[];
+  // The window on top, the ledge (tag at the start, add at the end) under it, the name under the ledge.
+  expect(price!.y).toBeGreaterThanOrEqual(window!.y + window!.height - 1);
+  expect(Math.abs(price!.y + price!.height / 2 - (add!.y + add!.height / 2))).toBeLessThanOrEqual(2);
+  expect(price!.x + price!.width).toBeLessThanOrEqual(add!.x + 1);
+  expect(name!.y).toBeGreaterThanOrEqual(add!.y + add!.height - 1);
+  expect(photo!.x).toBeGreaterThan(window!.x + 1);
+  // The photo is cut to an octagon on the lattice ground, with nothing drawn over it; a bead sits on the joint.
+  const shape = await cell.evaluate((node) => {
     const photoNode = node.querySelector('[data-photo]')!;
-    const photoStyle = getComputedStyle(photoNode);
     return {
-      top: frameStyle.borderTopLeftRadius,
-      foot: frameStyle.borderBottomLeftRadius,
-      image: frameStyle.backgroundImage,
-      photoImage: photoStyle.backgroundImage,
-      photoTop: photoStyle.borderTopLeftRadius,
-      photoFoot: photoStyle.borderBottomLeftRadius,
-      photoBefore: getComputedStyle(photoNode, '::before').content,
-      photoAfter: getComputedStyle(photoNode, '::after').content,
+      clip: getComputedStyle(photoNode).clipPath,
+      ground: getComputedStyle(node.querySelector('.sh-window')!).backgroundImage,
+      photoImage: getComputedStyle(photoNode).backgroundImage,
+      bead: getComputedStyle(node, '::before').transform,
+      cellImage: getComputedStyle(node).backgroundImage,
     };
   });
-  expect(parseFloat(shape.top)).toBeGreaterThan(20);
-  expect(parseFloat(shape.foot)).toBeLessThan(10);
-  expect(shape.image.match(/repeating-linear-gradient/g)?.length).toBe(2);
+  expect(shape.clip).toMatch(/^polygon/);
+  expect(shape.clip.split(',').length).toBe(8);
+  expect(shape.ground.match(/repeating-linear-gradient/g)?.length).toBe(2);
   expect(shape.photoImage).toBe('none');
-  expect(parseFloat(shape.photoTop)).toBeGreaterThan(20);
-  expect(parseFloat(shape.photoFoot)).toBeLessThan(10);
-  expect([shape.photoBefore, shape.photoAfter].every((content) => content === 'none' || content === 'normal')).toBe(true);
-  expect(photo.x).toBeGreaterThan(frame.x + 3);
-  expect(photo.y).toBeGreaterThan(frame.y + 3);
-  expect(photo.x + photo.width).toBeLessThan(frame.x + frame.width - 3);
+  expect(shape.bead).not.toBe('none');
+  expect(shape.cellImage).toBe('none');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('the price is on a brass tag and the name on a carved plaque, each on a solid fill of its own', async ({ page }) => {
+test('names never break inside a word on the first screen, in English and in Arabic', async ({ page }) => {
+  for (const locale of ['en', 'ar']) {
+    await openMenu(page, slug, { locale });
+    await expect(panes(page).first()).toBeVisible();
+    await expectWordsWhole(body(page).locator('#cat-viennoiserie :is(.sh-name, h2 > span), #cat-patisserie :is(.sh-name, h2 > span)'));
+    await expectWordsWhole(strip(page).locator('.tpl-arch-label'));
+  }
+});
+
+test('the price is on a brass tag and the name on the carved cell, each on a solid fill of its own', async ({ page }) => {
   await openMenu(page, slug);
   const pane = paneOf(page, 'croissant');
   const tag = await pane.locator('.sh-price').evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage, hole: getComputedStyle(node, '::before').content }));
@@ -229,7 +225,7 @@ test('nothing in the shape loops: no animation that repeats forever', async ({ p
   expect(running).toBe(0);
 });
 
-test('a dish adds from its pane and opens from its name, and tapping the photo or the pane opens it too, without adding', async ({ page }) => {
+test('a dish adds from its cell and opens from its name, and tapping the photo or the cell opens it too, without adding', async ({ page }) => {
   await openMenu(page, slug);
   const first = page.locator('#cat-viennoiserie');
   await expectOpensProduct(page, first, 'croissant');
@@ -315,7 +311,7 @@ test('a search that narrows and clears keeps the strip, never moves the focus or
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(400);
 });
 
-test('a long dish name and a long price stay inside the pane without sideways scrolling', async ({ page }) => {
+test('a long dish name and a long price stay inside the cell without sideways scrolling', async ({ page }) => {
   await openMenu(page, slug);
   const pane = panes(page).first();
   await pane.locator('.sh-name').evaluate((node) => {
@@ -332,7 +328,7 @@ test('a long dish name and a long price stay inside the pane without sideways sc
   });
   expect(lines).toBeLessThanOrEqual(2);
   const box = (await pane.boundingBox())!;
-  for (const part of ['.sh-price', '.sh-name', '.sh-add', '.sh-frame']) {
+  for (const part of ['.sh-price', '.sh-name', '.sh-add', '.sh-window']) {
     const at = (await pane.locator(part).boundingBox())!;
     expect(at.x, part).toBeGreaterThanOrEqual(box.x - 1);
     expect(at.x + at.width, part).toBeLessThanOrEqual(box.x + box.width + 1);
@@ -342,15 +338,14 @@ test('a long dish name and a long price stay inside the pane without sideways sc
   expect(await contrastOf(pane.locator('.sh-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the panes run two across in a centred column', async ({ page }) => {
+test('on a wide screen the cells run six across in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
   const [a, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
-  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(b.x).toBeGreaterThan(a.x + a.width - 1);
-  expect(c.y).toBeGreaterThanOrEqual(a.y + a.height - 1);
-  expect(Math.abs(c.x - a.x)).toBeLessThanOrEqual(1);
+  for (const box of [b, c]) expect(Math.abs(box.y - a.y)).toBeLessThanOrEqual(1);
+  const screen = (await page.locator('#cat-viennoiserie [data-screen]').boundingBox())!;
+  expect(a.width).toBeLessThan(screen.width / 5);
   expect(a.x).toBeGreaterThan(100);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
@@ -367,14 +362,13 @@ test('in Arabic the page is right to left, the strip starts at the right, and no
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
-  // The window is at the right of its pane (the start), the plaque to its left and the add at the left end; the tag's
-  // hole at its right (the start).
+  // The first cell is at the right (the start), the next to its left; on the ledge the tag is at the right and the add at
+  // the left; the tag's hole at its right (the start).
   const pane = panes(page).first();
   const add = (await pane.locator('.sh-add').boundingBox())!;
-  const frame = (await pane.locator('.sh-frame').boundingBox())!;
-  const plaque = (await pane.locator('.sh-plaque').boundingBox())!;
-  expect(frame.x).toBeGreaterThan(plaque.x);
-  expect(add.x).toBeLessThan(plaque.x + 1);
+  const tag = (await pane.locator('.sh-price').boundingBox())!;
+  expect(tag.x).toBeGreaterThan(add.x);
+  expect((await panes(page).first().boundingBox())!.x).toBeGreaterThan((await panes(page).nth(1).boundingBox())!.x);
   const hole = await pane.locator('.sh-price').evaluate((node) => getComputedStyle(node, '::before').right);
   expect(hole).not.toBe('auto');
   expect(parseFloat(hole)).toBeLessThan(10);
@@ -402,8 +396,8 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'board name': first.locator('h2 > span'),
       'board count': first.locator('h2 b'),
       'board number': first.locator('h2 small'),
-      'plaque name': pane.locator('.sh-name'),
-      'plaque description': pane.locator('.sh-desc'),
+      'cell name': pane.locator('.sh-name'),
+      'second cell name': paneOf(page, 'pain-au-chocolat').locator('.sh-name'),
       'section name on a resting chip': strip(page).locator('button:not([aria-current]) .tpl-arch-label').first(),
       'section name on the lit chip': strip(page).locator('[aria-current="true"] .tpl-arch-label'),
       'brass price tag': pane.locator('.sh-price'),

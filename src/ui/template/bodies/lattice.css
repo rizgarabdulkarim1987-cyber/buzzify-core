@@ -1,14 +1,14 @@
 /*
  * The Baghdad Shanashil body (a browse shape of a template menu): the carved wooden oriel windows of old Baghdad. Each
- * section is a bay: a carved wooden header board (the section's number as a small window, its name, the dish count), a
- * band of mashrabiya lattice under it edged with a static Tigris wave line, and a dark wooden panel holding the dishes as
- * a LIST of wide oriel panes (one column on a phone, two from 768px): the photo in an arched turquoise lattice window at
- * the pane's start (the lattice is drawn on the frame only, under the photo) and a carved plaque beside it with the name,
- * a line of description and the price on a brass tag. A corbelled wooden bracket closes each bay. The sticky strip is a
- * row of oriel-window chips with the section's name beside the window (shared/arch-chip.css). Everything is scoped under
- * [data-body='lattice'], logical properties only (RTL mirrors). The fills are the shape's own (lattice-wood.ts, the same
- * on every palette), and every text sits on a solid one: the patterns are on frames and pseudo-elements, never behind
- * text. Nothing moves.
+ * section is a MASHRABIYA SCREEN: a carved wooden header board (the section's number as a small window, its name, the
+ * dish count), a band of lattice under it edged with a static Tigris wave line, and the dishes as a dense lattice of
+ * small window cells held in a grid of wooden bars (three across on a phone, four from 640px, six from 1024px), a turned
+ * bead at every joint. A cell is a window: the photo cut to an octagon on a turquoise lattice ground (the lattice shows
+ * in the cut corners only, never over the photo), a ledge with the brass price tag and the add, the name under it. A
+ * corbelled wooden bracket closes each screen. The sticky strip is a row of oriel-window chips with the section's name
+ * beside the window (shared/arch-chip.css). Everything is scoped under [data-body='lattice'], logical properties only
+ * (RTL mirrors). The fills are the shape's own (lattice-wood.ts, the same on every palette), and every text sits on a
+ * solid one: the patterns are on bars, grounds and pseudo-elements, never behind text. Nothing moves.
  */
 [data-body='lattice'] {
   --sh-board: #4a2a12;
@@ -114,14 +114,19 @@
     repeating-linear-gradient(-45deg, transparent 0 0.3125rem, var(--sh-board) 0.3125rem 0.4375rem),
     var(--sh-turquoise);
 }
-/* The panel: dark carved wood, the panes one under the other. */
-[data-body='lattice'] .sh-list {
+/*
+ * The screen: a grid of dark wooden bars (the gaps between the cells), each bar carved with a fine groove, the cells in
+ * it three across.
+ */
+[data-body='lattice'] .sh-screen {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.25rem;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3125rem;
   margin: 0;
-  padding: 0.25rem 0.375rem;
-  background: var(--sh-board);
+  padding: 0.3125rem;
+  background:
+    repeating-linear-gradient(90deg, transparent 0 0.125rem, var(--sh-edge) 0.125rem 0.1875rem, transparent 0.1875rem 0.3125rem) 0 0 / 100% 100%,
+    var(--sh-board);
   list-style: none;
 }
 /*
@@ -147,123 +152,138 @@
     linear-gradient(var(--sh-board), var(--sh-board)) 88% 0.9375rem / 0.5rem 0.1875rem no-repeat;
 }
 
-/* ------------------------------------------------------------------ a wide pane */
+/* ------------------------------------------------------------------ a window cell */
 
 /*
- * A pane: a wooden plank with the arched window at its start and the plaque beside it, the add at the end. The pane is
- * the positioned ancestor of the name's tap area, so the whole pane (window, plaque and tag) opens the dish.
+ * A cell: a carved plank holding the window, the ledge and the name. It is the positioned ancestor of the name's tap
+ * area, so the whole cell (window, ledge and name) opens the dish. A turned bead sits on the joint of the bars at its
+ * start corner.
  */
-[data-body='lattice'] .sh-pane {
-  --tpl-ring-radius: 0.5rem;
+[data-body='lattice'] .sh-cell {
+  --tpl-ring-radius: 0.375rem;
   --tpl-ring-inset: -3px;
   position: relative;
   display: grid;
-  grid-template-columns: 6.75rem minmax(0, 1fr) auto;
-  align-items: stretch;
-  gap: 0.5rem;
+  grid-template-rows: auto auto 1fr;
+  gap: 0.1875rem;
   min-inline-size: 0;
   padding: 0.1875rem;
-  padding-inline-end: 0.375rem;
-  border-radius: 0.5rem;
+  border-radius: 0.375rem;
   background: var(--sh-plaque);
   box-shadow: inset 0 0 0 2px var(--sh-edge);
 }
-/* The window: an arch of turquoise with the lattice bars drawn on it; the photo covers the middle, so no lattice crosses it. */
-[data-body='lattice'] .sh-frame {
-  box-sizing: border-box;
+[data-body='lattice'] .sh-cell::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-block-start: -0.4375rem;
+  inset-inline-start: -0.4375rem;
+  inline-size: 0.5625rem;
+  block-size: 0.5625rem;
+  border-radius: 0.125rem;
+  background: var(--sh-rim);
+  box-shadow: inset 0 0 0 1px var(--sh-edge);
+  transform: rotate(45deg);
+  pointer-events: none;
+}
+/* The window: turquoise glass with the lattice bars drawn on it; the octagonal photo covers its middle. */
+[data-body='lattice'] .sh-window {
+  position: relative;
   display: grid;
-  padding: 0.25rem;
-  border: 2px solid var(--sh-edge);
-  border-radius: 50% 50% 0.3125rem 0.3125rem / 2.25rem 2.25rem 0.3125rem 0.3125rem;
+  padding: 0.1875rem;
+  border-radius: 0.25rem;
   background:
     repeating-linear-gradient(45deg, transparent 0 0.25rem, var(--sh-mesh) 0.25rem 0.3125rem),
     repeating-linear-gradient(-45deg, transparent 0 0.25rem, var(--sh-mesh) 0.25rem 0.3125rem),
     var(--sh-turquoise);
 }
+/* The photo, cut to an octagon (the cut corners show the lattice). */
 [data-body='lattice'] .sh-photo {
   position: relative;
   overflow: hidden;
-  min-block-size: 3rem;
-  border-radius: 50% 50% 0.1875rem 0.1875rem / 1.875rem 1.875rem 0.1875rem 0.1875rem;
+  aspect-ratio: 4 / 3;
   background: color-mix(in srgb, var(--text) 10%, var(--bg));
+  clip-path: polygon(22% 0, 78% 0, 100% 22%, 100% 78%, 78% 100%, 22% 100%, 0 78%, 0 22%);
 }
-/* The discount on the photo's start corner at the foot (the top is the arch). */
+/* The discount on the window's cut corner at the start. */
 [data-body='lattice'] .sh-off {
-  inset-block-start: auto;
-  inset-block-end: 0.1875rem;
-  inset-inline-start: 0.1875rem;
+  --photo-off-at: 0.0625rem;
+  font-size: 0.75rem;
 }
-/* The carved plaque: the name, a line of description, the brass tag, stacked at the start. */
-[data-body='lattice'] .sh-plaque {
+/* The ledge under the window: the brass tag at the start, the add at the end; a long price wraps. */
+[data-body='lattice'] .sh-ledge {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 0.0625rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.1875rem;
   min-inline-size: 0;
 }
-[data-body='lattice'] .sh-name {
-  color: var(--sh-cream);
-  font-size: 0.875rem;
-  text-align: start;
-}
-[data-body='lattice'] .sh-desc {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 1;
-  line-clamp: 1;
-  max-inline-size: 100%;
-  overflow: hidden;
-  color: var(--sh-cream-soft);
+[data-body='lattice'] .sh-price {
+  --tag-mark-size: 0.25rem;
+  min-inline-size: 0;
+  padding-inline-end: 0.3125rem;
+  padding-inline-start: 0.75rem;
   font-size: 0.75rem;
   line-height: 1.25;
+  overflow-wrap: anywhere;
 }
-/* The whole pane's keyboard ring is drawn inside it, on the dark rim, in cream. */
-[data-body='lattice'] .tpl-open.sh-name:focus-visible::after {
-  outline: 2px solid var(--sh-ring);
-  outline-offset: -3px;
-  border-radius: 0.5rem;
-}
-[data-body='lattice'] .sh-price {
-  margin-block-start: 0.0625rem;
-  line-height: 1.25;
-}
-/* The add: a round brass-rimmed plus at the plank's end, centred on it (shared .tpl-rim-add, in the palette's accent). */
+/* The add: a round brass-rimmed plus at the ledge's end (shared .tpl-rim-add, in the palette's accent), 40px to tap. */
 [data-body='lattice'] .sh-add {
   --rim-add-size: 2.5rem;
   position: relative;
   z-index: 3;
-  align-self: center;
+  flex: none;
   border: 2px solid var(--rim-add-ink, var(--on-accent));
 }
 [data-body='lattice'] .sh-add:focus-visible {
   outline: 2px solid var(--rim-add-ink, var(--on-accent));
   outline-offset: -5px;
 }
+/* The name under the ledge, two lines at most; a word breaks only when it alone is wider than the cell. */
+[data-body='lattice'] .sh-name {
+  padding-inline: 0.125rem;
+  color: var(--sh-cream);
+  font-size: 0.8125rem;
+  line-height: 1.15;
+  text-align: start;
+  overflow-wrap: break-word;
+}
+/* The whole cell's keyboard ring is drawn inside it, on the dark rim, in cream. */
+[data-body='lattice'] .tpl-open.sh-name:focus-visible::after {
+  outline: 2px solid var(--sh-ring);
+  outline-offset: -3px;
+  border-radius: 0.375rem;
+}
 
 @media (hover: hover) {
-  [data-body='lattice'] .sh-pane:hover .sh-frame {
+  [data-body='lattice'] .sh-cell:hover .sh-window {
     filter: brightness(1.12);
   }
 }
 
-/* A wide screen: the panes in two columns, a wider window, in a centred column. */
-@media (min-width: 768px) {
-  [data-body='lattice'] .sh-list {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.625rem;
-    padding: 0.625rem;
+/* Wider screens: a wider screen of four, then six, cells across, in a centred column. */
+@media (min-width: 640px) {
+  [data-body='lattice'] .sh-screen {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.5rem;
+    padding: 0.5rem;
   }
-  [data-body='lattice'] .sh-pane {
-    grid-template-columns: 9rem minmax(0, 1fr) auto;
-  }
-  [data-body='lattice'] .sh-photo {
-    min-block-size: 5.5rem;
+  [data-body='lattice'] .sh-cell::before {
+    inset-block-start: -0.5625rem;
+    inset-inline-start: -0.5625rem;
   }
   [data-body='lattice'] .sh-name {
-    font-size: 1rem;
+    font-size: 0.9375rem;
+  }
+  [data-body='lattice'] .sh-price {
+    font-size: 0.875rem;
   }
   [data-body='lattice'] .sh-title {
     font-size: 1.5rem;
+  }
+}
+@media (min-width: 1024px) {
+  [data-body='lattice'] .sh-screen {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }

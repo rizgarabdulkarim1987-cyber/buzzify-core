@@ -64,3 +64,16 @@ describe('the wood and glass fills', () => {
     }
   });
 });
+
+describe('the mashrabiya screen', () => {
+  it('lays the dishes out as a lattice of window cells: three across, then four and six, octagonal photos, no list of panes', () => {
+    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
+    const tsx = readFileSync('src/ui/template/bodies/LatticeBody.tsx', 'utf8');
+    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(3, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(4, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\(6, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.sh-photo\s*\{[^}]*clip-path:\s*polygon\(/);
+    expect(tsx).toContain('data-screen');
+    expect(tsx).not.toMatch(/sh-list|sh-pane|Description/);
+  });
+});
