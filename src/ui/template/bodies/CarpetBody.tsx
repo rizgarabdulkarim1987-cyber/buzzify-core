@@ -13,6 +13,14 @@ import './shared/photo-card.css';
 import './shared/shapes.css';
 import './carpet.css';
 
+/** Marks the carpet of `id` to float, unless it has floated before (the mark moves off any other carpet). */
+function floatOnce(node: HTMLElement | null, id: string | null, floated: Set<string>) {
+  if (!node || !id || floated.has(id)) return;
+  floated.add(id);
+  node.querySelector('[data-float]')?.removeAttribute('data-float');
+  node.querySelector(`[data-carpet="${CSS.escape(id)}"]`)?.setAttribute('data-float', '');
+}
+
 /**
  * One Thousand and One Nights (spec 2026-10-26-menu-styles-in-templates-design.md). Scheherazade's night: a purple sky of
  * stars. Every section is a magic carpet: a woven band (a lattice of threads over its ground, a tassel fringe at both
@@ -32,14 +40,29 @@ export function CarpetBody() {
   const root = useRef<HTMLDivElement>(null);
   const floated = useRef(new Set<string>());
   // A carpet floats only the first time it is the one in view: the mark is set once per carpet and taken off when the
-  // float ends, so coming back to it, a search that redraws it or a new list of categories never plays it again.
+  // float ends, so coming back to it, a search that redraws it or a new list of categories never plays it again. While
+  // the page is moving the float waits until it stops (150ms without a scroll): a ride to a far carpet lights every
+  // carpet it passes, and each would otherwise take its one float and hand it on before the guest sees it.
+  const lit = useRef(activeId);
+  const moving = useRef<number | null>(null);
   useEffect(() => {
-    const node = root.current;
-    if (!node || !activeId || floated.current.has(activeId)) return;
-    floated.current.add(activeId);
-    node.querySelector('[data-float]')?.removeAttribute('data-float');
-    node.querySelector(`[data-carpet="${CSS.escape(activeId)}"]`)?.setAttribute('data-float', '');
+    lit.current = activeId;
+    if (moving.current === null) floatOnce(root.current, activeId, floated.current);
   }, [activeId]);
+  useEffect(() => {
+    const onScroll = () => {
+      if (moving.current !== null) window.clearTimeout(moving.current);
+      moving.current = window.setTimeout(() => {
+        moving.current = null;
+        floatOnce(root.current, lit.current, floated.current);
+      }, 150);
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', onScroll);
+      if (moving.current !== null) window.clearTimeout(moving.current);
+    };
+  }, []);
   useEffect(() => {
     const node = root.current;
     if (!node) return;

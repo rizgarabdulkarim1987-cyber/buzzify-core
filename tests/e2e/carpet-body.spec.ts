@@ -152,9 +152,21 @@ test('a carpet floats a few pixels the first time it is lit and lies still when 
   expect(await floatOf(page, 'bread')).toBe('cp-float');
   expect(await floatOf(page, 'viennoiserie')).toBe('none');
   // The float stays within a few pixels.
+  // Read from the keyframes rule itself: the running animation can be between frames, or (on a slow dev server) not yet
+  // listed by getAnimations() when the check runs.
   const travel = await page.locator('#cat-bread').evaluate((node) => {
-    const frames = (node.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes() ?? [];
-    return frames.map((frame) => String(frame.transform ?? 'none'));
+    const name = getComputedStyle(node).animationName;
+    for (const sheet of [...document.styleSheets]) {
+      let rules: CSSRule[] = [];
+      try {
+        rules = [...sheet.cssRules];
+      } catch {
+        continue;
+      }
+      const rule = rules.find((r): r is CSSKeyframesRule => r instanceof CSSKeyframesRule && r.name === name);
+      if (rule) return [...rule.cssRules].map((frame) => (frame as CSSKeyframeRule).style.transform || 'none');
+    }
+    return [];
   });
   expect(travel.length).toBeGreaterThan(1);
   for (const transform of travel) {

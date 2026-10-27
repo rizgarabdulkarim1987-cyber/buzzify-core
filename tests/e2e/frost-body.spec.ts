@@ -277,7 +277,8 @@ test('nothing is hidden behind the condensation: a card under it still takes the
   const far = paneOf(page, 'bread');
   const card = cardOf(page, 'sourdough');
   await card.scrollIntoViewIfNeeded();
-  // The scroll opened it; shut it again for the probe, to measure the fogged state.
+  // The scroll opened it (wait for that, or the late open would undo the probe); shut it again to measure the fog.
+  await expect(far).toHaveAttribute('data-open', '');
   await far.evaluate((node) => node.removeAttribute('data-open'));
   await expect.poll(() => fogState(far).then((s) => s.visibility)).toBe('visible');
   await expect.poll(() => fogState(far).then((s) => s.shift)).toBe(0);

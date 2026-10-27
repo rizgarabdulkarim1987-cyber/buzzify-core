@@ -343,7 +343,8 @@ test('with an observer that never reports, the stages still open: at once on the
 
 test('a stage taller than ten screens opens when it is scrolled into', async ({ page }) => {
   await openMenu(page, slug);
-  const tall = page.locator('#cat-patisserie');
+  // A stage far below the first screen (the second stage is near enough to open as soon as the menu hydrates).
+  const tall = page.locator('#cat-bread');
   await expect(tall).not.toHaveAttribute('data-open', '');
   await tall.locator('.th-floor').evaluate((floor) => {
     (floor as HTMLElement).style.minBlockSize = `${window.innerHeight * 12}px`;
