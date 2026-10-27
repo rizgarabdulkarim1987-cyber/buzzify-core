@@ -114,8 +114,8 @@ export class FakeProvider implements AiProvider {
     if (source.includes('[[bad-json]]')) return { content: [{ type: 'text', text: 'not json' }] };
     if (source.includes('[[timeout]]')) throw new AiTimeoutError();
     if (source.includes('[[fail]]')) throw new AiProviderError();
-    const blank = { en: null, ar: null, ckb: null };
-    const written = (text: string) => ({ ...blank, [scriptOf(text)]: text });
+    const written = (text: string) => text;
+    const blank = null;
     let category = 'Menu';
     const products: unknown[] = [];
     for (const raw of source.split('\n')) {
