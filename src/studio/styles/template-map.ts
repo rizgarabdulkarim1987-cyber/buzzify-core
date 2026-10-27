@@ -38,6 +38,7 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'themed-shn': 'the-baghdad-shanashil',
   'themed-bab': 'the-ishtar-gate',
   'themed-spc': 'the-space-station',
+  'themed-win': 'the-frosted-window',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

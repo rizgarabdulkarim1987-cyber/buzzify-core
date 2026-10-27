@@ -8,6 +8,7 @@ import { ComicsBody } from './ComicsBody';
 import { LatticeBody } from './LatticeBody';
 import { GateBody } from './GateBody';
 import { StationBody } from './StationBody';
+import { FrostBody } from './FrostBody';
 import { ElevatorBody } from './ElevatorBody';
 import { BentoBody } from './BentoBody';
 import { DepthBody } from './DepthBody';
@@ -69,6 +70,7 @@ export const BODIES: Record<Exclude<BodyKind, 'scroll'>, ComponentType> = {
   lattice: LatticeBody,
   gate: GateBody,
   station: StationBody,
+  frost: FrostBody,
   ink: InkBody,
   steam: SteamBody,
 };

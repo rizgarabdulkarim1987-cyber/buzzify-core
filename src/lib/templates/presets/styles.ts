@@ -933,4 +933,33 @@ export const theSpaceStation = definePreset({
   scene: { mode: 'static' },
 });
 
-export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation];
+export const theFrostedWindow = definePreset({
+  id: 'the-frosted-window',
+  number: 63,
+  name: 'Frosted Window',
+  business: 'restaurant',
+  tags: ['dark', 'cinematic'],
+  seed: { bg: '#0B1730', text: '#EAF4FF', accent: '#7FC4FF', raised: '#16294D' },
+  alternatives: [
+    { id: 'aurora-glass', name: 'Aurora glass', seed: { bg: '#05191C', text: '#E3FBF4', accent: '#4FE3B8', raised: '#0D2E33' } },
+    { id: 'rose-frost', name: 'Rose frost', seed: { bg: '#241024', text: '#FFE8F4', accent: '#FF8FC2', raised: '#3A1B3A' } },
+    { id: 'white-out', name: 'White out', seed: { bg: '#EAF1F8', text: '#0C1F3A', accent: '#1F5FBF', raised: '#F8FBFF' } },
+  ],
+  type: { fontPairId: 'modern', scale: 1.0 },
+  layout: {
+    body: 'frost',
+    hero: 'compact',
+    nav: 'chips',
+    card: 'row',
+    detail: 'sheet',
+    options: 'list',
+    imageRatio: 'square',
+    density: 'compact',
+    corners: 'round',
+    shadow: 'none',
+    heading: 'plain',
+  },
+  scene: { mode: 'static' },
+});
+
+export const STYLE_PRESETS = [theBook, theMagazine, tasteAirport, theElevator, thePeriodicTable, theMetroLine, theDrawerCabinet, theSupermarketShelves, theKitchenTicketRail, theTableFromAbove, theKitchenComics, thePhoneHomeScreen, theTreasureMap, theGameLevels, theFridge, theBentoBox, theMailboxWall, theScrollDepth, theDancingLetters, theCurtainAndSpotlight, theStackedSheets, thePhotoToDetails, theFlyToCart, theSectionInk, theLivingSteam, theErbilCitadel, theRamadanNights, theThousandAndOneNights, theJajimAndNowruz, theBaghdadShanashil, theIshtarGate, theSpaceStation, theFrostedWindow];
