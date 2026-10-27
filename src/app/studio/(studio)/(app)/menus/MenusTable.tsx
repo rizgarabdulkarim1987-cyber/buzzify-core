@@ -1,12 +1,12 @@
 'use client';
 
 import type { ColumnDef, OnChangeFn, RowSelectionState, SortingState } from '@tanstack/react-table';
-import { Archive, CirclePause, CirclePlay, Copy, ExternalLink, Files, MoreHorizontal, PencilLine, Send, Trash2, X } from 'lucide-react';
+import { Archive, CirclePause, CirclePlay, Copy, ExternalLink, Files, MoreHorizontal, PencilLine, Send, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
-import { bulkDeleteMenus, bulkMenuAction } from '@/app/studio/_actions/menus';
+import { bulkMenuAction } from '@/app/studio/_actions/menus';
 import { nextMenuStatus, type MenuStatus, type StatusAction } from '@/server/domain/menu-status';
 import type { RestaurantStatus } from '@/server/domain/restaurant-profile';
 import type { BulkAction, BulkResult, MenuSort } from '@/server/studio/services/menus';
@@ -17,11 +17,9 @@ import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { DataTable } from '@/studio/ui/DataTable';
 import { Dialog } from '@/studio/ui/Dialog';
-import { Field } from '@/studio/ui/Field';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/studio/ui/DropdownMenu';
 import { useFilterParams } from '@/studio/ui/FilterBar';
 import { IconButton } from '@/studio/ui/IconButton';
-import { Input } from '@/studio/ui/Input';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { DuplicateDialog, type DuplicateTarget } from './DuplicateDialog';
 import { issueText, MenuStatusBadge } from './menu-text';
@@ -36,7 +34,7 @@ export interface MenuRow {
   unpublished: boolean;
   updatedAt: string;
   publicUrl: string;
-  can: { publish: boolean; status: boolean; duplicate: boolean; delete: boolean };
+  can: { publish: boolean; status: boolean; duplicate: boolean };
 }
 
 const SORTABLE: readonly string[] = ['name', 'restaurant', 'status', 'updatedAt'] satisfies MenuSort[];
@@ -183,7 +181,6 @@ export function MenusTable({ rows, sort, dir, origin, duplicateTargets }: MenusT
   const { set } = useFilterParams();
   const [selection, setSelection] = useState<RowSelectionState>({});
   const [pending, setPending] = useState<BulkAction | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const [report, setReport] = useState<Report | null>(null);
   const [duplicating, setDuplicating] = useState<MenuRow | null>(null);
 
@@ -298,11 +295,6 @@ export function MenusTable({ rows, sort, dir, origin, duplicateTargets }: MenusT
               {t(`menus.bulk.action.${action}`)}
             </Button>
           ))}
-          {selected.some((row) => row.can.delete) && (
-            <Button size="sm" variant="danger" icon={<Trash2 aria-hidden />} onClick={() => setDeleting(true)}>
-              {t('menus.bulk.action.delete')}
-            </Button>
-          )}
           <Button size="sm" variant="ghost" icon={<X aria-hidden />} className="ms-auto" onClick={() => setSelection({})}>
             {t('menus.bulk.clear')}
           </Button>
@@ -340,29 +332,6 @@ export function MenusTable({ rows, sort, dir, origin, duplicateTargets }: MenusT
           return true;
         }}
       />
-
-      <ConfirmDialog
-        open={deleting}
-        onOpenChange={setDeleting}
-        title={t('menus.bulk.title.delete', { count: selected.length })}
-        body={t('menus.bulk.body.delete')}
-        confirmLabel={t('menus.bulk.action.delete')}
-        onConfirm={async (form) => {
-          const names = new Map(selected.map((row) => [row.id, row.name]));
-          const result = await bulkDeleteMenus({ menuIds: selected.map((row) => row.id), confirm: String(form.get('confirm') ?? '') });
-          if (!result.ok) return refuse(result, ['confirm']);
-          setSelection({});
-          setReport({ results: result.data.results, names });
-          router.refresh();
-          return true;
-        }}
-      >
-        {(errors) => (
-          <Field label={t('menus.bulk.typeDelete')} error={errors.confirm}>
-            <Input name="confirm" autoComplete="off" autoFocus />
-          </Field>
-        )}
-      </ConfirmDialog>
 
       {report && <ReportDialog report={report} onClose={() => setReport(null)} />}
 

@@ -147,7 +147,7 @@ export const listMenus = defineQuery({
           updatedAt: row.updatedAt.toISOString(),
           publicUrl: publicUrl(row.slug),
           /** What the reader may do to the menu, for the row's actions; the actions check it again. */
-          can: { publish: can.has('publish.now'), status: can.has('menu.status'), duplicate: can.has('menu.duplicate'), delete: can.has('menu.delete') },
+          can: { publish: can.has('publish.now'), status: can.has('menu.status'), duplicate: can.has('menu.duplicate') },
         };
       }),
       total,
