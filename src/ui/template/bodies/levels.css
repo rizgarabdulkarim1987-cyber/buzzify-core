@@ -152,7 +152,7 @@
 }
 
 /*
- * The road from a node to the next: a band with white dots, from the photo's centre to the next photo's centre. Across
+ * The road from a node to the next: a band with dots in the text colour, from the photo's centre to the next photo's centre. Across
  * it runs one column to the end side (to the start side on a backwards row); down it runs through the gap to the row below.
  */
 [data-body='levels'] .lv-node::after {
@@ -161,7 +161,7 @@
   z-index: -1;
   border-radius: 999px;
   background:
-    radial-gradient(circle at center, color-mix(in srgb, var(--text) 90%, #fff) 0.1875rem, transparent 0.25rem) 0 0 / var(--lv-road) var(--lv-road),
+    radial-gradient(circle at center, var(--text) 0.1875rem, transparent 0.25rem) 0 0 / var(--lv-road) var(--lv-road),
     color-mix(in srgb, var(--text) 16%, transparent);
   pointer-events: none;
 }
@@ -205,7 +205,7 @@
   inline-size: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border: 3px solid #fff;
+  border: 3px solid var(--text);
   border-radius: 50%;
   background: var(--card);
   box-shadow: 0 4px 0 color-mix(in srgb, var(--text) 28%, transparent);
@@ -220,7 +220,7 @@
   place-items: center;
   inline-size: 1.5rem;
   block-size: 1.5rem;
-  border: 2px solid #fff;
+  border: 2px solid var(--text);
   border-radius: 50%;
   background: var(--w-fill);
   color: var(--w-ink);

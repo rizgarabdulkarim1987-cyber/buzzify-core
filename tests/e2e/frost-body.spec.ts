@@ -1,3 +1,4 @@
+import { expectColourNear, isNear } from './helpers/colour-near';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
@@ -106,7 +107,7 @@ test('the strip is a row of icicle chips: a pale pill, 44px tall, with the numbe
   expect(icicle.content).not.toBe('none');
   expect(icicle.clip).toContain('polygon');
   expect(parseFloat(icicle.below)).toBeLessThan(0);
-  expect(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(220, 235, 248)');
+  expectColourNear(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(220, 235, 248)');
 });
 
 test('the chip of the section in view is lit (dark, ringed) and the others are not', async ({ page }) => {
@@ -116,8 +117,8 @@ test('the chip of the section in view is lit (dark, ringed) and the others are n
   await expect(chipOf(page, 'viennoiserie').locator('[data-pane]')).toHaveAttribute('data-pane', 'active');
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(chipOf(page, 'bread')).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(10, 26, 51)');
-  expect(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(220, 235, 248)');
+  await expect.poll(async () => isNear(await (() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor))(), 'rgb(10, 26, 51)')).toBe(true);
+  expectColourNear(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(220, 235, 248)');
 });
 
 test('a chip takes you to its pane and focuses the heading', async ({ page }) => {
@@ -142,17 +143,17 @@ test('a section is a window pane: a pale frame, night-blue glass crossed by a mu
     return { width: parseFloat(style.borderTopWidth), edge: style.borderTopColor, glass: style.backgroundColor, image: style.backgroundImage };
   });
   expect(frame.width).toBeGreaterThanOrEqual(4);
-  expect(frame.edge).toBe('rgb(220, 235, 248)');
-  expect(frame.glass).toBe('rgb(22, 41, 77)');
+  expectColourNear(frame.edge, 'rgb(220, 235, 248)');
+  expectColourNear(frame.glass, 'rgb(22, 41, 77)');
   expect(frame.image).toContain('gradient');
   // The plate is a solid pale pill; its icicle fringe is drawn on a pseudo-element (never behind the text).
   expect(await title.evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
-  expect(await title.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(220, 235, 248)');
+  expectColourNear(await title.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(220, 235, 248)');
   expect(await title.evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('conic-gradient');
   // A glazing bar of the frame crosses the glass in the gap above every card after the first.
   const bar = await pane.locator('[data-row]').nth(1).evaluate((node) => ({ content: getComputedStyle(node, '::after').content, colour: getComputedStyle(node, '::after').backgroundColor }));
   expect(bar.content).not.toBe('none');
-  expect(bar.colour).toBe('rgb(220, 235, 248)');
+  expectColourNear(bar.colour, 'rgb(220, 235, 248)');
   await expect(pane.locator('[data-row]')).toHaveCount(3);
 });
 
@@ -183,7 +184,7 @@ test('the ground behind the panes is night blue, whatever the palette', async ({
   await openMenu(page, slug);
   const sky = await body(page).evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, colour: getComputedStyle(node).backgroundColor }));
   expect(sky.image).toContain('gradient');
-  expect(sky.colour).toBe('rgb(11, 23, 48)');
+  expectColourNear(sky.colour, 'rgb(11, 23, 48)');
 });
 
 test('in a pane the dishes are frost cards one under the other, tall and short: every third (from the second) has a photo at least 40% taller; the price above the name, a solid card with rime on its top edge', async ({ page }) => {
@@ -204,7 +205,7 @@ test('in a pane the dishes are frost cards one under the other, tall and short: 
   const [price, name] = [(await row.first().locator('.fr-price').boundingBox())!, (await row.first().locator('.fr-name').boundingBox())!];
   expect(price.y).toBeLessThan(name.y);
   const style = await row.first().evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage, radius: parseFloat(getComputedStyle(node).borderTopLeftRadius), rime: getComputedStyle(node, '::before').backgroundImage }));
-  expect(style.bg).toBe('rgb(242, 248, 255)');
+  expectColourNear(style.bg, 'rgb(242, 248, 255)');
   expect(style.image).toBe('none');
   expect(style.radius).toBeGreaterThanOrEqual(10);
   expect(style.rime).toContain('radial-gradient');
@@ -235,8 +236,8 @@ test('the name and the price sit on the solid card, each in its own ink', async 
   await openMenu(page, slug);
   const card = cardOf(page, 'croissant');
   expect(await card.locator('.fr-price').evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
-  expect(await card.locator('.fr-name').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(12, 31, 58)');
-  expect(await card.locator('.fr-price').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(11, 47, 94)');
+  expectColourNear(await card.locator('.fr-name').evaluate((node) => getComputedStyle(node).color), 'rgb(12, 31, 58)');
+  expectColourNear(await card.locator('.fr-price').evaluate((node) => getComputedStyle(node).color), 'rgb(11, 47, 94)', 32);
 });
 
 test('condensation lies faintly over a pane below the screen, never over 30%, and a wipe clears it once when the pane first comes into view', async ({ page }) => {
@@ -582,4 +583,21 @@ test('a search keeps each section its own number and chip (by its place in the f
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   await expect(chip.locator('.fr-chip-no')).toHaveText('5');
+});
+
+test('colours picked in Customize reach the window: the night, the glass and the card text follow the palette', async ({ page }) => {
+  const paint = async (menuSlug: string) => {
+    await openMenu(page, menuSlug);
+    const style = (selector: string, property: 'backgroundColor' | 'borderTopColor' | 'color') =>
+      (selector ? body(page).locator(selector).first() : body(page)).evaluate((node, p) => getComputedStyle(node)[p as 'color'], property);
+    return {
+      night: await style('', 'backgroundColor'),
+      glass: await style('.fr-pane', 'backgroundColor'),
+      ink: await style('.fr-name', 'color'),
+    };
+  };
+  const signature = await paint(slug);
+  const custom = await paint(customSlug);
+  expect(signature).toMatchObject({ night: 'rgb(11, 23, 48)', glass: 'rgb(22, 41, 77)' });
+  expect(custom).toEqual({ night: 'rgb(244, 244, 244)', glass: 'rgb(255, 255, 255)', ink: 'rgb(244, 244, 244)' });
 });

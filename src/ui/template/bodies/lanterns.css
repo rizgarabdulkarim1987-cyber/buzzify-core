@@ -4,19 +4,19 @@
  * swaying a little. Below, each section is a niche: a pointed-arch banner with a crescent, a lattice band, then one list
  * of round-arch dish cards (two columns on a wide screen). Everything is scoped under [data-body='lanterns'], logical
  * properties only (RTL mirrors).
- * The strip's colours are the shape's own (lanterns-night.ts, the same on every palette: a navy night with gold
- * lanterns); the niches use the template's tokens: the banner is `--accent` with `--on-accent`, the cards `--raised`.
+ * Every colour is the template's palette: the night is `--bg`, the rope and the lit window the accent, the dim windows
+ * and the names `--raised` and `--text`; the niches use the banner `--accent` with `--on-accent`, the cards `--raised`.
  */
 [data-body='lanterns'] {
-  --rm-sky: #0b1430;
-  --rm-rope: #c9a24a;
-  --rm-dim-pane: #27336e;
-  --rm-dim-ink: #f6e6b8;
-  --rm-lit-pane: #ffd36b;
-  --rm-lit-ink: #1a1033;
-  --rm-label: #f3e3b5;
-  --rm-label-lit: #ffe7a0;
-  --rm-ring: #fff4dc;
+  --rm-sky: var(--bg);
+  --rm-rope: color-mix(in srgb, var(--accent) 87%, #000);
+  --rm-dim-pane: color-mix(in oklab, var(--raised) 88%, var(--text));
+  --rm-dim-ink: var(--text);
+  --rm-lit-pane: var(--accent);
+  --rm-lit-ink: var(--on-accent);
+  --rm-label: var(--text);
+  --rm-label-lit: color-mix(in srgb, var(--accent-ink) 55%, var(--text));
+  --rm-ring: var(--text);
   /* The sticky strip's height (a rope, strings, lanterns and their names), so a jumped-to section lands just below it. */
   --nav-room: 4.75rem;
   --column: 64rem;
@@ -40,11 +40,11 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 12% 70%, rgb(255 244 220 / 0.7) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 31% 38%, rgb(255 244 220 / 0.55) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 57% 78%, rgb(255 244 220 / 0.6) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 74% 42%, rgb(255 244 220 / 0.7) 0 1px, transparent 1.5px),
-    radial-gradient(circle at 93% 66%, rgb(255 244 220 / 0.55) 0 1px, transparent 1.5px);
+    radial-gradient(circle at 12% 70%, color-mix(in srgb, var(--text) 70%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 38%, color-mix(in srgb, var(--text) 55%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 57% 78%, color-mix(in srgb, var(--text) 60%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 74% 42%, color-mix(in srgb, var(--text) 70%, transparent) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 93% 66%, color-mix(in srgb, var(--text) 55%, transparent) 0 1px, transparent 1.5px);
   background-size: 11rem 100%;
   pointer-events: none;
 }
@@ -123,7 +123,7 @@
   background-color: var(--rm-lit-pane);
   color: var(--rm-lit-ink);
   font-weight: 800;
-  box-shadow: 0 0 0.75rem 0.125rem rgb(255 211 107 / 0.75);
+  box-shadow: 0 0 0.75rem 0.125rem color-mix(in srgb, var(--accent) 75%, transparent);
 }
 /* The lit lantern sways twice when it lights (under 5s, so nothing moves on its own for longer: WCAG 2.2.2), then hangs still. */
 [data-body='lanterns'] .rm-lantern[aria-current='true'] .rm-hang {

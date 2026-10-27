@@ -8,24 +8,36 @@
  * that carries the text (the price and the add side by side, the name under them), with a fringe of threads under it. The wave drifts once,
  * the first time its band comes into view (BeachBody arms it; with less motion there is none): a transform on a layer
  * that takes no tap. Everything is scoped under [data-body='beach'], logical properties only (RTL mirrors). The fills
- * are the shape's own (beach-fills.ts, the same on every palette); the only palette colour is the lit chip's ring.
+ * are the shape's own (beach-fills.ts holds the signature defaults, drawn from the palette); the only palette colour is the lit chip's ring.
  */
 [data-body='beach'] {
-  --bc-sky: #8fdcf4;
-  --bc-sand: #ffe9b8;
-  --bc-sea: #bfeefc;
-  --bc-strip: #a9e3f6;
-  --bc-ink: #0d3b52;
-  --bc-cream: #fffdf7;
-  --bc-deep: #0d3b52;
-  --bc-deep-ink: #fff7e0;
-  --bc-price-ink: #9a3412;
+  /* Every fill comes from the template's palette (Customize recolours the beach); the Summer Beach preset's signature
+     palette resolves to the sand, sea and cream below. Text sits on bg (the sea), surface (the sand), card (the cream
+     label) and on its own ink: all palette pairs with --text. */
+  /* White on a dark palette, black on a light one (the way a tint lifts away from the ground), so the same mixes work on both. */
+  --bc-toward: oklch(from var(--bg) clamp(0, (0.6 - l) * 1000, 1) 0 0);
+  --bc-away: oklch(from var(--bg) clamp(0, (l - 0.6) * 1000, 1) 0 0);
+  --bc-sky: color-mix(in oklch, var(--bg) 82%, var(--text));
+  --bc-sand: var(--surface);
+  --bc-sea: var(--bg);
+  --bc-strip: color-mix(in oklch, var(--bg) 90%, var(--text));
+  --bc-ink: var(--text);
+  --bc-cream: var(--card);
+  --bc-deep: var(--text);
+  --bc-deep-ink: var(--card);
+  --bc-price-ink: color-mix(in srgb, var(--accent-ink) 85%, var(--bc-toward));
+  /* The sale chip stays a deep berry with white ink (a fixed pair), so a sale reads on every palette. */
   --bc-sale: #7a0c2c;
   --bc-sale-ink: #ffffff;
-  --bc-add: #0d3b52;
-  --bc-add-ink: #fffdf7;
+  --bc-add: var(--text);
+  --bc-add-ink: var(--card);
+  /* The four towel hues, turned from the accent (decoration only: no text sits on a stripe). BeachBody picks one by place. */
+  --bc-towel-0: oklch(from var(--accent) 0.7 clamp(0.1, c, 0.19) h);
+  --bc-towel-1: oklch(from var(--accent) 0.67 0.1 calc(h + 167));
+  --bc-towel-2: oklch(from var(--accent) 0.86 0.16 calc(h + 42));
+  --bc-towel-3: oklch(from var(--accent) 0.77 0.13 calc(h - 38));
   /* The lit chip's ring: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`). */
-  --bc-rise: var(--tpl-rise);
+  --bc-rise: color-mix(in srgb, var(--accent) 45%, var(--bc-away));
   --bc-period: 2.5rem;
   --nav-room: 4.75rem;
   --column: 44rem;
@@ -60,7 +72,7 @@
   inline-size: 2.25rem;
   block-size: 2.25rem;
   border-radius: 50%;
-  background: repeating-conic-gradient(#ff6b35 0 45deg, #ffe9b8 45deg 90deg);
+  background: repeating-conic-gradient(var(--bc-towel-0) 0 45deg, var(--bc-sand) 45deg 90deg);
 }
 /* The buoy's hole: a solid cream disc that carries the number. */
 [data-body='beach'] .bc-chip-no b {
@@ -180,7 +192,7 @@
   --rim-add-ink: var(--bc-add-ink);
   --photo-off-at: 0.375rem;
   /* Stripes of the towel's own hue (set by BeachBody) and cream, half a rem each. */
-  --bc-stripes: repeating-linear-gradient(90deg, var(--towel, #ff6b35) 0 0.5rem, #fffdf7 0.5rem 1rem);
+  --bc-stripes: repeating-linear-gradient(90deg, var(--towel, var(--bc-towel-0)) 0 0.5rem, var(--bc-cream) 0.5rem 1rem);
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   align-content: start;
@@ -190,7 +202,7 @@
   background-color: var(--bc-cream);
   background-image: var(--bc-stripes);
   color: var(--bc-ink);
-  box-shadow: 0 0.25rem 0.5rem rgb(13 59 82 / 0.18);
+  box-shadow: 0 0.25rem 0.5rem color-mix(in srgb, var(--text) 18%, transparent);
 }
 /* The fringe: threads of the same stripes hanging under the towel (outside it, so the focus ring stays whole). */
 [data-body='beach'] .bc-tile::before {
@@ -297,7 +309,7 @@
 
 @media (hover: hover) {
   [data-body='beach'] .bc-tile:hover {
-    box-shadow: 0 0.25rem 0.5rem rgb(13 59 82 / 0.18), 0 0 0 2px var(--bc-rise);
+    box-shadow: 0 0.25rem 0.5rem color-mix(in srgb, var(--text) 18%, transparent), 0 0 0 2px var(--bc-rise);
   }
 }
 

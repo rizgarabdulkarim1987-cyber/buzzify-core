@@ -5,17 +5,25 @@
  * holding the dishes as lozenge medallions in an interlocking pattern: rows of two and three, each offset half a
  * medallion from the one before (rows of three and four on a wide screen). The sticky strip is a row of small rug
  * swatches. Everything is scoped under [data-body='rugs'], logical properties only (RTL mirrors). The colours are the
- * shape's own and the same on every palette: RugsBody sets them as `--rg-*` custom properties from rug-weave.ts (this
- * file writes no colour of its own), and every text sits on a solid fill (the patterns are on frames and
- * pseudo-elements), so each pair is a computed, tested contrast.
+ * template's palette, set below as `--rg-*` (page `--bg`, ink `--text`, red `--accent`, ivory `--raised`),
+ * with saffron, green and indigo as the rugs' own dyes (each with a fixed ink that reads on it); every text sits on a solid fill (the patterns are on frames and
+ * pseudo-elements) that is the palette's own or a light tint of it.
  */
 [data-body='rugs'] {
-  /* The shape's own page colours, so the shared plate, the muted lines and the add button read on the ivory ground. */
-  --bg: var(--rg-page);
-  --text: var(--rg-ink);
-  --muted: var(--rg-muted);
-  --accent: var(--rg-red);
-  --on-accent: var(--rg-green-ink);
+  /* The colours, from the template's palette (saffron, green and indigo are the rugs' own dyes, with a fixed ink that reads on each). */
+  --rg-ink: var(--text);
+  --rg-plate: var(--raised);
+  --rg-plate-ink: var(--text);
+  --rg-red: var(--accent);
+  --rg-green: #2f7d4a;
+  --rg-green-ink: #ffffff;
+  --rg-price-ink: color-mix(in srgb, var(--accent-ink) 80%, var(--text));
+  --rg-saffron: #e9a51b;
+  --rg-saffron-ink: #2a1810;
+  --rg-indigo: #23306b;
+  --rg-strip-backing: color-mix(in srgb, var(--bg) 78%, var(--rg-saffron));
+  --rg-ring: var(--text);
+  --rg-hover: color-mix(in srgb, var(--raised) 70%, var(--rg-saffron));
   /* The sticky strip's height (44px swatches, 6px above and under them), so a jumped-to rug lands just below it. */
   --nav-room: 3.5rem;
   --column: 64rem;
@@ -32,7 +40,7 @@
 
 [data-body='rugs'] .rg-strip {
   background: var(--rg-strip-backing);
-  box-shadow: 0 1px 0 rgb(42 24 16 / 0.35);
+  box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 35%, transparent);
 }
 /* The list scrolls sideways, so it clips: a swatch's ring is drawn outside it, in the padding the list keeps for it. */
 [data-body='rugs'] .rg-strip-list {
@@ -47,7 +55,7 @@
   padding: 0.375rem;
   border-radius: 0.125rem;
   background: var(--rg-frame);
-  box-shadow: 0 1px 2px rgb(42 24 16 / 0.35);
+  box-shadow: 0 1px 2px color-mix(in srgb, var(--text) 35%, transparent);
 }
 [data-body='rugs'] .rg-swatch-label {
   display: block;
@@ -175,7 +183,7 @@
   background: var(--rg-frame);
   box-shadow:
     0 0 0 2px var(--rg-ink),
-    0 0.375rem 0.625rem rgb(42 24 16 / 0.28);
+    0 0.375rem 0.625rem color-mix(in srgb, var(--text) 28%, transparent);
 }
 /* The field: a solid tint (the dishes' ground), a faint lattice over it on a pseudo-element, a thin inner border. */
 [data-body='rugs'] .rg-field {
@@ -190,8 +198,8 @@
   inset: 0.25rem;
   pointer-events: none;
   background:
-    repeating-linear-gradient(45deg, rgb(179 32 42 / 0.07) 0 1px, transparent 1px 12px),
-    repeating-linear-gradient(-45deg, rgb(179 32 42 / 0.07) 0 1px, transparent 1px 12px);
+    repeating-linear-gradient(45deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 12px),
+    repeating-linear-gradient(-45deg, color-mix(in srgb, var(--accent) 7%, transparent) 0 1px, transparent 1px 12px);
 }
 /* The thin fringe line between rugs: short red threads. */
 [data-body='rugs'] .rg-fringe {
@@ -346,7 +354,7 @@
   inset-block-end: var(--rg-foot);
   inset-inline-end: -0.0625rem;
   border: 2px solid var(--rg-plate);
-  box-shadow: 0 1px 3px rgb(42 24 16 / 0.45);
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--text) 45%, transparent);
 }
 [data-body='rugs'] .rg-add:focus-visible {
   outline: 2px solid var(--rg-ring);

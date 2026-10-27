@@ -7,33 +7,40 @@
  * band by band, and a stepped corbel under each window holds its band up over the lattice. From 640px the bands run two across,
  * mirrored like a pair of oriels. A corbelled wooden bracket closes each facade. The sticky strip is a row of
  * oriel-window chips with the section's name beside the window (shared/arch-chip.css). Everything is scoped under
- * [data-body='lattice'], logical properties only (RTL mirrors). The fills are the shape's own (lattice-wood.ts, the same
- * on every palette), and every text sits on a solid one: the patterns are on grounds, frames and pseudo-elements, never
+ * [data-body='lattice'], logical properties only (RTL mirrors). The fills come from the template's palette (the wood is the
+ * text colour, lightened or darkened, the glass and lattice the accent, the carved cream the raised colour; only the brass
+ * is the shape's own, with a fixed ink), and every text sits on a solid one: the patterns are on grounds, frames and pseudo-elements, never
  * behind text. Nothing moves.
  */
 [data-body='lattice'] {
-  --sh-board: #4a2a12;
-  --sh-plaque: #5e3818;
-  --sh-chip: #6b4120;
-  --sh-edge: #2b1709;
-  --sh-cream: #fbeccb;
-  --sh-cream-soft: #e8cfa0;
+  /* The wood: the palette's text colour (dark on a light palette), in steps of lightness at its own hue. */
+  --sh-board: var(--text);
+  --sh-plaque: oklch(from var(--text) calc(l + 0.06) c h);
+  --sh-chip: oklch(from var(--text) calc(l + 0.1) c h);
+  --sh-edge: oklch(from var(--text) calc(l - 0.1) c h);
+  --sh-carve: oklch(from var(--text) 0.45 c h);
+  --sh-rim: oklch(from var(--text) 0.6 calc(c * 1.2) h);
+  /* The carved text on wood: the raised colour (the palette's pair for its text colour). */
+  --sh-cream: var(--raised);
+  --sh-cream-soft: oklch(from var(--raised) calc(l - 0.08) c h);
+  --sh-ring: var(--raised);
+  /* Brass: the shape's own, with an ink that reads on it. */
   --sh-brass: #e2b04a;
   --sh-brass-ink: #2a1608;
-  --sh-glass: #0f6767;
-  --sh-lit: #7fe0d6;
-  --sh-lit-ink: #0e2b2a;
-  --sh-turquoise: #1f8a8a;
-  --sh-mesh: #6fd4cb;
-  --sh-ring: #fff4d6;
-  --sh-rim: #a8794a;
+  /* Glass and lattice: the accent (with its on-accent), and its lighter and darker steps at its own hue. */
+  --sh-glass: var(--accent);
+  --sh-glass-ink: var(--on-accent);
+  --sh-lit: oklch(from var(--accent) 0.85 c h);
+  --sh-lit-ink: oklch(from var(--accent) 0.25 c h);
+  --sh-turquoise: oklch(from var(--accent) 0.6 c h);
+  --sh-mesh: oklch(from var(--accent) 0.8 c h);
   /* The strip chips and the price tag (shared/arch-chip.css), in wood, glass and brass. */
   --arch-chip-bg: var(--sh-chip);
   --arch-chip-ink: var(--sh-cream);
   --arch-chip-lit-bg: var(--sh-brass);
   --arch-chip-lit-ink: var(--sh-brass-ink);
   --arch-glass-bg: var(--sh-glass);
-  --arch-glass-ink: var(--sh-cream);
+  --arch-glass-ink: var(--sh-glass-ink);
   --arch-glass-lit-bg: var(--sh-lit);
   --arch-glass-lit-ink: var(--sh-lit-ink);
   --tag-bg: var(--sh-brass);
@@ -92,13 +99,13 @@
   font-weight: 800;
   background: var(--sh-board);
   box-shadow:
-    inset 0 0 0 2px #7a5228,
+    inset 0 0 0 2px var(--sh-carve),
     inset 0 0 0 4px var(--sh-board);
   color: var(--sh-cream);
 }
 [data-body='lattice'] .sh-title small {
   background: var(--sh-glass);
-  color: var(--sh-cream);
+  color: var(--sh-glass-ink);
 }
 [data-body='lattice'] .sh-title b {
   background-color: var(--sh-brass);

@@ -2,6 +2,7 @@
 
 import type { CSSProperties } from 'react';
 import { mix } from '@/lib/templates/palette';
+import type { DesignPalette } from '@/lib/templates/types';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
@@ -18,32 +19,33 @@ export function appHue(index: number): number {
 }
 
 /**
- * The home screen's surfaces that carry white text, each the template's accent mixed (`share` of it) into a fixed dark:
- * the wallpaper's three stops, the folder band the dish names sit on, the label tile, the dock's backing and its strip.
- * The dark keeps white text readable whatever the accent, a white or yellow one picked in Customize included, and the
- * dock does not depend on the page's own (perhaps light) background.
+ * The home screen's surfaces that carry the palette's text, each the template's accent mixed (`share` of it) into the
+ * palette's background (`bg`) or raised surface (`raised`): the wallpaper's three stops, the folder band the dish names
+ * sit on, the label tile, the dock's backing and its strip. Mixing only a share of the accent into the palette's own
+ * ground keeps the text readable whatever accent is picked in Customize, and the dock does not depend on the page's
+ * own background.
  */
 export const HOMESCREEN_FILLS = {
-  wallTop: { share: 0.34, base: '#0C0516' },
-  wallMid: { share: 0.26, base: '#14081F' },
-  wallEnd: { share: 0.4, base: '#1A0A08' },
-  band: { share: 0.3, base: '#3A2E4A' },
-  tile: { share: 0.22, base: '#0C0516' },
-  dock: { share: 0.22, base: '#0C0516' },
-  strip: { share: 0.3, base: '#3A2E4A' },
+  wallTop: { share: 0.34, base: 'bg' },
+  wallMid: { share: 0.26, base: 'bg' },
+  wallEnd: { share: 0.32, base: 'bg' },
+  band: { share: 0.26, base: 'raised' },
+  tile: { share: 0.22, base: 'bg' },
+  dock: { share: 0.22, base: 'bg' },
+  strip: { share: 0.26, base: 'raised' },
 } as const;
 
-/** The colour of one of those surfaces for an accent (`#RRGGBB`), as the page's `color-mix` draws it. */
-export function homescreenFill(fill: keyof typeof HOMESCREEN_FILLS, accent: string): string {
+/** The colour of one of those surfaces for a palette, as the page's `color-mix` draws it. */
+export function homescreenFill(fill: keyof typeof HOMESCREEN_FILLS, palette: Pick<DesignPalette, 'bg' | 'raised' | 'accent'>): string {
   const { share, base } = HOMESCREEN_FILLS[fill];
-  return mix(base, accent, share);
+  return mix(palette[base], palette.accent, share);
 }
 
 /** The surfaces as custom properties on the body (`--hs-band`, `--hs-wall-top`, ...), for homescreen.css. */
 const FILL_STYLE = Object.fromEntries(
   Object.entries(HOMESCREEN_FILLS).map(([fill, { share, base }]) => [
     `--hs-${fill.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`,
-    `color-mix(in srgb, var(--accent) ${Math.round(share * 100)}%, ${base})`,
+    `color-mix(in srgb, var(--accent) ${Math.round(share * 100)}%, var(--${base}))`,
   ]),
 ) as CSSProperties;
 

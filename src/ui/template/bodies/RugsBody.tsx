@@ -6,7 +6,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
-import { frameOf, RUG_VARS, rugWeaveOf } from './rug-weave';
+import { frameOf, rugWeaveOf } from './rug-weave';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/photo-card.css';
@@ -33,7 +33,7 @@ export function RugsBody() {
   const placeOf = usePlaceOf();
 
   return (
-    <div className="tpl-body" data-body="rugs" style={RUG_VARS as CSSProperties}>
+    <div className="tpl-body" data-body="rugs">
       <SectionStrip marker="swatches" prefix="rg" className="rg-strip" chip="rg-swatch" chipStyle={(category) => weaveStyle(placeOf(category), 6)}>
         {(category) => <span className="rg-swatch-label">{category.name}</span>}
       </SectionStrip>

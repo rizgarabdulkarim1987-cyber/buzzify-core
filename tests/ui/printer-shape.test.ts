@@ -81,9 +81,15 @@ describe('the printer fills', () => {
     expect(sweepDelay(500) + 1400).toBeLessThan(5000);
   });
 
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8').toLowerCase();
-    for (const [name, value] of Object.entries(PRINTER)) if (typeof value === 'string') expect(css, name).toContain(value.toLowerCase());
+  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+    const css = readFileSync('src/ui/template/bodies/printer.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff'];
+    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+
+  it('resolves the signature palette to the fills the shape was drawn with', () => {
+    const palette = TEMPLATES['the-3d-printer'].palette;
+    for (const [role, fill] of [['bg', PRINTER.bg], ['surface', PRINTER.panel], ['line', PRINTER.line], ['card', PRINTER.chip], ['text', PRINTER.ink], ['muted', PRINTER.muted], ['accent', PRINTER.hot]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
   });
 
   it('sweeps the printhead once (no infinite animation), moves only transform and opacity, and uses no physical left/right properties', () => {

@@ -1,8 +1,7 @@
 /**
- * The Summer Beach shape's own fills (the same on every palette: a beach is sand, sea and striped towels, not the page
- * colours). Every text in the shape sits on one of these solid fills, so each pair is a computed contrast
- * (tests/ui/beach-shape.test.ts). `beach.css` writes the same values; the test checks they stay in step. The one colour
- * that follows the palette is the lit chip's ring (`riseOf`), kept visible on the deep chip by construction.
+ * The Summer Beach shape's default fills: what the preset's signature palette resolves them to (sand, sea and striped
+ * towels). `beach.css` draws every one of them from the template's palette variables, so Customize recolours the beach;
+ * these are the values the signature palette gives them, and each pair is a computed contrast (tests/ui/beach-shape.test.ts).
  */
 export const BEACH = {
   /** The sky behind the bands. */
@@ -33,8 +32,12 @@ export const BEACH = {
   addInk: '#fffdf7',
 } as const;
 
-/** The four stripe hues a towel takes in turns (decoration only: no text sits on a stripe). */
-export const TOWELS = ['#ff6b35', '#14a3b8', '#ffc233', '#ff8fb1'] as const;
+/**
+ * The four stripe hues a towel takes in turns (decoration only: no text sits on a stripe), as the stylesheet's palette-turned
+ * variables: the first is the accent, the others its hue turned (beach.css `--bc-towel-N`). With the signature palette they
+ * come out as coral, teal, sun yellow and pink.
+ */
+export const TOWELS = ['var(--bc-towel-0)', 'var(--bc-towel-1)', 'var(--bc-towel-2)', 'var(--bc-towel-3)'] as const;
 
 /** The towel hue of the dish at `at` in its section (wraps both ways). */
 export function towelOf(at: number): string {

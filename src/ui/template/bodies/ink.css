@@ -2,16 +2,18 @@
  * The Section Ink body (a browse shape of a template menu): every section is a full-width colour band in a saturated hue
  * of its own (`--band`, with `--band-ink`, the text colour computed to read on it: ink-bands.ts), its top edge bled
  * like spilt ink (a mask of one of three blobby edges), with the section's name set large and its dish count, and the
- * dishes on it as paper-white cards three across (photo, name, price, a round add on the photo). The cards are white with
- * near-black text whatever the menu's palette, so a dish always reads; only the band, the strip's chips and the add
- * buttons wear the band colour. A band floods in once, the first time it scrolls into view: a circle of its colour grows
+ * dishes on it as paper cards three across (photo, name, price, a round add on the photo). The paper is the lighter of the
+ * palette's background and text colour with the darker one as its text (InkBody sets `--ik-paper` and `--ik-on-paper`), so
+ * a dish always reads and the cards follow the colours picked in Customize; only the band, the strip's chips and the add
+ * buttons wear the band colour (the bands are the section's own hues, with the text colour computed to read on each). A band floods in once, the first time it scrolls into view: a circle of its colour grows
  * from its top corner (or from the chip that was tapped, `--fx`) with clip-path alone (useBandFlood.ts). Everything is
  * scoped under [data-body='ink']. Logical properties only (RTL mirrors, the flood starts from the other corner).
  * Less motion: no flood, every band is simply there.
  */
 [data-body='ink'] {
-  --ik-paper: #ffffff;
-  --ik-on-paper: #14141a;
+  /* The paper and its text: InkBody overrides both on this element (the lighter and the darker of --bg and --text). */
+  --ik-paper: var(--text);
+  --ik-on-paper: var(--bg);
   --ik-edge-h: 1.75rem;
   --ik-overlap: 1.25rem;
   /* The sticky strip's height, so a jumped-to band lands just below it. */
@@ -149,7 +151,7 @@
 }
 [data-body='ink'] .ik-card {
   --sale-bg: var(--ik-on-paper);
-  --sale-ink: #ffffff;
+  --sale-ink: var(--ik-paper);
   --tpl-ring-radius: 0.875rem;
   position: relative;
   display: grid;
@@ -196,7 +198,7 @@
   z-index: 3;
   inset-block-end: 0.25rem;
   inset-inline-end: 0.25rem;
-  border: 2px solid #ffffff;
+  border: 2px solid var(--ik-paper);
   box-shadow: 0 2px 0 color-mix(in srgb, #000 40%, transparent);
 }
 [data-body='ink'] .ik-add svg {

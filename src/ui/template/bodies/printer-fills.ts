@@ -1,7 +1,7 @@
 /**
- * The 3D Printer shape's own fills (the same on every palette: a print bed is dark steel with a hot orange head, not the
+ * The 3D Printer shape's own fills (its default look, every fill drawn from the template palette so Customize recolours it: a print bed is dark steel with a hot orange head, not the
  * page colours). Every text in the shape sits on one of these solid fills, so each pair is a computed contrast
- * (tests/ui/printer-shape.test.ts). `printer.css` writes the same values; the test checks they stay in step. The one colour
+ * (tests/ui/printer-shape.test.ts). `printer.css` resolves to these values with the signature palette (checked in the test). The one colour
  * that follows the palette is the rail's fill and the printhead (`riseOf` in beach-fills.ts: the accent lifted towards white).
  */
 export const PRINTER = {

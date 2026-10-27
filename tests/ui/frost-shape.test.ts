@@ -59,10 +59,15 @@ describe('the frost fills', () => {
     expect(contrast(FROST.addInk, FROST.add)).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8').toLowerCase();
-    for (const [name, value] of Object.entries(FROST)) if (typeof value === 'string') expect(css, name).toContain(value.toLowerCase());
-    expect(css).toContain(String(FROST.fogOpacity));
+  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff', '#7a0c2c', '#ffffff'];
+    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+
+  it('resolves the signature palette to the fills the shape was drawn with', () => {
+    const palette = TEMPLATES['the-frosted-window'].palette;
+    for (const [role, fill] of [['bg', FROST.night], ['surface', FROST.dusk], ['text', FROST.ice]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
   });
 
   it('never loops (no infinite animation), moves only transform and opacity, and uses no physical left/right properties', () => {

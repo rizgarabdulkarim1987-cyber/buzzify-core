@@ -1,7 +1,7 @@
 /**
- * The Frosted Window shape's own fills (the same on every palette: a winter window is night blue and frost, not the page
+ * The Frosted Window shape's own fills (its default look, every fill drawn from the template palette so Customize recolours it: a winter window is night blue and frost, not the page
  * colours). Every text in the shape sits on one of these solid fills, so each pair is a computed contrast
- * (tests/ui/frost-shape.test.ts). `frost.css` writes the same values; the test checks they stay in step. The one colour
+ * (tests/ui/frost-shape.test.ts). `frost.css` resolves to these values with the signature palette (checked in the test). The one colour
  * that follows the palette is the lit chip's ring (`riseOf`), kept visible on the deep chip by construction.
  */
 export const FROST = {

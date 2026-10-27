@@ -4,7 +4,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { InkBody } from '@/ui/template/bodies/InkBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, inkOn } from '@/ui/template/bodies/ink-bands';
+import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, inkOn, paperOf } from '@/ui/template/bodies/ink-bands';
 
 describe('the Section Ink shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -44,6 +44,22 @@ describe('the Section Ink shape', () => {
 
     it('keeps the dish text on paper-white at a safe ratio', () => {
       expect(contrast(INK_ON_PAPER, INK_PAPER)).toBeGreaterThanOrEqual(7);
+    });
+  });
+
+  describe('the paper', () => {
+    it('is the lighter of the palette background and text colour, with the darker one as its text, in every palette', () => {
+      for (const { id, palette } of TEMPLATES['the-section-ink'].palettes) {
+        const { paper, onPaper } = paperOf(palette);
+        expect([paper, onPaper].sort()).toEqual([palette.bg, palette.text].sort());
+        expect(contrast(onPaper, paper), id).toBeGreaterThanOrEqual(7);
+      }
+    });
+
+    it('is white with near-black text on the default dark palette', () => {
+      const { paper, onPaper } = paperOf(TEMPLATES['the-section-ink'].palettes[0]!.palette);
+      expect(paper).toBe('#FFFFFF');
+      expect(contrast(onPaper, paper)).toBeGreaterThanOrEqual(15);
     });
   });
 });

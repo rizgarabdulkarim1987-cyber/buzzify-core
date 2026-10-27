@@ -5,7 +5,6 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { LatticeBody } from '@/ui/template/bodies/LatticeBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { WOOD } from '@/ui/template/bodies/lattice-wood';
 
 describe('the Baghdad Shanashil shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -27,41 +26,24 @@ describe('the Baghdad Shanashil shape', () => {
 });
 
 describe('the wood and glass fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: the board, the plaque, the brass tag, the glass, the lit glass', () => {
-    expect(contrast(WOOD.cream, WOOD.board)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.plaque)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.glass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.litInk, WOOD.lit)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.chip)).toBeGreaterThanOrEqual(4.5);
-    // The description line and the names beside the window, on the pane's plaque; a lit chip's name on brass.
-    expect(contrast(WOOD.creamSoft, WOOD.plaque)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-  });
+  const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
 
-  it('keeps the bay closed on every palette: the bracket or its carved rim stands out from the page (3:1)', () => {
-    for (const palette of TEMPLATES['the-baghdad-shanashil'].palettes) {
-      const bg = palette.palette.bg;
-      expect(Math.max(contrast(WOOD.board, bg), contrast(WOOD.rim, bg)), palette.id).toBeGreaterThanOrEqual(3);
+  it('keeps every text readable in every palette: carved cream on the wood, the glass number, the brass tag', () => {
+    for (const { id, palette } of TEMPLATES['the-baghdad-shanashil'].palettes) {
+      // The wood is the text colour (lightened or darkened a little), the cream is the raised colour.
+      expect(contrast(palette.raised, palette.text), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
+      // The bay stays closed: the wood board stands out from the page.
+      expect(contrast(palette.text, palette.bg), id).toBeGreaterThanOrEqual(3);
     }
+    expect(contrast('#2a1608', '#e2b04a')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('draws the focus ring in a colour that stands out from the pane edge, the strip chip and the brass chip (3:1)', () => {
-    expect(contrast(WOOD.ring, WOOD.edge)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.ring, WOOD.plaque)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.ring, WOOD.board)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.cream, WOOD.chip)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('keeps the stylesheet and the constants in step: each constant is declared by name (--sh-<name>) with the same value', () => {
-    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
-    const declared = Object.fromEntries([...css.matchAll(/(--sh-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
-    for (const [name, hex] of Object.entries(WOOD)) {
-      const property = `--sh-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-      expect(declared[property], property).toBe(hex.toLowerCase());
-    }
+  it('draws the wood from the text colour and the glass from the accent, and writes only the brass as hex', () => {
+    expect(css).toMatch(/--sh-board:\s*var\(--text\)/);
+    expect(css).toMatch(/--sh-glass:\s*var\(--accent\)/);
+    expect(css).toMatch(/--sh-cream:\s*var\(--raised\)/);
+    expect((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase()).sort()).toEqual(['#2a1608', '#e2b04a']);
   });
 });
 

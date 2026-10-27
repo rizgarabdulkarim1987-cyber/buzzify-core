@@ -48,9 +48,15 @@ describe('the hull, bezel and LED fills', () => {
     expect(contrast(HULL.ice, HULL.hull)).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/station.css', 'utf8').toLowerCase();
-    for (const [name, hex] of Object.entries(HULL)) expect(css, name).toContain(hex.toLowerCase());
+  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+    const css = readFileSync('src/ui/template/bodies/station.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff', '#ffb454', '#1a0f00'];
+    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+
+  it('resolves the signature palette to the fills the shape was drawn with', () => {
+    const palette = TEMPLATES['the-space-station'].palette;
+    for (const [role, fill] of [['bg', HULL.space], ['surface', HULL.hull], ['line', HULL.hullEdge], ['card', HULL.plate], ['text', HULL.ice]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
   });
 
   it('never loops: no infinite animation in the stylesheet, and no physical left/right properties', () => {

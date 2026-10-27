@@ -1,3 +1,4 @@
+import { luminance } from '@/lib/palette';
 import { bestOn } from '@/lib/templates/palette';
 
 /**
@@ -12,6 +13,15 @@ export const INK_BANDS = ['#D32F24', '#F2A116', '#13804A', '#2563EB', '#7E3AD0',
 export const INK_PAPER = '#FFFFFF';
 export const INK_ON_PAPER = '#14141A';
 const LIGHT_INK = '#FFFFFF';
+
+/**
+ * The paper the dishes sit on and its text colour, from the palette: the lighter of the background and the text colour is
+ * the paper, the darker one its text. They are a palette's own text/background pair, so they read (7:1) whatever the
+ * palette is; on the default dark palette that is white paper with near-black text.
+ */
+export function paperOf(palette: { bg: string; text: string }): { paper: string; onPaper: string } {
+  return luminance(palette.text) >= luminance(palette.bg) ? { paper: palette.text, onPaper: palette.bg } : { paper: palette.bg, onPaper: palette.text };
+}
 
 /** The band colour of the nth section; the set repeats once it is used up. */
 export function bandColour(index: number): string {

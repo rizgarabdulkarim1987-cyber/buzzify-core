@@ -5,7 +5,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { SaleChip } from '../parts';
-import { bandColour, inkOn } from './ink-bands';
+import { bandColour, inkOn, paperOf } from './ink-bands';
 import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
@@ -24,7 +24,8 @@ import './ink.css';
  */
 export function InkBody() {
   const { locale, tenant } = useApp();
-  const { categories, byCategory, reduced } = useTemplate();
+  const { categories, byCategory, reduced, design } = useTemplate();
+  const { paper, onPaper } = paperOf(design.palette);
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   const root = useRef<HTMLDivElement>(null);
   const flood = useBandFlood(root, reduced);
@@ -36,7 +37,7 @@ export function InkBody() {
   };
 
   return (
-    <div className='tpl-body' data-body='ink' ref={root}>
+    <div className='tpl-body' data-body='ink' ref={root} style={{ '--ik-paper': paper, '--ik-on-paper': onPaper } as CSSProperties}>
       <SectionStrip
         marker='chips'
         prefix='ik'

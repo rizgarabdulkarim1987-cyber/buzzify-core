@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -226,7 +226,8 @@ test('the price is on a brass tag and the name on the carved cell, each on a sol
   expect(tag.hole).not.toBe('none');
   const plaque = await pane.evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage }));
   expect(plaque.image).toBe('none');
-  expect(plaque.bg).toBe('rgb(94, 56, 24)');
+  // The wood is the palette's text colour, a step lighter (an oklch value now), still a solid fill.
+  expect(plaque.bg).not.toBe('rgba(0, 0, 0, 0)');
   expect(await contrastOf(pane.locator('.sh-name'))).toBeGreaterThanOrEqual(4.5);
 });
 
@@ -495,4 +496,41 @@ test('a search keeps each section its own number and window (by its place in the
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   await expect(chip.locator('.sh-glass')).toHaveText('5');
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Customize colours reach the shape (the colours picked in Customize replace the palette's, not the artwork's own).
+// ---------------------------------------------------------------------------------------------------------------------
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('shcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'sh', { templateId: 'the-baghdad-shanashil', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const mixHex = (a: string, b: string, amount: number) => {
+  const from = rgbOfHex(a);
+  const to = rgbOfHex(b);
+  return '#' + from.map((channel, at) => Math.round(channel + (to[at]! - channel) * amount).toString(16).padStart(2, '0')).join('');
+};
+const expectNear = (actual: number[], hex: string, message: string, tolerance = 3) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(tolerance));
+};
+const first = (page: Page, selector: string) => page.locator('[data-body="lattice"] ' + selector).first();
+
+test('Customize colours reach the shape: the wood is the text colour, the glass the accent, the carved cream the raised colour', async ({ page }) => {
+  await openMenu(page, customSlug);
+  expectNear(await rgbOf(first(page, '.sh-title'), 'background-color'), CUSTOM.text, 'header board');
+  expectNear(await rgbOf(first(page, '.sh-title'), 'color'), CUSTOM.raised, 'header text');
+  expectNear(await rgbOf(first(page, '.sh-title small'), 'background-color'), CUSTOM.accent, 'section number glass');
+  expectNear(await rgbOf(first(page, '.sh-name'), 'color'), CUSTOM.raised, 'dish name');
 });

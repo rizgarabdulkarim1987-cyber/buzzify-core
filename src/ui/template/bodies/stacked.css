@@ -3,13 +3,15 @@
  * one before it, with a tab at its top edge. The tabs are sticky (no scripting): those of the sheets above the one in
  * view stack at the top, those of the sheets below dock at the bottom (`data-tabs='stack'`); a menu with many sections
  * gets one scrollable rail instead and each sheet keeps its own tab pinned under it (`data-tabs='rail'`). Everything is
- * scoped under [data-body='stacked']. The paper (a pastel of the sheet's hue) and its ink are fixed pairs, so contrast
- * holds on every palette: the sheet sets the colours its dishes read (the shape's cards, prices and badges follow them).
+ * scoped under [data-body='stacked']. The paper is a pastel of the sheet's hue drawn toward the palette's text colour and its ink
+ * is the palette's background colour, so contrast holds on every palette and Customize colours reach every sheet: the sheet sets the colours its dishes read (the shape's cards, prices and badges follow them).
  * Logical properties only (RTL mirrors). Nothing moves by itself, so less motion needs no special case.
  */
 [data-body='stacked'] {
-  --sk-ink: #1b1612;
-  --sk-ink-soft: #4a3f36;
+  --sk-ink: var(--bg);
+  --sk-ink-soft: color-mix(in srgb, var(--bg) 80%, var(--text));
+  /* The palette's text colour, kept for the sheets (which redefine --text as their ink). */
+  --sk-light: var(--text);
   --sk-h: 2.75rem;
   /* How far apart stacked tabs sit: each covers the lower part of the one before, whose top strip stays tappable. */
   --sk-step: 1.75rem;
@@ -43,8 +45,8 @@ body:has([data-testid='cart-bar']) [data-body='stacked'] {
 [data-body='stacked'] .sk-tab,
 [data-body='stacked'] .sk-sheet,
 [data-body='stacked'] .sk-chip {
-  --sk-paper: hsl(var(--h) 72% 85%);
-  --sk-card: hsl(var(--h) 60% 97%);
+  --sk-paper: color-mix(in srgb, hsl(var(--h) 80% 60%) 30%, var(--sk-light));
+  --sk-card: color-mix(in srgb, var(--sk-paper) 22%, var(--sk-light));
 }
 
 /* The rail (sticky: shared/shapes.css): ink, with a chip of each sheet's paper. */
@@ -188,10 +190,10 @@ body:has([data-testid='cart-bar']) [data-body='stacked'] {
   --muted: var(--sk-ink-soft);
   --accent: var(--sk-ink);
   --accent-ink: var(--sk-ink);
-  --on-accent: #fff;
+  --on-accent: var(--sk-light);
   --button: var(--sk-ink);
-  --on-button: #fff;
-  --line: rgb(27 22 18 / 0.28);
+  --on-button: var(--sk-light);
+  --line: color-mix(in srgb, var(--sk-ink) 28%, transparent);
   --card: var(--sk-card);
   position: relative;
   min-block-size: var(--sk-sheet-min);
@@ -245,7 +247,7 @@ body:has([data-testid='cart-bar']) [data-body='stacked'] {
 }
 [data-body='stacked'] .sk-add {
   background: var(--sk-ink);
-  color: #fff;
+  color: var(--sk-light);
 }
 [data-body='stacked'] .sk-row .tpl-open:focus-visible::after {
   outline-offset: -3px;

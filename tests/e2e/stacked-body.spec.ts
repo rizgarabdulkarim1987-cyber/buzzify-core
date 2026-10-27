@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   BODY_PRODUCTS,
@@ -427,3 +427,34 @@ test('the docked tabs rise above the cart bar once something is in the cart', as
 });
 
 shapeChecks(menus, { kind: 'stacked', templateId: 'the-stacked-sheets', checks: ['contrast'] });
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('stkcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'stacked', { templateId: 'the-stacked-sheets', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+test('Customize colours reach the sheets: the ink is the background colour and the paper is drawn toward the text colour', async ({ page }) => {
+  await openMenu(page, slug);
+  const defaultPaper = await rgbOf(page.locator('[data-body="stacked"] .sk-sheet').first(), 'background-color');
+  await openMenu(page, customSlug);
+  const sheet = page.locator('[data-body="stacked"] .sk-sheet').first();
+  const ink = await rgbOf(sheet, 'color');
+  rgbOfHex(CUSTOM.bg).forEach((channel, at) => expect(Math.abs(ink[at]! - channel), 'sheet ink is the background colour').toBeLessThanOrEqual(3));
+  const paper = await rgbOf(sheet, 'background-color');
+  expect(paper, 'the paper is not the default one').not.toEqual(defaultPaper);
+  // The paper is the hue's colour drawn toward the text colour, so it stays well away from the ink.
+  const light = (rgb: number[]) => 0.2126 * rgb[0]! + 0.7152 * rgb[1]! + 0.0722 * rgb[2]!;
+  expect(light(paper), 'the paper is much lighter than the ink').toBeGreaterThan(light(ink) + 120);
+});

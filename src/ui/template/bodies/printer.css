@@ -8,23 +8,30 @@
  * across a cell once, the first time it comes into view (PrinterBody arms it; with less motion there is none): a
  * transform and opacity on a lane that takes no tap, over cells that are always there to read. Everything is scoped under
  * [data-body='printer'], logical properties only (RTL mirrors, `:dir(rtl)` where a value must flip). The fills are the
- * shape's own (printer-fills.ts, the same on every palette); the only palette colour is the rail's fill and the
+ * shape's own (printer-fills.ts holds the signature defaults, drawn from the palette); the only palette colour is the rail's fill and the
  * printhead.
  */
 [data-body='printer'] {
-  --pr-bg: #121417;
-  --pr-panel: #1a1d21;
-  --pr-line: #2a2f35;
-  --pr-strip: #15181b;
-  --pr-chip: #1d2024;
-  --pr-chip-ink: #cfd5db;
-  --pr-pill: #2a2f35;
-  --pr-ink: #e9ecef;
-  --pr-muted: #aab1b9;
-  --pr-hot: #ff7a1a;
-  --pr-hot-ink: #121417;
+  /* Every fill comes from the template's palette (Customize recolours the printer); the 3D Printer preset's signature
+     palette resolves to the dark steel and hot orange below. Text sits on bg, surface (the panel), card (the chip) or the
+     accent (with --on-accent), all palette pairs, and the pill is the chip nudged toward white. */
+  /* White on a dark palette, black on a light one (the way a tint lifts away from the ground), so the same mixes work on both. */
+  --pr-toward: oklch(from var(--bg) clamp(0, (0.6 - l) * 1000, 1) 0 0);
+  --pr-bg: var(--bg);
+  --pr-panel: var(--surface);
+  --pr-line: var(--line);
+  --pr-strip: color-mix(in srgb, var(--bg) 75%, var(--surface));
+  --pr-chip: var(--card);
+  --pr-chip-ink: color-mix(in srgb, var(--text) 88%, var(--bg));
+  --pr-pill: color-mix(in srgb, var(--card) 92%, #fff);
+  --pr-ink: var(--text);
+  --pr-muted: var(--muted);
+  --pr-hot: var(--accent);
+  --pr-hot-ink: var(--on-accent);
+  /* The accent where it is text on the bed or the panel (the price, the hot number): pushed just far enough to read. */
+  --pr-hot-text: var(--accent-ink);
   /* The rail's fill and the printhead: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`). */
-  --pr-rise: var(--tpl-rise);
+  --pr-rise: color-mix(in srgb, var(--accent) 45%, var(--pr-toward));
   --pr-mono: ui-monospace, 'IBM Plex Mono', 'SFMono-Regular', Menlo, Consolas, monospace;
   --pr-rail: 1rem;
   --nav-room: 4.75rem;
@@ -139,7 +146,7 @@
   padding: 0.0625rem 0.375rem;
   border-radius: 0.25rem;
   background-color: var(--pr-pill);
-  color: var(--pr-hot);
+  color: var(--pr-hot-text);
   font-family: var(--pr-mono);
   font-size: 0.75rem;
   font-weight: 700;
@@ -240,7 +247,7 @@
   position: absolute;
   inset: 0;
   z-index: 1;
-  background: repeating-linear-gradient(to bottom, rgb(18 20 23 / 0.2) 0 1px, transparent 1px 4px);
+  background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--bg) 20%, transparent) 0 1px, transparent 1px 4px);
   pointer-events: none;
 }
 /* The layer code on the slab's start corner. */
@@ -280,7 +287,7 @@
   padding: 0 0.3125rem;
   border-radius: 0.1875rem;
   background-color: var(--pr-panel);
-  color: var(--pr-hot);
+  color: var(--pr-hot-text);
   font-family: var(--pr-mono);
   font-size: 0.8125rem;
   font-weight: 700;
@@ -323,7 +330,7 @@
 }
 /* The cell's keyboard ring is drawn inside the cell, in the hot orange. */
 [data-body='printer'] .tpl-open.pr-name:focus-visible::after {
-  outline: 2px solid var(--pr-hot);
+  outline: 2px solid var(--pr-hot-text);
   outline-offset: -3px;
   border-radius: 0.375rem;
 }

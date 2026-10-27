@@ -1,7 +1,7 @@
 /**
- * The Space Station shape's own fills (the same on every palette: a station hull is dark steel and glowing LEDs, not the
+ * The Space Station shape's own fills (its default look, every fill drawn from the template palette so Customize recolours it: a station hull is dark steel and glowing LEDs, not the
  * page colours). Every text in the shape sits on one of these solid fills, so each pair is a computed contrast
- * (tests/ui/station-shape.test.ts). `station.css` writes the same values; the test checks they stay in step. The one
+ * (tests/ui/station-shape.test.ts). `station.css` resolves to these values with the signature palette (checked in the test). The one
  * colour that follows the palette is the LED text and the lit chip ring (`ledOf`), kept readable by construction.
  */
 export const HULL = {

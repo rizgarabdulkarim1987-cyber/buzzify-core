@@ -243,7 +243,7 @@ export const theKitchenTicketRail = definePreset({
   name: 'Kitchen Ticket Rail',
   business: 'restaurant',
   tags: ['dark', 'playful'],
-  seed: { bg: '#26292D', text: '#F0F0F0', accent: '#FF5A36', raised: '#34383D' },
+  seed: { bg: '#26292D', text: '#FFFEF8', accent: '#FF5A36', raised: '#34383D' },
   alternatives: [
     { id: 'pass-light', name: 'Pass light', seed: { bg: '#E9E6DE', text: '#23262A', accent: '#C8321B' } },
     { id: 'walk-in', name: 'Walk-in', seed: { bg: '#1B2A33', text: '#E8F0F3', accent: '#5CC8E8' } },
@@ -330,7 +330,7 @@ export const thePhoneHomeScreen = definePreset({
   name: 'Phone Home Screen',
   business: 'restaurant',
   tags: ['dark', 'playful'],
-  seed: { bg: '#1B1030', text: '#F5EEFF', accent: '#FF5C8A', raised: '#2A1A47' },
+  seed: { bg: '#0C0516', text: '#FFFFFF', accent: '#FF5C8A', raised: '#3A2E4A', button: '#C4001A', onButton: '#FFFFFF' },
   alternatives: [
     { id: 'ocean-wallpaper', name: 'Ocean wallpaper', seed: { bg: '#06202E', text: '#EAF8FF', accent: '#35C2E8' } },
     { id: 'forest-wallpaper', name: 'Forest wallpaper', seed: { bg: '#0E2418', text: '#EDFBF2', accent: '#5BD68A' } },
@@ -475,7 +475,7 @@ export const theMailboxWall = definePreset({
   name: 'The Mailbox Wall',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#2A3B34', text: '#F3E6C4', accent: '#E2C271', raised: '#34483F' },
+  seed: { bg: '#2A3B34', text: '#F3E6C4', accent: '#D4AA52', raised: '#34483F' },
   alternatives: [
     { id: 'post-office-cream', name: 'Post office cream', seed: { bg: '#F2E9D2', text: '#2A2314', accent: '#8A5A12', raised: '#FFFFFF' } },
     { id: 'navy-lobby', name: 'Navy lobby', seed: { bg: '#18263A', text: '#EAF0F8', accent: '#E2B85A', raised: '#22344D' } },
@@ -591,7 +591,7 @@ export const theStackedSheets = definePreset({
   name: 'Stacked Sheets',
   business: 'restaurant',
   tags: ['dark', 'playful'],
-  seed: { bg: '#141210', text: '#F4EFE8', accent: '#F6B8A8', raised: '#221E1B' },
+  seed: { bg: '#141210', text: '#FFFBF6', accent: '#F6B8A8', raised: '#221E1B' },
   alternatives: [
     { id: 'paper-desk', name: 'Paper desk', seed: { bg: '#EFE9DF', text: '#1B1612', accent: '#C2452D', raised: '#FFFFFF' } },
     { id: 'ink-blue', name: 'Ink blue', seed: { bg: '#0E1626', text: '#EAF0FB', accent: '#8FB8FF', raised: '#18233A' } },
@@ -678,7 +678,7 @@ export const theSectionInk = definePreset({
   name: 'Section Ink',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#161618', text: '#F4F1EA', accent: '#FF5A36', raised: '#202023' },
+  seed: { bg: '#161618', text: '#FFFFFF', accent: '#FF5A36', raised: '#202023' },
   alternatives: [
     { id: 'paper-press', name: 'Paper press', seed: { bg: '#F6F1E7', text: '#1B1713', accent: '#D6361F', raised: '#FFFFFF' } },
     { id: 'midnight-blue', name: 'Midnight blue', seed: { bg: '#0F1830', text: '#EEF2FF', accent: '#4F8BFF', raised: '#18244A' } },
@@ -852,7 +852,7 @@ export const theBaghdadShanashil = definePreset({
   name: 'Baghdad Shanashil',
   business: 'restaurant',
   tags: ['light', 'cinematic'],
-  seed: { bg: '#EFE2C8', text: '#3A210D', accent: '#0E6E6E', raised: '#FAF1DC' },
+  seed: { bg: '#EFE2C8', text: '#4A2A12', accent: '#0E6E6E', raised: '#FAF1DC' },
   alternatives: [
     { id: 'tigris-night', name: 'Tigris night', seed: { bg: '#0E2230', text: '#F3E7CC', accent: '#4FC3B8', raised: '#173345' } },
     { id: 'date-palm', name: 'Date palm', seed: { bg: '#F2E8D0', text: '#2E2010', accent: '#6B3F1A', raised: '#FBF4E2' } },
@@ -881,7 +881,7 @@ export const theIshtarGate = definePreset({
   name: 'Ishtar Gate',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#10285A', text: '#F7E7B8', accent: '#E1B64A', raised: '#1B3F86' },
+  seed: { bg: '#10285A', text: '#FFF3C4', accent: '#E1B64A', raised: '#1B3F86', card: '#1D4B9B', onButton: '#2A1A05' },
   alternatives: [
     { id: 'sand-gate', name: 'Sand gate', seed: { bg: '#EFE0BC', text: '#2A1A05', accent: '#1D4B9B', raised: '#F8EFD6' } },
     { id: 'babylon-night', name: 'Babylon night', seed: { bg: '#0A1630', text: '#F3E4B5', accent: '#D9A93C', raised: '#14264F' } },
@@ -910,11 +910,11 @@ export const theSpaceStation = definePreset({
   name: 'Space Station',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#070B1A', text: '#E8E6FF', accent: '#9B8CFF', raised: '#141B35' },
+  seed: { bg: '#070B1A', text: '#EEF2FF', accent: '#9B8CFF', raised: '#141B35', surface: '#1A2240', card: '#2B3760', line: '#5B6A92' },
   alternatives: [
-    { id: 'mars-base', name: 'Mars base', seed: { bg: '#1A0D0A', text: '#FFE9DF', accent: '#FF8A5C', raised: '#2B1712' } },
-    { id: 'aurora-deck', name: 'Aurora deck', seed: { bg: '#04161A', text: '#DDFBF3', accent: '#3FE0B5', raised: '#0B2A30' } },
-    { id: 'nebula-rose', name: 'Nebula rose', seed: { bg: '#1A0B1C', text: '#FFE6F6', accent: '#FF7AC8', raised: '#2C1430' } },
+    { id: 'mars-base', name: 'Mars base', seed: { bg: '#1A0D0A', text: '#FFE9DF', accent: '#FF8A5C', raised: '#2B1712', surface: '#2B1712', card: '#40251C', line: '#8A5A48' } },
+    { id: 'aurora-deck', name: 'Aurora deck', seed: { bg: '#04161A', text: '#DDFBF3', accent: '#3FE0B5', raised: '#0B2A30', surface: '#0B2A30', card: '#14424A', line: '#4E8A92' } },
+    { id: 'nebula-rose', name: 'Nebula rose', seed: { bg: '#1A0B1C', text: '#FFE6F6', accent: '#FF7AC8', raised: '#2C1430', surface: '#2C1430', card: '#432048', line: '#8E5A92' } },
   ],
   type: { fontPairId: 'modern', scale: 1.0 },
   layout: {
@@ -939,7 +939,7 @@ export const theFrostedWindow = definePreset({
   name: 'Frosted Window',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#0B1730', text: '#EAF4FF', accent: '#7FC4FF', raised: '#16294D' },
+  seed: { bg: '#0B1730', text: '#EAF4FF', accent: '#7FC4FF', raised: '#16294D', surface: '#16294D' },
   alternatives: [
     { id: 'aurora-glass', name: 'Aurora glass', seed: { bg: '#05191C', text: '#E3FBF4', accent: '#4FE3B8', raised: '#0D2E33' } },
     { id: 'rose-frost', name: 'Rose frost', seed: { bg: '#241024', text: '#FFE8F4', accent: '#FF8FC2', raised: '#3A1B3A' } },
@@ -968,7 +968,7 @@ export const theSummerBeach = definePreset({
   name: 'Summer Beach',
   business: 'restaurant',
   tags: ['light', 'playful'],
-  seed: { bg: '#BFEEFC', text: '#0D3B52', accent: '#E8590C', raised: '#FFFFFF' },
+  seed: { bg: '#BFEEFC', text: '#0D3B52', accent: '#E8590C', raised: '#FFFFFF', surface: '#FFE9B8', card: '#FFFDF7' },
   alternatives: [
     { id: 'sunset-cove', name: 'Sunset cove', seed: { bg: '#FFD9A8', text: '#4A1F12', accent: '#C2410C', raised: '#FFF3DD' } },
     { id: 'palm-shade', name: 'Palm shade', seed: { bg: '#DFF5E3', text: '#0F3D2E', accent: '#B45309', raised: '#FFFFFF' } },
@@ -997,7 +997,7 @@ export const theThreeDPrinter = definePreset({
   name: '3D Printer',
   business: 'restaurant',
   tags: ['dark', 'cinematic'],
-  seed: { bg: '#121417', text: '#E9ECEF', accent: '#FF7A1A', raised: '#1A1D21' },
+  seed: { bg: '#121417', text: '#E9ECEF', accent: '#FF7A1A', raised: '#1A1D21', surface: '#1A1D21', card: '#1D2024', line: '#2A2F35', muted: '#AAB1B9' },
   alternatives: [
     { id: 'cyan-rail', name: 'Cyan rail', seed: { bg: '#0A161B', text: '#E3F6FB', accent: '#22D3EE', raised: '#10252D' } },
     { id: 'violet-rail', name: 'Violet rail', seed: { bg: '#14101C', text: '#EEEAFB', accent: '#A78BFA', raised: '#1F1830' } },

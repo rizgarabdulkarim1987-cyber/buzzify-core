@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mix } from '@/lib/templates/palette';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -229,4 +230,35 @@ test('a dish on sale shows a −NN% chip in the menu numerals on its box, and ke
   expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
+});
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('maicol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'mailboxes', { templateId: 'the-mailbox-wall', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(3));
+};
+
+test('Customize colours reach the wall: the brass is the accent, its ink --on-accent', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const wall = page.locator('[data-body="mailboxes"] .bx-wall').first();
+  expectNear(await rgbOf(wall.locator('.bx-box').first(), 'background-color'), CUSTOM.accent, 'door');
+  expectNear(await rgbOf(wall.locator('.bx-box').first(), 'color'), CUSTOM.onAccent, 'door ink');
+  expectNear(await rgbOf(wall.locator('.bx-name').first(), 'background-color'), mix(CUSTOM.text, CUSTOM.accent, 0.4), 'name plate');
+  expectNear(await rgbOf(wall.locator('.bx-stamp').first(), 'background-color'), CUSTOM.onAccent, 'price stamp');
+  expectNear(await rgbOf(wall.locator('.bx-stamp').first(), 'color'), mix(CUSTOM.text, CUSTOM.accent, 0.4), 'stamp face');
 });

@@ -6,7 +6,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
-import { CARPET_VARS, carpetWeaveOf } from './carpet-night';
+import { carpetInks, carpetWeaveOf } from './carpet-night';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
 import './shared/photo-card.css';
@@ -33,7 +33,7 @@ function floatOnce(node: HTMLElement | null, id: string | null, floated: Set<str
  */
 export function CarpetBody() {
   const { locale, tenant } = useApp();
-  const { categories, byCategory, activeId } = useTemplate();
+  const { categories, byCategory, activeId, design } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   // Weaves and numbers go by the section's place in the full menu, so a search never recolours or renumbers a carpet.
   const placeOf = usePlaceOf();
@@ -74,7 +74,7 @@ export function CarpetBody() {
   }, []);
 
   return (
-    <div ref={root} className="tpl-body" data-body="carpet" style={CARPET_VARS as CSSProperties}>
+    <div ref={root} className="tpl-body" data-body="carpet">
       <SectionStrip marker="rolls" prefix="cp" className="cp-strip" chip="cp-roll">
         {(category) => (
           <>
@@ -87,6 +87,7 @@ export function CarpetBody() {
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
           const weave = carpetWeaveOf(placeOf(category));
+          const { ink, stitch } = carpetInks(weave, design.palette);
           return (
             <section
               key={category.id}
@@ -94,7 +95,7 @@ export function CarpetBody() {
               data-carpet={category.id}
               aria-labelledby={`h-${category.slug}`}
               data-lit={category.id === activeId ? '' : undefined}
-              style={{ '--cp-base': weave.base, '--cp-thread': weave.thread } as CSSProperties}
+              style={{ '--cp-base': weave.base, '--cp-thread': weave.thread, '--cp-ink': ink, '--cp-ring': ink, '--cp-stitch': stitch } as CSSProperties}
               className="tpl-section tpl-tall-last cp-carpet"
             >
               <ShapeHeading id={`h-${category.slug}`} name={category.name} label={n(placeOf(category) + 1)} count={n(products.length)} className="cp-front" title="cp-title" />

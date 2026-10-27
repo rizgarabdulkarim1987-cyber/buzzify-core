@@ -44,13 +44,15 @@ describe('the lapis, gold and sand fills', () => {
     expect(contrast(BRICK.gold, BRICK.deep)).toBeGreaterThanOrEqual(3);
   });
 
-  it('keeps the stylesheet and the constants in step: each constant is declared by name (--gt-<name>) with the same value', () => {
-    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8');
-    const declared = Object.fromEntries([...css.matchAll(/(--gt-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
-    for (const [name, hex] of Object.entries(BRICK)) {
-      const property = `--gt-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-      expect(declared[property], property).toBe(hex.toLowerCase());
-    }
+  it('draws every fill from the template palette: the stylesheet writes no colour literal but black, white and the fixed sale pair', () => {
+    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8').replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000'];
+    for (const [literal] of css.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+
+  it('resolves the signature palette to the fills the shape was drawn with', () => {
+    const palette = TEMPLATES['the-ishtar-gate'].palette;
+    for (const [role, fill] of [['bg', BRICK.deep], ['card', BRICK.lapis], ['accent', BRICK.gold], ['text', BRICK.cream], ['onButton', BRICK.goldInk]] as const) expect(palette[role].toLowerCase(), role).toBe(fill.toLowerCase());
   });
 
   it('never loops: no infinite animation in the stylesheet, and no physical left/right properties', () => {

@@ -7,27 +7,37 @@
  * porthole, the LED price and the add beside it, the name on a status bar across its foot. The featured dish's own
  * pod is the planet (its porthole a dashed orbit ring with a moon). The portholes of a module open once, the first time it comes into
  * view (StationBody arms it; with less motion they are simply open). Everything is scoped under [data-body='station'],
- * logical properties only (RTL mirrors). The fills are the shape's own (station-hull.ts, the same on every palette) and
+ * logical properties only (RTL mirrors). The fills come from the palette (station-hull.ts holds the signature defaults) and
  * every text sits on a solid one; the starfield, seams, rivets, the spine and the bezels are gradients on frames and
  * pseudo-elements, never behind text. The only palette colour is the LED (the accent lifted towards white, so it reads on
  * the dark LED window). Nothing loops.
  */
 [data-body='station'] {
-  --st-space: #070b1a;
-  --st-hull: #1a2240;
-  --st-hull-edge: #5b6a92;
-  --st-deep: #04070f;
-  --st-plate: #2b3760;
-  --st-bar: #0e1530;
-  --st-ice: #eef2ff;
-  --st-steel: #cfd8f0;
-  --st-steel-ink: #0a1226;
+  /* Every fill comes from the template's palette (Customize recolours the station); the Space Station preset's signature
+     palette resolves to the dark steel hull below. Text sits on bg, surface, card (palette pairs with --text) or on the
+     steel (a tint of --text, with --bg as its ink), and the deep window and the status bar are shades of the bg. */
+  --st-space: var(--bg);
+  --st-hull: var(--surface);
+  --st-hull-edge: var(--line);
+  /* White on a dark palette, black on a light one (the way a tint lifts away from the ground), so the same mixes work on both. */
+  --st-toward: oklch(from var(--bg) clamp(0, (0.6 - l) * 1000, 1) 0 0);
+  --st-away: oklch(from var(--bg) clamp(0, (l - 0.6) * 1000, 1) 0 0);
+  /* The LED window: a shade of the ground, darker on a dark palette and lighter on a light one. */
+  --st-deep: color-mix(in srgb, var(--bg) 55%, var(--st-away));
+  --st-plate: var(--card);
+  --st-bar: color-mix(in srgb, var(--bg) 70%, var(--surface));
+  --st-ice: var(--text);
+  --st-steel: color-mix(in srgb, var(--text) 78%, var(--line));
+  --st-steel-ink: var(--bg);
+  /* The sale chip stays amber with its own dark ink (a fixed pair), so a sale reads on every palette. */
   --st-amber: #ffb454;
   --st-amber-ink: #1a0f00;
   /* The LED: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`, shared/rise.ts `riseOf`). */
-  --st-led: var(--tpl-rise);
+  --st-led: color-mix(in srgb, var(--accent) 45%, var(--st-toward));
   /* A bezel's brushed steel. */
-  --st-bezel: conic-gradient(from 30deg, #8d9bc4, #eef2ff, #5b6a92, #cfd8f0, #7d8bb4, #eef2ff, #8d9bc4);
+  --st-edge-mid: color-mix(in srgb, var(--st-hull-edge) 55%, var(--st-steel));
+  --st-edge-hi: color-mix(in srgb, var(--st-hull-edge) 70%, var(--st-steel));
+  --st-bezel: conic-gradient(from 30deg, var(--st-edge-mid), var(--st-ice), var(--st-hull-edge), var(--st-steel), var(--st-edge-hi), var(--st-ice), var(--st-edge-mid));
   /* The corridor: the spine's width, and the arm from a pod's edge to the spine's middle. */
   --st-spine: 1rem;
   --st-gap: 0.25rem;
@@ -42,11 +52,11 @@
   color: var(--st-ice);
   /* A still starfield: tiny dots in four tiles of different sizes, a violet glow, on the space ground. */
   background:
-    radial-gradient(1px 1px at 20px 30px, #fff, transparent 60%) 0 0 / 170px 190px,
-    radial-gradient(1px 1px at 90px 80px, #cfd8ff, transparent 60%) 0 0 / 130px 150px,
-    radial-gradient(1.5px 1.5px at 140px 20px, #fff, transparent 60%) 0 0 / 210px 170px,
-    radial-gradient(1px 1px at 60px 150px, #ffe9c4, transparent 60%) 0 0 / 190px 230px,
-    radial-gradient(ellipse at 80% 0%, #2a1660, transparent 55%),
+    radial-gradient(1px 1px at 20px 30px, var(--text), transparent 60%) 0 0 / 170px 190px,
+    radial-gradient(1px 1px at 90px 80px, var(--st-steel), transparent 60%) 0 0 / 130px 150px,
+    radial-gradient(1.5px 1.5px at 140px 20px, var(--text), transparent 60%) 0 0 / 210px 170px,
+    radial-gradient(1px 1px at 60px 150px, color-mix(in srgb, var(--text) 85%, var(--accent)), transparent 60%) 0 0 / 190px 230px,
+    radial-gradient(ellipse at 80% 0%, color-mix(in oklch, var(--accent) 28%, var(--bg)), transparent 55%),
     var(--st-space);
 }
 
@@ -135,7 +145,7 @@
   inline-size: 2.5rem;
   block-size: 0.875rem;
   border-radius: 0 0 0.375rem 0.375rem;
-  background: linear-gradient(90deg, #5b6a92, #cfd8f0 50%, #5b6a92);
+  background: linear-gradient(90deg, var(--st-hull-edge), var(--st-steel) 50%, var(--st-hull-edge));
   z-index: -1;
   pointer-events: none;
 }
@@ -215,7 +225,7 @@
   border-radius: 999px;
   background:
     repeating-linear-gradient(to bottom, transparent 0 0.625rem, var(--st-deep) 0.625rem 0.75rem),
-    linear-gradient(90deg, #5b6a92, #cfd8f0 45%, #8d9bc4 60%, #5b6a92);
+    linear-gradient(90deg, var(--st-hull-edge), var(--st-steel) 45%, var(--st-edge-mid) 60%, var(--st-hull-edge));
   pointer-events: none;
 }
 
@@ -258,7 +268,7 @@
   inset-block-start: calc(0.25rem + var(--st-port-size) / 2 - 0.1875rem);
   inline-size: calc(var(--st-gap) + var(--st-spine) / 2 + 2px);
   block-size: 0.375rem;
-  background: linear-gradient(#cfd8f0, #5b6a92);
+  background: linear-gradient(var(--st-steel), var(--st-hull-edge));
   pointer-events: none;
 }
 [data-body='station'] .st-port[data-side='start']::before {
@@ -402,7 +412,7 @@
   inset-inline-start: 4%;
   inline-size: 0.625rem;
   block-size: 0.625rem;
-  background: radial-gradient(circle at 35% 35%, #fff, #b9b3d9 55%, #5a5480);
+  background: radial-gradient(circle at 35% 35%, var(--text), color-mix(in srgb, var(--text) 70%, var(--accent)) 55%, color-mix(in srgb, var(--accent) 50%, var(--bg)));
 }
 [data-body='station'] .st-port[data-planet] {
   border-color: var(--st-led);

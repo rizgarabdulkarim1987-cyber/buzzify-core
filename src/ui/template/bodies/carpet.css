@@ -4,11 +4,29 @@
  * trim inside the edge, corners a little curved) with a tassel fringe at both inline ends and its title embroidered on the
  * front edge, carrying the dishes as round medallions three across. The sticky strip is a row of rolled carpets. Everything
  * is scoped under [data-body='carpet'], logical properties only (RTL mirrors).
- * The colours are the shape's own (carpet-night.ts, the same on every palette): text sits only on solid fills, the weave is
- * a pattern on a pseudo-element over a solid ground, so every pair is a computed, tested contrast.
+ * The colours are the template's palette (night `--bg`, gold thread `--accent`, rolled carpets `--raised`); only the weaves
+ * are the carpets' own dyes (carpet-night.ts), with the text colour on each computed to read: text sits only on solid
+ * fills, the weave is a pattern on a pseudo-element over a solid ground, so every pair is a computed contrast.
  */
 [data-body='carpet'] {
-  /* The fixed colours (--cp-ink, --cp-gold, --cp-tag-fill ...) are set on this element by CarpetBody from carpet-night.ts. */
+  /* The colours, from the template's palette. A carpet sets its own --cp-base, --cp-thread, --cp-ink, --cp-ring and --cp-stitch (CarpetBody). */
+  --cp-sky: var(--bg);
+  --cp-strip-backing: color-mix(in srgb, var(--bg) 75%, #000);
+  --cp-chip-fill: var(--raised);
+  --cp-chip-ink: var(--text);
+  --cp-lit-fill: var(--accent);
+  --cp-lit-ink: var(--on-accent);
+  --cp-gold: var(--accent);
+  --cp-gold-ink: var(--on-accent);
+  --cp-tag-fill: var(--text);
+  --cp-tag-ink: var(--bg);
+  --cp-tag-edge: color-mix(in srgb, var(--accent) 88%, #000);
+  --cp-ring: var(--text);
+  --cp-ink: var(--text);
+  --cp-stitch: var(--cp-gold);
+  /* The rolled carpet icon's own dyes. */
+  --cp-dye-red: #b3202a;
+  --cp-dye-plum: #7a2142;
   /* The sticky strip's height, so a jumped-to carpet lands just below it. */
   --nav-room: 3.5rem;
   --column: 64rem;
@@ -21,10 +39,15 @@
   color: var(--cp-ink);
   /* The night: a deep violet sky, its stars the static layer (the twinkling ones are the ::before). */
   background:
-    radial-gradient(circle, #fff 0 1px, transparent 1.5px) 0 0 / 74px 74px,
-    radial-gradient(circle, rgb(255 255 255 / 0.65) 0 1px, transparent 1.5px) 37px 52px / 116px 116px,
-    radial-gradient(circle, rgb(255 226 154 / 0.8) 0 1.25px, transparent 2px) 18px 90px / 163px 163px,
-    linear-gradient(var(--cp-sky), #3b1462 45%, #1d1048 75%, #0f2a45);
+    radial-gradient(circle, var(--text) 0 1px, transparent 1.5px) 0 0 / 74px 74px,
+    radial-gradient(circle, color-mix(in srgb, var(--text) 65%, transparent) 0 1px, transparent 1.5px) 37px 52px / 116px 116px,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 80%, transparent) 0 1.25px, transparent 2px) 18px 90px / 163px 163px,
+    linear-gradient(
+      var(--cp-sky),
+      color-mix(in srgb, var(--raised) 94%, var(--text)) 45%,
+      color-mix(in srgb, var(--bg) 50%, var(--raised)) 75%,
+      oklch(from var(--bg) calc(l + 0.03) c calc(h - 55))
+    );
 }
 /* The twinkling stars: another set, fading slowly in and out. A layer behind the carpets, never in the way of a tap. */
 [data-body='carpet']::before {
@@ -34,8 +57,8 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle, #fff 0 1.25px, transparent 2px) 20px 28px / 97px 97px,
-    radial-gradient(circle, rgb(255 226 154 / 0.9) 0 1px, transparent 1.75px) 61px 11px / 137px 137px;
+    radial-gradient(circle, var(--text) 0 1.25px, transparent 2px) 20px 28px / 97px 97px,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 90%, transparent) 0 1px, transparent 1.75px) 61px 11px / 137px 137px;
   /* Twice, then still (under 5s: WCAG 2.2.2). */
   animation: cp-twinkle 2.4s ease-in-out 2;
 }
@@ -49,7 +72,7 @@
 [data-body='carpet'] .cp-strip {
   background: var(--cp-strip-backing);
   box-shadow:
-    0 1px 0 rgb(255 204 102 / 0.55),
+    0 1px 0 color-mix(in srgb, var(--accent) 55%, transparent),
     0 0.25rem 0.5rem rgb(0 0 0 / 0.3);
 }
 [data-body='carpet'] .cp-strip-list {
@@ -105,7 +128,7 @@
   border-radius: 0.5rem 0.125rem 0.125rem 0.5rem;
   background:
     linear-gradient(rgb(255 255 255 / 0.22), transparent 40%, rgb(0 0 0 / 0.3)),
-    repeating-linear-gradient(90deg, #b3202a 0 0.1875rem, var(--cp-gold) 0.1875rem 0.3125rem, #7a2142 0.3125rem 0.5rem);
+    repeating-linear-gradient(90deg, var(--cp-dye-red) 0 0.1875rem, var(--cp-gold) 0.1875rem 0.3125rem, var(--cp-dye-plum) 0.3125rem 0.5rem);
 }
 [data-body='carpet'] .cp-roll-icon::after {
   content: '';
@@ -114,8 +137,8 @@
   inset-inline-end: -0.3125rem;
   inline-size: 0.625rem;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--cp-gold) 0 0.0625rem, #7a2142 0.0625rem 0.1875rem, var(--cp-gold) 0.1875rem 0.25rem, #b3202a 0.25rem 0.3125rem, var(--cp-gold) 0.3125rem);
-  box-shadow: 0 0 0 1px #7a2142;
+  background: radial-gradient(circle, var(--cp-gold) 0 0.0625rem, var(--cp-dye-plum) 0.0625rem 0.1875rem, var(--cp-gold) 0.1875rem 0.25rem, var(--cp-dye-red) 0.25rem 0.3125rem, var(--cp-gold) 0.3125rem);
+  box-shadow: 0 0 0 1px var(--cp-dye-plum);
 }
 [data-body='carpet'] .cp-roll-icon:dir(rtl) {
   border-radius: 0.125rem 0.5rem 0.5rem 0.125rem;
@@ -152,7 +175,7 @@
   border-block-end-width: 0;
   border-radius: 1.25rem 1.25rem 0 0 / 1rem 1rem 0 0;
   background: var(--cp-thread);
-  color: var(--cp-gold);
+  color: var(--cp-stitch);
   font-size: 1.125rem;
   font-weight: 800;
   line-height: 1.15;
@@ -234,7 +257,7 @@
   content: '';
   position: absolute;
   inset: 0.25rem;
-  border: 1px dashed rgb(255 204 102 / 0.7);
+  border: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
   border-radius: inherit;
   pointer-events: none;
 }

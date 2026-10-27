@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -454,4 +454,40 @@ test('a search keeps each band its own colour (by its place in the full menu), a
   const name = (await cell.locator('.ik-name').boundingBox())!;
   const price = (await cell.locator('.ik-price').boundingBox())!;
   expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Customize colours reach the shape (the colours picked in Customize replace the palette's, not the artwork's own).
+// ---------------------------------------------------------------------------------------------------------------------
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('inkcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'ink', { templateId: 'the-section-ink', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const mixHex = (a: string, b: string, amount: number) => {
+  const from = rgbOfHex(a);
+  const to = rgbOfHex(b);
+  return '#' + from.map((channel, at) => Math.round(channel + (to[at]! - channel) * amount).toString(16).padStart(2, '0')).join('');
+};
+const expectNear = (actual: number[], hex: string, message: string, tolerance = 3) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(tolerance));
+};
+const first = (page: Page, selector: string) => page.locator('[data-body="ink"] ' + selector).first();
+
+test('Customize colours reach the shape: the dish paper is the lighter of background and text, its ink the darker', async ({ page }) => {
+  await openMenu(page, customSlug);
+  expectNear(await rgbOf(first(page, '.ik-card'), 'background-color'), CUSTOM.text, 'paper');
+  expectNear(await rgbOf(first(page, '.ik-name'), 'color'), CUSTOM.bg, 'dish name on the paper');
+  expectNear(await rgbOf(first(page, '.ik-price'), 'color'), CUSTOM.bg, 'price on the paper');
 });

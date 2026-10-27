@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mix } from '@/lib/templates/palette';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -194,7 +195,7 @@ test('white text reads on every surface it sits on: every palette of the shape, 
   }
 });
 
-test('keyboard focus rings show in full and stand out, in every palette: a whole app icon (in white, on the band) and a dock tile', async ({ page }) => {
+test('keyboard focus rings show in full and stand out, in every palette: a whole app icon (in the text colour, on the band) and a dock tile', async ({ page }) => {
   for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
     const app = apps(page).first();
@@ -204,7 +205,9 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
     await expectFocusRingShows(page, app, { outset: 4, pseudo: '::after' });
-    expect(await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor)).toBe('rgb(255, 255, 255)');
+    // The ring is the palette's text colour (white on the signature palette): the name's own colour.
+    const ring = await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor);
+    expect(ring).toBe(await name.evaluate((node) => getComputedStyle(node).color));
     const tile = entry(page, 'patisserie');
     await tile.focus();
     await page.keyboard.press('Shift+Tab');
@@ -243,4 +246,35 @@ test('a long price wraps inside its badge: the badge stays in the cell, clear of
   const add = (await cell.locator('.hs-add').boundingBox())!;
   const overlaps = tag.x < add.x + add.width && add.x < tag.x + tag.width && tag.y < add.y + add.height && add.y < tag.y + tag.height;
   expect(overlaps, 'the badge covers the add button').toBe(false);
+});
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('homcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'homescreen', { templateId: 'the-phone-home-screen', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(3));
+};
+
+test('Customize colours reach the home screen: the folder band, the badge and the text follow the palette', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const folder = page.locator('#cat-viennoiserie');
+  expectNear(await rgbOf(folder, 'background-color'), mix(CUSTOM.raised, CUSTOM.accent, 0.26), 'folder band');
+  expectNear(await rgbOf(folder.locator('.hs-badge').first(), 'background-color'), CUSTOM.button, 'badge');
+  expectNear(await rgbOf(folder.locator('.hs-badge').first(), 'color'), CUSTOM.onButton, 'badge label');
+  expectNear(await rgbOf(folder.locator('.hs-name').first(), 'color'), CUSTOM.text, 'dish name');
+  expectNear(await rgbOf(folder.locator('.hs-title b'), 'color'), CUSTOM.bg, 'count ink');
 });

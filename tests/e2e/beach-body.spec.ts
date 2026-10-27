@@ -1,3 +1,4 @@
+import { expectColourNear, isNear } from './helpers/colour-near';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
@@ -100,7 +101,7 @@ test('the strip is a row of buoy chips: a cream pill, 44px tall, a lifebuoy ring
   }
   // The buoy: a conic ring of stripes around the number.
   expect(await chips.nth(1).locator('.bc-chip-no').evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('conic-gradient');
-  expect(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
+  expectColourNear(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(255, 253, 247)');
 });
 
 test('the chip of the section in view is lit (dark, ringed) and the others are not', async ({ page }) => {
@@ -109,8 +110,8 @@ test('the chip of the section in view is lit (dark, ringed) and the others are n
   await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(chipOf(page, 'bread')).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(13, 59, 82)');
-  expect(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
+  await expect.poll(async () => isNear(await (() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor))(), 'rgb(13, 59, 82)')).toBe(true);
+  expectColourNear(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(255, 253, 247)');
 });
 
 test('a chip takes you to its band and focuses the heading', async ({ page }) => {
@@ -140,7 +141,7 @@ test('sections are full-width bands that alternate sand and sea, each with a wav
   await expect(wave).toHaveAttribute('aria-hidden', 'true');
   const style = await wave.evaluate((node) => ({ mask: getComputedStyle(node).maskImage || getComputedStyle(node).webkitMaskImage, colour: getComputedStyle(node).backgroundColor, events: getComputedStyle(node).pointerEvents }));
   expect(style.mask).toContain('svg');
-  expect(style.colour).toBe('rgb(191, 238, 252)');
+  expectColourNear(style.colour, 'rgb(191, 238, 252)');
   expect(style.events).toBe('none');
   const at = (await wave.boundingBox())!;
   expect(at.y + at.height).toBeLessThanOrEqual(next.y + 2);
@@ -180,7 +181,7 @@ test('dishes are striped beach towels in two columns: landscape pairs, the photo
   expect(parseFloat(style.below)).toBeLessThan(0);
   const bg = async (index: number) => row.nth(index).evaluate((node) => getComputedStyle(node).backgroundImage);
   expect(await bg(0)).not.toBe(await bg(1));
-  expect(await row.first().locator('.bc-bar').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
+  expectColourNear(await row.first().locator('.bc-bar').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(255, 253, 247)');
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
@@ -246,8 +247,8 @@ test('the name and the price sit on the cream label, each in its own ink', async
   await openMenu(page, slug);
   const tile = tileOf(page, 'croissant');
   expect(await tile.locator('.bc-price').evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
-  expect(await tile.locator('.bc-name').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(13, 59, 82)');
-  expect(await tile.locator('.bc-price').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(154, 52, 18)');
+  expectColourNear(await tile.locator('.bc-name').evaluate((node) => getComputedStyle(node).color), 'rgb(13, 59, 82)');
+  expectColourNear(await tile.locator('.bc-price').evaluate((node) => getComputedStyle(node).color), 'rgb(154, 52, 18)');
 });
 
 test('the wave drifts once when a band first comes into view and then rests: it ends, nothing loops, and it never plays twice', async ({ page }) => {
@@ -541,4 +542,21 @@ test('a search keeps each section its own number and chip (by its place in the f
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   await expect(chip.locator('.bc-chip-no')).toHaveText('5');
+});
+
+test('colours picked in Customize reach the beach: the sand band, the towel label and the text follow the palette', async ({ page }) => {
+  const paint = async (menuSlug: string) => {
+    await openMenu(page, menuSlug);
+    const style = (selector: string, property: 'backgroundColor' | 'borderTopColor' | 'color') =>
+      (selector ? body(page).locator(selector).first() : body(page)).evaluate((node, p) => getComputedStyle(node)[p as 'color'], property);
+    return {
+      sand: await style('.bc-band', 'backgroundColor'),
+      towel: await style('.bc-tile', 'backgroundColor'),
+      ink: await style('', 'color'),
+    };
+  };
+  const signature = await paint(slug);
+  const custom = await paint(customSlug);
+  expect(signature).toMatchObject({ sand: 'rgb(255, 233, 184)', towel: 'rgb(255, 253, 247)', ink: 'rgb(13, 59, 82)' });
+  expect(custom).toEqual({ sand: 'rgb(255, 255, 255)', towel: 'rgb(255, 255, 255)', ink: 'rgb(27, 16, 48)' });
 });

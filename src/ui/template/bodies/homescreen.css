@@ -2,16 +2,19 @@
  * The Phone Home Screen body (a browse shape of a template menu): the menu is a phone's home screen. Every dish is an
  * app icon (rounded square photo, name below, price as a red notification badge), four across on a phone; every section
  * is a folder band whose first cell is its label tile, so a short folder is one row; a slim dock of app tiles stays at
- * the top and jumps. Everything is scoped under [data-body='homescreen']. Every surface under white text (the wallpaper,
- * the folder band, the label tile, the dock and its strip) is the template's accent mixed into a fixed dark, at most a
- * share of it (--hs-*, set by HomescreenBody from HOMESCREEN_FILLS, where a unit test checks them), so white text reads
- * on any accent, a light one picked in Customize included, and the dock never sits on the page's own --bg. The badge is a
- * fixed red with white text; the lit dock tile and the count are white with dark ink. Logical properties only (RTL
+ * the top and jumps. Everything is scoped under [data-body='homescreen']. Every surface under the palette's text (the
+ * wallpaper, the folder band, the label tile, the dock and its strip) is the template's accent mixed into the palette's
+ * own background or raised colour, at most a share of it (--hs-*, set by HomescreenBody from HOMESCREEN_FILLS, where a
+ * unit test checks them), so the text reads on any accent, a light one picked in Customize included. The badge is the
+ * palette's button colour (a red by default) with its label colour; the lit dock tile and the count are the text colour
+ * with the background as ink. Every colour follows Customize. Logical properties only (RTL
  * mirrors).
  */
 [data-body='homescreen'] {
-  --hs-ink: #fff;
-  --hs-badge: #c4001a;
+  --hs-ink: var(--text);
+  --hs-ink-on: var(--bg);
+  --hs-badge: var(--button);
+  --hs-badge-ink: var(--on-button);
   /* The sticky dock's height, so a jumped-to folder lands just below it. */
   --nav-room: 3.25rem;
   /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
@@ -58,15 +61,15 @@
   block-size: 1.75rem;
   border-radius: 0.5rem;
   background: linear-gradient(160deg, oklch(0.52 0.15 var(--app-h)), oklch(0.4 0.13 calc(var(--app-h) + 24)));
-  color: #fff;
+  color: #fff; /* fixed: the glyph's fill has a fixed lightness in every hue, so its numeral is fixed too */
   font-size: 0.875rem;
   font-weight: 800;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
 }
 /* The lit tile: white with dark ink, whatever the accent. */
 [data-body='homescreen'] .hs-tile[aria-current='true'] {
-  background: #fff;
-  color: #1b1030;
+  background: var(--hs-ink);
+  color: var(--hs-ink-on);
 }
 [data-body='homescreen'] .hs-label {
   font-size: 0.8125rem;
@@ -117,7 +120,7 @@
   padding: 0.125rem;
   border-radius: 22%;
   background: var(--hs-tile);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--hs-ink) 28%, transparent);
   color: var(--hs-ink);
   font-size: 0.75rem;
   font-weight: 700;
@@ -138,8 +141,8 @@
   flex: none;
   padding-inline: 0.4rem;
   border-radius: 999px;
-  background: #fff;
-  color: #1b1030;
+  background: var(--hs-ink);
+  color: var(--hs-ink-on);
   font-size: 0.75rem;
   line-height: 1.25rem;
 }
@@ -194,7 +197,7 @@
   padding: 0 0.375rem;
   border-radius: 0.625rem;
   background: var(--hs-badge);
-  color: #fff;
+  color: var(--hs-badge-ink);
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1875rem;
@@ -208,7 +211,7 @@
  * end corner, opposite the add button and a little outside the icon so the two never meet; white with the badge's red.
  */
 [data-body='homescreen'] .hs-off {
-  --sale-bg: #fff;
+  --sale-bg: var(--hs-ink);
   --sale-ink: var(--hs-badge);
   position: absolute;
   inset-block-end: -0.25rem;
@@ -219,8 +222,8 @@
 /* The add button (shared/shapes.css) inside the icon's lower corner, away from the badge and clear of the name. */
 [data-body='homescreen'] .hs-add {
   --rim-add-size: 1.625rem;
-  --rim-add-bg: #fff;
-  --rim-add-ink: #1b1030;
+  --rim-add-bg: var(--hs-ink);
+  --rim-add-ink: var(--hs-ink-on);
   inset-block-end: 0.25rem;
   inset-inline-start: 0.25rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
@@ -234,9 +237,9 @@
   line-height: 1.15;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-/* The cell's focus ring in white: it reads on the band (the accent-tinted ink would not). */
+/* The cell's focus ring in the text colour: it reads on the band (the accent-tinted ink would not). */
 [data-body='homescreen'] .hs-name:focus-visible::after {
-  outline-color: #fff;
+  outline-color: var(--hs-ink);
 }
 
 @media (hover: hover) {

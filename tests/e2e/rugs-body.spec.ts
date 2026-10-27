@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -760,4 +760,42 @@ test('a search keeps each rug its own number and pattern (by its place in the fu
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   expect(await frame()).toBe(before);
+});
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Customize colours reach the shape (the colours picked in Customize replace the palette's, not the artwork's own).
+// ---------------------------------------------------------------------------------------------------------------------
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('rgcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'rg', { templateId: 'the-jajim-and-nowruz', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const mixHex = (a: string, b: string, amount: number) => {
+  const from = rgbOfHex(a);
+  const to = rgbOfHex(b);
+  return '#' + from.map((channel, at) => Math.round(channel + (to[at]! - channel) * amount).toString(16).padStart(2, '0')).join('');
+};
+const expectNear = (actual: number[], hex: string, message: string, tolerance = 3) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(tolerance));
+};
+const first = (page: Page, selector: string) => page.locator('[data-body="rugs"] ' + selector).first();
+
+test('Customize colours reach the shape: ink, plate, the red rim and the field follow the palette', async ({ page }) => {
+  await openMenu(page, customSlug);
+  expectNear(await rgbOf(first(page, '.rg-title'), 'background-color'), CUSTOM.raised, 'cartouche plate');
+  expectNear(await rgbOf(first(page, '.rg-title'), 'color'), CUSTOM.text, 'cartouche ink');
+  expectNear(await rgbOf(first(page, '.rg-front'), 'background-color'), CUSTOM.accent, 'cartouche rim');
+  expectNear(await rgbOf(first(page, '.rg-field'), 'background-color'), mixHex(CUSTOM.raised, CUSTOM.bg, 0.4), 'field');
+  expectNear(await rgbOf(first(page, '.rg-name'), 'color'), CUSTOM.text, 'dish name');
 });

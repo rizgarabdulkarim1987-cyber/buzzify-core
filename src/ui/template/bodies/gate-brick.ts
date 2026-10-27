@@ -1,7 +1,7 @@
 /**
- * The Ishtar Gate shape's own fills (the same on every palette: a glazed gate is lapis, gold and sand, not the page's
+ * The Ishtar Gate shape's own fills (its default look, every fill drawn from the template palette so Customize recolours it: a glazed gate is lapis, gold and sand, not the page's
  * colours). Every text in the shape sits on one of these solid fills, so each pair is a computed contrast
- * (tests/ui/gate-shape.test.ts). `gate.css` writes the same values; the test checks they stay in step.
+ * (tests/ui/gate-shape.test.ts). `gate.css` resolves to these values with the signature palette (checked in the test).
  */
 export const BRICK = {
   /** The glazed brick of the gate, a name cartouche, a resting chip and a door leaf. */

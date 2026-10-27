@@ -1,3 +1,4 @@
+import { expectColourNear, isNear } from './helpers/colour-near';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
@@ -104,7 +105,7 @@ test('the strip is a row of nozzle chips: 44px tall, a nozzle tip with the numbe
   }
   // The nozzle: a tip cut to a point.
   expect(await chips.nth(1).locator('.pr-chip-no').evaluate((node) => getComputedStyle(node).clipPath)).toContain('polygon');
-  expect(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(29, 32, 36)');
+  expectColourNear(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(29, 32, 36)');
 });
 
 test('the chip of the part in view is lit (hot orange) and the others are not', async ({ page }) => {
@@ -113,8 +114,8 @@ test('the chip of the part in view is lit (hot orange) and the others are not', 
   await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   await expect(chipOf(page, 'bread')).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 122, 26)');
-  expect(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(29, 32, 36)');
+  await expect.poll(async () => isNear(await (() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor))(), 'rgb(255, 122, 26)')).toBe(true);
+  expectColourNear(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(29, 32, 36)');
 });
 
 test('a chip takes you to its part and focuses the heading', async ({ page }) => {
@@ -173,7 +174,7 @@ test('a part is a print bed: the heading is a ruler with ticks across the top, a
   expect(price!.x + price!.width).toBeLessThanOrEqual(add!.x + 1);
   expect(name!.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
   // The slab is a solid panel; the codes count the layers 001, 002, 003 in a monospace face, the photo has layer lines.
-  expect(await first.evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(26, 29, 33)');
+  expectColourNear(await first.evaluate((node) => getComputedStyle(node).backgroundColor), 'rgb(26, 29, 33)');
   expect(await first.locator('[data-photo]').evaluate((node) => getComputedStyle(node, '::after').backgroundImage)).toContain('repeating-linear-gradient');
   await expect(row.nth(0).locator('.pr-code')).toHaveText('L001');
   await expect(row.nth(1).locator('.pr-code')).toHaveText('L002');
@@ -212,8 +213,8 @@ test('the name and the price sit on the slab, each in its own ink', async ({ pag
   await openMenu(page, slug);
   const slab = slabOf(page, 'croissant');
   expect(await slab.locator('.pr-price').evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
-  expect(await slab.locator('.pr-name').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(233, 236, 239)');
-  expect(await slab.locator('.pr-price').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(255, 122, 26)');
+  expectColourNear(await slab.locator('.pr-name').evaluate((node) => getComputedStyle(node).color), 'rgb(233, 236, 239)');
+  expectColourNear(await slab.locator('.pr-price').evaluate((node) => getComputedStyle(node).color), 'rgb(255, 122, 26)');
 });
 
 test('the Z rail fills with the share of cells printed: empty on a part not yet seen, full once the printhead has been over it; it is a scale on a decoration, with no text', async ({ page }) => {
@@ -586,4 +587,21 @@ test('a search keeps each part its own number and chip (by its place in the full
 test('no page widens on a phone with the offers banner and long names', async ({ page }) => {
   await openMenu(page, promoSlug);
   await expectNoPageWiden(page);
+});
+
+test('colours picked in Customize reach the printer: the bed, the ruler and the text follow the palette', async ({ page }) => {
+  const paint = async (menuSlug: string) => {
+    await openMenu(page, menuSlug);
+    const style = (selector: string, property: 'backgroundColor' | 'borderTopColor' | 'color') =>
+      (selector ? body(page).locator(selector).first() : body(page)).evaluate((node, p) => getComputedStyle(node)[p as 'color'], property);
+    return {
+      bed: await style('', 'backgroundColor'),
+      ruler: await style('.pr-head', 'backgroundColor'),
+      ink: await style('', 'color'),
+    };
+  };
+  const signature = await paint(slug);
+  const custom = await paint(customSlug);
+  expect(signature).toMatchObject({ bed: 'rgb(18, 20, 23)', ruler: 'rgb(26, 29, 33)', ink: 'rgb(233, 236, 239)' });
+  expect(custom).toEqual({ bed: 'rgb(244, 244, 244)', ruler: 'rgb(255, 255, 255)', ink: 'rgb(27, 16, 48)' });
 });

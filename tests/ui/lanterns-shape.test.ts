@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { LanternsBody } from '@/ui/template/bodies/LanternsBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { DROPS, dropOf, NIGHT } from '@/ui/template/bodies/lanterns-night';
+import { mix } from '@/lib/templates/palette';
+import { DROPS, dropOf } from '@/ui/template/bodies/lanterns-night';
 
 describe('the Ramadan Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -34,13 +36,16 @@ describe('the lanterns', () => {
     expect(dropOf(-1)).toBe(DROPS[DROPS.length - 1]);
   });
 
-  it('keeps every text on its fixed fill at 4.5:1 or more (the night is the same on every palette)', () => {
-    expect(contrast(NIGHT.dimInk, NIGHT.dimPane)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(NIGHT.litInk, NIGHT.litPane)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(NIGHT.label, NIGHT.sky)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(NIGHT.labelLit, NIGHT.sky)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(NIGHT.ring, NIGHT.sky)).toBeGreaterThanOrEqual(3);
-    expect(contrast(NIGHT.rope, NIGHT.sky)).toBeGreaterThanOrEqual(3);
+  it('draws the night from the palette (lanterns.css writes no colour literal but black shadows) and keeps its pairs readable in every palette', () => {
+    const css = readFileSync('src/ui/template/bodies/lanterns.css', 'utf8');
+    expect((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase())).toEqual(['#000']);
+    for (const { id, palette } of TEMPLATES['the-ramadan-nights'].palettes) {
+      const dimPane = mix(palette.raised, palette.text, 0.12);
+      expect(contrast(palette.text, dimPane), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.bg), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.accent, palette.bg), id).toBeGreaterThanOrEqual(3);
+    }
   });
 });
 

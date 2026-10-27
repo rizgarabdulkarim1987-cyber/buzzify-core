@@ -1,3 +1,4 @@
+import { expectColourNear } from './helpers/colour-near';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
@@ -37,6 +38,8 @@ const manySlug = menus.slug('gtmany');
 const offSlug = menus.slug('gtoff');
 const bareSlug = menus.slug('gtbare');
 const bareAt = (id: string) => menus.slug(`gtbare-${id}`);
+const customSlug = menus.slug('gtcustom');
+const LIGHT_YELLOW_ACCENT = { bg: '#F4F4F4', surface: '#FFFFFF', card: '#FFFFFF', raised: '#EEEEEE', text: '#1B1030', muted: '#4A4060', accent: '#FFE066', onAccent: '#111111' };
 const alternatives = paletteIdsOf('the-ishtar-gate').slice(1);
 const paletteSlug = (id: string) => menus.slug(`gt-${id}`);
 
@@ -47,6 +50,7 @@ test.beforeAll(async () => {
   await menus.create(manySlug, 'gt', { templateId: 'the-ishtar-gate', extraSections: 20 });
   await menus.create(offSlug, 'gt', { templateId: 'the-ishtar-gate', ordering: 'none' });
   await menus.create(bareSlug, 'gt', { templateId: 'the-ishtar-gate', noPhotos: true });
+  await menus.create(customSlug, 'gt', { templateId: 'the-ishtar-gate', colors: LIGHT_YELLOW_ACCENT, discount: ['croissant', 'eclair'] });
   for (const id of alternatives) await menus.create(bareAt(id), 'gt', { templateId: 'the-ishtar-gate', paletteId: id, noPhotos: true });
   for (const id of alternatives) await menus.create(paletteSlug(id), 'gt', { templateId: 'the-ishtar-gate', paletteId: id, discount: ['croissant', 'eclair'] });
 });
@@ -104,7 +108,7 @@ test('the strip is a row of gate chips: a gold-edged lapis arch round a numbered
   }
   await expect(strip(page).locator('.sr-only')).toHaveCount(0);
   // A gold edge round the arch, and a row of gold rosettes along the foot of the strip.
-  expect(await chips.first().evaluate((node) => getComputedStyle(node).borderTopColor)).toBe('rgb(225, 182, 74)');
+  expectColourNear(await chips.first().evaluate((node) => getComputedStyle(node).borderTopColor), 'rgb(225, 182, 74)');
   const rosettes = await strip(page).evaluate((node) => getComputedStyle(node, '::after').backgroundImage);
   expect(rosettes).toContain('conic-gradient');
 });
@@ -146,7 +150,7 @@ test('a section is a gate: an arched frame of lapis brick with a crown of gold r
   expect(parseFloat(frame.top)).toBeGreaterThan(20);
   expect(parseFloat(frame.foot)).toBeLessThan(10);
   expect(frame.image).toContain('linear-gradient');
-  expect(frame.edge).toBe('rgb(225, 182, 74)');
+  expectColourNear(frame.edge, 'rgb(225, 182, 74)');
   // Rosettes along the arch (the crown), and a column of them down each jamb.
   const crown = await gate.locator('.gt-crown').evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, height: parseFloat(getComputedStyle(node).height) }));
   expect(crown.image).toContain('conic-gradient');
@@ -217,7 +221,9 @@ test('in each opening the first dish is one big hero tile across it and the rest
         photoAfter: getComputedStyle(photoNode, '::after').content,
       };
     });
-    expect(shape.ground).toBe('rgb(230, 201, 140)');
+    // The sand is a tint of the palette's gold and cream, within a few steps of the glazed sand (230, 201, 140).
+    const sand = (await tile.evaluate((node) => { const probe = document.createElement('canvas').getContext('2d')!; probe.fillStyle = getComputedStyle(node).backgroundColor; probe.fillRect(0, 0, 1, 1); return [...probe.getImageData(0, 0, 1, 1).data]; })) as number[];
+    [230, 201, 140].forEach((channel, at) => expect(Math.abs(sand[at]! - channel)).toBeLessThanOrEqual(10));
     expect(shape.groundImage).toBe('none');
     expect(shape.photoImage).toBe('none');
     expect([shape.photoBefore, shape.photoAfter].every((content) => content === 'none' || content === 'normal')).toBe(true);
@@ -237,11 +243,11 @@ test('the price is on a gold rosette badge and the name on a lapis cartouche, ea
   const pane = tileOf(page, 'croissant');
   const tag = await pane.locator('.gt-price').evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage, hole: getComputedStyle(node, '::before').content }));
   expect(tag.image).toBe('none');
-  expect(tag.bg).toBe('rgb(225, 182, 74)');
+  expectColourNear(tag.bg, 'rgb(225, 182, 74)');
   expect(tag.hole).not.toBe('none');
   const plaque = await pane.locator('.gt-name').evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage }));
   expect(plaque.image).toBe('none');
-  expect(plaque.bg).toBe('rgb(29, 75, 155)');
+  expectColourNear(plaque.bg, 'rgb(29, 75, 155)');
 });
 
 const gateOf = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`);
@@ -497,7 +503,7 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
 });
 
 test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
-  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
+  const menusToCheck: [string, string][] = [['signature', slug], ['custom colours', customSlug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
   for (const [menu, menuSlug] of menusToCheck) {
     await openMenu(page, menuSlug);
     await page.evaluate(() => window.scrollBy(0, 40));
@@ -614,4 +620,21 @@ test('a search keeps each section its own number and window (by its place in the
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   await expect(chip.locator('.gt-glass')).toHaveText('5');
+});
+
+test('colours picked in Customize reach the gate: the strip, the lintel, the gold rim and the cartouche follow the palette', async ({ page }) => {
+  const paint = async (menuSlug: string) => {
+    await openMenu(page, menuSlug);
+    const style = (selector: string, property: 'backgroundColor' | 'borderTopColor' | 'color') => body(page).locator(selector).first().evaluate((node, p) => getComputedStyle(node)[p as 'color'], property);
+    return {
+      strip: await style('.gt-strip', 'backgroundColor'),
+      rim: await style('.gt-gate', 'borderTopColor'),
+      cartouche: await style('.gt-name', 'backgroundColor'),
+      cartoucheInk: await style('.gt-name', 'color'),
+    };
+  };
+  const signature = await paint(slug);
+  const custom = await paint(customSlug);
+  expectColourNear(signature.strip, 'rgb(16, 40, 90)');
+  expect(custom).toEqual({ strip: 'rgb(244, 244, 244)', rim: 'rgb(255, 224, 102)', cartouche: 'rgb(255, 255, 255)', cartoucheInk: 'rgb(27, 16, 48)' });
 });

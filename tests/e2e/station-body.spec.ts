@@ -1,3 +1,4 @@
+import { expectColourNear } from './helpers/colour-near';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
@@ -96,7 +97,7 @@ test('the strip is a row of docking-port chips: a round steel port with the numb
   await expect(chips.first().locator('.st-port-no')).toHaveText('1');
   await expect(chips.nth(2).locator('.st-port-no')).toHaveText('3');
   expect(await chips.first().locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopLeftRadius)).toBe('50%');
-  expect(await chips.nth(1).locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopColor)).toBe('rgb(207, 216, 240)');
+  expectColourNear(await chips.nth(1).locator('.st-port-no').evaluate((node) => getComputedStyle(node).borderTopColor), 'rgb(207, 216, 240)');
   for (const category of BODY_CATEGORIES) {
     const chip = chipOf(page, category.slug);
     // A sighted guest reads the name: it is visible text in the chip, not a screen-reader-only label.
@@ -148,7 +149,7 @@ test('a section is a module: a capsule with rounded ends, seams and rivets, a la
   for (const radius of capsule.corners) expect(radius).toBeGreaterThanOrEqual(30);
   expect(capsule.image).toContain('linear-gradient');
   expect(capsule.rivets).toContain('radial-gradient');
-  expect(capsule.edge).toBe('rgb(91, 106, 146)');
+  expectColourNear(capsule.edge, 'rgb(91, 106, 146)');
   // The plate is a solid pill above the first row of portholes, as wide as the module's inside.
   expect(await title.evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
   expect(parseFloat(await title.evaluate((node) => getComputedStyle(node).borderTopLeftRadius))).toBeGreaterThan(20);
@@ -253,11 +254,11 @@ test('the name is on a dark status bar with an LED stripe and the price on an LE
   const port = tileOf(page, 'croissant');
   const led = await port.locator('.st-price').evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage, mono: getComputedStyle(node).fontFamily }));
   expect(led.image).toBe('none');
-  expect(led.bg).toBe('rgb(4, 7, 15)');
+  expectColourNear(led.bg, 'rgb(4, 7, 15)');
   expect(led.mono).toMatch(/mono/i);
   const bar = await port.locator('.st-name').evaluate((node) => ({ bg: getComputedStyle(node).backgroundColor, image: getComputedStyle(node).backgroundImage, stripe: getComputedStyle(node).borderInlineStartWidth }));
   expect(bar.image).toBe('none');
-  expect(bar.bg).toBe('rgb(14, 21, 48)');
+  expectColourNear(bar.bg, 'rgb(14, 21, 48)');
   expect(parseFloat(bar.stripe)).toBeGreaterThanOrEqual(3);
 });
 
@@ -265,7 +266,7 @@ test('the page behind the modules is a starfield drawn with gradients on a dark 
   await openMenu(page, slug);
   const sky = await body(page).evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, colour: getComputedStyle(node).backgroundColor }));
   expect(sky.image).toContain('radial-gradient');
-  expect(sky.colour).toBe('rgb(7, 11, 26)');
+  expectColourNear(sky.colour, 'rgb(7, 11, 26)');
 });
 
 const glassOf = (deck: Locator) => deck.locator('.st-glass').first();
@@ -607,4 +608,22 @@ test('a search keeps each section its own number and window (by its place in the
   await expect(page.locator('#cat-bread')).toBeVisible();
   await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
   await expect(chip.locator('.st-port-no')).toHaveText('5');
+});
+
+test('colours picked in Customize reach the station: the ground, the hull, the pod and the text follow the palette', async ({ page }) => {
+  const paint = async (menuSlug: string) => {
+    await openMenu(page, menuSlug);
+    const style = (selector: string, property: 'backgroundColor' | 'borderTopColor' | 'color') =>
+      (selector ? body(page).locator(selector).first() : body(page)).evaluate((node, p) => getComputedStyle(node)[p as 'color'], property);
+    return {
+      ground: await style('', 'backgroundColor'),
+      hull: await style('.st-module', 'backgroundColor'),
+      pod: await style('.st-port', 'backgroundColor'),
+      ink: await style('', 'color'),
+    };
+  };
+  const signature = await paint(slug);
+  const custom = await paint(customSlug);
+  expect(signature).toMatchObject({ ground: 'rgb(7, 11, 26)', hull: 'rgb(26, 34, 64)', pod: 'rgb(43, 55, 96)' });
+  expect(custom).toEqual({ ground: 'rgb(244, 244, 244)', hull: 'rgb(255, 255, 255)', pod: 'rgb(255, 255, 255)', ink: 'rgb(27, 16, 48)' });
 });

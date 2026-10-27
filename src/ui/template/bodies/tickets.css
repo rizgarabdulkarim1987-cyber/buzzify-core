@@ -1,16 +1,22 @@
 /*
  * The Kitchen Ticket Rail body (a browse shape of a template menu): every section a paper kitchen ticket hung from a
  * steel rail by a clip, its dishes the lines of the ticket, a steel index of ticket numbers on top. Everything is scoped
- * under [data-body='tickets']. The paper and the steel are fixed colours with dark ink on paper, so text keeps its
- * contrast on every palette; the menu's own background shows around the tickets. Logical properties only (RTL mirrors).
+ * under [data-body='tickets']. The paper, ink and steel come from the palette (paper = its text colour, ink = its background, so text keeps its
+ * contrast on every palette); the menu's own background shows around the tickets. Logical properties only (RTL mirrors).
  */
 [data-body='tickets'] {
-  --tk-paper: #fffef8;
-  --tk-ink: #222426;
-  --tk-ink-soft: #55585c;
-  --tk-hot: #b33316;
-  --tk-steel: #34383d;
-  --tk-steel-ink: #e9ecee;
+  /* The paper is the palette's light text colour and the ink its background colour (so the pair always reads), the steel
+   * its raised surface, the hot red its accent pulled toward the ink; Customize colours reach all of them. */
+  --tk-paper: var(--text);
+  --tk-ink: var(--bg);
+  --tk-ink-soft: color-mix(in srgb, var(--bg) 78%, var(--text));
+  --tk-hot: color-mix(in srgb, var(--accent) 70%, var(--bg));
+  --tk-steel: var(--raised);
+  --tk-steel-ink: color-mix(in srgb, var(--text) 92%, var(--raised));
+  --tk-bar-top: color-mix(in srgb, var(--text) 78%, var(--raised));
+  --tk-bar-mid: color-mix(in srgb, var(--text) 60%, var(--raised));
+  --tk-bar-low: color-mix(in srgb, var(--text) 47%, var(--raised));
+  --tk-bar-end: color-mix(in srgb, var(--text) 40%, var(--raised));
   --tk-tooth: 12px;
   /* The sticky index's height, so a jumped-to ticket lands just below it. */
   --nav-room: 3.25rem;
@@ -61,7 +67,7 @@
 }
 @media (hover: hover) {
   [data-body='tickets'] .tk-chip:hover:not([aria-current='true']) {
-    background: color-mix(in srgb, var(--tk-steel) 70%, #fff);
+    background: color-mix(in srgb, var(--tk-steel) 70%, var(--text));
   }
 }
 
@@ -88,7 +94,7 @@
   z-index: 2;
   block-size: 0.875rem;
   border-radius: 0.1875rem;
-  background: linear-gradient(#cfd4d9, #7d8389);
+  background: linear-gradient(var(--tk-bar-top), var(--tk-bar-end));
   box-shadow: 0 3px 4px rgba(0, 0, 0, 0.4);
 }
 [data-body='tickets'] .tk-clip::after {
@@ -100,7 +106,7 @@
   block-size: 0.75rem;
   translate: -50% 0;
   border-radius: 0.125rem;
-  background: linear-gradient(#aab0b6, #8c9298);
+  background: linear-gradient(var(--tk-bar-mid), var(--tk-bar-low));
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 

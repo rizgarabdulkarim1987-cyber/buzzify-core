@@ -1,43 +1,18 @@
 /**
- * The Jajim and Nowruz shape's fixed colours (RugsBody): a bright ivory ground, woven rugs framed in red, indigo, saffron
- * and green. They are the shape's own and the same on every palette, so every text sits on a known solid fill and each
- * pair is unit-tested for contrast.
+ * The Jajim and Nowruz shape's rugs (RugsBody): woven rugs framed in red, indigo, saffron and green. The colours are CSS
+ * variables set in rugs.css, so Customize reaches them: red is the palette's accent, ivory its raised
+ * colour; saffron, green and indigo are the rugs' own dyes. A rug's field is a light tint of the raised colour, so the palette's
+ * text colour always reads on it.
  */
-export const RUG = {
-  /** The page behind the rugs. */
-  page: '#F4E6C8',
-  /** Names and body text, on a rug's field. */
-  ink: '#2A1810',
-  /** A secondary line (a crossed-out price, a note). */
-  muted: '#5A4636',
-  /** Prices, on a rug's field. */
-  priceInk: '#8E1822',
-  /** The cartouche woven into a rug's top border, and a resting swatch's label. */
-  plate: '#FFF8E8',
-  plateInk: '#2A1810',
-  /** The dish count: a green pill. */
-  green: '#2F7D4A',
-  greenInk: '#FFFFFF',
-  /** The section number, a saffron disc; and the lit swatch's label. */
-  saffron: '#E9A51B',
-  saffronInk: '#2A1810',
-  red: '#B3202A',
-  indigo: '#23306B',
-  /** The solid behind the sticky strip of swatches. */
-  stripBacking: '#E9D5A8',
-  /** A keyboard focus ring: dark, drawn on the strip's backing, a rug's field or the add button's surround. */
-  ring: '#2A1810',
-  /** A resting swatch's label under the pointer. */
-  hover: '#FFE9B0',
+/** The rugs' colours as the CSS variables rugs.css sets on the body. */
+export const RUG_COLOUR = {
+  red: 'var(--rg-red)',
+  indigo: 'var(--rg-indigo)',
+  saffron: 'var(--rg-saffron)',
+  green: 'var(--rg-green)',
+  ivory: 'var(--rg-plate)',
 } as const;
-
-/**
- * The fixed colours as custom properties on the body (`--rg-<name>`, `priceInk` as `--rg-price-ink`): rugs.css reads only
- * these, so the stylesheet and the tested constants are one source.
- */
-export const RUG_VARS: Readonly<Record<string, string>> = Object.fromEntries(
-  Object.entries(RUG).map(([name, hex]) => [`--rg-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`, hex]),
-);
+const { red, indigo, saffron, green, ivory } = RUG_COLOUR;
 
 export interface Weave {
   /** The rug's frame pattern, `zigzag`, `diamonds`, `chevrons` or `dots`. */
@@ -46,7 +21,7 @@ export interface Weave {
   base: string;
   one: string;
   two: string;
-  /** The rug's field: a solid, light tint every text on it is measured against. */
+  /** The rug's field: a solid tint of the raised colour, which the palette's text colour reads on. */
   field: string;
 }
 
@@ -54,31 +29,31 @@ export interface Weave {
 export const WEAVES: readonly Weave[] = [
   {
     pattern: 'zigzag',
-    base: '#E9A51B',
-    one: '#B3202A',
-    two: '#2F7D4A',
-    field: '#FBF3E0',
+    base: saffron,
+    one: red,
+    two: green,
+    field: 'color-mix(in srgb, var(--raised) 60%, var(--bg))',
   },
   {
     pattern: 'diamonds',
-    base: '#FFF8E8',
-    one: '#23306B',
-    two: '#E9A51B',
-    field: '#FCEBC9',
+    base: ivory,
+    one: indigo,
+    two: saffron,
+    field: 'color-mix(in srgb, var(--raised) 80%, var(--rg-saffron))',
   },
   {
     pattern: 'chevrons',
-    base: '#23306B',
-    one: '#FFF8E8',
-    two: '#B3202A',
-    field: '#F9E6DC',
+    base: indigo,
+    one: ivory,
+    two: red,
+    field: 'color-mix(in srgb, var(--raised) 90%, var(--accent))',
   },
   {
     pattern: 'dots',
-    base: '#B3202A',
-    one: '#FFF8E8',
-    two: '#E9A51B',
-    field: '#EAEFF8',
+    base: red,
+    one: ivory,
+    two: saffron,
+    field: 'color-mix(in srgb, var(--raised) 75%, #9db8f0)',
   },
 ];
 

@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mix } from '@/lib/templates/palette';
 import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu, shapeChecks } from './helpers/body-menu';
 
 /**
@@ -130,3 +131,34 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
 });
 
 shapeChecks(menus, { kind: 'tickets', templateId: 'the-kitchen-ticket-rail', checks: ['focus', 'contrast', 'sale'], entry });
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('ticcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'tickets', { templateId: 'the-kitchen-ticket-rail', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(3));
+};
+
+test('Customize colours reach the tickets: the paper is the text colour, the ink the background, the steel the raised surface', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const slip = page.locator('[data-body="tickets"] .tk-slip').first();
+  expectNear(await rgbOf(slip, 'background-color'), CUSTOM.text, 'paper');
+  expectNear(await rgbOf(slip, 'color'), CUSTOM.bg, 'ink');
+  expectNear(await rgbOf(page.locator('[data-body="tickets"] .tk-chip:not([aria-current="true"])').first(), 'background-color'), CUSTOM.raised, 'steel');
+  expectNear(await rgbOf(page.locator('[data-body="tickets"] .tk-add').first(), 'background-color'), CUSTOM.bg, 'add stamp');
+  expectNear(await rgbOf(page.locator('[data-body="tickets"] .tk-title small').first(), 'color'), mix(CUSTOM.accent, CUSTOM.bg, 0.3), 'hot label');
+});
