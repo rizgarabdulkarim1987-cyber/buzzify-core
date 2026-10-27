@@ -8,6 +8,7 @@ export function CartBar() {
 
   return (
     <div className="pointer-events-none fixed inset-x-0 bottom-0 z-20 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+      {/* data-testid="cart-bar" is also Fly to Cart's hook (template/bodies/fly-flight.ts): its flight's target and pulse. */}
       <a
         href={href('/cart')}
         data-testid="cart-bar"

@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { BODIES } from '@/ui/template/bodies';
 import { MorphBody } from '@/ui/template/bodies/MorphBody';
-import { MORPH_MS, morphStart, tileSpan } from '@/ui/template/bodies/morph-open';
+import { MORPH_MS, morphCounter, morphStart, tileSpan } from '@/ui/template/bodies/morph-open';
 
 describe('the Photo to Details shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -31,6 +31,19 @@ describe('the Photo to Details shape', () => {
     expect(morphStart(sheet, sheet)).toBe('translate(0px, 0px) scale(1, 1)');
     // A target with no size cannot be grown into.
     expect(morphStart(tile, { left: 0, top: 0, width: 0, height: 10 })).toBeNull();
+  });
+
+  it('keeps the picture unsquashed: the counter-scale inside makes its scale the same across and down, covering the tile', () => {
+    // A short tile (2:1) grown into a 4:3 details photo.
+    const tile = { left: 10, top: 300, width: 120, height: 60 };
+    const sheet = { left: 0, top: 40, width: 390, height: 292 };
+    const outer = { x: 120 / 390, y: 60 / 292 };
+    const inner = morphCounter(tile, sheet)!.match(/scale\(([\d.]+), ([\d.]+)\)/)!.slice(1).map(Number) as [number, number];
+    expect(outer.x * inner[0]).toBeCloseTo(outer.y * inner[1], 6);
+    // The picture covers the tile: its scale is the larger of the two.
+    expect(outer.x * inner[0]).toBeCloseTo(Math.max(outer.x, outer.y), 6);
+    expect(morphCounter(sheet, sheet)).toBe('scale(1, 1)');
+    expect(morphCounter(tile, { left: 0, top: 0, width: 0, height: 10 })).toBeNull();
   });
 
   it('grows the photo in well under half a second', () => {

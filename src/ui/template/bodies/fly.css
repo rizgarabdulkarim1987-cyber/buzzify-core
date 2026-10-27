@@ -16,6 +16,9 @@
   --column: 72rem;
   /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
+  /* A dish with no media: the plate's rings (shared/photo-card.css); the discount's corner. */
+  --plate-ring: 30%;
+  --photo-off-at: 0.25rem;
   padding-block-end: 1rem;
   color: var(--text);
 }
@@ -109,40 +112,21 @@
 /* A card: the photo above a bar; the whole card is the dish's tap area (the card is the positioned ancestor). */
 [data-body='fly'] .fl-card {
   --tpl-ring-radius: 0.875rem;
-  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto 1fr;
-  box-sizing: border-box;
-  min-inline-size: 0;
   padding: 0.25rem;
   border: var(--fl-edge) solid var(--fl-ink);
   border-radius: 0.875rem;
-  background: var(--raised);
-  color: var(--text);
   box-shadow: 0 3px 0 var(--fl-ink);
 }
 [data-body='fly'] .fl-photo {
-  position: relative;
   aspect-ratio: 1;
-  overflow: hidden;
   border-radius: 0.625rem;
   background: color-mix(in srgb, var(--text) 10%, var(--bg));
 }
-/* A dish with no picture: a plain tinted plate (two rings) rather than a hole. */
-[data-body='fly'] .fl-photo:not(:has(.fl-img img, .fl-img svg)) {
-  background:
-    radial-gradient(circle at 50% 50%, transparent 0 22%, color-mix(in srgb, var(--text) 30%, transparent) 22% 25%, transparent 25% 34%, color-mix(in srgb, var(--text) 22%, transparent) 34% 36%, transparent 36%),
-    color-mix(in srgb, var(--text) 12%, var(--bg));
-}
 
-/* A discount on the photo's start corner; the big add button on its end corner, above the tap area. */
-[data-body='fly'] .fl-off {
-  position: absolute;
-  z-index: 2;
-  inset-block-start: 0.25rem;
-  inset-inline-start: 0.25rem;
-}
+/* The discount sits on the photo's start corner (shared/photo-card.css); the big add button on its end corner. */
 [data-body='fly'] .fl-add {
   --rim-add-size: 2.5rem;
   z-index: 3;
@@ -161,31 +145,14 @@
   outline-offset: -5px;
 }
 
-/* The bar: the name (two lines at most), then the price. */
+/* The bar (shared/photo-card.css): the name, then the price. */
 [data-body='fly'] .fl-bar {
-  display: grid;
   align-content: start;
-  gap: 0.0625rem;
-  min-inline-size: 0;
   padding: 0.125rem 0.125rem 0;
-  color: var(--text);
-}
-[data-body='fly'] .fl-name {
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.25;
-  text-align: start;
 }
 [data-body='fly'] .fl-price {
-  min-inline-size: 0;
-  max-inline-size: 100%;
-  color: var(--text);
   font-size: 0.8125rem;
   font-weight: 800;
-  line-height: 1.3;
-  overflow-wrap: anywhere;
-  pointer-events: none;
 }
 
 /* No transform on the card: it would trap the add button under the tap area. Feedback is the outline. */
@@ -212,9 +179,6 @@
   [data-body='fly'] .fl-head {
     padding-inline: 0.75rem;
   }
-  [data-body='fly'] .fl-name {
-    font-size: 0.9375rem;
-  }
   [data-body='fly'] .fl-price {
     font-size: 0.9375rem;
   }
@@ -230,9 +194,9 @@
 
 /*
  * The cart bar's one pulse after a photo lands on it (the class is put there by flyToCart; the bar's own code is
- * untouched). Only while a Fly to Cart menu is on the page, and not for less motion.
+ * untouched). Only flyToCart sets the class, so no document-wide `:has` is needed; not for less motion.
  */
-:root:has([data-body='fly']) [data-testid='cart-bar'].fly-pulse {
+[data-testid='cart-bar'].fly-pulse {
   animation: fly-pulse 360ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 @keyframes fly-pulse {
@@ -252,7 +216,7 @@
   [data-body='fly'] .fl-chip {
     transition: none;
   }
-  :root:has([data-body='fly']) [data-testid='cart-bar'].fly-pulse {
+  [data-testid='cart-bar'].fly-pulse {
     animation: none;
   }
 }

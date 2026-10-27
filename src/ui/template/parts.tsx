@@ -175,17 +175,33 @@ export function FavoriteButton({ product, className = '' }: { product: MenuProdu
  * no orders or the product cannot be ordered now. `icon` is for small buttons (a shape's tag, rim or stamp): always a
  * plus, its label still saying "Choose …" for a product with choices.
  */
-export function QuickAction({ product, variant = 'round', className = '' }: { product: MenuProductView; variant?: 'round' | 'label' | 'icon'; className?: string }) {
+export function QuickAction({
+  product,
+  variant = 'round',
+  className = '',
+  onAdded,
+}: {
+  product: MenuProductView;
+  variant?: 'round' | 'label' | 'icon';
+  className?: string;
+  /** Runs after the dish is added straight away (not when it opens for a choice), with the button that added it. */
+  onAdded?: (button: HTMLButtonElement) => void;
+}) {
   const { t } = useApp();
   const { canOrder, quickAdd, openProduct } = useTemplate();
   const { orderable } = useAvailability(product);
   if (!canOrder || !orderable) return null;
   const choose = product.needsChoices;
   const label = choose ? t('tpl.chooseNamed', { name: product.name }) : t('product.quickAdd', { name: product.name });
-  const act = (event: MouseEvent) => {
+  const act = (event: MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
-    if (choose) openProduct(product.id);
-    else quickAdd(product);
+    if (choose) {
+      openProduct(product.id);
+      return;
+    }
+    const button = event.currentTarget;
+    quickAdd(product);
+    onAdded?.(button);
   };
   if (variant === 'label') {
     return (

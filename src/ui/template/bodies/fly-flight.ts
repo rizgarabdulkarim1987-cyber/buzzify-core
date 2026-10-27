@@ -7,12 +7,9 @@
  * simply added and no copy is ever left behind.
  */
 
-export interface Box {
-  left: number;
-  top: number;
-  width: number;
-  height: number;
-}
+import { boxOf, pictureIn, waitForFrame, type Box } from './shared/photo-overlay';
+
+export type { Box } from './shared/photo-overlay';
 
 /** How long the flight takes. */
 export const FLY_MS = 450;
@@ -44,10 +41,6 @@ export function flightFrames(from: Box, to: Box, size: number = FLY_SIZE): Keyfr
     { transform: at((x0 + x1) / 2, peak, 0.9), opacity: 1, offset: 0.5 },
     { transform: at(x1, y1, 0.35), opacity: 0.85, offset: 1 },
   ];
-}
-
-function boxOf(rect: DOMRect): Box {
-  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
 }
 
 /** Whether the page can draw the flight. */
@@ -100,7 +93,8 @@ export function flyToCart({ photo, button, reduced }: { photo: Element | null; b
     'transform:translate3d(-200px,-200px,0)',
     'opacity:0',
   ].join(';');
-  const source = photo.querySelector('img, svg');
+  // The dish's picture, from its media only: a dish with none flies as a plain disc (never the + icon on the photo).
+  const source = pictureIn(photo);
   if (source) {
     const copy = source.cloneNode(true) as HTMLElement;
     copy.removeAttribute('id');
@@ -108,32 +102,22 @@ export function flyToCart({ photo, button, reduced }: { photo: Element | null; b
     flyer.appendChild(copy);
   }
   let done = false;
-  let frame = 0;
   let animation: Animation | undefined;
   const finish = (landed: Element | null) => {
     if (done) return;
     done = true;
-    cancelAnimationFrame(frame);
+    stopWait();
     window.clearTimeout(cleanup);
     animation?.cancel();
     flyer.remove();
     if (landed?.isConnected) pulse(landed);
   };
   const cleanup = window.setTimeout(() => finish(null), BAR_WAIT_MS + CLEANUP_MS);
-  const began = performance.now();
-  const attempt = () => {
-    if (done) return;
-    const bar = document.querySelector(BAR);
-    if (!bar) {
-      if (performance.now() - began > BAR_WAIT_MS) finish(null);
-      else frame = requestAnimationFrame(attempt);
-      return;
-    }
-    const target = bar.getBoundingClientRect();
+  const launch = (bar: Element) => {
     document.body.appendChild(flyer);
-    animation = flyer.animate(flightFrames(from, boxOf(target)), { duration: FLY_MS, easing: 'cubic-bezier(0.55, 0, 0.3, 1)', fill: 'forwards' });
+    animation = flyer.animate(flightFrames(from, boxOf(bar.getBoundingClientRect())), { duration: FLY_MS, easing: 'cubic-bezier(0.55, 0, 0.3, 1)', fill: 'forwards' });
     animation.onfinish = () => finish(bar);
     animation.oncancel = () => finish(null);
   };
-  frame = requestAnimationFrame(attempt);
+  const stopWait = waitForFrame(() => document.querySelector(BAR), BAR_WAIT_MS, launch, () => finish(null));
 }

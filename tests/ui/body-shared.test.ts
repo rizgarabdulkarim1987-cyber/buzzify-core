@@ -61,10 +61,11 @@ describe('the Drawer Cabinet under a search or a filter', () => {
 
 describe('text on the accent in the browse shapes', () => {
   // Also the chips, seals and add buttons on the accent of the home screen, treasure map, game levels, fridge, bento, scroll depth,
-  // dancing letters, mailbox wall and curtain and spotlight.
+  // dancing letters, mailbox wall, curtain and spotlight, stacked sheets, photo to details and fly to cart (its hand-darkened
+  // "Mint market" accent included).
   // Shelves' aisle sign, count and add button and Tabletop's lit napkin draw text on the accent with --on-accent: the
   // pair reads on each of the shape's palettes, the light "Night market" yellow and the dark "Pale oak" rust included.
-  it.each(['the-supermarket-shelves', 'the-table-from-above', 'the-phone-home-screen', 'the-treasure-map', 'the-game-levels', 'the-fridge', 'the-bento-box', 'the-scroll-depth', 'the-dancing-letters', 'the-mailbox-wall', 'the-curtain-and-spotlight'] as const)('reads on every palette of %s', (id) => {
+  it.each(['the-supermarket-shelves', 'the-table-from-above', 'the-phone-home-screen', 'the-treasure-map', 'the-game-levels', 'the-fridge', 'the-bento-box', 'the-scroll-depth', 'the-dancing-letters', 'the-mailbox-wall', 'the-curtain-and-spotlight', 'the-stacked-sheets', 'the-photo-to-details', 'the-fly-to-cart'] as const)('reads on every palette of %s', (id) => {
     for (const { palette } of TEMPLATES[id].palettes) expect(contrastRatio(palette.onAccent, palette.accent)).toBeGreaterThanOrEqual(4.5);
   });
 });

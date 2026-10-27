@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import sharp from 'sharp';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -301,8 +302,14 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   const photo = (await row.first().locator('[data-photo]').boundingBox())!;
   expect(photo.width).toBeGreaterThan(80);
   expect(Math.abs(photo.width - photo.height)).toBeLessThanOrEqual(1);
-  const plate = await row.first().locator('[data-photo]').evaluate((node) => getComputedStyle(node).backgroundImage);
-  expect(plate).toContain('radial-gradient');
+  // The plate is painted on the media itself (the photo's top layer, an empty span), so it shows: rings, not a flat fill.
+  const media = row.first().locator('[data-photo] > :first-child');
+  expect(await media.evaluate((node) => node.childElementCount)).toBe(0);
+  expect(await media.evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('radial-gradient');
+  const shot = await sharp(await media.screenshot()).raw().toBuffer({ resolveWithObject: true });
+  const colours = new Set<string>();
+  for (let at = 0; at < shot.data.length; at += shot.info.channels * 7) colours.add(`${shot.data[at]},${shot.data[at + 1]},${shot.data[at + 2]}`);
+  expect(colours.size, 'the plate draws rings').toBeGreaterThan(3);
   for (const index of [0, 1, 2]) {
     await expect(row.nth(index).locator('.fl-name')).toBeVisible();
     await expect(row.nth(index).locator('.fl-price')).toContainText('$');
@@ -313,8 +320,30 @@ test('a menu whose dishes have no media still shows names, prices, plates and a 
   await expect(page.getByTestId('cart-bar')).toContainText('1');
   await expect.poll(async () => (await flights(page)).length).toBe(1);
   await expect.poll(async () => (await flights(page))[0]!.removed).toBeGreaterThan(0);
+  // A plain disc flies: never a copy of the + icon that sits on the photo.
+  expect((await flights(page))[0]!.hasPicture).toBe(false);
   await expect.poll(() => pulses(page)).toBe(1);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+});
+
+test('with no cart bar to fly to, the dish is added, nothing flies and nothing is left behind', async ({ page }) => {
+  await watchFlights(page);
+  // The bar loses its hook as it mounts (as if it were missing), so the flight has no target.
+  await page.addInitScript(() => {
+    new MutationObserver(() => {
+      const bar = document.querySelector('[data-testid="cart-bar"]');
+      if (!bar) return;
+      bar.removeAttribute('data-testid');
+      bar.setAttribute('data-hookless-bar', '');
+    }).observe(document, { childList: true, subtree: true });
+  });
+  await openMenu(page, slug);
+  await addOf(page, 'croissant').click();
+  await expect(page.locator('[data-hookless-bar]')).toContainText('1');
+  await page.waitForTimeout(1200);
+  expect(await flights(page)).toHaveLength(0);
+  await expect(page.locator('[data-fly-clone]')).toHaveCount(0);
+  expect(await pulses(page)).toBe(0);
 });
 
 test('a long dish name and a long price stay inside the card without sideways scrolling', async ({ page }) => {
