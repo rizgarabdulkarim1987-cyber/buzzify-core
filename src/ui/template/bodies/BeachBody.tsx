@@ -11,8 +11,8 @@ import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { usePlaceOf } from './shared/usePlaceOf';
 import { useProductPlace } from './shared/useProductPlace';
-import './shared/name-chip.css';
 import './shared/shapes.css';
+import './shared/name-chip.css';
 import './beach.css';
 
 /**

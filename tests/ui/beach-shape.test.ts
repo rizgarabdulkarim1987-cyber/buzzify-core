@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { BeachBody, towelLayout } from '@/ui/template/bodies/BeachBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { BEACH, riseOf, towelOf } from '@/ui/template/bodies/beach-fills';
 
 describe('the Summer Beach shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.beach).toBe(BeachBody);
+    expect(registeredAs('beach')).toBe(BeachBody.name);
     expect(SHAPE_SETS.beach).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

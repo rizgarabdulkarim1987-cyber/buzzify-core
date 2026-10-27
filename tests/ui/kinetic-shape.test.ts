@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { KineticBody } from '@/ui/template/bodies/KineticBody';
 import { dishWords } from '@/ui/template/bodies/useRowEntrance';
 
 describe('The Dancing Letters shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.kinetic).toBe(KineticBody);
+    expect(registeredAs('kinetic')).toBe(KineticBody.name);
     expect(SHAPE_SETS.kinetic).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

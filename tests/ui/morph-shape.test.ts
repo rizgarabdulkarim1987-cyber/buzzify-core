@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { MorphBody } from '@/ui/template/bodies/MorphBody';
 import { MORPH_MS, morphCounter, morphStart, tileSpan } from '@/ui/template/bodies/morph-open';
 
 describe('the Photo to Details shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.morph).toBe(MorphBody);
+    expect(registeredAs('morph')).toBe(MorphBody.name);
     expect(SHAPE_SETS.morph).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

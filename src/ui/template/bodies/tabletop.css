@@ -65,7 +65,6 @@
 }
 [data-body='tabletop'] .tt-head {
   position: relative;
-  padding-inline: 0.5rem;
 }
 [data-body='tabletop'] .tt-title {
   display: flex;

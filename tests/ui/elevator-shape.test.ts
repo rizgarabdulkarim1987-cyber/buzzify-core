@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { ElevatorBody } from '@/ui/template/bodies/ElevatorBody';
 
 describe('the Elevator shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.elevator).toBe(ElevatorBody);
+    expect(registeredAs('elevator')).toBe(ElevatorBody.name);
     expect(SHAPE_SETS.elevator).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

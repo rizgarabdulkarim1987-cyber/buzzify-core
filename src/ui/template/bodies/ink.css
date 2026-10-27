@@ -109,9 +109,6 @@
 }
 
 /* The heading: the name set large, the dish count in a ring after it. */
-[data-body='ink'] .ik-head {
-  padding-inline: 0.5rem;
-}
 [data-body='ink'] .ik-title {
   display: flex;
   align-items: center;
@@ -256,9 +253,6 @@
   [data-body='ink'] .ik-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 1rem;
-    padding-inline: 1rem;
-  }
-  [data-body='ink'] .ik-head {
     padding-inline: 1rem;
   }
   [data-body='ink'] .ik-title span {

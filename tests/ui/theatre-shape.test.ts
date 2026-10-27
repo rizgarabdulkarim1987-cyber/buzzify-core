@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { TheatreBody } from '@/ui/template/bodies/TheatreBody';
 
 describe('The Curtain and Spotlight shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.theatre).toBe(TheatreBody);
+    expect(registeredAs('theatre')).toBe(TheatreBody.name);
     expect(SHAPE_SETS.theatre).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

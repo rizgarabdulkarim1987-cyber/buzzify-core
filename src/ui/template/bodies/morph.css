@@ -63,7 +63,6 @@
   position: sticky;
   inset-block-start: var(--nav-room);
   z-index: 5;
-  padding-inline: 0.5rem;
   background: color-mix(in srgb, var(--bg) 94%, transparent);
 }
 [data-body='morph'] .mo-title {
@@ -163,9 +162,6 @@
   [data-body='morph'] .mo-tile {
     margin-block-end: 0.75rem;
     grid-row: span calc(var(--span, 48) + 12);
-  }
-  [data-body='morph'] .mo-head {
-    padding-inline: 0.75rem;
   }
   [data-body='morph'] .mo-title span {
     font-size: 1.5rem;

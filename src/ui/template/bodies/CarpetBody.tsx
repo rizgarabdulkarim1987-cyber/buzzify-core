@@ -9,6 +9,7 @@ import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { CARPET_VARS, weaveOf } from './carpet-night';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
+import './shared/photo-card.css';
 import './shared/shapes.css';
 import './carpet.css';
 

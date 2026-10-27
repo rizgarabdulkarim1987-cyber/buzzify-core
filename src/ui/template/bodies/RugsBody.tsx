@@ -9,6 +9,7 @@ import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { frameOf, RUG_VARS, weaveOf } from './rug-weave';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { usePlaceOf } from './shared/usePlaceOf';
+import './shared/photo-card.css';
 import './shared/shapes.css';
 import './rugs.css';
 

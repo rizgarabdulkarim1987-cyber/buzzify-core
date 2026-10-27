@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { islandShape, TreasureBody } from '@/ui/template/bodies/TreasureBody';
 
 describe('Treasure Map shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.treasure).toBe(TreasureBody);
+    expect(registeredAs('treasure')).toBe(TreasureBody.name);
     expect(SHAPE_SETS.treasure).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

@@ -56,9 +56,6 @@
 [data-body='kinetic'] .kn-section {
   padding-block-start: 0.5rem;
 }
-[data-body='kinetic'] .kn-head {
-  padding-inline: 0.75rem;
-}
 [data-body='kinetic'] .kn-title {
   display: flex;
   align-items: flex-start;

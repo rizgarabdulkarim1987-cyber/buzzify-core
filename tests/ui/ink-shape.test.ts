@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { InkBody } from '@/ui/template/bodies/InkBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { INK_BANDS, INK_ON_PAPER, INK_PAPER, bandColour, inkOn } from '@/ui/template/bodies/ink-bands';
 
 describe('the Section Ink shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.ink).toBe(InkBody);
+    expect(registeredAs('ink')).toBe(InkBody.name);
     expect(SHAPE_SETS.ink).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

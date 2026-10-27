@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { boxNumber, MailboxesBody } from '@/ui/template/bodies/MailboxesBody';
 
 describe('The Mailbox Wall shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.mailboxes).toBe(MailboxesBody);
+    expect(registeredAs('mailboxes')).toBe(MailboxesBody.name);
     expect(SHAPE_SETS.mailboxes).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

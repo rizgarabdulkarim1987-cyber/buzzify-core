@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { ComicsBody, panelSpans } from '@/ui/template/bodies/ComicsBody';
 
 describe('Kitchen Comics shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.comics).toBe(ComicsBody);
+    expect(registeredAs('comics')).toBe(ComicsBody.name);
     expect(SHAPE_SETS.comics).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

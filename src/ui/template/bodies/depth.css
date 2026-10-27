@@ -60,7 +60,6 @@
  */
 [data-body='depth'] .dp-head {
   position: relative;
-  padding-inline: 0.5rem;
 }
 [data-body='depth'] .dp-title {
   display: flex;

@@ -123,9 +123,6 @@
   pointer-events: none;
 }
 
-[data-body='tickets'] .tk-head {
-  padding-inline: 0.75rem;
-}
 [data-body='tickets'] .tk-title {
   display: flex;
   flex-wrap: wrap;

@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { contrastRatio } from '@/lib/palette';
 import { appHue, HOMESCREEN_FILLS, homescreenFill, HomescreenBody } from '@/ui/template/bodies/HomescreenBody';
 
 describe('Phone Home Screen shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.homescreen).toBe(HomescreenBody);
+    expect(registeredAs('homescreen')).toBe(HomescreenBody.name);
     expect(SHAPE_SETS.homescreen).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

@@ -8,7 +8,7 @@ One shape = one new `BodyKind`, its component, and the preset that starts on it.
 | # | File | Change |
 |---|---|---|
 | 1 | `src/ui/template/bodies/<Kind>Body.tsx` + `<kind>.css` | New. Reads `useTemplate()`, renders `<div className="tpl-body" data-body="<kind>">` with `<main id="menu">` inside; all CSS under `[data-body='<kind>']`. |
-| 2 | `src/ui/template/bodies/index.ts` | One line in `BODIES`: `<kind>: <Kind>Body`. `TemplateMenu.tsx` is not touched. |
+| 2 | `src/ui/template/bodies/index.ts` | One line in `BODIES`: `<kind>: dynamic(() => import('./<Kind>Body').then((m) => m.<Kind>Body)),` (keep the `import()` literal inside `dynamic()`: Next preloads the chunk and its CSS only in that form). Each shape loads on its own, so the scroll menu ships no shape code or CSS. `TemplateMenu.tsx` is not touched. |
 | 3 | `src/lib/templates/types.ts` | Append `'<kind>'` to `BODY_KINDS`; add `<kind>: ['hero', ...]` to `SHAPE_SETS` (`hero` is required: shapes set the compact hero); append `'<id>'` to the end of `TEMPLATE_IDS`. |
 | 4 | `src/lib/templates/presets/styles.ts` | New `definePreset({ id: '<id>', number: <next>, layout: { body: '<kind>', hero: 'compact', ... }, scene: { mode: 'static' } })`, appended to `STYLE_PRESETS`. Number = previous last + 1. |
 | 5 | `src/studio/styles/template-map.ts` | One line in `TEMPLATE_FOR_STYLE`: `'<style>': '<id>'`. |
@@ -31,6 +31,9 @@ Do not copy these from an older body; import them. Each keeps a shape's look: th
 | `.tpl-tall-last` (`shapes.css`) | On each section: the last one gets `min-block-size: var(--tall-last, 60dvh)`, so the lit-section tracking (a band 30-40% down the viewport) reaches it at the end of the page. Set `--tall-last` on your `[data-body]` to change it. | elevator (70dvh), metro, periodic |
 
 Import `./shared/shapes.css` in the body that uses a class from it (the CSS is imported once per module; duplicates are fine).
+A shape's CSS loads only with the shape (after skins.css), so import every shared sheet whose classes the body writes, in
+the order photo-card, rows, shapes, arch-chip, name-chip, before the body's own sheet (`tests/ui/template-bodies.test.ts`
+checks both). A rule of yours that ties a skins.css rule (same specificity) now wins it: skins.css used to come last.
 A strip that claims to "stay at the top" must be sticky: add an `expectStripStays(page, strip, button, slug)` e2e
 (`tests/e2e/helpers/body-menu.ts`). A body that hides sections (accordions, pages) must open the ones holding search
 or filter results when the results change (see `withResults` in `CabinetBody.tsx`), without moving scroll or focus.

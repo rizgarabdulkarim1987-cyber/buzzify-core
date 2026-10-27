@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { FrostBody, isTallFrost } from '@/ui/template/bodies/FrostBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { FROST, blendOver, riseOf } from '@/ui/template/bodies/frost-fills';
 
 describe('the Frosted Window shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.frost).toBe(FrostBody);
+    expect(registeredAs('frost')).toBe(FrostBody.name);
     expect(SHAPE_SETS.frost).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

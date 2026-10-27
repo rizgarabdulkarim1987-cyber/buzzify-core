@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { FlyBody } from '@/ui/template/bodies/FlyBody';
 import { FLY_MS, FLY_PULSE, flightFrames } from '@/ui/template/bodies/fly-flight';
 
 describe('the Fly to Cart shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.fly).toBe(FlyBody);
+    expect(registeredAs('fly')).toBe(FlyBody.name);
     expect(SHAPE_SETS.fly).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

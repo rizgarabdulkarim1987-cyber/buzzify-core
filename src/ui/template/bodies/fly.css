@@ -54,9 +54,6 @@
 [data-body='fly'] .fl-section {
   padding-block-start: 0.125rem;
 }
-[data-body='fly'] .fl-head {
-  padding-inline: 0.5rem;
-}
 [data-body='fly'] .fl-title {
   display: flex;
   align-items: center;
@@ -174,9 +171,6 @@
   [data-body='fly'] .fl-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 0.875rem 0.75rem;
-    padding-inline: 0.75rem;
-  }
-  [data-body='fly'] .fl-head {
     padding-inline: 0.75rem;
   }
   [data-body='fly'] .fl-price {

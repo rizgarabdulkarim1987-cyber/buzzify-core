@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { DepthBody } from '@/ui/template/bodies/DepthBody';
 import { depthProgress } from '@/ui/template/bodies/useDepthShift';
 
 describe('The Scroll Depth shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.depth).toBe(DepthBody);
+    expect(registeredAs('depth')).toBe(DepthBody.name);
     expect(SHAPE_SETS.depth).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

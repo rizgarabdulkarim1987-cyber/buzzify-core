@@ -9,8 +9,8 @@ import { Description, Price, ProductMedia, QuickAction, SaleChip } from '../part
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { usePlaceOf } from './shared/usePlaceOf';
-import './shared/shapes.css';
 import './shared/photo-card.css';
+import './shared/shapes.css';
 import './shared/arch-chip.css';
 import './shared/name-chip.css';
 import './gate.css';

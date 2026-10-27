@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { matHue, TabletopBody } from '@/ui/template/bodies/TabletopBody';
 
 describe('The Table from Above shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.tabletop).toBe(TabletopBody);
+    expect(registeredAs('tabletop')).toBe(TabletopBody.name);
     expect(SHAPE_SETS.tabletop).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

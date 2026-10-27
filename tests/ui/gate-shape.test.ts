@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { GateBody } from '@/ui/template/bodies/GateBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { BRICK } from '@/ui/template/bodies/gate-brick';
 
 describe('the Ishtar Gate shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.gate).toBe(GateBody);
+    expect(registeredAs('gate')).toBe(GateBody.name);
     expect(SHAPE_SETS.gate).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

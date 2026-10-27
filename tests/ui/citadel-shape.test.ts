@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { CitadelBody } from '@/ui/template/bodies/CitadelBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { roofOf, SKY, windowState } from '@/ui/template/bodies/citadel-skyline';
 
 describe('the Erbil Citadel shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.citadel).toBe(CitadelBody);
+    expect(registeredAs('citadel')).toBe(CitadelBody.name);
     expect(SHAPE_SETS.citadel).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { LanternsBody } from '@/ui/template/bodies/LanternsBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { DROPS, dropOf, NIGHT } from '@/ui/template/bodies/lanterns-night';
 
 describe('the Ramadan Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.lanterns).toBe(LanternsBody);
+    expect(registeredAs('lanterns')).toBe(LanternsBody.name);
     expect(SHAPE_SETS.lanterns).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

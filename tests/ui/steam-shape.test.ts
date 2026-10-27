@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { SteamBody } from '@/ui/template/bodies/SteamBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { accentInk, mix } from '@/lib/templates/palette';
@@ -12,7 +12,7 @@ const section = (name: string) => ({ name });
 
 describe('the Living Steam shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.steam).toBe(SteamBody);
+    expect(registeredAs('steam')).toBe(SteamBody.name);
     expect(SHAPE_SETS.steam).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

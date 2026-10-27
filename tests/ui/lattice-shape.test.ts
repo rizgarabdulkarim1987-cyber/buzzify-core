@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { LatticeBody } from '@/ui/template/bodies/LatticeBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { WOOD } from '@/ui/template/bodies/lattice-wood';
 
 describe('the Baghdad Shanashil shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.lattice).toBe(LatticeBody);
+    expect(registeredAs('lattice')).toBe(LatticeBody.name);
     expect(SHAPE_SETS.lattice).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

@@ -151,6 +151,17 @@
   background: var(--rim-add-bg, var(--accent));
   color: var(--rim-add-ink, var(--on-accent));
 }
+/*
+ * An add button under the pointer takes the button pair (skins.css `.tpl-add:hover`) over a shape's own colours of the
+ * same weight. A shape's stylesheet loads on its own, after skins.css (bodies/index.ts), so skins.css no longer wins a
+ * tie by coming last: this rule is one class heavier, and a shape's rule of more weight (its own `:hover`) still wins.
+ */
+@media (hover: hover) {
+  :where(.tpl) [data-body] .tpl-add:hover {
+    background: var(--button);
+    color: var(--on-button);
+  }
+}
 :where([data-body]) .tpl-rim-add svg {
   inline-size: 1rem;
   block-size: 1rem;

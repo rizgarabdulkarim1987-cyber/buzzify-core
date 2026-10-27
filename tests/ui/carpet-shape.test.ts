@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { CarpetBody } from '@/ui/template/bodies/CarpetBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { CARPET, CARPET_VARS, WEAVES, weaveOf } from '@/ui/template/bodies/carpet-night';
 
 describe('the One Thousand and One Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.carpet).toBe(CarpetBody);
+    expect(registeredAs('carpet')).toBe(CarpetBody.name);
     expect(SHAPE_SETS.carpet).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

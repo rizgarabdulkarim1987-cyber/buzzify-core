@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { elementSymbol, groupHue, PeriodicBody } from '@/ui/template/bodies/PeriodicBody';
 
 describe('the Periodic Table shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards, the headings and the picture ratio', () => {
-    expect(BODIES.periodic).toBe(PeriodicBody);
+    expect(registeredAs('periodic')).toBe(PeriodicBody.name);
     expect(SHAPE_SETS.periodic).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading', 'imageRatio']));
   });
 

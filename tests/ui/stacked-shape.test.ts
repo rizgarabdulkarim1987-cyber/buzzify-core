@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { StackedBody } from '@/ui/template/bodies/StackedBody';
 import { STACK_MAX, tabsStack } from '@/ui/template/bodies/stacked-tabs';
 
 describe('the Stacked Sheets shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.stacked).toBe(StackedBody);
+    expect(registeredAs('stacked')).toBe(StackedBody.name);
     expect(SHAPE_SETS.stacked).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

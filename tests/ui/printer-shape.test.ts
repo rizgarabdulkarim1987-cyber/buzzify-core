@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
-import { BODIES } from '@/ui/template/bodies';
+import { registeredAs } from './body-registry';
 import { layerNumber, PrinterBody, printedShare, sweepDelay } from '@/ui/template/bodies/PrinterBody';
 import { contrastRatio as contrast } from '@/lib/palette';
 import { riseOf } from '@/ui/template/bodies/shared/rise';
@@ -11,7 +11,7 @@ import { MESSAGES } from '@/lib/messages';
 
 describe('the 3D Printer shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
-    expect(BODIES.printer).toBe(PrinterBody);
+    expect(registeredAs('printer')).toBe(PrinterBody.name);
     expect(SHAPE_SETS.printer).toEqual(expect.arrayContaining(['hero', 'nav', 'card', 'heading']));
   });
 

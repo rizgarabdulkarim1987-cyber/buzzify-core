@@ -201,6 +201,12 @@ export const silenceObserver = (page: Page) =>
 export async function openMenu(page: Page, slug: string, { locale = 'en', hash = '', phone = true }: { locale?: string; hash?: string; phone?: boolean } = {}) {
   if (phone) await page.setViewportSize(PHONE);
   await page.goto(`/${slug}/${locale}?stage=off${hash}`);
+  // A shape loads as a chunk of its own (bodies/index.ts), which the dev server compiles on first use, so the page may
+  // still be hydrating after the load event: a tap or a keystroke before then does nothing. Wait as a guest would,
+  // until React has the menu.
+  await expect
+    .poll(() => page.evaluate(() => Object.keys(document.querySelector('#menu') ?? {}).some((key) => key.startsWith('__reactFiber'))), { message: 'the menu hydrates', timeout: 20_000 })
+    .toBe(true);
 }
 
 /**
