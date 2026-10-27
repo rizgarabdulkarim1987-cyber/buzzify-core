@@ -178,6 +178,17 @@
   color: #fff;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.35);
 }
+/*
+ * A discount: the rim chip has no room for the crossed-out price (`tpl-price-tight`), so a "-NN%" chip sits on the upper
+ * rim at the start (shared/photo-card.css `.tpl-photo-off`), across from the add button.
+ */
+[data-body='tabletop'] .tt-off {
+  --photo-off-at: 0;
+  /* The table's own pair, fixed like the price chip's (the palette's accent may be pale on the cloth). */
+  --sale-bg: var(--tt-price);
+  --sale-ink: var(--tt-paper);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
 [data-body='tabletop'] .tt-add svg {
   inline-size: 1rem;
   block-size: 1rem;

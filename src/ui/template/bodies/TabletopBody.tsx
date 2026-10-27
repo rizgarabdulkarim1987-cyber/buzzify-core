@@ -5,9 +5,10 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
+import './shared/photo-card.css';
 import './shared/shapes.css';
 import './tabletop.css';
 
@@ -80,6 +81,7 @@ function Plate({ product, priority, order }: { product: MenuProductView; priorit
           <ProductMedia product={product} suffix="tabletop" sizes="120px" priority={priority} className="tt-img" rounded={false} />
         </div>
         <Price product={product} className="tpl-price-tight tt-price" />
+        <SaleChip product={product} className="tpl-photo-off tt-off" />
         <QuickAction product={product} variant="icon" className="tt-add relative z-[2]" />
       </div>
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tt-name text-center">

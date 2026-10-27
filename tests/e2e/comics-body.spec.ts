@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectFocusRingShows, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu } from './helpers/body-menu';
+import { BODY_CATEGORIES, bodyMenus, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectFocusRingShows, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu, shapeChecks } from './helpers/body-menu';
 
 /**
  * The Kitchen Comics body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a comic page, a dense
@@ -163,3 +163,5 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await page.getByRole('searchbox', { name: 'Search the menu' }).fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
+
+shapeChecks(menus, { kind: 'comics', templateId: 'the-kitchen-comics', checks: ['sale'] });

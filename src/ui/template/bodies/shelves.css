@@ -201,6 +201,13 @@
   color: var(--on-accent);
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
+/*
+ * A discount: the tag has no room for the crossed-out price (`tpl-price-tight`), so a "-NN%" chip sits on the box's top
+ * corner (shared/photo-card.css `.tpl-photo-off`), away from the add button at the bottom.
+ */
+[data-body='shelves'] .sf-off {
+  --photo-off-at: 0.25rem;
+}
 [data-body='shelves'] .sf-add svg {
   inline-size: 1rem;
   block-size: 1rem;

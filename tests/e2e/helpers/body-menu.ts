@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { expect, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import sharp, { type OutputInfo } from 'sharp';
 import type { Prisma } from '@/generated/prisma/client';
 import { TEMPLATES } from '@/lib/templates';
@@ -479,4 +479,157 @@ async function expectRingUnclipped(ringOf: Locator, { outset, pseudo }: { outset
     { outset, pseudo },
   );
   expect(result).toBe('ok');
+}
+
+/**
+ * A dish on sale (made with `discount`) shows the sale to sighted guests in `card`: a "-NN%" chip (`SaleChip`), a sale
+ * badge or the crossed-out regular price, whichever the shape draws, is visible, wholly inside the card, reads at 4.5:1
+ * on what it sits on, and shows `percent` (20 by default, in the menu's numerals: pass /٢٠/ for Arabic-Indic). It clears
+ * every locator in `clear` (an add button, the price). The regular price stays announced to screen readers.
+ */
+export async function expectSaleShown(card: Locator, { percent = /20/, clear = [] }: { percent?: RegExp; clear?: Locator[] } = {}) {
+  // A chip or badge first; else the crossed-out price, unless it is only kept for screen readers (a tight price clips it
+  // to a pixel, which counts as visible but no one sees).
+  const chip = card.locator('.tpl-off, .tpl-badge-sale').filter({ visible: true }).first();
+  const crossed = card.locator('.tpl-was > [aria-hidden]').filter({ visible: true }).first();
+  const cue = (await chip.count()) ? chip : crossed;
+  await expect(cue, 'a visible sale cue').toBeVisible();
+  if (cue === chip) await expect(chip).toHaveText(percent);
+  else expect((await cue.boundingBox())!.width, 'the crossed-out price is drawn, not clipped away').toBeGreaterThan(8);
+  const [box, at] = [(await card.boundingBox())!, (await cue.boundingBox())!];
+  expect(at.width * at.height, 'the cue has a size').toBeGreaterThan(0);
+  expect(at.x, 'inside the card (start)').toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.y, 'inside the card (top)').toBeGreaterThanOrEqual(box.y - 1);
+  expect(at.x + at.width, 'inside the card (end)').toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(at.y + at.height, 'inside the card (bottom)').toBeLessThanOrEqual(box.y + box.height + 1);
+  for (const other of clear) {
+    const it = await other.boundingBox();
+    if (!it) continue;
+    const overlaps = at.x < it.x + it.width - 1 && it.x < at.x + at.width - 1 && at.y < it.y + it.height - 1 && it.y < at.y + at.height - 1;
+    expect(overlaps, 'the sale cue clears the parts beside it').toBe(false);
+  }
+  await expect.poll(() => contrastOf(cue), { message: 'the sale cue reads on its fill' }).toBeGreaterThanOrEqual(4.5);
+  expect(await card.locator('.tpl-was .sr-only').count(), 'the regular price for screen readers').toBeGreaterThan(0);
+}
+
+/** Gives `target` the focus as a keyboard user does (Shift+Tab, Tab), so `:focus-visible` applies. */
+export async function keyboardFocus(page: Page, target: Locator) {
+  await target.focus();
+  await page.keyboard.press('Shift+Tab');
+  await page.keyboard.press('Tab');
+  await expect(target).toBeFocused();
+}
+
+/**
+ * Keyboard focus on `target` draws a ring that nothing clips and that stands out (`expectFocusRingShows`), read from
+ * the CSS: the ring is the element's own outline or, for a whole-card tap area, its `::after`'s, drawn around `ringOf`
+ * (the card the `::after` covers; `target` itself unless given).
+ */
+export async function expectKeyboardRing(page: Page, target: Locator, ringOf: Locator = target) {
+  await keyboardFocus(page, target);
+  const ring = await target.evaluate((element) => {
+    const drawn = (style: CSSStyleDeclaration) => style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0;
+    const own = getComputedStyle(element);
+    const style = drawn(own) ? own : getComputedStyle(element, '::after');
+    return { pseudo: drawn(own) ? undefined : ('::after' as const), outset: parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth) };
+  });
+  await expectFocusRingShows(page, ringOf, ring);
+}
+
+/**
+ * Every piece of text a sighted guest reads in `scope` reads on what it sits on: 4.5:1, or 3:1 for large text (24px, or
+ * 18.66px bold). Each element with text of its own counts, measured like `contrastOf` (its fill, or its ancestors'
+ * composited under it). Text on a gradient or an image cannot be measured this way and is left to the shape's own
+ * tests; text hidden from everyone (screen-reader only, clipped to nothing) and decoration (`aria-hidden`, except the
+ * crossed-out regular price) are left out.
+ */
+export async function expectTextReadable(scope: Locator, label: string) {
+  const marked = await scope.evaluate((root) => {
+    let count = 0;
+    for (const element of root.querySelectorAll<HTMLElement>('*')) {
+      const own = [...element.childNodes].some((node) => node.nodeType === Node.TEXT_NODE && node.textContent!.trim() !== '');
+      if (!own) continue;
+      const box = element.getBoundingClientRect();
+      if (box.width < 2 || box.height < 2) continue;
+      const style = getComputedStyle(element);
+      if (style.visibility !== 'visible' || element.closest('.sr-only')) continue;
+      if (element.closest('[aria-hidden="true"]') && !element.closest('.tpl-was')) continue;
+      if (!element.checkVisibility({ opacityProperty: true })) continue;
+      element.setAttribute('data-readable-probe', String(count++));
+    }
+    return count;
+  });
+  const failures: string[] = [];
+  for (let at = 0; at < marked; at++) {
+    const node = scope.locator(`[data-readable-probe="${at}"]`);
+    const [ratio, info] = await Promise.all([
+      contrastOf(node),
+      node.evaluate((element) => {
+        const style = getComputedStyle(element);
+        const size = parseFloat(style.fontSize);
+        const large = size >= 24 || (size >= 18.66 && Number(style.fontWeight) >= 700);
+        return { large, name: `${element.tagName.toLowerCase()}.${[...element.classList].join('.')} "${element.textContent!.trim().slice(0, 24)}"` };
+      }),
+    ]);
+    if (ratio !== 0 && ratio < (info.large ? 3 : 4.5)) failures.push(`${info.name}: ${ratio.toFixed(2)}`);
+  }
+  await scope.evaluate((root) => root.querySelectorAll('[data-readable-probe]').forEach((element) => element.removeAttribute('data-readable-probe')));
+  expect(failures, `${label}: text below its contrast minimum`).toEqual([]);
+}
+
+export interface ShapeChecks {
+  /** The body kind (`data-body`). */
+  kind: string;
+  templateId: TemplateId;
+  /** The checks this spec adds: text contrast on every palette, keyboard focus rings, the sale cue. */
+  checks: ('contrast' | 'focus' | 'sale')[];
+  /** The section strip's entry for `categorySlug` (a button), for the focus check. */
+  entry?: (page: Page, categorySlug: string) => Locator;
+  /** The card the shape draws for a dish: an element holding its `.tpl-open` name (whose `::after` covers the card). */
+  card?: (page: Page, productSlug: string) => Locator;
+}
+
+/**
+ * Registers the a11y and sale checks every shape owes (common.md rule e) in the calling spec, on throwaway menus of the
+ * preset's OWN layout: one per palette (the signature and every alternative) with Arabic-Indic numerals and the
+ * croissant 20% off.
+ * - contrast: on every palette, every piece of text in the body reads on what it sits on (`expectTextReadable`).
+ * - focus: keyboard focus rings on the second strip entry and on a whole dish card show in full (`expectKeyboardRing`).
+ * - sale: on every palette, the croissant shows its sale in the menu numerals (`expectSaleShown`), clear of its add button.
+ */
+export function shapeChecks(menus: BodyMenus, { kind, templateId, checks, entry, card }: ShapeChecks) {
+  const palettes = paletteIdsOf(templateId);
+  const slugOf = (id: string) => menus.slug(`${kind}-chk-${id}`);
+  const body = (page: Page) => page.locator(`[data-body="${kind}"]`);
+  const cardOf = card ?? ((page: Page, productSlug: string) => body(page).locator('[data-row]').filter({ has: page.getByRole('button', { name: dishName(productSlug), exact: true }) }).first());
+  test.describe(`${kind}: the checks every shape owes`, () => {
+    test.beforeAll(async () => {
+      for (const id of checks.includes('focus') && checks.length === 1 ? palettes.slice(0, 1) : palettes) await menus.create(slugOf(id), `${kind}-chk`, { templateId, paletteId: id, numeralSystem: 'ARAB', discount: ['croissant'] });
+    });
+    if (checks.includes('contrast'))
+      test('text reads on its fill on every palette of the shape', async ({ page }) => {
+        test.setTimeout(90_000);
+        for (const id of palettes) {
+          await openMenu(page, slugOf(id));
+          await expect(body(page)).toBeVisible();
+          await expectTextReadable(body(page), `${kind} on ${id}`);
+        }
+      });
+    if (checks.includes('focus'))
+      test('keyboard focus rings show in full: a strip entry and a whole dish card', async ({ page }) => {
+        await openMenu(page, slugOf(palettes[0]!));
+        if (entry) await expectKeyboardRing(page, entry(page, BODY_CATEGORIES[1]!.slug));
+        const dish = cardOf(page, 'pain-au-chocolat');
+        await expectKeyboardRing(page, dish.getByRole('button', { name: dishName('pain-au-chocolat'), exact: true }), dish);
+      });
+    if (checks.includes('sale'))
+      test('a dish on sale shows its discount to sighted guests, in the menu numerals, on every palette', async ({ page }) => {
+        test.setTimeout(60_000);
+        for (const id of palettes) {
+          await openMenu(page, slugOf(id));
+          const dish = cardOf(page, 'croissant');
+          await expectSaleShown(dish, { percent: /٢٠/, clear: [dish.locator('.tpl-add')] });
+        }
+      });
+  });
 }

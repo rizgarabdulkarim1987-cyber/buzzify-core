@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './comics.css';
@@ -91,6 +91,7 @@ function Panel({ product, wide, splash, priority, order }: { product: MenuProduc
         <i aria-hidden className="cm-tail" />
       </div>
       <Price product={product} className="tpl-price-tight cm-burst" />
+      <SaleChip product={product} className="cm-off" />
       <QuickAction product={product} variant="icon" className="cm-add" />
     </li>
   );

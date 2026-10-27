@@ -5,8 +5,9 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
+import './shared/photo-card.css';
 import './shared/shapes.css';
 import './shelves.css';
 
@@ -62,6 +63,7 @@ function Box({ product, priority, order }: { product: MenuProductView; priority:
         <div data-photo className="sf-photo">
           <ProductMedia product={product} suffix="shelves" sizes="120px" priority={priority} className="sf-img" />
         </div>
+        <SaleChip product={product} className="tpl-photo-off sf-off" />
         <QuickAction product={product} variant="icon" className="sf-add" />
       </div>
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open sf-name text-center">

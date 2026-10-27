@@ -236,6 +236,25 @@
   min-block-size: 3.5rem;
   font-size: 0.8125rem;
 }
+/*
+ * A discount: the burst has no room for the crossed-out price (`tpl-price-tight`), so a "-NN%" chip (`.tpl-off`, the
+ * accent pair) sits just above the burst, in the panel's end column, clear of the bubble at the top and the add at the
+ * start. Taps go through it to the panel.
+ */
+[data-body='comics'] .cm-off {
+  z-index: 2;
+  align-self: end;
+  justify-self: end;
+  margin-block-end: 3.5rem;
+  margin-inline-end: 0.375rem;
+  border: 2px solid var(--cm-ink);
+  /* The comic's own red with white (5.9:1), fixed like the burst's yellow and ink. */
+  --sale-bg: var(--cm-red);
+  --sale-ink: #fff;
+}
+[data-body='comics'] .cm-wide .cm-off {
+  margin-block-end: 3.75rem;
+}
 
 /*
  * The add button: a red starburst in the opposite bottom corner, over the panel's tap area. The star is a layer behind
