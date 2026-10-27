@@ -2469,6 +2469,8 @@ model PhReceipt {
   confirmedById String?
   confirmedAt   DateTime?
   voidedAt      DateTime?
+  /// Per-branch running number ("R-000001"), assigned when the receipt is confirmed.
+  number        String?
   version       Int               @default(1)
   createdAt     DateTime          @default(now())
   updatedAt     DateTime          @updatedAt
@@ -2479,6 +2481,7 @@ model PhReceipt {
 
   @@unique([restaurantId, clientKey])
   @@unique([restaurantId, id])
+  @@unique([branchId, number])
   @@index([restaurantId, branchId, status, createdAt])
 }
 
@@ -2492,12 +2495,17 @@ model PhReceiptLine {
   productId       String
   unitId          String
   qty             Int
+  /// Free units of the same unit, on top of `qty`; `baseQty` counts both.
+  bonusQty        Int               @default(0)
   baseQty         Int
   lot             String
   expiryDate      DateTime          @db.Date
   expiryPrecision PhExpiryPrecision @default(DAY)
   unitCostMinor   BigInt?
   costCurrency    Currency?
+  /// Confirmed on purpose: a zero cost needs `freeOfCharge`; a past expiry needs `acceptExpired` (goes to quarantine).
+  freeOfCharge    Boolean           @default(false)
+  acceptExpired   Boolean           @default(false)
   batchId         String?
   restaurant      Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   receipt         PhReceipt         @relation(fields: [restaurantId, receiptId], references: [restaurantId, id], onDelete: Cascade)
