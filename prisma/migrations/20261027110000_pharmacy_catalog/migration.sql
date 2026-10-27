@@ -147,6 +147,9 @@ CREATE TABLE "PhImportRow" (
 CREATE UNIQUE INDEX "PhCategory_restaurantId_nameKey_key" ON "PhCategory"("restaurantId", "nameKey");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "PhCategory_restaurantId_id_key" ON "PhCategory"("restaurantId", "id");
+
+-- CreateIndex
 CREATE INDEX "PhProduct_restaurantId_active_tradeName_idx" ON "PhProduct"("restaurantId", "active", "tradeName");
 
 -- CreateIndex
@@ -156,13 +159,16 @@ CREATE INDEX "PhProduct_restaurantId_categoryId_idx" ON "PhProduct"("restaurantI
 CREATE UNIQUE INDEX "PhProduct_restaurantId_identityKey_key" ON "PhProduct"("restaurantId", "identityKey");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "PhProduct_restaurantId_id_key" ON "PhProduct"("restaurantId", "id");
+
+-- CreateIndex
 CREATE INDEX "PhProductUnit_restaurantId_productId_idx" ON "PhProductUnit"("restaurantId", "productId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "PhProductUnit_productId_level_key" ON "PhProductUnit"("productId", "level");
 
 -- CreateIndex
-CREATE INDEX "PhBarcode_restaurantId_code_idx" ON "PhBarcode"("restaurantId", "code");
+CREATE UNIQUE INDEX "PhProductUnit_productId_id_key" ON "PhProductUnit"("productId", "id");
 
 -- CreateIndex
 CREATE INDEX "PhBarcode_productId_idx" ON "PhBarcode"("productId");
@@ -192,6 +198,9 @@ CREATE INDEX "PhImportBatch_restaurantId_createdAt_idx" ON "PhImportBatch"("rest
 CREATE INDEX "PhImportBatch_restaurantId_fileSha256_idx" ON "PhImportBatch"("restaurantId", "fileSha256");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "PhImportBatch_restaurantId_id_key" ON "PhImportBatch"("restaurantId", "id");
+
+-- CreateIndex
 CREATE INDEX "PhImportRow_restaurantId_batchId_status_idx" ON "PhImportRow"("restaurantId", "batchId", "status");
 
 -- CreateIndex
@@ -204,22 +213,22 @@ ALTER TABLE "PhCategory" ADD CONSTRAINT "PhCategory_restaurantId_fkey" FOREIGN K
 ALTER TABLE "PhProduct" ADD CONSTRAINT "PhProduct_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhProduct" ADD CONSTRAINT "PhProduct_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "PhCategory"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PhProduct" ADD CONSTRAINT "PhProduct_restaurantId_categoryId_fkey" FOREIGN KEY ("restaurantId", "categoryId") REFERENCES "PhCategory"("restaurantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_productId_fkey" FOREIGN KEY ("productId") REFERENCES "PhProduct"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_restaurantId_productId_fkey" FOREIGN KEY ("restaurantId", "productId") REFERENCES "PhProduct"("restaurantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhBarcode" ADD CONSTRAINT "PhBarcode_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhBarcode" ADD CONSTRAINT "PhBarcode_productId_fkey" FOREIGN KEY ("productId") REFERENCES "PhProduct"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PhBarcode" ADD CONSTRAINT "PhBarcode_restaurantId_productId_fkey" FOREIGN KEY ("restaurantId", "productId") REFERENCES "PhProduct"("restaurantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhBarcode" ADD CONSTRAINT "PhBarcode_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "PhProductUnit"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PhBarcode" ADD CONSTRAINT "PhBarcode_productId_unitId_fkey" FOREIGN KEY ("productId", "unitId") REFERENCES "PhProductUnit"("productId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhProductBranch" ADD CONSTRAINT "PhProductBranch_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -228,19 +237,19 @@ ALTER TABLE "PhProductBranch" ADD CONSTRAINT "PhProductBranch_restaurantId_fkey"
 ALTER TABLE "PhProductBranch" ADD CONSTRAINT "PhProductBranch_restaurantId_branchId_fkey" FOREIGN KEY ("restaurantId", "branchId") REFERENCES "Branch"("restaurantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhProductBranch" ADD CONSTRAINT "PhProductBranch_productId_fkey" FOREIGN KEY ("productId") REFERENCES "PhProduct"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PhProductBranch" ADD CONSTRAINT "PhProductBranch_restaurantId_productId_fkey" FOREIGN KEY ("restaurantId", "productId") REFERENCES "PhProduct"("restaurantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_productId_fkey" FOREIGN KEY ("productId") REFERENCES "PhProduct"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_restaurantId_productId_fkey" FOREIGN KEY ("restaurantId", "productId") REFERENCES "PhProduct"("restaurantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_unitId_fkey" FOREIGN KEY ("unitId") REFERENCES "PhProductUnit"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_productId_unitId_fkey" FOREIGN KEY ("productId", "unitId") REFERENCES "PhProductUnit"("productId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_branchId_fkey" FOREIGN KEY ("branchId") REFERENCES "Branch"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_restaurantId_branchId_fkey" FOREIGN KEY ("restaurantId", "branchId") REFERENCES "Branch"("restaurantId", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "PhPriceChangeBatch" ADD CONSTRAINT "PhPriceChangeBatch_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -252,7 +261,7 @@ ALTER TABLE "PhImportBatch" ADD CONSTRAINT "PhImportBatch_restaurantId_fkey" FOR
 ALTER TABLE "PhImportRow" ADD CONSTRAINT "PhImportRow_restaurantId_fkey" FOREIGN KEY ("restaurantId") REFERENCES "Restaurant"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "PhImportRow" ADD CONSTRAINT "PhImportRow_batchId_fkey" FOREIGN KEY ("batchId") REFERENCES "PhImportBatch"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "PhImportRow" ADD CONSTRAINT "PhImportRow_restaurantId_batchId_fkey" FOREIGN KEY ("restaurantId", "batchId") REFERENCES "PhImportBatch"("restaurantId", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- Hand-written CHECK constraints (Prisma cannot express them).
 ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_baseQty_positive" CHECK ("baseQty" >= 1);
@@ -260,3 +269,5 @@ ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_baseQty_positive" CHEC
 ALTER TABLE "PhProductUnit" ADD CONSTRAINT "PhProductUnit_base_level_one" CHECK ("level" <> 0 OR "baseQty" = 1);
 
 ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_amountMinor_nonnegative" CHECK ("amountMinor" >= 0);
+
+ALTER TABLE "PhPrice" ADD CONSTRAINT "PhPrice_validTo_after_validFrom" CHECK ("validTo" IS NULL OR "validTo" > "validFrom");

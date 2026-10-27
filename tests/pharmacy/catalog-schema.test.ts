@@ -85,3 +85,75 @@ describe('the catalog tables', () => {
     expect(back.amountMinor).toBe(big);
   });
 });
+
+describe('the catalog tables keep one business and one product together', () => {
+  const FK = /Foreign key constraint/;
+
+  it('a unit, a barcode, a price and a productBranch whose restaurantId differs from the product are refused', async () => {
+    const a = await pharmacy('A');
+    const b = await pharmacy('B');
+    const p = await product(a.id);
+    const u = await unit(a.id, p.id);
+    await expect(unit(b.id, p.id, 1, 6)).rejects.toThrow(FK);
+    await expect(prisma().phBarcode.create({ data: { restaurantId: b.id, productId: p.id, unitId: u.id, code: '1' } })).rejects.toThrow(FK);
+    await expect(
+      prisma().phPrice.create({
+        data: { restaurantId: b.id, productId: p.id, unitId: u.id, currency: 'IQD', amountMinor: 1n, validFrom: new Date(), reason: 't', changedById: 'x' },
+      }),
+    ).rejects.toThrow(FK);
+    await expect(prisma().phProductBranch.create({ data: { restaurantId: b.id, branchId: b.branchId, productId: p.id } })).rejects.toThrow(FK);
+  });
+
+  it('a barcode whose unit belongs to another product is refused', async () => {
+    const a = await pharmacy('A');
+    const p1 = await product(a.id);
+    const p2 = await product(a.id, 'other');
+    const u2 = await unit(a.id, p2.id);
+    await expect(prisma().phBarcode.create({ data: { restaurantId: a.id, productId: p1.id, unitId: u2.id, code: '2' } })).rejects.toThrow(FK);
+    await expect(
+      prisma().phPrice.create({
+        data: { restaurantId: a.id, productId: p1.id, unitId: u2.id, currency: 'IQD', amountMinor: 1n, validFrom: new Date(), reason: 't', changedById: 'x' },
+      }),
+    ).rejects.toThrow(FK);
+  });
+
+  it('a price whose branch belongs to another business is refused', async () => {
+    const a = await pharmacy('A');
+    const b = await pharmacy('B');
+    const p = await product(a.id);
+    const u = await unit(a.id, p.id);
+    await expect(
+      prisma().phPrice.create({
+        data: { restaurantId: a.id, productId: p.id, unitId: u.id, branchId: b.branchId, currency: 'IQD', amountMinor: 1n, validFrom: new Date(), reason: 't', changedById: 'x' },
+      }),
+    ).rejects.toThrow(FK);
+    await expect(
+      prisma().phPrice.create({
+        data: { restaurantId: a.id, productId: p.id, unitId: u.id, branchId: a.branchId, currency: 'IQD', amountMinor: 1n, validFrom: new Date(), reason: 't', changedById: 'x' },
+      }),
+    ).resolves.toHaveProperty('id');
+  });
+
+  it('a product whose category belongs to another business is refused', async () => {
+    const a = await pharmacy('A');
+    const b = await pharmacy('B');
+    const cat = await prisma().phCategory.create({ data: { restaurantId: b.id, name: 'C', nameKey: 'c' } });
+    await expect(
+      prisma().phProduct.create({ data: { restaurantId: a.id, tradeName: 'X', identityKey: 'x', categoryId: cat.id } }),
+    ).rejects.toThrow(FK);
+  });
+
+  it('a price whose validTo is not after validFrom is refused', async () => {
+    const a = await pharmacy('A');
+    const p = await product(a.id);
+    const u = await unit(a.id, p.id);
+    const from = new Date('2026-10-27T00:00:00Z');
+    const price = (validTo: Date | null) =>
+      prisma().phPrice.create({
+        data: { restaurantId: a.id, productId: p.id, unitId: u.id, currency: 'IQD', amountMinor: 1n, validFrom: from, validTo, reason: 't', changedById: 'x' },
+      });
+    await expect(price(from)).rejects.toThrow(/PhPrice_validTo_after_validFrom/);
+    await expect(price(new Date(from.getTime() + 1000))).resolves.toHaveProperty('id');
+    await expect(price(null)).resolves.toHaveProperty('id');
+  });
+});

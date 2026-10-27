@@ -2071,6 +2071,7 @@ model PhCategory {
   products     PhProduct[]
 
   @@unique([restaurantId, nameKey])
+  @@unique([restaurantId, id])
 }
 
 /// A medicine or other product a pharmacy sells. `identityKey` is the normalised identity that stops duplicates;
@@ -2097,13 +2098,14 @@ model PhProduct {
   updatedAt        DateTime  @updatedAt
 
   restaurant Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  category   PhCategory?       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  category   PhCategory?       @relation(fields: [restaurantId, categoryId], references: [restaurantId, id], onDelete: Restrict)
   units      PhProductUnit[]
   barcodes   PhBarcode[]
   branches   PhProductBranch[]
   prices     PhPrice[]
 
   @@unique([restaurantId, identityKey])
+  @@unique([restaurantId, id])
   @@index([restaurantId, active, tradeName])
   @@index([restaurantId, categoryId])
 }
@@ -2120,11 +2122,12 @@ model PhProductUnit {
   baseQty      Int
   sellable     Boolean     @default(true)
   restaurant   Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product      PhProduct   @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      PhProduct   @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: Cascade)
   barcodes     PhBarcode[]
   prices       PhPrice[]
 
   @@unique([productId, level])
+  @@unique([productId, id])
   @@index([restaurantId, productId])
 }
 
@@ -2138,11 +2141,10 @@ model PhBarcode {
   shared       Boolean       @default(false)
   createdAt    DateTime      @default(now())
   restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product      PhProduct     @relation(fields: [productId], references: [id], onDelete: Cascade)
-  unit         PhProductUnit @relation(fields: [unitId], references: [id], onDelete: Cascade)
+  product      PhProduct     @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: Cascade)
+  unit         PhProductUnit @relation(fields: [productId, unitId], references: [productId, id], onDelete: Cascade)
 
   @@unique([restaurantId, code, unitId])
-  @@index([restaurantId, code])
   @@index([productId])
 }
 
@@ -2156,15 +2158,15 @@ model PhProductBranch {
   reorderQty   Int        @default(0)
   restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch       Branch     @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: Cascade)
-  product      PhProduct  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product      PhProduct  @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: Cascade)
 
   @@unique([branchId, productId])
   @@index([restaurantId, productId])
 }
 
 /// A sell price for one unit, in minor units of one currency, valid from a date. A null `branchId` is a business-wide
-/// price. The client does not branch-scope this model: the price service checks the branch. CHECK amountMinor >= 0 is
-/// in the migration. `changedById` names the person (kept as text, not a foreign key, so history outlives the account).
+/// price. The client does not branch-scope this model: the price service checks the branch. CHECKs (amountMinor >= 0;
+/// validTo after validFrom) are in the migration. `changedById` names the person (kept as text, not a foreign key, so history outlives the account).
 model PhPrice {
   id           String        @id @default(cuid())
   restaurantId String
@@ -2179,9 +2181,9 @@ model PhPrice {
   changedById  String
   createdAt    DateTime      @default(now())
   restaurant   Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  product      PhProduct     @relation(fields: [productId], references: [id], onDelete: Restrict)
-  unit         PhProductUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
-  branch       Branch?       @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  product      PhProduct     @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: Restrict)
+  unit         PhProductUnit @relation(fields: [productId, unitId], references: [productId, id], onDelete: Restrict)
+  branch       Branch?       @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: Restrict)
 
   @@index([restaurantId, productId, unitId, currency, validFrom])
   @@index([restaurantId, validFrom])
@@ -2214,6 +2216,7 @@ model PhImportBatch {
   restaurant   Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   rows         PhImportRow[]
 
+  @@unique([restaurantId, id])
   @@index([restaurantId, createdAt])
   @@index([restaurantId, fileSha256])
 }
@@ -2229,7 +2232,7 @@ model PhImportRow {
   issues       Json              @default("[]")
   status       PhImportRowStatus @default(OK)
   restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  batch        PhImportBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  batch        PhImportBatch     @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: Cascade)
 
   @@unique([batchId, rowNumber])
   @@index([restaurantId, batchId, status])
