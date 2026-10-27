@@ -76,6 +76,11 @@ export function Shell({
         <Link href="/pharmacy/catalog" className={LINK}>
           {t('pharmacy.nav.catalog')}
         </Link>
+        {actor.role !== null && canPh(actor.role, 'shift.use') && (
+          <Link href="/pharmacy/sell" className={LINK}>
+            {t('pharmacy.nav.sell')}
+          </Link>
+        )}
         {actor.role !== null && canPh(actor.role, 'catalog.view') && (
           <Link href="/pharmacy/stock" className={LINK}>
             {t('pharmacy.nav.stock')}

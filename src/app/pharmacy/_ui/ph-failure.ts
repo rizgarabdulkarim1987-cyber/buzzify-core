@@ -13,7 +13,7 @@ export function phMessage(
   t: Translate,
   locale: Locale,
   failure: StudioFailure,
-  prefix: 'pharmacy.counts' | 'pharmacy.expiry',
+  prefix: 'pharmacy.counts' | 'pharmacy.expiry' | 'pharmacy.sell',
   lineOf?: (lineId: string) => { product: string; lot: string } | undefined,
 ): string {
   const code = failure.fields?.phCode;
@@ -21,9 +21,10 @@ export function phMessage(
     const key = `${prefix}.fail.${code}`;
     const line = failure.fields?.lineId ? lineOf?.(failure.fields.lineId) : undefined;
     const text = t(key, {
-      product: line?.product ?? '',
+      product: line?.product ?? failure.fields?.productName ?? '',
       lot: line?.lot ?? '',
-      have: failure.fields?.have ?? '0',
+      have: failure.fields?.have ?? failure.fields?.available ?? '0',
+      requested: failure.fields?.requested ?? '',
       difference: failure.fields?.difference ?? '',
     });
     if (text !== key) return text;
