@@ -333,6 +333,7 @@ const posTill: Messages = {
   'pos.discount.reason.COMPLAINT': 'گلەیی',
   'pos.discount.reason.STAFF_MEAL': 'ژەمی کارمەند',
   'pos.discount.reason.OTHER': 'هیتر',
+  'pos.discount.reason.COMP': 'میوانداری',
   'pos.approval.hint': 'بەڕێوەبەر بە نووسینی پینی خۆی ئەمە پەسەند دەکات.',
   'pos.approval.manager': 'بەڕێوەبەر',
   'pos.approval.pin': 'پینی بەڕێوەبەر',

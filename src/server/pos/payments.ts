@@ -65,7 +65,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     tax: totals.tax,
     deliveryFee: totals.deliveryFee,
     total: totals.total,
-    invoiceDiscountInput: invoiceDiscount ?? null,
+    invoiceDiscountInput: invoiceDiscount ? { ...invoiceDiscount, reason: order.invoiceDiscountReason } : null,
     rates: effectiveRates(order.kind, rates),
     lines: live.map((line) => {
       const priced = pricedLine(line);
@@ -76,7 +76,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
         unitPrice: line.unitPriceSnapshot,
         options: optionsSnapshotSchema.parse(line.optionsSnapshot),
         promoPerUnit: line.promoDiscountPerUnit,
-        discount: priced.discount ?? null,
+        discount: priced.discount ? { ...priced.discount, reason: line.discountReason } : null,
         lineTotal: lineTotal(priced),
       };
     }),

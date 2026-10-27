@@ -26,6 +26,8 @@ export interface ShiftReport {
   grossSales: number;
   /** Tips left on top of the bills, outside grossSales. */
   tipsTotal: number;
+  /** The part of discountsTotal given as comps (dishes on the house), by their reason in the snapshots. */
+  compsTotal: number;
   /** The invoice discounts plus the line discounts of the orders paid in the shift, from their snapshots. */
   discountsTotal: number;
   /** The delivery fees inside grossSales, from the snapshots (a fee is charged on top of the food, not a sale of it). */
@@ -141,9 +143,10 @@ function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[
  * The invoice discount plus each line's discount amount, in IQD. The line amount is the money domain's own rule applied to the
  * snapshot's price, options, quantity and discount, checked against the lineTotal stored with it: a mismatch is corrupt data.
  */
-function snapshotDiscounts(paymentId: string, snapshot: TotalsSnapshot): number {
-  let sum = snapshot.invoiceDiscount;
+function snapshotDiscounts(paymentId: string, snapshot: TotalsSnapshot, only?: 'COMP'): number {
+  let sum = only && snapshot.invoiceDiscountInput?.reason !== only ? 0 : snapshot.invoiceDiscount;
   for (const line of snapshot.lines) {
+    if (only && line.discount?.reason !== only) continue;
     const priced: PricedLine = {
       unitPrice: line.unitPrice,
       optionsTotal: line.options.reduce((s, o) => s + o.priceDelta, 0),
@@ -165,6 +168,7 @@ export function sales(payments: readonly PaymentRow[]) {
   let discountsTotal = 0;
   let deliveryFeesTotal = 0;
   let tipsTotal = 0;
+  let compsTotal = 0;
   for (const p of payments) {
     const snapshot = parseTotalsSnapshot(p.id, p.totalsSnapshot);
     for (const leg of legsOf(p, snapshot.total)) {
@@ -173,12 +177,13 @@ export function sales(payments: readonly PaymentRow[]) {
     }
     grossSales += snapshot.total;
     discountsTotal += snapshotDiscounts(p.id, snapshot);
+    compsTotal += snapshotDiscounts(p.id, snapshot, 'COMP');
     deliveryFeesTotal += snapshot.deliveryFee;
     tipsTotal += p.tipAmount;
     const cash = cashIn(p, snapshot.total);
     if (cash > 0) cashTotals.push(cash);
   }
-  return { byMethod, grossSales, discountsTotal, deliveryFeesTotal, cashTotals, tipsTotal };
+  return { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal };
 }
 
 /** A cancel belongs to a shift when its person made it between the opening and the close (or now, while open). */
@@ -221,7 +226,7 @@ async function outsideShiftsOf(db: AnyDb, dayCancels: readonly CancelRow[], shif
 
 function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], reversals: readonly ReversalRow[], expenses: readonly ExpenseRow[], cancels: readonly CancelRow[], now: Date, closedByName: string | null): ShiftReport {
   const { user, ...shift } = row;
-  const { byMethod, grossSales, discountsTotal, deliveryFeesTotal, cashTotals, tipsTotal } = sales(payments);
+  const { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal } = sales(payments);
   const refundsByMethod = noSales();
   for (const r of reversals) {
     for (const given of refundLegs(r)) {
@@ -240,6 +245,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     grossSales,
     tipsTotal,
     discountsTotal,
+    compsTotal,
     deliveryFeesTotal,
     refundsByMethod,
     refundsTotal,

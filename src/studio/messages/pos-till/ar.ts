@@ -333,6 +333,7 @@ const posTill: Messages = {
   'pos.discount.reason.COMPLAINT': 'شكوى',
   'pos.discount.reason.STAFF_MEAL': 'وجبة موظف',
   'pos.discount.reason.OTHER': 'أخرى',
+  'pos.discount.reason.COMP': 'ضيافة',
   'pos.approval.hint': 'يوافق المدير على هذا بكتابة رمز PIN الخاص به.',
   'pos.approval.manager': 'المدير',
   'pos.approval.pin': 'رمز PIN للمدير',

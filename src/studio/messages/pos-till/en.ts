@@ -333,6 +333,7 @@ const posTill: Messages = {
   'pos.discount.reason.COMPLAINT': 'Complaint',
   'pos.discount.reason.STAFF_MEAL': 'Staff meal',
   'pos.discount.reason.OTHER': 'Other',
+  'pos.discount.reason.COMP': 'On the house (comp)',
   'pos.approval.hint': 'A manager approves this by typing their own PIN.',
   'pos.approval.manager': 'Manager',
   'pos.approval.pin': 'Manager PIN',
