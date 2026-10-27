@@ -54,8 +54,11 @@ Nothing here is deployed. No migration has been run on production.
 
   That is roughly **12 to 14 sequential round trips per search** (estimated from the code by the final review, not measured). The parallel wave holds 5 of the default 10 pool
   connections at once, so two concurrent tills fill one process's pool. End-to-end timing on Neon is **not
-  measured** and must be done before phase 3 (sales). Reusing the resolved actor and gate within a request
-  (`cache()` or passing them from `invokePh*`) is a recorded follow-up.
+  measured** and must be done before phase 3 (sales). `invokePh` and `invokePhQuery` now pass the actor and gate that
+  `getPhAccess` resolved for the request to the framework (`phAccess` option), so `admit` does not resolve them again:
+  9 fewer queries per call (a search 34 to 25, a stock list 28 to 19, counted in `tests/pharmacy/request-reuse.test.ts`
+  with `cache()` standing in for one request). The framework uses them only for the same person and pharmacy and still
+  runs the gate, permission and branch checks. Pages that call `query()` directly do not use it yet.
 - Excel/CSV import with a preview (`/pharmacy/catalog/import`). Every row is checked and stored with its issues, and
   nothing changes until apply. Apply is one transaction (60 s timeout). Limits: 10,000 rows and 5 MB per file. A
   committed file uploaded again is flagged `DUPLICATE_IMPORT`. Export writes CSV (UTF-8 BOM) or XLSX, and cells
@@ -166,9 +169,11 @@ Do not merge until these steps are done, in this order, or merge with the deploy
 
 ## Open items
 
-- **Before phases 2 and 3:** re-test the isolation layer. That means `ctx.scoped`, the composite foreign keys and the
-  regex-based rule 8 in `tests/studio/enforcement.test.ts`, which only recognises the receivers `db`, `prisma`,
-  `prisma()` and `getPrisma()`. Re-run the RLS spike, and time a search end to end on Neon.
+- **Before phase 3:** the isolation layer was re-tested for the phase 2 stock definitions
+  (`tests/pharmacy/isolation.test.ts`: other business, other branch, a branch-1-only person; it fails when a new `ph.*`
+  definition has no entry). Rule 8 in `tests/studio/enforcement.test.ts` now recognises more base-client receivers and
+  only `src/server/pharmacy/stock.ts` may write the stock tables. Still open: re-run the RLS spike, and time a search
+  end to end on Neon.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
 - **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".
