@@ -95,6 +95,11 @@ export const recordConsent = defineAction({
     if (!ctx.actor.isSuperAdmin) throw new StudioError('FORBIDDEN');
     const pharmacy = await ctx.db.restaurant.findUnique({ where: { id: input.restaurantId }, select: { sector: true } });
     if (pharmacy?.sector !== 'PHARMACY') throw new StudioError('NOT_FOUND');
+    // A second person: the Super Admin who records the owner's consent may not name themselves (code CONSENT_SELF).
+    if (input.granteeEmail === normalizeEmail(ctx.actor.email)) {
+      const message = 'CONSENT_SELF: name another member of Buzzify support, not yourself';
+      throw new StudioError('INVALID', message, { granteeEmail: message });
+    }
     return ctx.transactionIn({ restaurantId: input.restaurantId }, async (tx) => {
       const granted = await createGrant(
         tx,

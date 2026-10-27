@@ -110,8 +110,9 @@ for now: there is no Server Action and no screen for granting, revoking or recor
 
 A support actor only reads: today `catalog.read` covers `catalog.view` and `sales.read` covers `report.view`. Cost,
 profit and prescription attachments are never covered by a grant. Every support read writes a `support.read` audit row
-naming the grant before the read runs, and the read fails if the audit cannot be written. Open for the owner: a Super
-Admin may record consent naming themselves as the grantee.
+naming the grant before the read runs, and the read fails if the audit cannot be written. Recording consent needs a second
+person: the grantee may not be the Super Admin who records it (`CONSENT_SELF`), and the recorder must be a Super Admin
+with a consent reference of at least 10 characters (also for `rx.read` / `patients.read`).
 
 **Retention after a subscription ends.** While a `pharmacy` subscription is TRIAL, ACTIVE or GRACE, everything works.
 After it lapses (EXPIRED, or CANCELLED), the pharmacy is **read-only for 90 days**. Reads and exports still work, and
@@ -163,9 +164,6 @@ Do not merge until these steps are done, in this order, or merge with the deploy
 
 ## Open items
 
-- **Support consent:** the Task 11 ruling lets a Super Admin record consent naming themselves as the grantee, and
-  confirm `rx.read` / `patients.read` alone. A second-person rule must be decided **before phase 3**, when
-  prescription and patient data exist.
 - **Before phases 2 and 3:** re-test the isolation layer. That means `ctx.scoped`, the composite foreign keys and the
   regex-based rule 8 in `tests/studio/enforcement.test.ts`, which only recognises the receivers `db`, `prisma`,
   `prisma()` and `getPrisma()`. Re-run the RLS spike, and time a search end to end on Neon.

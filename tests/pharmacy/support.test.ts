@@ -284,8 +284,9 @@ describe('support access grants', () => {
     const a = await pharmacy('A');
     const owner = await person('owner', { membership: [a.id, 'OWNER'] });
     const admin = await person('admin', { superAdmin: true });
+    const colleague = await person('colleague', { superAdmin: true });
     const food = await pharmacy('Diner', { sector: 'FOOD' });
-    const input = { ...goodGrant(admin.email), restaurantId: a.id };
+    const input = { ...goodGrant(colleague.email), restaurantId: a.id };
 
     expect(codeOf(await act(admin, supportAccess.recordConsent, input))).toBe('INVALID');
     expect(codeOf(await act(admin, supportAccess.recordConsent, { ...input, consentRef: '   short   ' }))).toBe('INVALID');
@@ -304,10 +305,28 @@ describe('support access grants', () => {
     const recorded = await act(admin, supportAccess.recordConsent, { ...input, consentRef: 'Signed letter 2026-118' });
     expect(codeOf(recorded)).toBe('OK');
     const row = await prisma().supportAccessGrant.findFirstOrThrow();
-    expect(row).toMatchObject({ restaurantId: a.id, granteeUserId: admin.userId, approvedByUserId: null, consentRef: 'Signed letter 2026-118' });
+    expect(row).toMatchObject({ restaurantId: a.id, granteeUserId: colleague.userId, approvedByUserId: null, consentRef: 'Signed letter 2026-118' });
     const [audit] = await auditOf('support.grant');
     expect(audit).toMatchObject({ restaurantId: a.id, actorId: admin.userId, entityId: row.id });
     expect(JSON.stringify(audit!.changes)).toContain('consent recorded by platform');
+  });
+
+  it('recordConsent refuses a grant naming the recorder (CONSENT_SELF): a second person must be the grantee', async () => {
+    const a = await pharmacy('A');
+    const admin = await person('admin', { superAdmin: true });
+    const colleague = await person('colleague', { superAdmin: true });
+    const base = { ...goodGrant(admin.email), restaurantId: a.id, consentRef: 'Signed letter 2026-118' };
+
+    for (const scopes of [['catalog.read'], ['rx.read'], ['patients.read']]) {
+      const result = await act(admin, supportAccess.recordConsent, { ...base, scopes, sensitiveConfirmed: true });
+      expect(codeOf(result), scopes.join()).toBe('INVALID');
+      if (!result.ok) expect(result.error.message).toContain('CONSENT_SELF');
+    }
+    expect(await prisma().supportAccessGrant.count()).toBe(0);
+
+    // Naming a colleague works, for a sensitive scope too (the recorder is a Super Admin with a reference of 10+ characters).
+    const ok = await act(admin, supportAccess.recordConsent, { ...base, granteeEmail: colleague.email, scopes: ['rx.read'], sensitiveConfirmed: true });
+    expect(codeOf(ok)).toBe('OK');
   });
 
   it('a support actor cannot run any write action', async () => {
