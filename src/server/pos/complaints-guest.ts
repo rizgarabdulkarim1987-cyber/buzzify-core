@@ -29,14 +29,15 @@ export type ComplaintGate = { open: true; restaurantId: string; tableId: string 
 
 const CLOSED: ComplaintGate = { open: false };
 
-/** Whether guests of this menu may send a complaint from this table. The subscription is read first. */
+/** Whether this menu is the till's and the table is one of its tables, so a message can be linked to it. The subscription is read first. */
 export async function complaintGate(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, tableNumber: number, now: Date = new Date()): Promise<ComplaintGate> {
   if (!Number.isInteger(tableNumber) || tableNumber < 1) return CLOSED;
   const gate = await posGate(prisma, tenant.restaurantId, now);
   if (!gate.open) return CLOSED;
   const till = scopedClient(prisma, { restaurantId: tenant.restaurantId });
-  const settings = await till.posSettings.findFirst({ where: { restaurantId: tenant.restaurantId }, select: { complaintsEnabled: true, catalogMenuId: true } });
-  if (!settings?.complaintsEnabled || settings.catalogMenuId !== tenant.id) return CLOSED;
+  const settings = await till.posSettings.findFirst({ where: { restaurantId: tenant.restaurantId }, select: { catalogMenuId: true } });
+  // The till's own switch no longer decides: the menu's box is open to every guest, and this only finds the table to link.
+  if (!settings || settings.catalogMenuId !== tenant.id) return CLOSED;
   const table = await till.posTable.findFirst({ where: { restaurantId: tenant.restaurantId, number: tableNumber }, select: { id: true } });
   return table ? { open: true, restaurantId: tenant.restaurantId, tableId: table.id } : CLOSED;
 }

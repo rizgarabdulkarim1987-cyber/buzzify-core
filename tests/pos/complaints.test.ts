@@ -72,13 +72,15 @@ describe('a guest sends a complaint', () => {
     expect((await send(complaint())).status).toBe(201);
   });
 
-  it('is kept without a table link when the till is off or the table is unknown', async () => {
+  it('links the table whatever the old till switch says', async () => {
     await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { complaintsEnabled: false } });
     expect((await send(complaint())).status).toBe(201);
+    expect(await prisma().posComplaint.findFirstOrThrow({ where: { restaurantId: a.id } })).toMatchObject({ tableNumber: 1 });
+  });
+
+  it('is kept without a table link when the table is unknown to the till', async () => {
     expect((await send(complaint({ table: 99 }))).status).toBe(201);
-    const rows = await prisma().posComplaint.findMany({ where: { restaurantId: a.id } });
-    expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.tableId === null && row.tableNumber === null)).toBe(true);
+    expect(await prisma().posComplaint.findFirstOrThrow({ where: { restaurantId: a.id } })).toMatchObject({ tableId: null, tableNumber: null });
   });
 
   it('takes a suggestion with no table at all, on a menu with no till', async () => {
