@@ -327,6 +327,33 @@ test('dishes are lozenge medallions that interlock from the first row: two with 
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
+test('a short lower row is centred under the row above and still nests, never pushed to one side: one alone under the meeting of the two above, two at the two edges of the rug', async ({
+  page,
+}) => {
+  await openMenu(page, slug);
+  // The usual section of three: the third lies under the point where the first two meet.
+  const [a, b, c] = await lozenges(page, 'viennoiserie');
+  expect(Math.abs(centre(c!).x - (a!.x + a!.width))).toBeLessThanOrEqual(3);
+  expect(Math.abs(centre(c!).x - (centre(a!).x + centre(b!).x) / 2)).toBeLessThanOrEqual(3);
+  // A section of four: the lower two nest at the rug's two edges, half a medallion out from the two above, symmetric.
+  await fillGrid(page, 'patisserie', 4);
+  const [p, q, r, t] = await lozenges(page, 'patisserie');
+  expect(Math.abs(centre(r!).x - p!.x)).toBeLessThanOrEqual(3);
+  expect(Math.abs(centre(t!).x - (q!.x + q!.width))).toBeLessThanOrEqual(3);
+  expect(Math.abs((centre(r!).x + centre(t!).x) / 2 - (centre(p!).x + centre(q!).x) / 2)).toBeLessThanOrEqual(3);
+});
+
+test('on a wide screen a short lower band nests next to the centre: one beside the middle lozenge, two either side of it', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await openMenu(page, slug, { phone: false });
+  await fillGrid(page, 'viennoiserie', 4);
+  const boxes = await lozenges(page, 'viennoiserie');
+  expect(Math.abs(centre(boxes[3]!).x - (boxes[0]!.x + boxes[0]!.width))).toBeLessThanOrEqual(3);
+  await fillGrid(page, 'patisserie', 5);
+  const more = await lozenges(page, 'patisserie');
+  expect(Math.abs((centre(more[3]!).x + centre(more[4]!).x) / 2 - centre(more[1]!).x)).toBeLessThanOrEqual(3);
+});
+
 test('a tap on a lozenge opens its own dish where the rows nest: the foot of an upper lozenge and the lower lozenge between them', async ({
   page,
 }) => {
