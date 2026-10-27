@@ -6,6 +6,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
  * first insert (a Prisma upsert would). Call it inside the transaction that uses the number, so a rollback gives it back.
  */
 export async function nextCounterIn(db: AnyDb, restaurantId: string, name: string): Promise<number> {
+  // eslint-disable-next-line no-restricted-properties -- the statement names the restaurant itself (the unique key) and touches only its own counter row
   const rows = await db.$queryRaw<{ value: number }[]>`
     INSERT INTO "PosCounter" ("restaurantId", "name", "value") VALUES (${restaurantId}, ${name}, 1)
     ON CONFLICT ("restaurantId", "name") DO UPDATE SET "value" = "PosCounter"."value" + 1

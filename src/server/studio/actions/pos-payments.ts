@@ -86,6 +86,8 @@ export const reversePosPayment = defineAction({
   pos: 'payment.refund',
   input: z.object({
     orderId: idField,
+    /** The part to reverse when the bill was split. */
+    paymentId: idField.optional(),
     expectedVersion: z.number().int().min(1).max(INT32),
     reason: z.string().trim().min(1, 'Enter a reason').max(300, 'Use at most 300 characters'),
     reference: z

@@ -6,7 +6,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { effectiveRates, loadOrderForChange, optionsSnapshotSchema, orderTotals, pricedLine, readRates } from './orders';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
-import { checkLegs, type LegInput, type TipInput } from './payment-legs';
+import { checkLegs, legsOf, type LegInput, type TipInput } from './payment-legs';
 import { consumeForPayment } from './recipes';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
@@ -139,6 +139,10 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
 
 export interface Receipt {
   paymentId: string;
+  /** 1 for a bill paid at once; the guest's number after a split. */
+  part: number;
+  /** Every payment of the order, to move between receipts of a split bill. */
+  parts: { paymentId: string; part: number; total: number }[];
   orderId: string;
   orderNumber: number;
   tableNumber: number | null;
@@ -147,6 +151,10 @@ export interface Receipt {
   queueNumber: number | null;
   customer: { name: string; phone: string; address: string; addressNote: string; zoneName: string; driverName: string } | null;
   method: string;
+  /** How the bill was paid: one leg per method. */
+  legs: { method: string; amount: number; tendered: number | null; reference: string | null }[];
+  /** The tip left on top of the bill (not in the snapshot total); null when none. */
+  tip: { amount: number; method: string } | null;
   amountReceived: number;
   change: number;
   reference: string | null;
@@ -160,15 +168,20 @@ export interface Receipt {
 }
 
 /** The receipt of a paid order, from the totals frozen when it was paid. */
-export async function readReceipt(db: AnyDb, restaurantId: string, orderId: string): Promise<Receipt | null> {
+export async function readReceipt(db: AnyDb, restaurantId: string, orderId: string, paymentId?: string): Promise<Receipt | null> {
   const payment = await db.posPayment.findFirst({
-    where: { orderId, restaurantId },
-    include: { reversal: { include: { user: { select: { name: true } } } }, order: { select: { version: true, number: true, kind: true, queueNumber: true, customerName: true, customerPhone: true, address: true, addressNote: true, deliveryZoneName: true, driverNameSnapshot: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
+    where: { orderId, restaurantId, ...(paymentId === undefined ? {} : { id: paymentId }) },
+    orderBy: { part: 'desc' },
+    include: { legs: true, reversal: { include: { user: { select: { name: true } } } }, order: { select: { version: true, number: true, kind: true, queueNumber: true, customerName: true, customerPhone: true, address: true, addressNote: true, deliveryZoneName: true, driverNameSnapshot: true, table: { select: { number: true } } } }, user: { select: { name: true } } },
   });
   if (!payment) return null;
   const snapshot = parseTotalsSnapshot(payment.id, payment.totalsSnapshot);
+  const legs = legsOf(payment, snapshot.total);
+  const all = await db.posPayment.findMany({ where: { orderId, restaurantId }, orderBy: { part: 'asc' }, select: { id: true, part: true, totalsSnapshot: true } });
   return {
     paymentId: payment.id,
+    part: payment.part,
+    parts: all.map((p) => ({ paymentId: p.id, part: p.part, total: parseTotalsSnapshot(p.id, p.totalsSnapshot).total })),
     orderId,
     orderNumber: payment.order.number,
     tableNumber: payment.order.table?.number ?? null,
@@ -186,8 +199,10 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
             driverName: payment.order.driverNameSnapshot,
           },
     method: payment.method,
+    legs: legs.map((leg) => ({ method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference })),
+    tip: payment.tipAmount > 0 && payment.tipMethod ? { amount: payment.tipAmount, method: payment.tipMethod } : null,
     amountReceived: payment.amountReceived,
-    change: payment.amountReceived - snapshot.total,
+    change: Math.max(0, (legs.find((leg) => leg.method === 'CASH')?.tendered ?? 0) - (legs.find((leg) => leg.method === 'CASH')?.amount ?? 0) - (payment.tipMethod === 'CASH' ? payment.tipAmount : 0)),
     reference: payment.reference,
     paidAt: payment.paidAt,
     cashierName: payment.user?.name ?? null,

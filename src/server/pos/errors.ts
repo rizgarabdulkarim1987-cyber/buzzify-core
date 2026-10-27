@@ -88,6 +88,7 @@ export const POS_TEXT = {
   'This line is already paid': 'error.text.posLinePaid',
   'Choose lines that are still unpaid': 'error.text.posLinesUnpaid',
   'This order already has payments': 'error.text.posOrderHasPayments',
+  'Choose which payment to reverse': 'error.text.posChoosePayment',
   'Use each payment method once': 'error.text.posLegsOnce',
   'The tip cannot be more than the bill': 'error.text.posTipTooBig',
 } as const;
