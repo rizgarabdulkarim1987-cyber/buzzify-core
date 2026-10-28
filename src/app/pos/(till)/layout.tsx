@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
 import { idleMinutesFor } from '@/lib/pos-idle';
+import { requestBadges } from '@/lib/pos-requests-model';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
 import { currentDevice } from '@/server/pos/device-session';
@@ -59,7 +60,9 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const flags = handlesRequests ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0, billCalls: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
   const ai = canPos(entry.actor.role, 'report.view') ? await query(posAiState, {}) : { enabled: false };
-  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests + flags.billCalls : item.key === 'captain' ? flags.billCalls : item.key === 'complaints' ? complaints.count : 0 }));
+  // A bill call is counted once: on the captain page for the captain, with the guest orders for everyone else.
+  const badges = requestBadges(entry.actor.role, flags);
+  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? badges.requests : item.key === 'captain' ? badges.captain : item.key === 'complaints' ? complaints.count : 0 }));
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
   const idleMinutes = await query(posIdleMinutes, {});
   const printers = await query(posPrinters, {});
