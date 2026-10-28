@@ -5,7 +5,7 @@ import { z } from 'zod';
  * the server read the same shapes. Every kind is an existing till action; nothing else is queueable.
  */
 
-export const OP_KINDS = ['openOrder', 'addLine', 'sendToKitchen', 'requestBill', 'cancelOrder', 'payCash'] as const;
+export const OP_KINDS = ['openOrder', 'addLine', 'sendToKitchen', 'requestBill', 'cancelOrder', 'payCash', 'drawerOpen', 'receiptCopy'] as const;
 export type OpKind = (typeof OP_KINDS)[number];
 
 const INT32 = 2_147_483_647;
@@ -45,6 +45,9 @@ export const operationSchema = z.discriminatedUnion('kind', [
   z.object({ ...base, ...onOrder, kind: z.literal('requestBill'), payload: z.object({}).strict() }).strict(),
   z.object({ ...base, ...onOrder, kind: z.literal('cancelOrder'), payload: z.object({ reason: text }).strict() }).strict(),
   z.object({ ...base, ...onOrder, kind: z.literal('payCash'), payload: z.object({ expectedTotal: money, amountReceived: money }).strict() }).strict(),
+  // Recorded after the fact: the till already opened the drawer / printed the copy through the bridge; the server only writes the audit row.
+  z.object({ ...base, kind: z.literal('drawerOpen'), payload: z.object({ reason: z.string().trim().min(1).max(200) }).strict() }).strict(),
+  z.object({ ...base, ...onOrder, kind: z.literal('receiptCopy'), payload: z.object({}).strict() }).strict(),
 ]);
 export type Op = z.infer<typeof operationSchema>;
 

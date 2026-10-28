@@ -161,11 +161,14 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       });
       continue;
     }
+    // Notes for the audit log (a drawer opening, a printed copy) change no order: a copy only counts as waiting.
+    if (op.kind === 'drawerOpen') continue;
     const ref = op.orderRef;
     const order = orders.get('id' in ref ? `id:${ref.id}` : (appliedOpen.get(ref.op) ?? `op:${ref.op}`));
     if (!order) continue;
     order.waiting += 1;
     if (q.state === 'attention') order.attention = true;
+    if (op.kind === 'receiptCopy') continue;
     order.version = op.expectedVersion + 1;
     switch (op.kind) {
       case 'addLine': {

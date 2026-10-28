@@ -66,7 +66,7 @@
 - Test: `tests/pos/sync-print-ops.test.ts`
 
 **Interfaces:**
-- Produces: `{ kind: 'drawerOpen', payload: { reason: string } }` and `{ kind: 'receiptCopy', ...onOrder, payload: {} }`; server answers `done` after writing audit `pos.drawer.open` / `pos.receipt.reprint` (with `clientAt` in the changes).
+- Produces: `{ kind: 'drawerOpen', payload: { reason: string } }` and `{ kind: 'receiptCopy', ...onOrder, payload: {} }`; server answers `done` after writing audit `pos.drawer.open` / `pos.receipt.reprint`.
 
 - [ ] **Step 1: Write failing tests:** `a drawerOpen operation writes the drawer audit row once, also when replayed`; `a receiptCopy for a paid order writes the reprint row`; `a receiptCopy for an unknown order answers unknownRef`; `a drawerOpen needs a reason`; `another restaurant's order is unknownRef`.
 - [ ] **Step 2: Run.** Expected: FAIL.

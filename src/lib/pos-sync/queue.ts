@@ -39,6 +39,11 @@ type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K>
 /** An operation as the screens build it: the queue adds the id, the device and the time. */
 export type OpDraft = DistributiveOmit<Op, 'operationId' | 'deviceId' | 'clientAt'>;
 
+/** The operations that carry the order's version and move it: not an opening, a drawer note or a receipt copy (those change nothing on the order). */
+function hasVersion(op: Op): op is Exclude<Op, { kind: 'openOrder' | 'drawerOpen' | 'receiptCopy' }> {
+  return op.kind !== 'openOrder' && op.kind !== 'drawerOpen' && op.kind !== 'receiptCopy';
+}
+
 /** What identifies the order an operation belongs to: the operation that opened it, else its server id. */
 export function orderKeys(queue: readonly QueuedOp[]): (q: QueuedOp) => string {
   const opened = new Map<string, string>();
@@ -47,7 +52,8 @@ export function orderKeys(queue: readonly QueuedOp[]): (q: QueuedOp) => string {
     if (q.kind === 'openOrder' && typeof orderId === 'string') opened.set(orderId, q.operationId);
   }
   return (q) => {
-    if (q.op.kind === 'openOrder') return q.operationId;
+    // A drawer opening belongs to no order: it stands on its own.
+    if (q.op.kind === 'openOrder' || q.op.kind === 'drawerOpen') return q.operationId;
     const ref = q.op.orderRef;
     if ('op' in ref) return ref.op;
     return opened.get(ref.id) ?? `id:${ref.id}`;
@@ -166,12 +172,12 @@ export async function applyToCurrent(db: PosDb, scope: Scope, operationId: strin
   await updateQueue<QueuedOp, void>(db, scope, (records) => {
     const keyOf = orderKeys(records);
     const target = records.find((r) => r.operationId === operationId);
-    if (!target || target.state !== 'attention' || target.lastError?.code !== 'stale' || target.op.kind === 'openOrder') return { value: undefined };
+    if (!target || target.state !== 'attention' || target.lastError?.code !== 'stale' || !hasVersion(target.op)) return { value: undefined };
     const delta = currentVersion - target.op.expectedVersion;
     const key = keyOf(target);
     const put: QueuedOp[] = [];
     for (const record of records) {
-      if (record.state === 'done' || keyOf(record) !== key || record.seq < target.seq || record.op.kind === 'openOrder') continue;
+      if (record.state === 'done' || keyOf(record) !== key || record.seq < target.seq || !hasVersion(record.op)) continue;
       record.op = { ...record.op, expectedVersion: record.op.expectedVersion + delta } as Op;
       if (record.operationId === operationId) {
         record.state = 'pending';

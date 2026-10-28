@@ -395,6 +395,22 @@ export const logPosReprint = defineAction({
     }),
 });
 
+/** A copy printed while the till was offline, recorded when it syncs: the order's payment, found by the order. */
+export const logPosOrderReprint = defineAction({
+  name: 'pos.logOrderReprint',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField }),
+  target: () => TILL,
+  run: (ctx, { orderId }) =>
+    ctx.transaction(async (tx) => {
+      const payment = await tx.posPayment.findFirst({ where: { orderId }, orderBy: { paidAt: 'desc' }, select: { id: true } });
+      if (!payment) throw new StudioError('NOT_FOUND');
+      ctx.audit({ action: 'pos.receipt.reprint', entityType: 'PosPayment', entityId: payment.id, changes: {} });
+      return { logged: true as const };
+    }),
+});
+
 /** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
 export const posSetCategorySection = defineAction({
   name: 'pos.setCategorySection',
