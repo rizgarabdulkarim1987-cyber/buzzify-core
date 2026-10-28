@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { PaperRow } from '@/server/domain/pos/paper';
-import { kitchenDocs, receiptDoc, shiftDoc, type PaperFormat } from '@/server/domain/pos/paper-docs';
+import { deliveryDoc, kitchenDocs, receiptDoc, shiftDoc, type PaperFormat } from '@/server/domain/pos/paper-docs';
 import type { KitchenTicket } from '@/server/pos/kitchen';
+import type { OrderView } from '@/server/pos/orders';
 import type { Receipt } from '@/server/pos/payments';
 import type { ShiftSummary } from '@/server/pos/shifts';
 
@@ -102,5 +103,53 @@ describe('shiftDoc', () => {
     expect(rows.find((r) => r.left === 'pos.shift.openingFloat')?.right).toBe('25000$');
     expect(rows.find((r) => r.left === 'pos.shift.counted')?.right).toBe('90000$');
     expect(rows.map((r) => r.left)).toContain('pos.shift.zNumber');
+  });
+});
+
+function delivery(info: Partial<NonNullable<OrderView['offPremise']>> = {}, over: Partial<OrderView> = {}): OrderView {
+  return {
+    id: 'o9', number: 31, status: 'OPEN', kind: 'DELIVERY', seatedAt: new Date(0),
+    offPremise: { queueNumber: 7, fulfillment: 'NEW', customerName: 'Sara', customerPhone: '+964 770 123 4567', address: 'Street 12', addressNote: 'Blue gate', zoneId: 'z1', zoneName: 'Karrada', driverId: 'd1', driverName: 'Omar', ...info },
+    lines: [
+      { id: 'l1', quantity: 2, name: 'Kebab', options: [{ name: 'Spicy' }], cancelled: false },
+      { id: 'l2', quantity: 1, name: 'Void dish', options: [], cancelled: true },
+    ],
+    totals: { total: 15000 },
+    paid: null,
+    ...over,
+  } as unknown as OrderView;
+}
+
+describe('deliveryDoc', () => {
+  it('lists customer, phone, address, note, driver and the amount to collect', () => {
+    const rows = text(deliveryDoc(delivery(), t, fmt).rows);
+    const flat = rows.map((r) => r.left);
+    expect(flat).toContain('Sara');
+    expect(flat).toContain('⁦+964 770 123 4567⁩');
+    expect(flat).toContain('Karrada · Street 12');
+    expect(flat).toContain('Blue gate');
+    expect(flat).toContain('pos.offp.driver: Omar');
+    expect(flat).toContain('2 × Kebab');
+    expect(flat).not.toContain('1 × Void dish');
+    const collect = rows.find((r) => r.left === 'pos.slip.toCollect');
+    expect(collect?.right).toBe('15000$');
+  });
+
+  it('omits empty parts', () => {
+    const flat = text(deliveryDoc(delivery({ customerName: '', customerPhone: '', address: '', addressNote: '', driverName: '' }), t, fmt).rows).map((r) => r.left);
+    expect(flat).toContain('Karrada');
+    expect(flat.some((l) => l.includes('Sara') || l.includes('Blue gate') || l.includes('pos.offp.driver'))).toBe(false);
+    const bare = text(deliveryDoc(delivery({ zoneName: '', address: '' }), t, fmt).rows).map((r) => r.left);
+    expect(bare).not.toContain('');
+  });
+
+  it('shows nothing to collect when the order is paid', () => {
+    const paid = text(deliveryDoc(delivery({}, { status: 'PAID' } as Partial<OrderView>), t, fmt).rows).find((r) => r.left === 'pos.slip.paidAlready');
+    expect(paid?.right).toBe('0$');
+  });
+
+  it('never prints a card number or reference', () => {
+    const order = delivery({}, { paid: { paymentId: 'p', method: 'CARD', amountReceived: 15000, paidAt: new Date(0), reference: '4111111111111111' } } as unknown as Partial<OrderView>);
+    expect(JSON.stringify(deliveryDoc(order, t, fmt))).not.toContain('4111');
   });
 });

@@ -3,10 +3,11 @@
 import { createContext, useCallback, useContext, useEffect, useRef, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { fetchOrderKitchenTicket } from '@/app/studio/_actions/pos';
-import { kitchenDocs, receiptDoc, shiftDoc, type PaperFormat } from '@/server/domain/pos/paper-docs';
+import { deliveryDoc, kitchenDocs, receiptDoc, shiftDoc, type PaperFormat } from '@/server/domain/pos/paper-docs';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
 import type { PaperDoc } from '@/server/domain/pos/paper';
 import { printerForReceipt, printerForSection, type PrinterView } from '@/server/pos/printers';
+import type { OrderView } from '@/server/pos/orders';
 import type { Receipt } from '@/server/pos/payments';
 import type { ShiftSummary } from '@/server/pos/shifts';
 import { useT } from '@/studio/i18n';
@@ -74,6 +75,15 @@ export function usePrint() {
     [format],
   );
 
+  const printDelivery = useCallback(
+    async (order: OrderView): Promise<PrintResult> => {
+      const printer = printerForReceipt(latest.current.printers);
+      if (!printer) return noPrinter;
+      return fail(await printDoc(deliveryDoc(order, latest.current.t, format()), printer, { drawer: false, font: bodyFont() }));
+    },
+    [fail, format],
+  );
+
   const printShift = useCallback(
     async (summary: ShiftSummary): Promise<PrintResult> => {
       const printer = printerForReceipt(latest.current.printers);
@@ -117,5 +127,5 @@ export function usePrint() {
     return printer ? fail(await kickDrawer(printer)) : noPrinter;
   }, [drawerPrinter, fail]);
 
-  return { hasReceiptPrinter: printerForReceipt(printers) !== null, hasDrawer: printerForReceipt(printers)?.drawerPin != null, printReceipt, printShift, printKitchenRound, openDrawer };
+  return { hasReceiptPrinter: printerForReceipt(printers) !== null, hasDrawer: printerForReceipt(printers)?.drawerPin != null, printReceipt, printDelivery, printShift, printKitchenRound, openDrawer };
 }
