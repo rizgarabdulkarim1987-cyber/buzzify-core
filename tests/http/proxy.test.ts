@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { REQUEST_PATH_HEADER } from '@/server/http/request-path';
-import { proxy } from '@/proxy';
+import { config, proxy } from '@/proxy';
 
 /** The request headers the proxy hands on to the page, as Next encodes them on the proxy's response. */
 function forwarded(response: Response): Record<string, string | null> {
@@ -54,5 +54,24 @@ describe('proxy in production with both hosts configured', () => {
     expect(forwarded(studio)[REQUEST_PATH_HEADER]).toBe('/studio/sign-in');
     const menu = run(new NextRequest('https://menu.buzzify.me/atelier/en', { headers: { host: 'menu.buzzify.me' } }));
     expect(menu.status).toBe(200);
+  });
+
+  it('keeps the Studio, till and pharmacy off the menu host even when the path has a dot in it', async () => {
+    const run = await productionProxy();
+    for (const path of ['/studio/restaurants/x.y', '/pos/orders/x.y', '/pharmacy/a.b', '/api/studio/menus/a.b/ai-import', '/studio/menus/..%2Fx.y'])
+      expect(run(new NextRequest(`https://menu.buzzify.me${path}`, { headers: { host: 'menu.buzzify.me' } })).status, path).toBe(404);
+  });
+});
+
+describe('the proxy matcher', () => {
+  const runs = (path: string) => new RegExp(`^${config.matcher[0]}$`).test(path);
+
+  it('lets static files and fonts go by', () => {
+    for (const path of ['/_next/static/chunks/a.js', '/_next/image', '/favicon.ico', '/brand/buzzify-on-dark.png', '/templates/ember-grill.webp']) expect(runs(path), path).toBe(false);
+  });
+
+  it('runs on pages and on the Studio, till and pharmacy even when the path has a dot', () => {
+    for (const path of ['/', '/atelier/en', '/studio', '/studio/restaurants/x.y', '/pos/orders/x.y', '/pos/sw.js', '/pharmacy/a.b', '/api/studio/menus/a.b/ai-import', '/api/cron/publish', '/studio/x.png'])
+      expect(runs(path), path).toBe(true);
   });
 });
