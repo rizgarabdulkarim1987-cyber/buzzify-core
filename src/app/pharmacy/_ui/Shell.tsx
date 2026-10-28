@@ -40,7 +40,7 @@ export function Shell({
         {t('common.skipToContent')}
       </a>
       <SupportBanner support={actor.support} locale={actor.locale} />
-      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-2 sm:px-8">
+      <header className="flex flex-wrap items-center gap-x-6 gap-y-2 border-b border-line px-4 py-2 sm:px-8 print:hidden">
         <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
           <p className="flex min-w-0 flex-col">
             <span className="text-xs font-medium text-muted">{t('pharmacy.shell.label')}</span>
@@ -69,7 +69,7 @@ export function Shell({
           <SignOutButton />
         </div>
       </header>
-      <nav aria-label={t('pharmacy.nav.label')} className="flex flex-wrap items-center gap-x-2 border-b border-line px-2 sm:px-6">
+      <nav aria-label={t('pharmacy.nav.label')} className="flex flex-wrap items-center gap-x-2 border-b border-line px-2 sm:px-6 print:hidden">
         <Link href="/pharmacy/home" className={LINK}>
           {t('pharmacy.nav.home')}
         </Link>

@@ -39,5 +39,7 @@ export async function purchasingGate(titleKey: string, backTo?: { href: string; 
     );
   }
   const writable = access.writable('purchase.manage');
-  return { access, locale, t, back, blocked, writable, writeNotice: !writable.ok && mayBuy ? <ReceiveBlocked reason={writable.reason} t={t} /> : null };
+  // R4-9a: paying, reversing, voiding and applying credit also need `report.view` (a stock clerk has purchase.manage only).
+  const mayMoney = mayBuy && roleMay(access.actor, 'report.view');
+  return { access, locale, t, back, blocked, writable, mayMoney, writeNotice: !writable.ok && mayBuy ? <ReceiveBlocked reason={writable.reason} t={t} /> : null };
 }

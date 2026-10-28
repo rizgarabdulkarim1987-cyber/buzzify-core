@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Direction } from '@/app/pharmacy/_ui/money-direction';
 import { OrderStatus } from '@/app/pharmacy/_ui/purchasing-parts';
 import { SupplierForm } from '@/app/pharmacy/_ui/SupplierForm';
-import { formatPhMoney } from '@/server/domain/pharmacy/money';
+import { SupplierTabs } from '@/app/pharmacy/_ui/SupplierTabs';
 import { balances } from '@/server/pharmacy/queries/payables';
 import { currencies } from '@/server/pharmacy/queries/prices';
 import { list as orders } from '@/server/pharmacy/queries/purchase-orders';
@@ -32,18 +33,12 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
     query(orders, { ...access.placeInput, supplierId: id }),
   ]);
   const mine = owed.items.filter((b) => b.supplierId === id);
-  const money = (amount: string, currency: 'IQD' | 'USD') => {
-    try {
-      return formatPhMoney({ amount: BigInt(amount), currency }, locale);
-    } catch {
-      return `${amount} ${currency}`;
-    }
-  };
   return (
     <>
       <PageHeader className="max-sm:px-4" above={g.back} title={<span dir="auto">{supplier.name}</span>} />
       <div className="flex min-w-0 flex-col gap-8 px-4 pb-10 sm:px-8">
         {g.writeNotice}
+        <SupplierTabs supplierId={id} current="details" t={t} />
         <SupplierForm userId={access.actor.userId} restaurantId={access.placeInput.restaurantId} currencies={currencyList} supplier={supplier} writable={g.writable.ok} />
         <section aria-labelledby="sup-balance" className="flex min-w-0 flex-col gap-2" data-testid="supplier-balance">
           <h2 id="sup-balance" className="text-md font-semibold text-text">
@@ -59,11 +54,8 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                     <bdi dir="ltr">{b.currency}</bdi> · {t('pharmacy.purchasing.supplier.openInvoices', { count: b.openInvoices })}
                   </span>
                   {b.netOwedMinor !== undefined && (
-                    <span>
-                      {t('pharmacy.purchasing.supplier.owed')}:{' '}
-                      <bdi dir="ltr" className="font-medium tabular-nums">
-                        {money(b.netOwedMinor, b.currency)}
-                      </bdi>
+                    <span data-testid="supplier-net">
+                      <Direction netMinor={b.netOwedMinor} currency={b.currency} t={t} locale={locale} />
                     </span>
                   )}
                 </li>

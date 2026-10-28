@@ -1,4 +1,4 @@
-import { Building2, CalendarClock, ClipboardList, Lock, ReceiptText, Wallet } from 'lucide-react';
+import { Building2, CalendarClock, ClipboardList, HandCoins, NotebookText, PackageMinus, ReceiptText, Wallet } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -97,7 +97,29 @@ export default async function PurchasingHub() {
               {t('pharmacy.purchasing.hub.toSuppliers')}
             </Link>
           </Card>
-          <Card testId="hub-invoices" icon={<ReceiptText aria-hidden />} title={t('pharmacy.purchasing.hub.invoices')} figure={<Lock aria-hidden className="size-5 text-muted" />} note={t('pharmacy.purchasing.hub.invoicesLater')} />
+          <Card testId="hub-invoices" icon={<ReceiptText aria-hidden />} title={t('pharmacy.purchasing.hub.invoices')} note={t('pharmacy.purchasing.m.hub.invoicesNote')}>
+            <Link href="/pharmacy/purchasing/invoices" className={LINK}>
+              {t('pharmacy.purchasing.m.hub.toInvoices')}
+            </Link>
+            <Link href="/pharmacy/purchasing/payables" className={LINK}>
+              {t('pharmacy.purchasing.m.hub.toPayables')}
+            </Link>
+          </Card>
+          <Card testId="hub-payments" icon={<HandCoins aria-hidden />} title={t('pharmacy.purchasing.m.pay.title')} note={t('pharmacy.purchasing.m.hub.paymentsNote')}>
+            <Link href="/pharmacy/purchasing/payments" className={LINK}>
+              {t('pharmacy.purchasing.m.hub.toPayments')}
+            </Link>
+          </Card>
+          <Card testId="hub-credits" icon={<NotebookText aria-hidden />} title={t('pharmacy.purchasing.m.cr.title')} note={t('pharmacy.purchasing.m.hub.creditsNote')}>
+            <Link href="/pharmacy/purchasing/credits" className={LINK}>
+              {t('pharmacy.purchasing.m.hub.toCredits')}
+            </Link>
+          </Card>
+          <Card testId="hub-returns" icon={<PackageMinus aria-hidden />} title={t('pharmacy.purchasing.m.ret.title')} note={t('pharmacy.purchasing.m.hub.returnsNote')}>
+            <Link href="/pharmacy/purchasing/returns" className={LINK}>
+              {t('pharmacy.purchasing.m.hub.toReturns')}
+            </Link>
+          </Card>
         </div>
         <Link href="/pharmacy/stock/receive" className={LINK}>
           {t('pharmacy.purchasing.hub.toReceiving')}
