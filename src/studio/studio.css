@@ -7,6 +7,7 @@
 @source '.';
 @source '../app/studio';
 @source '../app/pos';
+@source '../app/pharmacy';
 
 /*
  * Tokens. Black, white and neutral greys; one amber, used only for selection, the current navigation item and the
