@@ -1,0 +1,59 @@
+import type { PrismaClient } from '@/generated/prisma/client';
+import type { TenantInfo } from '@/server/data/tenant';
+import { delegates, scopedClient, type AnyDb } from '@/server/data/tenant-db';
+import { QrGateClosed, QrOrderRefusal, qrOrderGate } from './customer-orders-guest';
+import { bumpOrder, loadOrderForChange } from './orders';
+
+/** At most this many calls from one table inside the window; the guest is told to wait after that. */
+const MAX_CALLS = 3;
+const WINDOW_MS = 10 * 60_000;
+
+/**
+ * A guest at a table asks for the bill. It leaves one unseen call for the floor and, when the table has a live order that
+ * is open or ready, moves it to BILL_REQUESTED. The captain's approval switch plays no part: a bill is never held back.
+ * A call still unseen is not repeated, and a table cannot call more than three times in ten minutes.
+ */
+export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo, 'id' | 'restaurantId'>, input: { table: number }, now: Date = new Date()): Promise<{ ok: true }> {
+  const gate = await qrOrderGate(prisma, tenant, input.table, now);
+  if (!gate.open) throw new QrGateClosed();
+  const till = scopedClient(prisma, { restaurantId: gate.restaurantId });
+  return till.$transaction(async (tx) => {
+    // Locks the table's row: two calls from one table are counted one after the other.
+    const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
+    if (locked.count === 0) throw new QrGateClosed();
+
+    const [unseen, recent] = await Promise.all([
+      tx.posBillCall.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, seenAt: null } }),
+      tx.posBillCall.count({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, createdAt: { gt: new Date(now.getTime() - WINDOW_MS) } } }),
+    ]);
+    if (unseen > 0) return { ok: true } as const;
+    if (recent >= MAX_CALLS) throw new QrOrderRefusal('TOO_MANY_REQUESTS');
+
+    // Read after the table lock, so the version is the live one; any other state is left as it is.
+    const live = await tx.posOrder.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: { in: ['OPEN', 'READY'] } } });
+    if (live) {
+      await loadOrderForChange(delegates(tx), gate.restaurantId, live.id, live.version);
+      await bumpOrder(delegates(tx), gate.restaurantId, live.id, live.version, { status: 'BILL_REQUESTED' });
+    }
+    await tx.posBillCall.create({ data: { restaurantId: gate.restaurantId, tableId: gate.tableId, tableNumber: input.table, createdAt: now } });
+    return { ok: true } as const;
+  });
+}
+
+/** The calls nobody has seen yet, oldest first. */
+export async function listOpenBillCalls(db: AnyDb, restaurantId: string): Promise<{ id: string; tableNumber: number; createdAt: Date }[]> {
+  return db.posBillCall.findMany({
+    where: { restaurantId, seenAt: null },
+    orderBy: { createdAt: 'asc' },
+    select: { id: true, tableNumber: true, createdAt: true },
+  });
+}
+
+/** Marks a call seen. Returns false when it does not exist or was already seen, so the second person to tap it changes nothing. */
+export async function markBillCallSeenIn(db: AnyDb, restaurantId: string, input: { id: string; userId: string }, now: Date = new Date()): Promise<boolean> {
+  const { count } = await db.posBillCall.updateMany({
+    where: { id: input.id, restaurantId, seenAt: null },
+    data: { seenAt: now, seenByUserId: input.userId },
+  });
+  return count > 0;
+}

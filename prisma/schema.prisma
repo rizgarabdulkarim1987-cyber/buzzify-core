@@ -122,6 +122,7 @@ model Restaurant {
   posOrders             PosOrder[]
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
+  posBillCalls          PosBillCall[]
   posDeliveryZones      PosDeliveryZone[]
   posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
@@ -1432,9 +1433,27 @@ model PosTable {
   area           PosArea            @relation(fields: [areaId], references: [id], onDelete: Cascade)
   orders         PosOrder[]
   customerOrders PosCustomerOrder[]
+  billCalls      PosBillCall[]
 
   @@unique([restaurantId, number])
   @@index([areaId])
+}
+
+/// A guest at a table asked for the bill. Unseen until someone at the till or the floor marks it seen.
+model PosBillCall {
+  id             String     @id @default(cuid())
+  restaurantId   String
+  tableId        String
+  tableNumber    Int
+  createdAt      DateTime   @default(now())
+  seenAt         DateTime?
+  /// Plain id (no relation): the person who marked it seen.
+  seenByUserId   String?
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table          PosTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, seenAt])
+  @@index([tableId, createdAt])
 }
 
 /// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).

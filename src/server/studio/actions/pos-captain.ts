@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { getCatalog, getTenant } from '@/server/data/public-menu';
+import { markBillCallSeenIn } from '@/server/pos/bill-calls';
 import { createCaptainRequestIn } from '@/server/pos/customer-orders';
 import { refuse } from '@/server/pos/errors';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -81,6 +82,24 @@ export const placeCaptainOrder = defineAction({
         changes: { tableNumber: { before: null, after: input.tableNumber }, lines: { before: null, after: done.lines } },
       });
       return { requestId: done.requestId };
+    });
+  },
+});
+
+/** Someone on the floor or at the till has seen a guest's call for the bill, so it leaves the list. Seeing it twice is not an error. */
+export const markBillCallSeen = defineAction({
+  name: 'pos.markBillCallSeen',
+  permission: null,
+  pos: 'request.handle',
+  input: z.object({ id: idField }),
+  target: () => ({ kind: 'pos' }) as const,
+  run: async (ctx: ActionContext, input) => {
+    if (ctx.pos === null || ctx.restaurantId === null) throw new Error('A till action ran without a till');
+    const { pos, restaurantId } = { pos: ctx.pos, restaurantId: ctx.restaurantId };
+    return ctx.transaction(async (tx) => {
+      const changed = await markBillCallSeenIn(delegates(tx), restaurantId, { id: input.id, userId: pos.userId });
+      if (changed) ctx.audit({ action: 'pos.billCall.seen', entityType: 'PosBillCall', entityId: input.id, changes: {} });
+      return { ok: true as const };
     });
   },
 });

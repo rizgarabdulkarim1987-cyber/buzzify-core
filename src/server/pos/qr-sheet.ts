@@ -5,14 +5,15 @@ import { expiryCutoff } from '@/server/domain/pos/customer-order-rules';
 import { DEFAULT_QR_STYLE } from '@/server/domain/qr';
 import { previewQr } from '@/server/qr/render';
 
-/** What the till's frame needs on every page: whether QR ordering is on and how many guest orders wait. */
-export async function readQrFlags(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<{ qrOrdering: boolean; delivery: boolean; pendingRequests: number }> {
+/** What the till's frame needs on every page: whether QR ordering is on and how many guest orders and unseen bill calls wait. */
+export async function readQrFlags(prisma: PrismaClient, restaurantId: string, now: Date = new Date()): Promise<{ qrOrdering: boolean; delivery: boolean; pendingRequests: number; billCalls: number }> {
   const till = scopedClient(prisma, { restaurantId });
   const settings = await till.posSettings.findFirst({ where: { restaurantId }, select: { qrOrderingEnabled: true, deliveryEnabled: true } });
   const delivery = settings?.deliveryEnabled === true;
-  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, delivery, pendingRequests: 0 };
+  if (!settings?.qrOrderingEnabled) return { qrOrdering: false, delivery, pendingRequests: 0, billCalls: 0 };
   const pendingRequests = await till.posCustomerOrder.count({ where: { restaurantId, status: 'PENDING', createdAt: { gt: expiryCutoff(now) } } });
-  return { qrOrdering: true, delivery, pendingRequests };
+  const billCalls = await till.posBillCall.count({ where: { restaurantId, seenAt: null } });
+  return { qrOrdering: true, delivery, pendingRequests, billCalls };
 }
 
 export interface QrSheetView {
