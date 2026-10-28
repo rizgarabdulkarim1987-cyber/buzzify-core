@@ -1,5 +1,6 @@
 import type { PaperDoc, PaperRow } from '@/server/domain/pos/paper';
 import type { KitchenTicket } from '@/server/pos/kitchen';
+import type { OrderView } from '@/server/pos/orders';
 import type { Receipt } from '@/server/pos/payments';
 import type { ShiftSummary } from '@/server/pos/shifts';
 
@@ -116,6 +117,36 @@ export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperForma
     docs.push({ sectionId: slip.sectionId, doc: { rows }, slipKey });
   }
   return docs;
+}
+
+/** A phone number in a right-to-left line: isolated so its `+` and spaces stay in dialling order. */
+const dialled = (phone: string) => `⁦${phone}⁩`;
+
+/** The driver's paper, row for row what the delivery slip screen shows: where to go, what is in the bag (no prices) and the cash to collect. */
+export function deliveryDoc(order: OrderView, t: PaperText, fmt: PaperFormat): PaperDoc {
+  const info = order.offPremise;
+  const rows: PaperRow[] = [center(t('pos.slip.title'), { size: 2, bold: true })];
+  if (info) rows.push(center(t('pos.receipt.kindDelivery', { n: fmt.number(info.queueNumber) }), { bold: true }));
+  rows.push(center(fmt.stamp(order.seatedAt)));
+  rows.push({ kind: 'rule' });
+  if (info) {
+    if (info.customerName) rows.push(plain(info.customerName, { bold: true }));
+    if (info.customerPhone) rows.push(plain(dialled(info.customerPhone)));
+    const where = join([info.zoneName, info.address]);
+    if (where) rows.push(plain(where));
+    if (info.addressNote) rows.push(plain(info.addressNote));
+    if (info.driverName) rows.push(plain(`${t('pos.offp.driver')}: ${info.driverName}`));
+    rows.push({ kind: 'rule' });
+  }
+  for (const line of order.lines.filter((l) => !l.cancelled)) {
+    rows.push(plain(`${fmt.number(line.quantity)} × ${line.name}`));
+    if (line.options.length > 0) rows.push(plain(line.options.map((o) => o.name).join(' · ')));
+  }
+  rows.push({ kind: 'rule' });
+  const paid = order.status === 'PAID';
+  rows.push(pair(paid ? t('pos.slip.paidAlready') : t('pos.slip.toCollect'), fmt.money(paid ? 0 : order.totals.total), { size: 2, bold: true }));
+  rows.push({ kind: 'gap' });
+  return { rows };
 }
 
 /** The shift as paper: what was counted and how it compares, never what the drawer should hold while it is open. */

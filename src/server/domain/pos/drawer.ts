@@ -7,3 +7,8 @@ export function drawerShouldKick(legs: readonly { method: string }[]): boolean {
 export function receiptPrintOptions(copy: boolean, legs: readonly { method: string }[]): { copy: boolean; drawer: boolean } {
   return { copy, drawer: !copy && drawerShouldKick(legs) };
 }
+
+/** A refund hands cash back from the drawer, so it opens when any part of the payment being reversed was cash or dollars, whichever leg was larger. */
+export function refundOpensDrawer(legs: readonly { method: string }[]): boolean {
+  return drawerShouldKick(legs);
+}

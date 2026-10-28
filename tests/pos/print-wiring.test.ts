@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { drawerShouldKick, receiptPrintOptions } from '@/server/domain/pos/drawer';
+import { drawerShouldKick, receiptPrintOptions, refundOpensDrawer } from '@/server/domain/pos/drawer';
 import { createPosArea, createPosTables, logPosReprint, openPosDrawer } from '@/server/studio/actions/pos';
 import { addPosLine, openPosOrder } from '@/server/studio/actions/pos-orders';
 import { payPosOrder } from '@/server/studio/actions/pos-payments';
@@ -113,5 +113,16 @@ describe('logPosReprint', () => {
   it('is not for the kitchen', async () => {
     const id = await paymentId();
     expect(codeOf(await run(kitchen, logPosReprint, { paymentId: id }))).toBe('FORBIDDEN');
+  });
+});
+
+describe('the drawer on a refund', () => {
+  it('opens for a refund whose payment had cash and a larger card leg', () => {
+    expect(refundOpensDrawer([{ method: 'CARD' }, { method: 'CASH' }])).toBe(true);
+    expect(refundOpensDrawer([{ method: 'CASH_USD' }])).toBe(true);
+  });
+
+  it('stays shut for a card-only refund', () => {
+    expect(refundOpensDrawer([{ method: 'CARD' }])).toBe(false);
   });
 });
