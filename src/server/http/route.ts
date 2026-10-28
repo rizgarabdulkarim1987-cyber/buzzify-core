@@ -2,6 +2,7 @@ import type { z } from 'zod';
 import { getPrisma } from '@/server/data/prisma';
 import { getTenant } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
+import { clientIp } from './client-ip';
 import { admitRequest, createRateLimiter } from './rate-limit';
 
 const MAX_BODY_BYTES = 32 * 1024;
@@ -59,7 +60,7 @@ async function admitTenant(
   const tenant = await getTenant(slug);
   if (!tenant) return { refusal: problem(404, 'TENANT_NOT_FOUND', 'Unknown restaurant') };
 
-  const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  const ip = clientIp(request.headers) || 'unknown';
   const rule = { limit: options.limit, windowMs: options.windowMs ?? 60_000 };
   const verdict = await admitRequest(
     getPrisma(),

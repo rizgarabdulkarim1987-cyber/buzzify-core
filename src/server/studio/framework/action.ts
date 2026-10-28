@@ -22,6 +22,7 @@ import {
   type Target,
 } from './access';
 import { createId } from './ids';
+import { clientIp } from '@/server/http/client-ip';
 import { DuplicateOperationError, type OperationClaim } from './operation';
 import type { PlanAccess } from './plan';
 import { describeError, expectedFailure, failure, StudioError, UNEXPECTED_MESSAGE, type ActionResult } from './result';
@@ -221,10 +222,10 @@ export function defineAction<I, O>(spec: ActionSpec<I, O>): ActionDef<I, O> {
 const MAX_IP = 64;
 const MAX_USER_AGENT = 512;
 
-/** The request's address (the first `x-forwarded-for` entry) and browser, capped to what the audit log keeps. */
+/** The request's address (the one the nearest proxy saw: `clientIp`) and browser, capped to what the audit log keeps. */
 export function requestMeta(source: Headers): RequestMeta {
   return clampMeta({
-    ip: source.get('x-forwarded-for')?.split(',')[0]?.trim() ?? '',
+    ip: clientIp(source),
     userAgent: source.get('user-agent') ?? '',
   });
 }

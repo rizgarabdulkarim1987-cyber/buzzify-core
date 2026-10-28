@@ -8,7 +8,7 @@ import { describeError, expectedFailure, failure, invalidInput, UNEXPECTED_MESSA
 /** What a public action's handler receives, besides its parsed input. There is no actor: nobody is signed in yet. */
 export interface PublicContext {
   prisma: PrismaClient;
-  /** The request's address (the first `x-forwarded-for` entry), capped to what the audit log keeps. Empty when unknown. */
+  /** The request's address (the one the nearest proxy saw: `clientIp`), capped to what the audit log keeps. Empty when unknown. */
   ip: string;
   userAgent: string;
   /** The request's headers, with its cookies: what Better Auth reads a session or a two-factor challenge from. */
