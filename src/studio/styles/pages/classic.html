@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بشكل مختلف ٢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes flick { 0%, 100% { opacity: .9; } 40% { opacity: .75; } 42% { opacity: 1; } 70% { opacity: .82; } }
+  @keyframes grain { 0% { transform: translate(0, 0); } 25% { transform: translate(-6px, 4px); } 50% { transform: translate(5px, -5px); } 75% { transform: translate(-3px, -6px); } 100% { transform: translate(0, 0); } }
+  @keyframes rise { from { transform: translateY(0); opacity: 0; } 15% { opacity: 1; } to { transform: translateY(-150px); opacity: 0; } }
+  .screen .fl { will-change: transform; }
+  .screen .ph { background-size: cover; background-position: center; }
+  .screen .rail { position: fixed; right: 7px; top: 32%; height: 36%; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--rc) 30%, transparent); z-index: 25; pointer-events: none; }
+  .screen .rail i { position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+  .screen .hd { padding: 62px 18px 12px; }
+  .screen .hd h1 { font: 400 36px 'Lalezar'; line-height: 1.15; }
+  .screen .hd p { font-size: 13.5px; opacity: .85; }
+  .screen .chips button { padding: 6px 13px; font-weight: 700; font-size: 13px; border-radius: 999px; }
+  .screen .ln { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+
+  /* 1. RECORD CRATE — sleeves flip past; the middle one slides its record out and it spins */
+  .m-crate { --rc: #e07a2f; background: linear-gradient(#2b1d14, #3d2a1c); color: #f3e3c8; font-family: 'Cairo', sans-serif; }
+  .m-crate .hd h1 { font-family: 'Rakkas'; font-weight: 400; color: #f0a35a; }
+  .m-crate .chips { background: rgba(43,29,20,.95); }
+  .m-crate .chips button { background: #f0a35a; color: #2b1d14; }
+  .m-crate .chips button.on { background: #f3e3c8; }
+  .m-crate section { padding: 14px 0 8px; border-bottom: 10px solid #5a3b22; }
+  .m-crate h2 { font: 400 22px 'Rakkas'; color: #f0a35a; padding: 0 16px; }
+  .m-crate .flow { display: flex; gap: 6px; overflow-x: auto; scroll-snap-type: x mandatory; scrollbar-width: none; padding: 16px calc(50% - 85px) 8px; }
+  .m-crate .flow::-webkit-scrollbar { display: none; }
+  .m-crate .rec { flex: none; width: 170px; scroll-snap-align: center; text-align: center; transform: scale(calc(.8 + var(--k, 0) * .2)) rotateY(calc((1 - var(--k, 0)) * 18deg)); opacity: calc(.55 + var(--k, 0) * .45); }
+  .m-crate .slv { position: relative; aspect-ratio: 1; }
+  .m-crate .slv .ph { position: relative; width: 100%; height: 100%; box-shadow: 0 10px 18px rgba(0,0,0,.5), inset 0 0 0 6px rgba(243,227,200,.9); }
+  .m-crate .vin { position: absolute; inset: 4%; border-radius: 50%; transform: translateX(calc(var(--k, 0) * -38%)); background: radial-gradient(circle, #e07a2f 0 15%, #111 16% 18%, transparent 19%), repeating-radial-gradient(circle, #151515 0 2px, #222 2px 3px); }
+  .m-crate .vin::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(from 20deg, transparent 0 40deg, rgba(255,255,255,.12) 50deg, transparent 60deg 220deg, rgba(255,255,255,.1) 230deg, transparent 240deg); animation: spin 2.4s linear infinite; }
+  .m-crate .rec b { display: block; font-size: 15px; margin-top: 8px; }
+  .m-crate .rec span { font-size: 13px; font-weight: 700; color: #f0a35a; }
+  .m-crate .add { display: block; margin: 4px auto 0; padding: 3px 16px; border-radius: 999px; background: #e07a2f; color: #fff; font-size: 12.5px; font-weight: 700; }
+  .m-crate .ctl { display: flex; justify-content: center; align-items: center; gap: 14px; direction: rtl; }
+  .m-crate .ctl button { width: 34px; height: 34px; border-radius: 50%; background: #5a3b22; color: #f3e3c8; font-size: 16px; }
+  .m-crate .cnt { font: 700 13px 'IBM Plex Mono'; direction: ltr; unicode-bidi: isolate; }
+  .m-crate .cart { background: #e07a2f; color: #2b1d14; }
+
+  /* 2. TYPEWRITER — a typed diner menu with dot leaders; each line rolls in like the carriage */
+  .m-typew { --rc: #b3261e; background: #8a7f6c; color: #2a2a2a; font-family: 'IBM Plex Sans Arabic', sans-serif; }
+  .m-typew .hd { color: #f8f3e3; } .m-typew .hd h1 { font-family: 'IBM Plex Sans Arabic'; font-weight: 700; letter-spacing: 1px; }
+  .m-typew .chips { background: rgba(138,127,108,.95); }
+  .m-typew .chips button { background: #f8f3e3; color: #2a2a2a; border-radius: 2px; font-family: 'IBM Plex Sans Arabic'; }
+  .m-typew .chips button.on { background: #b3261e; color: #fff; }
+  .m-typew .paper { margin: 6px 12px 14px; padding: 4px 14px 14px; background: #f8f3e3 repeating-linear-gradient(transparent 0 27px, rgba(80,120,180,.2) 27px 28px); box-shadow: 0 10px 22px rgba(0,0,0,.3); }
+  .m-typew h2 { text-align: center; font-size: 17px; color: #b3261e; letter-spacing: 1px; padding: 12px 0 4px; }
+  .m-typew .ty { position: relative; display: flex; align-items: center; gap: 10px; padding: 6px 0; }
+  .m-typew .ty .ph { flex: none; width: 46px; height: 46px; border: 3px solid #fff; box-shadow: 0 2px 4px rgba(0,0,0,.25); rotate: -4deg; }
+  .m-typew .ty:nth-child(odd) .ph { rotate: 3deg; }
+  .m-typew .tx { flex: 1; min-width: 0; }
+  .m-typew .lead { display: flex; align-items: baseline; gap: 4px; }
+  .m-typew .lead b { font-size: 15px; font-weight: 600; }
+  .m-typew .lead i { flex: 1; border-bottom: 2px dotted #555; }
+  .m-typew .lead span { font-weight: 600; font-size: 14px; }
+  .m-typew .tx small { font-size: 12px; color: #6a6a6a; }
+  .m-typew .add { flex: none; font-size: 12px; font-weight: 600; border: 1.5px solid #2a2a2a; padding: 1px 8px; background: none; }
+  .m-typew .stampd { position: absolute; inset-inline-end: 40px; top: 4px; font: 700 15px 'Cairo'; font-style: normal; color: #b3261e; border: 2px solid #b3261e; padding: 0 6px; rotate: -10deg; opacity: 0; transform: scale(1.6); transition: opacity 160ms ease, transform 220ms cubic-bezier(0.23, 1, 0.32, 1); pointer-events: none; }
+  .m-typew .ty.got .stampd { opacity: .85; transform: none; }
+  .m-typew .rv { transform: translateX(-36px); }
+  .m-typew .cart { background: #2a2a2a; color: #f8f3e3; }
+
+  /* 3. FILM REEL — a vertical strip with sprocket holes, silent-film title cards between sections */
+  .m-film { --rc: #d8c7a0; background: #0d0d0d; color: #eee; font-family: 'Amiri', serif; }
+  .m-film .grain { position: fixed; inset: -20px; z-index: 24; pointer-events: none; opacity: .18; background: radial-gradient(circle, #fff 0 .6px, transparent 1px) 0 0 / 7px 9px, radial-gradient(circle, #000 0 .8px, transparent 1.2px) 3px 4px / 11px 13px; animation: grain .5s steps(4) infinite; }
+  .m-film .hd h1 { font-family: 'Amiri'; font-weight: 700; }
+  .m-film .chips { background: rgba(13,13,13,.95); }
+  .m-film .chips button { background: none; color: #eee; box-shadow: inset 0 0 0 1px #eee; border-radius: 2px; font-family: 'Amiri'; font-size: 14px; }
+  .m-film .chips button.on { background: #eee; color: #0d0d0d; }
+  .m-film section { padding: 10px 0; }
+  .m-film .title { margin: 6px 18px 14px; padding: 18px 10px; text-align: center; border: 3px double #d8c7a0; outline: 1px solid #d8c7a0; outline-offset: 5px; background: #111; animation: flick 3s infinite; }
+  .m-film .title small { display: block; font-size: 13px; color: #d8c7a0; }
+  .m-film .title b { font: 700 26px 'Amiri'; }
+  .m-film .reel { margin: 0 22px; padding: 6px 26px; background: #1a1a1a; position: relative; }
+  .m-film .reel::before, .m-film .reel::after { content: ''; position: absolute; top: 0; bottom: 0; width: 26px; background: repeating-linear-gradient(transparent 0 6px, #e8e2d2 6px 16px, transparent 16px 22px) center / 11px 100% no-repeat, #1a1a1a; }
+  .m-film .reel::before { left: 0; } .m-film .reel::after { right: 0; }
+  .m-film .frm { position: relative; margin-bottom: 6px; animation: flick 4s infinite; }
+  .m-film .frm .ph { aspect-ratio: 1.5; filter: grayscale(1) sepia(.3) contrast(1.15); transition: filter 500ms ease; }
+  .m-film .frm.got .ph { filter: none; }
+  .m-film .cap { position: absolute; inset: auto 0 0; display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: linear-gradient(transparent, rgba(0,0,0,.85)); }
+  .m-film .cap b { flex: 1; font-size: 17px; } .m-film .cap span { font: 700 13px 'Cairo'; color: #d8c7a0; }
+  .m-film .add { font: 700 12px 'Cairo'; background: #d8c7a0; color: #0d0d0d; padding: 2px 10px; }
+  .m-film .cart { background: #d8c7a0; color: #0d0d0d; font-family: 'Cairo'; }
+
+  /* 4. OLD RADIO — the section chips become a lit tuning dial with a needle; programmes below a speaker grille */
+  .m-radio { --rc: #ffb84d; background: linear-gradient(#6b3e1f, #4a2a14); color: #fbe7c6; font-family: 'Cairo', sans-serif; }
+  .m-radio .hd h1 { font-family: 'Reem Kufi'; font-weight: 600; color: #ffd38a; }
+  .m-radio .chips { position: sticky; margin: 0 10px; padding: 12px 10px 20px; gap: 0; justify-content: space-between; border-radius: 10px; background: linear-gradient(#f7e3b0, #e9c77a); box-shadow: inset 0 0 18px rgba(255,170,40,.6), 0 0 0 5px #3a210f; }
+  .m-radio .chips::before { content: ''; position: absolute; left: 10px; right: 10px; bottom: 10px; height: 7px; background: repeating-linear-gradient(90deg, #4a2a14 0 1px, transparent 1px 7px); }
+  .m-radio .chips::after { content: ''; position: absolute; top: 4px; bottom: 4px; left: 0; width: 3px; border-radius: 2px; background: #d0021b; box-shadow: 0 0 6px #d0021b; transform: translateX(var(--nx, 20px)); transition: transform 380ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .m-radio .chips button { background: none; color: #4a2a14; padding: 2px 6px; font-size: 12.5px; border-radius: 0; display: flex; flex-direction: column; align-items: center; line-height: 1.2; }
+  .m-radio .chips button small { font: 500 10px 'IBM Plex Mono'; opacity: .7; }
+  .m-radio .chips button.on { color: #b3001b; }
+  .m-radio section { padding: 16px 10px 6px; }
+  .m-radio h2 { font: 600 18px 'Reem Kufi'; color: #ffd38a; padding: 0 6px 6px; }
+  .m-radio .grille { padding: 8px; border-radius: 10px; background: radial-gradient(circle, rgba(0,0,0,.25) 0 1px, transparent 1.6px) 0 0 / 6px 6px, #c9a978; color: #2b1808; box-shadow: inset 0 2px 8px rgba(0,0,0,.4); }
+  .m-radio .prog { display: flex; align-items: center; gap: 10px; padding: 7px 6px; background: rgba(251,231,198,.82); border-radius: 6px; margin-bottom: 5px; }
+  .m-radio .prog .ph { flex: none; width: 48px; height: 48px; border-radius: 50%; box-shadow: 0 0 0 3px #4a2a14; }
+  .m-radio .tx { flex: 1; min-width: 0; } .m-radio .tx b { display: block; font-size: 14.5px; }
+  .m-radio .tx small { display: block; font-size: 11.5px; opacity: .75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-radio .prog span { font-weight: 900; font-size: 13px; white-space: nowrap; }
+  .m-radio .add { width: 32px; height: 32px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #8a5a30, #3a210f); color: #ffd38a; font-size: 18px; font-weight: 900; }
+  .m-radio .cart { background: #3a210f; color: #ffd38a; }
+
+  /* 5. ADDRESS BOOK — leather book with letter tabs down the edge; one tab per section, handwritten entries */
+  .m-abook { --rc: #7a1f1f; background: #5a1a1a; color: #2a1a10; font-family: 'Cairo', sans-serif; }
+  .m-abook .hd { color: #f4e4c4; padding-left: 70px; } .m-abook .hd h1 { font-family: 'Amiri'; font-weight: 700; }
+  .m-abook .chips { position: fixed; top: 150px; left: 0; z-index: 22; flex-direction: column; gap: 3px; padding: 0; overflow: visible; background: none; }
+  .m-abook .chips button { width: 64px; padding: 5px 4px; border-radius: 0 8px 8px 0; background: #e8d6a8; color: #5a1a1a; font-size: 11px; line-height: 1.2; text-align: center; transform: translateX(-6px); transition: transform 220ms cubic-bezier(0.23, 1, 0.32, 1), background-color 180ms ease; box-shadow: 2px 2px 0 rgba(0,0,0,.25); }
+  .m-abook .chips button i { display: block; font: 700 17px 'Amiri'; font-style: normal; }
+  .m-abook .chips button.on { transform: translateX(0); background: #fff6dc; }
+  .m-abook .pages { margin: 0 10px 14px 70px; padding: 6px 14px 14px; background: #fbf3dc repeating-linear-gradient(transparent 0 33px, rgba(122,31,31,.18) 33px 34px); border-radius: 0 6px 6px 0; box-shadow: inset 10px 0 14px -10px rgba(0,0,0,.4), 0 8px 18px rgba(0,0,0,.35); }
+  .m-abook section { padding-top: 10px; }
+  .m-abook h2 { display: flex; align-items: center; gap: 10px; font: 700 21px 'Amiri'; color: #7a1f1f; border-bottom: 2px solid #7a1f1f; margin-bottom: 4px; }
+  .m-abook h2 i { font-style: normal; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 50%; background: #7a1f1f; color: #fbf3dc; }
+  .m-abook .ent { display: flex; align-items: center; gap: 8px; padding: 6px 4px; border-radius: 4px; transition: background-color 300ms ease; }
+  .m-abook .ent.got { background: rgba(255,214,90,.45); }
+  .m-abook .ent .ph { flex: none; width: 42px; height: 42px; border-radius: 3px; filter: sepia(.25); box-shadow: 0 0 0 2px #fff; }
+  .m-abook .tx { flex: 1; min-width: 0; } .m-abook .tx b { display: block; font: 700 17px 'Amiri'; color: #1d2f6b; line-height: 1.2; }
+  .m-abook .tx small { display: block; font-size: 11px; color: #6b5a40; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-abook .ent span { font: 700 15px 'Amiri'; color: #1d2f6b; white-space: nowrap; }
+  .m-abook .add { font-size: 11.5px; font-weight: 700; background: #7a1f1f; color: #fbf3dc; padding: 2px 8px; border-radius: 3px; }
+  .m-abook .cart { background: #3a0f0f; color: #f4e4c4; }
+
+  /* 6. CARD CATALOGUE — a library drawer per section; index cards pile up sticky as you scroll, their tabs stay readable */
+  .m-catalog { --rc: #8a5a2b; background: #c9b48a; color: #2b2116; font-family: 'Cairo', sans-serif; }
+  .m-catalog .hd h1 { font-family: 'Amiri'; font-weight: 700; color: #4a3218; }
+  .m-catalog .chips { background: rgba(201,180,138,.96); }
+  .m-catalog .chips button { background: #6b4423; color: #f4ead2; border-radius: 3px; }
+  .m-catalog .chips button.on { background: #2b2116; }
+  .m-catalog section { padding: 10px 12px 26px; }
+  .m-catalog .drw { position: relative; display: flex; align-items: baseline; justify-content: space-between; padding: 14px 14px 10px; margin-bottom: 10px; border-radius: 4px; background: linear-gradient(#8a5a2b, #6b4423); color: #f4ead2; box-shadow: inset 0 0 0 3px #5a3a1c; }
+  .m-catalog .drw b { font: 700 20px 'Amiri'; } .m-catalog .drw small { font: 500 11px 'IBM Plex Mono'; }
+  .m-catalog .pull { position: absolute; top: -9px; left: 50%; width: 58px; height: 14px; margin-left: -29px; border-radius: 0 0 14px 14px; background: linear-gradient(#e8c66a, #a07a28); }
+  .m-catalog .crd { position: sticky; top: calc(48px + var(--i) * 30px); margin-bottom: 8px; background: #fffaf0; border-radius: 3px; box-shadow: 0 -3px 8px rgba(0,0,0,.18); background-image: linear-gradient(transparent 31px, #d64545 31px 32px, transparent 32px), repeating-linear-gradient(transparent 0 19px, rgba(60,110,170,.18) 19px 20px); }
+  .m-catalog .tab { display: flex; justify-content: space-between; align-items: center; height: 31px; padding: 0 10px; }
+  .m-catalog .tab b { font: 700 16px 'Amiri'; } .m-catalog .tab span { font: 500 11px 'IBM Plex Mono'; color: #8a5a2b; }
+  .m-catalog .cb { display: flex; gap: 10px; padding: 8px 10px 10px; }
+  .m-catalog .cb .ph { flex: none; width: 92px; aspect-ratio: 1.1; filter: sepia(.2); }
+  .m-catalog .tx { flex: 1; display: flex; flex-direction: column; justify-content: space-between; }
+  .m-catalog .tx small { font-size: 12.5px; color: #4a3a28; }
+  .m-catalog .ln span { font-weight: 900; font-size: 14px; }
+  .m-catalog .add { font-size: 12px; font-weight: 700; background: #2b2116; color: #fffaf0; padding: 3px 10px; border-radius: 3px; }
+  .m-catalog .cart { background: #2b2116; color: #f4ead2; }
+
+  /* 7. SALON HANG — oil paintings in carved gold frames on damask; the light follows you down the wall */
+  .m-salon { --rc: #d4a93c; background: #4a1020; color: #f6e6c0; font-family: 'Cairo', sans-serif;
+    background-image: radial-gradient(ellipse 18px 26px at 50% 50%, rgba(255,215,140,.07) 98%, transparent), radial-gradient(ellipse 10px 14px at 0 0, rgba(255,215,140,.07) 98%, transparent); background-size: 52px 52px; }
+  .m-salon .hd h1 { font-family: 'El Messiri'; font-weight: 700; color: #e8c66a; }
+  .m-salon .chips { background: rgba(74,16,32,.95); }
+  .m-salon .chips button { background: none; color: #e8c66a; box-shadow: inset 0 0 0 1.5px #e8c66a; font-family: 'El Messiri'; }
+  .m-salon .chips button.on { background: #e8c66a; color: #4a1020; }
+  .m-salon section { padding: 14px 12px 8px; }
+  .m-salon h2 { font: 700 20px 'El Messiri'; text-align: center; color: #e8c66a; margin-bottom: 8px; }
+  .m-salon .hang { columns: 2; column-gap: 14px; }
+  .m-salon .art { break-inside: avoid; margin-bottom: 16px; text-align: center; }
+  .m-salon .frame { padding: 10px; background: linear-gradient(135deg, #f7dc8a, #9a6b1c 30%, #f2d27a 50%, #8a5c14 70%, #e8c66a); box-shadow: inset 0 0 0 2px #5a3a0a, inset 0 0 0 5px #f7dc8a, 0 12px 20px rgba(0,0,0,.5); border-radius: 3px; filter: brightness(var(--lit, 1)); }
+  .m-salon .frame .ph { box-shadow: inset 0 0 0 2px #3a2006, inset 0 0 14px rgba(0,0,0,.5); }
+  .m-salon .plq { display: inline-block; margin-top: 7px; padding: 2px 12px; background: linear-gradient(#e8c66a, #a07a28); color: #2b1606; border-radius: 2px; }
+  .m-salon .plq b { display: block; font: 700 13.5px 'El Messiri'; } .m-salon .plq span { font-size: 11.5px; font-weight: 700; }
+  .m-salon .add { display: block; margin: 5px auto 0; font: 700 12px 'El Messiri'; color: #e8c66a; border-bottom: 1px solid #e8c66a; background: none; }
+  .m-salon .cart { background: linear-gradient(#e8c66a, #a07a28); color: #2b1606; }
+
+  /* 8. JUKEBOX — a chrome arch with bubble tubes; every dish a lit selection strip with a code, two columns */
+  .m-juke { --rc: #ff3d7f; background: #1d0f2e; color: #fff; font-family: 'Cairo', sans-serif; }
+  .m-juke .arch { position: relative; margin: 0 8px; border-radius: 160px 160px 0 0; background: linear-gradient(#ff7a3d, #ff3d7f 50%, #7a3dff); padding: 6px 6px 0; }
+  .m-juke .arch .hd { border-radius: 150px 150px 0 0; background: #1d0f2e; text-align: center; padding-top: 54px; }
+  .m-juke .hd h1 { font-family: 'Lemonada'; font-weight: 700; font-size: 30px; background: linear-gradient(#ffe066, #ff7a3d); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .m-juke .tube { position: absolute; top: 70px; bottom: 0; width: 12px; border-radius: 6px; background: linear-gradient(#ffe066, #ff3d7f); overflow: hidden; box-shadow: 0 0 12px #ff3d7f; }
+  .m-juke .tube.l { left: 14px; } .m-juke .tube.r { right: 14px; }
+  .m-juke .tube i { position: absolute; bottom: -10px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: rgba(255,255,255,.8); animation: rise 2.6s linear infinite; }
+  .m-juke .tube i:nth-child(2) { animation-delay: -.9s; } .m-juke .tube i:nth-child(3) { animation-delay: -1.7s; }
+  .m-juke .chips { background: rgba(29,15,46,.95); }
+  .m-juke .chips button { background: #2e1a4a; color: #ffe066; box-shadow: inset 0 0 0 1.5px #ff3d7f; }
+  .m-juke .chips button.on { background: #ff3d7f; color: #fff; }
+  .m-juke section { padding: 12px 10px 6px; }
+  .m-juke h2 { font: 700 18px 'Lemonada'; color: #ffe066; padding: 0 4px 6px; }
+  .m-juke .sel { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 8px; border-radius: 8px; background: linear-gradient(#d9d9e3, #8a8a9a); }
+  .m-juke .strip { position: relative; display: grid; grid-template-columns: 1fr auto; gap: 4px 6px; padding: 5px; background: #fff7dc; color: #2b1606; border-radius: 3px; border-top: 4px solid #ff3d7f; transition: box-shadow 200ms ease; }
+  .m-juke .strip:nth-child(4n+2), .m-juke .strip:nth-child(4n+3) { border-top-color: #3d8bff; }
+  .m-juke .strip.got { box-shadow: 0 0 0 2px #ffe066, 0 0 16px #ffe066; }
+  .m-juke .code { position: absolute; top: 4px; inset-inline-end: 4px; font: 700 11px 'Changa'; background: #1d0f2e; color: #ffe066; padding: 0 5px; border-radius: 3px; z-index: 1; }
+  .m-juke .strip .ph { grid-column: 1 / -1; aspect-ratio: 1.6; border-radius: 2px; }
+  .m-juke .tx { min-width: 0; } .m-juke .tx b { display: block; font-size: 13px; line-height: 1.2; } .m-juke .tx span { font-size: 12px; font-weight: 900; color: #b3001b; }
+  .m-juke .add { align-self: center; width: 30px; height: 30px; border-radius: 50%; background: #ff3d7f; color: #fff; font-size: 12px; }
+  .m-juke .cart { background: linear-gradient(90deg, #ff7a3d, #ff3d7f, #7a3dff); color: #fff; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات كلاسيك قديم</h1>
+  <p>صندوق الاسطوانات، والآلة الكاتبة، وشريط السينما، والراديو القديم، ودفتر التلفونات، وفهرس المكتبة، وقاعة اللوحات، والجوكبوكس. كل وحدة تغيّر شكل المنيو، والأكل بصوره الحقيقية، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const rail = '<div class="rail"><i></i></div>';
+const hd = (h, p) => `<div class="hd"><h1>${h}</h1><p>${p}</p></div>`;
+const n2 = n => String(n).padStart(2, '0');
+const AB = 'أبجدهوزحطي';
+const STYLES = [
+ { key: 'crate', fam: 'كلاسيك · اسطوانات', name: 'صندوق الاسطوانات',
+   desc: 'كل قسم صندوق خشب مليان اسطوانات قديمة، وكل طبق غلاف اسطوانة صورته عليه. تقلّب الأغلفة بالعرض، والغلاف اللي بالنص يتقدّم وتطلع الاسطوانة السوداء من جوّاه وتدور.',
+   mo: '<b>الحركة:</b> عرض دوّار، والاسطوانة تطلع من غلاف الطبق الوسطاني وتدور.',
+   render: () => `
+    ${rail}${hd('صندوق الاسطوانات', 'قلّب الأغلفة، واللي بالنص طبقك')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="flow">${s.items.map(it => `<div class="rec"><div class="slv"><div class="vin"></div><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'شغّل')}</div>`).join('')}</div><div class="ctl"><button data-dir="-1" aria-label="السابق">→</button><span class="cnt">01 / ${n2(s.items.length)}</span><button data-dir="1" aria-label="التالي">←</button></div></section>`).join('')}
+    ${cart('قائمتك')}` },
+
+ { key: 'typew', fam: 'كلاسيك · آلة كاتبة', name: 'الآلة الكاتبة',
+   desc: 'منيو مطبوع بالآلة الكاتبة على ورق أصفر مسطّر، مثل مطاعم زمان: اسم الطبق، ونقاط لحد السعر، وصورة صغيرة ملزوقة بدبوس بالحافة. كل قسم عنوانه مطبوع بالأحمر.',
+   mo: '<b>الحركة:</b> كل سطر يدخل من الجنب مثل عربة الآلة الكاتبة، والطبق اللي تطلبه ينختم.',
+   render: () => `
+    ${rail}${hd('قائمة الطعام', 'مطبوعة بالآلة الكاتبة · ١٩٦٢')}
+    ${chips(s => s.t)}
+    <div class="paper">${MENU.map(s => `<section data-sec="${s.id}"><h2>— ${s.t} —</h2>${s.items.map(it => `<div class="ty rv"><div class="ph" ${bg(it.img, 120)}></div><div class="tx"><div class="lead"><b>${it.n}</b><i></i><span>${it.p}</span></div><small>${it.d}</small></div>${addBtn(it, 'اطلب')}<em class="stampd">مطلوب</em></div>`).join('')}</section>`).join('')}</div>
+    ${cart('طلبك')}` },
+
+ { key: 'film', fam: 'كلاسيك · سينما صامتة', name: 'شريط السينما',
+   desc: 'شريط فلم قديم نازل بالطول بثقوبه على الجانبين، وكل طبق لقطة بالأبيض والأسود. بين الأقسام لوحة عنوان مثل الأفلام الصامتة بإطار مزخرف: «وبعدها… الحلويات».',
+   mo: '<b>الحركة:</b> رجفة الضوء وحبيبات الفلم، واللقطة اللي تطلبها تتلوّن.',
+   render: () => `
+    ${rail}<div class="grain"></div>${hd('شريط السينما', 'فلم صامت من ثلاث فصول ونص')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="title"><small>الفصل ${['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس'][si]}</small><b>${si ? 'وبعدها… ' : ''}${s.t}</b></div><div class="reel">${s.items.map(it => `<div class="frm"><div class="ph" ${bg(it.img, 300)}></div><div class="cap"><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('تذاكرك')}` },
+
+ { key: 'radio', fam: 'كلاسيك · راديو', name: 'الراديو القديم',
+   desc: 'راديو خشب قديم: الأقسام محطات على مؤشر الموجات الذهبي فوق، والإبرة الحمرة تمشي على المؤشر للمحطة اللي انت بيها. تحت قماش السمّاعة، والأطباق برامج المحطة بجدول.',
+   mo: '<b>الحركة:</b> إبرة المؤشر تنزلق لمحطة القسم وانت تنزل، والمؤشر يضوي.',
+   render: () => `
+    ${rail}${hd('راديو بغداد', 'موجة متوسطة · كل محطة قسم')}
+    ${chips((s, i) => `${s.t}<small>${toAr(540 + i * 180)}</small>`)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>محطة ${s.t}</h2><div class="grille">${s.items.map(it => `<div class="prog"><div class="ph" ${bg(it.img, 160)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
+    ${cart('برامجك')}` },
+
+ { key: 'abook', fam: 'كلاسيك · دفتر تلفونات', name: 'دفتر التلفونات',
+   desc: 'دفتر تلفونات جلد قديم: على حافة الصفحة لسانات الحروف، وكل لسان قسم، تدوس عليه فتروح له. الأطباق مكتوبة بخط اليد على سطور الدفتر، وكل طبق جنبه صورة صغيرة مثل صورة صاحب الرقم.',
+   mo: '<b>الحركة:</b> اللسان يطلع لبرّا لمن توصل قسمه، والسطر ينضوي لمن تطلبه.',
+   render: () => `
+    ${rail}${hd('دفتر التلفونات', 'اللسانات على الحافة · كل لسان قسم')}
+    ${chips((s, i) => `<i>${AB[i]}</i>${s.t}`)}
+    <div class="pages">${MENU.map((s, si) => `<section data-sec="${s.id}"><h2><i>${AB[si]}</i>${s.t}</h2>${s.items.map(it => `<div class="ent"><div class="ph" ${bg(it.img, 120)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it, 'اتصل')}</div>`).join('')}</section>`).join('')}</div>
+    ${cart('مكالماتك')}` },
+
+ { key: 'catalog', fam: 'كلاسيك · فهرس المكتبة', name: 'فهرس المكتبة',
+   desc: 'درج فهرس بطاقات من مكتبة قديمة: كل قسم درج خشب بمقبض نحاس، وكل طبق بطاقة فهرسة بأرقام وختم. وانت تنزل البطاقات تتكدّس فوق بعض وتبقى رؤوسها مبيّنة، مثل ما تقلّب بالأصابع.',
+   mo: '<b>الحركة:</b> البطاقات تتراكم فوق بعض وانت تنزل، وكل رأس بطاقة يبقى مبيّن.',
+   render: () => `
+    ${rail}${hd('فهرس المكتبة', 'قلّب البطاقات بإصبعك')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="drw"><i class="pull"></i><b>${s.t}</b><small>${toAr(s.from)} – ${toAr(s.to)}</small></div>${s.items.map((it, i) => `<div class="crd" style="--i:${i}"><div class="tab"><b>${it.n}</b><span>رقم ${toAr(it.box)}</span></div><div class="cb"><div class="ph" ${bg(it.img, 220)}></div><div class="tx"><small>${it.d}</small><div class="ln"><span>${it.p} د.ع</span>${addBtn(it, 'استعِر')}</div></div></div></div>`).join('')}</section>`).join('')}
+    ${cart('استعارتك')}` },
+
+ { key: 'salon', fam: 'كلاسيك · متحف', name: 'قاعة اللوحات',
+   desc: 'قاعة متحف قديمة بورق جدران مزخرف: كل طبق لوحة زيتية بإطار ذهب منحوت، بأحجام مختلفة معلّقة مثل الصالونات القديمة، وتحت كل لوحة لوحة نحاس صغيرة باسمها وسعرها.',
+   mo: '<b>الحركة:</b> ضوء المتحف يمشي وياك: اللوحة اللي بالنص تضوي، والباقي يعتم.',
+   render: () => `
+    ${rail}${hd('قاعة اللوحات', 'معرض المطبخ الدائم')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>قاعة ${s.t}</h2><div class="hang">${s.items.map((it, i) => `<div class="art"><div class="frame fl"><div class="ph" ${bg(it.img, 320)} style="aspect-ratio:${[.8, 1.25, 1, .9][i % 4]}"></div></div><div class="plq"><b>${it.n}</b><span>${it.p} د.ع</span></div>${addBtn(it, 'اقتنِ')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('مقتنياتك')}` },
+
+ { key: 'juke', fam: 'كلاسيك · جوكبوكس', name: 'الجوكبوكس',
+   desc: 'جوكبوكس من الخمسينات بقوس كروم وأنابيب ضوء ملوّنة تصعد بيها الفقاعات. كل طبق بطاقة اختيار برمز مثل «أ٣»، وكل قسم صف بالجوكبوكس، والأطباق بعمودين حتى تشوف هواية مرة وحدة.',
+   mo: '<b>الحركة:</b> فقاعات تصعد بأنابيب الضوء، والبطاقة اللي تختارها تضوي.',
+   render: () => `
+    ${rail}<div class="arch"><div class="tube l"><i></i><i></i><i></i></div><div class="tube r"><i></i><i></i><i></i></div>${hd('الجوكبوكس', 'اختار الرمز · ادفع · استمتع')}</div>
+    ${chips((s, i) => `${AB[i]} · ${s.t}`)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><h2>${AB[si]} · ${s.t}</h2><div class="sel">${s.items.map((it, i) => `<div class="strip"><b class="code">${AB[si]}${toAr(i + 1)}</b><div class="ph" ${bg(it.img, 140)}></div><div class="tx"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, '▶')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('أغانيك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const pulse = (el, k = 1.08) => { if (!reduce && el) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+const twirl = el => { if (!reduce && el) el.animate([{ transform: 'perspective(500px) rotateY(0)' }, { transform: 'perspective(500px) rotateY(360deg)' }], { duration: 700, easing: ease }); };
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+// fn(el, d) on scroll, d = how far the element sits below the middle of the screen
+function onDepth(sel, fn) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); fn(el, b.top + b.height / 2 - cy); }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+// a carousel where the middle item comes forward, with arrows and a counter
+function coverflow(sel) {
+  screen.querySelectorAll(sel).forEach(d => {
+    const items = [...d.children], cnt = d.parentElement.querySelector('.cnt');
+    const run = () => {
+      const r = d.getBoundingClientRect(), mid = r.left + r.width / 2; let best = 0, bk = -1;
+      items.forEach((c, i) => { const b = c.getBoundingClientRect(); const k = Math.max(0, 1 - Math.abs(b.left + b.width / 2 - mid) / (b.width * 1.1)); c.style.setProperty('--k', k.toFixed(3)); if (k > bk) { bk = k; best = i; } });
+      cnt.textContent = `${n2(best + 1)} / ${n2(items.length)}`;
+    };
+    d.addEventListener('scroll', run, { passive: true }); cleanups.push(() => d.removeEventListener('scroll', run)); run();
+  });
+}
+const got = (a, sel) => a.closest(sel).classList.add('got');
+const WIRE = {
+  crate: {
+    init() { coverflow('.flow'); },
+    click(e) {
+      const b = e.target.closest('[data-dir]'); if (!b) return;
+      const d = b.closest('section').querySelector('.flow'), step = d.firstElementChild.offsetWidth + 6;
+      d.scrollBy({ left: -Number(b.dataset.dir) * step, behavior: reduce ? 'instant' : 'smooth' });
+    },
+    added(a) { pulse(a.closest('.rec').querySelector('.slv'), 1.06); },
+  },
+  typew: { added(a) { got(a, '.ty'); } },
+  film: { added(a) { got(a, '.frm'); } },
+  radio: {
+    // the red needle slides to the station of the section on screen
+    init() {
+      const nav = screen.querySelector('.chips');
+      const run = () => { const b = nav.querySelector('.on'); if (b) nav.style.setProperty('--nx', `${b.offsetLeft + b.offsetWidth / 2 - nav.scrollLeft}px`); };
+      const mo = new MutationObserver(run); mo.observe(nav, { subtree: true, attributes: true, attributeFilter: ['class'] });
+      cleanups.push(() => mo.disconnect()); run();
+    },
+    added(a) { pulse(a.closest('.prog').querySelector('.ph'), 1.1); },
+  },
+  abook: {
+    // the tabs sit on the side, so a jump only needs a small gap at the top
+    go(id) { lastJump = id; screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - 8, behavior: reduce ? 'instant' : 'smooth' }); },
+    added(a) { got(a, '.ent'); },
+  },
+  catalog: { added(a) { pulse(a.closest('.crd').querySelector('.ph'), 1.06); } },
+  salon: {
+    // the painting nearest the middle of the screen is lit, the rest fall into shadow
+    init() { onDepth('.frame', (el, d) => { el.style.setProperty('--lit', clamp(1.08 - Math.abs(d) / 700, .55, 1.08).toFixed(2)); }); },
+    added(a) { pulse(a.closest('.art').querySelector('.frame'), 1.04); },
+  },
+  juke: { added(a) { got(a, '.strip'); } },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

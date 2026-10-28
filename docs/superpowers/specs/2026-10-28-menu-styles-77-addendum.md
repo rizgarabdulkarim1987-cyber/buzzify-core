@@ -25,12 +25,15 @@ gallery's Styles filter, applied with the menu's own products.
 Many of the 77 share a structure: seven are dishes strung down a central line, seven are covers that open when they
 reach the middle of the screen. Giving each its own body would mean 77 near-copies. Instead:
 
-- A **family** is one new `BodyKind` with one component: the structure, the section jumps, the motion engine.
-- A new optional `layout.motif` names the family's look (beads, footsteps, torches…). Each motif brings its own CSS,
-  scoped under `[data-body="<kind>"][data-motif="<motif>"]`, so the drawing and the motion of each style stay its own.
-  Absent means the family's first motif. Customize shows the motif as a select under the body, in en, ar and ckb.
-- A style that matches one of the 35 shapes shares that body kind and adds a preset (and, where the drawing differs,
-  a motif on that body).
+- A **family** is one component (`<Family>Body.tsx`): the structure, the section jumps, the motion engine. It takes
+  the style as a `motif` prop.
+- Every style is still its **own `BodyKind`**, as each of the 35 is, so its CSS is scoped under
+  `[data-body="<kind>"]` and its drawing and motion stay its own. `bodies/index.ts` loads the family module for each
+  kind through a prop-less named export per style. No schema change: Customize's existing body select lists them.
+  (Decided while building the trial, 2026-10-28: a `layout.motif` field would add schema, parsing and Customizer work
+  for nothing a kind does not already give.)
+- A style that matches one of the 35 shapes adds only a preset on that shape's kind.
+- The trial, The Prayer Beads (`misb`), is kind `spine`; its siblings in the `spine` family get kinds of their own.
 
 ## The 77 by family
 
@@ -63,7 +66,7 @@ reach the middle of the screen. Giving each its own body would mean 77 near-copi
 | `filmstrip` | a vertical film with title cards | film |
 | `wrap` | wraps that fold in from both sides | pshtwen |
 
-16 new kinds join `BODY_KINDS` (21 families counting the five existing shapes). Total: 77.
+Families group the code; each style still adds its own kind (71 new kinds: 77 minus six presets on existing shapes). Total: 77.
 
 ## Batches (one PR each, confirmed with the user before each push)
 

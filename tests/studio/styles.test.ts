@@ -10,15 +10,15 @@ import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-m
 const ids = MENU_STYLES.map((s) => s.id);
 
 describe('Menu styles catalog', () => {
-  it('holds 36 styles with unique ids, numbered 1 to 36', () => {
-    expect(MENU_STYLES).toHaveLength(36);
-    expect(new Set(ids).size).toBe(36);
-    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 36 }, (_, i) => i + 1));
+  it('holds 112 styles with unique ids, numbered 1 to 112', () => {
+    expect(MENU_STYLES).toHaveLength(112);
+    expect(new Set(ids).size).toBe(112);
+    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 112 }, (_, i) => i + 1));
   });
 
   it('counts the groups', () => {
     const counts = Object.fromEntries(STYLE_GROUPS.map((g) => [g, MENU_STYLES.filter((s) => s.group === g).length]));
-    expect(counts).toEqual({ themes: 8, heritage: 4, motion: 8, shapes: 16 });
+    expect(counts).toEqual({ themes: 39, heritage: 25, motion: 22, shapes: 26 });
   });
 
   it('contains the picked styles and none of the dropped ones', () => {
