@@ -130,6 +130,7 @@ model Restaurant {
   posSyncOperations     PosSyncOperation[]
   posPaymentReversals   PosPaymentReversal[]
   posCounters           PosCounter[]
+  posPaymentLegs        PosPaymentLeg[]
   posSharedDevices      PosSharedDevice[]
   posPinAttempts        PosPinAttempt[]
   posInventoryItems     PosInventoryItem[]
@@ -1419,7 +1420,8 @@ model PosOrder {
   restaurant                       Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   table                            PosTable?          @relation(fields: [tableId], references: [id], onDelete: SetNull)
   lines                            PosOrderLine[]
-  payment                          PosPayment?
+  /// One payment for the whole bill, or one per guest when the bill was split (`part` 1, 2, 3...).
+  payments                         PosPayment[]
 
   @@unique([restaurantId, number])
   @@unique([restaurantId, queueDay, queueNumber])
@@ -1487,13 +1489,17 @@ model PosOrderLine {
   batch                     Int?
   readyAt                   DateTime?
   cancelAckAt               DateTime?
+  /// The payment that paid this line; null while unpaid. A paid line can no longer change.
+  paymentId                 String?
   createdAt                 DateTime           @default(now())
   restaurant                Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   order                     PosOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product                   Product?           @relation(fields: [productId], references: [id], onDelete: SetNull)
+  payment                   PosPayment?        @relation(fields: [paymentId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
   @@index([orderId])
+  @@index([paymentId])
   @@index([productId])
   @@index([restaurantId, sentAt])
 }
@@ -1501,12 +1507,17 @@ model PosOrderLine {
 model PosPayment {
   id             String              @id @default(cuid())
   restaurantId   String
-  orderId        String              @unique
+  orderId        String
+  /// 1 for a bill paid at once; 2, 3... for the next guest's share of a split bill.
+  part           Int                 @default(1)
   method         PosPaymentMethod
   /// Integer IQD handed over by the customer.
   amountReceived Int
   reference      String?
   totalsSnapshot Json
+  /// Integer IQD left on top of the bill; never part of `totalsSnapshot.total`, so sales reports stay clean.
+  tipAmount      Int                 @default(0)
+  tipMethod      PosPaymentMethod?
   userId         String?
   shiftId        String?
   paidAt         DateTime            @default(now())
@@ -1515,9 +1526,31 @@ model PosPayment {
   user           User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
   shift          PosShift?           @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   reversal       PosPaymentReversal?
+  legs           PosPaymentLeg[]
+  lines          PosOrderLine[]
 
+  @@unique([orderId, part])
   @@index([restaurantId, paidAt])
   @@index([shiftId])
+}
+
+/// How much of a payment was taken with one method. A bill paid half cash, half FIB has two legs. The legs' `amount`s add
+/// up to the payment's snapshot total.
+model PosPaymentLeg {
+  id           String           @id @default(cuid())
+  restaurantId String
+  paymentId    String
+  method       PosPaymentMethod
+  /// Integer IQD applied to the bill by this method (cash change is not part of it).
+  amount       Int
+  /// Integer IQD a cash customer handed over (at least `amount`); null for other methods.
+  tendered     Int?
+  reference    String?
+  restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, method])
+  @@index([restaurantId])
 }
 
 /// One person's cash drawer from opening to count. One open shift per person and restaurant: the partial unique index
@@ -1567,6 +1600,8 @@ enum PosDiscountReason {
   COMPLAINT
   STAFF_MEAL
   OTHER
+  /// A dish given on the house; always needs a manager's approval.
+  COMP
 }
 
 /// Cash taken out of the drawer during a shift.
@@ -1676,6 +1711,8 @@ model PosPaymentReversal {
   method            PosPaymentMethod
   /// Integer IQD: the payment's snapshot total.
   amount            Int
+  /// Integer IQD of `amount` that went back out of the drawer: the payment's cash legs (0 when none were cash).
+  cashPart          Int              @default(0)
   /// Free text copied from the terminal for a terminal method.
   reference         String?
   reason            String

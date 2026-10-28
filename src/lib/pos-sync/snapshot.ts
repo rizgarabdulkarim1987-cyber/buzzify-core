@@ -31,6 +31,8 @@ export interface SnapshotOrder {
   tableId: string;
   seatedAt: string;
   invoiceDiscount: Discount | null;
+  /** A part of the bill is already paid: the rest is priced online, so the offline till cannot take it. */
+  partPaid?: boolean;
   lines: SnapshotLine[];
 }
 

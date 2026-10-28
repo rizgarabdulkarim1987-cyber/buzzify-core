@@ -8,6 +8,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { nextCounterIn } from './counter';
 import { refuse } from './errors';
 import { readUnsettledDeliveries } from './off-premise';
+import { cashIn, refundLegs } from './payment-legs';
 
 /** A person who changes a shift: the cashier whose drawer it is, or a manager or owner on their behalf. */
 export interface ShiftActor {
@@ -60,14 +61,14 @@ export async function addExpenseIn(db: AnyDb, restaurantId: string, input: { shi
 /** What the drawer should hold now: the float, plus the totals of the shift's cash payments, minus its expenses. */
 async function drawerOf(db: AnyDb, restaurantId: string, shift: { id: string; openingFloat: number }) {
   const [payments, reversals, expenses] = await Promise.all([
-    db.posPayment.findMany({ where: { restaurantId, shiftId: shift.id, method: 'CASH' }, select: { totalsSnapshot: true } }),
-    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: shift.id }, select: { method: true, amount: true } }),
+    db.posPayment.findMany({ where: { restaurantId, shiftId: shift.id }, select: { id: true, method: true, amountReceived: true, reference: true, tipAmount: true, tipMethod: true, totalsSnapshot: true, legs: { select: { method: true, amount: true, tendered: true, reference: true } } } }),
+    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: shift.id }, select: { method: true, amount: true, cashPart: true, payment: { select: { legs: { select: { method: true, amount: true } } } } } }),
     db.posCashExpense.findMany({ where: { restaurantId, shiftId: shift.id }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { id: true, amount: true, reason: true, createdAt: true } }),
   ]);
-  const cashSales = payments.map((p) => cashTotal.parse(p.totalsSnapshot).total);
-  const cashRefunds = reversals.filter((r) => r.method === 'CASH').map((r) => r.amount);
+  const cashSales = payments.map((p) => cashIn(p, cashTotal.parse(p.totalsSnapshot).total)).filter((amount) => amount > 0);
+  const cashRefunds = reversals.map((r) => r.cashPart).filter((amount) => amount > 0);
   const refundsByMethod: Record<PosPaymentMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0 };
-  for (const r of reversals) refundsByMethod[r.method] += r.amount;
+  for (const r of reversals) for (const given of refundLegs(r)) refundsByMethod[given.method] += given.amount;
   const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds });
   return { cashRefunds: cashRefunds.reduce((a, b) => a + b, 0), refundsByMethod, cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total };
 }

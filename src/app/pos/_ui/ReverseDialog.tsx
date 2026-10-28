@@ -15,13 +15,15 @@ import { usePosCall } from './use-pos-call';
 
 interface Props {
   orderId: string;
+  /** The part to reverse when the bill was split. */
+  paymentId?: string;
   version: number;
   total: number;
   method: PosPaymentMethodKey;
 }
 
 /** The manager's "Reverse payment" button and its dialog: the amount and method are read-only, the reason is required. */
-export function ReverseButton({ orderId, version, total, method }: Props) {
+export function ReverseButton({ orderId, paymentId, version, total, method }: Props) {
   const t = useT();
   const money = useMoney();
   const { call } = usePosCall();
@@ -45,7 +47,7 @@ export function ReverseButton({ orderId, version, total, method }: Props) {
         onConfirm={async (form) => {
           const reason = String(form.get('reason') ?? '').trim();
           const reference = String(form.get('reference') ?? '').trim();
-          const result = await call(() => reversePosPayment({ orderId, expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
+          const result = await call(() => reversePosPayment({ orderId, ...(paymentId ? { paymentId } : {}), expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
           if (result.ok) return true;
           const fields = result.error.fields;
           return fields?.reason ? { fields: { reason: fields.reason } } : { message: t('pos.order.actionRefused') };

@@ -151,6 +151,10 @@ export async function movePosOrderToTable(input: unknown) {
   return invoke(orders.movePosOrderToTable, input);
 }
 
+export async function mergePosOrders(input: unknown) {
+  return invoke(orders.mergePosOrders, input);
+}
+
 export async function payPosOrder(input: unknown) {
   return invoke(payments.payPosOrder, input);
 }

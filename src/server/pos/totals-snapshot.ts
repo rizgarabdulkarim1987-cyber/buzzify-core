@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { optionsSnapshotSchema } from './orders';
 
 const amount = z.number().int().min(0);
-const discountSchema = z.object({ kind: z.enum(['AMOUNT', 'PERCENT']), value: z.number().int() });
+/** `reason` is the discount's reason (such as COMP); absent in receipts paid before reasons existed. */
+const discountSchema = z.object({ kind: z.enum(['AMOUNT', 'PERCENT']), value: z.number().int(), reason: z.string().nullable().optional() });
 
 /**
  * Everything the receipt needs, copied when the order is paid: the totals, what produced them and the lines paid for

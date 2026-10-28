@@ -50,12 +50,14 @@ export async function requireApprovalIn(args: {
   /** The signed-in person asking, so a wrong try is filed under their name. */
   userId: string;
   needed: boolean;
+  /** Ask a cashier even when the restaurant switched approval off (a comp always needs a manager). */
+  always?: boolean;
   approval: Approval;
   meta: RequestMeta;
 }): Promise<string | null> {
   if (!args.needed || args.role !== 'CASHIER') return null;
   const settings = await args.db.posSettings.findUnique({ where: { restaurantId: args.restaurantId }, select: { requireApproval: true } });
-  if (settings && !settings.requireApproval) return null;
+  if (settings && !settings.requireApproval && !args.always) return null;
   if (!args.approval) throw refuse('FORBIDDEN', 'Manager approval is needed');
   try {
     const done = await verifyApproverPin(args.db, { restaurantId: args.restaurantId, staffId: args.approval.staffId, pin: args.approval.pin, meta: args.meta, requestedByUserId: args.userId });
