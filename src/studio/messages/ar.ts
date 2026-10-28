@@ -59,6 +59,7 @@ const ar: Messages = {
   'nav.activity': 'النشاط',
   'nav.settings': 'الإعدادات',
   'nav.myRestaurant': 'مطعمي',
+  'nav.myMenu': 'إعدادات المنيو',
   'nav.cashier': 'الكاشير',
   'error.text.posCashRequired': 'يجب أن يبقى الدفع النقدي مفعّلاً',
   'error.text.posNotSelf': 'لا يمكنك تغيير دورك أو صلاحيتك بنفسك',

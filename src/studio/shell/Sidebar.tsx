@@ -49,7 +49,7 @@ const ICONS: Record<NavIcon, LucideIcon> = {
 };
 
 /** A navigation item as the layout hands it over: its label already in the person's language. */
-export type SidebarItem = Omit<NavItem, 'labelKey' | 'label'> & { label: string };
+export type SidebarItem = Omit<NavItem, 'labelKey' | 'label' | 'scope'> & { label: string };
 
 export interface SidebarUser {
   name: string;
