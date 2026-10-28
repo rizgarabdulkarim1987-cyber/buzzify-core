@@ -57,6 +57,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Reload the list and try again': 'error.text.introReload',
   'Choose restaurants that exist': 'error.text.introRestaurants',
   'Choose menus that exist': 'error.text.introMenus',
+  'Choose a range of up to a year, oldest day first': 'error.text.introRange',
   'Use a whole number from 0 to 100': 'error.text.introOverlay',
   'That code is not correct': 'error.text.codeWrong',
   'Enter the 6-digit code': 'error.text.codeFormat',

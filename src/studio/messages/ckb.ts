@@ -618,6 +618,7 @@ const ckb: Messages = {
   'error.text.introReload': 'لیستەکە دووبارە باربکە و هەوڵ بدەرەوە',
   'error.text.introRestaurants': 'چێشتخانەی بوونیان هەیە هەڵبژێرە',
   'error.text.introMenus': 'مینیوی بوونداری هەڵبژێرە',
+  'error.text.introRange': 'ماوەیەک هەڵبژێرە تا یەک ساڵ، لە کۆنترینەوە',
   'error.text.introOverlay': 'ژمارەیەکی تەواو لە 0 تا 100 بەکاربهێنە',
   'error.text.codeWrong': 'ئەو کۆدە هەڵەیە',
   'error.text.codeFormat': 'کۆدە 6 ژمارەییەکە بنووسە',

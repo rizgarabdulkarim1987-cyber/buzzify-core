@@ -614,6 +614,7 @@ const en: Messages = {
   'error.text.introReload': 'Reload the list and try again',
   'error.text.introRestaurants': 'Choose restaurants that exist',
   'error.text.introMenus': 'Choose menus that exist',
+  'error.text.introRange': 'Choose a range of up to a year, oldest day first',
   'error.text.introOverlay': 'Use a whole number from 0 to 100',
   'error.text.codeWrong': 'That code is not correct',
   'error.text.codeFormat': 'Enter the 6-digit code',

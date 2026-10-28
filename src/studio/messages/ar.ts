@@ -625,6 +625,7 @@ const ar: Messages = {
   'error.text.introReload': 'أعد تحميل القائمة وحاول مرة أخرى',
   'error.text.introRestaurants': 'اختر مطاعم موجودة',
   'error.text.introMenus': 'اختر قوائم موجودة',
+  'error.text.introRange': 'اختر مدة لا تتجاوز سنة، من الأقدم إلى الأحدث',
   'error.text.introOverlay': 'استخدم رقمًا صحيحًا من 0 إلى 100',
   'error.text.codeWrong': 'هذا الرمز غير صحيح',
   'error.text.codeFormat': 'أدخل الرمز المكوّن من 6 أرقام',

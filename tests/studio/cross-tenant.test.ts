@@ -930,6 +930,7 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
   // The platform's intro background and adverts (`platform.settings`).
   'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
+  'platform.introReports': [c('the intro report', () => ({ from: '2026-10-01', to: '2026-10-31' }), ONLY_FORBIDDEN)],
   'platform.saveIntroDefault': [c('a default background', (w) => ({ backgroundAssetId: w.b.assetId }), ONLY_FORBIDDEN)],
   'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId], menuIds: [w.b.menuId] }), ONLY_FORBIDDEN)],
   'platform.reorderPlatformAdverts': [c('the adverts', () => ({ ids: [] }), ONLY_FORBIDDEN)],
