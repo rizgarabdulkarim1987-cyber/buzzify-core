@@ -33,6 +33,10 @@ export async function deactivateUser(input: unknown) {
   return invoke(people.deactivateUser, input);
 }
 
+export async function deleteUser(input: unknown) {
+  return invoke(people.deleteUser, input);
+}
+
 export async function reactivateUser(input: unknown) {
   return invoke(people.reactivateUser, input);
 }

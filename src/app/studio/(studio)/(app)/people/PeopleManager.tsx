@@ -1,7 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { KeyRound, Mail, MoreHorizontal, Power, PowerOff, UserPlus } from 'lucide-react';
+import { KeyRound, Mail, MoreHorizontal, Power, PowerOff, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -80,9 +80,16 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {person.deactivated ? (
-              <DropdownMenuItem icon={<Power aria-hidden />} onSelect={() => onAction('reactivate')}>
-                {t('people.reactivate')}
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem icon={<Power aria-hidden />} onSelect={() => onAction('reactivate')}>
+                  {t('people.reactivate')}
+                </DropdownMenuItem>
+                {!person.isSuperAdmin && (
+                  <DropdownMenuItem danger icon={<Trash2 aria-hidden />} onSelect={() => onAction('delete')}>
+                    {t('people.delete')}
+                  </DropdownMenuItem>
+                )}
+              </>
             ) : (
               <DropdownMenuItem danger icon={<PowerOff aria-hidden />} onSelect={() => onAction('deactivate')}>
                 {t('people.deactivate')}

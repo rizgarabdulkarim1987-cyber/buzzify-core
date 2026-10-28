@@ -8,7 +8,7 @@ import { defineAction, type ActionContext } from '@/server/studio/framework/acti
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import { createInvitation, reissueInvitation, revokeInvitation as revoke } from '@/server/studio/services/invitations';
-import { assignDesigner as assign, changeEmail, deactivatePerson, reactivatePerson, unassignMember as unassign } from '@/server/studio/services/people';
+import { assignDesigner as assign, changeEmail, deactivatePerson, deletePerson, reactivatePerson, unassignMember as unassign } from '@/server/studio/services/people';
 
 /**
  * People, invitations and per-client permissions. Platform-wide changes (staff, accounts, who is assigned where) are
@@ -194,6 +194,19 @@ export const deactivateUser = defineAction({
         },
       });
       return { deactivated: true as const };
+    }),
+});
+
+export const deleteUser = defineAction({
+  name: 'people.deleteUser',
+  permission: 'people.manage',
+  input: z.object({ userId: idField }),
+  target: () => PLATFORM,
+  run: (ctx, { userId }) =>
+    ctx.transaction(async (tx) => {
+      const { email } = await deletePerson(tx, { actor: ctx.actor, userId });
+      ctx.audit({ action: 'user.deleted', entityType: 'User', entityId: userId, changes: { email: { before: email, after: null } } });
+      return { deleted: true as const };
     }),
 });
 

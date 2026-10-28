@@ -6,6 +6,7 @@ import {
   assignDesigner,
   changeUserEmail,
   deactivateUser,
+  deleteUser,
   inviteOwner,
   inviteStaff,
   reactivateUser,
@@ -129,7 +130,7 @@ export function InviteOwnerDialog({
 }
 
 /** What can be done to one person, each in its own dialog. `person` is the row it is for; null closes them all. */
-export type PersonAction = 'assign' | 'email' | 'deactivate' | 'reactivate';
+export type PersonAction = 'assign' | 'email' | 'deactivate' | 'reactivate' | 'delete';
 
 export function PersonDialogs({
   person,
@@ -215,6 +216,19 @@ export function PersonDialogs({
           const result = await deactivateUser({ userId: person?.userId ?? '' });
           if (!result.ok) return refuse(result);
           return done(t('people.deactivate.done'));
+        }}
+      />
+
+      <ConfirmDialog
+        open={person !== null && action === 'delete'}
+        onOpenChange={close}
+        title={isolated(t('people.delete.title'), { name })}
+        body={t('people.delete.body')}
+        confirmLabel={t('people.delete.confirm')}
+        onConfirm={async () => {
+          const result = await deleteUser({ userId: person?.userId ?? '' });
+          if (!result.ok) return refuse(result);
+          return done(t('people.delete.done'));
         }}
       />
 
