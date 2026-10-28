@@ -29,6 +29,8 @@ export interface ShiftReport {
   usdRefunded: number;
   /** The dollars the drawer should hold (frozen at close), and what was counted and the difference once closed. */
   expectedUsd: number;
+  /** Dollars refunded beyond what the drawer took: paid from outside it, so not in expectedUsd (see usdDrawer). */
+  usdBeyondDrawer: number;
   countedUsd: number | null;
   differenceUsd: number | null;
   /** What rounding added (+) or took off (-) across the shift's bills; already inside grossSales. */
@@ -264,6 +266,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     usdReceived: usd.received,
     usdRefunded: usd.refunded,
     expectedUsd: shift.expectedUsdAtClose ?? usd.expectedUsd,
+    usdBeyondDrawer: usd.beyondDrawer,
     countedUsd: shift.countedUsd,
     differenceUsd: shift.differenceUsd,
     refundsByMethod,

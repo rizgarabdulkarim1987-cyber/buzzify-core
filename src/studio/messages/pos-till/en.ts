@@ -384,6 +384,7 @@ const posTill: Messages = {
   'pos.shift.expectedUsd': 'Expected dollars',
   'pos.shift.countedUsd': 'Counted dollars',
   'pos.shift.differenceUsd': 'Dollar difference',
+  'pos.shift.usdBeyondDrawer': 'Dollar refunds paid from outside the drawer',
   'pos.shift.enterUsdCount': 'Enter the counted dollars (0 if there are none)',
   'pos.report.usdReceived': 'Dollars received',
   'pos.report.usdRefunded': 'Dollars given back',

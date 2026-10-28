@@ -384,6 +384,7 @@ const posTill: Messages = {
   'pos.shift.expectedUsd': 'الدولارات المتوقعة',
   'pos.shift.countedUsd': 'الدولارات المعدودة',
   'pos.shift.differenceUsd': 'فرق الدولار',
+  'pos.shift.usdBeyondDrawer': 'دولارات مُسترجَعة دُفعت من خارج الدرج',
   'pos.shift.enterUsdCount': 'اكتب الدولارات المعدودة (0 إن لم يوجد)',
   'pos.report.usdReceived': 'الدولارات المستلمة',
   'pos.report.usdRefunded': 'الدولارات المُرجعة',

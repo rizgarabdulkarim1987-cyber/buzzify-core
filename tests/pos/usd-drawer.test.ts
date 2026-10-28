@@ -3,7 +3,7 @@ import { createPosArea, createPosTables } from '@/server/studio/actions/pos';
 import { addPosLine, openPosOrder } from '@/server/studio/actions/pos-orders';
 import { payPosOrder, reversePosPayment } from '@/server/studio/actions/pos-payments';
 import { closePosShift, openPosShift } from '@/server/studio/actions/pos-shifts';
-import { posShiftReport } from '@/server/studio/queries/pos';
+import { posShift, posShiftReport } from '@/server/studio/queries/pos';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
@@ -115,14 +115,26 @@ describe('the drawer in two currencies', () => {
     const version = (await prisma().posOrder.findUniqueOrThrow({ where: { id: orderId } })).version;
     dataOf(await run(manager, reversePosPayment, { orderId, paymentId, expectedVersion: version, reason: 'wrong order' }));
     const report = dataOf(await ask(manager, posShiftReport, { shiftId: managerShift }));
-    expect(report).toMatchObject({ expectedUsd: -12, usdRefunded: 12, usdReceived: 0, expectedCash: 13_000 });
+    // The manager's drawer took no dollars, so the 12 came from outside it: the count expects none, and the 12 are flagged.
+    expect(report).toMatchObject({ expectedUsd: 0, usdBeyondDrawer: 12, usdRefunded: 12, usdReceived: 0, expectedCash: 13_000 });
     expect(report.refundsByMethod.CASH_USD).toEqual({ count: 1, total: 15_000 });
+  });
+
+  it('never expects a negative dollar count when a shift refunds more dollars than it took', async () => {
+    const { orderId, paymentId } = await soldForTwelveDollars();
+    const managerShift = dataOf(await run(manager, openPosShift, { openingFloat: 10_000 })).shiftId;
+    const version = (await prisma().posOrder.findUniqueOrThrow({ where: { id: orderId } })).version;
+    dataOf(await run(manager, reversePosPayment, { orderId, paymentId, expectedVersion: version, reason: 'wrong order' }));
+    const summary = dataOf(await ask(manager, posShift, { shiftId: managerShift }));
+    expect(summary.usdBeyondDrawer).toBe(12);
+    const closed = dataOf(await run(manager, closePosShift, { shiftId: managerShift, countedCash: 13_000, countedUsd: 0, note: '' }));
+    expect(closed).toMatchObject({ expectedUsd: 0, countedUsd: 0, differenceUsd: 0 });
   });
 
   it('keeps shifts without dollars exactly as before', async () => {
     await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { usdEnabled: false } });
     const { shiftId } = dataOf(await run(cashier, openPosShift, { openingFloat: 50_000 }));
     const report = dataOf(await ask(manager, posShiftReport, { shiftId }));
-    expect(report).toMatchObject({ expectedCash: 50_000, expectedUsd: 0, usdReceived: 0, usdRefunded: 0, countedUsd: null });
+    expect(report).toMatchObject({ expectedCash: 50_000, expectedUsd: 0, usdBeyondDrawer: 0, usdReceived: 0, usdRefunded: 0, countedUsd: null });
   });
 });

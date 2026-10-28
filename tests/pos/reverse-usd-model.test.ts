@@ -15,6 +15,13 @@ describe('reversing a payment that took dollars', () => {
     expect(usdRefund(legs)).toEqual({ dollars: drawer.refunded, dinarChange: -drawer.dinarChange });
   });
 
+  it('floors the expected dollars at zero and flags the dollars refunded beyond what the drawer took', () => {
+    const sale = { legs: [{ method: 'CASH_USD' as const, amount: 15_000, tenderedUsd: 10, rate: 1500 }] };
+    const bigRefund = { legs: [{ method: 'CASH_USD' as const, amount: 45_000, tenderedUsd: 30, rate: 1500 }] };
+    expect(usdDrawer([sale], [bigRefund])).toMatchObject({ received: 10, refunded: 30, expectedUsd: 0, beyondDrawer: 20 });
+    expect(usdDrawer([sale, sale], [sale])).toMatchObject({ expectedUsd: 10, beyondDrawer: 0 });
+  });
+
   it('has no dinar change to take back when the dollars were exact', () => {
     expect(usdRefund([{ method: 'CASH_USD', amount: 15_000, tenderedUsd: 10, rate: 1500 }])).toEqual({ dollars: 10, dinarChange: 0 });
   });

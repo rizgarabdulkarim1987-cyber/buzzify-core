@@ -384,6 +384,7 @@ const posTill: Messages = {
   'pos.shift.expectedUsd': 'دۆلاری چاوەڕوانکراو',
   'pos.shift.countedUsd': 'دۆلاری ژمێردراو',
   'pos.shift.differenceUsd': 'جیاوازی دۆلار',
+  'pos.shift.usdBeyondDrawer': 'دۆلاری گەڕێنراوە کە لە دەرەوەی دراوەر دراوە',
   'pos.shift.enterUsdCount': 'دۆلاری ژمێردراو بنووسە (0 ئەگەر هیچ نییە)',
   'pos.report.usdReceived': 'دۆلاری وەرگیراو',
   'pos.report.usdRefunded': 'دۆلاری گەڕێنراوە',
