@@ -184,6 +184,11 @@ model Restaurant {
   phSupplierReturnLines      PhSupplierReturnLine[]
   phCreditNotes              PhCreditNote[]
   phCreditAllocations        PhCreditAllocation[]
+  phIntakeBatches            PhIntakeBatch[]
+  phIntakeFiles              PhIntakeFile[]
+  phIntakeRows               PhIntakeRow[]
+  phAiUsageMonths            PhAiUsageMonth[]
+  phAiCalls                  PhAiCall[]
   supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
@@ -224,6 +229,7 @@ model Branch {
   phReturns         PhReturn[]
   phPurchaseOrders  PhPurchaseOrder[]
   phSupplierReturns PhSupplierReturn[]
+  phIntakeBatches   PhIntakeBatch[]
 
   @@unique([restaurantId, id])
   @@index([restaurantId])
@@ -2188,6 +2194,7 @@ model PhProduct {
   balances     PhStockBalance[]
   movements    PhStockMovement[]
   receiptLines PhReceiptLine[]
+  intakeRows   PhIntakeRow[]
   saleLines    PhSaleLine[]
   countLines   PhStockCountLine[]
   purchaseOrderLines PhPurchaseOrderLine[]
@@ -2216,6 +2223,7 @@ model PhProductUnit {
   prices       PhPrice[]
   costBatches  PhBatch[]
   receiptLines PhReceiptLine[]
+  intakeRows   PhIntakeRow[]
   saleLines    PhSaleLine[]
   purchaseOrderLines PhPurchaseOrderLine[]
 
@@ -2529,6 +2537,7 @@ model PhReceipt {
   purchaseOrderSupplier PhPurchaseOrder? @relation("PhReceiptOrderSupplier", fields: [restaurantId, purchaseOrderId, branchId, supplierId], references: [restaurantId, id, branchId, supplierId], onDelete: NoAction)
   lines         PhReceiptLine[]
   movements     PhStockMovement[]
+  intakeBatch   PhIntakeBatch?
 
   @@unique([restaurantId, clientKey])
   @@unique([restaurantId, id])
@@ -3034,6 +3043,7 @@ model PhSupplier {
   invoices       PhSupplierInvoice[]
   payments       PhSupplierPayment[]
   returns        PhSupplierReturn[]
+  intakeBatches  PhIntakeBatch[]
   creditNotes    PhCreditNote[]
 
   @@unique([restaurantId, id])
@@ -3318,4 +3328,145 @@ model PhCreditAllocation {
   @@unique([creditNoteId, invoiceId])
   @@index([restaurantId, invoiceId])
   @@index([restaurantId, clientKey])
+}
+
+enum PhIntakeBatchStatus {
+  OPEN
+  APPROVED
+  CANCELLED
+}
+
+enum PhIntakeFileStatus {
+  UPLOADED
+  REJECTED_QUALITY
+  EXTRACTING
+  EXTRACTED
+  FAILED
+  PURGED
+}
+
+/// Phase 5. Invoice intake: a batch of supplier-invoice photos or PDFs read by the AI into rows a person reviews. Intake
+/// never writes stock; approval creates a DRAFT receipt (`receiptId`, one batch per receipt). `header` is the extracted
+/// invoice header (number, date, total, currency), `{}` when none. CHECK: APPROVED needs a receipt and `approvedAt`.
+model PhIntakeBatch {
+  id           String              @id @default(cuid())
+  restaurantId String
+  branchId     String
+  supplierId   String?
+  status       PhIntakeBatchStatus @default(OPEN)
+  header       Json                @default("{}")
+  receiptId    String?
+  clientKey    String
+  payloadHash  String
+  createdById  String
+  approvedAt   DateTime?
+  approvedById String?
+  cancelledAt  DateTime?
+  version      Int                 @default(1)
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  branch       Branch              @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
+  supplier     PhSupplier?         @relation(fields: [restaurantId, supplierId], references: [restaurantId, id], onDelete: NoAction)
+  receipt      PhReceipt?          @relation(fields: [restaurantId, receiptId], references: [restaurantId, id], onDelete: NoAction)
+  files        PhIntakeFile[]
+
+  @@unique([restaurantId, id])
+  @@unique([restaurantId, clientKey])
+  @@unique([restaurantId, receiptId])
+  @@index([restaurantId, branchId, status, createdAt])
+}
+
+/// One uploaded file of a batch. `sha256` is unique per business (the same file twice returns the first). `storageKey`
+/// is blanked when the file is purged after its retention; the row data stays. CHECKs (sha format, media type, bytes
+/// 1..8 MiB, pages 1..10, PURGED has no key, a failure code only on FAILED or REJECTED_QUALITY) are in the migration.
+model PhIntakeFile {
+  id           String             @id @default(cuid())
+  restaurantId String
+  batchId      String
+  sha256       String
+  storageKey   String?
+  mediaType    String
+  bytes        Int
+  pages        Int
+  quality      Json               @default("{}")
+  status       PhIntakeFileStatus @default(UPLOADED)
+  failureCode  String?
+  attempts     Int                @default(0)
+  extractedAt  DateTime?
+  expiresAt    DateTime
+  uploadedById String
+  createdAt    DateTime           @default(now())
+  restaurant   Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  batch        PhIntakeBatch      @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: Cascade)
+  rows         PhIntakeRow[]
+
+  @@unique([restaurantId, id])
+  @@unique([restaurantId, sha256])
+  @@index([restaurantId, batchId])
+  @@index([status, expiresAt])
+}
+
+/// One line the AI read (`extracted`, as returned after validation) and what the reviewer made of it (`edited`). The
+/// matched product and unit go together (CHECK) and are of the same business by the composite keys.
+model PhIntakeRow {
+  id               String         @id @default(cuid())
+  restaurantId     String
+  fileId           String
+  lineNo           Int
+  page             Int
+  extracted        Json
+  edited           Json           @default("{}")
+  matchedProductId String?
+  matchedUnitId    String?
+  flags            String[]       @default([])
+  reviewed         Boolean        @default(false)
+  note             String?
+  restaurant       Restaurant     @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  file             PhIntakeFile   @relation(fields: [restaurantId, fileId], references: [restaurantId, id], onDelete: Cascade)
+  product          PhProduct?     @relation(fields: [restaurantId, matchedProductId], references: [restaurantId, id], onDelete: NoAction)
+  unit             PhProductUnit? @relation(fields: [matchedProductId, matchedUnitId], references: [productId, id], onDelete: NoAction)
+
+  @@unique([restaurantId, id])
+  @@unique([fileId, lineNo])
+  @@index([restaurantId, matchedProductId])
+}
+
+/// What a business spent on the pharmacy AI in one Baghdad month, in micro-dollars. `reservedMicroUsd` is the worst case
+/// held for calls in flight; it is settled into `spentMicroUsd`. CHECK: `month` is YYYY-MM, every count is >= 0.
+model PhAiUsageMonth {
+  id               String     @id @default(cuid())
+  restaurantId     String
+  month            String
+  spentMicroUsd    BigInt     @default(0)
+  reservedMicroUsd BigInt     @default(0)
+  calls            Int        @default(0)
+  inputTokens      BigInt     @default(0)
+  outputTokens     BigInt     @default(0)
+  version          Int        @default(1)
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  restaurant       Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, id])
+  @@unique([restaurantId, month])
+}
+
+/// One call to the AI, metadata only (no prompt, no answer). Append-only. `fileId` is plain text: it outlives a purge.
+model PhAiCall {
+  id           String     @id @default(cuid())
+  restaurantId String
+  purpose      String
+  model        String
+  inputTokens  Int?
+  outputTokens Int?
+  ms           Int?
+  status       String
+  costMicroUsd BigInt     @default(0)
+  fileId       String?
+  createdAt    DateTime   @default(now())
+  restaurant   Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, id])
+  @@index([restaurantId, createdAt])
 }

@@ -519,10 +519,14 @@ describe('pharmacy products', () => {
       'PhCreditNote',
       'PhCreditAllocation',
     ];
+    // Phase 5 intake records are self-contained: a row keeps what the AI read and what the reviewer made of it as JSON,
+    // and a matched unit only names the product it was matched to; approval copies the values into a receipt line, which
+    // keeps its own qty AND baseQty. The usage and call tables hold money and counts only. Decided here, not by omission.
+    const SELF_CONTAINED_INTAKE = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall'];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
   });
 });
