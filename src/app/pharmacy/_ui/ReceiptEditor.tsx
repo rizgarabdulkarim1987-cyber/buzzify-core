@@ -12,7 +12,11 @@ import { utcToday } from '@/server/domain/pharmacy/expiry';
 import type { Currency } from '@/server/domain/pharmacy/money';
 import type { ProductDetail } from '@/server/pharmacy/products';
 import type { SearchResult } from '@/server/pharmacy/search';
+import type { StudioFailure } from '@/server/studio/framework/result';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
+import type { Translate } from '@/lib/i18n';
+import type { Locale } from '@/lib/locale';
+import { phMessage } from './ph-failure';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button, buttonClasses } from '@/studio/ui/Button';
@@ -53,6 +57,18 @@ const FLAG = 'inline-flex min-h-11 items-start gap-2.5 py-2 text-sm text-text';
 
 function unitsOfDetail(p: ProductDetail): UnitChoice[] {
   return [...p.units].sort((a, b) => a.level - b.level).map((u) => ({ id: u.id, label: u.label, baseQty: u.baseQty }));
+}
+
+/**
+ * A failure in words. A purchasing refusal (OVER_RECEIPT, NOT_ON_ORDER and the like) carries a code with its own
+ * sentence in the person's language; it replaces the form message and the message beside each field the server named.
+ */
+function describeReceiptFailure(t: Translate, locale: Locale, failure: StudioFailure): DescribedFailure {
+  const described = describeFailure(t, locale, failure);
+  const code = failure.fields?.phCode;
+  if (!code || t(`pharmacy.purchasing.fail.${code}`) === `pharmacy.purchasing.fail.${code}`) return described;
+  const message = phMessage(t, locale, failure, 'pharmacy.purchasing');
+  return { ...described, message, fields: Object.fromEntries(Object.keys(described.fields).map((field) => [field, message])) };
 }
 
 /**
@@ -162,7 +178,7 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
       savedId ? updateReceipt({ ...built.input, receiptId: savedId, expectedVersion: value.version }) : createReceipt({ ...built.input, clientKey: value.clientKey }),
     );
     if (!result.ok) {
-      setFailure({ described: describeFailure(t, locale, result.error), raw: result.error.fields });
+      setFailure({ described: describeReceiptFailure(t, locale, result.error), raw: result.error.fields });
       // A key that was used for other lines: start a new one, the next save makes a new draft.
       if (result.error.fields?.phCode === 'CLIENT_KEY_MISMATCH') draft.set({ ...value, clientKey: newKey() });
       return null;
@@ -197,7 +213,7 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
     setPending(null);
     setConfirming(false);
     if (!result.ok) {
-      setFailure({ described: describeFailure(t, locale, result.error), raw: result.error.fields });
+      setFailure({ described: describeReceiptFailure(t, locale, result.error), raw: result.error.fields });
       return;
     }
     const data = result.data as { id: string; number: string; lines: number; baseQty: number; warnings: { lineNo: number }[] };
@@ -216,7 +232,7 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
     setPending(null);
     setVoiding(false);
     if (!result.ok) {
-      setFailure({ described: describeFailure(t, locale, result.error), raw: result.error.fields });
+      setFailure({ described: describeReceiptFailure(t, locale, result.error), raw: result.error.fields });
       return;
     }
     draft.clear(value);
