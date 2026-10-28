@@ -401,7 +401,7 @@ export function OrderScreen({
             </div>
             {order.parts.length > 0 ? (
               <>
-                <Row label={t('pos.split.paidSoFar')} value={money(order.totals.total - order.leftToPay)} />
+                <Row label={t('pos.split.paidSoFar')} value={money(order.parts.reduce((sum, part) => sum + part.total, 0))} />
                 <div className="flex items-baseline justify-between gap-3 px-4">
                   <dt className="text-base font-semibold">{t('pos.split.leftToPay')}</dt>
                   <dd className="text-2xl font-bold">{money(order.leftToPay)}</dd>

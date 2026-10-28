@@ -87,7 +87,7 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
           </div>
         ))}
         {receipt.tip ? <Line label={`${t('pos.pay.tip')} · ${receipt.tip.method === 'CASH' ? t('pos.receipt.cash') : t(`pos.method.${receipt.tip.method}`)}`} value={money(receipt.tip.amount)} /> : null}
-        {receipt.legs.some((leg) => leg.method === 'CASH') ? <Line label={t('pos.pay.change')} value={money(receipt.change)} /> : null}
+        {receipt.legs.some((leg) => leg.method === 'CASH' || leg.method === 'CASH_USD') ? <Line label={t('pos.pay.change')} value={money(receipt.change)} /> : null}
       </dl>
       {receipt.reversal ? (
         <div className="flex flex-col items-center gap-1 rounded-md border-2 border-danger p-2 text-center" data-testid="receipt-reversed">
