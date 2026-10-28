@@ -466,6 +466,9 @@ const CASES: Record<string, Case> = {
   'ph.intake.file.url': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // AI usage (phase 5, task 4): the month's figures of the actor's own business; the other business's usage is never in them.
   'ph.intake.usage': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Reading an invoice with AI (phase 5, task 5): the file is reached through its batch, so another branch's or business's file is not found. The seeded file has no stored object, so a success only marks it FAILED (FILE_MISSING).
+  'ph.intake.extract': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.retry': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -543,7 +546,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 5 intake definition', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.intake.'));
-    expect(names.sort()).toEqual(['ph.intake.batch.create', 'ph.intake.file.add', 'ph.intake.file.url', 'ph.intake.usage']);
+    expect(names.sort()).toEqual(['ph.intake.batch.create', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url', 'ph.intake.retry', 'ph.intake.usage']);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 

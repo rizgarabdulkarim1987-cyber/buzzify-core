@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { INTAKE_LIMITS } from '@/server/domain/pharmacy/intake';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
+import { sweepAiReservations } from '@/server/pharmacy/intake/ai';
+import { extractFile } from '@/server/pharmacy/intake/extract';
 import { admitFile, assertMayIntake, commitFile, createBatch as makeBatch, intakeClientKey, newFileId, prepareFile } from '@/server/pharmacy/intake/files';
 import { getIntakeStorage, intakeKey, IntakeStorageNotConfiguredError, type IntakeStorage } from '@/server/pharmacy/intake/storage';
 import { pharmacyOf } from '@/server/pharmacy/products';
@@ -94,6 +96,8 @@ export const addFile = defineAction({
     assertMayIntake(ph);
     const branchId = branchOf(input);
     const storage = storageOrRefuse();
+    // Reservations of crashed extractions are booked as spend here too, so a quiet business does not leave them held.
+    await sweepAiReservations(ctx.db, new Date()).catch(() => undefined);
     // Type (from the bytes), size, pages, hash and image quality are settled first: decoding an image takes a moment.
     const bytes = Buffer.from(input.base64, 'base64');
     const file = await prepareFile({ bytes });
@@ -144,4 +148,38 @@ export const addFile = defineAction({
     if (done.duplicate) await discard();
     return done;
   },
+});
+
+/**
+ * Reading an uploaded invoice with the model (R5-7, R5-8): `purchase.manage` (the framework) AND `ai.use` (here), the batch
+ * OPEN and in the actor's branch. It returns the file's status and the number of rows, never the rows. A file that could not
+ * be read comes back as data (`failureCode`), not as an error: the file stays usable and the batch open. Audit: ids, counts,
+ * status, flag codes, tokens and cost.
+ */
+const extractInput = phPlaceInput.extend({ fileId: z.string().min(1).max(64) });
+
+async function readInvoice(ctx: Parameters<Parameters<typeof defineAction>[0]['run']>[0], input: z.infer<typeof extractInput>) {
+  const { ph, scoped } = pharmacyOf(ctx);
+  assertMayIntake(ph);
+  const branchId = branchOf(input);
+  return extractFile(ctx.db, { ph, scoped, branchId, fileId: input.fileId, audit: (entry) => ctx.audit(entry) });
+}
+
+export const extract = defineAction({
+  name: 'ph.intake.extract',
+  permission: null,
+  ph: 'purchase.manage',
+  input: extractInput,
+  target: phTargetOf,
+  run: (ctx, input) => readInvoice(ctx, input),
+});
+
+/** Reading a file again after a failure: the same service (the claim, the attempt cap and the rule about reviewed rows decide). */
+export const retry = defineAction({
+  name: 'ph.intake.retry',
+  permission: null,
+  ph: 'purchase.manage',
+  input: extractInput,
+  target: phTargetOf,
+  run: (ctx, input) => readInvoice(ctx, input),
 });
