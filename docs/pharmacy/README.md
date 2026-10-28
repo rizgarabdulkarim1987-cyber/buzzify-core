@@ -1,9 +1,10 @@
-# Buzzify Pharmacy: phases 0 to 2
+# Buzzify Pharmacy: phases 0 to 3
 
 The pharmacy module runs a pharmacy business (sector `PHARMACY`) inside this repository, next to the menu and the
 cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plans:
-`docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md` and `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md`.
-This file covers what phases 0, 1 and 2 built, what they did not build, and the policies in force.
+`docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md`, `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md` and
+`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md`.
+This file covers what phases 0, 1, 2 and 3 built, what they did not build, and the policies in force.
 
 Nothing here is deployed. No migration has been run on production.
 
@@ -142,10 +143,99 @@ Quantities are whole numbers in the product's base unit. Money is `BigInt` minor
   `tests/pharmacy/request-reuse.test.ts`: product search 34 to 25, stock balances 28 to 19 (9 fewer per call). A
   query count, not a time measurement.
 
+**Phase 3: selling, shifts and cash, returns, receipts, scanner**
+
+Money is `BigInt` minor units with a currency beside it; a sale and all its payments are in one currency (IQD or USD).
+Every write below is one transaction, idempotent by `clientKey`, and audited with ids, numbers, totals and counts only
+(no customer field, no cost).
+
+- **Sale** (`ph.sales.create`, screen `/pharmacy/sell`): needs the seller's OPEN shift in the sale's currency. Each line
+  stores its own price (`unitPriceMinor`, `unitId`, `priceId`) at sale time, so a later price change never rewrites
+  history. A unit with no open price in the sale's currency at that branch cannot be sold (`NO_PRICE`), even by an
+  override. Stock is taken FEFO from available stock of ACTIVE, not-expired batches, under row locks (one SALE movement per
+  allocation); expired, recalled, quarantine, reserved and damaged stock is never allocated. `batch.override` plus a
+  reason picks a specific batch, `price.change` plus a reason overrides a price. The number is per branch per UTC day
+  (`YYYYMMDD-000123`). Lock order: sale key, shift (FOR SHARE), stock rows (batch ascending), number.
+- **Discounts and rounding.** Per line and per invoice (amount or percent), judged on the combined discount: up to
+  `PhSettings.maxDiscountPercent` (default 5) with `discount.apply`, above it `discount.over_limit` plus a reason.
+  Invoice rounding is an IQD-only setting (`roundingStepMinor`, 0 = none), applied to the total and never to a line; the
+  signed difference is stored (`roundingMinor`); it never turns a positive total into 0. USD is never rounded.
+- **Payments.** CASH (with change), CARD_MANUAL and TRANSFER_MANUAL (exact, recorded by hand, no gateway). A sale is
+  created paid in full. Mixed payments are allowed. Credit sales are not built.
+- **Rx levels.** OTC sells to any holder of `shift.use`; RX needs `rx.dispense` on the seller (the pharmacist id is stored
+  on the line); RESTRICTED (controlled) cannot be sold at all (`RESTRICTED_NOT_AVAILABLE`).
+- **Holds** (`ph.sales.hold/resume/discardHold/holds`): a cart stored for 24 hours with no stock, no payment and no number.
+  Completing it is `ph.sales.create` with `fromHoldId`, which consumes the hold in the same transaction (one winner).
+  Holds belong to the branch, not the holder; a hold needs the holder's open shift in the cart's currency.
+- **Shifts and cash** (`ph.shifts.open/close/current/report/list`, `ph.cash.paidIn/paidOut`, screen `/pharmacy/shifts`):
+  one OPEN shift per user and branch (partial unique index); the shift's currency is tied by composite foreign keys; a
+  trigger refuses a sale or return on a closed shift. Expected cash = opening float + cash payments - cash change - cash
+  refunds + paid in - paid out. Close stores counted, expected and variance. When the variance exceeds
+  `PhSettings.shiftVarianceLimitMinor` (0 = any difference), a reason is needed and a `report.view` holder must close it.
+  The shift report is checked against independent sums of the rows.
+- **Returns and cancel** (`ph.returns.create/preview/get/list/returnable`, `ph.sales.cancel`, screens `/pharmacy/returns`,
+  `/pharmacy/sales`): `return.approve` is needed and the approver's own OPEN shift receives the refund. A return is
+  limited to what was sold minus what was returned, per allocation; the units go to **QUARANTINE** of the same batch and
+  branch (movement RETURN_QUARANTINE) and sell again only after the phase 2 quarantine release. The refund is what was
+  paid net of change, pro rata; the final return takes the rounding difference. A sale older than `returnWindowDays`
+  (default 30) needs OWNER or BRANCH_MANAGER. A cancel is a full return of what remains. Nothing is deleted or edited.
+- **Receipts** (`ph.receipts.get/returnReceipt/reprint`, `src/server/pharmacy/receipt-print.ts`, pure builder and
+  renderers in `src/server/domain/pharmacy/receipt.ts`): HTML (with `@page`) and plain text for 80 mm and 58 mm, English,
+  Arabic and Kurdish, RTL aware, rendered from the stored rows and never from the screen. Golden files cover 58 and 80.
+  The first print is read-only and unlogged. A reprint carries a copy marker and writes one `PhReceiptReprint` row per
+  `clientKey` (user, width, reason, copy number); a repeated key returns the same copy. **A print failure is a screen state
+  only: nothing in the sale, payments, stock or shift changes** (acceptance test).
+- **Scanner** (`src/app/pharmacy/_ui/scanner.ts` plus a hook): keyboard-wedge capture (fast burst of characters then
+  Enter or Tab), a barcode is always a string so leading zeros survive, Arabic digits are read as Latin, duplicates and
+  stray characters are ignored. Camera scanning is not built.
+- **Sale screen**: central search and scan, results with strength, form and pack, cart with quantity, unit and discount,
+  FEFO batch strip, hold and resume, pay dialog, receipt view, shortcuts, an offline state that keeps the cart on the
+  device. The attempt keys are kept with the draft, so a reload after a lost answer replays the same sale instead of
+  selling twice. en, ar, ckb, RTL, no motion, 375/768/1280.
+- **Names, not ids.** `ph.people.names` returns the names of the business's own people for the ids shown on shift, sale and
+  return screens (name only; needs a till or report role; at most 50 ids).
+- **Isolation.** The sweep covers every phase 3 definition (other business, other branch, branch-limited person, the
+  STOCK role, a support grant, an accountant, a cashier). Enforcement allows only the sales, shifts, returns and receipt
+  services to write the sale, shift, cash, return and reprint tables.
+- **Migrations** (additive, eight): `20261028100000_pharmacy_sales`, `110000_pharmacy_sales_integrity`,
+  `120000_pharmacy_sale_payload_hash`, `130000_pharmacy_shift_closed_guard`, `140000_pharmacy_return_payload_hash`,
+  `150000_pharmacy_sale_hold_payload`, `160000_pharmacy_receipt_reprint_key`, `161000_pharmacy_receipt_reprint_reason`.
+
+**Permissions matrix (who may do what in phase 3)**
+
+| Action | Needs | Roles that hold it |
+|---|---|---|
+| Open a shift, sell, hold, paid in/out | `shift.use` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, PHARMACIST, CASHIER |
+| Close own shift | `shift.use` | the same |
+| Close another person's shift, read every shift report | `report.view` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT |
+| Close a shift whose variance is over the limit | `report.view` | the same (no named approver; the actor is recorded) |
+| Sell a prescription (RX) line | `rx.dispense` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, PHARMACIST |
+| Discount up to the limit / above it | `discount.apply` / `discount.over_limit` | all sellers / OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE |
+| Override a price | `price.change` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE |
+| Pick a batch by hand | `batch.override` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE |
+| Return or cancel a sale | `return.approve` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE (a CASHIER cannot) |
+| Release quarantine | `stock.adjust` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE |
+| Print and reprint a receipt | `shift.use` or `report.view` | all of the above plus ACCOUNTANT |
+| Sell a controlled (RESTRICTED) drug | nobody in phase 3 | none |
+
+The STOCK role and a support actor sell nothing and read no shift. The matrix lives in
+`src/server/domain/pharmacy/permissions.ts`; the isolation sweep pins the refusals.
+
 ## What is NOT built
 
-- **Phase 3 onward**: sales, shifts, receipts and scanner/printer support (phase 3); purchasing (4); AI intake (5);
-  transfers and chain reports (6); assistant, prescriptions, credit, advanced printing (7). Offline selling.
+- **Phase 4 onward**: purchasing (4); AI intake (5); transfers and chain reports (6); assistant, prescriptions, credit,
+  controlled-drug register, advanced printing (7). Offline selling (the sale is not queued; the screen says so and keeps
+  the cart).
+- **Phase 3 known limits.**
+  - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the **UTC** date and time (no timezone setting; a sale near midnight in Iraq, UTC+3, shows the wrong day on paper). The receipt footer is omitted (no field). Digits on paper are Latin.
+  - Mixed currency payment is not built (one currency per sale). A user selling in both currencies must close and reopen a shift (one OPEN shift per user and branch).
+  - A refund method is not capped per payment method: a mixed-payment sale can be refunded wholly in one method, so the drawer can pay cash it never received.
+  - `ph.sales.create` is not constant in queries: 29 fixed + 5 per stock allocation (59 for 3 lines, 149 for 12). The search is constant at 25. **Latency on Neon is not measured**; batching the ledger writes is the fix.
+  - `fromHoldId` is only a consumption token: the submitted cart is trusted. Expired holds are never purged; any seller can discard another's hold; the holds list shows 100 with a "more" flag and no cursor.
+  - Reprint reasons are free text and may contain a patient name: the UI says so. An accountant can reprint and close another person's drawer by the matrix.
+  - Payment order on a receipt follows the payment id. The shift report's held count may include holds that expired but were not yet flipped.
+  - The pharmacy end-to-end specs must run with `--workers=1` (the Application row is switched ACTIVE and back, and parallel workers race). `pharmacy-create.spec` needs the Super Admin setup. The sale screen and scanner hook were verified with Playwright, not in the in-app Browser pane; the print iframe is skipped by axe.
+  - ar and ckb strings of phase 3 are machine drafts, unreviewed by a native speaker.
 - **A supplier link for receipts.** A receipt carries a supplier name as text; there is no supplier record, and the
   supplier is not part of batch identity.
 - **Expiry MOVED and RETURNED are labels.** They record a decision and move no stock. Only DISPOSED changes stock.
@@ -234,10 +324,17 @@ npx eslint src tests
 BUZZIFY_DB_PORT=<port> npm test              # tests/pharmacy/** plus the whole suite
 BUZZIFY_DB_PORT=<port> npm run test:load     # seeds 50,000 products in the test DB itself, then wipes them
 E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-shell.spec.ts tests/e2e/pharmacy-catalog.spec.ts
+# phase 3 (serial: the specs flip Application(pharmacy) ACTIVE and back)
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-3.test.ts
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-sell.spec.ts tests/e2e/pharmacy-shifts-returns.spec.ts --workers=1
 ```
 
+Every vitest, prisma, tsx and playwright command takes `BUZZIFY_DB_PORT` (this worktree used 54503). Pharmacy e2e runs
+use `--workers=1`. The kill switch is `Application(pharmacy).status`: the specs set it `ACTIVE` and restore it; setting
+it `DISABLED` closes `/pharmacy` for everyone.
+
 The phase 0 and 1 acceptance scenarios are in `tests/pharmacy/acceptance-phase-0-1.test.ts`, those of phase 2 in
-`tests/pharmacy/acceptance-phase-2.test.ts`. Run one test file at a time: the suites share one test database. The standard
+`tests/pharmacy/acceptance-phase-2.test.ts`, those of phase 3 in `tests/pharmacy/acceptance-phase-3.test.ts`. Run one test file at a time: the suites share one test database. The standard
 `npm run test:e2e` setup needs the seeded ATELIER menu (`prisma db seed`) in the database it runs against.
 
 For a local catalog to browse, `npx tsx prisma/seed-load-pharmacy.ts` seeds 50,000 products. It refuses any database
@@ -248,8 +345,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-eleven pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2, all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+nineteen pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2 and the eight of phase 3 (listed under Phase 3 above), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -262,7 +359,7 @@ the five of phase 2, all additive (new tables, columns with defaults, indexes, a
 `main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
 `20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
 `20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
-`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other eleven folders). They run on
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other nineteen folders). They run on
 production in the same `migrate deploy`, so they need the same dry run.
 
 Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
@@ -271,7 +368,7 @@ of the migrations. The old five-column batch unique index (business, product, lo
 next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the eleven has been run against Neon.
+is not available yet, so none of the nineteen has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -297,7 +394,8 @@ the row ships DISABLED. So set it ACTIVE first, then start the trials, then give
 - **Owner decisions pending from phase 2:** the STOCK role cannot adjust; receiving needs `purchase.manage` and the
   pharmacist in charge holds it; the one-counter and second-person count rules; the `STALE_COUNT` refusal instead of
   merging overlapping counts; the default DISABLED state of the application. See section 16 of the spec.
-- **Before phase 3:** the isolation layer was re-tested for the phase 2 stock definitions
+- **Phase 3 owner list:** see the rulings table in section 16 of the spec (one OPEN shift per user and branch, strict NO_PRICE, UTC receipts, refund method not capped per method, accountant may reprint and close another drawer).
+- **Before phase 3 (done in phase 3):** the isolation layer was re-tested for the phase 2 stock definitions
   (`tests/pharmacy/isolation.test.ts`: other business, other branch, a branch-1-only person; it fails when a new `ph.*`
   definition has no entry). Rule 8 in `tests/studio/enforcement.test.ts` now recognises more base-client receivers and
   only `src/server/pharmacy/stock.ts` may write the stock tables. Still open: re-run the RLS spike, and time a search
