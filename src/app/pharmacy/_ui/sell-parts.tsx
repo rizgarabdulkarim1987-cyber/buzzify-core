@@ -1,4 +1,7 @@
-import type { ReactNode } from 'react';
+'use client';
+
+import type { ComponentProps, ReactNode } from 'react';
+import { useFieldProps } from '@/studio/ui/Field';
 
 /** A number, amount or date kept in reading order inside a right-to-left sentence. */
 export function Num({ children }: { children: ReactNode }) {
@@ -43,3 +46,14 @@ export const TOUCH = 'inline-flex min-h-11 min-w-11 items-center justify-center 
 export const TOUCH_BTN = `${TOUCH} border border-line-strong bg-raised text-text hover:bg-hover active:bg-pressed disabled:cursor-not-allowed disabled:opacity-45`;
 export const TOUCH_PRIMARY = `${TOUCH} bg-ink px-4 text-on-ink hover:bg-ink-hover disabled:cursor-not-allowed disabled:opacity-45`;
 export const FIELD = 'min-h-11 w-full min-w-0 rounded-md border border-line-strong bg-raised px-3 text-base text-text hover:border-muted/60 focus:border-ink aria-invalid:border-danger disabled:bg-surface disabled:text-muted';
+
+/** A text control inside a `Field`: takes the field's id and description so its label and error reach assistive technology. */
+export function FieldInput(props: ComponentProps<'input'>) {
+  const field = useFieldProps();
+  return <input {...field} {...props} />;
+}
+
+export function FieldSelect(props: ComponentProps<'select'>) {
+  const field = useFieldProps();
+  return <select {...field} {...props} />;
+}

@@ -13,7 +13,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
-import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
+import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import { cashShortcuts, formatMinor, newClientKey, paymentPreview, plainMinor, type Currency, type PayDraft, type PayMethod } from './sell-logic';
 
 // Pay -----------------------------------------------------------------------------------------------------------------
@@ -105,7 +105,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
         </fieldset>
 
         <Field label={t(draft.method === 'CASH' ? 'pharmacy.sell.pay.tendered' : 'pharmacy.sell.pay.amount')} hint={exact ? t('pharmacy.sell.pay.exactHint') : undefined} error={fieldError}>
-          <input
+          <FieldInput
             className={FIELD}
             dir="ltr"
             inputMode="decimal"
@@ -138,7 +138,7 @@ export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, prob
           </p>
         ) : (
           <Field label={t('pharmacy.sell.pay.reference')} optional>
-            <input className={FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
+            <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={200} value={draft.reference} onChange={(event) => setDraft({ ...draft, reference: event.target.value })} />
           </Field>
         )}
 
@@ -357,10 +357,10 @@ export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
           </dl>
           <div className="flex flex-wrap items-end gap-3">
             <Field label={t('pharmacy.sell.receipt.width')}>
-              <select className={`${FIELD} pe-8`} value={width} onChange={(event) => setWidth(event.target.value as '80' | '58')} data-testid="receipt-width">
+              <FieldSelect className={`${FIELD} pe-8`} value={width} onChange={(event) => setWidth(event.target.value as '80' | '58')} data-testid="receipt-width">
                 <option value="80">80 mm</option>
                 <option value="58">58 mm</option>
-              </select>
+              </FieldSelect>
             </Field>
             {receipt && receipt.copyNumber > 0 && <span className="pb-3 text-sm text-muted">{t('pharmacy.sell.receipt.copy', { n: receipt.copyNumber })}</span>}
           </div>

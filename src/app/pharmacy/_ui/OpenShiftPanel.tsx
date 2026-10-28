@@ -7,7 +7,7 @@ import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { useLocale, useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
-import { FIELD, Note, TOUCH_PRIMARY } from './sell-parts';
+import { FIELD, Note, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import { minorDigits, newClientKey, parseMoney, type Currency } from './sell-logic';
 import { useOnline } from './use-online';
 
@@ -59,13 +59,13 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
       <form onSubmit={(event) => void submit(event)} className="flex flex-col gap-4">
         {currencies.length > 1 && (
           <Field label={t('pharmacy.sell.shift.currency')}>
-            <select className={`${FIELD} pe-8`} value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} data-testid="shift-currency">
+            <FieldSelect className={`${FIELD} pe-8`} value={currency} onChange={(event) => setCurrency(event.target.value as Currency)} data-testid="shift-currency">
               {currencies.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
               ))}
-            </select>
+            </FieldSelect>
           </Field>
         )}
         <Field
@@ -73,7 +73,7 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
           hint={t('pharmacy.sell.shift.floatHint', { digits: minorDigits(currency) })}
           error={amount === null ? t('pharmacy.sell.pay.invalidAmount') : undefined}
         >
-          <input className={FIELD} dir="ltr" inputMode="decimal" autoComplete="off" autoFocus value={float} placeholder="0" data-testid="shift-float" onChange={(event) => setFloat(event.target.value)} />
+          <FieldInput className={FIELD} dir="ltr" inputMode="decimal" autoComplete="off" autoFocus value={float} placeholder="0" data-testid="shift-float" onChange={(event) => setFloat(event.target.value)} />
         </Field>
         {!online && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{t('pharmacy.sell.offline.banner')}</Note>}
         {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert" testId="shift-problem">{problem}</Note>}

@@ -152,7 +152,7 @@ describe('the cart reducer', () => {
 
 describe('the estimate', () => {
   const cart3 = () => {
-    let cart = withLines({ type: 'add', item: item() });
+    const cart = withLines({ type: 'add', item: item() });
     return cartReducer(cart, { type: 'qty', key: cart.lines[0]!.key, qty: 3 });
   };
 

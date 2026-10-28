@@ -38,7 +38,7 @@ import { Field } from '@/studio/ui/Field';
 import { OpenShiftPanel, type OpenShift } from './OpenShiftPanel';
 import { phMessage } from './ph-failure';
 import { AskDialog, HoldsDialog, PayDialog, ReceiptDialog } from './SellDialogs';
-import { Chip, FIELD, Note, Num, TOUCH, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
+import { Chip, FIELD, Note, Num, TOUCH, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import {
   buildCartRequest,
   buildPayment,
@@ -485,7 +485,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
           <Field label={t('pharmacy.sell.search.label')} hint={t('pharmacy.sell.search.hint')}>
             <div className="relative">
               <Search aria-hidden className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-muted" />
-              <input
+              <FieldInput
                 ref={searchBox}
                 type="search"
                 dir="auto"
@@ -606,7 +606,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                   />
                   {anyDiscount && (
                     <Field label={t('pharmacy.sell.discount.reason')} hint={t('pharmacy.sell.discount.reasonHint', { percent: settings.maxDiscountPercent })} optional>
-                      <input className={FIELD} dir="auto" autoComplete="off" maxLength={300} data-testid="discount-reason" value={cart.discountReason} onChange={(event) => dispatch({ type: 'discountReason', reason: event.target.value })} />
+                      <FieldInput className={FIELD} dir="auto" autoComplete="off" maxLength={300} data-testid="discount-reason" value={cart.discountReason} onChange={(event) => dispatch({ type: 'discountReason', reason: event.target.value })} />
                     </Field>
                   )}
                 </div>
@@ -826,7 +826,7 @@ function DiscountEditor({
   return (
     <div className="flex flex-wrap items-end gap-2" data-testid={testId}>
       <Field label={label} className="min-w-0 flex-1 basis-32">
-        <input
+        <FieldInput
           className={FIELD}
           dir="ltr"
           inputMode="decimal"
@@ -932,7 +932,7 @@ function CartRow({
         </div>
         {line.units.length > 1 ? (
           <select
-            className={`${FIELD} w-auto min-w-24 flex-1 pe-6`}
+            className={`${FIELD} w-auto min-w-36 flex-1 pe-6`}
             aria-label={t('pharmacy.sell.cart.unit')}
             data-testid="unit-select"
             value={line.unitId}
@@ -973,7 +973,7 @@ function CartRow({
             {perms.batchOverride && line.batches.length > 0 && (
               <>
                 <Field label={t('pharmacy.sell.batch.label')} hint={t('pharmacy.sell.batch.hint')}>
-                  <select
+                  <FieldSelect
                     className={`${FIELD} pe-8`}
                     data-testid="batch-select"
                     value={line.batchId ?? ''}
@@ -988,11 +988,11 @@ function CartRow({
                         {b.lot} · {b.expiryDate.slice(0, 7)} · {b.available}
                       </option>
                     ))}
-                  </select>
+                  </FieldSelect>
                 </Field>
                 {line.batchId && (
                   <Field label={t('pharmacy.sell.batch.reason')} error={line.batchReason.trim().length < 3 ? t('pharmacy.sell.batch.reasonNeeded') : undefined}>
-                    <input
+                    <FieldInput
                       className={FIELD}
                       dir="auto"
                       autoComplete="off"
