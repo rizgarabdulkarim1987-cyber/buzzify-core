@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
-import { canTransition, type PoStatus } from '@/server/domain/pharmacy/purchasing';
+import { canTransition, checkReceipt, poStatusAfterReceipt, PurchasingError, type PoStatus } from '@/server/domain/pharmacy/purchasing';
 import { saleNumber } from '@/server/domain/pharmacy/sale';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -18,7 +18,9 @@ import { cleanText, NS_CLIENT_KEY, PAGE_SIZE } from './suppliers';
  *
  * Lock order of this phase (header comment of every service that locks): client key (advisory, namespace 7201) -> PO row
  * FOR UPDATE -> receipt line counters FOR UPDATE -> invoice rows FOR UPDATE ordered by id -> stock rows (phase 2/3 order)
- * -> number lock (7202). This file takes the client key, the PO row, then the number lock.
+ * -> number lock (7202). This file takes the client key, the PO row, then the number lock. Receiving against an order
+ * (`lockOrderForReceipt`, called first by `confirmReceipt`) takes the PO row and then its lines ordered by id, before the
+ * receipt's branch lock and the stock rows; the received counters are written only here (`applyReceiptToOrder`).
  */
 
 /** The advisory-lock namespace of purchase order numbering (the second int is `hashtext(po:branchId)`). */
@@ -344,6 +346,153 @@ export function closePurchaseOrder(
   args: { restaurantId: string; purchaseOrderId: string; expectedVersion: number; userId: string; reason: string; now?: Date },
 ): Promise<PoChanged> {
   return moveTo(tx, args, 'CLOSED', { closedAt: args.now ?? new Date(), closedById: args.userId, closeReason: args.reason });
+}
+
+// Receiving against an order (R4-3) --------------------------------------------------------------------------------------
+
+const notOnOrder = (field: string) => invalid(field, 'This product is not on the order', { phCode: 'NOT_ON_ORDER' });
+const orderNotOpen = () => new StudioError('CONFLICT', 'This order is not open for receiving', { phCode: 'ORDER_NOT_OPEN' });
+const supplierMismatch = () => invalid('supplierId', 'This supplier is not the order’s supplier', { phCode: 'SUPPLIER_MISMATCH' });
+const overReceipt = () => new StudioError('CONFLICT', 'More was received than was ordered', { phCode: 'OVER_RECEIPT' });
+
+/** What a receipt draft says about its supplier and order, as the receipts service validates it. */
+export interface ReceiptLinksInput {
+  supplierId?: string | undefined;
+  purchaseOrderId?: string | undefined;
+  supplierName: string;
+  lines: readonly { productId: string; unitId: string; purchaseOrderLineId?: string | undefined }[];
+}
+
+/**
+ * Checks a receipt draft's supplier and order against the business and the receipt's branch, and returns what to store:
+ * with an order, its supplier (a different `supplierId` is refused) and every line on one of its lines (same product and
+ * unit); without one, a live supplier at most and no order line. The name text is filled from the supplier when empty.
+ * An order of another branch or business is not found. Counters are not touched: a draft reserves nothing.
+ */
+export async function resolveReceiptLinks(
+  tx: ScopedTx,
+  args: { branchId: string; input: ReceiptLinksInput },
+): Promise<{ supplierId: string | null; purchaseOrderId: string | null; supplierName: string }> {
+  const { input } = args;
+  if (!input.purchaseOrderId) {
+    input.lines.forEach((l, i) => {
+      if (l.purchaseOrderLineId) throw notOnOrder(`lines.${i}.purchaseOrderLineId`);
+    });
+    if (!input.supplierId) return { supplierId: null, purchaseOrderId: null, supplierName: input.supplierName };
+    const supplier = await tx.phSupplier.findFirst({ where: { id: input.supplierId }, select: { name: true, active: true } });
+    if (!supplier) throw new StudioError('NOT_FOUND', 'Supplier not found');
+    if (!supplier.active) throw archived();
+    return { supplierId: input.supplierId, purchaseOrderId: null, supplierName: input.supplierName || supplier.name };
+  }
+  const order = await tx.phPurchaseOrder.findFirst({
+    where: { id: input.purchaseOrderId },
+    select: { branchId: true, supplierId: true, status: true, supplier: { select: { name: true } }, lines: { select: { id: true, productId: true, unitId: true } } },
+  });
+  if (!order || order.branchId !== args.branchId) throw notFound();
+  if (order.status !== 'ORDERED' && order.status !== 'PARTIAL') throw orderNotOpen();
+  if (input.supplierId && input.supplierId !== order.supplierId) throw supplierMismatch();
+  const byId = new Map(order.lines.map((l) => [l.id, l]));
+  input.lines.forEach((l, i) => {
+    const target = l.purchaseOrderLineId ? byId.get(l.purchaseOrderLineId) : undefined;
+    if (!target || target.productId !== l.productId || target.unitId !== l.unitId) throw notOnOrder(`lines.${i}.purchaseOrderLineId`);
+  });
+  return { supplierId: order.supplierId, purchaseOrderId: input.purchaseOrderId, supplierName: input.supplierName || order.supplier.name };
+}
+
+/**
+ * The first step of confirming a receipt for an order: lock the order row, then its lines ordered by id, and refuse an
+ * order that is no longer ORDERED or PARTIAL (a cancel or close that committed first wins). A parallel cancel or close
+ * waits on the same row lock, so it can never end CANCELLED while this adds to the counters.
+ */
+export async function lockOrderForReceipt(tx: ScopedTx, args: { restaurantId: string; purchaseOrderId: string }): Promise<void> {
+  const head = await lockHead(tx, args.restaurantId, args.purchaseOrderId);
+  // eslint-disable-next-line no-restricted-properties -- row locks on the order's lines, in id order (R4-11), after the order row
+  await tx.$queryRaw`SELECT "id" FROM "PhPurchaseOrderLine" WHERE "purchaseOrderId" = ${args.purchaseOrderId} AND "restaurantId" = ${args.restaurantId} ORDER BY "id" FOR UPDATE`;
+  if (head.status !== 'ORDERED' && head.status !== 'PARTIAL') throw orderNotOpen();
+}
+
+/**
+ * Adds a confirmed receipt's quantities to the order's line counters (the only place they are written) and moves the
+ * order's status and version. The caller holds `lockOrderForReceipt`. Quantity and bonus are checked separately against
+ * what was ordered, over everything already received: more is `OVER_RECEIPT` (the caller's transaction rolls back).
+ */
+export async function applyReceiptToOrder(
+  tx: ScopedTx,
+  args: { purchaseOrderId: string; lines: readonly { purchaseOrderLineId: string | null; qty: number; bonusQty: number }[] },
+): Promise<{ before: PoStatus; after: PoStatus }> {
+  const order = await tx.phPurchaseOrder.findFirst({ where: { id: args.purchaseOrderId }, select: { id: true, status: true, version: true } });
+  if (!order) throw notFound();
+  const orderLines = await tx.phPurchaseOrderLine.findMany({
+    where: { purchaseOrderId: args.purchaseOrderId },
+    select: { id: true, qtyOrdered: true, bonusOrdered: true, receivedQty: true, receivedBonus: true },
+    orderBy: { id: 'asc' },
+  });
+  const byId = new Map(orderLines.map((l) => [l.id, l]));
+  const sums = new Map<string, { qty: number; bonus: number }>();
+  for (const l of args.lines) {
+    if (!l.purchaseOrderLineId || !byId.has(l.purchaseOrderLineId)) throw notOnOrder('lines');
+    const sum = sums.get(l.purchaseOrderLineId) ?? { qty: 0, bonus: 0 };
+    sums.set(l.purchaseOrderLineId, { qty: sum.qty + l.qty, bonus: sum.bonus + l.bonusQty });
+  }
+  for (const [id, sum] of [...sums].sort(([a], [b]) => (a < b ? -1 : 1))) {
+    const line = byId.get(id)!;
+    try {
+      const next = checkReceipt(line, sum.qty, sum.bonus);
+      await tx.phPurchaseOrderLine.update({ where: { id }, data: { receivedQty: next.receivedQty, receivedBonus: next.receivedBonus } });
+      line.receivedQty = next.receivedQty;
+      line.receivedBonus = next.receivedBonus;
+    } catch (error) {
+      if (error instanceof PurchasingError && error.code === 'OVER_RECEIPT') throw overReceipt();
+      throw error;
+    }
+  }
+  const after = poStatusAfterReceipt(orderLines);
+  if (!canTransition(order.status, after, true)) throw badTransition();
+  await updateWithVersion(tx.phPurchaseOrder, { id: order.id, version: order.version, data: { status: after }, entityType: 'PhPurchaseOrder' }, tx);
+  return { before: order.status, after };
+}
+
+export interface OrderReceiptView {
+  id: string;
+  number: string | null;
+  status: 'DRAFT' | 'CONFIRMED' | 'VOID';
+  receivedOn: string;
+  lines: { purchaseOrderLineId: string | null; productName: string; unitLabel: string; qty: number; bonusQty: number; lot: string; expiryDate: string }[];
+}
+
+/** The receipts (confirmed and draft, not void) answering one order, oldest first. No money. */
+export async function listOrderReceipts(scoped: ScopedClient, purchaseOrderId: string): Promise<OrderReceiptView[]> {
+  const order = await scoped.phPurchaseOrder.findFirst({ where: { id: purchaseOrderId }, select: { id: true } });
+  if (!order) throw notFound();
+  const rows = await scoped.phReceipt.findMany({
+    where: { purchaseOrderId, status: { not: 'VOID' } },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    select: {
+      id: true,
+      number: true,
+      status: true,
+      receivedOn: true,
+      lines: {
+        orderBy: { lineNo: 'asc' },
+        select: { purchaseOrderLineId: true, qty: true, bonusQty: true, lot: true, expiryDate: true, product: { select: { tradeName: true } }, unit: { select: { label: true } } },
+      },
+    },
+  });
+  return rows.map((r) => ({
+    id: r.id,
+    number: r.number,
+    status: r.status,
+    receivedOn: iso(r.receivedOn),
+    lines: r.lines.map((l) => ({
+      purchaseOrderLineId: l.purchaseOrderLineId,
+      productName: l.product.tradeName,
+      unitLabel: l.unit.label,
+      qty: l.qty,
+      bonusQty: l.bonusQty,
+      lot: l.lot,
+      expiryDate: iso(l.expiryDate),
+    })),
+  }));
 }
 
 // Reads ------------------------------------------------------------------------------------------------------------------

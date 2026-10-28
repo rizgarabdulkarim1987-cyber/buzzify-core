@@ -306,6 +306,7 @@ const CASES: Record<string, Case> = {
   'ph.po.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.po.get': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.po.suggest': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.po.receipts': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -341,7 +342,7 @@ describe('the pharmacy isolation sweep', () => {
   it('covers every phase 4 supplier and purchase order definition', () => {
     const names = [...DEFINITIONS.keys()];
     expect(names.filter((name) => name.startsWith('ph.suppliers.')).sort()).toEqual(['ph.suppliers.archive', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.update']);
-    expect(names.filter((name) => name.startsWith('ph.po.')).sort()).toEqual(['ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.suggest', 'ph.po.update']);
+    expect(names.filter((name) => name.startsWith('ph.po.')).sort()).toEqual(['ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.receipts', 'ph.po.suggest', 'ph.po.update']);
     expect(names.filter((name) => (name.startsWith('ph.suppliers.') || name.startsWith('ph.po.')) && CASES[name] === undefined)).toEqual([]);
   });
 

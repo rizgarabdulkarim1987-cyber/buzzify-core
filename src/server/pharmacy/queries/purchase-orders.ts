@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { getPurchaseOrder, listPurchaseOrders, poListInput, poSuggestInput, suggestOrders } from '@/server/pharmacy/purchase-orders';
+import { getPurchaseOrder, listOrderReceipts, listPurchaseOrders, poListInput, poSuggestInput, suggestOrders } from '@/server/pharmacy/purchase-orders';
 import { assertStaff } from '@/server/pharmacy/receipts';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
@@ -35,6 +35,19 @@ export const get = defineQuery({
     const { ph, scoped } = pharmacyOf(ctx);
     assertStaff(ph);
     return getPurchaseOrder(scoped, ph, input.purchaseOrderId);
+  },
+});
+
+export const receipts = defineQuery({
+  name: 'ph.po.receipts',
+  permission: null,
+  ph: 'purchase.manage',
+  input: phPlaceInput.extend({ purchaseOrderId: z.string().min(1).max(64) }),
+  target: phTargetOf,
+  run(ctx, input) {
+    const { ph, scoped } = pharmacyOf(ctx);
+    assertStaff(ph);
+    return listOrderReceipts(scoped, input.purchaseOrderId);
   },
 });
 

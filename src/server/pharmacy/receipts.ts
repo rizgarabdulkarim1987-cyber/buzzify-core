@@ -5,6 +5,7 @@ import { mayViewCost } from '@/server/pharmacy/products';
 import { toBase } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { applyReceiptToOrder, lockOrderForReceipt, resolveReceiptLinks } from './purchase-orders';
 import { applyMovement, lockOrder } from './stock';
 
 /**
@@ -49,6 +50,8 @@ export const receiptLineInput = z
     currency: z.enum(['IQD', 'USD'], 'Choose IQD or USD'),
     freeOfCharge: z.boolean().default(false),
     acceptExpired: z.boolean().default(false),
+    /** Phase 4: the order line this line answers (required for every line of a receipt that names an order). */
+    purchaseOrderLineId: z.string().min(1).max(64).optional(),
   })
   .superRefine((line, ctx) => {
     if (line.unitCostMinor === 0n && !line.freeOfCharge) {
@@ -60,6 +63,10 @@ export type ReceiptLineInput = z.infer<typeof receiptLineInput>;
 /** What a person enters for a draft; the pharmacy and branch come from the place. */
 export const receiptInput = z.object({
   supplierName: z.string().trim().max(200, 'Use at most 200 characters').default(''),
+  /** Phase 4: a live supplier of the business; with an order it must be the order's own. */
+  supplierId: z.string().min(1).max(64).optional(),
+  /** Phase 4: receive against this order (ORDERED or PARTIAL, of the receipt's branch). */
+  purchaseOrderId: z.string().min(1).max(64).optional(),
   reference: z.string().trim().max(100, 'Use at most 100 characters').default(''),
   receivedOn: dateText,
   note: z.string().trim().max(1000, 'Use at most 1000 characters').default(''),
@@ -96,6 +103,7 @@ interface LineRow {
   costCurrency: 'IQD' | 'USD';
   freeOfCharge: boolean;
   acceptExpired: boolean;
+  purchaseOrderLineId: string | null;
 }
 
 /**
@@ -139,6 +147,7 @@ async function lineRows(tx: ScopedTx, restaurantId: string, receiptId: string, l
       costCurrency: l.currency,
       freeOfCharge: l.freeOfCharge,
       acceptExpired: l.acceptExpired,
+      purchaseOrderLineId: l.purchaseOrderLineId ?? null,
     };
   });
 }
@@ -159,6 +168,8 @@ const REPLAY_SELECT = {
   status: true,
   branchId: true,
   supplierName: true,
+  supplierId: true,
+  purchaseOrderId: true,
   invoiceRef: true,
   receivedOn: true,
   note: true,
@@ -174,6 +185,8 @@ type ReplayRow = {
   status: 'DRAFT' | 'CONFIRMED' | 'VOID';
   branchId: string;
   supplierName: string;
+  supplierId: string | null;
+  purchaseOrderId: string | null;
   invoiceRef: string;
   receivedOn: Date;
   note: string;
@@ -191,9 +204,14 @@ async function replayOf(
 ): Promise<DraftResult> {
   const { input } = args;
   const rows = await lineRows(tx, args.restaurantId, existing.id, input.lines);
+  // The name is filled from the supplier when left empty; a repeat compares what it would have been stored as.
+  const filledName =
+    input.supplierName || (existing.supplierId ? ((await tx.phSupplier.findFirst({ where: { id: existing.supplierId }, select: { name: true } }))?.name ?? '') : '');
   const same =
     existing.branchId === args.branchId &&
-    existing.supplierName === input.supplierName &&
+    existing.supplierName === filledName &&
+    existing.purchaseOrderId === (input.purchaseOrderId ?? null) &&
+    (input.supplierId === undefined || existing.supplierId === input.supplierId) &&
     existing.invoiceRef === input.reference &&
     iso(existing.receivedOn) === input.receivedOn &&
     existing.note === input.note &&
@@ -210,7 +228,8 @@ async function replayOf(
         e.unitCostMinor === r.unitCostMinor &&
         e.costCurrency === r.costCurrency &&
         e.freeOfCharge === r.freeOfCharge &&
-        e.acceptExpired === r.acceptExpired
+        e.acceptExpired === r.acceptExpired &&
+        e.purchaseOrderLineId === r.purchaseOrderLineId
       );
     });
   if (!same) throw keyMismatch();
@@ -228,12 +247,15 @@ export async function createDraft(
 ): Promise<DraftResult> {
   const existing = await tx.phReceipt.findFirst({ where: { clientKey: args.clientKey }, select: REPLAY_SELECT });
   if (existing) return replayOf(tx, existing as unknown as ReplayRow, args);
+  const links = await resolveReceiptLinks(tx, { branchId: args.branchId, input: args.input });
   const receipt = await tx.phReceipt.create({
     data: {
       restaurantId: args.restaurantId,
       branchId: args.branchId,
       clientKey: args.clientKey,
-      supplierName: args.input.supplierName,
+      supplierName: links.supplierName,
+      supplierId: links.supplierId,
+      purchaseOrderId: links.purchaseOrderId,
       invoiceRef: args.input.reference,
       receivedOn: midnight(args.input.receivedOn),
       note: args.input.note,
@@ -252,10 +274,16 @@ export async function updateDraft(
   args: { restaurantId: string; receiptId: string; expectedVersion: number; input: ReceiptInput },
 ): Promise<{ id: string; version: number; lineCount: number }> {
   const rows = await lineRows(tx, args.restaurantId, args.receiptId, args.input.lines);
+  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, status: true } });
+  if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
+  if (head.status !== 'DRAFT') throw notDraft();
+  const links = await resolveReceiptLinks(tx, { branchId: head.branchId, input: args.input });
   const won = await tx.phReceipt.updateMany({
     where: { id: args.receiptId, status: 'DRAFT', version: args.expectedVersion },
     data: {
-      supplierName: args.input.supplierName,
+      supplierName: links.supplierName,
+      supplierId: links.supplierId,
+      purchaseOrderId: links.purchaseOrderId,
       invoiceRef: args.input.reference,
       receivedOn: midnight(args.input.receivedOn),
       note: args.input.note,
@@ -263,9 +291,9 @@ export async function updateDraft(
     },
   });
   if (won.count !== 1) {
-    const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { status: true } });
-    if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
-    if (head.status !== 'DRAFT') throw notDraft();
+    const now = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { status: true } });
+    if (!now) throw new StudioError('NOT_FOUND', 'Receipt not found');
+    if (now.status !== 'DRAFT') throw notDraft();
     throw new StudioError('CONFLICT', 'Someone else changed this receipt: reload it');
   }
   await tx.phReceiptLine.deleteMany({ where: { receiptId: args.receiptId } });
@@ -304,6 +332,8 @@ export interface ConfirmResult {
   warnings: ConfirmWarning[];
   lines: number;
   baseQty: number;
+  /** Set when the receipt answered an order: its id and the order's status before and after. */
+  order: { id: string; before: string; after: string } | null;
 }
 
 const numberOf = (n: number) => `R-${String(n).padStart(6, '0')}`;
@@ -357,8 +387,11 @@ export async function confirmReceipt(
   args: { restaurantId: string; receiptId: string; userId: string; now?: Date },
 ): Promise<ConfirmResult> {
   const now = args.now ?? new Date();
-  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, supplierName: true } });
+  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, supplierName: true, purchaseOrderId: true } });
   if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
+  // A receipt for an order takes the order's row (and its lines) before anything else (R4-11): a parallel cancel or close
+  // waits for it, and a second receipt for the last ordered units waits and then finds them gone.
+  if (head.purchaseOrderId) await lockOrderForReceipt(tx, { restaurantId: args.restaurantId, purchaseOrderId: head.purchaseOrderId });
 
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's receipts
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-receipt:${head.branchId}`}))`;
@@ -406,6 +439,8 @@ export async function confirmReceipt(
     }
   });
 
+  const order = head.purchaseOrderId ? { id: head.purchaseOrderId, ...(await applyReceiptToOrder(tx, { purchaseOrderId: head.purchaseOrderId, lines })) } : null;
+
   const warnings: ConfirmWarning[] = [];
   const planned: { batchId: string; line: (typeof lines)[number]; quarantine: boolean }[] = [];
   for (const line of lines) {
@@ -452,6 +487,7 @@ export async function confirmReceipt(
     warnings: warnings.sort((a, b) => a.lineNo - b.lineNo),
     lines: lines.length,
     baseQty: lines.reduce((sum, l) => sum + l.baseQty, 0),
+    order: order ? { id: order.id, before: order.before, after: order.after } : null,
   };
 }
 
@@ -468,6 +504,9 @@ export interface ReceiptSummary {
   status: 'DRAFT' | 'CONFIRMED' | 'VOID';
   branchId: string;
   supplierName: string;
+  supplierId?: string | null;
+  purchaseOrderId?: string | null;
+  purchaseOrderNumber?: string | null;
   reference: string;
   receivedOn: string;
   lineCount: number;
@@ -488,6 +527,9 @@ export async function listReceipts(
       status: true,
       branchId: true,
       supplierName: true,
+      supplierId: true,
+      purchaseOrderId: true,
+      purchaseOrder: { select: { number: true } },
       invoiceRef: true,
       receivedOn: true,
       version: true,
@@ -507,6 +549,9 @@ export async function listReceipts(
       status: r.status,
       branchId: r.branchId,
       supplierName: r.supplierName,
+      supplierId: r.supplierId,
+      purchaseOrderId: r.purchaseOrderId,
+      purchaseOrderNumber: r.purchaseOrder?.number ?? null,
       reference: r.invoiceRef,
       receivedOn: iso(r.receivedOn),
       lineCount: r._count.lines,
@@ -532,9 +577,12 @@ export interface ReceiptLineView {
   freeOfCharge: boolean;
   acceptExpired: boolean;
   batchId: string | null;
+  purchaseOrderLineId?: string | null;
   /** Present only for a role with `cost.view`. */
   unitCostMinor?: string | null;
   currency?: 'IQD' | 'USD' | null;
+  /** Present only for a role with `cost.view`, and only on a line of an order: what the order agreed per unit. */
+  orderUnitCostMinor?: string | null;
 }
 
 export interface ReceiptDetail extends ReceiptSummary {
@@ -548,9 +596,10 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
   const r = await scoped.phReceipt.findFirst({
     where: { id: receiptId },
     include: {
+      purchaseOrder: { select: { number: true } },
       lines: {
         orderBy: { lineNo: 'asc' },
-        include: { product: { select: { tradeName: true } }, unit: { select: { label: true } } },
+        include: { product: { select: { tradeName: true } }, unit: { select: { label: true } }, purchaseOrderLine: { select: { unitCostMinor: true } } },
       },
     },
   });
@@ -562,6 +611,9 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
     status: r.status,
     branchId: r.branchId,
     supplierName: r.supplierName,
+    supplierId: r.supplierId,
+    purchaseOrderId: r.purchaseOrderId,
+    purchaseOrderNumber: r.purchaseOrder?.number ?? null,
     reference: r.invoiceRef,
     receivedOn: iso(r.receivedOn),
     lineCount: r.lines.length,
@@ -584,7 +636,14 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
       freeOfCharge: l.freeOfCharge,
       acceptExpired: l.acceptExpired,
       batchId: l.batchId,
-      ...(withCost ? { unitCostMinor: l.unitCostMinor === null ? null : String(l.unitCostMinor), currency: l.costCurrency } : {}),
+      purchaseOrderLineId: l.purchaseOrderLineId,
+      ...(withCost
+        ? {
+            unitCostMinor: l.unitCostMinor === null ? null : String(l.unitCostMinor),
+            currency: l.costCurrency,
+            orderUnitCostMinor: l.purchaseOrderLine ? String(l.purchaseOrderLine.unitCostMinor) : null,
+          }
+        : {}),
     })),
   };
 }

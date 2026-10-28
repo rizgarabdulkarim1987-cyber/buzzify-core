@@ -38,7 +38,12 @@ export const create = defineAction({
             action: 'ph.receipt.create',
             entityType: 'PhReceipt',
             entityId: made.id,
-            changes: { status: { before: null, after: 'DRAFT' }, branchId: { before: null, after: branchId }, lineCount: { before: null, after: made.lineCount } },
+            changes: {
+              status: { before: null, after: 'DRAFT' },
+              branchId: { before: null, after: branchId },
+              lineCount: { before: null, after: made.lineCount },
+              ...(input.purchaseOrderId ? { purchaseOrderId: { before: null, after: input.purchaseOrderId } } : {}),
+            },
           });
         }
         return made;
@@ -99,6 +104,7 @@ export const confirm = defineAction({
           lineCount: { before: null, after: done.lines },
           baseQty: { before: null, after: done.baseQty },
           costDiffers: { before: null, after: done.warnings.length },
+          ...(done.order ? { purchaseOrderId: { before: null, after: done.order.id }, orderStatus: { before: done.order.before, after: done.order.after } } : {}),
         },
       });
       return done;
