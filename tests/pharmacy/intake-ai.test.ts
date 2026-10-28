@@ -2,19 +2,21 @@ import { createHash } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AiProviderError } from '@/server/ai/errors';
 import { FakeProvider } from '@/server/ai/provider/fake';
+import { setAiProviderForTests } from '@/server/ai/provider';
 import type { AiRequest, AiResponse } from '@/server/ai/provider/types';
 import { parseAiPricingEnv } from '@/server/env';
-import { estimateCostMicroUsd } from '@/server/domain/pharmacy/intake';
+import { estimateCostMicroUsd, fitsContext, INPUT_BOUND, inputTokensUpperBound } from '@/server/domain/pharmacy/intake';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import {
   claimFileForExtraction,
   estimateInputTokens,
-  reclaimStaleReservations,
   releaseFile,
   runPharmacyAi,
+  sweepAiReservations,
   usageView,
   worstCaseMicroUsd,
   type AiPricing,
+  type CallAudit,
   type RunArgs,
 } from '@/server/pharmacy/intake/ai';
 import * as intakeQueries from '@/server/pharmacy/queries/intake';
@@ -30,7 +32,9 @@ const REQ: Omit<AiRequest, 'signal' | 'maxTokens' | 'purpose'> = {
   messages: [{ role: 'user', content: [{ type: 'text', text: 'INVOICE-SECRET-TEXT 12 x Panadol' }] }],
 };
 /** The output cap that makes the worst case of REQ exactly one cent. */
-const ONE_CENT_OUT = 10_000 - estimateInputTokens(REQ);
+const ONE_CENT_OUT = 10_000 - estimateInputTokens(REQ)!;
+/** What a timeout or abort books: the input side of the worst case (output cost removed). */
+const INPUT_SIDE = BigInt(estimateInputTokens(REQ)!);
 
 let fileSeq = 0;
 const fid = () => `file-${(fileSeq += 1)}-ai`;
@@ -44,6 +48,23 @@ class SlowFake extends FakeProvider {
   override async complete(req: AiRequest): Promise<AiResponse> {
     this.reached += 1;
     if (this.delayMs) await new Promise((r) => setTimeout(r, this.delayMs));
+    return super.complete(req);
+  }
+}
+
+/** A fake model that holds every call at the gate until `release()`: calls overlap with no timing assumptions. */
+class GatedFake extends FakeProvider {
+  reached = 0;
+  private open!: () => void;
+  private readonly gate = new Promise<void>((resolve) => {
+    this.open = resolve;
+  });
+  release() {
+    this.open();
+  }
+  override async complete(req: AiRequest): Promise<AiResponse> {
+    this.reached += 1;
+    await this.gate;
     return super.complete(req);
   }
 }
@@ -71,8 +92,11 @@ async function world(opts: { budgetCents?: number; subscription?: 'ACTIVE' | 'no
 }
 type World = Awaited<ReturnType<typeof world>>;
 
-const call = (w: World, over: Partial<RunArgs> = {}, opts: Parameters<typeof runPharmacyAi>[2] = {}) =>
-  runPharmacyAi(prisma(), { restaurantId: w.a.id, fileId: fid(), purpose: 'extract', input: REQ, maxOutputTokens: ONE_CENT_OUT, now: NOW, ...over }, { pricing: PRICE, ...opts });
+/** A call on a file this test claimed (EXTRACTING since NOW) unless it names one. */
+const call = async (w: World, over: Partial<RunArgs> = {}, opts: Parameters<typeof runPharmacyAi>[2] = {}) => {
+  const fileId = over.fileId ?? (await seedFile(w, 'EXTRACTING', NOW));
+  return runPharmacyAi(prisma(), { restaurantId: w.a.id, fileId, lease: NOW, purpose: 'extract', input: REQ, maxOutputTokens: ONE_CENT_OUT, now: NOW, ...over }, { pricing: PRICE, ...opts });
+};
 
 const usageRow = (w: World, month = '2026-10') => prisma().phAiUsageMonth.findUnique({ where: { restaurantId_month: { restaurantId: w.a.id, month } } });
 const calls = (w: World) => prisma().phAiCall.findMany({ where: { restaurantId: w.a.id }, orderBy: { createdAt: 'asc' } });
@@ -139,13 +163,34 @@ describe('the pricing environment', () => {
   });
 });
 
+describe('the input size bound (pure)', () => {
+  it('counts text by bytes / 3, an image by its stored size capped, a PDF by its pages, plus the overhead', () => {
+    expect(inputTokensUpperBound(0, [])).toBe(INPUT_BOUND.overheadTokens);
+    expect(inputTokensUpperBound(3_000, [])).toBe(1_000 + INPUT_BOUND.overheadTokens);
+    expect(inputTokensUpperBound(Buffer.byteLength('فاتورة'.repeat(100)), [])).toBe(Math.ceil(Buffer.byteLength('فاتورة'.repeat(100)) / 3) + INPUT_BOUND.overheadTokens);
+    expect(inputTokensUpperBound(0, [{ kind: 'image', widthPx: 100, heightPx: 75 }])).toBe(INPUT_BOUND.overheadTokens + 2 * 10);
+    expect(inputTokensUpperBound(0, [{ kind: 'image', widthPx: 4000, heightPx: 6000 }])).toBe(INPUT_BOUND.overheadTokens + INPUT_BOUND.imageTokensMax);
+    expect(inputTokensUpperBound(0, [{ kind: 'pdf', pages: 10 }])).toBe(INPUT_BOUND.overheadTokens + 10 * INPUT_BOUND.pdfPageTokensMax);
+  });
+
+  it('cannot bound a missing, zero, fractional or absurd hint, or an eleven page PDF', () => {
+    for (const bad of [{ kind: 'image', widthPx: 0, heightPx: 10 }, { kind: 'image', widthPx: 1.5, heightPx: 10 }, { kind: 'pdf', pages: 11 }, { kind: 'pdf', pages: 0 }] as const) {
+      expect(inputTokensUpperBound(10, [bad])).toBeNull();
+    }
+    expect(inputTokensUpperBound(-1, [])).toBeNull();
+    expect(fitsContext(INPUT_BOUND.contextTokens - 100, 100)).toBe(true);
+    expect(fitsContext(INPUT_BOUND.contextTokens - 100, 101)).toBe(false);
+  });
+});
+
 describe('refusals before any provider call', () => {
   it('refuses when no pricing is set, with zero provider calls and nothing reserved', async () => {
     const w = await world();
     const provider = new SlowFake();
     vi.stubEnv('AI_PRICE_INPUT_USD_MICRO_PER_MTOK', '');
     vi.stubEnv('AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', '');
-    const result = await runPharmacyAi(prisma(), { restaurantId: w.a.id, fileId: fid(), purpose: 'extract', input: REQ, maxOutputTokens: 100, now: NOW }, { provider });
+    const fileId = await seedFile(w, 'EXTRACTING');
+    const result = await runPharmacyAi(prisma(), { restaurantId: w.a.id, fileId, lease: NOW, purpose: 'extract', input: REQ, maxOutputTokens: 100, now: NOW }, { provider });
     expect(result).toEqual({ ok: false, code: 'AI_PRICING_NOT_SET' });
     expect(provider.reached).toBe(0);
     expect(await usageRow(w)).toBeNull();
@@ -163,15 +208,55 @@ describe('refusals before any provider call', () => {
     expect(await call(none, {}, { provider })).toEqual({ ok: false, code: 'AI_NOT_IN_PLAN' });
     expect(provider.reached).toBe(0);
   });
+
+  it('refuses a file whose hints do not match its media parts, or that cannot fit the model, before reserving', async () => {
+    const w = await world();
+    const provider = new SlowFake();
+    const pdfPart = { type: 'document' as const, mediaType: 'application/pdf' as const, base64: 'AAAA' };
+    const withPdf = { ...REQ, messages: [{ role: 'user' as const, content: [...REQ.messages[0]!.content, pdfPart] }] };
+    expect(await call(w, { input: withPdf }, { provider })).toEqual({ ok: false, code: 'AI_INPUT_TOO_LARGE' });
+    expect(await call(w, { media: [{ kind: 'pdf', pages: 1 }] }, { provider })).toEqual({ ok: false, code: 'AI_INPUT_TOO_LARGE' });
+    expect(await call(w, { input: withPdf, media: [{ kind: 'pdf', pages: 11 }] }, { provider })).toEqual({ ok: false, code: 'AI_INPUT_TOO_LARGE' });
+    expect(await call(w, { maxOutputTokens: INPUT_BOUND.contextTokens }, { provider })).toEqual({ ok: false, code: 'AI_INPUT_TOO_LARGE' });
+    expect(provider.reached).toBe(0);
+    expect(await usageRow(w)).toBeNull();
+    expect(await calls(w)).toHaveLength(0);
+  });
+});
+
+describe('real sized files against a normal budget', () => {
+  it('an 8 MB image part and a 10-page PDF part are bounded by their stored size, not their bytes, and fit a 100-cent budget', async () => {
+    const w = await world({ budgetCents: 100 });
+    const provider = new SlowFake();
+    const eightMb = Buffer.alloc(8 * 1024 * 1024, 7).toString('base64');
+    const image = { ...REQ, messages: [{ role: 'user' as const, content: [...REQ.messages[0]!.content, { type: 'image' as const, mediaType: 'image/jpeg' as const, base64: eightMb }] }] };
+    const pdf = { ...REQ, messages: [{ role: 'user' as const, content: [...REQ.messages[0]!.content, { type: 'document' as const, mediaType: 'application/pdf' as const, base64: eightMb }] }] };
+    const hintImage = [{ kind: 'image', widthPx: 3000, heightPx: 4000 }] as const;
+    const hintPdf = [{ kind: 'pdf', pages: 10 }] as const;
+    const imageTokens = estimateInputTokens(image, hintImage)!;
+    const pdfTokens = estimateInputTokens(pdf, hintPdf)!;
+    expect(imageTokens).toBeLessThan(5_000);
+    expect(pdfTokens).toBeGreaterThan(90_000);
+    expect(pdfTokens).toBeLessThan(95_000);
+    const real: AiPricing = { inputPerMtok: 5_000_000n, outputPerMtok: 25_000_000n };
+    expect(worstCaseMicroUsd(pdf, 8_000, real, hintPdf)!).toBeLessThan(1_000_000n);
+    const a = await call(w, { input: image, media: hintImage, maxOutputTokens: 4_000 }, { provider, pricing: real });
+    const b = await call(w, { input: pdf, media: hintPdf, maxOutputTokens: 4_000 }, { provider, pricing: real });
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect(provider.reached).toBe(2);
+    expect(JSON.stringify(provider.calls[0]!.messages).length).toBeGreaterThan(8 * 1024 * 1024);
+  });
 });
 
 describe('a call that works', () => {
-  it('settles the exact cost, clears the reservation and logs metadata only', async () => {
+  it('settles the exact cost, clears the reservation, logs metadata only and audits the figures', async () => {
     const w = await world();
     const provider = new SlowFake();
     provider.enqueue({ response: { content: [{ type: 'text', text: '{"lines":[]}' }], inputTokens: 700, outputTokens: 300, model: 'fake-model' } });
-    const fileId = fid();
-    const result = await call(w, { fileId }, { provider });
+    const audits: CallAudit[] = [];
+    const fileId = await seedFile(w, 'EXTRACTING');
+    const result = await call(w, { fileId }, { provider, audit: async (c) => void audits.push(c) });
     const cost = estimateCostMicroUsd({ inputTokens: 700, outputTokens: 300 }, PRICE);
     expect(cost).toBe(1000n);
     expect(result).toMatchObject({ ok: true, text: '{"lines":[]}', costMicroUsd: cost, overrunMicroUsd: 0n, usage: { inputTokens: 700, outputTokens: 300 } });
@@ -182,6 +267,7 @@ describe('a call that works', () => {
     expect(logged).toHaveLength(1);
     expect(logged[0]).toMatchObject({ purpose: 'extract', model: 'fake-model', status: 'OK', costMicroUsd: cost, fileId, inputTokens: 700, outputTokens: 300 });
     expect(logged[0]!.ms).toBeGreaterThanOrEqual(0);
+    expect(audits).toEqual([{ fileId, status: 'OK', model: 'fake-model', inputTokens: 700, outputTokens: 300, costMicroUsd: '1000', overrunMicroUsd: '0', reservedMicroUsd: '10000', settled: 1 }]);
   });
 
   it('charges the worst case when the provider reports no usage', async () => {
@@ -193,31 +279,42 @@ describe('a call that works', () => {
     expect(await usageRow(w)).toMatchObject({ spentMicroUsd: CENT, reservedMicroUsd: 0n });
   });
 
-  it('charges the reserved amount and keeps the paid answer when the actual cost is above it', async () => {
+  it('charges the reserved amount, keeps the paid answer and puts the overrun in the audit when the actual cost is above it', async () => {
     const w = await world();
     const provider = new SlowFake();
     provider.enqueue({ response: { content: [{ type: 'text', text: 'PAID-ANSWER' }], inputTokens: 20_000, outputTokens: 5_000 } });
-    const result = await call(w, {}, { provider });
+    const audits: CallAudit[] = [];
+    const result = await call(w, {}, { provider, audit: async (c) => void audits.push(c) });
     expect(worstCaseMicroUsd(REQ, ONE_CENT_OUT, PRICE)).toBe(CENT);
     expect(result).toMatchObject({ ok: true, text: 'PAID-ANSWER', costMicroUsd: CENT, overrunMicroUsd: 15_000n });
+    expect(audits[0]).toMatchObject({ costMicroUsd: '10000', overrunMicroUsd: '15000' });
     expect(await usageRow(w)).toMatchObject({ spentMicroUsd: CENT, reservedMicroUsd: 0n });
     expect((await calls(w))[0]).toMatchObject({ status: 'OK', costMicroUsd: CENT });
+  });
+
+  it('survives an audit callback that fails', async () => {
+    const w = await world();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const result = await call(w, {}, { provider: new SlowFake(), audit: () => Promise.reject(new Error('audit down')) });
+    expect(result.ok).toBe(true);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('could not audit'), expect.anything());
+    spy.mockRestore();
   });
 });
 
 describe('a call that fails', () => {
-  it('releases the reservation on a provider error and logs ERROR at cost 0', async () => {
+  it('a provider error before any output releases the reservation and costs nothing', async () => {
     const w = await world();
     const provider = new SlowFake();
     provider.enqueue('error');
-    const fileId = fid();
+    const fileId = await seedFile(w, 'EXTRACTING');
     expect(await call(w, { fileId }, { provider })).toEqual({ ok: false, code: 'AI_PROVIDER_ERROR' });
     expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 0n, reservedMicroUsd: 0n });
     expect(await prisma().phAiReservation.count()).toBe(0);
     expect((await calls(w))[0]).toMatchObject({ status: 'ERROR', costMicroUsd: 0n, fileId });
   });
 
-  it('maps a provider timeout and a local abort to AI_TIMEOUT, both free', async () => {
+  it('a timeout (provider-reported or by our own clock) books the input side as spend: the provider probably billed it', async () => {
     const w = await world();
     const provider = new SlowFake();
     provider.enqueue('timeout');
@@ -228,8 +325,10 @@ describe('a call that fails', () => {
         req.signal.addEventListener('abort', () => reject(req.signal.reason));
       });
     expect(await call(w, {}, { provider: hanging, timeoutMs: 30 })).toEqual({ ok: false, code: 'AI_TIMEOUT' });
-    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 0n, reservedMicroUsd: 0n });
-    expect((await calls(w)).map((c) => [c.status, c.costMicroUsd])).toEqual([['TIMEOUT', 0n], ['TIMEOUT', 0n]]);
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 2n * INPUT_SIDE, reservedMicroUsd: 0n });
+    expect((await calls(w)).map((c) => [c.status, c.costMicroUsd])).toEqual([['TIMEOUT', INPUT_SIDE], ['TIMEOUT', INPUT_SIDE]]);
+    expect(INPUT_SIDE).toBeGreaterThan(0n);
+    expect(INPUT_SIDE).toBeLessThan(CENT);
   });
 
   it('refusal is AI_REFUSED and costs what the provider reported', async () => {
@@ -241,55 +340,91 @@ describe('a call that fails', () => {
     expect((await calls(w))[0]).toMatchObject({ status: 'ERROR', costMicroUsd: 400n });
   });
 
-  it('a caller-side abort is a clean failure that releases the reservation', async () => {
+  it("a caller-side abort reaches the provider's signal, ends cleanly and books the input side", async () => {
     const w = await world();
+    let providerSignal: AbortSignal | undefined;
     const hanging = new SlowFake();
     hanging.complete = (req: AiRequest) =>
       new Promise<AiResponse>((_, reject) => {
+        providerSignal = req.signal;
         req.signal.addEventListener('abort', () => reject(new AiProviderError()));
       });
     const controller = new AbortController();
     const running = call(w, {}, { provider: hanging, signal: controller.signal });
     await vi.waitFor(async () => expect((await usageRow(w))?.reservedMicroUsd).toBe(CENT));
+    await vi.waitFor(() => expect(providerSignal).toBeDefined());
+    expect(providerSignal!.aborted).toBe(false);
     controller.abort();
     expect(await running).toEqual({ ok: false, code: 'AI_PROVIDER_ERROR' });
-    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 0n, reservedMicroUsd: 0n });
+    expect(providerSignal!.aborted).toBe(true);
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: INPUT_SIDE, reservedMicroUsd: 0n });
+  });
+
+  it('a business that does not exist is refused by code, never an exception', async () => {
+    const result = await runPharmacyAi(prisma(), { restaurantId: 'no-such-business', fileId: 'x', lease: NOW, purpose: 'extract', input: REQ, maxOutputTokens: 10, now: NOW }, { provider: new SlowFake(), pricing: PRICE });
+    expect(result).toEqual({ ok: false, code: 'AI_NOT_IN_PLAN' });
+  });
+
+  it('no provider configured is AI_NOT_CONFIGURED, nothing reserved', async () => {
+    const w = await world();
+    setAiProviderForTests(null);
+    try {
+      const fileId = await seedFile(w, 'EXTRACTING');
+      const result = await runPharmacyAi(prisma(), { restaurantId: w.a.id, fileId, lease: NOW, purpose: 'extract', input: REQ, maxOutputTokens: ONE_CENT_OUT, now: NOW }, { pricing: PRICE });
+      expect(result).toEqual({ ok: false, code: 'AI_NOT_CONFIGURED' });
+      expect(await prisma().phAiReservation.count()).toBe(0);
+    } finally {
+      setAiProviderForTests(undefined);
+    }
   });
 });
 
 describe('the budget stops', () => {
-  it('lets exactly N worst-case calls through when N+3 fire at once, and never exceeds the budget', async () => {
+  it('lets exactly N worst-case calls through when N+3 fire at once, however slow the machine (10 rounds, gated on a barrier)', async () => {
     const N = 4;
-    const w = await world({ budgetCents: N });
-    const provider = new SlowFake(150);
-    let peak = 0n;
-    let polling = true;
-    const poller = (async () => {
-      while (polling) {
-        const row = await usageRow(w);
-        if (row) peak = row.spentMicroUsd + row.reservedMicroUsd > peak ? row.spentMicroUsd + row.reservedMicroUsd : peak;
-        await new Promise((r) => setTimeout(r, 3));
-      }
-    })();
-    const results = await Promise.all(Array.from({ length: N + 3 }, () => call(w, {}, { provider })));
-    polling = false;
-    await poller;
-    expect(provider.reached).toBe(N);
-    expect(results.filter((r) => r.ok)).toHaveLength(N);
-    expect(results.filter((r) => !r.ok).map((r) => (r.ok ? '' : r.code))).toEqual(Array(3).fill('AI_BUDGET_REACHED'));
-    expect(peak).toBeLessThanOrEqual(BigInt(N) * CENT);
-    expect(peak).toBeGreaterThan(0n);
-    const row = await usageRow(w);
-    expect(row!.reservedMicroUsd).toBe(0n);
-    expect(row!.spentMicroUsd).toBeLessThanOrEqual(BigInt(N) * CENT);
-  });
+    for (let round = 0; round < 10; round += 1) {
+      await resetWorld();
+      const w = await world({ budgetCents: N });
+      const provider = new GatedFake();
+      let peak = 0n;
+      let polling = true;
+      const poller = (async () => {
+        while (polling) {
+          const row = await usageRow(w);
+          if (row) peak = row.spentMicroUsd + row.reservedMicroUsd > peak ? row.spentMicroUsd + row.reservedMicroUsd : peak;
+          await new Promise((r) => setTimeout(r, 3));
+        }
+      })();
+      const files = await Promise.all(Array.from({ length: N + 3 }, () => seedFile(w, 'EXTRACTING', NOW)));
+      let refused = 0;
+      const running = files.map((fileId) =>
+        call(w, { fileId }, { provider }).then((r) => {
+          if (!r.ok) refused += 1;
+          return r;
+        }),
+      );
+      // Nothing is let out until every attempt has either reached the model or been refused: no call settles (and frees budget) before all have tried to reserve.
+      await vi.waitFor(() => expect(provider.reached + refused).toBe(N + 3), { timeout: 60_000, interval: 5 });
+      provider.release();
+      const results = await Promise.all(running);
+      polling = false;
+      await poller;
+      expect(provider.reached).toBe(N);
+      expect(results.filter((r) => r.ok)).toHaveLength(N);
+      expect(results.filter((r) => !r.ok).map((r) => (r.ok ? '' : r.code))).toEqual(Array(3).fill('AI_BUDGET_REACHED'));
+      expect(peak).toBeLessThanOrEqual(BigInt(N) * CENT);
+      const row = await usageRow(w);
+      expect(row!.reservedMicroUsd).toBe(0n);
+      expect(row!.spentMicroUsd).toBeLessThanOrEqual(BigInt(N) * CENT);
+    }
+  }, 300_000);
 
   it('counts spent plus the worst case: a cheap first call still leaves too little for the next worst case, and the refusal is logged as BUDGET', async () => {
     const w = await world({ budgetCents: 1 });
     const provider = new SlowFake();
     provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 100, outputTokens: 100 } });
     expect((await call(w, {}, { provider })).ok).toBe(true);
-    const fileId = fid();
+    const fileId = await seedFile(w, 'EXTRACTING');
     expect(await call(w, { fileId }, { provider })).toEqual({ ok: false, code: 'AI_BUDGET_REACHED' });
     expect(provider.reached).toBe(1);
     expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 200n, reservedMicroUsd: 0n, calls: 1 });
@@ -299,54 +434,209 @@ describe('the budget stops', () => {
 
   it('allows one call in flight per file', async () => {
     const w = await world();
-    const provider = new SlowFake(120);
-    const fileId = fid();
-    const [x, y] = await Promise.all([call(w, { fileId }, { provider }), call(w, { fileId }, { provider })]);
-    expect([x.ok, y.ok].sort()).toEqual([false, true]);
-    expect([x, y].find((r) => !r.ok)).toEqual({ ok: false, code: 'EXTRACTION_IN_PROGRESS' });
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING');
+    let refused = 0;
+    const both = [call(w, { fileId }, { provider }), call(w, { fileId }, { provider })].map((p) =>
+      p.then((r) => {
+        if (!r.ok) refused += 1;
+        return r;
+      }),
+    );
+    await vi.waitFor(() => expect(provider.reached + refused).toBe(2), { timeout: 60_000, interval: 5 });
+    provider.release();
+    const [x, y] = await Promise.all(both);
+    expect([x!.ok, y!.ok].sort()).toEqual([false, true]);
+    expect([x, y].find((r) => !r!.ok)).toEqual({ ok: false, code: 'EXTRACTION_IN_PROGRESS' });
     expect(provider.reached).toBe(1);
     expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n });
     expect(await prisma().phAiReservation.count()).toBe(0);
   });
+});
 
-  it('replaces a reservation older than the lease, returning its funds first', async () => {
-    const w = await world({ budgetCents: 1 });
-    const fileId = fid();
-    await seedReservation(w, fileId, CENT, new Date(NOW.getTime() - 11 * MIN));
+describe('the lease on the file', () => {
+  it("refuses a call whose lease is not the file's current one, or whose file is not extracting, with nothing reserved", async () => {
+    const w = await world();
     const provider = new SlowFake();
-    const result = await call(w, { fileId }, { provider });
-    expect(result.ok).toBe(true);
-    expect((await usageRow(w))!.reservedMicroUsd).toBe(0n);
+    const mine = await seedFile(w, 'EXTRACTING', NOW);
+    expect(await call(w, { fileId: mine, lease: new Date(NOW.getTime() - 1000) }, { provider })).toEqual({ ok: false, code: 'LEASE_LOST' });
+    const idle = await seedFile(w, 'UPLOADED');
+    expect(await call(w, { fileId: idle }, { provider })).toEqual({ ok: false, code: 'LEASE_LOST' });
+    expect(await call(w, { fileId: 'no-such-file' }, { provider })).toEqual({ ok: false, code: 'LEASE_LOST' });
+    expect(provider.reached).toBe(0);
     expect(await prisma().phAiReservation.count()).toBe(0);
+    expect((await usageRow(w))?.reservedMicroUsd ?? 0n).toBe(0n);
+  });
+
+  it('a lease lost DURING the call still books the money, then reports LEASE_LOST so the answer is dropped', async () => {
+    const w = await world();
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    const running = call(w, { fileId }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    await prisma().phIntakeFile.update({ where: { id: fileId }, data: { extractingSince: new Date(NOW.getTime() + 11 * MIN) } });
+    provider.release();
+    expect(await running).toEqual({ ok: false, code: 'LEASE_LOST' });
+    const row = await usageRow(w);
+    expect(row!.reservedMicroUsd).toBe(0n);
+    expect(row!.spentMicroUsd).toBeGreaterThan(0n);
+    expect(await prisma().phAiReservation.count()).toBe(0);
+  });
+
+  it('releaseFile by a stale holder is a no-op that says LEASE_LOST and leaves the new claim intact', async () => {
+    const w = await world();
+    const id = await seedFile(w, 'FAILED');
+    const a = await claimFileForExtraction(prisma(), w.a.id, id, NOW);
+    const later = new Date(NOW.getTime() + 11 * MIN);
+    const b = await claimFileForExtraction(prisma(), w.a.id, id, later);
+    expect(b).toEqual({ ok: true, lease: later });
+    if (!a.ok) throw new Error('first claim failed');
+    expect(await releaseFile(prisma(), w.a.id, id, a.lease, { status: 'EXTRACTED', now: later })).toBe('LEASE_LOST');
+    const file = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id } });
+    expect(file).toMatchObject({ status: 'EXTRACTING', attempts: 2 });
+    expect(file.extractingSince?.getTime()).toBe(later.getTime());
+    expect(await releaseFile(prisma(), w.a.id, id, later, { status: 'EXTRACTED', now: later })).toBe('RELEASED');
   });
 });
 
-describe('reclaiming reservations', () => {
-  it('returns the funds of reservations whose file is not extracting or whose lease is stale, and counts none as spend', async () => {
+describe('reservations of dead workers', () => {
+  it('a reservation of the same file older than the lease length is booked as spend before the new one is made', async () => {
+    const w = await world({ budgetCents: 3 });
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    await seedReservation(w, fileId, CENT, new Date(NOW.getTime() - 11 * MIN));
+    const provider = new SlowFake();
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 100, outputTokens: 100 } });
+    expect((await call(w, { fileId }, { provider })).ok).toBe(true);
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: CENT + 200n });
+    expect(await prisma().phAiReservation.count()).toBe(0);
+    expect((await calls(w)).map((c) => [c.status, c.costMicroUsd])).toEqual([['ERROR', CENT], ['OK', 200n]]);
+  });
+
+  it("a reservation that predates the lease the caller holds is the previous holder's, even when it is young", async () => {
+    const w = await world({ budgetCents: 3 });
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    await seedReservation(w, fileId, 2000n, new Date(NOW.getTime() - 60_000));
+    expect((await call(w, { fileId }, { provider: new SlowFake() })).ok).toBe(true);
+    expect((await usageRow(w))!.reservedMicroUsd).toBe(0n);
+    expect(await prisma().phAiReservation.count()).toBe(0);
+    expect((await calls(w))[0]).toMatchObject({ status: 'ERROR', costMicroUsd: 2000n });
+  });
+
+  it('a reservation of the SAME lease is a live one: EXTRACTION_IN_PROGRESS, untouched', async () => {
+    const w = await world({ budgetCents: 3 });
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    await seedReservation(w, fileId, 2000n, new Date(NOW.getTime() + 1000));
+    expect(await call(w, { fileId }, { provider: new SlowFake() })).toEqual({ ok: false, code: 'EXTRACTION_IN_PROGRESS' });
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 2000n, spentMicroUsd: 0n });
+  });
+
+  it('an old reservation of an earlier month is booked in ITS month, with no lock inversion', async () => {
+    const w = await world({ budgetCents: 3 });
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    await seedReservation(w, fileId, 2000n, new Date(NOW.getTime() - 40 * 24 * 60 * MIN), '2026-09');
+    expect((await call(w, { fileId }, { provider: new SlowFake() })).ok).toBe(true);
+    expect(await usageRow(w, '2026-09')).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: 2000n });
+  });
+});
+
+describe('sweeping reservations', () => {
+  it('books stale reservations as SPEND at the reserved amount, never as unspent, and leaves live and young ones', async () => {
     const w = await world();
     const live = await seedFile(w, 'EXTRACTING', new Date(NOW.getTime() - 2 * MIN));
     const stale = await seedFile(w, 'EXTRACTING', new Date(NOW.getTime() - 11 * MIN));
     const done = await seedFile(w, 'UPLOADED');
-    for (const id of [live, stale, done]) await seedReservation(w, id, 2000n, new Date(NOW.getTime() - MIN));
-    expect((await usageRow(w))!.reservedMicroUsd).toBe(6000n);
-    const out = await reclaimStaleReservations(prisma(), NOW, 10 * MIN);
-    expect(out).toEqual({ released: 2, microUsd: 4000n });
-    const row = await usageRow(w);
-    expect(row).toMatchObject({ reservedMicroUsd: 2000n, spentMicroUsd: 0n });
-    expect((await prisma().phAiReservation.findMany({ select: { fileId: true } })).map((r) => r.fileId)).toEqual([live]);
-    // Nothing more to do on a second run.
-    expect(await reclaimStaleReservations(prisma(), NOW, 10 * MIN)).toEqual({ released: 0, microUsd: 0n });
+    const young = await seedFile(w, 'UPLOADED');
+    const old = new Date(NOW.getTime() - 11 * MIN);
+    for (const id of [live, stale, done]) await seedReservation(w, id, 2000n, old);
+    await seedReservation(w, young, 2000n, new Date(NOW.getTime() - MIN));
+    const out = await sweepAiReservations(prisma(), NOW, 10 * MIN);
+    expect(out).toEqual({ swept: 2, microUsd: 4000n, errors: [] });
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 4000n, spentMicroUsd: 4000n, calls: 2 });
+    expect((await prisma().phAiReservation.findMany({ select: { fileId: true } })).map((r) => r.fileId).sort()).toEqual([live, young].sort());
+    expect((await calls(w)).map((c) => [c.status, c.costMicroUsd])).toEqual([['ERROR', 2000n], ['ERROR', 2000n]]);
+    expect(await sweepAiReservations(prisma(), NOW, 10 * MIN)).toEqual({ swept: 0, microUsd: 0n, errors: [] });
   });
 
-  it('a stale extracting file is claimable again after the reclaim', async () => {
+  it('never frees anything younger than a call can run, whatever olderThanMs says', async () => {
     const w = await world();
-    const stale = await seedFile(w, 'EXTRACTING', new Date(NOW.getTime() - 11 * MIN));
-    await seedReservation(w, stale, 2000n, new Date(NOW.getTime() - 11 * MIN));
-    await reclaimStaleReservations(prisma(), NOW, 10 * MIN);
-    expect(await claimFileForExtraction(prisma(), w.a.id, stale, NOW)).toBe(true);
-    const file = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: stale } });
-    expect(file).toMatchObject({ status: 'EXTRACTING', attempts: 1 });
-    expect(file.extractingSince?.getTime()).toBe(NOW.getTime());
+    const file = await seedFile(w, 'UPLOADED');
+    await seedReservation(w, file, 2000n, new Date(NOW.getTime() - 60_000));
+    expect((await sweepAiReservations(prisma(), NOW, 0)).swept).toBe(0);
+    expect((await sweepAiReservations(prisma(), NOW, 1)).swept).toBe(0);
+    expect(await prisma().phAiReservation.count()).toBe(1);
+  });
+
+  it('does not touch a live call in flight, and the call then settles normally', async () => {
+    const w = await world();
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 100, outputTokens: 100 } });
+    const running = call(w, { fileId }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    expect(await sweepAiReservations(prisma(), new Date(NOW.getTime() + 5_000), 1)).toEqual({ swept: 0, microUsd: 0n, errors: [] });
+    expect((await usageRow(w))!.reservedMicroUsd).toBe(CENT);
+    provider.release();
+    expect((await running).ok).toBe(true);
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: 200n });
+  });
+
+  it('when the sweeper already booked the reservation, the settle adds no second charge and does not go negative', async () => {
+    const w = await world();
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 100, outputTokens: 100 } });
+    const running = call(w, { fileId }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    expect((await sweepAiReservations(prisma(), new Date(NOW.getTime() + 30 * MIN))).swept).toBe(1);
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: CENT });
+    provider.release();
+    expect((await running).ok).toBe(true);
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: CENT });
+    expect(await prisma().phAiReservation.count()).toBe(0);
+  });
+
+  it('a settle that fails twice leaves the reservation, answers anyway, and the sweeper books it as spend', async () => {
+    const w = await world();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const provider = new SlowFake();
+    const original = provider.complete.bind(provider);
+    provider.complete = async (req) => {
+      // From now on no OK call row can be written: the settle transaction fails (and rolls back) every time.
+      // eslint-disable-next-line no-restricted-properties -- test-only DDL on a table of this database
+      await prisma().$executeRawUnsafe(`ALTER TABLE "PhAiCall" ADD CONSTRAINT "tmp_no_ok" CHECK ("status" <> 'OK') NOT VALID`);
+      return original(req);
+    };
+    try {
+      const result = await call(w, {}, { provider });
+      expect(result.ok).toBe(true);
+    } finally {
+      // eslint-disable-next-line no-restricted-properties -- test-only DDL on a table of this database
+      await prisma().$executeRawUnsafe(`ALTER TABLE "PhAiCall" DROP CONSTRAINT IF EXISTS "tmp_no_ok"`);
+    }
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('could not settle'), expect.anything());
+    spy.mockRestore();
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 0n, reservedMicroUsd: CENT });
+    expect(await prisma().phAiReservation.count()).toBe(1);
+    const out = await sweepAiReservations(prisma(), new Date(NOW.getTime() + 30 * MIN));
+    expect(out.swept).toBe(1);
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: CENT, reservedMicroUsd: 0n });
+  });
+
+  it('one bad reservation does not stop the sweep: it is reported and the next is swept', async () => {
+    const w = await world();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const bad = await seedFile(w, 'UPLOADED');
+    const good = await seedFile(w, 'UPLOADED');
+    await seedReservation(w, bad, 2000n, new Date(NOW.getTime() - 20 * MIN), '2026-09');
+    await seedReservation(w, good, 3000n, new Date(NOW.getTime() - 15 * MIN));
+    await prisma().phAiUsageMonth.update({ where: { restaurantId_month: { restaurantId: w.a.id, month: '2026-09' } }, data: { reservedMicroUsd: 0n } });
+    const out = await sweepAiReservations(prisma(), NOW);
+    expect(out.swept).toBe(1);
+    expect(out.microUsd).toBe(3000n);
+    expect(out.errors).toHaveLength(1);
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 3000n, reservedMicroUsd: 0n });
   });
 });
 
@@ -362,14 +652,29 @@ describe('the Baghdad month', () => {
     expect((await usageRow(w, '2026-10'))!.calls).toBe(2);
     expect((await usageRow(w, '2026-11'))!.calls).toBe(1);
   });
+
+  it('a call in flight across midnight settles into the month it reserved in', async () => {
+    const w = await world();
+    const provider = new GatedFake();
+    const before = new Date('2026-10-31T20:59:30.000Z');
+    const fileId = await seedFile(w, 'EXTRACTING', before);
+    const running = call(w, { fileId, now: before, lease: before }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    vi.setSystemTime(new Date('2026-10-31T21:01:00.000Z'));
+    provider.release();
+    expect((await running).ok).toBe(true);
+    expect((await usageRow(w, '2026-10'))!.calls).toBe(1);
+    expect(await usageRow(w, '2026-11')).toBeNull();
+  });
 });
 
 describe('claiming a file for extraction', () => {
-  it('lets exactly one of two racing claims win, and stamps the lease and attempt', async () => {
+  it('lets exactly one of two racing claims win, and gives it the lease', async () => {
     const w = await world();
     const id = await seedFile(w, 'UPLOADED');
-    const [x, y] = await Promise.all([claimFileForExtraction(prisma(), w.a.id, id, NOW), claimFileForExtraction(prisma(), w.a.id, id, NOW)]);
-    expect([x, y].sort()).toEqual([false, true]);
+    const both = await Promise.all([claimFileForExtraction(prisma(), w.a.id, id, NOW), claimFileForExtraction(prisma(), w.a.id, id, NOW)]);
+    expect(both.filter((c) => c.ok)).toEqual([{ ok: true, lease: NOW }]);
+    expect(both.filter((c) => !c.ok)).toEqual([{ ok: false, reason: 'NOT_CLAIMABLE' }]);
     const file = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id } });
     expect(file).toMatchObject({ status: 'EXTRACTING', attempts: 1 });
     expect(file.extractingSince?.getTime()).toBe(NOW.getTime());
@@ -378,33 +683,51 @@ describe('claiming a file for extraction', () => {
   it('claims UPLOADED and FAILED, not EXTRACTED, not a fresh lease, not another business', async () => {
     const w = await world();
     const failed = await seedFile(w, 'FAILED');
-    expect(await claimFileForExtraction(prisma(), w.a.id, failed, NOW)).toBe(true);
+    expect((await claimFileForExtraction(prisma(), w.a.id, failed, NOW)).ok).toBe(true);
     expect((await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: failed } })).failureCode).toBeNull();
     const extracted = await seedFile(w, 'EXTRACTED');
-    expect(await claimFileForExtraction(prisma(), w.a.id, extracted, NOW)).toBe(false);
+    expect((await claimFileForExtraction(prisma(), w.a.id, extracted, NOW)).ok).toBe(false);
     const fresh = await seedFile(w, 'EXTRACTING', new Date(NOW.getTime() - MIN));
-    expect(await claimFileForExtraction(prisma(), w.a.id, fresh, NOW)).toBe(false);
+    expect((await claimFileForExtraction(prisma(), w.a.id, fresh, NOW)).ok).toBe(false);
+    const stale = await seedFile(w, 'EXTRACTING', new Date(NOW.getTime() - 11 * MIN));
+    expect((await claimFileForExtraction(prisma(), w.a.id, stale, NOW)).ok).toBe(true);
     const own = await seedFile(w, 'UPLOADED');
-    expect(await claimFileForExtraction(prisma(), 'someone-else', own, NOW)).toBe(false);
-    expect(await claimFileForExtraction(prisma(), w.a.id, 'no-such-file', NOW)).toBe(false);
+    expect((await claimFileForExtraction(prisma(), 'someone-else', own, NOW)).ok).toBe(false);
+    expect((await claimFileForExtraction(prisma(), w.a.id, 'no-such-file', NOW)).ok).toBe(false);
+  });
+
+  it('stops after five attempts with EXTRACTION_ATTEMPTS_EXHAUSTED', async () => {
+    const w = await world();
+    const id = await seedFile(w, 'FAILED');
+    for (let n = 1; n <= 5; n += 1) {
+      const claim = await claimFileForExtraction(prisma(), w.a.id, id, NOW);
+      expect(claim.ok).toBe(true);
+      if (claim.ok) expect(await releaseFile(prisma(), w.a.id, id, claim.lease, { status: 'FAILED', failureCode: 'AI_TIMEOUT', now: NOW })).toBe('RELEASED');
+    }
+    expect(await claimFileForExtraction(prisma(), w.a.id, id, NOW)).toEqual({ ok: false, reason: 'EXTRACTION_ATTEMPTS_EXHAUSTED' });
+    expect((await prisma().phIntakeFile.findUniqueOrThrow({ where: { id } })).attempts).toBe(5);
   });
 
   it('releases a claimed file to EXTRACTED, FAILED (with a code) or back to UPLOADED, clearing the lease', async () => {
     const w = await world();
+    const lease = async (id: string) => {
+      const claim = await claimFileForExtraction(prisma(), w.a.id, id, NOW);
+      if (!claim.ok) throw new Error('not claimed');
+      return claim.lease;
+    };
     const a = await seedFile(w, 'UPLOADED');
-    await claimFileForExtraction(prisma(), w.a.id, a, NOW);
-    expect(await releaseFile(prisma(), w.a.id, a, { status: 'EXTRACTED', now: NOW })).toBe(true);
+    const la = await lease(a);
+    expect(await releaseFile(prisma(), w.a.id, a, la, { status: 'EXTRACTED', now: NOW })).toBe('RELEASED');
     expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: a } })).toMatchObject({ status: 'EXTRACTED', extractingSince: null, failureCode: null, extractedAt: NOW });
     const b = await seedFile(w, 'UPLOADED');
-    await claimFileForExtraction(prisma(), w.a.id, b, NOW);
-    expect(await releaseFile(prisma(), w.a.id, b, { status: 'FAILED', failureCode: 'AI_TIMEOUT', now: NOW })).toBe(true);
+    const lb = await lease(b);
+    expect(await releaseFile(prisma(), w.a.id, b, lb, { status: 'FAILED', failureCode: 'AI_TIMEOUT', now: NOW })).toBe('RELEASED');
     expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: b } })).toMatchObject({ status: 'FAILED', extractingSince: null, failureCode: 'AI_TIMEOUT' });
     const c = await seedFile(w, 'UPLOADED');
-    await claimFileForExtraction(prisma(), w.a.id, c, NOW);
-    expect(await releaseFile(prisma(), w.a.id, c, { status: 'UPLOADED', now: NOW })).toBe(true);
+    const lc = await lease(c);
+    expect(await releaseFile(prisma(), w.a.id, c, lc, { status: 'UPLOADED', now: NOW })).toBe('RELEASED');
     expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: c } })).toMatchObject({ status: 'UPLOADED', extractingSince: null });
-    // A file that is not being extracted is left alone.
-    expect(await releaseFile(prisma(), w.a.id, c, { status: 'EXTRACTED', now: NOW })).toBe(false);
+    expect(await releaseFile(prisma(), w.a.id, c, lc, { status: 'EXTRACTED', now: NOW })).toBe('LEASE_LOST');
   });
 });
 
@@ -456,7 +779,7 @@ describe('the usage query', () => {
     for (const who of [w.cashier, w.pharmacist, w.stock]) expect(codeOf(await ask(who, intakeQueries.usage, at(w)))).toBe('FORBIDDEN');
   });
 
-  it('leaves the money keys out for an actor without cost.view, keeping counts', async () => {
+  it('leaves the money keys out for an actor without cost.view, keeping counts (role spoofed: no real role has purchase.manage and report.view without cost.view)', async () => {
     const w = await world({ budgetCents: 5 });
     const ph = (await asPh(w.pic.userId, w.a.id, w.b1))!;
     const scoped = (await import('@/server/data/tenant-db')).scopedClient(prisma(), { restaurantId: w.a.id, allBranches: true });
