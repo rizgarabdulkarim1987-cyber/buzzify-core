@@ -2,6 +2,9 @@
  * The arithmetic and rules of pharmacy purchasing, worked out in one place and kept pure: no Prisma, no database, no clock
  * (dates come in as arguments). Money is BigInt in the document's currency minor unit; quantities are whole base units
  * (safe integers). Dates are UTC calendar days, as `Date` or `YYYY-MM-DD`.
+ *
+ * Rulings: DUE_7 means due today through 7 days ahead (8 calendar days); the screens and reports use the same edge.
+ * A voided invoice's lines must be excluded by the caller before `quantityTriple` (void releases the invoiced quantity).
  */
 import { createHash } from 'node:crypto';
 
@@ -18,6 +21,7 @@ export type PurchasingCode =
   | 'UNALLOCATED'
   | 'OVER_ALLOCATION'
   | 'UNKNOWN_INVOICE'
+  | 'DUPLICATE_INVOICE'
   | 'OVER_SETTLED';
 
 /** An input the purchasing arithmetic refuses (a validation error, not a business outcome). */
@@ -71,16 +75,16 @@ export function poStatusAfterReceipt(lines: readonly PoLineCounters[]): 'ORDERED
 const EDGES: Record<PoStatus, readonly PoStatus[]> = {
   DRAFT: ['ORDERED', 'CANCELLED'],
   ORDERED: ['PARTIAL', 'RECEIVED', 'CANCELLED', 'CLOSED'],
-  PARTIAL: ['RECEIVED', 'CLOSED'],
+  PARTIAL: ['PARTIAL', 'RECEIVED', 'CLOSED'], // PARTIAL -> PARTIAL: a second partial receipt
   RECEIVED: ['CLOSED'],
   CLOSED: [],
   CANCELLED: [],
 };
 
-/** Whether an order may move from one status to another. A cancel from ORDERED needs nothing received. */
-export function canTransition(from: PoStatus, to: PoStatus, opts: { anyReceived?: boolean } = {}): boolean {
+/** Whether an order may move from one status to another. A cancel from ORDERED needs nothing received, so the caller says. */
+export function canTransition(from: PoStatus, to: PoStatus, anyReceived: boolean): boolean {
   if (!EDGES[from].includes(to)) return false;
-  if (from === 'ORDERED' && to === 'CANCELLED' && opts.anyReceived) return false;
+  if (from === 'ORDERED' && to === 'CANCELLED' && anyReceived) return false;
   return true;
 }
 
@@ -114,6 +118,13 @@ export function quantityTriple(
   receiptLines: readonly { orderLineId: string; qty: number; bonusQty: number; status: string }[],
   invoiceLines: readonly { orderLineId: string; qtyInvoiced: number }[],
 ): QuantityTriple {
+  qty(line.qtyOrdered);
+  qty(line.bonusOrdered);
+  for (const r of receiptLines) {
+    qty(r.qty);
+    qty(r.bonusQty);
+  }
+  for (const i of invoiceLines) qty(i.qtyInvoiced);
   const ordered = line.qtyOrdered + line.bonusOrdered;
   let received = 0;
   for (const r of receiptLines) {
@@ -167,13 +178,13 @@ export function invoiceableQty(receiptLine: { qty: number; bonusQty: number; inv
 // ---------------------------------------------------------------------------------------------------------------------
 
 const DIGIT_BASES = [0x0660, 0x06f0] as const; // Arabic-Indic, Persian
-// Zero-width and bidi control characters.
-const INVISIBLE = /[​-‏‪-‮⁠-⁤⁦-⁩﻿]/g;
+// Zero-width and bidi control characters, written as escapes (U+061C Arabic letter mark, U+2066-2069 isolates).
+const INVISIBLE = /[\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
 /** The supplier's invoice number in a comparable form: trimmed, spaces collapsed, upper case, Latin digits, no invisibles. */
 export function normalizeInvoiceNumber(raw: string): string {
   let s = raw.replace(INVISIBLE, '');
-  s = s.replace(/[٠-٩۰-۹]/g, (ch) => {
+  s = s.replace(/[\u0660-\u0669\u06F0-\u06F9]/g, (ch) => {
     const c = ch.charCodeAt(0);
     const base = c >= DIGIT_BASES[1] ? DIGIT_BASES[1] : DIGIT_BASES[0];
     return String(c - base);
@@ -244,7 +255,7 @@ export function dayDiff(a: Date | string, b: Date | string): number {
 
 /** The invoice date plus the supplier's terms, as a UTC calendar day. */
 export function dueDate(invoiceDate: Date | string, termsDays: number): string {
-  if (!Number.isSafeInteger(termsDays) || termsDays < 0) throw new PurchasingError('INVALID_DAYS', 'Terms are whole days');
+  if (!Number.isSafeInteger(termsDays) || termsDays < 0 || termsDays > 365) throw new PurchasingError('INVALID_DAYS', 'Terms are whole days');
   return dayString(dayNumber(invoiceDate) + termsDays);
 }
 
@@ -281,12 +292,15 @@ export interface Allocation {
  */
 export function planAllocation(
   amountMinor: bigint,
-  invoices: readonly { id: string; dueDate: Date | string; createdAt?: Date; balanceMinor: bigint }[],
+  invoices: readonly { id: string; dueDate: Date | string; balanceMinor: bigint }[],
   explicit?: readonly Allocation[],
 ): Allocation[] {
   if (amountMinor <= 0n) throw new PurchasingError('INVALID_AMOUNT', 'The amount must be above zero');
   const balances = new Map<string, bigint>();
-  for (const inv of invoices) balances.set(inv.id, money(inv.balanceMinor));
+  for (const inv of invoices) {
+    if (balances.has(inv.id)) throw new PurchasingError('DUPLICATE_INVOICE', 'An invoice appears twice');
+    balances.set(inv.id, money(inv.balanceMinor));
+  }
 
   if (explicit) {
     const summed = new Map<string, bigint>();
@@ -336,7 +350,14 @@ export function invoiceStatus(input: {
   creditedMinor: bigint;
   voided: boolean;
 }): InvoiceStatus {
-  if (input.voided) return 'VOID';
+  money(input.paidMinor);
+  money(input.creditedMinor);
+  if (input.voided) {
+    if (input.paidMinor > 0n || input.creditedMinor > 0n) {
+      throw new PurchasingError('OVER_SETTLED', 'A voided invoice cannot have payments or credits');
+    }
+    return 'VOID';
+  }
   const settled = input.paidMinor + input.creditedMinor;
   if (settled > input.totalMinor) throw new PurchasingError('OVER_SETTLED', 'Paid and credited exceed the total');
   if (settled === input.totalMinor) return 'PAID';

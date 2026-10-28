@@ -54,26 +54,26 @@ describe('PO status machine', () => {
     expect(poStatusAfterReceipt([])).toBe('ORDERED');
   });
   it('allowed edges only', () => {
-    expect(canTransition('DRAFT', 'ORDERED')).toBe(true);
-    expect(canTransition('DRAFT', 'CANCELLED')).toBe(true);
-    expect(canTransition('ORDERED', 'CANCELLED', { anyReceived: false })).toBe(true);
-    expect(canTransition('ORDERED', 'CANCELLED', { anyReceived: true })).toBe(false);
-    expect(canTransition('ORDERED', 'CANCELLED')).toBe(true);
-    expect(canTransition('ORDERED', 'PARTIAL')).toBe(true);
-    expect(canTransition('ORDERED', 'RECEIVED')).toBe(true);
-    expect(canTransition('PARTIAL', 'RECEIVED')).toBe(true);
-    expect(canTransition('ORDERED', 'CLOSED')).toBe(true);
-    expect(canTransition('PARTIAL', 'CLOSED')).toBe(true);
-    expect(canTransition('RECEIVED', 'CLOSED')).toBe(true);
+    expect(canTransition('DRAFT', 'ORDERED', false)).toBe(true);
+    expect(canTransition('DRAFT', 'CANCELLED', false)).toBe(true);
+    expect(canTransition('ORDERED', 'CANCELLED', false)).toBe(true);
+    expect(canTransition('ORDERED', 'CANCELLED', true)).toBe(false);
+    expect(canTransition('ORDERED', 'PARTIAL', false)).toBe(true);
+    expect(canTransition('ORDERED', 'RECEIVED', false)).toBe(true);
+    expect(canTransition('PARTIAL', 'RECEIVED', false)).toBe(true);
+    expect(canTransition('PARTIAL', 'PARTIAL', false)).toBe(true); // a second partial receipt
+    expect(canTransition('ORDERED', 'CLOSED', false)).toBe(true);
+    expect(canTransition('PARTIAL', 'CLOSED', false)).toBe(true);
+    expect(canTransition('RECEIVED', 'CLOSED', false)).toBe(true);
   });
   it('everything else is refused', () => {
-    expect(canTransition('DRAFT', 'CLOSED')).toBe(false);
-    expect(canTransition('DRAFT', 'RECEIVED')).toBe(false);
-    expect(canTransition('PARTIAL', 'CANCELLED')).toBe(false);
-    expect(canTransition('RECEIVED', 'PARTIAL')).toBe(false);
-    expect(canTransition('CLOSED', 'ORDERED')).toBe(false);
-    expect(canTransition('CANCELLED', 'ORDERED')).toBe(false);
-    expect(canTransition('CLOSED', 'CLOSED')).toBe(false);
+    expect(canTransition('DRAFT', 'CLOSED', false)).toBe(false);
+    expect(canTransition('DRAFT', 'RECEIVED', false)).toBe(false);
+    expect(canTransition('PARTIAL', 'CANCELLED', false)).toBe(false);
+    expect(canTransition('RECEIVED', 'PARTIAL', false)).toBe(false);
+    expect(canTransition('CLOSED', 'ORDERED', false)).toBe(false);
+    expect(canTransition('CANCELLED', 'ORDERED', false)).toBe(false);
+    expect(canTransition('CLOSED', 'CLOSED', false)).toBe(false);
   });
 });
 
@@ -126,6 +126,13 @@ describe('quantityTriple', () => {
         ]),
       ),
     ).toBe('INVOICED_EXCEEDS_RECEIVED');
+  });
+  it('refuses negative or non-integer inputs', () => {
+    const bad = (o: Partial<{ qty: number }>) => [{ orderLineId: 'L1', qty: o.qty ?? 1, bonusQty: 0, status: 'CONFIRMED' }];
+    expect(code(() => quantityTriple(ol, bad({ qty: -1 }), []))).toBe('INVALID_QUANTITY');
+    expect(code(() => quantityTriple(ol, bad({ qty: 1.5 }), []))).toBe('INVALID_QUANTITY');
+    expect(code(() => quantityTriple(ol, [], [{ orderLineId: 'L1', qtyInvoiced: -1 }]))).toBe('INVALID_QUANTITY');
+    expect(code(() => quantityTriple({ id: 'L1', qtyOrdered: -1, bonusOrdered: 0 }, [], []))).toBe('INVALID_QUANTITY');
   });
   it('toReceive never goes negative', () => {
     const t = quantityTriple(
@@ -182,14 +189,23 @@ describe('invoice totals', () => {
 describe('invoice keys', () => {
   it('normalises case, spacing, zero-width and digit scripts', () => {
     expect(normalizeInvoiceNumber('  inv   0012 ')).toBe('INV 0012');
-    expect(normalizeInvoiceNumber('inv-١٢٣')).toBe('INV-123');
-    expect(normalizeInvoiceNumber('inv-۱۲۳')).toBe('INV-123');
-    expect(normalizeInvoiceNumber('IN​V‎-1‪')).toBe('INV-1');
+    expect(normalizeInvoiceNumber('inv-\u0661\u0662\u0663')).toBe('INV-123');
+    expect(normalizeInvoiceNumber('inv-\u06F1\u06F2\u06F3')).toBe('INV-123');
+    expect(normalizeInvoiceNumber('IN\u200BV\u200E-1\u202A')).toBe('INV-1');
     expect(normalizeInvoiceNumber('a\t\n b')).toBe('A B');
+  });
+  it('strips the Arabic letter mark and bidi isolates, so the same number gives the same key', () => {
+    expect(normalizeInvoiceNumber('INV-1\u061C')).toBe('INV-1');
+    expect(normalizeInvoiceNumber('\u2067INV-1\u2069')).toBe('INV-1');
+    const b = { supplierId: 's1', date: '2026-10-28', currency: 'IQD', totalMinor: 5n };
+    const f = invoiceFingerprint({ ...b, number: 'INV-1' });
+    expect(invoiceFingerprint({ ...b, number: 'INV-1\u061C' })).toBe(f);
+    expect(invoiceFingerprint({ ...b, number: '\u2067INV-1\u2069' })).toBe(f);
+    expect(code(() => normalizeInvoiceNumber('\u061C\u2067'))).toBe('EMPTY_NUMBER');
   });
   it('empty is EMPTY_NUMBER', () => {
     expect(code(() => normalizeInvoiceNumber('   '))).toBe('EMPTY_NUMBER');
-    expect(code(() => normalizeInvoiceNumber('​'))).toBe('EMPTY_NUMBER');
+    expect(code(() => normalizeInvoiceNumber('\u200B'))).toBe('EMPTY_NUMBER');
   });
   const base = { supplierId: 's1', number: 'inv 123', date: '2026-10-28', currency: 'IQD', totalMinor: 500000n };
   it('fingerprint is a stable hex sha256', () => {
@@ -201,8 +217,8 @@ describe('invoice keys', () => {
     const f = invoiceFingerprint({ ...base, number: 'INV 123' });
     expect(invoiceFingerprint(base)).toBe(f);
     expect(invoiceFingerprint({ ...base, number: ' Inv   123 ' })).toBe(f);
-    expect(invoiceFingerprint({ ...base, number: 'inv ١٢٣' })).toBe(f);
-    expect(invoiceFingerprint({ ...base, number: 'inv ۱۲۳' })).toBe(f);
+    expect(invoiceFingerprint({ ...base, number: 'inv \u0661\u0662\u0663' })).toBe(f);
+    expect(invoiceFingerprint({ ...base, number: 'inv \u06F1\u06F2\u06F3' })).toBe(f);
     expect(invoiceFingerprint({ ...base, date: new Date('2026-10-28T23:59:00Z') })).toBe(f);
   });
   it('every component changes the fingerprint', () => {
@@ -232,6 +248,10 @@ describe('due dates', () => {
     expect(code(() => dueDate('nope', 1))).toBe('INVALID_DATE');
     expect(code(() => dueDate('2026-01-01', -1))).toBe('INVALID_DAYS');
     expect(code(() => dueDate('2026-01-01', 1.5))).toBe('INVALID_DAYS');
+    expect(code(() => dueDate('2026-01-01', 366))).toBe('INVALID_DAYS');
+    expect(code(() => dueDate('2026-01-01', 1e15))).toBe('INVALID_DAYS');
+    expect(code(() => dueDate('2026-01-01', Number.POSITIVE_INFINITY))).toBe('INVALID_DAYS');
+    expect(dueDate('2026-01-01', 365)).toBe('2027-01-01');
   });
   it('dayDiff and daysOverdue', () => {
     expect(dayDiff('2026-03-01', '2026-02-27')).toBe(2);
@@ -275,6 +295,11 @@ describe('planAllocation', () => {
   it('a zero or negative amount is INVALID_AMOUNT', () => {
     expect(code(() => planAllocation(0n, inv))).toBe('INVALID_AMOUNT');
     expect(code(() => planAllocation(-1n, inv))).toBe('INVALID_AMOUNT');
+  });
+  it('a duplicate invoice id in the list is refused', () => {
+    const dup = [...inv, { id: 'a', dueDate: '2026-12-01', balanceMinor: 1n }];
+    expect(code(() => planAllocation(10n, dup))).toBe('DUPLICATE_INVOICE');
+    expect(code(() => planAllocation(10n, dup, [{ invoiceId: 'a', amountMinor: 10n }]))).toBe('DUPLICATE_INVOICE');
   });
   it('skips paid-up invoices', () => {
     expect(planAllocation(5n, [{ id: 'z', dueDate: '2026-01-01', balanceMinor: 0n }, ...inv])).toEqual([
@@ -332,31 +357,61 @@ describe('planAllocation', () => {
       { invoiceId: 'y', amountMinor: 1n },
     ]);
   });
-  it('1000 seeded random plans: sums match and no allocation exceeds its balance', () => {
-    let s = 123456789;
-    const rnd = (n: number) => {
-      s = (Math.imul(s, 1664525) + 1013904223) >>> 0;
-      return s % n;
+  it('1000 seeded random plans (amounts up to 2^62): exact sums, within balances, oldest due first', () => {
+    // mulberry32: a small seeded generator with good low bits.
+    let seed = 0x9e3779b9;
+    const next = () => {
+      seed = (seed + 0x6d2b79f5) >>> 0;
+      let t = seed;
+      t = Math.imul(t ^ (t >>> 15), t | 1);
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
     };
+    const rnd = (n: number) => Math.floor(next() * n);
+    const big = (): bigint => BigInt(rnd(1000)) * 2n ** BigInt(rnd(52)) + (rnd(4) === 0 ? 2n ** 62n : 0n);
     for (let i = 0; i < 1000; i++) {
       const n = 1 + rnd(8);
       const invoices = Array.from({ length: n }, (_, k) => ({
         id: `i${k}`,
         dueDate: dueDate('2026-01-01', rnd(200)),
-        balanceMinor: BigInt(rnd(1000)) * 2n ** BigInt(rnd(40)),
+        balanceMinor: big(),
       }));
       const total = invoices.reduce((a, x) => a + x.balanceMinor, 0n);
       if (total === 0n) continue;
+      const balanceOf = (id: string) => invoices.find((x) => x.id === id)!.balanceMinor;
       const amount = (total * BigInt(1 + rnd(1000))) / 1000n || 1n;
       const plan = planAllocation(amount, invoices);
       expect(plan.reduce((a, p) => a + p.amountMinor, 0n)).toBe(amount);
       for (const p of plan) {
         expect(p.amountMinor > 0n).toBe(true);
-        expect(p.amountMinor <= invoices.find((x) => x.id === p.invoiceId)!.balanceMinor).toBe(true);
+        expect(p.amountMinor <= balanceOf(p.invoiceId)).toBe(true);
       }
-      // oldest-due-first: every planned invoice before the last is paid in full
-      for (const p of plan.slice(0, -1)) {
-        expect(p.amountMinor).toBe(invoices.find((x) => x.id === p.invoiceId)!.balanceMinor);
+      // oldest-due-first: the planned invoices come in (due date, id) order, all but the last paid in full
+      const due = (id: string) => invoices.find((x) => x.id === id)!.dueDate as string;
+      for (let k = 1; k < plan.length; k++) {
+        const a = plan[k - 1]!.invoiceId;
+        const b = plan[k]!.invoiceId;
+        expect(due(a) < due(b) || (due(a) === due(b) && a < b)).toBe(true);
+      }
+      for (const p of plan.slice(0, -1)) expect(p.amountMinor).toBe(balanceOf(p.invoiceId));
+      // and nothing older was skipped: any open invoice before the last planned one is in the plan
+      const last = plan[plan.length - 1]!.invoiceId;
+      for (const inv of invoices) {
+        if (inv.balanceMinor === 0n) continue;
+        const before = inv.dueDate < due(last) || (inv.dueDate === due(last) && inv.id < last);
+        if (before) expect(plan.some((p) => p.invoiceId === inv.id)).toBe(true);
+      }
+      // an explicit plan built from the auto plan, shuffled, is accepted and returned unchanged in content
+      const shuffled = [...plan].reverse();
+      const explicit = planAllocation(amount, invoices, shuffled);
+      expect(explicit.reduce((a, p) => a + p.amountMinor, 0n)).toBe(amount);
+      expect(new Map(explicit.map((p) => [p.invoiceId, p.amountMinor]))).toEqual(
+        new Map(plan.map((p) => [p.invoiceId, p.amountMinor])),
+      );
+      // one unit more than a balance is refused
+      const target = invoices[rnd(n)]!;
+      if (target.balanceMinor > 0n && amount > target.balanceMinor) {
+        expect(code(() => planAllocation(target.balanceMinor + 1n, invoices, [{ invoiceId: target.id, amountMinor: target.balanceMinor + 1n }]))).toBe('OVER_ALLOCATION');
       }
     }
   });
@@ -372,6 +427,10 @@ describe('invoiceStatus', () => {
   });
   it('a zero-total invoice is PAID', () => {
     expect(invoiceStatus({ totalMinor: 0n, paidMinor: 0n, creditedMinor: 0n, voided: false })).toBe('PAID');
+  });
+  it('a voided invoice with anything paid or credited is refused', () => {
+    expect(code(() => invoiceStatus({ totalMinor: 100n, paidMinor: 1n, creditedMinor: 0n, voided: true }))).toBe('OVER_SETTLED');
+    expect(code(() => invoiceStatus({ totalMinor: 100n, paidMinor: 0n, creditedMinor: 1n, voided: true }))).toBe('OVER_SETTLED');
   });
   it('over-settled throws', () => {
     expect(code(() => invoiceStatus({ totalMinor: 100n, paidMinor: 60n, creditedMinor: 41n, voided: false }))).toBe(
@@ -406,6 +465,11 @@ describe('buildStatement', () => {
     // 1,000,000 + 2,500,000 - 1,000,000 - 250,000 + 1,000,000 + 400,000 - 400,000
     expect(s.closingMinor).toBe(3_250_000n);
     expect(s.openingMinor).toBe(1_000_000n);
+    // open balances: the opening 1,000,000 plus INV-1 2,500,000, less the credit note 250,000 still unapplied
+    expect(statementInvariant(s.closingMinor, [{ balanceMinor: 1_000_000n }, { balanceMinor: 2_500_000n }], 250_000n)).toEqual({
+      ok: true,
+      difference: 0n,
+    });
     expect(s.totals).toEqual({
       INVOICE: 2_900_000n,
       PAYMENT: 1_000_000n,
