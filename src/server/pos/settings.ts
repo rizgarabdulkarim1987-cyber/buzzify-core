@@ -28,6 +28,7 @@ export interface PosSettingsView {
   invoiceTaxNumber: string;
   invoiceFooter: string;
   requireApproval: boolean;
+  captainApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 }
@@ -56,6 +57,7 @@ export const POS_SETTINGS_DEFAULTS: PosSettingsView = {
   invoiceTaxNumber: '',
   invoiceFooter: '',
   requireApproval: true,
+  captainApproval: false,
   catalogMenuId: null,
   version: 0,
 };
@@ -81,6 +83,7 @@ type Row = {
   invoiceTaxNumber: string;
   invoiceFooter: string;
   requireApproval: boolean;
+  captainApproval: boolean;
   catalogMenuId: string | null;
   version: number;
 };
@@ -107,6 +110,7 @@ function view(row: Row): PosSettingsView {
     invoiceTaxNumber: row.invoiceTaxNumber,
     invoiceFooter: row.invoiceFooter,
     requireApproval: row.requireApproval,
+    captainApproval: row.captainApproval,
     catalogMenuId: row.catalogMenuId,
     version: row.version,
   };

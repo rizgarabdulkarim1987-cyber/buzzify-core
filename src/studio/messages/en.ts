@@ -163,6 +163,7 @@ const en: Messages = {
   'pos.settings.kitchenScreen': 'Kitchen screen',
   'pos.settings.qrOrdering': 'Ordering from the table’s QR code',
   'pos.settings.takeaway': 'Takeaway',
+  'pos.settings.captainApproval': 'Captain approves guest orders',
   'pos.settings.delivery': 'Delivery',
   'pos.settings.complaints': 'Complaints',
   'pos.settings.saved': 'Settings saved',

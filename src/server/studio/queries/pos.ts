@@ -132,7 +132,7 @@ export const posOverview = defineQuery({
         select: { restaurantId: true, status: true, trialEndsAt: true, currentPeriodEnd: true, graceDays: true },
       }),
       ctx.db.posStaff.groupBy({ by: ['restaurantId'], where: { deactivatedAt: null }, _count: { _all: true } }),
-      ctx.db.posSettings.findMany({ where: { catalogMenuId: { not: null } }, select: { restaurantId: true } }),
+      ctx.db.posSettings.findMany({ select: { restaurantId: true, catalogMenuId: true, captainApproval: true } }),
       ctx.db.posAiPackage.findMany({ select: { restaurantId: true, enabled: true, monthlyLimit: true } }),
       ctx.db.posAiUsageMonth.findMany({ where: { month: baghdadMonthOf(now) }, select: { restaurantId: true, requests: true } }),
     ]);
@@ -141,7 +141,8 @@ export const posOverview = defineQuery({
     const newest = new Map<string, (typeof subscriptions)[number]>();
     for (const row of subscriptions) if (!newest.has(row.restaurantId)) newest.set(row.restaurantId, row);
     const staffOf = new Map(staff.map((row) => [row.restaurantId, row._count._all]));
-    const chosen = new Set(settings.map((row) => row.restaurantId));
+    const chosen = new Set(settings.filter((row) => row.catalogMenuId !== null).map((row) => row.restaurantId));
+    const captainOn = new Set(settings.filter((row) => row.captainApproval).map((row) => row.restaurantId));
     const ids = [...new Set([...newest.keys(), ...staffOf.keys()])];
     const restaurants = await ctx.db.restaurant.findMany({
       where: { id: { in: ids }, sector: 'FOOD' },
@@ -157,6 +158,7 @@ export const posOverview = defineQuery({
           status: subscription ? effectiveStatus(subscription, now) : ('NONE' as const),
           staff: staffOf.get(restaurant.id) ?? 0,
           catalogChosen: chosen.has(restaurant.id),
+          captainApproval: captainOn.has(restaurant.id),
           ai: { enabled: aiOf.get(restaurant.id)?.enabled ?? false, limit: aiOf.get(restaurant.id)?.monthlyLimit ?? 0, used: aiUsed.get(restaurant.id) ?? 0 },
         };
       }),

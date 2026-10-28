@@ -12,6 +12,7 @@ import { EmptyState } from '@/studio/ui/EmptyState';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { AiPackageControl } from './AiPackageControl';
+import { CaptainApprovalControl } from './CaptainApprovalControl';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('cashierOverview.title') };
@@ -44,6 +45,7 @@ export default async function CashierOverviewPage() {
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.staff')}</th>
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.catalog')}</th>
                   <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.ai')}</th>
+                  <th scope="col" className="px-4 py-3 text-start font-medium">{t('cashierOverview.captain')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
@@ -61,6 +63,9 @@ export default async function CashierOverviewPage() {
                     <td className="px-4 py-3 text-text">{row.catalogChosen ? t('cashierOverview.catalogSet') : t('cashierOverview.catalogMissing')}</td>
                     <td className="px-4 py-3">
                       <AiPackageControl restaurantId={row.id} enabled={row.ai.enabled} limit={row.ai.limit} used={row.ai.used} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <CaptainApprovalControl restaurantId={row.id} enabled={row.captainApproval} />
                     </td>
                   </tr>
                 ))}

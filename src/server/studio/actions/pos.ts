@@ -69,6 +69,7 @@ export const updatePosSettings = defineAction({
     // 0 switches the idle sign-out off.
     idleMinutes: z.number().int().min(0).max(240),
     requireApproval: z.boolean(),
+    captainApproval: z.boolean().default(false),
     // The payable total rounds to a multiple of this many dinars; 0 switches rounding off.
     roundingStep: z.union([z.literal(0), z.literal(250), z.literal(500), z.literal(1000)]).default(0),
     usdEnabled: z.boolean().default(false),

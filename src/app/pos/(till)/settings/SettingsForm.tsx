@@ -20,6 +20,7 @@ const SWITCHES = [
   ['qrOrderingEnabled', 'pos.settings.qrOrdering'],
   ['takeawayEnabled', 'pos.settings.takeaway'],
   ['deliveryEnabled', 'pos.settings.delivery'],
+  ['captainApproval', 'pos.settings.captainApproval'],
 ] as const;
 
 /** The whole numbers a field holds; anything else goes to the server as it is, which refuses it. */

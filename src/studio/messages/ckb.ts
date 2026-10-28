@@ -164,6 +164,7 @@ const ckb: Messages = {
   'pos.settings.kitchenScreen': 'شاشەی چێشتخانە',
   'pos.settings.qrOrdering': 'داواکردن لە QRی مێزەکە',
   'pos.settings.takeaway': 'بۆ بردن',
+  'pos.settings.captainApproval': 'پەسەندکردنی کاپتن بۆ داواکاری میوانەکان',
   'pos.settings.delivery': 'گەیاندن',
   'pos.settings.complaints': 'گازندەکان',
   'pos.settings.saved': 'ڕێکخستنەکان پاشەکەوت کران',

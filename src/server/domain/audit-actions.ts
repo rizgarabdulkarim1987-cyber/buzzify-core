@@ -165,6 +165,7 @@ export const AUDIT_ACTIONS = [
   'pos.complaint.note',
   'pos.complaint.contact.remove',
   'pos.ai.package',
+  'pos.captain.approval',
   'pos.ai.complaint.label',
   'ai.settings.update',
   'pos.shift.open',

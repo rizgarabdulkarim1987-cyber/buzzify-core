@@ -164,6 +164,7 @@ const ar: Messages = {
   'pos.settings.kitchenScreen': 'شاشة المطبخ',
   'pos.settings.qrOrdering': 'الطلب من رمز QR الطاولة',
   'pos.settings.takeaway': 'سفري',
+  'pos.settings.captainApproval': 'تأكيد الكابتن لطلبات الضيوف',
   'pos.settings.delivery': 'توصيل',
   'pos.settings.complaints': 'الشكاوى',
   'pos.settings.saved': 'تم حفظ الإعدادات',
