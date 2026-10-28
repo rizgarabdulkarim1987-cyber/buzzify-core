@@ -95,13 +95,27 @@ const VARIABLE_AI = new Set(['10', '21']);
  * or any part is invalid (bad GTIN check digit, impossible date, lot over 20 characters, unknown AI, repeated AI).
  */
 export function parseGs1(text: string): Gs1 | null {
-  const s = normalizeScan(text).replace(/^[\][][A-Za-z]\d/, '');
+  let s = normalizeScan(text);
+  // A symbology identifier says what was scanned: only the GS1 ones (GS1-128, DataMatrix, GS1 QR, GS1 DataBar) are element
+  // strings; EAN/UPC (`]E`, `]A`) and any other kind are plain barcodes.
+  let gs1Symbology = false;
+  const symbology = /^\][A-Za-z]\d/.exec(s);
+  if (symbology) {
+    if (!/^\](?:C1|d2|e0|Q3)/.test(s)) return null;
+    gs1Symbology = true;
+    s = s.slice(3);
+  }
+  s = s.replace(/\s*([()])\s*/g, '$1'); // the printed form has spaces: (01) 0628... (17) 271100
   if (s === '') return null;
   const pairs: Array<[string, string]> = [];
   if (s.includes('(')) {
     if (!/^(?:\(\d{2}\)[^()]*)+$/.test(s)) return null;
     for (const m of s.matchAll(/\((\d{2})\)([^()]*)/g)) pairs.push([m[1]!, m[2]!.replaceAll(GS, '')]);
   } else {
+    // Bare digits (an EAN-13, UPC-A or ITF-14 that happens to start with 10) are not element strings. The raw form needs a
+    // GS1 symbology id, a leading FNC1, or to start with AI 01 followed by a GTIN-14 whose check digit is right.
+    const startsWithGtin = s.startsWith('01') && /^\d{14}/.test(s.slice(2)) && gtinCheckOk(s.slice(2, 16));
+    if (!gs1Symbology && s[0] !== GS && !startsWithGtin) return null;
     let i = 0;
     while (i < s.length) {
       if (s[i] === GS) {
@@ -118,7 +132,10 @@ export function parseGs1(text: string): Gs1 | null {
       } else if (VARIABLE_AI.has(ai)) {
         const end = s.indexOf(GS, i);
         const stop = end === -1 ? s.length : end;
-        pairs.push([ai, s.slice(i, stop)]);
+        const value = s.slice(i, stop);
+        // Scanners often drop FNC1: an unterminated lot that ends in what looks like an expiry element swallowed it.
+        if (ai === '10' && end === -1 && /17\d{6}$/.test(value) && calendar(2000 + Number(value.slice(-6, -4)), Number(value.slice(-4, -2)), Number(value.slice(-2)) || 'LAST')) return null;
+        pairs.push([ai, value]);
         i = stop;
       } else {
         return null;
@@ -153,11 +170,15 @@ export function parseGs1(text: string): Gs1 | null {
 // ---------------------------------------------------------------------------------------------------------------------
 // Quantity and money text
 
-/** A whole positive count; digit scripts normalised; `,` `.` space as thousands separators only in groups of three. */
+/**
+ * A whole positive count; digit scripts normalised. A thousands separator is a comma or one kind of space in groups of
+ * three, never mixed, never after a leading 0. A `.` or `٫` is not accepted at all: `12.000` may be twelve (ERP print) or
+ * twelve thousand, so it is null rather than a guess.
+ */
 export function parseQuantity(text: string): number | null {
   const t = normalizeScan(text).replace(/[٬،]/g, ',');
-  if (!/^(?:\d+|\d{1,3}(?:[,.\s ]\d{3})+)$/.test(t)) return null;
-  const n = Number(t.replace(/[,.\s ]/g, ''));
+  if (!/^(?:\d+|[1-9]\d{0,2}(?:,\d{3})+|[1-9]\d{0,2}(?: \d{3})+|[1-9]\d{0,2}(?:\u00a0\d{3})+)$/.test(t)) return null;
+  const n = Number(t.replace(/[,\s\u00a0]/g, ''));
   return Number.isSafeInteger(n) && n > 0 ? n : null;
 }
 
@@ -167,12 +188,14 @@ export function parseQuantity(text: string): number | null {
  * are 1500; for USD a comma decimal (`12,50`) and three decimals are null.
  */
 export function parseMoneyMinor(text: string, currency: 'IQD' | 'USD'): bigint | null {
-  const t = normalizeScan(text)
-    .replace(/٬/g, ',')
-    .replace(/٫/g, '.')
-    .replace(/د\.ع|iqd|usd|\$/gi, '')
-    .replace(/\s+/g, '');
-  const m = /^(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d+))?$/.exec(t);
+  let t = normalizeScan(text).replace(/٬/g, ',').replace(/٫/g, '.');
+  // A currency marker must agree with the currency asked for; one that names the other (or both) is a different amount.
+  const marks = new Set<string>();
+  t = t.replace(/د\.ع|دينار|iqd/gi, () => (marks.add('IQD'), '')).replace(/دولار|usd|\$/gi, () => (marks.add('USD'), ''));
+  if (marks.size > 1 || (marks.size === 1 && !marks.has(currency))) return null;
+  t = t.replace(/\s+/g, '');
+  // a leading 0 group (`0,500`) is a European decimal, not a thousands group
+  const m = /^([1-9]\d{0,2}(?:,\d{3})+|\d+)(?:\.(\d+))?$/.exec(t);
   if (!m) return null;
   const whole = m[1]!.replaceAll(',', '');
   if (whole.length > 15) return null;
@@ -265,6 +288,9 @@ const lineSchema = z.object({
     .transform((v) => v ?? null),
 });
 
+/** The field sets, exported so a test can pin that `extractionJsonSchema` lists exactly these. */
+export const extractionShapes = { header: headerSchema.shape, line: lineSchema.shape };
+
 export const extractionSchema = z.object({
   header: headerSchema,
   lines: z.array(lineSchema).max(MAX_LINES),
@@ -333,7 +359,7 @@ export const extractionJsonSchema = objectOf({
       expiry: nullable('string', { maxLength: 40 }),
       barcodeText: nullable('string', { maxLength: 200 }),
       unclear: unclearNotes,
-      page: nullable('integer', { minimum: 1 }),
+      page: nullable('integer', { minimum: 1, maximum: 1000 }),
     }),
   },
 });
@@ -343,7 +369,7 @@ export const extractionJsonSchema = objectOf({
 
 export type Money = bigint | number | null | undefined;
 export type Arithmetic =
-  | { status: 'OK' | 'MISMATCH'; expected: bigint; actual: bigint; difference: bigint }
+  | { status: 'OK' | 'MISMATCH'; expected: bigint; actual: bigint; difference: bigint; assumed?: Array<'tax' | 'discount'> }
   | { status: 'UNKNOWN' };
 
 const big = (v: bigint | number): bigint => (typeof v === 'bigint' ? v : BigInt(v));
@@ -354,27 +380,36 @@ function compare(expected: bigint, actual: bigint): Arithmetic {
   return { status: difference === 0n ? 'OK' : 'MISMATCH', expected, actual, difference };
 }
 
-/** Line total against quantity x unit cost - line discount (an absent discount is none: the extraction has no discount column). */
+/**
+ * Line total against quantity x unit cost - line discount. The extraction has no per-line discount column, so the discount is
+ * absent (0): a line that is discounted on the invoice shows up as MATH_MISMATCH and the reviewer states the reason.
+ */
 export function lineArithmetic(line: { quantity: Money; unitCost: Money; lineTotal: Money; discount?: Money }): Arithmetic {
   if (line.quantity == null || line.unitCost == null || line.lineTotal == null) return UNKNOWN;
   return compare(big(line.quantity) * big(line.unitCost) - big(line.discount ?? 0), big(line.lineTotal));
 }
 
 /**
- * Header total against the sum of line totals + tax - discount. Every input must be known: one null line total, a null
- * total, tax or discount, or no lines at all is UNKNOWN (a missing tax is not assumed to be zero).
+ * Header total against the sum of line totals + tax - discount. The check exists to catch a line the model dropped, so it
+ * must run on the common invoice that prints no tax or discount: a null tax or discount counts as 0 and is listed in
+ * `assumed` (a false mismatch only costs the reviewer a stated reason; a skipped check costs a missed line). UNKNOWN only
+ * when there are no lines, a line total is null, or the header total is null.
  */
 export function headerArithmetic(
   lines: ReadonlyArray<{ lineTotal: Money }>,
   header: { total: Money; tax: Money; discount: Money },
 ): Arithmetic {
-  if (lines.length === 0 || header.total == null || header.tax == null || header.discount == null) return UNKNOWN;
+  if (lines.length === 0 || header.total == null) return UNKNOWN;
   let sum = 0n;
   for (const l of lines) {
     if (l.lineTotal == null) return UNKNOWN;
     sum += big(l.lineTotal);
   }
-  return compare(sum + big(header.tax) - big(header.discount), big(header.total));
+  const assumed: Array<'tax' | 'discount'> = [];
+  if (header.tax == null) assumed.push('tax');
+  if (header.discount == null) assumed.push('discount');
+  const result = compare(sum + big(header.tax ?? 0) - big(header.discount ?? 0), big(header.total));
+  return assumed.length > 0 && result.status !== 'UNKNOWN' ? { ...result, assumed } : result;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -432,22 +467,29 @@ export function deriveFlags(row: FlagRow, ctx: { today: string; rows: ReadonlyAr
   return [...flags].sort();
 }
 
+/**
+ * What a reviewer acknowledged, bound to what they saw: a note lists the flags that existed when it was written (a flag raised
+ * by a later edit is not covered), and a mismatch acknowledgement carries the exact difference it accepted (a later edit that
+ * changes the difference reopens it).
+ */
 export type RowAcknowledgement = {
-  reviewed?: { note: string } | null;
-  mismatchAcknowledged?: { reason: string } | null;
+  reviewed?: { note: string; flags: readonly Flag[] } | null;
+  mismatchAcknowledged?: { reason: string; difference: bigint } | null;
 };
 
 /**
- * The flags still open after the reviewer's acknowledgement. A note marks MODEL_UNCLEAR, EXPIRED and DUPLICATE_LINE as
- * reviewed; MATH_MISMATCH needs its own reason; MISSING and AMBIGUOUS_MATCH are cleared only by supplying the value or
- * choosing the product (then they are no longer derived).
+ * The flags still open after the reviewer's acknowledgement. A note clears MODEL_UNCLEAR, EXPIRED and DUPLICATE_LINE, and
+ * only those it listed; MATH_MISMATCH needs a reason for the same difference as now (`mismatchDifference`); MISSING and
+ * AMBIGUOUS_MATCH are cleared only by supplying the value or choosing the product (then they are no longer derived).
  */
-export function openFlags(flags: readonly Flag[], ack: RowAcknowledgement): Flag[] {
+export function openFlags(flags: readonly Flag[], ack: RowAcknowledgement, mismatchDifference?: bigint | null): Flag[] {
   const noted = (ack.reviewed?.note ?? '').trim() !== '';
-  const reasoned = (ack.mismatchAcknowledged?.reason ?? '').trim() !== '';
+  const mismatch = ack.mismatchAcknowledged;
+  const reasoned =
+    mismatch != null && mismatch.reason.trim() !== '' && mismatchDifference != null && mismatch.difference === mismatchDifference;
   return flags.filter((f) => {
     if (f === 'MATH_MISMATCH') return !reasoned;
-    if (f === 'MODEL_UNCLEAR' || f === 'EXPIRED' || f === 'DUPLICATE_LINE') return !noted;
+    if (f === 'MODEL_UNCLEAR' || f === 'EXPIRED' || f === 'DUPLICATE_LINE') return !(noted && ack.reviewed!.flags.includes(f));
     return true;
   });
 }
@@ -457,17 +499,27 @@ export type ApprovalReason =
   | { code: 'OPEN_FLAG'; rowIndex: number; flag: Flag }
   | { code: 'HEADER_MISMATCH' };
 
-/** Whether a batch can be approved: at least one row, no open flag, and a header mismatch only with a stated reason. */
+/**
+ * Whether a batch can be approved: at least one row, no open flag, and a header mismatch only with a stated reason for the
+ * same difference. The caller recomputes `flags` and the differences from the stored values; nothing here trusts a client.
+ */
 export function canApprove(
-  rows: ReadonlyArray<{ flags: readonly Flag[] } & RowAcknowledgement>,
-  headerAck: { status: 'OK' | 'MISMATCH' | 'UNKNOWN'; acknowledgedReason?: string | null },
+  rows: ReadonlyArray<{ flags: readonly Flag[]; mismatchDifference?: bigint | null } & RowAcknowledgement>,
+  headerAck: {
+    status: 'OK' | 'MISMATCH' | 'UNKNOWN';
+    difference?: bigint | null;
+    acknowledgedReason?: string | null;
+    acknowledgedDifference?: bigint | null;
+  },
 ): { ok: boolean; reasons: ApprovalReason[] } {
   const reasons: ApprovalReason[] = [];
   if (rows.length === 0) reasons.push({ code: 'NO_ROWS' });
   rows.forEach((row, rowIndex) => {
-    for (const flag of openFlags(row.flags, row)) reasons.push({ code: 'OPEN_FLAG', rowIndex, flag });
+    for (const flag of openFlags(row.flags, row, row.mismatchDifference)) reasons.push({ code: 'OPEN_FLAG', rowIndex, flag });
   });
-  if (headerAck.status === 'MISMATCH' && (headerAck.acknowledgedReason ?? '').trim() === '') reasons.push({ code: 'HEADER_MISMATCH' });
+  const headerAcknowledged =
+    (headerAck.acknowledgedReason ?? '').trim() !== '' && headerAck.difference != null && headerAck.acknowledgedDifference === headerAck.difference;
+  if (headerAck.status === 'MISMATCH' && !headerAcknowledged) reasons.push({ code: 'HEADER_MISMATCH' });
   return { ok: reasons.length === 0, reasons };
 }
 
@@ -475,8 +527,10 @@ export function canApprove(
 export function effectiveRow<T extends object>(extracted: T, edited: Partial<T> | null | undefined): T {
   const out = { ...extracted };
   if (edited) {
-    for (const key of Object.keys(edited) as Array<keyof T>) {
-      if (edited[key] !== undefined) out[key] = edited[key] as T[keyof T];
+    // only the extracted row's own keys can be edited: an extra key or an own `__proto__` from JSON.parse is ignored
+    for (const key of Object.keys(extracted) as Array<keyof T & string>) {
+      if (key === '__proto__' || !Object.hasOwn(edited, key)) continue;
+      if (edited[key] !== undefined) out[key] = edited[key] as T[keyof T & string];
     }
   }
   return out;
@@ -529,16 +583,36 @@ function nameScore(a: string, b: string): number {
 }
 
 /**
+ * The stored-code spellings a scan can mean: the text itself, and for a GS1 element string or a GTIN-14 the GTIN-14 and its
+ * EAN-13 form (the leading 0 indicator dropped), since the catalog stores what is printed on the pack.
+ */
+function barcodeForms(raw: string): string[] {
+  const scan = normalizeScan(raw);
+  if (scan === '') return [];
+  const forms = new Set([scan]);
+  const gtin = parseGs1(scan)?.gtin ?? (/^\d{14}$/.test(scan) ? scan : undefined);
+  if (gtin) {
+    forms.add(gtin);
+    if (gtin.startsWith('0')) forms.add(gtin.slice(1));
+  }
+  return [...forms];
+}
+
+/**
  * Finds the catalog product a line is. Order: an exact barcode (gives the unit), an exact identity key (trade name, strength,
  * form, pack through the phase-1 normaliser; the invoice names no manufacturer, so it is left out on both sides), then
  * name similarity. Never picks between doubts: two products on one barcode or key, a candidate with the same name but another
  * strength or pack, or two equally good names are AMBIGUOUS and the reviewer chooses.
  */
 export function rankMatches(input: MatchInput, candidates: readonly Candidate[]): MatchResult {
-  const barcode = normalizeScan(input.barcode ?? '');
-  if (barcode !== '') {
-    const hits = candidates.flatMap((c) => c.barcodes.filter((b) => b.code === barcode).map((b) => ({ c, unitId: b.unitId })));
+  const forms = barcodeForms(input.barcode ?? '');
+  if (forms.length > 0) {
+    const hits = candidates.flatMap((c) => c.barcodes.filter((b) => forms.includes(b.code)).map((b) => ({ c, unitId: b.unitId })));
     const products = [...new Set(hits.map((h) => h.c.productId))].sort();
+    const units = new Set(hits.map((h) => h.unitId));
+    if (products.length === 1 && units.size > 1) {
+      return { status: 'AMBIGUOUS', candidates: [{ productId: products[0]!, score: 1000 }] }; // one code on two units: the reviewer picks the unit
+    }
     if (products.length === 1) {
       return { status: 'MATCHED', productId: products[0]!, unitId: hits[0]!.unitId, candidates: [{ productId: products[0]!, score: 1000 }] };
     }
@@ -576,7 +650,8 @@ export function rankMatches(input: MatchInput, candidates: readonly Candidate[])
 /**
  * Starting limits, to be recalibrated on real invoice photos at UAT (the tests only pin that each limit decides its reason).
  * - minShortSidePx: the short side of the image; below 800 px a printed invoice line is under about 8 px tall and unreadable.
- * - minLaplacianVariance: variance of the Laplacian of the grey image (sharpness); the common rule of thumb is that a focused
+ * - minLaplacianVariance (only meaningful at a fixed working size: the metric must be computed after resizing the grey image
+ *   to a fixed short side, or the threshold drifts with the camera's megapixels): variance of the Laplacian of the grey image (sharpness); the common rule of thumb is that a focused
  *   photograph of text is well above 100 and a motion- or focus-blurred one is below it.
  * - minMeanLuma: mean grey level 0..255; below 50 the page is under-exposed.
  * - minContrast: standard deviation of the grey level; below 25 ink and paper are not separable.
@@ -606,16 +681,29 @@ export function qualityDecision(metrics: QualityMetrics, mediaType: string): { o
 // Files
 
 /**
- * Number of page objects of a PDF, or null when it cannot be told: not a PDF, no page object found, or the file keeps its
- * objects in compressed object streams (`/ObjStm`), where a plain scan would undercount. The caller refuses null.
+ * Number of pages of a PDF, or null when it cannot be told with certainty (the caller refuses null). Conservative on
+ * purpose: null for anything that is not plain, single-revision, uncompressed-structure PDF text:
+ * - not a PDF, no page object, or objects kept in compressed object streams (`/ObjStm`);
+ * - a `#` name escape (`/P#61ge`) outside stream bodies, which could hide a page or an object stream from a text scan;
+ * - more than one `%%EOF` or `startxref` (incremental update or linearised file: page objects can repeat);
+ * - a leaf-page count that differs from the largest `/Count` of the page-tree nodes.
+ * Stream bodies (binary content, images) are removed before any scan. The bytes are decoded as latin1 (one char per byte;
+ * the exact code page does not matter because only ASCII tokens are matched).
  */
 export function countPdfPages(bytes: Uint8Array): number | null {
-  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 1024));
-  if (!head.includes('%PDF-')) return null;
-  const body = new TextDecoder('latin1').decode(bytes);
-  if (/\/Type\s*\/ObjStm/.test(body)) return null;
-  const pages = body.match(/\/Type\s*\/Page(?![A-Za-z])/g)?.length ?? 0;
-  return pages > 0 ? pages : null;
+  const decoder = new TextDecoder('latin1');
+  if (!decoder.decode(bytes.subarray(0, 1024)).includes('%PDF-')) return null;
+  const body = decoder.decode(bytes).replace(/stream\r?\n[\s\S]*?endstream/g, 'stream endstream');
+  if (/\/Type\s*\/ObjStm/.test(body) || /\/[^\s/<>[\]()%]*#[0-9A-Fa-f]{2}/.test(body)) return null;
+  if ((body.match(/%%EOF/g)?.length ?? 0) > 1 || (body.match(/startxref/g)?.length ?? 0) > 1) return null;
+  let leaves = 0;
+  let declared = 0;
+  for (const obj of body.matchAll(/\d+\s+\d+\s+obj([\s\S]*?)endobj/g)) {
+    const dict = obj[1]!;
+    if (/\/Type\s*\/Page(?![A-Za-z])/.test(dict)) leaves++;
+    else if (/\/Type\s*\/Pages(?![A-Za-z])/.test(dict)) declared = Math.max(declared, Number(/\/Count\s+(\d+)/.exec(dict)?.[1] ?? 0));
+  }
+  return leaves > 0 && leaves === declared ? leaves : null;
 }
 
 export const INTAKE_LIMITS = { maxBytes: 8 * 1024 * 1024, maxPages: 10, maxFilesPerBatch: 20 } as const;
@@ -681,13 +769,28 @@ export function canReserve(state: { spent: bigint; reserved: bigint; budget: big
   return state.spent + state.reserved + whole(worst, 'worst') <= state.budget;
 }
 
+/** A bookkeeping error in the budget: the caller must treat it as a defect and alert, not retry silently. */
+export class BudgetError extends Error {
+  constructor(readonly code: 'OVERRUN' | 'UNKNOWN_RESERVATION') {
+    super(code);
+    this.name = 'BudgetError';
+  }
+}
+
 /**
  * Ends a reservation: it is released and the actual cost is booked as spent. The reservation must be an upper bound of the
- * actual cost (the output tokens are capped), which is what keeps spent + reserved within the budget. Never negative.
+ * actual cost (input tokens counted from a trustworthy page count or image size, output tokens capped), which is what keeps
+ * spent + reserved within the budget. So an actual above the reservation throws OVERRUN (nothing changes; the caller books
+ * at most the reservation and raises the alarm), and a reservation larger than what is reserved at all (a double settle, or
+ * an amount that was never reserved) throws UNKNOWN_RESERVATION instead of releasing other calls' reservations. A double
+ * settle while other reservations are in flight cannot be told apart in aggregate: the caller must settle each call once.
  */
 export function settle(state: { spent: bigint; reserved: bigint }, reservedAmount: bigint, actual: bigint): { spent: bigint; reserved: bigint } {
-  const released = state.reserved - whole(reservedAmount, 'reservedAmount');
-  return { spent: state.spent + whole(actual, 'actual'), reserved: released < 0n ? 0n : released };
+  const amount = whole(reservedAmount, 'reservedAmount');
+  const cost = whole(actual, 'actual');
+  if (amount > state.reserved) throw new BudgetError('UNKNOWN_RESERVATION');
+  if (cost > amount) throw new BudgetError('OVERRUN');
+  return { spent: state.spent + cost, reserved: state.reserved - amount };
 }
 
 /** The Baghdad (UTC+3, no daylight saving) calendar month as `YYYY-MM`, without timezone data. */

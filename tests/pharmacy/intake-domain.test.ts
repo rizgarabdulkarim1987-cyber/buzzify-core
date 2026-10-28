@@ -11,7 +11,9 @@ import {
   deriveFlags,
   effectiveRow,
   estimateCostMicroUsd,
+  BudgetError,
   extractionJsonSchema,
+  extractionShapes,
   headerArithmetic,
   intakeFileAcceptable,
   lineArithmetic,
@@ -28,7 +30,7 @@ import {
   type FlagRow,
 } from '@/server/domain/pharmacy/intake';
 
-type Node = { type?: unknown; additionalProperties?: boolean; required: string[]; maxItems?: number; items: Node; properties: Record<string, Node> };
+type Node = { type?: unknown; maximum?: number; additionalProperties?: boolean; required: string[]; maxItems?: number; items: Node; properties: Record<string, Node> };
 const NOW = new Date('2026-10-29T10:00:00Z');
 
 /** GS1 check digit for a 13-digit body. */
@@ -81,6 +83,24 @@ describe('parseGs1', () => {
     expect(parseGs1('hello')).toBeNull();
     expect(parseGs1(`(01)${g}junk`)).toBeNull();
   });
+  it('a bare EAN/UPC/ITF digit string is not GS1, whatever it starts with', () => {
+    for (const t of ['1012345678901', '10012345678902', '6281000123456', '012345678905', ']E01012345678901', ']A0123456789012']) {
+      expect(parseGs1(t)).toBeNull();
+    }
+  });
+  it('raw form needs 01 + valid GTIN, a GS1 symbology id, or a leading FNC1', () => {
+    expect(parseGs1(`${GS}10LOT1`)).toEqual({ lot: 'LOT1' });
+    expect(parseGs1(']C110LOT1')).toEqual({ lot: 'LOT1' });
+    expect(parseGs1(']d210LOT1')).toEqual({ lot: 'LOT1' });
+    expect(parseGs1(`01${g}`)).toEqual({ gtin: g });
+  });
+  it('an unterminated lot that ends like an expiry element is refused, not swallowed', () => {
+    expect(parseGs1(`01${g}10LOT17280215`)).toBeNull();
+    expect(parseGs1(`01${g}10LOT${GS}17280215`)?.lot).toBe('LOT');
+  });
+  it('accepts the printed form with spaces around the parentheses', () => {
+    expect(parseGs1(`(01) ${g} (17) 271100`)).toEqual({ gtin: g, expiry: { date: '2027-11-30', precision: 'MONTH' } });
+  });
   it('keeps leading zeros of the GTIN (text)', () => {
     const z = gtin14('0000012345678');
     expect(parseGs1(`(01)${z}`)?.gtin).toBe(z);
@@ -126,12 +146,12 @@ describe('parseQuantity', () => {
     expect(parseQuantity(' ١٢ ')).toBe(12);
     expect(parseQuantity('۱۲')).toBe(12);
     expect(parseQuantity('1,000')).toBe(1000);
-    expect(parseQuantity('1.000')).toBe(1000);
     expect(parseQuantity('1 000')).toBe(1000);
+    expect(parseQuantity('١٬٠٠٠')).toBe(1000);
     expect(parseQuantity('12,345,678')).toBe(12345678);
   });
   it('refuses everything else', () => {
-    for (const t of ['0', '-3', '2.5', '1,5', '', 'x', '12a', '1,00', '9'.repeat(20)]) expect(parseQuantity(t)).toBeNull();
+    for (const t of ['0', '-3', '2.5', '1,5', '', 'x', '12a', '1,00', '9'.repeat(20), '1.000', '12.000', '0.500', '1,000.000', '0,500', '1,000 000', '12٫000']) expect(parseQuantity(t)).toBeNull();
   });
 });
 
@@ -143,6 +163,16 @@ describe('parseMoneyMinor', () => {
     expect(parseMoneyMinor('1,500.00', 'IQD')).toBe(1500n);
     expect(parseMoneyMinor('0', 'IQD')).toBe(0n);
     expect(parseMoneyMinor('12,345,000 IQD', 'IQD')).toBe(12345000n);
+  });
+  it('a currency marker that contradicts the currency gives null', () => {
+    expect(parseMoneyMinor('5 USD', 'IQD')).toBeNull();
+    expect(parseMoneyMinor('$12', 'IQD')).toBeNull();
+    expect(parseMoneyMinor('1,500 IQD', 'USD')).toBeNull();
+    expect(parseMoneyMinor('1500 دينار', 'USD')).toBeNull();
+    expect(parseMoneyMinor('1500 دينار', 'IQD')).toBe(1500n);
+    expect(parseMoneyMinor('IQD 5 USD', 'IQD')).toBeNull();
+    expect(parseMoneyMinor('0,500', 'IQD')).toBeNull();
+    expect(parseMoneyMinor('0,500', 'USD')).toBeNull();
   });
   it('IQD ambiguous or fractional forms are null, never guessed', () => {
     for (const t of ['1.234', '1.500', '1,5', '1.234.567', '1500.50', '1,50', '-5', '', 'abc']) {
@@ -245,6 +275,9 @@ describe('parseExtraction', () => {
       ['name', 'strength', 'form', 'pack', 'quantity', 'bonus', 'unitCost', 'lineTotal', 'lot', 'expiry', 'barcodeText', 'unclear', 'page'].sort(),
     );
     const h = s.properties.header;
+    expect(Object.keys(h.properties).sort()).toEqual(Object.keys(extractionShapes.header).sort());
+    expect(Object.keys(lineSchema.properties).sort()).toEqual(Object.keys(extractionShapes.line).sort());
+    expect(lineSchema.properties.page.maximum).toBe(1000);
     expect(h.required.slice().sort()).toEqual(Object.keys(h.properties).sort());
     for (const [k, v] of Object.entries<Node>(lineSchema.properties)) {
       if (k === 'unclear') continue;
@@ -295,11 +328,23 @@ describe('lineArithmetic / headerArithmetic', () => {
       difference: -1000n,
     });
   });
-  it('header: any null input is UNKNOWN, never MISMATCH', () => {
+  it('header: a null tax or discount counts as 0 and is reported as assumed; a dropped line then mismatches', () => {
+    expect(headerArithmetic([{ lineTotal: 1000 }], { total: 1000, tax: null, discount: null })).toEqual({
+      status: 'OK',
+      expected: 1000n,
+      actual: 1000n,
+      difference: 0n,
+      assumed: ['tax', 'discount'],
+    });
+    expect(headerArithmetic([{ lineTotal: 1000 }], { total: 3000, tax: null, discount: 0 })).toMatchObject({
+      status: 'MISMATCH',
+      difference: 2000n,
+      assumed: ['tax'],
+    });
+  });
+  it('header: an unknown total or line total is UNKNOWN, never MISMATCH', () => {
     expect(headerArithmetic([{ lineTotal: 1 }, { lineTotal: null }], { total: 5, tax: 0, discount: 0 })).toEqual({ status: 'UNKNOWN' });
     expect(headerArithmetic([{ lineTotal: 1 }], { total: null, tax: 0, discount: 0 })).toEqual({ status: 'UNKNOWN' });
-    expect(headerArithmetic([{ lineTotal: 1 }], { total: 1, tax: null, discount: 0 })).toEqual({ status: 'UNKNOWN' });
-    expect(headerArithmetic([{ lineTotal: 1 }], { total: 1, tax: 0, discount: null })).toEqual({ status: 'UNKNOWN' });
     expect(headerArithmetic([], { total: 0, tax: 0, discount: 0 })).toEqual({ status: 'UNKNOWN' });
   });
 });
@@ -352,23 +397,56 @@ describe('flags', () => {
     expect(new Set(f).size).toBe(f.length);
     expect(f).toEqual(['EXPIRED', 'MATH_MISMATCH', 'MISSING', 'MODEL_UNCLEAR']);
   });
-  it('openFlags: reviewed with a note clears the soft flags only; the mismatch needs its own reason', () => {
+  it('openFlags: a note clears only the soft flags it was written for; the mismatch needs its own reason', () => {
     const all = ['AMBIGUOUS_MATCH', 'DUPLICATE_LINE', 'EXPIRED', 'MATH_MISMATCH', 'MISSING', 'MODEL_UNCLEAR'] as const;
-    expect(openFlags([...all], { reviewed: { note: 'checked' } })).toEqual(['AMBIGUOUS_MATCH', 'MATH_MISMATCH', 'MISSING']);
-    expect(openFlags([...all], { reviewed: { note: '   ' } })).toEqual([...all]);
-    expect(openFlags(['MATH_MISMATCH'], { reviewed: { note: 'ok' } })).toEqual(['MATH_MISMATCH']);
-    expect(openFlags(['MATH_MISMATCH'], { mismatchAcknowledged: { reason: 'supplier rounding' } })).toEqual([]);
-    expect(openFlags(['MATH_MISMATCH'], { mismatchAcknowledged: { reason: ' ' } })).toEqual(['MATH_MISMATCH']);
+    const note = { note: 'checked', flags: [...all] };
+    expect(openFlags([...all], { reviewed: note })).toEqual(['AMBIGUOUS_MATCH', 'MATH_MISMATCH', 'MISSING']);
+    expect(openFlags([...all], { reviewed: { note: '   ', flags: [...all] } })).toEqual([...all]);
+    expect(openFlags(['MATH_MISMATCH'], { reviewed: note })).toEqual(['MATH_MISMATCH']);
+  });
+  it('a note does not clear a flag raised after it was written', () => {
+    const reviewed = { note: 'blurry lot, checked', flags: ['MODEL_UNCLEAR' as const] };
+    expect(openFlags(['MODEL_UNCLEAR'], { reviewed })).toEqual([]);
+    expect(openFlags(['EXPIRED', 'MODEL_UNCLEAR'], { reviewed })).toEqual(['EXPIRED']);
+  });
+  it('a mismatch acknowledgement goes stale when the difference changes', () => {
+    const ack = { mismatchAcknowledged: { reason: 'supplier rounding', difference: 1n } };
+    expect(openFlags(['MATH_MISMATCH'], ack, 1n)).toEqual([]);
+    expect(openFlags(['MATH_MISMATCH'], ack, 1_000_000n)).toEqual(['MATH_MISMATCH']);
+    expect(openFlags(['MATH_MISMATCH'], ack, null)).toEqual(['MATH_MISMATCH']);
+    expect(openFlags(['MATH_MISMATCH'], { mismatchAcknowledged: { reason: ' ', difference: 1n } }, 1n)).toEqual(['MATH_MISMATCH']);
+    expect(openFlags(['MATH_MISMATCH'], {}, 1n)).toEqual(['MATH_MISMATCH']);
   });
   it('canApprove lists every reason', () => {
     expect(canApprove([], { status: 'OK' })).toEqual({ ok: false, reasons: [{ code: 'NO_ROWS' }] });
     expect(canApprove([{ flags: [] }], { status: 'OK' })).toEqual({ ok: true, reasons: [] });
     expect(canApprove([{ flags: [] }], { status: 'UNKNOWN' }).ok).toBe(true);
-    const r = canApprove([{ flags: [] }, { flags: ['MISSING', 'EXPIRED'], reviewed: { note: 'n' } }], { status: 'MISMATCH' });
+    const r = canApprove(
+      [{ flags: [] }, { flags: ['MISSING', 'EXPIRED'], reviewed: { note: 'n', flags: ['EXPIRED', 'MISSING'] } }],
+      { status: 'MISMATCH', difference: 5n },
+    );
     expect(r.ok).toBe(false);
     expect(r.reasons).toEqual([{ code: 'OPEN_FLAG', rowIndex: 1, flag: 'MISSING' }, { code: 'HEADER_MISMATCH' }]);
-    expect(canApprove([{ flags: [] }], { status: 'MISMATCH', acknowledgedReason: 'rounding' }).ok).toBe(true);
-    expect(canApprove([{ flags: [] }], { status: 'MISMATCH', acknowledgedReason: ' ' }).ok).toBe(false);
+  });
+  it('canApprove: the header acknowledgement is bound to the difference it saw', () => {
+    const rows = [{ flags: [] }];
+    expect(canApprove(rows, { status: 'MISMATCH', difference: 5n, acknowledgedReason: 'rounding', acknowledgedDifference: 5n }).ok).toBe(true);
+    expect(canApprove(rows, { status: 'MISMATCH', difference: 500n, acknowledgedReason: 'rounding', acknowledgedDifference: 5n }).ok).toBe(false);
+    expect(canApprove(rows, { status: 'MISMATCH', difference: 5n, acknowledgedReason: ' ', acknowledgedDifference: 5n }).ok).toBe(false);
+    expect(canApprove(rows, { status: 'MISMATCH', difference: 5n, acknowledgedReason: 'rounding' }).ok).toBe(false);
+  });
+  it('canApprove: a row mismatch acknowledgement needs the matching difference', () => {
+    const row = { flags: ['MATH_MISMATCH' as const], mismatchAcknowledged: { reason: 'r', difference: 1n } };
+    expect(canApprove([{ ...row, mismatchDifference: 1n }], { status: 'OK' }).ok).toBe(true);
+    expect(canApprove([{ ...row, mismatchDifference: 2n }], { status: 'OK' }).ok).toBe(false);
+  });
+  it('effectiveRow ignores keys the extracted row does not have, including __proto__', () => {
+    const e = { name: 'A' };
+    const edited = JSON.parse('{"__proto__": {"polluted": true}, "extra": 1, "name": "B"}') as Partial<typeof e>;
+    const out = effectiveRow(e, edited);
+    expect(out).toEqual({ name: 'B' });
+    expect(Object.getPrototypeOf(out)).toBe(Object.prototype);
+    expect(({} as Record<string, unknown>).polluted).toBeUndefined();
   });
   it('effectiveRow: edits override, untouched stays, an explicit null clears', () => {
     const e = { name: 'A', quantity: 5, lot: 'L1' as string | null };
@@ -424,12 +502,23 @@ describe('rankMatches', () => {
   it('unrelated names are UNMATCHED with at most 5 ranked candidates, deterministic', () => {
     const many = Array.from({ length: 8 }, (_, i) => cand(`m${i}`, `Panadol ${i}`, '500mg', 'Tablet', '24'));
     const r1 = rankMatches({ name: 'Panadol', strength: '500mg', form: 'tablet', pack: '10' }, many);
-    expect(r1.status).not.toBe('MATCHED');
+    expect(r1.status).toBe('AMBIGUOUS');
     expect(r1.candidates.length).toBeLessThanOrEqual(5);
     const r2 = rankMatches({ name: 'Panadol', strength: '500mg', form: 'tablet', pack: '10' }, [...many].reverse());
     expect(r2).toEqual(r1);
     const none = rankMatches({ name: 'Zzzzqq', strength: '', form: '', pack: '' }, [para, amox500]);
     expect(none).toMatchObject({ status: 'UNMATCHED', candidates: [] });
+  });
+  it('a GS1 scan or a GTIN-14 meets a stored EAN-13', () => {
+    const ean = cand('e1', 'Z', '', '', '', { barcodes: [{ code: '6281000123456', unitId: 'e1-u' }] });
+    const g14 = gtin14('0628100012345'.slice(0, 13));
+    const stored = cand('e2', 'Y', '', '', '', { barcodes: [{ code: g14.slice(1), unitId: 'e2-u' }] });
+    expect(rankMatches({ ...input, barcode: `(01)${g14}(17)271100(10)A1` }, [ean, stored])).toMatchObject({ status: 'MATCHED', productId: 'e2', unitId: 'e2-u' });
+    expect(rankMatches({ ...input, barcode: g14 }, [ean, stored])).toMatchObject({ status: 'MATCHED', productId: 'e2' });
+  });
+  it('one product with two units on one code is ambiguous', () => {
+    const two = cand('t', 'T', '', '', '', { barcodes: [{ code: '555', unitId: 'box' }, { code: '555', unitId: 'strip' }] });
+    expect(rankMatches({ ...input, barcode: '555' }, [two]).status).toBe('AMBIGUOUS');
   });
   it('no candidates: UNMATCHED', () => {
     expect(rankMatches(input, [])).toEqual({ status: 'UNMATCHED', candidates: [] });
@@ -467,12 +556,23 @@ describe('countPdfPages', () => {
     expect(countPdfPages(enc(tiny(3)))).toBe(3);
     expect(countPdfPages(enc(tiny(2).replace(/\/Type \/Page /g, '/Type/Page ')))).toBe(2);
   });
+  it('returns null for name escapes, incremental updates, and a page count that disagrees with the tree', () => {
+    expect(countPdfPages(enc(tiny(1).replace('/Type /Page ', '/Type /P#61ge ')))).toBeNull();
+    expect(countPdfPages(enc(tiny(1).replace('/Type /Catalog', '/T#79pe /Catalog')))).toBeNull();
+    expect(countPdfPages(enc(tiny(1) + '\n3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\nstartxref\n0\n%%EOF'))).toBeNull();
+    expect(countPdfPages(enc(tiny(2).replace('/Count 2', '/Count 9')))).toBeNull();
+  });
+  it('ignores stream bodies (a /Type /Page or # inside a stream is not a page or an escape)', () => {
+    const withStream = tiny(2).replace('trailer', '9 0 obj\n<< /Length 30 >>\nstream\n/Type /Page /A#1 /Type /Page\nendstream\nendobj\ntrailer');
+    expect(countPdfPages(enc(withStream))).toBe(2);
+  });
   it('returns null for object streams, no pages, and garbage', () => {
     expect(countPdfPages(enc(tiny(2) + '\n9 0 obj\n<< /Type /ObjStm /N 1 >>\nendobj'))).toBeNull();
     expect(countPdfPages(enc('%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj'))).toBeNull();
     expect(countPdfPages(enc('hello world /Type /Page'))).toBeNull();
     expect(countPdfPages(new Uint8Array(0))).toBeNull();
     expect(countPdfPages(Uint8Array.from({ length: 5000 }, (_, i) => (i * 37) % 256))).toBeNull();
+    expect(countPdfPages(Uint8Array.from([...enc('%PDF-1.4\n'), ...Array.from({ length: 5000 }, (_, i) => (i * 37) % 256)]))).toBeNull();
   });
 });
 
@@ -501,7 +601,20 @@ describe('budget maths', () => {
   });
   it('settle releases the reservation and books the actual, never negative', () => {
     expect(settle({ spent: 5n, reserved: 3n }, 3n, 2n)).toEqual({ spent: 7n, reserved: 0n });
-    expect(settle({ spent: 5n, reserved: 1n }, 3n, 0n)).toEqual({ spent: 5n, reserved: 0n });
+    expect(settle({ spent: 5n, reserved: 3n }, 3n, 0n)).toEqual({ spent: 5n, reserved: 0n });
+  });
+  it('settle refuses an overrun and an unknown (or already settled) reservation instead of hiding it', () => {
+    const code = (fn: () => unknown) => {
+      try {
+        fn();
+        return null;
+      } catch (e) {
+        return e instanceof BudgetError ? e.code : 'OTHER';
+      }
+    };
+    expect(code(() => settle({ spent: 90n, reserved: 10n }, 10n, 50n))).toBe('OVERRUN');
+    expect(code(() => settle({ spent: 5n, reserved: 1n }, 3n, 0n))).toBe('UNKNOWN_RESERVATION');
+    expect(code(() => settle({ spent: 5n, reserved: 0n }, 3n, 1n))).toBe('UNKNOWN_RESERVATION');
   });
   it('never exceeds the budget under any interleaving of reserve/settle (1,000 seeded runs)', () => {
     let seed = 20261030;
@@ -522,8 +635,15 @@ describe('budget maths', () => {
           }
         } else {
           const [done] = open.splice(rnd(open.length), 1);
-          const actual = rnd(3) === 0 ? 0n : BigInt(rnd(Number(done!.worst) + 1)); // failed call costs 0; never above its worst case
-          state = settle(state, done!.worst, actual);
+          const over = rnd(8) === 0; // a bill above the reservation must be refused loudly, never booked silently
+          const actual = over ? done!.worst + BigInt(1 + rnd(20)) : rnd(3) === 0 ? 0n : BigInt(rnd(Number(done!.worst) + 1));
+          if (over) {
+            expect(() => settle(state, done!.worst, actual)).toThrow(BudgetError);
+            state = settle(state, done!.worst, done!.worst); // the caller books at most what it reserved and raises the alarm
+          } else {
+            state = settle(state, done!.worst, actual);
+          }
+          if (state.reserved === 0n) expect(() => settle(state, done!.worst, 0n)).toThrow(BudgetError); // double settle
         }
         expect(state.spent + state.reserved).toBeLessThanOrEqual(budget);
         expect(state.spent >= 0n && state.reserved >= 0n).toBe(true);
