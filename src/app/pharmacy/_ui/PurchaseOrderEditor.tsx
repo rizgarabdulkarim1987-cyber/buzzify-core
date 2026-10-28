@@ -2,7 +2,7 @@
 
 import { CircleAlert, Info, Lightbulb, PackagePlus, Save, Search, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createOrder, findSuppliers, suggestOrder, updateOrder } from '@/app/pharmacy/_actions/purchase-orders';
 import { receiptProduct } from '@/app/pharmacy/_actions/receipts';
 import { formatNumber } from '@/lib/pos-format';
@@ -23,9 +23,9 @@ import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OfflineNotice } from './OfflineNotice';
 import { phMessage } from './ph-failure';
-import { emptyPoDraft, mergeSuggestions, poInputOf, poSignature, poTotals, type PoDraft, type PoDraftLine, type PoProblem } from './purchasing-logic';
+import { attemptKeyFor, emptyPoDraft, mergeSuggestions, poInputOf, poSignature, poTotals, type PoDraft, type PoDraftLine, type PoProblem } from './purchasing-logic';
 import { ReceiptProductPicker } from './ReceiptProductPicker';
-import { keyFor, newClientKey } from './sell-logic';
+import { newClientKey } from './sell-logic';
 import { UnsavedBadge } from './UnsavedBadge';
 import { isolate } from './WriteBlocked';
 import { useOnline } from './use-online';
@@ -48,7 +48,7 @@ export interface PurchaseOrderEditorProps {
   orderId: string | null;
 }
 
-type Suggestions = { state: 'idle' } | { state: 'loading' } | { state: 'failed'; message: string } | { state: 'done'; items: PoSuggestion[]; supplierId: string };
+type Suggestions = { state: 'idle' } | { state: 'loading' } | { state: 'failed'; message: string } | { state: 'done'; items: PoSuggestion[]; supplierId: string; hasHistory: boolean };
 
 /**
  * The purchase order form: supplier, currency, expected date, note, then the lines (product search, unit, quantity,
@@ -83,6 +83,10 @@ export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName
   };
   const changeLine = (key: string, patch: Partial<PoDraftLine>) => change({ lines: value.lines.map((l) => (l.key === key ? { ...l, ...patch } : l)) });
 
+  const supplierNow = useRef(value.supplierId);
+  useEffect(() => {
+    supplierNow.current = value.supplierId;
+  }, [value.supplierId]);
   const busy = pending !== null;
   const can = online && !busy;
   const totals = poTotals(value);
@@ -140,12 +144,16 @@ export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName
   const loadSuggestions = async () => {
     setSuggest({ state: 'loading' });
     setNote(null);
-    const result = await settle(() => suggestOrder(value.supplierId ? { supplierId: value.supplierId } : {}));
+    const asked = value.supplierId;
+    const result = await settle(() => suggestOrder(asked ? { supplierId: asked } : {}));
+    // The supplier was changed while this was on its way: the answer is for another supplier, so it is dropped.
+    if (asked !== supplierNow.current) return;
     if (!result.ok) {
       setSuggest({ state: 'failed', message: phMessage(t, locale, result.error, 'pharmacy.purchasing') });
       return;
     }
-    setSuggest({ state: 'done', items: result.data as PoSuggestion[], supplierId: value.supplierId });
+    const data = result.data as { items: PoSuggestion[]; supplierHasHistory: boolean };
+    setSuggest({ state: 'done', items: data.items, supplierId: asked, hasHistory: data.supplierHasHistory });
   };
 
   const addSuggestions = (items: PoSuggestion[]) => {
@@ -164,10 +172,10 @@ export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName
     }
     setPending('save');
     const sig = poSignature(value);
-    const attempt = keyFor(value.keySig ? { sig: value.keySig, key: value.clientKey } : null, sig, 'po');
-    if (attempt.key !== value.clientKey || value.keySig !== sig) draft.set({ ...value, clientKey: attempt.key, keySig: sig });
+    const attempt = attemptKeyFor(value, sig, 'po');
+    if (attempt.clientKey !== value.clientKey || value.keySig !== sig) draft.set({ ...value, ...attempt });
     const result = await settle<{ id: string }>(() =>
-      orderId ? updateOrder({ ...built.input, purchaseOrderId: orderId, expectedVersion: value.version }) : createOrder({ ...built.input, clientKey: attempt.key }),
+      orderId ? updateOrder({ ...built.input, purchaseOrderId: orderId, expectedVersion: value.version }) : createOrder({ ...built.input, clientKey: attempt.clientKey }),
     );
     setPending(null);
     if (!result.ok) {
@@ -307,7 +315,7 @@ export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName
           {suggest.state === 'done' && suggest.items.length === 0 && (
             <p data-testid="po-suggest-empty" className="flex items-start gap-2.5 text-sm text-text">
               <Info aria-hidden className="mt-px size-4 shrink-0 text-muted" />
-              {suggest.supplierId ? t('pharmacy.purchasing.po.suggest.noHistory') : t('pharmacy.purchasing.po.suggest.nothingLow')}
+              {suggest.supplierId && !suggest.hasHistory ? t('pharmacy.purchasing.po.suggest.noHistory') : suggest.supplierId ? t('pharmacy.purchasing.po.suggest.nothingLowSupplier') : t('pharmacy.purchasing.po.suggest.nothingLow')}
             </p>
           )}
           {suggest.state === 'done' && suggest.items.length > 0 && (

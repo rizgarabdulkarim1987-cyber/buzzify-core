@@ -713,18 +713,23 @@ export interface PoSuggestion {
 /**
  * Products of one branch whose sellable stock is below their minimum (R2-5: quarantine, reserved, damaged, expired and
  * blocked stock do not count). A product with no minimum (0) is never suggested. Read-only; the order is by name.
+ * `supplierHasHistory` is true only when a supplier is named and has a confirmed receipt (whatever it delivered), so an empty
+ * list can say "no history" or "nothing low" truthfully; it is false when no supplier is named.
  */
-export async function suggestOrders(scoped: ScopedClient, args: { branchId: string; supplierId?: string; now?: Date }): Promise<PoSuggestion[]> {
+export async function suggestOrders(scoped: ScopedClient, args: { branchId: string; supplierId?: string; now?: Date }): Promise<{ items: PoSuggestion[]; supplierHasHistory: boolean }> {
   const today = new Date(`${utcToday(args.now)}T00:00:00.000Z`);
   if (args.supplierId) {
     const supplier = await scoped.phSupplier.findFirst({ where: { id: args.supplierId }, select: { id: true } });
     if (!supplier) throw new StudioError('NOT_FOUND', 'Supplier not found');
   }
+  const supplierHasHistory = args.supplierId
+    ? (await scoped.phReceipt.findFirst({ where: { supplierId: args.supplierId, status: 'CONFIRMED' }, select: { id: true } })) !== null
+    : false;
   const minimums = await scoped.phProductBranch.findMany({
     where: { branchId: args.branchId, minQty: { gt: 0 }, product: { active: true } },
     select: { productId: true, minQty: true, reorderQty: true },
   });
-  if (minimums.length === 0) return [];
+  if (minimums.length === 0) return { items: [], supplierHasHistory };
   const productIds = minimums.map((m) => m.productId);
   const [sums, products, delivered] = await Promise.all([
     scoped.phStockBalance.groupBy({
@@ -764,5 +769,5 @@ export async function suggestOrders(scoped: ScopedClient, args: { branchId: stri
       suggestedQty: m.reorderQty > 0 ? m.reorderQty : m.minQty - available,
     });
   }
-  return out.sort((a, b) => a.productName.localeCompare(b.productName) || a.productId.localeCompare(b.productId));
+  return { items: out.sort((a, b) => a.productName.localeCompare(b.productName) || a.productId.localeCompare(b.productId)), supplierHasHistory };
 }

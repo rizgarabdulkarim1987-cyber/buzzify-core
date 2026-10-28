@@ -1437,6 +1437,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.OVER_RECEIPT': 'أُدخل أكثر مما يسمح به الأمر. خفّض الكمية أو البونص في البند.',
   'pharmacy.purchasing.fail.NOT_ON_ORDER': 'هذا المنتج ليس في الأمر. احذف البند.',
   'pharmacy.purchasing.fail.SUPPLIER_MISMATCH': 'هذا ليس مورد الأمر.',
+  'pharmacy.purchasing.po.suggest.nothingLowSupplier': 'لا شيء من هذا المورد تحت حده الأدنى. أزل المورد لرؤية كل ما نقص.',
 };
 
 export default pharmacy;

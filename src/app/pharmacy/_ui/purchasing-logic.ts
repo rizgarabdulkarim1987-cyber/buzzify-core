@@ -2,6 +2,7 @@ import { parseMoney, type Currency } from '@/server/domain/pharmacy/money';
 import type { PoSuggestion } from '@/server/pharmacy/purchase-orders';
 import { minorToText, type UnitChoice } from './receipt-draft';
 import { wholeOf } from './product-draft';
+import { newClientKey } from './sell-logic';
 
 /**
  * The pure parts of the purchasing screens: what an order form holds, its totals, the request it makes and the key that
@@ -232,4 +233,30 @@ export function supplierInputOf(draft: SupplierDraft): { input?: Record<string, 
 /** Every field the server hashes, as typed; not the key and not the version. */
 export function supplierSignature(draft: SupplierDraft): string {
   return JSON.stringify([draft.name, draft.phone, draft.contactName, draft.addressNote, draft.defaultCurrency, draft.termsDays, draft.note]);
+}
+
+// Saving twice in one visit -------------------------------------------------------------------------------------------
+
+/** The draft re-based on the version the server just answered with, so the next save does not look like a stale edit. */
+export function withVersion<T extends { version: number }>(draft: T, version: number): T {
+  return { ...draft, version };
+}
+
+/** The update request for a supplier draft: its fields, the supplier and the version the draft stands on. Null while it has problems. */
+export function supplierUpdateInput(draft: SupplierDraft, supplierId: string): Record<string, unknown> | null {
+  const built = supplierInputOf(draft);
+  return built.input ? { ...built.input, supplierId, expectedVersion: draft.version } : null;
+}
+
+/**
+ * The key a save is sent with: the draft's saved one while the request (its signature) is the same, a new one as soon as it
+ * changed. The result is what the draft stores again, so a retry after a lost answer or a reload sends the same key.
+ */
+export function attemptKeyFor(
+  draft: { clientKey: string; keySig?: string | undefined },
+  sig: string,
+  prefix: string,
+  make: (prefix: string) => string = newClientKey,
+): { clientKey: string; keySig: string } {
+  return draft.keySig === sig ? { clientKey: draft.clientKey, keySig: sig } : { clientKey: make(prefix), keySig: sig };
 }

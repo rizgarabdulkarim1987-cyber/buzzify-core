@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { draftOfReceipt, emptyDraft, inputOf, type LineDraft } from '@/app/pharmacy/_ui/receipt-draft';
+import type { ReceiptDetail } from '@/server/pharmacy/receipts';
 import {
   costVariance,
   emptyPoDraft,
@@ -8,6 +10,9 @@ import {
   poSignature,
   poTotals,
   remainingOf,
+  attemptKeyFor,
+  withVersion,
+  supplierUpdateInput,
   emptySupplierDraft,
   supplierInputOf,
   supplierSignature,
@@ -155,5 +160,86 @@ describe('supplier form', () => {
     const a = supplierSignature(filled);
     expect(supplierSignature({ ...filled, clientKey: 'z', version: 3 })).toBe(a);
     expect(supplierSignature({ ...filled, phone: '0770' })).not.toBe(a);
+  });
+});
+
+describe('a second save in one visit', () => {
+  it('uses the version the first save returned, so there is no false conflict', () => {
+    const first = { ...emptySupplierDraft('k', 'IQD'), name: 'Al Noor', version: 1 };
+    expect(supplierUpdateInput(first, 's1')).toMatchObject({ supplierId: 's1', expectedVersion: 1 });
+    // The server answered version 2: the draft is re-based on it and the next save sends 2, not 1.
+    const after = withVersion(first, 2);
+    expect(after.name).toBe('Al Noor');
+    expect(supplierUpdateInput(after, 's1')!.expectedVersion).toBe(2);
+    expect(supplierUpdateInput(withVersion(after, 3), 's1')!.expectedVersion).toBe(3);
+  });
+});
+
+describe('attemptKeyFor', () => {
+  const make = (prefix: string) => `${prefix}-new`;
+  it('reuses the saved key while the request is unchanged and replaces it after an edit', () => {
+    const first = attemptKeyFor({ clientKey: 'po-old', keySig: undefined }, 'sig-a', 'po', make);
+    expect(first).toEqual({ clientKey: 'po-new', keySig: 'sig-a' });
+    const retry = attemptKeyFor(first, 'sig-a', 'po', () => 'po-other');
+    expect(retry).toEqual(first);
+    const edited = attemptKeyFor(first, 'sig-b', 'po', () => 'po-third');
+    expect(edited).toEqual({ clientKey: 'po-third', keySig: 'sig-b' });
+  });
+});
+
+describe('receipt drafts and the order', () => {
+  const line = (patch: Partial<LineDraft> = {}): LineDraft => ({
+    key: 'l1',
+    productId: 'p1',
+    productName: 'P',
+    productMeta: '',
+    units: [{ id: 'u1', label: 'Box', baseQty: 1 }],
+    unitId: 'u1',
+    qty: '5',
+    bonusQty: '0',
+    lot: 'L1',
+    expiry: '2030-01-31',
+    cost: '2500',
+    currency: 'IQD',
+    freeOfCharge: false,
+    acceptExpired: false,
+    ...patch,
+  });
+  const base = () => ({ ...emptyDraft('key', '2026-10-28'), supplierName: 'Acme', reference: 'R1', note: 'n' });
+
+  it('sends exactly the unchanged input for a draft without an order', () => {
+    const built = inputOf({ ...base(), lines: [line()] });
+    expect(built.problems).toEqual({});
+    expect(built.input).toEqual({
+      supplierName: 'Acme',
+      reference: 'R1',
+      receivedOn: '2026-10-28',
+      note: 'n',
+      lines: [
+        { productId: 'p1', unitId: 'u1', qty: 5, bonusQty: 0, lot: 'L1', expiry: '2030-01-31', unitCostMinor: '2500', currency: 'IQD', freeOfCharge: false, acceptExpired: false },
+      ],
+    });
+    expect(Object.keys(built.input!)).not.toContain('purchaseOrderId');
+    expect(Object.keys((built.input!.lines as object[])[0]!)).not.toContain('purchaseOrderLineId');
+  });
+
+  it('carries the order, the supplier and each order line when the draft names an order', () => {
+    const built = inputOf({ ...base(), supplierId: 's1', purchaseOrderId: 'o1', purchaseOrderNumber: 'PO-1', lines: [line({ purchaseOrderLineId: 'ol1' })] });
+    expect(built.input).toMatchObject({ supplierId: 's1', purchaseOrderId: 'o1' });
+    expect((built.input!.lines as Array<Record<string, unknown>>)[0]).toMatchObject({ purchaseOrderLineId: 'ol1' });
+  });
+
+  it('keeps the order ids when a saved receipt becomes a draft again', () => {
+    const receipt = {
+      id: 'r1', number: null, status: 'DRAFT', branchId: 'b', supplierName: 'Acme', supplierId: 's1', purchaseOrderId: 'o1', purchaseOrderNumber: 'PO-1',
+      reference: '', receivedOn: '2026-10-28', lineCount: 1, version: 3, createdAt: '', note: '', confirmedAt: null,
+      lines: [{ lineNo: 1, productId: 'p1', productName: 'P', unitId: 'u1', unitLabel: 'Box', qty: 5, bonusQty: 0, baseQty: 5, lot: 'L1', expiryDate: '2030-01-31', expiryPrecision: 'DAY', freeOfCharge: false, acceptExpired: false, batchId: null, purchaseOrderLineId: 'ol1', unitCostMinor: '2500', currency: 'IQD' }],
+    } as unknown as ReceiptDetail;
+    const draft = draftOfReceipt(receipt, {}, 'IQD');
+    expect(draft).toMatchObject({ purchaseOrderId: 'o1', purchaseOrderNumber: 'PO-1', supplierId: 's1' });
+    expect(draft.lines[0]).toMatchObject({ purchaseOrderLineId: 'ol1' });
+    const plain = draftOfReceipt({ ...receipt, purchaseOrderId: null, supplierId: null, lines: [{ ...receipt.lines[0]!, purchaseOrderLineId: null }] } as unknown as ReceiptDetail, {}, 'IQD');
+    expect(Object.keys(plain)).not.toContain('purchaseOrderId');
+    expect(Object.keys(plain.lines[0]!)).not.toContain('purchaseOrderLineId');
   });
 });

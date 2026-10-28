@@ -185,7 +185,7 @@ test.describe('Pharmacy purchasing @desktop', () => {
 
     await page.getByRole('navigation').getByRole('link', { name: 'Purchasing' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Purchasing' })).toBeVisible();
-    await expect(page.getByTestId('hub-open-orders')).toContainText('0');
+    await expect(page.getByTestId('hub-open-orders')).toContainText(/Open orders\s*0(?!\d)/);
     await expect(page.getByTestId('hub-invoices')).toContainText('Not on screen yet');
     await shoot(page, 'en-hub-1280');
 
@@ -198,6 +198,13 @@ test.describe('Pharmacy purchasing @desktop', () => {
     await page.getByRole('button', { name: 'Save' }).click();
     await expect(page).toHaveURL(/\/pharmacy\/purchasing\/suppliers\/(?!new$)[^/]+$/);
     await expect(page.getByRole('heading', { level: 1 })).toContainText(supplierName);
+    // Two saves in one visit: the second takes the version the first returned, so no conflict is shown.
+    for (const phone of ['07709999999', '07708888888']) {
+      await page.getByLabel('Phone').fill(phone);
+      await page.getByRole('button', { name: 'Save' }).click();
+      await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+      await expect(page.getByTestId('supplier-error')).toHaveCount(0);
+    }
 
     // An order from the suggestions. With a supplier that has no history the screen says so, not "nothing is low".
     await page.goto('/pharmacy/purchasing/orders/new');

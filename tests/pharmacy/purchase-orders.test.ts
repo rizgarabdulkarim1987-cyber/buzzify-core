@@ -596,15 +596,37 @@ describe('suggesting what to order', () => {
     await makeBatch(w.a.id, w.a.branchIds[1], below!.id, { lot: 'ELSEWHERE', buckets: { available: 500 } });
 
     const got = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId }));
-    expect(got.map((s) => [s.productName, s.available, s.minQty, s.reorderQty, s.suggestedQty, s.baseUnitLabel])).toEqual([
+    expect(got.supplierHasHistory).toBe(false);
+    expect(got.items.map((s) => [s.productName, s.available, s.minQty, s.reorderQty, s.suggestedQty, s.baseUnitLabel])).toEqual([
       ['Below', 3, 10, 0, 7, 'tablet'],
       ['Expired', 1, 6, 0, 5, 'tablet'],
       ['Quarantined', 2, 5, 0, 3, 'tablet'],
       ['Reorder', 4, 10, 24, 24, 'tablet'],
     ]);
-    expect(got[0]!.baseUnitId).toBe(below!.tablet);
+    expect(got.items[0]!.baseUnitId).toBe(below!.tablet);
     const there = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchIds[1] }));
-    expect(there.map((s) => [s.productName, s.available, s.suggestedQty])).toEqual([['OtherBranch', 0, 10]]);
+    expect(there.items.map((s) => [s.productName, s.available, s.suggestedQty])).toEqual([['OtherBranch', 0, 10]]);
+  });
+
+  it('says whether the named supplier has any confirmed delivery, even when nothing it delivered is low', async () => {
+    const w = await world();
+    const fresh = await prisma().phSupplier.create({
+      data: { restaurantId: w.a.id, name: 'New Co', nameKey: 'new-co', defaultCurrency: 'IQD', clientKey: 'sup-fresh-aaaa', createdById: w.owner.userId },
+      select: { id: true },
+    });
+    // A supplier with a draft receipt only has no history either; a confirmed receipt makes it one, with nothing below minimum.
+    await prisma().phReceipt.create({
+      data: { restaurantId: w.a.id, branchId: w.a.branchId, clientKey: 'receipt-hist-flag', receivedOn: NOW, createdById: w.owner.userId, supplierId: w.supplierId, status: 'CONFIRMED', number: 'R-000009' },
+    });
+    await prisma().phReceipt.create({
+      data: { restaurantId: w.a.id, branchId: w.a.branchId, clientKey: 'receipt-draft-flag', receivedOn: NOW, createdById: w.owner.userId, supplierId: fresh.id, status: 'DRAFT' },
+    });
+    const old = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId, supplierId: w.supplierId }));
+    expect(old).toEqual({ items: [], supplierHasHistory: true });
+    const none = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId, supplierId: fresh.id }));
+    expect(none).toEqual({ items: [], supplierHasHistory: false });
+    const unnamed = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId }));
+    expect(unnamed.supplierHasHistory).toBe(false);
   });
 
   it('writes nothing, and narrows to a supplier’s earlier deliveries when one is named', async () => {
@@ -621,9 +643,11 @@ describe('suggesting what to order', () => {
     });
     const before = await prisma().auditLog.count();
     const all = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId }));
-    expect(all.map((s) => s.productName)).toEqual(['Brufen', 'Panadol']);
+    expect(all.items.map((s) => s.productName)).toEqual(['Brufen', 'Panadol']);
+    expect(all.supplierHasHistory).toBe(false);
     const mine = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId, supplierId: w.supplierId }));
-    expect(mine.map((s) => s.productName)).toEqual(['Brufen']);
+    expect(mine.items.map((s) => s.productName)).toEqual(['Brufen']);
+    expect(mine.supplierHasHistory).toBe(true);
     expect(codeOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId, supplierId: 'nobody' }))).toBe('NOT_FOUND');
     expect(codeOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id }))).toBe('INVALID');
     expect(await prisma().auditLog.count()).toBe(before);

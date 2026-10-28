@@ -19,14 +19,14 @@ export async function generateMetadata(): Promise<Metadata> {
 const CARD = 'flex min-w-0 flex-col gap-2 rounded-md border border-line bg-surface p-4';
 const LINK = 'inline-flex min-h-11 w-fit items-center rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover';
 
-function Card({ icon, title, figure, note, children, testId }: { icon: ReactNode; title: string; figure: ReactNode; note?: ReactNode; children?: ReactNode; testId: string }) {
+function Card({ icon, title, figure, note, children, testId }: { icon: ReactNode; title: string; figure?: ReactNode; note?: ReactNode; children?: ReactNode; testId: string }) {
   return (
     <section data-testid={testId} className={CARD}>
       <h2 className="flex items-center gap-2 text-sm font-medium text-muted [&_svg]:size-4 [&_svg]:shrink-0">
         {icon}
         {title}
       </h2>
-      <p className="text-xl font-semibold text-text tabular-nums">{figure}</p>
+      {figure !== undefined && <p className="text-xl font-semibold text-text tabular-nums">{figure}</p>}
       {note && <div className="text-sm text-muted">{note}</div>}
       {children}
     </section>
@@ -92,7 +92,7 @@ export default async function PurchasingHub() {
               )
             }
           />
-          <Card testId="hub-suppliers" icon={<Building2 aria-hidden />} title={t('pharmacy.purchasing.hub.suppliers')} figure={t('pharmacy.purchasing.suppliers.title')} note={t('pharmacy.purchasing.hub.suppliersNote')}>
+          <Card testId="hub-suppliers" icon={<Building2 aria-hidden />} title={t('pharmacy.hub.suppliers')} note={t('pharmacy.purchasing.hub.suppliersNote')}>
             <Link href="/pharmacy/purchasing/suppliers" className={LINK}>
               {t('pharmacy.purchasing.hub.toSuppliers')}
             </Link>

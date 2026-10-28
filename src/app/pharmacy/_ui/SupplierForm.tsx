@@ -17,8 +17,8 @@ import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OfflineNotice } from './OfflineNotice';
 import { phMessage } from './ph-failure';
-import { emptySupplierDraft, supplierInputOf, supplierSignature, type SupplierDraft } from './purchasing-logic';
-import { newClientKey, keyFor } from './sell-logic';
+import { attemptKeyFor, emptySupplierDraft, supplierInputOf, supplierSignature, supplierUpdateInput, withVersion, type SupplierDraft } from './purchasing-logic';
+import { newClientKey } from './sell-logic';
 import { UnsavedBadge } from './UnsavedBadge';
 import { useOnline } from './use-online';
 
@@ -80,10 +80,11 @@ export function SupplierForm({ userId, restaurantId, currencies, supplier, writa
     if (!built.input) return;
     setPending('save');
     const sig = supplierSignature(value);
-    const attempt = keyFor(value.keySig ? { sig: value.keySig, key: value.clientKey } : null, sig, 'sup');
-    if (attempt.key !== value.clientKey || value.keySig !== sig) draft.set({ ...value, clientKey: attempt.key, keySig: sig });
-    const result = await settle(() =>
-      supplier ? updateSupplier({ ...built.input, supplierId: supplier.id, expectedVersion: value.version }) : createSupplier({ ...built.input, clientKey: attempt.key }),
+    const attempt = attemptKeyFor(value, sig, 'sup');
+    if (attempt.clientKey !== value.clientKey || value.keySig !== sig) draft.set({ ...value, ...attempt });
+    const update = supplier ? supplierUpdateInput(value, supplier.id) : null;
+    const result = await settle<{ id: string; version?: number }>(() =>
+      supplier && update ? updateSupplier(update) : createSupplier({ ...built.input, clientKey: attempt.clientKey }),
     );
     setPending(null);
     if (!result.ok) {
@@ -92,10 +93,11 @@ export function SupplierForm({ userId, restaurantId, currencies, supplier, writa
       setFailure({ message: phMessage(t, locale, result.error, 'pharmacy.purchasing'), stale: result.error.code === 'CONFLICT' && !code, fields: result.error.fields ?? {} });
       return;
     }
-    const data = result.data as { id: string };
+    const data = result.data;
     setFailure(null);
     setSaved(true);
-    draft.clear(value);
+    // The server's version is the one the next save must send: take it in, as the receipt form does.
+    draft.clear(supplier && data.version !== undefined ? withVersion({ ...value, ...attempt }, data.version) : value);
     if (supplier) router.refresh();
     else router.replace(`/pharmacy/purchasing/suppliers/${data.id}`);
   };
@@ -111,6 +113,9 @@ export function SupplierForm({ userId, restaurantId, currencies, supplier, writa
       return;
     }
     setFailure(null);
+    const next = withVersion(value, result.data.version);
+    if (draft.dirty) draft.set(next);
+    else draft.clear(next);
     router.refresh();
   };
 

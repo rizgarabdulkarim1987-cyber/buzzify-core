@@ -25,13 +25,14 @@ export async function generateMetadata(): Promise<Metadata> {
  * allows, and the receipts that answered it. Money only when the server sent it (a role with cost.view).
  */
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
-  const [{ id }, g, places] = await Promise.all([params, purchasingGate('pharmacy.purchasing.po.title', { href: '/pharmacy/purchasing/orders', labelKey: 'pharmacy.purchasing.po.back' }), getPhPlaces()]);
+  const [{ id }, g] = await Promise.all([params, purchasingGate('pharmacy.purchasing.po.title', { href: '/pharmacy/purchasing/orders', labelKey: 'pharmacy.purchasing.po.back' })]);
   if (g.blocked) return g.blocked;
   if (!/^[\w-]{1,64}$/.test(id)) notFound();
   const { access, t, locale } = g;
-  const [order, answered] = await Promise.all([
+  const [order, answered, places] = await Promise.all([
     query(get, { ...access.placeInput, purchaseOrderId: id }),
     query(receipts, { ...access.placeInput, purchaseOrderId: id }),
+    getPhPlaces(),
   ]);
   const branches = places.find((p) => p.restaurantId === access.placeInput.restaurantId)?.branches ?? [];
   const branchName = branches.find((b) => b.id === order.branchId)?.name ?? '';
@@ -159,7 +160,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 <div className="grid gap-3 sm:grid-cols-3">
                   <FigureBar label={t('pharmacy.purchasing.po.figure.ordered')} value={l.qtyOrdered + l.bonusOrdered} of={l.qtyOrdered + l.bonusOrdered} />
                   <FigureBar label={t('pharmacy.purchasing.po.figure.received')} value={l.receivedQty + l.receivedBonus} of={l.qtyOrdered + l.bonusOrdered} />
-                  <FigureBar label={t('pharmacy.purchasing.po.figure.invoiced')} value={l.invoicedQty} of={l.qtyOrdered + l.bonusOrdered} />
+                  <FigureBar label={t('pharmacy.purchasing.po.figure.invoiced')} value={l.invoicedQty} of={l.qtyOrdered} />
                 </div>
                 <p className="text-sm text-muted">
                   {t('pharmacy.purchasing.po.figure.summary', {

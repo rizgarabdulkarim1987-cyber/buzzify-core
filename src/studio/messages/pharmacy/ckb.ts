@@ -1437,6 +1437,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.OVER_RECEIPT': 'زیاتر لەوەی فەرمانەکە ڕێگە دەدات نووسراوە. بڕ یان بۆنەس لە هێڵەکەدا کەم بکەرەوە.',
   'pharmacy.purchasing.fail.NOT_ON_ORDER': 'ئەم کاڵایە لە فەرمانەکەدا نییە. هێڵەکە لابە.',
   'pharmacy.purchasing.fail.SUPPLIER_MISMATCH': 'ئەمە دابینکەری فەرمانەکە نییە.',
+  'pharmacy.purchasing.po.suggest.nothingLowSupplier': 'هیچ شتێک لەم دابینکەرە لە خوار کەمترین بڕ نییە. دابینکەر لاببە بۆ بینینی هەموو ئەوەی کەمە.',
 };
 
 export default pharmacy;

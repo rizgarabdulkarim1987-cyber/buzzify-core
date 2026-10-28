@@ -1443,6 +1443,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.OVER_RECEIPT': 'More was entered than the order still allows. Lower the quantity or bonus on the line.',
   'pharmacy.purchasing.fail.NOT_ON_ORDER': 'This product is not on the order. Remove the line.',
   'pharmacy.purchasing.fail.SUPPLIER_MISMATCH': 'This is not the order’s supplier.',
+  'pharmacy.purchasing.po.suggest.nothingLowSupplier': 'Nothing from this supplier is below its minimum. Clear the supplier to see everything that is low.',
 };
 
 export default pharmacy;
