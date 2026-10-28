@@ -47,13 +47,17 @@ export interface ReturnSummary {
 
 export async function listReturns(scoped: ScopedClient, ph: PhActor, input: z.infer<typeof returnListInput> & { branchId?: string }): Promise<{ items: ReturnSummary[]; nextCursor: string | null }> {
   mayRead(ph);
+  const where = {
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+    ...(input.saleId ? { saleId: input.saleId } : {}),
+    ...(input.number ? { number: input.number } : {}),
+    ...(input.from || input.to ? { createdAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
+  };
+  if (input.cursor && !(await scoped.phReturn.findFirst({ where: { ...where, id: input.cursor }, select: { id: true } }))) {
+    throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+  }
   const rows = await scoped.phReturn.findMany({
-    where: {
-      ...(input.branchId ? { branchId: input.branchId } : {}),
-      ...(input.saleId ? { saleId: input.saleId } : {}),
-      ...(input.number ? { number: input.number } : {}),
-      ...(input.from || input.to ? { createdAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
-    },
+    where,
     select: { id: true, number: true, saleId: true, branchId: true, currency: true, refundMinor: true, refundMethod: true, approvedById: true, createdAt: true, _count: { select: { lines: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.pageSize + 1,

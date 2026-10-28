@@ -62,14 +62,18 @@ export async function listSales(
   input: z.infer<typeof saleListInput> & { branchId?: string },
 ): Promise<{ items: SaleSummary[]; nextCursor: string | null }> {
   const shifts = await readableShifts(scoped, ph);
+  const where = {
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+    ...(shifts ? { shiftId: { in: shifts } } : {}),
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.number ? { number: input.number } : {}),
+    ...(input.from || input.to ? { createdAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
+  };
+  if (input.cursor && !(await scoped.phSale.findFirst({ where: { ...where, id: input.cursor }, select: { id: true } }))) {
+    throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+  }
   const rows = await scoped.phSale.findMany({
-    where: {
-      ...(input.branchId ? { branchId: input.branchId } : {}),
-      ...(shifts ? { shiftId: { in: shifts } } : {}),
-      ...(input.status ? { status: input.status } : {}),
-      ...(input.number ? { number: input.number } : {}),
-      ...(input.from || input.to ? { createdAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
-    },
+    where,
     select: {
       id: true,
       number: true,

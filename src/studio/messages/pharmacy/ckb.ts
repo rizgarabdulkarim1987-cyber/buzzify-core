@@ -354,6 +354,7 @@ const pharmacy: Messages = {
   'error.text.phCountNotOpen': 'تەنها ژماردنی کراوە دەگۆڕدرێت',
   'error.text.phCountSubmitNotOpen': 'تەنها ژماردنی کراوە دەنێردرێت',
   'error.text.phCountNoCancel': 'ئەم ژماردنە چیتر هەڵناوەشێتەوە',
+  'error.text.phCursorGone': 'ئەم پەڕەی ئەنجامانە چیتر بەردەست نییە',
   'error.text.phCountNotSubmitted': 'تەنها ژماردنی نێردراو پەسەند دەکرێت',
   'error.text.phReason': 'هۆکار بنووسە (3 تا 300 پیت)',
   'error.text.phCountSelfApprove': 'دەبێت کەسێکی دیکە ئەو ژماردنە پەسەند بکات کە تۆ کردوتە',

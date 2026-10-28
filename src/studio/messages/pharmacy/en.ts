@@ -360,6 +360,7 @@ const pharmacy: Messages = {
   'error.text.phCountNotOpen': 'Only an open count can be changed',
   'error.text.phCountSubmitNotOpen': 'Only an open count can be submitted',
   'error.text.phCountNoCancel': 'This count can no longer be cancelled',
+  'error.text.phCursorGone': 'This page of results is no longer available',
   'error.text.phCountNotSubmitted': 'Only a submitted count can be approved',
   'error.text.phReason': 'Enter the reason (3 to 300 characters)',
   'error.text.phCountSelfApprove': 'Someone else must approve a count you made',

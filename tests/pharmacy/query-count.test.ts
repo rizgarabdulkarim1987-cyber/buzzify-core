@@ -46,7 +46,6 @@ async function world(products: number) {
   await resetWorld();
   const a = await pharmacy('A', { branches: 1 });
   const b1 = a.branchIds[0]!;
-  const owner = await person('owner', { membership: [a.id, 'OWNER'] });
   const cashier = await person('cashier', { staff: [a.id, 'CASHIER', [b1]] });
   await prisma().phSettings.create({ data: { restaurantId: a.id } });
   await prisma().phShift.create({ data: { restaurantId: a.id, branchId: b1, userId: cashier.userId, currency: 'IQD', openingFloatMinor: 0n } });

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { canPh } from '@/server/domain/pharmacy/permissions';
-import { MAX_AMOUNT_MINOR, SaleMathError, shiftVariance } from '@/server/domain/pharmacy/sale';
+import { MAX_AMOUNT_MINOR, shiftVariance } from '@/server/domain/pharmacy/sale';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { cashTotals } from './shifts-reads';
@@ -278,10 +278,7 @@ export async function closeShift(
   const locked = await lockShift(tx, ph.restaurantId, shift.branchId, shift.id);
   if (locked.status !== 'OPEN') throw conflict('ALREADY_CLOSED', 'This shift is already closed');
 
-  const totals = await cashTotals(tx, shift.id, locked.openingFloatMinor).catch((error: unknown) => {
-    if (error instanceof SaleMathError) throw conflict('CASH_NOT_CONSISTENT', 'Check the amounts');
-    throw error;
-  });
+  const totals = await cashTotals(tx, shift.id, locked.openingFloatMinor);
   const variance = shiftVariance(input.countedMinor, totals.expected);
 
   const reason = (input.reason ?? '').trim();

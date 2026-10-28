@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ScopedDb } from '@/server/data/tenant-db';
 import { canPh } from '@/server/domain/pharmacy/permissions';
-import { expectedCash } from '@/server/domain/pharmacy/sale';
+import { expectedCash, SaleMathError } from '@/server/domain/pharmacy/sale';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 
@@ -113,7 +113,15 @@ export async function cashTotals(scoped: ScopedDb, shiftId: string, openingFloat
   const refunds = -signed('REFUND_CASH');
   const paidIn = signed('PAID_IN');
   const paidOut = -signed('PAID_OUT');
-  const expected = expectedCash({ openingFloat, cashSales: tendered, cashChange: change, cashRefunds: refunds, paidIn, paidOut });
+  // The movements' CHECKs keep every row the right way round, so this refuses only a total that cannot be: the same answer
+  // on every path that reads it (close, paid in and out, the live shift and its report), never a crash.
+  let expected: bigint;
+  try {
+    expected = expectedCash({ openingFloat, cashSales: tendered, cashChange: change, cashRefunds: refunds, paidIn, paidOut });
+  } catch (error) {
+    if (error instanceof SaleMathError) throw new StudioError('CONFLICT', 'Check the amounts', { phCode: 'CASH_NOT_CONSISTENT' });
+    throw error;
+  }
   return { expected, tendered, change, refunds, paidIn, paidOut };
 }
 
@@ -216,13 +224,17 @@ export async function listShifts(
   input: z.infer<typeof shiftListInput> & { branchId?: string },
 ): Promise<{ items: ShiftView[]; nextCursor: string | null }> {
   const { own } = readScope(ph);
+  const where = {
+    ...(input.branchId ? { branchId: input.branchId } : {}),
+    ...(own ? { userId: ph.userId } : {}),
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.from || input.to ? { openedAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
+  };
+  if (input.cursor && !(await scoped.phShift.findFirst({ where: { ...where, id: input.cursor }, select: { id: true } }))) {
+    throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+  }
   const rows = await scoped.phShift.findMany({
-    where: {
-      ...(input.branchId ? { branchId: input.branchId } : {}),
-      ...(own ? { userId: ph.userId } : {}),
-      ...(input.status ? { status: input.status } : {}),
-      ...(input.from || input.to ? { openedAt: { ...(input.from ? { gte: input.from } : {}), ...(input.to ? { lte: input.to } : {}) } } : {}),
-    },
+    where,
     select: SHIFT_SELECT,
     orderBy: [{ openedAt: 'desc' }, { id: 'desc' }],
     take: input.pageSize + 1,

@@ -28,10 +28,30 @@ import { conflict, discountOf, invalid, math, NS_KEY, payloadHash, saleInput } f
 export const HOLD_HOURS = 24;
 const HOUR_MS = 3_600_000;
 const MAX_INT = 2_147_483_647;
+/** The held-cart list shows this many, newest first, and says when there are more. */
+export const HOLD_LIST_MAX = 100;
 
 export const holdInput = saleInput.omit({ payments: true, fromHoldId: true });
 export type HoldInput = z.infer<typeof holdInput>;
 export const holdIdInput = z.object({ saleId: z.string().min(1).max(64) });
+
+/**
+ * The cart as stored: what the person entered, without the key and without the place (the business and branch are columns of
+ * the row; the action's input carries them, and a later read must not trust a copy).
+ */
+function cartOf(input: HoldInput): HoldInput {
+  const cart: Record<string, unknown> = { ...input };
+  for (const field of ['clientKey', 'restaurantId', 'branchId']) delete cart[field];
+  return cart as HoldInput;
+}
+
+/**
+ * What a stored payload must look like to be handed back to the screen: a list of lines that each name a product and a unit,
+ * and an invoice discount that is an object when there is one. Anything else is a damaged row. The rest of each line (price,
+ * discount, reasons) is the cart as entered and goes back as it was: the sale judges it again when it is completed.
+ */
+const storedLine = z.looseObject({ productId: z.string().min(1), unitId: z.string().min(1), qty: z.number().int() });
+const storedPayload = z.looseObject({ lines: z.array(storedLine).min(1), invoiceDiscount: z.looseObject({}).optional() });
 
 const holdHash = (input: HoldInput) => payloadHash({ ...input, payments: [] });
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -178,7 +198,7 @@ export async function createHold(
       heldUntil,
       note: input.note,
       createdAt: now,
-      holdPayload: wire({ ...input, clientKey: undefined }),
+      holdPayload: wire(cartOf(input)),
     },
     select: { id: true },
   });
@@ -264,10 +284,16 @@ export async function resumeHold(tx: ScopedTx, args: { branchId: string; saleId:
     return { expired: true };
   }
   const names = hold.lines.map((l) => l.product.tradeName);
-  const stored = (hold.holdPayload ?? null) as { invoiceDiscount?: unknown; lines?: Record<string, unknown>[] } | null;
+  // No payload: a hold made before it was kept, resumed from its lines. A payload that does not read as a cart is damaged.
+  let stored: z.infer<typeof storedPayload> | null = null;
+  if (hold.holdPayload !== null) {
+    const read = storedPayload.safeParse(hold.holdPayload);
+    if (!read.success) throw notAvailable();
+    stored = read.data;
+  }
   const lines =
-    stored?.lines && stored.lines.length === hold.lines.length
-      ? stored.lines.map((l, i) => ({ ...l, tradeName: names[i]! }))
+    stored && stored.lines.length === hold.lines.length
+      ? stored.lines.map((l, i) => ({ ...(l as Record<string, unknown>), tradeName: names[i]! }))
       : hold.lines.map((l) => ({ productId: l.productId, unitId: l.unitId, qty: l.qty, tradeName: l.product.tradeName }));
   return {
     expired: false,
@@ -314,18 +340,19 @@ export interface HoldSummary {
   heldUntil: string;
 }
 
-/** The branch's live holds (not expired), newest first. Expired ones are only filtered here, not changed. */
-export async function listHolds(scoped: ScopedClient, ph: PhActor, input: { branchId: string; now?: Date }): Promise<{ items: HoldSummary[] }> {
+/** The branch's live holds (not expired), newest first, at most HOLD_LIST_MAX with `hasMore` when there are more. Expired ones are only filtered here, not changed. */
+export async function listHolds(scoped: ScopedClient, ph: PhActor, input: { branchId: string; now?: Date }): Promise<{ items: HoldSummary[]; hasMore: boolean }> {
   if (ph.role === null || ph.support !== null) throw new StudioError('FORBIDDEN');
   const now = input.now ?? new Date();
   const rows = await scoped.phSale.findMany({
     where: { branchId: input.branchId, status: 'HELD', heldUntil: { gt: now } },
     select: { id: true, branchId: true, currency: true, totalMinor: true, soldById: true, createdAt: true, heldUntil: true, _count: { select: { lines: true } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-    take: 100,
+    take: HOLD_LIST_MAX + 1,
   });
   return {
-    items: rows.map((r) => ({
+    hasMore: rows.length > HOLD_LIST_MAX,
+    items: rows.slice(0, HOLD_LIST_MAX).map((r) => ({
       id: r.id,
       branchId: r.branchId,
       currency: r.currency,

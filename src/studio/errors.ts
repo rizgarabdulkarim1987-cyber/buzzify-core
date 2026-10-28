@@ -404,6 +404,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Only an open count can be changed': 'error.text.phCountNotOpen',
   'Only an open count can be submitted': 'error.text.phCountSubmitNotOpen',
   'This count can no longer be cancelled': 'error.text.phCountNoCancel',
+  'This page of results is no longer available': 'error.text.phCursorGone',
   'Only a submitted count can be approved': 'error.text.phCountNotSubmitted',
   'Enter the reason (3 to 300 characters)': 'error.text.phReason',
   'Someone else must approve a count you made': 'error.text.phCountSelfApprove',

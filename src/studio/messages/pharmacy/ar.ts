@@ -354,6 +354,7 @@ const pharmacy: Messages = {
   'error.text.phCountNotOpen': 'لا يمكن تغيير إلا الجرد المفتوح',
   'error.text.phCountSubmitNotOpen': 'لا يمكن إرسال إلا الجرد المفتوح',
   'error.text.phCountNoCancel': 'لم يعد بالإمكان إلغاء هذا الجرد',
+  'error.text.phCursorGone': 'لم تعد صفحة النتائج هذه متاحة',
   'error.text.phCountNotSubmitted': 'لا يمكن اعتماد إلا الجرد المُرسل',
   'error.text.phReason': 'أدخل السبب (من 3 إلى 300 حرف)',
   'error.text.phCountSelfApprove': 'يجب أن يعتمد شخص آخر الجرد الذي أجريته',
