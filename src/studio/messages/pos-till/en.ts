@@ -385,6 +385,7 @@ const posTill: Messages = {
   'pos.receipt.table': 'Table {n}',
   'pos.receipt.cash': 'Cash',
   'pos.receipt.thanks': 'Thank you',
+  'pos.receipt.copy': 'COPY',
   'pos.receipt.taxNumber': 'Tax no. {n}',
   'pos.receipt.parts': 'Payments of this bill',
   'pos.receipt.part': 'Guest {n}',
