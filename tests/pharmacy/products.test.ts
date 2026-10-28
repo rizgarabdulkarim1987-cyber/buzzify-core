@@ -487,10 +487,24 @@ describe('pharmacy products', () => {
       'PhImportBatch',
       'PhImportRow',
     ];
+    // Phase 3 sale records are self-contained: a sale line keeps its own qty AND baseQty, unit price and cost snapshot, so a later
+    // resize of the unit or archive of the product changes nothing in them; a held cart is priced again when it is completed
+    // (an archived product is refused then). They need no guard, which is a decision made here and not by omission.
+    const SELF_CONTAINED_SALES = [
+      'PhShift',
+      'PhCashMovement',
+      'PhSale',
+      'PhSaleLine',
+      'PhSaleLineAllocation',
+      'PhPayment',
+      'PhReturn',
+      'PhReturnLine',
+      'PhReceiptReprint',
+    ];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
   });
 });
