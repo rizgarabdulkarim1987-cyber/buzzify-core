@@ -265,7 +265,7 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string, now: 
       },
       orderBy: [{ seatedAt: 'asc' }, { id: 'asc' }],
       take: OFF_PREMISE_LIMIT,
-      include: { lines: true, payment: { select: { totalsSnapshot: true } } },
+      include: { lines: true, payments: { select: { id: true, totalsSnapshot: true } } },
     }),
     readRates(db, restaurantId),
   ]);
@@ -284,7 +284,7 @@ export async function readOffPremiseBoard(db: AnyDb, restaurantId: string, now: 
     driverId: o.driverId,
     driverName: o.driverNameSnapshot,
     seatedAt: o.seatedAt,
-    total: o.payment ? paidTotal.parse(o.payment.totalsSnapshot).total : orderTotals(o, o.lines, rates).totals.total,
+    total: o.status === 'PAID' && o.payments.length > 0 ? o.payments.reduce((sum, p) => sum + paidTotal.parse(p.totalsSnapshot).total, 0) : orderTotals(o, o.lines, rates).totals.total,
     paid: o.status === 'PAID',
     cashWithDriver: isUnsettled(o),
   }));

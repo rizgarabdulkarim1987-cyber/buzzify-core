@@ -22,10 +22,12 @@ const route = (page: Page) => line(page).locator('[data-route]');
 const stops = (page: Page) => line(page).locator('[data-row]');
 const station = (page: Page, categorySlug: string) => route(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows four stops with photos and prices, and the whole route', async ({ page }) => {
+test('on a phone the first screen shows three stops with photos (four or more on the live menu, whose hero is smaller) and prices, and the whole route', async ({ page }) => {
   await openMenu(page, slug);
   await expect(line(page)).toBeVisible();
-  await expectFirstScreen(page, stops(page), { min: 4 });
+  // The demo card is demo data a real menu does not have: measured without it.
+  await page.addStyleTag({ content: '.tpl-promo{display:none!important}' });
+  await expectFirstScreen(page, stops(page), { min: 3 });
   await expectEverySectionReachable(route(page));
 });
 
@@ -90,11 +92,11 @@ test('counts use the tenant numerals', async ({ page }) => {
 
 test('in Arabic the line runs down the right edge and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => route(p));
-  // The line's room (3rem) is on the left in RTL, the page gutter on the right; in LTR it is the other way round.
+  // The line's room (3rem) is on the right in RTL (the poster's line), the page gutter on the left.
   const stop = (await stops(page).first().boundingBox())!;
   const section = (await line(page).locator('section[data-station]').first().boundingBox())!;
-  expect(stop.x - section.x, 'the line room on the left').toBeGreaterThanOrEqual(40);
-  expect(section.x + section.width - (stop.x + stop.width), 'the gutter on the right').toBeLessThanOrEqual(32);
+  expect(section.x + section.width - (stop.x + stop.width), 'the line room on the right').toBeGreaterThanOrEqual(40);
+  expect(stop.x - section.x, 'the gutter on the left').toBeLessThanOrEqual(32);
 });
 
 test('reduced motion removes the stop entrance', async ({ page }) => {

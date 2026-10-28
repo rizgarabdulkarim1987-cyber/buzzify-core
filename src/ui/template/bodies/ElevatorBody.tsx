@@ -94,7 +94,7 @@ export function ElevatorBody() {
             </div>
             <ul className="el-rows">
               {(byCategory.get(category.id) ?? []).map((product, row) => (
-                <RowDish key={product.id} product={product} prefix="el" suffix="elevator" sizes="64px" priority={index === 0 && row < 5} description />
+                <RowDish key={product.id} product={product} prefix="el" suffix="elevator" sizes="76px" priority={index === 0 && row < 5} description />
               ))}
             </ul>
           </section>

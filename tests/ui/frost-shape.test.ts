@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
-import { FrostBody, isTallFrost } from '@/ui/template/bodies/FrostBody';
+import { FrostBody } from '@/ui/template/bodies/FrostBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { FROST, blendOver, riseOf } from '@/ui/template/bodies/frost-fills';
+
+const css = () => readFileSync('src/ui/template/bodies/frost.css', 'utf8');
 
 describe('the Frosted Window shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -26,65 +27,51 @@ describe('the Frosted Window shape', () => {
   });
 });
 
-describe('the frost fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: chips, label plate, badges, card, price, sale chip, add', () => {
-    for (const [ink, fill] of [
-      [FROST.frameInk, FROST.frame],
-      [FROST.ice, FROST.deep],
-      [FROST.cardInk, FROST.card],
-      [FROST.priceInk, FROST.card],
-      [FROST.saleInk, FROST.sale],
-      [FROST.addInk, FROST.add],
-    ] as const) {
-      expect(contrast(ink, fill), `${ink} on ${fill}`).toBeGreaterThanOrEqual(4.5);
+describe('the poster palette', () => {
+  it('starts on the poster colours: the night-blue ground, the white text, the blue accent', () => {
+    const palette = TEMPLATES['the-frosted-window'].palette;
+    expect(palette.bg.toLowerCase()).toBe('#1b2a4a');
+    expect(palette.text.toLowerCase()).toBe('#ffffff');
+    expect(palette.accent.toLowerCase()).toBe('#2e6cc8');
+  });
+
+  it('reads at 4.5:1 on every palette: the text on the ground, and the card ink with the darkened-accent price on the pale card', () => {
+    for (const palette of TEMPLATES['the-frosted-window'].palettes) {
+      const { bg, text, accent } = palette.palette;
+      expect(contrast(text, bg), palette.id).toBeGreaterThanOrEqual(4.5);
+      // The card is the text colour at 92% over the ground; the price is the accent at 40% over the ground.
+      const mix = (a: string, b: string, share: number) => '#' + [1, 3, 5].map((at) => Math.round(parseInt(a.slice(at, at + 2), 16) * share + parseInt(b.slice(at, at + 2), 16) * (1 - share)).toString(16).padStart(2, '0')).join('');
+      const card = mix(text, bg, 0.92);
+      expect(contrast(bg, card), palette.id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(mix(accent, bg, 0.4), card), palette.id).toBeGreaterThanOrEqual(4.5);
     }
   });
 
-  it('keeps the card text readable while the condensation is still on it (the fog is a faint layer, never over 30%)', () => {
-    expect(FROST.fogOpacity).toBeLessThanOrEqual(0.3);
-    const card = blendOver(FROST.card, FROST.frame, FROST.fogOpacity);
-    for (const ink of [FROST.cardInk, FROST.priceInk]) expect(contrast(blendOver(ink, FROST.frame, FROST.fogOpacity), card), ink).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(blendOver(FROST.saleInk, FROST.frame, FROST.fogOpacity), blendOver(FROST.sale, FROST.frame, FROST.fogOpacity))).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('draws the lit ring in the palette accent lifted towards white, standing out (3:1) from the deep chip whatever the accent is', () => {
-    for (const accent of ['#000000', '#ffffff', '#ff0000', '#0000ff', '#00ff00', '#7fc4ff', '#2b4fd8', '#7a1f1f']) {
-      expect(contrast(riseOf(accent), FROST.deep), accent).toBeGreaterThanOrEqual(3);
-    }
-  });
-
-  it('draws the focus rings in colours that stand out (3:1) from what they sit on', () => {
-    expect(contrast(FROST.ice, FROST.deep)).toBeGreaterThanOrEqual(3);
-    expect(contrast(FROST.frameInk, FROST.frame)).toBeGreaterThanOrEqual(3);
-    expect(contrast(FROST.addInk, FROST.add)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('keeps the stylesheet and the constants in step (every fill is written in both)', () => {
-    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8').toLowerCase();
-    for (const [name, value] of Object.entries(FROST)) if (typeof value === 'string') expect(css, name).toContain(value.toLowerCase());
-    expect(css).toContain(String(FROST.fogOpacity));
-  });
-
-  it('never loops (no infinite animation), moves only transform and opacity, and uses no physical left/right properties', () => {
-    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8');
-    expect(css).not.toMatch(/infinite/);
-    expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
-    for (const [, property] of css.matchAll(/transition:\s*([a-z-]+)/g)) expect(['transform', 'opacity', 'background-color', 'none']).toContain(property);
+  it('draws every colour from the palette: the stylesheet writes no colour literal but black, white and the fixed sale rose', () => {
+    const text = css().replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff', '#7a0c2c'];
+    for (const [literal] of text.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
   });
 });
 
-describe('the masonry', () => {
-  it('gives every third dish of a section, from the second, the tall photo (by its place in the full section)', () => {
-    expect([0, 1, 2, 3, 4, 5, 6].map(isTallFrost)).toEqual([false, true, false, false, true, false, false]);
+describe('the stylesheet', () => {
+  it('scopes every rule under the shape and never loops: no infinite animation, no physical left/right properties', () => {
+    const text = css();
+    expect(text).not.toMatch(/infinite/);
+    expect(text).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
+    const outside = text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((line) => /^[^\s@}\/].*\{$/.test(line) && !line.startsWith("[data-body='frost']"));
+    expect(outside).toEqual([]);
   });
 
-  it('packs the panes into columns of small rows, the last pane across the wall, and makes the tall photo at least 40% taller', () => {
-    const css = readFileSync('src/ui/template/bodies/frost.css', 'utf8');
-    expect(css).toMatch(/\.fr-wall\[data-packed\]\s*\{\s*grid-auto-rows: 0\.5rem;/);
-    expect(css).toMatch(/\.fr-pane:last-child\s*\{\s*grid-column: 1 \/ -1;/);
-    const tall = 1;
-    const short = 9 / 16;
-    expect(tall / short).toBeGreaterThanOrEqual(1.4);
-    expect(css).toContain('aspect-ratio: 16 / 9;');
+  it('drifts the snow down once in five seconds, with transform only, and rests with less motion', () => {
+    const text = css();
+    expect(text).toMatch(/animation: fr-snow 5s linear both/);
+    expect(text).toMatch(/@keyframes fr-snow\s*\{[^@]*transform: translateY/);
+    expect(text).toMatch(/prefers-reduced-motion: reduce[\s\S]*::before[\s\S]*animation: none/);
+  });
+
+  it('puts hover inside the hover media query', () => {
+    const text = css();
+    for (const at of text.matchAll(/:hover/g)) expect(text.slice(0, at.index).lastIndexOf('@media (hover: hover)'), 'a :hover outside @media (hover: hover)').toBeGreaterThan(-1);
   });
 });

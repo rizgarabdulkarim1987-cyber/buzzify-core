@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRightLeft, Ban, Percent, ReceiptText, SlidersHorizontal, Trash2 } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
@@ -8,6 +8,7 @@ import {
   addPosLine,
   cancelPosLine,
   cancelPosOrder,
+  mergePosOrders,
   movePosOrderToTable,
   requestPosBill,
   sendPosToKitchen,
@@ -16,6 +17,8 @@ import {
 } from '@/app/studio/_actions/pos';
 import type { Approver } from '@/lib/pos-approval';
 import { formatNumber } from '@/lib/pos-format';
+import { evenGroups, partTotalOf, toggleLine, unpaidLineIds } from '@/lib/pos-split';
+import type { Shortcut } from '@/lib/pos-shortcuts';
 import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-view';
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
@@ -37,6 +40,7 @@ import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
+import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
 export interface OrderCan {
@@ -51,7 +55,15 @@ export interface FreeTable {
   areaName: string;
 }
 
-type Dialogs = 'none' | 'pay' | 'invoiceDiscount' | 'cancelOrder' | 'move' | { line: OrderLineView; kind: 'cancel' | 'discount' };
+/** Another table's open order that this one can be merged into. */
+export interface MergeTarget {
+  orderId: string;
+  version: number;
+  number: number;
+  areaName: string;
+}
+
+type Dialogs = 'none' | 'pay' | 'paySelected' | 'invoiceDiscount' | 'cancelOrder' | 'move' | 'merge' | { line: OrderLineView; kind: 'cancel' | 'discount' };
 
 export interface DeliveryChoices {
   zones: ZoneRow[];
@@ -63,6 +75,7 @@ export function OrderScreen({
   catalog,
   can,
   freeTables,
+  mergeTargets = [],
   delivery,
   approvers,
   initialPaying = false,
@@ -73,6 +86,8 @@ export function OrderScreen({
   /** Managers who can approve a cashier's discount or cancel; null when the person needs no approval. */
   approvers: Approver[] | null;
   freeTables: FreeTable[];
+  /** Other tables with an open order, to merge this one into. */
+  mergeTargets?: MergeTarget[];
   delivery: DeliveryChoices;
   /** Open on the payment step (the board's "Pay", `?pay=1`). Ignored without the payment permission or a live line. */
   initialPaying?: boolean;
@@ -100,6 +115,16 @@ export function OrderScreen({
       .filter((section) => section.products.length > 0);
   }, [catalog, categoryId, search, products, locale, fallback]);
   const liveLines = order.lines.filter((line) => !line.cancelled);
+  // Split bill: the guest's lines are ticked and paid on their own; the share includes a part of the discount, service and tax.
+  const [splitting, setSplitting] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const stillUnpaid = unpaidLineIds(order.lines);
+  const picked = selected.filter((id) => stillUnpaid.includes(id));
+  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked);
+  const leaveSplit = () => {
+    setSplitting(false);
+    setSelected([]);
+  };
   /** How many of each product are on the order now, for the count on its button. */
   const onOrder = useMemo(() => {
     const counts = new Map<string, number>();
@@ -140,8 +165,26 @@ export function OrderScreen({
     return error.fields?.[field] ? { fields: { [field]: error.fields[field] } } : failed;
   };
 
+  const onShortcut = (shortcut: Shortcut) => {
+    if (shortcut === 'search') {
+      setTab('menu');
+      // The search box is on screen only after the menu tab shows, so focus it on the next frame.
+      requestAnimationFrame(() => document.getElementById('pos-menu-search')?.focus());
+    } else if (shortcut === 'pay') {
+      if (can.pay && canChange && stillUnpaid.length > 0 && dialog === 'none' && !pending) setDialog('pay');
+    } else if (dialog !== 'none') {
+      setDialog('none');
+    } else if (splitting) {
+      leaveSplit();
+    } else if (search !== '') {
+      setSearch('');
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+      <Shortcuts onShortcut={onShortcut} />
+      <p className="hidden text-sm text-muted lg:block">{t('pos.shortcuts.help')}</p>
       <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-14 place-items-center rounded-2xl border border-line bg-raised text-text hover:bg-hover">
           <ArrowLeft size={26} aria-hidden className="rtl:rotate-180" />
@@ -189,6 +232,7 @@ export function OrderScreen({
           ) : (
             <>
               <Input
+                id="pos-menu-search"
                 type="search"
                 size="lg"
                 value={search}
@@ -281,7 +325,16 @@ export function OrderScreen({
               {order.lines.map((line) => (
                 <li key={line.id} className="flex flex-col gap-2 py-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
+                    {splitting && !line.cancelled && !line.paid ? (
+                      <input
+                        type="checkbox"
+                        checked={picked.includes(line.id)}
+                        onChange={() => setSelected((now) => toggleLine(now, line.id))}
+                        aria-label={t('pos.split.pick', { name: line.name })}
+                        className="mt-1 size-7 shrink-0 accent-[var(--color-ink)]"
+                      />
+                    ) : null}
+                    <div className="min-w-0 flex-1">
                       <p className={cx('text-lg font-bold', line.cancelled ? 'text-muted line-through' : 'text-text')}>
                         {line.name}
                         {line.quantity > 1 && !canChange ? <span className="ms-2 text-muted">× {formatNumber(line.quantity)}</span> : null}
@@ -299,11 +352,12 @@ export function OrderScreen({
                         </p>
                       ) : null}
                       {line.cancelled ? <p className="text-sm text-danger">{t('pos.order.cancelledBecause', { reason: line.cancelReason ?? '' })}</p> : null}
+                      {line.paid ? <p className="text-sm font-semibold text-success">{t('pos.split.linePaid')}</p> : null}
                       {!line.cancelled && line.sent ? <p className="text-sm text-muted">{line.ready ? t('pos.order.lineReady') : t('pos.order.lineSent')}</p> : null}
                     </div>
                     <span className={cx('shrink-0 text-lg font-bold', line.cancelled && 'text-muted line-through')}>{money(line.lineTotal)}</span>
                   </div>
-                  {!line.cancelled && canChange ? (
+                  {!line.cancelled && !line.paid && !splitting && canChange ? (
                     <div className="flex flex-wrap items-center gap-2">
                       {line.sent ? (
                         <span className="text-base font-medium" dir="ltr">
@@ -344,6 +398,15 @@ export function OrderScreen({
               <dt className="text-lg font-bold">{t('pos.calm.finalTotal')}</dt>
               <dd className="text-3xl font-bold tracking-tight">{money(order.totals.total)}</dd>
             </div>
+            {order.parts.length > 0 ? (
+              <>
+                <Row label={t('pos.split.paidSoFar')} value={money(order.totals.total - order.leftToPay)} />
+                <div className="flex items-baseline justify-between gap-3 px-4">
+                  <dt className="text-base font-semibold">{t('pos.split.leftToPay')}</dt>
+                  <dd className="text-2xl font-bold">{money(order.leftToPay)}</dd>
+                </div>
+              </>
+            ) : null}
           </dl>
 
           {canChange ? (
@@ -365,6 +428,12 @@ export function OrderScreen({
                   {t('pos.calm.moveTo')}
                 </button>
               ) : null}
+              {order.tableId && order.parts.length === 0 && mergeTargets.length > 0 ? (
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('merge')}>
+                  <Merge size={20} aria-hidden />
+                  {t('pos.merge.button')}
+                </button>
+              ) : null}
               {order.status !== 'BILL_REQUESTED' ? (
                 <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
                   <ReceiptText size={20} aria-hidden />
@@ -376,9 +445,38 @@ export function OrderScreen({
                   {t('pos.order.printTicket')}
                 </a>
               ) : null}
-              {can.pay ? (
-                <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || liveLines.length === 0} onClick={() => setDialog('pay')}>
+              {can.pay && stillUnpaid.length > 1 ? (
+                <button
+                  type="button"
+                  aria-pressed={splitting}
+                  className={cx('inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-base font-semibold disabled:opacity-60', splitting ? 'border-ink bg-ink text-on-ink' : 'border-line bg-hover text-text hover:bg-pressed')}
+                  disabled={pending}
+                  onClick={() => (splitting ? leaveSplit() : setSplitting(true))}
+                >
+                  <Users size={20} aria-hidden />
+                  {splitting ? t('pos.split.cancel') : t('pos.split.start')}
+                </button>
+              ) : null}
+              {splitting ? (
+                <>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-base text-muted">{t('pos.split.evenly')}</span>
+                    {[2, 3, 4].map((guests) => (
+                      <button key={guests} type="button" className="min-h-12 rounded-md border border-line-strong bg-raised px-4 text-base font-medium hover:bg-hover" onClick={() => setSelected(evenGroups(order.lines, guests)[0] ?? [])}>
+                        {formatNumber(guests)}
+                      </button>
+                    ))}
+                  </div>
+                  {can.pay ? (
+                    <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || picked.length === 0} onClick={() => setDialog('paySelected')}>
+                      {t('pos.split.paySelected')} · {money(pickedTotal)}
+                    </Button>
+                  ) : null}
+                </>
+              ) : can.pay ? (
+                <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
                   {t('pos.calm.payButton')}
+                  {order.parts.length > 0 ? ` · ${money(order.leftToPay)}` : ''}
                 </Button>
               ) : null}
             </div>
@@ -388,7 +486,8 @@ export function OrderScreen({
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
-      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.totals.total} methods={order.paymentMethods} />
+      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} />
+      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} lineIds={picked} />
 
       <ConfirmDialog
         open={dialog === 'cancelOrder'}
@@ -470,6 +569,26 @@ export function OrderScreen({
       >
         <Field label={t('pos.order.toTable')}>
           <Select name="tableId" size="lg" options={freeTables.map((table) => ({ value: table.id, label: `${formatNumber(table.number)} · ${table.areaName}` }))} />
+        </Field>
+      </ConfirmDialog>
+      <ConfirmDialog
+        open={dialog === 'merge'}
+        onOpenChange={(open) => !open && setDialog('none')}
+        title={t('pos.merge.title')}
+        body={t('pos.merge.body')}
+        confirmLabel={t('pos.merge.confirm')}
+        tone="primary"
+        onConfirm={async (form) => {
+          const target = mergeTargets.find((x) => x.orderId === String(form.get('intoOrderId') ?? ''));
+          if (!target) return failed;
+          const result = await call(() => mergePosOrders({ fromOrderId: order.id, intoOrderId: target.orderId, fromVersion: order.version, intoVersion: target.version }), { quiet: true });
+          if (!result.ok) return failed;
+          router.push(`/pos/orders/${target.orderId}`);
+          return true;
+        }}
+      >
+        <Field label={t('pos.merge.into')}>
+          <Select name="intoOrderId" size="lg" options={mergeTargets.map((target) => ({ value: target.orderId, label: `${formatNumber(target.number)} · ${target.areaName}` }))} />
         </Field>
       </ConfirmDialog>
     </div>

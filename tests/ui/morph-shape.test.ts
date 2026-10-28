@@ -3,7 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { MorphBody } from '@/ui/template/bodies/MorphBody';
-import { MORPH_MS, morphCounter, morphStart, tileSpan } from '@/ui/template/bodies/morph-open';
+import { MORPH_MS, morphCounter, morphStart } from '@/ui/template/bodies/morph-open';
 
 describe('the Photo to Details shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -49,14 +49,5 @@ describe('the Photo to Details shape', () => {
   it('grows the photo in well under half a second', () => {
     expect(MORPH_MS).toBeGreaterThanOrEqual(200);
     expect(MORPH_MS).toBeLessThanOrEqual(320);
-  });
-
-  it('alternates tall and short tiles so a row is never flat, short first', () => {
-    const spans = Array.from({ length: 9 }, (_, at) => tileSpan(at));
-    expect(new Set(spans).size).toBe(2);
-    expect(spans[1]).toBeGreaterThan(spans[0]!);
-    expect(spans[1]).toBeGreaterThan(spans[2]!);
-    expect(spans[3]).toBe(spans[0]);
-    expect(spans[4]).toBe(spans[1]);
   });
 });

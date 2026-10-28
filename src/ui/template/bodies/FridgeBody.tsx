@@ -20,12 +20,12 @@ export function shelfHue(index: number): number {
 }
 
 /**
- * The Fridge (spec 2026-10-26-menu-styles-in-templates-design.md). The menu is the inside of a fridge: every section is
- * a glass shelf (cool glass, a rail under each row of jars) with a frost label at its top (the shelf's number, its name
- * and its dish count in the menu's numerals); every dish is a jar: a lid band carrying the price, the photo in the jar's
- * glass and a name sticker below, three jars a row so many are on screen at once. A strip of fridge-door panels (each
- * with its handle) stays at the top and jumps, lighting the shelf in view. All shelves are on the page, so the
- * template's own jump and `#cat-<slug>` scrolling reach them.
+ * The Fridge (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-frg). The menu is the inside of a
+ * fridge: every section is a glass shelf (a glass rail under its rows) with a label above it (the shelf's number, its
+ * name and its dish count in the menu's numerals); every dish is a container, two a row: a coloured lid on top, a big
+ * square photo with the price on a yellow sticker, the name below and the add button beside it. A strip of coloured
+ * magnets stays at the top and jumps, lighting the shelf in view. All shelves are on the page, so the template's own
+ * jump and `#cat-<slug>` scrolling reach them.
  */
 export function FridgeBody() {
   const { t, locale, tenant } = useApp();
@@ -60,13 +60,12 @@ export function FridgeBody() {
                     cell="fr-jar tpl-rise"
                     head="fr-glass"
                     price="fr-lid"
-                    pricePlace="top"
+                    pricePlace="head"
                     media="cover"
                     inPhoto={<SaleChip product={product} className="fr-off" />}
-                    addInPhoto
-                    sizes="(min-width: 640px) 180px, 33vw"
+                    sizes="(min-width: 640px) 260px, 50vw"
                     priority={index === 0 && at < 6}
-                    order={Math.min(index * 3 + at, 8)}
+                    order={Math.min(index * 2 + at, 8)}
                   />
                 ))}
               </ul>

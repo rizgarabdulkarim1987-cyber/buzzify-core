@@ -1,5 +1,18 @@
 import { expect, test, type Page } from '@playwright/test';
-import { BODY_CATEGORIES, bodyMenus, contrastOf, expectArabicRtl, expectEverySectionReachable, expectFirstScreen, expectJumpsTo, expectOpensProduct, expectQuickAdd, expectStripStays, openMenu, shapeChecks } from './helpers/body-menu';
+import {
+  BODY_CATEGORIES,
+  bodyMenus,
+  contrastOf,
+  expectArabicRtl,
+  expectEverySectionReachable,
+  expectFirstScreen,
+  expectJumpsTo,
+  expectOpensProduct,
+  expectQuickAdd,
+  expectStripStays,
+  openMenu,
+  shapeChecks,
+} from './helpers/body-menu';
 
 /**
  * The Supermarket Shelves body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a shelf plank under
@@ -13,17 +26,29 @@ const arabSlug = menus.slug('shfar');
 const nightSlug = menus.slug('shfnt');
 
 test.beforeAll(async () => {
-  await menus.create(slug, 'shelves', { templateId: 'the-supermarket-shelves', layout: { body: 'shelves', hero: 'editorial', nav: 'index' } });
-  await menus.create(arabSlug, 'shelves', { templateId: 'the-supermarket-shelves', numeralSystem: 'ARAB' });
+  await menus.create(slug, 'shelves', {
+    templateId: 'the-supermarket-shelves',
+    layout: { body: 'shelves', hero: 'editorial', nav: 'index' },
+  });
+  await menus.create(arabSlug, 'shelves', {
+    templateId: 'the-supermarket-shelves',
+    numeralSystem: 'ARAB',
+  });
   // The shape's own palette with the lightest accent (a signage yellow).
-  await menus.create(nightSlug, 'shelves', { templateId: 'the-supermarket-shelves', paletteId: 'night-market' });
+  await menus.create(nightSlug, 'shelves', {
+    templateId: 'the-supermarket-shelves',
+    paletteId: 'night-market',
+  });
 });
 test.afterAll(() => menus.remove());
 
 const bay = (page: Page) => page.locator('[data-body="shelves"]');
 const signs = (page: Page) => bay(page).locator('[data-signs]');
 const boxes = (page: Page) => bay(page).locator('[data-row]');
-const sign = (page: Page, categorySlug: string) => signs(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
+const sign = (page: Page, categorySlug: string) =>
+  signs(page).getByRole('button', {
+    name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!),
+  });
 
 test('on a phone the first screen shows at least four boxes on a shelf with photos and prices, and every aisle sign', async ({ page }) => {
   await openMenu(page, slug);
@@ -37,7 +62,7 @@ test('the aisle signs stay at the top: scrolled to the end, the first aisle is s
   await expectStripStays(page, signs(page), sign(page, 'viennoiserie'), 'viennoiserie');
 });
 
-test('boxes stand four across on a phone, side by side in a row, each with a hanging price tag', async ({ page }) => {
+test('boxes stand three across on a phone with big photos, each with a tag (add button and price) hanging under the plank', async ({ page }) => {
   await openMenu(page, slug);
   const first = bay(page).locator('section').first();
   const shelf = (await first.locator('[data-plank]').boundingBox())!;
@@ -46,10 +71,31 @@ test('boxes stand four across on a phone, side by side in a row, each with a han
   expect(new Set(rows.map((box) => Math.round(box.left))).size, 'three boxes, three columns').toBe(3);
   for (const box of rows) {
     expect(Math.abs(box.top - rows[0]!.top), 'they share a row').toBeLessThanOrEqual(1);
-    expect(box.width, 'a box is a quarter of the shelf').toBeLessThanOrEqual(shelf.width / 4 + 1);
+    expect(box.width, 'a box is a third of the shelf').toBeLessThanOrEqual(shelf.width / 3 + 1);
+    expect(box.width, 'and its photo is big').toBeGreaterThanOrEqual(100);
   }
   await expect(first.locator('[data-row] .sf-tag').first()).toBeVisible();
   await expect(first.locator('[data-plank]')).toHaveCount(1);
+  // The plank runs the whole width of the page and sits between the name and the tag.
+  const plank = await first
+    .locator('.sf-box')
+    .first()
+    .evaluate((node) => {
+      const rect = node.getBoundingClientRect();
+      const style = getComputedStyle(node, '::before');
+      return {
+        width: parseFloat(style.width),
+        bottom: rect.bottom - parseFloat(style.bottom),
+        display: style.display,
+      };
+    });
+  expect(plank.display).toBe('block');
+  expect(Math.abs(plank.width - shelf.width), 'the plank spans the shelf').toBeLessThanOrEqual(2);
+  const name = (await first.locator('.sf-name').first().boundingBox())!;
+  const tag = (await first.locator('.sf-tag').first().boundingBox())!;
+  expect(plank.bottom).toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(tag.y).toBeGreaterThanOrEqual(plank.bottom - 12);
+  await expect(first.locator('.sf-tag .sf-add').first()).toBeVisible();
 });
 
 test('the whole box opens the dish: a tap on the photo opens its sheet', async ({ page }) => {
@@ -120,9 +166,12 @@ test('a dish opens its sheet and adds one', async ({ page }) => {
 
 test('a long dish name stays inside its box without sideways scrolling', async ({ page }) => {
   await openMenu(page, slug);
-  await boxes(page).first().locator('.sf-name').evaluate((node) => {
-    node.textContent = 'A very long dish name that keeps going and going so that it wraps onto several lines on a phone screen';
-  });
+  await boxes(page)
+    .first()
+    .locator('.sf-name')
+    .evaluate((node) => {
+      node.textContent = 'A very long dish name that keeps going and going so that it wraps onto several lines on a phone screen';
+    });
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
   const box = (await boxes(page).first().boundingBox())!;
   const name = (await boxes(page).first().locator('.sf-name').boundingBox())!;
@@ -141,13 +190,23 @@ test('in Arabic the signs and shelves mirror and nothing scrolls sideways', asyn
 
 test('the tags sway a couple of times and then hang still', async ({ page }) => {
   await openMenu(page, slug);
-  expect(await bay(page).locator('.sf-tag').first().evaluate((node) => getComputedStyle(node, '::before').animationIterationCount)).toBe('2');
+  expect(
+    await bay(page)
+      .locator('.sf-tag')
+      .first()
+      .evaluate((node) => getComputedStyle(node, '::before').animationIterationCount),
+  ).toBe('2');
 });
 
 test('reduced motion stops the swaying tags', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
-  expect(await bay(page).locator('.sf-tag').first().evaluate((node) => getComputedStyle(node, '::before').animationName)).toBe('none');
+  expect(
+    await bay(page)
+      .locator('.sf-tag')
+      .first()
+      .evaluate((node) => getComputedStyle(node, '::before').animationName),
+  ).toBe('none');
 });
 
 test('a search keeps main#menu and never steals focus', async ({ page }) => {
@@ -160,4 +219,9 @@ test('a search keeps main#menu and never steals focus', async ({ page }) => {
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
 
-shapeChecks(menus, { kind: 'shelves', templateId: 'the-supermarket-shelves', checks: ['focus', 'sale'], entry: sign });
+shapeChecks(menus, {
+  kind: 'shelves',
+  templateId: 'the-supermarket-shelves',
+  checks: ['focus', 'sale'],
+  entry: sign,
+});

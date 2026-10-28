@@ -5,7 +5,8 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { GateBody } from '@/ui/template/bodies/GateBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { BRICK } from '@/ui/template/bodies/gate-brick';
+
+const css = () => readFileSync('src/ui/template/bodies/gate.css', 'utf8');
 
 describe('the Ishtar Gate shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -26,36 +27,47 @@ describe('the Ishtar Gate shape', () => {
   });
 });
 
-describe('the lapis, gold and sand fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: cartouche, lintel, strip chip, badge, lit chip, count', () => {
-    expect(contrast(BRICK.cream, BRICK.lapis)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(BRICK.cream, BRICK.deep)).toBeGreaterThanOrEqual(4.5);
-    // The hero tile's description line, on the sand.
-    expect(contrast(BRICK.deep, BRICK.sand)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(BRICK.goldInk, BRICK.gold)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(BRICK.deep, BRICK.gold)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(BRICK.goldInk, BRICK.sand)).toBeGreaterThanOrEqual(4.5);
+describe('the poster palette', () => {
+  it('starts on the poster colours: the lapis ground, the cream text, the gold accent', () => {
+    const palette = TEMPLATES['the-ishtar-gate'].palette;
+    expect(palette.bg.toLowerCase()).toBe('#163a7a');
+    expect(palette.text.toLowerCase()).toBe('#fff3c4');
+    expect(palette.accent.toLowerCase()).toBe('#e1b64a');
   });
 
-  it('draws the focus rings in colours that stand out (3:1) from what they sit on', () => {
-    expect(contrast(BRICK.deep, BRICK.sand)).toBeGreaterThanOrEqual(3);
-    expect(contrast(BRICK.cream, BRICK.lapis)).toBeGreaterThanOrEqual(3);
-    expect(contrast(BRICK.deep, BRICK.gold)).toBeGreaterThanOrEqual(3);
-    expect(contrast(BRICK.gold, BRICK.deep)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('keeps the stylesheet and the constants in step: each constant is declared by name (--gt-<name>) with the same value', () => {
-    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8');
-    const declared = Object.fromEntries([...css.matchAll(/(--gt-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
-    for (const [name, hex] of Object.entries(BRICK)) {
-      const property = `--gt-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-      expect(declared[property], property).toBe(hex.toLowerCase());
+  it('reads at 4.5:1 on every palette of the shape: the text on the ground and on the lapis card', () => {
+    for (const palette of TEMPLATES['the-ishtar-gate'].palettes) {
+      const colours = palette.palette;
+      expect(contrast(colours.text, colours.bg), palette.id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(colours.text, colours.card), palette.id).toBeGreaterThanOrEqual(4.5);
     }
   });
 
-  it('never loops: no infinite animation in the stylesheet, and no physical left/right properties', () => {
-    const css = readFileSync('src/ui/template/bodies/gate.css', 'utf8');
-    expect(css).not.toMatch(/infinite/);
-    expect(css).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
+  it('draws every colour from the palette: the stylesheet writes no colour literal but black and white', () => {
+    const text = css().replace(/\/\*[\s\S]*?\*\//g, '').toLowerCase();
+    const allowed = ['#000', '#fff'];
+    for (const [literal] of text.matchAll(/#[0-9a-f]{3,8}/g)) expect(allowed, literal).toContain(literal);
+  });
+});
+
+describe('the stylesheet', () => {
+  it('scopes every rule under the shape and never loops: no infinite animation, no physical left/right properties', () => {
+    const text = css();
+    expect(text).not.toMatch(/infinite/);
+    expect(text).not.toMatch(/(^|[\s;{])(padding|margin|border)-(left|right)\b|(^|[\s;{])(left|right)\s*:/m);
+    const outside = text.replace(/\/\*[\s\S]*?\*\//g, '').split('\n').filter((line) => /^[^\s@}\/].*\{$/.test(line) && !line.startsWith("[data-body='gate']"));
+    expect(outside).toEqual([]);
+  });
+
+  it('parts the door leaves once in under five seconds, with translate only, and rests with less motion', () => {
+    const text = css();
+    expect(text).toMatch(/animation: gt-door 900ms[^;]*400ms both/);
+    expect(text).toMatch(/@keyframes gt-door\s*\{[^@]*translate:/);
+    expect(text).toMatch(/prefers-reduced-motion: reduce[\s\S]*gt-leaf[\s\S]*animation: none/);
+  });
+
+  it('puts hover inside the hover media query', () => {
+    const text = css();
+    for (const at of text.matchAll(/:hover/g)) expect(text.slice(0, at.index).lastIndexOf('@media (hover: hover)'), 'a :hover outside @media (hover: hover)').toBeGreaterThan(-1);
   });
 });

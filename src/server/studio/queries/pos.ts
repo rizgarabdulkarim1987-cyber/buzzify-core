@@ -225,10 +225,10 @@ export const posReceipt = defineQuery({
   name: 'pos.receipt',
   permission: null,
   pos: 'order.handle',
-  input: z.object({ orderId: idField }),
+  input: z.object({ orderId: idField, paymentId: idField.optional() }),
   target: () => TILL,
-  run: async (ctx, { orderId }) => {
-    const receipt = await readReceipt(ctx.db, restaurantOf(ctx), orderId);
+  run: async (ctx, { orderId, paymentId }) => {
+    const receipt = await readReceipt(ctx.db, restaurantOf(ctx), orderId, paymentId);
     if (!receipt) throw new StudioError('NOT_FOUND');
     return receipt;
   },

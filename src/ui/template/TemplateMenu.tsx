@@ -223,7 +223,8 @@ export function TemplateMenu({
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">
-            <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />
+            {/* The Book has no search box: its index is how guests find a section (the owner's wish). */}
+            {body !== 'book' && <SearchField query={query} onQuery={setQuery} onFocus={loadSearchIndex} />}
             <FilterBar
               available={dietaryAvailable}
               chosen={dietary}

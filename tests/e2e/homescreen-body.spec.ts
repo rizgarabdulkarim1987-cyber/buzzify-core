@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mix } from '@/lib/templates/palette';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -19,8 +20,9 @@ import {
 
 /**
  * The Phone Home Screen body (spec 2026-10-26-menu-styles-in-templates-design.md): every dish an app icon (rounded
- * photo, name below, price as a notification badge), four across, every section a folder band holding its icons, and a
- * sticky dock of app tiles that jumps. Throwaway copies of the Maison Lumiere demo.
+ * photo, name below, price as a notification badge), three across and big as on the mockup's phone, a clock widget on
+ * the wallpaper, every section a page of icons under its centred name, and a sticky dock of app tiles that jumps.
+ * Throwaway copies of the Maison Lumiere demo.
  */
 
 const menus = bodyMenus();
@@ -47,45 +49,53 @@ const dock = (page: Page) => home(page).locator('[data-dock]');
 const apps = (page: Page) => home(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => dock(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows at least eight app icons with photos, prices and names, and every folder is one tap away', async ({ page }) => {
+test('on a phone the first screen shows at least three big app icons with photos, prices and names (the demo banner above takes most of the first screen), and every folder is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(home(page)).toBeVisible();
-  await expectFirstScreen(page, apps(page), { min: 8 });
+  await expectFirstScreen(page, apps(page), { min: 3 });
   const named = await apps(page).evaluateAll((nodes) =>
     nodes.filter((node) => {
       const name = node.querySelector('.hs-name')!.getBoundingClientRect();
       return name.height > 0 && name.top >= 0 && name.bottom <= window.innerHeight;
     }).length,
   );
-  expect(named, 'icons whose name is on the first screen too').toBeGreaterThanOrEqual(8);
+  expect(named, 'icons whose name is on the first screen too').toBeGreaterThanOrEqual(3);
   await expectEverySectionReachable(dock(page));
 });
 
-test('the dock is one slim line, and each folder opens with its label tile in the first cell', async ({ page }) => {
+test('a clock widget sits on the wallpaper, and the dock is a strip of app tiles with their names under', async ({ page }) => {
   await openMenu(page, slug);
+  await expect(home(page).locator('.hs-time')).toHaveText(/^\d\d:\d\d$/);
   const bar = (await dock(page).boundingBox())!;
-  expect(bar.height, 'a slim dock').toBeLessThanOrEqual(56);
+  expect(bar.height, 'a compact dock').toBeLessThanOrEqual(80);
+  const glyph = (await dock(page).locator('.hs-glyph').first().boundingBox())!;
+  const label = (await dock(page).locator('.hs-label').first().boundingBox())!;
+  expect(label.y, 'the name sits under the tile').toBeGreaterThanOrEqual(glyph.y + glyph.height - 1);
+  expect(Math.abs(glyph.width - glyph.height)).toBeLessThanOrEqual(1);
+  expect(glyph.width).toBeGreaterThanOrEqual(40);
+});
+
+test('each folder is a page: its name is centred above the grid of icons, in a chip with the dish count', async ({ page }) => {
+  await openMenu(page, slug);
   const folder = page.locator('#cat-viennoiserie');
-  const label = (await folder.locator('[data-heading]').boundingBox())!;
+  const label = (await folder.locator('.hs-title').boundingBox())!;
   const first = (await folder.locator('[data-row]').first().boundingBox())!;
-  expect(Math.abs(label.y - first.y), 'the label tile shares the first row').toBeLessThanOrEqual(2);
-  expect(label.x + label.width, 'the label tile comes first').toBeLessThanOrEqual(first.x + 1);
+  expect(label.y + label.height, 'the name is above the icons').toBeLessThanOrEqual(first.y + 1);
+  const grid = (await folder.boundingBox())!;
+  expect(Math.abs(label.x + label.width / 2 - (grid.x + grid.width / 2)), 'centred').toBeLessThanOrEqual(2);
   await expect(folder.getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
-  // The label tile is not one of the list's items: the list holds the three dishes and nothing else, no heading.
   await expect(folder.getByRole('list').getByRole('listitem')).toHaveCount(3);
   await expect(folder.getByRole('list').getByRole('heading')).toHaveCount(0);
 });
 
-test('the icons sit four across, square, with the name below and the price badge on the corner', async ({ page }) => {
+test('the icons are big and sit three across, square, with the name below and the price badge on the corner', async ({ page }) => {
   await openMenu(page, slug);
   const folder = page.locator('#cat-viennoiserie [data-row]');
   expect(await folder.count()).toBe(3);
   const boxes = await Promise.all([0, 1, 2].map(async (i) => (await folder.nth(i).boundingBox())!));
   for (const box of boxes) expect(Math.abs(box.y - boxes[0]!.y), 'they share a row').toBeLessThanOrEqual(2);
-  const grid = (await page.locator('#cat-viennoiserie').boundingBox())!;
-  // Three dishes and the label tile: one row of four.
-  expect(boxes[0]!.width, 'each cell is a quarter of the grid').toBeLessThanOrEqual(grid.width / 4 + 1);
   const icon = (await folder.first().locator('[data-photo]').boundingBox())!;
+  expect(icon.width, 'a big icon (the mockup draws 104px)').toBeGreaterThanOrEqual(96);
   expect(Math.abs(icon.width - icon.height)).toBeLessThanOrEqual(1);
   const name = (await folder.first().locator('.hs-name').boundingBox())!;
   expect(name.y).toBeGreaterThanOrEqual(icon.y + icon.height - 1);
@@ -158,6 +168,7 @@ test('numbers and counts use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
   const first = home(page).locator('section[data-folder]').first();
   await expect(first.locator('[data-count]')).toHaveText('٣');
+  await expect(home(page).locator('.hs-time')).toHaveText(/^[٠-٩]{2}:[٠-٩]{2}$/);
   await expect(first).toHaveAttribute('data-folder', '١');
 });
 
@@ -194,7 +205,7 @@ test('white text reads on every surface it sits on: every palette of the shape, 
   }
 });
 
-test('keyboard focus rings show in full and stand out, in every palette: a whole app icon (in white, on the band) and a dock tile', async ({ page }) => {
+test('keyboard focus rings show in full and stand out, in every palette: a whole app icon (in the text colour, on the band) and a dock tile', async ({ page }) => {
   for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
     const app = apps(page).first();
@@ -204,7 +215,9 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
     await expectFocusRingShows(page, app, { outset: 4, pseudo: '::after' });
-    expect(await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor)).toBe('rgb(255, 255, 255)');
+    // The ring is the palette's text colour (white on the signature palette): the name's own colour.
+    const ring = await name.evaluate((node) => getComputedStyle(node, '::after').outlineColor);
+    expect(ring).toBe(await name.evaluate((node) => getComputedStyle(node).color));
     const tile = entry(page, 'patisserie');
     await tile.focus();
     await page.keyboard.press('Shift+Tab');
@@ -243,4 +256,35 @@ test('a long price wraps inside its badge: the badge stays in the cell, clear of
   const add = (await cell.locator('.hs-add').boundingBox())!;
   const overlaps = tag.x < add.x + add.width && add.x < tag.x + tag.width && tag.y < add.y + add.height && add.y < tag.y + tag.height;
   expect(overlaps, 'the badge covers the add button').toBe(false);
+});
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('homcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'homescreen', { templateId: 'the-phone-home-screen', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(3));
+};
+
+test('Customize colours reach the home screen: the name chip, the badge and the text follow the palette', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const folder = page.locator('#cat-viennoiserie');
+  expectNear(await rgbOf(folder.locator('.hs-title'), 'background-color'), mix(CUSTOM.raised, CUSTOM.accent, 0.26), 'name chip');
+  expectNear(await rgbOf(folder.locator('.hs-badge').first(), 'background-color'), CUSTOM.button, 'badge');
+  expectNear(await rgbOf(folder.locator('.hs-badge').first(), 'color'), CUSTOM.onButton, 'badge label');
+  expectNear(await rgbOf(folder.locator('.hs-name').first(), 'color'), CUSTOM.text, 'dish name');
+  expectNear(await rgbOf(folder.locator('.hs-title b'), 'color'), CUSTOM.bg, 'count ink');
 });

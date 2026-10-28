@@ -38,6 +38,7 @@ export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Dat
     tableId: order.tableId as string,
     seatedAt: order.seatedAt.toISOString(),
     invoiceDiscount: toDiscount(order.invoiceDiscountKind, order.invoiceDiscountValue) ?? null,
+    partPaid: order.lines.some((line) => line.paymentId !== null),
     lines: order.lines.map((line) => ({
       id: line.id,
       productId: line.productId,

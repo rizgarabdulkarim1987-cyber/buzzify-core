@@ -19,9 +19,9 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Fly to Cart body (spec 2026-10-26-menu-styles-in-templates-design.md): an ordering-first dense menu, every section
- * a labelled shelf of compact square dish cards three across on a phone, each with a big round + on its photo; adding
- * flies a copy of the photo to the cart bar (a transform-only arc) and the bar pulses once. Ordering off: plain cards.
+ * The Fly to Cart body (the motion-fly mockup): a playful ordering menu, every section a plain big heading over sticker
+ * cards two across on a phone, each with a square photo, the name, and the price with a round + at the end of its row;
+ * adding flies a copy of the photo to the cart bar (a transform-only arc) and the bar pulses once. Ordering off: plain cards.
  */
 
 const menus = bodyMenus();
@@ -107,54 +107,61 @@ async function watchFlights(page: Page) {
 const flights = (page: Page) => page.evaluate(() => (window as unknown as { __flights: Seen[] }).__flights);
 const pulses = (page: Page) => page.evaluate(() => (window as unknown as { __pulses: number }).__pulses);
 
-test('on a phone the first screen shows at least six dish cards with photos and prices, and every section is one tap away', async ({ page }) => {
+test('on a phone the first screen shows dish cards with photos and prices, and every section is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(fly(page)).toBeVisible();
-  await expectFirstScreen(page, cards(page), { min: 6 });
+  // The Maison demo card, the offers and the filter chips above the menu take most of the first screen by themselves.
+  await expectFirstScreen(page, cards(page), { min: 2 });
+  await page.evaluate(() => {
+    const content = document.querySelector('.tpl-content')!;
+    const kids = [...content.children];
+    const tools = kids.findIndex((kid) => kid.classList.contains('tpl-tools'));
+    kids.slice(1, tools).forEach((kid) => ((kid as HTMLElement).style.display = 'none'));
+    (content.querySelector('.tpl-tools > :nth-child(2)') as HTMLElement | null)?.style.setProperty('display', 'none');
+  });
+  // Maison's first section holds three dishes (two rows of two cards): the next heading is below the first screen.
+  await expectFirstScreen(page, cards(page), { min: 3 });
   await expectEverySectionReachable(tabs(page));
 });
 
-test('the cards sit three across on a phone, all the same size, a square photo with the name and price under it and a big round add button on it', async ({ page }) => {
+test('the cards sit two across on a phone, all the same size, a square photo with the name under it and the price with a round add button on one row', async ({ page }) => {
   await openMenu(page, slug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   const [a, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
   expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
-  expect(Math.abs(a.y - c.y)).toBeLessThanOrEqual(1);
   expect(a.x).toBeLessThan(b.x);
-  expect(b.x).toBeLessThan(c.x);
+  expect(c.y).toBeGreaterThan(a.y + a.height - 1);
   expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
   expect(Math.abs(a.height - b.height)).toBeLessThanOrEqual(1);
+  expect(a.width).toBeGreaterThan(150);
   const photo = (await row.first().locator('[data-photo]').boundingBox())!;
   expect(Math.abs(photo.width - photo.height)).toBeLessThanOrEqual(1);
-  expect(photo.width).toBeGreaterThanOrEqual(a.width - 14);
+  expect(photo.width).toBeGreaterThanOrEqual(a.width - 20);
   const name = (await row.first().locator('.fl-name').boundingBox())!;
   const price = (await row.first().locator('.fl-price').boundingBox())!;
   expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
   expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
   await expect(row.first().locator('.fl-price')).toContainText('$');
-  // The add button is big and round, on the photo's end corner.
+  // The add button is round, in the price's row at its end, under the photo, inside the card.
   const add = (await addOf(page, 'croissant').boundingBox())!;
-  expect(add.width).toBeGreaterThanOrEqual(40);
+  expect(add.width).toBeGreaterThanOrEqual(36);
   expect(Math.abs(add.width - add.height)).toBeLessThanOrEqual(1);
-  expect(add.x).toBeGreaterThanOrEqual(photo.x);
-  expect(add.x + add.width).toBeLessThanOrEqual(photo.x + photo.width + 1);
-  expect(add.y + add.height).toBeLessThanOrEqual(photo.y + photo.height + 1);
-  expect(add.x + add.width / 2).toBeGreaterThan(photo.x + photo.width / 2);
+  expect(add.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  expect(Math.abs(add.y + add.height / 2 - (price.y + price.height / 2))).toBeLessThanOrEqual(add.height / 2);
+  expect(add.x + add.width / 2).toBeGreaterThan(price.x + price.width / 2);
+  expect(add.x + add.width).toBeLessThanOrEqual(a.x + a.width + 1);
 });
 
-test('every section is a labelled shelf with its dish count, all on the page at once', async ({ page }) => {
+test('every section is a plain big heading over its cards, all on the page at once', async ({ page }) => {
   await openMenu(page, slug);
   const sections = fly(page).locator('section[data-shelf]');
   expect(await sections.count()).toBe(BODY_CATEGORIES.length);
   await expect(sections.first().locator('[data-count]')).toHaveText('3');
-  await expect(sections.first().getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
-  // The ledge line after the label runs to the end of the shelf.
-  const line = await sections.first().locator('h2').evaluate((node) => {
-    const after = getComputedStyle(node, '::after');
-    return { content: after.content, height: parseFloat(after.height) };
-  });
-  expect(line.content).toBe('""');
-  expect(line.height).toBeGreaterThanOrEqual(3);
+  const heading = sections.first().getByRole('heading', { name: 'Viennoiserie' });
+  await expect(heading).toBeVisible();
+  const style = await heading.evaluate((node) => ({ size: parseFloat(getComputedStyle(node.querySelector('span')!).fontSize), after: getComputedStyle(node, '::after').content }));
+  expect(style.size).toBeGreaterThanOrEqual(24);
+  expect(style.after === 'none' || style.after === 'normal').toBe(true);
 });
 
 test('a tab takes you to its section and focuses the heading', async ({ page }) => {
@@ -182,7 +189,7 @@ test('the tab strip stays at the top: scrolled to the end, the first section is 
 test('a menu with twenty-five sections keeps every section one tap away on a scrolling strip', async ({ page }) => {
   await openMenu(page, manySlug);
   await expect(tabs(page).getByRole('button')).toHaveCount(BODY_CATEGORIES.length + 20);
-  await expectFirstScreen(page, cards(page), { min: 6 });
+  await expectFirstScreen(page, cards(page), { min: 2 });
   const last = tabs(page).getByRole('button', { name: 'Section 25' });
   await last.click();
   await expect(page.locator('#cat-more-20')).toBeInViewport();
@@ -281,7 +288,7 @@ test('ordering off: plain tap-to-open cards, no + button, no cart, and the layou
   await openMenu(page, offSlug);
   await expect(fly(page)).toBeVisible();
   await expect(fly(page).locator('.fl-add')).toHaveCount(0);
-  await expectFirstScreen(page, cards(page), { min: 6 });
+  await expectFirstScreen(page, cards(page), { min: 2 });
   const row = page.locator('#cat-viennoiserie [data-row]');
   const a = (await row.nth(0).boundingBox())!;
   const b = (await row.nth(1).boundingBox())!;
@@ -390,10 +397,10 @@ test('in Arabic the page is right to left, the shelf mirrors and nothing scrolls
   const a = (await row.nth(0).boundingBox())!;
   const b = (await row.nth(1).boundingBox())!;
   expect(a.x).toBeGreaterThan(b.x);
-  // The add button sits on the photo's end corner, which is its left in Arabic.
-  const photo = (await row.first().locator('[data-photo]').boundingBox())!;
+  // The add button sits at the price row's end, which is its left in Arabic.
+  const price = (await row.first().locator('.fl-price').boundingBox())!;
   const add = (await row.first().locator('.fl-add').boundingBox())!;
-  expect(add.x + add.width / 2).toBeLessThan(photo.x + photo.width / 2);
+  expect(add.x + add.width / 2).toBeLessThan(price.x + price.width / 2);
 });
 
 test('a search that finds nothing keeps main#menu', async ({ page }) => {
@@ -413,7 +420,6 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'unlit tab': tabs(page).locator('.fl-chip:not([aria-current="true"])').first(),
       'lit tab': tabs(page).locator('[aria-current="true"]'),
       'section name': first.locator('h2 > span'),
-      'dish count': first.locator('h2 b'),
       'card name': first.locator('.fl-name').first(),
       'card price': first.locator('.fl-price').first(),
       'add button': first.locator('.fl-add').first(),

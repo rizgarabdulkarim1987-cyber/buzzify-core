@@ -37,11 +37,16 @@ export default async function OrderPage({ params, searchParams }: { params: Prom
     .filter((table) => table.status === 'FREE')
     .map((table) => ({ id: table.id, number: table.number, areaName: areaName.get(table.areaId) ?? '' }));
 
+  const mergeTargets = board.tables
+    .filter((table) => table.orderId !== null && table.orderId !== order.id && table.orderVersion !== null)
+    .map((table) => ({ orderId: table.orderId as string, version: table.orderVersion as number, number: table.number, areaName: areaName.get(table.areaId) ?? '' }));
+
   const screen = (
     <OrderScreen
       order={order}
       catalog={catalog}
       freeTables={freeTables}
+      mergeTargets={mergeTargets}
       delivery={delivery}
       approvers={approvers}
       can={{ discount: canPos(actor.role, 'order.discount'), cancel: canPos(actor.role, 'order.cancel'), pay: canPos(actor.role, 'payment.take') }}

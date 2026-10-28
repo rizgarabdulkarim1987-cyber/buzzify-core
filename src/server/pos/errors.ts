@@ -84,6 +84,14 @@ export const POS_TEXT = {
   'Manager approval is needed': 'error.text.posApprovalNeeded',
   'The approval PIN is wrong': 'error.text.posApprovalWrong',
   'This manager is locked for a while': 'error.text.posApprovalLocked',
+  'The payments must add up to the total': 'error.text.posLegsSum',
+  'This line is already paid': 'error.text.posLinePaid',
+  'Choose lines that are still unpaid': 'error.text.posLinesUnpaid',
+  'This order already has payments': 'error.text.posOrderHasPayments',
+  'Choose which payment to reverse': 'error.text.posChoosePayment',
+  'Choose another order to merge into': 'error.text.posMergeSelf',
+  'Use each payment method once': 'error.text.posLegsOnce',
+  'The tip cannot be more than the bill': 'error.text.posTipTooBig',
 } as const;
 
 export type PosText = keyof typeof POS_TEXT;

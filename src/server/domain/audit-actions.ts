@@ -135,6 +135,7 @@ export const AUDIT_ACTIONS = [
   'pos.order.bill.request',
   'pos.order.cancel',
   'pos.order.table.move',
+  'pos.order.merge',
   'pos.order.kitchen.send',
   'pos.order.kitchen.ready',
   'pos.order.kitchen.ack',

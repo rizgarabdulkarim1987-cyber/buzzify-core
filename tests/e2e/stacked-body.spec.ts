@@ -1,8 +1,9 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   BODY_PRODUCTS,
   bodyMenus,
+  contrastOf,
   dishName,
   expectArabicRtl,
   expectEverySectionReachable,
@@ -19,10 +20,10 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Stacked Sheets body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a sheet of coloured paper
- * laid over the one before it, each with a sticky tab (name and dish count); the tabs of the sheets above the one in
- * view stack at the top, those below dock at the bottom; a menu with many sections gets a rail instead.
- * Throwaway copies of the Maison Lumière demo (five sections).
+ * The Stacked Sheets body (the motion-stk mockup): a dark page with a strip of pills, every section a sheet of coloured
+ * paper (rounded top corners) holding its name, its dish count and its dishes as cards two across; the sheets are
+ * sticky, the next slides over the one in view, which shrinks and darkens as it is covered. Throwaway copies of the
+ * Maison Lumière demo (five sections).
  */
 
 const menus = bodyMenus();
@@ -32,219 +33,295 @@ const manySlug = menus.slug('stkmany');
 /** The shape's own alternative palettes. */
 const alternatives = paletteIdsOf('the-stacked-sheets').slice(1);
 const paletteSlug = (id: string) => menus.slug(`stk-${id}`);
-const TAB = 44;
-/** How far apart stacked tabs sit (each covers the lower part of the one before). */
-const STEP = 28;
 
 test.beforeAll(async () => {
   // The preset's own layout (its compact hero): what a restaurant that picks the template gets.
   await menus.create(slug, 'stacked', { templateId: 'the-stacked-sheets' });
   // Arabic-Indic numerals, and the croissant 20% off.
   await menus.create(arabSlug, 'stacked', { templateId: 'the-stacked-sheets', numeralSystem: 'ARAB', discount: ['croissant'] });
-  // Five sections and eighteen more: the rail.
+  // Five sections and eighteen more.
   await menus.create(manySlug, 'stacked', { templateId: 'the-stacked-sheets', extraSections: 18 });
-  // The eclair 20% off on the alternatives: the sale pill read on every palette.
+  // The eclair 20% off on the alternatives: the sale chip read on every palette.
   for (const id of alternatives) await menus.create(paletteSlug(id), 'stacked', { templateId: 'the-stacked-sheets', paletteId: id, discount: ['eclair'] });
 });
 test.afterAll(() => menus.remove());
 
 const stacked = (page: Page) => page.locator('[data-body="stacked"]');
-const tabs = (page: Page) => stacked(page).locator('[data-tab]');
-const tab = (page: Page, categorySlug: string) => stacked(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
-const rows = (page: Page) => stacked(page).locator('[data-row]');
-const rail = (page: Page) => stacked(page).locator('[data-rail]');
+const strip = (page: Page) => stacked(page).locator('[data-chips]');
+const sheets = (page: Page) => stacked(page).locator('section[data-sheet]');
+const cards = (page: Page) => stacked(page).locator('[data-row]');
+const entry = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
+/** A sheet's covered amount (`--p`, 0 to 1). */
+const covered = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`).evaluate((node) => parseFloat((node as HTMLElement).style.getPropertyValue('--p') || '0'));
+/** How much a sheet is shrunk (its scale) and how dark the layer over it is (that layer's opacity). */
+const look = (page: Page, categorySlug: string) =>
+  page.locator(`#cat-${categorySlug}`).evaluate((node) => ({ scale: new DOMMatrixReadOnly(getComputedStyle(node).transform).a, dark: parseFloat(getComputedStyle(node, '::after').opacity) }));
 const scrollToSheet = (page: Page, categorySlug: string) => page.evaluate((id) => document.getElementById(`cat-${id}`)!.scrollIntoView({ block: 'start' }), categorySlug);
+/** Takes the Maison demo card, the offers and the filter chips off the first screen (they take most of it by themselves). */
+const clearTop = (page: Page) =>
+  page.evaluate(() => {
+    const content = document.querySelector('.tpl-content')!;
+    const kids = [...content.children];
+    const tools = kids.findIndex((kid) => kid.classList.contains('tpl-tools'));
+    kids.slice(1, tools).forEach((kid) => ((kid as HTMLElement).style.display = 'none'));
+    (content.querySelector('.tpl-tools > :nth-child(2)') as HTMLElement | null)?.style.setProperty('display', 'none');
+  });
 
-test('on a phone the first screen shows at least four rows with photos and prices, and every sheet is one tap away', async ({ page }) => {
+test('on a phone the first screen shows dishes with photos and prices, and every sheet is one tap away', async ({ page }) => {
   await openMenu(page, slug);
-  await expect(stacked(page)).toHaveAttribute('data-tabs', 'stack');
-  await expectFirstScreen(page, rows(page), { min: 4 });
-  await expectEverySectionReachable(stacked(page));
+  await expect(stacked(page)).toBeVisible();
+  await expectFirstScreen(page, cards(page), { min: 2 });
+  await clearTop(page);
+  // Maison's first section holds three dishes (two rows of two cards): the next sheet is below the first screen.
+  await expectFirstScreen(page, cards(page), { min: 3 });
+  await expectEverySectionReachable(strip(page));
 });
 
-test('every section is a sheet with its own tab (name and dish count), a hue of its own and a rounded top edge', async ({ page }) => {
+test('every section is a sheet of paper of its own hue with rounded top corners, its name set large and its dish count', async ({ page }) => {
   await openMenu(page, slug);
-  expect(await tabs(page).count()).toBe(BODY_CATEGORIES.length);
-  expect(await stacked(page).locator('section[data-sheet]').count()).toBe(BODY_CATEGORIES.length);
-  await expect(tabs(page).first()).toContainText('Viennoiserie');
-  await expect(tabs(page).first()).toContainText('3 dishes');
-  await expect(tabs(page).last()).toContainText('1 dish');
-  const papers = await stacked(page).locator('section[data-sheet]').evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).backgroundColor));
+  expect(await sheets(page).count()).toBe(BODY_CATEGORIES.length);
+  const papers = await sheets(page).evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).backgroundColor));
   expect(new Set(papers).size).toBe(papers.length);
-  for (const radius of await tabs(page).evaluateAll((nodes) => nodes.map((node) => parseFloat(getComputedStyle(node).borderTopLeftRadius)))) expect(radius).toBeGreaterThanOrEqual(16);
+  const first = sheets(page).first();
+  expect(await first.evaluate((node) => parseFloat(getComputedStyle(node).borderStartStartRadius))).toBeGreaterThanOrEqual(24);
+  await expect(first.locator('[data-count]')).toContainText('3');
+  const title = first.getByRole('heading', { name: 'Viennoiserie' });
+  await expect(title).toBeVisible();
+  expect(await title.locator('span').evaluate((node) => parseFloat(getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(28);
+  // The name and the count sit on one line, apart.
+  const name = (await title.locator('span').boundingBox())!;
+  const count = (await first.locator('[data-count]').boundingBox())!;
+  expect(Math.abs(name.y + name.height - (count.y + count.height))).toBeLessThanOrEqual(12);
+  expect(Math.abs(count.x - name.x)).toBeGreaterThan(60);
 });
 
-test('the tabs are sticky: at the top the first, the others docked at the bottom edge; scrolled, those passed stack at the top', async ({ page }) => {
+test('the dishes are cards two across on a sheet, all the same size: a 4:3 photo, the name, then the price with a round add', async ({ page }) => {
   await openMenu(page, slug);
-  const height = page.viewportSize()!.height;
-  // At the start: the last tab is docked on the bottom edge and the one before it sits just above.
-  const last = (await tabs(page).last().boundingBox())!;
-  const before = (await tabs(page).nth(BODY_CATEGORIES.length - 2).boundingBox())!;
-  expect(Math.abs(last.y + last.height - height)).toBeLessThanOrEqual(1);
-  expect(Math.abs(last.y - before.y - STEP)).toBeLessThanOrEqual(1);
-  // Scrolled into the first sheet: its tab is stacked at the top, in order.
+  const row = page.locator('#cat-viennoiserie [data-row]');
+  const [a, b, c] = [(await row.nth(0).boundingBox())!, (await row.nth(1).boundingBox())!, (await row.nth(2).boundingBox())!];
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(a.x).toBeLessThan(b.x);
+  expect(c.y).toBeGreaterThan(a.y + a.height - 1);
+  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  expect(a.width).toBeGreaterThan(150);
+  const photo = (await row.first().locator('[data-photo]').boundingBox())!;
+  expect(Math.abs(photo.width * 0.75 - photo.height)).toBeLessThanOrEqual(1.5);
+  const name = (await row.first().locator('.sk-name').boundingBox())!;
+  const price = (await row.first().locator('.sk-price').boundingBox())!;
+  expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+  await expect(row.first().locator('.sk-price')).toContainText('$');
+  const add = (await row.first().locator('.sk-add').boundingBox())!;
+  expect(add.width).toBeGreaterThanOrEqual(30);
+  expect(Math.abs(add.width - add.height)).toBeLessThanOrEqual(1);
+  expect(add.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  expect(add.x + add.width).toBeLessThanOrEqual(a.x + a.width + 1);
+  expect(add.x + add.width / 2).toBeGreaterThan(price.x + price.width / 2);
+});
+
+test('the sheets are sticky under the strip: the next slides over the one in view, which stays put, shrinks and darkens; scrolling back restores it', async ({ page }) => {
+  await openMenu(page, slug);
   await scrollToSheet(page, 'viennoiserie');
-  await page.evaluate(() => window.scrollBy(0, 100));
-  for (const at of [0]) {
-    await expect.poll(async () => Math.round((await tabs(page).nth(at).boundingBox())!.y), { message: `tab ${at}` }).toBe(at * STEP);
-  }
+  await page.evaluate(() => window.scrollBy(0, -10));
+  const bar = (await strip(page).boundingBox())!;
+  // Nothing covers the first sheet yet.
+  await expect.poll(() => covered(page, 'viennoiserie')).toBe(0);
+  expect(await look(page, 'viennoiserie')).toEqual({ scale: 1, dark: 0 });
+  // Scroll until the second sheet is half way up the first: the first is still stuck under the strip.
+  await scrollToSheet(page, 'patisserie');
+  await page.evaluate(() => window.scrollBy(0, 160));
+  await expect.poll(() => covered(page, 'viennoiserie')).toBeGreaterThan(0.05);
+  const top = (await page.locator('#cat-viennoiserie').boundingBox())!;
+  expect(top.y).toBeLessThanOrEqual(bar.y + bar.height + 2);
+  const seen = await look(page, 'viennoiserie');
+  expect(seen.scale).toBeLessThan(1);
+  expect(seen.scale).toBeGreaterThanOrEqual(0.93);
+  expect(seen.dark).toBeGreaterThan(0);
+  expect(seen.dark).toBeLessThanOrEqual(0.35);
+  // The sheet that does the covering is on top of it (its top is the first thing at that height).
+  const over = (await page.locator('#cat-patisserie').boundingBox())!;
+  const hit = await page.evaluate((y) => document.elementFromPoint(40, y + 4)?.closest('[data-sheet]')?.id, over.y);
+  expect(hit).toBe('cat-patisserie');
+  // Back to the top: nothing is left shrunk or dark.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect.poll(() => covered(page, 'viennoiserie')).toBe(0);
+  expect(await look(page, 'viennoiserie')).toEqual({ scale: 1, dark: 0 });
 });
 
-test('the stacks leave most of the phone screen to the dishes', async ({ page }) => {
+test('only transform and opacity change as a sheet is covered, and nothing runs by itself', async ({ page }) => {
   await openMenu(page, slug);
-  await scrollToSheet(page, 'viennoiserie');
-  await page.evaluate(() => window.scrollBy(0, 100));
-  // Both stacks together: four steps and one whole tab.
-  expect(4 * STEP + TAB).toBeLessThanOrEqual(page.viewportSize()!.height * 0.2);
+  const properties = await page.locator('#cat-viennoiserie').evaluate((node) => getComputedStyle(node).transitionProperty);
+  expect(properties).toBe('all');
+  await scrollToSheet(page, 'patisserie');
+  expect(await stacked(page).evaluate((node) => [node, ...node.querySelectorAll('*')].flatMap((el) => el.getAnimations()).filter((a) => a instanceof CSSAnimation).length)).toBe(0);
 });
 
-test('a tab takes you to its sheet, just under the stack, and focuses its heading', async ({ page }) => {
+test('a pill takes you to its sheet, under the strip, and focuses its heading: down the page and back up past the sheets stuck above', async ({ page }) => {
   await openMenu(page, slug);
-  await expectJumpsTo(page, tab(page, 'celebration'), 'celebration');
-  // Under its own tab, which is stacked below those of the two sheets before it.
-  await expect.poll(async () => Math.round((await page.locator('#cat-celebration').boundingBox())!.y)).toBe(2 * STEP + TAB);
-  await expect(tab(page, 'celebration')).toHaveAttribute('aria-current', 'true');
-  // From the end of the page the first sheet is still one tap away.
+  await expectJumpsTo(page, entry(page, 'celebration'), 'celebration');
+  const bar = (await strip(page).boundingBox())!;
+  await expect.poll(async () => Math.abs((await page.locator('#cat-celebration').boundingBox())!.y - (bar.y + bar.height)), { message: 'the sheet lands under the strip' }).toBeLessThanOrEqual(3);
+  // Back up to the first sheet, which has been stuck at the top: a plain scroll-into-view could not take the page there.
+  await expectJumpsTo(page, entry(page, 'viennoiserie'), 'viennoiserie');
+  await expect.poll(async () => Math.abs((await page.locator('#cat-viennoiserie').boundingBox())!.y - (bar.y + bar.height)), { message: 'the first sheet lands under the strip' }).toBeLessThanOrEqual(3);
+  await expectJumpsTo(page, entry(page, 'patisserie'), 'patisserie');
+  await expectJumpsTo(page, entry(page, 'celebration'), 'celebration');
+});
+
+test('the strip lights the sheet in view, scrolling down and back up', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
+  await expect(entry(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
   await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expectJumpsTo(page, tab(page, 'viennoiserie'), 'viennoiserie');
+  await expect(entry(page, 'bread')).toHaveAttribute('aria-current', 'true');
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
+  await expectJumpsTo(page, entry(page, 'patisserie'), 'patisserie');
+  await expect(entry(page, 'patisserie')).toHaveAttribute('aria-current', 'true');
+  // Back up by scrolling: the sheets above are stuck at the top, and the one lit is still the one being read.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(entry(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
 });
 
-test('every tab can be tapped wherever it is stacked: its visible strip is at least 28px and the tap lands on it', async ({ page }) => {
+test('the strip stays at the top: scrolled to the end, the first sheet is still one tap away', async ({ page }) => {
   await openMenu(page, slug);
-  for (const where of ['start', 'patisserie', 'end']) {
-    if (where === 'patisserie') await scrollToSheet(page, 'patisserie');
-    if (where === 'end') await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    const hits = await tabs(page).evaluateAll((nodes) =>
-      nodes.map((node) => {
-        const box = node.getBoundingClientRect();
-        // The tab's own top strip (the strip below it may be covered by the next tab).
-        const hit = document.elementFromPoint(box.x + box.width / 2, Math.min(box.y + 12, window.innerHeight - 4));
-        return { own: hit?.closest('[data-tab]') === node, width: box.width, height: box.height };
-      }),
-    );
-    for (const [at, hit] of hits.entries()) {
-      expect(hit.own, `${where}: tab ${at}`).toBe(true);
-      expect(hit.height, where).toBeGreaterThanOrEqual(44);
-    }
-  }
+  await expectStripStays(page, strip(page), entry(page, 'viennoiserie'), 'viennoiserie');
 });
 
-test('scrolling lights the tab of the sheet in view', async ({ page }) => {
-  await openMenu(page, slug);
-  await expect(tab(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(stacked(page).locator('[aria-current="true"]')).toHaveCount(1);
-  await expect(tab(page, 'bread')).toHaveAttribute('aria-current', 'true');
-});
-
-test('the last sheet is tall enough to light its tab, and the page does not scroll sideways', async ({ page }) => {
-  await openMenu(page, slug);
-  const box = (await page.locator('#cat-bread').boundingBox())!;
-  expect(box.height).toBeGreaterThan(page.viewportSize()!.height * 0.3);
+test('a menu with many sections keeps every sheet one tap away on a scrolling strip, and no two neighbours share a paper', async ({ page }) => {
+  await openMenu(page, manySlug);
+  await expect(strip(page).getByRole('button')).toHaveCount(BODY_CATEGORIES.length + 18);
+  await expectFirstScreen(page, cards(page), { min: 2 });
+  const bar = (await strip(page).boundingBox())!;
+  expect(bar.height).toBeLessThanOrEqual(64);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const last = strip(page).getByRole('button', { name: 'Section 23' });
+  await last.click();
+  await expect(page.locator('#cat-more-18')).toBeInViewport();
+  await expect(page.locator('#cat-more-18 [data-heading]')).toBeFocused();
+  await expect(last).toBeInViewport();
+  const papers = await sheets(page).evaluateAll((nodes) => nodes.map((node) => getComputedStyle(node).backgroundColor));
+  for (let at = 1; at < papers.length; at++) expect(papers[at], `sheet ${at + 1}`).not.toBe(papers[at - 1]);
 });
 
-test('a row opens its dish and adds one, and its photo is a tap target too', async ({ page }) => {
+test('a sheet taller than the screen scrolls until its end shows before the next slides over it', async ({ page }) => {
+  await openMenu(page, manySlug);
+  // Make the first sheet three screens tall.
+  await page.locator('#cat-viennoiserie').evaluate((node) => {
+    (node as HTMLElement).style.minBlockSize = `${window.innerHeight * 3}px`;
+  });
+  await expect.poll(() => page.locator('#cat-viennoiserie').evaluate((node) => parseFloat((node as HTMLElement).style.getPropertyValue('--sk-top')))).toBeLessThan(0);
+  await scrollToSheet(page, 'viennoiserie');
+  await page.evaluate(() => window.scrollBy(0, window.innerHeight * 3));
+  // Its foot is on the screen, the next sheet has not yet come over it.
+  const box = (await page.locator('#cat-viennoiserie').boundingBox())!;
+  expect(box.y + box.height).toBeGreaterThan(300);
+  expect(box.y + box.height).toBeLessThanOrEqual(await page.evaluate(() => window.innerHeight));
+});
+
+test('a dish opens from its name and adds from its round button, and its photo is a tap target too', async ({ page }) => {
   await openMenu(page, slug);
   const first = page.locator('#cat-viennoiserie');
   await expectOpensProduct(page, first, 'croissant');
   await expectQuickAdd(page, first, 'croissant');
-  const box = (await rows(page).first().locator('[data-photo]').boundingBox())!;
-  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  const photo = (await cards(page).first().locator('[data-photo]').boundingBox())!;
+  await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
   await expect(page.getByRole('dialog')).toBeVisible();
 });
 
-test('a section with one dish is a sheet of one row', async ({ page }) => {
-  await openMenu(page, slug, { hash: '#cat-bread' });
-  await expect(page.locator('#cat-bread')).toBeInViewport();
+test('a section with one dish is a sheet of one card, as tall as the others are at least', async ({ page }) => {
+  await openMenu(page, slug);
   await expect(page.locator('#cat-bread [data-row]')).toHaveCount(1);
+  expect((await page.locator('#cat-bread').boundingBox())!.height).toBeGreaterThanOrEqual(290);
 });
 
-test('a long dish name and a long price stay inside the row without sideways scrolling', async ({ page }) => {
+test('a long dish name and a long price stay inside the card without sideways scrolling', async ({ page }) => {
   await openMenu(page, slug);
-  const row = rows(page).first();
-  await row.locator('.sk-name').evaluate((node) => {
-    node.textContent = 'A very long dish name that keeps going and going so that it wraps onto three or four lines on a phone screen';
+  const cell = cards(page).nth(1);
+  await cell.locator('.sk-name').evaluate((node) => {
+    node.textContent = 'A very long dish name that keeps going and going so that it wraps onto many many lines';
   });
-  await row.locator('.sk-price').evaluate((node) => {
+  await cell.locator('.sk-price').evaluate((node) => {
     node.textContent = 'From 123,456,789 IQD per portion';
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-  const box = (await row.boundingBox())!;
-  const price = (await row.locator('.sk-price').boundingBox())!;
+  const lines = await cell.locator('.sk-name').evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)));
+  expect(lines).toBeLessThanOrEqual(2);
+  const box = (await cell.boundingBox())!;
+  const price = (await cell.locator('.sk-price').boundingBox())!;
   expect(price.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(price.x + price.width).toBeLessThanOrEqual(box.x + box.width + 1);
-  const add = (await row.locator('.sk-add').boundingBox())!;
-  expect(add.x + add.width).toBeLessThanOrEqual(box.x + box.width + 1);
-  const name = (await row.locator('.sk-name').boundingBox())!;
-  expect(name.x + name.width).toBeLessThanOrEqual(add.x + 1);
+  expect(price.y + price.height).toBeLessThanOrEqual(box.y + box.height + 1);
 });
 
-test('a long category name takes two lines at most on its tab', async ({ page }) => {
+test('a long section name takes the line and wraps, the count stays whole', async ({ page }) => {
   await openMenu(page, slug);
-  const name = tabs(page).first().locator('.sk-tab-name');
-  await name.evaluate((node) => {
-    node.textContent = 'A very long category name that keeps going and going and going well past the end of the tab';
+  const head = sheets(page).first().locator('h2');
+  await head.locator('span').evaluate((node) => {
+    node.textContent = 'A very long section name that keeps going and going on a small phone screen';
   });
-  const lines = await name.evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)));
-  expect(lines).toBeLessThanOrEqual(2);
-  const tabBox = (await tabs(page).first().boundingBox())!;
-  expect(tabBox.height).toBeCloseTo(TAB, 0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
+  const box = (await sheets(page).first().boundingBox())!;
+  const count = (await sheets(page).first().locator('[data-count]').boundingBox())!;
+  expect(count.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(count.x + count.width).toBeLessThanOrEqual(box.x + box.width + 1);
 });
 
-test('on a wide screen the sheets stay a centred column', async ({ page }) => {
+test('on a wide screen the sheets stay a centred column, three cards across', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const sheet = (await page.locator('#cat-viennoiserie').boundingBox())!;
-  expect(sheet.width).toBeLessThanOrEqual(640);
+  expect(sheet.width).toBeLessThanOrEqual(720);
   expect(Math.abs(sheet.x + sheet.width / 2 - 640)).toBeLessThanOrEqual(2);
+  const row = page.locator('#cat-viennoiserie [data-row]');
+  const a = (await row.nth(0).boundingBox())!;
+  const c = (await row.nth(2).boundingBox())!;
+  expect(Math.abs(a.y - c.y)).toBeLessThanOrEqual(1);
 });
 
 test('counts and numbers use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
-  await expect(tabs(page).first()).toContainText('٣ dishes');
+  await expect(sheets(page).first().locator('[data-count]')).toContainText('٣ dishes');
 });
 
-test('in Arabic the page is right to left, the tab and the row mirror and nothing scrolls sideways', async ({ page }) => {
-  await expectArabicRtl(page, slug, (p) => tabs(p).first());
-  const tabBox = (await tabs(page).first().boundingBox())!;
-  const name = (await tabs(page).first().locator('.sk-tab-name').boundingBox())!;
-  const count = (await tabs(page).first().locator('.sk-tab-count').boundingBox())!;
+test('in Arabic the page is right to left, the count and the grid mirror and nothing scrolls sideways', async ({ page }) => {
+  await expectArabicRtl(page, slug, (p) => strip(p));
+  const sheet = sheets(page).first();
+  const name = (await sheet.locator('h2 > span').boundingBox())!;
+  const count = (await sheet.locator('[data-count]').boundingBox())!;
   expect(name.x).toBeGreaterThan(count.x);
-  expect(tabBox.x + tabBox.width - (name.x + name.width)).toBeLessThan(tabBox.width / 3);
-  const row = rows(page).first();
-  const photo = (await row.locator('[data-photo]').boundingBox())!;
-  const add = (await row.locator('.sk-add').boundingBox())!;
-  expect(photo.x).toBeGreaterThan(add.x);
+  const row = page.locator('#cat-viennoiserie [data-row]');
+  const a = (await row.nth(0).boundingBox())!;
+  const b = (await row.nth(1).boundingBox())!;
+  expect(a.x).toBeGreaterThan(b.x);
+  const price = (await row.first().locator('.sk-price').boundingBox())!;
+  const add = (await row.first().locator('.sk-add').boundingBox())!;
+  expect(add.x + add.width / 2).toBeLessThan(price.x + price.width / 2);
 });
 
-test('in Arabic with long names the tabs and rows hold', async ({ page }) => {
+test('in Arabic with long names the sheet and the cards hold', async ({ page }) => {
   await openMenu(page, slug, { locale: 'ar' });
-  await tabs(page).first().locator('.sk-tab-name').evaluate((node) => {
+  await sheets(page).first().locator('h2 > span').evaluate((node) => {
     node.textContent = 'قسم طويل جدا جدا جدا جدا يستمر في الطول حتى نهاية الشاشة الصغيرة بلا توقف';
   });
-  await rows(page).first().locator('.sk-name').evaluate((node) => {
+  await cards(page).first().locator('.sk-name').evaluate((node) => {
     node.textContent = 'طبق طويل الاسم جدا جدا يستمر في الطول حتى يلتف على عدة أسطر في شاشة الهاتف الصغيرة';
   });
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-  const tabBox = (await tabs(page).first().boundingBox())!;
-  expect(tabBox.height).toBeCloseTo(TAB, 0);
 });
 
-test('a search that finds nothing keeps main#menu, and a search keeps the tabs and the scroll where they are', async ({ page }) => {
+test('a search that finds nothing keeps main#menu, and a search keeps the sheets, the focus and the scroll where they are', async ({ page }) => {
   await openMenu(page, slug);
   const search = page.getByRole('searchbox', { name: 'Search the menu' });
   await search.fill('sourdough');
-  await expect(tabs(page)).toHaveCount(1);
-  await expect(stacked(page)).toHaveAttribute('data-tabs', 'stack');
+  await expect(sheets(page)).toHaveCount(1);
   await expect(search).toBeFocused();
   await search.fill('zzzzqq');
   await expect(page.locator('main#menu')).toHaveCount(1);
   await search.fill('');
-  await expect(tabs(page)).toHaveCount(BODY_CATEGORIES.length);
+  await expect(sheets(page)).toHaveCount(BODY_CATEGORIES.length);
   // Scrolled into the menu, a search that keeps the page tall enough does not move it: nothing in the shape scrolls
-  // (the browser's own scroll anchoring, which keeps the rows in view steady as others go, is turned off to see that).
+  // (the browser's own scroll anchoring is turned off to see that).
   await page.addStyleTag({ content: 'html, body { overflow-anchor: none; }' });
   await page.evaluate(() => window.scrollTo(0, 300));
   await expect.poll(() => page.evaluate(() => Math.round(window.scrollY))).toBe(300);
@@ -255,26 +332,13 @@ test('a search that finds nothing keeps main#menu, and a search keeps the tabs a
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, 'cake');
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  await expect(rows(page)).not.toHaveCount(BODY_PRODUCTS.length);
+  await expect(cards(page)).not.toHaveCount(BODY_PRODUCTS.length);
   await page.waitForTimeout(400);
   await expect(search).toBeFocused();
-  // Where it was, unless the shorter page cannot scroll that far.
   expect(await page.evaluate(() => Math.round(window.scrollY))).toBe(await page.evaluate(() => Math.min(300, Math.round(document.documentElement.scrollHeight - window.innerHeight))));
-  expect(await page.evaluate(() => Math.round(window.scrollY))).toBeGreaterThan(0);
 });
 
-test('in stack mode a screen reader gets the sections as one list under a navigation landmark', async ({ page }) => {
-  await openMenu(page, slug);
-  const nav = stacked(page).getByRole('navigation', { name: 'Categories' });
-  await expect(nav.getByRole('link')).toHaveCount(BODY_CATEGORIES.length);
-  // Out of the tab order (the visible tabs are the keyboard's), and it takes no room on the screen.
-  expect(await nav.getByRole('link').first().getAttribute('tabindex')).toBe('-1');
-  expect(await nav.evaluate((node) => node.getBoundingClientRect().width * node.getBoundingClientRect().height)).toBeLessThanOrEqual(1);
-  await nav.getByRole('link', { name: BODY_CATEGORIES.find((c) => c.slug === 'celebration')!.name.en! }).evaluate((node) => (node as HTMLElement).click());
-  await expect(page.locator('#cat-celebration [data-heading]')).toBeFocused();
-});
-
-test('the sheets do not change colour when a search hides some of them', async ({ page }) => {
+test('the sheets do not change paper when a search hides some of them', async ({ page }) => {
   await openMenu(page, slug);
   const paper = () => page.locator('#cat-celebration').evaluate((node) => getComputedStyle(node).backgroundColor);
   const before = await paper();
@@ -283,147 +347,118 @@ test('the sheets do not change colour when a search hides some of them', async (
   expect(await paper()).toBe(before);
 });
 
-test('nothing in the shape moves by itself: no animation runs, with or without reduced motion', async ({ page }) => {
-  for (const reducedMotion of ['no-preference', 'reduce'] as const) {
-    await page.emulateMedia({ reducedMotion });
-    await openMenu(page, slug);
-    expect(await stacked(page).evaluate((node) => [node, ...node.querySelectorAll('*')].flatMap((el) => el.getAnimations()).length)).toBe(0);
-  }
+test('reduced motion: the sheets still stack but are never shrunk or darkened', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  await scrollToSheet(page, 'patisserie');
+  await page.evaluate(() => window.scrollBy(0, 160));
+  await page.waitForTimeout(300);
+  expect(await covered(page, 'viennoiserie')).toBe(0);
+  expect(await look(page, 'viennoiserie')).toEqual({ scale: 1, dark: 0 });
+  const bar = (await strip(page).boundingBox())!;
+  expect((await page.locator('#cat-viennoiserie').boundingBox())!.y).toBeLessThanOrEqual(bar.y + bar.height + 2);
 });
 
-test.describe('a menu with many sections', () => {
-  const railChip = (page: Page, text: string) => rail(page).getByRole('button', { name: new RegExp(text) });
-
-  test('the tabs collapse into one scrollable rail, pinned at the top, with a chip for every section', async ({ page }) => {
-    await openMenu(page, manySlug);
-    await expect(stacked(page)).toHaveAttribute('data-tabs', 'rail');
-    await expect(rail(page).getByRole('button')).toHaveCount(BODY_CATEGORIES.length + 18);
-    await expectFirstScreen(page, rows(page), { min: 4 });
-    // Not a tab per sheet on the screen: the rail is one row, and it scrolls sideways inside itself only.
-    const bar = (await rail(page).boundingBox())!;
-    expect(bar.height).toBeLessThanOrEqual(64);
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-    // The sheets' tabs are plain labels now, not a second set of buttons.
-    await expect(tabs(page).locator('button')).toHaveCount(0);
-  });
-
-  test('the rail stays pinned, the last section is one tap away from the end, and the sheet lands under its pinned tab', async ({ page }) => {
-    await openMenu(page, manySlug);
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-    await expect.poll(async () => Math.abs((await rail(page).boundingBox())?.y ?? 99)).toBeLessThanOrEqual(1);
-    await expectJumpsTo(page, railChip(page, 'Section 15'), 'more-10');
-    const bar = (await rail(page).boundingBox())!;
-    // Its own tab is pinned under the rail (all tabs share one slot, the newest over the others), the sheet right under it.
-    const own = (await tabs(page).first().boundingBox())!.height;
-    await expect.poll(async () => Math.abs((await page.locator('#cat-more-10').boundingBox())!.y - (bar.y + bar.height + own))).toBeLessThanOrEqual(2);
-    await expect(railChip(page, 'Section 15')).toHaveAttribute('aria-current', 'true');
-    await expectStripStays(page, rail(page), railChip(page, 'Viennoiserie'), 'viennoiserie');
-  });
-
-  test('only the tab of the sheet in view shows under the rail: the next slides over the last', async ({ page }) => {
-    await openMenu(page, manySlug);
-    await scrollToSheet(page, 'more-3');
-    await page.evaluate(() => window.scrollBy(0, 200));
-    const bar = (await rail(page).boundingBox())!;
-    const slot = Math.round(bar.y + bar.height);
-    const atSlot = await tabs(page).evaluateAll((nodes, top) => nodes.filter((node) => Math.abs(node.getBoundingClientRect().y - top) <= 1).length, slot);
-    expect(atSlot).toBeGreaterThanOrEqual(1);
-    // Every tab that has passed sits in that one slot (none stacked lower), so the screen is not eaten.
-    const lowest = await tabs(page).evaluateAll((nodes, top) => Math.max(...nodes.map((node) => node.getBoundingClientRect().y).filter((y) => y <= top + 1)), slot);
-    expect(Math.round(lowest)).toBe(slot);
-  });
-
-  test('keyboard focus rings on rail chips show in full and stand out', async ({ page }) => {
-    await openMenu(page, manySlug);
-    const chip = railChip(page, 'Pâtisserie');
-    await chip.focus();
-    await page.keyboard.press('Shift+Tab');
-    await page.keyboard.press('Tab');
-    await expect(chip).toBeFocused();
-    await expectFocusRingShows(page, chip, { outset: -4 });
-  });
-
-  test('chip numbers use the menu numerals in Arabic', async ({ page }) => {
-    await openMenu(page, manySlug, { locale: 'ar' });
-    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
-    await expect(rail(page).locator('small').nth(2)).toHaveText('3');
-    expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(0);
-  });
-});
-
-test('text reads on every fill it sits on, in every palette of the shape, stacked or in the rail', async ({ page }) => {
+test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
   const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
   for (const [menu, menuSlug] of menusToCheck) {
     await openMenu(page, menuSlug);
     await page.evaluate(() => window.scrollBy(0, 40));
+    await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
     const sheet = page.locator('#cat-viennoiserie');
     await expectReadable(menu, {
-      'lit tab': tab(page, 'viennoiserie'),
-      'tab dish count': tabs(page).first().locator('.sk-tab-count'),
-      'docked tab': tab(page, 'bread'),
-      'docked tab dish count': tabs(page).last().locator('.sk-tab-count'),
-      'row name': sheet.locator('.sk-name').first(),
-      'row price': sheet.locator('.sk-price').first(),
+      'lit pill': strip(page).locator('[aria-current="true"]'),
+      'unlit pill': strip(page).locator('.sk-chip:not([aria-current="true"])').first(),
+      'sheet name': sheet.locator('h2 > span'),
+      'sheet count': sheet.locator('[data-count]'),
+      'card name': sheet.locator('.sk-name').first(),
+      'card price': sheet.locator('.sk-price').first(),
       'add button': sheet.locator('.sk-add').first(),
-      ...(menu === 'signature' ? {} : { 'sale pill': stacked(page).locator('.tpl-badge-sale').first() }),
+      ...(menu === 'signature' ? {} : { 'sale chip': stacked(page).locator('.tpl-off').first() }),
     });
-    await scrollToSheet(page, 'celebration');
-    await page.evaluate(() => window.scrollBy(0, 120));
-    // The tabs stacked at the top read too, whatever the hue.
-    for (const [at, name] of [[0, 'first'], [1, 'second']] as const) {
-      await expectReadable(`${menu} stacked`, { [`${name} stacked tab`]: tabs(page).nth(at).locator('button'), [`${name} stacked tab count`]: tabs(page).nth(at).locator('.sk-tab-count') });
-    }
   }
-  // The rail: every chip, lit or not, with its number.
+  // The papers of a long menu, too: each hue with the ink it carries.
   await openMenu(page, manySlug);
   await page.evaluate(() => window.scrollBy(0, 40));
-  await expectReadable('rail', {
-    'lit chip': rail(page).locator('[aria-current="true"]'),
-    'lit chip number': rail(page).locator('[aria-current="true"] small'),
-    'unlit chip': rail(page).locator('button:not([aria-current="true"])').first(),
-    'unlit chip number': rail(page).locator('button:not([aria-current="true"]) small').first(),
-    'pinned tab': tabs(page).first(),
-    'pinned tab count': tabs(page).first().locator('.sk-tab-count'),
-  });
+  for (let at = 0; at < 6; at++) {
+    await expect.poll(() => contrastOf(sheets(page).nth(at).locator('h2 > span')), { message: `sheet ${at + 1} name` }).toBeGreaterThanOrEqual(4.5);
+    await expect.poll(() => contrastOf(sheets(page).nth(at).locator('[data-count]')), { message: `sheet ${at + 1} count` }).toBeGreaterThanOrEqual(4.5);
+  }
 });
 
-test('keyboard focus rings show in full and stand out, in every palette: a whole row and a tab', async ({ page }) => {
+test('keyboard focus rings show in full and stand out, in every palette: a whole card, its add button and a pill', async ({ page }) => {
   for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
-    const row = rows(page).first();
-    const name = row.locator('.sk-name');
+    const card = cards(page).first();
+    const name = card.locator('.sk-name');
     await name.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
-    await expectFocusRingShows(page, row, { outset: -3, pseudo: '::after' });
-    const button = tab(page, 'patisserie');
-    await button.focus();
+    await expectFocusRingShows(page, card, { outset: -3, pseudo: '::after' });
+    const add = card.locator('.sk-add');
+    await add.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
-    await expect(button).toBeFocused();
-    await expectFocusRingShows(page, button, { outset: -4 });
+    await expect(add).toBeFocused();
+    await expectFocusRingShows(page, add, { outset: -4 });
+    const pill = entry(page, 'patisserie');
+    await pill.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(pill).toBeFocused();
+    await expectFocusRingShows(page, pill, { outset: -4 });
   }
 });
 
-test('a dish on sale shows its −NN% pill in the menu numerals and keeps the regular price crossed out', async ({ page }) => {
+test('a dish on sale shows a −NN% chip in the menu numerals on its photo and keeps the regular price for screen readers', async ({ page }) => {
   await openMenu(page, arabSlug);
-  const row = rows(page).filter({ hasText: dishName('croissant') });
-  await expect(row.locator('.tpl-badge-sale')).toHaveText('−٢٠%');
-  await expect(stacked(page).locator('.tpl-badge-sale')).toHaveCount(1);
-  await expect(row.locator('s')).toBeVisible();
-  const box = (await row.boundingBox())!;
-  const pill = (await row.locator('.tpl-badge-sale').boundingBox())!;
-  expect(pill.x).toBeGreaterThanOrEqual(box.x - 1);
-  expect(pill.x + pill.width).toBeLessThanOrEqual(box.x + box.width + 1);
-});
-
-test('the docked tabs rise above the cart bar once something is in the cart', async ({ page }) => {
-  await openMenu(page, slug);
-  await expectQuickAdd(page, page.locator('#cat-viennoiserie'), 'croissant');
-  const bar = (await page.getByTestId('cart-bar').boundingBox())!;
-  const last = (await tabs(page).last().boundingBox())!;
-  expect(last.y + last.height).toBeLessThanOrEqual(bar.y + 1);
+  const card = cards(page).filter({ hasText: dishName('croissant') });
+  const chip = card.locator('.tpl-off');
+  await expect(chip).toHaveText('−٢٠%');
+  await expect(stacked(page).locator('.tpl-off')).toHaveCount(1);
+  const box = (await card.boundingBox())!;
+  const at = (await chip.boundingBox())!;
+  expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
+  await expect(card.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
 });
 
 shapeChecks(menus, { kind: 'stacked', templateId: 'the-stacked-sheets', checks: ['contrast'] });
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('stkcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'stacked', { templateId: 'the-stacked-sheets', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+
+test('Customize colours reach the sheets: the page and the lit pill follow them, the ink is the background colour and the paper is drawn toward the text colour', async ({ page }) => {
+  await openMenu(page, slug);
+  const defaultPaper = await rgbOf(stacked(page).locator('.sk-sheet').first(), 'background-color');
+  await openMenu(page, customSlug);
+  const sheet = stacked(page).locator('.sk-sheet').first();
+  const ink = await rgbOf(sheet, 'color');
+  rgbOfHex(CUSTOM.bg).forEach((channel, at) => expect(Math.abs(ink[at]! - channel), 'sheet ink is the background colour').toBeLessThanOrEqual(3));
+  const paper = await rgbOf(sheet, 'background-color');
+  expect(paper, 'the paper is not the default one').not.toEqual(defaultPaper);
+  // The paper is the hue's colour drawn toward the text colour, so it stays well away from the ink.
+  const light = (rgb: number[]) => 0.2126 * rgb[0]! + 0.7152 * rgb[1]! + 0.0722 * rgb[2]!;
+  expect(light(paper), 'the paper is much lighter than the ink').toBeGreaterThan(light(ink) + 120);
+  // The unlit pills are the picked card colour, the lit one the picked text colour.
+  const unlit = await rgbOf(strip(page).locator('.sk-chip:not([aria-current="true"])').first(), 'background-color');
+  rgbOfHex(CUSTOM.raised).forEach((channel, at) => expect(Math.abs(unlit[at]! - channel), 'unlit pill').toBeLessThanOrEqual(3));
+  const lit = await rgbOf(strip(page).locator('[aria-current="true"]'), 'background-color');
+  rgbOfHex(CUSTOM.text).forEach((channel, at) => expect(Math.abs(lit[at]! - channel), 'lit pill').toBeLessThanOrEqual(3));
+});

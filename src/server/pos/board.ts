@@ -16,6 +16,8 @@ export interface BoardView {
     seatedAt: Date | null;
     total: number;
     orderId: string | null;
+    /** The open order's version, which a merge into it must quote. */
+    orderVersion: number | null;
     pendingRequests: number;
     /** The open order's live lines, for the bill and the slips on the board. */
     lines: { name: string; quantity: number }[];
@@ -40,7 +42,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
     db.posTable.findMany({ where: { restaurantId }, orderBy: [{ number: 'asc' }, { id: 'asc' }], select: { id: true, number: true, areaId: true } }),
     db.posOrder.findMany({
       where: { restaurantId, status: { notIn: [...LOCKED_STATUSES] }, tableId: { not: null } },
-      select: { id: true, tableId: true, status: true, kind: true, seatedAt: true, invoiceDiscountKind: true, invoiceDiscountValue: true, deliveryFee: true, lines: true },
+      select: { id: true, version: true, tableId: true, status: true, kind: true, seatedAt: true, invoiceDiscountKind: true, invoiceDiscountValue: true, deliveryFee: true, lines: true },
     }),
     readRates(db, restaurantId),
     db.posPayment.findMany({ where: { restaurantId, paidAt: { gte: day.start, lt: day.end } }, select: { totalsSnapshot: true } }),
@@ -57,6 +59,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
       seatedAt: order?.seatedAt ?? null,
       total: order ? orderTotals(order, order.lines, settings).totals.total : 0,
       orderId: order?.id ?? null,
+      orderVersion: order?.version ?? null,
       pendingRequests: pending.get(table.id) ?? 0,
       lines: order ? order.lines.filter((line) => line.cancelledAt === null).map((line) => ({ name: line.nameSnapshot, quantity: line.quantity })) : [],
     };

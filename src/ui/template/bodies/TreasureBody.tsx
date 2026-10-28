@@ -4,9 +4,9 @@ import type { CSSProperties } from 'react';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { SaleChip } from '../parts';
+import type { MenuProductView } from '@/server/data/menu-view';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
-import { IconDish } from './shared/IconDish';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './treasure.css';
@@ -64,7 +64,7 @@ export function TreasureBody() {
               <ShapeHeading id={`h-${category.slug}`} name={category.name} count={n(products.length)} className="tm-head" title="tm-title" />
               <ul className="tm-pins">
                 {products.map((product, row) => (
-                  <IconDish key={product.id} product={product} prefix="tm" suffix="treasure" cell="tm-pin tpl-rise" head="tm-disc" price="tm-tag" pricePlace="below" extras={<SaleChip product={product} className="tm-off" />} sizes="96px" priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
+                  <Pin key={product.id} product={product} priority={index === 0 && row < 6} order={Math.min(index * 3 + row, 8)} />
                 ))}
               </ul>
             </section>
@@ -72,5 +72,24 @@ export function TreasureBody() {
         })}
       </main>
     </div>
+  );
+}
+
+function Pin({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
+  const { openProduct } = useTemplate();
+  return (
+    <li data-row className="tm-pin tpl-rise" style={{ '--i': order } as CSSProperties}>
+      <div className="tm-disc">
+        <div data-photo className="tm-photo tpl-fill-media">
+          <ProductMedia product={product} suffix="treasure" sizes="96px" priority={priority} className="tm-img" rounded={false} />
+        </div>
+        <SaleChip product={product} className="tm-off" />
+        <QuickAction product={product} variant="icon" className="tpl-rim-add tm-add relative z-[2]" />
+      </div>
+      <Price product={product} className="tpl-price-tight tm-tag" />
+      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name tm-name text-center">
+        {product.name}
+      </button>
+    </li>
   );
 }

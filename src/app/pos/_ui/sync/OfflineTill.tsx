@@ -166,7 +166,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
   };
 
   const amount = parseAmount(received);
-  const canConfirmPay = amount !== null && amount >= totals.total;
+  const canConfirmPay = amount !== null && amount >= totals.total && !order.partPaid;
 
   return (
     <div className="flex flex-col gap-4">
@@ -324,7 +324,7 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
         open={dialog === 'pay'}
         onOpenChange={(open) => !open && setDialog(null)}
         title={t('pos.offline.pay')}
-        description={`${t('pos.offline.total')}: ${money(totals.total)}`}
+        description={order.partPaid ? t('pos.offline.partPaid') : `${t('pos.offline.total')}: ${money(totals.total)}`}
         footer={
           <>
             <Button className="min-h-12" onClick={() => setDialog(null)}>

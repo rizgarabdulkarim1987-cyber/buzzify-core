@@ -5,20 +5,19 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import { QuickAction } from '../parts';
-import { cancelMorph, morphOpen, tileSpan } from './morph-open';
+import { cancelMorph, morphOpen } from './morph-open';
 import { PhotoCard } from './shared/PhotoCard';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './morph.css';
 
 /**
- * Photo to Details (spec 2026-10-26-menu-styles-in-templates-design.md). A photo-first mosaic: every section is a block
- * with a heading that stays pinned under the strip while its dishes pass, and a dense grid of full-bleed photo tiles, three
- * across on a phone (four, then five on a wide screen) in tall and short turns that interlock like bricks, each with a solid
- * caption bar (the name, the price) under its photo. Tapping a tile opens the dish and its photo grows from the tile into
- * the details (`morphOpen`: a clone moved with `transform` only, only when motion is wanted; otherwise a plain open).
- * A sticky strip of chips jumps to a section. All sections are on the page, so the template's own jump and `#cat-<slug>`
- * scrolling reach them.
+ * Photo to Details (poster motion-mor of the 35 mockups; spec 2026-10-26-menu-styles-in-templates-design.md). A calm,
+ * photo-first menu: a sticky strip of pill chips (one per section, the one in view reversed) jumps to a section, and every
+ * section is a plain heading over a two-column grid of big rounded square photos with a soft shadow, the name under each,
+ * the price and the add on a row, the discount on the photo's foot. Tapping a photo opens the dish and the photo grows from
+ * its place into the details (`morphOpen`: a clone moved with `transform` only, only when motion is wanted; otherwise a
+ * plain open). All sections are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
  */
 export function MorphBody() {
   const { locale, tenant } = useApp();
@@ -46,10 +45,11 @@ export function MorphBody() {
                     prefix="mo"
                     suffix="morph"
                     className="mo-tile tpl-rise"
-                    style={{ '--span': tileSpan(at), '--i': Math.min(index * 3 + at, 8) } as CSSProperties}
-                    sizes="(min-width: 1024px) 320px, (min-width: 640px) 25vw, 33vw"
-                    priority={index === 0 && at < 6}
-                    add={<QuickAction product={product} variant="icon" className="tpl-rim-add mo-add relative z-[2]" />}
+                    style={{ '--i': Math.min(index * 2 + at, 8) } as CSSProperties}
+                    sizes="(min-width: 1024px) 280px, (min-width: 640px) 25vw, 45vw"
+                    priority={index === 0 && at < 4}
+                    addOnBar
+                    add={<QuickAction product={product} variant="icon" className="tpl-rim-add mo-add" />}
                     onOpen={(event: MouseEvent<HTMLButtonElement>) =>
                       morphOpen({ photo: event.currentTarget.closest('li')?.querySelector('[data-photo]') ?? null, open: () => openProduct(product.id), reduced })
                     }

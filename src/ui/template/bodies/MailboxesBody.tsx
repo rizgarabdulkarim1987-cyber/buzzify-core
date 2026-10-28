@@ -15,12 +15,12 @@ export function boxNumber(index: number): number {
 }
 
 /**
- * The Mailbox Wall (spec 2026-10-26-menu-styles-in-templates-design.md). Every section is a wall of brass mailboxes under
- * a brass rail that carries its name (its number, the name and the dish count in the menu's numerals); every dish is a
- * box: a small door frame with its number (101 on, along the whole menu), the photo behind a glass window, the name on a
- * brass plate and the price on a stamp beside the number, three boxes a row so many are on screen at once. A strip of brass key tags stays
- * at the top and jumps, lighting the wall in view. All walls are on the page, so the template's own jump and
- * `#cat-<slug>` scrolling reach them.
+ * The Mailbox Wall (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-box). Every section is a wall
+ * of big brass mailboxes under a sign that carries its name (its number, the name and the dish count in the menu's
+ * numerals), two boxes a row; every dish is a box: a door with its number (101 on, along the whole menu), the photo behind
+ * a barred glass window, the name on a brass plate and a dark bar with the price, the add key at its end. A strip of brass
+ * key tags (the box number it starts at, then the name) stays at the top and jumps, lighting the wall in view. All walls
+ * are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
  */
 export function MailboxesBody() {
   const { t, locale, tenant } = useApp();
@@ -32,7 +32,14 @@ export function MailboxesBody() {
   return (
     <div className="tpl-body" data-body="mailboxes">
       <SectionStrip marker="tags" prefix="bx" className="bx-tags" chip="bx-tag">
-        {(category) => <span className="bx-tag-label">{category.name}</span>}
+        {(category, index) => (
+          <>
+            <span aria-hidden className="bx-tag-no tabular-nums">
+              {n(boxNumber(starts[index]!))}
+            </span>
+            <span className="bx-tag-label">{category.name}</span>
+          </>
+        )}
       </SectionStrip>
       <main id="menu" className="min-w-0">
         {categories.map((category, index) => {
@@ -51,7 +58,7 @@ export function MailboxesBody() {
                     cell="bx-box tpl-rise"
                     head="bx-door"
                     price="bx-stamp"
-                    pricePlace="top"
+                    pricePlace="after"
                     media="cover"
                     extras={
                       <span className="bx-no tabular-nums" aria-hidden>
@@ -59,10 +66,9 @@ export function MailboxesBody() {
                       </span>
                     }
                     inPhoto={<SaleChip product={product} className="bx-off" />}
-                    addInPhoto
-                    sizes="(min-width: 640px) 180px, 33vw"
+                    sizes="(min-width: 640px) 180px, 50vw"
                     priority={index === 0 && at < 6}
-                    order={Math.min(index * 3 + at, 8)}
+                    order={Math.min(index * 2 + at, 8)}
                   />
                 ))}
               </ul>

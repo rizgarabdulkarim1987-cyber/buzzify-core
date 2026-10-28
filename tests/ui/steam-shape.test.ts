@@ -4,8 +4,8 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { SteamBody } from '@/ui/template/bodies/SteamBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { accentInk, mix } from '@/lib/templates/palette';
-import { LANES, ROW_TINT, temperatureOf } from '@/ui/template/bodies/temperature';
+import { accentInk } from '@/lib/templates/palette';
+import { LANES, temperatureOf } from '@/ui/template/bodies/temperature';
 
 const dish = (name: string, dietary: string[] = []) => ({ name, description: '', dietary });
 const section = (name: string) => ({ name });
@@ -163,19 +163,14 @@ describe('the lanes', () => {
   });
 });
 
-describe('the rows', () => {
-  it('keep the price, the name and the muted text (was-price, badges) at 4.5:1 on every lane tint, in every palette', () => {
+describe('the grid dishes', () => {
+  it('keep the price, the name and the muted text (was-price) at 4.5:1 on the page ground, in every palette (the cells have no card of their own)', () => {
     const preset = TEMPLATES['the-living-steam'];
-    expect(ROW_TINT).toBeLessThanOrEqual(0.06);
     for (const { id, palette } of preset.palettes) {
-      // The row's ground: the lane colour mixed into the card (CSS: color-mix(var(--lane) var(--stm-tint), var(--card))).
-      const lanes = { hot: LANES.hot.stripe, cold: LANES.cold.stripe, neutral: mix(palette.card, palette.text, 0.3) };
-      for (const [lane, colour] of Object.entries(lanes)) {
-        const row = mix(palette.card, colour, ROW_TINT);
-        expect(contrast(accentInk(palette), row), `${id} ${lane} price`).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(palette.text, row), `${id} ${lane} name`).toBeGreaterThanOrEqual(4.5);
-        expect(contrast(palette.muted, row), `${id} ${lane} muted`).toBeGreaterThanOrEqual(4.5);
-      }
+      expect(contrast(accentInk(palette), palette.bg), `${id} price`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.bg), `${id} name`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.muted, palette.bg), `${id} muted`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), `${id} add`).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

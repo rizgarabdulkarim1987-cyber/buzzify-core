@@ -1,6 +1,7 @@
 import { baghdadDay } from '@/lib/baghdad';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
+import { legsOf } from './payment-legs';
 import { checkRange } from './range-report';
 import { parseTotalsSnapshot } from './totals-snapshot';
 
@@ -24,7 +25,7 @@ export async function readSalesBreakdown(db: AnyDb, restaurantId: string, input:
   if ('problem' in checked) throw new StudioError('INVALID', checked.problem);
   const payments = await db.posPayment.findMany({
     where: { restaurantId, paidAt: { gte: baghdadDay(input.from).start, lt: baghdadDay(input.to).end } },
-    select: { id: true, paidAt: true, method: true, userId: true, totalsSnapshot: true },
+    select: { id: true, paidAt: true, method: true, amountReceived: true, reference: true, userId: true, totalsSnapshot: true, legs: { select: { method: true, amount: true, tendered: true, reference: true } } },
   });
   const names = new Map<string, string>();
   const userIds = [...new Set(payments.flatMap((p) => (p.userId ? [p.userId] : [])))];
@@ -44,7 +45,7 @@ export async function readSalesBreakdown(db: AnyDb, restaurantId: string, input:
     const snapshot = parseTotalsSnapshot(payment.id, payment.totalsSnapshot);
     add(hours, (payment.paidAt.getUTCHours() + BAGHDAD_OFFSET_HOURS) % 24, snapshot.total);
     add(staff, payment.userId ?? '', snapshot.total);
-    add(methods, payment.method, snapshot.total);
+    for (const leg of legsOf(payment, snapshot.total)) add(methods, leg.method, leg.amount);
     // The bill's total also holds the invoice discount, service, tax and delivery fee; they are spread over the lines in
     // proportion (the last line takes the rounding) so the items add up to the same gross sales as every other table.
     const lineSum = snapshot.lines.reduce((sum, line) => sum + line.lineTotal, 0);

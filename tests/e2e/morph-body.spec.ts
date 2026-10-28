@@ -19,9 +19,9 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Photo to Details body (spec 2026-10-26-menu-styles-in-templates-design.md): a photo-first mosaic, columns of
- * alternating tall and short full-bleed tiles, three across on a phone (so many dishes show at once; four or five on a wide screen) with a solid caption bar (name,
- * price) under each photo; a sticky strip of section chips; and a tapped tile's photo grows into the dish's details.
+ * The Photo to Details body (poster motion-mor; spec 2026-10-26-menu-styles-in-templates-design.md): a calm, photo-first
+ * menu: a sticky strip of pill chips, and every section a plain heading over a two-column grid of big rounded square photos
+ * (the name under each, the price and the add on a row); a tapped photo grows into the dish's details.
  */
 
 const menus = bodyMenus();
@@ -30,6 +30,7 @@ const arabSlug = menus.slug('morar');
 const manySlug = menus.slug('mormany');
 const bareSlug = menus.slug('morbare');
 const cardSlug = menus.slug('morcard');
+const crowdSlug = menus.slug('morcrowd');
 const alternatives = paletteIdsOf('the-photo-to-details').slice(1);
 const paletteSlug = (id: string) => menus.slug(`mor-${id}`);
 
@@ -37,6 +38,7 @@ test.beforeAll(async () => {
   await menus.create(slug, 'morph', { templateId: 'the-photo-to-details' });
   await menus.create(arabSlug, 'morph', { templateId: 'the-photo-to-details', numeralSystem: 'ARAB', discount: ['croissant'] });
   await menus.create(manySlug, 'morph', { templateId: 'the-photo-to-details', extraSections: 20 });
+  await menus.create(crowdSlug, 'morph', { templateId: 'the-photo-to-details', crowd: 3 });
   await menus.create(bareSlug, 'morph', { templateId: 'the-photo-to-details', noPhotos: true });
   // The details as a card (Customize): its entrance scales the panel from 0.97.
   await menus.create(cardSlug, 'morph', { templateId: 'the-photo-to-details', layout: { detail: 'card' } });
@@ -45,6 +47,17 @@ test.beforeAll(async () => {
 });
 test.afterAll(() => menus.remove());
 
+/** Takes the fixture's demo card (above the search) and its dietary chips off the page: a real menu has neither. */
+const dropDemoCard = (page: Page) =>
+  page.evaluate(() => {
+    const search = document.querySelector('input[type="search"], [role="searchbox"]')!;
+    const demo = [...document.querySelectorAll('h1,h2,p,div')].find((node) => node.children.length === 0 && node.textContent === 'Demonstration menu');
+    let at: Element | null = demo ?? null;
+    while (at && !at.parentElement?.contains(search)) at = at.parentElement;
+    at?.remove();
+    const chip = [...document.querySelectorAll('button')].find((node) => node.textContent?.trim() === 'Vegetarian');
+    if (chip && !chip.parentElement?.contains(search)) chip.parentElement?.remove();
+  });
 const morph = (page: Page) => page.locator('[data-body="morph"]');
 const chips = (page: Page) => morph(page).locator('[data-chips]');
 const tiles = (page: Page) => morph(page).locator('[data-row]');
@@ -117,54 +130,55 @@ async function warmDetails(page: Page) {
   });
 }
 
-test('on a phone the first screen shows at least four photo tiles with prices, and every section is one tap away', async ({ page }) => {
+test('on a phone the strip, the search and the photo tiles with prices show on the first screen, and every section is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(morph(page)).toBeVisible();
-  await expectFirstScreen(page, tiles(page), { min: 4 });
+  await expect(page.getByRole('searchbox', { name: 'Search the menu' })).toBeInViewport();
+  await expect(chips(page)).toBeInViewport();
+  // The fixture menu carries a demo card and dietary chips above the search (about 450px); with them two tiles show.
+  await expectFirstScreen(page, tiles(page), { min: 2 });
   await expectEverySectionReachable(chips(page));
+  expect(await page.evaluate(() => window.innerWidth)).toBe(390);
 });
 
-test('the tiles sit three across on a phone, short and tall in turn, with a solid caption bar under the photo', async ({ page }) => {
+test('in a section of six dishes, with no demo card above the search (a real menu), at least four photo tiles with prices fill the first screen', async ({ page }) => {
+  await openMenu(page, crowdSlug);
+  await dropDemoCard(page);
+  await expectFirstScreen(page, tiles(page), { min: 4 });
+});
+
+test('the tiles sit two across on a phone: a big rounded square photo, the name under it, then the price and the add on a row', async ({ page }) => {
   await openMenu(page, slug);
   const cells = page.locator('#cat-viennoiserie [data-row]');
   const a = (await cells.nth(0).boundingBox())!;
   const b = (await cells.nth(1).boundingBox())!;
+  const c = (await cells.nth(2).boundingBox())!;
   expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
   expect(a.x).toBeLessThan(b.x);
-  // Alternating heights: the middle tile is taller than its neighbours.
-  const c = (await cells.nth(2).boundingBox())!;
-  expect(b.height).toBeGreaterThan(a.height + 20);
-  expect(b.height).toBeGreaterThan(c.height + 20);
-  expect(Math.abs(a.y - c.y)).toBeLessThanOrEqual(1);
-  expect(b.x).toBeLessThan(c.x);
-  // The photo fills the tile above the bar; the bar is a plain opaque colour (no gradient over the photo).
-  const photo = (await cells.first().locator('[data-photo]').boundingBox())!;
-  const bar = cells.first().locator('.mo-bar');
-  const barBox = (await bar.boundingBox())!;
-  expect(photo.width).toBeGreaterThanOrEqual(a.width - 2);
-  expect(barBox.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
-  const fill = await bar.evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, colour: getComputedStyle(node).backgroundColor }));
-  expect(fill.image).toBe('none');
-  expect(fill.colour).not.toMatch(/rgba\(0, 0, 0, 0\)|transparent/);
-  await expect(cells.first().locator('.mo-price')).toContainText('$');
+  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  expect(a.width).toBeGreaterThan(150);
+  expect(c.y).toBeGreaterThan(a.y + a.height - 1);
+  const tile = cells.first();
+  const [photo, name, price, add] = [(await tile.locator('[data-photo]').boundingBox())!, (await tile.locator('.mo-name').boundingBox())!, (await tile.locator('.mo-price').boundingBox())!, (await tile.locator('.mo-add').boundingBox())!];
+  expect(Math.abs(photo.width - photo.height)).toBeLessThanOrEqual(2);
+  expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(Math.abs(price.y + price.height / 2 - (add.y + add.height / 2))).toBeLessThan(16);
+  expect(add.width).toBeGreaterThanOrEqual(40);
+  const look = await tile.locator('[data-photo]').evaluate((node) => ({ radius: parseFloat(getComputedStyle(node).borderTopLeftRadius), shadow: getComputedStyle(node).boxShadow }));
+  expect(look.radius).toBeGreaterThanOrEqual(16);
+  expect(look.shadow).not.toBe('none');
+  await expect(tile.locator('.mo-price')).toContainText('$');
 });
 
-test('every section is a block with a heading and its dish count, all on the page at once, the heading pinned under the strip', async ({ page }) => {
+test('every section is a block with a plain heading, all on the page at once', async ({ page }) => {
   await openMenu(page, slug);
   const sections = morph(page).locator('section[data-morph]');
   expect(await sections.count()).toBe(BODY_CATEGORIES.length);
   await expect(sections.first().locator('[data-count]')).toHaveText('3');
   await expect(sections.first().getByRole('heading', { name: /Viennoiserie/ })).toBeVisible();
-  const heading = page.locator('#cat-patisserie [data-heading]');
-  await page.evaluate(() => {
-    const section = document.querySelector('#cat-patisserie')!;
-    window.scrollBy(0, section.getBoundingClientRect().top + 90);
-  });
-  await page.waitForTimeout(200);
-  const bar = (await chips(page).boundingBox())!;
-  const pinned = (await heading.boundingBox())!;
-  expect(pinned.y).toBeGreaterThanOrEqual(bar.y + bar.height - 1);
-  expect(pinned.y).toBeLessThanOrEqual(bar.y + bar.height + 1);
+  // The heading is plain (poster): not pinned under the strip.
+  expect(await page.locator('#cat-patisserie [data-heading]').evaluate((node) => getComputedStyle(node).position)).not.toBe('sticky');
 });
 
 test('a chip takes you to its section and focuses the heading', async ({ page }) => {
@@ -187,7 +201,7 @@ test('the chip strip stays at the top: scrolled to the end, the first section is
 test('a menu with twenty-five sections keeps every section one tap away on a scrolling strip', async ({ page }) => {
   await openMenu(page, manySlug);
   await expect(chips(page).getByRole('button')).toHaveCount(BODY_CATEGORIES.length + 20);
-  await expectFirstScreen(page, tiles(page), { min: 4 });
+  await expectFirstScreen(page, tiles(page), { min: 2 });
   const last = chips(page).getByRole('button', { name: 'Section 25' });
   await last.click();
   await expect(page.locator('#cat-more-20')).toBeInViewport();
@@ -236,9 +250,8 @@ test('a dish opens and adds from its tile', async ({ page }) => {
   await expectQuickAdd(page, first, 'croissant');
 });
 
-test('a long dish name and a long price stay inside a short tile, and its photo keeps at least 45% of the tile', async ({ page }) => {
+test('a long dish name and a long price stay inside the tile, and its photo keeps at least 45% of the tile', async ({ page }) => {
   await openMenu(page, slug);
-  // The first tile of a section is a short one: the worst case.
   const cell = tiles(page).nth(0);
   await cell.locator('.mo-name').evaluate((node) => {
     node.textContent = 'A very long dish name that keeps going and going so that it wraps onto many many lines';
@@ -256,7 +269,7 @@ test('a long dish name and a long price stay inside a short tile, and its photo 
   expect(price.y + price.height).toBeLessThanOrEqual(box.y + box.height + 1);
   // The photo still shows above the bar: not a sliver.
   expect((await cell.locator('[data-photo]').boundingBox())!.height).toBeGreaterThanOrEqual(box.height * 0.45);
-  // A very long price wraps inside the tall tile.
+  // A very long price wraps inside the second tile.
   const tall = tiles(page).nth(1);
   await tall.locator('.mo-price').evaluate((node) => {
     node.textContent = 'From 123,456,789 IQD per portion';
@@ -267,7 +280,7 @@ test('a long dish name and a long price stay inside a short tile, and its photo 
   expect(tallPrice.y + tallPrice.height).toBeLessThanOrEqual(tallBox.y + tallBox.height + 1);
 });
 
-test('on a wide screen the mosaic is four or more columns in a centred column', async ({ page }) => {
+test('on a wide screen the grid is three or more columns in a centred column', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const cells = page.locator('#cat-viennoiserie [data-row]');
@@ -278,7 +291,7 @@ test('on a wide screen the mosaic is four or more columns in a centred column', 
   expect(Math.abs(a.y - c.y)).toBeLessThanOrEqual(1);
   expect(a.x).toBeLessThan(b.x);
   expect(b.x).toBeLessThan(c.x);
-  // Four columns: the next section's tiles are narrower than a third of the column.
+  // Four columns on a desktop: a tile is narrower than a third of the column.
   expect(a.width).toBeLessThan(330);
 });
 
@@ -287,7 +300,7 @@ test('numbers and counts use the tenant numerals', async ({ page }) => {
   await expect(morph(page).locator('section[data-morph]').first().locator('[data-count]')).toHaveText('٣');
 });
 
-test('in Arabic the page is right to left, the mosaic mirrors and nothing scrolls sideways', async ({ page }) => {
+test('in Arabic the page is right to left, the grid mirrors and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => chips(p));
   const cells = page.locator('#cat-viennoiserie [data-row]');
   const a = (await cells.nth(0).boundingBox())!;
@@ -312,7 +325,6 @@ test('text reads on every fill it sits on, in every palette of the shape', async
       'unlit chip': chips(page).locator('.mo-chip:not([aria-current="true"])').first(),
       'lit chip': chips(page).locator('[aria-current="true"]'),
       'section name': first.locator('h2 > span'),
-      'dish count': first.locator('h2 b'),
       'caption name': first.locator('.mo-name').first(),
       'caption price': first.locator('.mo-price').first(),
       'add button': first.locator('.mo-add').first(),
@@ -330,7 +342,7 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
-    await expectFocusRingShows(page, cell, { outset: -2, pseudo: '::after' });
+    await expectFocusRingShows(page, cell, { outset: 4, pseudo: '::after' });
     const chip = entry(page, 'patisserie');
     await chip.focus();
     await page.keyboard.press('Shift+Tab');

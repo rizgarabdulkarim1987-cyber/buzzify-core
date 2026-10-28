@@ -49,7 +49,7 @@ describe('template presets', () => {
 
   it('adds the three shapes as presets 31 to 33, each with its body, theme and a fonts pair', () => {
     const expected = [
-      ['the-book', 31, 'book', 'light'],
+      ['the-book', 31, 'book', 'dark'],
       ['the-magazine', 32, 'magazine', 'light'],
       ['taste-airport', 33, 'board', 'dark'],
     ] as const;
@@ -268,7 +268,7 @@ describe('the browse shape (body)', () => {
   it('starts with the four first bodies and keeps the knobs each one sets', () => {
     expect(BODY_KINDS.slice(0, 4)).toEqual(['scroll', 'book', 'magazine', 'board']);
     expect(new Set(BODY_KINDS).size).toBe(BODY_KINDS.length);
-    expect(SHAPE_SETS).toMatchObject({ scroll: [], book: ['hero', 'nav'], magazine: ['hero'], board: ['hero', 'nav', 'card', 'heading'] });
+    expect(SHAPE_SETS).toMatchObject({ scroll: [], book: ['hero', 'nav'], magazine: ['hero', 'card', 'imageRatio'], board: ['hero', 'nav', 'card', 'heading'] });
     expect(Object.keys(SHAPE_SETS).sort()).toEqual([...BODY_KINDS].sort());
   });
 

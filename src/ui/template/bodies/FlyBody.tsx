@@ -12,9 +12,9 @@ import './shared/shapes.css';
 import './fly.css';
 
 /**
- * Fly to Cart (spec 2026-10-26-menu-styles-in-templates-design.md). An ordering-first dense menu: every section is a
- * labelled shelf (its name, its dish count, a ledge line) holding a uniform grid of compact square dish cards, three
- * across on a phone (more on a wide screen): the photo, the name, the price, and a big round + on the photo's corner.
+ * Fly to Cart (the motion-fly mockup, spec 2026-10-26-menu-styles-in-templates-design.md). A playful ordering-first menu:
+ * every section is a plain big heading over a uniform grid of sticker cards, two across on a phone (more on a wide
+ * screen): the photo, the name, and the price with a round + at the end of the same row.
  * Adding with + flies a small copy of the photo to the cart bar, which then pulses once (fly-flight.ts). Where ordering
  * is off the cards are plain tap-to-open cards with no +. A sticky strip of pill tabs at the top jumps to a section; all
  * sections are on the page, so the template's own jump and `#cat-<slug>` scrolling reach them.
@@ -46,7 +46,8 @@ export function FlyBody() {
                     style={{ '--i': Math.min(index * 3 + at, 8) } as CSSProperties}
                     sizes="(min-width: 1024px) 220px, (min-width: 640px) 25vw, 33vw"
                     priority={index === 0 && at < 6}
-                    add={<QuickAction product={product} variant="icon" className="tpl-rim-add fl-add" onAdded={(button) => flyToCart({ photo: button.closest('[data-photo]'), button, reduced })} />}
+                    add={<QuickAction product={product} variant="icon" className="tpl-rim-add fl-add" onAdded={(button) => flyToCart({ photo: button.closest('[data-row]')?.querySelector('[data-photo]') ?? null, button, reduced })} />}
+                    addOnBar
                   />
                 ))}
               </ul>

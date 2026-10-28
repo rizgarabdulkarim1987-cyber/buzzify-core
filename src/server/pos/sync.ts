@@ -118,7 +118,7 @@ export async function applyOperations(ctx: SyncContext, deviceId: string, raw: r
     if (message === TEXT.product) return error(op.operationId, 'productUnavailable');
     if (message === TEXT.total && op.kind === 'payCash' && orderId) {
       const view = await readOrderView(db, restaurantId, orderId);
-      return error(op.operationId, 'totalChanged', { currentVersion: order?.version ?? null, detail: { expectedTotal: op.payload.expectedTotal, total: view?.totals.total ?? 0 } });
+      return error(op.operationId, 'totalChanged', { currentVersion: order?.version ?? null, detail: { expectedTotal: op.payload.expectedTotal, total: view ? (view.parts.length > 0 ? view.leftToPay : view.totals.total) : 0 } });
     }
     if (code === 'NOT_FOUND') {
       if (op.kind === 'addLine' && order) return error(op.operationId, 'productUnavailable');

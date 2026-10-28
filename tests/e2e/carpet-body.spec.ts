@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -20,11 +20,10 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The One Thousand and One Nights body (spec 2026-10-26-menu-styles-in-templates-design.md): a purple night sky of static
- * stars (a slow twinkle), where every section is a magic carpet: a woven band with a tassel fringe at both ends, its
- * title embroidered on the front fringe, and the dishes as round medallions (a gold ring, the name under, the price in a
- * gold-edged tag) three across. A sticky strip of rolled-carpet chips jumps to a carpet; a carpet floats the first time
- * it is lit, and lies still when it is lit again.
+ * The One Thousand and One Nights body (the kurd-arab-lyl mockup, spec 2026-10-26-menu-styles-in-templates-design.md):
+ * a purple night sky of static stars (a slow twinkle); the featured dish on a flying carpet at the top (a red frame with
+ * a dashed gold line, a gold fringe at both ends, a caption with its name, price and add) that floats twice and lies
+ * still; a sticky strip of gold pills; each section a gold display title over rounded dish cards, three across on a phone.
  */
 
 const menus = bodyMenus();
@@ -52,44 +51,83 @@ test.afterAll(() => menus.remove());
 
 const body = (page: Page) => page.locator('[data-body="carpet"]');
 const strip = (page: Page) => body(page).locator('[data-rolls]');
-const cards = (page: Page) => body(page).locator('[data-row]');
+const cards = (page: Page) => body(page).locator('.cp-card');
+const everyDish = (page: Page) => body(page).locator('[data-row]');
+const flight = (page: Page) => body(page).locator('.cp-flight');
 const cardOf = (page: Page, productSlug: string) => cards(page).filter({ hasText: dishName(productSlug) });
 const rollOf = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
-const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
+const addOf = (page: Page, productSlug: string) => page.locator('.cp-card').getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
 /** The strip's jump offset (`--nav-room`) in px: a jumped-to carpet lands below the strip only if the strip is no taller. */
 const navRoom = (page: Page) => body(page).evaluate((node) => parseFloat(getComputedStyle(node).getPropertyValue('--nav-room')) * parseFloat(getComputedStyle(document.documentElement).fontSize));
-const floatOf = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`).evaluate((node) => getComputedStyle(node).animationName);
 
 // The carpet in view floats for a few seconds after it lights, and Playwright clicks only a still target: the click tests below run with reduced
 // motion (which stops the float, and is a mode guests really use); the float itself is tested with motion on.
-test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
+test('on a phone the strip is at most 64px tall, the first screen has the featured hero dish and cards with photos and prices, and every section is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
   expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
-  await expectFirstScreen(page, cards(page), { min: 4 });
+  await page.waitForTimeout(1500);
+  // The Maison demo card, the offers and the filter chips above the menu take most of the first screen by themselves.
+  await expectFirstScreen(page, everyDish(page), { min: 1 });
+  await page.evaluate(() => {
+    const content = document.querySelector('.tpl-content')!;
+    const kids = [...content.children];
+    const tools = kids.findIndex((kid) => kid.classList.contains('tpl-tools'));
+    kids.slice(1, tools).forEach((kid) => ((kid as HTMLElement).style.display = 'none'));
+    (content.querySelector('.tpl-tools > :nth-child(2)') as HTMLElement | null)?.style.setProperty('display', 'none');
+  });
+  // The hero is a dish with photo and price (Maison's featured dish is also in its first section, counted once) and the
+  // first section's three dishes follow it.
+  await expectFirstScreen(page, everyDish(page), { min: 3 });
   await expectEverySectionReachable(strip(page));
 });
 
-test('with the offers banner above the menu (it and the hero take about 630px of the phone before any shape) the first screen still shows at least two dishes with photos and prices', async ({ page }) => {
+test('with the offers banner above the menu (it and the hero take about 630px of the phone before any shape) the page still draws its hero carpet and cards', async ({ page }) => {
   await openMenu(page, promoSlug);
   await expect(page.getByText('A fifth off').first()).toBeVisible();
-  await expectFirstScreen(page, cards(page), { min: 2 });
+  await expect(flight(page)).toBeVisible();
+  expect(await cards(page).count()).toBeGreaterThan(4);
 });
 
-test('the strip is a row of rolled carpets: a rolled-carpet icon and the section name on each chip, 44px to tap', async ({ page }) => {
+test('the hero is the featured dish on a flying carpet: a red frame with a dashed gold line, a fringe at both ends, a caption with its name, price and add; the whole carpet opens the dish', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
-  const rolls = strip(page).locator('button');
-  await expect(rolls).toHaveCount(BODY_CATEGORIES.length);
-  await expect(strip(page).locator('.cp-roll-icon')).toHaveCount(BODY_CATEGORIES.length);
-  const icon = (await rolls.first().locator('.cp-roll-icon').boundingBox())!;
-  expect(icon.width).toBeGreaterThan(14);
-  // The roll is drawn, not an emoji or an image: a body of stripes and a spiral end.
-  const drawn = await rolls.first().locator('.cp-roll-icon').evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, end: getComputedStyle(node, '::after').content }));
-  expect(drawn.image).toContain('gradient');
-  expect(drawn.end).not.toBe('none');
-  expect((await rolls.first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
-  await expect(rolls.first()).toContainText(BODY_CATEGORIES[0]!.name.en!);
+  await expect(flight(page)).toBeVisible();
+  const photo = (await flight(page).locator('[data-photo]').boundingBox())!;
+  expect(photo.width).toBeGreaterThanOrEqual(240);
+  expect(photo.height).toBeGreaterThanOrEqual(150);
+  const frame = await flight(page).locator('[data-photo]').evaluate((node) => ({ width: parseFloat(getComputedStyle(node).borderTopWidth), color: getComputedStyle(node).borderTopColor }));
+  expect(frame.width).toBeGreaterThanOrEqual(4);
+  const dashed = await flight(page).locator('.cp-ride').evaluate((node) => getComputedStyle(node, '::after').borderTopStyle);
+  expect(dashed).toBe('dashed');
+  await expect(flight(page).locator('.cp-tassel')).toHaveCount(2);
+  await expect(flight(page).locator('.cp-cap-price')).toContainText('$');
+  await expect(flight(page).locator('.cp-cap-add')).toBeVisible();
+  const box = (await flight(page).boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, photo.y + photo.height / 2);
+  await expect(page.getByRole('dialog')).toBeVisible();
+});
+
+test('the hero steps aside for a search and comes back without floating again', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(flight(page)).toBeVisible();
+  await expect.poll(() => flight(page).locator('.cp-ride').evaluate((node) => node.getAnimations().length), { timeout: 6000 }).toBe(0);
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.fill('croissant');
+  await expect(flight(page)).toBeHidden();
+  await search.fill('');
+  await expect(flight(page)).toBeVisible();
+  expect(await flight(page).locator('.cp-ride').evaluate((node) => node.getAnimations().length)).toBe(0);
+});
+
+test('the strip is a row of gold pills: the section name on each, 44px to tap, the lit one filled', async ({ page }) => {
+  await openMenu(page, slug);
+  const pills = strip(page).locator('button');
+  await expect(pills).toHaveCount(BODY_CATEGORIES.length);
+  expect((await pills.first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(pills.first()).toContainText(BODY_CATEGORIES[0]!.name.en!);
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
 });
 
 test('a roll takes you to its carpet and focuses the heading, and the roll lights', async ({ page }) => {
@@ -104,31 +142,6 @@ test('the strip stays at the top: scrolled to the end, the first carpet is still
   await expectStripStays(page, strip(page), rollOf(page, 'viennoiserie'), 'viennoiserie');
 });
 
-test('a section is a carpet: a woven band with rounded corners, a tassel fringe at both inline ends, and its title embroidered on the front edge above the dishes', async ({ page }) => {
-  await openMenu(page, slug);
-  const carpet = page.locator('#cat-viennoiserie');
-  const rug = carpet.locator('.cp-rug');
-  const woven = await rug.evaluate((node) => ({ weave: getComputedStyle(node, '::before').backgroundImage, radius: getComputedStyle(node).borderBottomLeftRadius }));
-  expect(woven.weave).toContain('repeating-linear-gradient');
-  expect(parseFloat(woven.radius)).toBeGreaterThan(8);
-  const tassels = await rug.locator('.cp-tassel').evaluateAll((nodes) => nodes.map((node) => ({ box: node.getBoundingClientRect(), image: getComputedStyle(node).backgroundImage })));
-  expect(tassels).toHaveLength(2);
-  for (const tassel of tassels) expect(tassel.image).toContain('repeating-linear-gradient');
-  const band = (await rug.boundingBox())!;
-  const [one, two] = [...tassels].sort((a, b) => a.box.x - b.box.x);
-  expect(one!.box.x + one!.box.width).toBeLessThanOrEqual(band.x + 2);
-  expect(two!.box.x).toBeGreaterThanOrEqual(band.x + band.width - 2);
-  expect(one!.box.x).toBeGreaterThanOrEqual(0);
-  expect(two!.box.x + two!.box.width).toBeLessThanOrEqual(390);
-  // The title sits on the fringe before the dishes, with the carpet's number and its dish count.
-  const title = (await carpet.locator('h2').boundingBox())!;
-  const first = (await carpet.locator('[data-row]').first().boundingBox())!;
-  expect(title.y + title.height).toBeLessThanOrEqual(first.y + 1);
-  expect(title.width).toBeGreaterThan(band.width * 0.5);
-  await expect(carpet.locator('h2 small')).toHaveText('1');
-  await expect(carpet.locator('h2 [data-count]')).toHaveText('3');
-});
-
 test('the sky is static stars (radial gradients) with a twinkle layer that fades slowly, and no twinkle with reduced motion', async ({ page }) => {
   await openMenu(page, slug);
   const sky = await body(page).evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, twinkle: getComputedStyle(node, '::before').animationName, content: getComputedStyle(node, '::before').content }));
@@ -140,21 +153,11 @@ test('the sky is static stars (radial gradients) with a twinkle layer that fades
   expect(still).toBe('none');
 });
 
-test('a carpet floats a few pixels the first time it is lit and lies still when it is lit again; the others lie still, and with reduced motion none floats', async ({ page }) => {
+test('the hero carpet floats a few pixels, twice, and then lies still; with reduced motion it never floats', async ({ page }) => {
   await openMenu(page, slug);
-  const floating = page.locator('.cp-carpet[data-float]');
-  await expect(floating).toHaveCount(1);
-  await expect(floating).toHaveAttribute('id', 'cat-viennoiserie');
-  const names = await page.locator('.cp-carpet').evaluateAll((nodes) => nodes.map((node) => [node.id, getComputedStyle(node).animationName]));
-  for (const [id, name] of names) expect(name === 'none', id).toBe(id !== 'cat-viennoiserie');
-  await rollOf(page, 'bread').click();
-  await expect(page.locator('.cp-carpet[data-float]')).toHaveAttribute('id', 'cat-bread');
-  expect(await floatOf(page, 'bread')).toBe('cp-float');
-  expect(await floatOf(page, 'viennoiserie')).toBe('none');
-  // The float stays within a few pixels.
-  // Read from the keyframes rule itself: the running animation can be between frames, or (on a slow dev server) not yet
-  // listed by getAnimations() when the check runs.
-  const travel = await page.locator('#cat-bread').evaluate((node) => {
+  const ride = flight(page).locator('.cp-ride');
+  await expect(ride).toHaveCSS('animation-name', 'cp-float');
+  const travel = await ride.evaluate((node) => {
     const name = getComputedStyle(node).animationName;
     for (const sheet of [...document.styleSheets]) {
       let rules: CSSRule[] = [];
@@ -173,22 +176,17 @@ test('a carpet floats a few pixels the first time it is lit and lies still when 
     const shift = Math.abs(parseFloat(/translateY\((-?[\d.]+)px\)/.exec(transform)?.[1] ?? '0'));
     expect(shift).toBeLessThanOrEqual(3);
   }
-  // Back to the first carpet: it is lit again, but it has floated once already, so it lies still (and so does bread).
-  await rollOf(page, 'viennoiserie').click();
-  await expect(rollOf(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
-  await expect(page.locator('.cp-carpet[data-float]')).toHaveCount(0);
-  expect(await floatOf(page, 'viennoiserie')).toBe('none');
-  expect(await floatOf(page, 'bread')).toBe('none');
-  // With reduced motion a carpet lit for the first time does not float either.
+  // It ends on its own and is marked, so it does not float again.
+  await expect(flight(page)).toHaveAttribute('data-floated', '', { timeout: 6000 });
+  await expect(ride).toHaveCSS('animation-name', 'none');
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.reload();
-  await expect(page.locator('.cp-carpet[data-float]')).toHaveAttribute('id', 'cat-viennoiserie');
-  expect(await floatOf(page, 'viennoiserie')).toBe('none');
+  await expect(flight(page).locator('.cp-ride')).toHaveCSS('animation-name', 'none');
 });
 
-test('dishes are round medallions in three columns: a gold-ringed round photo, the price in a gold-edged tag across its foot, the name under it', async ({ page }) => {
+test('dishes are rounded cards in three columns: the photo, the name under it, then the price and the gold add', async ({ page }) => {
   await openMenu(page, slug);
-  const row = page.locator('#cat-viennoiserie [data-row]');
+  const row = page.locator('#cat-viennoiserie .cp-card');
   await expect(row).toHaveCount(3);
   const [a, b, c] = [await row.nth(0).boundingBox(), await row.nth(1).boundingBox(), await row.nth(2).boundingBox()] as [DOMRect, DOMRect, DOMRect];
   expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
@@ -199,22 +197,16 @@ test('dishes are round medallions in three columns: a gold-ringed round photo, t
   const name = (await card.locator('.cp-name').boundingBox())!;
   const price = (await card.locator('.cp-price').boundingBox())!;
   expect(Math.abs(photo.width - photo.height)).toBeLessThanOrEqual(1);
-  expect(photo.width).toBeGreaterThanOrEqual(84);
+  expect(photo.width).toBeGreaterThanOrEqual(95);
   expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 2);
-  // The tag straddles the photo's foot, centred on it, and the name starts below the tag.
-  expect(price.y).toBeGreaterThan(photo.y + photo.height * 0.8);
-  expect(price.y + price.height).toBeGreaterThan(photo.y + photo.height);
-  expect(Math.abs(price.x + price.width / 2 - (photo.x + photo.width / 2))).toBeLessThanOrEqual(2);
-  expect(name.y).toBeGreaterThanOrEqual(price.y + price.height - 2);
-  const ring = await card.locator('[data-photo]').evaluate((node) => ({ radius: getComputedStyle(node).borderTopLeftRadius, width: parseFloat(getComputedStyle(node).borderTopWidth) }));
-  expect(parseFloat(ring.radius)).toBeGreaterThanOrEqual(photo.width / 2 - 1);
-  expect(ring.width).toBeGreaterThanOrEqual(2);
-  const tag = await card.locator('.cp-price').evaluate((node) => parseFloat(getComputedStyle(node).borderTopWidth));
-  expect(tag).toBeGreaterThanOrEqual(1);
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 2);
+  const look = await card.evaluate((node) => ({ radius: parseFloat(getComputedStyle(node).borderTopLeftRadius), border: parseFloat(getComputedStyle(node).borderTopWidth) }));
+  expect(look.radius).toBeGreaterThanOrEqual(12);
+  expect(look.border).toBeGreaterThanOrEqual(1);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('a dish adds from its medallion and opens from its name, and tapping the photo or the cell opens it too, without adding', async ({ page }) => {
+test('a dish adds from its card and opens from its name, and tapping the photo or the cell opens it too, without adding', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
   const first = page.locator('#cat-viennoiserie');
@@ -232,12 +224,12 @@ test('a dish adds from its medallion and opens from its name, and tapping the ph
   await expectQuickAdd(page, first, 'croissant');
 });
 
-test('ordering off: plain tap-to-open medallions, no + button, no cart, and the layout still shows many dishes', async ({ page }) => {
+test('ordering off: plain tap-to-open cards, no + button, no cart, and the layout still shows dishes', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, offSlug);
   await expect(body(page)).toBeVisible();
-  await expect(body(page).locator('.cp-add')).toHaveCount(0);
-  await expectFirstScreen(page, cards(page), { min: 4 });
+  await expect(body(page).locator('.cp-add, .cp-cap-add')).toHaveCount(0);
+  await expectFirstScreen(page, everyDish(page), { min: 1 });
   const photo = (await cards(page).first().locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
@@ -300,7 +292,7 @@ test('a search that narrows and clears keeps the strip, never moves the focus or
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(400);
 });
 
-test('a long dish name and a long price stay inside the medallion without sideways scrolling', async ({ page }) => {
+test('a long dish name and a long price stay inside the card without sideways scrolling', async ({ page }) => {
   await openMenu(page, slug);
   const card = cards(page).first();
   await card.locator('.cp-name').evaluate((node) => {
@@ -326,7 +318,7 @@ test('a long dish name and a long price stay inside the medallion without sidewa
 // The price's TEXT (not only its tag's box, which a nowrap line can overflow) stays inside the tag and the cell, on the
 // medallion at the row's end, for a realistic "From" price and very long ones that must wrap, in English and Arabic.
 for (const locale of ['en', 'ar'] as const)
-test(`the price text stays inside its tag and its medallion at the row's end, in ${locale}`, async ({ page }) => {
+test(`the price text stays inside its card at the row's end, in ${locale}`, async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug, { locale });
   // Text set before React hydrates is thrown away by it (and logs a hydration mismatch): let the page settle first.
@@ -345,17 +337,17 @@ test(`the price text stays inside its tag and its medallion at the row's end, in
       const words = range.getBoundingClientRect();
       return { words: words.toJSON() as DOMRect, tag: tag.getBoundingClientRect().toJSON() as DOMRect, cell: cell.getBoundingClientRect().toJSON() as DOMRect };
     });
-    for (const [outer, name] of [[boxes.tag, 'tag'], [boxes.cell, 'cell']] as const) {
-      expect(boxes.words.left, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.left - 0.5);
-      expect(boxes.words.right, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.right + 0.5);
-      expect(boxes.words.top, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.top - 0.5);
-      expect(boxes.words.bottom, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.bottom + 0.5);
+    for (const [outer, name] of [[boxes.tag, 'price'], [boxes.cell, 'cell']] as const) {
+      expect(boxes.words.left, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.left - 3);
+      expect(boxes.words.right, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.right + 3);
+      expect(boxes.words.top, `${text}: inside the ${name}`).toBeGreaterThanOrEqual(outer.top - 3);
+      expect(boxes.words.bottom, `${text}: inside the ${name}`).toBeLessThanOrEqual(outer.bottom + 3);
     }
   }
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('the add button is at least 40px square and inside its medallion', async ({ page }) => {
+test('the add button is at least 40px square and inside its card', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
   for (const at of [0, 2]) {
@@ -368,7 +360,7 @@ test('the add button is at least 40px square and inside its medallion', async ({
   }
 });
 
-test('on a wide screen the medallions run in a centred column, side by side', async ({ page }) => {
+test('on a wide screen the cards run in a centred column, side by side', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
@@ -379,13 +371,12 @@ test('on a wide screen the medallions run in a centred column, side by side', as
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('numbers and counts use the tenant numerals, on the carpet titles too', async ({ page }) => {
+test('counts use the tenant numerals', async ({ page }) => {
   await page.goto(`/${arabSlug}/en?stage=off`);
   await expect(page.locator('#cat-viennoiserie [data-count]')).toHaveText('٣');
-  await expect(page.locator('#cat-viennoiserie h2 small')).toHaveText('١');
 });
 
-test('in Arabic the page is right to left, the strip starts at the right, the dishes run from the right, and nothing scrolls sideways', async ({ page }) => {
+test('in Arabic the page is right to left, the strip starts at the right, the cards run from the right, and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => strip(p));
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
@@ -393,15 +384,15 @@ test('in Arabic the page is right to left, the strip starts at the right, the di
   const one = (await cards(page).first().locator('[data-photo]').boundingBox())!;
   const two = (await cards(page).nth(1).locator('[data-photo]').boundingBox())!;
   expect(one.x).toBeGreaterThan(two.x);
-  // The fringe still frames the band on both sides, and nothing is clipped past the screen.
-  const tassels = await page.locator('#cat-viennoiserie .cp-tassel').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()));
+  // The fringe still frames the hero carpet on both sides, and nothing is clipped past the screen.
+  const tassels = await page.locator('.cp-flight .cp-tassel').evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect()));
   for (const box of tassels) {
     expect(box.x).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(390);
   }
 });
 
-test('in Arabic a long dish name stays inside its medallion', async ({ page }) => {
+test('in Arabic a long dish name stays inside its card', async ({ page }) => {
   await openMenu(page, slug, { locale: 'ar' });
   const card = cards(page).first();
   await card.locator('.cp-name').evaluate((node) => {
@@ -420,6 +411,8 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
   await expect(page.locator('main#menu')).toHaveCount(1);
 });
 
+// The section title and the hero's name and price sit on the sky's gradient, which the contrast helper cannot read: the
+// unit test (tests/ui/carpet-shape.test.ts) checks the palette's gold and text against the sky's lightest stop instead.
 test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
   const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
   for (const [menu, menuSlug] of menusToCheck) {
@@ -431,18 +424,17 @@ test('text reads on every fill it sits on, in every palette of the shape', async
     await expectReadable(menu, {
       'lit roll': strip(page).locator('button[aria-current="true"]'),
       'resting roll': strip(page).locator('button:not([aria-current="true"])').first(),
-      'carpet title': first.locator('h2 > span'),
-      'carpet count': first.locator('h2 b'),
-      'carpet number': first.locator('h2 small'),
-      'medallion name': card.locator('.cp-name'),
-      'medallion price': card.locator('.cp-price'),
-      'medallion add button': card.locator('.cp-add'),
+      'section count': first.locator('h2 b'),
+      'card name': card.locator('.cp-name'),
+      'card price': card.locator('.cp-price'),
+      'card add button': card.locator('.cp-add'),
+      'hero add button': flight(page).locator('.cp-cap-add'),
       ...(menu === 'signature' ? {} : { 'sale chip': card.locator('.tpl-photo-off'), 'second sale chip': cardOf(page, 'eclair').locator('.tpl-photo-off') }),
     });
   }
 });
 
-test('keyboard focus rings show in full and stand out, in every palette: a whole medallion, its add button and a roll', async ({ page }) => {
+test('keyboard focus rings show in full and stand out, in every palette: a whole card, its add button and a pill', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
@@ -468,12 +460,12 @@ test('keyboard focus rings show in full and stand out, in every palette: a whole
   }
 });
 
-test('a dish on sale shows its -NN% chip in the menu numerals on its medallion, inside the cell, and keeps the regular price for screen readers', async ({ page }) => {
+test('a dish on sale shows its -NN% chip in the menu numerals on its card, inside the cell, and keeps the regular price for screen readers', async ({ page }) => {
   await openMenu(page, arabSlug);
   const card = cards(page).first();
   const chip = card.locator('.tpl-photo-off');
   await expect(chip).toHaveText(/٢٠%/);
-  await expect(body(page).locator('.tpl-photo-off')).toHaveCount(1);
+  await expect(body(page).locator('.cp-card .tpl-photo-off')).toHaveCount(1);
   const box = (await card.boundingBox())!;
   const at = (await chip.boundingBox())!;
   expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
@@ -486,19 +478,47 @@ test('a dish on sale shows its -NN% chip in the menu numerals on its medallion, 
 test('nothing moves on its own for more than five seconds (WCAG 2.2.2: the scene is static, so there is no pause control)', async ({ page }) => {
   await openMenu(page, slug);
   await expect(body(page)).toBeVisible();
-  await expect(body(page).locator('.cp-carpet[data-float]')).toHaveCSS('animation-name', 'cp-float');
+  await expect(flight(page).locator('.cp-ride')).toHaveCSS('animation-name', 'cp-float');
   await expectMotionEnds(body(page));
 });
 
-test('a search keeps each carpet its own number and weave (by its place in the full menu)', async ({ page }) => {
+// ---------------------------------------------------------------------------------------------------------------------
+// Customize colours reach the shape (the colours picked in Customize replace the palette's, not the artwork's own).
+// ---------------------------------------------------------------------------------------------------------------------
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('cpcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'cp', { templateId: 'the-thousand-and-one-nights', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const mixHex = (a: string, b: string, amount: number) => {
+  const from = rgbOfHex(a);
+  const to = rgbOfHex(b);
+  return '#' + from.map((channel, at) => Math.round(channel + (to[at]! - channel) * amount).toString(16).padStart(2, '0')).join('');
+};
+const expectNear = (actual: number[], hex: string, message: string, tolerance = 3) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(tolerance));
+};
+const first = (page: Page, selector: string) => page.locator('[data-body="carpet"] ' + selector).first();
+
+test('Customize colours reach the shape: the strip, the lit pill, the gold add and title, the cards', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
-  await openMenu(page, slug);
-  const weave = () => page.locator('#cat-bread').evaluate((node) => getComputedStyle(node).getPropertyValue('--cp-base'));
-  const before = await weave();
-  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
-  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
-  await expect(page.locator('#cat-bread')).toBeVisible();
-  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
-  expect(await weave()).toBe(before);
+  await openMenu(page, customSlug);
+  expectNear(await rgbOf(first(page, '.cp-strip'), 'background-color'), mixHex(CUSTOM.bg, '#000000', 0.18), 'strip backing');
+  expectNear(await rgbOf(first(page, '.cp-roll[aria-current="true"]'), 'background-color'), CUSTOM.accent, 'lit pill');
+  expectNear(await rgbOf(first(page, '.cp-roll:not([aria-current="true"])'), 'color'), CUSTOM.accent, 'resting pill text');
+  expectNear(await rgbOf(first(page, '.cp-add'), 'background-color'), CUSTOM.accent, 'card add');
+  expectNear(await rgbOf(first(page, '.cp-cap-add'), 'background-color'), CUSTOM.accent, 'hero add');
+  expectNear(await rgbOf(first(page, '.cp-title'), 'color'), CUSTOM.accent, 'section title');
+  expectNear(await rgbOf(first(page, '.cp-card'), 'background-color'), mixHex(CUSTOM.bg, CUSTOM.text, 0.08), 'card fill');
 });

@@ -1,81 +1,127 @@
 /*
- * The Drawer Cabinet body (a browse shape of a template menu): every section a drawer front with a handle, drawers are
- * independent accordions, an open drawer shows a tray of dishes (one across on a phone, two from 640px). Everything is scoped under
- * [data-body='cabinet']; the wood is mixed from the menu's own text and accent so every palette stays legible. Logical
- * properties only, so the tray and the handle mirror in RTL.
+ * The Drawer Cabinet body (the layout-cab mockup, as a browse shape of a template menu): a wooden chest, every section a
+ * drawer front with a brass handle, its name and thumbnails of its first dishes. Drawers are independent accordions; an
+ * open drawer shows a tray of dishes as cream cards with big square photos, two across on a phone. Everything is scoped
+ * under [data-body='cabinet'] and follows the menu's palette: on a dark palette (the default is the mockup's walnut) the
+ * page is the wood (--bg), the fronts are the lighter wood (--raised), the tray and the cards are the cream (--text),
+ * the handles are brass (--accent); on a light palette the fronts are wood mixed from the text and the accent and the tray
+ * is the card colour. Logical properties only, so the tray and the handle mirror in RTL.
  */
 [data-body='cabinet'] {
-  --cb-wood: color-mix(in oklab, var(--text) 80%, var(--accent));
-  --cb-edge: color-mix(in oklab, var(--cb-wood) 70%, #000);
+  --cb-front: var(--raised);
+  --cb-on-front: var(--text);
+  --cb-tray: var(--text);
+  --cb-paper: color-mix(in oklab, var(--text) 30%, #fff);
   --cb-ink: var(--bg);
+  --cb-edge: color-mix(in oklab, var(--cb-front) 50%, #000);
+  --cb-bevel: color-mix(in oklab, var(--cb-front) 78%, #fff);
+  --cb-brass: var(--accent);
+  padding-block-end: 0.5rem;
+}
+[data-body='cabinet'][data-tone='dark'] {
+  background-image: repeating-linear-gradient(90deg, rgb(0 0 0 / 0.06) 0 3px, transparent 3px 11px);
+}
+[data-body='cabinet'][data-tone='light'] {
+  --cb-front: color-mix(in oklab, var(--text) 80%, var(--accent));
+  --cb-on-front: var(--bg);
+  --cb-tray: var(--card);
+  --cb-paper: var(--card);
+  --cb-ink: var(--text);
 }
 [data-body='cabinet'] .cb-chest {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.25rem var(--gutter, 1rem) 1rem;
+  gap: 0.625rem;
+  padding: 0.25rem var(--gutter, 0.75rem) 1rem;
 }
 [data-body='cabinet'] .cb-drawer {
   padding: 0;
   overflow: hidden;
-  border-radius: var(--radius-card, 0.5rem);
-  background: var(--cb-wood);
+  border-radius: 0.375rem;
+  background: var(--cb-front);
   box-shadow:
-    0 5px 0 var(--cb-edge),
-    inset 0 0 0 3px color-mix(in oklab, var(--cb-wood) 78%, var(--accent));
+    0 6px 0 var(--cb-edge),
+    inset 0 0 0 3px var(--cb-bevel);
 }
 [data-body='cabinet'] .cb-drawer[data-open='true'] {
   box-shadow:
-    0 9px 0 var(--cb-edge),
-    inset 0 0 0 3px color-mix(in oklab, var(--cb-wood) 78%, var(--accent));
+    0 12px 0 var(--cb-edge),
+    inset 0 0 0 3px var(--cb-bevel);
 }
 
-/* The front: the whole row is the button, with the name, the count and the handle. */
+/* The front: the whole row is the button, with the name, the thumbnails and count, and the brass handle. */
 [data-body='cabinet'] [data-heading].cb-front {
   padding-inline: 0;
 }
 [data-body='cabinet'] .cb-title {
   margin: 0;
-  font-size: 1.25rem;
+  font-size: 1.5rem;
   line-height: 1.15;
-  color: var(--cb-ink);
+  color: var(--cb-on-front);
 }
 [data-body='cabinet'] .cb-pull {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 0.75rem;
   inline-size: 100%;
-  min-block-size: 3rem;
-  padding: 0.5rem 0.875rem;
+  min-block-size: 3.5rem;
+  padding: 0.75rem 0.875rem;
   color: inherit;
   font: inherit;
   text-align: start;
+}
+[data-body='cabinet'] .cb-info {
+  display: grid;
+  gap: 0.25rem;
+  min-inline-size: 0;
 }
 [data-body='cabinet'] .cb-label {
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-[data-body='cabinet'] .cb-count {
-  display: grid;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  padding-inline: 0.3rem;
-  border-radius: 999px;
-  background: var(--cb-ink);
-  color: var(--text);
-  font-size: 0.75rem;
-  font-weight: 700;
-  line-height: 1.5rem;
+[data-body='cabinet'] .cb-peek {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-inline-size: 0;
 }
+[data-body='cabinet'] .cb-thumbs {
+  display: flex;
+  gap: 0.25rem;
+}
+[data-body='cabinet'] .cb-thumb {
+  position: relative;
+  inline-size: 2.125rem;
+  block-size: 2.125rem;
+  overflow: hidden;
+  border: 2px solid var(--cb-on-front);
+  border-radius: 0.3125rem;
+  background: var(--cb-edge);
+}
+[data-body='cabinet'] .cb-thumb > * {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='cabinet'] .cb-count {
+  color: var(--cb-on-front);
+  font-size: 0.75rem;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 1.25;
+}
+/* The handle: a brass bar (the accent, lit from above) that sinks into the front when the drawer is open. */
 [data-body='cabinet'] .cb-handle {
   position: relative;
-  inline-size: 3.5rem;
+  inline-size: 3.875rem;
   block-size: 1.125rem;
   border-radius: 0.5625rem;
-  background: linear-gradient(color-mix(in oklab, var(--cb-ink) 92%, #fff), color-mix(in oklab, var(--cb-ink) 70%, var(--accent)));
-  box-shadow: 0 3px 0 var(--cb-edge);
+  background: linear-gradient(color-mix(in oklab, var(--cb-brass) 72%, #fff), var(--cb-brass) 55%, color-mix(in oklab, var(--cb-brass) 70%, #000));
+  box-shadow: 0 3px 0 color-mix(in oklab, var(--cb-brass) 35%, #000);
   transition:
     translate 160ms cubic-bezier(0.23, 1, 0.32, 1),
     box-shadow 160ms cubic-bezier(0.23, 1, 0.32, 1);
@@ -87,26 +133,26 @@
   inset-inline: 0.625rem;
   block-size: 0.25rem;
   border-radius: 0.125rem;
-  background: var(--cb-edge);
+  background: color-mix(in oklab, var(--cb-brass) 35%, #000);
   opacity: 0.5;
 }
 [data-body='cabinet'] .cb-pull[aria-expanded='true'] .cb-handle {
   translate: 0 3px;
-  box-shadow: 0 0 0 var(--cb-edge);
+  box-shadow: 0 0 0 transparent;
 }
 [data-body='cabinet'] .cb-pull:active .cb-handle {
   translate: 0 2px;
 }
 [data-body='cabinet'] .cb-pull:focus-visible {
-  outline: 2px solid var(--cb-ink);
+  outline: 2px solid var(--cb-on-front);
   outline-offset: -4px;
-  border-radius: var(--radius-card, 0.5rem);
+  border-radius: 0.375rem;
 }
 
-/* The tray: lined with the card colour, shadowed under the front, one dish across on a phone and more on wider screens. */
+/* The tray: the cream lining, shadowed under the front; two cards across on a phone and more on wider screens. */
 [data-body='cabinet'] .cb-tray {
-  background: var(--card);
-  box-shadow: inset 0 10px 14px -10px rgba(0, 0, 0, 0.45);
+  background: var(--cb-tray);
+  box-shadow: inset 0 10px 14px -10px rgb(0 0 0 / 0.45);
   animation: cb-pull-out 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
 }
 @keyframes cb-pull-out {
@@ -121,34 +167,101 @@
 }
 [data-body='cabinet'] .cb-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.375rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
   margin: 0;
-  padding: 0.5rem;
+  padding: 0.75rem;
   list-style: none;
 }
 
-/* A dish (the shared `RowDish`, laid out by shared/rows.css): photo, name and price, add button, in one short row so
- * many fit in a tray. */
-[data-body='cabinet'] .cb-row {
-  gap: 0.625rem;
+/* A dish: a paper card with a big square photo, the name, the add button and the price. The card is positioned so the
+ * name's whole-card tap area covers it, and the add button sits above that. */
+[data-body='cabinet'] .cb-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 0.25rem;
   min-inline-size: 0;
-  padding-block: 0.1875rem;
-  padding-inline: 0.1875rem 0.375rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-card, 0.5rem);
-  /* The card, not the raised fill: the palette tunes its price and muted inks (the price, the crossed-out regular price,
-   * a "New" label) to the card, and on some palettes they fall under 4.5:1 on the raised step. */
-  background: var(--card);
+  padding: 0.3125rem 0.3125rem 0.5rem;
+  border-radius: 0.5rem;
+  background: var(--cb-paper);
+  color: var(--cb-ink);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.14);
+  animation: cb-pull-out 220ms cubic-bezier(0.23, 1, 0.32, 1) both;
+  animation-delay: calc(var(--i, 0) * 30ms);
 }
 [data-body='cabinet'] .cb-photo {
-  border-radius: var(--radius-image, 0.375rem);
+  position: relative;
+  aspect-ratio: 5 / 4;
+  overflow: hidden;
+  border-radius: 0.3125rem;
+  background: color-mix(in oklab, var(--cb-ink) 12%, var(--cb-paper));
+}
+[data-body='cabinet'] .cb-photo > :first-child {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='cabinet'] .cb-off {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.3125rem;
+  inset-inline-start: 0.3125rem;
 }
 [data-body='cabinet'] .cb-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  min-inline-size: 0;
+  margin-block-start: 0.125rem;
+  overflow: hidden;
+  color: var(--cb-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
   line-height: 1.2;
+  overflow-wrap: anywhere;
 }
-[data-body='cabinet'] .cb-meta {
-  gap: 0.1rem 0.5rem;
+[data-body='cabinet'] .cb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.375rem;
+  min-inline-size: 0;
+}
+[data-body='cabinet'] .cb-price {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.375rem;
+  color: var(--cb-ink);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+/* The crossed-out regular price sits on the paper, so it is the ink faded, not the palette's muted ink (tuned to the card). */
+[data-body='cabinet'] .cb-price .tpl-was {
+  color: color-mix(in oklab, var(--cb-ink) 72%, var(--cb-paper));
+}
+[data-body='cabinet'] .cb-add {
+  flex: none;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  padding-inline: 0.25rem;
+  border: 0;
+  background: var(--cb-ink);
+  color: var(--cb-paper);
+}
+[data-body='cabinet'] .cb-name.tpl-open:focus-visible::after {
+  outline-color: var(--cb-ink);
+  outline-offset: -3px;
+  border-radius: 0.5rem;
+}
+[data-body='cabinet'] .cb-card:has(.cb-name:active) {
+  scale: 0.98;
 }
 @media (hover: hover) {
   [data-body='cabinet'] .cb-pull:hover .cb-handle {
@@ -158,21 +271,25 @@
 
 @media (min-width: 640px) {
   [data-body='cabinet'] .cb-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 @media (min-width: 1024px) {
   [data-body='cabinet'] .cb-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
-/* Less motion: the tray is simply there. */
+/* Less motion: the tray and its cards are simply there. */
 @media (prefers-reduced-motion: reduce) {
-  [data-body='cabinet'] .cb-tray {
+  [data-body='cabinet'] .cb-tray,
+  [data-body='cabinet'] .cb-card {
     animation: none;
   }
   [data-body='cabinet'] .cb-handle {
     transition: none;
+  }
+  [data-body='cabinet'] .cb-card:has(.cb-name:active) {
+    scale: none;
   }
 }

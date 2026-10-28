@@ -143,6 +143,8 @@ export async function setInvoiceDiscountIn(
 ) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
+  // Parts already paid took their share of the old discount, so the bill must not be re-priced under them.
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
   // The reason lives with the discount: clearing the discount clears it too.
   const why = input.discount ? input.why : undefined;
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {
@@ -169,6 +171,7 @@ export async function requestBillIn(db: AnyDb, restaurantId: string, input: { or
 export async function cancelOrderIn(db: AnyDb, restaurantId: string, input: { orderId: string; expectedVersion: number; reason: string }) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   if (!canTransition(order.status, 'CANCELLED')) throw refuse('CONFLICT', 'The order cannot be cancelled');
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
   const liveLines = await db.posOrderLine.count({ where: { orderId: order.id, restaurantId, cancelledAt: null } });
   if (liveLines > 0 && input.reason === '') {
     throw new StudioError('INVALID', 'Enter a reason', { reason: 'Enter a reason' });
@@ -210,6 +213,8 @@ export interface OrderLineView {
   /** What the line adds to the subtotal (a cancelled line keeps this amount but is not in the total). */
   lineTotal: number;
   cancelled: boolean;
+  /** Paid by a split payment already: the line can no longer change. */
+  paid: boolean;
   cancelReason: string | null;
   sent: boolean;
   batch: number | null;
@@ -245,10 +250,20 @@ export interface OrderView {
   totals: Totals;
   rates: Rates;
   kitchen: { print: boolean; screen: boolean };
+  /** Set when the whole bill is paid: the last payment taken. */
   paid: { paymentId: string; method: string; amountReceived: number; paidAt: Date } | null;
+  /** Every payment taken so far, in order: one for the whole bill, or one per guest after a split. */
+  parts: { paymentId: string; part: number; method: string; total: number; paidAt: Date; reversed: boolean }[];
+  /** What the parts paid so far took of the invoice discount, service, tax and delivery fee (to price the next part). */
+  taken: { invoiceDiscount: number; service: number; tax: number; deliveryFee: number };
+  /** The bill minus what the parts paid so far: what the next guest, or the rest of the table, still owes. */
+  leftToPay: number;
   /** The ways the till may take payment now; cash is always among them. */
   paymentMethods: PosPaymentMethodKey[];
 }
+
+/** Only the total of a payment's frozen snapshot (totals-snapshot.ts imports this file, so it cannot be used here). */
+const partTotal = z.object({ total: z.number().int(), invoiceDiscount: z.number().int(), service: z.number().int(), tax: z.number().int(), deliveryFee: z.number().int() });
 
 /** The order, all its lines (cancelled ones included, oldest first), its totals and the rates they were computed with. */
 export async function readOrderView(db: AnyDb, restaurantId: string, orderId: string): Promise<OrderView | null> {
@@ -256,7 +271,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     where: { id: orderId, restaurantId },
     include: {
       table: { select: { number: true, area: { select: { name: true } } } },
-      payment: { select: { id: true, method: true, amountReceived: true, paidAt: true } },
+      payments: { orderBy: { part: 'asc' }, select: { id: true, part: true, method: true, amountReceived: true, paidAt: true, totalsSnapshot: true, reversal: { select: { id: true } } } },
     },
   });
   if (!order) return null;
@@ -267,6 +282,14 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
   ]);
   const { totals, invoiceDiscount } = orderTotals(order, lines, settings);
   const rates = effectiveRates(order.kind, settings);
+  const paidLast = order.payments[order.payments.length - 1];
+  const earlier = order.payments.map((p) => partTotal.parse(p.totalsSnapshot));
+  const taken = {
+    invoiceDiscount: earlier.reduce((sum, p) => sum + p.invoiceDiscount, 0),
+    service: earlier.reduce((sum, p) => sum + p.service, 0),
+    tax: earlier.reduce((sum, p) => sum + p.tax, 0),
+    deliveryFee: earlier.reduce((sum, p) => sum + p.deliveryFee, 0),
+  };
   return {
     id: order.id,
     number: order.number,
@@ -307,6 +330,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
         discount: priced.discount ?? null,
         lineTotal: lineTotal(priced),
         cancelled: line.cancelledAt !== null,
+        paid: line.paymentId !== null,
         cancelReason: line.cancelReason,
         sent: line.sentAt !== null,
         batch: line.batch,
@@ -317,9 +341,10 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     totals,
     rates,
     kitchen: { print: settings.kitchenPrintEnabled, screen: settings.kitchenScreenEnabled },
-    paid: order.payment
-      ? { paymentId: order.payment.id, method: order.payment.method, amountReceived: order.payment.amountReceived, paidAt: order.payment.paidAt }
-      : null,
+    paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,
+    parts: order.payments.map((p) => ({ paymentId: p.id, part: p.part, method: p.method, total: partTotal.parse(p.totalsSnapshot).total, paidAt: p.paidAt, reversed: p.reversal !== null })),
+    taken,
+    leftToPay: order.status === 'PAID' ? 0 : totals.total - earlier.reduce((sum, p) => sum + p.total, 0),
     paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }

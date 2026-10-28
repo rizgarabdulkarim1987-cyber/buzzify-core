@@ -3,6 +3,7 @@ import { delegates } from '@/server/data/tenant-db';
 import { canPos } from '@/server/domain/pos/permissions';
 import { approvalField, DISCOUNT_REASONS, requireApprovalIn } from '@/server/pos/approval';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
+import { mergeOrdersIn } from '@/server/pos/merge';
 import { addLineIn, cancelLineIn, updateLineIn } from '@/server/pos/order-lines';
 import { cancelOrderIn, moveToTableIn, openOrderIn, requestBillIn, setInvoiceDiscountIn } from '@/server/pos/orders';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -30,7 +31,9 @@ const discount = z
     z.object({ kind: z.literal('AMOUNT'), value: z.number().int().min(0).max(INT32), ...why }),
     z.object({ kind: z.literal('PERCENT'), value: z.number().int().min(0).max(100), ...why }),
   ])
-  .refine((d) => d.reason !== 'OTHER' || (d.note ?? '') !== '', { message: 'Enter a note', path: ['note'] });
+  .refine((d) => d.reason !== 'OTHER' || (d.note ?? '') !== '', { message: 'Enter a note', path: ['note'] })
+  // A comp (a dish on the house) is always the whole price, whatever the screen sent.
+  .transform((d): typeof d => (d.reason === 'COMP' ? { ...d, kind: 'PERCENT', value: 100 } : d));
 type GivenDiscount = z.infer<typeof discount>;
 const plainDiscount = ({ kind, value }: GivenDiscount) => ({ kind, value });
 const whyOf = (d: GivenDiscount, approvedByStaffId: string | null) => ({ reason: d.reason, note: d.note ? d.note : null, approvedByStaffId });
@@ -113,7 +116,7 @@ export const updatePosLine = defineAction({
     const { pos, restaurantId } = till(ctx);
     // A discount is a permission of its own on top of handling orders.
     if (input.discount !== undefined && !canPos(pos.role, 'order.discount')) throw new StudioError('FORBIDDEN');
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: Boolean(input.discount), approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: Boolean(input.discount), always: input.discount?.reason === 'COMP', approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const given = input.discount ?? null;
       const done = await updateLineIn(delegates(tx), restaurantId, {
@@ -163,7 +166,7 @@ export const setPosInvoiceDiscount = defineAction({
   target: () => TILL,
   run: async (ctx, input) => {
     const { pos, restaurantId } = till(ctx);
-    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: input.discount !== null, approval: input.approval, meta: ctx.meta });
+    const approvedBy = await requireApprovalIn({ db: ctx.db, restaurantId, role: pos.role, userId: pos.userId, needed: input.discount !== null, always: input.discount?.reason === 'COMP', approval: input.approval, meta: ctx.meta });
     return ctx.transaction(async (tx) => {
       const given = input.discount;
       const done = await setInvoiceDiscountIn(delegates(tx), restaurantId, {
@@ -215,6 +218,31 @@ export const cancelPosOrder = defineAction({
         changes: { status: { before: done.from, after: 'CANCELLED' }, reason: { before: null, after: done.reason }, lines: { before: done.liveLines, after: 0 }, approvedByStaffId: { before: null, after: approvedBy } },
       });
       return { orderId: done.orderId, version: done.version };
+    });
+  },
+});
+
+/** Two tables that sit together asked for one bill: the first order's lines move onto the second, which stays open. */
+export const mergePosOrders = defineAction({
+  name: 'pos.mergeOrders',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ fromOrderId: idField, intoOrderId: idField, fromVersion: expectedVersion, intoVersion: expectedVersion }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await mergeOrdersIn(delegates(tx), restaurantId, input);
+      ctx.audit({
+        action: 'pos.order.merge',
+        entityType: 'PosOrder',
+        entityId: done.intoId,
+        changes: {
+          mergedFrom: { before: null, after: { orderId: done.fromId, number: done.fromNumber } },
+          linesMoved: { before: null, after: done.moved },
+        },
+      });
+      return { orderId: done.intoId, version: done.intoVersion, moved: done.moved };
     });
   },
 });
