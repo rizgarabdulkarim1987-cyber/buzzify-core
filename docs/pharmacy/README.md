@@ -1,10 +1,10 @@
-# Buzzify Pharmacy: phases 0 to 3
+# Buzzify Pharmacy: phases 0 to 4
 
 The pharmacy module runs a pharmacy business (sector `PHARMACY`) inside this repository, next to the menu and the
 cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plans:
 `docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md`, `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md` and
-`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md`.
-This file covers what phases 0, 1, 2 and 3 built, what they did not build, and the policies in force.
+`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md` and `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`.
+This file covers what phases 0, 1, 2, 3 and 4 built, what they did not build, and the policies in force.
 
 Nothing here is deployed. No migration has been run on production.
 
@@ -221,10 +221,107 @@ Every write below is one transaction, idempotent by `clientKey`, and audited wit
 The STOCK role and a support actor sell nothing and read no shift. The matrix lives in
 `src/server/domain/pharmacy/permissions.ts`; the isolation sweep pins the refusals.
 
+
+## Phase 4: purchasing
+
+Plan: `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`. Rulings R4-1 to R4-15 and the later ones are in section 16
+of the spec, each with its cost if wrong. Money is `BigInt` minor units with a currency beside it (IQD or USD, never
+mixed, never converted); quantities are whole numbers. Every create takes a `clientKey` and is idempotent: a repeat from
+the same person with the same request returns the stored record (`replayed: true`), anything else is `CLIENT_KEY_MISMATCH`.
+Audit `changes` carry ids, counts, statuses, amounts and currency, never a note, a phone number or an invoice number's text.
+
+**What exists**
+
+- **Suppliers** (`PhSupplier`, business-wide): name (unique per business, case, spacing, invisible and bidi marks ignored),
+  phone, contact, address note, default currency, payment terms in days, active flag. Archive, never delete; an archived
+  supplier can still be paid and its credit still recorded, but takes no new order or invoice.
+- **Purchase orders** (`PhPurchaseOrder`, per branch): one supplier, one currency, lines of `qtyOrdered`, `bonusOrdered`
+  and an agreed unit cost. DRAFT, ORDERED, PARTIAL, RECEIVED, CLOSED, CANCELLED. The number `PO-YYYYMMDD-000123` is per
+  branch per UTC day, given when ordered. Editing is DRAFT only; later a change is a close or a new order. `ph.po.suggest`
+  lists products below their minimum (narrowed to the supplier's earlier deliveries when a supplier is chosen;
+  `supplierHasHistory` tells a new supplier from an established one).
+- **Receiving against an order** reuses the phase 2 receipt (no second path): `PhReceipt.purchaseOrderId`/`supplierId` and
+  `PhReceiptLine.purchaseOrderLineId`. Confirming raises the order line's `receivedQty` and `receivedBonus` (only
+  `purchase-orders.ts` writes them) and moves the order to PARTIAL or RECEIVED. More than ordered is `OVER_RECEIPT`
+  (bonus counted on its own), a product not on the order `NOT_ON_ORDER`, a cancelled or closed order `ORDER_NOT_OPEN`. A
+  different cost on the receipt than on the order is stored as received and shown, never refused.
+- **Supplier invoices** (`PhSupplierInvoice`, business-wide): the supplier's number, invoice date, due date (default date
+  plus the supplier's terms), currency, lines that bill CONFIRMED receipt lines of that supplier (`qtyInvoiced` at most
+  quantity plus bonus received, less what other invoices took: `INVOICE_EXCEEDS_RECEIVED`), and a signed adjustment with a
+  reason (freight, discount). `total = sum of lines + adjustment`, checked by the database at commit. **Duplicate
+  detection**: the supplier's number as normalised (invisible marks out, Arabic digits to Latin, upper case, spaces
+  collapsed) is unique per supplier, and a fingerprint of supplier, number, date, currency and total is unique per
+  business; a second entry is refused `DUPLICATE_INVOICE` and names the first (`existingInvoiceId`). A receipt line can be
+  on an invoice once, so a bonus is billed by spreading the price over quantity plus bonus. The invoice cost never rewrites
+  a batch's cost; the variance (order against receipt against invoice) is a read. **Void** needs nothing paid or credited;
+  it releases the invoiced quantities and renames the invoice's number and fingerprint (`#void-<id>`) so the supplier's
+  real number can be entered again.
+- **Payables**: the invoice is the payable (`paidMinor`, `creditedMinor` counters; status OPEN, PARTIAL, PAID, VOID).
+  `ph.payables.list` (open invoices with due bands NOT_DUE, DUE_7 = today through 7 days ahead, OVERDUE_1_30, OVERDUE_31_60,
+  OVERDUE_60_PLUS) and `ph.suppliers.balances` (one row per supplier and currency: open, overdue, unused credit).
+- **Supplier payments**: CASH, TRANSFER_MANUAL, CHEQUE_MANUAL, CARD_MANUAL, recorded by hand (no gateway), dated no earlier
+  than 2000-01-01 and no later than tomorrow. The amount must be placed in full on invoices of the same supplier and
+  currency, as told or oldest due first (no advances, no cross-currency: `UNALLOCATED`, `CURRENCY_MISMATCH`). A payment is
+  never edited: a mistake is a reversal row, once, which takes the original's allocations off again. Payments do not touch
+  the cashier drawer or a shift.
+- **Credit notes** (`PhCreditNote`): the supplier's own document (supplier, currency, their number, amount, date,
+  optionally the supplier return it answers). Applied to invoices of the same supplier and currency, as told or oldest due
+  first; a note can sit on a given invoice **once** (`CREDIT_ALREADY_ON_INVOICE`). A note is not un-applied in v1, and no
+  cash refund from the supplier is built.
+- **Supplier returns** (`PhSupplierReturn`, per branch): stock sent back from the AVAILABLE or QUARANTINE bucket of a
+  batch (movement `SUPPLIER_RETURN` through `applyMovement`, the only stock writer), one transaction, a short line fails
+  the whole return. Recalled, blocked and expired batches can go back. The return's value uses the one line-cost rule
+  `costOfBaseQty` (unit cost x quantity / cost unit size, floored), the same as the sale cost snapshot; when a returned line
+  has no cost the value says `incomplete: true` (a floor, not a total).
+- **Supplier statement** (`ph.suppliers.statement`): one supplier, one currency, a date range of at most 366 days:
+  opening balance, rows in day order with a running balance (INVOICE +, INVOICE_VOID -, PAYMENT -, PAYMENT_REVERSAL +,
+  CREDIT_NOTE -), closing balance. A credit note reduces the balance when recorded; applying it only maps it to invoices.
+  When the range reaches today the closing balance is checked against the open invoices less the unused credit
+  (`invariant`). The acceptance test builds the ledger by hand and recomputes it from the raw rows with SQL of its own.
+- **Screens** (`/pharmacy/purchasing/...`, nav entries in the pharmacy shell only): hub, `suppliers` (list, new, `[id]`,
+  `[id]/statement`), `orders` (list, new, `[id]`, `[id]/edit`), `invoices` (list, new, `[id]`), `payables`, `payments`
+  (list, `new`, `[id]`), `credits` (list, new, `[id]`), `returns` (list, new, `[id]`), and the receive screen's "against an
+  order" mode. en, ar, ckb (ar and ckb machine drafts, unreviewed), RTL, no motion, 375/768/1280, axe.
+- **Locks** (header comment of every service that locks): client key (advisory, namespace 7201) -> order row FOR UPDATE ->
+  draft receipt row -> order lines -> receipt line counters (id order) -> credit note row -> invoice rows FOR UPDATE (id
+  order; an existing invoice is locked before its receipt lines on void) -> stock rows (batch id, `COLLATE "C"`) -> number
+  lock (7202, per branch and series). Two-int advisory keys only.
+- **Who writes what** (rule 8 in `tests/studio/enforcement.test.ts`): only `suppliers.ts`, `purchase-orders.ts`,
+  `supplier-invoices.ts`, `supplier-payments.ts`, `credit-notes.ts` and `supplier-returns.ts` write the purchasing tables
+  (payments also write the credit allocations); `PhReceiptLine.invoicedQty` only by `supplier-invoices.ts`; the order line
+  counters only by `purchase-orders.ts`; the stock tables still only by `stock.ts`. Scan limits: it recognises
+  delegates, `updateWithVersion(delegate, ...)`, destructured delegates and raw SQL; it does not follow a nested write
+  through a relation (`lines: { create }`).
+- **Isolation**: the sweep names all 34 phase 4 definitions (no entry in `COVERED_ELSEWHERE`): other business, other
+  branch, branch-limited person, support grant, roles that may not.
+- **Migrations** (additive, four): `20261029100000_pharmacy_purchasing`, `110000_pharmacy_purchasing_receipt_supplier_link`,
+  `120000_pharmacy_supplier_payload_hash`, `130000_pharmacy_credit_allocation_replay`.
+
+**Permissions matrix (who may do what in phase 4)**
+
+| Action | Needs | Roles that hold it |
+|---|---|---|
+| Suppliers, orders, receiving against an order, entering and reading invoices, payables, statement | `purchase.manage` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT, STOCK |
+| Record or reverse a supplier payment, void an invoice, record a credit note, apply credit (R4-9a) | `purchase.manage` and `report.view` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT (not STOCK) |
+| Return stock to a supplier (R4-7a) | `purchase.manage` and `stock.adjust` | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE (not STOCK, not ACCOUNTANT) |
+| See any amount, cost or balance | `cost.view` (money keys are absent otherwise; counts stay) | OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT, STOCK |
+
+A cashier, a pharmacist and a support actor do none of it and read none of it. Suppliers, invoices, payments and credit
+notes are business-wide (any branch of the business sees the same figures); orders and supplier returns are per branch,
+and a branch-limited person sees and uses only their branches (an invoice that bills lines of a branch they lack shows
+those lines without receipt detail and cannot be voided by them: `INVOICE_OTHER_BRANCH`).
+
+**What phase 4 does NOT build**: invoice scanning or any AI intake (phase 5); a payment gateway (all methods are recorded
+by hand); a cashier drawer link (payments are made from the office); advance payments and cross-currency payments or
+conversion; tax; amending an order after it is ordered; a cash refund from a supplier; un-applying a credit note (a note
+goes on a given invoice once); editing a payment or an invoice (void and enter again; reverse and pay again); a
+dedicated `payable.manage` permission; a second approver for void or reversal; automatic reorder (phase 7). A voided
+invoice's number can be entered again, and its row keeps a `#void-<id>` suffix in the raw data.
+
 ## What is NOT built
 
-- **Phase 4 onward**: purchasing (4); AI intake (5); transfers and chain reports (6); assistant, prescriptions, credit,
-  controlled-drug register, advanced printing (7). Offline selling (the sale is not queued; the screen says so and keeps
+- **Phase 5 onward**: AI intake (5); transfers and chain reports (6); assistant, prescriptions, credit,
+  controlled-drug register, advanced printing (7). Phase 4 (purchasing) is built; what it leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
   - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
@@ -236,8 +333,9 @@ The STOCK role and a support actor sell nothing and read no shift. The matrix li
   - Payment order on a receipt follows the payment id. The shift report's held count may include holds that expired but were not yet flipped.
   - The pharmacy end-to-end specs must run with `--workers=1` (the Application row is switched ACTIVE and back, and parallel workers race). `pharmacy-create.spec` needs the Super Admin setup. The sale screen and scanner hook were verified with Playwright, not in the in-app Browser pane; the print iframe is skipped by axe.
   - ar and ckb strings of phase 3 are machine drafts, unreviewed by a native speaker.
-- **A supplier link for receipts.** A receipt carries a supplier name as text; there is no supplier record, and the
-  supplier is not part of batch identity.
+- **Supplier and batch identity.** Phase 4 added supplier records and a nullable `supplierId` on receipts (the free-text
+  `supplierName` stays for old rows), but the supplier is still not part of a batch's identity: a batch received from one
+  supplier can be returned to another (R4-7).
 - **Expiry MOVED and RETURNED are labels.** They record a decision and move no stock. Only DISPOSED changes stock.
 - **Opening a count is not idempotent.** There is no client key on a count: a double click or two tabs can open two
   counts (the result reports how many others are open). Overlap is caught later, at approve (`STALE_COUNT`).
@@ -326,6 +424,11 @@ BUZZIFY_DB_PORT=<port> npm run test:load     # seeds 50,000 products in the test
 E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-shell.spec.ts tests/e2e/pharmacy-catalog.spec.ts
 # phase 3 (serial: the specs flip Application(pharmacy) ACTIVE and back)
 BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-3.test.ts
+# phase 4 (one file at a time: the suites share one test database)
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-4.test.ts
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/suppliers.test.ts tests/pharmacy/purchase-orders.test.ts   # then receipts-against-orders, supplier-invoices, supplier-payments, supplier-returns, payables-reads, purchasing-domain, purchasing-schema
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/isolation.test.ts tests/studio/enforcement.test.ts tests/studio/messages.test.ts
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-purchasing.spec.ts tests/e2e/pharmacy-purchasing-money.spec.ts tests/e2e/pharmacy-receive.spec.ts --workers=1
 E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test tests/e2e/pharmacy-sell.spec.ts tests/e2e/pharmacy-shifts-returns.spec.ts --workers=1
 ```
 
@@ -334,7 +437,7 @@ use `--workers=1`. The kill switch is `Application(pharmacy).status`: the specs 
 it `DISABLED` closes `/pharmacy` for everyone.
 
 The phase 0 and 1 acceptance scenarios are in `tests/pharmacy/acceptance-phase-0-1.test.ts`, those of phase 2 in
-`tests/pharmacy/acceptance-phase-2.test.ts`, those of phase 3 in `tests/pharmacy/acceptance-phase-3.test.ts`. Run one test file at a time: the suites share one test database. The standard
+`tests/pharmacy/acceptance-phase-2.test.ts`, those of phase 3 in `tests/pharmacy/acceptance-phase-3.test.ts`, those of phase 4 in `tests/pharmacy/acceptance-phase-4.test.ts`. Run one test file at a time: the suites share one test database. The standard
 `npm run test:e2e` setup needs the seeded ATELIER menu (`prisma db seed`) in the database it runs against.
 
 For a local catalog to browse, `npx tsx prisma/seed-load-pharmacy.ts` seeds 50,000 products. It refuses any database
@@ -345,8 +448,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-nineteen pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2 and the eight of phase 3 (listed under Phase 3 above), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+twenty-five pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) and the four of phase 4 (listed under Phase 4 above), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -359,7 +462,7 @@ the five of phase 2 and the eight of phase 3 (listed under Phase 3 above), all a
 `main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
 `20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
 `20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
-`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other nineteen folders). They run on
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other twenty-five folders). They run on
 production in the same `migrate deploy`, so they need the same dry run.
 
 Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
@@ -368,7 +471,7 @@ of the migrations. The old five-column batch unique index (business, product, lo
 next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the nineteen has been run against Neon.
+is not available yet, so none of the twenty-five has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -400,6 +503,7 @@ the row ships DISABLED. So set it ACTIVE first, then start the trials, then give
   definition has no entry). Rule 8 in `tests/studio/enforcement.test.ts` now recognises more base-client receivers and
   only `src/server/pharmacy/stock.ts` may write the stock tables. Still open: re-run the RLS spike, and time a search
   end to end on Neon.
+- **Phase 4 owner list:** see the rulings table in section 16 of the spec: R4-4a (a void frees the supplier's number), R4-4b (only confirmed receipts of a supplier record can be invoiced), R4-7a (a supplier return needs `stock.adjust`), R4-9a (money actions need `report.view`; STOCK may enter invoices but not pay), R4-12a (branch redaction on invoices), R4-13a (the order suggestion's wording), a credit note on an invoice once, and no un-apply. Known gaps: the same cursor-plus-skip paging exists in 14 older lists of phases 1 to 3 (harmless while the cursor row stays in the filter); the phase 4 lists use a keyset. ar and ckb strings are machine drafts.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
 - **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".
