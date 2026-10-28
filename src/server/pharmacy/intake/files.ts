@@ -1,7 +1,8 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { z } from 'zod';
-import { delegates, scopedClient, type ScopedClient, type ScopedTx } from '@/server/data/tenant-db';
+import { delegates, scopedClient, type ScopedClient, type ScopedDb, type ScopedTx } from '@/server/data/tenant-db';
 import { countPdfPages, intakeFileAcceptable, STORAGE, type FileRefusal, type QualityReason } from '@/server/domain/pharmacy/intake';
+import { sniffMediaType } from '@/server/domain/media-type';
 import { limitsOf } from '@/server/domain/pharmacy/limits';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import { StudioError } from '@/server/studio/framework/result';
@@ -9,7 +10,7 @@ import type { PhActor } from '../actor';
 import { assertStaff } from '../receipts';
 import { NS_CLIENT_KEY } from '../suppliers';
 import { ImageUnreadableError, assessQuality, type QualityAssessment } from './quality';
-import { intakeKey, type IntakeStorage } from './storage';
+import type { IntakeStorage } from './storage';
 
 /**
  * Invoice intake, step one (R5-4, R5-5, R5-6, R5-13): batches of uploaded supplier invoices, their private storage, the size
@@ -18,8 +19,10 @@ import { intakeKey, type IntakeStorage } from './storage';
  *
  * Lock order of this phase (header comment of every service that locks): client key (advisory, namespace 7201) -> the
  * business's upload lock (advisory, namespace 7210, `hashtext(restaurantId)`: file count, stored bytes and the SHA-256 slot are
- * counted under it) -> the batch row FOR UPDATE -> (later tasks: file rows, then the budget row). `releaseFileKey` takes no lock of
- * its own: the caller holds the file row.
+ * counted under it) -> the batch row FOR UPDATE -> (later tasks: file rows, then the budget row). An upload writes its object
+ * BEFORE and OUTSIDE these locks (a slow store must not queue the business's uploads) and `commitFile` then records it in a
+ * short locked step; the purge takes one file row at a time. `releaseFileKey` takes no lock of its own: the caller holds the
+ * file row.
  *
  * Files and rows carry no branch of their own: they are reached through their batch, which is confined to the actor's
  * branches by the scoped client, so a file id of another branch behaves like one that does not exist.
@@ -48,7 +51,7 @@ export function assertMayIntake(ph: PhActor): void {
 
 export interface BatchCreated {
   id: string;
-  status: 'OPEN';
+  status: 'OPEN' | 'APPROVED' | 'CANCELLED';
   branchId: string;
   supplierId: string | null;
   replayed: boolean;
@@ -74,7 +77,7 @@ export async function createBatch(
   });
   if (earlier) {
     if (earlier.branchId !== args.branchId || earlier.createdById !== args.userId || earlier.payloadHash !== hash) throw keyMismatch();
-    return { id: earlier.id, status: 'OPEN', branchId: earlier.branchId, supplierId: earlier.supplierId, replayed: true };
+    return { id: earlier.id, status: earlier.status, branchId: earlier.branchId, supplierId: earlier.supplierId, replayed: true };
   }
   if (supplierId !== null) {
     const supplier = await tx.phSupplier.findFirst({ where: { id: supplierId }, select: { active: true } });
@@ -108,27 +111,35 @@ export interface PreparedFile {
   quality: QualityAssessment;
 }
 
+/** The type the bytes really have among the four intake accepts, or null: never what a browser or a form field said. */
+export function sniffIntakeType(bytes: Uint8Array): 'image/jpeg' | 'image/png' | 'image/webp' | 'application/pdf' | null {
+  if (bytes.length >= 5 && String.fromCharCode(...bytes.subarray(0, 5)) === '%PDF-') return 'application/pdf';
+  const type = sniffMediaType(bytes.subarray(0, 4096));
+  return type === 'image/jpeg' || type === 'image/png' || type === 'image/webp' ? type : null;
+}
+
 /**
  * Checks one upload against the per-file rules (the type is the one the bytes really have, never the header's word), hashes
  * it and measures an image's quality. Pure CPU, no database: the action does it before it opens the transaction, so the
  * business's upload lock is not held while an image decodes.
  */
-export async function prepareFile(input: { mediaType: string; bytes: Uint8Array }): Promise<PreparedFile> {
-  const pages = input.mediaType === 'application/pdf' ? countPdfPages(input.bytes) : null;
-  const verdict = intakeFileAcceptable({ mediaType: input.mediaType, bytes: input.bytes, pages });
+export async function prepareFile(input: { bytes: Uint8Array }): Promise<PreparedFile> {
+  const mediaType = sniffIntakeType(input.bytes) ?? 'application/octet-stream';
+  const pages = mediaType === 'application/pdf' ? countPdfPages(input.bytes) : null;
+  const verdict = intakeFileAcceptable({ mediaType, bytes: input.bytes, pages });
   if (!verdict.ok) {
     const [message, phCode] = REFUSALS[verdict.reason];
     throw refusal(message, phCode);
   }
   let quality: QualityAssessment;
   try {
-    quality = await assessQuality(input.bytes, input.mediaType);
+    quality = await assessQuality(input.bytes, mediaType);
   } catch (error) {
     if (error instanceof ImageUnreadableError) throw refusal('The image could not be read', 'IMAGE_UNREADABLE');
     throw error;
   }
   return {
-    mediaType: input.mediaType,
+    mediaType,
     bytes: input.bytes,
     sha256: createHash('sha256').update(input.bytes).digest('hex'),
     pages: pages ?? 1,
@@ -152,83 +163,106 @@ export interface FileAdded {
 const reasonsOf = (failureCode: string | null, status: string): QualityReason[] =>
   status === 'REJECTED_QUALITY' && failureCode ? (failureCode.split(',') as QualityReason[]) : [];
 
+/** What a prepared file would become in a batch right now. */
+export type Admission =
+  | { kind: 'duplicate'; added: FileAdded }
+  /** A poor image: stored as REJECTED_QUALITY with its reasons and NO object (privacy). */
+  | { kind: 'rejected' }
+  /** Good to keep: the caller writes the object, then `commitFile` records it. */
+  | { kind: 'store' };
+
 /**
- * Puts a prepared file into an OPEN batch of `branchId`. In order, under the business's upload lock and the batch row: the
- * same bytes already live in this branch return that file (`duplicate`); in another branch they are refused without saying
- * where; at most 20 files; a poor image is stored as REJECTED_QUALITY with its reasons and NO object (privacy); the business's
- * stored bytes must fit its plan; then the object is written privately and the row points at it.
+ * Decides, from the rows `view` can see, what a prepared file would become in the OPEN batch of `branchId`, or throws why not.
+ * In order: the batch is open; the same bytes already live in this branch return that file (`duplicate`), in another branch
+ * they are refused without saying where; at most 20 files; a poor image is `rejected`; the business's stored bytes must fit
+ * its plan. It takes no lock, so on a plain client it is the cheap look before the object is written (no object is written for
+ * a file that would be refused); `commitFile` runs it again under the locks, where it is final.
  */
-export async function addFile(
+export async function admitFile(
+  view: ScopedDb,
+  args: { restaurantId: string; branchId: string; batchId: string; file: PreparedFile; now: Date },
+): Promise<Admission> {
+  const { file } = args;
+  const batch = await view.phIntakeBatch.findFirst({ where: { id: args.batchId, branchId: args.branchId }, select: { id: true, status: true } });
+  if (!batch) throw batchNotFound();
+  if (batch.status !== 'OPEN') throw new StudioError('CONFLICT', 'Only an open batch can take files', { phCode: 'BATCH_NOT_OPEN' });
+
+  const existing = await view.phIntakeFile.findFirst({
+    where: { sha256: file.sha256 },
+    select: { id: true, batchId: true, status: true, failureCode: true, mediaType: true, pages: true, bytes: true, expiresAt: true },
+  });
+  if (existing) {
+    // Where it sits: a batch the actor's branches do not reach reads as "elsewhere" (the scoped client hides it).
+    const home = await view.phIntakeBatch.findFirst({ where: { id: existing.batchId }, select: { branchId: true } });
+    if (!home || home.branchId !== args.branchId) throw new StudioError('CONFLICT', 'This file was already uploaded', { phCode: 'DUPLICATE_FILE' });
+    return {
+      kind: 'duplicate',
+      added: {
+        fileId: existing.id,
+        batchId: existing.batchId,
+        status: existing.status,
+        duplicate: true,
+        mediaType: existing.mediaType,
+        pages: existing.pages,
+        bytes: existing.bytes,
+        reasons: reasonsOf(existing.failureCode, existing.status),
+        expiresAt: existing.expiresAt,
+      },
+    };
+  }
+
+  const inBatch = await view.phIntakeFile.count({ where: { batchId: args.batchId } });
+  if (!STORAGE.filesFit(inBatch, 1)) {
+    throw new StudioError('CONFLICT', 'A batch can hold at most 20 files', { phCode: 'TOO_MANY_FILES' });
+  }
+  if (!file.quality.ok) return { kind: 'rejected' };
+
+  const used = await view.phIntakeFile.aggregate({ where: { storageKey: { not: null } }, _sum: { bytes: true } });
+  const limits = await limitsOf(delegates(view), args.restaurantId, args.now);
+  if (!limits || !STORAGE.fits(used._sum.bytes ?? 0, file.bytes.length, limits.storageMb)) {
+    throw new StudioError('CONFLICT', 'This pharmacy’s file storage is full', { phCode: 'STORAGE_LIMIT' });
+  }
+  return { kind: 'store' };
+}
+
+/** A new file id, made before the object is written so the object's key is known first. */
+export const newFileId = (): string => randomUUID();
+
+/**
+ * Records a prepared file in an OPEN batch of `branchId`: the short, locked step after the object (if any) was written. Under
+ * the business's upload lock and the batch row it decides again (`admitFile`: another upload may have taken the hash slot, the
+ * batch may have been cancelled, the plan's storage may have filled meanwhile) and inserts the row with the caller's `fileId`.
+ * When it answers `duplicate` or throws, the object the caller wrote (`storageKey`) is the caller's to delete.
+ */
+export async function commitFile(
   tx: ScopedTx,
-  storage: IntakeStorage,
-  args: { restaurantId: string; branchId: string; userId: string; batchId: string; file: PreparedFile; now: Date },
+  args: { restaurantId: string; branchId: string; userId: string; batchId: string; file: PreparedFile; now: Date; fileId: string; storageKey: string | null },
 ): Promise<FileAdded> {
   const { file } = args;
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one business's uploads (counts, bytes, the hash slot)
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_INTAKE_UPLOAD}::int, hashtext(${args.restaurantId}))`;
   // eslint-disable-next-line no-restricted-properties -- row lock on the batch (a parallel cancel waits on it); the branch is part of the match
   const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhIntakeBatch" WHERE "id" = ${args.batchId} AND "restaurantId" = ${args.restaurantId} AND "branchId" = ${args.branchId} FOR UPDATE`;
-  const batch = locked.length === 0 ? null : await tx.phIntakeBatch.findFirst({ where: { id: args.batchId }, select: { id: true, status: true } });
-  if (!batch) throw batchNotFound();
-  if (batch.status !== 'OPEN') throw new StudioError('CONFLICT', 'Only an open batch can take files', { phCode: 'BATCH_NOT_OPEN' });
-
-  const existing = await tx.phIntakeFile.findFirst({
-    where: { sha256: file.sha256 },
-    select: { id: true, batchId: true, status: true, failureCode: true, mediaType: true, pages: true, bytes: true, expiresAt: true },
-  });
-  if (existing) {
-    // Where it sits: a batch the actor's branches do not reach reads as "elsewhere" (the scoped client hides it).
-    const home = await tx.phIntakeBatch.findFirst({ where: { id: existing.batchId }, select: { branchId: true } });
-    if (!home || home.branchId !== args.branchId) throw new StudioError('CONFLICT', 'This file was already uploaded', { phCode: 'DUPLICATE_FILE' });
-    return {
-      fileId: existing.id,
-      batchId: existing.batchId,
-      status: existing.status,
-      duplicate: true,
-      mediaType: existing.mediaType,
-      pages: existing.pages,
-      bytes: existing.bytes,
-      reasons: reasonsOf(existing.failureCode, existing.status),
-      expiresAt: existing.expiresAt,
-    };
-  }
-
-  const inBatch = await tx.phIntakeFile.count({ where: { batchId: args.batchId } });
-  if (!STORAGE.filesFit(inBatch, 1)) {
-    throw new StudioError('CONFLICT', 'A batch can hold at most 20 files', { phCode: 'TOO_MANY_FILES' });
-  }
+  if (locked.length === 0) throw batchNotFound();
+  const admission = await admitFile(tx, args);
+  if (admission.kind === 'duplicate') return admission.added;
 
   const expiresAt = new Date(args.now.getTime() + RETENTION_DAYS * DAY_MS);
-  const common = { restaurantId: args.restaurantId, batchId: args.batchId, sha256: file.sha256, mediaType: file.mediaType, bytes: file.bytes.length, pages: file.pages, expiresAt, uploadedById: args.userId };
-
-  if (!file.quality.ok) {
-    const rejected = await tx.phIntakeFile.create({
-      data: { ...common, status: 'REJECTED_QUALITY', failureCode: file.quality.reasons.join(','), quality: { ...file.quality.metrics, reasons: file.quality.reasons } },
+  const common = { id: args.fileId, restaurantId: args.restaurantId, batchId: args.batchId, sha256: file.sha256, mediaType: file.mediaType, bytes: file.bytes.length, pages: file.pages, expiresAt, uploadedById: args.userId };
+  if (admission.kind === 'rejected') {
+    const reasons = file.quality.reasons;
+    await tx.phIntakeFile.create({
+      data: { ...common, status: 'REJECTED_QUALITY', failureCode: reasons.join(','), quality: { ...file.quality.metrics, reasons } },
       select: { id: true },
     });
-    return { fileId: rejected.id, batchId: args.batchId, status: 'REJECTED_QUALITY', duplicate: false, mediaType: file.mediaType, pages: file.pages, bytes: file.bytes.length, reasons: file.quality.reasons, expiresAt };
+    return { fileId: args.fileId, batchId: args.batchId, status: 'REJECTED_QUALITY', duplicate: false, mediaType: file.mediaType, pages: file.pages, bytes: file.bytes.length, reasons, expiresAt };
   }
-
-  const used = await tx.phIntakeFile.aggregate({ where: { storageKey: { not: null } }, _sum: { bytes: true } });
-  const limits = await limitsOf(delegates(tx), args.restaurantId, args.now);
-  if (!limits || !STORAGE.fits(used._sum.bytes ?? 0, file.bytes.length, limits.storageMb)) {
-    throw new StudioError('CONFLICT', 'This pharmacy’s file storage is full', { phCode: 'STORAGE_LIMIT' });
-  }
-
-  const created = await tx.phIntakeFile.create({
-    data: { ...common, quality: file.quality.metrics ? { ...file.quality.metrics } : {} },
+  if (!args.storageKey) throw new Error('A file to keep needs its object written first');
+  await tx.phIntakeFile.create({
+    data: { ...common, storageKey: args.storageKey, quality: file.quality.metrics ? { ...file.quality.metrics } : {} },
     select: { id: true },
   });
-  const storageKey = intakeKey(args.restaurantId, created.id);
-  try {
-    await storage.put(storageKey, file.bytes, file.mediaType);
-    await tx.phIntakeFile.updateMany({ where: { id: created.id }, data: { storageKey } });
-  } catch (error) {
-    // The transaction rolls back; do not leave the object behind.
-    await storage.delete(storageKey).catch(() => undefined);
-    throw error;
-  }
-  return { fileId: created.id, batchId: args.batchId, status: 'UPLOADED', duplicate: false, mediaType: file.mediaType, pages: file.pages, bytes: file.bytes.length, reasons: [], expiresAt };
+  return { fileId: args.fileId, batchId: args.batchId, status: 'UPLOADED', duplicate: false, mediaType: file.mediaType, pages: file.pages, bytes: file.bytes.length, reasons: [], expiresAt };
 }
 
 // Seeing a file -------------------------------------------------------------------------------------------------------------
@@ -259,52 +293,69 @@ export async function fileUrl(
 export const rekeyedSha = (sha256: string, fileId: string): string => createHash('sha256').update(`${sha256}:${fileId}`).digest('hex');
 
 /**
- * Lets go of a file's bytes (purge after retention, or a cancelled batch): deletes the object, blanks `storageKey`, marks it
- * PURGED, clears a failure code and an extraction lease (the CHECKs want both gone), and re-keys `sha256` so the same bytes can
- * be uploaded again. The rows read from it stay. The caller holds the file row (inside a transaction).
+ * Lets go of a file's bytes (purge after retention, or a cancelled batch): deletes the object FIRST and only then blanks
+ * `storageKey`, marks it PURGED, clears a failure code and an extraction lease (the CHECKs want both gone), and re-keys `sha256`
+ * so the same bytes can be uploaded again. If the delete is refused this throws and nothing is changed, so a file is never
+ * marked purged while its object lives on. The rows read from it stay. The caller holds the file row (inside a transaction).
  */
 export async function releaseFileKey(
   tx: ScopedTx,
   storage: IntakeStorage,
   file: { id: string; sha256: string; storageKey: string | null },
 ): Promise<{ objectDeleted: boolean }> {
+  if (file.storageKey) await storage.delete(file.storageKey);
   await tx.phIntakeFile.updateMany({
     where: { id: file.id },
     data: { storageKey: null, status: 'PURGED', sha256: rekeyedSha(file.sha256, file.id), failureCode: null, extractingSince: null },
   });
-  if (file.storageKey) await storage.delete(file.storageKey);
   return { objectDeleted: file.storageKey !== null };
 }
 
 /**
- * Purges up to `limit` files past their `expiresAt` across every business, one transaction each (so one failure leaves the
- * others done and is retried by the next run). Returns counts only. Scheduling it is a launch step.
+ * Purges up to `limit` files past their `expiresAt` across every business, one transaction each. Each file's row is locked and
+ * looked at again first: one that is being extracted, already purged, or no longer due is left alone. A file whose object could
+ * not be deleted stays as it was (the next run retries it) and is counted in `failed`; only its id is logged. Returns counts
+ * only. Scheduling it is a launch step.
  */
 export async function purgeExpiredIntakeFiles(
   everyone: Parameters<typeof scopedClient>[0],
   args: { now: Date; limit: number; storage: IntakeStorage },
-): Promise<{ purged: number; objectsDeleted: number }> {
+): Promise<{ purged: number; objectsDeleted: number; failed: number }> {
   let purged = 0;
   let objectsDeleted = 0;
+  let failed = 0;
   const businesses = await everyone.restaurant.findMany({
-    where: { phIntakeFiles: { some: { expiresAt: { lte: args.now }, status: { not: 'PURGED' } } } },
+    where: { phIntakeFiles: { some: { expiresAt: { lte: args.now }, status: { notIn: ['PURGED', 'EXTRACTING'] } } } },
     select: { id: true },
     orderBy: { id: 'asc' },
   });
   for (const { id: restaurantId } of businesses) {
-    if (purged >= args.limit) break;
+    if (purged + failed >= args.limit) break;
     const scoped = scopedClient(everyone, { restaurantId, allBranches: true });
     const due = await scoped.phIntakeFile.findMany({
-      where: { expiresAt: { lte: args.now }, status: { not: 'PURGED' } },
-      select: { id: true, sha256: true, storageKey: true },
+      where: { expiresAt: { lte: args.now }, status: { notIn: ['PURGED', 'EXTRACTING'] } },
+      select: { id: true },
       orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
-      take: args.limit - purged,
+      take: args.limit - purged - failed,
     });
-    for (const file of due) {
-      const released = await scoped.$transaction((tx) => releaseFileKey(tx, args.storage, file));
-      purged += 1;
-      if (released.objectDeleted) objectsDeleted += 1;
+    for (const { id } of due) {
+      try {
+        const released = await scoped.$transaction(async (tx) => {
+          // eslint-disable-next-line no-restricted-properties -- row lock on the file: a parallel extraction or release waits on it
+          await tx.$queryRaw`SELECT "id" FROM "PhIntakeFile" WHERE "id" = ${id} AND "restaurantId" = ${restaurantId} FOR UPDATE`;
+          const file = await tx.phIntakeFile.findFirst({ where: { id }, select: { id: true, sha256: true, storageKey: true, status: true, expiresAt: true } });
+          if (!file || file.status === 'PURGED' || file.status === 'EXTRACTING' || file.expiresAt > args.now) return null;
+          return releaseFileKey(tx, args.storage, file);
+        });
+        if (released) {
+          purged += 1;
+          if (released.objectDeleted) objectsDeleted += 1;
+        }
+      } catch {
+        failed += 1;
+        console.error(`[intake] purge failed for file ${id}`);
+      }
     }
   }
-  return { purged, objectsDeleted };
+  return { purged, objectsDeleted, failed };
 }

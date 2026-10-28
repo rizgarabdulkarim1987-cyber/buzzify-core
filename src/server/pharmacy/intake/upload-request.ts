@@ -4,13 +4,13 @@ import { StudioError } from '@/server/studio/framework/result';
 
 /**
  * Reads the multipart upload of one invoice file into the input of `ph.intake.file.add`. The body is cut off at the file cap
- * plus 1 MB for the form's own overhead BEFORE it is parsed, so an oversized upload is never held in memory. The file's
- * type is only what the browser said: the service checks the bytes.
+ * plus 1 MB for the form's own overhead BEFORE it is parsed, so an oversized upload is never held in memory. The browser's
+ * word about the file's type is not passed on: the service reads the type from the bytes.
  */
 
 export const INTAKE_BODY_MAX_BYTES = INTAKE_LIMITS.maxBytes + 1024 * 1024;
 
-const FIELDS = ['restaurantId', 'branchId', 'batchId', 'clientKey'] as const;
+const FIELDS = ['restaurantId', 'branchId', 'batchId'] as const;
 
 const tooLarge = () => new StudioError('INVALID', 'The file is larger than 8 MB', { file: 'The file is larger than 8 MB', phCode: 'TOO_LARGE' });
 
@@ -33,5 +33,5 @@ export async function readIntakeUpload(request: Request): Promise<unknown> {
     const value = form.get(name);
     if (typeof value === 'string' && value !== '') fields[name] = value;
   }
-  return { ...fields, mediaType: file.type, base64: Buffer.from(await file.arrayBuffer()).toString('base64') };
+  return { ...fields, base64: Buffer.from(await file.arrayBuffer()).toString('base64') };
 }

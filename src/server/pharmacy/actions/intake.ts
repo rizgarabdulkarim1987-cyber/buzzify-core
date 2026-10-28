@@ -1,8 +1,8 @@
 import { z } from 'zod';
 import { INTAKE_LIMITS } from '@/server/domain/pharmacy/intake';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
-import { addFile as storeFile, assertMayIntake, createBatch as makeBatch, intakeClientKey, prepareFile } from '@/server/pharmacy/intake/files';
-import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from '@/server/pharmacy/intake/storage';
+import { admitFile, assertMayIntake, commitFile, createBatch as makeBatch, intakeClientKey, newFileId, prepareFile } from '@/server/pharmacy/intake/files';
+import { getIntakeStorage, intakeKey, IntakeStorageNotConfiguredError, type IntakeStorage } from '@/server/pharmacy/intake/storage';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
@@ -83,44 +83,65 @@ export const addFile = defineAction({
   ph: 'purchase.manage',
   input: phPlaceInput.extend({
     batchId: z.string().min(1).max(64),
-    /** The repeat token of the upload; the same bytes are answered by their SHA-256 (the same file twice is one file). */
-    clientKey: intakeClientKey,
-    mediaType: z.string().trim().min(1).max(100),
+    // No repeat token: the same bytes are answered by their SHA-256 (the same file twice is one file).
+    /** What the browser said. Ignored: the type is read from the bytes. Kept so older callers still validate. */
+    mediaType: z.string().trim().max(100).optional(),
     base64: z.string().min(1).max(MAX_BASE64_LENGTH),
   }),
   target: phTargetOf,
   async run(ctx, input) {
-    const { ph } = pharmacyOf(ctx);
+    const { ph, scoped } = pharmacyOf(ctx);
     assertMayIntake(ph);
     const branchId = branchOf(input);
     const storage = storageOrRefuse();
-    // Type, size, pages, hash and image quality are settled before the transaction: decoding an image takes a moment.
-    const file = await prepareFile({ mediaType: input.mediaType, bytes: Buffer.from(input.base64, 'base64') });
-    const attempt = () =>
-      ctx.transaction(async (tx) => {
-        const done = await storeFile(tx, storage, { restaurantId: ph.restaurantId, branchId, userId: ph.userId, batchId: input.batchId, file, now: new Date() });
-        if (!done.duplicate) {
+    // Type (from the bytes), size, pages, hash and image quality are settled first: decoding an image takes a moment.
+    const bytes = Buffer.from(input.base64, 'base64');
+    const file = await prepareFile({ bytes });
+    const place = { restaurantId: ph.restaurantId, branchId, batchId: input.batchId, file, now: new Date() };
+    // A look without locks: a refused file, or one already stored, never causes an object to be written.
+    const look = await admitFile(scoped, place);
+    if (look.kind === 'duplicate') return look.added;
+
+    // The object goes in BEFORE and OUTSIDE any transaction or lock (a slow store must not hold the business's uploads
+    // up); a short locked transaction then decides again and records the row. If that fails or loses, the object is removed.
+    const fileId = newFileId();
+    const storageKey = look.kind === 'store' ? intakeKey(ph.restaurantId, fileId) : null;
+    if (storageKey) await storage.put(storageKey, file.bytes, file.mediaType);
+    const discard = async () => {
+      if (!storageKey) return;
+      try {
+        await storage.delete(storageKey);
+      } catch {
+        // Best effort. Only the file id is logged: an orphan is found by it, and nothing else about it is revealed.
+        console.error(`[intake] could not remove the object of upload ${fileId}`);
+      }
+    };
+    let done;
+    try {
+      done = await ctx.transaction(async (tx) => {
+        const added = await commitFile(tx, { ...place, userId: ph.userId, fileId, storageKey });
+        if (!added.duplicate) {
           ctx.audit({
             action: 'ph.intake.file.add',
             entityType: 'PhIntakeFile',
-            entityId: done.fileId,
+            entityId: added.fileId,
             changes: {
-              status: { before: null, after: done.status },
-              batchId: { before: null, after: done.batchId },
-              mediaType: { before: null, after: done.mediaType },
-              bytes: { before: null, after: done.bytes },
-              pages: { before: null, after: done.pages },
+              status: { before: null, after: added.status },
+              batchId: { before: null, after: added.batchId },
+              mediaType: { before: null, after: added.mediaType },
+              bytes: { before: null, after: added.bytes },
+              pages: { before: null, after: added.pages },
             },
           });
         }
-        return done;
+        return added;
       });
-    try {
-      return await attempt();
     } catch (error) {
-      if (!isUnique(error)) throw error;
-      // The same bytes won the hash slot in a racing upload: run again, it is found and returned.
-      return attempt();
+      await discard();
+      throw error;
     }
+    // Another upload of the same bytes took the slot while this one wrote its object: theirs stays, ours goes.
+    if (done.duplicate) await discard();
+    return done;
   },
 });

@@ -5,13 +5,18 @@ import type { IntakeStorage } from '@/server/pharmacy/intake/storage';
 export function memoryIntakeStorage(): IntakeStorage & {
   objects: Map<string, { bytes: Uint8Array; mediaType: string }>;
   urls: { key: string; ttlSeconds: number }[];
+  /** Test hooks: run inside `put` (before the object is kept) and `delete`; a throw from either fails that call. */
+  hooks: { onPut?: (key: string) => Promise<void> | void; onDelete?: (key: string) => Promise<void> | void };
 } {
   const objects = new Map<string, { bytes: Uint8Array; mediaType: string }>();
   const urls: { key: string; ttlSeconds: number }[] = [];
+  const hooks: { onPut?: (key: string) => Promise<void> | void; onDelete?: (key: string) => Promise<void> | void } = {};
   return {
     objects,
     urls,
+    hooks,
     async put(key, bytes, mediaType) {
+      await hooks.onPut?.(key);
       objects.set(key, { bytes: new Uint8Array(bytes), mediaType });
     },
     async get(key) {
@@ -22,6 +27,7 @@ export function memoryIntakeStorage(): IntakeStorage & {
       return `memory://${key}?ttl=${ttlSeconds}`;
     },
     async delete(key) {
+      await hooks.onDelete?.(key);
       objects.delete(key);
     },
   };

@@ -50,7 +50,6 @@ const upload = (w: World, who: Person, batchId: string, bytes: Uint8Array, over:
   act(who, intakeActions.addFile, {
     ...place(w, branch),
     batchId,
-    clientKey: key(),
     mediaType: bytes[0] === 0x25 ? 'application/pdf' : bytes[0] === 0x89 ? 'image/png' : 'image/jpeg',
     base64: Buffer.from(bytes).toString('base64'),
     ...over,
@@ -110,6 +109,16 @@ describe('creating an intake batch', () => {
     expect(again).toMatchObject({ id: first.id, replayed: true });
     expect(await prisma().phIntakeBatch.count({ where: { restaurantId: w.a.id } })).toBe(1);
     expect(await prisma().auditLog.count({ where: { action: 'ph.intake.batch.create' } })).toBe(1);
+  });
+
+  it('replays with the batch’s real status, not a hard-coded OPEN', async () => {
+    const w = await world();
+    const clientKey = key();
+    const first = dataOf(await act(w.pic, intakeActions.createBatch, { ...place(w), clientKey }));
+    expect(first.status).toBe('OPEN');
+    await prisma().phIntakeBatch.update({ where: { id: first.id }, data: { status: 'CANCELLED', cancelledAt: NOW } });
+    const again = dataOf(await act(w.pic, intakeActions.createBatch, { ...place(w), clientKey }));
+    expect(again).toMatchObject({ id: first.id, replayed: true, status: 'CANCELLED' });
   });
 
   it('refuses the same key with another payload, branch or person as CLIENT_KEY_MISMATCH', async () => {
@@ -210,16 +219,22 @@ describe('uploading a file', () => {
     expect(doc.pages).toBe(3);
   });
 
-  it('never trusts the header: bytes that are not the declared type are refused as TYPE_MISMATCH', async () => {
+  it('never trusts the header: the type is the one the bytes have, and bytes of no accepted type are refused', async () => {
     const w = await world();
     const batch = await newBatch(w);
     const png = await pageImage({ width: 1000, height: 1400, seed: 5, format: 'png' });
-    expect(phCodeOf(await upload(w, w.owner, batch.id, png, { mediaType: 'image/jpeg' }))).toBe('TYPE_MISMATCH');
-    expect(phCodeOf(await upload(w, w.owner, batch.id, Buffer.from('MZ not a pdf at all'), { mediaType: 'application/pdf' }))).toBe('TYPE_MISMATCH');
-    expect(phCodeOf(await upload(w, w.owner, batch.id, Buffer.from('<html><script>alert(1)</script></html>'), { mediaType: 'image/png' }))).toBe('TYPE_MISMATCH');
-    expect(phCodeOf(await upload(w, w.owner, batch.id, png, { mediaType: 'image/gif' }))).toBe('UNSUPPORTED_TYPE');
-    expect(await prisma().phIntakeFile.count()).toBe(0);
-    expect(storage.objects.size).toBe(0);
+    // A browser's wrong word changes nothing: the file is stored as the PNG it is.
+    const mislabelled = dataOf(await upload(w, w.owner, batch.id, png, { mediaType: 'image/jpeg' }));
+    expect(mislabelled.mediaType).toBe('image/png');
+    expect(storage.objects.get(`intake/${w.a.id}/${mislabelled.fileId}`)?.mediaType).toBe('image/png');
+    // No header at all is fine too.
+    const bare = dataOf(await upload(w, w.owner, batch.id, pdf(1, 'bare'), { mediaType: undefined }));
+    expect(bare.mediaType).toBe('application/pdf');
+    expect(phCodeOf(await upload(w, w.owner, batch.id, Buffer.from('MZ not a pdf at all'), { mediaType: 'application/pdf' }))).toBe('UNSUPPORTED_TYPE');
+    expect(phCodeOf(await upload(w, w.owner, batch.id, Buffer.from('<html><script>alert(1)</script></html>'), { mediaType: 'image/png' }))).toBe('UNSUPPORTED_TYPE');
+    expect(phCodeOf(await upload(w, w.owner, batch.id, Buffer.from('GIF89a......'), { mediaType: 'image/png' }))).toBe('UNSUPPORTED_TYPE');
+    expect(await prisma().phIntakeFile.count()).toBe(2);
+    expect(storage.objects.size).toBe(2);
   });
 
   it('refuses an empty upload and one byte over 8 MB, and accepts exactly 8 MB', async () => {
@@ -293,7 +308,7 @@ describe('uploading a file', () => {
     expect(codeOf(await upload(w, w.owner, 'nonexistent', await goodPage()))).toBe('NOT_FOUND');
     const other = await pharmacy('Other');
     const outsider = await person('outsider', { membership: [other.id, 'OWNER'] });
-    expect(codeOf(await act(outsider, intakeActions.addFile, { restaurantId: other.id, branchId: other.branchId, batchId: batch2.id, clientKey: key(), mediaType: 'application/pdf', base64: pdf().toString('base64') }))).toBe('NOT_FOUND');
+    expect(codeOf(await act(outsider, intakeActions.addFile, { restaurantId: other.id, branchId: other.branchId, batchId: batch2.id, mediaType: 'application/pdf', base64: pdf().toString('base64') }))).toBe('NOT_FOUND');
     const mine = await newBatch(w);
     await prisma().phIntakeBatch.update({ where: { id: mine.id }, data: { status: 'CANCELLED', cancelledAt: NOW } });
     expect(phCodeOf(await upload(w, w.owner, mine.id, await goodPage()))).toBe('BATCH_NOT_OPEN');
@@ -307,6 +322,123 @@ describe('uploading a file', () => {
     const results = await Promise.all([upload(w, w.owner, batch.id, pdf(1, 'p1')), upload(w, w.owner, batch.id, pdf(1, 'p2'))]);
     expect(results.every((r) => r.ok)).toBe(true);
     expect(await prisma().phIntakeFile.count({ where: { batchId: batch.id } })).toBe(2);
+  });
+});
+
+describe('the object is written outside the transaction', () => {
+  const lockIsFree = async (restaurantId: string, batchId: string) =>
+    prisma().$transaction(async (tx) => {
+      // eslint-disable-next-line no-restricted-properties -- a test looks at the database's own locks
+      const business = await tx.$queryRaw<{ ok: boolean }[]>`SELECT pg_try_advisory_xact_lock(7210, hashtext(${restaurantId})) AS ok`;
+      // eslint-disable-next-line no-restricted-properties -- a test looks at the database's own locks
+      const batch = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhIntakeBatch" WHERE "id" = ${batchId} FOR UPDATE SKIP LOCKED`;
+      return business[0]!.ok && batch.length === 1;
+    });
+
+  it('holds neither the business upload lock nor the batch row while the object is being written', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const seen: boolean[] = [];
+    storage.hooks.onPut = async () => {
+      seen.push(await lockIsFree(w.a.id, batch.id));
+    };
+    expect((await upload(w, w.owner, batch.id, pdf(1, 'free'))).ok).toBe(true);
+    expect(seen).toEqual([true]);
+  });
+
+  it('lets eight slow uploads write their objects at the same time', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    let running = 0;
+    let most = 0;
+    storage.hooks.onPut = async () => {
+      running += 1;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      running -= 1;
+    };
+    const started = Date.now();
+    const results = await Promise.all(Array.from({ length: 8 }, (_, i) => upload(w, w.owner, batch.id, pdf(1, `slow${i}`))));
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(most).toBeGreaterThanOrEqual(4);
+    expect(Date.now() - started).toBeLessThan(2000);
+    expect(await prisma().phIntakeFile.count()).toBe(8);
+    expect(storage.objects.size).toBe(8);
+  });
+
+  it('leaves no object when the batch is cancelled while the object is being written', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    storage.hooks.onPut = async () => {
+      await prisma().phIntakeBatch.update({ where: { id: batch.id }, data: { status: 'CANCELLED', cancelledAt: NOW } });
+    };
+    expect(phCodeOf(await upload(w, w.owner, batch.id, pdf(1, 'cancelled')))).toBe('BATCH_NOT_OPEN');
+    expect(await prisma().phIntakeFile.count()).toBe(0);
+    expect(storage.objects.size).toBe(0);
+  });
+
+  it('keeps the first error when removing the object fails too, and logs the id only', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    storage.hooks.onPut = async () => {
+      await prisma().phIntakeBatch.update({ where: { id: batch.id }, data: { status: 'CANCELLED', cancelledAt: NOW } });
+    };
+    storage.hooks.onDelete = () => {
+      throw new Error('AccessDenied');
+    };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      expect(phCodeOf(await upload(w, w.owner, batch.id, pdf(1, 'orphan')))).toBe('BATCH_NOT_OPEN');
+      const logged = spy.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).toContain('intake');
+      expect(logged).not.toContain('AccessDenied');
+      expect(logged).not.toContain(w.a.id);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('removes its object when a racing upload of the same bytes won the slot, and answers with the winner', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const bytes = pdf(1, 'raced');
+    storage.hooks.onPut = async () => {
+      storage.hooks.onPut = undefined;
+      await prisma().phIntakeFile.create({
+        data: { id: 'winner-file', restaurantId: w.a.id, batchId: batch.id, sha256: sha(bytes), storageKey: `intake/${w.a.id}/winner-file`, mediaType: 'application/pdf', bytes: bytes.length, pages: 1, expiresAt: new Date(NOW.getTime() + 30 * DAY), uploadedById: w.owner.userId },
+      });
+    };
+    const done = dataOf(await upload(w, w.owner, batch.id, bytes));
+    expect(done).toMatchObject({ fileId: 'winner-file', duplicate: true });
+    expect(await prisma().phIntakeFile.count()).toBe(1);
+    expect(storage.objects.size).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.intake.file.add' } })).toBe(0);
+  });
+
+  it('stores nothing when the object cannot be written', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    storage.hooks.onPut = () => {
+      throw new Error('R2 down');
+    };
+    const refused = await upload(w, w.owner, batch.id, pdf(1, 'down'));
+    expect(refused.ok).toBe(false);
+    expect(await prisma().phIntakeFile.count()).toBe(0);
+    expect(storage.objects.size).toBe(0);
+  });
+
+  it('does not write an object for a file it would refuse or already have', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const bytes = pdf(1, 'once');
+    await uploaded(w, w.owner, batch.id, bytes);
+    let puts = 0;
+    storage.hooks.onPut = () => {
+      puts += 1;
+    };
+    await uploaded(w, w.owner, batch.id, bytes);
+    expect(codeOf(await act(w.owner, intakeActions.addFile, { ...place(w), batchId: 'missing-batch', mediaType: 'application/pdf', base64: pdf(1, 'nobatch').toString('base64') }))).toBe('NOT_FOUND');
+    expect(puts).toBe(0);
   });
 });
 
@@ -488,7 +620,7 @@ describe('purging expired files', () => {
     expect(await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 29 * DAY), limit: 100, storage })).toMatchObject({ purged: 0 });
     expect(storage.objects.size).toBe(1);
     const result = await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage });
-    expect(result).toEqual({ purged: 1, objectsDeleted: 1 });
+    expect(result).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
     expect(storage.objects.size).toBe(0);
     const after = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: first.fileId } });
     expect(after).toMatchObject({ status: 'PURGED', storageKey: null, failureCode: null, extractingSince: null });
@@ -500,21 +632,83 @@ describe('purging expired files', () => {
     expect(second.duplicate).toBe(false);
     expect(storage.objects.size).toBe(1);
     // The new file expires on its own day; the first is not purged twice.
-    expect(await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1 });
-    expect(await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage })).toEqual({ purged: 0, objectsDeleted: 0 });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage })).toEqual({ purged: 0, objectsDeleted: 0, failed: 0 });
   });
 
-  it('frees a rejected file’s slot too (no object to delete), and a file in the middle of extraction', async () => {
+  it('frees a rejected file’s slot too (no object to delete)', async () => {
     const w = await world();
     const batch = await newBatch(w);
     const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 88 })).blur(5).jpeg({ quality: 92 }).toBuffer();
     const rejected = dataOf(await upload(w, w.owner, batch.id, blurry));
+    expect(rejected.status).toBe('REJECTED_QUALITY');
+    const result = await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage });
+    expect(result).toEqual({ purged: 1, objectsDeleted: 0, failed: 0 });
+    expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: rejected.fileId } })).toMatchObject({ status: 'PURGED', storageKey: null });
+  });
+
+  it('leaves a file that is being extracted alone, and takes it once extraction is over', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
     const busy = await uploaded(w, w.owner, batch.id, pdf(1, 'busy'));
     await prisma().phIntakeFile.update({ where: { id: busy.fileId }, data: { status: 'EXTRACTING', extractingSince: NOW } });
-    const result = await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage });
-    expect(result).toEqual({ purged: 2, objectsDeleted: 1 });
-    const files = await prisma().phIntakeFile.findMany({ where: { id: { in: [rejected.fileId, busy.fileId] } } });
-    expect(files.every((f) => f.status === 'PURGED' && f.storageKey === null && f.extractingSince === null)).toBe(true);
+    const later = new Date(NOW.getTime() + 31 * DAY);
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 0, objectsDeleted: 0, failed: 0 });
+    expect(storage.objects.size).toBe(1);
+    expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: busy.fileId } })).toMatchObject({ status: 'EXTRACTING' });
+    await prisma().phIntakeFile.update({ where: { id: busy.fileId }, data: { status: 'EXTRACTED', extractingSince: null } });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
+  });
+
+  it('marks a file purged only after its object is really gone; a refused delete leaves it and is counted', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const stuck = await uploaded(w, w.owner, batch.id, pdf(1, 'stuck'));
+    const fine = await uploaded(w, w.owner, batch.id, pdf(1, 'fine'));
+    const stuckKey = `intake/${w.a.id}/${stuck.fileId}`;
+    storage.hooks.onDelete = (key) => {
+      if (key === stuckKey) throw new Error('AccessDenied');
+    };
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const later = new Date(NOW.getTime() + 31 * DAY);
+      expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 1 });
+      expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: stuck.fileId } })).toMatchObject({ status: 'UPLOADED', storageKey: stuckKey });
+      expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: fine.fileId } })).toMatchObject({ status: 'PURGED', storageKey: null });
+      expect(storage.objects.has(stuckKey)).toBe(true);
+      // Only the id is logged: no key, no name, no business.
+      const logged = spy.mock.calls.map((call) => call.join(' ')).join('\n');
+      expect(logged).toContain(stuck.fileId);
+      expect(logged).not.toContain('intake/');
+      expect(logged).not.toContain('AccessDenied');
+      // The next run retries it.
+      storage.hooks.onDelete = undefined;
+      expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('waits for the file row, and skips a file that began extracting while it waited', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const file = await uploaded(w, w.owner, batch.id, pdf(1, 'locked'));
+    const later = new Date(NOW.getTime() + 31 * DAY);
+    let purge: Promise<unknown> = Promise.resolve(null);
+    let settled = false;
+    await prisma().$transaction(async (tx) => {
+      // eslint-disable-next-line no-restricted-properties -- a test looks at the database's own locks
+      await tx.$queryRaw`SELECT "id" FROM "PhIntakeFile" WHERE "id" = ${file.fileId} FOR UPDATE`;
+      purge = purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage }).then((r) => {
+        settled = true;
+        return r;
+      });
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      expect(settled).toBe(false);
+      await tx.phIntakeFile.update({ where: { id: file.fileId }, data: { status: 'EXTRACTING', extractingSince: NOW } });
+    });
+    expect(await purge).toEqual({ purged: 0, objectsDeleted: 0, failed: 0 });
+    expect(storage.objects.size).toBe(1);
   });
 
   it('works through every business, at most `limit` files per run', async () => {
@@ -524,11 +718,11 @@ describe('purging expired files', () => {
     const batchA = await newBatch(w);
     const batchB = dataOf(await act(ownerB, intakeActions.createBatch, { restaurantId: b.id, branchId: b.branchId, clientKey: key() }));
     for (let i = 0; i < 2; i += 1) await uploaded(w, w.owner, batchA.id, pdf(1, `a${i}`));
-    const theirs = await act(ownerB, intakeActions.addFile, { restaurantId: b.id, branchId: b.branchId, batchId: batchB.id, clientKey: key(), mediaType: 'application/pdf', base64: pdf(1, 'b0').toString('base64') });
+    const theirs = await act(ownerB, intakeActions.addFile, { restaurantId: b.id, branchId: b.branchId, batchId: batchB.id, mediaType: 'application/pdf', base64: pdf(1, 'b0').toString('base64') });
     expect(theirs.ok).toBe(true);
     const later = new Date(NOW.getTime() + 31 * DAY);
-    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 2, storage })).toEqual({ purged: 2, objectsDeleted: 2 });
-    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 2, storage })).toEqual({ purged: 1, objectsDeleted: 1 });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 2, storage })).toEqual({ purged: 2, objectsDeleted: 2, failed: 0 });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 2, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
     expect(await prisma().phIntakeFile.count({ where: { status: 'PURGED' } })).toBe(3);
   });
 });
