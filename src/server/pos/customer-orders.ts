@@ -217,30 +217,51 @@ async function lockPending(db: AnyDb, restaurantId: string, id: string, now: Dat
   if (count === 0) throw await whyNotPending(db, restaurantId, id, now);
 }
 
+/**
+ * After an edit by someone who may not approve (a cashier), a request the captain had approved goes back to the captain:
+ * the approval covered the dishes as they were. Runs after `lockPending`, in the same transaction as the edit. True when an
+ * approval was cleared. A request that needs no captain, or an edit by a captain, manager or owner, keeps what it had.
+ */
+async function reopenApproval(db: AnyDb, restaurantId: string, id: string, canApprove: boolean): Promise<boolean> {
+  if (canApprove) return false;
+  const { count } = await db.posCustomerOrder.updateMany({
+    where: { id, restaurantId, requiresCaptain: true, captainApprovedAt: { not: null } },
+    data: { captainApprovedAt: null, captainApprovedByUserId: null },
+  });
+  return count > 0;
+}
+
+/** Who edits a request: whether they hold `request.approve`, which decides whether a captain's approval survives the edit. */
+export interface EditorInput {
+  canApprove: boolean;
+}
+
 async function lineOf(db: AnyDb, restaurantId: string, lineId: string) {
   const line = await db.posCustomerOrderLine.findFirst({ where: { id: lineId, restaurantId }, select: { id: true, requestId: true, nameSnapshot: true, quantity: true } });
   if (!line) throw new StudioError('NOT_FOUND');
   return line;
 }
 
-export async function setRequestLineQuantityIn(db: AnyDb, restaurantId: string, input: { lineId: string; quantity: number }, now: Date = new Date()) {
+export async function setRequestLineQuantityIn(db: AnyDb, restaurantId: string, input: { lineId: string; quantity: number } & EditorInput, now: Date = new Date()) {
   if (!Number.isInteger(input.quantity) || input.quantity < 1 || input.quantity > QR_LIMITS.maxQuantity) {
     throw new StudioError('INVALID', 'Nothing to change', { quantity: 'Nothing to change' });
   }
   const line = await lineOf(db, restaurantId, input.lineId);
   await lockPending(db, restaurantId, line.requestId, now);
   await db.posCustomerOrderLine.updateMany({ where: { id: line.id, restaurantId }, data: { quantity: input.quantity } });
-  return { requestId: line.requestId, lineId: line.id, name: line.nameSnapshot, before: line.quantity, after: input.quantity };
+  const approvalCleared = await reopenApproval(db, restaurantId, line.requestId, input.canApprove);
+  return { requestId: line.requestId, lineId: line.id, name: line.nameSnapshot, before: line.quantity, after: input.quantity, approvalCleared };
 }
 
-export async function removeRequestLineIn(db: AnyDb, restaurantId: string, input: { lineId: string }, now: Date = new Date()) {
+export async function removeRequestLineIn(db: AnyDb, restaurantId: string, input: { lineId: string } & EditorInput, now: Date = new Date()) {
   const line = await lineOf(db, restaurantId, input.lineId);
   await lockPending(db, restaurantId, line.requestId, now);
   await db.posCustomerOrderLine.deleteMany({ where: { id: line.id, restaurantId } });
-  return { requestId: line.requestId, lineId: line.id, name: line.nameSnapshot, quantity: line.quantity };
+  const approvalCleared = await reopenApproval(db, restaurantId, line.requestId, input.canApprove);
+  return { requestId: line.requestId, lineId: line.id, name: line.nameSnapshot, quantity: line.quantity, approvalCleared };
 }
 
-export interface AddRequestLineInput {
+export interface AddRequestLineInput extends EditorInput {
   requestId: string;
   productId: string;
   quantity: number;
@@ -269,7 +290,7 @@ export async function addRequestLineIn(db: AnyDb, restaurantId: string, catalog:
   const [lines, soldOut, product] = await Promise.all([
     db.posCustomerOrderLine.count({ where: { requestId: input.requestId, restaurantId } }),
     db.posProductSetting.count({ where: { restaurantId, productId: line.productId, soldOutOverride: true } }),
-    db.product.findFirst({ where: { id: line.productId }, select: { id: true } }),
+    db.product.findFirst({ where: { id: line.productId, menuId: catalog.menuId }, select: { id: true } }),
   ]);
   if (soldOut > 0 || !product) throw refuse('CONFLICT', 'This product is not available');
   if (lines >= QR_LIMITS.maxLines) throw refuse('CONFLICT', 'The request has too many items');
@@ -287,7 +308,8 @@ export async function addRequestLineIn(db: AnyDb, restaurantId: string, catalog:
     },
     select: { id: true },
   });
-  return { requestId: input.requestId, lineId: created.id, name: line.nameSnapshot, quantity: line.quantity };
+  const approvalCleared = await reopenApproval(db, restaurantId, input.requestId, input.canApprove);
+  return { requestId: input.requestId, lineId: created.id, name: line.nameSnapshot, quantity: line.quantity, approvalCleared };
 }
 
 /**
@@ -300,7 +322,12 @@ export async function approveRequestIn(db: AnyDb, restaurantId: string, input: {
     data: { captainApprovedAt: now, captainApprovedByUserId: input.userId },
   });
   if (count === 0) throw await whyNotPending(db, restaurantId, input.requestId, now);
-  const request = await db.posCustomerOrder.findFirstOrThrow({ where: { id: input.requestId, restaurantId }, select: { tableNumber: true } });
+  // Read after the guarded update holds the row, so a line removed just before is seen; the caller's transaction undoes the approval.
+  const request = await db.posCustomerOrder.findFirstOrThrow({
+    where: { id: input.requestId, restaurantId },
+    select: { tableNumber: true, _count: { select: { lines: true } } },
+  });
+  if (request._count.lines === 0) throw refuse('CONFLICT', 'The request has no items');
   return { requestId: input.requestId, tableNumber: request.tableNumber, approvedAt: now };
 }
 

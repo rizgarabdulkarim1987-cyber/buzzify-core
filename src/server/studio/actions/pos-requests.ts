@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
+import { canPos } from '@/server/domain/pos/permissions';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
 import { ensureMenuTablesIn } from '@/server/pos/qr-sheet';
 import { getStudioTranslator } from '@/studio/messages';
@@ -26,6 +27,16 @@ function till(ctx: ActionContext) {
   return { pos: ctx.pos, restaurantId: ctx.restaurantId };
 }
 
+/** Whether the person may approve for the captain: their edits keep a captain's approval; anyone else's send it back. */
+function canApprove(ctx: ActionContext): boolean {
+  return ctx.pos !== null && canPos(ctx.pos.role, 'request.approve');
+}
+
+/** The audit entry of an edit that sent an approved request back to the captain. */
+function approvalChange(cleared: boolean): Record<string, { before: unknown; after: unknown }> {
+  return cleared ? { captainApproval: { before: 'APPROVED', after: 'NEEDED' } } : {};
+}
+
 export const setPosRequestLineQuantity = defineAction({
   name: 'pos.setRequestLineQuantity',
   permission: null,
@@ -35,12 +46,12 @@ export const setPosRequestLineQuantity = defineAction({
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
     return ctx.transaction(async (tx) => {
-      const done = await setRequestLineQuantityIn(delegates(tx), restaurantId, input);
+      const done = await setRequestLineQuantityIn(delegates(tx), restaurantId, { ...input, canApprove: canApprove(ctx) });
       ctx.audit({
         action: 'pos.request.edit',
         entityType: 'PosCustomerOrderLine',
         entityId: done.lineId,
-        changes: { quantity: { before: done.before, after: done.after } },
+        changes: { quantity: { before: done.before, after: done.after }, ...approvalChange(done.approvalCleared) },
       });
       return { requestId: done.requestId };
     });
@@ -56,12 +67,12 @@ export const removePosRequestLine = defineAction({
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
     return ctx.transaction(async (tx) => {
-      const done = await removeRequestLineIn(delegates(tx), restaurantId, input);
+      const done = await removeRequestLineIn(delegates(tx), restaurantId, { ...input, canApprove: canApprove(ctx) });
       ctx.audit({
         action: 'pos.request.edit',
         entityType: 'PosCustomerOrderLine',
         entityId: done.lineId,
-        changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null } },
+        changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null }, ...approvalChange(done.approvalCleared) },
       });
       return { requestId: done.requestId };
     });
@@ -91,12 +102,12 @@ export const addPosRequestLine = defineAction({
     if (!tenant || tenant.id !== ctx.menuId) throw refuse('CONFLICT', 'This product is not available');
     const catalog = await getCatalog(tenant);
     return ctx.transaction(async (tx) => {
-      const done = await addRequestLineIn(delegates(tx), restaurantId, catalog, input);
+      const done = await addRequestLineIn(delegates(tx), restaurantId, catalog, { ...input, canApprove: canApprove(ctx) });
       ctx.audit({
         action: 'pos.request.edit',
         entityType: 'PosCustomerOrderLine',
         entityId: done.lineId,
-        changes: { name: { before: null, after: done.name }, quantity: { before: null, after: done.quantity } },
+        changes: { name: { before: null, after: done.name }, quantity: { before: null, after: done.quantity }, ...approvalChange(done.approvalCleared) },
       });
       return { requestId: done.requestId, lineId: done.lineId };
     });
