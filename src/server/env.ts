@@ -251,6 +251,46 @@ export function parseStorageEnv(source: Source): StorageEnv {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Private invoice storage (pharmacy intake)
+// ---------------------------------------------------------------------------------------------------------------------
+
+const INTAKE_VARIABLES = ['PH_INTAKE_R2_ACCOUNT_ID', 'PH_INTAKE_R2_ACCESS_KEY_ID', 'PH_INTAKE_R2_SECRET_ACCESS_KEY', 'PH_INTAKE_R2_BUCKET'] as const;
+
+const intakeSchema = z.object({
+  PH_INTAKE_R2_ACCOUNT_ID: optionalText,
+  PH_INTAKE_R2_ACCESS_KEY_ID: optionalText,
+  PH_INTAKE_R2_SECRET_ACCESS_KEY: optionalText,
+  PH_INTAKE_R2_BUCKET: optionalText,
+});
+
+export interface IntakeStorageEnv {
+  accountId: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  bucket: string;
+}
+
+/**
+ * Where uploaded supplier invoices are kept: a SEPARATE private R2 bucket, never the public media bucket. All four
+ * variables or none; `null` means not configured (the development folder in development, no upload in production).
+ */
+export function parseIntakeStorageEnv(source: Source): IntakeStorageEnv | null {
+  const parsed = intakeSchema.parse(source);
+  const set = INTAKE_VARIABLES.filter((name) => parsed[name] !== null);
+  if (set.length === 0) return null;
+  if (set.length < INTAKE_VARIABLES.length) {
+    const missing = INTAKE_VARIABLES.filter((name) => parsed[name] === null);
+    throw new Error(`Invoice storage is only partly configured: set ${missing.join(', ')} as well, or unset the others.`);
+  }
+  return {
+    accountId: parsed.PH_INTAKE_R2_ACCOUNT_ID!,
+    accessKeyId: parsed.PH_INTAKE_R2_ACCESS_KEY_ID!,
+    secretAccessKey: parsed.PH_INTAKE_R2_SECRET_ACCESS_KEY!,
+    bucket: parsed.PH_INTAKE_R2_BUCKET!,
+  };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Scheduled publishing
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -392,6 +432,11 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
 
   if (text('MEDIA_LOCAL_DIR')) report('MEDIA_LOCAL_DIR', 'must not be set in production; media is stored in R2');
 
+  // Pharmacy invoice storage is optional (without it upload is switched off), but never half set.
+  if (INTAKE_VARIABLES.some((name) => text(name))) {
+    for (const name of INTAKE_VARIABLES) if (!text(name)) report(name, 'is not set (invoice storage needs all four PH_INTAKE_R2_ variables or none)');
+  }
+
   const cronSecret = text('CRON_SECRET');
   if (!cronSecret) report('CRON_SECRET', 'is not set (generate one with: openssl rand -base64 32)');
   else if (cronSecret.length < MIN_CRON_SECRET_LENGTH) report('CRON_SECRET', `must be at least ${MIN_CRON_SECRET_LENGTH} characters`);
@@ -443,4 +488,7 @@ export const authEnv = lazy(parseAuthEnv);
 
 /** Where media is stored: R2, or the development folder. */
 export const storageEnv = lazy(parseStorageEnv);
+
+/** Where pharmacy invoice files are stored privately, or null when not configured. */
+export const intakeStorageEnv = lazy(parseIntakeStorageEnv);
 
