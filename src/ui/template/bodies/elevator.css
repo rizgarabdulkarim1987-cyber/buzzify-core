@@ -138,7 +138,7 @@
   content: attr(data-floor) / '';
   position: absolute;
   inset-block-start: 0.25rem;
-  inset-inline-start: 0.75rem;
+  inset-inline-end: 0.75rem;
   color: color-mix(in srgb, var(--text) 8%, transparent);
   font-family: ui-monospace, 'IBM Plex Mono', monospace;
   font-size: 4rem;
@@ -155,7 +155,7 @@
   margin: 0;
   padding-inline: var(--gutter, 1rem);
   padding-block-end: 0.25rem;
-  font-size: 1.375rem;
+  font-size: 1.5rem;
   line-height: 1.15;
   color: var(--text);
   overflow-wrap: anywhere;
@@ -176,7 +176,8 @@
 
 /* A row (the shared `RowDish`, laid out by shared/rows.css): photo, then name over price, then the add button. */
 [data-body='elevator'] .el-row {
-  gap: 0.75rem;
+  grid-template-columns: 4.75rem minmax(0, 1fr) auto;
+  gap: 0.625rem;
   padding: calc(var(--space) * 0.25rem) var(--gutter, 1rem);
   border-block-end: 1px dashed var(--line);
 }
@@ -184,6 +185,21 @@
   [data-body='elevator'] .el-row:hover {
     background: color-mix(in srgb, var(--accent) 7%, transparent);
   }
+}
+/* The add button is a solid dark disc with a light plus, as in the poster. */
+[data-body='elevator'] .el-add {
+  border: 0;
+  background: var(--text);
+  color: var(--bg);
+}
+/* The poster's photo: 76px square, rounded, so a dish reads at a glance. */
+[data-body='elevator'] .el-photo {
+  inline-size: 4.75rem;
+  block-size: 4.75rem;
+  border-radius: 0.625rem;
+}
+[data-body='elevator'] .el-name {
+  font-size: 0.9375rem;
 }
 [data-body='elevator'] .el-price {
   font-family: ui-monospace, 'IBM Plex Mono', monospace;

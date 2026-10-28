@@ -22,10 +22,10 @@ const legend = (page: Page) => table(page).locator('[data-legend]');
 const tiles = (page: Page) => table(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => legend(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows six element tiles with photos and prices, and the whole legend', async ({ page }) => {
+test('on a phone the first screen shows ten element tiles with photos and prices (as in the poster), and the whole legend', async ({ page }) => {
   await openMenu(page, slug);
   await expect(table(page)).toBeVisible();
-  await expectFirstScreen(page, tiles(page), { min: 6 });
+  await expectFirstScreen(page, tiles(page), { min: 10 });
   await expectEverySectionReachable(legend(page));
 });
 
@@ -34,6 +34,23 @@ test('the tiles sit four to a row', async ({ page }) => {
   const box = (await tiles(page).first().boundingBox())!;
   expect(box.width).toBeLessThanOrEqual(page.viewportSize()!.width / 4);
   expect(box.width).toBeGreaterThanOrEqual(70);
+});
+
+test('the table is one continuous grid: the groups flow on with no empty cells between them', async ({ page }) => {
+  await openMenu(page, slug);
+  const count = await tiles(page).count();
+  const tops = await tiles(page).evaluateAll((nodes) => new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().top + window.scrollY))).size);
+  expect(tops).toBe(Math.ceil(count / 4));
+});
+
+test('the name and the price sit on the photo itself, not under it', async ({ page }) => {
+  await openMenu(page, slug);
+  const tile = (await tiles(page).first().boundingBox())!;
+  const name = (await tiles(page).first().locator('.pt-name').boundingBox())!;
+  const price = (await tiles(page).first().locator('.pt-price').boundingBox())!;
+  expect(tile.height).toBeLessThanOrEqual(tile.width * 1.4);
+  expect(name.y + name.height).toBeLessThanOrEqual(price.y + 1);
+  expect(price.y + price.height).toBeLessThanOrEqual(tile.y + tile.height);
 });
 
 test('every tile carries a symbol and a number in the menu numerals, counting through the whole menu', async ({ page }) => {
@@ -49,11 +66,13 @@ test('a legend entry takes you to its group and focuses the heading', async ({ p
   await expectJumpsTo(page, entry(page, 'celebration'), 'celebration');
 });
 
-test('the legend lights the group in view', async ({ page }) => {
+test('the legend lights the group whose first row is in view', async ({ page }) => {
   await openMenu(page, slug);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  // Scroll the group's first tile into the band the template watches (30% to 40% down the screen). Groups flow on in one
+  // table, so a group's first tile can share a row with the one before it: that earlier group lights first.
+  await page.evaluate(() => window.scrollBy(0, document.querySelector('#cat-celebration')!.getBoundingClientRect().top - window.innerHeight * 0.35));
   await expect(legend(page).locator('[aria-current="true"]')).toHaveCount(1);
-  await expect(entry(page, 'bread')).toHaveAttribute('aria-current', 'true');
+  await expect(entry(page, 'celebration')).toHaveAttribute('aria-current', 'true');
 });
 
 test('the legend stays at the top, at most two rows high: scrolled to the end, the first group is still one tap away', async ({ page }) => {
@@ -65,17 +84,17 @@ test('the legend stays at the top, at most two rows high: scrolled to the end, t
 
 test('a tile opens its dish from anywhere on it and adds one', async ({ page }) => {
   await openMenu(page, slug);
-  const first = page.locator('#cat-viennoiserie');
-  await expectOpensProduct(page, first, 'croissant');
-  await expectQuickAdd(page, first, 'croissant');
+  await expectOpensProduct(page, table(page), 'croissant');
+  await expectQuickAdd(page, table(page), 'croissant');
   const box = (await tiles(page).first().boundingBox())!;
   await page.mouse.click(box.x + box.width / 2, box.y + box.height * 0.4);
   await expect(page.getByRole('dialog')).toBeVisible();
 });
 
-test('a group with one dish is a grid of one tile', async ({ page }) => {
+test('a group with one dish is one tile: it carries the group anchor and the table ends on it', async ({ page }) => {
   await openMenu(page, slug, { hash: '#cat-bread' });
-  await expect(page.locator('#cat-bread [data-row]')).toHaveCount(1);
+  await expect(page.locator('#cat-bread')).toHaveCount(1);
+  await expect(tiles(page).last().locator('#cat-bread')).toHaveCount(1);
 });
 
 test('a long dish name stays inside its tile without sideways scrolling', async ({ page }) => {

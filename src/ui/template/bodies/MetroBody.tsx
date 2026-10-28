@@ -19,7 +19,7 @@ export function stationHue(index: number): number {
 }
 
 /**
- * A metro line (spec 2026-10-26-menu-styles-in-templates-design.md). One line runs down the inline edge of the page;
+ * A metro line (spec 2026-10-26-menu-styles-in-templates-design.md). One line runs down the inline-start edge of the page;
  * every section is a station on it, in its own colour, with its name, its number and its dish count (in the menu's
  * numerals), and the dishes hang off the line as stops: photo, name, price and an add button. A route strip of the
  * stations stays at the top and jumps. All stations are on the page, so the template's own jump and `#cat-<slug>`
@@ -57,7 +57,7 @@ export function MetroBody() {
                 <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.met.station', { n: n(index + 1) })} count={n(products.length)} title="mt-title" />
                 <ul className="mt-stops">
                   {products.map((product, row) => (
-                    <RowDish key={product.id} product={product} prefix="mt" suffix="metro" sizes="56px" priority={index === 0 && row < 5} order={Math.min(index * 3 + row, 8)} />
+                    <RowDish key={product.id} product={product} prefix="mt" suffix="metro" sizes="70px" priority={index === 0 && row < 5} order={Math.min(index * 3 + row, 8)} />
                   ))}
                 </ul>
               </div>

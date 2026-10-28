@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { themeOf } from '@/lib/templates/palette';
+import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { RowDish } from './shared/RowDish';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import './shared/shapes.css';
 import './cabinet.css';
 
 /** The drawers after `id` is pulled or pushed: a new set, every other drawer as it was. */
@@ -36,10 +39,10 @@ export function firstOpen(sizes: readonly number[], ids: readonly string[]): Set
 }
 
 /**
- * A chest of drawers (spec 2026-10-26-menu-styles-in-templates-design.md). Every section is a drawer front with a
- * handle, its name and its dish count (in the menu's numerals). Drawers are independent accordions: several can be open
+ * A chest of drawers (spec 2026-10-26-menu-styles-in-templates-design.md; the layout-cab mockup). Every section is a drawer
+ * front of wood with a brass handle, its name, thumbnails of its first dishes and its dish count (in the menu's numerals). Drawers are independent accordions: several can be open
  * at once, the first is open on arrival (with the next ones too while fewer than four dishes show), and an open drawer
- * shows its tray of dishes (one across on a phone, two from 640px, three from 1024px): photo, name, price and an add
+ * shows its tray of dishes (two across on a phone, three from 640px, four from 1024px): a big square photo, name, price and an add
  * button. While a search or a filter is on, every drawer holding a result is pulled out whenever the results change,
  * so a result never hides behind a closed front; nothing moves the view or the focus for it. A closed drawer renders no dishes at all (no layout, no photos), but its front is a button, so every
  * section is one tap away. The template's own jump, the `#cat-<slug>` address and the lit-section tracking all find a
@@ -47,7 +50,7 @@ export function firstOpen(sizes: readonly number[], ids: readonly string[]): Set
  */
 export function CabinetBody() {
   const { t, locale, tenant } = useApp();
-  const { view, categories, byCategory, setCategoryOpener } = useTemplate();
+  const { view, design, categories, byCategory, setCategoryOpener } = useTemplate();
   const n = (value: number) => formatCount(value, locale, tenant.numeralSystem);
   // The results of a search or a filter, as a key ('' when nothing is filtered): a string, so a new `categories` with
   // the same results changes nothing.
@@ -112,7 +115,7 @@ export function CabinetBody() {
   }, [jump]);
 
   return (
-    <div className="tpl-body" data-body="cabinet" ref={root}>
+    <div className="tpl-body" data-body="cabinet" data-tone={themeOf(design.palette.bg)} ref={root}>
       <main id="menu" className="min-w-0 cb-chest">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
@@ -135,11 +138,21 @@ export function CabinetBody() {
                     onClick={() => setOpen((current) => toggleDrawer(current, category.id))}
                     className="cb-pull"
                   >
-                    <span className="cb-label">{category.name}</span>
-                    <b data-count aria-hidden className="cb-count">
-                      {n(products.length)}
-                    </b>
-                    <span className="sr-only">{t('tpl.book.dishes', { count: products.length, n: n(products.length) })}</span>
+                    <span className="cb-info">
+                      <span className="cb-label">{category.name}</span>
+                      <span className="cb-peek">
+                        <span aria-hidden className="cb-thumbs">
+                          {products.slice(0, 4).map((product) => (
+                            <span key={product.id} className="cb-thumb">
+                              <ProductMedia product={product} suffix="cabinet-peek" sizes="34px" rounded={false} dim={false} />
+                            </span>
+                          ))}
+                        </span>
+                        <em data-count className="cb-count">
+                          {t('tpl.book.dishes', { count: products.length, n: n(products.length) })}
+                        </em>
+                      </span>
+                    </span>
                     <i aria-hidden className="cb-handle" />
                   </button>
                 </h2>
@@ -148,7 +161,7 @@ export function CabinetBody() {
                 <div id={`tray-${category.slug}`} role="region" aria-labelledby={`h-${category.slug}`} className="cb-tray">
                   <ul className="cb-grid">
                     {products.map((product, row) => (
-                      <RowDish key={product.id} product={product} prefix="cb" suffix="cabinet" sizes="48px" priority={index === 0 && row < 4} order={Math.min(row, 8)} />
+                      <Card key={product.id} product={product} priority={index === 0 && row < 4} order={Math.min(row, 8)} />
                     ))}
                   </ul>
                 </div>
@@ -158,5 +171,25 @@ export function CabinetBody() {
         })}
       </main>
     </div>
+  );
+}
+
+/** A dish in an open tray: a big square photo (with the sale chip), the name, then the add button and the price. */
+function Card({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
+  const { openProduct } = useTemplate();
+  return (
+    <li data-row className="cb-card" style={{ '--i': order } as CSSProperties}>
+      <div data-photo className="cb-photo">
+        <ProductMedia product={product} suffix="cabinet" sizes="(min-width: 640px) 220px, 45vw" priority={priority} className="cb-img" />
+        <SaleChip product={product} className="cb-off" />
+      </div>
+      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open cb-name text-start">
+        {product.name}
+      </button>
+      <span className="cb-foot">
+        <QuickAction product={product} className="cb-add relative z-[2]" />
+        <Price product={product} className="cb-price" />
+      </span>
+    </li>
   );
 }

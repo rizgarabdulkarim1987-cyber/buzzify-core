@@ -10,39 +10,19 @@ import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './bento.css';
 
-/** The most compartments one tray has; a box with more dishes gets several trays, each with a pattern of its own. */
-const TRAY_MAX = 6;
-
-/**
- * How a box's dishes split into trays: as many full trays of six as fit, and the rest on one more. A lone dish never
- * ends a longer box (7 is 4 and 3, not 6 and 1): it is a tray only when it is the box's only dish.
- */
-export function compartmentSizes(count: number): number[] {
-  const sizes: number[] = [];
-  let left = count;
-  while (left > TRAY_MAX) {
-    const take = left - TRAY_MAX === 1 ? TRAY_MAX - 2 : TRAY_MAX;
-    sizes.push(take);
-    left -= take;
-  }
-  if (left > 0) sizes.push(left);
-  return sizes;
+/** How many compartments a row of the tray has: three, or two when a box holds just two dishes (the mockup's `n2`). */
+export function trayColumns(count: number): 2 | 3 {
+  return count === 2 ? 2 : 3;
 }
 
 /**
- * Whether the compartment at `slot` of a tray of `size` is one row tall (bento.css: the lead compartment, and both of a
- * tray of two, span two rows; every other one spans one). A small compartment carries its price at the end of its name
- * strip instead of in a flag on the photo, so the flags never cover the picture.
- */
-export const isSmallCompartment = (size: number, slot: number) => size >= 3 && slot > 0;
-
-/**
- * The Bento Box (spec 2026-10-26-menu-styles-in-templates-design.md). Every section is a lacquered bento box: a rounded
- * tray divided into compartments of unequal size (a big one for the lead dish, smaller ones for the rest, the pattern
- * chosen by how many dishes the box holds), each dish's photo filling its compartment. A paper strip at the
- * compartment's foot carries the name; the price is a flag on a big compartment's corner and the strip's end in a small
- * one. A strip of lid-handle tabs stays at the top and jumps, lighting the box in view. All boxes are on the page, so the
- * template's own jump and `#cat-<slug>` scrolling reach them.
+ * The Bento Box (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-bnt). The whole menu is one
+ * black lacquer bento box on a wooden table, with a pair of chopsticks laid across its top: every section is a red
+ * compartment tray inside it (a paper label with its number, name and dish count in the menu's numerals), cut into
+ * square compartments three across (two across for a section of two), each dish's photo filling its compartment with a
+ * paper flag at its foot carrying the add button and the name, and the price on an accent flag at its corner. A strip
+ * of lid-handle tabs stays at the top and jumps, lighting the tray in view. All trays are on the page, so the template's
+ * own jump and `#cat-<slug>` scrolling reach them.
  */
 export function BentoBody() {
   const { t, locale, tenant } = useApp();
@@ -51,38 +31,35 @@ export function BentoBody() {
 
   return (
     <div className="tpl-body" data-body="bento">
+      <div aria-hidden className="bn-sticks">
+        <i />
+        <i />
+      </div>
       <SectionStrip marker="lids" prefix="bn" className="bn-lids" chip="bn-lid">
         {(category) => <span className="bn-lid-label">{category.name}</span>}
       </SectionStrip>
       <main id="menu" className="min-w-0">
-        {categories.map((category, index) => {
-          const products = byCategory.get(category.id) ?? [];
-          let from = 0;
-          return (
-            <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} data-box={n(index + 1)} className="tpl-section tpl-tall-last bn-box">
-              <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.bnt.box', { n: n(index + 1) })} count={n(products.length)} className="bn-head" title="bn-tag" />
-              {compartmentSizes(products.length).map((size, tray) => {
-                const start = from;
-                from += size;
-                return (
-                  <ul key={tray} className="bn-tray" data-n={size}>
-                    {products.slice(start, start + size).map((product, at) => (
-                      <Compartment key={product.id} product={product} slot={at} small={isSmallCompartment(size, at)} priority={index === 0 && start + at < 6} order={Math.min(index * 3 + start + at, 8)} />
-                    ))}
-                  </ul>
-                );
-              })}
-            </section>
-          );
-        })}
+        <div className="bn-lacquer">
+          {categories.map((category, index) => {
+            const products = byCategory.get(category.id) ?? [];
+            return (
+              <section key={category.id} id={`cat-${category.slug}`} aria-labelledby={`h-${category.slug}`} data-box={n(index + 1)} className="tpl-section tpl-tall-last bn-box">
+                <ShapeHeading id={`h-${category.slug}`} name={category.name} label={t('tpl.bnt.box', { n: n(index + 1) })} count={n(products.length)} className="bn-head" title="bn-tag" />
+                <ul className="bn-tray" data-cols={trayColumns(products.length)}>
+                  {products.map((product, at) => (
+                    <Compartment key={product.id} product={product} priority={index === 0 && at < 6} order={Math.min(index * 3 + at, 8)} />
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
       </main>
     </div>
   );
 }
 
-const AREAS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
-
-function Compartment({ product, slot, small, priority, order }: { product: MenuProductView; slot: number; small: boolean; priority: boolean; order: number }) {
+function Compartment({ product, priority, order }: { product: MenuProductView; priority: boolean; order: number }) {
   return (
     <IconDish
       product={product}
@@ -91,14 +68,12 @@ function Compartment({ product, slot, small, priority, order }: { product: MenuP
       cell="bn-cell tpl-rise"
       head="bn-top"
       price="bn-price"
-      pricePlace={small ? 'below' : 'head'}
+      pricePlace="head"
       media="cover"
       extras={<SaleChip product={product} className="bn-off" />}
-      sizes="(min-width: 640px) 360px, 70vw"
+      sizes="(min-width: 640px) 220px, 34vw"
       priority={priority}
       order={order}
-      cellProps={{ 'data-size': small ? 'small' : 'big' }}
-      style={{ gridArea: AREAS[slot] }}
     />
   );
 }

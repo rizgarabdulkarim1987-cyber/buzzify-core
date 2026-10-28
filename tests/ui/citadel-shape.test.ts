@@ -3,8 +3,7 @@ import { bodyOf, SHAPE_SETS, TEMPLATES, TEMPLATE_IDS } from '@/lib/templates';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { CitadelBody } from '@/ui/template/bodies/CitadelBody';
-import { contrastRatio as contrast } from '@/lib/palette';
-import { roofOf, SKY, windowState } from '@/ui/template/bodies/citadel-skyline';
+import { BIRDS, LIGHT_MS, SCENE, WALL, sceneEndsAt, sceneWindows } from '@/ui/template/bodies/citadel-skyline';
 
 describe('the Erbil Citadel shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -25,29 +24,30 @@ describe('the Erbil Citadel shape', () => {
   });
 });
 
-describe('the skyline windows', () => {
-  it('lights the windows up to the section in view, and marks that one', () => {
-    expect([0, 1, 2, 3].map((at) => windowState(at, 2))).toEqual(['lit', 'lit', 'active', 'dark']);
-    expect(windowState(0, 0)).toBe('active');
+describe('the citadel scene', () => {
+  it('has two windows (an upper and a lower) for each of eleven houses, all inside the wall and the drawing', () => {
+    const windows = sceneWindows();
+    expect(windows).toHaveLength(22);
+    expect(windows.filter((window) => window.row === 'upper')).toHaveLength(11);
+    for (const window of windows) {
+      expect(window.x).toBeGreaterThanOrEqual(WALL.left);
+      expect(window.x + window.w).toBeLessThanOrEqual(WALL.right);
+      expect(window.y).toBeGreaterThanOrEqual(WALL.top);
+      expect(window.y + window.h).toBeLessThanOrEqual(SCENE.height);
+    }
   });
 
-  it('is all dark until a section is known', () => {
-    expect([0, 1].map((at) => windowState(at, -1))).toEqual(['dark', 'dark']);
+  it('lights the windows one after another, left to right, each lower one after the upper one over it', () => {
+    const windows = sceneWindows();
+    const uppers = windows.filter((window) => window.row === 'upper');
+    expect(uppers.map((window) => window.delay)).toEqual([...uppers.map((window) => window.delay)].sort((a, b) => a - b));
+    expect(new Set(windows.map((window) => window.delay)).size).toBe(windows.length);
+    for (let at = 0; at < windows.length; at += 2) expect(windows[at + 1]!.delay).toBeGreaterThan(windows[at]!.delay);
   });
 
-  it('gives each house a roof from a short cycle, the same one for the same place', () => {
-    const roofs = Array.from({ length: 40 }, (_, at) => roofOf(at));
-    expect(new Set(roofs).size).toBeGreaterThanOrEqual(4);
-    expect(roofOf(7)).toBe(roofOf(7));
-    expect(roofOf(25)).toBe(roofOf(25 % 8));
-  });
-
-  it('keeps the numerals and the caption readable on their fixed fills (4.5:1)', () => {
-    expect(contrast(SKY.darkInk, SKY.darkPane)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(SKY.litInk, SKY.litPane)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(SKY.activeInk, SKY.activePane)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(SKY.caption, SKY.skyTop)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(SKY.caption, SKY.skyMid)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(SKY.ring, SKY.wall)).toBeGreaterThanOrEqual(3);
+  it('is at rest within five seconds: the windows and every bird end by then (an endless animation is not allowed)', () => {
+    expect(sceneEndsAt()).toBeLessThanOrEqual(5000);
+    expect(LIGHT_MS).toBeGreaterThan(0);
+    for (const bird of BIRDS) expect(bird.delay + bird.ms).toBeLessThanOrEqual(5000);
   });
 });

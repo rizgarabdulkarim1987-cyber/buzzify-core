@@ -5,7 +5,6 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { LatticeBody } from '@/ui/template/bodies/LatticeBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { WOOD } from '@/ui/template/bodies/lattice-wood';
 
 describe('the Baghdad Shanashil shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -27,59 +26,43 @@ describe('the Baghdad Shanashil shape', () => {
 });
 
 describe('the wood and glass fills', () => {
-  it('keeps every text on its fixed fill at 4.5:1: the board, the plaque, the brass tag, the glass, the lit glass', () => {
-    expect(contrast(WOOD.cream, WOOD.board)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.plaque)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.glass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.litInk, WOOD.lit)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.cream, WOOD.chip)).toBeGreaterThanOrEqual(4.5);
-    // The description line and the names beside the window, on the pane's plaque; a lit chip's name on brass.
-    expect(contrast(WOOD.creamSoft, WOOD.plaque)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(4.5);
-  });
+  const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
 
-  it('keeps the bay closed on every palette: the bracket or its carved rim stands out from the page (3:1)', () => {
-    for (const palette of TEMPLATES['the-baghdad-shanashil'].palettes) {
-      const bg = palette.palette.bg;
-      expect(Math.max(contrast(WOOD.board, bg), contrast(WOOD.rim, bg)), palette.id).toBeGreaterThanOrEqual(3);
+  it('keeps every text readable in every palette: carved cream on the wood, the glass number, the brass ink', () => {
+    for (const { id, palette } of TEMPLATES['the-baghdad-shanashil'].palettes) {
+      // The wood is the text colour, the cream is the raised colour; the price is the cream warmed a little (checked in the browser on every palette).
+      expect(contrast(palette.raised, palette.text), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
+      // The wooden cards stand out from the page.
+      expect(contrast(palette.text, palette.bg), id).toBeGreaterThanOrEqual(3);
     }
+    expect(contrast('#2a1608', '#e2b04a')).toBeGreaterThanOrEqual(4.5);
   });
 
-  it('draws the focus ring in a colour that stands out from the pane edge, the strip chip and the brass chip (3:1)', () => {
-    expect(contrast(WOOD.ring, WOOD.edge)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.ring, WOOD.plaque)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.ring, WOOD.board)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.cream, WOOD.chip)).toBeGreaterThanOrEqual(3);
-    expect(contrast(WOOD.brassInk, WOOD.brass)).toBeGreaterThanOrEqual(3);
-  });
-
-  it('keeps the stylesheet and the constants in step: each constant is declared by name (--sh-<name>) with the same value', () => {
-    const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
-    const declared = Object.fromEntries([...css.matchAll(/(--sh-[a-z-]+):\s*(#[0-9a-f]{3,8})\s*;/gi)].map((match) => [match[1], match[2]!.toLowerCase()]));
-    for (const [name, hex] of Object.entries(WOOD)) {
-      const property = `--sh-${name.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`;
-      expect(declared[property], property).toBe(hex.toLowerCase());
-    }
+  it('draws the wood from the text colour and the glass from the accent, and writes as hex only the brass and the dusk sky of the header', () => {
+    expect(css).toMatch(/--sh-board:\s*var\(--text\)/);
+    expect(css).toMatch(/--sh-glass:\s*var\(--accent\)/);
+    expect(css).toMatch(/--sh-cream:\s*var\(--raised\)/);
+    const brass = ['#2a1608', '#e2b04a', '#c9a24a', '#e9c27a'];
+    const sky = ['#0d3b5a', '#1f6d8a', '#ffe8a3', '#e9a51b', '#8a5a12'];
+    expect([...new Set((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase()))].sort()).toEqual([...brass, ...sky].sort());
   });
 });
 
-describe('the mashrabiya bands', () => {
+describe('the arched cards', () => {
   const css = readFileSync('src/ui/template/bodies/lattice.css', 'utf8');
   const tsx = readFileSync('src/ui/template/bodies/LatticeBody.tsx', 'utf8');
 
-  it('is not a grid of window cells (the Erbil Citadel skeleton): one wide pane per band on a phone', () => {
-    expect(css).not.toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*repeat\((3|4|5|6), minmax\(0, 1fr\)\)/);
-    expect(css).toMatch(/\.sh-screen\s*\{[^}]*grid-template-columns:\s*minmax\(0, 1fr\)\s*;/);
-    expect(tsx).not.toMatch(/sh-cell|data-cell/);
+  it('lays dishes out as arched cards two across on a phone, with an arched brass-framed window', () => {
+    expect(css).toMatch(/\.sh-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+    expect(css).toMatch(/\.sh-card\s*\{[^}]*border-start-start-radius:\s*4\.375rem/);
+    expect(css).toMatch(/\.sh-window\s*\{[^}]*border:\s*3px solid/);
+    expect(tsx).toContain('sh-shutter');
   });
 
-  it('lays each pane out as an arched window beside a carved plaque, the window side alternating band by band', () => {
-    expect(css).toMatch(/\.sh-pane\s*\{[^}]*grid-template-areas:\s*'window plaque'/);
-    expect(css).toMatch(/\.sh-pane:nth-child\(even\)\s*\{[^}]*grid-template-areas:\s*'plaque window'/);
-    expect(css).toMatch(/\.sh-photo\s*\{[^}]*border-start-start-radius/);
-    expect(tsx).toContain('data-screen');
-    expect(tsx).toContain('sh-plaque');
+  it('opens the shutters once per card, only when the page arms them, and draws none with less motion', () => {
+    expect(css).toMatch(/\[data-armed\] \.sh-card\[data-open\] \.sh-shutter\s*\{[^}]*transform:\s*rotateY\(var\(--sh-swing\)\)/);
+    expect(css).toMatch(/\[data-armed\] \.sh-shutter\s*\{[^}]*transition:\s*transform/);
+    expect(css.slice(css.indexOf('prefers-reduced-motion'))).toMatch(/\.sh-shutter\s*\{\s*display:\s*none/);
   });
 });

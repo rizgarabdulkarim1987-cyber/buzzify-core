@@ -1,31 +1,44 @@
 /*
- * The Phone Home Screen body (a browse shape of a template menu): the menu is a phone's home screen. Every dish is an
- * app icon (rounded square photo, name below, price as a red notification badge), four across on a phone; every section
- * is a folder band whose first cell is its label tile, so a short folder is one row; a slim dock of app tiles stays at
- * the top and jumps. Everything is scoped under [data-body='homescreen']. Every surface under white text (the wallpaper,
- * the folder band, the label tile, the dock and its strip) is the template's accent mixed into a fixed dark, at most a
- * share of it (--hs-*, set by HomescreenBody from HOMESCREEN_FILLS, where a unit test checks them), so white text reads
- * on any accent, a light one picked in Customize included, and the dock never sits on the page's own --bg. The badge is a
- * fixed red with white text; the lit dock tile and the count are white with dark ink. Logical properties only (RTL
- * mirrors).
+ * The Phone Home Screen body (a browse shape of a template menu; the mockup layout-2-hom): the menu is a phone's home
+ * screen. A clock widget sits on the wallpaper; every section is a page of big app icons (rounded square photo, name
+ * below, price as a red notification badge on the corner) under its centred name, three across on a phone, the pages
+ * stacked in one scroll; a dock of app tiles (a rounded glass strip of icon tiles with their names under) stays at the
+ * top and jumps. Everything is scoped under [data-body='homescreen']. Every surface under the palette's text (the
+ * wallpaper, the name chip, the count, the dock and its strip) is the template's accent mixed into the palette's own
+ * background or raised colour, at most a share of it (--hs-*, set by HomescreenBody from HOMESCREEN_FILLS, where a
+ * unit test checks them), so the text reads on any accent, a light one picked in Customize included. The badge is the
+ * palette's button colour (a red by default) with its label colour. Every colour follows Customize. Logical
+ * properties only (RTL mirrors).
  */
 [data-body='homescreen'] {
-  --hs-ink: #fff;
-  --hs-badge: #c4001a;
+  --hs-ink: var(--text);
+  --hs-ink-on: var(--bg);
+  --hs-badge: var(--button);
+  --hs-badge-ink: var(--on-button);
   /* The sticky dock's height, so a jumped-to folder lands just below it. */
-  --nav-room: 3.25rem;
+  --nav-room: 5rem;
   /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
   padding-block-end: 1rem;
   color: var(--hs-ink);
-  background:
-    linear-gradient(165deg, var(--hs-wall-top), var(--hs-wall-mid) 55%, var(--hs-wall-end));
+  /* The wallpaper: a solid mid tone with the gradient laid over it (so the ground under the text is a plain colour too). */
+  position: relative;
+  isolation: isolate;
+  background-color: var(--hs-wall-mid);
+}
+[data-body='homescreen']::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(165deg, var(--hs-wall-top), var(--hs-wall-mid) 55%, var(--hs-wall-end));
+  pointer-events: none;
 }
 
 /*
- * The dock (sticky: shared/shapes.css): one slim app tile per section (a small numbered glyph beside the name), in a
- * rounded strip that scrolls sideways. One line high, so the icons start high on the first screen. Its own dark backing,
- * not the page's --bg, so its white labels read whatever background the restaurant picks.
+ * The dock (sticky: shared/shapes.css): one app tile per section (a numbered glyph with the name under it), in a rounded
+ * glass strip that scrolls sideways, like the phone's dock. Its own backing, not the page's --bg, so its labels read
+ * whatever background the restaurant picks.
  */
 [data-body='homescreen'] .hs-dock {
   padding: 0.25rem 0.5rem;
@@ -33,20 +46,19 @@
 }
 [data-body='homescreen'] .hs-strip-list {
   gap: 0.25rem;
-  padding: 0.1875rem;
-  border-radius: 999px;
+  padding: 0.3125rem 0.375rem;
+  border-radius: 1.75rem;
   background: var(--hs-strip);
 }
 [data-body='homescreen'] .hs-tile {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 0.375rem;
-  min-block-size: 2.25rem;
-  padding-block: 0;
-  padding-inline: 0.25rem 0.75rem;
-  border-radius: 999px;
+  gap: 0.125rem;
+  inline-size: 4.5rem;
+  padding: 0.125rem 0.125rem 0.0625rem;
+  border-radius: 1rem;
   color: var(--hs-ink);
-  white-space: nowrap;
   transition: background-color 160ms;
 }
 /* The glyph: one perceptual lightness in every hue, so its white numeral reads on all of them. */
@@ -54,24 +66,28 @@
   display: grid;
   place-items: center;
   flex: none;
-  inline-size: 1.75rem;
-  block-size: 1.75rem;
-  border-radius: 0.5rem;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border-radius: 0.875rem;
   background: linear-gradient(160deg, oklch(0.52 0.15 var(--app-h)), oklch(0.4 0.13 calc(var(--app-h) + 24)));
-  color: #fff;
-  font-size: 0.875rem;
+  color: #fff; /* fixed: the glyph's fill has a fixed lightness in every hue, so its numeral is fixed too */
+  font-size: 1.125rem;
   font-weight: 800;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  transition: box-shadow 160ms;
 }
-/* The lit tile: white with dark ink, whatever the accent. */
-[data-body='homescreen'] .hs-tile[aria-current='true'] {
-  background: #fff;
-  color: #1b1030;
+/* The lit tile: its glyph is ringed in the text colour, as the dock lights the open app. */
+[data-body='homescreen'] .hs-tile[aria-current='true'] .hs-glyph {
+  box-shadow: 0 0 0 3px var(--hs-ink);
 }
 [data-body='homescreen'] .hs-label {
-  font-size: 0.8125rem;
+  max-inline-size: 100%;
+  overflow: hidden;
+  font-size: 0.75rem;
   font-weight: 600;
   line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 @media (hover: hover) {
   [data-body='homescreen'] .hs-tile:hover:not([aria-current='true']) {
@@ -79,74 +95,68 @@
   }
 }
 
-/*
- * A folder: a rounded band a step lighter than the wallpaper, and the grid of its icons (four across on a phone): its
- * label tile opens the grid, like a folder's name widget on the home screen, and the list of dishes follows (display:
- * contents, so its items are the grid's next cells). Rows keep their own height when the last folder is made taller.
- */
-[data-body='homescreen'] .hs-folder {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  align-content: start;
-  gap: 0.75rem 0.25rem;
-  margin: 0.1875rem 0.375rem;
-  padding: 0.5rem 0.25rem 0.375rem;
-  border-radius: 1.5rem;
-  background: var(--hs-band);
-}
-[data-body='homescreen'] .hs-label-tile {
+/* The clock widget: the time, big, on the wallpaper. */
+[data-body='homescreen'] .hs-widget {
   display: flex;
   justify-content: center;
-  min-inline-size: 0;
+  padding-block: 0.75rem 0.25rem;
 }
-/* The tile is as wide as an icon (the template's heading gutter does not apply inside a grid cell). */
+[data-body='homescreen'] .hs-time {
+  display: flex;
+  justify-content: center;
+  gap: 0.125rem;
+  min-block-size: 3.25rem;
+  direction: ltr;
+  font-size: 2.75rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+/*
+ * A folder: a page of the phone, on the wallpaper itself. Its name is a centred chip (name and dish count) over the
+ * grid of icons, three across on a phone.
+ */
+[data-body='homescreen'] .hs-folder {
+  padding: 0.875rem 1rem 0.5rem;
+}
 [data-body='homescreen'] [data-heading].hs-head {
-  inline-size: 76%;
+  display: flex;
+  justify-content: center;
   padding-inline: 0;
+  margin-block-end: 0.75rem;
 }
 [data-body='homescreen'] .hs-title {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 0.25rem;
-  box-sizing: border-box;
-  inline-size: 100%;
-  aspect-ratio: 1;
+  gap: 0.5rem;
   margin: 0;
-  padding: 0.125rem;
-  border-radius: 22%;
-  background: var(--hs-tile);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  padding-block: 0.125rem;
+  padding-inline: 0.75rem 0.375rem;
+  border-radius: 999px;
+  background: var(--hs-band);
   color: var(--hs-ink);
-  font-size: 0.75rem;
+  font-size: 0.9375rem;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.5rem;
   text-align: center;
-}
-[data-body='homescreen'] .hs-title span {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-  line-clamp: 3;
-  max-inline-size: 100%;
-  overflow: hidden;
-  overflow-wrap: break-word;
-  hyphens: auto;
 }
 [data-body='homescreen'] .hs-title b {
   flex: none;
   padding-inline: 0.4rem;
   border-radius: 999px;
-  background: #fff;
-  color: #1b1030;
+  background: var(--hs-ink);
+  color: var(--hs-ink-on);
   font-size: 0.75rem;
   line-height: 1.25rem;
 }
 
-/* The grid: four across on a phone, the label tile first. */
+/* The grid: three across on a phone. */
 [data-body='homescreen'] .hs-apps {
-  display: contents;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.125rem 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -163,15 +173,15 @@
 }
 [data-body='homescreen'] .hs-icon {
   position: relative;
-  inline-size: 76%;
+  inline-size: min(92%, 6.5rem);
 }
 [data-body='homescreen'] .hs-photo {
   inline-size: 100%;
   aspect-ratio: 1;
   overflow: hidden;
-  border-radius: 22%;
+  border-radius: 23%;
   background: var(--card);
-  box-shadow: 0 5px 10px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
   transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1);
 }
 /*
@@ -182,19 +192,19 @@
  */
 [data-body='homescreen'] .hs-badge {
   position: absolute;
-  inset-block-start: -0.4375rem;
-  inset-inline-end: -0.5rem;
+  inset-block-start: -0.25rem;
+  inset-inline-end: -0.25rem;
   z-index: 2;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
   overflow: hidden;
-  max-inline-size: calc(115% + 0.5rem);
+  max-inline-size: calc(100% + 0.25rem);
   padding: 0 0.375rem;
   border-radius: 0.625rem;
   background: var(--hs-badge);
-  color: #fff;
+  color: var(--hs-badge-ink);
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1875rem;
@@ -208,19 +218,19 @@
  * end corner, opposite the add button and a little outside the icon so the two never meet; white with the badge's red.
  */
 [data-body='homescreen'] .hs-off {
-  --sale-bg: #fff;
+  --sale-bg: var(--hs-ink);
   --sale-ink: var(--hs-badge);
   position: absolute;
   inset-block-end: -0.25rem;
-  inset-inline-end: -0.375rem;
+  inset-inline-end: -0.25rem;
   z-index: 1;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
 }
 /* The add button (shared/shapes.css) inside the icon's lower corner, away from the badge and clear of the name. */
 [data-body='homescreen'] .hs-add {
   --rim-add-size: 1.625rem;
-  --rim-add-bg: #fff;
-  --rim-add-ink: #1b1030;
+  --rim-add-bg: var(--hs-ink);
+  --rim-add-ink: var(--hs-ink-on);
   inset-block-end: 0.25rem;
   inset-inline-start: 0.25rem;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
@@ -230,13 +240,14 @@
   --tpl-ring-inset: 4px;
   --tpl-ring-radius: var(--radius-card);
   color: var(--hs-ink);
+  font-size: 0.8125rem;
   font-weight: 600;
   line-height: 1.15;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
 }
-/* The cell's focus ring in white: it reads on the band (the accent-tinted ink would not). */
+/* The cell's focus ring in the text colour: it reads on the band (the accent-tinted ink would not). */
 [data-body='homescreen'] .hs-name:focus-visible::after {
-  outline-color: #fff;
+  outline-color: var(--hs-ink);
 }
 
 @media (hover: hover) {
@@ -260,24 +271,17 @@
 }
 
 @media (min-width: 640px) {
-  [data-body='homescreen'] .hs-folder {
-    margin-inline: auto;
-    max-inline-size: 46rem;
-  }
-  [data-body='homescreen'] .hs-folder {
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+  [data-body='homescreen'] .hs-apps {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
   [data-body='homescreen'] .hs-dock {
     max-inline-size: 46rem;
     margin-inline: auto;
   }
-  [data-body='homescreen'] .hs-name {
-    font-size: 0.8125rem;
-  }
 }
 @media (min-width: 1024px) {
-  [data-body='homescreen'] .hs-folder {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
+  [data-body='homescreen'] .hs-apps {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 

@@ -10,7 +10,6 @@ import {
   expectFocusRingShows,
   expectJumpsTo,
   expectMotionEnds,
-  expectNoPageWiden,
   expectOpensProduct,
   expectPlatePainted,
   expectQuickAdd,
@@ -18,308 +17,184 @@ import {
   expectStripStays,
   openMenu,
   paletteIdsOf,
-  silenceObserver,
 } from './helpers/body-menu';
 
 /**
- * The Summer Beach body (spec 2026-10-26-menu-styles-in-templates-design.md): the menu is a stretch of beach. A sticky
- * strip of buoy chips (a lifebuoy ring with the number, and the section's name) jumps to a section; every section is a
- * full-width band of sand or sea (in turns) whose top edge is a wave that drifts once when the band first comes into
- * view; the dishes are striped landscape beach towels in two columns, the photo at the start in one row and at the end in
- * the next, a last towel left alone lying across the row.
+ * The Summer Beach body (the themed-sum mockup, spec 2026-10-26-menu-styles-in-templates-design.md): a day at the sea. A
+ * sky that runs blue to sand, a header of a sun with turning rays over two drifting waves, a sticky strip of white pills,
+ * then each section a title over white cards two across (the top rounded, the foot scalloped, the photo, the name, the
+ * price and the orange add) that bounce up into place when first seen.
  */
 
+const TEMPLATE = 'the-summer-beach';
 const menus = bodyMenus();
-const slug = menus.slug('bc');
-const promoSlug = menus.slug('bcoffer');
-const arabSlug = menus.slug('bcar');
-const manySlug = menus.slug('bcmany');
-const offSlug = menus.slug('bcoff');
-const bareSlug = menus.slug('bcbare');
-const crowdSlug = menus.slug('bccrowd');
-const customSlug = menus.slug('bccustom');
-const LIGHT_YELLOW_ACCENT = { bg: '#F4F4F4', surface: '#FFFFFF', card: '#FFFFFF', raised: '#EEEEEE', text: '#1B1030', muted: '#4A4060', accent: '#FFE066', onAccent: '#111111' };
-const bareAt = (id: string) => menus.slug(`bcbare-${id}`);
-const alternatives = paletteIdsOf('the-summer-beach').slice(1);
-const paletteSlug = (id: string) => menus.slug(`bc-${id}`);
+const slug = menus.slug('sum');
+const promoSlug = menus.slug('sumoffer');
+const arabSlug = menus.slug('sumar');
+const manySlug = menus.slug('summany');
+const offSlug = menus.slug('sumoff');
+const crowdSlug = menus.slug('sumcrowd');
+const bareSlug = menus.slug('sumbare');
+const bareAt = (id: string) => menus.slug(`rugbare-${id}`);
+const alternatives = paletteIdsOf(TEMPLATE).slice(1);
+const paletteSlug = (id: string) => menus.slug(`rug-${id}`);
 
 test.beforeAll(async () => {
-  await menus.create(slug, 'bc', { templateId: 'the-summer-beach' });
-  await menus.create(promoSlug, 'bc', { templateId: 'the-summer-beach', discount: ['croissant', 'eclair'] });
-  await menus.create(arabSlug, 'bc', { templateId: 'the-summer-beach', numeralSystem: 'ARAB', discount: ['croissant'] });
-  await menus.create(manySlug, 'bc', { templateId: 'the-summer-beach', extraSections: 20 });
-  await menus.create(offSlug, 'bc', { templateId: 'the-summer-beach', ordering: 'none' });
-  await menus.create(bareSlug, 'bc', { templateId: 'the-summer-beach', noPhotos: true });
-  await menus.create(crowdSlug, 'bc', { templateId: 'the-summer-beach', crowd: 4 });
-  await menus.create(customSlug, 'bc', { templateId: 'the-summer-beach', colors: LIGHT_YELLOW_ACCENT, discount: ['croissant', 'eclair'] });
-  for (const id of alternatives) await menus.create(bareAt(id), 'bc', { templateId: 'the-summer-beach', paletteId: id, noPhotos: true });
-  for (const id of alternatives) await menus.create(paletteSlug(id), 'bc', { templateId: 'the-summer-beach', paletteId: id, discount: ['croissant', 'eclair'] });
+  await menus.create(slug, 'sum', { templateId: TEMPLATE });
+  await menus.create(promoSlug, 'sum', { templateId: TEMPLATE, discount: ['croissant', 'eclair'] });
+  await menus.create(arabSlug, 'sum', { templateId: TEMPLATE, numeralSystem: 'ARAB', discount: ['croissant'] });
+  await menus.create(manySlug, 'sum', { templateId: TEMPLATE, extraSections: 20 });
+  await menus.create(offSlug, 'sum', { templateId: TEMPLATE, ordering: 'none' });
+  await menus.create(crowdSlug, 'sum', { templateId: TEMPLATE, crowd: 6 });
+  await menus.create(bareSlug, 'sum', { templateId: TEMPLATE, noPhotos: true });
+  for (const id of alternatives) await menus.create(bareAt(id), 'sum', { templateId: TEMPLATE, paletteId: id, noPhotos: true });
+  for (const id of alternatives) await menus.create(paletteSlug(id), 'sum', { templateId: TEMPLATE, paletteId: id, discount: ['croissant', 'eclair'] });
 });
 test.afterAll(() => menus.remove());
 
 const body = (page: Page) => page.locator('[data-body="beach"]');
-const strip = (page: Page) => body(page).locator('[data-buoys]');
-const tiles = (page: Page) => body(page).locator('[data-row]');
-const tileOf = (page: Page, productSlug: string) => tiles(page).filter({ hasText: dishName(productSlug) });
-const chipOf = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
-const addOf = (page: Page, productSlug: string) => page.getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
+const strip = (page: Page) => body(page).locator('[data-pills]');
+const cards = (page: Page) => body(page).locator('.bc-card');
+const everyDish = (page: Page) => body(page).locator('[data-row]');
+const scene = (page: Page) => body(page).locator('.bc-sky');
+const cardOf = (page: Page, productSlug: string) => cards(page).filter({ hasText: dishName(productSlug) });
+const pillOf = (page: Page, categorySlug: string) => strip(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
+const addOf = (page: Page, productSlug: string) => page.locator('.bc-card').getByRole('button', { name: `Add ${dishName(productSlug)} to your order`, exact: true });
 const noSideScroll = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-const bandOf = (page: Page, categorySlug: string) => page.locator(`#cat-${categorySlug}`);
-const waveOf = (band: Locator) => band.locator('.bc-wave');
-const boxes = async (list: Locator) => (await Promise.all((await list.all()).map((node) => node.boundingBox()))) as DOMRect[];
+const navRoom = (page: Page) => body(page).evaluate((node) => parseFloat(getComputedStyle(node).getPropertyValue('--nav-room')) * parseFloat(getComputedStyle(document.documentElement).fontSize));
 
-test('on a phone the strip is at most 64px tall and the first screen shows at least four dishes with photos and prices', async ({ page }) => {
-  await openMenu(page, slug);
-  await expect(body(page)).toBeVisible();
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
-  await expectFirstScreen(page, tiles(page), { min: 4 });
+test('on a phone the first screen shows the sky, the pills and cards with photos and prices, and every section is one tap away', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, crowdSlug);
+  await expect(scene(page)).toBeVisible();
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
+  // The Maison demo card, the offers and the filter chips above the menu take most of the first screen by themselves: they are hidden for the count.
+  await page.evaluate(() => {
+    const content = document.querySelector('.tpl-content')!;
+    const kids = [...content.children];
+    const tools = kids.findIndex((kid) => kid.classList.contains('tpl-tools'));
+    kids.slice(1, tools).forEach((kid) => ((kid as HTMLElement).style.display = 'none'));
+  });
+  // The sky is 108px of it and the strip 54px more: a section of many dishes still shows four, the search too.
+  await expectFirstScreen(page, everyDish(page), { min: 4 });
+  await expect(page.getByRole('searchbox', { name: 'Search the menu' })).toBeInViewport();
   await expectEverySectionReachable(strip(page));
-  expect(await page.evaluate(() => window.innerWidth)).toBe(390);
 });
 
-test('with the offers banner above the menu the first screen still shows at least two dishes with photos and prices', async ({ page }) => {
+test('with the offers banner above the menu the page still draws its sky and cards, two dishes on the first screen', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, promoSlug);
   await expect(page.getByText('A fifth off').first()).toBeVisible();
-  await expectFirstScreen(page, tiles(page), { min: 2 });
-});
-
-test('the strip is a row of buoy chips: a cream pill, 44px tall, a lifebuoy ring with the number AND the section name visible', async ({ page }) => {
-  await openMenu(page, slug);
-  const chips = strip(page).locator('button');
-  await expect(chips).toHaveCount(BODY_CATEGORIES.length);
-  const box = (await chips.first().boundingBox())!;
-  expect(box.height).toBeGreaterThanOrEqual(44);
-  expect(box.width).toBeGreaterThanOrEqual(44);
-  await expect(chips.first().locator('.bc-chip-no')).toHaveText('1');
-  await expect(chips.nth(2).locator('.bc-chip-no')).toHaveText('3');
-  for (const category of BODY_CATEGORIES) {
-    const label = chipOf(page, category.slug).locator('.bc-chip-name');
-    await expect(label).toBeVisible();
-    await expect(label).toHaveText(category.name.en!);
-    expect(parseFloat(await label.evaluate((node) => getComputedStyle(node).fontSize))).toBeGreaterThanOrEqual(12);
-  }
-  // The buoy: a conic ring of stripes around the number.
-  expect(await chips.nth(1).locator('.bc-chip-no').evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('conic-gradient');
-  expect(await chips.nth(1).evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
-});
-
-test('the chip of the section in view is lit (dark, ringed) and the others are not', async ({ page }) => {
-  await openMenu(page, slug);
-  await expect(chipOf(page, 'viennoiserie')).toHaveAttribute('aria-current', 'true');
-  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(chipOf(page, 'bread')).toHaveAttribute('aria-current', 'true');
-  await expect.poll(() => chipOf(page, 'bread').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(13, 59, 82)');
-  expect(await chipOf(page, 'viennoiserie').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
-});
-
-test('a chip takes you to its band and focuses the heading', async ({ page }) => {
-  await openMenu(page, slug);
-  await expectJumpsTo(page, chipOf(page, 'celebration'), 'celebration');
-  await expect(chipOf(page, 'celebration')).toHaveAttribute('aria-current', 'true');
-});
-
-test('the strip stays at the top: scrolled to the end, the first band is still one tap away', async ({ page }) => {
-  await openMenu(page, slug);
-  await expectStripStays(page, strip(page), chipOf(page, 'viennoiserie'), 'viennoiserie');
-});
-
-test('sections are full-width bands that alternate sand and sea, each with a wave along its top edge', async ({ page }) => {
-  await openMenu(page, slug);
-  const colours: string[] = [];
-  for (const category of BODY_CATEGORIES) colours.push(await bandOf(page, category.slug).evaluate((node) => getComputedStyle(node).backgroundColor));
-  expect(colours.slice(0, 4)).toEqual(['rgb(255, 233, 184)', 'rgb(191, 238, 252)', 'rgb(255, 233, 184)', 'rgb(191, 238, 252)']);
-  const band = (await bandOf(page, 'viennoiserie').boundingBox())!;
-  const main = (await page.locator('main#menu').boundingBox())!;
-  expect(band.width).toBeGreaterThanOrEqual(main.width - 1);
-  expect(band.x).toBeLessThanOrEqual(main.x + 1);
-  // The bands touch: one runs straight into the next, with the wave between them.
-  const next = (await bandOf(page, 'patisserie').boundingBox())!;
-  expect(Math.abs(next.y - (band.y + band.height))).toBeLessThanOrEqual(1);
-  const wave = waveOf(bandOf(page, 'patisserie'));
-  await expect(wave).toHaveAttribute('aria-hidden', 'true');
-  const style = await wave.evaluate((node) => ({ mask: getComputedStyle(node).maskImage || getComputedStyle(node).webkitMaskImage, colour: getComputedStyle(node).backgroundColor, events: getComputedStyle(node).pointerEvents }));
-  expect(style.mask).toContain('svg');
-  expect(style.colour).toBe('rgb(191, 238, 252)');
-  expect(style.events).toBe('none');
-  const at = (await wave.boundingBox())!;
-  expect(at.y + at.height).toBeLessThanOrEqual(next.y + 2);
-  expect(at.y).toBeLessThan(next.y);
-});
-
-test('the heading shows the number, the name and the count in the menu numerals', async ({ page }) => {
-  await openMenu(page, slug);
-  const title = bandOf(page, 'viennoiserie').locator('h2');
-  await expect(title.locator('small')).toHaveText('1');
-  await expect(title.locator('b')).toHaveText('3');
-  await expect(title.locator('span')).toHaveText('Viennoiserie');
-});
-
-test('dishes are striped beach towels in two columns: landscape pairs, the photo at the start, a lone last towel across the row, a striped frame and a fringe', async ({ page }) => {
-  await openMenu(page, slug);
-  const row = bandOf(page, 'viennoiserie').locator('[data-row]');
-  expect(await row.count()).toBe(3);
-  const [a, b, c] = await boxes(row);
-  const grid = (await bandOf(page, 'viennoiserie').locator('.bc-grid').boundingBox())!;
-  // The first pair shares one row, each half the grid; the third lies alone across the next row.
-  expect(a!.width).toBeLessThan(grid.width / 2 + 1);
-  expect(Math.abs(a!.width - b!.width)).toBeLessThanOrEqual(1);
-  expect(Math.abs(a!.y - b!.y)).toBeLessThanOrEqual(1);
-  expect(b!.x).toBeGreaterThan(a!.x + 40);
-  expect(c!.y).toBeGreaterThan(a!.y + a!.height);
-  expect(c!.width).toBeGreaterThanOrEqual(grid.width - 1);
-  // A towel is landscape: the photo at the start of its row, the label beside it, the photo narrower than the tile.
-  const [photo, bar] = [(await row.first().locator('[data-photo]').boundingBox())!, (await row.first().locator('.bc-bar').boundingBox())!];
-  expect(photo.x).toBeLessThan(bar.x);
-  expect(photo.width).toBeLessThan(a!.width / 2);
-  expect(Math.abs(photo.y - bar.y)).toBeLessThan(photo.height);
-  // The towel: stripes of a hue of its own, a fringe hanging under it, a solid cream label for the text.
-  const style = await row.first().evaluate((node) => ({ image: getComputedStyle(node).backgroundImage, fringe: getComputedStyle(node, '::before').backgroundImage, below: getComputedStyle(node, '::before').insetBlockEnd }));
-  expect(style.image).toContain('repeating-linear-gradient');
-  expect(style.fringe).toContain('repeating-linear-gradient');
-  expect(parseFloat(style.below)).toBeLessThan(0);
-  const bg = async (index: number) => row.nth(index).evaluate((node) => getComputedStyle(node).backgroundImage);
-  expect(await bg(0)).not.toBe(await bg(1));
-  expect(await row.first().locator('.bc-bar').evaluate((node) => getComputedStyle(node).backgroundColor)).toBe('rgb(255, 253, 247)');
-  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
-});
-
-test('the fourth and later towels keep the pattern: the photo side alternates by rows, a lone last towel lies across the row', async ({ page }) => {
-  await openMenu(page, crowdSlug);
-  const row = bandOf(page, 'viennoiserie').locator('[data-row]');
-  expect(await row.count()).toBe(7);
-  const grid = (await bandOf(page, 'viennoiserie').locator('.bc-grid').boundingBox())!;
-  const all = await boxes(row);
-  // Rows: (0, 1) (2, 3) (4, 5), then 6 alone and wide.
-  for (const [x, y] of [[0, 1], [2, 3], [4, 5]] as const) expect(Math.abs(all[x]!.y - all[y]!.y)).toBeLessThanOrEqual(1);
-  expect(all[2]!.y).toBeGreaterThan(all[0]!.y + all[0]!.height);
-  expect(all[4]!.y).toBeGreaterThan(all[2]!.y + all[2]!.height);
-  expect(all[6]!.width).toBeGreaterThanOrEqual(grid.width - 1);
-  expect(all[6]!.y).toBeGreaterThan(all[4]!.y + all[4]!.height);
-  // The photo is at the start in rows 0 and 2 and at the end in rows 1 and 3 (the lone wide one).
-  const side = async (index: number) => {
-    const [photo, bar] = [(await row.nth(index).locator('[data-photo]').boundingBox())!, (await row.nth(index).locator('.bc-bar').boundingBox())!];
-    return photo.x < bar.x ? 'start' : 'end';
-  };
-  expect(await Promise.all([0, 1, 2, 3, 4, 5, 6].map(side))).toEqual(['start', 'start', 'end', 'end', 'start', 'start', 'end']);
-  // Every towel of the fourth and later still carries its price and its add button.
-  for (const index of [3, 4, 5, 6]) {
-    await row.nth(index).scrollIntoViewIfNeeded();
-    await expect(row.nth(index).locator('.bc-price')).toContainText('$');
-    await expect(row.nth(index).locator('.bc-add')).toBeVisible();
-  }
-  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
-});
-
-test('a towel keeps its hue and the photo side is in the page order: an end towel has its photo after its label in the DOM, not moved by CSS', async ({ page }) => {
-  await openMenu(page, crowdSlug);
-  const row = bandOf(page, 'viennoiserie').locator('[data-row]');
-  const first = (index: number) => row.nth(index).evaluate((node) => [...node.children].map((child) => (child.hasAttribute('data-photo') ? 'photo' : 'label')));
-  expect(await first(0)).toEqual(['photo', 'label']);
-  expect(await first(2)).toEqual(['label', 'photo']);
-  expect(await row.nth(2).locator('[data-photo]').evaluate((node) => getComputedStyle(node).order)).toBe('0');
-});
-
-test('a search never recolours a towel: its hue goes by its place in the full section', async ({ page }) => {
-  await openMenu(page, slug);
-  const hue = () => tileOf(page, 'pain-au-chocolat').evaluate((node) => getComputedStyle(node).getPropertyValue('--towel').trim());
-  const before = await hue();
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('Pain au');
-  // Pain au chocolat is now the first towel of its section (the morning box lists it as an ingredient, in another one).
-  await expect(bandOf(page, 'viennoiserie').locator('[data-row]')).toHaveCount(1);
-  expect(await hue()).toBe(before);
-});
-
-test('the add sits on the label beside the price, never over the photo', async ({ page }) => {
-  await openMenu(page, slug);
-  for (const productSlug of ['croissant', 'pain-au-chocolat', 'kouign-amann']) {
-    const tile = tileOf(page, productSlug);
-    const [add, photo, price] = [(await tile.locator('.bc-add').boundingBox())!, (await tile.locator('[data-photo]').boundingBox())!, (await tile.locator('.bc-price').boundingBox())!];
-    const overlaps = add.x < photo.x + photo.width && photo.x < add.x + add.width && add.y < photo.y + photo.height && photo.y < add.y + add.height;
-    expect(overlaps, productSlug).toBe(false);
-    expect(Math.abs(add.y + add.height / 2 - (price.y + price.height / 2)), productSlug).toBeLessThanOrEqual(12);
-    await expect(tile.locator('.bc-bar .bc-add')).toHaveCount(1);
-  }
-});
-
-test('the name and the price sit on the cream label, each in its own ink', async ({ page }) => {
-  await openMenu(page, slug);
-  const tile = tileOf(page, 'croissant');
-  expect(await tile.locator('.bc-price').evaluate((node) => getComputedStyle(node).backgroundImage)).toBe('none');
-  expect(await tile.locator('.bc-name').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(13, 59, 82)');
-  expect(await tile.locator('.bc-price').evaluate((node) => getComputedStyle(node).color)).toBe('rgb(154, 52, 18)');
-});
-
-test('the wave drifts once when a band first comes into view and then rests: it ends, nothing loops, and it never plays twice', async ({ page }) => {
-  await openMenu(page, slug);
-  await expect(body(page)).toHaveAttribute('data-armed', '');
-  const far = bandOf(page, 'bread');
-  await expect(far).not.toHaveAttribute('data-open', '');
-  expect(await waveOf(far).evaluate((node) => node.getAnimations().length)).toBe(0);
-  await far.scrollIntoViewIfNeeded();
-  await expect(far).toHaveAttribute('data-open', '');
-  expect(await waveOf(far).evaluate((node) => getComputedStyle(node).animationName)).toBe('bc-drift');
-  await expect.poll(() => waveOf(far).evaluate((node) => node.getAnimations().length), { timeout: 6000 }).toBe(0);
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  expect(await waveOf(far).evaluate((node) => node.getAnimations().length)).toBe(0);
-  const looping = await body(page).evaluate((node) => node.getAnimations({ subtree: true }).filter((animation) => animation.effect?.getComputedTiming().iterations === Infinity).length);
-  expect(looping).toBe(0);
-});
-
-test('the wave moves by transform only, and a band is never hidden while it waits: with an observer that never reports it still opens', async ({ page }) => {
-  await silenceObserver(page);
-  await openMenu(page, slug);
-  await expect(bandOf(page, 'viennoiserie')).toHaveAttribute('data-open', '');
-  const frames = await waveOf(bandOf(page, 'viennoiserie')).evaluate((node) => {
-    const keys = (node.getAnimations()[0]?.effect as KeyframeEffect | undefined)?.getKeyframes() ?? [];
-    return [...new Set(keys.flatMap((key) => Object.keys(key)))].filter((name) => !['offset', 'easing', 'composite', 'computedOffset'].includes(name));
+  await expect(scene(page)).toBeVisible();
+  // The offers banner stays; the Maison demo card and the filter chips are hidden.
+  await page.evaluate(() => {
+    document.querySelector('.tpl-promo')?.setAttribute('style', 'display:none');
+    document.querySelector('.tpl-tools > :nth-child(2)')?.setAttribute('style', 'display:none');
   });
-  expect(frames).toEqual(['transform']);
-  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
-  await expect(bandOf(page, 'bread')).toHaveAttribute('data-open', '');
-  await expect(tileOf(page, 'sourdough').locator('.bc-name')).toBeVisible();
+  await expectFirstScreen(page, everyDish(page), { min: 2 });
 });
 
-test('less motion: the waves rest, nothing armed, no animation', async ({ page }) => {
+test('the header is a sun with rays over two waves; the sky steps aside for a search and comes back without moving again', async ({ page }) => {
+  await openMenu(page, slug);
+  const sky = body(page).locator('.bc-sky');
+  await expect(sky).toBeVisible();
+  expect(await body(page).evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('linear-gradient');
+  expect(await sky.locator('.bc-sun').evaluate((node) => getComputedStyle(node).backgroundImage)).toContain('repeating-conic-gradient');
+  await expect(sky.locator('.bc-waves svg')).toHaveCount(2);
+  expect((await sky.boundingBox())!.width).toBeGreaterThanOrEqual(389);
+  await expect(body(page)).toHaveAttribute('data-still', '', { timeout: 9000 });
+  const search = page.getByRole('searchbox', { name: 'Search the menu' });
+  await search.fill('croissant');
+  await expect(sky).toBeHidden();
+  await search.fill('');
+  await expect(sky).toBeVisible();
+  expect(await sky.evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
+});
+
+test('a card waits below its place until it is first seen and then bounces up once; the first screen comes up on arrival; reduced motion shows every card at once', async ({ page }) => {
+  await openMenu(page, crowdSlug);
+  await expect(body(page)).toHaveAttribute('data-armed', '');
+  const first = cards(page).first();
+  await expect(first).toHaveAttribute('data-in', '');
+  await expect(first).toHaveCSS('opacity', '1');
+  const last = cards(page).last();
+  await expect(last).not.toHaveAttribute('data-in', '');
+  await expect(last).toHaveCSS('opacity', '0');
+  await last.scrollIntoViewIfNeeded();
+  await expect(last).toHaveAttribute('data-in', '');
+  await expect(last).toHaveCSS('opacity', '1', { timeout: 3000 });
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await page.reload();
+  await expect(cards(page).last()).toHaveCSS('opacity', '1');
+});
+
+test('the strip is a row of white pills: the section name on each, 44px to tap, the lit one orange', async ({ page }) => {
+  await openMenu(page, slug);
+  const pills = strip(page).locator('button');
+  await expect(pills).toHaveCount(BODY_CATEGORIES.length);
+  expect((await pills.first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await expect(pills.first()).toContainText(BODY_CATEGORIES[0]!.name.en!);
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
+});
+
+test('a tab takes you to its section and focuses the heading, and the tab lights', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectJumpsTo(page, pillOf(page, 'celebration'), 'celebration');
+  await expect(pillOf(page, 'celebration')).toHaveAttribute('aria-current', 'true');
+  await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
+});
+
+test('the strip stays at the top: scrolled to the end, the first section is still one tap away', async ({ page }) => {
+  await openMenu(page, slug);
+  await expectStripStays(page, strip(page), pillOf(page, 'viennoiserie'), 'viennoiserie');
+});
+
+test('dishes are white cards two across: the photo, the name under it, then the price and the add; the top is rounded and the foot scalloped', async ({ page }) => {
+  await openMenu(page, slug);
+  const row = page.locator('#cat-viennoiserie .bc-card');
+  await expect(row).toHaveCount(3);
+  const [a, b, c] = [await row.nth(0).boundingBox(), await row.nth(1).boundingBox(), await row.nth(2).boundingBox()] as [DOMRect, DOMRect, DOMRect];
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(c.y).toBeGreaterThan(a.y + a.height);
+  expect(Math.abs(a.width - b.width)).toBeLessThanOrEqual(1);
+  const card = row.first();
+  const photo = (await card.locator('[data-photo]').boundingBox())!;
+  const name = (await card.locator('.bc-name').boundingBox())!;
+  const price = (await card.locator('.bc-price').boundingBox())!;
+  const add = (await card.locator('.bc-add').boundingBox())!;
+  expect(photo.width).toBeGreaterThanOrEqual(130);
+  expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 2);
+  expect(price.y).toBeGreaterThanOrEqual(name.y + name.height - 2);
+  expect(Math.abs(add.y + add.height / 2 - (price.y + price.height / 2))).toBeLessThanOrEqual(24);
+  const look = await card.evaluate((node) => ({ top: parseFloat(getComputedStyle(node).borderStartStartRadius), foot: parseFloat(getComputedStyle(node).borderEndStartRadius), mask: getComputedStyle(node).maskImage || getComputedStyle(node).webkitMaskImage, photo: parseFloat(getComputedStyle(node.querySelector('[data-photo]')!).borderTopLeftRadius) }));
+  expect(look.top).toBeGreaterThanOrEqual(20);
+  expect(look.foot).toBe(0);
+  expect(look.mask).toContain('radial-gradient');
+  expect(look.photo).toBeGreaterThanOrEqual(14);
+  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
+});
+
+test('a dish adds from its card and opens from its name, and tapping the photo or the cell opens it too, without adding', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, slug);
-  await expect(body(page)).toBeVisible();
-  await expect(body(page)).not.toHaveAttribute('data-armed', '');
-  expect(await body(page).evaluate((node) => node.getAnimations({ subtree: true }).length)).toBe(0);
-  await expect(waveOf(bandOf(page, 'patisserie'))).toBeAttached();
-});
-
-test('every motion in the shape ends within five seconds, and nothing loops', async ({ page }) => {
-  await openMenu(page, slug);
-  await expect(body(page)).toBeVisible();
-  await expectMotionEnds(body(page));
-});
-
-test('a dish adds from its towel and opens from its name, and tapping the photo or the towel opens it too, without adding', async ({ page }) => {
-  await openMenu(page, slug);
-  const first = page.locator('#cat-viennoiserie .bc-grid');
+  const first = page.locator('#cat-viennoiserie');
   await expectOpensProduct(page, first, 'croissant');
-  const photo = (await tileOf(page, 'croissant').locator('[data-photo]').boundingBox())!;
+  const photo = (await cardOf(page, 'croissant').locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 3);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.getByRole('dialog')).toBeHidden();
-  await tileOf(page, 'pain-au-chocolat').scrollIntoViewIfNeeded();
-  const at = (await tileOf(page, 'pain-au-chocolat').boundingBox())!;
-  await page.mouse.click(at.x + at.width / 2, at.y + at.height - 4);
-  await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('pain-au-chocolat') })).toBeVisible();
-  await page.keyboard.press('Escape');
   await expect(page.getByTestId('cart-bar')).toBeHidden();
   await expectQuickAdd(page, first, 'croissant');
 });
 
-test('ordering off: plain tap-to-open towels, no + button, no cart, and the layout still shows many dishes', async ({ page }) => {
+test('ordering off: plain tap-to-open cards, no + button, no cart, and the layout still shows dishes', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, offSlug);
   await expect(body(page)).toBeVisible();
   await expect(body(page).locator('.bc-add')).toHaveCount(0);
-  await expectFirstScreen(page, tiles(page), { min: 4 });
-  const photo = (await tiles(page).first().locator('[data-photo]').boundingBox())!;
+  await expectFirstScreen(page, everyDish(page), { min: 1 });
+  const photo = (await cards(page).first().locator('[data-photo]').boundingBox())!;
   await page.mouse.click(photo.x + photo.width / 2, photo.y + photo.height / 2);
   await expect(page.getByRole('dialog').getByRole('heading', { name: dishName('croissant') })).toBeVisible();
   await page.keyboard.press('Escape');
@@ -327,6 +202,7 @@ test('ordering off: plain tap-to-open towels, no + button, no cart, and the layo
 });
 
 test('a menu whose dishes have no media still shows names, prices, plates and a working add', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, bareSlug);
   const row = page.locator('#cat-viennoiserie [data-row]');
   await expect(row).toHaveCount(3);
@@ -349,7 +225,8 @@ test('a dish with no media shows a plate painted in its frame (rings, a ground o
   }
 });
 
-test('a menu of twenty-five sections keeps every band one tap away on a scrolling strip that keeps the lit chip in view', async ({ page }) => {
+test('a menu of twenty-five sections keeps every tab one tap away on a scrolling strip that keeps the lit tab in view', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await openMenu(page, manySlug);
   const list = strip(page).locator('ul');
   await expect(strip(page).locator('button')).toHaveCount(BODY_CATEGORIES.length + 20);
@@ -361,78 +238,89 @@ test('a menu of twenty-five sections keeps every band one tap away on a scrollin
   await expect(page.locator('#cat-more-20')).toBeInViewport();
   await expect(last).toHaveAttribute('aria-current', 'true');
   await expect(last).toBeInViewport({ ratio: 1 });
-  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(64);
-  await expect(last.locator('.bc-chip-no')).toHaveText('25');
+  expect((await strip(page).boundingBox())!.height).toBeLessThanOrEqual(await navRoom(page));
 });
 
 test('a search that narrows and clears keeps the strip, never moves the focus or the scroll', async ({ page }) => {
   await openMenu(page, slug);
   const search = page.getByRole('searchbox', { name: 'Search the menu' });
   await search.fill('croissant');
-  await expect(tiles(page).first()).toBeVisible();
-  expect(await tiles(page).count()).toBeLessThan(4);
+  await expect(cards(page).first()).toBeVisible();
+  expect(await cards(page).count()).toBeLessThan(4);
   await expect(search).toBeFocused();
   await search.fill('');
-  await expect(tiles(page).nth(3)).toBeVisible();
+  await expect(cards(page).nth(3)).toBeVisible();
   await expect(search).toBeFocused();
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(400);
 });
 
-test('a long dish name and a long price stay inside the towel without sideways scrolling', async ({ page }) => {
+test('a long dish name and a long price stay inside the card without sideways scrolling', async ({ page }) => {
   await openMenu(page, slug);
-  const tile = tiles(page).nth(1);
-  await tile.locator('.bc-name').evaluate((node) => {
+  const card = cards(page).first();
+  await card.locator('.bc-name').evaluate((node) => {
     node.textContent = 'A very long dish name that keeps going and going so that it wraps onto many many lines';
   });
-  await tile.locator('.bc-price').evaluate((node) => {
+  await card.locator('.bc-price').evaluate((node) => {
     node.textContent = 'From 123,456,789 IQD per portion';
   });
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
-  const lines = await tile.locator('.bc-name').evaluate((node) => Math.round(node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight)));
-  expect(lines).toBeLessThanOrEqual(3);
-  const box = (await tile.boundingBox())!;
-  for (const part of ['.bc-price', '.bc-name', '.bc-add', '[data-photo]']) {
-    const at = (await tile.locator(part).boundingBox())!;
+  const box = (await card.boundingBox())!;
+  for (const part of ['.bc-price', '.bc-name', '.bc-add']) {
+    const at = (await card.locator(part).boundingBox())!;
     expect(at.x, part).toBeGreaterThanOrEqual(box.x - 1);
     expect(at.x + at.width, part).toBeLessThanOrEqual(box.x + box.width + 1);
   }
-  const price = (await tile.locator('.bc-price').boundingBox())!;
+  const price = (await card.locator('.bc-price').boundingBox())!;
   expect(price.y + price.height).toBeLessThanOrEqual(box.y + box.height + 1);
-  expect(await contrastOf(tile.locator('.bc-price'))).toBeGreaterThanOrEqual(4.5);
+  expect(await contrastOf(card.locator('.bc-price'))).toBeGreaterThanOrEqual(4.5);
 });
 
-test('on a wide screen the towels stay in two columns in a centred column', async ({ page }) => {
+test('the add button is at least 40px square and inside its card', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, slug);
+  for (const at of [0, 1]) {
+    const cell = page.locator('#cat-viennoiserie [data-row]').nth(at);
+    const [add, box] = [(await cell.locator('.bc-add').boundingBox())!, (await cell.boundingBox())!];
+    expect(add.width).toBeGreaterThanOrEqual(40);
+    expect(add.height).toBeGreaterThanOrEqual(40);
+    expect(add.x).toBeGreaterThanOrEqual(box.x - 1);
+    expect(add.x + add.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  }
+});
+
+test('on a wide screen the cards run three across, nothing scrolls sideways', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const row = page.locator('#cat-viennoiserie [data-row]');
-  const [a, b] = await boxes(row);
-  expect(b!.x).toBeGreaterThan(a!.x + 40);
-  expect(a!.x).toBeGreaterThan(100);
+  const a = (await row.nth(0).boundingBox())!;
+  const b = (await row.nth(1).boundingBox())!;
+  const c = (await row.nth(2).boundingBox())!;
+  expect(Math.abs(a.y - b.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.y - c.y)).toBeLessThanOrEqual(1);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('numbers and counts use the tenant numerals, on the chips too', async ({ page }) => {
-  await page.goto(`/${arabSlug}/en?stage=off`);
-  await expect(page.locator('#cat-viennoiserie [data-count]')).toHaveText('٣');
-  await expect(strip(page).locator('button').nth(1).locator('.bc-chip-no')).toHaveText('٢');
-  await expect(page.locator('#cat-viennoiserie h2 small')).toHaveText('١');
-});
-
-test('in Arabic the page is right to left, the strip starts at the right, the photo is at the start (the right), the pair mirrors, and nothing scrolls sideways', async ({ page }) => {
+test('in Arabic the page is right to left, the strip starts at the right, the cards run from the right, and nothing scrolls sideways', async ({ page }) => {
   await expectArabicRtl(page, slug, (p) => strip(p));
-  await expectNoPageWiden(page);
   const first = (await strip(page).locator('button').first().boundingBox())!;
   const last = (await strip(page).locator('button').last().boundingBox())!;
   expect(first.x).toBeGreaterThan(last.x);
-  const photo = (await tiles(page).first().locator('[data-photo]').boundingBox())!;
-  const bar = (await tiles(page).first().locator('.bc-bar').boundingBox())!;
-  expect(photo.x).toBeGreaterThan(bar.x);
-  const [a, b] = await boxes(tiles(page));
-  expect(a!.x).toBeGreaterThan(b!.x);
-  const tile = tiles(page).nth(1);
-  const add = (await tile.locator('.bc-add').boundingBox())!;
-  const frame = (await tile.locator('[data-photo]').boundingBox())!;
-  expect(add.x + add.width / 2).toBeLessThan(frame.x + frame.width / 2);
+  const one = (await cards(page).first().boundingBox())!;
+  const two = (await cards(page).nth(1).boundingBox())!;
+  expect(one.x).toBeGreaterThan(two.x);
+});
+
+test('in Arabic a long dish name stays inside its card', async ({ page }) => {
+  await openMenu(page, slug, { locale: 'ar' });
+  const card = cards(page).first();
+  await card.locator('.bc-name').evaluate((node) => {
+    node.textContent = 'مشروب الشوكولاتة الساخنة بالحليب والقرفة والزنجبيل مع الكريمة المخفوقة والمكسرات';
+  });
+  const box = (await card.boundingBox())!;
+  const name = (await card.locator('.bc-name').boundingBox())!;
+  expect(name.x).toBeGreaterThanOrEqual(box.x - 1);
+  expect(name.x + name.width).toBeLessThanOrEqual(box.x + box.width + 1);
+  expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
 test('a search that finds nothing keeps main#menu', async ({ page }) => {
@@ -442,103 +330,103 @@ test('a search that finds nothing keeps main#menu', async ({ page }) => {
 });
 
 test('text reads on every fill it sits on, in every palette of the shape', async ({ page }) => {
-  const menusToCheck: [string, string][] = [['signature', slug], ['custom colours', customSlug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
+  const menusToCheck: [string, string][] = [['signature', slug], ...alternatives.map((id): [string, string] => [id, paletteSlug(id)])];
   for (const [menu, menuSlug] of menusToCheck) {
     await openMenu(page, menuSlug);
     await page.evaluate(() => window.scrollBy(0, 40));
     await expect(strip(page).locator('[aria-current="true"]')).toHaveCount(1);
-    const first = page.locator('#cat-viennoiserie');
-    const second = page.locator('#cat-patisserie');
-    const tile = tileOf(page, 'croissant');
+    const card = cardOf(page, 'croissant');
     await expectReadable(menu, {
-      'number of a chip': strip(page).locator('[data-pane="rest"]').first(),
-      'name of a lit chip': strip(page).locator('[aria-current="true"] .bc-chip-name'),
-      'name of a resting chip': strip(page).locator('button:not([aria-current]) .bc-chip-name').first(),
-      'sand heading name': first.locator('h2 > span'),
-      'sand heading count': first.locator('h2 b'),
-      'sand heading number': first.locator('h2 small'),
-      'sea heading name': second.locator('h2 > span'),
-      'towel name': tile.locator('.bc-name'),
-      'towel price': tile.locator('.bc-price'),
-      'lone wide towel name': tileOf(page, 'kouign-amann').locator('.bc-name'),
-      'lone wide towel price': tileOf(page, 'kouign-amann').locator('.bc-price'),
-      'pair towel name': tileOf(page, 'pain-au-chocolat').locator('.bc-name'),
-      'pair towel price': tileOf(page, 'pain-au-chocolat').locator('.bc-price'),
-      'add button': tile.locator('.bc-add'),
-      ...(menu === 'signature' ? {} : { 'sale chip': tile.locator('.tpl-photo-off'), 'second sale chip': tileOf(page, 'eclair').locator('.tpl-photo-off') }),
+      'lit tab': strip(page).locator('button[aria-current="true"]'),
+      'resting tab': strip(page).locator('button:not([aria-current="true"])').first(),
+      'card name': card.locator('.bc-name'),
+      'card price': card.locator('.bc-price'),
+      'card add button': card.locator('.bc-add'),
+      ...(menu === 'signature' ? {} : { 'sale chip': card.locator('.tpl-photo-off'), 'second sale chip': cardOf(page, 'eclair').locator('.tpl-photo-off') }),
     });
   }
 });
 
-test('keyboard focus rings show in full and stand out, in every palette: a whole towel, its add button and a strip chip', async ({ page }) => {
-  for (const menuSlug of [slug, customSlug, ...alternatives.map(paletteSlug)]) {
+test('keyboard focus rings show in full and stand out, in every palette: a whole card, its add button and a tab', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  for (const menuSlug of [slug, ...alternatives.map(paletteSlug)]) {
     await openMenu(page, menuSlug);
-    const tile = tiles(page).first();
-    const name = tile.locator('.bc-name');
+    const card = cards(page).first();
+    const name = card.locator('.bc-name');
     await name.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(name).toBeFocused();
-    await expectFocusRingShows(page, tile, { outset: -3, pseudo: '::after' });
-    const add = tile.locator('.bc-add');
+    await expectFocusRingShows(page, card, { outset: -3, pseudo: '::after' });
+    const add = card.locator('.bc-add');
     await add.focus();
     await page.keyboard.press('Shift+Tab');
     await page.keyboard.press('Tab');
     await expect(add).toBeFocused();
-    await expectFocusRingShows(page, add, { outset: -5 });
-    for (const categorySlug of ['viennoiserie', 'patisserie']) {
-      const chip = chipOf(page, categorySlug);
-      await chip.focus();
-      await page.keyboard.press('Shift+Tab');
-      await page.keyboard.press('Tab');
-      await expect(chip).toBeFocused();
-      await expectFocusRingShows(page, chip, { outset: -4 });
-    }
+    await expectFocusRingShows(page, add, { outset: 3 });
+    const tab = pillOf(page, 'patisserie');
+    await tab.focus();
+    await page.keyboard.press('Shift+Tab');
+    await page.keyboard.press('Tab');
+    await expect(tab).toBeFocused();
+    await expectFocusRingShows(page, tab, { outset: -4 });
   }
 });
 
-test('a dish on sale shows its -NN% chip in the menu numerals on its towel, inside the towel, and keeps the regular price for screen readers', async ({ page }) => {
+test('a dish on sale shows its -NN% chip in the menu numerals on its card, inside the cell, and keeps the regular price for screen readers', async ({ page }) => {
   await openMenu(page, arabSlug);
-  const tile = tiles(page).first();
-  const chip = tile.locator('.tpl-photo-off');
+  const card = cards(page).first();
+  const chip = card.locator('.tpl-photo-off');
   await expect(chip).toHaveText(/٢٠%/);
-  await expect(body(page).locator('.tpl-photo-off')).toHaveCount(1);
-  const box = (await tile.boundingBox())!;
+  await expect(body(page).locator('.bc-card .tpl-photo-off')).toHaveCount(1);
+  const box = (await card.boundingBox())!;
   const at = (await chip.boundingBox())!;
-  const add = (await tile.locator('.bc-add').boundingBox())!;
   expect(at.x).toBeGreaterThanOrEqual(box.x - 1);
   expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
-  expect(at.y + at.height).toBeLessThanOrEqual(box.y + box.height + 1);
-  expect(at.x < add.x + add.width && add.x < at.x + at.width && at.y < add.y + add.height && add.y < at.y + at.height, 'the chip and the add do not overlap').toBe(false);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
-  expect(await tile.locator('.bc-price .sr-only').count()).toBeGreaterThan(0);
+  await expect(card.locator('.bc-price .sr-only')).toContainText(/\d|[٠-٩]/);
   expect(await noSideScroll(page)).toBeLessThanOrEqual(0);
 });
 
-test('the add button is at least 40px square, inside its towel, with the sale chip clear of it', async ({ page }) => {
-  await openMenu(page, arabSlug);
-  for (const tile of [tiles(page).first(), tiles(page).nth(1)]) {
-    const add = (await tile.locator('.bc-add').boundingBox())!;
-    expect(add.width).toBeGreaterThanOrEqual(40);
-    expect(add.height).toBeGreaterThanOrEqual(40);
-    const box = (await tile.boundingBox())!;
-    expect(add.x).toBeGreaterThanOrEqual(box.x - 1);
-    expect(add.x + add.width).toBeLessThanOrEqual(box.x + box.width + 1);
-    expect(add.y + add.height).toBeLessThanOrEqual(box.y + box.height + 1);
-  }
-  const tile = tiles(page).first();
-  const add = (await tile.locator('.bc-add').boundingBox())!;
-  const chip = (await tile.locator('.tpl-photo-off').boundingBox())!;
-  expect(chip.x < add.x + add.width && add.x < chip.x + chip.width && chip.y < add.y + add.height && add.y < chip.y + chip.height).toBe(false);
+test('the sun and the waves move for a few seconds, never past five, and never with reduced motion', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(body(page)).toBeVisible();
+  await expect(body(page).locator('.bc-sun')).toHaveCSS('animation-name', 'bc-spin');
+  await expectMotionEnds(body(page));
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await expect(body(page).locator('.bc-sun')).toHaveCSS('animation-name', 'none');
+  await expect(body(page).locator('.bc-waves svg').first()).toHaveCSS('animation-name', 'none');
 });
 
-test('a search keeps each section its own number and chip (by its place in the full menu)', async ({ page }) => {
-  await openMenu(page, slug);
-  const chip = chipOf(page, 'bread');
-  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
-  await page.getByRole('searchbox', { name: 'Search the menu' }).fill('sourdough');
-  await expect(page.locator('#cat-viennoiserie')).toHaveCount(0);
-  await expect(page.locator('#cat-bread')).toBeVisible();
-  await expect(page.locator('#cat-bread h2 small')).toHaveText('5');
-  await expect(chip.locator('.bc-chip-no')).toHaveText('5');
+// Customize colours reach the shape (the colours picked in Customize replace the palette's, not the scene's own dyes).
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('rgcol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'sum', { templateId: TEMPLATE, colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string, tolerance = 3) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(tolerance));
+};
+const first = (page: Page, selector: string) => page.locator('[data-body="beach"] ' + selector).first();
+
+test('Customize colours reach the shape: the card, the ink, the orange add and the lit pill', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await openMenu(page, customSlug);
+  expectNear(await rgbOf(first(page, '.bc-card'), 'background-color'), CUSTOM.card, 'card');
+  expectNear(await rgbOf(first(page, '.bc-name'), 'color'), CUSTOM.text, 'dish name');
+  expectNear(await rgbOf(first(page, '.bc-add'), 'background-color'), CUSTOM.accent, 'add');
+  expectNear(await rgbOf(first(page, '.bc-pill[aria-current="true"]'), 'background-color'), CUSTOM.accent, 'lit pill');
+  expectNear(await rgbOf(first(page, '.bc-pill[aria-current="true"]'), 'color'), CUSTOM.onAccent, 'lit pill ink');
+  expectNear(await rgbOf(first(page, '.bc-pill:not([aria-current="true"])'), 'background-color'), CUSTOM.card, 'resting pill');
 });

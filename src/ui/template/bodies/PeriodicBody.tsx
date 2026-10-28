@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction } from '../parts';
+import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
 import { useKeepInView } from './shared/useKeepInView';
 import './shared/shapes.css';
@@ -80,27 +80,25 @@ export function PeriodicBody() {
           ))}
         </ul>
       </nav>
-      <main id="menu" className="min-w-0">
+      <main id="menu" className="min-w-0 pt-table">
         {categories.map((category, index) => {
           const products = byCategory.get(category.id) ?? [];
           const first = starts[index]!;
           return (
-            <section
-              key={category.id}
-              id={`cat-${category.slug}`}
-              aria-labelledby={`h-${category.slug}`}
-              className="tpl-section tpl-tall-last pt-group"
-              style={{ '--g': groupHue(index) } as CSSProperties}
-            >
-              <div tabIndex={-1} data-heading className="outline-none">
-                <h2 id={`h-${category.slug}`} className="pt-title">
-                  <small aria-hidden>{t('tpl.per.group', { n: n(index + 1) })}</small>
-                  <span>{category.name}</span>
-                </h2>
-              </div>
-              <ul className="pt-grid">
+            <section key={category.id} aria-labelledby={`h-${category.slug}`} className="pt-group" style={{ '--g': groupHue(index) } as CSSProperties}>
+              {/* One continuous table, as in the poster: the groups flow on in the same grid (a section has no box of its
+                  own), told apart by their colour and the legend. The group's first tile carries the id the jump and the
+                  legend use, and the group's name as a heading for screen readers. */}
+              <ul className="pt-group-list">
                 {products.map((product, row) => (
-                  <Tile key={product.id} product={product} number={n(first + row + 1)} order={Math.min(first + row, 11)} priority={first + row < 12} />
+                  <Tile
+                    key={product.id}
+                    product={product}
+                    number={n(first + row + 1)}
+                    order={Math.min(first + row, 11)}
+                    priority={first + row < 12}
+                    group={row === 0 ? { id: `cat-${category.slug}`, headingId: `h-${category.slug}`, name: category.name, label: t('tpl.per.group', { n: n(index + 1) }) } : undefined}
+                  />
                 ))}
               </ul>
             </section>
@@ -111,26 +109,40 @@ export function PeriodicBody() {
   );
 }
 
-function Tile({ product, number, order, priority }: { product: MenuProductView; number: string; order: number; priority: boolean }) {
+function Tile({ product, number, order, priority, group }: { product: MenuProductView; number: string; order: number; priority: boolean; group?: { id: string; headingId: string; name: string; label: string } }) {
   const { openProduct } = useTemplate();
   return (
     <li data-row className="pt-tile" style={{ '--i': order } as CSSProperties}>
+      {group && (
+        // A hairline at the tile's top edge: it is what the jump scrolls to and what lights the legend, so a group is lit
+        // only while its first row is in the band (a whole tile would light two groups at once).
+        <span id={group.id} className="pt-anchor">
+          <div tabIndex={-1} data-heading className="sr-only outline-none">
+            <h2 id={group.headingId}>
+              {group.label} {group.name}
+            </h2>
+          </div>
+        </span>
+      )}
       <div data-photo className="pt-photo">
         <ProductMedia product={product} suffix="periodic" sizes="(min-width: 640px) 140px, 25vw" priority={priority} rounded={false} className="pt-img" />
         <span data-number aria-hidden className="pt-number">
           {number}
         </span>
-        <span className="pt-bar">
+        <QuickAction product={product} className="pt-add relative z-[2]" />
+      </div>
+      <span className="pt-bar">
+        <span className="pt-top">
           <b data-symbol aria-hidden className="pt-symbol">
             {elementSymbol(product.name)}
           </b>
-          <Price product={product} className="pt-price" />
+          <SaleChip product={product} className="pt-off" />
         </span>
-        <QuickAction product={product} className="pt-add relative z-[2]" />
-      </div>
-      <button type="button" onClick={() => openProduct(product.id)} className="tpl-open pt-name text-start">
-        {product.name}
-      </button>
+        <button type="button" onClick={() => openProduct(product.id)} className="tpl-open pt-name text-start">
+          {product.name}
+        </button>
+        <Price product={product} className="pt-price" />
+      </span>
     </li>
   );
 }

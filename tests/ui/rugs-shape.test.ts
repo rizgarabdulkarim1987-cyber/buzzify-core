@@ -5,7 +5,6 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { RugsBody } from '@/ui/template/bodies/RugsBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { RUG, RUG_VARS, WEAVES, rugWeaveOf } from '@/ui/template/bodies/rug-weave';
 
 describe('the Jajim and Nowruz shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -31,55 +30,30 @@ describe('the Jajim and Nowruz shape', () => {
 });
 
 describe('the rugs', () => {
-  it('weaves each rug from a cycle of four patterns and colourways, the same one for the same place', () => {
-    expect(new Set(WEAVES.map((weave) => weave.pattern)).size).toBe(4);
-    expect(rugWeaveOf(2)).toEqual(rugWeaveOf(2 + WEAVES.length));
-    expect(rugWeaveOf(-1).index).toBe(WEAVES.length - 1);
-  });
-
-  it('keeps every text on its fixed fill at 4.5:1: names and prices on each field, the cartouche, the pills, the swatches', () => {
-    for (const weave of WEAVES) {
-      expect(
-        contrast(RUG.ink, weave.field),
-        weave.field,
-      ).toBeGreaterThanOrEqual(4.5);
-      expect(
-        contrast(RUG.muted, weave.field),
-        weave.field,
-      ).toBeGreaterThanOrEqual(4.5);
-      expect(
-        contrast(RUG.priceInk, weave.field),
-        weave.field,
-      ).toBeGreaterThanOrEqual(4.5);
+  it('keeps the palette text readable (4.5:1) on the card ivory and the page in every palette, and the fixed pairs readable', () => {
+    for (const { id, palette } of TEMPLATES['the-jajim-and-nowruz'].palettes) {
+      expect(contrast(palette.text, palette.raised), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, palette.bg), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
     }
-    expect(contrast(RUG.ink, RUG.page)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(RUG.plateInk, RUG.plate)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(RUG.greenInk, RUG.green)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(RUG.saffronInk, RUG.saffron)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('draws the focus ring in a colour that stands out from the strip, the page and every field (3:1)', () => {
-    expect(contrast(RUG.ring, RUG.stripBacking)).toBeGreaterThanOrEqual(3);
-    expect(contrast(RUG.ring, RUG.page)).toBeGreaterThanOrEqual(3);
-    for (const weave of WEAVES)
-      expect(contrast(RUG.ring, weave.field)).toBeGreaterThanOrEqual(3);
+    expect(contrast('#FFFFFF', '#2F7D4A')).toBeGreaterThanOrEqual(4.5);
+    expect(contrast('#2A1810', '#E9A51B')).toBeGreaterThanOrEqual(4.5);
   });
 });
 
-describe('one source for the colours', () => {
+describe('the colours come from the palette', () => {
   const css = readFileSync('src/ui/template/bodies/rugs.css', 'utf8');
-  it('sets every fixed colour on the body from the constants, as --rg-<name>', () => {
-    expect(RUG_VARS['--rg-page']).toBe(RUG.page);
-    expect(RUG_VARS['--rg-price-ink']).toBe(RUG.priceInk);
-    expect(Object.keys(RUG_VARS)).toHaveLength(Object.keys(RUG).length);
+  it('maps ink, plate and red to palette tokens, and sets no palette token of its own', () => {
+    expect(css).toMatch(/--rg-ink:\s*var\(--text\)/);
+    expect(css).toMatch(/--rg-plate:\s*var\(--raised\)/);
+    expect(css).toMatch(/--rg-red:\s*var\(--accent\)/);
+    expect(css).not.toMatch(/^\s*--(bg|text|accent|on-accent|muted)\s*:/m);
   });
 
-  it('writes no colour of its own in rugs.css: no hex literal, and every --rg-* it reads is set by RugsBody', () => {
-    expect(css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).toEqual([]);
-    const perRug = ['--rg-frame', '--rg-field', '--rg-rim'];
-    const declared = [...css.matchAll(/(--rg-[a-z-]+)\s*:/g)].map((match) => match[1]);
-    for (const name of new Set([...css.matchAll(/var\((--rg-[a-z-]+)\)/g)].map((match) => match[1]!))) {
-      expect(name in RUG_VARS || perRug.includes(name) || declared.includes(name), name).toBe(true);
-    }
+  it('writes only the rugs own dyes and the dusk scene as hex, and no palette token of its own', () => {
+    const own = ['#23306b', '#2a1810', '#2f7d4a', '#e9a51b', '#ffffff'];
+    const scene = ['#2b1a3d', '#8a3b2a', '#ffdc6b', '#ff7b1c', '#c2241b', '#fff2b0', '#ffb02e', '#ff9a1f', '#ffd36b'];
+    const found = [...new Set((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase()))].sort();
+    expect(found).toEqual([...own, ...scene].sort());
   });
 });

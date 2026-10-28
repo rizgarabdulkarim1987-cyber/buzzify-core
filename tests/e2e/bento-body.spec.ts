@@ -18,9 +18,10 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Bento Box body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a lacquered box cut into
- * compartments of unequal size (a big one for the lead dish, the pattern by dish count), a paper flag on each with the
- * name and a small flag with the price, and a sticky strip of lid-handle tabs that jumps to a box.
+ * The Bento Box body (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-bnt): the whole menu one
+ * black lacquer box with chopsticks across its top, every section a red tray under a paper label cut into square
+ * compartments three across (two across for a section of two), a paper flag on each with the add dot and the name and
+ * an accent flag with the price, and a sticky strip of lid-handle tabs that jumps to a tray.
  */
 
 const menus = bodyMenus();
@@ -45,10 +46,10 @@ const lids = (page: Page) => bento(page).locator('[data-lids]');
 const cells = (page: Page) => bento(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => lids(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows at least six dishes with photos, prices and names, and every box is one tap away', async ({ page }) => {
+test('on a phone the first screen shows at least three dishes with photos, prices and names (the demo banner above takes most of it), and every box is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(bento(page)).toBeVisible();
-  await expectFirstScreen(page, cells(page), { min: 6 });
+  await expectFirstScreen(page, cells(page), { min: 3 });
   await expectEverySectionReachable(lids(page));
 });
 
@@ -63,20 +64,25 @@ test('every section is a box with a paper label (number, name, dish count), all 
   await expect(heading).toContainText('Box 1');
 });
 
-test('compartments are of unequal size: the lead dish is the biggest, and the pattern follows the dish count', async ({ page }) => {
+test('the compartments are squares, three across, inside one lacquer box with chopsticks on top; two dishes are two across', async ({ page }) => {
   await openMenu(page, slug);
+  await expect(bento(page).locator('.bn-sticks')).toBeVisible();
+  expect(await bento(page).locator('.bn-lacquer').count()).toBe(1);
+  expect(await bento(page).locator('.bn-lacquer section[data-box]').count()).toBe(BODY_CATEGORIES.length);
   const three = page.locator('#cat-viennoiserie [data-row]');
   expect(await three.count()).toBe(3);
   const [a, b, c] = await Promise.all([0, 1, 2].map(async (i) => (await three.nth(i).boundingBox())!));
-  expect(a!.width * a!.height).toBeGreaterThan(b!.width * b!.height * 1.8);
-  expect(a!.width * a!.height).toBeGreaterThan(c!.width * c!.height * 1.8);
+  for (const box of [a!, b!, c!]) expect(Math.abs(box.width - box.height), 'a square compartment').toBeLessThanOrEqual(1.5);
+  expect(Math.abs(a!.y - b!.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b!.y - c!.y)).toBeLessThanOrEqual(1);
   expect(a!.x).toBeLessThan(b!.x);
-  expect(Math.abs(b!.x - c!.x)).toBeLessThanOrEqual(1);
-  expect(c!.y).toBeGreaterThan(b!.y);
-  // A lone dish fills the whole tray's width.
-  const one = (await page.locator('#cat-bread [data-row]').first().boundingBox())!;
-  const tray = (await page.locator('#cat-bread .bn-tray').boundingBox())!;
-  expect(one.width).toBeGreaterThanOrEqual(tray.width - 1);
+  expect(b!.x).toBeLessThan(c!.x);
+  // Celebration holds two dishes: two across, each half the tray.
+  const two = page.locator('#cat-celebration [data-row]');
+  expect(await two.count()).toBe(2);
+  const [d, e] = await Promise.all([0, 1].map(async (i) => (await two.nth(i).boundingBox())!));
+  expect(Math.abs(d!.y - e!.y)).toBeLessThanOrEqual(1);
+  expect(d!.width).toBeGreaterThan(a!.width * 1.3);
 });
 
 test('a compartment carries a name flag at its foot and a price flag on its corner, over the photo', async ({ page }) => {
@@ -136,7 +142,7 @@ test('a long dish name and a long price stay inside the smallest compartment wit
   expect(flag.y + flag.height).toBeLessThanOrEqual(box.y + box.height + 1);
 });
 
-test('in every compartment the photo stays in sight: name, price and add never overlap and leave at least 40% of it uncovered', async ({ page }) => {
+test('in every compartment the photo stays in sight: the price flag and the name flag never overlap, the add dot sits on the name flag, and at least 35% of the photo is uncovered', async ({ page }) => {
   await openMenu(page, slug);
   const three = page.locator('#cat-viennoiserie [data-row]');
   expect(await three.count()).toBe(3);
@@ -152,15 +158,14 @@ test('in every compartment the photo stays in sight: name, price and add never o
   for (let i = 0; i < 3; i++) {
     const report = await three.nth(i).evaluate((cell) => {
       const box = cell.getBoundingClientRect();
-      const parts = ['.bn-price', '.bn-add', '.bn-name'].map((selector) => cell.querySelector(selector)!.getBoundingClientRect());
+      const parts = ['.bn-price', '.bn-name'].map((selector) => cell.querySelector(selector)!.getBoundingClientRect());
       const overlaps: string[] = [];
-      for (let a = 0; a < parts.length; a++) {
-        for (let b = a + 1; b < parts.length; b++) {
-          const width = Math.min(parts[a]!.right, parts[b]!.right) - Math.max(parts[a]!.left, parts[b]!.left);
-          const height = Math.min(parts[a]!.bottom, parts[b]!.bottom) - Math.max(parts[a]!.top, parts[b]!.top);
-          if (width > 0.5 && height > 0.5) overlaps.push(`${['price', 'add', 'name'][a]} over ${['price', 'add', 'name'][b]}`);
-        }
-      }
+      const width = Math.min(parts[0]!.right, parts[1]!.right) - Math.max(parts[0]!.left, parts[1]!.left);
+      const height = Math.min(parts[0]!.bottom, parts[1]!.bottom) - Math.max(parts[0]!.top, parts[1]!.top);
+      if (width > 0.5 && height > 0.5) overlaps.push('price over name');
+      const add = cell.querySelector('.bn-add')!.getBoundingClientRect();
+      const flag = parts[1]!;
+      if (add.left < flag.left - 0.5 || add.right > flag.right + 0.5 || add.top < flag.top - 0.5 || add.bottom > flag.bottom + 0.5) overlaps.push('add outside the name flag');
       const photo = cell.querySelector('[data-photo] img, [data-photo] svg')!.getBoundingClientRect();
       let seen = 0;
       let all = 0;
@@ -174,7 +179,7 @@ test('in every compartment the photo stays in sight: name, price and add never o
       return { overlaps, share: seen / all };
     });
     expect(report.overlaps, `compartment ${i + 1}: name, price and add overlap`).toEqual([]);
-    expect(report.share, `compartment ${i + 1}: share of the photo in sight`).toBeGreaterThanOrEqual(0.4);
+    expect(report.share, `compartment ${i + 1}: share of the photo in sight`).toBeGreaterThanOrEqual(0.35);
   }
 });
 

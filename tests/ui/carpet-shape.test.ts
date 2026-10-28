@@ -5,7 +5,7 @@ import { templateForStyle } from '@/studio/styles/template-map';
 import { registeredAs } from './body-registry';
 import { CarpetBody } from '@/ui/template/bodies/CarpetBody';
 import { contrastRatio as contrast } from '@/lib/palette';
-import { CARPET, CARPET_VARS, WEAVES, carpetWeaveOf } from '@/ui/template/bodies/carpet-night';
+import { mix } from '@/lib/templates/palette';
 
 describe('the One Thousand and One Nights shape', () => {
   it('is registered as a body that sets the hero, the navigation, the cards and the headings', () => {
@@ -26,50 +26,28 @@ describe('the One Thousand and One Nights shape', () => {
   });
 });
 
-describe('the carpets', () => {
-  it('weaves each carpet from a cycle of a few colourways, the same one for the same place', () => {
-    const picked = Array.from({ length: 30 }, (_, at) => carpetWeaveOf(at));
-    expect(new Set(picked).size).toBeGreaterThanOrEqual(3);
-    expect(carpetWeaveOf(2)).toBe(carpetWeaveOf(2 + WEAVES.length));
-    expect(carpetWeaveOf(-1)).toBe(WEAVES[WEAVES.length - 1]);
-  });
-
-  it('keeps every text on its fixed fill at 4.5:1: names on each weave and its thread, the section strip, the gold tags', () => {
-    for (const weave of WEAVES) {
-      expect(contrast(CARPET.ink, weave.base), weave.base).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(CARPET.ink, weave.thread), weave.thread).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(CARPET.gold, weave.thread), weave.thread).toBeGreaterThanOrEqual(4.5);
-      expect(contrast(CARPET.tagInk, CARPET.tagFill)).toBeGreaterThanOrEqual(4.5);
-    }
-    expect(contrast(CARPET.goldInk, CARPET.gold)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(CARPET.tagInk, CARPET.tagFill)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(CARPET.chipInk, CARPET.chipFill)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(CARPET.chipInk, CARPET.stripBacking)).toBeGreaterThanOrEqual(4.5);
-    expect(contrast(CARPET.litInk, CARPET.litFill)).toBeGreaterThanOrEqual(4.5);
-  });
-
-  it('draws the focus ring in a colour that stands out from the strip and from every weave (3:1)', () => {
-    expect(contrast(CARPET.ring, CARPET.stripBacking)).toBeGreaterThanOrEqual(3);
-    expect(contrast(CARPET.ring, CARPET.chipFill)).toBeGreaterThanOrEqual(3);
-    for (const weave of WEAVES) expect(contrast(CARPET.ring, weave.base), weave.base).toBeGreaterThanOrEqual(3);
-  });
-});
-
-describe('one source for the colours', () => {
+describe('the colours come from the palette', () => {
   const css = readFileSync('src/ui/template/bodies/carpet.css', 'utf8');
-  it('sets every fixed colour on the body from the constants, as --cp-<name>', () => {
-    expect(CARPET_VARS['--cp-tag-fill']).toBe(CARPET.tagFill);
-    expect(CARPET_VARS['--cp-gold']).toBe(CARPET.gold);
-    expect(Object.keys(CARPET_VARS)).toHaveLength(Object.keys(CARPET).length);
+  it('maps the night, the gold and the pills to palette tokens', () => {
+    expect(css).toMatch(/--cp-sky:\s*var\(--bg\)/);
+    expect(css).toMatch(/--cp-gold:\s*var\(--accent\)/);
+    expect(css).toMatch(/--cp-gold-ink:\s*var\(--on-accent\)/);
+    expect(css).toMatch(/--cp-ink:\s*var\(--text\)/);
   });
 
-  it('writes no colour of the constants in carpet.css, and every --cp-* it reads is set by CarpetBody', () => {
-    const lower = css.toLowerCase();
-    for (const [name, hex] of Object.entries(CARPET)) expect(lower, name).not.toContain(hex.toLowerCase());
-    const perCarpet = ['--cp-base', '--cp-thread'];
-    const declared = [...css.matchAll(/(--cp-[a-z-]+)\s*:/g)].map((match) => match[1]);
-    for (const name of new Set([...css.matchAll(/var\((--cp-[a-z-]+)\)/g)].map((match) => match[1]!))) {
-      expect(name in CARPET_VARS || perCarpet.includes(name) || declared.includes(name), name).toBe(true);
+  it('writes no colour literal beyond the flying carpet frame dye and black shadows', () => {
+    expect([...new Set((css.match(/#[0-9a-f]{3,8}\b/gi) ?? []).map((hex) => hex.toLowerCase()))].sort()).toEqual(['#000', '#b3202a']);
+    expect(css).not.toMatch(/rgb\((?!0 0 0|255 255 255)/);
+  });
+
+  it('keeps the palette gold readable on the night and its ink on the gold, in every palette', () => {
+    for (const { id, palette } of TEMPLATES['the-thousand-and-one-nights'].palettes) {
+      expect(contrast(palette.onAccent, palette.accent), id).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.bg, palette.text), id).toBeGreaterThanOrEqual(4.5);
+      // The text on the sky (the section titles, the hero's name and price): the sky's lightest stop is the raised colour a little toward the text.
+      const lightest = mix(palette.raised, palette.text, 0.06);
+      expect(contrast(palette.accent, lightest), `${id} gold on the sky`).toBeGreaterThanOrEqual(4.5);
+      expect(contrast(palette.text, lightest), `${id} text on the sky`).toBeGreaterThanOrEqual(4.5);
     }
   });
 });

@@ -23,16 +23,6 @@ const CLEANUP_MS = MORPH_MS + 600;
 const EASE = 'cubic-bezier(0.23, 1, 0.32, 1)';
 
 /**
- * The tile's tall and short heights, in the mosaic's row units: in every three, the middle one is tall, so neighbours
- * always differ. The section's first tile is short, so the next section's first dish still shows on a phone's first screen.
- */
-export const TALL_SPAN = 42;
-export const SHORT_SPAN = 32;
-export function tileSpan(index: number): number {
-  return index % 3 === 1 ? TALL_SPAN : SHORT_SPAN;
-}
-
-/**
  * The transform that starts the clone's box (laid out at `to`, scaled from its top start corner) over `from`; null when
  * `to` has no size to grow into. Ends at `none`.
  */

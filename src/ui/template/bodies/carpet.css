@@ -1,14 +1,31 @@
 /*
- * The One Thousand and One Nights body (a browse shape of a template menu): Scheherazade's night. A purple sky of static
- * stars with a slow twinkle; every section a magic carpet: a woven band (a lattice of threads over a solid ground, gold
- * trim inside the edge, corners a little curved) with a tassel fringe at both inline ends and its title embroidered on the
- * front edge, carrying the dishes as round medallions three across. The sticky strip is a row of rolled carpets. Everything
- * is scoped under [data-body='carpet'], logical properties only (RTL mirrors).
- * The colours are the shape's own (carpet-night.ts, the same on every palette): text sits only on solid fills, the weave is
- * a pattern on a pseudo-element over a solid ground, so every pair is a computed, tested contrast.
+ * The One Thousand and One Nights body (a browse shape of a template menu), drawn after the kurd-arab-lyl mockup:
+ * Scheherazade's night. A purple sky of static stars with a slow twinkle; at the top the featured dish on a flying
+ * carpet (a red-framed photo with a dashed gold line inside it, a gold fringe at both inline ends, a caption); a sticky
+ * strip of gold pills; each section a gold display title over its dishes as rounded cards, three across on a phone.
+ * Everything is scoped under [data-body='carpet'], logical properties only (RTL mirrors).
+ * The colours are the template's palette (night `--bg`, gold `--accent` with `--on-accent`, the pills `--raised`, text
+ * `--text`), so the default palette is the mockup's violet, gold and cream. Only the frame's red and the fringe's dyes
+ * are the carpet's own. Text sits only on solid fills, so every pair is a computed contrast.
  */
 [data-body='carpet'] {
-  /* The fixed colours (--cp-ink, --cp-gold, --cp-tag-fill ...) are set on this element by CarpetBody from carpet-night.ts. */
+  /* The colours, from the template palette. */
+  --cp-sky: var(--bg);
+  --cp-strip-backing: color-mix(in srgb, var(--bg) 82%, #000);
+  --cp-chip-fill: transparent;
+  --cp-chip-ink: var(--accent);
+  --cp-lit-fill: var(--accent);
+  --cp-lit-ink: var(--on-accent);
+  --cp-gold: var(--accent);
+  --cp-gold-ink: var(--on-accent);
+  --cp-tag-fill: var(--text);
+  --cp-tag-ink: var(--bg);
+  --cp-tag-edge: color-mix(in srgb, var(--accent) 88%, #000);
+  --cp-ring: var(--text);
+  --cp-ink: var(--text);
+  --cp-stitch: var(--cp-gold);
+  /* The flying carpet's red frame: its own dye. */
+  --cp-dye-red: #b3202a;
   /* The sticky strip's height, so a jumped-to carpet lands just below it. */
   --nav-room: 3.5rem;
   --column: 64rem;
@@ -21,10 +38,15 @@
   color: var(--cp-ink);
   /* The night: a deep violet sky, its stars the static layer (the twinkling ones are the ::before). */
   background:
-    radial-gradient(circle, #fff 0 1px, transparent 1.5px) 0 0 / 74px 74px,
-    radial-gradient(circle, rgb(255 255 255 / 0.65) 0 1px, transparent 1.5px) 37px 52px / 116px 116px,
-    radial-gradient(circle, rgb(255 226 154 / 0.8) 0 1.25px, transparent 2px) 18px 90px / 163px 163px,
-    linear-gradient(var(--cp-sky), #3b1462 45%, #1d1048 75%, #0f2a45);
+    radial-gradient(circle, var(--text) 0 1px, transparent 1.5px) 0 0 / 74px 74px,
+    radial-gradient(circle, color-mix(in srgb, var(--text) 65%, transparent) 0 1px, transparent 1.5px) 37px 52px / 116px 116px,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 80%, transparent) 0 1.25px, transparent 2px) 18px 90px / 163px 163px,
+    linear-gradient(
+      var(--cp-sky),
+      color-mix(in srgb, var(--raised) 94%, var(--text)) 45%,
+      color-mix(in srgb, var(--bg) 50%, var(--raised)) 75%,
+      oklch(from var(--bg) calc(l + 0.03) c calc(h - 55))
+    );
 }
 /* The twinkling stars: another set, fading slowly in and out. A layer behind the carpets, never in the way of a tap. */
 [data-body='carpet']::before {
@@ -34,8 +56,8 @@
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(circle, #fff 0 1.25px, transparent 2px) 20px 28px / 97px 97px,
-    radial-gradient(circle, rgb(255 226 154 / 0.9) 0 1px, transparent 1.75px) 61px 11px / 137px 137px;
+    radial-gradient(circle, var(--text) 0 1.25px, transparent 2px) 20px 28px / 97px 97px,
+    radial-gradient(circle, color-mix(in srgb, var(--accent) 90%, transparent) 0 1px, transparent 1.75px) 61px 11px / 137px 137px;
   /* Twice, then still (under 5s: WCAG 2.2.2). */
   animation: cp-twinkle 2.4s ease-in-out 2;
 }
@@ -44,12 +66,12 @@
   z-index: 1;
 }
 
-/* ------------------------------------------------------------------ the strip of rolled carpets */
+/* ------------------------------------------------------------------ the strip of pills */
 
 [data-body='carpet'] .cp-strip {
   background: var(--cp-strip-backing);
   box-shadow:
-    0 1px 0 rgb(255 204 102 / 0.55),
+    0 1px 0 color-mix(in srgb, var(--accent) 55%, transparent),
     0 0.25rem 0.5rem rgb(0 0 0 / 0.3);
 }
 [data-body='carpet'] .cp-strip-list {
@@ -62,7 +84,7 @@
   gap: 0.5rem;
   min-block-size: 2.75rem;
   max-inline-size: 13rem;
-  padding-inline: 0.625rem 0.875rem;
+  padding-inline: 0.875rem;
   border-radius: 999px;
   background: var(--cp-chip-fill);
   color: var(--cp-chip-ink);
@@ -92,52 +114,106 @@
   outline-color: var(--cp-lit-ink);
 }
 
-/*
- * The rolled carpet: a short cylinder lying on its side, striped along its length in crimson and gold, its open end a
- * spiral (rings of gold and crimson) in an ellipse at the inline end. Pure CSS.
- */
-[data-body='carpet'] .cp-roll-icon {
+
+/* ------------------------------------------------------------------ the flying carpet (the featured dish) */
+
+[data-body='carpet'] .cp-flight {
   position: relative;
-  flex: none;
-  inline-size: 1.625rem;
-  block-size: 1.0625rem;
-  margin-inline-end: 0.25rem;
-  border-radius: 0.5rem 0.125rem 0.125rem 0.5rem;
-  background:
-    linear-gradient(rgb(255 255 255 / 0.22), transparent 40%, rgb(0 0 0 / 0.3)),
-    repeating-linear-gradient(90deg, #b3202a 0 0.1875rem, var(--cp-gold) 0.1875rem 0.3125rem, #7a2142 0.3125rem 0.5rem);
+  margin: 0.875rem 1.5rem 0.25rem;
+  /* The carpet is the dish's tap area (the name button's overlay covers this), the cap included. */
 }
-[data-body='carpet'] .cp-roll-icon::after {
-  content: '';
-  position: absolute;
-  inset-block: -0.0625rem;
-  inset-inline-end: -0.3125rem;
-  inline-size: 0.625rem;
-  border-radius: 50%;
-  background: radial-gradient(circle, var(--cp-gold) 0 0.0625rem, #7a2142 0.0625rem 0.1875rem, var(--cp-gold) 0.1875rem 0.25rem, #b3202a 0.25rem 0.3125rem, var(--cp-gold) 0.3125rem);
-  box-shadow: 0 0 0 1px #7a2142;
+[data-body='carpet'] .cp-flight[hidden] {
+  display: none;
 }
-[data-body='carpet'] .cp-roll-icon:dir(rtl) {
-  border-radius: 0.125rem 0.5rem 0.5rem 0.125rem;
-}
-
-/* ------------------------------------------------------------------ a carpet */
-
 [data-body='carpet'] .cp-carpet {
-  padding: 0.375rem 0 0.875rem;
+  position: relative;
+  /* Floats a few pixels, twice, on arrival (under 5s: WCAG 2.2.2); CarpetBody marks the section `data-floated` when it ends. */
 }
-/*
- * A carpet floats a few pixels, twice, the first time it is the one in view (under 5s: WCAG 2.2.2; CarpetBody marks it
- * `data-float` once and takes the mark off when the float ends); coming back to it later, it lies still like the rest.
- */
-[data-body='carpet'] .cp-carpet[data-float] {
+[data-body='carpet'] .cp-flight:not([data-floated]) .cp-ride {
   animation: cp-float 2.4s ease-in-out 2;
 }
+[data-body='carpet'] .cp-ride {
+  position: relative;
+}
+[data-body='carpet'] .cp-hero-photo {
+  position: relative;
+  block-size: 11.875rem;
+  overflow: hidden;
+  border: 0.375rem solid var(--cp-dye-red);
+  border-radius: 0.625rem;
+  box-shadow: none;
+  background: var(--bg);
+}
+/* The dashed gold line stitched inside the red frame. */
+[data-body='carpet'] .cp-ride::after {
+  content: '';
+  position: absolute;
+  inset: 0.375rem;
+  border: 3px dashed var(--cp-gold);
+  border-radius: 0.375rem;
+  pointer-events: none;
+}
+/* The fringe: gold tassels at both inline ends, outside the frame. */
+[data-body='carpet'] .cp-tassel {
+  position: absolute;
+  inset-block: 0;
+  inline-size: 0.625rem;
+  background: repeating-linear-gradient(180deg, var(--cp-gold) 0 4px, transparent 4px 8px);
+  pointer-events: none;
+}
+[data-body='carpet'] .cp-tassel:nth-of-type(1) {
+  inset-inline-start: -0.625rem;
+}
+[data-body='carpet'] .cp-tassel:nth-of-type(2) {
+  inset-inline-end: -0.625rem;
+}
+[data-body='carpet'] .cp-cap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-block-start: 0.625rem;
+}
+[data-body='carpet'] .cp-cap-name {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0;
+  color: var(--cp-ink);
+  font-size: 1.25rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+[data-body='carpet'] .tpl-open.cp-cap-name:focus-visible::after {
+  outline-color: var(--cp-ring);
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+[data-body='carpet'] .cp-cap-price {
+  flex: none;
+  max-inline-size: 40%;
+  color: var(--cp-gold);
+  font-size: 0.875rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+[data-body='carpet'] .cp-cap-add {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--cp-gold);
+  color: var(--cp-gold-ink);
+}
 
-/* The front edge: the title embroidered in gold thread on the carpet's own thread colour, with a hanging fringe under it. */
+/* ------------------------------------------------------------------ a section and its cards */
+
+[data-body='carpet'] .cp-section {
+  padding: 1.25rem 0.75rem 0.375rem;
+}
 [data-body='carpet'] .cp-front[data-heading] {
   display: block;
-  margin-inline: 1.25rem;
   padding-inline: 0;
 }
 [data-body='carpet'] .cp-title {
@@ -145,41 +221,16 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  min-block-size: 2.25rem;
-  margin: 0;
-  padding: 0.25rem 0.75rem;
-  border: 2px solid var(--cp-gold);
-  border-block-end-width: 0;
-  border-radius: 1.25rem 1.25rem 0 0 / 1rem 1rem 0 0;
-  background: var(--cp-thread);
+  margin: 0 0 0.75rem;
   color: var(--cp-gold);
-  font-size: 1.125rem;
-  font-weight: 800;
-  line-height: 1.15;
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
   text-align: center;
-  /* Embroidery: a faint thread shadow, never the only cue. */
-  text-shadow: 0 1px 0 rgb(0 0 0 / 0.35);
 }
 [data-body='carpet'] .cp-title span {
   min-inline-size: 0;
   overflow-wrap: anywhere;
-}
-/* The carpet's number: a gold stitch-edged disc. */
-[data-body='carpet'] .cp-title small {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.5rem;
-  block-size: 1.5rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background: var(--cp-gold);
-  color: var(--cp-gold-ink);
-  outline: 1px dashed var(--cp-gold-ink);
-  outline-offset: -3px;
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
 }
 /* The dish count: a parchment tag. */
 [data-body='carpet'] .cp-title b {
@@ -196,200 +247,116 @@
   font-weight: 800;
   line-height: 1;
 }
-/* The fringe hanging from the front edge onto the band. */
-[data-body='carpet'] .cp-front::after {
-  content: '';
-  display: block;
-  block-size: 0.5rem;
-  margin-inline: 0.75rem;
-  background: repeating-linear-gradient(90deg, var(--cp-gold) 0 2px, transparent 2px 5px);
-  border-radius: 0 0 0.25rem 0.25rem;
-}
-
-/* The band itself: a solid ground, the weave over it, gold trim inside the edge; the foot a little curved. */
-[data-body='carpet'] .cp-rug {
-  position: relative;
-  margin-inline: 1.25rem;
-  padding: 0.5rem 0.5rem 1.125rem;
-  border: 2px solid var(--cp-gold);
-  border-block-start-width: 0;
-  border-radius: 0 0 1.5rem 1.5rem / 0 0 0.875rem 0.875rem;
-  background-color: var(--cp-base);
-  box-shadow: 0 0.5rem 0.75rem rgb(0 0 0 / 0.4);
-}
-/* The weave: crossing threads over the ground. Behind the dishes, never in the way of a tap. */
-[data-body='carpet'] .cp-rug::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background:
-    repeating-linear-gradient(45deg, var(--cp-thread) 0 0.25rem, transparent 0.25rem 0.75rem),
-    repeating-linear-gradient(-45deg, var(--cp-thread) 0 0.25rem, transparent 0.25rem 0.75rem);
-  opacity: 0.55;
-}
-/* The trim: a dashed gold line stitched inside the edge. */
-[data-body='carpet'] .cp-rug::after {
-  content: '';
-  position: absolute;
-  inset: 0.25rem;
-  border: 1px dashed rgb(255 204 102 / 0.7);
-  border-radius: inherit;
-  pointer-events: none;
-}
-/* The tassels: gold fringe at both inline ends, outside the band (stripes across its height). */
-[data-body='carpet'] .cp-tassel {
-  position: absolute;
-  inset-block: 0.5rem;
-  inline-size: 0.625rem;
-  background: repeating-linear-gradient(180deg, var(--cp-gold) 0 3px, transparent 3px 6px);
-  pointer-events: none;
-}
-[data-body='carpet'] .cp-tassel:nth-of-type(1) {
-  inset-inline-start: calc(-0.625rem - 2px);
-  border-radius: 0.25rem 0 0 0.25rem;
-}
-[data-body='carpet'] .cp-tassel:nth-of-type(2) {
-  inset-inline-end: calc(-0.625rem - 2px);
-  border-radius: 0 0.25rem 0.25rem 0;
-}
-[data-body='carpet'] .cp-tassel:nth-of-type(1):dir(rtl) {
-  border-radius: 0 0.25rem 0.25rem 0;
-}
-[data-body='carpet'] .cp-tassel:nth-of-type(2):dir(rtl) {
-  border-radius: 0.25rem 0 0 0.25rem;
-}
-
-/* ------------------------------------------------------------------ the medallions */
 
 [data-body='carpet'] .cp-grid {
-  position: relative;
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1.125rem 0.25rem;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* The cell is the positioned ancestor of the name's tap area, so the whole medallion opens the dish. */
-[data-body='carpet'] .cp-medallion {
+/* The card is the positioned ancestor of the name's tap area, so the whole card opens the dish. */
+[data-body='carpet'] .cp-card {
   position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 0.25rem;
+  box-sizing: border-box;
   min-inline-size: 0;
-  padding-block-end: 0.125rem;
+  padding: 0.3125rem 0.3125rem 0.4375rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  border-radius: 0.875rem;
+  background-color: color-mix(in srgb, var(--text) 8%, var(--bg));
   color: var(--cp-ink);
 }
-[data-body='carpet'] .cp-disc {
-  position: relative;
-  inline-size: 84%;
-  margin-block-end: 0.6875rem;
-}
-/* The round photo in a gold ring (a second thin ring in the palette's accent outside it). */
 [data-body='carpet'] .cp-photo {
-  inline-size: 100%;
-  aspect-ratio: 1;
   position: relative;
+  aspect-ratio: 1;
   overflow: hidden;
-  border: 0.1875rem solid var(--cp-gold);
-  border-radius: 50%;
-  background: var(--cp-thread);
-  box-shadow:
-    0 0 0 0.125rem var(--cp-base),
-    0 0 0 0.25rem color-mix(in srgb, var(--accent) 70%, var(--cp-base)),
-    0 0.375rem 0.5rem rgb(0 0 0 / 0.4);
+  border-radius: 0.625rem;
+  box-shadow: none;
+  background: var(--bg);
 }
-/* The discount on the photo's start side, over the rim; the add on the opposite one. */
 [data-body='carpet'] .cp-off {
+  inline-size: auto;
+  block-size: auto;
+  --photo-off-at: 0.25rem;
   --sale-bg: var(--cp-gold);
   --sale-ink: var(--cp-gold-ink);
-  position: absolute;
-  z-index: 2;
-  inset-block-start: 0.125rem;
-  inset-inline-start: -0.25rem;
-  font-size: 0.75rem;
-}
-[data-body='carpet'] .cp-add {
-  --rim-add-size: 2.5rem;
-  --rim-add-bg: var(--cp-gold);
-  --rim-add-ink: var(--cp-gold-ink);
-  z-index: 2;
-  inset-block-start: -0.375rem;
-  inset-inline-end: -0.5rem;
-  border: 2px solid var(--cp-gold-ink);
-  box-shadow: 0 2px 4px rgb(0 0 0 / 0.4);
-}
-[data-body='carpet'] .cp-add:focus-visible {
-  outline: 2px solid var(--cp-ring);
-  outline-offset: 1px;
-}
-[data-body='carpet'] .cp-add svg {
-  inline-size: 1rem;
-  block-size: 1rem;
 }
 [data-body='carpet'] .cp-name {
   color: var(--cp-ink);
-  text-align: center;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
 }
-/* The whole medallion's ring is drawn inside the cell, in cream: it stands out from every weave. */
 [data-body='carpet'] .tpl-open.cp-name:focus-visible::after {
-  --tpl-ring-radius: 0.75rem;
+  --tpl-ring-radius: 0.875rem;
   outline: 2px solid var(--cp-ring);
   outline-offset: -3px;
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
 }
-/*
- * The price tag: parchment edged in gold across the photo's foot. As wide as its price, at most as wide as the cell (the
- * disc is 84% of it): a longer price wraps onto a second line inside the tag (growing upward over the photo's foot),
- * never past its edge.
- */
+[data-body='carpet'] .cp-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-inline-size: 0;
+}
 [data-body='carpet'] .cp-price {
-  position: absolute;
-  z-index: 2;
-  inset-inline-start: 50%;
-  inset-block-end: -0.6875rem;
-  translate: -50% 0;
-  box-sizing: border-box;
-  inline-size: max-content;
-  max-inline-size: 118%;
-  overflow-wrap: anywhere;
-  padding: 0.0625rem 0.375rem;
-  border: 1.5px solid var(--cp-tag-edge);
-  border-radius: 0.5rem;
-  background: var(--cp-tag-fill);
-  color: var(--cp-tag-ink);
+  min-inline-size: 0;
+  max-inline-size: 100%;
+  color: var(--cp-gold);
   font-size: 0.75rem;
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.3;
-  text-align: center;
+  overflow-wrap: anywhere;
 }
-[data-body='carpet'] .cp-price:dir(rtl) {
-  translate: 50% 0;
+[data-body='carpet'] .cp-add {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--cp-gold);
+  color: var(--cp-gold-ink);
+}
+[data-body='carpet'] .cp-add:focus-visible,
+[data-body='carpet'] .cp-cap-add:focus-visible {
+  outline: 2px solid var(--cp-ring);
+  outline-offset: 1px;
+}
+[data-body='carpet'] .cp-add svg,
+[data-body='carpet'] .cp-cap-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 @media (hover: hover) {
   [data-body='carpet'] .cp-roll:not([aria-current='true']):hover {
-    background: color-mix(in srgb, var(--cp-gold) 28%, var(--cp-chip-fill));
+    background: color-mix(in srgb, var(--cp-gold) 22%, var(--bg));
   }
-  [data-body='carpet'] .cp-medallion:hover .cp-photo {
-    border-color: var(--cp-ring);
+  [data-body='carpet'] .cp-card:hover {
+    border-color: var(--cp-gold);
   }
 }
 
-/* A wide screen: more medallions across, in a centred column. */
+/* A wider screen: more cards across, in a centred column. */
 @media (min-width: 640px) {
   [data-body='carpet'] .cp-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 1.125rem 0.75rem;
+    gap: 0.75rem;
   }
-  [data-body='carpet'] .cp-rug {
-    padding-inline: 1rem;
+  [data-body='carpet'] .cp-flight {
+    max-inline-size: 36rem;
+    margin-inline: auto;
   }
   [data-body='carpet'] .cp-title {
-    font-size: 1.5rem;
+    font-size: 2rem;
   }
   [data-body='carpet'] .cp-name {
     font-size: 0.9375rem;
@@ -429,8 +396,8 @@
   [data-body='carpet']::before {
     animation: none;
   }
-  [data-body='carpet'] .cp-carpet[data-float] {
-    animation: none;
+  [data-body='carpet'] .cp-ride {
+    animation: none !important;
   }
   [data-body='carpet'] .cp-roll {
     transition: none;

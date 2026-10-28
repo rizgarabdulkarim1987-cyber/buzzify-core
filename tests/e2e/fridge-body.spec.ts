@@ -18,9 +18,10 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Fridge body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a glass shelf with a frost label
- * (its name and dish count), every dish a jar (a lid band with the price, the photo, a name sticker), three jars a row
- * on the shelf rail so many show at once, and a sticky strip of fridge-door panels that jumps to a shelf.
+ * The Fridge body (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-frg): every section a glass
+ * shelf with a label (its name and dish count), every dish a container (a coloured lid, a big square photo with the
+ * price on a yellow sticker, the name and the add button below), two a row, and a sticky strip of coloured magnets that
+ * jumps to a shelf.
  */
 
 const menus = bodyMenus();
@@ -44,10 +45,10 @@ const doors = (page: Page) => fridge(page).locator('[data-doors]');
 const jars = (page: Page) => fridge(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => doors(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows at least six jars with photos, prices and names, and every shelf is one tap away', async ({ page }) => {
+test('on a phone the first screen shows big containers with photos, prices and names (at least one row under the demo banner), and every shelf is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(fridge(page)).toBeVisible();
-  await expectFirstScreen(page, jars(page), { min: 6 });
+  await expectFirstScreen(page, jars(page), { min: 2 });
   await expectEverySectionReachable(doors(page));
 });
 
@@ -62,22 +63,28 @@ test('every section is a shelf with a frost label (name and dish count), all on 
   await expect(heading).toContainText('Shelf 1');
 });
 
-test('the jars sit three across on a rail: lid with the price on top, photo, name sticker below', async ({ page }) => {
+test('the containers sit two across, big: a coloured lid on top, the square photo with the price sticker on it, the name below', async ({ page }) => {
   await openMenu(page, slug);
   const cells = page.locator('#cat-viennoiserie [data-row]');
   expect(await cells.count()).toBe(3);
-  const boxes = await Promise.all([0, 1, 2].map(async (i) => (await cells.nth(i).boundingBox())!));
-  expect(Math.abs(boxes[0]!.y - boxes[1]!.y)).toBeLessThanOrEqual(1);
-  expect(boxes[0]!.x).toBeLessThan(boxes[1]!.x);
-  expect(boxes[1]!.x).toBeLessThan(boxes[2]!.x);
+  const [a, b, c] = await Promise.all([0, 1, 2].map(async (i) => (await cells.nth(i).boundingBox())!));
+  expect(Math.abs(a!.y - b!.y)).toBeLessThanOrEqual(1);
+  expect(a!.x).toBeLessThan(b!.x);
+  expect(c!.y, 'the third container starts the next row').toBeGreaterThan(a!.y + a!.height - 1);
+  expect(a!.width, 'a big container').toBeGreaterThanOrEqual(150);
   const lid = (await cells.first().locator('.fr-lid').boundingBox())!;
   const photo = (await cells.first().locator('[data-photo]').boundingBox())!;
   const name = (await cells.first().locator('.fr-name').boundingBox())!;
-  expect(lid.y + lid.height).toBeLessThanOrEqual(photo.y + 1);
+  expect(Math.abs(photo.width - photo.height), 'a square photo').toBeLessThanOrEqual(1.5);
+  expect(lid.y, 'the price sticker sits on the photo').toBeGreaterThanOrEqual(photo.y - 4);
+  expect(lid.y).toBeLessThan(photo.y + photo.height / 2);
   expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
   await expect(cells.first().locator('.fr-lid')).toContainText('$');
-  const rail = await cells.first().evaluate((node) => getComputedStyle(node, '::before').content);
-  expect(rail).not.toBe('none');
+  await expect(cells.first().locator('.fr-lid')).toHaveCSS('background-color', 'rgb(255, 210, 63)');
+  const lidStripe = await cells.first().evaluate((node) => getComputedStyle(node, '::before').content);
+  expect(lidStripe).not.toBe('none');
+  const add = (await cells.first().locator('.fr-add').boundingBox())!;
+  expect(add.y, 'the add button is beside the name, under the photo').toBeGreaterThanOrEqual(photo.y + photo.height - 1);
 });
 
 test('a door panel takes you to its shelf and focuses the label', async ({ page }) => {
@@ -125,7 +132,7 @@ test('a long dish name and a long price stay inside the jar without sideways scr
   expect(lid.x + lid.width).toBeLessThanOrEqual(box.x + box.width + 1);
 });
 
-test('on a wide screen a shelf stays a tidy row of three jars', async ({ page }) => {
+test('on a wide screen a shelf stays a tidy row of three containers', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const cells = page.locator('#cat-viennoiserie [data-row]');

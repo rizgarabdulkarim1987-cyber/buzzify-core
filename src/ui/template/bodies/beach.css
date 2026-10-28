@@ -1,328 +1,310 @@
 /*
- * The Summer Beach body (a browse shape of a template menu): a stretch of beach. A sticky strip of buoy chips (a cream pill
- * with a lifebuoy ring around the section's number, and its name; the one in view goes dark and is ringed in the palette
- * accent), and every section a full-width band of sand or sea in turns, its top edge a wave. The dishes are striped beach
- * towels in two columns: landscape towels in pairs, the photo at the start in one row of pairs and at the end in the next
- * (BeachBody writes it in that order in the page), and a last one left alone lies across the row. A towel is a frame of
- * stripes (a hue of its own by its place in the full section, four in turns) around the photo and a solid cream label
- * that carries the text (the price and the add side by side, the name under them), with a fringe of threads under it. The wave drifts once,
- * the first time its band comes into view (BeachBody arms it; with less motion there is none): a transform on a layer
- * that takes no tap. Everything is scoped under [data-body='beach'], logical properties only (RTL mirrors). The fills
- * are the shape's own (beach-fills.ts, the same on every palette); the only palette colour is the lit chip's ring.
+ * The Summer Beach body (a browse shape of a template menu), drawn after the themed-sum mockup: a day at the sea. A sky
+ * that runs from blue to cream to sand, a header of a sun with turning rays over two drifting waves, a sticky strip of
+ * white pills (the one in view orange), then each section a title over its dishes as white cards two across: the top
+ * rounded, the foot scalloped like a towel's edge, the photo, the name, the price and the orange add on a row. A card
+ * bounces up into place the first time it is seen (BeachBody arms it; with less motion there is none). Everything is
+ * scoped under [data-body='beach'], logical properties only (RTL mirrors). Every fill comes from the template's palette
+ * (Customize recolours the beach): the sky is the background, the sand the surface, the cards the card colour, the
+ * orange the accent; the Summer Beach preset's signature palette is the mockup's blue, sand, cream and orange. Only the
+ * sea of the waves and the sun are the header's own pictures, and the sale chip stays a fixed deep berry with white ink.
  */
 [data-body='beach'] {
-  --bc-sky: #8fdcf4;
-  --bc-sand: #ffe9b8;
-  --bc-sea: #bfeefc;
-  --bc-strip: #a9e3f6;
-  --bc-ink: #0d3b52;
-  --bc-cream: #fffdf7;
-  --bc-deep: #0d3b52;
-  --bc-deep-ink: #fff7e0;
-  --bc-price-ink: #9a3412;
+  --bc-sky: oklch(from var(--bg) calc(l - 0.1) calc(c * 1.4) h);
+  --bc-sand: var(--surface);
+  --bc-ink: var(--text);
+  --bc-cream: var(--card);
+  --bc-cream-ink: var(--text);
+  --bc-strip: color-mix(in srgb, var(--bg) 88%, transparent);
+  --bc-price-ink: color-mix(in srgb, var(--accent-ink) 85%, var(--text));
+  --bc-orange: var(--accent);
+  --bc-orange-ink: var(--on-accent);
+  /* The sale chip stays a deep berry with white ink (a fixed pair), so a sale reads on every palette. */
   --bc-sale: #7a0c2c;
   --bc-sale-ink: #ffffff;
-  --bc-add: #0d3b52;
-  --bc-add-ink: #fffdf7;
-  /* The lit chip's ring: the palette accent lifted 55% towards white (shared/name-chip.css `--tpl-rise`). */
-  --bc-rise: var(--tpl-rise);
-  --bc-period: 2.5rem;
-  --nav-room: 4.75rem;
-  --column: 44rem;
-  /* The last band only as tall as the strip needs to light it (shared/shapes.css). */
+  --bc-ring: var(--text);
+  /* The waves' drift: toward the start of the line, either way of reading. */
+  --bc-flow: -50%;
+  /* The sticky strip's height (44px pills, 5px above and under them), so a jumped-to section lands just below it. */
+  --nav-room: 3.75rem;
+  --column: 64rem;
+  /* The last section only as tall as the strip needs to light it (shared/shapes.css). */
   --tall-last: var(--tall-last-panel);
   /* A dish with no media: the plate's rings (shared/photo-card.css). */
   --plate-ring: 30%;
   padding-block-end: 1rem;
   overflow-x: clip;
   color: var(--bc-ink);
-  background-color: var(--bc-sky);
+  background: linear-gradient(var(--bc-sky), var(--bg) 30%, color-mix(in oklch, var(--bc-sand) 60%, var(--bc-cream)) 55%, var(--bc-sand));
+}
+[data-body='beach']:dir(rtl) {
+  --bc-flow: 50%;
 }
 
-/* ------------------------------------------------------------------ the strip of buoy chips */
+/* ------------------------------------------------------------------ the sky: a sun and two waves */
+
+[data-body='beach'] .bc-sky[hidden] {
+  display: none;
+}
+[data-body='beach'] .bc-sky {
+  position: relative;
+  block-size: 6.75rem;
+  overflow: hidden;
+}
+/* The sun: a disc in a ring of rays at the corner, the rays turning a little and then still. */
+[data-body='beach'] .bc-sun {
+  position: absolute;
+  inset-block-start: -3.75rem;
+  inset-inline-start: -3.75rem;
+  inline-size: 13.75rem;
+  block-size: 13.75rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, #ffe066 0 30%, transparent 31%),
+    repeating-conic-gradient(rgb(255 224 102 / 0.55) 0 8deg, transparent 8deg 20deg);
+  animation: bc-spin 4.5s ease-out 1;
+}
+/* The waves: two swells twice as wide as the sky, one drifting one way and the far one, paler, the other. */
+[data-body='beach'] .bc-waves {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  inline-size: 200%;
+  block-size: 3.375rem;
+}
+[data-body='beach'] .bc-waves svg {
+  position: absolute;
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  animation: bc-flow 4.5s linear 1;
+}
+[data-body='beach'] .bc-waves svg:nth-child(2) {
+  inset-block-end: 0.5rem;
+  opacity: 0.6;
+  animation-direction: reverse;
+}
+
+/* ------------------------------------------------------------------ the strip of pills */
 
 [data-body='beach'] .bc-strip {
   background: var(--bc-strip);
-  border-block-end: 3px solid var(--bc-cream);
+  backdrop-filter: blur(8px);
 }
 [data-body='beach'] .bc-strip-list {
   gap: 0.5rem;
-  padding-block: 0.3125rem;
-  padding-inline: 0.5rem;
+  padding: 0.3125rem 0.75rem;
 }
-/* A chip: a cream pill with a buoy (a ring of coral and sand stripes round the number) and the name (shared/name-chip.css). */
-[data-body='beach'] .bc-chip {
-  border-radius: 1.375rem;
-  background-color: var(--bc-cream);
-  color: var(--bc-ink);
-}
-[data-body='beach'] .bc-chip-no {
-  inline-size: 2.25rem;
-  block-size: 2.25rem;
-  border-radius: 50%;
-  background: repeating-conic-gradient(#ff6b35 0 45deg, #ffe9b8 45deg 90deg);
-}
-/* The buoy's hole: a solid cream disc that carries the number. */
-[data-body='beach'] .bc-chip-no b {
-  display: grid;
-  place-items: center;
-  inline-size: 1.5rem;
-  block-size: 1.5rem;
-  border-radius: 50%;
-  background-color: var(--bc-cream);
-  color: var(--bc-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
-}
-/* The section in view: the chip goes dark with a ring in the lit colour. */
-[data-body='beach'] .bc-chip[aria-current='true'] {
-  background-color: var(--bc-deep);
-  color: var(--bc-deep-ink);
-  box-shadow: inset 0 0 0 2px var(--bc-rise);
-}
-
-/* ------------------------------------------------------------------ a band */
-
-/* The band: a full-width stripe of sand or sea, the wave along its top edge. */
-[data-body='beach'] .bc-band {
-  --bc-band: var(--bc-sand);
-  position: relative;
-  margin: 0;
-  padding: 0.875rem 0.625rem 0.75rem;
-  background-color: var(--bc-band);
-  color: var(--bc-ink);
-}
-[data-body='beach'] .bc-band[data-tone='sea'] {
-  --bc-band: var(--bc-sea);
-}
-/* The wave: a strip of the band's colour above its top edge, cut to a wave by a mask (one tile is one period). */
-[data-body='beach'] .bc-wave {
-  position: absolute;
-  inset-block-start: calc(-0.75rem + 1px);
-  inset-inline: calc(var(--bc-period) * -1);
-  block-size: 0.75rem;
-  background-color: var(--bc-band);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12' preserveAspectRatio='none'%3E%3Cpath d='M0 12V6Q10 -2 20 6T40 6V12Z'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 12' preserveAspectRatio='none'%3E%3Cpath d='M0 12V6Q10 -2 20 6T40 6V12Z'/%3E%3C/svg%3E");
-  -webkit-mask-size: var(--bc-period) 100%;
-  mask-size: var(--bc-period) 100%;
-  -webkit-mask-repeat: repeat-x;
-  mask-repeat: repeat-x;
-  pointer-events: none;
-}
-/* The one drift: the wave slides one period (so it ends where it began) and rests. Only once the page is armed. */
-@keyframes bc-drift {
-  from {
-    transform: translateX(0);
-  }
-  to {
-    transform: translateX(var(--bc-period));
-  }
-}
-[data-body='beach'][data-armed] .bc-band[data-open] .bc-wave {
-  animation: bc-drift 3.2s ease-in-out 1;
-}
-
-[data-body='beach'] [data-heading].bc-head {
-  margin-block: 0 0.375rem;
-  padding-inline: 0.125rem;
-}
-[data-body='beach'] .bc-title {
+[data-body='beach'] .bc-pill {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  min-block-size: 1.75rem;
-  margin: 0;
+  box-sizing: border-box;
+  min-block-size: 2.75rem;
+  max-inline-size: 12rem;
+  padding-inline: 0.875rem;
+  border-radius: 1.875rem;
+  background: var(--bc-cream);
+  color: var(--bc-cream-ink);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  transition:
+    background-color 200ms,
+    color 200ms;
+}
+[data-body='beach'] .bc-pill-label {
+  min-inline-size: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+[data-body='beach'] .bc-pill[aria-current='true'] {
+  background: var(--bc-orange);
+  color: var(--bc-orange-ink);
+}
+/* The strip scrolls sideways, so it clips: the ring is drawn inside the pill. */
+[data-body='beach'] .bc-strip-list button:focus-visible {
+  outline: 2px solid var(--bc-ring);
+  outline-offset: -4px;
+}
+[data-body='beach'] .bc-pill[aria-current='true']:focus-visible {
+  outline-color: var(--bc-orange-ink);
+}
+
+/* ------------------------------------------------------------------ a section and its cards */
+
+[data-body='beach'] .bc-band {
+  padding: 0.75rem 0.75rem 0.375rem;
+}
+[data-body='beach'] [data-heading].bc-head {
+  display: block;
+  padding-inline: 0;
+}
+[data-body='beach'] .bc-title {
+  margin: 0 0 0.625rem;
   color: var(--bc-ink);
-  font-size: 1.125rem;
-  font-weight: 800;
-  line-height: 1.15;
+  font-size: 1.375rem;
+  font-weight: 700;
+  line-height: 1.25;
 }
 [data-body='beach'] .bc-title span {
-  flex: 1;
   min-inline-size: 0;
   overflow-wrap: anywhere;
 }
-[data-body='beach'] .bc-title :is(small, b) {
-  display: grid;
-  flex: none;
-  place-items: center;
-  min-inline-size: 1.75rem;
-  block-size: 1.75rem;
-  padding-inline: 0.25rem;
-  border-radius: 999px;
-  background-color: var(--bc-deep);
-  color: var(--bc-deep-ink);
-  font-size: 0.8125rem;
-  font-weight: 800;
-  line-height: 1;
+/* The dish count is read by shapes of other kinds; here the title stands alone, as in the mockup. */
+[data-body='beach'] .bc-title b {
+  display: none;
 }
-
-/* ------------------------------------------------------------------ the towels */
-
 [data-body='beach'] .bc-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
-  gap: 0.75rem 0.625rem;
+  gap: 1rem 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* A towel is the positioned ancestor of the name's tap area (shared/photo-card.css), so the whole towel opens the dish. */
-[data-body='beach'] .bc-tile {
-  --tpl-ring-radius: 0.5rem;
-  --tpl-ring-inset: -3px;
-  --sale-bg: var(--bc-sale);
-  --sale-ink: var(--bc-sale-ink);
-  --rim-add-bg: var(--bc-add);
-  --rim-add-ink: var(--bc-add-ink);
-  --photo-off-at: 0.375rem;
-  /* Stripes of the towel's own hue (set by BeachBody) and cream, half a rem each. */
-  --bc-stripes: repeating-linear-gradient(90deg, var(--towel, #ff6b35) 0 0.5rem, #fffdf7 0.5rem 1rem);
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
+/*
+ * The card: white, its top rounded, its foot cut into scallops by a mask (a row of circles, so a card of any width
+ * keeps whole scallops at its ends). The card is the positioned ancestor of the name's tap area, so the whole card opens
+ * the dish. Not yet seen (once the page arms the body) it waits below its place, transparent; seen, it rises with a small bounce.
+ */
+[data-body='beach'] .bc-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   gap: 0.25rem;
-  padding: 0.375rem;
-  border-radius: 0.5rem 0.5rem 0 0;
-  background-color: var(--bc-cream);
-  background-image: var(--bc-stripes);
-  color: var(--bc-ink);
-  box-shadow: 0 0.25rem 0.5rem rgb(13 59 82 / 0.18);
+  box-sizing: border-box;
+  min-inline-size: 0;
+  padding: 0.4375rem 0.4375rem 1rem;
+  border-start-start-radius: 1.375rem;
+  border-start-end-radius: 1.375rem;
+  background: var(--bc-cream);
+  color: var(--bc-cream-ink);
+  -webkit-mask: radial-gradient(circle at 0.625rem 100%, transparent 0.5625rem, #000 0.625rem) 0 0 / 1.25rem 100% repeat-x;
+  mask: radial-gradient(circle at 0.625rem 100%, transparent 0.5625rem, #000 0.625rem) -0.625rem 0 / 1.25rem 100% repeat-x;
+  transition:
+    opacity 500ms var(--ease-out, ease-out),
+    transform 700ms cubic-bezier(0.34, 1.4, 0.64, 1);
+  transition-delay: var(--d, 0ms);
 }
-/* The fringe: threads of the same stripes hanging under the towel (outside it, so the focus ring stays whole). */
-[data-body='beach'] .bc-tile::before {
-  content: '';
-  position: absolute;
-  inset-inline: 0;
-  inset-block-end: -0.5rem;
-  block-size: 0.5rem;
-  background-image: var(--bc-stripes);
-  -webkit-mask-image: repeating-linear-gradient(90deg, #000 0 0.1875rem, transparent 0.1875rem 0.3125rem);
-  mask-image: repeating-linear-gradient(90deg, #000 0 0.1875rem, transparent 0.1875rem 0.3125rem);
-  pointer-events: none;
+[data-body='beach'][data-armed] .bc-card:not([data-in]) {
+  opacity: 0;
+  transform: translateY(1.625rem);
 }
 [data-body='beach'] .bc-photo {
-  /* A dish with no media: the plate's rings and ground in the label's own colours, on every palette. */
-  --text: var(--bc-ink);
-  --bg: var(--bc-cream);
-  aspect-ratio: 1;
-  border-radius: 0.375rem;
-  background-color: var(--bc-cream);
-}
-/* The add on the label beside the price, big enough to tap (40px), clear of the photo; the discount is on the photo. */
-[data-body='beach'] .bc-add {
-  --rim-add-size: 2.5rem;
   position: relative;
-  z-index: 3;
-  grid-area: add;
-  align-self: center;
-  border: 2px solid var(--bc-add-ink);
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 1rem;
+  background: var(--bc-sand);
 }
-[data-body='beach'] .bc-add svg {
-  inline-size: 1.125rem;
-  block-size: 1.125rem;
-}
-/* The add button's ring is drawn inside it. */
-[data-body='beach'] .bc-add:focus-visible {
-  outline: 2px solid var(--bc-add-ink);
-  outline-offset: -5px;
-}
-/* The label: a solid cream patch that carries the text; the price and the add first, the name under them. */
-[data-body='beach'] .bc-bar {
-  grid-template-columns: minmax(0, 1fr) auto;
-  grid-template-areas: 'price add' 'name name';
-  align-content: center;
-  column-gap: 0.1875rem;
-  padding: 0.25rem 0.3125rem;
-  border-radius: 0.375rem;
-  background-color: var(--bc-cream);
-  color: var(--bc-ink);
+[data-body='beach'] .bc-off {
+  --photo-off-at: 0.375rem;
+  --sale-bg: var(--bc-sale);
+  --sale-ink: var(--bc-sale-ink);
+  inline-size: auto;
+  block-size: auto;
+  font-size: 0.75rem;
 }
 [data-body='beach'] .bc-name {
-  grid-area: name;
-  color: var(--bc-ink);
-  font-size: 0.75rem;
-  font-weight: 800;
+  margin: 0.375rem 0.25rem 0;
+  color: var(--bc-cream-ink);
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+[data-body='beach'] .tpl-open.bc-name:focus-visible::after {
+  --tpl-ring-radius: 1.375rem;
+  outline: 2px solid var(--bc-ring);
+  outline-offset: -3px;
+  border-radius: 1.375rem;
+}
+[data-body='beach'] .bc-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-inline-size: 0;
+  margin-inline: 0.25rem;
 }
 [data-body='beach'] .bc-price {
-  grid-area: price;
-  align-self: center;
-  /* A price breaks between its words only (never inside a number), unless one word alone is wider than the label. */
-  overflow-wrap: break-word;
+  min-inline-size: 0;
+  max-inline-size: 100%;
   color: var(--bc-price-ink);
   font-size: 0.8125rem;
-  font-weight: 800;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
-/* The towel's keyboard ring is drawn inside the towel, over its stripes, in the dark ink. */
-[data-body='beach'] .tpl-open.bc-name:focus-visible::after {
-  outline: 2px solid var(--bc-ink);
-  outline-offset: -3px;
-  border-radius: 0.5rem;
+[data-body='beach'] .bc-add {
+  flex: none;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  min-inline-size: 0;
+  min-block-size: 0;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--bc-orange);
+  color: var(--bc-orange-ink);
 }
-
-/* A towel is landscape: the photo beside the label, in a column of its own (the discount stays on the photo's top, the add on its foot). */
-[data-body='beach'] .bc-tile {
-  grid-template-columns: 4rem minmax(0, 1fr);
-  align-items: stretch;
+[data-body='beach'] .bc-add:focus-visible {
+  outline: 2px solid var(--bc-ring);
+  outline-offset: 1px;
 }
-/* In a landscape towel the photo fills its column as tall as the label (a square would widen past its column). */
-[data-body='beach'] .bc-tile:not(.bc-wide) .bc-photo {
-  aspect-ratio: auto;
-  min-block-size: 4rem;
-}
-/* The alternate side: the photo at the end of the row, one row in two (it comes after the label in the page too). */
-[data-body='beach'] .bc-end {
-  grid-template-columns: minmax(0, 1fr) 4rem;
-}
-/* A last towel left alone lies across the whole row, with a bigger photo. */
-[data-body='beach'] .bc-wide {
-  grid-column: 1 / -1;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-}
-[data-body='beach'] .bc-wide.bc-end {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
-}
-[data-body='beach'] .bc-wide .bc-photo {
-  aspect-ratio: 2 / 1;
-}
-[data-body='beach'] .bc-wide .bc-name {
-  font-size: 0.9375rem;
-}
-[data-body='beach'] .bc-wide .bc-price {
-  font-size: 1rem;
+[data-body='beach'] .bc-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
 }
 
 @media (hover: hover) {
-  [data-body='beach'] .bc-tile:hover {
-    box-shadow: 0 0.25rem 0.5rem rgb(13 59 82 / 0.18), 0 0 0 2px var(--bc-rise);
+  [data-body='beach'] .bc-pill:not([aria-current='true']):hover {
+    background: color-mix(in srgb, var(--bc-orange) 18%, var(--bc-cream));
   }
 }
 
-/* A wide screen: still two columns, in a centred column, with larger type. */
+/* A wide screen: more cards across in a taller sky. */
 @media (min-width: 640px) {
-  [data-body='beach'] .bc-band {
-    padding-inline: 1.25rem;
+  [data-body='beach'] .bc-sky {
+    block-size: 9rem;
   }
   [data-body='beach'] .bc-grid {
-    gap: 1.5rem 1rem;
-  }
-  [data-body='beach'] .bc-name {
-    font-size: 0.9375rem;
-  }
-  [data-body='beach'] .bc-price {
-    font-size: 1rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
   }
   [data-body='beach'] .bc-title {
     font-size: 1.75rem;
   }
 }
+@media (min-width: 1024px) {
+  [data-body='beach'] .bc-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
 
-/* Less motion: the chips simply change and the waves rest. */
+/* Over: the sun and the waves stand still (the body is marked after a few seconds, so a cleared search never replays them). */
+[data-body='beach'][data-still] :is(.bc-sun, .bc-waves svg) {
+  animation: none;
+}
+
+@keyframes bc-spin {
+  to {
+    transform: rotate(40deg);
+  }
+}
+@keyframes bc-flow {
+  to {
+    transform: translateX(var(--bc-flow));
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  [data-body='beach'] .bc-wave {
-    animation: none !important;
+  [data-body='beach'] :is(.bc-sun, .bc-waves svg) {
+    animation: none;
+  }
+  [data-body='beach'] .bc-card,
+  [data-body='beach'] .bc-pill {
+    transition: none;
   }
 }

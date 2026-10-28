@@ -143,7 +143,7 @@ export interface DesignLayout {
 export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   scroll: [],
   book: ['hero', 'nav'],
-  magazine: ['hero'],
+  magazine: ['hero', 'card', 'imageRatio'],
   board: ['hero', 'nav', 'card', 'heading'],
   elevator: ['hero', 'nav', 'card', 'heading'],
   periodic: ['hero', 'nav', 'card', 'heading', 'imageRatio'],

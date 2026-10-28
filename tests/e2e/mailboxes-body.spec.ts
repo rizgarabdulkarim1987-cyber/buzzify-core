@@ -1,4 +1,5 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { mix } from '@/lib/templates/palette';
 import {
   BODY_CATEGORIES,
   bodyMenus,
@@ -18,9 +19,10 @@ import {
 } from './helpers/body-menu';
 
 /**
- * The Mailbox Wall body (spec 2026-10-26-menu-styles-in-templates-design.md): every section a wall of brass boxes under a brass
- * rail (its name and dish count), every dish a numbered box (the photo behind a glass window, a name plate, a price
- * stamp), three boxes a row so many show at once, and a sticky strip of brass key tags that jumps to a wall.
+ * The Mailbox Wall body (spec 2026-10-26-menu-styles-in-templates-design.md, the mockup layout-2-box): every section a
+ * wall of big brass boxes under a sign (its name and dish count), every dish a numbered box (the photo behind a barred
+ * glass window, a name plate, a dark price bar with the add key), two boxes a row, and a sticky strip of brass key tags
+ * (box number, name) that jumps to a wall.
  */
 
 const menus = bodyMenus();
@@ -45,14 +47,14 @@ const tags = (page: Page) => wall(page).locator('[data-tags]');
 const boxes = (page: Page) => wall(page).locator('[data-row]');
 const entry = (page: Page, categorySlug: string) => tags(page).getByRole('button', { name: new RegExp(BODY_CATEGORIES.find((c) => c.slug === categorySlug)!.name.en!) });
 
-test('on a phone the first screen shows at least six boxes with photos, prices and names, and every wall is one tap away', async ({ page }) => {
+test('on a phone the first screen shows big boxes with photos, prices and names (at least one row under the demo banner), and every wall is one tap away', async ({ page }) => {
   await openMenu(page, slug);
   await expect(wall(page)).toBeVisible();
-  await expectFirstScreen(page, boxes(page), { min: 6 });
+  await expectFirstScreen(page, boxes(page), { min: 2 });
   await expectEverySectionReachable(tags(page));
 });
 
-test('every section is a wall under a brass rail (name and dish count), all on the page at once', async ({ page }) => {
+test('every section is a wall under a sign (name and dish count), all on the page at once', async ({ page }) => {
   await openMenu(page, slug);
   const shelves = wall(page).locator('section[data-wall]');
   expect(await shelves.count()).toBe(BODY_CATEGORIES.length);
@@ -63,25 +65,37 @@ test('every section is a wall under a brass rail (name and dish count), all on t
   await expect(heading).toContainText('Wall 1');
 });
 
-test('the boxes sit three across: number and price stamp on top, photo in a window, name plate below', async ({ page }) => {
+test('the boxes are big and sit two across: number on top, photo in a barred window, name plate, then the price bar with the add key', async ({ page }) => {
   await openMenu(page, slug);
   const cells = page.locator('#cat-viennoiserie [data-row]');
   expect(await cells.count()).toBe(3);
-  const boxes3 = await Promise.all([0, 1, 2].map(async (i) => (await cells.nth(i).boundingBox())!));
-  expect(Math.abs(boxes3[0]!.y - boxes3[1]!.y)).toBeLessThanOrEqual(1);
-  expect(boxes3[0]!.x).toBeLessThan(boxes3[1]!.x);
-  expect(boxes3[1]!.x).toBeLessThan(boxes3[2]!.x);
+  const [a, b, c] = await Promise.all([0, 1, 2].map(async (i) => (await cells.nth(i).boundingBox())!));
+  expect(Math.abs(a!.y - b!.y)).toBeLessThanOrEqual(1);
+  expect(a!.x).toBeLessThan(b!.x);
+  expect(c!.y, 'the third box starts the next row').toBeGreaterThan(a!.y + a!.height - 1);
+  expect(a!.width, 'a big box').toBeGreaterThanOrEqual(150);
   const number = (await cells.first().locator('.bx-no').boundingBox())!;
   const photo = (await cells.first().locator('[data-photo]').boundingBox())!;
   const name = (await cells.first().locator('.bx-name').boundingBox())!;
   const stamp = (await cells.first().locator('.bx-stamp').boundingBox())!;
+  const add = (await cells.first().locator('.bx-add').boundingBox())!;
   expect(number.y + number.height).toBeLessThanOrEqual(photo.y + 1);
   expect(name.y).toBeGreaterThanOrEqual(photo.y + photo.height - 1);
-  expect(stamp.y + stamp.height).toBeLessThanOrEqual(photo.y + 1);
-  expect(stamp.x).toBeGreaterThan(number.x + number.width - 1);
+  expect(stamp.y, 'the price bar is under the name plate').toBeGreaterThanOrEqual(name.y + name.height - 1);
+  expect(add.y).toBeGreaterThanOrEqual(stamp.y - 1);
+  expect(add.y + add.height).toBeLessThanOrEqual(stamp.y + stamp.height + 1);
+  expect(add.x + add.width).toBeLessThanOrEqual(stamp.x + stamp.width + 1);
   await expect(cells.first().locator('.bx-stamp')).toContainText('$');
   const glass = await cells.first().locator('[data-photo]').evaluate((node) => getComputedStyle(node, '::after').content);
   expect(glass).not.toBe('none');
+});
+
+test('each key tag carries its first box number, in the menu numerals', async ({ page }) => {
+  await openMenu(page, slug);
+  await expect(tags(page).locator('.bx-tag-no').first()).toHaveText('101');
+  await expect(tags(page).locator('.bx-tag-no').nth(1)).toHaveText('104');
+  await page.goto(`/${arabSlug}/en?stage=off`);
+  await expect(tags(page).locator('.bx-tag-no').first()).toHaveText('١٠١');
 });
 
 test('the boxes are numbered from 101 along the whole menu, in the menu numerals', async ({ page }) => {
@@ -138,7 +152,7 @@ test('a long dish name and a long price stay inside the box without sideways scr
   expect(stamp.x + stamp.width).toBeLessThanOrEqual(box.x + box.width + 1);
 });
 
-test('on a wide screen a wall stays a tidy row of four boxes', async ({ page }) => {
+test('on a wide screen a wall stays a tidy row of three boxes', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/${slug}/en?stage=off`);
   const cells = page.locator('#cat-viennoiserie [data-row]');
@@ -186,7 +200,7 @@ test('text reads on every fill it sits on, in every palette of the shape', async
     await expectReadable(menu, {
       'unlit tag': tags(page).locator('.bx-tag:not([aria-current="true"])').first(),
       'lit tag': tags(page).locator('[aria-current="true"]'),
-      'brass rail': island.locator('.bx-rail'),
+      sign: island.locator('.bx-rail'),
       'wall number': island.locator('.bx-rail small'),
       'dish count': island.locator('.bx-rail b'),
       'price stamp': island.locator('.bx-stamp').first(),
@@ -229,4 +243,35 @@ test('a dish on sale shows a −NN% chip in the menu numerals on its box, and ke
   expect(at.x + at.width).toBeLessThanOrEqual(box.x + box.width + 1);
   expect(await contrastOf(chip)).toBeGreaterThanOrEqual(4.5);
   await expect(cell.locator('.tpl-was .sr-only')).toHaveText(/[\d٠-٩]/);
+});
+
+/** Colours picked in Customize (a green menu with a pink accent): every surface of the shape must follow them. */
+const CUSTOM = { bg: '#0B2A1A', surface: '#12361F', card: '#12361F', raised: '#1C4A2E', line: '#2D6A45', text: '#F2FFF6', muted: '#BFE3CB', accent: '#E86A92', onAccent: '#111111', button: '#E86A92', onButton: '#111111' };
+const customSlug = menus.slug('maicol');
+test.beforeAll(async () => {
+  await menus.create(customSlug, 'mailboxes', { templateId: 'the-mailbox-wall', colors: CUSTOM });
+});
+/** A computed colour as [r, g, b] (0 to 255), whatever colour space the browser reports it in. */
+const rgbOf = (node: Locator, property: string) =>
+  node.evaluate((element, name) => {
+    const context = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!;
+    context.fillStyle = getComputedStyle(element).getPropertyValue(name);
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return [r!, g!, b!];
+  }, property);
+const rgbOfHex = (hex: string) => [1, 3, 5].map((at) => parseInt(hex.slice(at, at + 2), 16));
+const expectNear = (actual: number[], hex: string, message: string) => {
+  const want = rgbOfHex(hex);
+  actual.forEach((channel, at) => expect(Math.abs(channel - want[at]!), `${message}: channel ${at} is ${channel}, want ~${want[at]}`).toBeLessThanOrEqual(3));
+};
+
+test('Customize colours reach the wall: the brass is the accent, its ink --on-accent', async ({ page }) => {
+  await openMenu(page, customSlug);
+  const wall = page.locator('[data-body="mailboxes"] .bx-wall').first();
+  expectNear(await rgbOf(wall.locator('.bx-box').first(), 'background-color'), CUSTOM.accent, 'door');
+  expectNear(await rgbOf(wall.locator('.bx-box').first(), 'color'), CUSTOM.onAccent, 'door ink');
+  expectNear(await rgbOf(wall.locator('.bx-name').first(), 'background-color'), mix(CUSTOM.text, CUSTOM.accent, 0.4), 'name plate');
+  expectNear(await rgbOf(wall.locator('.bx-stamp').first(), 'background-color'), CUSTOM.onAccent, 'price stamp');
+  expectNear(await rgbOf(wall.locator('.bx-stamp').first(), 'color'), mix(CUSTOM.text, CUSTOM.accent, 0.4), 'stamp face');
 });
