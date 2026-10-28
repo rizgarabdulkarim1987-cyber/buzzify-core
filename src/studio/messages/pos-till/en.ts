@@ -632,6 +632,7 @@ const posTill: Messages = {
   'pos.pay.tipIn': 'Tip paid by',
   'pos.receipt.reference': 'Reference',
   'error.text.posAlreadyReversed': 'This payment was already reversed',
+  'error.text.posReverseLaterFirst': 'A later part of this bill carried its rounding. Reverse the later parts first.',
   'activity.action.pos.payment.reverse': 'Reversed a payment',
   'activity.action.pos.staff.pin.set': 'Set a quick sign-in PIN',
   'activity.action.pos.staff.pin.clear': 'Cleared someone\'s PIN',

@@ -632,6 +632,7 @@ const posTill: Messages = {
   'pos.pay.tipIn': 'بەخشیش دەدرێت بە',
   'pos.receipt.reference': 'ژمارەی مامەڵە',
   'error.text.posAlreadyReversed': 'ئەم پارەدانە پێشتر گەڕێندراوەتەوە',
+  'error.text.posReverseLaterFirst': 'ئەم بەشە خڕکردنەوەی بەشێکی دواتری پسوولەکەی هەڵگرتووە. سەرەتا بەشەکانی دواتر بگەڕێنەوە.',
   'activity.action.pos.payment.reverse': 'پارەدانێکی گەڕاندەوە',
   'activity.action.pos.staff.pin.set': 'PINی چوونەژوورەوەی خێرای دانا',
   'activity.action.pos.staff.pin.clear': 'PINی کەسێکی سڕییەوە',

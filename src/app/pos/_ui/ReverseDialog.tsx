@@ -6,6 +6,7 @@ import { formatNumber } from '@/lib/pos-format';
 import { refundIsTerminal, usdRefund } from '@/lib/pos-pay-legs';
 import { refundOpensDrawer } from '@/server/domain/pos/drawer';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import { SERVER_TEXT } from '@/studio/errors';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
@@ -62,7 +63,10 @@ export function ReverseButton({ orderId, paymentId, version, total, method, legs
             return true;
           }
           const fields = result.error.fields;
-          return fields?.reason ? { fields: { reason: fields.reason } } : { message: t('pos.order.actionRefused') };
+          if (fields?.reason) return { fields: { reason: fields.reason } };
+          // A refusal the till names (such as "reverse the later parts first") is said in the dialog, not hidden behind a generic line.
+          const known = SERVER_TEXT[result.error.message];
+          return { message: known ? t(known) : t('pos.order.actionRefused') };
         }}
       >
         {(errors) => (

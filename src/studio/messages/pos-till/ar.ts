@@ -632,6 +632,7 @@ const posTill: Messages = {
   'pos.pay.tipIn': 'البقشيش يُدفع بـ',
   'pos.receipt.reference': 'المرجع',
   'error.text.posAlreadyReversed': 'تم استرجاع هذه الدفعة من قبل',
+  'error.text.posReverseLaterFirst': 'هذا الجزء يحمل تقريب جزء لاحق من الفاتورة. استرجع الأجزاء اللاحقة أولًا.',
   'activity.action.pos.payment.reverse': 'استرجع دفعة',
   'activity.action.pos.staff.pin.set': 'عيّن رمز PIN للدخول السريع',
   'activity.action.pos.staff.pin.clear': 'مسح رمز PIN لشخص',
