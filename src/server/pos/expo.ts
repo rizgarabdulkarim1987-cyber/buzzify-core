@@ -29,7 +29,7 @@ export async function readExpo(db: AnyDb, restaurantId: string, actor: KitchenAc
       sectionNameSnapshot: true,
       sentAt: true,
       readyAt: true,
-      order: { select: { number: true, status: true, kind: true, queueNumber: true, table: { select: { number: true } } } },
+      order: { select: { number: true, status: true, kind: true, queueNumber: true, fulfillment: true, table: { select: { number: true } } } },
     },
   });
   const lines: ExpoLine[] = rows.flatMap((row) =>
@@ -47,8 +47,10 @@ export async function readExpo(db: AnyDb, restaurantId: string, actor: KitchenAc
             sectionName: row.sectionNameSnapshot,
             sentAt: row.sentAt,
             ready: row.readyAt !== null,
+            readyAt: row.readyAt,
+            fulfillment: row.order.fulfillment,
           },
         ],
   );
-  return { orders: groupExpo(lines), screen: true };
+  return { orders: groupExpo(lines, now), screen: true };
 }
