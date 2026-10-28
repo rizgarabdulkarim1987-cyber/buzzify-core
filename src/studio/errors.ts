@@ -562,6 +562,23 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose a language': 'error.text.phReceiptLanguage',
   'Choose a sale or a return': 'error.text.phReceiptChoose',
   'This sale has no receipt': 'error.text.phSaleNoReceipt',
+  'This key was already used for a different batch': 'error.text.phIntakeKeyMismatch',
+  'File not found': 'error.text.phIntakeFileNotFound',
+  'The file must be a JPEG, PNG, WebP or PDF': 'error.text.phIntakeUnsupported',
+  'The file is empty': 'error.text.phIntakeEmpty',
+  'The file is larger than 8 MB': 'error.text.phIntakeTooLarge',
+  'The file is not the type it claims to be': 'error.text.phIntakeTypeMismatch',
+  'The PDF could not be read: send photos or another PDF': 'error.text.phIntakePdfUnreadable',
+  'A PDF can have at most 10 pages': 'error.text.phIntakePdfPages',
+  'The image could not be read': 'error.text.phIntakeImageUnreadable',
+  'Only an open batch can take files': 'error.text.phIntakeNotOpen',
+  'This file was already uploaded': 'error.text.phIntakeDuplicate',
+  'A batch can hold at most 20 files': 'error.text.phIntakeTooManyFiles',
+  'This pharmacy’s file storage is full': 'error.text.phIntakeStorageFull',
+  'Invoice upload is not set up yet': 'error.text.phIntakeNotConfigured',
+  'The upload must be a form': 'error.text.phIntakeUploadForm',
+  'The upload could not be read': 'error.text.phIntakeUploadRead',
+  'Choose a file': 'error.text.phIntakeChooseFile',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
