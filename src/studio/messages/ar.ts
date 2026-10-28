@@ -1061,7 +1061,7 @@ const ar: Messages = {
   'workspace.tab.prices': 'الأسعار',
   'workspace.tab.availability': 'التوفر',
   'workspace.tab.sales': 'المبيعات',
-  'workspace.tab.about': 'صفحة «عنّا»',
+  'workspace.tab.about': 'استكشف',
   'workspace.tab.wheel': 'عجلة الحظ',
   'sales.pages': 'أدوات البيع',
   'sales.page.overview': 'نظرة عامة',

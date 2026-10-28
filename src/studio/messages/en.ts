@@ -1056,7 +1056,7 @@ const en: Messages = {
   'workspace.tab.prices': 'Prices',
   'workspace.tab.availability': 'Availability',
   'workspace.tab.sales': 'Sales',
-  'workspace.tab.about': 'About page',
+  'workspace.tab.about': 'Explore',
   'workspace.tab.wheel': 'Wheel of fortune',
   'sales.pages': 'Sales tools',
   'sales.page.overview': 'Overview',

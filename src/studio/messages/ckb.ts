@@ -1060,7 +1060,7 @@ const ckb: Messages = {
   'workspace.tab.prices': 'نرخەکان',
   'workspace.tab.availability': 'بەردەستبوون',
   'workspace.tab.sales': 'فرۆشتن',
-  'workspace.tab.about': 'پەڕەی دەربارە',
+  'workspace.tab.about': 'گەڕان',
   'workspace.tab.wheel': 'گەڕۆکی بەخت',
   'sales.pages': 'ئامرازەکانی فرۆشتن',
   'sales.page.overview': 'تێڕوانینی گشتی',

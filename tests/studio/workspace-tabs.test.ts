@@ -7,7 +7,7 @@ const keys = (tabs: WorkspaceTab[]) => tabs.map((tab) => tab.key);
 
 describe('the menu workspace tabs', () => {
   it('lists the tabs in order (spec 10.3 and the Sales tab), Design (template studio) before Brand and Motion after it, Content at the menu address itself', () => {
-    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'about', 'wheel', 'intro', 'settings', 'qr', 'data', 'revisions', 'preview']);
+    expect(keys([...WORKSPACE_TABS])).toEqual(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'about', 'intro', 'settings', 'qr', 'data', 'revisions', 'preview']);
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'motion')).toMatchObject({ path: '/motion', needs: ['brand.edit'] });
     expect(WORKSPACE_TABS[0]!.path).toBe('');
     expect(WORKSPACE_TABS.find((tab) => tab.key === 'preview')!.path).toBe('/preview');
@@ -23,19 +23,14 @@ describe('the menu workspace tabs', () => {
     for (const catalog of [en, ar, ckb]) expect(catalog['workspace.tab.about']).toBeTruthy();
   });
 
-  it('shows the Wheel tab to anyone who may edit content, labelled in all three Studio languages', async () => {
-    const owner = effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy: {} });
-    expect(keys(visibleTabs(owner, new Set(['wheel'] as const)))).toEqual(['wheel']);
-    expect(WORKSPACE_TABS.find((tab) => tab.key === 'wheel')).toMatchObject({ path: '/wheel', labelKey: 'workspace.tab.wheel', needs: ['content.edit'] });
-    const { default: en } = await import('@/studio/messages/en');
-    const { default: ar } = await import('@/studio/messages/ar');
-    const { default: ckb } = await import('@/studio/messages/ckb');
-    for (const catalog of [en, ar, ckb]) expect(catalog['workspace.tab.wheel']).toBeTruthy();
+  it('has no tab of its own for the wheel: it is a section of the Explore tab', () => {
+    expect(keys([...WORKSPACE_TABS])).not.toContain('wheel');
+    expect(WORKSPACE_TABS.find((tab) => tab.key === 'about')).toMatchObject({ path: '/about', labelKey: 'workspace.tab.about' });
   });
 
-  it('shows an owner Content, Prices, Availability, Sales, About, Wheel, Intro, Revisions and Preview', () => {
+  it('shows an owner Content, Prices, Availability, Sales, Explore, Intro, Revisions and Preview', () => {
     const owner = effectivePermissions({ isSuperAdmin: false, role: 'OWNER', policy: {} });
-    expect(keys(visibleTabs(owner, ALL_BUILT))).toEqual(['content', 'prices', 'availability', 'sales', 'about', 'wheel', 'intro', 'revisions', 'preview']);
+    expect(keys(visibleTabs(owner, ALL_BUILT))).toEqual(['content', 'prices', 'availability', 'sales', 'about', 'intro', 'revisions', 'preview']);
   });
 
   it('hides Sales without content.edit', () => {
