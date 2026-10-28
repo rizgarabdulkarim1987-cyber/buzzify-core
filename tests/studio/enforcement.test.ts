@@ -587,7 +587,73 @@ describe('Studio enforcement rules', () => {
         expect(stockWrites('await tx.phStockBalance.findMany({ where });\nawait tx.phStockMovement.count();')).toEqual([]);
       });
 
-      it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
+      describe('the invoice intake tables are written by the intake services alone (phase 5)', () => {
+      /** The folder of the intake services: the only place that may write the intake tables (actions and queries call them). */
+      const INTAKE_DIR = 'src/server/pharmacy/intake/';
+      /** Every intake table. Today `files.ts` writes batches and files; later services of the folder write rows, usage and calls. */
+      const TABLES = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiReservation', 'PhAiCall'];
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)';
+
+      /** The intake tables `source` writes: by any receiver, `updateWithVersion(delegate, …)`, a destructured delegate, or raw SQL. */
+      function intakeTableWrites(source: string): string[] {
+        const found: string[] = [];
+        for (const table of TABLES) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push(table);
+          else if (new RegExp(`\\bupdateWithVersion\\s*\\(\\s*(?:[\\w.!]+\\.)?${delegate}\\b`).test(source)) found.push(table);
+          else if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(table);
+          else if (new RegExp(`(?:insert\\s+into|update|delete\\s+from)\\s+(?:"${table}"|${table}\\b)`, 'i').test(source)) found.push(table);
+        }
+        return found;
+      }
+      const offenders = (path: string, source: string) => (path.startsWith(INTAKE_DIR) ? [] : intakeTableWrites(source));
+
+      it('recognises a write however the receiver is spelled, raw SQL included', () => {
+        expect(intakeTableWrites('await tx.phIntakeFile.create({ data });')).toEqual(['PhIntakeFile']);
+        expect(intakeTableWrites('await ctx.scoped!.phIntakeBatch.updateMany({ where, data });')).toEqual(['PhIntakeBatch']);
+        expect(intakeTableWrites('await getPrisma().phIntakeRow.deleteMany({});')).toEqual(['PhIntakeRow']);
+        expect(intakeTableWrites('await updateWithVersion(tx.phIntakeBatch, { id, version, data: {}, entityType: "x" }, tx);')).toEqual(['PhIntakeBatch']);
+        expect(intakeTableWrites('const { phAiCall } = tx;')).toEqual(['PhAiCall']);
+        expect(intakeTableWrites('await tx.phAiUsageMonth.upsert({});')).toEqual(['PhAiUsageMonth']);
+        expect(intakeTableWrites('await tx.phAiReservation.create({ data });')).toEqual(['PhAiReservation']);
+        expect(intakeTableWrites('await tx.$executeRaw`UPDATE "PhAiUsageMonth" SET "spentMicroUsd" = 1`;')).toEqual(['PhAiUsageMonth']);
+        expect(intakeTableWrites('await tx.$executeRaw`delete from "PhIntakeFile"`;')).toEqual(['PhIntakeFile']);
+        expect(intakeTableWrites('await tx.phIntakeFile.findMany({});\nawait tx.phIntakeBatch.count();\nawait tx.phIntakeFile.aggregate({});')).toEqual([]);
+        expect(intakeTableWrites('await tx.$queryRaw`SELECT "id" FROM "PhIntakeBatch" FOR UPDATE`;')).toEqual([]);
+      });
+
+      it('names a write in a file outside the intake folder', () => {
+        expect(offenders('src/server/pharmacy/receipts.ts', 'await tx.phIntakeBatch.update({ where, data });')).toEqual(['PhIntakeBatch']);
+        expect(offenders('src/server/pharmacy/actions/intake.ts', 'await tx.phIntakeFile.create({ data });')).toEqual(['PhIntakeFile']);
+        expect(offenders('src/server/pharmacy/queries/intake.ts', 'await tx.phIntakeFile.updateMany({ where, data });')).toEqual(['PhIntakeFile']);
+        expect(offenders('src/app/pharmacy/_actions/intake.ts', 'await tx.phIntakeRow.create({ data });')).toEqual(['PhIntakeRow']);
+        expect(offenders('src/app/api/pharmacy/intake/files/route.ts', 'await tx.phAiCall.create({ data });')).toEqual(['PhAiCall']);
+        expect(offenders('src/server/ai/usage.ts', 'await tx.phAiUsageMonth.update({ where, data });')).toEqual(['PhAiUsageMonth']);
+        expect(offenders('src/server/pharmacy/intake/files.ts', 'await tx.phIntakeFile.create({ data });')).toEqual([]);
+        expect(offenders('src/server/pharmacy/intake/extract.ts', 'await tx.phAiCall.create({ data });\nawait tx.phIntakeRow.createMany({ data });')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => offenders(path, read(path)).map((table) => `${path}: ${table}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the batch and file writes in files.ts, so the check is not passing on a stale path', () => {
+        const written = intakeTableWrites(read(`${INTAKE_DIR}files.ts`));
+        expect(written).toContain('PhIntakeBatch');
+        expect(written).toContain('PhIntakeFile');
+      });
+
+      it('leaves the stock tables to stock.ts: no intake service writes them', () => {
+        for (const path of sourceFiles('src/server/pharmacy/intake')) {
+          const source = read(path);
+          expect(/\bphStock(?:Balance|Movement)\s*\.\s*(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\b/.test(source), path).toBe(false);
+          expect(/(?:insert\s+into|update|delete\s+from)\s+"?PhStock(?:Balance|Movement)"?/i.test(source), `${path} raw`).toBe(false);
+        }
+      });
+    });
+
+    it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
         const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')]
           .filter((path) => !STOCK_WRITERS.includes(path) && ALLOWANCES[path] === undefined)
           .flatMap((path) => stockWrites(read(path)).map((write) => `${path}: ${write}`));
