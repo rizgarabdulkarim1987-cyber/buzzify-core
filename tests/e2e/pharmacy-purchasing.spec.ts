@@ -186,7 +186,7 @@ test.describe('Pharmacy purchasing @desktop', () => {
     await page.getByRole('navigation').getByRole('link', { name: 'Purchasing' }).click();
     await expect(page.getByRole('heading', { level: 1, name: 'Purchasing' })).toBeVisible();
     await expect(page.getByTestId('hub-open-orders')).toContainText(/Open orders\s*0(?!\d)/);
-    await expect(page.getByTestId('hub-invoices')).toContainText('Not on screen yet');
+    await expect(page.getByTestId('hub-invoices').getByRole('link', { name: 'Go to invoices' })).toBeVisible();
     await shoot(page, 'en-hub-1280');
 
     // A supplier.
