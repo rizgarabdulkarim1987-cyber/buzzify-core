@@ -7,8 +7,11 @@ import { dirname, join } from 'node:path';
  */
 const REGISTRY = readFileSync(join(process.cwd(), 'src/ui/template/bodies/index.ts'), 'utf8');
 
-/** Each registry line: `kind: dynamic(() => import('./XBody').then((m) => m.XBody)),`. */
-export const REGISTRY_LINES = [...REGISTRY.matchAll(/^ {2}(\w+): dynamic\(\(\) => import\('\.\/(\w+)'\)\.then\(\(m\) => m\.(\w+)\)\),$/gm)].map(([, kind, module, name]) => ({ kind: kind!, module: module!, name: name! }));
+/**
+ * Each registry line: `kind: dynamic(() => import('./XBody').then((m) => m.XBody)),`. A kind with a hyphen is quoted, and
+ * a family module (`./SpineBody`) serves several kinds through one named export each.
+ */
+export const REGISTRY_LINES = [...REGISTRY.matchAll(/^ {2}(?:'([\w-]+)'|(\w+)): dynamic\(\(\) => import\('\.\/(\w+)'\)\.then\(\(m\) => m\.(\w+)\)\),$/gm)].map(([, quoted, bare, module, name]) => ({ kind: (quoted ?? bare)!, module: module!, name: name! }));
 
 /** The name of the component the registry loads for `kind` (from the module of the same name), or undefined. */
 export function registeredAs(kind: string): string | undefined {

@@ -355,15 +355,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="beam">${s.t}<small>${toAr(s.items.length)} شبابيك</small></div><div class="wins">${s.items.map(it => `<div class="win bob" style="${clock(it.no)};--h:-6px"><div class="lat"></div><div class="ph" ${bg(it.img, 260)}></div><div class="sill"><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'اطلب')}</div></div></div>`).join('')}</div></section>`).join('')}
     ${cart('طلبك')}` },
 
- { key: 'sack', fam: 'عربي · سوق العطّارين', name: 'سوق البهارات',
-   desc: 'المنيو دكان عطّار: كل قسم رف خشب بلوح طباشير عليه اسمه، وكل طبق كيس جنفاص مفتوح تشوف صورته من فوك، وعليه ورقة سعر معلّقة بعود تتمرجح. الأكياس تصعد وتبين وانت تنزل.',
-   mo: '<b>الحركة:</b> الأكياس تطلع من تحت وحدة ورا الثانية لمن توصلها، والأوراق تتمرجح.',
-   render: () => `
-    ${rail}<div class="hd"><h1>سوق البهارات</h1><p>كل رف قسم · كل كيس طبق</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><span class="slate">${s.t}</span><div class="row">${s.items.map((it, i) => `<div class="sack rv" style="--d:${(i % 3) * 70}ms"><div class="mouth ph" ${bg(it.img, 220)}></div><div class="tag" style="--r:${((rnd(it.no) - .5) * 8).toFixed(1)}deg;--dl:-${(rnd(it.no + 3) * 3).toFixed(2)}s"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, 'زِن')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('ميزانك')}` },
-
  { key: 'zel', fam: 'عربي · أندلسي', name: 'نجوم الزليج',
    desc: 'كل قسم لوحة زليج تحت قوس، وكل طبق نجمة ثمانية من الفسيفساء بصورته. النجوم تدور بالعرض مثل عرض دوّار: النجمة بالنص تكبر وتتقدم واللي جنبها تصغر وتخفت، وتحتها أسهم وعدّاد.',
    mo: '<b>الحركة:</b> عرض دوّار يكبّر الطبق الوسطاني، بأسهم وعدّاد «٠٢ / ٠٤».',
@@ -391,15 +382,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="fr"></div><div class="rug"><div class="field"><h2>${s.t}</h2><div class="meds">${s.items.map(it => `<div class="fl" data-z="${Math.floor(rnd(it.no + 3) * 3)}"><div class="med bob" style="${clock(it.no)};--h:-6px;--r:${((rnd(it.no) - .5) * 4).toFixed(1)}deg"><div class="hex"><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div></div>`).join('')}</div></div></div><div class="fr"></div></section>`).join('')}
     ${cart('طلبك')}` },
 
- { key: 'hawr', fam: 'كردي · هورامان', name: 'قرية هورامان',
-   desc: 'المنيو قرية هورامان المدرّجة بالجبل: كل قسم مستوى من القرية، والأطباق بيوت حجر مدرّجة وحدة فوق الثانية، سطح البيت حوش اللي فوقه، وصورة الطبق بشبّاكه الأزرق. وانت تنزل المستويات تتحرك بسرعات مختلفة مثل الجبل الحقيقي.',
-   mo: '<b>الحركة:</b> عمق بين المستويات، والشبّاك يضوي لمن تضيف.',
-   render: () => `
-    ${rail}<div class="hd"><h1>قرية هورامان</h1><p>انزل بالقرية بيت بيت</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => { const rows = []; for (let i = 0; i < s.items.length; i += 2) rows.push(s.items.slice(i, i + 2)); return `<section data-sec="${s.id}"><div class="lvl">${s.t}</div><div class="terr">${rows.map((r, ri) => `<div class="step fl" data-z="${ri % 3}" style="--s:${[0, 7, 14][ri % 3]}%">${r.map(it => `<div class="house"><div class="roof"><b>${it.n}</b>${addBtn(it, '+')}</div><div class="wnd"><div class="ph" ${bg(it.img, 240)}></div></div><div class="foot"><span>${it.p} د.ع</span></div></div>`).join('')}</div>`).join('')}</div></section>`; }).join('')}
-    ${cart('طلبك')}` },
-
  { key: 'newroz', fam: 'كردي', name: 'نار نوروز',
    desc: 'كل قسم جبل وعلى قمته نار نوروز يطير منها شرار، والأطباق مشاعل نازلة على درب متعرّج بجنب الجبل، يمين ويسار. الشرار يصعد مثل ذيل المذنّب، والمشاعل تطفو بخفة.',
    mo: '<b>الحركة:</b> جزيئات شرار طايرة من كل نار، ومشاعل تتمايل على الدرب.',
@@ -408,15 +390,6 @@ const STYLES = [
     ${chips(s => s.t)}
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="peak"><div class="fire"></div><div class="embers">${[...Array(10)].map((_, i) => `<i style="--t:${(1.6 + rnd(i + s.items.length) * 1.4).toFixed(2)}s;--dl:-${(rnd(i * 3 + 1) * 2.5).toFixed(2)}s;--dx:${((rnd(i * 7 + 2) - .5) * 70).toFixed(0)}px"></i>`).join('')}</div><b>${s.t}</b></div><div class="path">${s.items.map((it, i) => `<div class="tor bob" style="${clock(it.no)};--h:-5px;--x:${i % 2 ? '34%' : '0%'}"><div class="flame ph" ${bg(it.img, 180)}></div><div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></section>`).join('')}
     ${cart('طلبك')}` },
-
- { key: 'chai', fam: 'عراقي وكردي · چايخانة', name: 'استكان الچاي',
-   desc: 'المنيو چايخانة: كل قسم صينية نحاس منقوشة، وكل طبق استكان چاي على صحنه، والصورة جوّا الاستكان بلمعة الزجاج، والبخار يصعد من فوقه. الاستكانات تتمايل شوية على الصينية.',
-   mo: '<b>الحركة:</b> بخار طاير من كل استكان، والاستكانات تطفو بخفة.',
-   render: () => `
-    ${rail}<div class="hd"><h1>استكان الچاي</h1><p>كل صينية قسم · كل استكان طبق</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><div class="tray"><h2>${s.t}</h2><div class="glasses">${s.items.map(it => `<div class="gl"><div class="steam">${[0, 1, 2].map(k => `<i style="--x:${4 + k * 9}px;--dl:-${(rnd(it.no * 3 + k) * 2.4).toFixed(2)}s"></i>`).join('')}</div><div class="bob" style="${clock(it.no)};--h:-4px"><div class="cup"><div class="ph" ${bg(it.img, 200)}></div></div><div class="saucer"></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'صبّ')}</div>`).join('')}</div></div></section>`).join('')}
-    ${cart('صينيتك')}` },
 ];
 
 // ---------- gallery ----------

@@ -1,0 +1,132 @@
+/*
+ * The Jeweller (kind `jewel`, family vitrine): a jeweller's window at night. Each section is a velvet tray with a gold
+ * rim; each dish is a gem, its photo in a round gold bezel with a sparkle, its price on a small hanging tag tilted back
+ * (`--tilt`), its name in the window's light, and «acquire» (add), which flashes the gem and spins its sparkle. The
+ * velvet is `--raised`, the gold `--accent`, the tag `--text` with `--bg` letters.
+ */
+[data-body='jewel'] {
+  --jw-gold-hi: color-mix(in srgb, var(--accent) 35%, #fff);
+  --jw-gold-lo: color-mix(in srgb, var(--accent) 60%, #000);
+  background: radial-gradient(circle at 50% 0, color-mix(in srgb, var(--raised) 70%, var(--bg)), var(--bg) 70%);
+}
+
+[data-body='jewel'] .vt-chip {
+  padding-inline: 0.5rem 0.875rem;
+  border: 1px solid var(--jw-gold-lo);
+  border-radius: 0.125rem;
+  background: var(--bg);
+  color: var(--text);
+}
+[data-body='jewel'] .jw-chip-gem {
+  inline-size: 0.75rem;
+  block-size: 0.75rem;
+  border-radius: 50%;
+  background: conic-gradient(var(--jw-gold-hi), var(--accent), var(--jw-gold-hi), var(--jw-gold-lo), var(--jw-gold-hi));
+}
+[data-body='jewel'] .vt-chip[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* The velvet tray. */
+[data-body='jewel'] .jw-section {
+  margin: 0.75rem 0.75rem 1.25rem;
+  padding: 0.75rem 0.625rem 1rem;
+  border: 3px solid var(--accent);
+  border-radius: 0.625rem;
+  background: radial-gradient(circle at 50% 30%, color-mix(in srgb, var(--raised) 85%, #fff), var(--raised) 75%);
+  box-shadow:
+    inset 0 0.5rem 1.125rem rgb(0 0 0 / 0.55),
+    0 0.625rem 1.625rem rgb(0 0 0 / 0.45);
+}
+[data-body='jewel'] .jw-title {
+  justify-content: center;
+  margin-block-end: 0.75rem;
+  font-size: 1.375rem;
+  text-align: center;
+}
+[data-body='jewel'] .jw-title b {
+  padding-inline: 0.5rem;
+  border: 1px solid var(--jw-gold-lo);
+  border-radius: 999px;
+  font-size: 0.75rem;
+}
+[data-body='jewel'] .jw-grid {
+  gap: 1rem 0.625rem;
+}
+[data-body='jewel'] .jw-tile {
+  gap: 0.25rem;
+  padding-block-start: 0.375rem;
+}
+/* The gold bezel round the photo. */
+[data-body='jewel'] .jw-set {
+  position: relative;
+  inline-size: 74%;
+  aspect-ratio: 1;
+  padding: 0.3125rem;
+  border-radius: 50%;
+  background: conic-gradient(var(--jw-gold-hi), var(--accent), var(--jw-gold-hi), var(--jw-gold-lo), var(--jw-gold-hi));
+  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 0.55);
+}
+[data-body='jewel'] .jw-window {
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 2px var(--jw-gold-lo);
+}
+[data-body='jewel'] .jw-star {
+  position: absolute;
+  inset-block-start: 2%;
+  inset-inline-end: 4%;
+  color: #fff;
+  font-size: 1.125rem;
+  font-style: normal;
+  line-height: 1;
+  text-shadow: 0 0 0.5rem #fff;
+  pointer-events: none;
+}
+/* The hanging price tag, tilted back, on its string. */
+[data-body='jewel'] .jw-tag {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.25rem;
+  inset-inline-start: 0;
+  padding: 0.125rem 0.4375rem;
+  border-radius: 0.1875rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.75rem;
+  rotate: var(--tilt, -12deg);
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.4);
+  pointer-events: none;
+}
+[data-body='jewel'] .jw-tag::before {
+  content: '';
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  inline-size: 1px;
+  block-size: 0.375rem;
+  background: var(--jw-gold-hi);
+}
+[data-body='jewel'] .jw-name {
+  font-size: 0.9375rem;
+}
+[data-body='jewel'] .jw-add {
+  border: 1px solid var(--accent);
+  border-radius: 0.125rem;
+  background: transparent;
+  color: var(--text);
+}
+
+@media (hover: hover) {
+  [data-body='jewel'] .vt-chip:hover:not([aria-current='true']) {
+    border-color: var(--accent);
+  }
+  [data-body='jewel'] .jw-tile:hover .jw-set {
+    box-shadow:
+      0 0 0 2px var(--jw-gold-hi),
+      0 0.5rem 1rem rgb(0 0 0 / 0.55);
+  }
+}

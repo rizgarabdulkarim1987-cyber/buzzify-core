@@ -1,0 +1,218 @@
+/*
+ * The Taste Passport (family `pinboard`, kind `pass`): the menu is a passport. A slim cover band carries an emblem and
+ * the restaurant's name (the tenant's, never a sample); every section is a visa page with a guilloche ground, its
+ * number at the corner; every dish is a tilted stamp in coloured ink, double-ruled, with its photo, name and fee. The
+ * stamps press onto the page (from a little larger) the first time they are seen; adding prints a round done-stamp
+ * with a tick on that stamp (it stays). Colours from the template tokens: the cover `--text` with `--bg` letters, the
+ * page `--card`, the inks the accent and the text mixed in turn (decoration: the words stay `--text`), the done-stamp
+ * `--accent-ink`.
+ */
+[data-body='pass'] {
+  background: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: inked tabs */
+
+[data-body='pass'] .ps-chip {
+  border-radius: 0.25rem;
+  background: var(--card);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, var(--text));
+  color: var(--text);
+}
+[data-body='pass'] .ps-chip-mark {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border: 2px double currentColor;
+  border-radius: 50%;
+}
+[data-body='pass'] .ps-chip[aria-current='true'] {
+  background: var(--accent);
+  box-shadow: none;
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the cover band */
+
+[data-body='pass'] .ps-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  margin: 0.5rem 0.75rem 0;
+  padding: 0.5rem 1rem;
+  border-radius: 0.75rem 0.75rem 0.25rem 0.25rem;
+  background: var(--text);
+  color: var(--bg);
+}
+[data-body='pass'] .ps-emblem {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--bg));
+  border-radius: 50%;
+  color: color-mix(in srgb, var(--accent) 55%, var(--bg));
+}
+[data-body='pass'] .ps-emblem svg {
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+}
+[data-body='pass'] .ps-brand {
+  min-inline-size: 0;
+  overflow: hidden;
+  font-family: var(--font-display-stack);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tpl:is(:lang(ar), :lang(ckb)) [data-body='pass'] .ps-brand {
+  letter-spacing: 0;
+}
+
+/* ------------------------------------------------------------------ the visa pages */
+
+[data-body='pass'] .ps-section {
+  margin: 0.625rem 0.75rem 0.875rem;
+  padding: 0.75rem;
+  border-radius: 0.5rem;
+  background:
+    repeating-radial-gradient(circle at 50% 120%, color-mix(in srgb, var(--text) 5%, transparent) 0 2px, transparent 2px 9px),
+    var(--card);
+  box-shadow: 0 0.1875rem 0.625rem rgb(0 0 0 / 0.12);
+}
+[data-body='pass'] .ps-head {
+  margin-block-end: 0.75rem;
+}
+[data-body='pass'] .ps-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  padding-block-end: 0.375rem;
+  border-block-end: 1px solid var(--line);
+  font-size: 1.0625rem;
+  line-height: 1.2;
+}
+[data-body='pass'] .ps-title > span {
+  flex: 1;
+  min-inline-size: 0;
+}
+/* The page number, at the page's far corner. */
+[data-body='pass'] .ps-title small {
+  order: 3;
+  padding: 0 0.375rem;
+  border: 1px solid var(--line);
+  border-radius: 0.25rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+[data-body='pass'] .ps-title [data-count] {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+/* ------------------------------------------------------------------ the stamps */
+
+[data-body='pass'] .ps-board {
+  gap: 0.875rem 0.75rem;
+}
+[data-body='pass'] .ps-piece {
+  --ink: var(--accent);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 0.375rem;
+  border: 3px double var(--ink);
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  text-align: center;
+  transition:
+    transform 260ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 200ms ease-out;
+  transition-delay: calc(var(--i, 0) * 45ms);
+}
+/* The inks turn: accent, accent darkened with the text, the text itself, accent lightened. */
+[data-body='pass'] .ps-piece:nth-child(4n + 2) {
+  --ink: color-mix(in srgb, var(--accent) 45%, var(--text));
+}
+[data-body='pass'] .ps-piece:nth-child(4n + 3) {
+  --ink: color-mix(in srgb, var(--text) 80%, var(--card));
+}
+[data-body='pass'] .ps-piece:nth-child(4n) {
+  --ink: color-mix(in srgb, var(--accent) 65%, var(--card));
+}
+[data-body='pass'][data-armed] .ps-piece:not([data-in]) {
+  opacity: 0;
+  transform: scale(1.3);
+}
+[data-body='pass'] .ps-photo {
+  inline-size: 100%;
+  aspect-ratio: 5 / 4;
+  border-radius: 0.5rem;
+}
+[data-body='pass'] .ps-img {
+  border-radius: 0;
+}
+[data-body='pass'] .ps-name {
+  margin-block-start: 0.25rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+  text-align: center;
+}
+[data-body='pass'] .ps-fee {
+  font-size: 0.8125rem;
+  font-weight: 800;
+}
+[data-body='pass'] .ps-badges {
+  justify-content: center;
+  margin-block-start: 0.125rem;
+}
+[data-body='pass'] .ps-add {
+  min-height: 2.25rem;
+  margin-block-start: 0.25rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+/* The done-stamp: a round double ring with a tick, printed across the stamp once it is added. */
+[data-body='pass'] .ps-done {
+  position: absolute;
+  inset-block-start: 22%;
+  inset-inline-start: 50%;
+  z-index: 3;
+  display: none;
+  place-items: center;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  margin-inline-start: -1.75rem;
+  border: 4px double var(--accent-ink);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--card) 70%, transparent);
+  color: var(--accent-ink);
+  rotate: -14deg;
+  pointer-events: none;
+}
+[data-body='pass'] .ps-done svg {
+  inline-size: 2rem;
+  block-size: 2rem;
+}
+[data-body='pass'] .ps-piece[data-stamped] .ps-done {
+  display: grid;
+}
+
+@media (hover: hover) {
+  [data-body='pass'] .ps-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--accent) 12%, var(--card));
+  }
+  [data-body='pass'] .ps-piece:hover {
+    background: var(--card);
+  }
+}

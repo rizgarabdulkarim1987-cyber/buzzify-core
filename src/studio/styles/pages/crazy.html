@@ -327,15 +327,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="lab"><span>${s.e} صف ${s.t}</span><small>${toAr(s.items.length)} غسالات</small></div><div class="machines">${s.items.map(it => `<div class="wm"><div class="panel"><i></i><span class="lcd">${it.p}</span><i></i></div><div class="door"><div class="ph" ${bg(it.img, 280)}></div></div><b>${it.n}</b>${addBtn(it, 'ابدأ ▶')}</div>`).join('')}</div></section>`).join('')}
     ${cart('بالغسالة')}` },
 
- { key: 'pill', fam: 'صيدلية', name: 'شريط الحبوب',
-   desc: 'كل قسم شريط حبوب فضّي، وكل طبق فقاعة بلاستيك شفافة بصورته، واسمه وسعره مطبوعين عالفضّة جوّاه. تدوس «اكبس» فتنكبس الفقاعة وتنعلّم صح.',
-   mo: '<b>الشكل:</b> فقاعات بشبكة على ورق فضّي، والطلب يكبس الفقاعة.',
-   render: () => `
-    <div class="hd"><h1><i></i>صيدلية الجوع</h1><p>الجرعة: طبق واحد كل ما تجوع</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}" class="strip" style="--c:${s.c}"><h2>${s.e} ${s.t}<small>${toAr(s.items.length)} حبّات</small></h2><div class="cells">${s.items.map(it => `<div class="cell"><div class="bub"><div class="ph" ${bg(it.img, 240)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'اكبس')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('جرعتك')}` },
-
  { key: 'jewel', fam: 'فخامة', name: 'فيترينة الصائغ',
    desc: 'المنيو فيترينة مجوهرات: كل قسم صينية مخمل، وكل طبق جوهرة بإطار ذهب دايري بصورته، وسعره على تيكيت صغير معلّق مثل محلات الذهب. تدوس «اقتني» فتلمع الجوهرة.',
    mo: '<b>الشكل:</b> صواني مخمل بجواهر دايرية وتيكيتات أسعار مايلة.',
@@ -378,15 +369,6 @@ const STYLES = [
     ${chips(s => s.t)}
     ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><h2 class="lab">${s.e} ${s.t}</h2><div class="bunch">${s.items.map((it, i) => `<div class="bl" style="--dl:-${(i * 0.9) % 3.4}s"><div class="orb"><div class="ph" ${bg(it.img, 240)}></div></div><span class="str"></span><div class="card"><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></section>`).join('')}
     ${cart('بالوناتك')}` },
-
- { key: 'claw', fam: 'أركيد', name: 'لعبة المخلب',
-   desc: 'المنيو مكينة الدمى بالمولات: كل قسم صندوق زجاج، وكل طبق كبسولة نص ملوّنة ونص شفافة بصورته، وسعره مكتوب عالكبسولة. تدوس «اسحب» فينزل المخلب من فوق ويشيل الكبسولة.',
-   mo: '<b>الشكل:</b> كبسولات دايرية مكوّمة ومايلة جوّا زجاج، ومخلب ينزل يشيل طلبك.',
-   render: () => `
-    <div class="hd"><div class="marq">لعبة المخلب</div><p>كل كبسولة طبق · اسحب اللي تريده</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="glass"><h2>${s.e} ${s.t}</h2><div class="pile">${s.items.map((it, i) => `<div class="cap" style="--r:${TILT[i % 6]}deg"><div class="ball"><div class="ph" ${bg(it.img, 240)}></div><span>${it.p}</span></div><b>${it.n}</b>${addBtn(it, 'اسحب')}</div>`).join('')}</div></div></section>`).join('')}
-    ${cart('سحباتك')}` },
 
  { key: 'pass', fam: 'سفر', name: 'جواز الطعم',
    desc: 'المنيو جواز سفر: الغلاف كحلي بشعار ذهبي، وكل قسم صفحة تأشيرة، وكل طبق ختم ملوّن مايل بصورته واسمه ورسومه. تدوس «اختم» فينطبع عليه ختم أحمر «تمت».',

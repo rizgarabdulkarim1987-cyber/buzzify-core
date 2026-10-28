@@ -1,0 +1,127 @@
+/*
+ * The marshes (`ahwar`, family `drift`): the southern Iraqi marshes at sunset. Every section is a channel of water
+ * between two banks of reeds; every dish is a wooden mashhuf boat carrying its photo, with its name and price painted on
+ * its side; the boats bob on the water while the channel drifts by. Colours from the template's tokens: the sunset is a
+ * glow of `--accent` over `--bg`, the water `--surface`, a hull the `--accent` with `--on-accent` words; the reeds, the
+ * ripples and the hull's rim are pure decoration (never under text).
+ */
+[data-body='ahwar'] {
+  --dr-w: 44%;
+  --dr-max: 12.5rem;
+  --ah-reed: color-mix(in srgb, var(--surface) 35%, #6d8b3a);
+  --ah-rim: color-mix(in srgb, var(--accent) 60%, #000);
+  background: radial-gradient(120% 22rem at 50% 0, color-mix(in srgb, var(--accent) 20%, var(--bg)), var(--bg));
+}
+
+/* The strip: reed leaves, the lit one in the hull's colour. */
+[data-body='ahwar'] .dr-chip {
+  border-radius: 0.1875rem 0.875rem;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ah-reed) 70%, transparent);
+}
+[data-body='ahwar'] .dr-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* A channel: the water with its ripples, reeds along both banks. */
+[data-body='ahwar'] .dr-section {
+  padding: 0.75rem 0.75rem 0.5rem;
+  border-block-start: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background:
+    repeating-linear-gradient(170deg, transparent 0 22px, color-mix(in srgb, var(--text) 5%, transparent) 22px 24px),
+    var(--surface);
+}
+[data-body='ahwar'] .dr-section::before,
+[data-body='ahwar'] .dr-section::after {
+  content: '';
+  position: absolute;
+  z-index: 3;
+  inset-block: 0;
+  inline-size: 0.75rem;
+  background: repeating-linear-gradient(90deg, var(--ah-reed) 0 2px, transparent 2px 4px);
+  opacity: 0.8;
+  pointer-events: none;
+}
+[data-body='ahwar'] .dr-section::before {
+  inset-inline-start: 0;
+}
+[data-body='ahwar'] .dr-section::after {
+  inset-inline-end: 0;
+}
+[data-body='ahwar'] .dr-head {
+  padding-inline: 0.5rem;
+}
+[data-body='ahwar'] .dr-title {
+  font-size: 1.375rem;
+  font-weight: 400;
+}
+[data-body='ahwar'] .dr-title small {
+  display: none;
+}
+[data-body='ahwar'] .dr-title b {
+  color: var(--muted);
+}
+
+[data-body='ahwar'] .dr-row {
+  gap: 0.625rem;
+  padding: 0.75rem 0.5rem 1rem;
+}
+/* A boat bobs on its own clock. */
+[data-body='ahwar'] .dr-dish {
+  animation: ah-bob 3.2s ease-in-out calc(var(--i, 0) * -0.8s) infinite;
+  animation-play-state: var(--dr-play, paused);
+}
+/* Its cargo: the dish photo heaped under a rounded top. */
+[data-body='ahwar'] .dr-photo {
+  z-index: 1;
+  inline-size: 74%;
+  aspect-ratio: 1.15;
+  margin-block-end: -0.625rem;
+  border: 3px solid var(--accent);
+  border-radius: 50% 50% 0.5rem 0.5rem;
+}
+/*
+ * The hull: the mashhuf's long tapered shape (its rounded keel drawn by the corners, not a clip, so the name's tap area
+ * still covers the whole boat) with a darker rim along the gunwale; its name and price on its side.
+ */
+[data-body='ahwar'] .dr-words {
+  margin-block-start: 0;
+  padding: 0.875rem 16% 0.875rem;
+  border-radius: 0.25rem 0.25rem 50% 50% / 0.25rem 0.25rem 60% 60%;
+  background: linear-gradient(var(--ah-rim) 0 4px, var(--accent) 4px);
+  color: var(--on-accent);
+}
+[data-body='ahwar'] .dr-name {
+  font-size: 0.8125rem;
+}
+[data-body='ahwar'] :is(.dr-price, .tpl-was) {
+  color: var(--on-accent);
+}
+/* The water ripple under the boat. */
+[data-body='ahwar'] .dr-dish::after {
+  content: '';
+  order: 1;
+  inline-size: 80%;
+  block-size: 0.375rem;
+  margin-block-start: 0.125rem;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--text) 18%, transparent), transparent);
+}
+[data-body='ahwar'] .dr-badges {
+  order: 2;
+}
+[data-body='ahwar'] .dr-add {
+  order: 3;
+  border-radius: 0.875rem;
+}
+
+@keyframes ah-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(1deg);
+  }
+}

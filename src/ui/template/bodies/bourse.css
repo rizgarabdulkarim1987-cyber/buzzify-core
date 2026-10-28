@@ -1,0 +1,319 @@
+/*
+ * The market page (kind `bourse`): a newspaper's financial pages. A ticker tape inverts the page (`--bg` on `--text`),
+ * the restaurant's name on its exchange tab in the accent, the dishes running across with their prices and their real
+ * discounts. Every section is a stock table under a ruled heading; every dish a row: photo, name, price, and the change
+ * cell (a green ▼ and the discount on a green-tinted `--card`, or a flat dash). The green is decoration (the arrow and the
+ * tint); every word is in the template's tokens. Logical properties only, so Arabic mirrors (the tape runs the other way).
+ */
+[data-body='bourse'] {
+  --nav-room: 3.25rem;
+  --column: 44rem;
+  --bo-up: #19c46b;
+  --bo-down-tint: color-mix(in srgb, var(--bo-up) 16%, var(--card));
+  --bo-dir: -1;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+[data-body='bourse']:dir(rtl) {
+  --bo-dir: 1;
+}
+
+/* ------------------------------------------------------------------ the ticker tape */
+
+[data-body='bourse'] .bo-tape {
+  display: flex;
+  align-items: stretch;
+  overflow: hidden;
+  background: var(--text);
+  color: var(--bg);
+}
+[data-body='bourse'] .bo-exchange {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  display: flex;
+  align-items: center;
+  max-inline-size: 40%;
+  overflow: hidden;
+  padding-inline: 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-family: var(--font-display-stack);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+[data-body='bourse'] .bo-window {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+[data-body='bourse'] .bo-run {
+  display: flex;
+  inline-size: max-content;
+}
+[data-body='bourse'] .bo-tape[data-live] .bo-run {
+  animation: bo-tick var(--bo-time, 40s) linear infinite;
+}
+[data-body='bourse'] .bo-tape:is(:hover, :focus-within) .bo-run,
+[data-body='bourse'][data-hold] .bo-run {
+  animation-play-state: paused;
+}
+@keyframes bo-tick {
+  to {
+    transform: translateX(calc(var(--bo-dir) * 50%));
+  }
+}
+[data-body='bourse'] .bo-lane {
+  display: flex;
+  flex: none;
+}
+[data-body='bourse'] .bo-tick {
+  display: inline-flex;
+  flex: none;
+  align-items: baseline;
+  gap: 0.375rem;
+  min-block-size: 2.25rem;
+  padding: 0.5rem 0.75rem;
+  border-inline-end: 1px solid color-mix(in srgb, var(--bg) 22%, transparent);
+  color: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+[data-body='bourse'] .bo-tick:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -4px;
+}
+[data-body='bourse'] .bo-tick-price {
+  color: inherit;
+  font-weight: 800;
+}
+[data-body='bourse'] .bo-tick-chg {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.125rem;
+  font-weight: 800;
+}
+[data-body='bourse'] .bo-tick-chg[data-move='flat'] {
+  opacity: 0.7;
+}
+
+/* ------------------------------------------------------------------ the strip: newspaper tabs */
+
+[data-body='bourse'] .tpl-strip-sticky {
+  border-block-end: 1px solid var(--line);
+}
+[data-body='bourse'] .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='bourse'] .bo-chip {
+  min-block-size: 2.5rem;
+  padding-inline: 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+[data-body='bourse'] .bo-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ a stock table */
+
+[data-body='bourse'] .bo-section {
+  padding: 0.75rem 0.75rem 0.25rem;
+}
+[data-body='bourse'] .bo-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin: 0;
+  padding-block-end: 0.125rem;
+  border-block-end: 2px solid var(--text);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.25;
+}
+[data-body='bourse'] .bo-title span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='bourse'] .bo-title [data-count] {
+  flex: none;
+  color: var(--muted);
+  font-family: var(--font-text-stack);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+[data-body='bourse'] .bo-table {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='bourse'] .bo-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.125rem;
+  border-block-end: 1px solid var(--line);
+}
+[data-body='bourse'] .bo-row[data-hit] {
+  animation: bo-flash 900ms ease-out;
+}
+@keyframes bo-flash {
+  from {
+    background-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  }
+  to {
+    background-color: transparent;
+  }
+}
+[data-body='bourse'] .bo-photo {
+  position: relative;
+  inline-size: 3rem;
+  block-size: 3rem;
+  overflow: hidden;
+  border-radius: 0.375rem;
+}
+[data-body='bourse'] .bo-nm {
+  min-inline-size: 0;
+}
+[data-body='bourse'] .bo-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-body='bourse'] .bo-desc {
+  overflow: hidden;
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+[data-body='bourse'] .bo-badges {
+  margin-block-start: 0.1875rem;
+}
+[data-body='bourse'] .bo-px {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.125rem;
+  text-align: end;
+}
+[data-body='bourse'] .bo-price {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.875rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-body='bourse'] .bo-price .tpl-was {
+  margin-inline-start: 0;
+  font-size: 0.75rem;
+}
+[data-body='bourse'] .bo-chg {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.125rem;
+  padding: 0 0.3125rem;
+  border-radius: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.4;
+}
+[data-body='bourse'] .bo-chg[data-move='down'] {
+  background: var(--bo-down-tint);
+  color: var(--text);
+}
+[data-body='bourse'] .bo-chg[data-move='flat'] {
+  color: var(--muted);
+}
+[data-body='bourse'] .bo-arrow {
+  color: var(--bo-up);
+  font-size: 0.75rem;
+  font-style: normal;
+}
+[data-body='bourse'] .bo-add {
+  min-inline-size: 3.5rem;
+  padding-inline: 0.625rem;
+  border-radius: 0.25rem;
+}
+[data-body='bourse'] .tpl-open:focus-visible::after {
+  border-radius: 0.375rem;
+}
+
+@media (hover: hover) {
+  [data-body='bourse'] .bo-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--raised) 80%, var(--text));
+  }
+  [data-body='bourse'] .bo-row:hover {
+    background: color-mix(in srgb, var(--text) 4%, transparent);
+  }
+  [data-body='bourse'] .bo-tick:hover .bo-tick-name {
+    text-decoration: underline;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='bourse'] .bo-row {
+    grid-template-columns: 3.5rem minmax(0, 1fr) auto auto;
+    gap: 0.75rem;
+  }
+  [data-body='bourse'] .bo-photo {
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+  }
+  [data-body='bourse'] .bo-name {
+    font-size: 1rem;
+  }
+  [data-body='bourse'] .bo-title {
+    font-size: 1.375rem;
+  }
+}
+
+/* Less motion (the menu's own switch, or the system's): the tape stands still and scrolls by hand; its second copy
+   (there for the loop) goes. */
+[data-body='bourse'] .bo-tape[data-still] .bo-window {
+  overflow-x: auto;
+}
+[data-body='bourse'] .bo-tape[data-still] .bo-lane[aria-hidden] {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='bourse'] .bo-tape .bo-run {
+    animation: none;
+  }
+  [data-body='bourse'] .bo-window {
+    overflow-x: auto;
+  }
+  [data-body='bourse'] .bo-lane[aria-hidden] {
+    display: none;
+  }
+  [data-body='bourse'] .bo-row[data-hit] {
+    animation-duration: 600ms;
+  }
+  [data-body='bourse'] .bo-chip {
+    transition: none;
+  }
+}

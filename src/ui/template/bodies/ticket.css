@@ -1,0 +1,169 @@
+/*
+ * Old Tickets (family `pinboard`, kind `ticket`): old coloured cinema and train tickets, two to a row, each leaning a
+ * little. The ticket carries its serial, the dish's photo and name; a perforated stub at its foot (a dotted tear line,
+ * a notch either side) carries the price and the add button. On add the stub tears along the perforation and drops,
+ * then comes back (PinboardBody's `added`). Colours from the template tokens: the counter `--bg`; the tickets the text
+ * colour tinted three ways with the accent and the board (the pale card of an old ticket on a dark counter), their
+ * words in `--bg`, so the pair keeps the template's main contrast; the chips `--raised`, the lit one the accent pair.
+ */
+[data-body='ticket'] {
+  background:
+    radial-gradient(circle at 50% 0, color-mix(in srgb, var(--accent) 10%, transparent), transparent 22rem),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: little admission stubs */
+
+[data-body='ticket'] .ot-chip {
+  border-radius: 0.1875rem;
+  background: var(--raised);
+  color: var(--text);
+  mask:
+    radial-gradient(circle 0.3125rem at 0 50%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 0.3125rem at 100% 50%, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+[data-body='ticket'] .ot-chip-mark {
+  inline-size: 0;
+  block-size: 1.25rem;
+  margin-inline-end: 0.125rem;
+  border-inline-start: 2px dotted currentColor;
+  opacity: 0.6;
+}
+[data-body='ticket'] .ot-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the heading */
+
+[data-body='ticket'] .ot-head {
+  margin-block: 0.5rem 0.75rem;
+}
+[data-body='ticket'] .ot-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 1.375rem;
+  line-height: 1.2;
+}
+[data-body='ticket'] .ot-title [data-count] {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ------------------------------------------------------------------ the tickets */
+
+[data-body='ticket'] .ot-board {
+  gap: 1rem 0.75rem;
+}
+[data-body='ticket'] .ot-piece {
+  --paper: color-mix(in srgb, var(--text) 86%, var(--accent));
+  --tear: color-mix(in srgb, var(--bg) 50%, var(--paper));
+  display: flex;
+  flex-direction: column;
+  color: var(--bg);
+  filter: drop-shadow(0 0.25rem 0.375rem rgb(0 0 0 / 0.3));
+}
+[data-body='ticket'] .ot-piece:nth-child(3n + 2) {
+  --paper: color-mix(in srgb, var(--text) 92%, var(--button));
+}
+[data-body='ticket'] .ot-piece:nth-child(3n) {
+  --paper: color-mix(in srgb, var(--text) 94%, var(--bg));
+}
+[data-body='ticket'] :is(.ot-main, .ot-stub) {
+  position: relative;
+  background:
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--bg) 5%, transparent) 0 1px, transparent 1px 5px),
+    var(--paper);
+}
+/* The ticket body: notched at both ends of the tear line. */
+[data-body='ticket'] .ot-main {
+  display: flex;
+  flex-direction: column;
+  padding: 0.5rem 0.5rem 0.625rem;
+  border-start-start-radius: 0.5rem;
+  border-start-end-radius: 0.5rem;
+  mask:
+    radial-gradient(circle 0.4375rem at 0 100%, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 0.4375rem at 100% 100%, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+[data-body='ticket'] .ot-no {
+  display: block;
+  margin-block-end: 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  opacity: 0.8;
+}
+[data-body='ticket'] .ot-photo {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.25rem;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--bg) 30%, transparent);
+}
+[data-body='ticket'] .ot-img {
+  border-radius: 0;
+}
+[data-body='ticket'] .ot-name {
+  margin-block-start: 0.375rem;
+  color: var(--bg);
+  font-family: var(--font-display-stack);
+  font-size: 1rem;
+  line-height: 1.15;
+  text-transform: var(--display-case);
+}
+[data-body='ticket'] .ot-badges {
+  margin-block-start: 0.25rem;
+}
+/* The stub: the dotted tear line on top, the price and the add button; it tears and drops on add. */
+[data-body='ticket'] .ot-stub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.375rem;
+  padding: 0.5rem;
+  border-block-start: 3px dotted var(--tear);
+  border-end-start-radius: 0.5rem;
+  border-end-end-radius: 0.5rem;
+  transform-origin: 0 0;
+  mask:
+    radial-gradient(circle 0.4375rem at 0 0, #0000 97%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 0.4375rem at 100% 0, #0000 97%, #000) right / 51% 100% no-repeat;
+}
+[data-body='ticket'] .ot-stub:dir(rtl) {
+  transform-origin: 100% 0;
+}
+[data-body='ticket'] .ot-price {
+  color: var(--bg);
+  font-size: 0.9375rem;
+  font-weight: 800;
+}
+[data-body='ticket'] .ot-piece .tpl-was {
+  color: color-mix(in srgb, var(--bg) 78%, var(--paper));
+}
+[data-body='ticket'] .ot-piece .tpl-badge:not(.tpl-badge-sale) {
+  color: var(--bg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--bg) 45%, transparent);
+}
+[data-body='ticket'] .ot-add {
+  min-width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 0.25rem;
+  background: var(--bg);
+  box-shadow: none;
+  color: var(--text);
+}
+[data-body='ticket'] .ot-piece .tpl-open:focus-visible::after {
+  outline-color: var(--bg);
+}
+
+@media (hover: hover) {
+  [data-body='ticket'] .ot-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--accent) 18%, var(--raised));
+  }
+  [data-body='ticket'] .ot-add:hover {
+    background: var(--accent);
+    color: var(--on-accent);
+  }
+}

@@ -307,33 +307,6 @@ const PIECES = '♜♞♝♛♚';
 const DAYS = ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'];
 const COUNT = MENU.reduce((a, s) => a + s.items.length, 0);
 const STYLES = [
- { key: 'hive', fam: 'طبيعة', name: 'خلية العسل',
-   desc: 'المنيو قرص عسل: كل طبق خلية سداسية بصورته، واسمه وسعره جوّا الخلية، وكل قسم قرص لحاله. الخلايا متراصّة مثل الخلية الحقيقية، فتشوف هواية أطباق بنظرة وحدة.',
-   mo: '<b>الشكل:</b> شبكة سداسية متداخلة بدل المربعات، والخلايا تكبر وتطلع وحدة ورا الثانية.',
-   render: () => `
-    <div class="hd"><h1>خلية العسل</h1><p>كل خلية طبق · كل قرص قسم</p></div>
-    ${chips(s => `${s.e} ${s.t}`)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><h2 class="lab"><span>${s.e}</span>${s.t}</h2><div class="comb">${s.items.map(it => `<div class="hx pop"><div class="ph" ${bg(it.img, 300)}></div><div class="tx"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
-    ${cart('قرصك')}` },
-
- { key: 'keys', fam: 'أجهزة', name: 'لوحة المفاتيح',
-   desc: 'المنيو كيبورد ميكانيكي: كل زر طبق بصورته واسمه، وسعره مكتوب على الزر مثل حروف الكيبورد. تدوس الزر فينضغط لتحت وينضاف الطبق. الأقسام أزرار F فوق.',
-   mo: '<b>الشكل:</b> صفوف أزرار مربعة، والدوسة نفسها هي الطلب: الزر ينزل ويرجع.',
-   render: () => `
-    <div class="hd"><div class="plate"><i></i><i></i><i></i><b>KEY · MENU</b></div><h1>لوحة المفاتيح</h1><p>كل زر طبق · دوس الزر ينضاف للطلب</p></div>
-    ${chips((s, i) => `F${toAr(i + 1)} ${s.t}`)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><div class="lab"><span>⇥ ${s.t}</span><small>${toAr(s.items.length)} أزرار</small></div><div class="row">${s.items.map(it => `<button class="add key" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}"><span class="ph" ${bg(it.img, 260)}></span><b>${it.n}</b><i>${it.p}</i></button>`).join('')}</div></section>`).join('')}
-    ${cart('مضغوط')}` },
-
- { key: 'chess', fam: 'ألعاب', name: 'رقعة الطعم',
-   desc: 'كل قسم رقعة شطرنج: الأطباق قطع دايرية بصورها واقفة على مربعات فاتحة وغامقة، ولكل مربع اسم مثل «أ١». الأقسام قطع الشطرنج: القلعة والحصان والفيل والوزير والملك.',
-   mo: '<b>الشكل:</b> رقعة مربعات متناوبة، والطبق قطعة تنط لمن تضيفها.',
-   render: () => `
-    <div class="hd"><h1>رقعة الطعم</h1><p>كل مربع طبق · كل قطعة قسم</p></div>
-    ${chips((s, i) => `${PIECES[i]} ${s.t}`)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}"><h2 class="lab"><span>${PIECES[si]}</span>${s.t}</h2><div class="board">${s.items.map((it, i) => `<div class="sq ${(Math.floor(i / 2) + i % 2) % 2 ? 'dk' : ''}"><em>${'أبجد'[i % 2]}${toAr(Math.floor(i / 2) + 1)}</em><div class="pc ph" ${bg(it.img, 260)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, '＋')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('قطعك')}` },
-
  { key: 'city', fam: 'مدينة', name: 'مدينة الأكل',
    desc: 'المنيو مدينة بالليل: كل قسم عمارة بلون ولافتة نيون، وكل طبق طابق بشبّاك مضوي بصورته وسعره. تسحب يمين ويسار بين العمارات، أو تدوس اسم العمارة فتوصلها.',
    mo: '<b>الشكل:</b> عمارات جنب بعض بارتفاعات مختلفة على حسب عدد الأطباق، والسحب يمين ويسار.',
@@ -343,15 +316,6 @@ const STYLES = [
     <div class="city">${MENU.map(s => `<div class="bld" data-sec="${s.id}" style="--c:${s.c}"><div class="sign">${s.e} ${s.t}</div>${s.items.map((it, i) => `<div class="floor"><div class="ph" ${bg(it.img, 200)}></div><div><b>${it.n}</b><small>الطابق ${toAr(s.items.length - i)}</small></div><div class="pr">${it.p}${addBtn(it)}</div></div>`).join('')}<div class="entry"></div></div>`).join('')}</div>
     <div class="road"></div>
     ${cart('شبابيكك')}` },
-
- { key: 'cal', fam: 'ورق', name: 'تقويم المطبخ',
-   desc: 'كل قسم صفحة تقويم معلّقة بحلقات: الأطباق أيام الشهر، كل يوم بصورته واسمه وسعره. تدوس «احجز» فيندار عالرقم دائرة حمرة مثل ما تأشّر يوم مهم.',
-   mo: '<b>الشكل:</b> صفحات شهر بشبكة أيام، والطلب يتأشّر بدائرة قلم أحمر.',
-   render: () => `
-    <div class="hd"><h1>تقويم المطبخ</h1><p>كل قسم شهر · كل يوم طبق</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}" class="page" style="--c:${s.c}"><div class="rings">${'<i></i>'.repeat(6)}</div><div class="mh"><b>${s.t}</b><span>${toAr(s.items.length)} أيام</span></div><div class="days">${s.items.map(it => `<div class="day"><div class="dt"><b>${toAr(it.no)}</b><small>${DAYS[(it.no - 1) % 7]}</small></div><div class="ph" ${bg(it.img, 240)}></div><strong>${it.n}</strong><span>${it.p}</span>${addBtn(it, 'احجز')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('أيامك')}` },
 
  { key: 'sheet', fam: 'شاشات', name: 'جدول الإكسل',
    desc: 'المنيو ملف إكسل: كل طبق صف بصورته واسمه ووصفه وسعره، وكل قسم مجموعة ملوّنة. تدوس عنوان عمود السعر فيترتب الجدول من الأرخص للأغلى، وشريط المعادلة فوق يكتب الطبق اللي اخترته.',

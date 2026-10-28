@@ -1,0 +1,98 @@
+/*
+ * The pinboard family (PinboardBody.tsx): the structure the five motifs share. A sticky strip of sections, then every
+ * section a page whose dishes are pieces stuck onto it, two across on a phone (three from 640px), each leaning by `--r`
+ * (a fixed pattern by the dish's place, pinboard-layout.ts). Each motif draws its own page, pieces and motion in its own
+ * sheet (album.css, afish.css, pass.css, xayat.css, ticket.css). Logical properties only, so RTL mirrors.
+ */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) {
+  --nav-room: 3.5rem;
+  --column: 52rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+/* The chip: one shape for all five; each motif colours and dresses it. */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket'])
+  :is(.al-chip, .af-chip, .ps-chip, .xy-chip, .ot-chip) {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.75rem 0.875rem;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms;
+}
+
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .pb-section {
+  position: relative;
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+/* The board: two pieces across, tops aligned so a row reads as one glance. */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .pb-board {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 0.75rem;
+  align-items: start;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .pb-piece {
+  position: relative;
+  min-inline-size: 0;
+  rotate: var(--r, 0deg);
+}
+
+/* The photo frame: the template's photo laid over a box of the motif's ratio. */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket'])
+  :is(.al-photo, .af-photo, .ps-photo, .xy-photo, .ot-photo) {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The name: two lines at most, however long; it is the piece's tap area. */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket'])
+  :is(.al-name, .af-name, .ps-name, .xy-name, .ot-name) {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  inline-size: 100%;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+/* A tilted piece may clip: its focus ring is drawn just inside it. */
+:is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .tpl-open:focus-visible::after {
+  outline-offset: -3px;
+  border-radius: 0.25rem;
+}
+
+@media (min-width: 640px) {
+  :is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .pb-board {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5rem 1.25rem;
+  }
+  :is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) .pb-section {
+    padding-inline: 1rem;
+  }
+}
+
+/* Less motion: the pieces still lean (that is the structure); nothing moves. */
+@media (prefers-reduced-motion: reduce) {
+  :is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) *,
+  :is([data-body='album'], [data-body='afish'], [data-body='pass'], [data-body='xayat'], [data-body='ticket']) *::before {
+    transition: none !important;
+    animation: none !important;
+  }
+}

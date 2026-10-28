@@ -1,0 +1,145 @@
+/*
+ * The Black Tent (kind `resmal`, family reveal): the Kurdish nomads' rashmal of black goat hair woven with pale stripes.
+ * Each section is a tent: a pitched roof with its name, and under it the tent's inside, the dishes three across on
+ * striped felt. The tent's two door curtains hang across the photos and part to the sides once, the first time the tent
+ * comes past the middle of the screen. The words of each dish are a tag above the curtains, so they read even shut.
+ * The hair is `--text` (with `--bg` stripes, and the roof's name in `--bg`), the felt `--accent` and `--raised`, the
+ * tags `--card`.
+ */
+[data-body='resmal'] {
+  --rs-hair: color-mix(in srgb, var(--text) 90%, var(--bg));
+  --rs-stripe: color-mix(in srgb, var(--bg) 70%, var(--text));
+  --rs-cloth: repeating-linear-gradient(90deg, var(--rs-hair) 0 1.375rem, var(--rs-stripe) 1.375rem 1.5625rem);
+}
+
+[data-body='resmal'] .rs-chip {
+  background: var(--rs-hair);
+  color: var(--bg);
+}
+[data-body='resmal'] .rs-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+[data-body='resmal'] .rs-section {
+  padding: 1rem 0.625rem 0.5rem;
+}
+/* The roof: the tent's ridge, the section's name on it. */
+[data-body='resmal'] .rs-roof {
+  display: grid;
+  place-items: end center;
+  min-block-size: 3.75rem;
+  padding: 1.125rem 2.5rem 0.5rem;
+  clip-path: polygon(0 100%, 12% 30%, 50% 0, 88% 30%, 100% 100%);
+  background: var(--rs-cloth);
+}
+[data-body='resmal'] .rs-title {
+  justify-content: center;
+  padding: 0.125rem 0.625rem;
+  border-radius: 3px;
+  background: var(--rs-hair);
+  color: var(--bg);
+  font-size: 1.25rem;
+  text-align: center;
+}
+
+/* The tent's inside: its own layer, so the doors sit between the photos and the tags. */
+[data-body='resmal'] .rs-tent {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  padding: 0 0.5rem 0.5rem;
+  background: var(--rs-hair);
+}
+/* The felt: three across on a phone, four on a wide screen. */
+[data-body='resmal'] .rs-dishes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.625rem 0.375rem;
+  padding: 0.625rem 0.375rem;
+  border-radius: 4px;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--accent) 0 1.125rem,
+    var(--raised) 1.125rem 1.375rem,
+    color-mix(in srgb, var(--text) 55%, var(--accent)) 1.375rem 2.5rem,
+    var(--raised) 2.5rem 2.75rem
+  );
+}
+@media (min-width: 640px) {
+  [data-body='resmal'] .rs-dishes {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+[data-body='resmal'] .rs-dish {
+  padding: 0.3125rem;
+  border-radius: 4px;
+  background: var(--card);
+  text-align: center;
+}
+[data-body='resmal'] .rs-frame {
+  aspect-ratio: 1;
+  border-radius: 3px;
+}
+[data-body='resmal'] .rs-text {
+  margin-block-start: 0.25rem;
+  border-radius: 3px;
+  background: var(--card);
+  color: var(--text);
+}
+[data-body='resmal'] .rs-name {
+  font-size: 0.8125rem;
+  text-align: center;
+}
+[data-body='resmal'] .rs-meta {
+  justify-content: center;
+}
+[data-body='resmal'] .rs-price {
+  font-size: 0.8125rem;
+}
+[data-body='resmal'] .rs-add {
+  min-inline-size: 2.5rem;
+  block-size: 2.5rem;
+}
+[data-body='resmal'] .rs-badges {
+  justify-content: center;
+}
+
+/* The door curtains: tied back at the sides unless the page is armed and the tent not yet seen. */
+[data-body='resmal'] .rs-door {
+  --d: 1;
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  inline-size: 51%;
+  background: var(--rs-cloth);
+  box-shadow: inset 0 0 1.5rem rgb(0 0 0 / 0.35);
+  translate: calc(var(--d) * -94%) 0;
+  pointer-events: none;
+}
+[data-body='resmal'] .rs-door-s {
+  inset-inline-start: 0;
+}
+[data-body='resmal'] .rs-door-e {
+  --d: -1;
+  inset-inline-end: 0;
+}
+[data-body='resmal']:dir(rtl) .rs-door-s {
+  --d: -1;
+}
+[data-body='resmal']:dir(rtl) .rs-door-e {
+  --d: 1;
+}
+[data-body='resmal'][data-armed]:not([data-all]) .rs-tent:not([data-open]) .rs-door {
+  translate: 0 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+  [data-body='resmal'][data-armed] .rs-tent[data-open] .rs-door {
+    transition: translate 1200ms var(--open-ease) 150ms;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='resmal'] .rs-door {
+    transition: none !important;
+  }
+}

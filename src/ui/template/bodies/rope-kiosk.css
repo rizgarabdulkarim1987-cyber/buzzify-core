@@ -1,0 +1,118 @@
+/*
+ * The Newspaper Kiosk (`kiosk`, family `rope`): a street kiosk's ropes of newspapers held by wooden pegs. Each section is
+ * a rope; each dish is a whole newspaper: the masthead is the restaurant's name (`tenant.logoText`), the headline is the
+ * dish's name, the front-page photo is the dish's photo, a line of its description, then the price. The paper is the
+ * palette's text and background swapped on a dark menu (cream paper, dark ink) and its raised surface on a light one.
+ * Buying a paper flips it over once.
+ */
+[data-body='kiosk'] {
+  --rp-width: min(46%, 13rem);
+  --kk-paper: color-mix(in srgb, var(--text) 94%, var(--bg));
+  --kk-ink: var(--bg);
+  --kk-rope: color-mix(in srgb, var(--text) 55%, var(--bg));
+  --kk-peg: color-mix(in srgb, var(--accent) 45%, #c8a165);
+  background: var(--bg);
+}
+[data-theme-mode='light'] [data-body='kiosk'] {
+  --kk-paper: var(--raised);
+  --kk-ink: var(--text);
+}
+
+[data-body='kiosk'] .rp-chip {
+  border-radius: 2px;
+}
+[data-body='kiosk'] .rp-title {
+  color: var(--accent-ink);
+}
+
+/* The rope across the line, and each paper's peg on it. */
+[data-body='kiosk'] .rp-line::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 1.25rem;
+  inset-inline: 0;
+  block-size: 2px;
+  background: var(--kk-rope);
+  pointer-events: none;
+}
+[data-body='kiosk'] .rp-row {
+  padding-block-start: 0.5rem;
+}
+[data-body='kiosk'] .rp-item {
+  padding-block-start: 0.75rem;
+}
+[data-body='kiosk'] .rp-peg {
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: 0.625rem;
+  block-size: 1.375rem;
+  margin-inline-start: -0.3125rem;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--kk-peg), color-mix(in srgb, var(--kk-peg) 70%, #000));
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+/* The newspaper. */
+[data-body='kiosk'] .rp-piece {
+  padding: 0.4375rem;
+  background: var(--kk-paper);
+  color: var(--kk-ink);
+  box-shadow: 0 0.5rem 0.875rem rgb(0 0 0 / 0.35);
+  backface-visibility: visible;
+}
+[data-body='kiosk'] .rp-mast {
+  margin: 0;
+  padding-block-end: 0.125rem;
+  overflow: hidden;
+  border-block-end: 2px solid var(--kk-ink);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A thin accent rule under the masthead, as a paper's dateline bar (decoration). */
+[data-body='kiosk'] .rp-mast::after {
+  content: '';
+  display: block;
+  block-size: 2px;
+  margin-block-start: 2px;
+  background: var(--accent);
+}
+[data-body='kiosk'] .rp-name {
+  margin-block: 0.25rem;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.15;
+}
+[data-body='kiosk'] .rp-win {
+  aspect-ratio: 1.15;
+  filter: grayscale(0.2);
+}
+[data-body='kiosk'] .rp-desc {
+  margin-block-start: 0.25rem;
+  color: color-mix(in srgb, var(--kk-ink) 82%, var(--kk-paper));
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+[data-body='kiosk'] .rp-price {
+  color: var(--kk-ink);
+}
+[data-body='kiosk'] .rp-price .tpl-was,
+[data-body='kiosk'] .rp-badges .tpl-badge:not(.tpl-badge-sale) {
+  color: inherit;
+  opacity: 0.85;
+}
+[data-body='kiosk'] .rp-badges {
+  color: var(--kk-ink);
+}
+[data-body='kiosk'] .rp-badges .tpl-badge:not(.tpl-badge-sale) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kk-ink) 40%, transparent);
+}
+[data-body='kiosk'] .rp-add {
+  border-radius: 2px;
+  background: var(--button);
+  color: var(--on-button);
+}

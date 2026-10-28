@@ -1,0 +1,105 @@
+/*
+ * Sadu (`sadu`, family `drift`): Bedouin sadu weaving. Every section is a red woven band with toothed edges and striped
+ * borders, its name woven in; the dishes sit in woven diamonds along it, and the band drifts slowly sideways. Colours from
+ * the template's tokens: the band is `--accent` with `--on-accent` words, the teeth and stripes are `--text` and `--bg`
+ * (the tent's black and the wool's cream), the diamonds are framed in `--on-accent` and `--bg`.
+ */
+[data-body='sadu'] {
+  --dr-w: 31%;
+  --dr-min: 6.75rem;
+  --dr-max: 10.5rem;
+  --sa-wool: var(--text);
+  --sa-tent: var(--bg);
+  --sa-gold: color-mix(in srgb, var(--accent) 35%, var(--text));
+}
+
+/* The strip: woven tags with pointed ends, the lit one in the wool's cream. */
+[data-body='sadu'] .dr-chip {
+  padding-inline: 1rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  clip-path: polygon(0.5rem 0, calc(100% - 0.5rem) 0, 100% 50%, calc(100% - 0.5rem) 100%, 0.5rem 100%, 0 50%);
+}
+[data-body='sadu'] .dr-chip[aria-current='true'] {
+  background: var(--sa-wool);
+  color: var(--sa-tent);
+}
+
+/* The band. */
+[data-body='sadu'] .dr-section {
+  margin-block: 0.875rem;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 3px, color-mix(in srgb, var(--on-accent) 6%, transparent) 3px 4px),
+    var(--accent);
+  color: var(--on-accent);
+}
+/* The toothed edge and the striped border, top and (turned over) bottom. */
+[data-body='sadu'] .dr-edge {
+  display: block;
+  block-size: 1.25rem;
+  background:
+    linear-gradient(135deg, var(--sa-tent) 25%, transparent 25%) -7px 0 / 14px 14px repeat-x,
+    linear-gradient(225deg, var(--sa-tent) 25%, transparent 25%) -7px 0 / 14px 14px repeat-x,
+    linear-gradient(var(--sa-wool), var(--sa-wool)) 0 0 / 100% 14px no-repeat,
+    repeating-linear-gradient(90deg, var(--sa-wool) 0 6px, var(--sa-tent) 6px 12px, var(--sa-gold) 12px 18px, var(--sa-tent) 18px 24px) 0 100% / 100% 6px no-repeat;
+}
+[data-body='sadu'] .dr-edge-end {
+  transform: scaleY(-1);
+}
+[data-body='sadu'] .dr-head {
+  padding: 0.5rem 1rem 0;
+}
+[data-body='sadu'] .dr-title {
+  justify-content: space-between;
+  color: var(--on-accent);
+  font-size: 1.5rem;
+  font-weight: 400;
+}
+[data-body='sadu'] .dr-title small {
+  display: none;
+}
+[data-body='sadu'] .dr-title b {
+  font-family: var(--font-text-stack, inherit);
+}
+
+/* The row of diamonds. */
+[data-body='sadu'] .dr-row {
+  gap: 0.5rem;
+  padding: 0.25rem 0.75rem 0.875rem;
+}
+[data-body='sadu'] .dr-dish {
+  color: var(--on-accent);
+}
+/* A woven diamond: the square turned a quarter, in a cream frame and a black outline; the photo turned back inside it. */
+[data-body='sadu'] .dr-photo {
+  inline-size: 66%;
+  aspect-ratio: 1;
+  margin-block: 0.875rem 1rem;
+  border: 4px solid var(--on-accent);
+  outline: 3px solid var(--sa-tent);
+  outline-offset: 2px;
+  transform: rotate(45deg);
+}
+[data-body='sadu'] .dr-photo > * {
+  transform: rotate(-45deg) scale(1.45);
+}
+[data-body='sadu'] .dr-name {
+  font-size: 0.8125rem;
+}
+[data-body='sadu'] :is(.dr-price, .tpl-was, .tpl-badge) {
+  color: var(--on-accent);
+}
+[data-body='sadu'] .tpl-badge {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 55%, transparent);
+}
+[data-body='sadu'] .tpl-badge-sale {
+  background: var(--sa-tent);
+  color: var(--sa-wool);
+  box-shadow: none;
+}
+[data-body='sadu'] .dr-add {
+  border-radius: 0.25rem;
+  background: var(--sa-tent);
+  color: var(--sa-wool);
+  box-shadow: none;
+}

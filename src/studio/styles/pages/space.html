@@ -343,25 +343,6 @@ const STYLES = [
     ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="panel"><div class="ph1"><span class="ml">${pad(si + 1)} — ${CODE[s.id]} · ${s.t}</span><span class="ml go">● READY</span></div><div class="mods">${s.items.map((it, i) => `<div class="mod"><div class="tp"><span class="num">M-${pad(it.no)}</span><span class="led" style="animation-delay:-${(i * .37).toFixed(2)}s"></span></div><div class="cam"><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b><div class="ro"><span>السعر <em>${it.p}</em></span><span>⏱ <em>${toAr(8 + (it.no % 5) * 3)}د</em></span></div>${addBtn(it, 'تشغيل +', 'add gadd')}</div>`).join('')}</div></div></section>`).join('')}
     ${cart('طلبك')}` },
 
- { key: 'sp-rocket', fam: 'فضاء · صاروخ', name: 'الصاروخ',
-   desc: 'المنيو كله صاروخ واحد طويل: الراس مخروط معدن، وكل قسم مرحلة من الصاروخ بخط لونه، والأطباق شبابيك دائرية بصورها، وبالآخر المحرك ولهبه. تضيف طبق فترتج مرحلته.',
-   mo: '<b>الشكل:</b> عمود واحد ضيق بشكل صاروخ بدل الصفحة العريضة، والأقسام مراحله.',
-   render: () => `
-    ${rail}<div class="nose"><div class="cone"></div><span class="ml">00 — LAUNCH</span><h1>منيو الإطلاق</h1></div>
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="stage">${sl(s, si)}<div class="ports">${s.items.map(it => `<div class="port"><div class="win"><div class="ph" ${bg(it.img, 220)}></div></div><b>${it.n}</b><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div>`).join('')}</div></div></section>`).join('')}
-    <div class="eng"><div class="noz"></div></div><div class="flame"></div>
-    ${cart('طلبك')}` },
-
- { key: 'sp-term', fam: 'فضاء · طرفية', name: 'طرفية المركبة',
-   desc: 'المنيو شاشة أوامر بمركبة فضاء: كل قسم أمر «scan sector»، ونتايجه صفوف بصورة صغيرة بخطوط مسح، واسم الطبق، ونقاط لحد السعر، و[ + ] للإضافة. سريع للقراءة مثل قائمة.',
-   mo: '<b>الشكل:</b> قائمة نصية كثيفة بخط مونو بدل الكروت، أسرع شكل للتصفح.',
-   render: () => `
-    ${rail}<div class="top"><span>&gt; boot menu.sys … ok</span><br><span>&gt; sectors: ${toAr(MENU.length)} · items: ${toAr(no)}</span><h1>طرفية المركبة</h1><span>&gt; <i class="cur"></i></span></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="cmd">&gt; scan sector --<em>${CODE[s.id].toLowerCase()}</em></div>${s.items.map(it => `<div class="row"><div class="thumb"><div class="ph" ${bg(it.img, 160)}></div></div><div><b>${it.n}</b><div class="lead"><span>${it.d}</span><i></i><span>${it.p}</span></div></div>${addBtn(it, '[ + ]')}</div>`).join('')}</section>`).join('')}
-    ${cart('&gt; طلبك')}` },
-
  { key: 'sp-comet', fam: 'فضاء · شهب', name: 'زخّة الشهب',
    desc: 'الأطباق شهب نازلة بالمايل: كل طبق كرت زجاج بصورة مدوّرة متوهجة وذيل نيون وراه بلون القسم، والكروت متدرّجة يمين ويسار مثل زخّة شهب.',
    mo: '<b>الشكل:</b> عمود متعرّج بالمايل بدل الشبكة المستقيمة، والذيول تعطي اتجاه.',

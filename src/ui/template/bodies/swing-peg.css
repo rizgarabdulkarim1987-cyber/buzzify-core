@@ -1,0 +1,125 @@
+/*
+ * The Pegboard (`peg`, family `swing`): a perforated workshop wall. Each section is marked by a stripe of paint (the
+ * accent) with a dashed chalk zone under it; each dish is a tilted card hung on a nail by a short string, its price
+ * on a ticket tag. The board's holes are the text mixed into the background; the nail's metal is decoration only.
+ */
+[data-body='peg'] {
+  --sw-cols: 2;
+  --pg-hole: color-mix(in srgb, var(--text) 42%, var(--bg));
+  --pg-chalk: color-mix(in srgb, var(--raised) 75%, transparent);
+  --pg-nail: 0.875rem;
+  background:
+    radial-gradient(circle, var(--pg-hole) 2.4px, transparent 3px) 0 0 / 22px 22px,
+    var(--bg);
+}
+
+[data-body='peg'] .sw-chip {
+  border-radius: 2px;
+  background: var(--raised);
+  box-shadow: 0 2px 0 rgb(0 0 0 / 0.3);
+  rotate: -1.5deg;
+}
+[data-body='peg'] li:nth-child(even) > .sw-chip {
+  rotate: 1.5deg;
+}
+
+/* The section's paint stripe, slapped on a little crooked, over the chalk outline of its zone. */
+[data-body='peg'] .sw-head {
+  margin-block: 0.5rem 0;
+}
+[data-body='peg'] .sw-title {
+  display: inline-flex;
+  padding: 0.25rem 1rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.375rem;
+  clip-path: polygon(0 10%, 100% 0, 98.5% 100%, 1% 90%);
+  rotate: -1.5deg;
+}
+[data-body='peg'] .sw-grid {
+  gap: 1rem 0.875rem;
+  padding: 1.25rem 0.25rem 0.5rem;
+  border-block-start: 3px dashed var(--pg-chalk);
+}
+
+/* The card: on its string and nail, which sit above it (outside the card, so the card's paper does not cover them). */
+[data-body='peg'] .sw-item {
+  padding-block-start: calc(var(--sw-rope) * 0.5 + 0.375rem + var(--pg-nail));
+}
+[data-body='peg'] .sw-hang {
+  /* The pivot is the nail: the string's length plus half the nail above the card's top. */
+  --sw-pivot: calc(var(--sw-rope) * 0.5 + 0.375rem + var(--pg-nail) * 0.5);
+  align-items: stretch;
+  padding: 0.4375rem;
+  border-radius: 0.375rem;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: 0 0.625rem 1rem rgb(0 0 0 / 0.28);
+}
+[data-body='peg'] .sw-cord {
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  margin-inline-start: -1px;
+  block-size: calc(var(--sw-rope) * 0.5 + 0.375rem);
+  background: color-mix(in srgb, var(--text) 80%, transparent);
+}
+/* The nail the string hangs from. */
+[data-body='peg'] .sw-cord::before {
+  content: '';
+  position: absolute;
+  inset-block-end: 100%;
+  inset-inline-start: 50%;
+  inline-size: var(--pg-nail);
+  block-size: var(--pg-nail);
+  margin-inline-start: calc(var(--pg-nail) * -0.5);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ddd, #666);
+  box-shadow: 0 2px 2px rgb(0 0 0 / 0.4);
+}
+[data-body='peg'] .sw-frame {
+  aspect-ratio: 4 / 3;
+  border-radius: 0.25rem;
+}
+[data-body='peg'] .sw-text {
+  text-align: start;
+}
+[data-body='peg'] .sw-name {
+  text-align: start;
+}
+[data-body='peg'] .sw-meta {
+  flex-wrap: nowrap;
+  justify-content: space-between;
+}
+/* The price on a ticket tag: square at the start, rounded at the end where the string hole is. */
+[data-body='peg'] .sw-price {
+  position: relative;
+  min-inline-size: 0;
+  padding: 0.125rem 0.625rem 0.125rem 0.5rem;
+  border-start-start-radius: 3px;
+  border-end-start-radius: 3px;
+  border-start-end-radius: 0.75rem;
+  border-end-end-radius: 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  overflow-wrap: anywhere;
+}
+[data-body='peg'] .sw-price .tpl-was {
+  color: inherit;
+  opacity: 0.85;
+}
+[data-body='peg'] .sw-add {
+  flex: none;
+  border-radius: 0.25rem;
+  background: var(--button);
+  color: var(--on-button);
+}
+[data-body='peg'] .sw-badges {
+  justify-content: flex-start;
+}
+
+@media (min-width: 640px) {
+  [data-body='peg'] {
+    --sw-cols: 3;
+  }
+}

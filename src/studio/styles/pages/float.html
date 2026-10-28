@@ -265,15 +265,6 @@ const STYLES = [
     ${secs((s, si) => `${sl(s, si)}<div class="fl"><div class="isle bob" style="${clock(si + 40)};--h:-8px;--o:${['3%', '0%', '6%', '1%', '5%'][si]}"><div class="deck"><div class="grid">${s.items.map(it => `<div class="card glass">${card(it)}</div>`).join('')}</div></div><div class="rock"></div><i class="peb" style="--w:14px;--x:-8px;--y:70%"></i><i class="peb" style="--w:9px;--x:96%;--y:84%"></i></div></div>`)}
     ${cart('طلبك')}` },
 
- { key: 'sp-bub', fam: 'عائم · فقاعات', name: 'الفقاعات',
-   desc: 'كل طبق محبوس بفقاعة زجاج طايفة، فقاعات كبيرة وصغيرة مرصوصة جنب بعض، بلمعة ضوء وحافة بلون القسم، وكل وحدة تطفو على راحتها. الاسم والسعر تحت الفقاعة.',
-   mo: '<b>الشكل:</b> دوائر بأحجام مختلفة متراصة بدل الشبكة المربعة.',
-   render: () => `
-    ${head('الفقاعات', 'دوس + بالفقاعة', '00 — BUBBLES')}
-    ${chips(s => s.t)}
-    ${secs((s, si) => `${sl(s, si)}<div class="cloud">${s.items.map((it, i) => `<div class="fl" style="--d:${[44, 34, 38, 30, 40, 33][i]}%"><div class="bob" style="${clock(it.no)};--h:-12px"><div class="sphere"><div class="ph" ${bg(it.img, 260)}></div>${addBtn(it)}</div><div class="lbl"><b>${it.n}</b><span class="pr">${it.p}</span></div></div></div>`).join('')}</div>`)}
-    ${cart('طلبك')}` },
-
  { key: 'sp-drift', fam: 'عائم · انجراف', name: 'الانجراف',
    desc: 'كل قسم تيار أطباق طايفة تنجرف ببطء للجنب، تيار يروح يمين واللي بعده يسار، وكل كرت يتمايل. تلمس التيار فيوقف وتسحبه بإيدك.',
    mo: '<b>الشكل:</b> صفوف أفقية تتحرك لحالها بدل الصفوف الثابتة.',

@@ -351,15 +351,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><h2>محطة ${s.t}</h2><div class="grille">${s.items.map(it => `<div class="prog"><div class="ph" ${bg(it.img, 160)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
     ${cart('برامجك')}` },
 
- { key: 'abook', fam: 'كلاسيك · دفتر تلفونات', name: 'دفتر التلفونات',
-   desc: 'دفتر تلفونات جلد قديم: على حافة الصفحة لسانات الحروف، وكل لسان قسم، تدوس عليه فتروح له. الأطباق مكتوبة بخط اليد على سطور الدفتر، وكل طبق جنبه صورة صغيرة مثل صورة صاحب الرقم.',
-   mo: '<b>الحركة:</b> اللسان يطلع لبرّا لمن توصل قسمه، والسطر ينضوي لمن تطلبه.',
-   render: () => `
-    ${rail}${hd('دفتر التلفونات', 'اللسانات على الحافة · كل لسان قسم')}
-    ${chips((s, i) => `<i>${AB[i]}</i>${s.t}`)}
-    <div class="pages">${MENU.map((s, si) => `<section data-sec="${s.id}"><h2><i>${AB[si]}</i>${s.t}</h2>${s.items.map(it => `<div class="ent"><div class="ph" ${bg(it.img, 120)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it, 'اتصل')}</div>`).join('')}</section>`).join('')}</div>
-    ${cart('مكالماتك')}` },
-
  { key: 'catalog', fam: 'كلاسيك · فهرس المكتبة', name: 'فهرس المكتبة',
    desc: 'درج فهرس بطاقات من مكتبة قديمة: كل قسم درج خشب بمقبض نحاس، وكل طبق بطاقة فهرسة بأرقام وختم. وانت تنزل البطاقات تتكدّس فوق بعض وتبقى رؤوسها مبيّنة، مثل ما تقلّب بالأصابع.',
    mo: '<b>الحركة:</b> البطاقات تتراكم فوق بعض وانت تنزل، وكل رأس بطاقة يبقى مبيّن.',
@@ -368,24 +359,6 @@ const STYLES = [
     ${chips(s => s.t)}
     ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="drw"><i class="pull"></i><b>${s.t}</b><small>${toAr(s.from)} – ${toAr(s.to)}</small></div>${s.items.map((it, i) => `<div class="crd" style="--i:${i}"><div class="tab"><b>${it.n}</b><span>رقم ${toAr(it.box)}</span></div><div class="cb"><div class="ph" ${bg(it.img, 220)}></div><div class="tx"><small>${it.d}</small><div class="ln"><span>${it.p} د.ع</span>${addBtn(it, 'استعِر')}</div></div></div></div>`).join('')}</section>`).join('')}
     ${cart('استعارتك')}` },
-
- { key: 'salon', fam: 'كلاسيك · متحف', name: 'قاعة اللوحات',
-   desc: 'قاعة متحف قديمة بورق جدران مزخرف: كل طبق لوحة زيتية بإطار ذهب منحوت، بأحجام مختلفة معلّقة مثل الصالونات القديمة، وتحت كل لوحة لوحة نحاس صغيرة باسمها وسعرها.',
-   mo: '<b>الحركة:</b> ضوء المتحف يمشي وياك: اللوحة اللي بالنص تضوي، والباقي يعتم.',
-   render: () => `
-    ${rail}${hd('قاعة اللوحات', 'معرض المطبخ الدائم')}
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><h2>قاعة ${s.t}</h2><div class="hang">${s.items.map((it, i) => `<div class="art"><div class="frame fl"><div class="ph" ${bg(it.img, 320)} style="aspect-ratio:${[.8, 1.25, 1, .9][i % 4]}"></div></div><div class="plq"><b>${it.n}</b><span>${it.p} د.ع</span></div>${addBtn(it, 'اقتنِ')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('مقتنياتك')}` },
-
- { key: 'juke', fam: 'كلاسيك · جوكبوكس', name: 'الجوكبوكس',
-   desc: 'جوكبوكس من الخمسينات بقوس كروم وأنابيب ضوء ملوّنة تصعد بيها الفقاعات. كل طبق بطاقة اختيار برمز مثل «أ٣»، وكل قسم صف بالجوكبوكس، والأطباق بعمودين حتى تشوف هواية مرة وحدة.',
-   mo: '<b>الحركة:</b> فقاعات تصعد بأنابيب الضوء، والبطاقة اللي تختارها تضوي.',
-   render: () => `
-    ${rail}<div class="arch"><div class="tube l"><i></i><i></i><i></i></div><div class="tube r"><i></i><i></i><i></i></div>${hd('الجوكبوكس', 'اختار الرمز · ادفع · استمتع')}</div>
-    ${chips((s, i) => `${AB[i]} · ${s.t}`)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}"><h2>${AB[si]} · ${s.t}</h2><div class="sel">${s.items.map((it, i) => `<div class="strip"><b class="code">${AB[si]}${toAr(i + 1)}</b><div class="ph" ${bg(it.img, 140)}></div><div class="tx"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, '▶')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('أغانيك')}` },
 ];
 
 // ---------- gallery ----------

@@ -300,33 +300,6 @@ const STYLES = [
     ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="grid">${s.items.map(it => `<div class="wp glass"><div class="ph" ${bg(it.img, 260)}></div><b>${it.n}</b><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div></div>`).join('')}</div></section>`).join('')}
     ${cart('طلبك')}` },
 
- { key: 'sp-stn', fam: 'فضاء · محطة', name: 'المحطة الفضائية',
-   desc: 'المنيو محطة فضاء: عمود معدن بالنص، وكل قسم وحدة مدوّرة الحواف راكبة عليه بإطار بلونه، وبين الوحدات أنابيب زرقة مثل الألواح الشمسية. الأطباق كبائن بشبّاك دائري.',
-   mo: '<b>الشكل:</b> وحدات مربوطة بأنابيب بدل الأقسام المتتالية، كل وحدة شبكة كبائن.',
-   render: () => `
-    ${rail}${head('المحطة الفضائية', 'كل وحدة قسم · كل كابينة طبق', '00 — DOCKED')}
-    ${chips(s => s.t)}
-    <div class="body">${MENU.map((s, si) => `${si ? '<div class="tube"></div>' : ''}<section data-sec="${s.id}" style="--c:${s.c}"><div class="pod">${sl(s, si)}<div class="hatch">${s.items.map(it => `<div class="bay"><div class="ph" ${bg(it.img, 140)}></div><div><b>${it.n}</b><span class="pr">${it.p}</span><br>${addBtn(it, '+ أضف', 'add gadd')}</div></div>`).join('')}</div></div></section>`).join('')}</div>
-    ${cart('طلبك')}` },
-
- { key: 'sp-patch', fam: 'فضاء · شارات', name: 'شارات المهمة',
-   desc: 'كل طبق شارة مهمة فضائية مطرّزة: دائرة بحافة خياطة منقّطة وإطار بلون القسم، وصورة الطبق بالنص، وشريط صغير برمز المهمة. ثلاث شارات بالصف، فتشوف هواية أطباق مرة وحدة.',
-   mo: '<b>الشكل:</b> شبكة ثلاثية من دوائر صغيرة بدل الكروت، أكثف عرض للصور.',
-   render: () => `
-    ${rail}${head('شارات المهمة', 'اجمع الشارات اللي تشتهيها', '00 — CREW')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="flag"><b>${s.t}</b><span class="ml">${pad(si + 1)} — ${CODE[s.id]}</span></div><div class="patches">${s.items.map((it, i) => `<div class="pt"><div class="disc"><div class="ph" ${bg(it.img, 200)}></div><span class="tag">${CODE[s.id]}-${pad(i + 1)}</span></div><b>${it.n}</b><span class="pr">${it.p}</span><br>${addBtn(it, '+ أضف', 'add gadd')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('شاراتك')}` },
-
- { key: 'sp-cargo', fam: 'فضاء · مخزن الشحن', name: 'مخزن الشحن',
-   desc: 'كل قسم حاوية شحن فضائية بجوانب مضلّعة وشريط تحذير بلونه واسم مطبوع بالستنسل. الأطباق صناديق معدن ببراغي بالزوايا، صورتها بالواجهة، ورقمها وباركود وسعرها. تضيف طبق فينطبع عليه ختم «محمّل».',
-   mo: '<b>الشكل:</b> حاويات بدل الأقسام، والأطباق صناديق بطابع صناعي.',
-   render: () => `
-    ${rail}${head('مخزن الشحن', 'حمّل الصناديق اللي تريدها', '00 — CARGO BAY')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="box"><div class="haz"></div><div class="stencil"><b>${s.t}</b><span class="ml">BAY ${pad(si + 1)} — ${CODE[s.id]}</span></div><div class="crates">${s.items.map(it => `<div class="crate"><div class="ph" ${bg(it.img, 240)}></div><div class="id"><span>C-${pad(it.no)}</span><span>${CODE[s.id]}</span></div><b>${it.n}</b><div class="bar"></div><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, 'حمّل +', 'add gadd')}</div></div>`).join('')}</div></div></section>`).join('')}
-    ${cart('الحمولة')}` },
-
  { key: 'sp-count', fam: 'فضاء · عدّ تنازلي', name: 'العد التنازلي',
    desc: 'المنيو عدّ تنازلي للإطلاق: خط نيون بالنص، والأطباق خطوات من T-18 لحد T-01 متناوبة يمين ويسار ومتداخلة حتى تشوف هواية مرة وحدة، والأقسام علامات «مرحلة» على الخط، وبالآخر «إقلاع».',
    mo: '<b>الشكل:</b> خط زمني بجهتين متداخلتين بدل الشبكة، والأرقام تنزل لحد الإقلاع.',
@@ -343,24 +316,6 @@ const STYLES = [
     <div class="rings"></div>${rail}${head('الثقب الدودي', 'امشِ بالنفق، والجدران أطباق', '00 — WORMHOLE')}
     ${chips(s => s.t)}
     ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="walls">${s.items.map(it => `<div class="wc glass"><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div></div>`).join('')}</div></section>`).join('')}
-    ${cart('طلبك')}` },
-
- { key: 'sp-sat', fam: 'فضاء · قمر صناعي', name: 'الأقمار الصناعية',
-   desc: 'كل قسم قمر صناعي: جسم ذهبي بالنص بهوائي، وجناحين ألواح شمسية زرقة يمين ويسار، وكل خلية باللوح طبق بصورته واسمه وسعره وزر +. أربع أطباق بكل صف.',
-   mo: '<b>الشكل:</b> جناحين متقابلين حول جسم بالنص بدل الشبكة، وأكثف من أي ستايل ثاني.',
-   render: () => `
-    ${rail}${head('الأقمار الصناعية', 'كل قمر قسم · كل خلية طبق', '00 — ORBIT LINK')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => { const h = Math.ceil(s.items.length / 2); return `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="craft"><div class="wing">${s.items.slice(0, h).map(cell).join('')}</div><div class="core"><span>${CODE[s.id]}</span></div><div class="wing">${s.items.slice(h).map(cell).join('')}</div></div></section>`; }).join('')}
-    ${cart('طلبك')}` },
-
- { key: 'sp-moon', fam: 'فضاء · أطوار القمر', name: 'أطوار القمر',
-   desc: 'كل قسم قوس أقمار يتسحب بالعرض، وكل طبق قمر بطور مختلف: محاق، هلال، تربيع، بدر. صورة الطبق هي سطح القمر، وتضيفه فيصير بدر كامل ويبين كله.',
-   mo: '<b>الشكل:</b> أقواس دائرية بالعرض بدل الصفوف المستقيمة، وكل صورة بظل طور.',
-   render: () => `
-    ${rail}${head('أطوار القمر', 'من الهلال للبدر', '00 — LUNAR')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${sl(s, si)}<div class="arc">${s.items.map((it, i) => `<div class="mn" style="--y:${ARC[i]}px;--sx:${PH[i][1]}"><div class="globe"><div class="ph" ${bg(it.img, 220)}></div></div><span class="phz">${PH[i][0]}</span><b>${it.n}</b><span class="pr">${it.p}</span><br>${addBtn(it, '+ أضف', 'add gadd')}</div>`).join('')}</div></section>`).join('')}
     ${cart('طلبك')}` },
 ];
 

@@ -333,15 +333,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="branch"><b>${s.t}</b></div><div class="cages">${s.items.map((it, i) => `<div class="cg" style="--t:${(3.4 + rnd(it.no) * 1.6).toFixed(2)}s;--dl:-${(rnd(it.no + 5) * 4).toFixed(2)}s;--r:${(2 + rnd(it.no + 1) * 3).toFixed(1)}deg"><div class="rope" style="--rope:${[12, 46, 26][i % 3]}px"></div><div class="hook"></div><div class="cage" style="background-image:url(${U(it.img, 240)})"></div><div class="base"></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div></section>`).join('')}
     ${cart('طلبك')}` },
 
- { key: 'shwan', fam: 'كردي · شوان', name: 'قطيع الشوان',
-   desc: 'كل قسم مرعى أخضر بالجبل، وكل طبق خروف صوف أبيض صورته على ظهره، براس أسود ورجلين. القطيع يمشي لحاله على المرعى، قطيع يروح وقطيع يرجع، وتلمسه فيوقف. تضيف خروف فيقفز.',
-   mo: '<b>الحركة:</b> القطيع ينجرف بالعرض ويتمايل، والخروف يقفز لمن تختاره.',
-   render: () => `
-    ${rail}${hd('قطيع الشوان', 'كل مرعى قسم · كل خروف طبق')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="past">${s.t}<small>${toAr(s.items.length)} رؤوس</small></div><div class="herd" data-dir="${si % 2 ? 1 : -1}">${s.items.map(it => `<div class="sheep"><div class="bob" style="${clock(it.no)};--h:-5px"><div class="wool"><div class="ph" ${bg(it.img, 200)}></div><div class="head"></div></div><div class="legs"></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'خذه')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('قطيعك')}` },
-
  { key: 'henar', fam: 'كردي · حلبجة', name: 'رمّان حلبجة',
    desc: 'كل قسم رمّانة حلبجة مفتوحة بالنص، بقشرتها الحمرة وتاجها، وكل طبق حبّة رمّان ياقوتية لامعة صورته جوّاها. الحبّات طايفة بأعماق مختلفة، فوانت تنزل القريبة تتحرك أسرع.',
    mo: '<b>الحركة:</b> حبّات طايفة بعمق مثل انعدام الجاذبية، وتلمع لمن تضيفها.',
@@ -359,24 +350,6 @@ const STYLES = [
     ${chips(s => s.t)}
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="drum"><div class="jg">${[...Array(16)].map((_, i) => `<i style="${onRing(i, 16, 50)}"></i>`).join('')}</div><div class="mid"><b>${s.t}</b></div><div class="ring">${s.items.map((it, i, a) => `<div class="slot" style="${onRing(i, a.length, 31)}"><div class="dk"><div class="ph" ${bg(it.img, 200)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></div></section>`).join('')}
     ${cart('إيقاعك')}` },
-
- { key: 'tele', fam: 'كردي · تلفريك', name: 'التلفريك',
-   desc: 'كل قسم سلك تلفريك نازل بالمايل من قمة الجبل، وكل طبق كابينة حمرة معلّقة بالسلك، شبّاكها صورة الطبق. وانت تنزل الكابينات تمشي على السلك وتتمرجح شوية مثل التلفريك الحقيقي.',
-   mo: '<b>الحركة:</b> الكابينات تنزلق على السلك مع التمرير وتتأرجح.',
-   render: () => `
-    ${rail}${hd('التلفريك', 'كل سلك قسم · كل كابينة طبق')}
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><span class="stn">محطة ${s.t}</span><div class="line">${s.items.map((it, i, a) => `<div class="cab fl" style="--x:${(a.length > 1 ? i / (a.length - 1) * 52 : 0).toFixed(1)}%"><div class="arm"></div><div class="body"><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'اركب')}</div></div></div>`).join('')}</div></section>`).join('')}
-    ${cart('ركّابك')}` },
-
- { key: 'gelas', fam: 'كردي · كلي علي بك', name: 'شلال كلي علي بك',
-   desc: 'كل قسم شلال كلي علي بك: الماي ينصب بالنص، والأطباق على صخور يمين ويسار الشلال متناوبة، وتحت حوض الماي باسم القسم، والرذاذ يصعد منه. الصخور تتمايل شوية مثل ما تشوفها ورا الماي.',
-   mo: '<b>الحركة:</b> ماي جاري، ورذاذ طاير مثل الجزيئات، وصخور تطفو.',
-   render: () => `
-    ${rail}${hd('شلال كلي علي بك', 'الماي بالنص والأطباق على الصخور')}
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><div class="ttl">${s.t}</div><div class="cascade"><div class="fall" style="grid-row:1 / span ${s.items.length}"></div>${s.items.map((it, i) => `<div class="ledge ${i % 2 ? 'b' : 'a'}" style="grid-row:${i + 1}"><div class="bob" style="${clock(it.no)};--h:-4px"><div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div></div>`).join('')}</div><div class="pool"><div class="mist">${[...Array(6)].map((_, k) => `<i style="--t:${(2 + rnd(k + s.items.length) * 1.5).toFixed(2)}s;--dl:-${(rnd(k * 5 + 2) * 3).toFixed(2)}s;--dx:${((rnd(k * 3 + 1) - .5) * 80).toFixed(0)}px;left:${((rnd(k + 9) - .5) * 60).toFixed(0)}px"></i>`).join('')}</div>حوض ${s.t}</div></section>`).join('')}
-    ${cart('طلبك')}` },
 
  { key: 'honey', fam: 'كردي · عسل بنجوين', name: 'عسل الجبل',
    desc: 'كل قسم برواز خلية عسل جبلي يقطر عسل من فوق، وكل طبق عين سداسية بالشهد صورته جوّاها واسمه بالعسل. النحل يطير حوالين الخلية، والعيون مرصوصة مثل الشهد الحقيقي.',

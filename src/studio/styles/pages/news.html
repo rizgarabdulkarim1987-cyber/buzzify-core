@@ -368,15 +368,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="line">${s.items.map(it => `<div class="pp"><i class="clip"></i><div class="pg" style="--t:${(3 + rnd(it.no) * 2).toFixed(2)}s;--dl:-${(rnd(it.no + 3) * 3).toFixed(2)}s;--r:${(1.5 + rnd(it.no + 5) * 2).toFixed(1)}deg"><div class="nh">${PAPERS[it.no % PAPERS.length]}</div><h3>${it.n}</h3><div class="ph" ${bg(it.img, 260)}></div><p>${it.d}</p><div class="ln"><span>${it.p}</span>${addBtn(it, 'اشترِ')}</div></div></div>`).join('')}</div></section>`).join('')}
     ${cart('جرايدك')}` },
 
- { key: 'tlgrm', fam: 'جرايد · برقية', name: 'البرقية',
-   desc: 'برقية قديمة من البريد: ورقة رسمية بختم وأرقام، وكل طبق شريط ورق مطبوع ملزوق عليها بالكلمات المقطّعة: «تكة دجاج ٨٠٠٠ دينار انتهى». كل قسم برقية بحالها والصورة طابع بريد.',
-   mo: '<b>الحركة:</b> الأشرطة تنلزق على البرقية وحدة ورا وحدة وانت تنزل.',
-   render: () => `
-    ${rail}<div class="hd"><h1>البرقية</h1><p>بريد المطبخ · مستعجل</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="form"><div class="fh"><b>برقية</b><span>رقم ${toAr(4100 + si * 37)}</span><i class="seal">مستعجل</i></div><div class="to">إلى: جوعك · الموضوع: <b>${s.t}</b></div>${s.items.map(it => `<div class="strip rv"><div class="stamp"><div class="ph" ${bg(it.img, 120)}></div></div><div class="tape"><b>${it.n}</b> · ${it.d} · ${it.p} دينار · <em>انتهى</em></div>${addBtn(it, 'ابعث')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('برقياتك')}` },
-
  { key: 'clips', fam: 'جرايد · قصاصات', name: 'قصاصات الجرايد',
    desc: 'دفتر قصاصات: كل طبق مقصوص من جريدة مختلفة بحافة ممزّقة، بأحجام وخطوط مختلفة، ملزوق بشريط لاصق على الدفتر. القصاصات مرصوصة متداخلة مثل الجدار، وكل قسم صفحة من الدفتر.',
    mo: '<b>الحركة:</b> القصاصات ترفرف شوية من الشريط اللاصق وتطفو.',

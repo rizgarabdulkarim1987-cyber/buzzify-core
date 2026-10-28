@@ -1,0 +1,213 @@
+/*
+ * The Typewriter (kind `typew`, family ledger): the menu is typed on one sheet of ruled paper (`--raised`) lying on the
+ * desk (`--bg`). Section titles are typed in red (`--accent-ink`) between dashes; each dish is one typed line: name, dot
+ * leaders, price, with a small photo pinned at the edge, tilted. Each line slides in once from the start like the
+ * carriage returning (none with less motion); an added dish gets a red stamp.
+ */
+[data-body='typew'] {
+  --tw-type: 'Courier New', Courier, ui-monospace, monospace;
+  --tw-rule: color-mix(in srgb, var(--accent) 12%, var(--line));
+  --tw-ink: var(--text);
+  --nav-room: 3.25rem;
+  background: var(--bg);
+}
+/* Arabic and Kurdish keep the template's own face: a Latin typewriter face has no good Arabic letters. */
+.tpl:not(:lang(ar), :lang(ckb)) [data-body='typew'] :is(.lg-name, .tw-price, .lg-title, .lg-chip, .tw-desc) {
+  font-family: var(--tw-type);
+}
+
+/* ------------------------------------------------------------------ the strip: typed paper tabs */
+
+[data-body='typew'] .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='typew'] .lg-chip {
+  padding-inline: 0.75rem;
+  border-radius: 2px;
+  background: var(--raised);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
+  color: var(--text);
+  font-size: 0.875rem;
+  transition: background-color 120ms, color 120ms;
+}
+[data-body='typew'] .lg-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ the paper */
+
+[data-body='typew'] > main {
+  margin: 0.375rem 0.75rem 1rem;
+  padding: 0.25rem 0.875rem 1rem;
+  background: var(--raised) repeating-linear-gradient(transparent 0 1.6875rem, var(--tw-rule) 1.6875rem 1.75rem);
+  box-shadow: 0 0.625rem 1.375rem rgb(0 0 0 / 0.3);
+}
+@media (min-width: 640px) {
+  [data-body='typew'] > main {
+    margin-inline: max(0.75rem, calc((100% - var(--column)) / 2));
+  }
+}
+[data-body='typew'] .lg-head {
+  padding-block: 0.875rem 0.25rem;
+}
+[data-body='typew'] .lg-title {
+  justify-content: center;
+  color: var(--accent-ink);
+  font-size: 1.125rem;
+  font-weight: 700;
+  text-align: center;
+}
+[data-body='typew'] .lg-title > span::before {
+  content: '— ';
+}
+[data-body='typew'] .lg-title > span::after {
+  content: ' —';
+}
+[data-body='typew'] .lg-title [data-count] {
+  display: none;
+}
+
+/* A typed line: pinned photo, words, add. */
+[data-body='typew'] .tw-line {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding-block: 0.375rem;
+}
+[data-body='typew'] .tw-ph {
+  inline-size: 3rem;
+  block-size: 3rem;
+  border: 3px solid var(--bg);
+  border-radius: 0;
+  box-shadow: 0 2px 4px rgb(0 0 0 / 0.25);
+  rotate: -4deg;
+}
+[data-body='typew'] .tw-line:nth-child(even) .tw-ph {
+  rotate: 3deg;
+}
+/* The pin: a small round head on the photo's top edge (decoration). */
+[data-body='typew'] .tw-ph::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0.125rem;
+  inset-inline-start: calc(50% - 0.25rem);
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, rgb(255 255 255 / 0.7), var(--accent) 55%);
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.4);
+}
+[data-body='typew'] .tw-ph {
+  position: relative;
+}
+[data-body='typew'] .tw-tx {
+  flex: 1;
+  min-inline-size: 0;
+}
+[data-body='typew'] .tw-lead {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+}
+[data-body='typew'] .tw-name {
+  flex: 0 1 auto;
+  color: var(--tw-ink);
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+[data-body='typew'] .tw-dots {
+  flex: 1 1 1rem;
+  min-inline-size: 1rem;
+  border-block-end: 2px dotted color-mix(in srgb, var(--text) 60%, transparent);
+  translate: 0 -0.25rem;
+}
+[data-body='typew'] .tw-price {
+  flex: none;
+  color: var(--tw-ink);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+[data-body='typew'] .tw-desc {
+  font-size: 0.75rem;
+}
+[data-body='typew'] .tw-badges {
+  margin-block-start: 0.125rem;
+}
+[data-body='typew'] .tw-add.tpl-button {
+  min-block-size: 2rem;
+  padding-inline: 0.5rem;
+  border: 1.5px solid var(--text);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+/* The stamp an added dish gets: a red ring and tick, struck at an angle. */
+[data-body='typew'] .tw-stamp {
+  position: absolute;
+  inset-block-start: 0.125rem;
+  inset-inline-end: 4.5rem;
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border: 2px solid var(--accent-ink);
+  border-radius: 50%;
+  color: var(--accent-ink);
+  font-size: 1rem;
+  font-style: normal;
+  font-weight: 800;
+  opacity: 0;
+  rotate: -12deg;
+  scale: 1.6;
+  pointer-events: none;
+  transition: opacity 160ms ease, scale 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='typew'] .tw-line[data-got] .tw-stamp {
+  opacity: 0.85;
+  scale: 1;
+}
+
+/* The carriage: a line not yet seen waits a little toward the start and slides in once (only once the hook arms). */
+[data-body='typew'] .tw-line {
+  transition:
+    opacity 360ms cubic-bezier(0.23, 1, 0.32, 1),
+    translate 420ms cubic-bezier(0.23, 1, 0.32, 1);
+  transition-delay: calc(var(--i, 0) * 50ms);
+}
+[data-body='typew'][data-armed] .tw-line:not([data-in]) {
+  opacity: 0;
+  translate: -2.25rem 0;
+}
+[data-body='typew'][data-armed] .tw-line:not([data-in]):dir(rtl) {
+  translate: 2.25rem 0;
+}
+
+@media (hover: hover) {
+  [data-body='typew'] .tw-line:hover .tw-name {
+    text-decoration: underline;
+    text-decoration-color: var(--accent);
+    text-underline-offset: 3px;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='typew'] .tw-ph {
+    inline-size: 3.75rem;
+    block-size: 3.75rem;
+  }
+  [data-body='typew'] .tw-name {
+    font-size: 1.0625rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='typew'] :is(.tw-line, .tw-stamp, .lg-chip) {
+    transition: none;
+  }
+}

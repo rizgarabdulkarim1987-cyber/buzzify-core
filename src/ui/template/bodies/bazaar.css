@@ -1,0 +1,170 @@
+/*
+ * Sulaymaniyah Bazaar (family lens, kind `bazaar`): walking down a lane of the old bazaar. The shop walls run down both
+ * edges; each dish is a hand-painted wooden shop sign hung from two cords off a beam, the signs on alternate walls. A
+ * sign near the middle of the screen hangs full size; those further up or down the lane are smaller (never under
+ * 86%) and swing a little on their cords, the way signs do as you walk under them. The wood is the raised colour, its
+ * painted rim and the cords the accent, the words the text colour; every sign a little different (a shade of the
+ * accent, of the background) as on a real lane.
+ */
+[data-body='bazaar'] {
+  --bz-wall: color-mix(in srgb, var(--bg) 70%, #000);
+  --bz-cord: color-mix(in srgb, var(--text) 30%, var(--bg));
+  --bz-wood: var(--raised);
+  background:
+    linear-gradient(90deg, var(--bz-wall) 0 0.5rem, transparent 0.5rem calc(100% - 0.5rem), var(--bz-wall) calc(100% - 0.5rem)),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: small painted shop boards */
+
+[data-body='bazaar'] .tpl-strip-sticky {
+  background: color-mix(in srgb, var(--bz-wall) 94%, transparent);
+}
+[data-body='bazaar'] .ln-chip {
+  border-radius: 3px;
+  background: var(--bz-wood);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 70%, transparent);
+  font-family: var(--font-display-stack, inherit);
+}
+[data-body='bazaar'] .ln-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+/* ------------------------------------------------------------------ each section: an arch over the lane */
+
+[data-body='bazaar'] .bz-title {
+  justify-content: center;
+  margin-block: 0.5rem 0.75rem;
+  padding-block-end: 0.375rem;
+  border-block-end: 3px double color-mix(in srgb, var(--accent) 70%, transparent);
+  font-size: 1.5rem;
+  text-align: center;
+}
+[data-body='bazaar'] .bz-lane {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0 0.25rem;
+  list-style: none;
+}
+[data-body='bazaar'] .bz-item {
+  inline-size: 88%;
+}
+[data-body='bazaar'] .bz-item[data-side='end'] {
+  margin-inline-start: auto;
+}
+
+/* ------------------------------------------------------------------ the sign */
+
+[data-body='bazaar'] .bz-sign {
+  position: relative;
+  transform-origin: 50% 0;
+}
+/* Two cords from the beam above, standing in at the sign's quarter points. */
+[data-body='bazaar'] .bz-rope {
+  display: block;
+  block-size: 0.625rem;
+  margin-inline: 22%;
+  border-inline: 2px solid var(--bz-cord);
+}
+[data-body='bazaar'] .bz-board {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.4375rem;
+  border-radius: 4px;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      color-mix(in srgb, #000 7%, transparent) 0 1px,
+      transparent 1px 0.4375rem
+    ),
+    linear-gradient(var(--bz-wood), color-mix(in srgb, var(--bz-wood) 80%, #000));
+  box-shadow:
+    inset 0 0 0 2px var(--accent),
+    inset 0 0 0 4px color-mix(in srgb, var(--bz-wood) 60%, #000),
+    0 0.375rem 0.625rem rgb(0 0 0 / 0.35);
+  color: var(--text);
+}
+/* No two neighbouring signs painted alike: every third a shade toward the accent, every third toward the background. */
+[data-body='bazaar'] .bz-item:nth-child(3n + 2) {
+  --bz-wood: color-mix(in srgb, var(--raised) 82%, var(--accent));
+}
+[data-body='bazaar'] .bz-item:nth-child(3n) {
+  --bz-wood: color-mix(in srgb, var(--raised) 70%, var(--bg));
+}
+[data-body='bazaar'] .bz-photo {
+  flex: none;
+  inline-size: 4.25rem;
+  block-size: 4.25rem;
+  overflow: hidden;
+  border-radius: 4px;
+  box-shadow: 0 0 0 2px var(--accent);
+}
+[data-body='bazaar'] .bz-text {
+  flex: 1;
+  min-inline-size: 0;
+}
+[data-body='bazaar'] .bz-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-family: var(--font-display-stack, inherit);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+[data-body='bazaar'] .bz-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: 0.25rem;
+}
+[data-body='bazaar'] .bz-price {
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 800;
+}
+[data-body='bazaar'] .bz-badges .tpl-badge:not(.tpl-badge-sale) {
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 45%, transparent);
+}
+[data-body='bazaar'] .bz-add {
+  min-block-size: 2.25rem;
+  margin-inline-start: auto;
+  padding-inline: 0.75rem;
+  border-radius: 3px;
+  font-weight: 800;
+}
+
+/* Walking the lane: smaller up and down the lane, and swinging a little on the cords as the sign passes. */
+[data-body='bazaar'][data-lens] .bz-sign {
+  transform: scale(calc(1 - 0.14 * var(--lt) * var(--lt))) rotate(calc(var(--lv, 0) * -3deg));
+}
+
+@media (min-width: 640px) {
+  [data-body='bazaar'] .bz-item {
+    inline-size: 72%;
+  }
+  [data-body='bazaar'] .bz-photo {
+    inline-size: 5.5rem;
+    block-size: 5.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='bazaar'] .bz-sign {
+    transform: none !important;
+  }
+}

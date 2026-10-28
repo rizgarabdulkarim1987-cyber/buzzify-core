@@ -336,15 +336,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2>${rows(s.items, 3).map(r => `<div class="str"><div class="chain"></div>${r.map((it, i) => `<div class="cn" style="--drop:${[0, 30, 0][i]}px;--t:${(3.2 + rnd(it.no) * 1.4).toFixed(2)}s;--dl:-${(rnd(it.no + 2) * 3).toFixed(2)}s;--r:${(2 + rnd(it.no + 4) * 3).toFixed(1)}deg"><div class="link"></div><div class="coin"><div class="ph" ${bg(it.img, 220)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div>`).join('')}</section>`).join('')}
     ${cart('ذهبك')}` },
 
- { key: 'kras', fam: 'نسائي · كراس و فستان', name: 'الكراس والفستان',
-   desc: 'كل قسم فستان كردي طويل بلونه: فوق الصدر بالياقة واسم القسم، وتحته التنورة. كل طبق طبقة بالتنورة، وكل طبقة أعرض من اللي فوقها لحد ما يصير الفستان واسع تحت، والقماش كله ترتر يلمع.',
-   mo: '<b>الحركة:</b> الترتر يلمع ويمشي، والتنورة تتمايل يمين ويسار وانت تنزل.',
-   render: () => `
-    ${rail}${hd('الكراس والفستان', 'كل فستان قسم · كل طبقة طبق')}
-    ${chips(s => s.t)}
-    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--dc:${DRESS[si]}"><div class="bod"><div class="neck"></div><b>${s.t}</b></div><div class="skirt">${s.items.map((it, i, a) => `<div class="tier fl" style="--w:${(64 + (a.length > 1 ? i / (a.length - 1) : 1) * 36).toFixed(0)}%"><div class="ph" ${bg(it.img, 160)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
-    ${cart('فستانك')}` },
-
  { key: 'faqi', fam: 'نسائي · فقيانة', name: 'الفقيانة',
    desc: 'الفقيانة هي الردن الطويل الشفاف اللي تربطه الكردية ورا ظهرها ويطير بالهوا وهي ترقص. هنا كل قسم ردن تول طويل ممدود بالعرض، والأطباق قطع منه، والردن كله يتموج مثل الموج وهو يطير.',
    mo: '<b>الحركة:</b> موجة تمشي على طول الردن، تحط إصبعك فتوقف وتسحبه بالعرض.',
@@ -353,15 +344,6 @@ const STYLES = [
     ${chips(s => s.t)}
     ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--dc:${DRESS[si]}"><h2>${s.t}</h2><div class="sleeve" data-dir="${si % 2 ? 1 : -1}">${s.items.map((it, i) => `<div class="pc" data-i="${i}"><div class="tul"><div class="ph" ${bg(it.img, 220)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></section>`).join('')}
     ${cart('رقصتك')}` },
-
- { key: 'jhaz', fam: 'نسائي · جهاز العروس', name: 'دولاب الجهاز',
-   desc: 'العروس الكردية تعلّق فساتين جهازها بالدولاب. هنا كل قسم عمود دولاب، وكل طبق فستان معلّق بشمّاعة، وقماش الفستان نفسه صورة الطبق. تسحب الفساتين بالعرض مثل ما تقلّب الدولاب.',
-   mo: '<b>الحركة:</b> الشمّاعات تتمرجح على العمود، وتضيف فستان فيلف لفّة كاملة.',
-   render: () => `
-    ${rail}${hd('دولاب الجهاز', 'كل عمود قسم · كل فستان طبق')}
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}<small>${toAr(s.items.length)} فساتين</small></h2><div class="rack">${s.items.map(it => `<div class="hg"><div class="sw" style="--t:${(3 + rnd(it.no) * 2).toFixed(2)}s;--dl:-${(rnd(it.no + 3) * 3).toFixed(2)}s;--r:${(1.5 + rnd(it.no + 6) * 2).toFixed(1)}deg"><div class="hook"></div><div class="dress" ${bg(it.img, 260)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div></section>`).join('')}
-    ${cart('جهازك')}` },
 
  { key: 'pshtwen', fam: 'رجالي · پشتوێن', name: 'البشتوين',
    desc: 'البشتوين هو الحزام القماش الطويل اللي يلفّه الكردي على خصره لفّات فوق لفّات. هنا كل قسم بشتوين مخطط، وكل طبق لفّة منه، واللفّات مايلة شوية يمين ويسار فوق بعض، وبالآخر عقدة بشراشيب.',

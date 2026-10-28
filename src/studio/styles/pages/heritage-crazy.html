@@ -339,24 +339,6 @@ const STYLES = [
     ${MENU.map(s => `<section data-sec="${s.id}"><div class="oven"><div class="fire">${s.t}<small>${toAr(s.items.length)} أطباق</small></div>${s.items.map((it, i, a) => `<div class="bread" style="${ring(i, a.length)}"><div class="ph" ${bg(it.img, 200)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
     ${cart('خبزتك')}` },
 
- { key: 'dinar', fam: 'عراقي · حنين', name: 'الدينار القديم',
-   desc: 'كل طبق ورقة نقدية عراقية قديمة: صورته بالبيضاوي مكان الصورة، واسمه بخط كبير، وسعره هو «الفئة»، ورقم تسلسلي أحمر وزخرفة الطباعة القديمة. كل قسم لون فئة.',
-   mo: '<b>الشكل:</b> أوراق نقدية بالعرض بدل الكروت، والسعر مكتوب مثل فئة العملة.',
-   render: () => `
-    <div class="hd"><h1>الدينار القديم</h1><p>كل ورقة طبق · اصرفها على اللي تشتهيه</p></div>
-    ${chips(s => `فئة ${s.t}`)}
-    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><h2 class="lab">فئة ${s.t}</h2>${s.items.map(it => `<div class="note"><div class="oval ph" ${bg(it.img, 220)}></div><div><span class="bank">البنك المركزي للطعم</span><b>${it.n}</b><div class="den"><strong>${it.p}</strong><span>دينار</span></div><span class="serial">${serial(it.no)}</span></div>${addBtn(it, 'اصرف')}</div>`).join('')}</section>`).join('')}
-    ${cart('مصروفك')}` },
-
- { key: 'kia', fam: 'عراقي · بغداد', name: 'كيا خط بغداد',
-   desc: 'المنيو كراج كيات: كل قسم كيا بلافتة خطها، وكل طبق راكب جنب الشبّاك بصورته واسمه وأجرته. تدوس «صعّد» فيصعد الطبق ويصيح السايق.',
-   mo: '<b>الشكل:</b> باصات بشبابيك وعجلات بدل الأقسام، والأطباق ركّاب.',
-   render: () => `
-    <div class="hd"><div class="route">باب الشرقي ⇄ الكرّادة</div><p>كل كيا قسم · كل راكب طبق</p></div>
-    ${chips(s => s.t)}
-    ${MENU.map(s => `<section data-sec="${s.id}"><div class="bus"><span class="sign">خط ${s.t} · ${toAr(s.items.length)} ركّاب</span><div class="seats">${s.items.map(it => `<div class="seat"><div class="ph" ${bg(it.img, 220)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'صعّد')}</div>`).join('')}</div></div></section>`).join('')}
-    ${cart('الركّاب')}` },
-
  { key: 'misb', fam: 'عراقي وكردي', name: 'المسبحة',
    desc: 'المنيو كله مسبحة كهرب وحدة طويلة: كل طبق خرزة صفرة بصورته، واسمه وسعره جنبها يمين ويسار بالتناوب، وكل قسم يبدي بـ«الشاهد» وشرّابته عليها اسمه. وفوق عدّاد يحسب طلبك مثل التسبيح.',
    mo: '<b>الشكل:</b> خيط واحد نازل بالنص والأطباق خرز عليه، بدل الشبكة.',

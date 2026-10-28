@@ -1,0 +1,183 @@
+/*
+ * The Picture House (family frame, kind `marquee`): an old cinema's entrance at night. The house's name (the
+ * restaurant's own) glows over the strip; each section is a sign ringed with bulbs that chase round it, "now showing"
+ * over its name; its dishes are film posters in gilt glass frames, two columns, the price the ticket. A poster lights up
+ * when its dish is added. The sign is the raised colour, the gilt the accent, the ticket the accent pair; the bulbs are
+ * warm light (decoration only, never under words).
+ */
+[data-body='marquee'] {
+  --mq-bulb: #fff6c4;
+  background:
+    radial-gradient(120% 22rem at 50% 0, color-mix(in srgb, var(--raised) 60%, transparent), transparent 70%),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the house's name and the strip */
+
+[data-body='marquee'] .mq-house {
+  margin: 0;
+  padding: 0.375rem 1rem 0;
+  overflow: hidden;
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+  letter-spacing: 0.24em;
+  line-height: 1.2;
+  text-align: center;
+  text-overflow: ellipsis;
+  text-shadow: 0 0 0.75rem color-mix(in srgb, var(--accent) 60%, transparent);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.tpl:is(:lang(ar), :lang(ckb)) [data-body='marquee'] :is(.mq-house, .mq-now) {
+  letter-spacing: 0;
+  text-transform: none;
+}
+[data-body='marquee'] .fr-chip {
+  border-radius: 4px;
+  background: var(--raised);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+[data-body='marquee'] .fr-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the sign and its chasing bulbs */
+
+[data-body='marquee'] .mq-sign {
+  position: relative;
+  margin-block-end: 0.875rem;
+  padding: 1rem 1.125rem;
+  border-radius: 6px;
+  background: var(--raised);
+  box-shadow: 0 0 1.375rem color-mix(in srgb, var(--accent) 35%, transparent);
+  text-align: center;
+}
+/* Two sets of bulbs, half a step apart, round the sign's edge: they take turns, so the light runs round. */
+[data-body='marquee'] .mq-sign::before,
+[data-body='marquee'] .mq-sign::after {
+  content: '';
+  position: absolute;
+  inset: 0.25rem;
+  background-image:
+    radial-gradient(circle 3px, var(--mq-bulb) 90%, transparent),
+    radial-gradient(circle 3px, var(--mq-bulb) 90%, transparent),
+    radial-gradient(circle 3px, var(--mq-bulb) 90%, transparent),
+    radial-gradient(circle 3px, var(--mq-bulb) 90%, transparent);
+  background-position: 0 0, 0 100%, 0 0, 100% 0;
+  background-repeat: repeat-x, repeat-x, repeat-y, repeat-y;
+  background-size: 14px 8px, 14px 8px, 8px 14px, 8px 14px;
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--accent) 80%, transparent));
+  pointer-events: none;
+}
+[data-body='marquee'] .mq-sign::after {
+  background-position: 7px 0, 7px 100%, 0 7px, 100% 7px;
+  opacity: 0.3;
+}
+[data-body='marquee'] .mq-sign[data-live]::before,
+[data-body='marquee'] .mq-sign[data-live]::after {
+  animation: mq-chase 1.2s steps(1, end) infinite;
+}
+[data-body='marquee'] .mq-sign[data-live]::after {
+  animation-delay: -0.6s;
+}
+[data-body='marquee'][data-hold] .mq-sign::before,
+[data-body='marquee'][data-hold] .mq-sign::after {
+  animation-play-state: paused;
+}
+@keyframes mq-chase {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+[data-body='marquee'] .mq-now {
+  display: block;
+  margin-block-end: 0.125rem;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+[data-body='marquee'] .mq-title {
+  color: var(--text);
+  font-size: 1.5rem;
+  text-shadow: 0 0 0.875rem color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+/* ------------------------------------------------------------------ the posters */
+
+[data-body='marquee'] .mq-dish {
+  text-align: center;
+}
+[data-body='marquee'] .mq-poster {
+  padding: 0.3125rem;
+  border-radius: 4px;
+  background: linear-gradient(var(--accent), color-mix(in srgb, var(--accent) 55%, #000));
+  box-shadow:
+    0 0 0 2px color-mix(in srgb, var(--bg) 70%, #000),
+    0 0.5rem 1rem rgb(0 0 0 / 0.5);
+  transition: box-shadow 260ms ease;
+}
+/* Booked: the poster's frame lights up and stays lit. */
+[data-body='marquee'] .mq-poster[data-lit] {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 1.375rem var(--accent);
+}
+[data-body='marquee'] .mq-photo {
+  aspect-ratio: 1.4;
+  box-shadow: inset 0 0 1.875rem rgb(0 0 0 / 0.45);
+}
+/* The glass over the poster: one sheen across it. */
+[data-body='marquee'] .mq-photo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(125deg, color-mix(in srgb, #fff 22%, transparent) 0 18%, transparent 34% 100%);
+  pointer-events: none;
+}
+[data-body='marquee'] .mq-text {
+  padding: 0.375rem 0.125rem 0;
+}
+[data-body='marquee'] .mq-name {
+  color: var(--text);
+  font-family: var(--font-display-stack, inherit);
+  font-size: 1rem;
+  text-align: center;
+}
+/* The ticket: the accent pair, a notch bitten out of each end. */
+[data-body='marquee'] .mq-price {
+  padding: 0.125rem 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8125rem;
+  font-weight: 800;
+  -webkit-mask:
+    radial-gradient(circle 0.3125rem at 0 50%, #0000 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 0.3125rem at 100% 50%, #0000 98%, #000) right / 51% 100% no-repeat;
+  mask:
+    radial-gradient(circle 0.3125rem at 0 50%, #0000 98%, #000) left / 51% 100% no-repeat,
+    radial-gradient(circle 0.3125rem at 100% 50%, #0000 98%, #000) right / 51% 100% no-repeat;
+}
+[data-body='marquee'] .mq-add {
+  min-inline-size: 2.5rem;
+  block-size: 2.5rem;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='marquee'] .mq-sign::before,
+  [data-body='marquee'] .mq-sign::after {
+    animation: none !important;
+  }
+  [data-body='marquee'] .mq-poster {
+    transition: none;
+  }
+}

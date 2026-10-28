@@ -1,0 +1,130 @@
+/*
+ * The Jamana (`jamana`, family `float`): the black-and-white Kurdish head-scarf. Every dish is a square of its check
+ * turned on its corner, a diamond with the photo inside and a tassel hanging from its lower point; the diamonds of the
+ * two columns interlock like the scarf's pattern. On add the diamond turns a quarter. The check is `--text` on `--bg`,
+ * the section's band `--text` with `--bg` words, so a recolour keeps the cloth.
+ */
+[data-body='jamana'] {
+  --fl-tilt: 0;
+  background: var(--bg);
+}
+
+[data-body='jamana'] .fl-chip {
+  border-radius: 3px;
+  background: var(--raised);
+  box-shadow: 0 0 0 1.5px var(--text);
+}
+[data-body='jamana'] .fl-chip-mark {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  rotate: 45deg;
+  background: repeating-conic-gradient(var(--text) 0 25%, var(--bg) 0 50%) 0 0 / 0.3125rem 0.3125rem;
+  box-shadow: 0 0 0 1px var(--text);
+}
+[data-body='jamana'] .fl-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+[data-body='jamana'] .fl-chip[aria-current='true'] .fl-chip-mark {
+  box-shadow: 0 0 0 1px var(--bg);
+}
+
+/* The band: the scarf's black border with a thin white line under it. */
+[data-body='jamana'] .fl-title {
+  padding: 0.375rem 0.875rem;
+  background: var(--text);
+  box-shadow:
+    0 6px 0 -2px var(--bg),
+    0 8px 0 -2px var(--text);
+  color: var(--bg);
+  font-size: 1.25rem;
+}
+[data-body='jamana'] .fl-title small {
+  font-size: 0.8125rem;
+  opacity: 0.8;
+}
+[data-body='jamana'] .fl-title [data-count] {
+  margin-inline-start: auto;
+  font-size: 0.8125rem;
+}
+[data-body='jamana'] .fl-field {
+  padding-block-start: 1rem;
+}
+[data-body='jamana'] .fl-item:nth-child(even) {
+  margin-block-start: 1.5rem;
+}
+
+/* The diamond: a square of check turned on its corner (its turned box needs 14% of the cell above and below). */
+[data-body='jamana'] .fl-art {
+  inline-size: 54%;
+  margin: 10% auto 0;
+  padding: 0.5rem;
+  aspect-ratio: 1;
+  rotate: 45deg;
+  background: repeating-conic-gradient(var(--text) 0 25%, var(--bg) 0 50%) 0 0 / 0.875rem 0.875rem;
+  box-shadow:
+    0 0 0 2px var(--text),
+    0 10px 16px rgb(0 0 0 / 0.18);
+  transition: rotate 380ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='jamana'] .fl-photo {
+  block-size: 100%;
+  aspect-ratio: 1;
+  box-shadow: 0 0 0 3px var(--bg);
+}
+[data-body='jamana'] .fl-item[data-z='2'] .fl-art {
+  box-shadow:
+    0 0 0 2px var(--text),
+    0 14px 22px rgb(0 0 0 / 0.26);
+}
+/* The tassel under the lower point, swinging while the section is seen. */
+[data-body='jamana'] .fl-tassel {
+  display: block;
+  inline-size: 1.625rem;
+  block-size: 1.375rem;
+  margin: calc(10% + 0.125rem) auto 0;
+  background: repeating-linear-gradient(90deg, var(--text) 0 2px, transparent 2px 5px);
+  transform-origin: 50% 0;
+}
+[data-body='jamana'] .fl-field[data-live] .fl-tassel {
+  animation: fl-tassel-swing calc(var(--t, 6s) / 2.5) ease-in-out var(--dl, 0s) infinite;
+}
+@keyframes fl-tassel-swing {
+  0%,
+  100% {
+    transform: skewX(8deg);
+  }
+  50% {
+    transform: skewX(-8deg);
+  }
+}
+
+[data-body='jamana'] .fl-text {
+  text-align: center;
+}
+[data-body='jamana'] .fl-name {
+  text-align: center;
+}
+[data-body='jamana'] .fl-badges,
+[data-body='jamana'] .fl-meta {
+  justify-content: center;
+}
+[data-body='jamana'] .fl-price {
+  color: var(--text);
+  font-weight: 900;
+}
+[data-body='jamana'] .fl-add {
+  border-radius: 3px;
+  background: var(--text);
+  color: var(--bg);
+  box-shadow: none;
+}
+
+@media (min-width: 640px) {
+  [data-body='jamana'] .fl-item:nth-child(even) {
+    margin-block-start: 0;
+  }
+  [data-body='jamana'] .fl-item:nth-child(3n + 2) {
+    margin-block-start: 4rem;
+  }
+}

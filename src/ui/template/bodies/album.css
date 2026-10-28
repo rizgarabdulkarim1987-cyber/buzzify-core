@@ -1,0 +1,190 @@
+/*
+ * The Family Album (family `pinboard`, kind `album`): an old family photo album with black pages. Every dish is a
+ * photo in a white border, tilted a little and held at its four corners by paper photo-corners; its name and price are
+ * written underneath in white pen, two photos to a row. The photos slide in on their corners the first time they are
+ * seen (`data-in`), and adding fires a camera flash over the photo. Colours from the template tokens: the page is
+ * `--bg` with a faint grain, the pen `--text`, the price `--accent-ink`, the border `--text` (the white of an old print
+ * on a dark page), the photo-corners `--bg` deepened. The flash is pure white (decoration, never under text).
+ */
+[data-body='album'] {
+  --al-border: color-mix(in srgb, var(--text) 92%, var(--bg));
+  --al-corner: color-mix(in srgb, var(--bg) 55%, #000);
+  background:
+    repeating-linear-gradient(0deg, color-mix(in srgb, var(--text) 3%, transparent) 0 1px, transparent 1px 4px),
+    var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: pen-drawn tabs */
+
+[data-body='album'] .al-chip {
+  border-radius: 999px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--text);
+  color: var(--text);
+  font-style: italic;
+}
+[data-body='album'] .al-chip-mark {
+  inline-size: 0.75rem;
+  block-size: 0.625rem;
+  border: 1.5px solid currentColor;
+  border-radius: 1px;
+}
+[data-body='album'] .al-chip[aria-current='true'] {
+  background: var(--text);
+  color: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the page heading, written under a ruled line */
+
+[data-body='album'] .al-head {
+  margin-block: 0.5rem 0.875rem;
+}
+[data-body='album'] .al-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  padding-block-end: 0.375rem;
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 35%, var(--bg));
+  font-size: 1.375rem;
+  font-style: italic;
+  line-height: 1.2;
+}
+[data-body='album'] .al-title [data-count] {
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ the photos */
+
+[data-body='album'] .al-board {
+  gap: 1.25rem 0.875rem;
+}
+[data-body='album'] .al-piece {
+  text-align: center;
+  transition:
+    transform 520ms cubic-bezier(0.23, 1, 0.32, 1),
+    opacity 420ms ease-out;
+  transition-delay: calc(var(--i, 0) * 60ms);
+}
+[data-body='album'][data-armed] .al-piece:not([data-in]) {
+  opacity: 0;
+  transform: translateY(1.125rem) rotate(calc(var(--r, 0deg) * 2));
+}
+[data-body='album'] .al-frame {
+  position: relative;
+  padding: 0.4375rem 0.4375rem 1.125rem;
+  background: var(--al-border);
+  box-shadow: 0 0.375rem 0.75rem rgb(0 0 0 / 0.5);
+}
+[data-body='album'] .al-photo {
+  aspect-ratio: 4 / 3;
+}
+[data-body='album'] .al-img {
+  border-radius: 0;
+  filter: sepia(0.35) saturate(0.85) contrast(1.05);
+}
+/* The paper photo-corners: a dark triangle over each corner of the print. */
+[data-body='album'] .al-corner {
+  position: absolute;
+  z-index: 1;
+  inline-size: 1.125rem;
+  block-size: 1.125rem;
+  background: var(--al-corner);
+}
+[data-body='album'] .al-corner[data-c='ss'] {
+  inset-block-start: -0.1875rem;
+  inset-inline-start: -0.1875rem;
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+[data-body='album'] .al-corner[data-c='se'] {
+  inset-block-start: -0.1875rem;
+  inset-inline-end: -0.1875rem;
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+[data-body='album'] .al-corner[data-c='es'] {
+  inset-block-end: -0.1875rem;
+  inset-inline-start: -0.1875rem;
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+[data-body='album'] .al-corner[data-c='ee'] {
+  inset-block-end: -0.1875rem;
+  inset-inline-end: -0.1875rem;
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+/* RTL: the corners trade sides with the inline axis, so their triangles turn with them. */
+[data-body='album'] .al-corner[data-c='ss']:dir(rtl) {
+  clip-path: polygon(0 0, 100% 0, 100% 100%);
+}
+[data-body='album'] .al-corner[data-c='se']:dir(rtl) {
+  clip-path: polygon(0 0, 100% 0, 0 100%);
+}
+[data-body='album'] .al-corner[data-c='es']:dir(rtl) {
+  clip-path: polygon(100% 0, 100% 100%, 0 100%);
+}
+[data-body='album'] .al-corner[data-c='ee']:dir(rtl) {
+  clip-path: polygon(0 0, 0 100%, 100% 100%);
+}
+[data-body='album'] .al-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ the white-pen caption */
+
+[data-body='album'] .al-name {
+  margin-block-start: 0.5rem;
+  color: var(--text);
+  font-family: var(--font-display-stack);
+  font-size: 0.9375rem;
+  font-style: italic;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: center;
+}
+[data-body='album'] .al-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem 0.375rem;
+  margin-block-start: 0.125rem;
+}
+[data-body='album'] .al-price {
+  font-size: 0.9375rem;
+  font-style: italic;
+  font-weight: 700;
+}
+[data-body='album'] .al-badges {
+  justify-content: center;
+}
+[data-body='album'] .al-add {
+  min-height: 2.25rem;
+  margin-block-start: 0.25rem;
+  padding-inline: 0.875rem;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: inset 0 -1px 0 currentColor;
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-style: italic;
+}
+
+@media (hover: hover) {
+  [data-body='album'] .al-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--text) 12%, transparent);
+  }
+  [data-body='album'] .al-piece:hover .al-frame {
+    box-shadow: 0 0.625rem 1.25rem rgb(0 0 0 / 0.55);
+  }
+  [data-body='album'] .al-add:hover {
+    background: var(--text);
+    color: var(--bg);
+  }
+}

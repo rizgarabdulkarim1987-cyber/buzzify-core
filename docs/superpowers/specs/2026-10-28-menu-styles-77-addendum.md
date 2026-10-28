@@ -39,10 +39,10 @@ reach the middle of the screen. Giving each its own body would mean 77 near-copi
 
 | Family (`BodyKind`) | Structure | Styles (mockup keys) |
 |---|---|---|
-| `carpet` (existing) | floating section blocks | carpet, sp-isle |
-| `lattice` (existing) | shanashil facade | shan |
+| `isle` (`space-isle`, `flying-carpet`) | floating section blocks | sp-isle, carpet |
+| `shan` | shanashil facade, an oriel per dish | shan |
+| `bourse` | ticker and stock tables, the real discount as the change | bourse |
 | `magazine` (existing) | lead dish and columns | front |
-| `board` (existing) | price board rows | bourse |
 | `stacked` (existing) | sheets whose heads stay | catalog |
 | `ledger` | dense rows, one line a dish | sheet, serp, typew, cassette, radio |
 | `coverflow` | per-section sideways carousel, the middle one large | sp-deck, zel, saj, crate |
@@ -66,9 +66,14 @@ reach the middle of the screen. Giving each its own body would mean 77 near-copi
 | `filmstrip` | a vertical film with title cards | film |
 | `wrap` | wraps that fold in from both sides | pshtwen |
 
-Families group the code; each style still adds its own kind (71 new kinds: 77 minus six presets on existing shapes). Total: 77.
+Families group the code; each style still adds its own kind (75 new kinds: 77 minus two presets on existing shapes).
+Total: 77. The older carpet, lattice and board bodies have fixed colours or gate wording, so the batch-10 styles that
+looked like them got palette-driven kinds of their own (decided while building, 2026-10-28).
 
-## Batches (one PR each, confirmed with the user before each push)
+## Batches (built in parallel, shipped together)
+
+The user asked on 2026-10-28 to finish all of them and push once: one branch, one PR. The batches below are how the
+work was split between builders, not separate PRs.
 
 | Batch | Families | Styles | Count |
 |---|---|---|---|
@@ -102,9 +107,8 @@ show as coming soon with their mockup until their batch lands.
 
 ## Tests (per batch, as in the first spec)
 
-- Presets equal `TEMPLATE_IDS`, counts updated, each new preset has its body and motif and passes palette contrast.
-- Schema: a design without `motif` parses; an unknown motif is dropped by `parseOverrides` and rejected by
-  `menuDesignSchema`; a motif that does not belong to the body falls back to the family's first.
+- Presets equal `TEMPLATE_IDS`, counts updated, each new preset has its body and passes palette contrast.
+- Registry: every kind loads lazily from its family module through its own named export, which that module defines.
 - Each family: all sections and dishes with prices on the first screen, a section jump, the detail sheet, quick add,
   search filters it, a discounted dish shows its sale price, the tenant's name shows, Arabic RTL.
 - Unchanged: the existing unit and e2e tests and the 35 existing gallery thumbnails.

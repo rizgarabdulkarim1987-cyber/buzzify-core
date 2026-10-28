@@ -1,0 +1,255 @@
+/*
+ * The Dengbêj (family `spine`, kind `dengbej`): the dengbêj are the Kurdish singers who tell stories in song. Every
+ * section is a poem (its name between two rules, its number in a seal); every dish is a verse on alternate sides, like
+ * two singers answering each other, the photo a round medallion beside a speech card. The medallion at mid-screen sings:
+ * sound waves ripple out of it (`data-sing`, set only there, so nothing runs off screen; off with less motion). Verses
+ * rise in the first time they are seen. Colours from the template tokens only. Logical properties only.
+ */
+[data-body='dengbej'] {
+  --nav-room: 3.5rem;
+  --column: 44rem;
+  --db-medal: 4.375rem;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+[data-body='dengbej'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='dengbej'] .db-chip {
+  display: flex;
+  align-items: center;
+  min-block-size: 2.5rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.25rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms;
+}
+[data-body='dengbej'] .db-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the poems */
+
+[data-body='dengbej'] .db-section {
+  position: relative;
+  padding: 0.75rem 0.875rem 0.375rem;
+}
+[data-body='dengbej'] .db-head {
+  margin-block-end: 0.5rem;
+}
+/* The poem's title between two rules, its number in a round seal. */
+[data-body='dengbej'] .db-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--accent-ink);
+  font-size: 1.3125rem;
+  line-height: 1.3;
+  text-align: center;
+}
+[data-body='dengbej'] .db-title::before,
+[data-body='dengbej'] .db-title::after {
+  content: '';
+  flex: 1 1 0;
+  max-inline-size: 3.5rem;
+  border-block-start: 1px solid var(--accent);
+}
+[data-body='dengbej'] .db-title > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='dengbej'] .db-title small {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 1.625rem;
+  block-size: 1.625rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+[data-body='dengbej'] .db-title [data-count] {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ the verses */
+
+[data-body='dengbej'] .db-thread {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='dengbej'] .db-bead {
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  inline-size: 92%;
+  margin-block-end: 0.625rem;
+  transition:
+    opacity 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    transform 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='dengbej'] .db-bead[data-side='end'] {
+  flex-direction: row-reverse;
+  margin-inline-start: auto;
+}
+[data-body='dengbej'][data-armed] .db-bead:not([data-in]) {
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+/* The medallion: the photo in a gold-ringed round, the waves drawn round it while it sings. */
+[data-body='dengbej'] .db-ball {
+  position: relative;
+  flex: none;
+  inline-size: var(--db-medal);
+  block-size: var(--db-medal);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px var(--bg), 0 0 0 5px var(--accent);
+}
+[data-body='dengbej'] .db-ball > *,
+[data-body='dengbej'] .db-ball img {
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  object-fit: cover;
+}
+[data-body='dengbej'] .db-ball::before,
+[data-body='dengbej'] .db-ball::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+[data-body='dengbej'] .db-ball[data-sing]::before {
+  animation: db-voice 1.4s ease-out infinite;
+}
+[data-body='dengbej'] .db-ball[data-sing]::after {
+  animation: db-voice 1.4s ease-out 0.7s infinite;
+}
+@keyframes db-voice {
+  from {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.7);
+  }
+}
+
+/* The verse: a speech card with a rule on the singer's side. */
+[data-body='dengbej'] .db-text {
+  flex: 1;
+  min-inline-size: 0;
+  padding: 0.5rem 0.75rem;
+  border-inline-start: 3px solid var(--accent);
+  border-radius: 0.875rem;
+  background: var(--card);
+  box-shadow: 0 3px 8px rgb(0 0 0 / 0.1);
+}
+[data-body='dengbej'] .db-bead[data-side='end'] .db-text {
+  border-inline-start: 0;
+  border-inline-end: 3px solid var(--accent);
+  text-align: end;
+}
+[data-body='dengbej'] .db-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--accent-ink);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+[data-body='dengbej'] .db-bead[data-side='end'] .db-name {
+  text-align: end;
+}
+[data-body='dengbej'] .db-desc {
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+[data-body='dengbej'] .db-desc::before {
+  content: '«';
+}
+[data-body='dengbej'] .db-desc::after {
+  content: '»';
+}
+[data-body='dengbej'] .db-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: 0.25rem;
+}
+[data-body='dengbej'] .db-bead[data-side='end'] .db-meta {
+  justify-content: flex-end;
+}
+[data-body='dengbej'] .db-price {
+  font-size: 0.875rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='dengbej'] .db-add {
+  min-block-size: 2.25rem;
+  padding-inline: 0.875rem;
+  border-radius: 0.1875rem;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+@media (hover: hover) {
+  [data-body='dengbej'] .db-chip:hover:not([aria-current='true']) {
+    background: color-mix(in oklab, var(--text) 85%, var(--accent));
+  }
+  [data-body='dengbej'] .db-bead:hover .db-ball {
+    box-shadow: 0 0 0 3px var(--bg), 0 0 0 6px var(--accent);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='dengbej'] {
+    --db-medal: 5.5rem;
+  }
+  [data-body='dengbej'] .db-bead {
+    inline-size: 80%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='dengbej'] .db-ball::before,
+  [data-body='dengbej'] .db-ball::after {
+    animation: none !important;
+  }
+  [data-body='dengbej'] :is(.db-chip, .db-bead) {
+    transition: none;
+  }
+}
