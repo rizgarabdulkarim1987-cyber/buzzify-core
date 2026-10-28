@@ -5,6 +5,7 @@ import { canPos } from '@/server/domain/pos/permissions';
 import type { PosActor } from '@/server/pos/actor';
 import { readBoard } from './board';
 import { optionsSnapshotSchema, readRates, toDiscount } from './orders';
+import { listPrintersIn } from './printers';
 import { openShiftIdOf } from './shifts';
 import { loadTillCatalog } from './till-catalog';
 
@@ -12,13 +13,13 @@ import { loadTillCatalog } from './till-catalog';
 const ORDER_LIMIT = 500;
 
 /**
- * The read cache of an offline till, in a fixed number of queries: settings, the floor, the catalog, the live dine-in
+ * The read cache of an offline till, in a fixed number of queries: settings, the printers and receipt details, the floor, the catalog, the live dine-in
  * orders with their lines, and the person's own open shift. Prices are the catalog's and the orders' own snapshots;
  * nothing here is a secret.
  */
 export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Date = new Date()): Promise<SyncSnapshot> {
   const restaurantId = pos.restaurantId;
-  const [rates, board, catalog, orders, shiftId] = await Promise.all([
+  const [rates, board, catalog, orders, shiftId, printers, details] = await Promise.all([
     readRates(db, restaurantId),
     readBoard(db, restaurantId, { now }),
     loadTillCatalog(db, restaurantId),
@@ -29,6 +30,8 @@ export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Dat
       include: { lines: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] } },
     }),
     openShiftIdOf(db, restaurantId, pos.userId),
+    listPrintersIn(db, restaurantId),
+    db.posSettings.findFirst({ where: { restaurantId }, select: { invoiceName: true, invoiceAddress: true, invoicePhone: true, invoiceTaxNumber: true, invoiceFooter: true } }),
   ]);
   const snapshotOrders = orders.map<SnapshotOrder>((order) => ({
     id: order.id,
@@ -72,5 +75,7 @@ export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Dat
     })),
     orders: snapshotOrders,
     openShift: shiftId ? { id: shiftId } : null,
+    printers,
+    business: { name: details?.invoiceName ?? '', address: details?.invoiceAddress ?? '', phone: details?.invoicePhone ?? '', taxNumber: details?.invoiceTaxNumber ?? '', footer: details?.invoiceFooter ?? '' },
   };
 }
