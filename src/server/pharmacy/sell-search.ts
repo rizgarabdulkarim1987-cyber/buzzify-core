@@ -1,12 +1,13 @@
 import { z } from 'zod';
-import type { ScopedClient } from '@/server/data/tenant-db';
+import type { ScopedClient, ScopedDb } from '@/server/data/tenant-db';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { canPh } from '@/server/domain/pharmacy/permissions';
 import { fefoOrder, sellableStock, type FefoBatch } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { priceRowsAt } from './prices';
-import { searchProducts } from './search';
+import { packLabelOf } from './products';
+import { searchProducts, type SearchResult } from './search';
 
 /**
  * What the sale screen shows after a scan or a word (`ph.sell.search`): the catalog search (barcode first, kept as text so
@@ -25,6 +26,11 @@ export const sellSearchInput = z.object({
   limit: z.number('Enter a whole number').int('Enter a whole number').min(1, 'Use 1 or more').max(SELL_SEARCH_MAX, 'Enter a smaller number').default(SELL_SEARCH_MAX),
   /** The currency the sale is in; the pharmacy's default when absent. */
   currency: z.enum(['IQD', 'USD'], 'Choose IQD or USD').optional(),
+  /**
+   * Read these products (by id, active ones of this pharmacy only) instead of searching by `q`: how the screen refreshes the
+   * prices and units of the products already in the cart (a held cart coming back, a refused payment). At most SELL_SEARCH_MAX.
+   */
+  productIds: z.array(z.string().min(1).max(64), 'Enter a list').min(1, 'Choose at least one product').max(SELL_SEARCH_MAX, 'Choose fewer products').optional(),
 });
 
 export interface SellUnit {
@@ -80,6 +86,18 @@ const fefoOf = (b: { id: string; lot: string; expiryDate: Date; expiryPrecision:
   expiryPrecision: b.expiryPrecision,
 });
 
+/** The settings the sale screen shows (and the currency of the sale). */
+async function settingsOf(scoped: ScopedDb, asked: 'IQD' | 'USD' | undefined) {
+  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true, enabledCurrencies: true, roundingStepMinor: true, maxDiscountPercent: true } });
+  const sellSettings: SellSettings = {
+    defaultCurrency: settings?.defaultCurrency ?? 'IQD',
+    enabledCurrencies: settings?.enabledCurrencies ?? ['IQD'],
+    roundingStepMinor: String(settings?.roundingStepMinor ?? 0n),
+    maxDiscountPercent: settings?.maxDiscountPercent ?? 5,
+  };
+  return { sellSettings, currency: asked ?? settings?.defaultCurrency ?? 'IQD' };
+}
+
 export async function sellSearch(
   scoped: ScopedClient,
   ph: PhActor,
@@ -92,17 +110,49 @@ export async function sellSearch(
   if (!branchId) throw new StudioError('INVALID', 'Choose the branch', { branchId: 'Choose the branch' });
   if (!ph.branchIds.includes(branchId)) throw new StudioError('FORBIDDEN');
 
-  const settings = await scoped.phSettings.findFirst({ select: { defaultCurrency: true, enabledCurrencies: true, roundingStepMinor: true, maxDiscountPercent: true } });
-  const currency = input.currency ?? settings?.defaultCurrency ?? 'IQD';
-  const sellSettings: SellSettings = {
-    defaultCurrency: settings?.defaultCurrency ?? 'IQD',
-    enabledCurrencies: settings?.enabledCurrencies ?? ['IQD'],
-    roundingStepMinor: String(settings?.roundingStepMinor ?? 0n),
-    maxDiscountPercent: settings?.maxDiscountPercent ?? 5,
-  };
-  const found = await searchProducts(scoped, { q: input.q, branchId, limit: input.limit });
-  if (found.length === 0) return { branchId, currency, settings: sellSettings, items: [] };
+  const { sellSettings, currency } = await settingsOf(scoped, input.currency);
+  const items = input.productIds
+    ? await sellItemsByIds(scoped, { branchId, currency, productIds: input.productIds, now })
+    : await sellItemsOf(scoped, { branchId, currency, found: await searchProducts(scoped, { q: input.q, branchId, limit: input.limit }), now });
+  return { branchId, currency, settings: sellSettings, items };
+}
 
+/**
+ * The sale screen's view of products picked by id (active ones only; an unknown, archived or other business's id is simply
+ * absent): the same items a search answers, with the units' open prices in `currency`, the sellable stock here and the
+ * nearest batches. The caller has checked the branch.
+ */
+export async function sellItemsByIds(
+  db: ScopedDb,
+  args: { branchId: string; currency: 'IQD' | 'USD'; productIds: readonly string[]; now?: Date },
+): Promise<SellItem[]> {
+  const ids = [...new Set(args.productIds)];
+  if (ids.length === 0) return [];
+  const rows = await db.phProduct.findMany({
+    where: { id: { in: ids }, active: true },
+    select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, level: true, label: true, baseQty: true, sellable: true } } },
+  });
+  const order = new Map(ids.map((id, i) => [id, i]));
+  const found: Pick<SearchResult, 'productId' | 'unitId' | 'matchedOn' | 'label' | 'strength' | 'form' | 'packLabel'>[] = rows
+    .sort((a, b) => order.get(a.id)! - order.get(b.id)!)
+    .map((row) => ({
+      productId: row.id,
+      unitId: [...row.units].filter((u) => u.sellable).sort((a, b) => b.level - a.level)[0]?.id,
+      matchedOn: 'tradeName' as const,
+      label: row.tradeName,
+      strength: row.strength,
+      form: row.form,
+      packLabel: packLabelOf(row.units),
+    }));
+  return sellItemsOf(db, { branchId: args.branchId, currency: args.currency, found, now: args.now ?? new Date() });
+}
+
+async function sellItemsOf(
+  scoped: ScopedDb,
+  args: { branchId: string; currency: 'IQD' | 'USD'; found: Pick<SearchResult, 'productId' | 'unitId' | 'matchedOn' | 'label' | 'strength' | 'form' | 'packLabel'>[]; now: Date },
+): Promise<SellItem[]> {
+  const { branchId, currency, found, now } = args;
+  if (found.length === 0) return [];
   const ids = found.map((f) => f.productId);
   const [products, balances] = await Promise.all([
     scoped.phProduct.findMany({
@@ -168,5 +218,5 @@ export async function sellSearch(
         .map((b) => ({ batchId: b.fefo.id, lot: b.fefo.lot, expiryDate: b.fefo.expiryDate, available: b.available })),
     });
   }
-  return { branchId, currency, settings: sellSettings, items };
+  return items;
 }

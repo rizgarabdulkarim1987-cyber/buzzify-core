@@ -2,6 +2,7 @@ import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { createHold, discardHold as removeHold, holdIdInput, holdInput, resumeHold } from '@/server/pharmacy/holds';
 import { createSale, SALE_TIMEOUT_MS, saleInput } from '@/server/pharmacy/sales';
+import { sellItemsByIds } from '@/server/pharmacy/sell-search';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -127,10 +128,14 @@ export const resume = defineAction({
   target: phTargetOf,
   async run(ctx, input) {
     const branchId = needBranch(input.branchId);
+    const { scoped } = pharmacyOf(ctx);
     const found = await ctx.transaction((tx) => resumeHold(tx, { branchId, saleId: input.saleId }));
     // The flip to HOLD_EXPIRED is committed above; only now is the refusal thrown.
     if (found.expired) throw new StudioError('CONFLICT', 'This held cart has expired', { phCode: 'HOLD_EXPIRED' });
-    return found.cart;
+    // The held products as the sale screen's items (units with their CURRENT open prices in the cart's currency, stock,
+    // batches), so the screen rebuilds the cart without searching by name. A product that is archived is absent.
+    const items = await sellItemsByIds(scoped, { branchId, currency: found.cart.currency, productIds: [...new Set(found.cart.lines.map((l) => String(l.productId)))] });
+    return { ...found.cart, items };
   },
 });
 

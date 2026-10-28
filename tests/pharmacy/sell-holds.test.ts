@@ -294,6 +294,34 @@ describe('holding a cart', () => {
   });
 });
 
+describe('ph.sell.search by product ids', () => {
+  it('returns exactly the named active products of the caller’s business with units and prices, whatever the name search would rank first', async () => {
+    const w = await world();
+    await stock(w);
+    for (let n = 0; n < 40; n += 1) await product(w, `Panadol Extra ${String(n).padStart(2, '0')}`);
+    const late = await product(w, 'Panadol Zzz Last');
+    await stock(w, { productId: late.id, lot: 'Z1' });
+    const byName = dataOf(await search(w, w.cashier, { q: 'Panadol' }));
+    expect(byName.items.map((i: { productId: string }) => i.productId)).not.toContain(late.id);
+    const found = dataOf(await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', productIds: [late.id, w.p.id] }));
+    expect(found.items.map((i: { productId: string }) => i.productId).sort()).toEqual([late.id, w.p.id].sort());
+    expect(found.items.find((i: { productId: string }) => i.productId === late.id)).toMatchObject({ tradeName: 'Panadol Zzz Last', sellableQty: 100, noPrice: false });
+    expect(found.items[0].units.length).toBeGreaterThan(0);
+  });
+
+  it('never returns another business’s product, an archived product, or more than 30 ids', async () => {
+    const w = await world();
+    const b = await pharmacy('B', { branches: 1 });
+    const foreign = await makeProduct(b.id, 'Foreign');
+    const archived = await product(w, 'Archived');
+    await prisma().phProduct.update({ where: { id: archived.id }, data: { active: false } });
+    const found = dataOf(await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', productIds: [foreign.id, archived.id, 'nope'] }));
+    expect(found.items).toEqual([]);
+    const many = await ask(w.cashier, sellQueries.search, { restaurantId: w.a.id, branchId: w.b1, q: '', productIds: Array.from({ length: 31 }, (_, i) => `p${i}`) });
+    expect(codeOf(many)).toBe('INVALID');
+  });
+});
+
 describe('resuming and discarding', () => {
   it('returns the cart for the screen to edit, to any seller of the branch, and leaves the hold in place', async () => {
     const w = await world();
@@ -313,6 +341,38 @@ describe('resuming and discarding', () => {
     // The cart goes back into create unchanged.
     const complete = dataOf(await act(w.manager, saleActions.create, { restaurantId: w.a.id, branchId: w.b1, clientKey: key('sale'), currency: got.currency, lines: got.lines.map((l: Record<string, unknown>) => ({ productId: l.productId, unitId: l.unitId, qty: l.qty, ...(l.discount ? { discount: l.discount } : {}) })), invoiceDiscount: got.invoiceDiscount, payments: [cash(5000n)], fromHoldId: held.id }));
     expect(complete.status).toBe('COMPLETED');
+  });
+
+  it('returns the held products as sell items (units with CURRENT open prices, stock, batches) so the screen needs no search by name', async () => {
+    const w = await world();
+    await stock(w);
+    const gone = await product(w, 'Goneprod');
+    const unpriced = await product(w, 'Unpricedprod');
+    await stock(w, { productId: gone.id, lot: 'G1' });
+    await stock(w, { productId: unpriced.id, lot: 'U1' });
+    const held = dataOf(
+      await act(w.cashier, saleActions.hold, cart(w, { lines: [{ productId: w.p.id, unitId: w.p.strip, qty: 2 }, { productId: gone.id, unitId: gone.strip, qty: 1 }, { productId: unpriced.id, unitId: unpriced.tablet, qty: 1 }] })),
+    );
+    // After the hold: a new open price for Panadol, one product archived, one product loses its price.
+    await prisma().phPrice.updateMany({ where: { productId: w.p.id, unitId: w.p.strip }, data: { validTo: new Date(NOW.getTime() - 1000) } });
+    await prisma().phPrice.create({ data: { restaurantId: w.a.id, productId: w.p.id, unitId: w.p.strip, branchId: null, currency: 'IQD', amountMinor: 950n, validFrom: new Date(NOW.getTime() - 500), changedById: 'seed' } });
+    await prisma().phProduct.update({ where: { id: gone.id }, data: { active: false } });
+    await prisma().phPrice.updateMany({ where: { productId: unpriced.id }, data: { validTo: new Date(NOW.getTime() - 1000) } });
+    const got = dataOf(await act(w.cashier2, saleActions.resume, { restaurantId: w.a.id, branchId: w.b1, saleId: held.id }));
+    expect(got.lines.map((l: { tradeName: string }) => l.tradeName)).toEqual(['Panadol', 'Goneprod', 'Unpricedprod']);
+    const byId = new Map<string, { tradeName: string; sellableQty: number; noPrice: boolean; units: { id: string; label: string; baseQty: number; priceMinor: string | null }[]; batches: { lot: string }[] }>(
+      got.items.map((i: { productId: string }) => [i.productId, i]),
+    );
+    const panadol = byId.get(w.p.id)!;
+    expect(panadol.units.find((u) => u.id === w.p.strip)).toMatchObject({ priceMinor: '950' });
+    expect(panadol.units.find((u) => u.id === w.p.tablet)).toMatchObject({ baseQty: 1, priceMinor: '100' });
+    expect(panadol.sellableQty).toBe(100);
+    expect(panadol.batches).toHaveLength(1);
+    expect(byId.has(gone.id), 'an archived product is not offered').toBe(false);
+    expect(byId.get(unpriced.id)).toMatchObject({ noPrice: true });
+    expect(byId.get(unpriced.id)!.units.every((u) => u.priceMinor === null)).toBe(true);
+    // No cost field anywhere in the answer.
+    expect(JSON.stringify(got)).not.toMatch(/cost/i);
   });
 
   it('refuses an expired hold with HOLD_EXPIRED and marks it expired', async () => {
