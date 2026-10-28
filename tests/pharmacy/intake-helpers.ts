@@ -37,7 +37,7 @@ function lcg(seed: number): () => number {
 }
 
 /**
- * A text-like page: rows of small black blocks (glyph-sized) on white, like a printed invoice. Built from shapes, so it
+ * A text-like page: rows of small black blocks (glyph-sized: 3 to 9 px wide, 10 to 14 px tall on a 1600 px page) on white, like a printed invoice. Built from shapes, so it
  * does not depend on fonts installed on the machine. `seed` changes the page (and its sha256).
  */
 export async function pageImage(opts: { width?: number; height?: number; seed?: number; ink?: number; paper?: number; format?: 'jpeg' | 'png' | 'webp' } = {}): Promise<Buffer> {
@@ -47,14 +47,14 @@ export async function pageImage(opts: { width?: number; height?: number; seed?: 
   const paper = opts.paper ?? 250;
   const rand = lcg(opts.seed ?? 1);
   const rects: string[] = [];
-  for (let row = 0; row < Math.floor(height / 44) - 1; row += 1) {
+  for (let row = 0; row < Math.floor(height / 24) - 2; row += 1) {
     let x = 60;
-    const y = 50 + row * 44;
+    const y = 50 + row * 24;
     while (x < width - 80) {
-      const w = 8 + Math.floor(rand() * 18);
-      rects.push(`<rect x="${x}" y="${y}" width="${w}" height="${18 + Math.floor(rand() * 8)}" fill="rgb(${ink},${ink},${ink})"/>`);
-      x += w + 6 + Math.floor(rand() * 10);
-      if (rand() < 0.12) x += 24;
+      const w = 3 + Math.floor(rand() * 7);
+      rects.push(`<rect x="${x}" y="${y}" width="${w}" height="${10 + Math.floor(rand() * 5)}" fill="rgb(${ink},${ink},${ink})"/>`);
+      x += w + 2 + Math.floor(rand() * 4);
+      if (rand() < 0.15) x += 10;
     }
   }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="rgb(${paper},${paper},${paper})"/>${rects.join('')}</svg>`;
