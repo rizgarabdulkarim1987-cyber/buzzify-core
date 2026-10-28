@@ -31,13 +31,18 @@ export const setMenuAboutEnabled = defineAction({
   target,
   run: (ctx, { menuId, enabled }) =>
     ctx.transaction(async (tx) => {
-      const row = await tx.menu.findUnique({ where: { id: menuId }, select: { aboutEnabled: true } });
+      const row = await tx.menu.findUnique({ where: { id: menuId }, select: { aboutEnabled: true, wheelEnabled: true } });
       if (!row) throw new StudioError('NOT_FOUND');
       if (row.aboutEnabled === enabled) return { enabled };
       if (enabled) {
         // The guest page is absent when empty, so a switch that would show nothing is refused with a reason.
-        const [about, offers] = await Promise.all([tx.menuAbout.findUnique({ where: { menuId } }), tx.aboutOffer.findMany({ where: { menuId } })]);
-        if (aboutIsEmpty(about, offersLiveFor(offers, new Date()))) throw new StudioError('INVALID', undefined, { enabled: 'Fill in the page before switching it on' });
+        const [about, offers, wheel] = await Promise.all([
+          tx.menuAbout.findUnique({ where: { menuId } }),
+          tx.aboutOffer.findMany({ where: { menuId } }),
+          row.wheelEnabled ? tx.menuWheel.findUnique({ where: { menuId }, select: { id: true } }) : null,
+        ]);
+        // A wheel that is saved and switched on is content of its own: it lives on this page.
+        if (aboutIsEmpty(about, offersLiveFor(offers, new Date()), wheel !== null)) throw new StudioError('INVALID', undefined, { enabled: 'Fill in the page before switching it on' });
       }
       await tx.menu.update({ where: { id: menuId }, data: { aboutEnabled: enabled } });
       ctx.audit({ action: 'menu.about_changed', entityType: 'MenuAbout', entityId: menuId, changes: { enabled: { before: row.aboutEnabled, after: enabled } } });

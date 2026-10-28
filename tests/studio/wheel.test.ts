@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setMenuAboutEnabled } from '@/server/studio/actions/about';
 import { saveWheel, setMenuWheelEnabled } from '@/server/studio/actions/wheel';
 import { menuWheel } from '@/server/studio/queries/wheel';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from '../pos/fixture';
@@ -117,5 +118,15 @@ describe('saving the wheel', () => {
     dataOf(await run(owner, saveWheel, wheel()));
     await prisma().restaurant.update({ where: { id: a.id }, data: { plan: 'BASIC' } });
     expect(codeOf(await run(owner, setMenuWheelEnabled, { menuId, enabled: true }))).toBe('UPGRADE_REQUIRED');
+  });
+});
+
+describe('the Explore page and the wheel', () => {
+  it('may be switched on with nothing but a wheel that is saved and switched on', async () => {
+    expect(codeOf(await run(owner, setMenuAboutEnabled, { menuId, enabled: true }))).toBe('INVALID');
+    dataOf(await run(owner, saveWheel, wheel()));
+    expect(codeOf(await run(owner, setMenuAboutEnabled, { menuId, enabled: true }))).toBe('INVALID');
+    dataOf(await run(owner, setMenuWheelEnabled, { menuId, enabled: true }));
+    expect(codeOf(await run(owner, setMenuAboutEnabled, { menuId, enabled: true }))).toBe('OK');
   });
 });

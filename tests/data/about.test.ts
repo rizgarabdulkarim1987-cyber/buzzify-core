@@ -4,7 +4,7 @@ import { loadAbout } from '@/server/data/about';
 import { expireMenu } from '@/server/data/cache';
 import { resolvePublicMenu } from '@/server/data/public-menu';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
-import { createMenuFixture, resetTestData, testPrisma } from '../helpers/db';
+import { createMenuFixture, publishFixture, resetTestData, testPrisma } from '../helpers/db';
 
 process.env.DATABASE_URL = databaseUrl(TEST_DB);
 const prisma = testPrisma();
@@ -154,5 +154,53 @@ describe('loadAbout', () => {
     await prisma.menuAbout.create({ data: { menuId: x.menu.id, titles: { ar: 'عنّا' }, story: { en: [para('Hello')] } } });
     const tenant = (await route()).tenant;
     expect(tenant.extras.aboutTitle).toEqual({ en: '', ar: 'عنّا', ckb: '' });
+  });
+});
+
+describe('loadAbout and the wheel', () => {
+  const image = { kind: 'image', url: '/m/dish.webp', alt: 'Dish', width: 400, height: 300 };
+
+  async function withWheel(count = 4) {
+    const ids: string[] = [];
+    for (let k = 0; k < count; k++) {
+      ids.push((await prisma.product.create({ data: { menuId: x.menu.id, categoryId: x.category.id, slug: `wheel-dish-${k}`, basePrice: 100, translations: { en: { name: `Dish ${k}` } }, media: [image] as never } })).id);
+    }
+    const wheel = await prisma.menuWheel.create({ data: { menuId: x.menu.id, title: { en: 'Spin and win' } } });
+    for (const [index, productId] of ids.entries()) await prisma.wheelSlice.create({ data: { wheelId: wheel.id, menuId: x.menu.id, productId, sortOrder: index } });
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { wheelEnabled: true } });
+    await publishFixture(prisma, x.menu.id);
+  }
+
+  it('carries the wheel, with the title in the guest language, next to the page', async () => {
+    await prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
+    await withWheel();
+    expect((await loadAbout(await route()))?.wheel).toEqual({ title: 'Spin and win' });
+    expect((await loadAbout(await route('ar')))?.wheel).toEqual({ title: 'Spin and win' });
+  });
+
+  it('keeps the page when only the wheel is ready', async () => {
+    await withWheel();
+    const view = await loadAbout(await route());
+    expect(view).not.toBeNull();
+    expect(view?.wheel).not.toBeNull();
+  });
+
+  it('has no wheel when the wheel is off, the plan lacks it, its dates are over, or fewer than 4 dishes are usable', async () => {
+    await prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
+    await withWheel();
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { wheelEnabled: false } });
+    expect((await loadAbout(await route()))?.wheel).toBeNull();
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { wheelEnabled: true } });
+    await prisma.menuWheel.update({ where: { menuId: x.menu.id }, data: { endsAt: new Date(Date.now() - 1000) } });
+    expect((await loadAbout(await route()))?.wheel).toBeNull();
+    await prisma.menuWheel.update({ where: { menuId: x.menu.id }, data: { endsAt: null } });
+    await prisma.product.updateMany({ where: { slug: { startsWith: 'wheel-dish-' } }, data: { isHidden: true } });
+    expect((await loadAbout(await route()))?.wheel).toBeNull();
+  });
+
+  it('is null when the tab is off even if the wheel is ready', async () => {
+    await withWheel();
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { aboutEnabled: false } });
+    expect(await loadAbout(await route())).toBeNull();
   });
 });

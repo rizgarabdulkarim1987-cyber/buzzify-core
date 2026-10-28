@@ -33,6 +33,7 @@ const view = (over: Partial<AboutView> = {}): AboutView => ({
   address: null,
   contacts: {},
   gallery: [],
+  wheel: null,
   ...over,
 });
 

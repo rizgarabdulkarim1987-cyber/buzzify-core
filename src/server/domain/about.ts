@@ -75,12 +75,13 @@ export function offersLiveFor<T extends OfferWindow>(offers: readonly T[], now: 
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
-/** True when the page has nothing to show: no cover, no story in any language, no gallery photo and no live offer. */
+/** True when the page has nothing to show: no cover, no story in any language, no gallery photo, no live offer and no wheel ready to spin. */
 export function aboutIsEmpty(
   about: { story: unknown; coverAssetId: string | null; galleryAssetIds: readonly string[] } | null,
   liveOffers: readonly unknown[],
+  wheelReady = false,
 ): boolean {
-  if (liveOffers.length > 0) return false;
+  if (liveOffers.length > 0 || wheelReady) return false;
   if (!about) return true;
   if (about.coverAssetId || about.galleryAssetIds.length > 0) return false;
   if (!isRecord(about.story)) return true;

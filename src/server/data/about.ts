@@ -11,6 +11,7 @@ import { aboutIsEmpty, hoursView, offersLiveFor, type HoursRow, type StoryBlock,
 import { getTranslator } from '@/lib/messages';
 import { loadAssets, resolveDraftMedia } from '@/server/media/resolve';
 import { getStorage } from '@/server/storage/storage';
+import { wheelReady } from '@/server/data/wheel';
 
 /** Where an offer card leads inside the menu; the page builds the address with the menu's own `href`. */
 export type OfferLink = { kind: 'product'; slug: string } | { kind: 'category'; slug: string };
@@ -38,6 +39,8 @@ export interface AboutView {
   address: string | null;
   contacts: { phone?: string; whatsapp?: string; mapUrl?: string; social?: SocialLinks };
   gallery: ImageItem[];
+  /** The wheel of fortune section, when the menu has one ready to spin; the section loads its own slices. */
+  wheel: { title: string } | null;
 }
 
 /** A `{ en?, ar?, ckb? }` map of plain strings in the guest's language, else the menu's default, else English, else any. */
@@ -78,7 +81,7 @@ export async function loadAbout(route: RouteContext): Promise<AboutView | null> 
   const prisma = getPrisma();
   const db = menuDb(prisma, tenant.id);
   const now = new Date();
-  const [about, allOffers, restaurant, catalog] = await Promise.all([
+  const [about, allOffers, restaurant, catalog, wheel] = await Promise.all([
     db.menuAbout.findUnique({ where: { menuId: tenant.id } }),
     db.aboutOffer.findMany({ where: { menuId: tenant.id } }),
     prisma.restaurant.findUnique({
@@ -86,9 +89,10 @@ export async function loadAbout(route: RouteContext): Promise<AboutView | null> 
       select: { address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true },
     }),
     getCatalog(tenant),
+    wheelReady(tenant, locale, now),
   ]);
   const offers = offersLiveFor(allOffers, now);
-  if (aboutIsEmpty(about, offers)) return null;
+  if (aboutIsEmpty(about, offers, wheel !== null)) return null;
 
   const defaultLocale = tenant.defaultLocale;
   const imageIds = [about?.coverAssetId, ...(about?.galleryAssetIds ?? []), ...offers.map((offer) => offer.imageAssetId)].filter((id): id is string => !!id);
@@ -142,5 +146,6 @@ export async function loadAbout(route: RouteContext): Promise<AboutView | null> 
       ...(info.social ? { social: info.social } : {}),
     },
     gallery: (about?.galleryAssetIds ?? []).map(imageOf).filter((image): image is ImageItem => image !== null),
+    wheel,
   };
 }

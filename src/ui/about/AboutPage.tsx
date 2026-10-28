@@ -10,6 +10,7 @@ import { Header } from '@/ui/menu/Header';
 import { HoursTable } from './HoursTable';
 import { OfferCard } from './OfferCard';
 import { StoryBlocks } from './StoryBlocks';
+import { WheelSection } from '@/ui/wheel/WheelSection';
 
 const ACTION =
   'inline-flex min-h-11 items-center gap-2 rounded-full border border-line px-4 text-sm transition-colors duration-150 [@media(hover:hover)]:hover:border-accent';
@@ -31,6 +32,8 @@ export function AboutPage({ view }: { view: AboutView }) {
         <h2 className="break-words font-display text-4xl tracking-[-0.005em]">{view.title}</h2>
 
         {view.story.length > 0 && <StoryBlocks blocks={view.story} />}
+
+        {view.wheel && <WheelSection title={view.wheel.title} />}
 
         {view.offers.length > 0 && (
           <section aria-labelledby="about-offers" className="flex flex-col gap-4">

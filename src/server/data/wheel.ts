@@ -1,5 +1,6 @@
 import { randomInt } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client';
+import { getTranslator } from '@/lib/messages';
 import type { Locale } from '@/lib/locale';
 import { parseMedia } from '@/lib/media';
 import { getPrisma } from '@/server/data/prisma';
@@ -11,7 +12,10 @@ import { dayOf, drawSlice, IP_SPIN_FACTOR, MIN_SLICES, spinAllowed, wheelOpen } 
 /** What a slice shows a guest: the dish, its first photo and the prize line. Never the weight. */
 export interface WheelSliceView {
   productId: string;
+  slug: string;
   name: string;
+  /** The dish's base price, in the menu's money; shown with the result. */
+  price: number;
   photo: { url: string; width: number; height: number };
   label: string;
 }
@@ -65,6 +69,8 @@ async function usableWheel(tenant: TenantInfo, locale: Locale, now: Date) {
     if (!photo || photo.kind !== 'image') continue;
     usable.push({
       productId: product.id,
+      slug: product.slug,
+      price: product.basePrice,
       name: nameIn(product.translations, locale, tenant.defaultLocale) || product.slug,
       photo: { url: photo.url, width: photo.width, height: photo.height },
       label: pickText(slice.label, locale, tenant.defaultLocale),
@@ -94,7 +100,7 @@ export async function loadWheelState(tenant: TenantInfo, locale: Locale, guestKe
   const counts = await spinsSoFar(tenant, dayOf(now, tenant.timeZone), guestKey, ipHash);
   return {
     available: true,
-    slices: ready.slices.map(({ productId, name, photo, label }) => ({ productId, name, photo, label })),
+    slices: ready.slices.map(({ productId, slug, price, name, photo, label }) => ({ productId, slug, price, name, photo, label })),
     spinsLeft: spinsLeftOf(ready.wheel.spinsPerDay, counts),
   };
 }
@@ -132,4 +138,11 @@ export async function spin(tenant: TenantInfo, locale: Locale, guestKey: string,
     };
   }
   return { ok: false, reason: 'SPINS_USED' };
+}
+
+/** Whether the Explore page carries the wheel now, and its title in the guest's language (else the default one, else the word "Spin the wheel"). */
+export async function wheelReady(tenant: TenantInfo, locale: Locale, now: Date): Promise<{ title: string } | null> {
+  const ready = await usableWheel(tenant, locale, now);
+  if (!ready) return null;
+  return { title: pickText(ready.wheel.title, locale, tenant.defaultLocale) || getTranslator(locale)('wheel.title') };
 }
