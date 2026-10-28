@@ -5,6 +5,7 @@ import * as poActions from '@/server/pharmacy/actions/purchase-orders';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import * as invoiceActions from '@/server/pharmacy/actions/supplier-invoices';
 import * as paymentActions from '@/server/pharmacy/actions/supplier-payments';
+import * as returnActions from '@/server/pharmacy/actions/supplier-returns';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -90,6 +91,9 @@ interface Ids {
   /** The business's supplier payment (phase 4, task 7) of the seeded invoice, and its credit note (straight in the database); business-wide. */
   paymentId: string;
   creditNoteId: string;
+  /** The business's supplier return from branch 1 / from branch 2 (phase 4, task 8); branch-scoped. */
+  supplierReturn1: string;
+  supplierReturn2: string;
 }
 interface World {
   a: Ids;
@@ -111,7 +115,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -224,6 +228,19 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
       select: { id: true },
     })
   ).id;
+  // One return of a unit of the seeded batch from each branch (made through the real action).
+  const sendBack = async (branchId: string, batchId: string) =>
+    dataOf(
+      await runAction(
+        prisma(),
+        actor,
+        returnActions.create,
+        { restaurantId: base.restaurantId, branchId, clientKey: `seed-sreturn-${branchId}`, supplierId: withDocs.supplierId, reason: 'Seed return', lines: [{ batchId, bucket: 'AVAILABLE', qty: 1 }] },
+        META,
+      ),
+    ).id;
+  withDocs.supplierReturn1 = await sendBack(base.b1, base.batch1);
+  withDocs.supplierReturn2 = await sendBack(base.b2, base.batch2);
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -269,8 +286,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -302,6 +319,9 @@ const paymentBody = (ids: Ids) => ({
   paidOn: '2026-10-27',
   allocations: [{ invoiceId: ids.invoiceId, amountMinor: 1n }],
 });
+
+const supplierReturnBody = (ids: Ids, n: 1 | 2) => ({ clientKey: key(), supplierId: ids.supplierId, reason: 'Planted', lines: [{ batchId: pick(ids, n).batchId, bucket: 'AVAILABLE', qty: 1 }] });
+const creditNoteBody = (ids: Ids, n: 1 | 2) => ({ clientKey: key(), supplierId: ids.supplierId, number: `PLANTED-${key()}`, currency: 'IQD', amountMinor: 1n, noteDate: '2026-10-27', supplierReturnId: pick(ids, n).supplierReturnId });
 
 const returnBody = (saleId: string) => ({ saleId, lines: [{ saleLineId: 'planted', baseQty: 1 }], reason: 'Planted', clientKey: key() });
 
@@ -408,6 +428,14 @@ const CASES: Record<string, Case> = {
   'ph.credits.apply': { body: (ids) => ({ creditNoteId: ids.creditNoteId, clientKey: key(), allocations: [{ invoiceId: ids.invoiceId, amountMinor: 1n }] }), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.supplierPayments.list': { body: () => ({ includeReversals: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.supplierPayments.get': { body: (ids) => ({ paymentId: ids.paymentId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  // Supplier returns and credit notes (phase 4, task 8). A return is branch-scoped (its stock is the place's branch); a credit note is
+  // business-wide, but the return it may point to is branch-scoped, so another branch's return reads as not found.
+  'ph.supplierReturns.create': { body: (ids, n) => supplierReturnBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.supplierReturns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.supplierReturns.get': { body: (ids, n) => ({ returnId: pick(ids, n).supplierReturnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -454,9 +482,15 @@ describe('the pharmacy isolation sweep', () => {
   });
 
   it('covers every phase 4 supplier payment and credit definition', () => {
-    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.supplierPayments.') || name.startsWith('ph.credits.'));
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.supplierPayments.') || name === 'ph.credits.apply');
     expect(names.sort()).toEqual(['ph.credits.apply', 'ph.supplierPayments.create', 'ph.supplierPayments.get', 'ph.supplierPayments.list', 'ph.supplierPayments.reverse']);
     expect(names.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 4 supplier return and credit note definition', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.supplierReturns.') || name.startsWith('ph.credits.'));
+    expect(names.sort()).toEqual(['ph.credits.apply', 'ph.credits.get', 'ph.credits.list', 'ph.credits.record', 'ph.supplierReturns.create', 'ph.supplierReturns.get', 'ph.supplierReturns.list']);
+    expect(names.filter((name) => name !== 'ph.credits.apply' && CASES[name] === undefined)).toEqual([]);
   });
 
   it('covers the sale screen search', () => {
@@ -508,6 +542,7 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const shifts = await prisma().phShift.findMany({ where, orderBy });
   const returns = await prisma().phReturn.findMany({ where, orderBy });
   const orders = await prisma().phPurchaseOrder.findMany({ where, orderBy });
+  const supplierReturns = await prisma().phSupplierReturn.findMany({ where, orderBy });
   const invoices = branchId ? [] : await prisma().phSupplierInvoice.findMany({ where: { restaurantId: ids.restaurantId }, orderBy });
   const businessWide = branchId ? undefined : { where: { restaurantId: ids.restaurantId }, orderBy };
   return json({
@@ -519,6 +554,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     invoices,
     invoiceLines: await prisma().phSupplierInvoiceLine.findMany({ where: { invoiceId: { in: invoices.map((i) => i.id) } }, orderBy }),
     orders,
+    supplierReturns,
+    supplierReturnLines: await prisma().phSupplierReturnLine.findMany({ where: { returnId: { in: supplierReturns.map((r) => r.id) } }, orderBy }),
     orderLines: await prisma().phPurchaseOrderLine.findMany({ where: { purchaseOrderId: { in: orders.map((o) => o.id) } }, orderBy }),
     // Suppliers belong to the business, so they are compared for a whole business only.
     suppliers: branchId ? undefined : await prisma().phSupplier.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
@@ -550,8 +587,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ...docs(1), ...docs(2)];

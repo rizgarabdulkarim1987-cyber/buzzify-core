@@ -480,6 +480,14 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This credit note was already applied to this invoice': 'error.text.phPayCreditOnInvoice',
   'Each invoice can be named once': 'error.text.phPayInvoiceOnce',
   'The payment date cannot be later than tomorrow': 'error.text.phPayDateLate',
+  'Enter the credit note number': 'error.text.phCnEnterNumber',
+  'Supplier return not found': 'error.text.phCnReturnNotFound',
+  'This key was already used for a different credit note': 'error.text.phCnKeyMismatch',
+  'This return belongs to another supplier': 'error.text.phCnSupplierMismatch',
+  'This credit note was already entered': 'error.text.phCnDuplicate',
+  'The credit note date cannot be later than tomorrow': 'error.text.phCnDateLate',
+  'Use at most 100 lines': 'error.text.phSrMaxLines',
+  'Each batch and bucket can be on a return once': 'error.text.phSrDuplicateLine',
   'This invoice has lines from a branch you cannot use': 'error.text.phInvOtherBranch',
   'This lot is already expired: remove it, or accept it into quarantine': 'error.text.phLotExpired',
   'Expired lot accepted into quarantine on receipt': 'error.text.phLotExpiredNote',
@@ -556,7 +564,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested', 'existingInvoiceId']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested', 'existingInvoiceId', 'existingCreditNoteId']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
