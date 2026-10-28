@@ -283,6 +283,16 @@ const ar: Messages = {
   'tpl.day.fri': 'الجمعة',
   'tpl.day.sat': 'السبت',
   'tpl.day.sun': 'الأحد',
+  'intro.enter': 'ادخل إلى القائمة',
+  'intro.language': 'اختر اللغة',
+  'intro.advert': 'العروض',
+  'intro.contact.instagram': 'إنستغرام',
+  'intro.contact.facebook': 'فيسبوك',
+  'intro.contact.tiktok': 'تيك توك',
+  'intro.contact.website': 'الموقع',
+  'intro.contact.map': 'الخريطة',
+  'intro.contact.phone': 'اتصال',
+  'intro.contact.whatsapp': 'واتساب',
 };
 
 export default ar;

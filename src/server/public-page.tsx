@@ -2,6 +2,7 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { isLocale, type Locale } from '@/lib/locale';
 import { resolvePublicMenu } from '@/server/data/public-menu';
+import { pickLocale } from '@/server/domain/locale-negotiation';
 import { MenuUnavailable } from '@/ui/MenuUnavailable';
 import type { RouteContext } from './route-context';
 
@@ -33,6 +34,31 @@ export async function resolvePublicRoute(params: { tenant: string; locale: strin
       return { kind: 'unavailable', name: result.name, locale: result.locales.includes(locale) ? locale : result.defaultLocale };
     case 'missing':
       return MISSING;
+  }
+}
+
+/** What the intro address (`/{tenant}/intro`) stands for. It has no language in its path, so the visitor's browser picks the page's language. */
+export type PublicIntro =
+  | { kind: 'live'; route: RouteContext }
+  | { kind: 'off'; slug: string }
+  | { kind: 'redirect'; slug: string }
+  | { kind: 'unavailable'; name: string; locale: Locale }
+  | { kind: 'missing' };
+
+export async function resolvePublicIntro(tenant: string, acceptLanguage: string | null): Promise<PublicIntro> {
+  const result = await resolvePublicMenu(tenant);
+  switch (result.kind) {
+    case 'live': {
+      if (!result.tenant.extras?.intro) return { kind: 'off', slug: result.tenant.slug };
+      const locale = pickLocale(acceptLanguage, result.tenant.locales, result.tenant.defaultLocale);
+      return { kind: 'live', route: { tenant: result.tenant, locale } };
+    }
+    case 'redirect':
+      return { kind: 'redirect', slug: result.slug };
+    case 'unavailable':
+      return { kind: 'unavailable', name: result.name, locale: pickLocale(acceptLanguage, result.locales, result.defaultLocale) };
+    case 'missing':
+      return { kind: 'missing' };
   }
 }
 

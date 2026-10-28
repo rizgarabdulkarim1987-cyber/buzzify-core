@@ -269,6 +269,16 @@ const en: Messages = {
   'tpl.day.fri': 'Friday',
   'tpl.day.sat': 'Saturday',
   'tpl.day.sun': 'Sunday',
+  'intro.enter': 'Enter the menu',
+  'intro.language': 'Choose a language',
+  'intro.advert': 'Offers',
+  'intro.contact.instagram': 'Instagram',
+  'intro.contact.facebook': 'Facebook',
+  'intro.contact.tiktok': 'TikTok',
+  'intro.contact.website': 'Website',
+  'intro.contact.map': 'Map',
+  'intro.contact.phone': 'Call',
+  'intro.contact.whatsapp': 'WhatsApp',
 };
 
 export default en;

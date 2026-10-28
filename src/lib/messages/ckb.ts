@@ -269,6 +269,16 @@ const ckb: Messages = {
   'tpl.day.fri': 'هەینی',
   'tpl.day.sat': 'شەممە',
   'tpl.day.sun': 'یەکشەممە',
+  'intro.enter': 'بچۆ ناو مێنیو',
+  'intro.language': 'زمان هەڵبژێرە',
+  'intro.advert': 'ئۆفەرەکان',
+  'intro.contact.instagram': 'ئینستاگرام',
+  'intro.contact.facebook': 'فەیسبووک',
+  'intro.contact.tiktok': 'تیکتۆک',
+  'intro.contact.website': 'ماڵپەڕ',
+  'intro.contact.map': 'نەخشە',
+  'intro.contact.phone': 'پەیوەندی',
+  'intro.contact.whatsapp': 'واتسئاپ',
 };
 
 export default ckb;
