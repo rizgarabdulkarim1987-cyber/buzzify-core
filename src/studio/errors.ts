@@ -460,6 +460,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Each receipt line can be on an invoice once': 'error.text.phInvDuplicateLine',
   'The invoiced quantity of a receipt line is lower than this invoice': 'error.text.phInvDrift',
   'Credit note not found': 'error.text.phPayCreditNotFound',
+  'The start date is after the end date': 'error.text.phStmtFromAfterTo',
+  'Use a range of at most one year': 'error.text.phStmtRangeYear',
   'The amount is more than the credit that is left': 'error.text.phPayCreditLeft',
   'The credit note changed while it was being applied': 'error.text.phPayCreditChanged',
   'The amount is more than the invoice balance': 'error.text.phPayOverBalance',

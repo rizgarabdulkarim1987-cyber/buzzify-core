@@ -410,6 +410,8 @@ const pharmacy: Messages = {
   'error.text.phInvDuplicateLine': 'هەر ڕیزێکی وەرگرتن تەنها یەک جار دەتوانێت لە فاتورەدا بێت',
   'error.text.phInvDrift': 'بڕی فاتورەکراوی ڕیزێکی وەرگرتن لە بڕی ئەم فاتورەیە کەمترە',
   'error.text.phPayCreditNotFound': 'تێبینی کرێدیت نەدۆزرایەوە',
+  'error.text.phStmtFromAfterTo': 'بەرواری دەستپێک دوای بەرواری کۆتاییە',
+  'error.text.phStmtRangeYear': 'مەودایەک بەکاربهێنە کە لە ساڵێک زیاتر نەبێت',
   'error.text.phPayCreditLeft': 'بڕەکە لە ماوەی کرێدیتەکە زیاترە',
   'error.text.phPayCreditChanged': 'تێبینی کرێدیت لە کاتی جێبەجێکردنی گۆڕا',
   'error.text.phPayOverBalance': 'بڕەکە لە ماوەی فاتورەکە زیاترە',

@@ -436,6 +436,10 @@ const CASES: Record<string, Case> = {
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  // Supplier statement and payables (phase 4, task 9): business-wide reads. A foreign supplier is not found; lists and balances show only the business's own rows.
+  'ph.suppliers.statement': { body: (ids) => ({ supplierId: ids.supplierId, currency: 'IQD', from: '2026-10-01', to: '2026-10-27' }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  'ph.payables.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.suppliers.balances': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -470,7 +474,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 4 supplier and purchase order definition', () => {
     const names = [...DEFINITIONS.keys()];
-    expect(names.filter((name) => name.startsWith('ph.suppliers.')).sort()).toEqual(['ph.suppliers.archive', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.update']);
+    expect(names.filter((name) => name.startsWith('ph.suppliers.')).sort()).toEqual(['ph.suppliers.archive', 'ph.suppliers.balances', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.statement', 'ph.suppliers.update']);
     expect(names.filter((name) => name.startsWith('ph.po.')).sort()).toEqual(['ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.receipts', 'ph.po.suggest', 'ph.po.update']);
     expect(names.filter((name) => (name.startsWith('ph.suppliers.') || name.startsWith('ph.po.')) && CASES[name] === undefined)).toEqual([]);
   });

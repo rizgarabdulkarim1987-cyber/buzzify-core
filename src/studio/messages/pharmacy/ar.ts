@@ -410,6 +410,8 @@ const pharmacy: Messages = {
   'error.text.phInvDuplicateLine': 'يمكن أن يرد كل بند استلام مرة واحدة في الفاتورة',
   'error.text.phInvDrift': 'الكمية المفوترة لبند استلام أقل من كمية هذه الفاتورة',
   'error.text.phPayCreditNotFound': 'الإشعار الدائن غير موجود',
+  'error.text.phStmtFromAfterTo': 'تاريخ البداية بعد تاريخ النهاية',
+  'error.text.phStmtRangeYear': 'استخدم نطاقاً لا يزيد عن سنة واحدة',
   'error.text.phPayCreditLeft': 'المبلغ أكبر من الرصيد الدائن المتبقي',
   'error.text.phPayCreditChanged': 'تغيّر الإشعار الدائن أثناء تطبيقه',
   'error.text.phPayOverBalance': 'المبلغ أكبر من رصيد الفاتورة',
