@@ -1725,6 +1725,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.st.col.ref': 'Reference',
   'pharmacy.purchasing.m.st.col.kind': 'Kind',
   'pharmacy.purchasing.m.st.col.amount': 'Amount',
+  'pharmacy.purchasing.m.st.col.signed': 'Signed amount',
   'pharmacy.purchasing.m.st.col.balance': 'Balance',
   'pharmacy.purchasing.m.st.kind.INVOICE': 'Invoice',
   'pharmacy.purchasing.m.st.kind.PAYMENT': 'Payment',

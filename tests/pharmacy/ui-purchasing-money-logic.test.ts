@@ -285,31 +285,47 @@ describe('payables grouping never mixes currencies', () => {
 });
 
 describe('statementCsv', () => {
-  const labels = { date: 'Date', ref: 'Reference', kind: 'Kind', amount: 'Amount', balance: 'Balance' };
+  const labels = { date: 'Date', ref: 'Reference', kind: 'Kind', signed: 'Signed amount', amount: 'Amount', balance: 'Balance' };
   const rows = [
-    { date: '2026-10-01', ref: 'INV-1', kind: 'Invoice', amountMinor: '1500000', balanceMinor: '1500000' },
-    { date: '2026-10-05', ref: 'دفعة "نقد", 12', kind: 'Payment', amountMinor: '-500000', balanceMinor: '1000000' },
-  ];
+    { date: '2026-10-01', ref: 'INV-1', kind: 'Invoice', kindCode: 'INVOICE', amountMinor: '1500000', balanceMinor: '1500000' },
+    { date: '2026-10-05', ref: 'دفعة "نقد", 12', kind: 'Payment', kindCode: 'PAYMENT', amountMinor: '500000', balanceMinor: '1000000' },
+  ] as const;
   it('starts with a UTF-8 BOM, quotes commas and quotes, and keeps Arabic text', () => {
     const csv = statementCsv(rows, 'IQD', labels, { opening: '0', closing: '1000000' });
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     expect(csv).toContain('"دفعة ""نقد"", 12"');
-    expect(csv.split('\r\n')[0]).toBe('﻿Date,Reference,Kind,Amount,Balance');
+    expect(csv.split('\r\n')[0]).toBe('﻿Date,Reference,Kind,Signed amount,Amount,Balance');
   });
-  it('writes IQD with no decimals and USD with two, signed, without grouping', () => {
-    expect(statementCsv(rows, 'IQD', labels, {})).toContain('-500000,1000000');
-    const usd = statementCsv([{ date: '2026-10-01', ref: 'A', kind: 'Invoice', amountMinor: '-1250', balanceMinor: '5' }], 'USD', labels, {});
-    expect(usd).toContain('-12.50,0.05');
+  it('writes IQD with no decimals and USD with two, without grouping', () => {
+    expect(statementCsv(rows, 'IQD', labels, {})).toContain(',Payment,-500000,500000,1000000');
+    const usd = statementCsv([{ date: '2026-10-01', ref: 'A', kind: 'Invoice', kindCode: 'INVOICE', amountMinor: '1250', balanceMinor: '5' }], 'USD', labels, {});
+    expect(usd).toContain(',Invoice,12.50,12.50,0.05');
+  });
+  it('signs the amount by kind: invoices and reversals add, payments, credit notes and voids subtract', () => {
+    const kinds = ['INVOICE', 'PAYMENT_REVERSAL', 'PAYMENT', 'CREDIT_NOTE', 'INVOICE_VOID'] as const;
+    const lines = statementCsv(
+      kinds.map((k) => ({ date: '2026-10-01', ref: k, kind: k, kindCode: k, amountMinor: '100', balanceMinor: '0' })),
+      'IQD',
+      labels,
+      {},
+    ).split('\r\n');
+    expect(lines.slice(1)).toEqual([
+      '2026-10-01,INVOICE,INVOICE,100,100,0',
+      '2026-10-01,PAYMENT_REVERSAL,PAYMENT_REVERSAL,100,100,0',
+      '2026-10-01,PAYMENT,PAYMENT,-100,100,0',
+      '2026-10-01,CREDIT_NOTE,CREDIT_NOTE,-100,100,0',
+      '2026-10-01,INVOICE_VOID,INVOICE_VOID,-100,100,0',
+    ]);
   });
   it('defuses a spreadsheet formula in a text cell', () => {
-    const csv = statementCsv([{ date: '2026-10-01', ref: '=HYPERLINK("x")', kind: 'Invoice', amountMinor: '1', balanceMinor: '1' }], 'IQD', labels, {});
+    const csv = statementCsv([{ date: '2026-10-01', ref: '=HYPERLINK("x")', kind: 'Invoice', kindCode: 'INVOICE', amountMinor: '1', balanceMinor: '1' }], 'IQD', labels, {});
     expect(csv).toContain("\"'=HYPERLINK(\"\"x\"\")\"");
   });
   it('includes the opening and closing balance rows when given', () => {
     const csv = statementCsv(rows, 'IQD', labels, { opening: '0', closing: '1000000', openingLabel: 'Opening', closingLabel: 'Closing' });
     const lines = csv.split('\r\n');
-    expect(lines[1]).toBe(',Opening,,,0');
-    expect(lines[lines.length - 1]).toBe(',Closing,,,1000000');
+    expect(lines[1]).toBe(',Opening,,,,0');
+    expect(lines[lines.length - 1]).toBe(',Closing,,,,1000000');
   });
 });
 

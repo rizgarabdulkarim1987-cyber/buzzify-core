@@ -28,7 +28,7 @@ export function StatementActions({
     const csv = statementCsv(
       rows,
       currency,
-      { date: t('pharmacy.purchasing.m.st.col.date'), ref: t('pharmacy.purchasing.m.st.col.ref'), kind: t('pharmacy.purchasing.m.st.col.kind'), amount: t('pharmacy.purchasing.m.st.col.amount'), balance: t('pharmacy.purchasing.m.st.col.balance') },
+      { date: t('pharmacy.purchasing.m.st.col.date'), ref: t('pharmacy.purchasing.m.st.col.ref'), kind: t('pharmacy.purchasing.m.st.col.kind'), signed: t('pharmacy.purchasing.m.st.col.signed'), amount: t('pharmacy.purchasing.m.st.col.amount'), balance: t('pharmacy.purchasing.m.st.col.balance') },
       { ...(opening !== undefined ? { opening } : {}), ...(closing !== undefined ? { closing } : {}), openingLabel: t('pharmacy.purchasing.m.st.opening'), closingLabel: t('pharmacy.purchasing.m.st.closing') },
     );
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));

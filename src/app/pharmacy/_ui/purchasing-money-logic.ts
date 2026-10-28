@@ -1,5 +1,5 @@
 import { parseMoney, type Currency } from '@/server/domain/pharmacy/money';
-import type { DueBand } from '@/server/domain/pharmacy/purchasing';
+import type { DueBand, StatementKind } from '@/server/domain/pharmacy/purchasing';
 import { wholeOf } from './product-draft';
 import { attemptKeyFor } from './purchasing-logic';
 
@@ -527,7 +527,11 @@ export const BANDS: readonly DueBand[] = ['OVERDUE_60_PLUS', 'OVERDUE_31_60', 'O
 export interface CsvRow {
   date: string;
   ref: string;
+  /** The kind as shown (translated). */
   kind: string;
+  /** The kind as the server names it: it decides the sign of the signed amount. */
+  kindCode: StatementKind;
+  /** Unsigned, as the server sends it. */
   amountMinor: string;
   balanceMinor: string;
 }
@@ -535,6 +539,18 @@ export interface CsvRow {
 const csvText = (value: string): string => {
   const safe = /^[=+\-@\t\r]/.test(value) ? `'${value}` : value;
   return /[",\r\n]/.test(safe) ? `"${safe.replace(/"/g, '""')}"` : safe;
+};
+/** What a row does to the balance: invoices and reversals add, payments, credit notes and voids subtract. */
+const ADDS_TO_BALANCE: Record<StatementKind, boolean> = { INVOICE: true, PAYMENT_REVERSAL: true, PAYMENT: false, CREDIT_NOTE: false, INVOICE_VOID: false };
+const csvSigned = (row: CsvRow, currency: Currency): string => {
+  const adds = ADDS_TO_BALANCE[row.kindCode];
+  if (adds === undefined) return '';
+  try {
+    const v = BigInt(row.amountMinor);
+    return minorText(adds ? v : -v, currency);
+  } catch {
+    return '';
+  }
 };
 const csvAmount = (minor: string, currency: Currency): string => {
   try {
@@ -544,16 +560,16 @@ const csvAmount = (minor: string, currency: Currency): string => {
   }
 };
 
-/** A statement as CSV for a spreadsheet: a UTF-8 BOM so Excel reads Arabic, CRLF lines, amounts with the currency's digits and no grouping. */
+/** A statement as CSV for a spreadsheet: a signed amount column beside the unsigned one (so a spreadsheet can sum it), a UTF-8 BOM so Excel reads Arabic, CRLF lines, amounts with the currency's digits and no grouping. */
 export function statementCsv(
   rows: readonly CsvRow[],
   currency: Currency,
-  labels: { date: string; ref: string; kind: string; amount: string; balance: string },
+  labels: { date: string; ref: string; kind: string; signed: string; amount: string; balance: string },
   extra: { opening?: string; closing?: string; openingLabel?: string; closingLabel?: string },
 ): string {
-  const out: string[] = [[labels.date, labels.ref, labels.kind, labels.amount, labels.balance].map(csvText).join(',')];
-  if (extra.opening !== undefined) out.push(['', csvText(extra.openingLabel ?? ''), '', '', csvAmount(extra.opening, currency)].join(','));
-  for (const r of rows) out.push([csvText(r.date), csvText(r.ref), csvText(r.kind), csvAmount(r.amountMinor, currency), csvAmount(r.balanceMinor, currency)].join(','));
-  if (extra.closing !== undefined) out.push(['', csvText(extra.closingLabel ?? ''), '', '', csvAmount(extra.closing, currency)].join(','));
+  const out: string[] = [[labels.date, labels.ref, labels.kind, labels.signed, labels.amount, labels.balance].map(csvText).join(',')];
+  if (extra.opening !== undefined) out.push(['', csvText(extra.openingLabel ?? ''), '', '', '', csvAmount(extra.opening, currency)].join(','));
+  for (const r of rows) out.push([csvText(r.date), csvText(r.ref), csvText(r.kind), csvSigned(r, currency), csvAmount(r.amountMinor, currency), csvAmount(r.balanceMinor, currency)].join(','));
+  if (extra.closing !== undefined) out.push(['', csvText(extra.closingLabel ?? ''), '', '', '', csvAmount(extra.closing, currency)].join(','));
   return `﻿${out.join('\r\n')}`;
 }

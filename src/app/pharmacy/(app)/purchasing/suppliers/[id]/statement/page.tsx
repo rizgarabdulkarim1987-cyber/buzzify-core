@@ -117,7 +117,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
                   </p>
                 )}
                 <StatementActions
-                  rows={view.rows.map((r) => ({ date: r.date, ref: r.ref, kind: t(`pharmacy.purchasing.m.st.kind.${r.kind}`), amountMinor: r.amountMinor ?? '0', balanceMinor: r.balanceMinor ?? '0' }))}
+                  rows={view.rows.map((r) => ({ date: r.date, ref: r.ref, kind: t(`pharmacy.purchasing.m.st.kind.${r.kind}`), kindCode: r.kind, amountMinor: r.amountMinor ?? '0', balanceMinor: r.balanceMinor ?? '0' }))}
                   currency={currency}
                   opening={view.opening}
                   closing={view.closing}

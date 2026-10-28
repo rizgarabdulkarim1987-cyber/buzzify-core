@@ -1719,6 +1719,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.st.col.ref': 'المرجع',
   'pharmacy.purchasing.m.st.col.kind': 'النوع',
   'pharmacy.purchasing.m.st.col.amount': 'المبلغ',
+  'pharmacy.purchasing.m.st.col.signed': 'المبلغ بإشارته',
   'pharmacy.purchasing.m.st.col.balance': 'الرصيد',
   'pharmacy.purchasing.m.st.kind.INVOICE': 'فاتورة',
   'pharmacy.purchasing.m.st.kind.PAYMENT': 'دفعة',

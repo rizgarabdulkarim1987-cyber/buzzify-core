@@ -1719,6 +1719,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.st.col.ref': 'سەرچاوە',
   'pharmacy.purchasing.m.st.col.kind': 'جۆر',
   'pharmacy.purchasing.m.st.col.amount': 'بڕ',
+  'pharmacy.purchasing.m.st.col.signed': 'بڕی نیشانەدار',
   'pharmacy.purchasing.m.st.col.balance': 'باڵانس',
   'pharmacy.purchasing.m.st.kind.INVOICE': 'پسوولە',
   'pharmacy.purchasing.m.st.kind.PAYMENT': 'پارەدان',
