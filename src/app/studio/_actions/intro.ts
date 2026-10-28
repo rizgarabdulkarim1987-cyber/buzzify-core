@@ -10,15 +10,3 @@ export async function setMenuIntroEnabled(input: unknown) {
 export async function saveMenuIntro(input: unknown) {
   return invoke(intro.saveMenuIntro, input);
 }
-
-export async function saveIntroAdvert(input: unknown) {
-  return invoke(intro.saveIntroAdvert, input);
-}
-
-export async function reorderIntroAdverts(input: unknown) {
-  return invoke(intro.reorderIntroAdverts, input);
-}
-
-export async function deleteIntroAdvert(input: unknown) {
-  return invoke(intro.deleteIntroAdvert, input);
-}

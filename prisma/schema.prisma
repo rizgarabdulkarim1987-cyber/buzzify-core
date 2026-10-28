@@ -233,7 +233,6 @@ model Menu {
   domains         MenuDomain[]
   brand           BrandConfig?
   intro           MenuIntro?
-  introAdverts    IntroAdvert[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -2471,26 +2470,6 @@ model MenuIntro {
   updatedAt         DateTime @updatedAt
 
   menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
-}
-
-/// A visual advert on a menu's intro page, uploaded by the restaurant.
-model IntroAdvert {
-  id           String    @id @default(cuid())
-  menuId       String
-  imageAssetId String
-  /// { en?, ar?, ckb? }
-  alts         Json      @default("{}")
-  /// An https address or a path on the menu; empty for a card with no link.
-  href         String    @default("")
-  startsAt     DateTime?
-  endsAt       DateTime?
-  sortOrder    Int       @default(0)
-  active       Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-
-  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
-
-  @@index([menuId, sortOrder])
 }
 
 /// An advert the platform shows on the intro pages of every restaurant, or only of the ones listed.

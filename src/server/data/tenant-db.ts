@@ -4,7 +4,6 @@ import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 export const MENU_SCOPED_MODELS = [
   'BrandConfig',
   'MenuIntro',
-  'IntroAdvert',
   'Category',
   'Product',
   'ProductVariant',

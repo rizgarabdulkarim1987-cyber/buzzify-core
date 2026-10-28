@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { deleteIntroAdvert, reorderIntroAdverts, saveIntroAdvert, saveMenuIntro, setMenuIntroEnabled } from '@/server/studio/actions/intro';
+import { saveMenuIntro, setMenuIntroEnabled } from '@/server/studio/actions/intro';
 import { menuIntro } from '@/server/studio/queries/intro';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from '../pos/fixture';
 
@@ -31,7 +31,6 @@ async function asset(restaurantId: string | null, label: string, kind: 'IMAGE' |
   ).id;
 }
 
-const advert = (over: Record<string, unknown> = {}) => ({ menuId, imageAssetId: photo, alts: { en: 'Event' }, href: 'https://example.com/event', startsAt: null, endsAt: null, active: true, ...over });
 const intro = (over: Record<string, unknown> = {}) => ({ menuId, backgroundAssetId: photo, overlay: 40, showLogo: true, showContact: true, ...over });
 
 beforeAll(() => {
@@ -72,10 +71,8 @@ describe('saving the intro', () => {
     expect(codeOf(await run(owner, saveMenuIntro, intro({ backgroundAssetId: posterless })))).toBe('INVALID');
   });
 
-  it("refuses another restaurant's asset as background or advert", async () => {
+  it("refuses another restaurant's asset as background", async () => {
     expect(codeOf(await run(owner, saveMenuIntro, intro({ backgroundAssetId: foreign })))).toBe('NOT_FOUND');
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ imageAssetId: foreign })))).toBe('NOT_FOUND');
-    expect(await prisma().introAdvert.count()).toBe(0);
   });
 
   it('refuses an overlay outside 0 to 100', async () => {
@@ -93,40 +90,16 @@ describe('saving the intro', () => {
 });
 
 describe('adverts', () => {
-  it('refuses a link that is not https or a path, a picture that is a video, and an end before the start', async () => {
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ href: 'javascript:alert(1)' })))).toBe('INVALID');
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ href: 'http://example.com' })))).toBe('INVALID');
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ imageAssetId: video })))).toBe('NOT_FOUND'); // a video is not a kind an advert may use
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ startsAt: '2026-11-02T00:00:00Z', endsAt: '2026-11-01T00:00:00Z' })))).toBe('INVALID');
-    expect(await prisma().introAdvert.count()).toBe(0);
-  });
-
-  it('adds, edits, orders and deletes adverts', async () => {
-    const first = dataOf(await run(owner, saveIntroAdvert, advert())).advertId;
-    const second = dataOf(await run(owner, saveIntroAdvert, advert({ href: '/menu' }))).advertId;
-    dataOf(await run(owner, saveIntroAdvert, advert({ advertId: first, href: '' })));
-    dataOf(await run(owner, reorderIntroAdverts, { menuId, ids: [second, first] }));
-    const read = dataOf(await ask(owner, menuIntro, { menuId }));
-    expect(read.adverts.map((x) => x.id)).toEqual([second, first]);
-    expect(read.adverts.find((x) => x.id === first)?.href).toBe('');
-    expect(codeOf(await run(owner, reorderIntroAdverts, { menuId, ids: [first] }))).toBe('INVALID');
-    dataOf(await run(owner, deleteIntroAdvert, { menuId, advertId: first }));
-    expect((await prisma().introAdvert.findMany()).map((x) => x.id)).toEqual([second]);
-  });
-
-  it("will not edit or delete an advert of another menu through this one", async () => {
-    const other = await prisma().introAdvert.create({ data: { menuId: (await prisma().menu.findFirstOrThrow({ where: { restaurantId: b.id } })).id, imageAssetId: foreign } });
-    expect(codeOf(await run(owner, saveIntroAdvert, advert({ advertId: other.id })))).toBe('NOT_FOUND');
-    expect(codeOf(await run(owner, deleteIntroAdvert, { menuId, advertId: other.id }))).toBe('NOT_FOUND');
-    expect(await prisma().introAdvert.count()).toBe(1);
-  });
-
-  it("lists the platform's adverts that apply, read only, and not the ones for other restaurants", async () => {
+  it("shows the platform's adverts that apply, read only, and not the ones for other restaurants", async () => {
     await prisma().platformAdvert.create({ data: { imageAssetId: photo, alts: {}, restaurantIds: [] } });
     await prisma().platformAdvert.create({ data: { imageAssetId: photo, alts: {}, restaurantIds: [a.id] } });
     await prisma().platformAdvert.create({ data: { imageAssetId: photo, alts: {}, restaurantIds: [b.id] } });
     const read = dataOf(await ask(owner, menuIntro, { menuId }));
     expect(read.platformAdverts).toHaveLength(2);
-    expect(read.adverts).toHaveLength(0);
+  });
+
+  it('gives the restaurant no way to add, change or hide an advert', async () => {
+    const actions = await import('@/server/studio/actions/intro');
+    expect(Object.keys(actions).sort()).toEqual(['saveMenuIntro', 'setMenuIntroEnabled']);
   });
 });
