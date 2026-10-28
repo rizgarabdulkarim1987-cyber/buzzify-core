@@ -8,12 +8,17 @@ import { saveMenuIntro, setMenuIntroEnabled } from '@/app/studio/_actions/intro'
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
+import { PICTURE_ACCEPT } from '@/studio/media/upload';
+import { UploadAsset } from './UploadAsset';
 import { Alert } from '@/studio/ui/Alert';
 import { Button, buttonClasses } from '@/studio/ui/Button';
+import { UpgradeHint } from '@/studio/plans/UpgradeHint';
+import type { UpgradeInfo } from '@/server/studio/services/plans';
 import { Checkbox } from '@/studio/ui/Checkbox';
 
 export interface MenuIntroView {
   thumbs: Record<string, string>;
+  plan: { allowed: boolean; upgrade: UpgradeInfo };
   enabled: boolean;
   locales: string[];
   defaultLocale: string;
@@ -83,8 +88,12 @@ export function IntroForm({ menuId, restaurantId, view, slug }: { menuId: string
       <p className="max-w-[65ch] pb-4 text-sm text-muted">{t('introPage.intro')}</p>
       {problem && <Alert tone="danger">{problem}</Alert>}
       <Section id="intro-switch" title={t('workspace.tab.intro')} intro={t('introPage.showHelp')}>
+        {!view.plan.allowed && <UpgradeHint feature="menu.intro" info={view.plan.upgrade} />}
+        <Alert tone={view.enabled && view.plan.allowed ? 'success' : 'neutral'}>
+          {view.enabled && view.plan.allowed ? t('introPage.statusOn') : t('introPage.statusOff')}
+        </Alert>
         <div className="flex flex-wrap items-center gap-4">
-          <Checkbox label={t('introPage.show')} checked={view.enabled} disabled={switching} onChange={(event) => toggle(event.target.checked)} />
+          <Checkbox label={t('introPage.show')} checked={view.enabled} disabled={switching || !view.plan.allowed} onChange={(event) => toggle(event.target.checked)} />
           {view.enabled && (
             <a href={`/${slug}/intro`} target="_blank" rel="noopener noreferrer" className={buttonClasses('secondary', 'sm')}>
               <ExternalLink aria-hidden />
@@ -111,6 +120,8 @@ export function IntroForm({ menuId, restaurantId, view, slug }: { menuId: string
               <span aria-hidden className="block h-16 w-24 rounded-md border border-dashed border-line" />
             )}
             <Button onClick={() => setPicking(true)}>{t('introPage.pick')}</Button>
+            <UploadAsset target={{ restaurantId }} accept={PICTURE_ACCEPT + ',video/mp4,.mp4'} folder="intro" label={t('introPage.upload')} onUploaded={(picked) => setBackground({ assetId: picked.assetId, thumb: picked.thumbUrl })} />
+            {background.assetId && !background.thumb && <span className="text-sm text-muted">{t('introPage.fileChosen')}</span>}
             {background.assetId && (
               <Button variant="ghost" onClick={() => setBackground({ assetId: null, thumb: '' })}>
                 {t('introPage.clear')}

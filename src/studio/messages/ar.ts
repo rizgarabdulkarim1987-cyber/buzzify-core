@@ -1061,7 +1061,7 @@ const ar: Messages = {
   'workspace.tab.prices': 'الأسعار',
   'workspace.tab.availability': 'التوفر',
   'workspace.tab.sales': 'المبيعات',
-  'workspace.tab.about': 'صفحة «عنّا»',
+  'workspace.tab.about': 'استكشف',
   'workspace.tab.wheel': 'عجلة الحظ',
   'sales.pages': 'أدوات البيع',
   'sales.page.overview': 'نظرة عامة',
@@ -3369,6 +3369,11 @@ const ar: Messages = {
   'introPage.noAdverts': 'لا توجد إعلانات على هذه القائمة.',
   'introPage.save': 'حفظ',
   'introPage.saved': 'تم الحفظ',
+  'introPage.upload': 'رفع من هذا الجهاز',
+  'introPage.uploading': 'جارٍ الرفع {percent}%',
+  'introPage.fileChosen': 'تم اختيار الملف (يظهر الفيديو بعد معالجته)',
+  'introPage.statusOn': 'الواجهة مفعّلة: يراها الزائر قبل القائمة.',
+  'introPage.statusOff': 'الواجهة متوقفة: يدخل الزائر القائمة مباشرة. فعّلها من الأسفل.',
 };
 
 export default ar;

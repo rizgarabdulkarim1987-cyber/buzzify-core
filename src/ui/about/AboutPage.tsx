@@ -24,7 +24,7 @@ export function AboutPage({ view }: { view: AboutView }) {
 
   return (
     <div dir={direction(locale)} className="mx-auto min-h-dvh max-w-2xl pb-28">
-      <Header />
+      <Header current="explore" />
       <main className="flex flex-col gap-10 px-5 pt-4">
         {view.cover && (
           <ProductVisual media={[view.cover]} name={view.cover.alt || view.title} slug="about-cover" priority className="aspect-[16/9] w-full rounded-2xl" sizes="(min-width: 672px) 640px, 100vw" />

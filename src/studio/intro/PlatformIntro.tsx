@@ -9,6 +9,8 @@ import { deletePlatformAdvert, reorderPlatformAdverts, savePlatformAdvert, saveP
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { MediaPicker } from '@/studio/media/MediaPicker';
+import { PICTURE_ACCEPT } from '@/studio/media/upload';
+import { UploadAsset } from './UploadAsset';
 import { Alert } from '@/studio/ui/Alert';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
@@ -114,6 +116,8 @@ export function PlatformIntro({ view }: { view: PlatformIntroView }) {
         <div className="flex flex-wrap items-center gap-4">
           <Thumb url={background.thumb} label={t('platformIntro.defaultTitle')} />
           <Button onClick={() => setPicking(true)}>{t('introPage.pick')}</Button>
+          <UploadAsset target={{ shared: true }} accept={PICTURE_ACCEPT + ',video/mp4,.mp4'} folder="intro" label={t('introPage.upload')} onUploaded={(picked) => setBackground({ assetId: picked.assetId, thumb: picked.thumbUrl })} />
+          {background.assetId && !background.thumb && <span className="text-sm text-muted">{t('introPage.fileChosen')}</span>}
           {background.assetId && (
             <Button variant="ghost" onClick={() => setBackground({ assetId: null, thumb: '' })}>
               {t('introPage.clear')}
@@ -251,6 +255,7 @@ function AdvertDialog({ advert, view, onClose }: { advert: PlatformAdvertRow | n
           <div className="flex items-center gap-3">
             <Thumb url={image?.thumb} label={t('platformIntro.image')} />
             <Button onClick={() => setPicking(true)}>{t('introPage.pick')}</Button>
+            <UploadAsset target={{ shared: true }} accept={PICTURE_ACCEPT} folder="adverts" label={t('introPage.upload')} onUploaded={(picked) => setImage({ assetId: picked.assetId, thumb: picked.thumbUrl })} />
           </div>
         </Field>
         <MediaPicker open={picking} onOpenChange={setPicking} restaurantId={null} onPick={([first]) => first && setImage({ assetId: first.assetId, thumb: first.thumbUrl })} />

@@ -1060,7 +1060,7 @@ const ckb: Messages = {
   'workspace.tab.prices': 'نرخەکان',
   'workspace.tab.availability': 'بەردەستبوون',
   'workspace.tab.sales': 'فرۆشتن',
-  'workspace.tab.about': 'پەڕەی دەربارە',
+  'workspace.tab.about': 'گەڕان',
   'workspace.tab.wheel': 'گەڕۆکی بەخت',
   'sales.pages': 'ئامرازەکانی فرۆشتن',
   'sales.page.overview': 'تێڕوانینی گشتی',
@@ -3345,6 +3345,11 @@ const ckb: Messages = {
   'introPage.noAdverts': 'هیچ ڕیکلامێک لەسەر ئەم مینیوە نییە.',
   'introPage.save': 'پاشەکەوتکردن',
   'introPage.saved': 'پاشەکەوت کرا',
+  'introPage.upload': 'بارکردن لەم ئامێرەوە',
+  'introPage.uploading': 'بارکردن {percent}%',
+  'introPage.fileChosen': 'فایل هەڵبژێردرا (ڤیدیۆ دوای پرۆسەکردن دەردەکەوێت)',
+  'introPage.statusOn': 'دەروازە چالاکە: میوان پێش مینیو دەیبینێت.',
+  'introPage.statusOff': 'دەروازە ڕاگیراوە: میوان یەکسەر دەچێتە مینیو. لە خوارەوە چالاکی بکە.',
 };
 
 export default ckb;
