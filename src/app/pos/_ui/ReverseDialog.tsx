@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { reversePosPayment } from '@/app/studio/_actions/pos';
+import { formatNumber } from '@/lib/pos-format';
+import { refundIsTerminal, usdRefund } from '@/lib/pos-pay-legs';
 import { refundOpensDrawer } from '@/server/domain/pos/drawer';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { useT } from '@/studio/i18n';
@@ -22,8 +24,8 @@ interface Props {
   version: number;
   total: number;
   method: PosPaymentMethodKey;
-  /** Every leg of the payment, so a split bill that took any cash opens the drawer on refund. */
-  legs: readonly { method: string }[];
+  /** Every leg of the payment, so a split bill that took any cash opens the drawer on refund, and dollars are handed back as dollars. */
+  legs: readonly { method: string; amount: number; tenderedUsd?: number | null; rate?: number | null }[];
 }
 
 /** The manager's "Reverse payment" button and its dialog: the amount and method are read-only, the reason is required. */
@@ -35,7 +37,8 @@ export function ReverseButton({ orderId, paymentId, version, total, method, legs
   const sync = useSyncOptional();
   const [open, setOpen] = useState(false);
   const online = sync?.online ?? true;
-  const terminal = method !== 'CASH';
+  const terminal = refundIsTerminal(method);
+  const usd = usdRefund(legs);
 
   return (
     <>
@@ -74,6 +77,12 @@ export function ReverseButton({ orderId, paymentId, version, total, method, legs
                 <dd>{money(total)}</dd>
               </div>
             </dl>
+            {usd ? (
+              <ul className="flex flex-col gap-1 text-base font-semibold">
+                <li>{t('pos.reverse.usdGiveBack', { n: formatNumber(usd.dollars) })}</li>
+                {usd.dinarChange > 0 ? <li>{t('pos.reverse.usdTakeChange', { amount: money(usd.dinarChange) })}</li> : null}
+              </ul>
+            ) : null}
             <Field label={t('pos.reverse.reason')} error={errors.reason}>
               <Textarea name="reason" dir="auto" rows={2} maxLength={300} />
             </Field>

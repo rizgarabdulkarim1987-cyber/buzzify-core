@@ -647,6 +647,8 @@ const posTill: Messages = {
   'pos.reverse.amount': 'Amount',
   'pos.reverse.reason': 'Reason',
   'pos.reverse.reference': 'Refund reference on the terminal (optional)',
+  'pos.reverse.usdGiveBack': 'Give back ${n} in dollars',
+  'pos.reverse.usdTakeChange': 'Take back the dinar change: {amount}',
   'pos.receipt.reversed': 'REVERSED',
   'pos.receipt.reversedBy': 'By {name} · {time}',
   'pos.shift.cashRefunds': 'Cash refunds',

@@ -37,6 +37,25 @@ export function usdDue(amount: number, rate: number): number | null {
 /** The dinars to give back for the dollars handed over; never negative. */
 export const usdBack = usdChange;
 
+/**
+ * What reversing a payment hands back for its dollar legs: the dollars the guest handed over go back as dollars, and the dinar
+ * change they were given comes back into the dinar drawer (the exact opposite of the sale, as the drawer counts it). Null when
+ * the payment took no dollars, or is an old leg stored without them.
+ */
+export function usdRefund(legs: readonly { method: string; amount: number; tenderedUsd?: number | null; rate?: number | null }[]): { dollars: number; dinarChange: number } | null {
+  const usd = legs.filter((leg) => leg.method === 'CASH_USD' && (leg.tenderedUsd ?? 0) > 0);
+  if (usd.length === 0) return null;
+  return {
+    dollars: usd.reduce((sum, leg) => sum + (leg.tenderedUsd ?? 0), 0),
+    dinarChange: usd.reduce((sum, leg) => sum + usdChange(leg.tenderedUsd ?? 0, leg.rate ?? 0, leg.amount), 0),
+  };
+}
+
+/** A reversal is done on a terminal (and only recorded here) unless the payment was cash, in dinars or in dollars. */
+export function refundIsTerminal(method: string): boolean {
+  return method !== 'CASH' && method !== 'CASH_USD';
+}
+
 const USD_NOTES = [10, 20, 50, 100] as const;
 
 /** Quick buttons for the dollars handed over: the exact dollars, then the dollar notes above them, each once. */
