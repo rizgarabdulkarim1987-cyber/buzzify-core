@@ -1,4 +1,4 @@
-import { normalizeDigits } from './sell-logic';
+import { keyFor, normalizeDigits, outcomeUnknown, type KeyedAttempt } from './sell-logic';
 
 /**
  * Pure helpers of the shifts, sales and returns screens (no DOM, no clock). Every figure that is a rule (expected cash,
@@ -111,3 +111,31 @@ export function formatUtc(at: string | Date): string {
 
 /** The first 8 characters of an id: the app has no person names for these records, so the id stands in. */
 export const shortId = (id: string): string => id.slice(0, 8);
+
+/**
+ * The attempt of one paid in / paid out: same type, amount and reason, same key (so a dialog closed after a dropped
+ * connection and typed again repeats it and the server records the movement once); anything changed, a new key. The
+ * caller keeps the result outside the dialog and drops it (null) on success or a definite refusal.
+ */
+export function cashAttempt(prev: KeyedAttempt | null, kind: 'in' | 'out', amountMinor: bigint, reason: string, make?: (prefix: string) => string): KeyedAttempt {
+  return keyFor(prev, `${kind}:${amountMinor}:${reason.trim()}`, 'cash', make);
+}
+
+export type CloseOutcome = 'needs-approval' | 'closed-probably' | 'unknown' | 'refused';
+
+/**
+ * What a refused or lost close means. Closing has no idempotency key, so after an unknown outcome a later
+ * ALREADY_CLOSED is most likely the earlier attempt having landed: say that, not an error.
+ */
+export function closeOutcome(error: { message: string; fields?: { phCode?: string } | undefined }, unknownBefore: boolean): CloseOutcome {
+  const code = error.fields?.phCode;
+  if (code === 'NEEDS_APPROVAL') return 'needs-approval';
+  if (code === 'ALREADY_CLOSED' && unknownBefore) return 'closed-probably';
+  if (outcomeUnknown(error)) return 'unknown';
+  return 'refused';
+}
+
+/** The refund shown is the server's answer for exactly the quantities now chosen: false while a newer choice is still being asked. */
+export function previewCurrent(settledWire: string | null, wire: string): boolean {
+  return settledWire !== null && settledWire === wire;
+}

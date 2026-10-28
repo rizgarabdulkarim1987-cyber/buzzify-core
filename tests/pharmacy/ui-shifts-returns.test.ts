@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  cashAttempt,
+  closeOutcome,
   closePlan,
   formatUtc,
   paidOutHint,
   parseReturnQty,
+  previewCurrent,
   refundMethodChoices,
   returnRequest,
   returnSignature,
@@ -12,6 +15,7 @@ import {
   type ReturnRow,
 } from '@/app/pharmacy/_ui/shifts-logic';
 import { keyFor } from '@/app/pharmacy/_ui/sell-logic';
+import { NETWORK_FAILURE } from '@/studio/settle';
 
 describe('closePlan (variance preview)', () => {
   it('matches, over and short, from the server expected cash', () => {
@@ -111,5 +115,45 @@ describe('formatUtc', () => {
   it('prints Latin digits in UTC', () => {
     expect(formatUtc('2026-10-28T14:03:59.000Z')).toBe('2026-10-28 14:03 UTC');
     expect(formatUtc('nope')).toBe('');
+  });
+});
+
+describe('cashAttempt (paid in / paid out key)', () => {
+  it('the same type, amount and reason keep the key, even when asked again from a fresh dialog', () => {
+    const first = cashAttempt(null, 'in', 5_000n, 'float top-up', (p) => `${p}-1`);
+    // The dialog was closed and opened again, the person typed the same things: the attempt is the one that was kept.
+    expect(cashAttempt(first, 'in', 5_000n, '  float top-up ', (p) => `${p}-2`).key).toBe('cash-1');
+  });
+  it('a changed amount, reason or type is a new request with a new key', () => {
+    const first = cashAttempt(null, 'in', 5_000n, 'float', (p) => `${p}-1`);
+    expect(cashAttempt(first, 'in', 5_001n, 'float', (p) => `${p}-2`).key).toBe('cash-2');
+    expect(cashAttempt(first, 'in', 5_000n, 'float 2', (p) => `${p}-3`).key).toBe('cash-3');
+    expect(cashAttempt(first, 'out', 5_000n, 'float', (p) => `${p}-4`).key).toBe('cash-4');
+  });
+  it('with nothing kept (after a success) it makes a new key', () => {
+    expect(cashAttempt(null, 'out', 1n, 'abc', (p) => `${p}-9`).key).toBe('cash-9');
+  });
+});
+
+describe('closeOutcome', () => {
+  const unknown = { message: NETWORK_FAILURE };
+  it('ALREADY_CLOSED after an unknown outcome means it probably closed by the earlier attempt', () => {
+    expect(closeOutcome({ message: 'This shift is already closed', fields: { phCode: 'ALREADY_CLOSED' } }, true)).toBe('closed-probably');
+  });
+  it('ALREADY_CLOSED with no earlier unknown attempt is an ordinary refusal', () => {
+    expect(closeOutcome({ message: 'This shift is already closed', fields: { phCode: 'ALREADY_CLOSED' } }, false)).toBe('refused');
+  });
+  it('NEEDS_APPROVAL, unknown outcomes and other refusals keep their own handling', () => {
+    expect(closeOutcome({ message: 'x', fields: { phCode: 'NEEDS_APPROVAL' } }, true)).toBe('needs-approval');
+    expect(closeOutcome(unknown, false)).toBe('unknown');
+    expect(closeOutcome({ message: 'Check the amounts', fields: { phCode: 'CASH_NOT_CONSISTENT' } }, true)).toBe('refused');
+  });
+});
+
+describe('previewCurrent', () => {
+  it('is true only when the settled figure is for the quantities now chosen', () => {
+    expect(previewCurrent('[{"a":1}]', '[{"a":1}]')).toBe(true);
+    expect(previewCurrent('[{"a":1}]', '[{"a":2}]')).toBe(false);
+    expect(previewCurrent(null, '[{"a":1}]')).toBe(false);
   });
 });

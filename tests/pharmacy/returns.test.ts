@@ -804,15 +804,16 @@ describe('the refund preview (read-only) and the payment methods of a sale', () 
     const w = await world();
     await stock(w);
     const s = await sell(w, { lines: [{ productId: w.p.id, unitId: w.p.strip, qty: 1 }], invoiceDiscount: { kind: 'amount', value: 1n }, payments: [cash(899n)] });
-    const before = await counts();
     for (let i = 0; i < 10; i += 1) {
+      const before = await counts();
       const shown = dataOf(await ask(w.manager, returnQueries.preview, { ...at(w), saleId: s.id, lines: [byLine(s.line.id, 1)] }));
+      // The preview alone changes nothing: every counted table is the same right after it (the real return follows).
+      expect(await counts()).toEqual(before);
       const made = dataOf(await act(w.manager, returnActions.create, ret(w, s.id, [byLine(s.line.id, 1)])));
       expect(shown.refundMinor).toBe(made.refundMinor);
       expect(shown.currency).toBe('IQD');
       expect(shown.isFinal).toBe(i === 9);
     }
-    expect(before.returns).toBe(0);
     // Several lines' worth in one go equals what a real return of the same quantities gives.
     const t = await sell(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 3 }], payments: [cash(300n)] });
     const shown = dataOf(await ask(w.manager, returnQueries.preview, { ...at(w), saleId: t.id, lines: [byLine(t.line.id, 2)] }));
