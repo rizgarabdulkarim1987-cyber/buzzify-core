@@ -143,7 +143,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
                     </span>
                     <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                       <Link href={`/pharmacy/purchasing/${LINKS[r.entity]}/${r.recordId}`} className="inline-flex min-h-11 items-center underline underline-offset-2 print:no-underline">
-                        <bdi dir="ltr">{r.ref}</bdi>
+                        {r.ref ? <bdi dir="ltr">{r.ref}</bdi> : t(`pharmacy.purchasing.m.st.kind.${r.kind}`)}
                       </Link>
                     </span>
                     <span>{t(`pharmacy.purchasing.m.st.kind.${r.kind}`)}</span>

@@ -63,6 +63,7 @@ export function InvoiceVariance({ variance, t, locale }: { variance: Variance; t
                   </span>
                 </p>
               ) : (
+                <>
                 <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-3">
                   <div>
                     <dt className="text-muted">{t('pharmacy.purchasing.m.var.ordered')}</dt>
@@ -78,8 +79,8 @@ export function InvoiceVariance({ variance, t, locale }: { variance: Variance; t
                       <Amount amount={l.invoicedUnitCostMinor} currency={c} locale={locale} />
                     </dd>
                   </div>
-                  <div className="sm:col-span-3">
-                    <p className="flex flex-wrap gap-x-6 gap-y-1">
+                </dl>
+                <p className="flex flex-wrap gap-x-6 gap-y-1">
                       <span>
                         <span className="text-muted">{t('pharmacy.purchasing.m.var.orderVsInvoiced')}: </span>
                         {otherCurrency ? <Diff minor={null} currency={c} locale={locale} t={t} /> : l.orderCurrency === null ? <span className="text-muted">—</span> : <Diff minor={l.orderVsInvoiced} currency={c} locale={locale} t={t} />}
@@ -89,8 +90,7 @@ export function InvoiceVariance({ variance, t, locale }: { variance: Variance; t
                         <Diff minor={l.receivedVsInvoiced} currency={c} locale={locale} t={t} />
                       </span>
                     </p>
-                  </div>
-                </dl>
+                </>
               )}
             </li>
           );

@@ -50,6 +50,7 @@ export function InvoiceEditor({
   rows,
   currencies,
   truncated,
+  today,
 }: {
   userId: string;
   restaurantId: string;
@@ -58,6 +59,8 @@ export function InvoiceEditor({
   currencies: Currency[];
   /** True when the server offered its limit of lines: there may be more. */
   truncated: boolean;
+  /** The pharmacy's today (YYYY-MM-DD): the invoice date starts there and the due date follows the supplier's terms. */
+  today: string;
 }) {
   const t = useT();
   const { locale } = useLocale();
@@ -66,8 +69,8 @@ export function InvoiceEditor({
   const [firstKey] = useState(() => newClientKey('inv'));
   const start = useMemo<InvoiceDraft>(() => {
     const currency = rows.find((r) => r.currency !== null)?.currency ?? supplier.defaultCurrency;
-    return { ...emptyInvoiceDraft(firstKey, currency), supplierId: supplier.id, lines: invoiceLinesStart(rows, currency) };
-  }, [firstKey, rows, supplier]);
+    return { ...emptyInvoiceDraft(firstKey, currency), supplierId: supplier.id, invoiceDate: today, dueDate: dueFrom(today, supplier.termsDays), lines: invoiceLinesStart(rows, currency) };
+  }, [firstKey, rows, supplier, today]);
   const draft = useDraft<InvoiceDraft>(draftKey(userId, `invoice@${restaurantId}:${supplier.id}`, 'new'), start);
   const value = draft.value;
   const [pending, setPending] = useState(false);

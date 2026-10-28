@@ -84,6 +84,7 @@ export default async function NewInvoicePage({ searchParams }: { searchParams: P
         rows={rows}
         currencies={currencyList}
         truncated={rows.length >= INVOICEABLE_LIMIT}
+        today={new Date().toISOString().slice(0, 10)}
       />
     </>
   );
