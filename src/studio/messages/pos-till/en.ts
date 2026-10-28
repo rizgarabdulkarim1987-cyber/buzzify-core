@@ -798,6 +798,8 @@ const posTill: Messages = {
   'pos.calm.newDelivery': '+ Delivery',
   'pos.calm.offPremise': 'Takeaway and delivery',
   'pos.calm.minutes': '{n} min',
+  'pos.calm.hoursShort': '{n} h',
+  'pos.calm.daysShort': '{n} d',
   'pos.calm.close': 'Close',
   'pos.calm.erase': 'Delete a digit',
   'pos.calm.table': 'Table {n}',

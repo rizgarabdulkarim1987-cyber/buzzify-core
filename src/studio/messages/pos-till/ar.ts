@@ -798,6 +798,8 @@ const posTill: Messages = {
   'pos.calm.newDelivery': '+ توصيل',
   'pos.calm.offPremise': 'سفري وتوصيل',
   'pos.calm.minutes': '{n} د',
+  'pos.calm.hoursShort': '{n} س',
+  'pos.calm.daysShort': '{n} ي',
   'pos.calm.close': 'إغلاق',
   'pos.calm.erase': 'امسح رقماً',
   'pos.calm.table': 'طاولة {n}',

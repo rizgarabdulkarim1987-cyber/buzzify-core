@@ -798,6 +798,8 @@ const posTill: Messages = {
   'pos.calm.newDelivery': '+ گەیاندن',
   'pos.calm.offPremise': 'بردن و گەیاندن',
   'pos.calm.minutes': '{n} خ',
+  'pos.calm.hoursShort': '{n} کژ',
+  'pos.calm.daysShort': '{n} ڕ',
   'pos.calm.close': 'داخستن',
   'pos.calm.erase': 'ژمارەیەک بسڕەوە',
   'pos.calm.table': 'مێزی {n}',
