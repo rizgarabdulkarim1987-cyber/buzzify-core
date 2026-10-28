@@ -200,13 +200,18 @@ describe('golden: the Studio navigation', () => {
       [
     {
       key: 'myRestaurant',
-      href: '/studio/menus/m1',
+      href: '/studio/restaurants/r1',
       labelKey: 'nav.myRestaurant',
       icon: 'store',
-      match: [
-        '/studio/restaurants/r1',
-        '/studio/menus/m1'
-      ]
+      match: ['/studio/restaurants/r1'],
+      exclude: ['/studio/restaurants/r1/menus']
+    },
+    {
+      key: 'myMenu',
+      href: '/studio/menus/m1',
+      labelKey: 'nav.myMenu',
+      icon: 'menus',
+      match: ['/studio/restaurants/r1/menus', '/studio/menus/m1']
     }
   ],
     );
