@@ -15,6 +15,8 @@ import { SyncProvider } from './_ui/sync/SyncProvider';
 export const metadata: Metadata = {
   title: { default: 'Buzzify Cashier', template: '%s · Buzzify Cashier' },
   robots: { index: false, follow: false },
+  // Lets Chrome and Edge offer "Install app": the same till, opened in its own window.
+  manifest: '/pos/manifest.webmanifest',
 };
 
 /**
