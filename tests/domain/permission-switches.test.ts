@@ -12,8 +12,7 @@ describe('the grantable keys', () => {
   });
 
   it('are grouped by the spec areas, in its order, without an area that has none to grant', () => {
-    expect(GRANTABLE_AREAS.map((area) => area.area)).toEqual(['restaurants', 'menus', 'content', 'design', 'publishing', 'data', 'media', 'people']);
-    expect(GRANTABLE_AREAS.find((area) => area.area === 'people')!.keys).toEqual(['people.invite']);
+    expect(GRANTABLE_AREAS.map((area) => area.area)).toEqual(['restaurants', 'menus', 'content', 'design', 'publishing', 'data', 'media']);
     expect(GRANTABLE_AREAS.find((area) => area.area === 'restaurants')!.keys).toEqual(['restaurant.edit', 'restaurant.status']);
     expect(GRANTABLE_AREAS.every((area) => area.keys.length > 0)).toBe(true);
   });
@@ -30,11 +29,11 @@ describe('switchState', () => {
 
   it('is the default plus the grants minus the revokes, marked only where it differs from the default', () => {
     const policy: PermissionPolicy = {
-      OWNER: { grant: ['people.invite', 'content.edit'], revoke: ['publish.now', 'menu.create'] },
+      OWNER: { grant: ['export.run', 'content.edit'], revoke: ['publish.now', 'menu.create'] },
       DESIGNER: { grant: [], revoke: ['publish.now'] },
     };
     // Granted beyond the default.
-    expect(switchState('OWNER', 'people.invite', policy)).toEqual({ on: true, overridden: true });
+    expect(switchState('OWNER', 'export.run', policy)).toEqual({ on: true, overridden: true });
     // Revoked from the default.
     expect(switchState('OWNER', 'publish.now', policy)).toEqual({ on: false, overridden: true });
     expect(switchState('DESIGNER', 'publish.now', policy)).toEqual({ on: false, overridden: true });
@@ -43,7 +42,7 @@ describe('switchState', () => {
     expect(switchState('OWNER', 'menu.create', policy)).toEqual({ on: false, overridden: false });
     // Another role's entry is not this role's.
     expect(switchState('OWNER', 'publish.schedule', policy)).toEqual({ on: false, overridden: false });
-    expect(switchState('DESIGNER', 'people.invite', policy)).toEqual({ on: false, overridden: false });
+    expect(switchState('DESIGNER', 'export.run', policy)).toEqual({ on: true, overridden: false });
     // A revoke wins over a grant.
     expect(switchState('OWNER', 'brand.edit', { OWNER: { grant: ['brand.edit'], revoke: ['brand.edit'] } })).toEqual({ on: false, overridden: false });
   });
@@ -63,12 +62,12 @@ describe('switchState', () => {
 
 describe('withSwitch', () => {
   it('turns an off key on as a grant, and back to the default as no entry at all', () => {
-    const on = withSwitch({}, 'OWNER', 'people.invite', true);
-    expect(on.OWNER).toEqual({ grant: ['people.invite'], revoke: [] });
-    expect(switchState('OWNER', 'people.invite', on)).toEqual({ on: true, overridden: true });
-    const back = withSwitch(on, 'OWNER', 'people.invite', false);
+    const on = withSwitch({}, 'OWNER', 'export.run', true);
+    expect(on.OWNER).toEqual({ grant: ['export.run'], revoke: [] });
+    expect(switchState('OWNER', 'export.run', on)).toEqual({ on: true, overridden: true });
+    const back = withSwitch(on, 'OWNER', 'export.run', false);
     expect(back.OWNER).toEqual({ grant: [], revoke: [] });
-    expect(switchState('OWNER', 'people.invite', back)).toEqual({ on: false, overridden: false });
+    expect(switchState('OWNER', 'export.run', back)).toEqual({ on: false, overridden: false });
   });
 
   it('turns an on key off as a revoke, and back to the default as no entry at all', () => {
@@ -79,17 +78,17 @@ describe('withSwitch', () => {
   });
 
   it('moves a key between grant and revoke, and leaves other keys and the other role alone', () => {
-    let policy: PermissionPolicy = { DESIGNER: { grant: [], revoke: ['qr.manage'] }, OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } };
-    policy = withSwitch(policy, 'OWNER', 'people.invite', false);
+    let policy: PermissionPolicy = { DESIGNER: { grant: [], revoke: ['qr.manage'] }, OWNER: { grant: ['export.run'], revoke: ['publish.now'] } };
+    policy = withSwitch(policy, 'OWNER', 'export.run', false);
     policy = withSwitch(policy, 'OWNER', 'menu.create', true);
     expect(policy.OWNER).toEqual({ grant: ['menu.create'], revoke: ['publish.now'] });
     expect(policy.DESIGNER).toEqual({ grant: [], revoke: ['qr.manage'] });
   });
 
   it('does not change the policy it was given', () => {
-    const policy: PermissionPolicy = { OWNER: { grant: ['people.invite'], revoke: [] } };
+    const policy: PermissionPolicy = { OWNER: { grant: ['export.run'], revoke: [] } };
     withSwitch(policy, 'OWNER', 'menu.create', true);
-    expect(policy).toEqual({ OWNER: { grant: ['people.invite'], revoke: [] } });
+    expect(policy).toEqual({ OWNER: { grant: ['export.run'], revoke: [] } });
   });
 
   it('refuses a key no policy can grant', () => {
@@ -116,9 +115,9 @@ describe('withSwitch', () => {
 describe('policyToSave', () => {
   it('sends both roles with their grants and revokes, even when there are none', () => {
     expect(policyToSave({})).toEqual({ DESIGNER: { grant: [], revoke: [] }, OWNER: { grant: [], revoke: [] } });
-    expect(policyToSave({ OWNER: { grant: ['people.invite'], revoke: ['publish.now'] } })).toEqual({
+    expect(policyToSave({ OWNER: { grant: ['export.run'], revoke: ['publish.now'] } })).toEqual({
       DESIGNER: { grant: [], revoke: [] },
-      OWNER: { grant: ['people.invite'], revoke: ['publish.now'] },
+      OWNER: { grant: ['export.run'], revoke: ['publish.now'] },
     });
   });
 });

@@ -661,6 +661,7 @@ const SWEPT: Record<string, Case[]> = {
 
   // People
   'people.inviteOwner': [c('into B', (w) => ({ restaurantId: w.b.restaurantId, email: address('planted-owner') }))],
+  'people.createTillStaff': [c('a till person into B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', email: address('planted-till'), role: 'CASHIER', password: GOOD }))],
   'people.revokeInvitation': [
     c("B's invitation, in B", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.b.restaurantId })),
     c("B's invitation, through A", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.a.restaurantId })),
@@ -878,13 +879,12 @@ const SWEPT: Record<string, Case[]> = {
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
     c('everyone, on the platform', () => ({})),
     c("everyone, on the platform, searching for B's", () => ({ q: 'bravo' })),
-    c("A's people", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
-    c("A's people, searching for B's owner", (w) => ({ restaurantId: w.a.restaurantId, q: w.b.ownerEmail }), SCOPED),
+    c("A's people", (w) => ({ restaurantId: w.a.restaurantId })),
   ],
   'people.listInvitations': [
     c("B's invitations", (w) => ({ restaurantId: w.b.restaurantId, status: 'all' })),
     c('every invitation, on the platform', () => ({ status: 'all' })),
-    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' }), SHOWS_OWN),
+    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' })),
   ],
   'people.restaurantMembers': [c("B's members", (w) => ({ restaurantId: w.b.restaurantId }))],
   'people.restaurantPolicy': [c("B's policy", (w) => ({ restaurantId: w.b.restaurantId }))],
@@ -1137,7 +1137,7 @@ afterAll(async () => {
  * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
  * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
  */
-const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
+const TILL = ['pos.updateSettings', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
   'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
   'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
   'pos.importPreview', 'pos.importAiPreview', 'pos.importAiPhotos', 'pos.importAiTranslate', 'pos.importApply', 'pos.importDiscard',
