@@ -1,3 +1,5 @@
+import { usdChange, usdNeeded } from '@/server/domain/pos/usd';
+
 /** What the pay dialog does with the amounts typed per method (pure, so the rules are tested without a screen). */
 
 /** The text typed in each method's amount field; a missing or empty field means the method is not used. */
@@ -8,6 +10,8 @@ export interface DialogLeg {
   amount: number;
   tendered?: number;
   reference?: string;
+  tenderedUsd?: number;
+  rate?: number;
 }
 
 const used = (amounts: LegAmounts): [string, number][] =>
@@ -25,10 +29,27 @@ export function legsReady(total: number, amounts: LegAmounts): boolean {
   return used(amounts).length > 0 && remaining(total, amounts) === 0;
 }
 
-/** The legs to send: unused methods dropped, cash carrying the cash handed over, others their reference. */
-export function toLegs(amounts: LegAmounts, references: Partial<Record<string, string>>, cashTendered: number): DialogLeg[] {
+/** The whole dollars to take for `amount` dinars at `rate`; null when there is no rate (dollars cannot be taken). */
+export function usdDue(amount: number, rate: number): number | null {
+  return rate > 0 ? usdNeeded(amount, rate) : null;
+}
+
+/** The dinars to give back for the dollars handed over; never negative. */
+export const usdBack = usdChange;
+
+const USD_NOTES = [10, 20, 50, 100] as const;
+
+/** Quick buttons for the dollars handed over: the exact dollars, then the dollar notes above them, each once. */
+export function usdQuick(due: number): number[] {
+  if (due <= 0) return [];
+  return [due, ...USD_NOTES.filter((note) => note > due)];
+}
+
+/** The legs to send: unused methods dropped, cash carrying the cash handed over, dollars the dollars and the rate, others their reference. */
+export function toLegs(amounts: LegAmounts, references: Partial<Record<string, string>>, cashTendered: number, usd?: { dollars: number; rate: number }): DialogLeg[] {
   return used(amounts).map(([method, amount]) => {
     if (method === 'CASH') return { method, amount, tendered: cashTendered };
+    if (method === 'CASH_USD' && usd) return { method, amount, tenderedUsd: usd.dollars, rate: usd.rate };
     const reference = references[method]?.trim();
     return reference ? { method, amount, reference } : { method, amount };
   });

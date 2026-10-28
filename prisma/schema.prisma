@@ -114,6 +114,7 @@ model Restaurant {
   posSettings           PosSettings?
   posStaffs             PosStaff[]
   posKitchenSections    PosKitchenSection[]
+  posPrinters           PosPrinter[]
   posCategorySettings   PosCategorySetting[]
   posProductSettings    PosProductSetting[]
   posAreas              PosArea[]
@@ -1225,6 +1226,8 @@ enum PosPaymentMethod {
   ZAINCASH
   FIB
   QICARD
+  /// Cash in US dollars: the leg's `amount` is the dinars it covers, `tenderedUsd` the dollars handed over.
+  CASH_USD
 }
 
 /// How one restaurant runs its till: rates, payment methods and the on/off switches of the cashier's features.
@@ -1248,6 +1251,17 @@ model PosSettings {
   idleMinutes           Int                @default(15)
   /// A cashier's discount, cancel and refund need a manager PIN on the spot.
   requireApproval       Boolean            @default(true)
+  /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
+  roundingStep          Int                @default(0)
+  /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
+  usdEnabled            Boolean            @default(false)
+  usdRate               Int                @default(0)
+  /// The business details printed on every receipt.
+  invoiceName           String             @default("")
+  invoiceAddress        String             @default("")
+  invoicePhone          String             @default("")
+  invoiceTaxNumber      String             @default("")
+  invoiceFooter         String             @default("")
   /// The menu whose rows are this restaurant's product list; null until the cashier is first set up.
   catalogMenuId         String?
   version               Int                @default(1)
@@ -1292,6 +1306,7 @@ model PosKitchenSection {
   staff        PosStaff[]
   categories   PosCategorySetting[]
   products     PosProductSetting[]
+  printers     PosPrinter[]
 
   @@index([restaurantId])
 }
@@ -1316,9 +1331,47 @@ model PosProductSetting {
   restaurantId    String
   sectionId       String?
   soldOutOverride Boolean            @default(false)
+  /// The code printed on the product's pack, scanned at the till. Text so leading zeros survive; unique per restaurant when set (a partial index in the migration).
+  barcode         String?
   product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum PosPrinterRole {
+  RECEIPT
+  KITCHEN
+}
+
+enum PosPrinterTransport {
+  NETWORK
+  FILE
+}
+
+/// A thermal printer of the restaurant. The bridge program on each till PC reaches it by address.
+model PosPrinter {
+  id           String              @id @default(cuid())
+  restaurantId String
+  name         String
+  role         PosPrinterRole
+  transport    PosPrinterTransport
+  /// host:port for NETWORK, a Windows share path for FILE.
+  address      String
+  /// 58 or 80 (millimetres).
+  paperWidth   Int                 @default(80)
+  cut          Boolean             @default(true)
+  /// The drawer port pin (2 or 5) when a cash drawer hangs off this printer.
+  drawerPin    Int?
+  /// The printer that takes receipts; at most one per restaurant.
+  isDefault    Boolean             @default(false)
+  /// A KITCHEN printer for one section; null takes every section without a printer of its own.
+  sectionId    String?
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  section      PosKitchenSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
 }
@@ -1545,6 +1598,10 @@ model PosPaymentLeg {
   amount       Int
   /// Integer IQD a cash customer handed over (at least `amount`); null for other methods.
   tendered     Int?
+  /// Whole US dollars a customer handed over for a CASH_USD leg; null for other methods.
+  tenderedUsd  Int?
+  /// Dinars per dollar, frozen when a CASH_USD leg was taken (a refund goes back at this rate); null for other methods.
+  rate         Int?
   reference    String?
   restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -1570,6 +1627,11 @@ model PosShift {
   expectedCashAtClose Int?
   /// countedCash minus expectedCashAtClose: positive is over, negative is short.
   difference          Int?
+  /// Whole dollars counted in the drawer at close; null when the restaurant takes no dollars (or the shift is open).
+  countedUsd          Int?
+  expectedUsdAtClose  Int?
+  /// countedUsd minus expectedUsdAtClose.
+  differenceUsd       Int?
   /// Z report number, per restaurant, given when the shift closes. Null for a shift closed before numbering or still open.
   zNumber             Int?
   note                String               @default("")

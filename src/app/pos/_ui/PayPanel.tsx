@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
   POS_PAYMENT_METHODS,
+  type PosLegMethodKey,
   type PosPaymentMethodKey,
 } from "@/server/domain/pos/payment-methods";
 import { useSyncOptional } from "./sync/SyncProvider";
@@ -13,9 +14,13 @@ import {
   legsReady,
   remaining,
   tipPreset,
+  usdBack,
+  usdDue,
+  usdQuick,
   toLegs,
   type LegAmounts,
 } from "@/lib/pos-pay-legs";
+import { formatNumber } from "@/lib/pos-format";
 import { amountDigits, quickCash } from "@/lib/pos-view";
 import { useT } from "@/studio/i18n";
 import { Button } from "@/studio/ui/Button";
@@ -33,6 +38,8 @@ interface Props {
   total: number;
   /** The methods the restaurant has switched on (cash is always one). */
   methods?: readonly PosPaymentMethodKey[];
+  /** Cash in US dollars: whether it is on and the dinars per dollar. */
+  usd?: { enabled: boolean; rate: number };
   /** Pay only these lines (one guest's share of a split bill); `total` is then that share. */
   lineIds?: string[];
 }
@@ -50,6 +57,7 @@ export function PayPanel({
   version,
   total,
   methods = ["CASH"],
+  usd = { enabled: false, rate: 0 },
   lineIds,
 }: Props) {
   return (
@@ -65,6 +73,7 @@ export function PayPanel({
           version={version}
           total={total}
           methods={methods}
+          usd={usd}
           lineIds={lineIds}
         />
       ) : null}
@@ -89,6 +98,7 @@ function PayBody({
   version,
   total,
   methods = ["CASH"],
+  usd = { enabled: false, rate: 0 },
   lineIds,
 }: Omit<Props, "open" | "onClose">) {
   const t = useT();
@@ -97,18 +107,21 @@ function PayBody({
   const { call, pending } = usePosCall();
   const sync = useSyncOptional();
   const online = sync?.online ?? true;
-  const offered = POS_PAYMENT_METHODS.filter(
-    (m) => methods.includes(m) && (m === "CASH" || online),
-  );
+  // Dollars need the server's rate, so like the terminal methods they are offered online only.
+  const offered: PosLegMethodKey[] = [
+    ...POS_PAYMENT_METHODS.filter((m) => methods.includes(m) && (m === "CASH" || online)),
+    ...(usd.enabled && usd.rate > 0 && online ? (["CASH_USD"] as const) : []),
+  ];
 
   const [several, setSeveral] = useState(false);
-  const [chosen, setChosen] = useState<PosPaymentMethodKey>("CASH");
+  const [chosen, setChosen] = useState<PosLegMethodKey>("CASH");
   const [amounts, setAmounts] = useState<LegAmounts>({});
   const [references, setReferences] = useState<Record<string, string>>({});
   const [handed, setHanded] = useState<number | null>(null);
   const [typed, setTyped] = useState("");
   const [tipText, setTipText] = useState("");
   const [tipChoice, setTipChoice] = useState<string>("CASH");
+  const [usdTyped, setUsdTyped] = useState<number | null>(null);
 
   const method = offered.includes(chosen) ? chosen : "CASH";
   const effective: LegAmounts = several ? amounts : { [method]: String(total) };
@@ -116,9 +129,16 @@ function PayBody({
     .filter(([, text]) => Number(text) > 0)
     .map(([m]) => m);
   const tip = Number(tipText) || 0;
-  const tipMethod = usedMethods.includes(tipChoice)
+  // A tip is left in dinars or on a terminal, never in dollars.
+  const tipMethods = usedMethods.filter((m) => m !== "CASH_USD");
+  const tipMethod = tipMethods.includes(tipChoice)
     ? tipChoice
-    : (usedMethods[0] ?? "CASH");
+    : (tipMethods[0] ?? "CASH");
+  const usdAmount = Number(effective.CASH_USD) || 0;
+  const usdNeeded = usdDue(usdAmount, usd.rate) ?? 0;
+  const usdHanded = usdTyped === null ? usdNeeded : usdTyped;
+  const usdEnough = usdAmount === 0 || usdHanded >= usdNeeded;
+  const usdChange = usdAmount > 0 ? usdBack(usdHanded, usd.rate, usdAmount) : 0;
   const cash = Number(effective.CASH) || 0;
   const cashTip = tipMethod === "CASH" ? tip : 0;
   const cashDue = cash + cashTip;
@@ -128,8 +148,8 @@ function PayBody({
   const enough = !hasCash || change >= 0;
   const left = remaining(total, effective);
   const split = several ? legsReady(total, amounts) : true;
-  const ready = split && enough && tip <= total;
-  const terminalMethods = usedMethods.filter((m) => m !== "CASH");
+  const ready = split && enough && usdEnough && tip <= total;
+  const terminalMethods = usedMethods.filter((m) => m !== "CASH" && m !== "CASH_USD");
 
   const pay = () =>
     void call(
@@ -139,12 +159,14 @@ function PayBody({
           expectedVersion: version,
           expectedTotal: total,
           // A bill that came to nothing (comped) has no amounts to split: the single-method call records it.
-          ...(total === 0 ? { method: "CASH", amountReceived: 0 } : { legs: toLegs(effective, references, tendered) }),
+          ...(total === 0
+            ? { method: "CASH", amountReceived: 0 }
+            : { legs: toLegs(effective, references, tendered, usdAmount > 0 ? { dollars: usdHanded, rate: usd.rate } : undefined) }),
           ...(lineIds ? { lineIds } : {}),
           ...(tip > 0 ? { tip: { amount: tip, method: tipMethod } } : {}),
         }),
       {
-        onOk: () => router.push(`/pos/orders/${orderId}/receipt`),
+        onOk: () => router.push(`/pos/orders/${orderId}/receipt?print=1`),
       },
     );
 
@@ -203,7 +225,7 @@ function PayBody({
                   {t("pos.pay.rest")}
                 </button>
               </div>
-              {m !== "CASH" && Number(amounts[m]) > 0 ? (
+              {m !== "CASH" && m !== "CASH_USD" && Number(amounts[m]) > 0 ? (
                 <Input
                   size="lg"
                   dir="ltr"
@@ -256,7 +278,7 @@ function PayBody({
         </fieldset>
       ) : null}
 
-      {!several && method !== "CASH" ? (
+      {!several && method !== "CASH" && method !== "CASH_USD" ? (
         <div className="flex flex-col gap-2">
           <p className="text-sm text-muted">{t("pos.pay.terminalNote")}</p>
           <Input
@@ -313,10 +335,10 @@ function PayBody({
           value={tipText}
           onChange={(event) => setTipText(amountDigits(event.target.value))}
         />
-        {tip > 0 && usedMethods.length > 1 ? (
+        {tip > 0 && tipMethods.length > 1 ? (
           <div className="flex flex-wrap items-center gap-2">
             <span className="text-sm text-muted">{t("pos.pay.tipIn")}</span>
-            {usedMethods.map((m) => (
+            {tipMethods.map((m) => (
               <button
                 key={m}
                 type="button"
@@ -330,6 +352,56 @@ function PayBody({
           </div>
         ) : null}
       </div>
+
+      {usdAmount > 0 ? (
+        <div className="flex flex-col gap-2" data-testid="pay-usd">
+          <dl className="flex items-baseline justify-between gap-3 text-lg">
+            <dt className="text-muted">{t("pos.pay.usdTake")}</dt>
+            <dd className="text-2xl font-semibold" dir="ltr">
+              {t("pos.usd.amount", { n: formatNumber(usdNeeded) })}
+            </dd>
+          </dl>
+          <span className="text-sm text-muted" dir="ltr">
+            {t("pos.pay.usdRate", { rate: money(usd.rate) })}
+          </span>
+          <span className="text-base font-medium text-text">
+            {t("pos.pay.usdHanded")}
+          </span>
+          <div className="flex flex-wrap gap-2">
+            {usdQuick(usdNeeded).map((dollars) => (
+              <button
+                key={dollars}
+                type="button"
+                onClick={() => setUsdTyped(dollars)}
+                aria-pressed={usdHanded === dollars}
+                className={chip(usdHanded === dollars)}
+              >
+                {t("pos.usd.amount", { n: formatNumber(dollars) })}
+              </button>
+            ))}
+          </div>
+          <Input
+            size="lg"
+            inputMode="numeric"
+            dir="ltr"
+            placeholder={t("pos.pay.usdOther")}
+            aria-label={t("pos.pay.usdOther")}
+            value={usdTyped === null ? "" : String(usdTyped)}
+            onChange={(event) => {
+              const digits = amountDigits(event.target.value);
+              setUsdTyped(digits === "" ? null : Number(digits));
+            }}
+          />
+          <dl className="flex items-baseline justify-between gap-3 text-lg" aria-live="polite">
+            <dt className="text-muted">
+              {usdEnough ? t("pos.pay.usdChange") : t("pos.pay.usdShort")}
+            </dt>
+            <dd className={cx("text-2xl font-semibold", usdEnough ? "text-success" : "text-danger")}>
+              {usdEnough ? money(usdChange) : t("pos.usd.amount", { n: formatNumber(usdNeeded - usdHanded) })}
+            </dd>
+          </dl>
+        </div>
+      ) : null}
 
       {hasCash ? (
         <div className="flex flex-col gap-2">

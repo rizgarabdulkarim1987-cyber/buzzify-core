@@ -1,6 +1,6 @@
 'use client';
 
-import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
+import { POS_LEG_METHODS } from '@/server/domain/pos/payment-methods';
 import Link from 'next/link';
 import { formatNumber } from '@/lib/pos-format';
 import { countKind } from '@/lib/pos-view';
@@ -42,12 +42,13 @@ export function DailyReportView({ report }: { report: DailyReport }) {
           <Stat
             label={t('pos.report.refunds')}
             value={money(totals.refundsTotal)}
-            hint={POS_PAYMENT_METHODS.filter((m) => totals.refundsByMethod[m].count > 0)
+            hint={POS_LEG_METHODS.filter((m) => totals.refundsByMethod[m].count > 0)
               .map((m) => `${t(`pos.method.${m}`)} ${money(totals.refundsByMethod[m].total)}`)
               .join(' · ')}
           />
         ) : null}
         {totals.deliveryFeesTotal > 0 ? <Stat label={t('pos.report.deliveryFees')} value={money(totals.deliveryFeesTotal)} /> : null}
+        {totals.roundingTotal !== 0 ? <Stat label={t('pos.report.rounding')} value={money(totals.roundingTotal)} /> : null}
         <Stat label={t('pos.report.expenses')} value={money(totals.expensesTotal)} />
         <Stat label={t('pos.report.cancelled')} value={`${formatNumber(totals.cancelledOrders)} / ${formatNumber(totals.cancelledLines)}`} hint={t('pos.report.cancelledHint')} />
       </dl>
@@ -105,6 +106,11 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
         <Line label={t('pos.report.discounts')} value={money(shift.discountsTotal)} />
         {shift.refundsTotal > 0 ? <Line label={t('pos.report.refunds')} value={money(shift.refundsTotal)} /> : null}
         {shift.deliveryFeesTotal > 0 ? <Line label={t('pos.report.deliveryFees')} value={money(shift.deliveryFeesTotal)} /> : null}
+        {shift.roundingTotal !== 0 ? <Line label={t('pos.report.rounding')} value={money(shift.roundingTotal)} /> : null}
+        {shift.usdReceived > 0 ? <Line label={t('pos.report.usdReceived')} value={t('pos.usd.amount', { n: formatNumber(shift.usdReceived) })} /> : null}
+        {shift.usdRefunded > 0 ? <Line label={t('pos.report.usdRefunded')} value={t('pos.usd.amount', { n: formatNumber(shift.usdRefunded) })} /> : null}
+        {shift.countedUsd !== null ? <Line label={t('pos.shift.expectedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.expectedUsd) })} /> : null}
+        {shift.countedUsd !== null ? <Line label={t('pos.shift.countedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.countedUsd) })} /> : null}
         <Line label={t('pos.shift.expenses')} value={money(shift.expenses.reduce((sum, e) => sum + e.amount, 0))} />
         <Line label={t('pos.shift.expected')} value={money(shift.expectedCash)} />
         {shift.countedCash !== null ? <Line label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}

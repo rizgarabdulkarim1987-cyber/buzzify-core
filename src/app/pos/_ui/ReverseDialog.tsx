@@ -10,6 +10,7 @@ import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { useMoney } from './money';
+import { usePrint } from './print/PrintProvider';
 import { useSyncOptional } from './sync/SyncProvider';
 import { usePosCall } from './use-pos-call';
 
@@ -27,6 +28,7 @@ export function ReverseButton({ orderId, paymentId, version, total, method }: Pr
   const t = useT();
   const money = useMoney();
   const { call } = usePosCall();
+  const { openDrawer } = usePrint();
   const sync = useSyncOptional();
   const [open, setOpen] = useState(false);
   const online = sync?.online ?? true;
@@ -48,7 +50,11 @@ export function ReverseButton({ orderId, paymentId, version, total, method }: Pr
           const reason = String(form.get('reason') ?? '').trim();
           const reference = String(form.get('reference') ?? '').trim();
           const result = await call(() => reversePosPayment({ orderId, ...(paymentId ? { paymentId } : {}), expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
-          if (result.ok) return true;
+          if (result.ok) {
+            // Cash goes back out of the drawer, so it opens (no paper).
+            if (!terminal) void openDrawer();
+            return true;
+          }
           const fields = result.error.fields;
           return fields?.reason ? { fields: { reason: fields.reason } } : { message: t('pos.order.actionRefused') };
         }}

@@ -29,9 +29,9 @@ export function evenGroups(lines: readonly SplitViewLine[], guests: number): str
   return groups.filter((group) => group.ids.length > 0).map((group) => group.ids);
 }
 
-/** What the selected lines come to with their share of the invoice discount, service, tax and delivery fee. */
-export function partTotalOf(full: Totals, taken: PaidComponents, lines: readonly SplitViewLine[], selected: readonly string[]): number {
+/** What the selected lines come to with their share of the invoice discount, service, tax and delivery fee, rounded to the step. */
+export function partTotalOf(full: Totals, taken: PaidComponents, lines: readonly SplitViewLine[], selected: readonly string[], step = 0): number {
   if (selected.length === 0) return 0;
   const live = lines.filter((line) => !line.cancelled).map((line) => ({ id: line.id, total: line.lineTotal, paid: line.paid }));
-  return partTotals(full, live, selected, taken).total;
+  return partTotals(full, live, selected, taken, step).total;
 }

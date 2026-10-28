@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { useMemo, useState } from 'react';
 import {
   addPosLine,
@@ -23,6 +24,7 @@ import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-vi
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
 import { offerPerUnit } from '@/server/domain/pos/line-offer';
+import { productByBarcode } from '@/server/domain/pos/scan';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
@@ -40,6 +42,8 @@ import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
+import { usePrint } from './print/PrintProvider';
+import { useBarcodeScanner } from './use-barcode-scanner';
 import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
@@ -97,6 +101,7 @@ export function OrderScreen({
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
+  const { printKitchenRound } = usePrint();
   const [tab, setTab] = useState<'menu' | 'order'>('menu');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -120,7 +125,7 @@ export function OrderScreen({
   const [selected, setSelected] = useState<string[]>([]);
   const stillUnpaid = unpaidLineIds(order.lines);
   const picked = selected.filter((id) => stillUnpaid.includes(id));
-  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked);
+  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked, order.roundingStep);
   const leaveSplit = () => {
     setSplitting(false);
     setSelected([]);
@@ -155,6 +160,15 @@ export function OrderScreen({
     if (needsSheet(product)) setSheet(product);
     else add(product, { variantId: product.variants[0]?.id, optionIds: [], quantity: 1, note: '' });
   };
+
+  // A scanned barcode adds the product like a tap on it; a code nobody has, or a sold-out product, says so.
+  useBarcodeScanner((code) => {
+    const id = catalog ? productByBarcode(catalog.products, code) : null;
+    const scanned = catalog?.products.find((p) => p.id === id);
+    if (!scanned) toast.error(t('pos.scan.unknown'));
+    else if (!scanned.available) toast.error(t('pos.scan.soldOut'));
+    else tapProduct(scanned);
+  }, canChange && dialog === 'none' && sheet === null);
 
   const reasonOf = (form: FormData) => String(form.get('reason') ?? '').trim();
   const failed = { message: t('pos.order.actionRefused') };
@@ -394,13 +408,14 @@ export function OrderScreen({
             {order.totals.service > 0 ? <Row label={t('pos.totals.service')} value={money(order.totals.service)} /> : null}
             {order.totals.tax > 0 ? <Row label={t('pos.totals.tax')} value={money(order.totals.tax)} /> : null}
             {order.totals.deliveryFee > 0 ? <Row label={t('pos.totals.deliveryFee')} value={money(order.totals.deliveryFee)} /> : null}
+            {order.totals.rounding !== 0 ? <Row label={t('pos.totals.rounding')} value={`${order.totals.rounding > 0 ? '+' : '−'} ${money(Math.abs(order.totals.rounding))}`} /> : null}
             <div className="mt-2 flex items-baseline justify-between gap-3 rounded-2xl bg-hover px-4 py-3">
               <dt className="text-lg font-bold">{t('pos.calm.finalTotal')}</dt>
               <dd className="text-3xl font-bold tracking-tight">{money(order.totals.total)}</dd>
             </div>
             {order.parts.length > 0 ? (
               <>
-                <Row label={t('pos.split.paidSoFar')} value={money(order.totals.total - order.leftToPay)} />
+                <Row label={t('pos.split.paidSoFar')} value={money(order.parts.reduce((sum, part) => sum + part.total, 0))} />
                 <div className="flex items-baseline justify-between gap-3 px-4">
                   <dt className="text-base font-semibold">{t('pos.split.leftToPay')}</dt>
                   <dd className="text-2xl font-bold">{money(order.leftToPay)}</dd>
@@ -412,7 +427,7 @@ export function OrderScreen({
           {canChange ? (
             <div className="flex flex-col gap-2">
               {kitchenOn ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: () => { if (order.kitchen.print) void printKitchenRound(order.id); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}
@@ -486,8 +501,8 @@ export function OrderScreen({
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
-      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} />
-      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} lineIds={picked} />
+      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} usd={order.usd} />
+      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} usd={order.usd} lineIds={picked} />
 
       <ConfirmDialog
         open={dialog === 'cancelOrder'}

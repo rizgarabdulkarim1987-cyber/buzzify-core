@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getPosAccess } from '@/server/pos/actor';
 import { query } from '@/server/studio/framework/invoke';
 import { posKitchenQueue, posKitchenScope } from '@/server/studio/queries/pos';
@@ -31,6 +32,13 @@ export default async function KitchenPage() {
   return (
     <>
       <PageHeader title={t('pos.kitchen.title')} />
+      {scope.sectionId === null ? (
+        <div className="px-4 pb-3 sm:px-8">
+          <Link href="/pos/kitchen/expo" className="inline-flex min-h-12 items-center rounded-md border border-line-strong px-4 text-base font-medium text-text hover:bg-hover">
+            {t('pos.expo.link')}
+          </Link>
+        </div>
+      ) : null}
       <KitchenScreen cards={cards} readAt={readAt} canFilter={scope.sectionId === null} />
     </>
   );

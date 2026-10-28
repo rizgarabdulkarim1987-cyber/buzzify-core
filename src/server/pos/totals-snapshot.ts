@@ -16,6 +16,10 @@ export const totalsSnapshotSchema = z.object({
   tax: amount,
   deliveryFee: amount.default(0),
   total: amount,
+  /** What the restaurant's rounding step added (+) or took off (-) to reach `total`; absent in receipts paid before rounding existed. */
+  rounding: z.number().int().default(0),
+  /** The business's tax number as it was when the bill was paid, so a later edit never rewrites a tax document; absent if none. */
+  taxNumber: z.string().optional(),
   invoiceDiscountInput: discountSchema.nullable(),
   rates: z.object({ serviceRatePercent: z.number().int(), taxRatePercent: z.number().int() }),
   lines: z.array(

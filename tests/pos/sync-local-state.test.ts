@@ -36,6 +36,7 @@ function snapshot(over: Partial<SyncSnapshot> = {}): SyncSnapshot {
           available: true,
           hiddenFromGuests: false,
           sectionId: null,
+          barcode: null,
           variants: [
             { id: 'small', names: { ar: 'صغير' }, priceDelta: 0, isDefault: true },
             { id: 'large', names: { ar: 'كبير' }, priceDelta: 1000, isDefault: false },

@@ -14,6 +14,7 @@ import {
   posSaveProductBasics,
   posSetAvailability,
   posSetCategorySection,
+  posSetProductBarcode,
   posSetProductSetting,
   posUpdateCategory,
   renameKitchenSection,
@@ -192,7 +193,7 @@ function ProductRow({ product, category, categories, sections, locales, setting 
   categories: Category[];
   sections: Section[];
   locales: Locale[];
-  setting: { sectionId: string | null; soldOutOverride: boolean };
+  setting: { sectionId: string | null; soldOutOverride: boolean; barcode: string | null };
 }) {
   const t = useT();
   const router = useRouter();
@@ -257,6 +258,23 @@ function ProductRow({ product, category, categories, sections, locales, setting 
             disabled={busy}
             onChange={(event) => void call(() => posSetProductSetting({ productId: product.id, sectionId: event.target.value || null, soldOutOverride: setting.soldOutOverride }))}
             options={sectionOptions(t, sections)}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-text">
+          {t('pos.catalog.productBarcode')}
+          <Input
+            key={setting.barcode ?? ''}
+            dir="ltr"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={120}
+            className="w-44 rtl:text-right"
+            defaultValue={setting.barcode ?? ''}
+            disabled={busy}
+            onBlur={(event) => {
+              const next = event.target.value.trim();
+              if (next !== (setting.barcode ?? '')) void call(() => posSetProductBarcode({ productId: product.id, barcode: next }));
+            }}
           />
         </label>
         {product.isHidden && <span className="text-sm text-muted">{t('pos.catalog.productHidden')}</span>}
@@ -363,7 +381,7 @@ function CategoryCard({ category, categories, sections, locales, sectionId, prod
               categories={categories}
               sections={sections}
               locales={locales}
-              setting={productSettings[product.id] ?? { sectionId: null, soldOutOverride: false }}
+              setting={productSettings[product.id] ?? { sectionId: null, soldOutOverride: false, barcode: null }}
             />
           ))}
           {hidden > 0 && (

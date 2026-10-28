@@ -2,12 +2,15 @@ import { z } from 'zod';
 import { guardedAi } from '@/server/ai/ai-error-code';
 import { menuImportInput } from '@/server/ai/menu-import';
 import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
+import { printerAddressAllowed } from '@/server/domain/pos/bridge-protocol';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
+import { refuse } from '@/server/pos/errors';
+import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
 import {
@@ -66,8 +69,17 @@ export const updatePosSettings = defineAction({
     // 0 switches the idle sign-out off.
     idleMinutes: z.number().int().min(0).max(240),
     requireApproval: z.boolean(),
+    // The payable total rounds to a multiple of this many dinars; 0 switches rounding off.
+    roundingStep: z.union([z.literal(0), z.literal(250), z.literal(500), z.literal(1000)]).default(0),
+    usdEnabled: z.boolean().default(false),
+    usdRate: z.number().int().min(0).max(100_000).default(0),
+    invoiceName: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceAddress: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoicePhone: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceTaxNumber: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceFooter: z.string().trim().max(120, 'Use at most 120 characters').default(''),
     version: z.number().int().min(0),
-  }),
+  }).refine((input) => !input.usdEnabled || input.usdRate > 0, { message: 'Enter the dollar rate', path: ['usdRate'] }),
   target: () => TILL,
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
@@ -301,6 +313,83 @@ export const deleteKitchenSection = defineAction({
     }),
 });
 
+// Printers -------------------------------------------------------------------------------------------------------------
+
+export const savePosPrinter = defineAction({
+  name: 'pos.savePrinter',
+  permission: null,
+  pos: 'settings.manage',
+  input: z
+    .object({
+      printerId: idField.optional(),
+      name: sectionName,
+      role: z.enum(['RECEIPT', 'KITCHEN']),
+      transport: z.enum(['NETWORK', 'FILE']),
+      address: z.string().trim().max(200, 'Use at most 120 characters'),
+      paperWidth: z.union([z.literal(58), z.literal(80)]),
+      cut: z.boolean(),
+      drawerPin: z.union([z.literal(2), z.literal(5)]).nullable(),
+      isDefault: z.boolean(),
+      sectionId: idField.nullable(),
+    })
+    .refine((input) => printerAddressAllowed(input.transport, input.address), { message: 'Enter the printer address', path: ['address'] }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const { id, created } = await savePrinterIn(tx, restaurantId, input);
+      ctx.audit({ action: created ? 'pos.printer.create' : 'pos.printer.update', entityType: 'PosPrinter', entityId: id, changes: { name: { before: null, after: input.name } } });
+      return { printerId: id };
+    });
+  },
+});
+
+export const removePosPrinter = defineAction({
+  name: 'pos.removePrinter',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ printerId: idField }),
+  target: () => TILL,
+  run: (ctx, { printerId }) =>
+    ctx.transaction(async (tx) => {
+      const row = await removePrinterIn(tx, printerId);
+      ctx.audit({ action: 'pos.printer.delete', entityType: 'PosPrinter', entityId: row.id, changes: { name: { before: row.name, after: null } } });
+      return { deleted: true as const };
+    }),
+});
+
+/** Opening the drawer with no sale is allowed with a reason, and always leaves a trace. */
+export const openPosDrawer = defineAction({
+  name: 'pos.openDrawer',
+  permission: null,
+  pos: 'shift.use',
+  input: z.object({ reason: z.string().trim().min(1, 'Enter a reason').max(200, 'Use at most 200 characters') }),
+  target: () => TILL,
+  run: (ctx, { reason }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async () => {
+      ctx.audit({ action: 'pos.drawer.open', entityType: 'PosDrawer', entityId: restaurantId, changes: { reason: { before: null, after: reason } } });
+      return { opened: true as const };
+    });
+  },
+});
+
+/** A receipt printed again is not a new sale; it is recorded so a copy can be told from the original. */
+export const logPosReprint = defineAction({
+  name: 'pos.logReprint',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ paymentId: idField }),
+  target: () => TILL,
+  run: (ctx, { paymentId }) =>
+    ctx.transaction(async (tx) => {
+      const payment = await tx.posPayment.findFirst({ where: { id: paymentId }, select: { id: true } });
+      if (!payment) throw new StudioError('NOT_FOUND');
+      ctx.audit({ action: 'pos.receipt.reprint', entityType: 'PosPayment', entityId: payment.id, changes: {} });
+      return { logged: true as const };
+    }),
+});
+
 /** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
 export const posSetCategorySection = defineAction({
   name: 'pos.setCategorySection',
@@ -342,6 +431,28 @@ export const posSetProductSetting = defineAction({
       if ((row?.sectionId ?? null) !== sectionId) changes.sectionId = { before: row?.sectionId ?? null, after: sectionId };
       if ((row?.soldOutOverride ?? false) !== soldOutOverride) changes.soldOutOverride = { before: row?.soldOutOverride ?? false, after: soldOutOverride };
       if (Object.keys(changes).length > 0) ctx.audit({ action: 'pos.product.setting', entityType: 'PosProductSetting', entityId: productId, changes });
+      return { productId };
+    });
+  },
+});
+
+/** The code a scanner reads for a product (empty clears it). One product per code in a restaurant. */
+export const posSetProductBarcode = defineAction({
+  name: 'pos.setProductBarcode',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, barcode: z.string().trim().max(120, 'Use at most 120 characters') }),
+  target: () => CATALOG,
+  run: (ctx, { productId, barcode: typed }) => {
+    const { restaurantId } = till(ctx);
+    const barcode = typed === '' ? null : typed;
+    return ctx.transaction(async (tx) => {
+      if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
+      const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
+      if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
+      else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
+      if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
       return { productId };
     });
   },

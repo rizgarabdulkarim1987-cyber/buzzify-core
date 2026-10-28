@@ -5,7 +5,7 @@ import type { AnyDb } from '@/server/data/tenant-db';
 import { expectedCash } from '@/server/domain/pos/cash-drawer';
 import { lineDiscount, lineTotal, type PricedLine } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
-import { cashIn, legsOf, refundLegs } from './payment-legs';
+import { cashIn, legsOf, refundLegs, usdDrawer } from './payment-legs';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
 
 /** The audit actions that cancel something; the report counts them per shift (a cancel has no shift column). */
@@ -24,6 +24,15 @@ export interface ShiftReport {
   salesByMethod: MethodSales;
   /** Sum of the totals (totalsSnapshot.total) of the shift's payments: the methods add up to it. */
   grossSales: number;
+  /** Dollars handed over for the shift's dollar legs, and dollars given back by its reversals. */
+  usdReceived: number;
+  usdRefunded: number;
+  /** The dollars the drawer should hold (frozen at close), and what was counted and the difference once closed. */
+  expectedUsd: number;
+  countedUsd: number | null;
+  differenceUsd: number | null;
+  /** What rounding added (+) or took off (-) across the shift's bills; already inside grossSales. */
+  roundingTotal: number;
   /** Tips left on top of the bills, outside grossSales. */
   tipsTotal: number;
   /** The part of discountsTotal given as comps (dishes on the house), by their reason in the snapshots. */
@@ -73,6 +82,7 @@ export interface DailyReport {
     grossSales: number;
     discountsTotal: number;
     deliveryFeesTotal: number;
+    roundingTotal: number;
     netSales: number;
     cancelledOrders: number;
     cancelledLines: number;
@@ -105,14 +115,14 @@ interface PaymentRow {
   tipAmount: number;
   tipMethod: PosPaymentMethod | null;
   totalsSnapshot: unknown;
-  legs: { method: PosPaymentMethod; amount: number; tendered: number | null; reference: string | null }[];
+  legs: { method: PosPaymentMethod; amount: number; tendered: number | null; tenderedUsd: number | null; rate: number | null; reference: string | null }[];
 }
 interface ReversalRow {
   shiftId: string | null;
   method: PosPaymentMethod;
   amount: number;
   cashPart: number;
-  payment: { legs: { method: PosPaymentMethod; amount: number }[] } | null;
+  payment: { legs: { method: PosPaymentMethod; amount: number; tenderedUsd: number | null; rate: number | null }[] } | null;
 }
 interface ExpenseRow {
   shiftId: string;
@@ -126,7 +136,7 @@ interface CancelRow {
   occurredAt: Date;
 }
 
-const noSales = (): MethodSales => ({ CASH: { count: 0, total: 0 }, ZAINCASH: { count: 0, total: 0 }, FIB: { count: 0, total: 0 }, QICARD: { count: 0, total: 0 } });
+const noSales = (): MethodSales => ({ CASH: { count: 0, total: 0 }, ZAINCASH: { count: 0, total: 0 }, FIB: { count: 0, total: 0 }, QICARD: { count: 0, total: 0 }, CASH_USD: { count: 0, total: 0 } });
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();
@@ -167,6 +177,7 @@ export function sales(payments: readonly PaymentRow[]) {
   let grossSales = 0;
   let discountsTotal = 0;
   let deliveryFeesTotal = 0;
+  let roundingTotal = 0;
   let tipsTotal = 0;
   let compsTotal = 0;
   for (const p of payments) {
@@ -179,11 +190,12 @@ export function sales(payments: readonly PaymentRow[]) {
     discountsTotal += snapshotDiscounts(p.id, snapshot);
     compsTotal += snapshotDiscounts(p.id, snapshot, 'COMP');
     deliveryFeesTotal += snapshot.deliveryFee;
+    roundingTotal += snapshot.rounding;
     tipsTotal += p.tipAmount;
     const cash = cashIn(p, snapshot.total);
     if (cash > 0) cashTotals.push(cash);
   }
-  return { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal };
+  return { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, roundingTotal, cashTotals, tipsTotal };
 }
 
 /** A cancel belongs to a shift when its person made it between the opening and the close (or now, while open). */
@@ -226,7 +238,7 @@ async function outsideShiftsOf(db: AnyDb, dayCancels: readonly CancelRow[], shif
 
 function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], reversals: readonly ReversalRow[], expenses: readonly ExpenseRow[], cancels: readonly CancelRow[], now: Date, closedByName: string | null): ShiftReport {
   const { user, ...shift } = row;
-  const { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal } = sales(payments);
+  const { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, roundingTotal, cashTotals, tipsTotal } = sales(payments);
   const refundsByMethod = noSales();
   for (const r of reversals) {
     for (const given of refundLegs(r)) {
@@ -235,6 +247,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     }
   }
   const refundsTotal = reversals.reduce((s, r) => s + r.amount, 0);
+  const usd = usdDrawer(payments, reversals.map((r) => r.payment ?? {}));
   const own = cancels.filter((c) => inShiftWindow(c, shift, now));
   return {
     kind: shift.closedAt ? 'Z' : 'X',
@@ -247,6 +260,12 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     discountsTotal,
     compsTotal,
     deliveryFeesTotal,
+    roundingTotal,
+    usdReceived: usd.received,
+    usdRefunded: usd.refunded,
+    expectedUsd: shift.expectedUsdAtClose ?? usd.expectedUsd,
+    countedUsd: shift.countedUsd,
+    differenceUsd: shift.differenceUsd,
     refundsByMethod,
     refundsTotal,
     netSales: grossSales - refundsTotal,
@@ -254,7 +273,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     cancelledLines: own.filter((c) => c.action === LINE_CANCEL).length,
     cancelReasons: reasonCounts(own),
     expenses: expenses.map((e) => ({ reason: e.reason, amount: e.amount })),
-    expectedCash: shift.expectedCashAtClose ?? expectedCash({ openingFloat: shift.openingFloat, cashSales: cashTotals, expenses: expenses.map((e) => e.amount), cashRefunds: reversals.map((r) => r.cashPart).filter((amount) => amount > 0) }),
+    expectedCash: shift.expectedCashAtClose ?? expectedCash({ openingFloat: shift.openingFloat, cashSales: cashTotals, expenses: expenses.map((e) => e.amount), cashRefunds: reversals.map((r) => r.cashPart).filter((amount) => amount > 0) }) - usd.dinarChange,
     countedCash: shift.countedCash,
     difference: shift.difference,
   };
@@ -268,8 +287,8 @@ async function shiftReports(db: AnyDb, restaurantId: string, shifts: readonly Sh
   const to = new Date(Math.max(...shifts.map((s) => (s.closedAt ?? now).getTime())));
   const closers = [...new Set(shifts.flatMap((s) => (s.closedByUserId && s.closedByUserId !== s.userId ? [s.closedByUserId] : [])))];
   const [payments, reversals, expenses, cancels, closerRows] = await Promise.all([
-    db.posPayment.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }], select: { id: true, shiftId: true, method: true, amountReceived: true, reference: true, tipAmount: true, tipMethod: true, totalsSnapshot: true, legs: { select: { method: true, amount: true, tendered: true, reference: true } } } }),
-    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, select: { shiftId: true, method: true, amount: true, cashPart: true, payment: { select: { legs: { select: { method: true, amount: true } } } } } }),
+    db.posPayment.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, orderBy: [{ paidAt: 'asc' }, { id: 'asc' }], select: { id: true, shiftId: true, method: true, amountReceived: true, reference: true, tipAmount: true, tipMethod: true, totalsSnapshot: true, legs: { select: { method: true, amount: true, tendered: true, tenderedUsd: true, rate: true, reference: true } } } }),
+    db.posPaymentReversal.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, select: { shiftId: true, method: true, amount: true, cashPart: true, payment: { select: { legs: { select: { method: true, amount: true, tenderedUsd: true, rate: true } } } } } }),
     db.posCashExpense.findMany({ where: { restaurantId, shiftId: { in: shiftIds } }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { shiftId: true, amount: true, reason: true } }),
     db.auditLog.findMany({
       where: { restaurantId, action: { in: [ORDER_CANCEL, LINE_CANCEL] }, actorId: { in: [...new Set(shifts.map((s) => s.userId))] }, occurredAt: { gte: from, lte: to } },
@@ -316,7 +335,7 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
 
   const byMethod = noSales();
   const refundsByMethod = noSales();
-  const totals = { refundsTotal: 0, grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
+  const totals = { refundsTotal: 0, grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, roundingTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
   for (const r of reports) {
     for (const method of Object.keys(byMethod) as PosPaymentMethod[]) {
       byMethod[method].count += r.salesByMethod[method].count;
@@ -328,6 +347,7 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
     totals.grossSales += r.grossSales;
     totals.discountsTotal += r.discountsTotal;
     totals.deliveryFeesTotal += r.deliveryFeesTotal;
+    totals.roundingTotal += r.roundingTotal;
     totals.netSales += r.netSales;
     totals.cancelledOrders += r.cancelledOrders;
     totals.cancelledLines += r.cancelledLines;

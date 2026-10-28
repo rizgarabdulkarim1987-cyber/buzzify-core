@@ -13,6 +13,8 @@ import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { loadTillCatalog } from '@/server/pos/till-catalog';
+import { readExpo } from '@/server/pos/expo';
+import { listPrintersIn } from '@/server/pos/printers';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
 import { listPosStaff } from '@/server/pos/staff';
@@ -35,6 +37,25 @@ export const posSettings = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readPosSettings(ctx.db, restaurantOf(ctx)),
+});
+
+/** The printers, for every role: the till prints with them, only settings managers change them. */
+export const posPrinters = defineQuery({
+  name: 'pos.printers',
+  permission: null,
+  pos: 'pin.own',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listPrintersIn(ctx.db, restaurantOf(ctx)),
+});
+
+export const posSectionList = defineQuery({
+  name: 'pos.sectionList',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listKitchenSections(ctx.db, restaurantOf(ctx)),
 });
 
 export const posStaff = defineQuery({
@@ -80,14 +101,14 @@ export const posCatalogEditor = defineQuery({
     const restaurantId = restaurantOf(ctx);
     const [categorySettings, productSettings] = await Promise.all([
       ctx.db.posCategorySetting.findMany({ where: { restaurantId }, select: { categoryId: true, sectionId: true } }),
-      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true } }),
+      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true, barcode: true } }),
     ]);
     return {
       menuId: ctx.menuId,
       catalog,
       sections,
       categorySections: Object.fromEntries(categorySettings.map((row) => [row.categoryId, row.sectionId])),
-      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride }])),
+      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride, barcode: row.barcode }])),
     };
   },
 });
@@ -267,6 +288,16 @@ export const posKitchenQueue = defineQuery({
   input: z.object({ sectionId: idField.nullable().optional() }),
   target: () => TILL,
   run: async (ctx, input) => ({ cards: await readKitchenQueue(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input), readAt: new Date() }),
+});
+
+/** The pass: each order's sections, waiting or ready. Not for a kitchen member tied to one section. */
+export const posExpo = defineQuery({
+  name: 'pos.expo',
+  permission: null,
+  pos: 'kitchen.view',
+  input: z.object({}),
+  target: () => TILL,
+  run: async (ctx) => ({ ...(await readExpo(ctx.db, restaurantOf(ctx), kitchenActor(ctx))), readAt: new Date() }),
 });
 
 const ticketInput = z.object({ orderId: idField, batch: z.number().int().min(1).max(2_147_483_647).optional() });

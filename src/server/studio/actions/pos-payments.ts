@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { delegates } from '@/server/data/tenant-db';
-import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
+import { POS_LEG_METHODS, POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
 import { payOrderIn } from '@/server/pos/payments';
 import { reversePaymentIn } from '@/server/pos/refunds';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
@@ -19,10 +19,13 @@ const note = z
   .optional();
 
 const leg = z.object({
-  method: z.enum(POS_PAYMENT_METHODS),
+  method: z.enum(POS_LEG_METHODS),
   amount: z.number().int().min(1).max(INT32),
   tendered: z.number().int().min(0).max(INT32).optional(),
   reference: note,
+  /** Cash in US dollars: the whole dollars handed over, and the dinars per dollar the screen showed. */
+  tenderedUsd: z.number().int().min(1).max(INT32).optional(),
+  rate: z.number().int().min(1).max(INT32).optional(),
 });
 
 function till(ctx: ActionContext) {
@@ -42,7 +45,7 @@ export const payPosOrder = defineAction({
     method: z.enum(POS_PAYMENT_METHODS).default('CASH'),
     reference: note,
     /** The bill paid with several methods; used instead of `method` and `amountReceived` when given. */
-    legs: z.array(leg).min(1).max(POS_PAYMENT_METHODS.length).optional(),
+    legs: z.array(leg).min(1).max(POS_LEG_METHODS.length).optional(),
     tip: z.object({ amount: z.number().int().min(0).max(INT32), method: z.enum(POS_PAYMENT_METHODS) }).optional(),
     /** Pay only these lines (one guest's share); without it, every line still unpaid. */
     lineIds: z.array(idField).min(1).max(200).optional(),

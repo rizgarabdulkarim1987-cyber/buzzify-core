@@ -9,6 +9,7 @@ import * as pin from '@/server/studio/actions/pos-pin';
 import * as requests from '@/server/studio/actions/pos-requests';
 import * as shifts from '@/server/studio/actions/pos-shifts';
 import { invoke, invokeQuery } from '@/server/studio/framework/invoke';
+import * as posQueries from '@/server/studio/queries/pos';
 import * as deliveryQueries from '@/server/studio/queries/pos-delivery';
 
 export async function updatePosSettings(input: unknown) {
@@ -63,6 +64,27 @@ export async function posSetAvailability(input: unknown) {
   return invoke(pos.posSetAvailability, input);
 }
 
+export async function openPosDrawer(input: unknown) {
+  return invoke(pos.openPosDrawer, input);
+}
+
+export async function logPosReprint(input: unknown) {
+  return invoke(pos.logPosReprint, input);
+}
+
+/** The ticket of the round just sent, for the cashier's printers. */
+export async function fetchOrderKitchenTicket(input: unknown) {
+  return invokeQuery(posQueries.posOrderKitchenTicket, input);
+}
+
+export async function savePosPrinter(input: unknown) {
+  return invoke(pos.savePosPrinter, input);
+}
+
+export async function removePosPrinter(input: unknown) {
+  return invoke(pos.removePosPrinter, input);
+}
+
 export async function createKitchenSection(input: unknown) {
   return invoke(pos.createKitchenSection, input);
 }
@@ -77,6 +99,10 @@ export async function deleteKitchenSection(input: unknown) {
 
 export async function posSetCategorySection(input: unknown) {
   return invoke(pos.posSetCategorySection, input);
+}
+
+export async function posSetProductBarcode(input: unknown) {
+  return invoke(pos.posSetProductBarcode, input);
 }
 
 export async function posSetProductSetting(input: unknown) {

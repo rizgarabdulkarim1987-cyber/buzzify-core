@@ -62,7 +62,7 @@ export async function readSyncSnapshot(db: PrismaClient, pos: PosActor, now: Dat
       locale: pos.locale,
       can: { discount: canPos(pos.role, 'order.discount'), cancel: canPos(pos.role, 'order.cancel'), pay: canPos(pos.role, 'payment.take') },
     },
-    rates: { serviceRatePercent: rates.serviceRatePercent, taxRatePercent: rates.taxRatePercent },
+    rates: { serviceRatePercent: rates.serviceRatePercent, taxRatePercent: rates.taxRatePercent, roundingStep: rates.roundingStep },
     kitchen: { print: rates.kitchenPrintEnabled, screen: rates.kitchenScreenEnabled },
     catalog,
     areas: board.areas.map((area) => ({

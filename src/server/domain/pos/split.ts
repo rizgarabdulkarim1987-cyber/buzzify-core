@@ -1,3 +1,4 @@
+import { roundTo } from './rounding';
 import type { Totals } from './totals';
 
 /** A live (not cancelled) line of the order: what it adds to the subtotal and whether a payment already took it. */
@@ -20,9 +21,10 @@ const sum = (values: number[]) => values.reduce((a, b) => a + b, 0);
 /**
  * The totals of one guest's part of a bill: the chosen lines' own subtotal, plus a share of the invoice discount, service,
  * tax and delivery fee in proportion to that subtotal. The part that takes the last unpaid lines gets exactly what is left of
- * each component, so all parts add up to the bill to the dinar whatever the rounding did on the way.
+ * each component, so all parts add up to the bill to the dinar whatever the rounding did on the way. With a rounding step the
+ * part's `total` is the payable amount (rounded half up on its own) and `rounding` the signed difference it made.
  */
-export function partTotals(full: Totals, lines: readonly SplitLine[], chosen: readonly string[], already: PaidComponents): Totals {
+export function partTotals(full: Totals, lines: readonly SplitLine[], chosen: readonly string[], already: PaidComponents, step = 0): Totals & { rounding: number } {
   const picked = new Set(chosen);
   const part = lines.filter((line) => picked.has(line.id));
   const subtotal = sum(part.map((line) => line.total));
@@ -36,5 +38,6 @@ export function partTotals(full: Totals, lines: readonly SplitLine[], chosen: re
   const service = spread(full.service, already.service);
   const tax = spread(full.tax, already.tax);
   const deliveryFee = spread(full.deliveryFee, already.deliveryFee);
-  return { subtotal, invoiceDiscount, service, tax, deliveryFee, total: subtotal - invoiceDiscount + service + tax + deliveryFee };
+  const payable = roundTo(subtotal - invoiceDiscount + service + tax + deliveryFee, step);
+  return { subtotal, invoiceDiscount, service, tax, deliveryFee, total: payable.total, rounding: payable.rounding };
 }

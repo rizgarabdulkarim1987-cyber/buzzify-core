@@ -3,6 +3,7 @@ import type { PosOrder, PosOrderLine, Prisma } from '@/generated/prisma/client';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { POS_PAYMENT_METHODS, type PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { canTransition, isLocked, LOCKED_STATUSES, type OrderStatus } from '@/server/domain/pos/order-state';
+import { roundTo } from '@/server/domain/pos/rounding';
 import { computeTotals, lineTotal, type Discount, type PricedLine, type Rates, type Totals } from '@/server/domain/pos/totals';
 import { StudioError } from '@/server/studio/framework/result';
 import type { DiscountWhy } from './approval';
@@ -45,6 +46,9 @@ export function orderTotals(
 }
 
 export interface TillRates extends Rates {
+  usdEnabled: boolean;
+  usdRate: number;
+  roundingStep: number;
   tableRingMinutes: number;
   kitchenPrintEnabled: boolean;
   kitchenScreenEnabled: boolean;
@@ -54,9 +58,9 @@ export interface TillRates extends Rates {
 export async function readRates(db: AnyDb, restaurantId: string): Promise<TillRates> {
   const settings = await db.posSettings.findFirst({
     where: { restaurantId },
-    select: { serviceRatePercent: true, taxRatePercent: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
+    select: { serviceRatePercent: true, taxRatePercent: true, roundingStep: true, usdEnabled: true, usdRate: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
   });
-  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
+  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, roundingStep: 0, usdEnabled: false, usdRate: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
 }
 
 // The order's version guard ---------------------------------------------------------------------------------------------
@@ -247,7 +251,12 @@ export interface OrderView {
   seatedAt: Date;
   invoiceDiscount: Discount | null;
   lines: OrderLineView[];
-  totals: Totals;
+  /** The bill's components, and `total` as the amount to pay: rounded to the restaurant's step, `rounding` being the difference. */
+  totals: Totals & { rounding: number };
+  /** The restaurant's rounding step in dinars (0: off); the screen needs it to price one guest's part. */
+  roundingStep: number;
+  /** Cash in US dollars: whether the till takes it and the dinars per dollar. */
+  usd: { enabled: boolean; rate: number };
   rates: Rates;
   kitchen: { print: boolean; screen: boolean };
   /** Set when the whole bill is paid: the last payment taken. */
@@ -263,7 +272,7 @@ export interface OrderView {
 }
 
 /** Only the total of a payment's frozen snapshot (totals-snapshot.ts imports this file, so it cannot be used here). */
-const partTotal = z.object({ total: z.number().int(), invoiceDiscount: z.number().int(), service: z.number().int(), tax: z.number().int(), deliveryFee: z.number().int() });
+const partTotal = z.object({ total: z.number().int(), rounding: z.number().int().default(0), invoiceDiscount: z.number().int(), service: z.number().int(), tax: z.number().int(), deliveryFee: z.number().int() });
 
 /** The order, all its lines (cancelled ones included, oldest first), its totals and the rates they were computed with. */
 export async function readOrderView(db: AnyDb, restaurantId: string, orderId: string): Promise<OrderView | null> {
@@ -282,6 +291,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
   ]);
   const { totals, invoiceDiscount } = orderTotals(order, lines, settings);
   const rates = effectiveRates(order.kind, settings);
+  const payable = roundTo(totals.total, settings.roundingStep);
   const paidLast = order.payments[order.payments.length - 1];
   const earlier = order.payments.map((p) => partTotal.parse(p.totalsSnapshot));
   const taken = {
@@ -338,13 +348,15 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
         sectionName: line.sectionNameSnapshot,
       };
     }),
-    totals,
+    totals: { ...totals, total: payable.total, rounding: payable.rounding },
+    roundingStep: settings.roundingStep,
+    usd: { enabled: settings.usdEnabled && settings.usdRate > 0, rate: settings.usdRate },
     rates,
     kitchen: { print: settings.kitchenPrintEnabled, screen: settings.kitchenScreenEnabled },
     paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,
     parts: order.payments.map((p) => ({ paymentId: p.id, part: p.part, method: p.method, total: partTotal.parse(p.totalsSnapshot).total, paidAt: p.paidAt, reversed: p.reversal !== null })),
     taken,
-    leftToPay: order.status === 'PAID' ? 0 : totals.total - earlier.reduce((sum, p) => sum + p.total, 0),
+    leftToPay: order.status === 'PAID' ? 0 : roundTo(totals.total - earlier.reduce((sum, p) => sum + p.total - p.rounding, 0), settings.roundingStep).total,
     paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }
