@@ -24,7 +24,7 @@ export default async function Page({ params, searchParams }: { params: Promise<{
       const { tenant, locale } = resolved.route;
       const view = await loadIntro(tenant, locale, new Date());
       if (!view) return redirect(`/${tenant.slug}${search}`);
-      return <IntroPage view={view} slug={tenant.slug} name={tenant.name} locale={locale} />;
+      return <IntroPage view={view} slug={tenant.slug} name={tenant.name} locale={locale} search={search} />;
     }
   }
 }

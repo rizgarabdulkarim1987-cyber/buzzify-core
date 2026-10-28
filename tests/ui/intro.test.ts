@@ -92,3 +92,11 @@ describe('IntroPage', () => {
     expect(render(view({ overlay: 0 }))).toContain('0)');
   });
 });
+
+describe('IntroPage keeps the visitor query', () => {
+  it('carries a QR scan or campaign query into every language link', () => {
+    const html = renderToStaticMarkup(createElement(IntroPage, { view: view(), slug: 'demo', name: 'Demo Cafe', locale: 'en', search: '?qr=abc&utm_source=x' }));
+    const links = [...html.matchAll(/<a [^>]*href="(\/demo\/[a-z]+[^"]*)"/g)].map((m) => m[1]);
+    expect(links).toEqual(['/demo/en?qr=abc&amp;utm_source=x', '/demo/ar?qr=abc&amp;utm_source=x', '/demo/ckb?qr=abc&amp;utm_source=x']);
+  });
+});

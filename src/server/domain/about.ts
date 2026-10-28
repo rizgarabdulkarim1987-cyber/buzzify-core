@@ -88,6 +88,16 @@ export function aboutIsEmpty(
   return !Object.values(about.story).some((blocks) => Array.isArray(blocks) && blocks.length > 0);
 }
 
+/**
+ * What the Explore address answers. The page itself when it has content. When the tab is on but its content is gone (the last offer ended,
+ * an owner emptied the story) the guest came from the header's compass, so they go back to the menu rather than to a dead end. When the tab
+ * is off, or not in the plan, the page does not exist.
+ */
+export function aboutAnswer(tabOn: boolean, hasContent: boolean): 'show' | 'menu' | 'missing' {
+  if (hasContent) return 'show';
+  return tabOn ? 'menu' : 'missing';
+}
+
 export interface HoursRow {
   day: Day;
   ranges: { open: string; close: string; overnight: boolean }[];

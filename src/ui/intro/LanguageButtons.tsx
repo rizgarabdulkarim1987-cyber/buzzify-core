@@ -18,13 +18,13 @@ function rememberLanguage(slug: string, code: Locale) {
  * The language choice. Real links to the menu in each language, so they work without JavaScript; with it, the choice is remembered first so
  * the next visit goes straight to the menu. The first language (the menu's default) sits alone, the rest in pairs. One language is one Enter.
  */
-export function LanguageButtons({ slug, locales, enter, label }: { slug: string; locales: Locale[]; enter: string; label: string }) {
+export function LanguageButtons({ slug, search, locales, enter, label }: { slug: string; search: string; locales: Locale[]; enter: string; label: string }) {
   const remember = (code: Locale) => rememberLanguage(slug, code);
   const [first, ...rest] = locales;
   if (!first) return null;
   if (rest.length === 0) {
     return (
-      <a href={`/${slug}/${first}`} onClick={() => remember(first)} className={`${BUTTON} w-full`}>
+      <a href={`/${slug}/${first}${search}`} onClick={() => remember(first)} className={`${BUTTON} w-full`}>
         {enter}
       </a>
     );
@@ -34,7 +34,7 @@ export function LanguageButtons({ slug, locales, enter, label }: { slug: string;
       {locales.map((code, index) => (
         <a
           key={code}
-          href={`/${slug}/${code}`}
+          href={`/${slug}/${code}${search}`}
           onClick={() => remember(code)}
           lang={code}
           className={`${BUTTON} ${index === 0 ? 'col-span-2' : ''}`}

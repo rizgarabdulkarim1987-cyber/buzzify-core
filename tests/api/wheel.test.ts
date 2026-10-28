@@ -195,6 +195,13 @@ describe('POST wheel', () => {
     expect(seen.has(productIds[1] as string)).toBe(false);
   });
 
+  it('caps one address at three times the daily spins even when the requests arrive together without cookies', async () => {
+    const address = ip();
+    const answers = await Promise.all(Array.from({ length: 10 }, () => call('POST', { address })));
+    expect(answers.filter((answer) => answer.status === 200).length).toBeLessThanOrEqual(3);
+    expect(await prisma.wheelSpin.count()).toBeLessThanOrEqual(3);
+  });
+
   it('rejects a body with extra fields', async () => {
     const response = await POST(
       new Request(`http://localhost/api/${SLUG}/wheel`, { method: 'POST', headers: { 'x-forwarded-for': ip() }, body: JSON.stringify({ winner: 'x' }) }),

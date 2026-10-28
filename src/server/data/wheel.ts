@@ -123,7 +123,14 @@ export async function spin(tenant: TenantInfo, locale: Locale, guestKey: string,
       (limit) => randomInt(limit),
     );
     try {
-      await db.wheelSpin.create({ data: { menuId: tenant.id, guestKey, ipHash, day, slot: counts.guestSpins } });
+      const row = await db.wheelSpin.create({ data: { menuId: tenant.id, guestKey, ipHash, day, slot: counts.guestSpins }, select: { id: true } });
+      // The address's count was read before this row went in, so spins that arrive together can all pass it. Count again with this row in:
+      // a spin that finds the address over its limit takes itself back out (together-arriving spins may all back out, never all stay).
+      const after = await spinsSoFar(tenant, day, null, ipHash);
+      if (after.ipSpins > spinsPerDay * IP_SPIN_FACTOR) {
+        await db.wheelSpin.deleteMany({ where: { id: row.id } });
+        return { ok: false, reason: 'SPINS_USED' };
+      }
     } catch (error) {
       // Another spin of this guest took the slot first: count again, and stop if that was the last one.
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') continue;

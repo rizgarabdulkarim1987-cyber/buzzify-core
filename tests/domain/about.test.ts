@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aboutIsEmpty, cleanStory, hoursView, offersLiveFor } from '@/server/domain/about';
+import { aboutAnswer, aboutIsEmpty, cleanStory, hoursView, offersLiveFor } from '@/server/domain/about';
 
 const at = (iso: string) => new Date(iso);
 const offer = (over: Partial<{ id: string; active: boolean; startsAt: Date | null; endsAt: Date | null; sortOrder: number }> = {}) => ({
@@ -66,6 +66,14 @@ describe('aboutIsEmpty', () => {
     expect(aboutIsEmpty({ ...blank, galleryAssetIds: ['a'] }, [])).toBe(false);
     expect(aboutIsEmpty({ ...blank, coverAssetId: 'a' }, [])).toBe(false);
     expect(aboutIsEmpty(blank, [offer()])).toBe(false);
+  });
+});
+
+describe('aboutAnswer', () => {
+  it('shows the page with content, sends a guest back to the menu when the tab is on but empty, and is missing when the tab is off', () => {
+    expect(aboutAnswer(true, true)).toBe('show');
+    expect(aboutAnswer(true, false)).toBe('menu');
+    expect(aboutAnswer(false, false)).toBe('missing');
   });
 });
 
