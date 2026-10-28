@@ -1,4 +1,4 @@
-import { ArrowLeft, Lock, MapPin } from 'lucide-react';
+import { ArrowLeft, FileX, Lock, MapPin } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
@@ -17,6 +17,24 @@ export function PickBranch({ t, scope }: { t: Translate; scope: 'shifts' | 'sale
   return (
     <div data-testid={`${scope}-pick-branch`} className="px-4 py-8 sm:px-8">
       <EmptyState icon={<MapPin />} title={t('pharmacy.sell.pickBranch.title')} body={t('pharmacy.sell.pickBranch.body')} />
+    </div>
+  );
+}
+
+/** A cursor the server no longer knows (the record behind it is gone, or the address was edited): say so and offer the first page, instead of an empty list. */
+export function StaleCursor({ t, href }: { t: Translate; href: string }) {
+  return (
+    <div data-testid="stale-cursor" role="status">
+      <EmptyState
+        icon={<FileX />}
+        title={t('pharmacy.list.stale.title')}
+        body={t('pharmacy.list.stale.body')}
+        action={
+          <Link href={href} className="inline-flex min-h-11 items-center justify-center rounded-md border border-line-strong bg-raised px-4 text-sm font-medium text-text hover:bg-hover" data-testid="stale-first">
+            {t('pharmacy.list.stale.first')}
+          </Link>
+        }
+      />
     </div>
   );
 }

@@ -43,7 +43,21 @@ export async function invokeQuery<I, O>(def: QueryDef<I, O>, raw: unknown, optio
  * (a conflict, an unexpected error) is thrown for the error boundary.
  */
 export async function query<I, O>(def: QueryDef<I, O>, raw: unknown): Promise<O> {
+  return unwrapForPage(await runQueryForPage(getPrisma(), await getActor(), def, raw));
+}
+
+/**
+ * Like `query` for a list read by cursor: when the server says the cursor is no longer available (`INVALID` naming the
+ * `cursor` field) the answer is `{ staleCursor: true }` so the page can say "page not found, go to the first" instead
+ * of the 404 page. Every other refusal is what `query` does with it.
+ */
+export async function queryByCursor<I, O>(def: QueryDef<I, O>, raw: unknown): Promise<{ staleCursor: false; data: O } | { staleCursor: true }> {
   const result = await runQueryForPage(getPrisma(), await getActor(), def, raw);
+  if (!result.ok && result.error.code === 'INVALID' && result.error.fields?.cursor) return { staleCursor: true };
+  return { staleCursor: false, data: unwrapForPage(result) };
+}
+
+function unwrapForPage<O>(result: ActionResult<O>): O {
   if (result.ok) return result.data;
   const { code, message, fields } = result.error;
   if (code === 'UNAUTHENTICATED') redirect(SIGN_IN_PATH);

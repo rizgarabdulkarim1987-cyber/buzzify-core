@@ -1,12 +1,12 @@
 import { ListX, Search, Undo2 } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Forbidden, Pager, PickBranch } from '@/app/pharmacy/_ui/PageGate';
+import { Forbidden, Pager, PickBranch, StaleCursor } from '@/app/pharmacy/_ui/PageGate';
 import { Money } from '@/app/pharmacy/_ui/money-parts';
 import { Num } from '@/app/pharmacy/_ui/sell-parts';
 import { formatUtc, saleFilterParams, shortId } from '@/app/pharmacy/_ui/shifts-logic';
 import { list } from '@/server/pharmacy/queries/returns';
-import { query } from '@/server/studio/framework/invoke';
+import { queryByCursor } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -48,7 +48,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Prom
   const filters = saleFilterParams({ from: one(raw.from), to: one(raw.to), number: one(raw.number) });
   const cursor = one(raw.cursor)?.slice(0, 64) || undefined;
   const filtered = Object.keys(filters).length > 0;
-  const page = await query(list, {
+  const found = await queryByCursor(list, {
     ...placeInput,
     ...(filters.from ? { from: `${filters.from}T00:00:00.000Z` } : {}),
     ...(filters.to ? { to: `${filters.to}T23:59:59.999Z` } : {}),
@@ -56,6 +56,8 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Prom
     ...(cursor ? { cursor } : {}),
     pageSize: PAGE_SIZE,
   });
+  const stale = found.staleCursor;
+  const page = found.staleCursor ? { items: [], nextCursor: null } : found.data;
   const href = (over: { cursor?: string }) => {
     const next = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) if (value) next.set(key, value);
@@ -90,7 +92,9 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Prom
             )}
           </div>
         </form>
-        {page.items.length === 0 ? (
+        {stale ? (
+          <StaleCursor t={t} href={href({})} />
+        ) : page.items.length === 0 ? (
           <div data-testid="returns-empty">
             <EmptyState icon={filtered ? <ListX /> : <Undo2 />} title={t(filtered ? 'pharmacy.sales.empty.filtered' : 'pharmacy.returns.empty.title')} body={t(filtered ? 'pharmacy.sales.empty.filteredBody' : 'pharmacy.returns.empty.body')} />
           </div>
@@ -113,7 +117,7 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Prom
             ))}
           </ul>
         )}
-        <Pager t={t} label={t('pharmacy.returns.title')} first={cursor ? href({}) : null} next={page.nextCursor ? href({ cursor: page.nextCursor }) : null} />
+        <Pager t={t} label={t('pharmacy.returns.title')} first={cursor && !stale ? href({}) : null} next={page.nextCursor ? href({ cursor: page.nextCursor }) : null} />
       </div>
     </>
   );

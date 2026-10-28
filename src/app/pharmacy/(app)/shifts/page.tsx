@@ -1,7 +1,7 @@
 import { DoorOpen, History } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Forbidden, Pager, PickBranch } from '@/app/pharmacy/_ui/PageGate';
+import { Forbidden, Pager, PickBranch, StaleCursor } from '@/app/pharmacy/_ui/PageGate';
 import { Money, ShiftStatus } from '@/app/pharmacy/_ui/money-parts';
 import { ShiftPanel } from '@/app/pharmacy/_ui/ShiftPanel';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
@@ -10,7 +10,7 @@ import { formatUtc, shortId } from '@/app/pharmacy/_ui/shifts-logic';
 import { current, list } from '@/server/pharmacy/queries/shifts';
 import { search } from '@/server/pharmacy/queries/sell';
 import { SHIFT_STATUSES } from '@/server/pharmacy/shifts-reads';
-import { query } from '@/server/studio/framework/invoke';
+import { query, queryByCursor } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { EmptyState } from '@/studio/ui/EmptyState';
@@ -58,11 +58,13 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
   const cursor = one(raw.cursor)?.slice(0, 64) || undefined;
   const write = access.writable('shift.use');
   const live = mayUse && write.ok;
-  const [now, found, page] = await Promise.all([
+  const [now, found, listed] = await Promise.all([
     live ? query(current, placeInput) : Promise.resolve(null),
     live ? query(search, { ...placeInput, q: '', limit: 1 }) : Promise.resolve(null),
-    query(list, { ...placeInput, ...(status ? { status } : {}), ...(cursor ? { cursor } : {}), pageSize: PAGE_SIZE }),
+    queryByCursor(list, { ...placeInput, ...(status ? { status } : {}), ...(cursor ? { cursor } : {}), pageSize: PAGE_SIZE }),
   ]);
+  const stale = listed.staleCursor;
+  const page = listed.staleCursor ? { items: [], nextCursor: null } : listed.data;
   const href = (over: { status?: string | undefined; cursor?: string | undefined }) => {
     const next = new URLSearchParams();
     if (over.status) next.set('status', over.status);
@@ -82,6 +84,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
             totals={now?.totals ?? null}
             currencies={found.settings.enabledCurrencies}
             defaultCurrency={found.settings.defaultCurrency}
+            asOf={new Date().toISOString()}
           />
         )}
 
@@ -97,7 +100,9 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
               </Link>
             ))}
           </nav>
-          {page.items.length === 0 ? (
+          {stale ? (
+            <StaleCursor t={t} href={href({ status })} />
+          ) : page.items.length === 0 ? (
             <div data-testid="shifts-empty">
               <EmptyState icon={<DoorOpen />} title={t('pharmacy.shifts.empty.title')} body={t('pharmacy.shifts.empty.body')} />
             </div>
@@ -127,7 +132,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
               ))}
             </ul>
           )}
-          <Pager t={t} label={t('pharmacy.shifts.title')} first={cursor ? href({ status }) : null} next={page.nextCursor ? href({ status, cursor: page.nextCursor }) : null} />
+          <Pager t={t} label={t('pharmacy.shifts.title')} first={cursor && !stale ? href({ status }) : null} next={page.nextCursor ? href({ status, cursor: page.nextCursor }) : null} />
         </section>
       </div>
     </>

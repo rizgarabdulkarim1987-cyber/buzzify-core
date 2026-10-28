@@ -1,12 +1,12 @@
 import { ListX, Receipt, Search } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { Forbidden, Pager, PickBranch } from '@/app/pharmacy/_ui/PageGate';
+import { Forbidden, Pager, PickBranch, StaleCursor } from '@/app/pharmacy/_ui/PageGate';
 import { Money, SaleStatus } from '@/app/pharmacy/_ui/money-parts';
 import { Num } from '@/app/pharmacy/_ui/sell-parts';
 import { formatUtc, SALE_STATUS_FILTERS, saleFilterParams } from '@/app/pharmacy/_ui/shifts-logic';
 import { list } from '@/server/pharmacy/queries/sales';
-import { query } from '@/server/studio/framework/invoke';
+import { queryByCursor } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -53,7 +53,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
   const filters = saleFilterParams({ status: one(raw.status), from: one(raw.from), to: one(raw.to), number: one(raw.number) });
   const cursor = one(raw.cursor)?.slice(0, 64) || undefined;
   const filtered = Object.keys(filters).length > 0;
-  const page = await query(list, {
+  const found = await queryByCursor(list, {
     ...placeInput,
     ...(filters.status ? { status: filters.status } : {}),
     ...(filters.from ? { from: `${filters.from}T00:00:00.000Z` } : {}),
@@ -62,6 +62,8 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
     ...(cursor ? { cursor } : {}),
     pageSize: PAGE_SIZE,
   });
+  const stale = found.staleCursor;
+  const page = found.staleCursor ? { items: [], nextCursor: null } : found.data;
   const href = (over: { cursor?: string }) => {
     const next = new URLSearchParams();
     for (const [key, value] of Object.entries(filters)) if (value) next.set(key, value);
@@ -105,7 +107,9 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
           </div>
         </form>
 
-        {page.items.length === 0 ? (
+        {stale ? (
+          <StaleCursor t={t} href={href({})} />
+        ) : page.items.length === 0 ? (
           <div data-testid="sales-empty">
             <EmptyState
               icon={filtered ? <ListX /> : <Receipt />}
@@ -136,7 +140,7 @@ export default async function SalesPage({ searchParams }: { searchParams: Promis
             ))}
           </ul>
         )}
-        <Pager t={t} label={t('pharmacy.sales.title')} first={cursor ? href({}) : null} next={page.nextCursor ? href({ cursor: page.nextCursor }) : null} />
+        <Pager t={t} label={t('pharmacy.sales.title')} first={cursor && !stale ? href({}) : null} next={page.nextCursor ? href({ cursor: page.nextCursor }) : null} />
       </div>
     </>
   );
