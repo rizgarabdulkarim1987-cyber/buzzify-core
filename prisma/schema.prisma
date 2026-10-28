@@ -2498,16 +2498,17 @@ model PlatformAdvert {
 model PlatformAdvertDaily {
   id           String   @id @default(cuid())
   advertId     String
-  menuId       String
-  restaurantId String
+  /// The menu and restaurant the advert was shown on (not tenant columns: the platform reads these across all restaurants).
+  shownMenuId       String
+  shownRestaurantId String
   /// YYYY-MM-DD in UTC.
   day          String
   views        Int      @default(0)
   clicks       Int      @default(0)
 
-  @@unique([advertId, menuId, day])
+  @@unique([advertId, shownMenuId, day])
   @@index([day])
-  @@index([restaurantId, day])
+  @@index([shownRestaurantId, day])
 }
 
 /// The background intro pages use when a restaurant sets none. A single row, id 'singleton'.

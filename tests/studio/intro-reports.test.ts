@@ -22,7 +22,7 @@ async function menuOf(restaurantId: string, slug: string) {
 }
 
 const day = (advertId: string, menuId: string, restaurantId: string, date: string, views: number, clicks: number) =>
-  prisma().platformAdvertDaily.create({ data: { advertId, menuId, restaurantId, day: date, views, clicks } });
+  prisma().platformAdvertDaily.create({ data: { advertId, shownMenuId: menuId, shownRestaurantId: restaurantId, day: date, views, clicks } });
 
 beforeAll(() => {
   useTestDatabase();

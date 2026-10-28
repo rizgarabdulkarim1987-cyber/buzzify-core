@@ -17,18 +17,18 @@ export async function countAdvert(tenant: TenantInfo, advertId: string, kind: 'v
   const href = safeHref(advert.href);
   if (kind === 'click' && href === '') return null;
 
-  const key = { advertId, menuId: tenant.id, day: now.toISOString().slice(0, 10) };
+  const key = { advertId, shownMenuId: tenant.id, day: now.toISOString().slice(0, 10) };
   const bump = kind === 'view' ? { views: { increment: 1 } } : { clicks: { increment: 1 } };
   try {
     await prisma.platformAdvertDaily.upsert({
-      where: { advertId_menuId_day: key },
-      create: { ...key, restaurantId: tenant.restaurantId, views: kind === 'view' ? 1 : 0, clicks: kind === 'click' ? 1 : 0 },
+      where: { advertId_shownMenuId_day: key },
+      create: { ...key, shownRestaurantId: tenant.restaurantId, views: kind === 'view' ? 1 : 0, clicks: kind === 'click' ? 1 : 0 },
       update: bump,
     });
   } catch (error) {
     // Two first counts of the day at once: the other one made the row, so this one adds to it.
     if (!(error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002')) throw error;
-    await prisma.platformAdvertDaily.update({ where: { advertId_menuId_day: key }, data: bump });
+    await prisma.platformAdvertDaily.update({ where: { advertId_shownMenuId_day: key }, data: bump });
   }
   return { href };
 }

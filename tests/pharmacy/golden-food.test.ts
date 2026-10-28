@@ -175,6 +175,13 @@ describe('golden: the Studio navigation', () => {
       labelKey: 'nav.announcements',
       icon: 'announcements'
     },
+    // Added by the menu intro feature (docs/superpowers/specs/2026-10-29-menu-intro-design.md): the Super Admin's adverts page.
+    {
+      key: 'platformIntro',
+      href: '/studio/platform/intro',
+      labelKey: 'nav.platformIntro',
+      icon: 'media'
+    },
     {
       key: 'activity',
       href: '/studio/activity',

@@ -55,9 +55,9 @@ describe('counting views', () => {
     expect((await view(ad.id)).status).toBe(204);
     const [row, ...rest] = await rows();
     expect(rest).toEqual([]);
-    expect(row).toMatchObject({ advertId: ad.id, menuId: x.menu.id, restaurantId: x.restaurant.id, views: 2, clicks: 0 });
+    expect(row).toMatchObject({ advertId: ad.id, shownMenuId: x.menu.id, shownRestaurantId: x.restaurant.id, views: 2, clicks: 0 });
     expect(row?.day).toBe(new Date().toISOString().slice(0, 10));
-    expect(Object.keys(row ?? {}).sort()).toEqual(['advertId', 'clicks', 'day', 'id', 'menuId', 'restaurantId', 'views']);
+    expect(Object.keys(row ?? {}).sort()).toEqual(['advertId', 'clicks', 'day', 'id', 'shownMenuId', 'shownRestaurantId', 'views']);
   });
 
   it('ignores an unknown advert, an inactive one, one outside its window and one for other menus', async () => {

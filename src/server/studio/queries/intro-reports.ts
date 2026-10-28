@@ -40,8 +40,8 @@ export const introReports = defineQuery({
       views += row.views;
       clicks += row.clicks;
       add(adverts, row.advertId, row.views, row.clicks);
-      add(restaurants, row.restaurantId, row.views, row.clicks);
-      add(menus, row.menuId, row.views, row.clicks);
+      add(restaurants, row.shownRestaurantId, row.views, row.clicks);
+      add(menus, row.shownMenuId, row.views, row.clicks);
       add(days, row.day, row.views, row.clicks);
     }
 
