@@ -192,6 +192,22 @@ describe('receiving against an order', () => {
     expect(phCodeOf(sameOrderOtherLine)).toBe('CLIENT_KEY_MISMATCH');
   });
 
+  it('is strict about the supplier on a replay: omitting a stored supplier is a mismatch, naming it is the same request', async () => {
+    const w = await world();
+    const body = receiptBody(w, [rLine(w.p, undefined)], { supplierId: w.supplierB });
+    const first = dataOf(await act(w.owner, receiptActions.create, body));
+    expect(dataOf(await act(w.owner, receiptActions.create, body))).toMatchObject({ id: first.id, replayed: true });
+    expect(phCodeOf(await act(w.owner, receiptActions.create, { ...body, supplierId: undefined }))).toBe('CLIENT_KEY_MISMATCH');
+    // Renaming the supplier afterwards does not break a repeat that left the name empty.
+    await prisma().phSupplier.update({ where: { id: w.supplierB }, data: { name: 'Renamed' } });
+    expect(dataOf(await act(w.owner, receiptActions.create, body))).toMatchObject({ id: first.id, replayed: true });
+    // An order receipt that omits supplierId replays (the order's supplier is the stored one).
+    const o = await ordered(w);
+    const ob = receiptBody(w, [rLine(w.p, o.pLine)], { purchaseOrderId: o.id });
+    const ofirst = dataOf(await act(w.owner, receiptActions.create, ob));
+    expect(dataOf(await act(w.owner, receiptActions.create, ob))).toMatchObject({ id: ofirst.id, replayed: true });
+  });
+
   it('updates a draft: change the order lines, drop the order, and re-validate the order', async () => {
     const w = await world();
     const o = await ordered(w);
@@ -209,6 +225,24 @@ describe('receiving against an order', () => {
     dataOf(await act(w.owner, poActions.cancel, { restaurantId: w.a.id, branchId: w.a.branchIds[0], purchaseOrderId: o.id, expectedVersion: o.version }));
     const again = await act(w.owner, receiptActions.update, { ...rest, expectedVersion: 3 });
     expect(phCodeOf(again)).toBe('ORDER_NOT_OPEN');
+  });
+
+  it('audits a change of order or supplier when a draft is saved (ids before and after)', async () => {
+    const w = await world();
+    const x = await ordered(w);
+    const y = await ordered(w);
+    const made = await draftFor(w, x, [rLine(w.p, x.pLine)]);
+    const { clientKey, ...rest } = receiptBody(w, [rLine(w.p, y.pLine)], { purchaseOrderId: y.id });
+    void clientKey;
+    dataOf(await act(w.owner, receiptActions.update, { ...rest, receiptId: made.id, expectedVersion: 1 }));
+    const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.receipt.update', entityId: made.id } });
+    expect(audit.changes).toMatchObject({ purchaseOrderId: { before: x.id, after: y.id } });
+    // Nothing changed about the order or supplier: no such keys.
+    dataOf(await act(w.owner, receiptActions.update, { ...rest, receiptId: made.id, expectedVersion: 2, note: 'again' }));
+    const again = await prisma().auditLog.findMany({ where: { action: 'ph.receipt.update', entityId: made.id }, });
+    const second = again.find((a) => JSON.stringify(a.changes).includes('"before":2'));
+    expect(second).toBeTruthy();
+    expect(JSON.stringify(second!.changes)).not.toContain('purchaseOrderId');
   });
 
   it('lets a draft receipt for an order be voided freely, and a confirmed one never', async () => {
@@ -376,35 +410,83 @@ describe('races', () => {
     const drafts = await Promise.all([1, 2, 3, 4, 5].map((n) => draftFor(w, o2, [rLine(w.p, o2.pLine, { qty: 4, lot: `m-${n}` })])));
     const many = await Promise.all(drafts.map((d) => confirmIt(w, o2, d.id)));
     expect(many.filter((r) => r.ok)).toHaveLength(2);
+    expect(many.filter((r) => !r.ok).map(phCodeOf)).toEqual(['OVER_RECEIPT', 'OVER_RECEIPT', 'OVER_RECEIPT']);
     expect(await counters(o2)).toEqual([[8, 0]]);
+    expect(await prisma().phStockMovement.count({ where: { receiptId: { in: drafts.map((d) => d.id) } } })).toBe(2);
   });
 
   it('serialises a confirm with a cancel: never CANCELLED with received counters', async () => {
     const w = await world();
     const outcomes = new Set<string>();
-    for (let round = 0; round < 6; round += 1) {
+    // The cancel always carries the order's current version, so only the row lock (and the received check) can stop it.
+    for (let round = 0; round < 40 && outcomes.size < 2; round += 1) {
       const o = await ordered(w);
       const d = await draftFor(w, o, [rLine(w.p, o.pLine, { qty: 5, lot: `c-${round}` })]);
-      const [confirmed, cancelled] = await Promise.all([
-        confirmIt(w, o, d.id),
-        act(w.owner, poActions.cancel, { restaurantId: w.a.id, branchId: w.a.branchIds[0], purchaseOrderId: o.id, expectedVersion: o.version }),
-      ]);
+      const current = (await orderRow(o)).version;
+      // The cancel starts after 0 to 120 ms, so over the rounds each side gets to the order row first.
+      const delay = [0, 15, 40, 120][round % 4]!;
+      const cancelNow = async () => {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        return act(w.owner, poActions.cancel, { restaurantId: w.a.id, branchId: w.a.branchIds[0], purchaseOrderId: o.id, expectedVersion: current });
+      };
+      const [confirmed, cancelled] = await Promise.all([confirmIt(w, o, d.id), cancelNow()]);
       const row = await orderRow(o);
       const got = await counters(o);
       if (confirmed.ok) {
         outcomes.add('confirm');
-        expect(cancelled.ok).toBe(false);
+        expect(codeOf(cancelled)).toBe('CONFLICT'); // the stale version, or something was received
         expect(row.status).toBe('PARTIAL');
         expect(got[0]).toEqual([5, 0]);
       } else {
         outcomes.add('cancel');
         expect(cancelled.ok).toBe(true);
+        expect(codeOf(confirmed)).toBe('CONFLICT');
         expect(phCodeOf(confirmed)).toBe('ORDER_NOT_OPEN');
         expect(row.status).toBe('CANCELLED');
         expect(got).toEqual([[0, 0], [0, 0]]);
       }
     }
-    expect(outcomes.size).toBeGreaterThan(0);
+    expect([...outcomes].sort()).toEqual(['cancel', 'confirm']);
+  });
+
+  it('serialises saving a draft (switching or dropping its order) with confirming it: counters equal what was confirmed, no raw errors', async () => {
+    const w = await world();
+    const x = await ordered(w);
+    const y = await ordered(w);
+    const saves = (d: { id: string }, to: 'Y' | 'none') => {
+      const target = to === 'Y' ? y : null;
+      const { clientKey, ...rest } = receiptBody(w, [rLine(w.p, target ? target.pLine : undefined, { qty: 5, lot: 'sw-1' })], target ? { purchaseOrderId: target.id } : {});
+      void clientKey;
+      return act(w.owner, receiptActions.update, { ...rest, receiptId: d.id, expectedVersion: 1 });
+    };
+    const seen = new Set<string>();
+    for (let round = 0; round < 24; round += 1) {
+      const kind = (['X>Y', 'X>none', 'none>Y'] as const)[round % 3]!;
+      const from = kind === 'none>Y' ? 'none' : 'X';
+      const lines = [rLine(w.p, from === 'X' ? x.pLine : undefined, { qty: 5, lot: `sw-${round}` })];
+      const d = dataOf(await act(w.owner, receiptActions.create, receiptBody(w, lines, from === 'X' ? { purchaseOrderId: x.id } : {})));
+      const save = () => saves(d, kind === 'X>none' ? 'none' : 'Y');
+      const results = round % 2 === 0 ? await Promise.all([confirmIt(w, x, d.id), save()]) : (await Promise.all([save(), confirmIt(w, x, d.id)])).reverse();
+      for (const r of results) {
+        if (!r.ok) expect(codeOf(r), JSON.stringify(r)).toBe('CONFLICT'); // never a raw database error
+        seen.add(r.ok ? 'ok' : 'refused');
+      }
+      // The invariant: every order line's counters are the sum of its CONFIRMED receipt lines.
+      for (const o of [x, y]) {
+        const rows = await prisma().phPurchaseOrderLine.findMany({ where: { purchaseOrderId: o.id }, select: { id: true, receivedQty: true, receivedBonus: true } });
+        for (const row of rows) {
+          const confirmed = await prisma().phReceiptLine.aggregate({
+            where: { purchaseOrderLineId: row.id, receipt: { status: 'CONFIRMED' } },
+            _sum: { qty: true, bonusQty: true },
+          });
+          expect([o.id, row.id, row.receivedQty, row.receivedBonus]).toEqual([o.id, row.id, confirmed._sum.qty ?? 0, confirmed._sum.bonusQty ?? 0]);
+        }
+      }
+      // A confirmed receipt's order link and its lines agree.
+      const final = await prisma().phReceipt.findUniqueOrThrow({ where: { id: d.id }, include: { lines: true } });
+      if (final.status === 'CONFIRMED') expect(final.lines.every((l) => (l.purchaseOrderLineId === null) === (final.purchaseOrderId === null))).toBe(true);
+    }
+    expect(seen.has('ok')).toBe(true);
   });
 
   it('does not double count when a confirm is repeated or raced', async () => {
@@ -433,13 +515,13 @@ describe('reading', () => {
 
     const full = dataOf(await ask(w.owner, receiptQueries.get, { restaurantId: w.a.id, receiptId: d.id }));
     expect(full).toMatchObject({ supplierId: w.supplierId, supplierName: 'Al-Noor', purchaseOrderId: o.id, purchaseOrderNumber: po.number });
-    expect(full.lines[0]).toMatchObject({ purchaseOrderLineId: o.pLine, unitCostMinor: '3000', orderUnitCostMinor: '2500' });
+    expect(full.lines[0]).toMatchObject({ purchaseOrderLineId: o.pLine, unitCostMinor: '3000', orderUnitCostMinor: '2500', orderCurrency: 'IQD' });
     const list = dataOf(await ask(w.owner, receiptQueries.list, { restaurantId: w.a.id }));
     expect(list.items[0]).toMatchObject({ supplierId: w.supplierId, purchaseOrderId: o.id, purchaseOrderNumber: po.number });
 
     const pharmacist = await person('rph', { staff: [w.a.id, 'PHARMACIST', [w.a.branchIds[0]!]] });
     const seen = dataOf(await ask(pharmacist, receiptQueries.get, { restaurantId: w.a.id, receiptId: d.id }));
-    expect(JSON.stringify(seen)).not.toMatch(/2500|3000|unitCost|orderUnitCost|currency/);
+    expect(JSON.stringify(seen)).not.toMatch(/2500|3000|unitCost|orderUnitCost|orderCurrency|currency/);
     expect(seen.lines[0]).toMatchObject({ purchaseOrderLineId: o.pLine });
     const plain = dataOf(await act(w.owner, receiptActions.create, receiptBody(w, [rLine(w.q, undefined)])));
     const plainGot = dataOf(await ask(w.owner, receiptQueries.get, { restaurantId: w.a.id, receiptId: plain.id }));

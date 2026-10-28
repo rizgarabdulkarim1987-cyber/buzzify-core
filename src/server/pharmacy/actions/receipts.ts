@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { confirmReceipt, createDraft, receiptInput, updateDraft, voidDraft } from '@/server/pharmacy/receipts';
+import { asRetryable, confirmReceipt, createDraft, receiptInput, updateDraft, voidDraft } from '@/server/pharmacy/receipts';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -71,16 +71,25 @@ export const update = defineAction({
   target: phTargetOf,
   run(ctx, input) {
     const { ph } = pharmacyOf(ctx);
-    return ctx.transaction(async (tx) => {
-      const saved = await updateDraft(tx, { restaurantId: ph.restaurantId, receiptId: input.receiptId, expectedVersion: input.expectedVersion, input });
-      ctx.audit({
-        action: 'ph.receipt.update',
-        entityType: 'PhReceipt',
-        entityId: saved.id,
-        changes: { version: { before: input.expectedVersion, after: saved.version }, lineCount: { before: null, after: saved.lineCount } },
+    return ctx
+      .transaction(async (tx) => {
+        const saved = await updateDraft(tx, { restaurantId: ph.restaurantId, receiptId: input.receiptId, expectedVersion: input.expectedVersion, input });
+        ctx.audit({
+          action: 'ph.receipt.update',
+          entityType: 'PhReceipt',
+          entityId: saved.id,
+          changes: {
+            version: { before: input.expectedVersion, after: saved.version },
+            lineCount: { before: null, after: saved.lineCount },
+            ...(saved.before.purchaseOrderId !== saved.after.purchaseOrderId ? { purchaseOrderId: { before: saved.before.purchaseOrderId, after: saved.after.purchaseOrderId } } : {}),
+            ...(saved.before.supplierId !== saved.after.supplierId ? { supplierId: { before: saved.before.supplierId, after: saved.after.supplierId } } : {}),
+          },
+        });
+        return { id: saved.id, version: saved.version, lineCount: saved.lineCount };
+      })
+      .catch((error: unknown) => {
+        throw asRetryable(error);
       });
-      return saved;
-    });
   },
 });
 
@@ -92,7 +101,8 @@ export const confirm = defineAction({
   target: phTargetOf,
   run(ctx, input) {
     const { ph } = pharmacyOf(ctx);
-    return ctx.transaction(async (tx) => {
+    return ctx
+      .transaction(async (tx) => {
       const done = await confirmReceipt(tx, { restaurantId: ph.restaurantId, receiptId: input.receiptId, userId: ph.userId });
       ctx.audit({
         action: 'ph.receipt.confirm',
@@ -108,7 +118,10 @@ export const confirm = defineAction({
         },
       });
       return done;
-    }, { timeoutMs: CONFIRM_TIMEOUT_MS });
+    }, { timeoutMs: CONFIRM_TIMEOUT_MS })
+      .catch((error: unknown) => {
+        throw asRetryable(error);
+      });
   },
 });
 

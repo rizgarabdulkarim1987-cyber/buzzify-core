@@ -5,14 +5,30 @@ import { mayViewCost } from '@/server/pharmacy/products';
 import { toBase } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
-import { applyReceiptToOrder, lockOrderForReceipt, resolveReceiptLinks } from './purchase-orders';
+import { applyReceiptToOrder, lockOrderLines, lockOrderRow, lockOrdersShared, resolveReceiptLinks } from './purchase-orders';
 import { applyMovement, lockOrder } from './stock';
 
 /**
  * Manual receiving (R2-1): a draft receipt of lines, confirmed once into batches, balances and RECEIPT movements. The
  * services take the transaction (or scoped client) of the action or query that calls them; the actions audit. The
  * receipt's business and branch come from the validated place, never from a line.
+ *
+ * Lock order for a receipt tied to an order (phase 4, R4-11), the same in `updateDraft` and `confirmReceipt`: order rows
+ * (sorted by id; FOR SHARE when saving a draft, FOR UPDATE when confirming) -> the receipt row FOR UPDATE -> the order's
+ * lines FOR UPDATE (by id) -> the branch advisory lock -> stock rows. After the receipt row is locked the order link is
+ * read again; if a save changed it meanwhile the confirm is refused (CONFLICT, reload) instead of acting on a stale one.
  */
+
+/** A deadlock (40P01) or serialization failure (40001, Prisma P2034) is a retryable conflict, never a raw error. */
+export function asRetryable(error: unknown): unknown {
+  const e = error as { code?: unknown; message?: unknown; meta?: unknown } | null;
+  const text = `${String(e?.code ?? '')} ${String(e?.message ?? '')} ${JSON.stringify(e?.meta ?? '')}`;
+  if (e?.code === 'P2034' || /40P01|40001|deadlock detected/i.test(text)) {
+    return new StudioError('CONFLICT', 'Someone else changed this receipt: reload it');
+  }
+  return error;
+}
+
 
 export const MAX_RECEIPT_LINES = 200;
 /** The largest `bigint` a Postgres BIGINT column holds. */
@@ -204,13 +220,18 @@ async function replayOf(
 ): Promise<DraftResult> {
   const { input } = args;
   const rows = await lineRows(tx, args.restaurantId, existing.id, input.lines);
-  // The name is filled from the supplier when left empty; a repeat compares what it would have been stored as.
-  const filledName =
-    input.supplierName || (existing.supplierId ? ((await tx.phSupplier.findFirst({ where: { id: existing.supplierId }, select: { name: true } }))?.name ?? '') : '');
+  // The stored supplier is the order's when there is an order, else exactly what was sent (omitting it is a different request).
+  const orderSupplier = existing.purchaseOrderId
+    ? ((await tx.phPurchaseOrder.findFirst({ where: { id: existing.purchaseOrderId }, select: { supplierId: true } }))?.supplierId ?? null)
+    : null;
+  const expectedSupplier = input.purchaseOrderId ? orderSupplier : (input.supplierId ?? null);
+  // An empty name was filled from the supplier at the time (it may have been renamed since): any stored name matches then.
+  const nameSame = input.supplierName === '' ? existing.supplierId !== null || existing.supplierName === '' : existing.supplierName === input.supplierName;
   const same =
     existing.branchId === args.branchId &&
-    existing.supplierName === filledName &&
+    nameSame &&
     existing.purchaseOrderId === (input.purchaseOrderId ?? null) &&
+    existing.supplierId === expectedSupplier &&
     (input.supplierId === undefined || existing.supplierId === input.supplierId) &&
     existing.invoiceRef === input.reference &&
     iso(existing.receivedOn) === input.receivedOn &&
@@ -272,11 +293,13 @@ export async function createDraft(
 export async function updateDraft(
   tx: ScopedTx,
   args: { restaurantId: string; receiptId: string; expectedVersion: number; input: ReceiptInput },
-): Promise<{ id: string; version: number; lineCount: number }> {
+): Promise<{ id: string; version: number; lineCount: number; before: { purchaseOrderId: string | null; supplierId: string | null }; after: { purchaseOrderId: string | null; supplierId: string | null } }> {
   const rows = await lineRows(tx, args.restaurantId, args.receiptId, args.input.lines);
-  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, status: true } });
+  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, status: true, purchaseOrderId: true, supplierId: true } });
   if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
   if (head.status !== 'DRAFT') throw notDraft();
+  // The stored and the new order, locked (sorted) before the receipt row: the same order as a confirm takes them.
+  await lockOrdersShared(tx, { restaurantId: args.restaurantId, purchaseOrderIds: [head.purchaseOrderId, args.input.purchaseOrderId] });
   const links = await resolveReceiptLinks(tx, { branchId: head.branchId, input: args.input });
   const won = await tx.phReceipt.updateMany({
     where: { id: args.receiptId, status: 'DRAFT', version: args.expectedVersion },
@@ -298,7 +321,13 @@ export async function updateDraft(
   }
   await tx.phReceiptLine.deleteMany({ where: { receiptId: args.receiptId } });
   await tx.phReceiptLine.createMany({ data: rows });
-  return { id: args.receiptId, version: args.expectedVersion + 1, lineCount: rows.length };
+  return {
+    id: args.receiptId,
+    version: args.expectedVersion + 1,
+    lineCount: rows.length,
+    before: { purchaseOrderId: head.purchaseOrderId, supplierId: head.supplierId },
+    after: { purchaseOrderId: links.purchaseOrderId, supplierId: links.supplierId },
+  };
 }
 
 /** DRAFT to VOID only; a confirmed receipt is corrected by an adjustment. */
@@ -387,11 +416,21 @@ export async function confirmReceipt(
   args: { restaurantId: string; receiptId: string; userId: string; now?: Date },
 ): Promise<ConfirmResult> {
   const now = args.now ?? new Date();
-  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, supplierName: true, purchaseOrderId: true } });
+  const head = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { branchId: true, supplierName: true, purchaseOrderId: true, supplierId: true } });
   if (!head) throw new StudioError('NOT_FOUND', 'Receipt not found');
-  // A receipt for an order takes the order's row (and its lines) before anything else (R4-11): a parallel cancel or close
-  // waits for it, and a second receipt for the last ordered units waits and then finds them gone.
-  if (head.purchaseOrderId) await lockOrderForReceipt(tx, { restaurantId: args.restaurantId, purchaseOrderId: head.purchaseOrderId });
+  // The order row first (R4-11): a parallel cancel or close waits for it, and a second receipt for the last ordered units
+  // waits and then finds them gone. Then the receipt row; the order link is read again under it, because a save of the
+  // draft may have changed it since the read above (the saver locks order rows before the receipt row, so no deadlock).
+  if (head.purchaseOrderId) await lockOrderRow(tx, { restaurantId: args.restaurantId, purchaseOrderId: head.purchaseOrderId });
+  // eslint-disable-next-line no-restricted-properties -- a row lock on this receipt, taken after its order row and before its order lines
+  await tx.$queryRaw`SELECT "id" FROM "PhReceipt" WHERE "id" = ${args.receiptId} AND "restaurantId" = ${args.restaurantId} FOR UPDATE`;
+  const locked = await tx.phReceipt.findFirst({ where: { id: args.receiptId }, select: { status: true, purchaseOrderId: true, supplierId: true } });
+  if (!locked) throw new StudioError('NOT_FOUND', 'Receipt not found');
+  if (locked.status !== 'DRAFT') throw notDraft();
+  if (locked.purchaseOrderId !== head.purchaseOrderId || locked.supplierId !== head.supplierId) {
+    throw new StudioError('CONFLICT', 'Someone else changed this receipt: reload it');
+  }
+  if (head.purchaseOrderId) await lockOrderLines(tx, { restaurantId: args.restaurantId, purchaseOrderId: head.purchaseOrderId });
 
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's receipts
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-receipt:${head.branchId}`}))`;
@@ -583,6 +622,8 @@ export interface ReceiptLineView {
   currency?: 'IQD' | 'USD' | null;
   /** Present only for a role with `cost.view`, and only on a line of an order: what the order agreed per unit. */
   orderUnitCostMinor?: string | null;
+  /** With `orderUnitCostMinor`: the order's currency (the receipt line has its own `currency`). */
+  orderCurrency?: 'IQD' | 'USD' | null;
 }
 
 export interface ReceiptDetail extends ReceiptSummary {
@@ -596,7 +637,7 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
   const r = await scoped.phReceipt.findFirst({
     where: { id: receiptId },
     include: {
-      purchaseOrder: { select: { number: true } },
+      purchaseOrder: { select: { number: true, currency: true } },
       lines: {
         orderBy: { lineNo: 'asc' },
         include: { product: { select: { tradeName: true } }, unit: { select: { label: true } }, purchaseOrderLine: { select: { unitCostMinor: true } } },
@@ -642,6 +683,7 @@ export async function getReceipt(scoped: ScopedClient, ph: PhActor, receiptId: s
             unitCostMinor: l.unitCostMinor === null ? null : String(l.unitCostMinor),
             currency: l.costCurrency,
             orderUnitCostMinor: l.purchaseOrderLine ? String(l.purchaseOrderLine.unitCostMinor) : null,
+            orderCurrency: l.purchaseOrderLine ? (r.purchaseOrder?.currency ?? null) : null,
           }
         : {}),
     })),

@@ -19,8 +19,10 @@ import { cleanText, NS_CLIENT_KEY, PAGE_SIZE } from './suppliers';
  * Lock order of this phase (header comment of every service that locks): client key (advisory, namespace 7201) -> PO row
  * FOR UPDATE -> receipt line counters FOR UPDATE -> invoice rows FOR UPDATE ordered by id -> stock rows (phase 2/3 order)
  * -> number lock (7202). This file takes the client key, the PO row, then the number lock. Receiving against an order
- * (`lockOrderForReceipt`, called first by `confirmReceipt`) takes the PO row and then its lines ordered by id, before the
- * receipt's branch lock and the stock rows; the received counters are written only here (`applyReceiptToOrder`).
+ * (`lockOrderRow` then `lockOrderLines`, called by `confirmReceipt` and by `updateDraft` in receipts.ts) keeps one order
+ * for every path that touches an order together with a receipt: order rows (sorted by id) -> the receipt row -> the
+ * order's lines (by id) -> the branch lock -> stock rows. The received counters are written only here
+ * (`applyReceiptToOrder`).
  */
 
 /** The advisory-lock namespace of purchase order numbering (the second int is `hashtext(po:branchId)`). */
@@ -400,15 +402,37 @@ export async function resolveReceiptLinks(
 }
 
 /**
- * The first step of confirming a receipt for an order: lock the order row, then its lines ordered by id, and refuse an
- * order that is no longer ORDERED or PARTIAL (a cancel or close that committed first wins). A parallel cancel or close
- * waits on the same row lock, so it can never end CANCELLED while this adds to the counters.
+ * Step one of confirming a receipt for an order: the order row FOR UPDATE (a parallel cancel or close waits on it, so it
+ * can never end CANCELLED while a confirm adds to the counters). Taken before the receipt row, as `updateDraft` does.
  */
-export async function lockOrderForReceipt(tx: ScopedTx, args: { restaurantId: string; purchaseOrderId: string }): Promise<void> {
-  const head = await lockHead(tx, args.restaurantId, args.purchaseOrderId);
-  // eslint-disable-next-line no-restricted-properties -- row locks on the order's lines, in id order (R4-11), after the order row
+export async function lockOrderRow(tx: ScopedTx, args: { restaurantId: string; purchaseOrderId: string }): Promise<void> {
+  await lockHead(tx, args.restaurantId, args.purchaseOrderId);
+}
+
+/**
+ * Step three: with the receipt row already locked, lock the order's lines ordered by id and refuse an order that is no
+ * longer ORDERED or PARTIAL (read under the order row lock, so it is the committed truth).
+ */
+export async function lockOrderLines(tx: ScopedTx, args: { restaurantId: string; purchaseOrderId: string }): Promise<void> {
+  // eslint-disable-next-line no-restricted-properties -- row locks on the order's lines, in id order (R4-11), after the order and receipt rows
   await tx.$queryRaw`SELECT "id" FROM "PhPurchaseOrderLine" WHERE "purchaseOrderId" = ${args.purchaseOrderId} AND "restaurantId" = ${args.restaurantId} ORDER BY "id" FOR UPDATE`;
+  const head = await tx.phPurchaseOrder.findFirst({ where: { id: args.purchaseOrderId }, select: { status: true } });
+  if (!head) throw notFound();
   if (head.status !== 'ORDERED' && head.status !== 'PARTIAL') throw orderNotOpen();
+}
+
+/**
+ * Saving a draft receipt that names (or named) orders: FOR SHARE on each order row, sorted by id, before the receipt row
+ * is touched. SHARE is enough and keeps two drafts of one order from queueing behind each other: what matters is that a
+ * confirm (FOR UPDATE on its order first), a cancel or a close cannot slip between the order check and the save, and
+ * that this path takes order rows before the receipt row, as the confirm does. Unknown or foreign ids lock nothing.
+ */
+export async function lockOrdersShared(tx: ScopedTx, args: { restaurantId: string; purchaseOrderIds: readonly (string | null | undefined)[] }): Promise<void> {
+  const ids = [...new Set(args.purchaseOrderIds.filter((id): id is string => !!id))].sort();
+  for (const id of ids) {
+    // eslint-disable-next-line no-restricted-properties -- a share lock on one order of this business, in id order, before the receipt row
+    await tx.$queryRaw`SELECT "id" FROM "PhPurchaseOrder" WHERE "id" = ${id} AND "restaurantId" = ${args.restaurantId} FOR SHARE`;
+  }
 }
 
 /**
