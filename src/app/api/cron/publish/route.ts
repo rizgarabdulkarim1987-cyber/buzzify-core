@@ -1,7 +1,7 @@
 import { getPrisma } from '@/server/data/prisma';
 import { parseCronEnv } from '@/server/env';
 import { authorized } from '@/server/http/cron-auth';
-import { prunePublicRateLimits } from '@/server/http/rate-limit';
+import { prunePublicRateLimits, pruneWheelSpins } from '@/server/http/rate-limit';
 import { activateDueRevisions } from '@/server/publish/revisions';
 
 /** One run makes up to 100 revisions live; a minute is plenty, and the next run picks up the rest. */
@@ -22,5 +22,6 @@ export async function GET(request: Request) {
   const result = await activateDueRevisions(getPrisma(), now);
   // Housekeeping on the same clock: the public API's rate counts whose window is a day old count nothing any more.
   await prunePublicRateLimits(getPrisma(), new Date(now.getTime() - 86_400_000));
+  await pruneWheelSpins(getPrisma(), new Date(now.getTime() - 3 * 86_400_000));
   return Response.json(result, { headers: NO_STORE });
 }

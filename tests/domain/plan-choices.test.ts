@@ -101,9 +101,9 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: false, stage: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: false, stage: false, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
-    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: false, stage: false, intro: false, about: false, wheel: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: false, stage: false, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
   });
 });
 

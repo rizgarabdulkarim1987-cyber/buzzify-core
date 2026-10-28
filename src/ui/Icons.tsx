@@ -133,3 +133,11 @@ export const PlayIcon = (props: SVGProps<SVGSVGElement>) => (
     <path d="M7 5l8 5-8 5z" />
   </svg>
 );
+
+/** The compass of the Explore entry in the header: a ring and a needle. */
+export const CompassIcon = (props: SVGProps<SVGSVGElement>) => (
+  <svg {...base(props)}>
+    <circle cx="10" cy="10" r="7.5" />
+    <path d="M12.9 7.1 11.2 11.2 7.1 12.9 8.8 8.8z" />
+  </svg>
+);

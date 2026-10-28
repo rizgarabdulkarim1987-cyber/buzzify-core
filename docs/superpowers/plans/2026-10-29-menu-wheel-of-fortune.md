@@ -4,15 +4,16 @@
 
 **Goal:** An optional wheel in every menu style: slices are real dish photos, the server picks the winning dish, the guest sees it enlarged and can add it to the order; the restaurant sets it up and switches it on.
 
-**Architecture:** New tables `MenuWheel` and `WheelSlice`, read per request. A public POST route `/api/{tenant}/wheel` picks the winner on the server and limits spins per guest per day with a signed cookie plus a per-IP-per-day count. The header gets a wheel entry beside `GuestTools` when `tenant.extras.wheel` is on; the wheel opens as a popup in the menu's client tree so the existing product sheet can open on the result.
+**Architecture:** New tables `MenuWheel` and `WheelSlice`, read per request. A public POST route `/api/{tenant}/wheel` picks the winner on the server and limits spins per guest per day with a signed cookie plus a per-IP-per-day count. The wheel is a section INSIDE the Explore (`about`) page (owner's decision 2026-10-29): no header entry, no popup, no floating element. It renders when `tenant.extras.about` and `tenant.extras.wheel` are both on and the wheel is open; the result opens the normal product sheet from the page.
 
-**Tech Stack:** as in `2026-10-29-menu-intro.md`. **Depends on the intro plan's Tasks 1 and 2** (feature key `menu.wheel`, `Menu.wheelEnabled`, `TenantInfo.extras`) and shares the header entry pattern built in the About plan's Task 3 (`GuestTools`); build those first.
+**Tech Stack:** as in `2026-10-29-menu-intro.md`. **Depends on the intro plan's Tasks 1 and 2** (feature key `menu.wheel`, `Menu.wheelEnabled`, `TenantInfo.extras`) and **the whole About plan** (the wheel is a section of its page, `src/ui/about/AboutPage.tsx`, and its loader `loadAbout`); build that first.
 
 **Spec:** `docs/superpowers/specs/2026-10-29-menu-wheel-of-fortune-design.md`.
 
 ## Global Constraints
 
 - Same test, audit, cross-tenant, message-parity, tenant-registry and commit rules as the intro plan.
+- Placement (owner's decision 2026-10-29): the wheel is only ever rendered inside the Explore tab; `GuestTools`, `MenuApp` and `TemplateMenu` get no wheel code. A wheel that is ready counts as content for the About page (`aboutIsEmpty` stays false), and the page's `AboutView` gains `wheel: { available: boolean } | null`.
 - The winner is chosen only on the server (`crypto.randomInt` weighted draw); the browser never sends a slice or receives the other slices' weights; the animation lands where the server's answer says.
 - 4 to 12 slices; each slice is a product of this menu with at least one `kind: 'image'` media; a hidden, deleted or unavailable product is skipped at spin time (a wheel with fewer than 4 usable slices answers "not available" and the entry hides).
 - Spins per guest per day: default 1 (1 to 10), counted per (menu, signed guest cookie) and per (menu, IP, day) with the IP limit three times the guest limit so a shared Wi-Fi is not blocked after one guest. Day boundaries in the menu's `timezone`.
@@ -28,7 +29,7 @@
 - Weights: all zero, one huge, negative, non-integer: refused on save; a slice with weight 0 never wins.
 - A winning product that was made unavailable one second before: the server redraws among usable slices; never returns an unorderable dish.
 - Phone with reduced motion or low memory: the Reveal path works without the canvas; a 12-slice wheel with long Arabic or Kurdish dish names stays legible.
-- The wheel entry on a menu whose active window has not opened or has ended: hidden.
+- The wheel section on a menu whose active window has not opened or has ended: hidden. Wheel on while the About tab is off: nothing shows anywhere.
 - A forged cookie: ignored and replaced; never grants extra spins.
 
 ---
@@ -81,18 +82,18 @@
 - [ ] **Step 4: Run** the test and `tests/api/rate-limit.test.ts`. Expected: PASS.
 - [ ] **Step 5: Commit** `feat(menu): wheel spin route`.
 
-### Task 4: The wheel UI and the header entry
+### Task 4: The wheel section inside the Explore page
 
 **Files:**
-- Create: `src/ui/wheel/WheelPopup.tsx`, `src/ui/wheel/WheelDisc.tsx`, `src/ui/wheel/useWheel.ts`
-- Modify: `src/ui/guest/GuestTools.tsx` (a wheel button beside About), `src/ui/menu/MenuApp.tsx` and `src/ui/template/TemplateMenu.tsx` (mount `WheelPopup` next to the product sheet so `openProduct(id)` is available), `src/lib/messages/{en,ar,ckb}.ts` (`wheel.title`, `wheel.spin`, `wheel.reveal`, `wheel.result`, `wheel.order`, `wheel.usedToday`, `wheel.notAvailable`, `wheel.again`)
+- Create: `src/ui/wheel/WheelSection.tsx`, `src/ui/wheel/WheelDisc.tsx`, `src/ui/wheel/useWheel.ts`
+- Modify: `src/ui/about/AboutPage.tsx` (mount `WheelSection` as one section), `src/server/data/about.ts` (the `wheel` field of `AboutView`), `src/lib/messages/{en,ar,ckb}.ts` (`wheel.title`, `wheel.spin`, `wheel.reveal`, `wheel.result`, `wheel.order`, `wheel.usedToday`, `wheel.notAvailable`, `wheel.again`)
 - Test: `tests/ui/wheel.test.ts`
 
 **Interfaces:**
-- Consumes: the route of Task 3, `useProductSheet().openProduct`, `Popup`.
-- Produces: `WheelPopup({ open, onClose, openProduct })`: loads state, draws the disc (SVG with the slices' photos as `<pattern>` images, pointer at the top, mirrored labels for RTL), spins with CSS rotation to the server's winner then shows the dish enlarged with price and an "Add to order" button that calls `openProduct(winnerProductId)`; "used today" state when `spinsLeft` is 0; reduced motion shows "Reveal".
+- Consumes: the route of Task 3, the product-sheet opener the About page already uses for offer links (`/p/{slug}`), `AboutView.wheel`.
+- Produces: `WheelSection({ tenant, openProduct })`, an in-page section (no popup): loads state, draws the disc (SVG with the slices' photos as `<pattern>` images, pointer at the top, mirrored labels for RTL), spins with CSS rotation to the server's winner then shows the dish enlarged with price and an "Add to order" button that calls `openProduct(winnerProductId)`; "used today" state when `spinsLeft` is 0; reduced motion shows "Reveal".
 
-- [ ] **Step 1: Failing tests (static markup and a pure helper):** `angleFor(sliceIndex, count)` lands the pointer in the middle of the slice; `renders count slices with their photos`; `renders the Reveal button and no spin animation class when reduced motion is requested`; `renders the used-today message when spinsLeft is 0`.
+- [ ] **Step 1: Failing tests (static markup and a pure helper):** `angleFor(sliceIndex, count)` lands the pointer in the middle of the slice; `renders count slices with their photos`; `renders the Reveal button and no spin animation class when reduced motion is requested`; `renders the used-today message when spinsLeft is 0`; `AboutPage renders the wheel section only when AboutView.wheel is available`; `loadAbout hides the wheel when extras.about or extras.wheel is off and keeps the page when only the wheel is ready`.
 - [ ] **Step 2: Run.** Expected: FAIL.
 - [ ] **Step 3: Implement** the popup and wire it into both menus; verify in the browser pane at 375 px in en and ar with 4, 8 and 12 slices and long names; confirm a result opens the product sheet.
 - [ ] **Step 4: Run** `tests/ui/wheel.test.ts tests/lib/messages.test.ts`, typecheck, lint.

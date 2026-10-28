@@ -18,6 +18,7 @@
 - Story blocks: `{ type: 'heading' | 'paragraph' | 'list'; text: string | string[] }`, at most 40 blocks, 2000 characters per block; links only as `{ text, href }` inline with `https://` or `/` targets. Rendered by components, never `dangerouslySetInnerHTML`.
 - An offer outside its validity window, in the menu's `timezone`, is never shown; its optional link targets a product or category of this menu only.
 - The page and its entry are absent (not empty) when `extras.about` is false or nothing is filled in.
+- The wheel of fortune (`2026-10-29-menu-wheel-of-fortune.md`) is a section of this page, added after this plan is done (owner's decision 2026-10-29). `AboutView` gets an optional `wheel` field then; this plan leaves room for it (a `sections` composition in `AboutPage` where one more section drops in) and "nothing filled in" will also count a ready wheel.
 
 ## Review Focus
 
