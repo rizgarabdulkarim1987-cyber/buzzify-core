@@ -31,6 +31,7 @@ export function ReceiptProductPicker({ onPick, boxRef, disabled = false }: Picke
   const [state, setState] = useState<'idle' | 'loading' | 'failed'>('idle');
   const [problem, setProblem] = useState<string | null>(null);
   const asked = useRef(0);
+  const pause = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const run = async (text: string): Promise<SearchResult[] | null> => {
     const ask = ++asked.current;
@@ -55,6 +56,7 @@ export function ReceiptProductPicker({ onPick, boxRef, disabled = false }: Picke
   useEffect(() => {
     if (q.trim() === '') return;
     const timer = setTimeout(() => void run(q), 250);
+    pause.current = timer;
     return () => clearTimeout(timer);
   }, [q]);
 
@@ -70,6 +72,8 @@ export function ReceiptProductPicker({ onPick, boxRef, disabled = false }: Picke
   };
 
   const onEnter = async () => {
+    // The pause's own search would supersede this one (it starts later and wins), and Enter would then add nothing.
+    if (pause.current) clearTimeout(pause.current);
     const rows = await run(q);
     if (rows && rows.length === 1) await pick(rows[0]!);
   };
