@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import type { Prisma } from '@/generated/prisma/client';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { defaultVariant } from '@/server/domain/catalog';
@@ -310,6 +311,72 @@ export async function addRequestLineIn(db: AnyDb, restaurantId: string, catalog:
   });
   const approvalCleared = await reopenApproval(db, restaurantId, input.requestId, input.canApprove);
   return { requestId: input.requestId, lineId: created.id, name: line.nameSnapshot, quantity: line.quantity, approvalCleared };
+}
+
+export interface CaptainRequestInput {
+  userId: string;
+  tableNumber: number;
+  lines: { productId: string; quantity: number; note?: string; variantId?: string | null; optionIds?: string[] }[];
+  note?: string;
+}
+
+/**
+ * A captain's order for a table, taken by mouth: stored as a request already approved by them, so the cashier accepts it
+ * as any guest order. Priced from the Menu's published catalog; the line, quantity and note limits apply as to a guest,
+ * the guests' per-table and per-hour rate limits do not (this is a staff action).
+ */
+export async function createCaptainRequestIn(db: AnyDb, restaurantId: string, catalog: Catalog, input: CaptainRequestInput, now: Date = new Date()) {
+  if (input.lines.length === 0 || input.lines.length > QR_LIMITS.maxLines) throw refuse('CONFLICT', 'The request has no items');
+  if (input.lines.some((line) => !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > QR_LIMITS.maxQuantity)) {
+    throw new StudioError('INVALID', 'Nothing to change', { quantity: 'Nothing to change' });
+  }
+  const note = (input.note ?? '').trim();
+  if (note.length > QR_LIMITS.maxNote || input.lines.some((line) => (line.note ?? '').trim().length > QR_LIMITS.maxNote)) {
+    throw new StudioError('INVALID', 'Use at most 300 characters');
+  }
+  const priced = priceRequestLines(
+    catalog,
+    input.lines.map((line) => ({ productId: line.productId, variantId: line.variantId ?? null, optionIds: line.optionIds ?? [], quantity: line.quantity, note: (line.note ?? '').trim() })),
+    now,
+  );
+  if (!priced) throw refuse('CONFLICT', 'This product is not available');
+  const productIds = [...new Set(priced.map((line) => line.productId))];
+  const [table, soldOut, known] = await Promise.all([
+    db.posTable.findFirst({ where: { restaurantId, number: input.tableNumber }, select: { id: true } }),
+    db.posProductSetting.count({ where: { restaurantId, productId: { in: productIds }, soldOutOverride: true } }),
+    db.product.count({ where: { id: { in: productIds }, menuId: catalog.menuId } }),
+  ]);
+  if (!table) throw new StudioError('NOT_FOUND');
+  if (soldOut > 0 || known !== productIds.length) throw refuse('CONFLICT', 'This product is not available');
+  const request = await db.posCustomerOrder.create({
+    data: {
+      restaurantId,
+      tableId: table.id,
+      publicId: randomBytes(16).toString('base64url'),
+      tableNumber: input.tableNumber,
+      locale: catalog.defaultLocale,
+      customerNote: note,
+      requiresCaptain: false,
+      captainApprovedAt: now,
+      captainApprovedByUserId: input.userId,
+      createdByUserId: input.userId,
+      createdAt: now,
+      lines: {
+        create: priced.map((line) => ({
+          restaurantId,
+          productId: line.productId,
+          nameSnapshot: line.nameSnapshot,
+          unitPriceSnapshot: line.unitPriceSnapshot,
+          optionsSnapshot: line.optionsSnapshot,
+          promoDiscountPerUnit: line.promoDiscountPerUnit,
+          quantity: line.quantity,
+          note: line.note,
+        })),
+      },
+    },
+    select: { id: true },
+  });
+  return { requestId: request.id, lines: priced.length };
 }
 
 /**
