@@ -3,7 +3,7 @@ import * as poActions from '@/server/pharmacy/actions/purchase-orders';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import * as poQueries from '@/server/pharmacy/queries/purchase-orders';
 import * as receiptQueries from '@/server/pharmacy/queries/receipts';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
+import { holdRowLock, NOW, person, pharmacy, prisma, resetWorld, untilBlockedOnALock, useTestDatabase } from './fixture';
 import { act, ask, codeOf, dataOf, makeProduct, phCodeOf } from './stock-helpers';
 
 let keySeq = 0;
@@ -415,30 +415,31 @@ describe('races', () => {
     expect(await prisma().phStockMovement.count({ where: { receiptId: { in: drafts.map((d) => d.id) } } })).toBe(2);
   });
 
-  it('serialises a confirm with a cancel: never CANCELLED with received counters', async () => {
+  it('serialises a confirm with a cancel: whoever queued first on the order row wins, and an order is never CANCELLED with received counters', async () => {
     const w = await world();
-    const outcomes = new Set<string>();
-    // The cancel always carries the order's current version, so only the row lock (and the received check) can stop it.
-    for (let round = 0; round < 40 && outcomes.size < 2; round += 1) {
+    // No timing: a test transaction holds the order row, the first writer is let queue behind it (seen as a real lock wait),
+    // then the second, and both are released together. The lock queue then decides, so each order of arrival is exercised.
+    for (const first of ['confirm', 'cancel', 'confirm', 'cancel'] as const) {
       const o = await ordered(w);
-      const d = await draftFor(w, o, [rLine(w.p, o.pLine, { qty: 5, lot: `c-${round}` })]);
+      const d = await draftFor(w, o, [rLine(w.p, o.pLine, { qty: 5, lot: `c-${keySeq}` })]);
       const current = (await orderRow(o)).version;
-      // The cancel starts after 0 to 120 ms, so over the rounds each side gets to the order row first.
-      const delay = [0, 15, 40, 120][round % 4]!;
-      const cancelNow = async () => {
-        await new Promise((resolve) => setTimeout(resolve, delay));
-        return act(w.owner, poActions.cancel, { restaurantId: w.a.id, branchId: w.a.branchIds[0], purchaseOrderId: o.id, expectedVersion: current });
-      };
-      const [confirmed, cancelled] = await Promise.all([confirmIt(w, o, d.id), cancelNow()]);
+      const confirming = () => confirmIt(w, o, d.id);
+      const cancelling = () => act(w.owner, poActions.cancel, { restaurantId: w.a.id, branchId: w.a.branchIds[0], purchaseOrderId: o.id, expectedVersion: current });
+      const hold = await holdRowLock('PhPurchaseOrder', o.id);
+      const one = first === 'confirm' ? confirming() : cancelling();
+      await untilBlockedOnALock(5000, 1);
+      const two = first === 'confirm' ? cancelling() : confirming();
+      await untilBlockedOnALock(5000, 2);
+      await hold.release();
+      const [confirmed, cancelled] = first === 'confirm' ? [await one, await two] : [await two, await one];
       const row = await orderRow(o);
       const got = await counters(o);
-      if (confirmed.ok) {
-        outcomes.add('confirm');
+      if (first === 'confirm') {
+        expect(confirmed.ok).toBe(true);
         expect(codeOf(cancelled)).toBe('CONFLICT'); // the stale version, or something was received
         expect(row.status).toBe('PARTIAL');
         expect(got[0]).toEqual([5, 0]);
       } else {
-        outcomes.add('cancel');
         expect(cancelled.ok).toBe(true);
         expect(codeOf(confirmed)).toBe('CONFLICT');
         expect(phCodeOf(confirmed)).toBe('ORDER_NOT_OPEN');
@@ -446,7 +447,6 @@ describe('races', () => {
         expect(got).toEqual([[0, 0], [0, 0]]);
       }
     }
-    expect([...outcomes].sort()).toEqual(['cancel', 'confirm']);
   });
 
   it('serialises saving a draft (switching or dropping its order) with confirming it: counters equal what was confirmed, no raw errors', async () => {

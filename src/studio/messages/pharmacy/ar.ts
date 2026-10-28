@@ -432,6 +432,7 @@ const pharmacy: Messages = {
   'error.text.phPayCreditOnInvoice': 'سبق تطبيق هذا الإشعار الدائن على هذه الفاتورة',
   'error.text.phPayInvoiceOnce': 'يمكن ذكر كل فاتورة مرة واحدة',
   'error.text.phPayDateLate': 'لا يمكن أن يتجاوز تاريخ الدفع الغد',
+  'error.text.phPayDateEarly': 'لا يمكن أن يسبق تاريخ الدفع 2000-01-01',
   'error.text.phCnEnterNumber': 'أدخل رقم الإشعار الدائن',
   'error.text.phCnReturnNotFound': 'إرجاع المورد غير موجود',
   'error.text.phCnKeyMismatch': 'استُخدم هذا المفتاح سابقًا لإشعار دائن مختلف',

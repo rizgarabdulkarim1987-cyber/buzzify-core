@@ -10,7 +10,7 @@ import * as returnQueries from '@/server/pharmacy/queries/supplier-returns';
 import { getCreditNote, listCreditNotes } from '@/server/pharmacy/credit-notes';
 import { getSupplierReturn, listSupplierReturns } from '@/server/pharmacy/supplier-returns';
 import { DAY, grant, NOW, asPh, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
-import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
+import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf, stockInto } from './stock-helpers';
 
 let keySeq = 0;
 const nextKey = (prefix: string) => `${prefix}-${(keySeq += 1)}-aaaa`;
@@ -312,6 +312,20 @@ describe('branches and businesses', () => {
     expect(await prisma().phSupplierReturn.count()).toBe(0);
   });
 
+  it('takes from the returning branch only when the batch is held in both branches', async () => {
+    const w = await world();
+    const b = await batchOf(w, 0, { available: 10, quarantine: 4 });
+    await stockInto(w.a.id, w.a.branchIds[1]!, b, { available: 7, quarantine: 3 });
+    const made = dataOf(await sendBack(w, [line(b, 'AVAILABLE', 6), line(b, 'QUARANTINE', 4)]));
+    expect(await balanceOf(b, w.a.branchIds[0]!)).toMatchObject({ available: 4, quarantine: 0 });
+    expect(await balanceOf(b, w.a.branchIds[1]!)).toMatchObject({ available: 7, quarantine: 3 });
+    const moves = await prisma().phStockMovement.findMany({ where: { refType: 'PhSupplierReturn', refId: made.id } });
+    expect(moves.map((m) => m.branchId)).toEqual([w.a.branchIds[0], w.a.branchIds[0]]);
+    // Branch 1 holds 4 now, though branch 2 holds 7: a return from branch 1 cannot reach into it.
+    expect(phCodeOf(await sendBack(w, [line(b, 'AVAILABLE', 5)]))).toBe('INSUFFICIENT_STOCK');
+    expect(await balanceOf(b, w.a.branchIds[1]!)).toMatchObject({ available: 7, quarantine: 3 });
+  });
+
   it('keeps a return of branch 2 out of branch 1 lists and reads, and shows the owner both', async () => {
     const w = await world();
     const b1 = await batchOf(w, 0, { available: 10 });
@@ -368,11 +382,31 @@ describe('the cost of a return', () => {
     expect(rows.map((r) => [r.unitCostMinor, r.costCurrency])).toEqual([[1000n, 'IQD'], [333n, 'IQD'], [null, null], [100n, 'USD']]);
     const read = dataOf(await ask(w.owner, returnQueries.get, { restaurantId: w.a.id, returnId: made.id }));
     // 2500 + 233 = 2733 IQD; floor(100 x 3 / 10) = 30 USD; the batch with no cost adds nothing.
-    expect(read.returnValue).toEqual({ IQD: '2733', USD: '30' });
+    // The batch with no cost makes the value a floor, and the payload says so.
+    expect(read.returnValue).toEqual({ IQD: '2733', USD: '30', incomplete: true });
     expect(read.lines.map((l) => [l.qty, l.unitCostMinor ?? null, l.costCurrency ?? null])).toEqual([[25, '1000', 'IQD'], [7, '333', 'IQD'], [9, null, null], [3, '100', 'USD']]);
     expect(read.lines[0]).toMatchObject({ productName: 'Panadol', bucket: 'AVAILABLE', expiryDate: '2028-03-31', batchId: a });
     const listed = dataOf(await ask(w.owner, returnQueries.list, { restaurantId: w.a.id }));
-    expect(listed.items[0]).toMatchObject({ id: made.id, number: made.number, supplierName: 'Al-Noor', lineCount: 4, returnValue: { IQD: '2733', USD: '30' } });
+    expect(listed.items[0]).toMatchObject({ id: made.id, number: made.number, supplierName: 'Al-Noor', lineCount: 4, returnValue: { IQD: '2733', USD: '30', incomplete: true } });
+  });
+
+  it('marks the value incomplete only when a returned line has no cost', async () => {
+    const w = await world();
+    const costed = await batchOf(w, 0, { available: 40 }, { cost: 1000n });
+    const bare = await batchOf(w, 0, { available: 40 });
+    const whole = dataOf(await sendBack(w, [line(costed, 'AVAILABLE', 10)]));
+    const partial = dataOf(await sendBack(w, [line(costed, 'AVAILABLE', 10), line(bare, 'AVAILABLE', 1)]));
+    const onlyBare = dataOf(await sendBack(w, [line(bare, 'AVAILABLE', 2)]));
+    const value = async (id: string) => dataOf(await ask(w.owner, returnQueries.get, { restaurantId: w.a.id, returnId: id })).returnValue;
+    expect(await value(whole.id)).toEqual({ IQD: '1000' });
+    expect(await value(partial.id)).toEqual({ IQD: '1000', incomplete: true });
+    expect(await value(onlyBare.id)).toEqual({ incomplete: true });
+    const listed = dataOf(await ask(w.owner, returnQueries.list, { restaurantId: w.a.id }));
+    expect(Object.fromEntries(listed.items.map((i) => [i.id, i.returnValue]))).toEqual({
+      [whole.id]: { IQD: '1000' },
+      [partial.id]: { IQD: '1000', incomplete: true },
+      [onlyBare.id]: { incomplete: true },
+    });
   });
 
   it('shows no cost, no value and no money to a role without cost.view', async () => {
@@ -491,6 +525,18 @@ describe('recording a credit note', () => {
     expect(await prisma().auditLog.count({ where: { action: 'ph.credit.record' } })).toBe(2);
   });
 
+  it('answers a repeat with the totals it stored, not the ones the note has now', async () => {
+    const w = await world();
+    const body = noteBody(w, { amountMinor: '500000' });
+    const first = dataOf(await act(w.owner, creditActions.record, body));
+    expect(first).toMatchObject({ appliedMinor: '0', availableMinor: '500000', replayed: false });
+    await prisma().phCreditNote.update({ where: { id: first.id }, data: { appliedMinor: 200_000n } });
+    const again = dataOf(await act(w.owner, creditActions.record, body));
+    expect(again).toMatchObject({ id: first.id, appliedMinor: '0', availableMinor: '500000', amountMinor: '500000', replayed: true });
+    // The note itself carries the new figure.
+    expect(dataOf(await ask(w.owner, creditQueries.get, { restaurantId: w.a.id, creditNoteId: first.id }))).toMatchObject({ appliedMinor: '200000', availableMinor: '300000' });
+  });
+
   it('lets two different keys race for one number: one wins and the other is told which note has it', async () => {
     const w = await world();
     const results = await Promise.all([record(w, { number: 'RACE-1' }), record(w, { number: 'race-1' })]);
@@ -583,6 +629,41 @@ describe('reading credit notes', () => {
     expect(dataOf(await ask(w.owner, creditQueries.list, { restaurantId: w.a.id, supplierId: w.supplierId })).items.map((n) => n.id)).toEqual([openNote.id, spentNote.id]);
     expect(dataOf(await ask(w.owner, creditQueries.list, { restaurantId: w.a.id, openOnly: true })).items.map((n) => n.id)).toEqual([otherSupplier.id, openNote.id]);
     expect(codeOf(await ask(w.owner, creditQueries.get, { restaurantId: w.a.id, creditNoteId: 'nope' }))).toBe('NOT_FOUND');
+  });
+
+  it('pages the open notes by a keyset: many spent notes in between never hide an open one, and each page is full', async () => {
+    const w = await world();
+    const make = (n: number, spent: boolean) => ({
+      restaurantId: w.a.id,
+      supplierId: w.supplierId,
+      number: `BULK-${n}`,
+      currency: 'IQD' as const,
+      amountMinor: 1000n,
+      appliedMinor: spent ? 1000n : 400n,
+      noteDate: new Date('2026-10-20T00:00:00Z'),
+      clientKey: `bulk-key-${n}`,
+      createdById: w.owner.userId,
+      createdAt: new Date(NOW.getTime() - n * 60_000),
+    });
+    // Newest first: 120 spent notes, then 60 open ones, with a spent note every fifth among the open.
+    const rows = [
+      ...Array.from({ length: 120 }, (_, i) => make(i, true)),
+      ...Array.from({ length: 60 }, (_, i) => make(1000 + i * 2, false)),
+      ...Array.from({ length: 12 }, (_, i) => make(1001 + i * 10, true)),
+    ];
+    await prisma().phCreditNote.createMany({ data: rows });
+    const open = rows.filter((r) => r.appliedMinor < r.amountMinor).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).map((r) => r.number);
+    const first = dataOf(await ask(w.owner, creditQueries.list, { restaurantId: w.a.id, openOnly: true }));
+    expect(first.items).toHaveLength(50);
+    expect(first.nextCursor).not.toBeNull();
+    const second = dataOf(await ask(w.owner, creditQueries.list, { restaurantId: w.a.id, openOnly: true, cursor: first.nextCursor }));
+    expect(second.nextCursor).toBeNull();
+    expect([...first.items, ...second.items].map((n) => n.number)).toEqual(open);
+    expect(open).toHaveLength(60);
+    // A cursor that points at an open note which has since been spent still leads on to the next ones.
+    await prisma().phCreditNote.updateMany({ where: { number: first.items[49]!.number }, data: { appliedMinor: 1000n } });
+    const after = dataOf(await ask(w.owner, creditQueries.list, { restaurantId: w.a.id, openOnly: true, cursor: first.nextCursor }));
+    expect(after.items.map((n) => n.number)).toEqual(open.slice(50));
   });
 
   it('lets a stock clerk and an accountant read, and refuses a cashier', async () => {

@@ -218,6 +218,9 @@ export function voidedKeys(number: string, fingerprint: string, id: string): { n
   return { number: `${number}#void-${id}`, fingerprint: `${fingerprint}#void-${id}` };
 }
 
+/** The number as the supplier wrote it: a voided invoice's stored number carries a `#void-<id>` suffix that is not for people. */
+export const shownNumber = (stored: string): string => stored.split('#void-')[0]!;
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Due dates
 // ---------------------------------------------------------------------------------------------------------------------

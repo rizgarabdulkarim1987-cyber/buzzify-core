@@ -432,6 +432,7 @@ const pharmacy: Messages = {
   'error.text.phPayCreditOnInvoice': 'ئەم تێبینی کرێدیتە پێشتر بەسەر ئەم فاتورەیەدا جێبەجێ کراوە',
   'error.text.phPayInvoiceOnce': 'هەر فاتورەیەک تەنها یەکجار دەتوانرێت ناو ببرێت',
   'error.text.phPayDateLate': 'بەرواری پارەدان ناتوانێت دوای سبەی بێت',
+  'error.text.phPayDateEarly': 'بەرواری پارەدان ناتوانێت پێش 2000-01-01 بێت',
   'error.text.phCnEnterNumber': 'ژمارەی تێبینی کرێدیت بنووسە',
   'error.text.phCnReturnNotFound': 'گەڕاندنەوەی دابینکەر نەدۆزرایەوە',
   'error.text.phCnKeyMismatch': 'ئەم کلیلە پێشتر بۆ تێبینی کرێدیتێکی جیاواز بەکارهاتووە',

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
-import { dueDate as addDays, PurchasingError, planAllocation, type Allocation } from '@/server/domain/pharmacy/purchasing';
+import { dueDate as addDays, PurchasingError, planAllocation, shownNumber, type Allocation } from '@/server/domain/pharmacy/purchasing';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { bumpApplied, lockCreditNote } from './credit-notes';
@@ -45,6 +45,10 @@ const dateText = z
   .trim()
   .refine((v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && iso(midnight(v)) === v, 'Enter a date as YYYY-MM-DD');
 
+/** A payment date: a real day, not before 2000-01-01 (a typo such as 0026 is not a date money moved). */
+const EARLIEST_PAID_ON = '2000-01-01';
+const paidOnText = dateText.refine((v) => v >= EARLIEST_PAID_ON, 'The payment date cannot be before 2000-01-01');
+
 const clientKey = z.string().trim().min(8, 'Use at least 8 characters').max(100, 'Use at most 100 characters');
 const idText = z.string().min(1).max(64);
 const amount = z.coerce.bigint('Enter an amount').min(1n, 'Use 1 or more').max(MAX_MINOR, 'Enter a smaller amount');
@@ -58,7 +62,7 @@ export const paymentFields = z.object({
   currency: z.enum(['IQD', 'USD'], 'Choose IQD or USD'),
   method: z.enum(METHODS, 'Choose a payment method'),
   amountMinor: amount,
-  paidOn: dateText,
+  paidOn: paidOnText,
   reference: z.string().transform(cleanText).pipe(z.string().max(100, 'Use at most 100 characters')).default(''),
   allocations: allocations.optional(),
 });
@@ -101,7 +105,9 @@ const nothingToApply = () => new StudioError('CONFLICT', 'There is nothing to ap
 const alreadyOnInvoice = () => new StudioError('CONFLICT', 'This credit note was already applied to this invoice', { phCode: 'CREDIT_ALREADY_ON_INVOICE' });
 
 const hashOf = (parts: unknown[]) => createHash('sha256').update(JSON.stringify(parts)).digest('hex');
-const allocationParts = (list: readonly { invoiceId: string; amountMinor: bigint }[] | undefined) => (list ? list.map((a) => [a.invoiceId, a.amountMinor.toString()]) : null);
+/** Explicit allocations hash by invoice id, so the same split sent in another order is the same request. */
+const allocationParts = (list: readonly { invoiceId: string; amountMinor: bigint }[] | undefined) =>
+  list ? [...list].sort((a, b) => (a.invoiceId < b.invoiceId ? -1 : a.invoiceId > b.invoiceId ? 1 : 0)).map((a) => [a.invoiceId, a.amountMinor.toString()]) : null;
 
 /** The hash a replayed payment key is compared by: every field of the request (the automatic plan hashes as `null`). */
 export function paymentPayloadHash(input: PaymentFields): string {
@@ -415,9 +421,6 @@ export async function applyCredit(tx: ScopedTx, args: { restaurantId: string; us
 }
 
 // Reading --------------------------------------------------------------------------------------------------------------
-
-/** The supplier's number as entered: a voided invoice's stored number carries a suffix that is not for people. */
-const shownNumber = (stored: string) => stored.split('#void-')[0]!;
 
 export interface PaymentSummary {
   id: string;

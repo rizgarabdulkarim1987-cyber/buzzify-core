@@ -10,7 +10,7 @@ import type { PhActor } from '@/server/pharmacy/actor';
  * Supplier payments, their reversals and credit allocation (R4-5..R4-7). They are business-wide, so the place's branch plays
  * no part. Every one is a money decision: it needs `purchase.manage` AND `report.view` (R4-9a), which the owner, a branch
  * manager, the pharmacist in charge and an accountant hold and a stock clerk does not. The audit rows carry ids, amounts,
- * currency, method and counts: never the reference, the reason or any name. Payments never touch a cashier drawer (R4-6).
+ * currency, method and counts, and the invoices each one settled (invoice id and amount): never the reference, the reason or any name. Payments never touch a cashier drawer (R4-6).
  */
 
 const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
@@ -61,6 +61,7 @@ export const create = defineAction({
               amountMinor: { before: null, after: made.amountMinor },
               paidOn: { before: null, after: made.paidOn },
               allocationCount: { before: null, after: made.allocations.length },
+              settled: { before: null, after: made.allocations },
             },
           });
         }
@@ -94,6 +95,7 @@ export const reverse = defineAction({
               method: { before: null, after: done.method },
               amountMinor: { before: null, after: done.amountMinor },
               allocationCount: { before: null, after: done.allocations.length },
+              settled: { before: null, after: done.allocations },
             },
           });
         }
@@ -126,6 +128,7 @@ export const applyCreditNote = defineAction({
             appliedMinor: { before: before.toString(), after: done.appliedMinor },
             appliedNowMinor: { before: null, after: done.appliedNowMinor },
             allocationCount: { before: null, after: done.allocations.length },
+            settled: { before: null, after: done.allocations },
           },
         });
       }

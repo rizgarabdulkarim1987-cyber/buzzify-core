@@ -7,6 +7,7 @@ import {
   daysOverdue,
   dueBand,
   dueDate as addDays,
+  shownNumber,
   statementInvariant,
   type DueBand,
   type StatementInput as StatementRowInput,
@@ -69,7 +70,6 @@ export type BalancesInput = z.input<typeof balancesInput>;
 
 const invalid = (field: string, message: string) => new StudioError('INVALID', message, { [field]: message });
 const supplierNotFound = () => new StudioError('NOT_FOUND', 'Supplier not found');
-const shownNumber = (stored: string) => stored.split('#void-')[0]!;
 
 // Statement -------------------------------------------------------------------------------------------------------------
 

@@ -14,6 +14,7 @@ import {
   lineTotal,
   normalizeInvoiceNumber,
   PurchasingError,
+  shownNumber,
   voidedKeys,
   type DueBand,
 } from '@/server/domain/pharmacy/purchasing';
@@ -438,9 +439,6 @@ export async function settleInvoice(tx: ScopedTx, args: { invoiceId: string; pai
 }
 
 // Reading --------------------------------------------------------------------------------------------------------------
-
-/** The supplier's number as entered: a voided invoice's stored number carries a suffix that is not for people. */
-const shownNumber = (stored: string) => stored.split('#void-')[0]!;
 
 export interface InvoiceSummary {
   id: string;

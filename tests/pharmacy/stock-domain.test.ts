@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { allocateFefo, fefoOrder, sellableStock, toBase, type FefoBatch } from '@/server/domain/pharmacy/stock';
+import { allocateFefo, costOfBaseQty, fefoOrder, sellableStock, toBase, type FefoBatch } from '@/server/domain/pharmacy/stock';
 
 describe('toBase', () => {
   it('multiplies whole quantities (generated)', () => {
@@ -125,5 +125,28 @@ describe('allocateFefo', () => {
   it('refuses an invalid quantity', () => {
     expect(() => allocateFefo(batches, -1)).toThrow(RangeError);
     expect(() => allocateFefo(batches, 1.5)).toThrow(RangeError);
+  });
+});
+
+describe('costOfBaseQty (the one line-cost rule: sales snapshots and supplier returns)', () => {
+  it('is unitCost x qty / per with the division floored, in integers', () => {
+    // 1000 per strip of 10: 25 tablets are 2500. 333 per strip: 7 tablets are floor(2331 / 10) = 233.
+    expect(costOfBaseQty(1000n, 25, 10)).toBe(2500n);
+    expect(costOfBaseQty(333n, 7, 10)).toBe(233n);
+    expect(costOfBaseQty(100n, 3, 10)).toBe(30n);
+    expect(costOfBaseQty(5n, 1, 10)).toBe(0n);
+    expect(costOfBaseQty(7n, 0, 10)).toBe(0n);
+    expect(costOfBaseQty(1000n, 1, 1)).toBe(1000n);
+  });
+
+  it('keeps precision beyond the safe integers', () => {
+    const big = 9_007_199_254_740_993n; // 2^53 + 1
+    expect(costOfBaseQty(big, 3, 1)).toBe(big * 3n);
+    expect(costOfBaseQty(big, 2, 2)).toBe(big);
+  });
+
+  it('refuses a fractional or negative quantity and a cost unit below 1 (a cost of any size passes through)', () => {
+    for (const q of [1.5, -1, NaN]) expect(() => costOfBaseQty(10n, q, 10)).toThrow(RangeError);
+    for (const per of [0, -1, 2.5, NaN]) expect(() => costOfBaseQty(10n, 3, per)).toThrow(RangeError);
   });
 });

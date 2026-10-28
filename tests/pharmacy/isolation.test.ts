@@ -497,6 +497,24 @@ describe('the pharmacy isolation sweep', () => {
     expect(names.filter((name) => name !== 'ph.credits.apply' && CASES[name] === undefined)).toEqual([]);
   });
 
+  it('covers all 34 phase 4 definitions by name, each with a sweep case of its own and none left to another file', () => {
+    const PHASE_4 = [
+      'ph.credits.apply', 'ph.credits.get', 'ph.credits.list', 'ph.credits.record',
+      'ph.invoices.create', 'ph.invoices.get', 'ph.invoices.invoiceable', 'ph.invoices.list', 'ph.invoices.variance', 'ph.invoices.void',
+      'ph.payables.list',
+      'ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.receipts', 'ph.po.suggest', 'ph.po.update',
+      'ph.supplierPayments.create', 'ph.supplierPayments.get', 'ph.supplierPayments.list', 'ph.supplierPayments.reverse',
+      'ph.supplierReturns.create', 'ph.supplierReturns.get', 'ph.supplierReturns.list',
+      'ph.suppliers.archive', 'ph.suppliers.balances', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.statement', 'ph.suppliers.update',
+    ];
+    expect(PHASE_4).toHaveLength(34);
+    const families = /^ph\.(credits|invoices|payables|po|supplierPayments|supplierReturns|suppliers)\./;
+    // Every definition of those families is on the list (a new one must be added here), and every listed name exists.
+    expect([...DEFINITIONS.keys()].filter((name) => families.test(name)).sort()).toEqual([...PHASE_4].sort());
+    expect(PHASE_4.filter((name) => CASES[name] === undefined)).toEqual([]);
+    expect(PHASE_4.filter((name) => COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
   it('covers the sale screen search', () => {
     const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
     expect(sell).toEqual(['ph.sell.search']);

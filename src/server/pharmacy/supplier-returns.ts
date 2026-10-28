@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
 import { saleNumber } from '@/server/domain/pharmacy/sale';
+import { costOfBaseQty } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { mayViewCost } from './products';
@@ -18,8 +19,8 @@ import { cleanMultiline, cleanText, NS_CLIENT_KEY, PAGE_SIZE } from './suppliers
  * Lock order of this phase (header comment of every service that locks): client key (advisory, namespace 7201) -> PO row ->
  * receipt line counters -> credit note row -> invoice rows -> stock rows (balances in batch id order, the phase 2/3 order) ->
  * number lock (7202, key `sr:<branchId>`, distinct from the order numbering). A return takes its client key, inserts its
- * own new rows (nothing to lock), then the balances, and the number last, so two returns of one branch queue on the number
- * only after their stock is taken.
+ * own new header (nothing to lock), then the balances (through `applyMovement`), then its lines, and the number last, so
+ * two returns of one branch queue on the number only after their stock is taken, and a short line fails before any line row.
  *
  * The supplier is not checked against the batch (phase 2 ruling: the supplier is not part of a batch's identity). Recalled,
  * blocked and expired batches can go back: that is the main use. Quantities are whole base units.
@@ -77,14 +78,6 @@ export function returnPayloadHash(branchId: string, input: ReturnFields): string
   return createHash('sha256')
     .update(JSON.stringify(['sret', branchId, input.supplierId, input.reason, input.note, input.lines.map((l) => [l.batchId, l.bucket, l.qty])]))
     .digest('hex');
-}
-
-/**
- * The cost of `qty` base units of a batch whose cost is `unitCostMinor` per cost unit of `per` base units: the sales
- * snapshot rule (sales.ts, "Cost snapshot"): `unitCostMinor x qty / per`, the division floored. Integer maths only.
- */
-export function costOfQty(unitCostMinor: bigint, qty: number, per: number): bigint {
-  return (unitCostMinor * BigInt(qty)) / BigInt(per);
 }
 
 /** For each batch: the base size of its cost unit, when it has a cost. */
@@ -176,9 +169,8 @@ export async function createSupplierReturn(
       costCurrency: costed ? batch.costCurrency : null,
     };
   });
-  await tx.phSupplierReturnLine.createMany({ data: lines.map((l) => ({ restaurantId: args.restaurantId, returnId: made.id, ...l })) });
 
-  // Stock rows in batch id order (the lock order of the stock layer), then the number.
+  // Stock rows in batch id order (the lock order of the stock layer), then the lines, then the number.
   const ordered = [...lines].sort((a, b) => compare(a.batchId, b.batchId) || compare(a.bucket, b.bucket));
   for (const l of ordered) {
     await applyMovement(tx, {
@@ -193,6 +185,7 @@ export async function createSupplierReturn(
       refId: made.id,
     });
   }
+  await tx.phSupplierReturnLine.createMany({ data: lines.map((l) => ({ restaurantId: args.restaurantId, returnId: made.id, ...l })) });
 
   const now = args.now ?? new Date();
   const day = iso(now).replaceAll('-', '');
@@ -214,7 +207,11 @@ export async function createSupplierReturn(
 
 // Read -----------------------------------------------------------------------------------------------------------------
 
-export type ReturnValue = Partial<Record<'IQD' | 'USD', string>>;
+/**
+ * What the lines cost, per currency, as minor-unit strings. `incomplete: true` when a returned line has no cost (the batch
+ * has none, or no cost unit or currency), which makes each figure a floor: a missing cost is not a zero cost.
+ */
+export type ReturnValue = Partial<Record<'IQD' | 'USD', string>> & { incomplete?: true };
 
 interface CostedLine {
   batchId: string;
@@ -223,15 +220,19 @@ interface CostedLine {
   costCurrency: 'IQD' | 'USD' | null;
 }
 
-/** The cost of a return's lines per currency; lines with no cost add nothing. Integer maths, floored per line. */
+/** The cost of a return's lines per currency; lines with no cost add nothing and mark the value incomplete. Integer maths, floored per line. */
 function valueOf(lines: readonly CostedLine[], per: ReadonlyMap<string, number>): ReturnValue {
   const sums = new Map<'IQD' | 'USD', bigint>();
+  let incomplete = false;
   for (const l of lines) {
     const size = per.get(l.batchId);
-    if (l.unitCostMinor === null || l.costCurrency === null || size === undefined) continue;
-    sums.set(l.costCurrency, (sums.get(l.costCurrency) ?? 0n) + costOfQty(l.unitCostMinor, l.qty, size));
+    if (l.unitCostMinor === null || l.costCurrency === null || size === undefined) {
+      incomplete = true;
+      continue;
+    }
+    sums.set(l.costCurrency, (sums.get(l.costCurrency) ?? 0n) + costOfBaseQty(l.unitCostMinor, l.qty, size));
   }
-  return Object.fromEntries([...sums].map(([currency, total]) => [currency, total.toString()]));
+  return { ...Object.fromEntries([...sums].map(([currency, total]) => [currency, total.toString()])), ...(incomplete ? { incomplete: true as const } : {}) };
 }
 
 export interface ReturnSummary {

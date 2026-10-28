@@ -14,6 +14,18 @@ export function toBase(qty: number, baseQty: number): number {
 }
 
 /**
+ * The cost of `baseQty` base units of a batch whose cost is `unitCostMinor` per cost unit of `per` base units: `unitCostMinor x
+ * baseQty / per`, the division FLOORED, in integers. The one line-cost rule: the sale snapshot (sales.ts, "Cost snapshot") and the
+ * value of a supplier return both use it, so a unit sold and a unit sent back are valued alike. Throws unless `baseQty` is a
+ * whole number >= 0 and `per` a whole number >= 1.
+ */
+export function costOfBaseQty(unitCostMinor: bigint, baseQty: number, per: number): bigint {
+  if (!Number.isSafeInteger(baseQty) || baseQty < 0) throw new RangeError(`Quantity must be a safe whole number: ${baseQty}`);
+  if (!Number.isSafeInteger(per) || per < 1) throw new RangeError(`The cost unit must be a positive whole number: ${per}`);
+  return (unitCostMinor * BigInt(baseQty)) / BigInt(per);
+}
+
+/**
  * The single definition of what can be sold from one batch balance (R2-5): `available` only, and only when the batch is
  * ACTIVE and not expired. Reserved, quarantine and damaged are never sellable.
  */

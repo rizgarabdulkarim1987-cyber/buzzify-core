@@ -19,6 +19,7 @@ import {
   planAllocation,
   poStatusAfterReceipt,
   quantityTriple,
+  shownNumber,
   statementInvariant,
   voidedKeys,
 } from '@/server/domain/pharmacy/purchasing';
@@ -231,6 +232,14 @@ describe('invoice keys', () => {
   });
   it('voidedKeys appends the void marker (R4-4a)', () => {
     expect(voidedKeys('INV 1', 'abc', 'id9')).toEqual({ number: 'INV 1#void-id9', fingerprint: 'abc#void-id9' });
+  });
+});
+
+describe('shownNumber', () => {
+  it('hides the void suffix and leaves any other number as it is', () => {
+    expect(shownNumber(voidedKeys('INV 1', 'abc', 'id9').number)).toBe('INV 1');
+    expect(shownNumber('INV-77')).toBe('INV-77');
+    expect(shownNumber('A#B')).toBe('A#B');
   });
 });
 

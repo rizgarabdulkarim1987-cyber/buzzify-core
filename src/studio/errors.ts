@@ -482,6 +482,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This credit note was already applied to this invoice': 'error.text.phPayCreditOnInvoice',
   'Each invoice can be named once': 'error.text.phPayInvoiceOnce',
   'The payment date cannot be later than tomorrow': 'error.text.phPayDateLate',
+  'The payment date cannot be before 2000-01-01': 'error.text.phPayDateEarly',
   'Enter the credit note number': 'error.text.phCnEnterNumber',
   'Supplier return not found': 'error.text.phCnReturnNotFound',
   'This key was already used for a different credit note': 'error.text.phCnKeyMismatch',

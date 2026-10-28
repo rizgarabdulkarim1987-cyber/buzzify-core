@@ -17,7 +17,7 @@ import {
   type LineDiscountInput,
 } from '@/server/domain/pharmacy/sale';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
-import { allocateFefo, sellableStock, toBase, type FefoBatch } from '@/server/domain/pharmacy/stock';
+import { allocateFefo, costOfBaseQty, sellableStock, toBase, type FefoBatch } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { priceRowsAt } from './prices';
@@ -603,7 +603,7 @@ export async function createSale(
       throw invalid('lines', 'This batch has a cost but no cost unit', 'COST_UNIT_MISSING', { batchId: batch.id });
     }
     if (batch.unitCostMinor !== null && batch.costCurrency !== null && per !== undefined) {
-      costSnapshotMinor = (batch.unitCostMinor * BigInt(t.baseQty)) / BigInt(per);
+      costSnapshotMinor = costOfBaseQty(batch.unitCostMinor, t.baseQty, per);
       if (costSnapshotMinor > PG_BIGINT_MAX) throw conflict('COST_OVERFLOW', 'The cost of this batch is too large to record');
       costCurrency = batch.costCurrency;
     }

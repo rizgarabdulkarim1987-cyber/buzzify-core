@@ -5,7 +5,7 @@ import * as invoiceActions from '@/server/pharmacy/actions/supplier-invoices';
 import * as payActions from '@/server/pharmacy/actions/supplier-payments';
 import * as payQueries from '@/server/pharmacy/queries/supplier-payments';
 import { getPayment, listPayments } from '@/server/pharmacy/supplier-payments';
-import { grant, NOW, asPh, person, pharmacy, prisma, resetWorld, useTestDatabase } from './fixture';
+import { grant, holdRowLock, NOW, asPh, person, pharmacy, prisma, resetWorld, untilBlockedOnALock, useTestDatabase } from './fixture';
 import { act, ask, codeOf, dataOf, makeProduct, phCodeOf } from './stock-helpers';
 
 let keySeq = 0;
@@ -210,6 +210,9 @@ describe('paying a supplier', () => {
     expect(codeOf(await pay(w, { paidOn: '2026-10-29' }))).toBe('INVALID');
     expect(codeOf(await pay(w, { paidOn: '2027-01-01' }))).toBe('INVALID');
     expect(codeOf(await pay(w, { paidOn: '27/10/2026' }))).toBe('INVALID');
+    // Nothing before 2000-01-01 (a typo such as 0026 or 1926 is not a payment date); that day itself is allowed.
+    expect(codeOf(await pay(w, { paidOn: '1999-12-31' }))).toBe('INVALID');
+    expect(codeOf(await pay(w, { paidOn: '0026-10-27' }))).toBe('INVALID');
     expect(codeOf(await pay(w, { method: 'BARTER' }))).toBe('INVALID');
     expect(codeOf(await pay(w, { reference: 'x'.repeat(101) }))).toBe('INVALID');
     expect(codeOf(await pay(w, { clientKey: 'short' }))).toBe('INVALID');
@@ -217,6 +220,7 @@ describe('paying a supplier', () => {
     expect(await prisma().phSupplierPayment.count()).toBe(0);
     // Tomorrow (UTC) is the latest day allowed.
     expect(codeOf(await pay(w, { paidOn: '2026-10-28', amountMinor: '1000' }))).toBe('OK');
+    expect(codeOf(await pay(w, { paidOn: '2000-01-01', amountMinor: '1000' }))).toBe('OK');
   });
 
   it('pays an archived supplier, and refuses an unknown one', async () => {
@@ -240,6 +244,19 @@ describe('replaying a payment', () => {
     expect(await prisma().phSupplierPayment.count()).toBe(1);
     expect((await figures(a)).paid).toBe(400_000n);
     expect(await prisma().auditLog.count({ where: { action: 'ph.supplierPayment.create' } })).toBe(1);
+  });
+
+  it('treats the same explicit allocations in another order as the same request', async () => {
+    const w = await world();
+    const a = await invoice(w, 1_000_000, { dueDate: '2026-11-10' });
+    const b = await invoice(w, 500_000, { dueDate: '2026-11-25' });
+    const body = payBody(w, { amountMinor: '600000', allocations: [alloc(a, 400_000), alloc(b, 200_000)] });
+    const first = dataOf(await act(w.owner, payActions.create, body));
+    const swapped = dataOf(await act(w.owner, payActions.create, { ...body, allocations: [alloc(b, 200_000), alloc(a, 400_000)] }));
+    expect(swapped).toMatchObject({ id: first.id, replayed: true });
+    // Another split of the same total is another request.
+    expect(phCodeOf(await act(w.owner, payActions.create, { ...body, allocations: [alloc(a, 300_000), alloc(b, 300_000)] }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(await prisma().phSupplierPayment.count()).toBe(1);
   });
 
   it('refuses the same key with another request or another person (CLIENT_KEY_MISMATCH)', async () => {
@@ -308,10 +325,47 @@ describe('payments that race', () => {
       expect(await prisma().phSupplierPayment.count()).toBe(0);
     } else {
       expect(codeOf(paid)).toBe('OK');
+      // The payment moved the invoice's version, so the void (written against version 1) is a plain conflict.
       expect(codeOf(voided)).toBe('CONFLICT');
+      expect(await prisma().phSupplierPayment.count()).toBe(1);
       expect(row.paidMinor).toBe(300_000n);
       expect(row.status).toBe('PARTIAL');
     }
+  });
+
+  it('lets the payment win when it queued first: one payment, the void refused as a conflict, the figures kept', async () => {
+    const w = await world();
+    const a = await invoice(w, 1_000_000);
+    const hold = await holdRowLock('PhSupplierInvoice', a);
+    const paying = pay(w, { amountMinor: '300000', allocations: [alloc(a, 300_000)] });
+    await untilBlockedOnALock(5000, 1);
+    const voiding = act(w.owner, invoiceActions.voidInvoice, { restaurantId: w.a.id, invoiceId: a, expectedVersion: 1, reason: 'Queued behind the payment' });
+    await untilBlockedOnALock(5000, 2);
+    await hold.release();
+    const [paid, voided] = [await paying, await voiding];
+    expect(codeOf(paid)).toBe('OK');
+    // The payment moved the invoice's version, so the void (written against version 1) is a plain conflict.
+    expect(codeOf(voided)).toBe('CONFLICT');
+    expect(await prisma().phSupplierPayment.count()).toBe(1);
+    expect(await prisma().phSupplierPaymentAllocation.count()).toBe(1);
+    expect(await figures(a)).toEqual({ status: 'PARTIAL', paid: 300_000n, credited: 0n });
+  });
+
+  it('lets the void win when it queued first: no payment row is left, the payment refused as void', async () => {
+    const w = await world();
+    const a = await invoice(w, 1_000_000);
+    const hold = await holdRowLock('PhSupplierInvoice', a);
+    const voiding = act(w.owner, invoiceActions.voidInvoice, { restaurantId: w.a.id, invoiceId: a, expectedVersion: 1, reason: 'Queued before the payment' });
+    await untilBlockedOnALock(5000, 1);
+    const paying = pay(w, { amountMinor: '300000', allocations: [alloc(a, 300_000)] });
+    await untilBlockedOnALock(5000, 2);
+    await hold.release();
+    const [voided, paid] = [await voiding, await paying];
+    expect(codeOf(voided)).toBe('OK');
+    expect(phCodeOf(paid)).toBe('INVOICE_VOID');
+    expect(await prisma().phSupplierPayment.count()).toBe(0);
+    expect(await prisma().phSupplierPaymentAllocation.count()).toBe(0);
+    expect(await figures(a)).toEqual({ status: 'VOID', paid: 0n, credited: 0n });
   });
 
   it('refuses to void an invoice that has been paid, and the database state stays consistent', async () => {
@@ -358,6 +412,25 @@ describe('reversing a payment', () => {
     expect((await figures(a)).paid).toBe(500_000n);
     dataOf(await reverse(w, p1.id));
     expect(await figures(a)).toEqual({ status: 'PARTIAL', paid: 200_000n, credited: 0n });
+  });
+
+  it('takes back only the payment on an invoice that also has credit: the credit stays, the figures add up', async () => {
+    const w = await world();
+    const a = await invoice(w, 1_000_000);
+    const cn = await creditNote(w, 250_000);
+    dataOf(await apply(w, cn, [alloc(a, 250_000)]));
+    const made = dataOf(await pay(w, { amountMinor: '600000', allocations: [alloc(a, 600_000)] }));
+    expect(await figures(a)).toEqual({ status: 'PARTIAL', paid: 600_000n, credited: 250_000n });
+    dataOf(await reverse(w, made.id));
+    expect(await figures(a)).toEqual({ status: 'PARTIAL', paid: 0n, credited: 250_000n });
+    expect((await noteOf(cn)).appliedMinor).toBe(250_000n);
+    // Payment and credit together settle the invoice; reversing the payment leaves the credit and 750,000 owing.
+    const rest = dataOf(await pay(w, { amountMinor: '750000', allocations: [alloc(a, 750_000)] }));
+    expect(await figures(a)).toEqual({ status: 'PAID', paid: 750_000n, credited: 250_000n });
+    dataOf(await reverse(w, rest.id));
+    expect(await figures(a)).toEqual({ status: 'PARTIAL', paid: 0n, credited: 250_000n });
+    const row = await rowOf(a);
+    expect(row.totalMinor - row.paidMinor - row.creditedMinor).toBe(750_000n);
   });
 
   it('can be done once only, and a reversal cannot be reversed', async () => {
@@ -511,6 +584,19 @@ describe('applying a credit note', () => {
     expect(row.status).toBe('PARTIAL');
   });
 
+  it('treats the same explicit allocations in another order as the same application', async () => {
+    const w = await world();
+    const a = await invoice(w, 1_000_000, { dueDate: '2026-11-10' });
+    const b = await invoice(w, 500_000, { dueDate: '2026-11-25' });
+    const cn = await creditNote(w, 300_000);
+    const body = { restaurantId: w.a.id, clientKey: nextKey('cr'), creditNoteId: cn, allocations: [alloc(a, 100_000), alloc(b, 50_000)] };
+    const first = dataOf(await act(w.owner, payActions.applyCreditNote, body));
+    const swapped = dataOf(await act(w.owner, payActions.applyCreditNote, { ...body, allocations: [alloc(b, 50_000), alloc(a, 100_000)] }));
+    expect(first.replayed).toBe(false);
+    expect(swapped).toMatchObject({ replayed: true, appliedNowMinor: '150000' });
+    expect(await prisma().phCreditAllocation.count()).toBe(2);
+  });
+
   it('replays by key, refuses a different request on the same key, and runs once for two parallel requests', async () => {
     const w = await world();
     const a = await invoice(w, 1_000_000);
@@ -633,6 +719,11 @@ describe('what is audited', () => {
     expect(JSON.stringify(row('ph.supplierPayment.reverse').changes)).toContain(made.id);
     expect(row('ph.credit.apply')).toMatchObject({ entityType: 'PhCreditNote', entityId: cn });
     expect(JSON.stringify(row('ph.credit.apply').changes)).toContain('50000');
+    // Each entry names the invoices it settled, with ids and amounts (numbers are the supplier's text, so not those).
+    const settled = (action: string) => (row(action).changes as { settled?: { after: { invoiceId: string; amountMinor: string }[] } }).settled?.after;
+    expect(settled('ph.supplierPayment.create')).toEqual([{ invoiceId: a, amountMinor: '400000' }]);
+    expect(settled('ph.supplierPayment.reverse')).toEqual([{ invoiceId: a, amountMinor: '400000' }]);
+    expect(settled('ph.credit.apply')).toEqual([{ invoiceId: a, amountMinor: '50000' }]);
     // The reversal row keeps the reason where it belongs: in the data, not in the log.
     expect((await prisma().phSupplierPayment.findUniqueOrThrow({ where: { id: undone.id } })).reference).toContain('SECRET-REASON-5527');
   });

@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
-import { dueDate as addDays, normalizeInvoiceNumber, PurchasingError } from '@/server/domain/pharmacy/purchasing';
+import { dueDate as addDays, normalizeInvoiceNumber, PurchasingError, shownNumber } from '@/server/domain/pharmacy/purchasing';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { mayViewCost } from './products';
@@ -134,7 +134,8 @@ export async function recordCreditNote(tx: ScopedTx, args: { restaurantId: strin
   const earlier = await tx.phCreditNote.findFirst({ where: { clientKey: args.clientKey }, select: { ...noteSelect, createdById: true, payloadHash: true } });
   if (earlier) {
     if (earlier.createdById !== args.userId || earlier.payloadHash !== hash) throw keyMismatch();
-    return recorded(earlier, true);
+    // A repeat gets the answer it first got: a new note has nothing applied. What the note has spent since is read from the note.
+    return recorded({ ...earlier, appliedMinor: 0n }, true);
   }
 
   if (input.noteDate > addDays(utcToday(), 1)) throw invalid('noteDate', 'The credit note date cannot be later than tomorrow');
@@ -208,30 +209,31 @@ const summaryOf = (r: SummaryRow, withCost: boolean): CreditSummary => ({
   ...(withCost ? { amountMinor: r.amountMinor.toString(), appliedMinor: r.appliedMinor.toString(), availableMinor: (r.amountMinor - r.appliedMinor).toString() } : {}),
 });
 
-/** One page of notes, newest first; `openOnly` keeps those with something left. Money only with `cost.view`. */
+/**
+ * One page of notes, newest first, by a (createdAt, id) keyset: the cursor row only marks the place, so a note that was spent
+ * since the last page does not drop the next one. `openOnly` keeps notes with something left; it compares two columns, which
+ * the query language cannot express, so the ids come from a bound raw query and the rows are then read in that order.
+ * Money only with `cost.view`.
+ */
 export async function listCreditNotes(scoped: ScopedClient, ph: PhActor, input: CreditListInput): Promise<{ items: CreditSummary[]; nextCursor: string | null }> {
   const withCost = mayViewCost(ph);
-  // `openOnly` compares two columns, which the query language cannot express: read pages and keep the open notes until a
-  // full page and one more are found, so a page is full whenever more exist.
-  const matches: SummaryRow[] = [];
-  let cursor = input.cursor ?? null;
-  let exhausted = false;
-  while (matches.length <= PAGE_SIZE && !exhausted) {
-    const rows: SummaryRow[] = await scoped.phCreditNote.findMany({
-      where: input.supplierId ? { supplierId: input.supplierId } : {},
-      include: { supplier: { select: { name: true } } },
-      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-      take: PAGE_SIZE + 1,
-      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-    });
-    exhausted = rows.length <= PAGE_SIZE;
-    const page = exhausted ? rows : rows.slice(0, PAGE_SIZE);
-    for (const r of page) if (!input.openOnly || r.appliedMinor < r.amountMinor) matches.push(r);
-    cursor = page[page.length - 1]?.id ?? null;
-    if (cursor === null) break;
-  }
-  const shown = matches.slice(0, PAGE_SIZE);
-  return { items: shown.map((r) => summaryOf(r, withCost)), nextCursor: matches.length > PAGE_SIZE ? shown[shown.length - 1]!.id : null };
+  const supplierId = input.supplierId ?? null;
+  const cursor = input.cursor ?? null;
+  // eslint-disable-next-line no-restricted-properties -- a read of this business's own credit note ids: restaurantId is bound in the query and in the cursor lookup
+  const ids = await scoped.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "PhCreditNote"
+    WHERE "restaurantId" = ${ph.restaurantId}
+      AND (${supplierId}::text IS NULL OR "supplierId" = ${supplierId})
+      AND (${input.openOnly === true} = false OR "appliedMinor" < "amountMinor")
+      AND (${cursor}::text IS NULL OR ("createdAt", "id") < (SELECT "createdAt", "id" FROM "PhCreditNote" WHERE "id" = ${cursor} AND "restaurantId" = ${ph.restaurantId}))
+    ORDER BY "createdAt" DESC, "id" DESC
+    LIMIT ${PAGE_SIZE + 1}`;
+  const more = ids.length > PAGE_SIZE;
+  const pageIds = (more ? ids.slice(0, PAGE_SIZE) : ids).map((r) => r.id);
+  const rows = await scoped.phCreditNote.findMany({ where: { id: { in: pageIds } }, include: { supplier: { select: { name: true } } } });
+  const by = new Map(rows.map((r) => [r.id, r]));
+  const shown = pageIds.flatMap((id) => (by.has(id) ? [by.get(id)!] : []));
+  return { items: shown.map((r) => summaryOf(r, withCost)), nextCursor: more ? pageIds[pageIds.length - 1]! : null };
 }
 
 export interface CreditDetail extends CreditSummary {
@@ -253,7 +255,7 @@ export async function getCreditNote(scoped: ScopedClient, ph: PhActor, creditNot
   return {
     ...summaryOf(r, withCost),
     note: r.note,
-    allocations: r.allocations.map((a) => ({ invoiceId: a.invoiceId, invoiceNumber: a.invoice.number.split('#void-')[0]!, ...(withCost ? { amountMinor: a.amountMinor.toString() } : {}) })),
+    allocations: r.allocations.map((a) => ({ invoiceId: a.invoiceId, invoiceNumber: shownNumber(a.invoice.number), ...(withCost ? { amountMinor: a.amountMinor.toString() } : {}) })),
   };
 }
 

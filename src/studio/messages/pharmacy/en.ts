@@ -438,6 +438,7 @@ const pharmacy: Messages = {
   'error.text.phPayCreditOnInvoice': 'This credit note was already applied to this invoice',
   'error.text.phPayInvoiceOnce': 'Each invoice can be named once',
   'error.text.phPayDateLate': 'The payment date cannot be later than tomorrow',
+  'error.text.phPayDateEarly': 'The payment date cannot be before 2000-01-01',
   'error.text.phCnEnterNumber': 'Enter the credit note number',
   'error.text.phCnReturnNotFound': 'Supplier return not found',
   'error.text.phCnKeyMismatch': 'This key was already used for a different credit note',
