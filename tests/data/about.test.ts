@@ -204,3 +204,41 @@ describe('loadAbout and the wheel', () => {
     expect(await loadAbout(await route())).toBeNull();
   });
 });
+
+describe('every part is optional, for the Super Admin and for the owner', () => {
+  const content = () => prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
+
+  it('plan off, owner on: hidden; a Super Admin switch for this one restaurant brings it back', async () => {
+    await content();
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC' } });
+    expect(await loadAbout(await route())).toBeNull();
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { planExtras: { features: { 'menu.about': true } } } });
+    expect(await loadAbout(await route())).not.toBeNull();
+  });
+
+  it('plan on, owner on: shown; a Super Admin switch off for this one restaurant hides it', async () => {
+    await content();
+    expect(await loadAbout(await route())).not.toBeNull();
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { planExtras: { features: { 'menu.about': false } } } });
+    expect(await loadAbout(await route())).toBeNull();
+  });
+
+  it('plan on, owner off: hidden, and the menu has no Explore entry in its tenant extras', async () => {
+    await content();
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { aboutEnabled: false } });
+    expect(await loadAbout(await route())).toBeNull();
+    expect((await route()).tenant.extras).toMatchObject({ about: false, wheel: false });
+  });
+
+  it('with every switch off the menu carries no extras at all', async () => {
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { aboutEnabled: false, introEnabled: false, wheelEnabled: false } });
+    expect((await route()).tenant.extras).toMatchObject({ intro: false, about: false, wheel: false });
+  });
+
+  it('a section with nothing in it is left out: an empty page is absent, and a page with only a story has no offers, hours or gallery', async () => {
+    expect(await loadAbout(await route())).toBeNull();
+    await content();
+    const view = await loadAbout(await route());
+    expect(view).toMatchObject({ offers: [], gallery: [], hours: null, wheel: null });
+  });
+});

@@ -90,6 +90,19 @@ describe('GET wheel', () => {
     expect(off.slices).toEqual([]);
   });
 
+  it('is not available when the Explore page itself is off, even with the wheel switched on', async () => {
+    await prisma.menu.update({ where: { id: x.menu.id }, data: { aboutEnabled: false } });
+    await refresh();
+    expect((await (await call('GET')).json()).available).toBe(false);
+    expect((await call('POST')).status).toBe(409);
+  });
+
+  it('is available again for one restaurant when the Super Admin grants the feature on a plan without it', async () => {
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC', planExtras: { features: { 'menu.about': true, 'menu.wheel': true } } } });
+    await refresh();
+    expect((await (await call('GET')).json()).available).toBe(true);
+  });
+
   it('drops a hidden dish, and is not available with fewer than 4 left', async () => {
     await prisma.product.update({ where: { id: productIds[0] as string }, data: { isHidden: true } });
     await refresh();
