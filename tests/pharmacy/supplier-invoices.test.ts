@@ -504,10 +504,10 @@ describe('who may use invoices', () => {
     }
     const admin = await person('support', { superAdmin: true });
     await grant(admin, w.a.id, { scopes: ['catalog.read', 'stock.read'] });
-    expect(codeOf(await act(admin, invoiceActions.create, body(w, [iLine(r.lines[0]!, 1)])))).not.toBe('OK');
-    expect(codeOf(await act(admin, invoiceActions.voidInvoice, { ...ref(w, made.id), reason: 'support may not' }))).not.toBe('OK');
-    expect(codeOf(await ask(admin, invoiceQueries.list, { restaurantId: w.a.id }))).not.toBe('OK');
-    expect(codeOf(await ask(admin, invoiceQueries.get, { restaurantId: w.a.id, invoiceId: made.id }))).not.toBe('OK');
+    expect(codeOf(await act(admin, invoiceActions.create, body(w, [iLine(r.lines[0]!, 1)])))).toBe('FORBIDDEN');
+    expect(codeOf(await act(admin, invoiceActions.voidInvoice, { ...ref(w, made.id), reason: 'support may not' }))).toBe('FORBIDDEN');
+    expect(codeOf(await ask(admin, invoiceQueries.list, { restaurantId: w.a.id }))).toBe('FORBIDDEN');
+    expect(codeOf(await ask(admin, invoiceQueries.get, { restaurantId: w.a.id, invoiceId: made.id }))).toBe('FORBIDDEN');
     expect((await rowOf(made.id)).status).toBe('OPEN');
   });
 });
@@ -707,5 +707,135 @@ describe('the clock', () => {
     expect(dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id })).items.find((i) => i.id === made.id)?.dueBand).toBe('DUE_7');
     vi.setSystemTime(new Date(NOW.getTime() + 9 * DAY));
     expect(dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id })).items.find((i) => i.id === made.id)?.dueBand).toBe('OVERDUE_1_30');
+  });
+});
+
+describe('review fixes (task 6b)', () => {
+  /** Panadol received in branch 1 on the 20th, Brufen in branch 2 on the 25th; one invoice bills both (made by the owner). */
+  async function twoBranches(w: World) {
+    const r0 = await received(w, [rLine(w.p, { qty: 100, lot: 'B1-LOT', unitCostMinor: '2600' })], { receivedOn: '2026-10-20' }, 0);
+    const r1 = await received(w, [rLine(w.q, { qty: 50, lot: 'B2-LOT', unitCostMinor: '1000' })], { receivedOn: '2026-10-25' }, 1);
+    const both = dataOf(await create(w, [iLine(r0.lines[0]!, 10, '2700'), iLine(r1.lines[0]!, 5, '900')], { number: 'MIX-1' }));
+    const onlyTwo = dataOf(await create(w, [iLine(r1.lines[0]!, 5, '1000')], { number: 'TWO-1' }));
+    const limited = await person('limited2', { staff: [w.a.id, 'ACCOUNTANT', [w.a.branchIds[1]!]] });
+    return { r0, r1, both, onlyTwo, limited };
+  }
+
+  it('a branch-limited actor bills only receipt lines of their branch, and creates with them', async () => {
+    const w = await world();
+    const { r0, r1, limited } = await twoBranches(w);
+    expect(codeOf(await act(limited, invoiceActions.create, body(w, [iLine(r0.lines[0]!, 1)])))).toBe('NOT_FOUND');
+    expect(codeOf(await act(limited, invoiceActions.create, body(w, [iLine(r1.lines[0]!, 1)])))).toBe('OK');
+  });
+
+  it('get redacts the receipt detail of a branch the actor lacks and keeps product, unit, quantity, invoiced cost and line total', async () => {
+    const w = await world();
+    const { r0, r1, both, limited } = await twoBranches(w);
+    const got = dataOf(await ask(limited, invoiceQueries.get, { restaurantId: w.a.id, invoiceId: both.id }));
+    expect(got.lines).toHaveLength(2);
+    const [hidden, shown] = got.lines;
+    expect(hidden).toMatchObject({ lineNo: 1, productName: 'Panadol', unitLabel: 'strip', qtyInvoiced: 10, unitCostMinor: '2700', lineTotalMinor: '27000', redacted: true, receiptId: null, receiptNumber: null, lot: null, expiry: null });
+    expect(shown).toMatchObject({ lineNo: 2, productName: 'Brufen', redacted: false, receiptId: r1.id, lot: 'B2-LOT', expiry: '2028-03-15' });
+    const text = JSON.stringify(got);
+    for (const secret of [r0.id, r0.lines[0]!, 'B1-LOT']) expect(text).not.toContain(secret);
+    // The owner sees everything.
+    const all = dataOf(await ask(w.owner, invoiceQueries.get, { restaurantId: w.a.id, invoiceId: both.id }));
+    expect(all.lines.map((l) => [l.redacted, l.lot])).toEqual([[false, 'B1-LOT'], [false, 'B2-LOT']]);
+  });
+
+  it('variance hides the received and order cost of a branch the actor lacks, and totals only what they may see', async () => {
+    const w = await world();
+    const { both, limited } = await twoBranches(w);
+    const got = dataOf(await ask(limited, invoiceQueries.variance, { restaurantId: w.a.id, invoiceId: both.id }));
+    expect(got.lines[0]).toMatchObject({ redacted: true, productName: 'Panadol', invoicedUnitCostMinor: '2700', orderedUnitCostMinor: null, receivedUnitCostMinor: null, orderVsReceived: null, receivedVsInvoiced: null, orderVsInvoiced: null });
+    expect(got.lines[1]).toMatchObject({ redacted: false, receivedUnitCostMinor: '1000', receivedVsInvoiced: '-100' });
+    // Only the visible line counts: -100 x 5.
+    expect(got).toMatchObject({ positiveMinor: '0', negativeMinor: '-500', netMinor: '-500' });
+    const all = dataOf(await ask(w.owner, invoiceQueries.variance, { restaurantId: w.a.id, invoiceId: both.id }));
+    expect(all).toMatchObject({ positiveMinor: '1000', negativeMinor: '-500' });
+  });
+
+  it('void is refused with INVOICE_OTHER_BRANCH when a line belongs to a branch the actor lacks, and allowed for their own', async () => {
+    const w = await world();
+    const { both, onlyTwo, r0, limited } = await twoBranches(w);
+    const refused = await act(limited, invoiceActions.voidInvoice, { ...ref(w, both.id), reason: 'not mine to void' });
+    expect(codeOf(refused)).toBe('FORBIDDEN');
+    expect(phCodeOf(refused)).toBe('INVOICE_OTHER_BRANCH');
+    expect(await rowOf(both.id)).toMatchObject({ status: 'OPEN', version: 1 });
+    expect(await invoicedOf(r0.lines[0]!)).toBe(10);
+    expect(codeOf(await act(limited, invoiceActions.voidInvoice, { ...ref(w, onlyTwo.id), reason: 'my branch only' }))).toBe('OK');
+  });
+
+  it('list shows the invoice header to a branch-limited actor and invoiceable offers only their branch, filtered before the 200 limit', async () => {
+    const w = await world();
+    const { r0, r1, limited } = await twoBranches(w);
+    expect(dataOf(await ask(limited, invoiceQueries.list, { restaurantId: w.a.id })).items).toHaveLength(2);
+    // 205 more uninvoiced lines of branch 1's older receipt: they would fill the limit of 200 ahead of branch 2's line.
+    const base = await prisma().phReceiptLine.findUniqueOrThrow({ where: { id: r0.lines[0]! } });
+    await prisma().phReceiptLine.createMany({
+      data: Array.from({ length: 205 }, (_, i) => ({
+        restaurantId: w.a.id, receiptId: r0.id, lineNo: 10 + i, productId: base.productId, unitId: base.unitId, qty: 5, baseQty: 50, lot: `bulk-${i}`, expiryDate: base.expiryDate,
+      })),
+    });
+    const owner = dataOf(await ask(w.owner, invoiceQueries.invoiceable, { restaurantId: w.a.id, supplierId: w.supplierId }));
+    expect(owner.items).toHaveLength(200);
+    const got = dataOf(await ask(limited, invoiceQueries.invoiceable, { restaurantId: w.a.id, supplierId: w.supplierId }));
+    expect(got.items.map((i) => i.receiptLineId)).toEqual([r1.lines[0]]);
+    expect(JSON.stringify(got)).not.toContain(r0.id);
+  });
+
+  it('variance gives no order figures when the order currency differs from the receipt and invoice currency, and names the order currency', async () => {
+    const w = await world();
+    const order = dataOf(
+      await act(w.owner, poActions.create, {
+        restaurantId: w.a.id, branchId: w.a.branchId, clientKey: `po-key-${(keySeq += 1)}-aaaa`, supplierId: w.supplierId, currency: 'USD',
+        lines: [{ productId: w.p.id, unitId: w.p.strip, qtyOrdered: 10, unitCostMinor: '150' }],
+      }),
+    );
+    dataOf(await act(w.owner, poActions.order, { restaurantId: w.a.id, branchId: w.a.branchId, purchaseOrderId: order.id, expectedVersion: 1 }));
+    const pol = await prisma().phPurchaseOrderLine.findFirstOrThrow({ where: { purchaseOrderId: order.id } });
+    const r = await received(w, [rLine(w.p, { qty: 10, unitCostMinor: '2600', currency: 'IQD', purchaseOrderLineId: pol.id })], { purchaseOrderId: order.id });
+    const inv = dataOf(await create(w, [iLine(r.lines[0]!, 10, '2700')]));
+    const got = dataOf(await ask(w.owner, invoiceQueries.variance, { restaurantId: w.a.id, invoiceId: inv.id }));
+    expect(got.lines[0]).toMatchObject({ orderedUnitCostMinor: '150', orderCurrency: 'USD', orderVsReceived: null, orderVsInvoiced: null, receivedVsInvoiced: '100' });
+  });
+
+  it('answers DUPLICATE_INVOICE, not INVOICE_EXCEEDS_RECEIVED, to the loser of two parallel entries of the whole quantity under one number', async () => {
+    const w = await world();
+    const r = await received(w, [rLine(w.p, { qty: 100 })]);
+    const results = await Promise.all([create(w, [iLine(r.lines[0]!, 100)], { number: 'FULL-1' }), create(w, [iLine(r.lines[0]!, 100)], { number: 'FULL-1' })]);
+    expect(results.map(codeOf).sort()).toEqual(['CONFLICT', 'OK']);
+    const lost = results.find((x) => !x.ok)!;
+    const won = results.find((x) => x.ok)!;
+    expect(phCodeOf(lost)).toBe('DUPLICATE_INVOICE');
+    expect(!lost.ok && lost.error.fields?.existingInvoiceId).toBe(won.ok && won.data.id);
+    expect(await invoicedOf(r.lines[0]!)).toBe(100);
+  });
+
+  it('maps a commit-time total mismatch to INVOICE_TOTAL_MISMATCH through the action, with no row, no counter and no audit', async () => {
+    const w = await world();
+    const r = await received(w, [rLine(w.p)]);
+    const domain = await import('@/server/domain/pharmacy/purchasing');
+    const spy = vi.spyOn(domain, 'invoiceTotal').mockImplementation((lines, adjustment) => lines.reduce((a, b) => a + b, adjustment) + 1n);
+    try {
+      const result = await create(w, [iLine(r.lines[0]!, 10)]);
+      expect(codeOf(result)).toBe('CONFLICT');
+      expect(phCodeOf(result)).toBe('INVOICE_TOTAL_MISMATCH');
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await prisma().phSupplierInvoice.count()).toBe(0);
+    expect(await invoicedOf(r.lines[0]!)).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.invoice.create' } })).toBe(0);
+  });
+
+  it('searches the normalised number too (Arabic-Indic digits, case, spacing)', async () => {
+    const w = await world();
+    const r = await received(w, [rLine(w.p)]);
+    const made = dataOf(await create(w, [iLine(r.lines[0]!, 1)], { number: 'ab-123' }));
+    for (const search of ['AB-١٢٣', 'ab-123', 'B-12']) {
+      expect(dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id, search })).items.map((i) => i.id), search).toEqual([made.id]);
+    }
+    expect(dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id, search: 'zzz' })).items).toHaveLength(0);
   });
 });

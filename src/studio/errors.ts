@@ -459,6 +459,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'The due date cannot be before the invoice date': 'error.text.phInvDueBefore',
   'Each receipt line can be on an invoice once': 'error.text.phInvDuplicateLine',
   'The invoiced quantity of a receipt line is lower than this invoice': 'error.text.phInvDrift',
+  'This invoice has lines from a branch you cannot use': 'error.text.phInvOtherBranch',
   'This lot is already expired: remove it, or accept it into quarantine': 'error.text.phLotExpired',
   'Expired lot accepted into quarantine on receipt': 'error.text.phLotExpiredNote',
   'Too many products match: narrow the search or choose a branch': 'error.text.phTooManyProducts',

@@ -409,6 +409,7 @@ const pharmacy: Messages = {
   'error.text.phInvDueBefore': 'ڕێکەوتی کۆتایی پێدان ناتوانێت پێش ڕێکەوتی فاتورە بێت',
   'error.text.phInvDuplicateLine': 'هەر ڕیزێکی وەرگرتن تەنها یەک جار دەتوانێت لە فاتورەدا بێت',
   'error.text.phInvDrift': 'بڕی فاتورەکراوی ڕیزێکی وەرگرتن لە بڕی ئەم فاتورەیە کەمترە',
+  'error.text.phInvOtherBranch': 'ئەم فاتورەیە ڕیزی هەیە لە لقێک کە ناتوانیت بەکاری بهێنیت',
   'error.text.phLotExpired': 'ئەم لۆتە بەسەرچووە: لایببە یان لە قەرەنتینەدا وەریبگرە',
   'error.text.phLotExpiredNote': 'لۆتی بەسەرچوو لە کاتی وەرگرتندا خرایە قەرەنتینە',
   'error.text.phTooManyProducts': 'بەرهەمی زۆر دەگونجێن: گەڕانەکە ئەستەنگتر بکە یان لقێک هەڵبژێرە',

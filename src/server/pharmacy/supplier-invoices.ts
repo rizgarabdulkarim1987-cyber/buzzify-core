@@ -36,9 +36,16 @@ import { cleanText, NS_CLIENT_KEY, PAGE_SIZE } from './suppliers';
  * lines (ordered by id): the two never wait on each other in a circle, because a create holds no invoice row that exists.
  * The invoice and its lines are written in one transaction: the deferred database check that `total = sum(lines) +
  * adjustment` runs at COMMIT, and `asInvoiceError` turns its failure into `INVOICE_TOTAL_MISMATCH`.
+ * Amendment to R4-11 (ruling of task 6 review): for an EXISTING invoice the invoice row is locked first, then its receipt
+ * lines (void); create locks receipt lines and then inserts a NEW invoice (no existing invoice lock to cross). Later tasks
+ * (payments, credits) lock the invoice row and refuse VOID under that lock; none may take receipt-line counters after it.
  *
  * Money: BigInt minor units in the invoice's currency. A receipt line that has a cost currency must be invoiced in it.
- * A person limited to some branches reaches the receipts of those branches only (the scoped client keeps the rest from them).
+ * Branches (R4-12a): an invoice header, its totals and its list are business-wide for every `purchase.manage` holder. The
+ * receipt-line DETAIL (receipt id and number, lot, expiry, receipt cost, order line) of a branch the actor lacks is redacted
+ * (product, unit, quantity, invoiced cost and line total stay). Visibility is decided by the branch-scoped `phReceipt` read,
+ * never by a nested include. A branch-limited actor bills only receipt lines of their own branches and cannot void an
+ * invoice that has a line of a branch they lack (`INVOICE_OTHER_BRANCH`).
  */
 
 const MAX_LINES = 200;
@@ -108,6 +115,7 @@ const currencyMismatch = () => new StudioError('CONFLICT', 'The invoice currency
 const exceeds = () => new StudioError('CONFLICT', 'More is invoiced than was received', { phCode: 'INVOICE_EXCEEDS_RECEIVED' });
 const alreadyVoid = () => new StudioError('CONFLICT', 'This invoice is already void', { phCode: 'ALREADY_VOID' });
 const settled = () => new StudioError('CONFLICT', 'An invoice with a payment or a credit cannot be voided', { phCode: 'INVOICE_SETTLED' });
+const otherBranch = () => new StudioError('FORBIDDEN', 'This invoice has lines from a branch you cannot use', { phCode: 'INVOICE_OTHER_BRANCH' });
 const totalMismatch = () => new StudioError('CONFLICT', 'The invoice total does not match its lines', { phCode: 'INVOICE_TOTAL_MISMATCH' });
 
 /**
@@ -162,6 +170,13 @@ function domain<T>(field: string, run: () => T): T {
   }
 }
 
+/** Which of these receipts the actor may use: the branch-scoped read keeps the others out. */
+async function visibleReceiptIds(scoped: Pick<ScopedClient, 'phReceipt'>, receiptIds: readonly string[]): Promise<Set<string>> {
+  if (receiptIds.length === 0) return new Set();
+  const rows = await scoped.phReceipt.findMany({ where: { id: { in: [...new Set(receiptIds)] } }, select: { id: true } });
+  return new Set(rows.map((r) => r.id));
+}
+
 /**
  * A new invoice, or the one the same `clientKey` already made (a repeat changes nothing, even after a void or a change of
  * the supplier's terms). A repeat must come from the same person with the same request: anything else is
@@ -212,11 +227,10 @@ export async function createInvoice(
   const fingerprint = invoiceFingerprint({ supplierId: input.supplierId, number: input.number, date: input.invoiceDate, currency: input.currency, totalMinor: total });
 
   // The same supplier number (however it is spelled), or the same invoice by its fingerprint, is entered once.
-  const twin = await tx.phSupplierInvoice.findFirst({
-    where: { OR: [{ supplierId: input.supplierId, number: numberKey }, { fingerprint }] },
-    select: { id: true },
-  });
-  if (twin) throw duplicateInvoice(twin.id);
+  const findTwin = () =>
+    tx.phSupplierInvoice.findFirst({ where: { OR: [{ supplierId: input.supplierId, number: numberKey }, { fingerprint }] }, select: { id: true } });
+  const early = await findTwin();
+  if (early) throw duplicateInvoice(early.id);
 
   // The receipt lines: all visible to this actor, then locked in id order, then read again under the lock.
   const lineIds = input.lines.map((l) => l.receiptLineId);
@@ -228,6 +242,10 @@ export async function createInvoice(
   // eslint-disable-next-line no-restricted-properties -- row locks on the receipt lines to bill, in id order (R4-11), found above through the scoped client
   await tx.$queryRaw`SELECT "id" FROM "PhReceiptLine" WHERE "restaurantId" = ${args.restaurantId} AND "id" = ANY(${lineIds}) ORDER BY "id" COLLATE "C" FOR UPDATE`;
   const locked = await tx.phReceiptLine.findMany({ where: { id: { in: lineIds } }, select: { id: true, receiptId: true, qty: true, bonusQty: true, invoicedQty: true, costCurrency: true } });
+  // Again, now that the lines are locked: a parallel entry of the same invoice (another key) may have committed while this waited,
+  // and its use of the quantity must read as a duplicate, not as 'more than received'.
+  const late = await findTwin();
+  if (late) throw duplicateInvoice(late.id);
   const lockedBy = new Map(locked.map((l) => [l.id, l]));
   const receiptBy = new Map(receipts.map((r) => [r.id, r]));
 
@@ -314,6 +332,10 @@ export interface InvoiceVoided {
 export async function voidInvoice(tx: ScopedTx, args: { restaurantId: string; userId: string; invoiceId: string; expectedVersion: number; reason: string }): Promise<InvoiceVoided> {
   const visible = await tx.phSupplierInvoice.findFirst({ where: { id: args.invoiceId }, select: { id: true } });
   if (!visible) throw notFound();
+  // The invoice's lines never change, so the branch rule can be read before the lock: every line's receipt must be one this actor may use.
+  const billed = await tx.phSupplierInvoiceLine.findMany({ where: { invoiceId: args.invoiceId }, select: { receiptLine: { select: { receiptId: true } } } });
+  const billedReceipts = billed.map((b) => b.receiptLine.receiptId);
+  if ((await visibleReceiptIds(tx, billedReceipts)).size !== new Set(billedReceipts).size) throw otherBranch();
   // eslint-disable-next-line no-restricted-properties -- a row lock on one invoice, found above through the scoped client
   await tx.$queryRaw`SELECT "id" FROM "PhSupplierInvoice" WHERE "id" = ${args.invoiceId} AND "restaurantId" = ${args.restaurantId} FOR UPDATE`;
   const head = await tx.phSupplierInvoice.findFirst({
@@ -405,6 +427,15 @@ function summaryOf(r: SummaryRow, withCost: boolean, today: string): InvoiceSumm
   };
 }
 
+/** The search as the comparable invoice number form (digits, case, spacing), when it has one. */
+function normalisedSearch(search: string): { number: { contains: string } }[] {
+  try {
+    return [{ number: { contains: normalizeInvoiceNumber(search) } }];
+  } catch {
+    return [];
+  }
+}
+
 /** One page of invoices, newest invoice date first, with balance (cost viewers only) and due band. */
 export async function listInvoices(scoped: ScopedClient, ph: PhActor, input: InvoiceListInput): Promise<{ items: InvoiceSummary[]; nextCursor: string | null }> {
   const today = utcToday();
@@ -416,7 +447,7 @@ export async function listInvoices(scoped: ScopedClient, ph: PhActor, input: Inv
         input.status ? { status: input.status } : {},
         input.overdue ? { status: { in: [...OWING] }, dueDate: { lt: midnight(today) } } : {},
         input.from || input.to ? { invoiceDate: { ...(input.from ? { gte: midnight(input.from) } : {}), ...(input.to ? { lte: midnight(input.to) } : {}) } } : {},
-        search ? { numberRaw: { contains: search, mode: 'insensitive' as const } } : {},
+        search ? { OR: [{ numberRaw: { contains: search, mode: 'insensitive' as const } }, ...normalisedSearch(search)] } : {},
       ],
     },
     include: { supplier: { select: { name: true } } },
@@ -432,15 +463,18 @@ export async function listInvoices(scoped: ScopedClient, ph: PhActor, input: Inv
 
 export interface InvoiceLineView {
   lineNo: number;
-  receiptLineId: string;
-  receiptId: string;
+  /** Null when the receipt is of a branch the actor lacks (`redacted`). */
+  receiptLineId: string | null;
+  receiptId: string | null;
   receiptNumber: string | null;
   productId: string;
   productName: string;
   unitLabel: string;
-  lot: string;
-  expiry: string;
+  lot: string | null;
+  expiry: string | null;
   qtyInvoiced: number;
+  /** True when the receipt detail (receipt, lot, expiry) is withheld: the receipt is of a branch the actor lacks (R4-12a). */
+  redacted: boolean;
   /** Present only for a role with `cost.view`. */
   unitCostMinor?: string;
   lineTotalMinor?: string;
@@ -455,7 +489,11 @@ export interface InvoiceDetail extends InvoiceSummary {
   adjustmentMinor?: string;
 }
 
-/** One invoice with its lines, their labels (product, unit, lot, expiry, receipt) and, for a cost viewer, the money. */
+/**
+ * One invoice with its lines, their labels (product, unit, lot, expiry, receipt) and, for a cost viewer, the money. The
+ * receipt detail of a branch the actor lacks is withheld; which receipts they may use is decided by the branch-scoped
+ * receipt read, and the detail is then read for those lines only.
+ */
 export async function getInvoice(scoped: ScopedClient, ph: PhActor, invoiceId: string): Promise<InvoiceDetail> {
   const r = await scoped.phSupplierInvoice.findFirst({
     where: { id: invoiceId },
@@ -463,23 +501,19 @@ export async function getInvoice(scoped: ScopedClient, ph: PhActor, invoiceId: s
       supplier: { select: { name: true } },
       lines: {
         orderBy: { lineNo: 'asc' },
-        include: {
-          receiptLine: {
-            select: {
-              productId: true,
-              lot: true,
-              expiryDate: true,
-              receiptId: true,
-              product: { select: { tradeName: true } },
-              unit: { select: { label: true } },
-              receipt: { select: { number: true } },
-            },
-          },
-        },
+        include: { receiptLine: { select: { receiptId: true, productId: true, product: { select: { tradeName: true } }, unit: { select: { label: true } } } } },
       },
     },
   });
   if (!r) throw notFound();
+  const usable = await visibleReceiptIds(scoped, r.lines.map((l) => l.receiptLine.receiptId));
+  const openIds = r.lines.filter((l) => usable.has(l.receiptLine.receiptId)).map((l) => l.receiptLineId);
+  const detail = new Map(
+    (openIds.length === 0
+      ? []
+      : await scoped.phReceiptLine.findMany({ where: { id: { in: openIds } }, select: { id: true, lot: true, expiryDate: true, receipt: { select: { number: true } } } })
+    ).map((d) => [d.id, d]),
+  );
   const withCost = mayViewCost(ph);
   return {
     ...summaryOf(r, withCost, utcToday()),
@@ -487,19 +521,23 @@ export async function getInvoice(scoped: ScopedClient, ph: PhActor, invoiceId: s
     voidedAt: r.voidedAt ? r.voidedAt.toISOString() : null,
     voidReason: r.voidReason,
     ...(withCost ? { adjustmentMinor: String(r.adjustmentMinor) } : {}),
-    lines: r.lines.map((l) => ({
-      lineNo: l.lineNo,
-      receiptLineId: l.receiptLineId,
-      receiptId: l.receiptLine.receiptId,
-      receiptNumber: l.receiptLine.receipt.number,
-      productId: l.receiptLine.productId,
-      productName: l.receiptLine.product.tradeName,
-      unitLabel: l.receiptLine.unit.label,
-      lot: l.receiptLine.lot,
-      expiry: iso(l.receiptLine.expiryDate),
-      qtyInvoiced: l.qtyInvoiced,
-      ...(withCost ? { unitCostMinor: String(l.unitCostMinor), lineTotalMinor: String(l.lineTotalMinor) } : {}),
-    })),
+    lines: r.lines.map((l) => {
+      const d = detail.get(l.receiptLineId);
+      return {
+        lineNo: l.lineNo,
+        receiptLineId: d ? l.receiptLineId : null,
+        receiptId: d ? l.receiptLine.receiptId : null,
+        receiptNumber: d ? d.receipt.number : null,
+        productId: l.receiptLine.productId,
+        productName: l.receiptLine.product.tradeName,
+        unitLabel: l.receiptLine.unit.label,
+        lot: d ? d.lot : null,
+        expiry: d ? iso(d.expiryDate) : null,
+        qtyInvoiced: l.qtyInvoiced,
+        redacted: !d,
+        ...(withCost ? { unitCostMinor: String(l.unitCostMinor), lineTotalMinor: String(l.lineTotalMinor) } : {}),
+      };
+    }),
   };
 }
 
@@ -508,10 +546,14 @@ export interface VarianceLine {
   productName: string;
   unitLabel: string;
   qtyInvoiced: number;
+  /** True when the receipt (and so its cost and order line) is of a branch the actor lacks: only the invoiced cost is shown. */
+  redacted: boolean;
   orderedUnitCostMinor: string | null;
+  /** The currency of the order the line answers; the two order figures are null when it differs from the receipt's or the invoice's. */
+  orderCurrency: 'IQD' | 'USD' | null;
   receivedUnitCostMinor: string | null;
   invoicedUnitCostMinor: string;
-  /** Signed unit-cost differences (later minus earlier); null when a side is missing. */
+  /** Signed unit-cost differences (later minus earlier); null when a side is missing, withheld or in another currency. */
   orderVsReceived: string | null;
   receivedVsInvoiced: string | null;
   orderVsInvoiced: string | null;
@@ -521,7 +563,7 @@ export interface InvoiceVariance {
   invoiceId: string;
   currency: 'IQD' | 'USD';
   lines: VarianceLine[];
-  /** What the invoice charges above (positive) and below (negative) the cost booked on receipt, per line quantity. */
+  /** What the invoice charges above (positive) and below (negative) the cost booked on receipt, per line quantity (lines the actor may see). */
   positiveMinor: string;
   negativeMinor: string;
   netMinor: string;
@@ -531,8 +573,9 @@ const text = (v: bigint | null | undefined) => (v === null || v === undefined ? 
 
 /**
  * Per line: the order's unit cost (when the receipt line answers an order line), the cost booked on receipt, the invoiced
- * cost, and the three differences. The totals add the received-versus-invoiced difference times the invoiced quantity,
- * split by sign. Money only: a role without `cost.view` is refused.
+ * cost, and the three differences. A difference is null across currencies (no implicit conversion): the order figures need
+ * the order currency to equal the receipt's / the invoice's. The totals add the received-versus-invoiced difference times
+ * the invoiced quantity, split by sign, over the lines the actor may see. Money only: a role without `cost.view` is refused.
  */
 export async function invoiceVariance(scoped: ScopedClient, ph: PhActor, invoiceId: string): Promise<InvoiceVariance> {
   const r = await scoped.phSupplierInvoice.findFirst({
@@ -540,43 +583,52 @@ export async function invoiceVariance(scoped: ScopedClient, ph: PhActor, invoice
     include: {
       lines: {
         orderBy: { lineNo: 'asc' },
-        include: {
-          receiptLine: {
-            select: {
-              unitCostMinor: true,
-              product: { select: { tradeName: true } },
-              unit: { select: { label: true } },
-              purchaseOrderLine: { select: { unitCostMinor: true } },
-            },
-          },
-        },
+        include: { receiptLine: { select: { receiptId: true, product: { select: { tradeName: true } }, unit: { select: { label: true } } } } },
       },
     },
   });
   if (!r) throw notFound();
   if (!mayViewCost(ph)) throw new StudioError('FORBIDDEN');
+  const usable = await visibleReceiptIds(scoped, r.lines.map((l) => l.receiptLine.receiptId));
+  const openIds = r.lines.filter((l) => usable.has(l.receiptLine.receiptId)).map((l) => l.receiptLineId);
+  const costs = new Map(
+    (openIds.length === 0
+      ? []
+      : await scoped.phReceiptLine.findMany({
+          where: { id: { in: openIds } },
+          select: { id: true, unitCostMinor: true, costCurrency: true, purchaseOrderLine: { select: { unitCostMinor: true, purchaseOrder: { select: { currency: true } } } } },
+        })
+    ).map((c) => [c.id, c]),
+  );
   let positive = 0n;
   let negative = 0n;
   const lines = r.lines.map((l): VarianceLine => {
-    const ordered = l.receiptLine.purchaseOrderLine?.unitCostMinor;
-    const received = l.receiptLine.unitCostMinor ?? undefined;
-    const v = costVariance({ orderedUnitCost: ordered, receivedUnitCost: received, invoicedUnitCost: l.unitCostMinor });
-    if (v.receivedVsInvoiced !== null) {
-      const money = v.receivedVsInvoiced * BigInt(l.qtyInvoiced);
+    const base = { lineNo: l.lineNo, productName: l.receiptLine.product.tradeName, unitLabel: l.receiptLine.unit.label, qtyInvoiced: l.qtyInvoiced, invoicedUnitCostMinor: l.unitCostMinor.toString() };
+    const c = costs.get(l.receiptLineId);
+    if (!c) {
+      return { ...base, redacted: true, orderedUnitCostMinor: null, orderCurrency: null, receivedUnitCostMinor: null, orderVsReceived: null, receivedVsInvoiced: null, orderVsInvoiced: null };
+    }
+    const ordered = c.purchaseOrderLine?.unitCostMinor;
+    const orderCurrency = c.purchaseOrderLine?.purchaseOrder.currency ?? null;
+    const received = c.unitCostMinor ?? undefined;
+    const sameAsReceipt = orderCurrency !== null && c.costCurrency === orderCurrency;
+    const sameAsInvoice = orderCurrency === r.currency;
+    const toReceived = costVariance({ orderedUnitCost: sameAsReceipt ? ordered : undefined, receivedUnitCost: received, invoicedUnitCost: l.unitCostMinor });
+    const toInvoiced = costVariance({ orderedUnitCost: sameAsInvoice ? ordered : undefined, invoicedUnitCost: l.unitCostMinor });
+    if (toReceived.receivedVsInvoiced !== null) {
+      const money = toReceived.receivedVsInvoiced * BigInt(l.qtyInvoiced);
       if (money > 0n) positive += money;
       else negative += money;
     }
     return {
-      lineNo: l.lineNo,
-      productName: l.receiptLine.product.tradeName,
-      unitLabel: l.receiptLine.unit.label,
-      qtyInvoiced: l.qtyInvoiced,
+      ...base,
+      redacted: false,
       orderedUnitCostMinor: text(ordered),
+      orderCurrency,
       receivedUnitCostMinor: text(received),
-      invoicedUnitCostMinor: l.unitCostMinor.toString(),
-      orderVsReceived: text(v.orderVsReceived),
-      receivedVsInvoiced: text(v.receivedVsInvoiced),
-      orderVsInvoiced: text(v.orderVsInvoiced),
+      orderVsReceived: text(toReceived.orderVsReceived),
+      receivedVsInvoiced: text(toReceived.receivedVsInvoiced),
+      orderVsInvoiced: text(toInvoiced.orderVsInvoiced),
     };
   });
   return { invoiceId: r.id, currency: r.currency, lines, positiveMinor: positive.toString(), negativeMinor: negative.toString(), netMinor: (positive + negative).toString() };
@@ -604,15 +656,16 @@ export interface InvoiceableLine {
 /** At most this many receipt lines are offered at once; the oldest receipts first. */
 export const INVOICEABLE_LIMIT = 200;
 
-/** The confirmed receipt lines of one supplier with something left to invoice, for the entry screen. */
+/** The confirmed receipt lines of one supplier with something left to invoice, for the entry screen. Only branches the actor may use, filtered before the limit. */
 export async function listInvoiceable(scoped: ScopedClient, ph: PhActor, restaurantId: string, supplierId: string): Promise<{ items: InvoiceableLine[] }> {
   const supplier = await scoped.phSupplier.findFirst({ where: { id: supplierId }, select: { id: true } });
   if (!supplier) throw supplierNotFound();
-  // The comparison of two columns is not expressible in a Prisma filter: find the ids in SQL, read the rows through the scoped client.
+  // The comparison of two columns is not expressible in a Prisma filter: find the ids in SQL (the actor's branches applied here, before the limit), read the rows through the scoped client.
   // eslint-disable-next-line no-restricted-properties -- a read of two columns of this business's own receipt lines (restaurantId bound); the rows are then read through the scoped client
   const ids = await scoped.$queryRaw<{ id: string }[]>`
     SELECT l."id" FROM "PhReceiptLine" l JOIN "PhReceipt" r ON r."id" = l."receiptId"
     WHERE l."restaurantId" = ${restaurantId} AND r."supplierId" = ${supplierId} AND r."status" = 'CONFIRMED' AND l."qty" + l."bonusQty" > l."invoicedQty"
+      AND (${ph.allBranches}::boolean OR r."branchId" = ANY(${ph.branchIds}))
     ORDER BY r."receivedOn", r."id", l."lineNo" LIMIT ${INVOICEABLE_LIMIT}`;
   if (ids.length === 0) return { items: [] };
   const rows = await scoped.phReceiptLine.findMany({
@@ -623,7 +676,7 @@ export async function listInvoiceable(scoped: ScopedClient, ph: PhActor, restaur
       receipt: { select: { id: true, number: true, receivedOn: true } },
     },
   });
-  const visible = new Set((await scoped.phReceipt.findMany({ where: { id: { in: [...new Set(rows.map((r) => r.receiptId))] } }, select: { id: true } })).map((r) => r.id));
+  const visible = await visibleReceiptIds(scoped, rows.map((r) => r.receiptId));
   const order = new Map(ids.map((i, n) => [i.id, n]));
   const withCost = mayViewCost(ph);
   return {

@@ -409,6 +409,7 @@ const pharmacy: Messages = {
   'error.text.phInvDueBefore': 'لا يمكن أن يسبق تاريخ الاستحقاق تاريخ الفاتورة',
   'error.text.phInvDuplicateLine': 'يمكن أن يرد كل بند استلام مرة واحدة في الفاتورة',
   'error.text.phInvDrift': 'الكمية المفوترة لبند استلام أقل من كمية هذه الفاتورة',
+  'error.text.phInvOtherBranch': 'تحتوي هذه الفاتورة على بنود من فرع لا يمكنك استخدامه',
   'error.text.phLotExpired': 'انتهت صلاحية هذه التشغيلة: احذفها أو اقبلها في الحجر',
   'error.text.phLotExpiredNote': 'قُبلت تشغيلة منتهية الصلاحية في الحجر عند الاستلام',
   'error.text.phTooManyProducts': 'عدد المنتجات المطابقة كبير جدًا: ضيّق البحث أو اختر فرعًا',
