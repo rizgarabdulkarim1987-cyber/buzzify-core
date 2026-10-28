@@ -101,3 +101,13 @@ export function saleFilterParams(raw: { status?: string; from?: string; to?: str
   if (number) out.number = number;
   return out;
 }
+
+/** "2026-10-28 14:03 UTC": Latin digits, the same on the server and in every browser (receipts print UTC too). */
+export function formatUtc(at: string | Date): string {
+  const d = new Date(at);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.toISOString().slice(0, 10)} ${d.toISOString().slice(11, 16)} UTC`;
+}
+
+/** The first 8 characters of an id: the app has no person names for these records, so the id stands in. */
+export const shortId = (id: string): string => id.slice(0, 8);

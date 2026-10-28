@@ -81,6 +81,21 @@ export function Shell({
             {t('pharmacy.nav.sell')}
           </Link>
         )}
+        {actor.role !== null && (canPh(actor.role, 'shift.use') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/shifts" className={LINK}>
+            {t('pharmacy.nav.shifts')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'shift.use') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/sales" className={LINK}>
+            {t('pharmacy.nav.sales')}
+          </Link>
+        )}
+        {actor.role !== null && (canPh(actor.role, 'return.approve') || canPh(actor.role, 'report.view')) && (
+          <Link href="/pharmacy/returns" className={LINK}>
+            {t('pharmacy.nav.returns')}
+          </Link>
+        )}
         {actor.role !== null && canPh(actor.role, 'catalog.view') && (
           <Link href="/pharmacy/stock" className={LINK}>
             {t('pharmacy.nav.stock')}

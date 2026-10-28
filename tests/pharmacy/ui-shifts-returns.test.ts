@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   closePlan,
+  formatUtc,
   paidOutHint,
   parseReturnQty,
   refundMethodChoices,
@@ -103,5 +104,12 @@ describe('saleFilterParams', () => {
   it('keeps only valid filters', () => {
     expect(saleFilterParams({ status: 'COMPLETED', from: '2026-10-01', to: 'x', number: ' S2026 ' })).toEqual({ status: 'COMPLETED', from: '2026-10-01', number: 'S2026' });
     expect(saleFilterParams({ status: 'NOPE' })).toEqual({});
+  });
+});
+
+describe('formatUtc', () => {
+  it('prints Latin digits in UTC', () => {
+    expect(formatUtc('2026-10-28T14:03:59.000Z')).toBe('2026-10-28 14:03 UTC');
+    expect(formatUtc('nope')).toBe('');
   });
 });

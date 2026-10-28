@@ -25,3 +25,7 @@ export async function getReturn(input: unknown) {
 export async function returnableLines(input: unknown) {
   return invokePhQuery(returnQueries.returnable, input);
 }
+
+export async function returnPreview(input: unknown) {
+  return invokePhQuery(returnQueries.preview, input);
+}
