@@ -47,6 +47,9 @@ export function mayPrint(ph: PhActor): void {
   if (!canPh(ph.role, 'shift.use') && !canPh(ph.role, 'report.view')) throw new StudioError('FORBIDDEN');
 }
 
+const NS_REPRINT_KEY = 7121;
+const NS_REPRINT_DOCUMENT = 7122;
+
 const PRINTABLE = new Set(['COMPLETED', 'RETURNED_PARTIAL', 'RETURNED_FULL']);
 
 async function shopOf(scoped: ScopedDb, branchId: string): Promise<{ name: string; address?: string; phone?: string }> {
@@ -155,7 +158,7 @@ async function loadReturn(scoped: ScopedDb, returnId: string, branchId: string |
       createdAt: true,
       sale: { select: { number: true } },
       lines: {
-        orderBy: { id: 'asc' },
+        orderBy: [{ allocation: { saleLine: { lineNo: 'asc' } } }, { id: 'asc' }],
         select: {
           baseQty: true,
           refundMinor: true,
@@ -224,21 +227,28 @@ export interface ReprintAudit {
 
 /**
  * A reprint: logs one `PhReceiptReprint` row and returns the document marked COPY. A repeated `clientKey` for the same
- * document returns the copy already logged without a second row; the same key for another document is refused. The
- * unique indexes (document + copy number, business + key) make two parallel reprints each get their own number or the
- * same row; a loser gets P2002, which the action retries.
+ * document returns the copy already logged without a second row; the same key for another document is refused. Two
+ * advisory locks (the key, then the document) make parallel reprints each get their own number or the same row.
  */
 export async function reprint(tx: ScopedDb, ph: PhActor, input: z.infer<typeof reprintInput> & { branchId?: string }): Promise<{ result: ReceiptResult; audit: ReprintAudit | null }> {
   mayPrint(ph);
+  // Serialise on the key, then on the document (always in this order): one numbering per document and one row per key, so
+  // no unique-index collision can happen and nothing needs a retry. The locks touch no tenant rows.
+  // eslint-disable-next-line no-restricted-properties -- an advisory lock serialises one reprint key
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_REPRINT_KEY}::int, hashtext(${`${ph.restaurantId}:${input.clientKey}`}))`;
+  // eslint-disable-next-line no-restricted-properties -- an advisory lock serialises one document's reprint numbers
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_REPRINT_DOCUMENT}::int, hashtext(${`${ph.restaurantId}:${(input.saleId ?? input.returnId)!}`}))`;
   const loaded = input.saleId ? await loadSale(tx, input.saleId, input.branchId) : await loadReturn(tx, input.returnId!, input.branchId);
   const shop = await shopOf(tx, loaded.branchId);
   const locale = localeOf(ph, input.locale);
   const width = input.width;
 
-  const existing = await tx.phReceiptReprint.findFirst({ where: { clientKey: input.clientKey }, select: { saleId: true, returnId: true, copyNumber: true, width: true } });
+  const existing = await tx.phReceiptReprint.findFirst({ where: { clientKey: input.clientKey }, select: { saleId: true, returnId: true, copyNumber: true, width: true, userId: true, reason: true } });
   if (existing) {
-    if (existing.saleId !== loaded.saleId || existing.returnId !== loaded.returnId) throw new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
-    return { result: { ...render(loaded.doc, shop, { width, locale, copy: true, copyNumber: existing.copyNumber }), copyNumber: existing.copyNumber, replayed: true }, audit: null };
+    // The same key must be the same request: document, user, width and reason. Anything else is a different print, not a replay.
+    const same = existing.saleId === loaded.saleId && existing.returnId === loaded.returnId && existing.userId === ph.userId && existing.width === Number(width) && existing.reason === input.reason;
+    if (!same) throw new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
+    return { result: { ...render(loaded.doc, shop, { width: String(existing.width) as ReceiptWidth, locale, copy: true, copyNumber: existing.copyNumber }), copyNumber: existing.copyNumber, replayed: true }, audit: null };
   }
 
   const last = await tx.phReceiptReprint.aggregate({ where: loaded.saleId ? { saleId: loaded.saleId } : { returnId: loaded.returnId }, _max: { copyNumber: true } });

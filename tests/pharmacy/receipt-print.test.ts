@@ -3,7 +3,7 @@ import * as printActions from '@/server/pharmacy/actions/receipt-print';
 import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as saleActions from '@/server/pharmacy/actions/sales';
 import * as printQueries from '@/server/pharmacy/queries/receipt-print';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { act, ask, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
 /**
@@ -325,5 +325,189 @@ describe('what never reaches the paper', () => {
     expect(r.html).not.toContain('<img');
     expect(r.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
     expect(r.html).toContain('&lt;img src=x onerror=alert(2)&gt;');
+  });
+});
+
+describe('a replayed reprint must be the same request', () => {
+  it('refuses the same key from another user, at another width, or with another reason, and writes nothing', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const k = key('same');
+    dataOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '58', reason: 'Lost' }));
+    const audits = await prisma().auditLog.count({ where: { action: 'ph.receipt.reprint' } });
+    expect(phCodeOf(await reprint(w, w.manager, s.id, { clientKey: k, width: '58', reason: 'Lost' }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '80', reason: 'Lost' }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '58', reason: 'Customer asked' }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '58' }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(await prisma().phReceiptReprint.count()).toBe(1);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.receipt.reprint' } })).toBe(audits);
+  });
+
+  it('the same request again returns the stored copy at the stored width, with no new row or audit', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const k = key('again');
+    const one = dataOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '58', reason: ' Lost ' })) as unknown as Receipt;
+    const two = dataOf(await reprint(w, w.cashier, s.id, { clientKey: k, width: '58', reason: 'Lost' })) as unknown as Receipt;
+    expect(two).toMatchObject({ copyNumber: 1, replayed: true });
+    expect(two.html).toContain('@page { size: 58mm auto; margin: 2mm }');
+    expect(two.html).toBe(one.html);
+    expect(await prisma().phReceiptReprint.count()).toBe(1);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.receipt.reprint' } })).toBe(1);
+  });
+
+  it('a return slip replay is checked the same way', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const line = await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: s.id } });
+    const made = dataOf(await act(w.manager, returnActions.create, { ...at(w), saleId: s.id, lines: [{ saleLineId: line.id, baseQty: 1 }], reason: 'x y z', clientKey: key('ret') })) as { id: string };
+    const k = key('rr');
+    dataOf(await act(w.manager, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: k, width: '58' }));
+    expect(phCodeOf(await act(w.manager, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: k, width: '80' }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await act(w.cashier, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: k, width: '58' }))).toBe('CLIENT_KEY_MISMATCH');
+  });
+});
+
+describe('who may not print', () => {
+  it('a stock-only role and a support grant are refused on every print, and nothing is logged', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const line = await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: s.id } });
+    const made = dataOf(await act(w.manager, returnActions.create, { ...at(w), saleId: s.id, lines: [{ saleLineId: line.id, baseQty: 1 }], reason: 'x y z', clientKey: key('ret') })) as { id: string };
+    const support = await person('support', { superAdmin: true });
+    await grant(support, w.a.id, { scopes: ['catalog.read', 'sales.read', 'stock.read'] });
+    for (const who of [w.stock, support]) {
+      expect(codeOf(await get(w, who, s.id))).toBe('FORBIDDEN');
+      expect(codeOf(await reprint(w, who, s.id))).toBe('FORBIDDEN');
+      expect(codeOf(await ask(who, printQueries.returnReceipt, { ...at(w), returnId: made.id }))).toBe('FORBIDDEN');
+      expect(codeOf(await act(who, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: key('rr') }))).toBe('FORBIDDEN');
+    }
+    expect(await prisma().phReceiptReprint.count()).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.receipt.reprint' } })).toBe(0);
+  });
+});
+
+describe('six parallel reprints with distinct keys', () => {
+  it('all succeed with the numbers 1 to 6', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const many = await Promise.all([1, 2, 3, 4, 5, 6].map((i) => reprint(w, i % 2 ? w.cashier : w.manager, s.id)));
+    expect(many.map(codeOf)).toEqual(Array(6).fill('OK'));
+    expect((await prisma().phReceiptReprint.findMany({ orderBy: { copyNumber: 'asc' } })).map((r) => r.copyNumber)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.receipt.reprint' } })).toBe(6);
+  });
+});
+
+describe('the printed figures match hand figures from a real sale', () => {
+  it('IQD: line and invoice discount, rounding step, cash with change plus a transfer', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { roundingStepMinor: 250n } });
+    // 4 tablets at 100 = 400 and 1 strip at 900: gross 1,300. Line discount 40 on the tablets; invoice discount 140 shared
+    // over what is left (360 + 900 = 1,260): 40 and 100. Discount 180 in all, net 1,120 (tablets 320, strip 800).
+    // Rounded to the step of 250: 1,000 (120 away; 1,250 is 130 away), so rounding -120 and total 1,000.
+    // Paid cash 800 + transfer 300 = 1,100; change 100 (from the cash).
+    const s = dataOf(
+      await act(w.manager, saleActions.create, {
+        ...at(w),
+        clientKey: key('sale'),
+        currency: 'IQD',
+        lines: [
+          { productId: w.p.id, unitId: w.p.tablet, qty: 4, discount: { kind: 'amount', value: 40n, reason: 'promo' } },
+          { productId: w.p.id, unitId: w.p.strip, qty: 1 },
+        ],
+        invoiceDiscount: { kind: 'amount', value: 140n, reason: 'bulk' },
+        payments: [
+          { method: 'CASH', amountMinor: 800n, clientKey: key('pay') },
+          { method: 'TRANSFER_MANUAL', amountMinor: 300n, clientKey: key('pay'), reference: 'ref-9' },
+        ],
+      }),
+    ) as { id: string; number: string };
+    expect(await prisma().phSale.findUniqueOrThrow({ where: { id: s.id } })).toMatchObject({ subtotalMinor: 1300n, discountMinor: 180n, roundingMinor: -120n, totalMinor: 1000n, paidMinor: 1100n, changeMinor: 100n });
+
+    const first = dataOf(await get(w, w.cashier, s.id, { locale: 'en' })) as unknown as Receipt;
+    expect(first.model).toMatchObject({ subtotal: '1,300', discount: '-180', rounding: '-120', total: '1,000', paid: '1,100', change: '100' });
+    const payments = (first.model.payments as { method: string; amount: string }[]).map((p) => [p.method, p.amount]).sort();
+    expect(payments).toEqual([['CASH', '800'], ['TRANSFER_MANUAL', '300']]);
+    expect(first.model.lines).toMatchObject([
+      { no: 1, qty: '4', unit: 'tablet', unitPrice: '100', discount: '-80', total: '320' },
+      { no: 2, qty: '1', unit: 'strip', unitPrice: '900', discount: '-100', total: '800' },
+    ]);
+    const text = first.text;
+    expect(text).toMatch(/Subtotal\s+1,300\n/);
+    expect(text).toMatch(/\nDiscount\s+-180\n/);
+    expect(text).toMatch(/\nRounding\s+-120\n/);
+    expect(text).toMatch(/\nTotal\s+1,000 IQD\n/);
+    expect(text).toMatch(/\nPaid\s+1,100 IQD\n/);
+    expect(text).toMatch(/\nChange\s+100 IQD\n/);
+    // a reprint prints the same figures
+    const copy = dataOf(await reprint(w, w.manager, s.id)) as unknown as Receipt;
+    expect(copy.model).toMatchObject({ subtotal: '1,300', discount: '-180', rounding: '-120', total: '1,000', paid: '1,100', change: '100' });
+  });
+
+  it('USD: two decimals, a line percent discount, change from a larger note', async () => {
+    const w = await world();
+    for (const [unitId, amountMinor] of [[w.p.tablet, 150n], [w.p.strip, 1350n]] as const) {
+      await prisma().phPrice.create({ data: { restaurantId: w.a.id, productId: w.p.id, unitId, branchId: null, currency: 'USD', amountMinor, validFrom: new Date('2026-01-01T00:00:00.000Z'), changedById: 'seed' } });
+    }
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const usd = await person('usd', { staff: [w.a.id, 'BRANCH_MANAGER', [w.b1]] });
+    await prisma().phShift.create({ data: { restaurantId: w.a.id, branchId: w.b1, userId: usd.userId, currency: 'USD', openingFloatMinor: 0n } });
+    // 2 tablets at 1.50 = 3.00; 10% off = 0.30; total 2.70 (no rounding on USD); paid 5.00 cash; change 2.30.
+    const s = dataOf(
+      await act(usd, saleActions.create, {
+        ...at(w),
+        clientKey: key('sale'),
+        currency: 'USD',
+        lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 2, discount: { kind: 'percent', value: 10, reason: 'promo' } }],
+        payments: [{ method: 'CASH', amountMinor: 500n, clientKey: key('pay') }],
+      }),
+    ) as { id: string };
+    const r = dataOf(await get(w, usd, s.id)) as unknown as Receipt;
+    expect(r.model).toMatchObject({ currency: 'USD', subtotal: '3.00', discount: '-0.30', rounding: null, total: '2.70', paid: '5.00', change: '2.30' });
+    expect(r.model.lines).toMatchObject([{ unitPrice: '1.50', discount: '-0.30', total: '2.70' }]);
+    expect(r.text).toMatch(/\nChange\s+2\.30 USD\n/);
+  });
+
+  it('a return slip from a real return, including the final return that takes the rounding, lists lines in sale order', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { roundingStepMinor: 250n } });
+    // 4 tablets (400) + 1 strip (900, ten base units) = 1,300; 50% off = 650; split 200 + 450; 650 rounds to 750 (+100).
+    // Tablet 200 / 4 = 50 each, strip 450 / 10 = 45 each.
+    const s = dataOf(
+      await act(w.manager, saleActions.create, {
+        ...at(w),
+        clientKey: key('sale'),
+        currency: 'IQD',
+        lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 4 }, { productId: w.p.id, unitId: w.p.strip, qty: 1 }],
+        invoiceDiscount: { kind: 'percent', value: 50, reason: 'Staff discount' },
+        payments: [{ method: 'CASH', amountMinor: 750n, clientKey: key('pay') }],
+      }),
+    ) as { id: string };
+    const rows = await prisma().phSaleLine.findMany({ where: { saleId: s.id }, orderBy: { lineNo: 'asc' } });
+    const [tab, strip] = rows as [(typeof rows)[0], (typeof rows)[0]];
+    const ret = async (lines: [string, number][]) =>
+      dataOf(await act(w.manager, returnActions.create, { ...at(w), saleId: s.id, lines: lines.map(([saleLineId, baseQty]) => ({ saleLineId, baseQty })), reason: 'Wrong item', clientKey: key('ret') })) as { id: string; refundMinor: string };
+    // first return: strip first in the request, tablets second: 4 * 45 + 2 * 50 = 280
+    const first = await ret([[strip.id, 4], [tab.id, 2]]);
+    expect(first.refundMinor).toBe('280');
+    const slip1 = dataOf(await ask(w.manager, printQueries.returnReceipt, { ...at(w), returnId: first.id })) as unknown as Receipt;
+    expect(slip1.model).toMatchObject({ total: '280', rounding: null });
+    expect(slip1.model.lines).toMatchObject([{ qty: '2', total: '100' }, { qty: '4', total: '180' }]);
+    // final return: 6 * 45 + 2 * 50 = 370, plus the rounding 100 = 470
+    const last = await ret([[strip.id, 6], [tab.id, 2]]);
+    expect(last.refundMinor).toBe('470');
+    const slip2 = dataOf(await ask(w.manager, printQueries.returnReceipt, { ...at(w), returnId: last.id })) as unknown as Receipt;
+    expect(slip2.model).toMatchObject({ total: '470', rounding: '100' });
+    expect(slip2.model.lines).toMatchObject([{ qty: '2', total: '100' }, { qty: '6', total: '270' }]);
+    expect(slip2.text).toMatch(/\nRounding\s+100\n/);
+    expect(slip2.text).toMatch(/\nRefund\s+470 IQD\n/);
+    expect(280 + 470).toBe(750);
   });
 });

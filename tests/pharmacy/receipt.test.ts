@@ -189,3 +189,33 @@ describe('renderReceiptText', () => {
     expect(renderReceiptText(buildReceipt(doc, opts({ width: '80', copy: true })))).toContain('*** COPY ***');
   });
 });
+
+describe('return slip rounding and hostile text', () => {
+  const slip = (refundMinor: bigint) =>
+    buildReceipt(
+      {
+        kind: 'return',
+        ret: { number: 'R1', saleNumber: 'S1', currency: 'IQD', at: AT, refundMinor, refundMethod: 'CASH', approverName: 'Omar', lines: [{ name: 'Panadol', strength: '500 mg', baseQty: 6, refundMinor: 270n, rxLevel: 'OTC' }] },
+      },
+      opts(),
+    );
+
+  it('shows the rounding of a final return as the difference between the refund and its lines', () => {
+    const m = slip(370n);
+    expect([m.rounding, m.total]).toEqual(['100', '370']);
+    expect(renderReceiptText(m)).toMatch(/Rounding\s+100\n/);
+    expect(slip(270n).rounding).toBeNull();
+  });
+
+  it('keeps a name on one line in the text: newlines and bidi controls are removed', () => {
+    const m = buildReceipt(
+      { kind: 'sale', sale: { ...sale, lines: [{ ...sale.lines[0]!, name: 'Pana\ndol\r\n\u202Eevil\u2066x\u200F' }], cashierName: 'Sa\nra\u202E' } },
+      opts({ shop: { ...SHOP, name: 'Al\nNoor\u202D' } }),
+    );
+    const text = renderReceiptText(m);
+    expect(text).not.toMatch(/[\u200E\u200F\u202A-\u202E\u2066-\u2069]/);
+    expect(text).toContain('Pana dol evilx 500 mg');
+    expect(text).toContain('Al Noor');
+    expect(text).toContain('Sa ra');
+  });
+});

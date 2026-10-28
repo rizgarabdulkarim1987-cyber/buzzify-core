@@ -300,6 +300,7 @@ export function buildReceipt(doc: StoredDocument, options: ReceiptOptions): Rece
 
   const r = doc.ret;
   const money = (v: bigint) => formatMinor(v, r.currency);
+  const lineSum = r.lines.reduce((sum, l) => sum + l.refundMinor, 0n);
   return {
     ...base,
     kind: 'return',
@@ -323,7 +324,8 @@ export function buildReceipt(doc: StoredDocument, options: ReceiptOptions): Rece
     })),
     subtotal: null,
     discount: null,
-    rounding: null,
+    // The final return of a rounded sale also gives back (or keeps) the invoice rounding: the lines alone do not add up to the refund.
+    rounding: r.refundMinor !== lineSum ? money(r.refundMinor - lineSum) : null,
     total: money(r.refundMinor),
     payments: [],
     paid: null,
@@ -439,8 +441,25 @@ function wrap(text: string, cols: number): string[] {
   return lines.length > 0 ? lines : [''];
 }
 
+/** One line of plain text: line breaks become a space and bidi control characters are dropped (a name must not reorder the paper). */
+const BIDI = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/g;
+const oneLine = (t: string): string => t.replace(BIDI, '').replace(/[\r\n\u2028\u2029]+/g, ' ').replace(/ {2,}/g, ' ').trim();
+
+/** Every dynamic string of the model cleaned for plain text. */
+function cleaned(m: ReceiptModel): ReceiptModel {
+  return {
+    ...m,
+    shop: { name: oneLine(m.shop.name), ...(m.shop.address ? { address: oneLine(m.shop.address) } : {}), ...(m.shop.phone ? { phone: oneLine(m.shop.phone) } : {}), ...(m.shop.footer ? { footer: oneLine(m.shop.footer) } : {}) },
+    number: oneLine(m.number),
+    saleNumber: m.saleNumber === null ? null : oneLine(m.saleNumber),
+    cashier: m.cashier === null ? null : oneLine(m.cashier),
+    lines: m.lines.map((l) => ({ ...l, name: oneLine(l.name), strength: oneLine(l.strength), unit: oneLine(l.unit) })),
+  };
+}
+
 /** The same receipt as plain text lines (monospace, no markup), for a printer or a client that cannot show the HTML. */
-export function renderReceiptText(m: ReceiptModel): string {
+export function renderReceiptText(model: ReceiptModel): string {
+  const m = cleaned(model);
   const cols = COLUMNS[m.width];
   const L = m.labels;
   const rule = '-'.repeat(cols);
