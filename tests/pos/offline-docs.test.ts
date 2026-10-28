@@ -43,6 +43,11 @@ describe('offlineReceiptDoc', () => {
     expect(rows.find((r) => r.left === 'pos.pay.change')?.right).toBe('9000$');
   });
 
+  it('marks a copy', () => {
+    expect(text(offlineReceiptDoc(paid, 4, snapshot, t, fmt, { copy: true }).rows)[0]?.left).toBe('pos.receipt.copy');
+    expect(text(offlineReceiptDoc(paid, 4, snapshot, t, fmt).rows)[0]?.left).toBe('pos.offline.receiptProvisional');
+  });
+
   it('prints without business details', () => {
     const bare = { ...snapshot, business: undefined } as unknown as SyncSnapshot;
     const rows = text(offlineReceiptDoc(paid, 4, bare, t, fmt).rows).map((r) => r.left);

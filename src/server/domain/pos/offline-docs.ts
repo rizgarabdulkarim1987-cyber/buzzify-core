@@ -16,8 +16,10 @@ const numberOf = (order: LocalOrder, fmt: PaperFormat) => order.provisional ?? f
 const unitTotal = (line: LocalOrder['lines'][number]) => (line.unitPrice + line.options.reduce((sum, option) => sum + option.priceDelta, 0) - line.promoPerUnit) * line.quantity;
 
 /** The paid order as a provisional receipt. `tableNumber` is the table's number on the floor (null when unknown). */
-export function offlineReceiptDoc(order: LocalOrder, tableNumber: number | null, snapshot: Pick<SyncSnapshot, 'rates' | 'business' | 'user'>, t: PaperText, fmt: PaperFormat): PaperDoc {
-  const rows: PaperRow[] = [center(t('pos.offline.receiptProvisional'), { bold: true })];
+export function offlineReceiptDoc(order: LocalOrder, tableNumber: number | null, snapshot: Pick<SyncSnapshot, 'rates' | 'business' | 'user'>, t: PaperText, fmt: PaperFormat, opts: { copy?: boolean } = {}): PaperDoc {
+  const rows: PaperRow[] = [];
+  if (opts.copy) rows.push(center(t('pos.receipt.copy'), { bold: true }));
+  rows.push(center(t('pos.offline.receiptProvisional'), { bold: true }));
   const business = snapshot.business;
   if (business?.name) rows.push(center(business.name, { size: 2, bold: true }));
   if (business?.address) rows.push(center(business.address));
