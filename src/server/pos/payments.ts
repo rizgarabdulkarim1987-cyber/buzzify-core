@@ -69,7 +69,14 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     whole,
     everLive.map((line) => ({ id: line.id, total: lineTotal(pricedLine(line)), paid: line.paymentId !== null })),
     chosen.map((line) => line.id),
-    { invoiceDiscount: sumOf(taken, 'invoiceDiscount'), service: sumOf(taken, 'service'), tax: sumOf(taken, 'tax'), deliveryFee: sumOf(taken, 'deliveryFee') },
+    {
+      invoiceDiscount: sumOf(taken, 'invoiceDiscount'),
+      service: sumOf(taken, 'service'),
+      tax: sumOf(taken, 'tax'),
+      deliveryFee: sumOf(taken, 'deliveryFee'),
+      billed: taken.reduce((sum, s) => sum + s.total - s.rounding, 0),
+      paid: taken.reduce((sum, s) => sum + s.total, 0),
+    },
     rates.roundingStep,
   );
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');

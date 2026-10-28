@@ -121,15 +121,31 @@ describe('rounding at payment', () => {
     expect(await snapshotOf(paid.paymentId)).toMatchObject({ total: 10_250, rounding: 0 });
   });
 
-  it('rounds each guest part on its own, so every part is a multiple of the step', async () => {
+  it('rounds the running total of the parts, so every part is a multiple of the step and they add up to the rounded bill', async () => {
     const { orderId, lineIds } = await orderOf([3_333, 3_333, 3_333]);
     const first = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: 3_250, lineIds: [lineIds[0]!], amountReceived: 3_250 }));
-    const second = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: 3_250, lineIds: [lineIds[1]!], amountReceived: 3_250 }));
+    // 6,666 so far rounds to 6,750, and the first guest paid 3,250 of it.
+    const second = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: 3_500, lineIds: [lineIds[1]!], amountReceived: 3_500 }));
     expect((await view(orderId)).leftToPay).toBe(3_250);
     const last = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: 3_250, amountReceived: 3_250 }));
     for (const paid of [first, second, last]) expect((await snapshotOf(paid.paymentId)).total % 250).toBe(0);
     expect((await snapshotOf(last.paymentId)).rounding).toBe(-83);
+    expect(first.total + second.total + last.total).toBe((await view(orderId)).totals.total);
     expect((await view(orderId)).status).toBe('PAID');
+  });
+
+  it('never makes small split parts pay more than the rounded bill', async () => {
+    // Four guests of 100 each: the bill is 400, rounded to 500. Rounded on their own they paid a step each, 1,000.
+    const { orderId, lineIds } = await orderOf([100, 100, 100, 100]);
+    expect((await view(orderId)).totals.total).toBe(500);
+    const paid: number[] = [];
+    for (const [i, expected] of [250, 0, 0].entries()) {
+      const part = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: expected, lineIds: [lineIds[i]!], amountReceived: expected }));
+      paid.push(part.total);
+    }
+    expect((await view(orderId)).leftToPay).toBe(250);
+    const last = dataOf(await run(cashier, payPosOrder, { orderId, expectedVersion: (await view(orderId)).version, expectedTotal: 250, amountReceived: 250 }));
+    expect([...paid, last.total].reduce((a, b) => a + b, 0)).toBe(500);
   });
 
   it('never turns a small real bill into a free one', async () => {

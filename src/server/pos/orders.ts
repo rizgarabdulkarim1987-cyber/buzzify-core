@@ -264,7 +264,7 @@ export interface OrderView {
   /** Every payment taken so far, in order: one for the whole bill, or one per guest after a split. */
   parts: { paymentId: string; part: number; method: string; total: number; paidAt: Date; reversed: boolean }[];
   /** What the parts paid so far took of the invoice discount, service, tax and delivery fee (to price the next part). */
-  taken: { invoiceDiscount: number; service: number; tax: number; deliveryFee: number };
+  taken: { invoiceDiscount: number; service: number; tax: number; deliveryFee: number; billed: number; paid: number };
   /** The bill minus what the parts paid so far: what the next guest, or the rest of the table, still owes. */
   leftToPay: number;
   /** The ways the till may take payment now; cash is always among them. */
@@ -299,6 +299,8 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     service: earlier.reduce((sum, p) => sum + p.service, 0),
     tax: earlier.reduce((sum, p) => sum + p.tax, 0),
     deliveryFee: earlier.reduce((sum, p) => sum + p.deliveryFee, 0),
+    billed: earlier.reduce((sum, p) => sum + p.total - p.rounding, 0),
+    paid: earlier.reduce((sum, p) => sum + p.total, 0),
   };
   return {
     id: order.id,
@@ -356,7 +358,8 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,
     parts: order.payments.map((p) => ({ paymentId: p.id, part: p.part, method: p.method, total: partTotal.parse(p.totalsSnapshot).total, paidAt: p.paidAt, reversed: p.reversal !== null })),
     taken,
-    leftToPay: order.status === 'PAID' ? 0 : roundTo(totals.total - earlier.reduce((sum, p) => sum + p.total - p.rounding, 0), settings.roundingStep).total,
+    // The rounded bill minus what the parts paid: what the last part pays under cumulative rounding (split.ts).
+    leftToPay: order.status === 'PAID' ? 0 : earlier.length === 0 ? payable.total : Math.max(0, payable.total - taken.paid),
     paymentMethods: POS_PAYMENT_METHODS.filter((method) => method === 'CASH' || (methodRow?.enabledPaymentMethods ?? []).includes(method)),
   };
 }
