@@ -212,6 +212,10 @@ model Menu {
   numeralSystem       NumeralSystem @default(LATN)
   /// Whether guests get the complaints and suggestions box; read live, never part of a snapshot.
   feedbackEnabled     Boolean       @default(true)
+  /// Whether guests see the intro page before the menu, the restaurant's own page, and the wheel of fortune; read live like feedbackEnabled.
+  introEnabled        Boolean       @default(false)
+  aboutEnabled        Boolean       @default(false)
+  wheelEnabled        Boolean       @default(false)
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -228,6 +232,8 @@ model Menu {
   slugs           MenuSlug[]
   domains         MenuDomain[]
   brand           BrandConfig?
+  intro           MenuIntro?
+  introAdverts    IntroAdvert[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -2450,4 +2456,61 @@ model SupportAccessGrant {
 
   @@index([restaurantId])
   @@index([granteeUserId])
+}
+
+/// The intro page shown before the menu (docs/superpowers/specs/2026-10-29-menu-intro-design.md). One per menu.
+model MenuIntro {
+  id                String   @id @default(cuid())
+  menuId            String   @unique
+  /// A picture or MP4 (with its poster) from the media library; null falls back to the platform's default, then to the brand colour.
+  backgroundAssetId String?
+  /// How dark the gradient over the background is, 0 to 100.
+  overlay           Int      @default(50)
+  showLogo          Boolean  @default(true)
+  showContact       Boolean  @default(true)
+  updatedAt         DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// A visual advert on a menu's intro page, uploaded by the restaurant.
+model IntroAdvert {
+  id           String    @id @default(cuid())
+  menuId       String
+  imageAssetId String
+  /// { en?, ar?, ckb? }
+  alts         Json      @default("{}")
+  /// An https address or a path on the menu; empty for a card with no link.
+  href         String    @default("")
+  startsAt     DateTime?
+  endsAt       DateTime?
+  sortOrder    Int       @default(0)
+  active       Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, sortOrder])
+}
+
+/// An advert the platform shows on the intro pages of every restaurant, or only of the ones listed.
+model PlatformAdvert {
+  id            String    @id @default(cuid())
+  imageAssetId  String
+  alts          Json      @default("{}")
+  href          String    @default("")
+  startsAt      DateTime?
+  endsAt        DateTime?
+  sortOrder     Int       @default(0)
+  active        Boolean   @default(true)
+  /// Empty means every restaurant.
+  restaurantIds String[]
+  createdAt     DateTime  @default(now())
+}
+
+/// The background intro pages use when a restaurant sets none. A single row, id 'singleton'.
+model PlatformIntro {
+  id                String   @id
+  backgroundAssetId String?
+  updatedAt         DateTime @updatedAt
 }

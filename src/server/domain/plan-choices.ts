@@ -243,6 +243,10 @@ export interface GuestFeatures {
   offers: boolean;
   socialProof: boolean;
   motions: boolean;
+  /** The plan holds the intro page, the restaurant's own page and the wheel (each also needs its menu switch). */
+  intro: boolean;
+  about: boolean;
+  wheel: boolean;
   rails: RailStyle[];
 }
 
@@ -254,6 +258,9 @@ export function guestFeatures(entitlements: Entitlements): GuestFeatures {
     offers: allows(entitlements, 'selling.offers'),
     socialProof: allows(entitlements, 'selling.socialProof'),
     motions: allows(entitlements, 'design.menuMotions'),
+    intro: allows(entitlements, 'menu.intro'),
+    about: allows(entitlements, 'menu.about'),
+    wheel: allows(entitlements, 'menu.wheel'),
     rails: allowedRails(entitlements),
   };
 }

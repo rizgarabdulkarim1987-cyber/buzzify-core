@@ -39,6 +39,8 @@ export interface TenantClientInfo {
   features: { explore: boolean; stage: boolean; rails: RailStyle[] };
   /** Whether the menu carries the complaints and suggestions box. */
   feedback: boolean;
+  /** The menu's own page and the wheel: on when the menu switched them on and its plan holds them. */
+  extras: { about: boolean; wheel: boolean; aboutTitle: Record<'en' | 'ar' | 'ckb', string> };
   /** `plain` shows the menu's prices without the currency symbol (the cart keeps it). */
   priceStyle: 'symbol' | 'plain';
 }

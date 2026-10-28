@@ -47,6 +47,7 @@ export default async function RevisionPreviewLayout({ children, params }: { chil
             features: { explore: tenant.features.explore, stage: tenant.features.stage, rails: tenant.features.rails },
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
             feedback: false,
+            extras: { about: false, wheel: false, aboutTitle: { en: '', ar: '', ckb: '' } },
           }}
         >
           {children}
