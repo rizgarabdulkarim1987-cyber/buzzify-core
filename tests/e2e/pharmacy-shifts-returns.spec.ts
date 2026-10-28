@@ -180,6 +180,41 @@ async function shoot(page: Page, label: string): Promise<void> {
 
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
+const SHOTS = process.env.SHOTS_DIR ?? 'test-results';
+const shotPath = (name: string) => `${SHOTS}/shifts-returns-9b-${name}.png`;
+
+/** An open dialog at 375 and 1280 px: a screenshot of the viewport, no sideways scroll and no serious axe violation. */
+async function dialogShots(page: Page, name: string): Promise<void> {
+  for (const width of [375, 1280]) {
+    await page.setViewportSize({ width, height: 800 });
+    await page.screenshot({ path: shotPath(`${name}-${width}`) });
+    expect(await scrollsSideways(page), `${name} at ${width}px`).toBe(false);
+    expect(await seriousViolations(page), `${name} at ${width}px`).toEqual([]);
+  }
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+
+/** The server does the next Server Action on `url` and the browser never gets the answer (a dropped connection). */
+async function dropNextAnswer(page: Page, url: string): Promise<void> {
+  let dropped = false;
+  await page.route(url, async (route) => {
+    if (!dropped && route.request().method() === 'POST' && route.request().headers()['next-action']) {
+      dropped = true;
+      await route.fetch();
+      await route.abort();
+    } else await route.continue();
+  });
+}
+
+const cashMovements = async (shiftId: string) => {
+  const client = db();
+  try {
+    return await client.phCashMovement.count({ where: { shiftId, type: { in: ['PAID_IN', 'PAID_OUT'] } } });
+  } finally {
+    await client.$disconnect();
+  }
+};
+
 /** One strip chosen from the search results and paid `tendered` in cash on the sale screen (an open shift is needed). */
 async function sellStrip(page: Page, tendered: string): Promise<void> {
   await page.goto('/pharmacy/sell');
@@ -492,4 +527,159 @@ test.describe('Pharmacy shifts, sales and returns @desktop', () => {
     await audit('return-detail');
     await page.context().close();
   });
+
+  test('a lost answer: the paid in is recorded once after the dialog was closed and reopened; a close that landed says so; a stale list address; a read-only pharmacy says why', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner } = await owned('Lost');
+    await seedProduct(shop, randomUUID().slice(0, 6));
+    const shiftId = await openShiftInDb(shop, owner.userId, 10_000n);
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/shifts');
+    await expect(page.getByTestId('expected-live')).toContainText('10,000');
+
+    // Paid in: the server records it, the browser never hears. The dialog is closed, opened again and the same movement typed again.
+    await dropNextAnswer(page, '**/pharmacy/shifts');
+    await page.getByTestId('paid-in-open').click();
+    await page.getByTestId('cash-amount').fill('1000');
+    await page.getByTestId('cash-reason').fill('Float top up');
+    await page.getByTestId('cash-confirm').click();
+    await expect(page.getByTestId('cash-problem')).toContainText('not known');
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('cash-amount')).toHaveCount(0);
+    await page.getByTestId('paid-in-open').click();
+    await page.getByTestId('cash-amount').fill('1000');
+    await page.getByTestId('cash-reason').fill('Float top up');
+    await page.getByTestId('cash-confirm').click();
+    await expect(page.getByTestId('shift-notice')).toBeVisible();
+    await expect(page.getByTestId('expected-live')).toContainText('11,000');
+    expect(await cashMovements(shiftId)).toBe(1);
+
+    // A different amount after a lost answer is a different movement (its own key): both are recorded.
+    await dropNextAnswer(page, '**/pharmacy/shifts');
+    await page.getByTestId('paid-in-open').click();
+    await page.getByTestId('cash-amount').fill('200');
+    await page.getByTestId('cash-reason').fill('Coins');
+    await page.getByTestId('cash-confirm').click();
+    await expect(page.getByTestId('cash-problem')).toContainText('not known');
+    await page.keyboard.press('Escape');
+    await page.getByTestId('paid-in-open').click();
+    await page.getByTestId('cash-amount').fill('300');
+    await page.getByTestId('cash-reason').fill('Coins');
+    await page.getByTestId('cash-confirm').click();
+    await expect(page.getByTestId('shift-notice')).toBeVisible();
+    expect(await cashMovements(shiftId)).toBe(3);
+
+    // The figures of the close dialog say when they were read, and can be read again.
+    await page.getByTestId('close-open').click();
+    await expect(page.getByTestId('close-as-of')).toContainText('UTC');
+    await page.getByTestId('close-refresh').click();
+    await expect(page.getByTestId('close-as-of')).toContainText('UTC');
+    await expect(page.getByTestId('close-expected')).toContainText('11,500');
+
+    // Close: the server closes the shift, the answer is lost, the person presses Close again: "it closed", no error.
+    await dropNextAnswer(page, '**/pharmacy/shifts');
+    await page.getByTestId('close-counted').fill('11500');
+    await page.getByTestId('close-confirm').click();
+    await expect(page.getByTestId('close-problem')).toContainText('not known');
+    expect((await stateOf(shiftId)).status).toBe('CLOSED');
+    await page.getByTestId('close-confirm').click();
+    await expect(page.getByTestId('close-probably')).toContainText('probably');
+    await expect(page.getByTestId('close-problem')).toHaveCount(0);
+    await page.getByTestId('close-open-report').click();
+    await expect(page.getByTestId('cash-counted')).toContainText('11,500');
+
+    // A list address whose cursor the server no longer knows: a "page not found" state with a way to the first page.
+    for (const path of ['shifts', 'sales', 'returns']) {
+      await page.goto(`/pharmacy/${path}?cursor=nothing-here`);
+      await expect(page.getByTestId('stale-cursor')).toBeVisible();
+      await page.getByTestId('stale-first').click();
+      await expect(page.getByTestId('stale-cursor')).toHaveCount(0);
+    }
+
+    // A read-only pharmacy: the sale detail says why there is no return or cancel.
+    await openShiftInDb(shop, owner.userId, 0n);
+    await sellStrip(page, '2000');
+    const client = db();
+    try {
+      await client.subscription.updateMany({ where: { restaurantId: shop.id }, data: { currentPeriodEnd: new Date(Date.now() - 30 * DAY) } });
+    } finally {
+      await client.$disconnect();
+    }
+    await page.goto('/pharmacy/sales');
+    await page.getByTestId('sale-number').first().click();
+    await expect(page.getByTestId('sale-detail')).toBeVisible();
+    await expect(page.getByTestId('sales-write-blocked')).toContainText('read only');
+    await expect(page.getByTestId('sale-cancel')).toHaveCount(0);
+    await expect(page.getByTestId('sale-return')).toHaveCount(0);
+    await page.context().close();
+  });
+
+  for (const locale of ['en', 'ar'] as const) {
+    test(`evidence: the close, paid in/out, cancel and print dialogs and the returns list, ${locale}, at 375 and 1280px`, async ({ browser }) => {
+      test.setTimeout(540_000);
+      const { shop, owner } = await owned(`Vis ${locale}`, locale, 500n);
+      await seedProduct(shop, randomUUID().slice(0, 6));
+      const cashier = await createStudioUser({ label: 'ph-sr-vis-cashier', name: 'Vis Cashier', locale });
+      people.push(cashier.email);
+      await makeStaff(cashier.userId, shop.id, 'CASHIER');
+      await openShiftInDb(shop, cashier.userId, 1000n);
+      const reason = locale === 'ar' ? 'سبب تجريبي' : 'Because';
+
+      // The cashier: sells, then the cash dialogs. Expected cash 1,000 + 2,000.
+      const cashierPage = await freshPage(browser);
+      await signInAndChoose(cashierPage, cashier, shop, 0);
+      await sellStrip(cashierPage, '2000');
+      await cashierPage.goto('/pharmacy/shifts');
+      await expect(cashierPage.getByTestId('expected-live')).toContainText('3,000');
+      await cashierPage.getByTestId('paid-in-open').click();
+      await cashierPage.getByTestId('cash-amount').fill('500');
+      await cashierPage.getByTestId('cash-reason').fill(reason);
+      await dialogShots(cashierPage, `paid-in-${locale}`);
+      await cashierPage.keyboard.press('Escape');
+      await cashierPage.getByTestId('paid-out-open').click();
+      await cashierPage.getByTestId('cash-amount').fill('99999');
+      await cashierPage.getByTestId('cash-reason').fill(reason);
+      await expect(cashierPage.getByTestId('cash-over')).toBeVisible();
+      await dialogShots(cashierPage, `paid-out-${locale}`);
+      await cashierPage.keyboard.press('Escape');
+      await cashierPage.getByTestId('close-open').click();
+      await cashierPage.getByTestId('close-counted').fill('100');
+      await cashierPage.getByTestId('close-reason-input').fill(reason);
+      await expect(cashierPage.getByTestId('close-variance')).toBeVisible();
+      await dialogShots(cashierPage, `close-short-${locale}`);
+      await cashierPage.getByTestId('close-confirm').click();
+      await expect(cashierPage.getByTestId('needs-approval')).toBeVisible();
+      await dialogShots(cashierPage, `close-needs-approval-${locale}`);
+      await cashierPage.context().close();
+
+      // The owner: the sale's cancel and print dialogs, then the cancel itself, then the returns list with its row.
+      await openShiftInDb(shop, owner.userId, 0n);
+      const page = await freshPage(browser);
+      await signInAndChoose(page, owner, shop, 1);
+      await page.goto('/pharmacy/sales');
+      await expect(page.getByTestId('sale-row')).toHaveCount(1);
+      await page.getByTestId('sale-number').click();
+      await expect(page.getByTestId('sale-detail')).toBeVisible();
+      await page.getByTestId('sale-cancel').click();
+      await expect(page.getByTestId('cancel-refund')).toContainText('2,000');
+      await page.getByTestId('cancel-reason').fill(reason);
+      await dialogShots(page, `cancel-${locale}`);
+      await page.getByTestId('cancel-confirm').click();
+      await expect(page.getByTestId('sale-status-RETURNED_FULL')).toBeVisible();
+      await page.getByTestId('sale-print').click();
+      await expect(page.getByTestId('receipt-frame')).toBeVisible();
+      await dialogShots(page, `print-${locale}`);
+      await page.getByTestId('receipt-done').click();
+      await page.goto('/pharmacy/returns');
+      await expect(page.getByTestId('return-row')).toHaveCount(1);
+      for (const width of [375, 1280]) {
+        await page.setViewportSize({ width, height: 900 });
+        await expect(page.getByTestId('return-row')).toBeVisible();
+        await page.screenshot({ path: shotPath(`returns-list-${locale}-${width}`), fullPage: true });
+        expect(await scrollsSideways(page), `returns list at ${width}px`).toBe(false);
+      }
+      await page.context().close();
+    });
+  }
 });

@@ -48,7 +48,6 @@ import {
   closePlan,
   formatUtc,
   paidOutHint,
-  shortId,
 } from "./shifts-logic";
 
 const available = (minor: bigint | string, currency: Currency) =>
@@ -82,6 +81,7 @@ export function ShiftPanel({
   currencies,
   defaultCurrency,
   asOf,
+  names,
 }: {
   shift: ShiftView | null;
   totals: ShiftTotals | null;
@@ -89,6 +89,8 @@ export function ShiftPanel({
   asOf: string;
   currencies: Currency[];
   defaultCurrency: Currency;
+  /** Names by user id for the figures (the person's own name). */
+  names?: Record<string, string>;
 }) {
   const t = useT();
   const router = useRouter();
@@ -176,7 +178,7 @@ export function ShiftPanel({
           {t("pharmacy.nav.sell")}
         </Link>
       </div>
-      <ShiftFigures shift={shift} totals={totals} t={t} />
+      <ShiftFigures shift={shift} totals={totals} t={t} names={names ?? {}} />
       {(dialog === "in" || dialog === "out") && (
         <CashDialog
           kind={dialog}
@@ -601,9 +603,7 @@ export function CloseDialog({
             role="alert"
             testId="needs-approval"
           >
-            {t("pharmacy.shifts.fail.NEEDS_APPROVAL", {
-              id: shortId(shift.id),
-            })}
+            {t("pharmacy.shifts.fail.NEEDS_APPROVAL")}
           </Note>
         )}
         {closedProbably && (

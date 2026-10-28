@@ -5,6 +5,7 @@ import {
   closePlan,
   formatUtc,
   paidOutHint,
+  personLabel,
   parseReturnQty,
   previewCurrent,
   refundMethodChoices,
@@ -155,5 +156,14 @@ describe('previewCurrent', () => {
     expect(previewCurrent('[{"a":1}]', '[{"a":1}]')).toBe(true);
     expect(previewCurrent('[{"a":1}]', '[{"a":2}]')).toBe(false);
     expect(previewCurrent(null, '[{"a":1}]')).toBe(false);
+  });
+});
+
+describe('personLabel', () => {
+  it('is the name when the server gave one, else the short id', () => {
+    expect(personLabel({ u1: 'Sara Ali' }, 'u1')).toBe('Sara Ali');
+    expect(personLabel({ u1: 'Sara Ali' }, 'cm9abcdefghijkl')).toBe('cm9abcde');
+    expect(personLabel({ u1: '  ' }, 'u1')).toBe('u1');
+    expect(personLabel({}, 'abc')).toBe('abc');
   });
 });

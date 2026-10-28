@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import { peopleOf } from '@/app/pharmacy/_ui/people';
 import { BackLink, Forbidden, PickBranch } from '@/app/pharmacy/_ui/PageGate';
 import { CloseShiftButton } from '@/app/pharmacy/_ui/CloseShiftButton';
 import { ShiftFigures } from '@/app/pharmacy/_ui/ShiftFigures';
@@ -47,6 +48,7 @@ export default async function ShiftReportPage({ params }: { params: Promise<{ id
     throw error;
   }
   const { shift, totals } = data;
+  const names = await peopleOf(placeInput, [shift.userId, shift.approvedById]);
   const mine = shift.userId === actor.userId;
   const permission = mine ? 'shift.use' : 'report.view';
   const mayClose = shift.status === 'OPEN' && roleMay(actor, permission) && access.writable(permission).ok;
@@ -60,7 +62,7 @@ export default async function ShiftReportPage({ params }: { params: Promise<{ id
             {!mine && <p className="text-sm text-muted">{t('pharmacy.shifts.closeOtherHint')}</p>}
           </div>
         )}
-        <ShiftFigures shift={shift} totals={totals} t={t} />
+        <ShiftFigures shift={shift} totals={totals} t={t} names={names} />
       </div>
     </>
   );

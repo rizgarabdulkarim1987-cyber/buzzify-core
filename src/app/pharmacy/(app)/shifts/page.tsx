@@ -1,12 +1,13 @@
 import { DoorOpen, History } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { peopleOf } from '@/app/pharmacy/_ui/people';
 import { Forbidden, Pager, PickBranch, StaleCursor } from '@/app/pharmacy/_ui/PageGate';
 import { Money, ShiftStatus } from '@/app/pharmacy/_ui/money-parts';
 import { ShiftPanel } from '@/app/pharmacy/_ui/ShiftPanel';
 import { WriteBlocked } from '@/app/pharmacy/_ui/WriteBlocked';
 import { Num } from '@/app/pharmacy/_ui/sell-parts';
-import { formatUtc, shortId } from '@/app/pharmacy/_ui/shifts-logic';
+import { formatUtc, personLabel } from '@/app/pharmacy/_ui/shifts-logic';
 import { current, list } from '@/server/pharmacy/queries/shifts';
 import { search } from '@/server/pharmacy/queries/sell';
 import { SHIFT_STATUSES } from '@/server/pharmacy/shifts-reads';
@@ -65,6 +66,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
   ]);
   const stale = listed.staleCursor;
   const page = listed.staleCursor ? { items: [], nextCursor: null } : listed.data;
+  const names = await peopleOf(placeInput, page.items.map((s) => s.userId));
   const href = (over: { status?: string | undefined; cursor?: string | undefined }) => {
     const next = new URLSearchParams();
     if (over.status) next.set('status', over.status);
@@ -85,6 +87,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
             currencies={found.settings.enabledCurrencies}
             defaultCurrency={found.settings.defaultCurrency}
             asOf={new Date().toISOString()}
+            names={{ [actor.userId]: actor.name }}
           />
         )}
 
@@ -117,7 +120,7 @@ export default async function ShiftsPage({ searchParams }: { searchParams: Promi
                   </span>
                   <span className="text-text">
                     <span className="text-muted">{t('pharmacy.shifts.cashier')}: </span>
-                    <Num>{shortId(s.userId)}</Num>
+                    <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, s.userId)}</span>
                   </span>
                   {s.status === 'CLOSED' && s.varianceMinor !== null && (
                     <span className="text-text" data-testid="row-variance">

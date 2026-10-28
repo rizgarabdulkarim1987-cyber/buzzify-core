@@ -139,3 +139,9 @@ export function closeOutcome(error: { message: string; fields?: { phCode?: strin
 export function previewCurrent(settledWire: string | null, wire: string): boolean {
   return settledWire !== null && settledWire === wire;
 }
+
+/** A person on a record: the name the server gave (`ph.people.names`), else the short id. */
+export function personLabel(names: Readonly<Record<string, string>>, id: string): string {
+  const name = names[id]?.trim();
+  return name ? name : shortId(id);
+}

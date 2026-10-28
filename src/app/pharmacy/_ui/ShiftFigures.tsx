@@ -3,7 +3,7 @@ import type { Translate } from '@/lib/i18n';
 import type { ShiftTotals, ShiftView } from '@/server/pharmacy/shifts-reads';
 import { Money, Row, FIGURES, ShiftStatus } from './money-parts';
 import { Note, Num } from './sell-parts';
-import { formatUtc, shiftCashRows, shortId } from './shifts-logic';
+import { formatUtc, personLabel, shiftCashRows } from './shifts-logic';
 import { closePlan } from './shifts-logic';
 
 /**
@@ -11,7 +11,7 @@ import { closePlan } from './shifts-logic';
  * cash, the sales by method, the returns, and for a closed shift the count and variance. Plain markup shared by the page
  * (server) and the live card (client); the numbers are the server's.
  */
-export function ShiftFigures({ shift, totals, t }: { shift: ShiftView; totals: ShiftTotals; t: Translate }) {
+export function ShiftFigures({ shift, totals, t, names = {} }: { shift: ShiftView; totals: ShiftTotals; t: Translate; /** Names by user id (`ph.people.names`); an id with no name shows its short form. */ names?: Record<string, string> }) {
   const cur = shift.currency;
   const rows = shiftCashRows(totals);
   const closed = shift.status === 'CLOSED';
@@ -32,11 +32,11 @@ export function ShiftFigures({ shift, totals, t }: { shift: ShiftView; totals: S
           </>
         )}
         <dt className="text-muted">{t('pharmacy.shifts.cashier')}</dt>
-        <dd><Num>{shortId(shift.userId)}</Num></dd>
+        <dd><span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, shift.userId)}</span></dd>
         {closed && (
           <>
             <dt className="text-muted">{t('pharmacy.shifts.closedBy')}</dt>
-            <dd data-testid="closed-by">{shift.approvedById ? <Num>{shortId(shift.approvedById)}</Num> : t('pharmacy.shifts.closedByOwner')}</dd>
+            <dd data-testid="closed-by">{shift.approvedById ? <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, shift.approvedById)}</span> : t('pharmacy.shifts.closedByOwner')}</dd>
           </>
         )}
       </dl>

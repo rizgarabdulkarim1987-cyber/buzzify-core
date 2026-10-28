@@ -170,7 +170,7 @@ function CancelDialog({ open, onClose, sale, lines, currency, paid, defaultMetho
             {refund.state === 'loading' && t('pharmacy.sales.cancel.refundLoading')}
             {refund.state === 'none' && t('pharmacy.sales.cancel.refundNone')}
             {refund.state === 'ok' && `${t('pharmacy.sales.cancel.refund')} `}
-            {refund.state === 'ok' && <Money minor={refund.minor} currency={currency} />}
+            {refund.state === 'ok' && <span className="whitespace-nowrap"><Money minor={refund.minor} currency={currency} /></span>}
           </span>
         </p>
         <Field label={t('pharmacy.returns.reason')} hint={t('pharmacy.returns.reasonHint')}>

@@ -1,11 +1,12 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { peopleOf } from '@/app/pharmacy/_ui/people';
 import { BackLink, Forbidden, PickBranch } from '@/app/pharmacy/_ui/PageGate';
 import { Money, Row, FIGURES } from '@/app/pharmacy/_ui/money-parts';
 import { PrintButton } from '@/app/pharmacy/_ui/PrintDialog';
 import { Num } from '@/app/pharmacy/_ui/sell-parts';
-import { formatUtc, shortId } from '@/app/pharmacy/_ui/shifts-logic';
+import { formatUtc, personLabel, shortId } from '@/app/pharmacy/_ui/shifts-logic';
 import { get } from '@/server/pharmacy/queries/returns';
 import { query } from '@/server/studio/framework/invoke';
 import { StudioError } from '@/server/studio/framework/result';
@@ -47,6 +48,7 @@ export default async function ReturnDetailPage({ params }: { params: Promise<{ i
     if (error instanceof StudioError && (error.code === 'NOT_FOUND' || error.code === 'FORBIDDEN')) notFound();
     throw error;
   }
+  const names = await peopleOf(placeInput, [r.approvedById]);
   return (
     <>
       <PageHeader className="max-sm:px-4" title={<Num>{r.number ?? shortId(r.id)}</Num>} description={t('pharmacy.returns.detail')} above={back} />
@@ -66,7 +68,7 @@ export default async function ReturnDetailPage({ params }: { params: Promise<{ i
             <Num>{formatUtc(r.createdAt)}</Num>
           </Row>
           <Row label={t('pharmacy.returns.approvedBy')}>
-            <Num>{shortId(r.approvedById)}</Num>
+            <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, r.approvedById)}</span>
           </Row>
         </dl>
         <p className="text-sm text-text">
