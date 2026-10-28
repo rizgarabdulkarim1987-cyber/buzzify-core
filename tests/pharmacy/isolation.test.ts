@@ -259,6 +259,8 @@ const CASES: Record<string, Case> = {
   'ph.returns.get': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.returnable': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Names of people: only this business's own are given, whatever ids are named (people-names.test.ts names real foreign users).
+  'ph.people.names': { body: () => ({ ids: ['planted'] }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.returns.preview': { body: (ids, n) => ({ saleId: pick(ids, n).saleId, lines: [{ saleLineId: 'nope', baseQty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Printing (phase 3, task 6): a sale or return of another branch or business is NOT_FOUND; a reprint logs nothing then.
   'ph.receipts.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
@@ -509,6 +511,7 @@ const ROLE_MATRIX: Record<string, { accountant: string; cashier: string }> = {
   'ph.returns.get': { accountant: 'OK', cashier: 'FORBIDDEN' },
   'ph.returns.returnable': { accountant: 'OK', cashier: 'FORBIDDEN' },
   'ph.returns.list': { accountant: 'OK', cashier: 'FORBIDDEN' },
+  'ph.people.names': { accountant: 'OK', cashier: 'OK' },
   'ph.returns.preview': { accountant: 'INVALID', cashier: 'FORBIDDEN' },
   'ph.receipts.get': { accountant: 'OK', cashier: 'OK' },
   'ph.receipts.returnReceipt': { accountant: 'OK', cashier: 'OK' },
