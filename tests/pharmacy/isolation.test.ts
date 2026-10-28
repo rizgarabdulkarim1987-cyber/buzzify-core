@@ -100,6 +100,9 @@ interface Ids {
   intakeBatch2: string;
   intakeFile1: string;
   intakeFile2: string;
+  /** One extracted line in each of those files (phase 5, task 6). */
+  intakeRow1: string;
+  intakeRow2: string;
 }
 interface World {
   a: Ids;
@@ -121,7 +124,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -254,10 +257,14 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
       data: { restaurantId: base.restaurantId, batchId: batch.id, sha256: createHash('sha256').update(`seed-file-${branchId}`).digest('hex'), storageKey: `intake/${base.restaurantId}/seed-file-${n}`, mediaType: 'application/pdf', bytes: 100, pages: 1, expiresAt: new Date(NOW.getTime() + 30 * 86_400_000), uploadedById: owner.userId },
       select: { id: true },
     });
-    return { batch: batch.id, file: file.id };
+    const row = await prisma().phIntakeRow.create({
+      data: { restaurantId: base.restaurantId, fileId: file.id, lineNo: 1, page: 1, extracted: { name: 'Planted', strength: null, form: null, pack: null, quantity: 1, bonus: null, unitCost: 100, lineTotal: 100, lot: 'L1', expiry: '2028-03', barcodeText: null, unclear: [], page: 1 }, flags: ['MISSING'] },
+      select: { id: true },
+    });
+    return { batch: batch.id, file: file.id, row: row.id };
   };
   const [i1, i2] = [await intakeIn(base.b1, 1), await intakeIn(base.b2, 2)];
-  Object.assign(withDocs, { intakeBatch1: i1.batch, intakeBatch2: i2.batch, intakeFile1: i1.file, intakeFile2: i2.file });
+  Object.assign(withDocs, { intakeBatch1: i1.batch, intakeBatch2: i2.batch, intakeFile1: i1.file, intakeFile2: i2.file, intakeRow1: i1.row, intakeRow2: i2.row });
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -303,8 +310,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -469,6 +476,19 @@ const CASES: Record<string, Case> = {
   // Reading an invoice with AI (phase 5, task 5): the file is reached through its batch, so another branch's or business's file is not found. The seeded file has no stored object, so a success only marks it FAILED (FILE_MISSING).
   'ph.intake.extract': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.retry': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // Reviewing an invoice (phase 5, task 6): a line is reached through its file and batch, so another branch's or business's line, file or batch is not found; nothing of theirs changes.
+  'ph.intake.row.update': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, patch: { lot: 'Planted' }, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.match': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, productId: ids.productId, unitId: ids.unitId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.clearMatch': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.review': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, note: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.fillFromBarcode': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.add': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.row.remove': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.header.update': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, patch: { invoiceNumber: 'Planted' } }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.header.acknowledge': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, reason: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.rematch': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.batch.get': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.batch.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -546,7 +566,12 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 5 intake definition', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.intake.'));
-    expect(names.sort()).toEqual(['ph.intake.batch.create', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url', 'ph.intake.retry', 'ph.intake.usage']);
+    expect(names.sort()).toEqual([
+      'ph.intake.batch.create', 'ph.intake.batch.get', 'ph.intake.batch.list', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url',
+      'ph.intake.header.acknowledge', 'ph.intake.header.update', 'ph.intake.rematch', 'ph.intake.retry',
+      'ph.intake.row.add', 'ph.intake.row.clearMatch', 'ph.intake.row.fillFromBarcode', 'ph.intake.row.match', 'ph.intake.row.remove', 'ph.intake.row.review', 'ph.intake.row.update',
+      'ph.intake.usage',
+    ]);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 
@@ -607,6 +632,7 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     // Intake batches are branch-scoped; their files are reached through the batch (phase 5).
     intakeBatches,
     intakeFiles: await prisma().phIntakeFile.findMany({ where: { batchId: { in: intakeBatches.map((x) => x.id) } }, orderBy }),
+    intakeRows: await prisma().phIntakeRow.findMany({ where: { file: { batchId: { in: intakeBatches.map((x) => x.id) } } }, orderBy }),
     // Supplier payments, their allocations, credit notes and credit allocations belong to the business, so they are compared for a whole business only.
     supplierPayments: businessWide ? await prisma().phSupplierPayment.findMany(businessWide) : undefined,
     supplierPaymentAllocations: businessWide ? await prisma().phSupplierPaymentAllocation.findMany(businessWide) : undefined,
@@ -648,8 +674,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId];
   };
   if (branch) return docs(branch);
   return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ...docs(1), ...docs(2)];
