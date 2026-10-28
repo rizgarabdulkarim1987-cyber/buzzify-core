@@ -9,6 +9,7 @@ import {
   invoiceableQty,
   invoiceFingerprint,
   invoiceInput,
+  invoiceStatus,
   invoiceTotal,
   lineTotal,
   normalizeInvoiceNumber,
@@ -363,6 +364,77 @@ export async function voidInvoice(tx: ScopedTx, args: { restaurantId: string; us
     tx,
   );
   return { id: head.id, version: head.version + 1, status: 'VOID', before: { status: head.status, version: head.version }, currency: head.currency, totalMinor: head.totalMinor.toString(), lineCount: lines.length };
+}
+
+// Settling (payments and credits) --------------------------------------------------------------------------------------
+
+export const overAllocation = () => new StudioError('CONFLICT', 'The amount is more than the invoice balance', { phCode: 'OVER_ALLOCATION' });
+export const invoiceVoid = () => new StudioError('CONFLICT', 'This invoice is void', { phCode: 'INVOICE_VOID' });
+const paidDrift = () => new StudioError('CONFLICT', 'The invoice has less settled than this change needs', { phCode: 'PAID_DRIFT' });
+
+/** An invoice as the payments service needs it, read after its row was locked. */
+export interface LockedInvoice {
+  id: string;
+  number: string;
+  supplierId: string;
+  currency: 'IQD' | 'USD';
+  status: 'OPEN' | 'PARTIAL' | 'PAID' | 'VOID';
+  dueDate: Date;
+  totalMinor: bigint;
+  paidMinor: bigint;
+  creditedMinor: bigint;
+}
+
+const LOCKED_FIELDS = { id: true, number: true, supplierId: true, currency: true, status: true, dueDate: true, totalMinor: true, paidMinor: true, creditedMinor: true } as const;
+
+/**
+ * Locks invoice rows FOR UPDATE in id order (R4-11) and returns them as they are under the lock. An id that is not the
+ * business's is simply absent from the result (the caller reads that as not found). A void invoice is returned as it is:
+ * the caller refuses it under the lock.
+ */
+export async function lockInvoices(tx: ScopedTx, args: { restaurantId: string; ids: readonly string[] }): Promise<LockedInvoice[]> {
+  const ids = [...new Set(args.ids)];
+  if (ids.length === 0) return [];
+  // eslint-disable-next-line no-restricted-properties -- row locks on invoices, in id order (R4-11); ids from the client are only locked when they are this business's
+  await tx.$queryRaw`SELECT "id" FROM "PhSupplierInvoice" WHERE "restaurantId" = ${args.restaurantId} AND "id" = ANY(${ids}) ORDER BY "id" COLLATE "C" FOR UPDATE`;
+  return tx.phSupplierInvoice.findMany({ where: { id: { in: ids } }, select: LOCKED_FIELDS, orderBy: { id: 'asc' } });
+}
+
+/**
+ * Locks every invoice of one supplier and currency that still owes money, in id order, and returns those that still do under
+ * the lock (one voided or settled while this waited reads as it is now). The base of an automatic allocation.
+ */
+export async function lockOpenInvoices(tx: ScopedTx, args: { restaurantId: string; supplierId: string; currency: 'IQD' | 'USD' }): Promise<LockedInvoice[]> {
+  // eslint-disable-next-line no-restricted-properties -- row locks on one supplier's open invoices, in id order (R4-11)
+  const found = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhSupplierInvoice" WHERE "restaurantId" = ${args.restaurantId} AND "supplierId" = ${args.supplierId} AND "currency" = ${args.currency}::"Currency" AND "status" IN ('OPEN', 'PARTIAL') ORDER BY "id" COLLATE "C" FOR UPDATE`;
+  if (found.length === 0) return [];
+  const rows = await tx.phSupplierInvoice.findMany({ where: { id: { in: found.map((f) => f.id) } }, select: LOCKED_FIELDS, orderBy: { id: 'asc' } });
+  return rows.filter((r) => r.status === 'OPEN' || r.status === 'PARTIAL');
+}
+
+/**
+ * Moves an invoice's `paidMinor` and `creditedMinor` by the given (signed) amounts and stores the status that follows
+ * (`invoiceStatus`). The caller has locked the invoice row (`lockInvoices` / `lockOpenInvoices`); this is the only writer of
+ * those counters, so the payments and credits services never write the invoice table themselves. Guarded: a result below zero
+ * is `PAID_DRIFT`, above the total is `OVER_ALLOCATION`, a void invoice is `INVOICE_VOID`; the counters are moved only from
+ * the values read here, and the database's own CHECK (paid + credited <= total) stands behind it. The version moves too, so
+ * a person holding an older copy gets a conflict, not a surprise.
+ */
+export async function settleInvoice(tx: ScopedTx, args: { invoiceId: string; paidDelta?: bigint; creditedDelta?: bigint }): Promise<{ status: 'OPEN' | 'PARTIAL' | 'PAID'; paidMinor: bigint; creditedMinor: bigint }> {
+  const head = await tx.phSupplierInvoice.findFirst({ where: { id: args.invoiceId }, select: { id: true, status: true, totalMinor: true, paidMinor: true, creditedMinor: true } });
+  if (!head) throw notFound();
+  if (head.status === 'VOID') throw invoiceVoid();
+  const paid = head.paidMinor + (args.paidDelta ?? 0n);
+  const credited = head.creditedMinor + (args.creditedDelta ?? 0n);
+  if (paid < 0n || credited < 0n) throw paidDrift();
+  if (paid + credited > head.totalMinor) throw overAllocation();
+  const status = invoiceStatus({ totalMinor: head.totalMinor, paidMinor: paid, creditedMinor: credited, voided: false }) as 'OPEN' | 'PARTIAL' | 'PAID';
+  const { count } = await tx.phSupplierInvoice.updateMany({
+    where: { id: head.id, status: { not: 'VOID' }, paidMinor: head.paidMinor, creditedMinor: head.creditedMinor },
+    data: { paidMinor: paid, creditedMinor: credited, status, version: { increment: 1 } },
+  });
+  if (count !== 1) throw new StudioError('CONFLICT', 'The invoice changed while it was being settled', { phCode: 'CONFLICT' });
+  return { status, paidMinor: paid, creditedMinor: credited };
 }
 
 // Reading --------------------------------------------------------------------------------------------------------------

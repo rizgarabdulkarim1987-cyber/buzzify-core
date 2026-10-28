@@ -3306,6 +3306,10 @@ model PhCreditAllocation {
   supplierId   String
   currency     Currency
   amountMinor  BigInt
+  /// The request that made this row (one request writes one row per invoice): a repeat of it is a replay. Null on rows made before.
+  clientKey    String?
+  payloadHash  String?
+  createdById  String?
   createdAt    DateTime          @default(now())
   restaurant   Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   creditNote   PhCreditNote      @relation(fields: [restaurantId, creditNoteId, supplierId, currency], references: [restaurantId, id, supplierId, currency], onDelete: NoAction)
@@ -3313,4 +3317,5 @@ model PhCreditAllocation {
 
   @@unique([creditNoteId, invoiceId])
   @@index([restaurantId, invoiceId])
+  @@index([restaurantId, clientKey])
 }

@@ -4,6 +4,7 @@ import * as countActions from '@/server/pharmacy/actions/counts';
 import * as poActions from '@/server/pharmacy/actions/purchase-orders';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import * as invoiceActions from '@/server/pharmacy/actions/supplier-invoices';
+import * as paymentActions from '@/server/pharmacy/actions/supplier-payments';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -86,6 +87,9 @@ interface Ids {
   invoiceNumber: string;
   invReceiptId: string;
   invLineId: string;
+  /** The business's supplier payment (phase 4, task 7) of the seeded invoice, and its credit note (straight in the database); business-wide. */
+  paymentId: string;
+  creditNoteId: string;
 }
 interface World {
   a: Ids;
@@ -107,7 +111,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -204,6 +208,22 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
       META,
     ),
   ).id;
+  // One payment of 10 on that invoice, and a credit note of the supplier (a credit note is made by task 8's service; here straight in the database).
+  withDocs.paymentId = dataOf(
+    await runAction(
+      prisma(),
+      actor,
+      paymentActions.create,
+      { restaurantId: base.restaurantId, clientKey: `seed-payment-${base.restaurantId}`, supplierId: withDocs.supplierId, currency: 'IQD', method: 'CASH', amountMinor: 10n, paidOn: '2026-10-27', allocations: [{ invoiceId: withDocs.invoiceId, amountMinor: 10n }] },
+      META,
+    ),
+  ).id;
+  withDocs.creditNoteId = (
+    await prisma().phCreditNote.create({
+      data: { restaurantId: base.restaurantId, supplierId: withDocs.supplierId, number: `${base.tradeName}-CN-1`, currency: 'IQD', amountMinor: 50n, noteDate: new Date('2026-10-26T00:00:00Z'), clientKey: `seed-credit-${base.restaurantId}`, createdById: owner.userId },
+      select: { id: true },
+    })
+  ).id;
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -271,6 +291,16 @@ const invoiceBody = (ids: Ids) => ({
   invoiceDate: '2026-10-27',
   currency: 'IQD',
   lines: [{ receiptLineId: ids.invLineId, qtyInvoiced: 1, unitCostMinor: 100n }],
+});
+
+const paymentBody = (ids: Ids) => ({
+  clientKey: key(),
+  supplierId: ids.supplierId,
+  currency: 'IQD',
+  method: 'CASH',
+  amountMinor: 1n,
+  paidOn: '2026-10-27',
+  allocations: [{ invoiceId: ids.invoiceId, amountMinor: 1n }],
 });
 
 const returnBody = (saleId: string) => ({ saleId, lines: [{ saleLineId: 'planted', baseQty: 1 }], reason: 'Planted', clientKey: key() });
@@ -371,6 +401,13 @@ const CASES: Record<string, Case> = {
   'ph.invoices.get': { body: (ids) => ({ invoiceId: ids.invoiceId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
   'ph.invoices.variance': { body: (ids) => ({ invoiceId: ids.invoiceId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
   'ph.invoices.invoiceable': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  // Supplier payments and credit (phase 4, task 7): business-wide records of the supplier's invoices. A foreign supplier, invoice, payment or
+  // credit note is refused; inside the business any branch reaches them (a success moves only the business's own seeded rows).
+  'ph.supplierPayments.create': { body: (ids) => paymentBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.supplierPayments.reverse': { body: (ids) => ({ paymentId: ids.paymentId, reason: 'Planted', clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.credits.apply': { body: (ids) => ({ creditNoteId: ids.creditNoteId, clientKey: key(), allocations: [{ invoiceId: ids.invoiceId, amountMinor: 1n }] }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.supplierPayments.list': { body: () => ({ includeReversals: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.supplierPayments.get': { body: (ids) => ({ paymentId: ids.paymentId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -413,6 +450,12 @@ describe('the pharmacy isolation sweep', () => {
   it('covers every phase 4 supplier invoice definition', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.invoices.'));
     expect(names.sort()).toEqual(['ph.invoices.create', 'ph.invoices.get', 'ph.invoices.invoiceable', 'ph.invoices.list', 'ph.invoices.variance', 'ph.invoices.void']);
+    expect(names.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 4 supplier payment and credit definition', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.supplierPayments.') || name.startsWith('ph.credits.'));
+    expect(names.sort()).toEqual(['ph.credits.apply', 'ph.supplierPayments.create', 'ph.supplierPayments.get', 'ph.supplierPayments.list', 'ph.supplierPayments.reverse']);
     expect(names.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
@@ -466,7 +509,13 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const returns = await prisma().phReturn.findMany({ where, orderBy });
   const orders = await prisma().phPurchaseOrder.findMany({ where, orderBy });
   const invoices = branchId ? [] : await prisma().phSupplierInvoice.findMany({ where: { restaurantId: ids.restaurantId }, orderBy });
+  const businessWide = branchId ? undefined : { where: { restaurantId: ids.restaurantId }, orderBy };
   return json({
+    // Supplier payments, their allocations, credit notes and credit allocations belong to the business, so they are compared for a whole business only.
+    supplierPayments: businessWide ? await prisma().phSupplierPayment.findMany(businessWide) : undefined,
+    supplierPaymentAllocations: businessWide ? await prisma().phSupplierPaymentAllocation.findMany(businessWide) : undefined,
+    creditNotes: businessWide ? await prisma().phCreditNote.findMany(businessWide) : undefined,
+    creditAllocations: businessWide ? await prisma().phCreditAllocation.findMany(businessWide) : undefined,
     invoices,
     invoiceLines: await prisma().phSupplierInvoiceLine.findMany({ where: { invoiceId: { in: invoices.map((i) => i.id) } }, orderBy }),
     orders,
@@ -505,7 +554,7 @@ function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
     return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId];
   };
   if (branch) return docs(branch);
-  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ...docs(1), ...docs(2)];
+  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ...docs(1), ...docs(2)];
 }
 
 interface Attack {
