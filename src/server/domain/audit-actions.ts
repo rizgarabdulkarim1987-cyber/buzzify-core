@@ -185,6 +185,12 @@ export const AUDIT_ACTIONS = [
   'pos.order.driver',
   'pos.sync.apply',
   'pos.sync.discard',
+  'pos.printer.create',
+  'pos.printer.update',
+  'pos.printer.delete',
+  'pos.drawer.open',
+  'pos.receipt.reprint',
+  'pos.product.barcode',
 ] as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[number];
@@ -212,6 +218,8 @@ export const AUDIT_ENTITY_TYPES = [
   'PosSupplier',
   'PosPurchaseInvoice',
   'PosComplaint',
+  'PosPrinter',
+  'PosDrawer',
   'PosAiPackage',
   'AiSettings',
   'PosDriver',
