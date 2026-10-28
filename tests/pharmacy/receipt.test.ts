@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildReceipt,
+  DEFAULT_TIME_ZONE,
   escapeHtml,
+  formatLocalDateTime,
   formatMinor,
+  isValidTimeZone,
   renderReceiptHtml,
   renderReceiptText,
   type ReceiptOptions,
@@ -58,12 +61,39 @@ describe('formatMinor', () => {
   });
 });
 
+describe('the receipt prints local time from the stored UTC instant', () => {
+  it('a sale at 22:30 UTC is 01:30 of the NEXT day in Baghdad', () => {
+    const late = new Date('2026-10-28T22:30:00.000Z');
+    expect(DEFAULT_TIME_ZONE).toBe('Asia/Baghdad');
+    expect(formatLocalDateTime(late, 'Asia/Baghdad')).toBe('2026-10-29 01:30');
+    const m = buildReceipt({ kind: 'sale', sale: { ...sale, at: late } }, opts());
+    expect(m.date).toBe('2026-10-29 01:30');
+    expect(renderReceiptText(m)).toContain('2026-10-29 01:30');
+    expect(renderReceiptHtml(m)).toContain('2026-10-29 01:30');
+    // The number is not touched: it keeps the number the sale was given (UTC day, documented limit).
+    expect(m.number).toBe('20261028-000123');
+  });
+  it('uses the zone given, Latin digits, 24 hours, midnight is 00', () => {
+    const at = new Date('2026-10-28T21:05:00.000Z');
+    expect(formatLocalDateTime(at, 'UTC')).toBe('2026-10-28 21:05');
+    expect(formatLocalDateTime(new Date('2026-10-28T21:00:00.000Z'), 'Asia/Baghdad')).toBe('2026-10-29 00:00');
+    expect(formatLocalDateTime(at, 'America/New_York')).toBe('2026-10-28 17:05');
+    expect(buildReceipt(doc, opts({ timeZone: 'UTC' })).date).toBe('2026-10-28 14:03');
+  });
+  it('knows a real IANA zone from a made-up one, and a bad stored zone prints in the default zone instead of failing', () => {
+    expect(isValidTimeZone('Asia/Baghdad')).toBe(true);
+    expect(isValidTimeZone('UTC')).toBe(true);
+    for (const bad of ['', 'Mars/Base', 'baghdad', '+03:00', 'Asia/Baghdad; DROP']) expect(isValidTimeZone(bad)).toBe(false);
+    expect(buildReceipt(doc, opts({ timeZone: 'Mars/Base' })).date).toBe('2026-10-28 17:03');
+  });
+});
+
 describe('buildReceipt (sale)', () => {
   const m = buildReceipt(doc, opts());
 
   it('carries the stored figures, formatted', () => {
     expect(m.number).toBe('20261028-000123');
-    expect(m.dateUtc).toBe('2026-10-28 14:03 UTC');
+    expect(m.date).toBe('2026-10-28 17:03'); // 14:03 UTC is 17:03 in Baghdad (UTC+3)
     expect(m.cashier).toBe('Sara');
     expect(m.lines.map((l) => [l.no, l.name, l.strength, l.qty, l.unit, l.unitPrice, l.discount, l.total])).toEqual([
       [1, 'Panadol', '500 mg', '2', 'tablet', '250', '-50', '450'],
@@ -95,7 +125,7 @@ describe('buildReceipt (sale)', () => {
       expect(r.dir).toBe('rtl');
       expect(r.number).toBe('20261028-000123');
       expect(r.total).toBe('2,350');
-      expect(`${r.total}${r.paid}${r.dateUtc}`).not.toMatch(/[٠-٩۰-۹]/);
+      expect(`${r.total}${r.paid}${r.date}`).not.toMatch(/[٠-٩۰-۹]/);
     }
     expect(m.dir).toBe('ltr');
   });

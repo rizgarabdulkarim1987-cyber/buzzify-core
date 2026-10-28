@@ -110,7 +110,7 @@ describe('the first print (ph.receipts.get)', () => {
       copy: false,
       copyMarker: null,
       width: '58',
-      dateUtc: '2026-10-27 09:00 UTC',
+      date: '2026-10-27 12:00', // the sale's 09:00 UTC in the default zone, Asia/Baghdad
       shop: { name: 'Al Noor', address: 'Karrada, Baghdad', phone: '+964 770 000 0000' },
     });
     expect(r.model.lines).toMatchObject([{ no: 1, name: 'Panadol', strength: '500 mg', qty: '3', unit: 'tablet', unitPrice: '100', total: '300', rx: false }]);
@@ -119,6 +119,23 @@ describe('the first print (ph.receipts.get)', () => {
     expect(r.html).toContain(s.number);
     expect(r.text).toContain('Panadol 500 mg');
     expect(r.html).not.toContain('COPY');
+  });
+
+  it('prints the time in the business time zone from PhSettings (default Baghdad), and its reprint', async () => {
+    const w = await world();
+    await makeBatch(w.a.id, w.b1, w.p.id, { buckets: { available: 100 } });
+    const s = await sell(w);
+    const first = dataOf(await get(w, w.cashier, s.id)) as unknown as Receipt;
+    expect(first.model.date).toBe('2026-10-27 12:00');
+    expect(first.text).toContain('2026-10-27 12:00');
+    expect(first.text).not.toContain('UTC');
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { timeZone: 'America/New_York' } });
+    expect(((dataOf(await get(w, w.cashier, s.id)) as unknown as Receipt).model).date).toBe('2026-10-27 05:00');
+    const copy = dataOf(await reprint(w, w.cashier, s.id, { reason: 'Customer asked' })) as unknown as Receipt;
+    expect(copy.model.date).toBe('2026-10-27 05:00');
+    // A stored zone that is not a real one never breaks a print: the default zone is used.
+    await prisma().phSettings.update({ where: { restaurantId: w.a.id }, data: { timeZone: 'Mars/Base' } });
+    expect(((dataOf(await get(w, w.cashier, s.id)) as unknown as Receipt).model).date).toBe('2026-10-27 12:00');
   });
 
   it('is Arabic on request, right to left, with Latin digits', async () => {
@@ -294,6 +311,7 @@ describe('a return slip (ph.receipts.returnReceipt)', () => {
     expect(slip.model).toMatchObject({ kind: 'return', number: made.number, saleNumber: s.number, total: '100', cashier: 'manager person', title: 'Return slip', copyMarker: null });
     expect(slip.model.lines).toMatchObject([{ name: 'Panadol', qty: '1', total: '100' }]);
     expect(slip.html).not.toContain('Wrong item');
+    expect(slip.model.date).toBe('2026-10-27 12:00'); // the return's 09:00 UTC in Baghdad
     const again = dataOf(await act(w.manager, printActions.reprintReceipt, { ...at(w), returnId: made.id, clientKey: key('rp') })) as unknown as Receipt;
     expect(again.model.copyMarker).toBe('COPY');
     expect(await prisma().phReceiptReprint.findFirstOrThrow()).toMatchObject({ saleId: null, returnId: made.id, copyNumber: 1 });

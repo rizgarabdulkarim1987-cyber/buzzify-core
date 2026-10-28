@@ -76,6 +76,8 @@ export interface ReceiptOptions {
   /** The copy's number (1 for the first reprint), shown beside the marker. */
   copyNumber?: number;
   shop: ReceiptShop;
+  /** IANA zone the date is printed in; the default is `DEFAULT_TIME_ZONE`. */
+  timeZone?: string;
 }
 
 // Text ----------------------------------------------------------------------------------------------------------------
@@ -189,10 +191,40 @@ export function formatMinor(minor: bigint, currency: Currency): string {
   return `${negative ? '-' : ''}${grouped}${fraction}`;
 }
 
-/** `2026-10-28 14:03` and the word UTC: the instant is stored in UTC and printed as such. */
-export function formatUtc(at: Date): string {
-  const iso = at.toISOString();
-  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+/** The zone receipts print in unless the business set another (PhSettings.timeZone). Iraq has no daylight saving. */
+export const DEFAULT_TIME_ZONE = 'Asia/Baghdad';
+
+/** Whether `zone` is a real IANA zone name this runtime knows (`Intl` throws a RangeError for anything else). */
+export function isValidTimeZone(zone: string): boolean {
+  // A zone NAME only: the runtime also accepts a fixed offset such as `+03:00`, which is not an IANA zone.
+  if (!/^[A-Za-z][A-Za-z0-9_+\-/]*$/.test(zone)) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: zone });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * `2026-10-29 01:30`: the stored UTC instant as the wall clock of `timeZone` (24 hours, Latin digits, no zone suffix:
+ * paper shows local time). An unknown zone prints in the default zone instead of failing the print.
+ */
+export function formatLocalDateTime(at: Date, timeZone: string = DEFAULT_TIME_ZONE): string {
+  const zone = isValidTimeZone(timeZone) ? timeZone : DEFAULT_TIME_ZONE;
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: zone,
+    calendar: 'gregory',
+    numberingSystem: 'latn',
+    hourCycle: 'h23',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).formatToParts(at);
+  const part = (type: string) => parts.find((p) => p.type === type)?.value ?? '';
+  return `${part('year')}-${part('month')}-${part('day')} ${part('hour')}:${part('minute')}`;
 }
 
 // The model -----------------------------------------------------------------------------------------------------------
@@ -222,7 +254,8 @@ export interface ReceiptModel {
   title: string;
   number: string;
   saleNumber: string | null;
-  dateUtc: string;
+  /** Local date and time in the business zone, `YYYY-MM-DD HH:mm`. */
+  date: string;
   currency: Currency;
   cashier: string | null;
   /** True when any line is a prescription item: the paper carries the Rx marker. */
@@ -272,7 +305,7 @@ export function buildReceipt(doc: StoredDocument, options: ReceiptOptions): Rece
       title: labels.receipt,
       number: s.number ?? '',
       saleNumber: null,
-      dateUtc: formatUtc(s.at),
+      date: formatLocalDateTime(s.at, options.timeZone),
       currency: s.currency,
       cashier: s.cashierName,
       rx: s.lines.some((l) => l.rxLevel !== 'OTC'),
@@ -307,7 +340,7 @@ export function buildReceipt(doc: StoredDocument, options: ReceiptOptions): Rece
     title: labels.returnSlip,
     number: r.number ?? '',
     saleNumber: r.saleNumber,
-    dateUtc: formatUtc(r.at),
+    date: formatLocalDateTime(r.at, options.timeZone),
     currency: r.currency,
     cashier: r.approverName,
     rx: r.lines.some((l) => l.rxLevel !== 'OTC'),
@@ -378,7 +411,7 @@ export function renderReceiptHtml(m: ReceiptModel): string {
   if (m.copyMarker) out.push(`<div class="c"><span class="mark">${escapeHtml(m.copyMarker)}</span></div>`);
   out.push(row(L.number, num(m.number)));
   if (m.saleNumber) out.push(row(L.saleNumber, num(m.saleNumber)));
-  out.push(row(L.date, num(m.dateUtc)));
+  out.push(row(L.date, num(m.date)));
   if (m.cashier) out.push(row(m.kind === 'sale' ? L.cashier : L.approvedBy, escapeHtml(m.cashier)));
   out.push(row(L.currency, num(m.currency)));
   out.push('<hr>');
@@ -476,7 +509,7 @@ export function renderReceiptText(model: ReceiptModel): string {
   if (m.copyMarker) out.push(center(`*** ${m.copyMarker} ***`));
   out.push(pair(L.number, m.number, cols));
   if (m.saleNumber) out.push(pair(L.saleNumber, m.saleNumber, cols));
-  out.push(pair(L.date, m.dateUtc, cols));
+  out.push(pair(L.date, m.date, cols));
   if (m.cashier) out.push(pair(m.kind === 'sale' ? L.cashier : L.approvedBy, m.cashier, cols));
   out.push(pair(L.currency, m.currency, cols));
   out.push(rule);

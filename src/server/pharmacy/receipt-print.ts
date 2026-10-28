@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ScopedDb } from '@/server/data/tenant-db';
 import { canPh } from '@/server/domain/pharmacy/permissions';
-import { buildReceipt, renderReceiptHtml, renderReceiptText, type ReceiptLocale, type ReceiptModel, type ReceiptWidth, type StoredDocument } from '@/server/domain/pharmacy/receipt';
+import { buildReceipt, DEFAULT_TIME_ZONE, isValidTimeZone, renderReceiptHtml, renderReceiptText, type ReceiptLocale, type ReceiptModel, type ReceiptWidth, type StoredDocument } from '@/server/domain/pharmacy/receipt';
 import { isLocale } from '@/lib/locale';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
@@ -60,6 +60,12 @@ async function shopOf(scoped: ScopedDb, branchId: string): Promise<{ name: strin
   const address = branch?.address || restaurant?.address || '';
   const phone = branch?.phone || restaurant?.phone || '';
   return { name: restaurant?.name ?? '', ...(address ? { address } : {}), ...(phone ? { phone } : {}) };
+}
+
+/** The business's print zone (PhSettings.timeZone); a missing row or a zone the runtime does not know gives the default. */
+async function timeZoneOf(scoped: ScopedDb): Promise<string> {
+  const row = await scoped.phSettings.findFirst({ select: { timeZone: true } });
+  return row && isValidTimeZone(row.timeZone) ? row.timeZone : DEFAULT_TIME_ZONE;
 }
 
 async function nameOf(scoped: ScopedDb, userId: string): Promise<string | null> {
@@ -194,7 +200,7 @@ async function loadReturn(scoped: ScopedDb, returnId: string, branchId: string |
   };
 }
 
-function render(doc: StoredDocument, shop: Awaited<ReturnType<typeof shopOf>>, opts: { width: ReceiptWidth; locale: ReceiptLocale; copy: boolean; copyNumber?: number }): Omit<ReceiptResult, 'copyNumber' | 'replayed'> {
+function render(doc: StoredDocument, shop: Awaited<ReturnType<typeof shopOf>>, opts: { width: ReceiptWidth; locale: ReceiptLocale; copy: boolean; copyNumber?: number; timeZone: string }): Omit<ReceiptResult, 'copyNumber' | 'replayed'> {
   const model = buildReceipt(doc, { ...opts, shop });
   return { html: renderReceiptHtml(model), text: renderReceiptText(model), model };
 }
@@ -206,7 +212,7 @@ export async function receiptOfSale(scoped: ScopedDb, ph: PhActor, input: z.infe
   mayPrint(ph);
   const loaded = await loadSale(scoped, input.saleId, input.branchId);
   const shop = await shopOf(scoped, loaded.branchId);
-  return { ...render(loaded.doc, shop, { width: input.width, locale: localeOf(ph, input.locale), copy: false }), copyNumber: 0, replayed: false };
+  return { ...render(loaded.doc, shop, { width: input.width, locale: localeOf(ph, input.locale), copy: false, timeZone: await timeZoneOf(scoped) }), copyNumber: 0, replayed: false };
 }
 
 /** The return slip, read-only and not logged. */
@@ -214,7 +220,7 @@ export async function receiptOfReturn(scoped: ScopedDb, ph: PhActor, input: z.in
   mayPrint(ph);
   const loaded = await loadReturn(scoped, input.returnId, input.branchId);
   const shop = await shopOf(scoped, loaded.branchId);
-  return { ...render(loaded.doc, shop, { width: input.width, locale: localeOf(ph, input.locale), copy: false }), copyNumber: 0, replayed: false };
+  return { ...render(loaded.doc, shop, { width: input.width, locale: localeOf(ph, input.locale), copy: false, timeZone: await timeZoneOf(scoped) }), copyNumber: 0, replayed: false };
 }
 
 export interface ReprintAudit {
@@ -242,13 +248,14 @@ export async function reprint(tx: ScopedDb, ph: PhActor, input: z.infer<typeof r
   const shop = await shopOf(tx, loaded.branchId);
   const locale = localeOf(ph, input.locale);
   const width = input.width;
+  const timeZone = await timeZoneOf(tx);
 
   const existing = await tx.phReceiptReprint.findFirst({ where: { clientKey: input.clientKey }, select: { saleId: true, returnId: true, copyNumber: true, width: true, userId: true, reason: true } });
   if (existing) {
     // The same key must be the same request: document, user, width and reason. Anything else is a different print, not a replay.
     const same = existing.saleId === loaded.saleId && existing.returnId === loaded.returnId && existing.userId === ph.userId && existing.width === Number(width) && existing.reason === input.reason;
     if (!same) throw new StudioError('CONFLICT', 'This key was already used for a different receipt', { phCode: 'CLIENT_KEY_MISMATCH' });
-    return { result: { ...render(loaded.doc, shop, { width: String(existing.width) as ReceiptWidth, locale, copy: true, copyNumber: existing.copyNumber }), copyNumber: existing.copyNumber, replayed: true }, audit: null };
+    return { result: { ...render(loaded.doc, shop, { width: String(existing.width) as ReceiptWidth, locale, copy: true, copyNumber: existing.copyNumber, timeZone }), copyNumber: existing.copyNumber, replayed: true }, audit: null };
   }
 
   const last = await tx.phReceiptReprint.aggregate({ where: loaded.saleId ? { saleId: loaded.saleId } : { returnId: loaded.returnId }, _max: { copyNumber: true } });
@@ -267,7 +274,7 @@ export async function reprint(tx: ScopedDb, ph: PhActor, input: z.infer<typeof r
     select: { id: true },
   });
   return {
-    result: { ...render(loaded.doc, shop, { width, locale, copy: true, copyNumber }), copyNumber, replayed: false },
+    result: { ...render(loaded.doc, shop, { width, locale, copy: true, copyNumber, timeZone }), copyNumber, replayed: false },
     audit: { documentId: (loaded.saleId ?? loaded.returnId)!, documentType: loaded.saleId ? 'PhSale' : 'PhReturn', branchId: loaded.branchId, copyNumber, width },
   };
 }

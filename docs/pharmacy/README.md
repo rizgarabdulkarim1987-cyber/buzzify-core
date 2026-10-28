@@ -227,7 +227,7 @@ The STOCK role and a support actor sell nothing and read no shift. The matrix li
   controlled-drug register, advanced printing (7). Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
-  - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the **UTC** date and time (no timezone setting; a sale near midnight in Iraq, UTC+3, shows the wrong day on paper). The receipt footer is omitted (no field). Digits on paper are Latin.
+  - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
   - Mixed currency payment is not built (one currency per sale). A user selling in both currencies must close and reopen a shift (one OPEN shift per user and branch).
   - A refund method is not capped per payment method: a mixed-payment sale can be refunded wholly in one method, so the drawer can pay cash it never received.
   - `ph.sales.create` is not constant in queries: 29 fixed + 5 per stock allocation (59 for 3 lines, 149 for 12). The search is constant at 25. **Latency on Neon is not measured**; batching the ledger writes is the fix.

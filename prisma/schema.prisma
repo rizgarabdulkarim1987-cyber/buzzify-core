@@ -2052,6 +2052,8 @@ model PhSettings {
   shiftVarianceLimitMinor BigInt     @default(0)
   /// Days after a sale in which a return needs no OWNER/BRANCH_MANAGER. CHECK >= 0.
   returnWindowDays        Int        @default(30)
+  /// IANA time zone for what is printed (receipts); instants stay UTC. Validated as a real zone by the application.
+  timeZone                String     @default("Asia/Baghdad")
   version                 Int        @default(1)
   createdAt               DateTime   @default(now())
   updatedAt               DateTime   @updatedAt
