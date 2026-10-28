@@ -445,6 +445,20 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This order is not open for receiving': 'error.text.phPoNotOpen',
   'This supplier is not the order’s supplier': 'error.text.phPoSupplierMismatch',
   'More was received than was ordered': 'error.text.phPoOverReceipt',
+  'Enter the invoice number': 'error.text.phInvEnterNumber',
+  'Invoice not found': 'error.text.phInvNotFound',
+  'Receipt line not found': 'error.text.phInvLineNotFound',
+  'This key was already used for a different invoice': 'error.text.phInvKeyMismatch',
+  'This invoice was already entered': 'error.text.phInvDuplicate',
+  'This receipt line cannot be invoiced by this supplier': 'error.text.phInvNotInvoiceable',
+  'The invoice currency differs from the cost currency of the goods': 'error.text.phInvCurrency',
+  'More is invoiced than was received': 'error.text.phInvExceeds',
+  'This invoice is already void': 'error.text.phInvAlreadyVoid',
+  'An invoice with a payment or a credit cannot be voided': 'error.text.phInvSettled',
+  'The invoice total does not match its lines': 'error.text.phInvTotal',
+  'The due date cannot be before the invoice date': 'error.text.phInvDueBefore',
+  'Each receipt line can be on an invoice once': 'error.text.phInvDuplicateLine',
+  'The invoiced quantity of a receipt line is lower than this invoice': 'error.text.phInvDrift',
   'This lot is already expired: remove it, or accept it into quarantine': 'error.text.phLotExpired',
   'Expired lot accepted into quarantine on receipt': 'error.text.phLotExpiredNote',
   'Too many products match: narrow the search or choose a branch': 'error.text.phTooManyProducts',
@@ -520,7 +534,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested', 'existingInvoiceId']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;

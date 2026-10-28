@@ -3,6 +3,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import * as countActions from '@/server/pharmacy/actions/counts';
 import * as poActions from '@/server/pharmacy/actions/purchase-orders';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
+import * as invoiceActions from '@/server/pharmacy/actions/supplier-invoices';
 import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
@@ -80,6 +81,11 @@ interface Ids {
   supplierName: string;
   po1: string;
   po2: string;
+  /** The business's supplier invoice (phase 4), of a confirmed receipt line of branch 1; business-wide. */
+  invoiceId: string;
+  invoiceNumber: string;
+  invReceiptId: string;
+  invLineId: string;
 }
 interface World {
   a: Ids;
@@ -101,7 +107,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -158,6 +164,46 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
         META,
       ),
     ).id;
+  // A confirmed receipt of the supplier in branch 1, and the business's one invoice of a unit of it (phase 4, task 6).
+  const invReceipt = dataOf(
+    await runAction(
+      prisma(),
+      actor,
+      receiptActions.create,
+      {
+        restaurantId: base.restaurantId,
+        branchId: base.b1,
+        clientKey: `seed-invrcpt-${base.restaurantId}`,
+        supplierId: withDocs.supplierId,
+        supplierName: '',
+        reference: 'INV-R',
+        receivedOn: '2026-10-27',
+        lines: [{ productId: base.productId, unitId: base.unitId, qty: 1000, lot: 'invlot', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' }],
+      },
+      META,
+    ),
+  );
+  dataOf(await runAction(prisma(), actor, receiptActions.confirm, { restaurantId: base.restaurantId, branchId: base.b1, receiptId: invReceipt.id }, META));
+  withDocs.invReceiptId = invReceipt.id;
+  withDocs.invLineId = (await prisma().phReceiptLine.findFirstOrThrow({ where: { receiptId: invReceipt.id }, select: { id: true } })).id;
+  withDocs.invoiceNumber = `${base.tradeName}-SEED-1`;
+  withDocs.invoiceId = dataOf(
+    await runAction(
+      prisma(),
+      actor,
+      invoiceActions.create,
+      {
+        restaurantId: base.restaurantId,
+        clientKey: `seed-invoice-${base.restaurantId}`,
+        supplierId: withDocs.supplierId,
+        number: withDocs.invoiceNumber,
+        invoiceDate: '2026-10-20',
+        currency: 'IQD',
+        lines: [{ receiptLineId: withDocs.invLineId, qtyInvoiced: 1, unitCostMinor: 100n }],
+      },
+      META,
+    ),
+  ).id;
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -217,6 +263,15 @@ const saleBody = (ids: Ids) => ({
 });
 
 const poBody = (ids: Ids) => ({ clientKey: key(), supplierId: ids.supplierId, currency: 'IQD', lines: [{ productId: ids.productId, unitId: ids.unitId, qtyOrdered: 1, unitCostMinor: 100n }] });
+
+const invoiceBody = (ids: Ids) => ({
+  clientKey: key(),
+  supplierId: ids.supplierId,
+  number: `PLANTED-${key()}`,
+  invoiceDate: '2026-10-27',
+  currency: 'IQD',
+  lines: [{ receiptLineId: ids.invLineId, qtyInvoiced: 1, unitCostMinor: 100n }],
+});
 
 const returnBody = (saleId: string) => ({ saleId, lines: [{ saleLineId: 'planted', baseQty: 1 }], reason: 'Planted', clientKey: key() });
 
@@ -307,6 +362,15 @@ const CASES: Record<string, Case> = {
   'ph.po.get': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.po.suggest': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.po.receipts': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // Supplier invoices (phase 4): business-wide records of confirmed receipt lines of the supplier. A foreign supplier, invoice or
+  // receipt line is refused; inside the business any branch reaches them. Void is tried with a stale version so a success never
+  // voids the seeded invoice the other cases read.
+  'ph.invoices.create': { body: (ids) => invoiceBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.invoices.void': { body: (ids) => ({ invoiceId: ids.invoiceId, expectedVersion: 99, reason: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.invoices.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.invoices.get': { body: (ids) => ({ invoiceId: ids.invoiceId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  'ph.invoices.variance': { body: (ids) => ({ invoiceId: ids.invoiceId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  'ph.invoices.invoiceable': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -344,6 +408,12 @@ describe('the pharmacy isolation sweep', () => {
     expect(names.filter((name) => name.startsWith('ph.suppliers.')).sort()).toEqual(['ph.suppliers.archive', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.update']);
     expect(names.filter((name) => name.startsWith('ph.po.')).sort()).toEqual(['ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.receipts', 'ph.po.suggest', 'ph.po.update']);
     expect(names.filter((name) => (name.startsWith('ph.suppliers.') || name.startsWith('ph.po.')) && CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 4 supplier invoice definition', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.invoices.'));
+    expect(names.sort()).toEqual(['ph.invoices.create', 'ph.invoices.get', 'ph.invoices.invoiceable', 'ph.invoices.list', 'ph.invoices.variance', 'ph.invoices.void']);
+    expect(names.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
   it('covers the sale screen search', () => {
@@ -395,7 +465,10 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const shifts = await prisma().phShift.findMany({ where, orderBy });
   const returns = await prisma().phReturn.findMany({ where, orderBy });
   const orders = await prisma().phPurchaseOrder.findMany({ where, orderBy });
+  const invoices = branchId ? [] : await prisma().phSupplierInvoice.findMany({ where: { restaurantId: ids.restaurantId }, orderBy });
   return json({
+    invoices,
+    invoiceLines: await prisma().phSupplierInvoiceLine.findMany({ where: { invoiceId: { in: invoices.map((i) => i.id) } }, orderBy }),
     orders,
     orderLines: await prisma().phPurchaseOrderLine.findMany({ where: { purchaseOrderId: { in: orders.map((o) => o.id) } }, orderBy }),
     // Suppliers belong to the business, so they are compared for a whole business only.
@@ -432,7 +505,7 @@ function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
     return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId];
   };
   if (branch) return docs(branch);
-  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ...docs(1), ...docs(2)];
+  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ...docs(1), ...docs(2)];
 }
 
 interface Attack {
