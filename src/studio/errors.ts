@@ -579,6 +579,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'The upload must be a form': 'error.text.phIntakeUploadForm',
   'The upload could not be read': 'error.text.phIntakeUploadRead',
   'Choose a file': 'error.text.phIntakeChooseFile',
+  'Only an open batch can be read': 'error.text.phIntakeNotOpenRead',
+  'This file has rows that were already checked': 'error.text.phIntakeReviewed',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
