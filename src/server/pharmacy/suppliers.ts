@@ -1,5 +1,7 @@
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ScopedClient, ScopedTx } from '@/server/data/tenant-db';
+import { INVISIBLE } from '@/server/domain/pharmacy/purchasing';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -19,29 +21,49 @@ export const PAGE_SIZE = 50;
 
 const WHOLE = 'Enter a whole number';
 
-/** Zero-width and bidirectional control characters: invisible, so two names that differ only by them are the same name. */
-const INVISIBLE = /[​-‏‪-‮⁠-⁩﻿]/g;
+/** Bidirectional controls (U+061C Arabic letter mark, U+200E/F, U+202A-E, U+2066-9): never meaningful in stored text. */
+const BIDI = /[؜‎‏‪-‮⁦-⁩]/g;
 
-/** A text as a person sees it: invisible controls removed, runs of white space one space, trimmed. */
+/**
+ * A single-line text as stored: bidi controls removed, every run of white space (line breaks too) one space, trimmed.
+ * ZWNJ and ZWJ stay: they are meaningful in Persian, Kurdish and emoji.
+ */
 export function cleanText(value: string): string {
-  return value.replace(INVISIBLE, '').replace(/\s+/g, ' ').trim();
+  return value.replace(BIDI, '').replace(/\s+/g, ' ').trim();
 }
 
-/** The key two names are compared by: the cleaned name, lower-cased (Unicode-aware, so Arabic-script text is untouched). */
+/** A multi-line text as stored (address, note): bidi controls removed, line breaks kept (at most one blank line), spaces collapsed per line. */
+export function cleanMultiline(value: string): string {
+  return value
+    .replace(BIDI, '')
+    .replace(/\r\n?|\r/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/[^\S\n]+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+/**
+ * The key two names are compared by: NFKC (presentation forms, fullwidth letters), every invisible and bidi character
+ * removed (ZWNJ included: it must not make two names different), spaces collapsed, lower-cased. Unicode-aware, so
+ * Arabic-script text is untouched.
+ */
 export function supplierNameKey(name: string): string {
-  return cleanText(name).toLowerCase();
+  return name.normalize('NFKC').replace(INVISIBLE, '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 const text = (max: number, message: string) => z.string().transform(cleanText).pipe(z.string().max(max, message));
+const multiline = (max: number, message: string) => z.string().transform(cleanMultiline).pipe(z.string().max(max, message));
 
 export const supplierFields = z.object({
   name: z.string().transform(cleanText).pipe(z.string().min(1, 'Enter a name').max(120, 'Use at most 120 characters')),
   phone: text(40, 'Use at most 40 characters').default(''),
   contactName: text(120, 'Use at most 120 characters').default(''),
-  addressNote: text(300, 'Use at most 300 characters').default(''),
+  addressNote: multiline(300, 'Use at most 300 characters').default(''),
   defaultCurrency: z.enum(['IQD', 'USD'], 'Choose IQD or USD'),
   termsDays: z.number(WHOLE).int(WHOLE).min(0, 'Use 0 or more').max(365, 'Use at most 365 days').default(0),
-  note: text(500, 'Use at most 500 characters').default(''),
+  note: multiline(500, 'Use at most 500 characters').default(''),
 });
 export type SupplierFields = z.infer<typeof supplierFields>;
 
@@ -116,6 +138,13 @@ export interface SupplierWrite {
   replayed: boolean;
 }
 
+/** What identifies a create request apart from who made it: a repeat of a key must be this exactly. */
+export function payloadHash(input: SupplierFields): string {
+  const f = fieldsOf(input);
+  const canonical = [f.name, f.phone, f.contactName, f.addressNote, f.defaultCurrency, f.termsDays, f.note];
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
+}
+
 /** The supplier with the same name key, other than `exceptId`. */
 async function nameTaken(tx: ScopedTx, nameKey: string, exceptId?: string): Promise<boolean> {
   const found = await tx.phSupplier.findFirst({ where: { nameKey, ...(exceptId ? { id: { not: exceptId } } : {}) }, select: { id: true } });
@@ -132,12 +161,12 @@ export async function createSupplier(
   args: { restaurantId: string; userId: string; clientKey: string; input: SupplierFields },
 ): Promise<SupplierWrite> {
   const input = fieldsOf(args.input);
+  const hash = payloadHash(input);
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one client key
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_CLIENT_KEY}::int, hashtext(${`${args.restaurantId}:${args.clientKey}`}))`;
   const earlier = await tx.phSupplier.findFirst({ where: { clientKey: args.clientKey } });
   if (earlier) {
-    const same =
-      earlier.createdById === args.userId &&
+    const sameFields =
       earlier.name === input.name &&
       earlier.phone === input.phone &&
       earlier.contactName === input.contactName &&
@@ -145,13 +174,15 @@ export async function createSupplier(
       earlier.defaultCurrency === input.defaultCurrency &&
       earlier.termsDays === input.termsDays &&
       earlier.note === input.note;
-    if (!same) throw keyMismatch();
+    // The hash is of the original request, so an edit since does not turn a retry into a mismatch; rows without one are compared by their fields.
+    const sameRequest = earlier.payloadHash !== null ? earlier.payloadHash === hash : sameFields;
+    if (earlier.createdById !== args.userId || !sameRequest) throw keyMismatch();
     return { id: earlier.id, version: earlier.version, active: earlier.active, defaultCurrency: earlier.defaultCurrency, termsDays: earlier.termsDays, replayed: true };
   }
   const nameKey = supplierNameKey(input.name);
   if (await nameTaken(tx, nameKey)) throw exists();
   const made = await tx.phSupplier.create({
-    data: { restaurantId: args.restaurantId, nameKey, clientKey: args.clientKey, createdById: args.userId, ...input },
+    data: { restaurantId: args.restaurantId, nameKey, clientKey: args.clientKey, createdById: args.userId, payloadHash: hash, ...input },
     select: { id: true, version: true, active: true, defaultCurrency: true, termsDays: true },
   });
   return { ...made, replayed: false };
@@ -200,7 +231,6 @@ export async function archiveSupplier(tx: ScopedTx, args: { supplierId: string; 
   return { id: current.id, version: current.version + 1, active, changed: true };
 }
 
-export const unarchiveSupplier = (tx: ScopedTx, supplierId: string) => archiveSupplier(tx, { supplierId, archived: false });
 
 /** One page of suppliers by name: live ones unless told otherwise, matching the search in the name or the phone. */
 export async function listSuppliers(scoped: ScopedClient, input: SupplierListInput): Promise<{ items: SupplierView[]; nextCursor: string | null }> {

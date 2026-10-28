@@ -179,7 +179,8 @@ export function invoiceableQty(receiptLine: { qty: number; bonusQty: number; inv
 
 const DIGIT_BASES = [0x0660, 0x06f0] as const; // Arabic-Indic, Persian
 // Zero-width and bidi control characters, written as escapes (U+061C Arabic letter mark, U+2066-2069 isolates).
-const INVISIBLE = /[\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+/** Exported so the supplier names are compared with the same set. */
+export const INVISIBLE = /[\u061C\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
 
 /** The supplier's invoice number in a comparable form: trimmed, spaces collapsed, upper case, Latin digits, no invisibles. */
 export function normalizeInvoiceNumber(raw: string): string {

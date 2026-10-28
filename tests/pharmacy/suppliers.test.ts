@@ -81,7 +81,7 @@ describe('creating a supplier', () => {
     const { a, owner } = await world();
     const bad: Record<string, unknown>[] = [
       { name: '   ' },
-      { name: '​‎' },
+      { name: '\u200B\u200E' },
       { name: 'x'.repeat(121) },
       { phone: 'x'.repeat(41) },
       { contactName: 'x'.repeat(121) },
@@ -100,12 +100,61 @@ describe('creating a supplier', () => {
   it('refuses a name that differs only in case, spacing or zero-width characters', async () => {
     const { a, owner } = await world();
     dataOf(await act(owner, supplierActions.create, create(a.id, { name: 'Al Noor' })));
-    for (const name of ['AL NOOR', 'al   noor', ' Al​ Noor ', 'Al​‎ Noor']) {
+    for (const name of ['AL NOOR', 'al   noor', ' Al\u200B Noor ', 'Al\u200B\u200E Noor']) {
       const refused = await act(owner, supplierActions.create, create(a.id, { name }));
       expect(codeOf(refused), name).toBe('CONFLICT');
       expect(phCodeOf(refused)).toBe('SUPPLIER_EXISTS');
     }
     expect(await prisma().phSupplier.count()).toBe(1);
+  });
+
+  it('treats an Arabic letter mark, a right-to-left override, ZWNJ and compatibility forms as no difference in a name', async () => {
+    const { a, owner } = await world();
+    dataOf(await act(owner, supplierActions.create, create(a.id, { name: 'AlNoor' })));
+    for (const name of ['Al\u061CNoor', 'Al\u202ENoor', 'Al\u200CNoor', 'Al\u2066Noor\u2069', 'ＡlNoor']) {
+      const refused = await act(owner, supplierActions.create, create(a.id, { name }));
+      expect(codeOf(refused), JSON.stringify(name)).toBe('CONFLICT');
+      expect(phCodeOf(refused)).toBe('SUPPLIER_EXISTS');
+    }
+    expect(await prisma().phSupplier.count()).toBe(1);
+  });
+
+  it('keeps ZWNJ and line breaks where they mean something, and strips bidi controls, in the stored text', async () => {
+    const { a, owner } = await world();
+    const made = dataOf(
+      await act(owner, supplierActions.create, create(a.id, { name: 'My\u200Cname', contactName: 'Sa\u202Era', phone: '077\u200E0', addressNote: 'Line one\nLine two', note: 'a\n\nb' })),
+    );
+    const row = await prisma().phSupplier.findUniqueOrThrow({ where: { id: made.id } });
+    expect(row.name).toBe('My\u200Cname');
+    expect(row.contactName).toBe('Sara');
+    expect(row.phone).toBe('0770');
+    expect(row.addressNote).toBe('Line one\nLine two');
+    expect(row.note).toBe('a\n\nb');
+  });
+
+  it('stores a payload hash, and replays the original create after the supplier was edited', async () => {
+    const { a, owner } = await world();
+    const body = create(a.id);
+    const first = dataOf(await act(owner, supplierActions.create, body));
+    expect((await prisma().phSupplier.findUniqueOrThrow({ where: { id: first.id } })).payloadHash).toMatch(/^[0-9a-f]{64}$/);
+    const { clientKey, ...fields } = body;
+    void clientKey;
+    dataOf(await act(owner, supplierActions.update, { ...fields, supplierId: first.id, expectedVersion: 1, name: 'Renamed', termsDays: 7 }));
+    const again = dataOf(await act(owner, supplierActions.create, body));
+    expect(again).toMatchObject({ id: first.id, replayed: true });
+    // The edited fields are NOT the original request: a create with them under the same key is a different payload.
+    const edited = await act(owner, supplierActions.create, { ...body, name: 'Renamed', termsDays: 7 });
+    expect(phCodeOf(edited)).toBe('CLIENT_KEY_MISMATCH');
+    expect(await prisma().phSupplier.count()).toBe(1);
+  });
+
+  it('falls back to the stored fields for a row with no hash', async () => {
+    const { a, owner } = await world();
+    const body = create(a.id);
+    const first = dataOf(await act(owner, supplierActions.create, body));
+    await prisma().phSupplier.update({ where: { id: first.id }, data: { payloadHash: null } });
+    expect(dataOf(await act(owner, supplierActions.create, body))).toMatchObject({ id: first.id, replayed: true });
+    expect(phCodeOf(await act(owner, supplierActions.create, { ...body, termsDays: 9 }))).toBe('CLIENT_KEY_MISMATCH');
   });
 
   it('lets two businesses use the same name', async () => {
@@ -317,7 +366,18 @@ describe('another business', () => {
     expect(codeOf(await act(owner, supplierActions.archive, { restaurantId: a.id, supplierId: theirs.id, archived: true }))).toBe('NOT_FOUND');
     expect(await prisma().phSupplier.findUniqueOrThrow({ where: { id: theirs.id } })).toEqual(before);
     expect(dataOf(await ask(owner, supplierQueries.list, { restaurantId: a.id })).items).toHaveLength(0);
-    // Naming B's pharmacy outright is refused by the framework.
-    expect(codeOf(await ask(owner, supplierQueries.list, { restaurantId: b.id }))).not.toBe('OK');
+    // Naming B's pharmacy outright is refused by the framework, for every definition, and B is left as it was.
+    for (const refused of [
+      await act(owner, supplierActions.create, create(b.id, { name: 'Planted' })),
+      await act(owner, supplierActions.update, { ...create(b.id), supplierId: theirs.id, expectedVersion: 1 }),
+      await act(owner, supplierActions.archive, { restaurantId: b.id, supplierId: theirs.id, archived: true }),
+      await ask(owner, supplierQueries.get, { restaurantId: b.id, supplierId: theirs.id }),
+      await ask(owner, supplierQueries.list, { restaurantId: b.id }),
+    ]) {
+      expect(['FORBIDDEN', 'NOT_FOUND']).toContain(codeOf(refused));
+    }
+    expect(await prisma().phSupplier.findUniqueOrThrow({ where: { id: theirs.id } })).toEqual(before);
+    expect(await prisma().phSupplier.count({ where: { restaurantId: b.id } })).toBe(1);
+    expect(await prisma().phSupplier.count({ where: { restaurantId: a.id } })).toBe(0);
   });
 });

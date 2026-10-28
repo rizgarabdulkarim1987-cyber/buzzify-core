@@ -1,7 +1,9 @@
 /// <reference types="vite/client" />
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as countActions from '@/server/pharmacy/actions/counts';
+import * as poActions from '@/server/pharmacy/actions/purchase-orders';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
+import * as supplierActions from '@/server/pharmacy/actions/suppliers';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
@@ -39,10 +41,6 @@ const COVERED_ELSEWHERE = [
   'ph.products.get', 'ph.products.search', 'ph.products.list', 'ph.products.categories', 'ph.products.create', 'ph.products.update', 'ph.products.archive',
   'ph.prices.history', 'ph.prices.currencies', 'ph.prices.set', 'ph.prices.previewBulk', 'ph.prices.applyBulk',
   'ph.imports.preview', 'ph.imports.apply', 'ph.exports.products',
-  // Phase 4 suppliers: business-wide records; a foreign id, a foreign pharmacy and every role are proven in suppliers.test.ts.
-  'ph.suppliers.create', 'ph.suppliers.update', 'ph.suppliers.archive', 'ph.suppliers.list', 'ph.suppliers.get',
-  // Phase 4 purchase orders: branch-scoped; a foreign id, another branch, a foreign pharmacy and every role are proven in purchase-orders.test.ts.
-  'ph.po.create', 'ph.po.update', 'ph.po.order', 'ph.po.cancel', 'ph.po.close', 'ph.po.list', 'ph.po.get', 'ph.po.suggest',
 ];
 
 // The world ------------------------------------------------------------------------------------------------------------
@@ -77,6 +75,11 @@ interface Ids {
   lot1: string;
   lot2: string;
   tradeName: string;
+  /** The business's supplier (phase 4), and its purchase order in branch 1 / in branch 2. */
+  supplierId: string;
+  supplierName: string;
+  po1: string;
+  po2: string;
 }
 interface World {
   a: Ids;
@@ -98,7 +101,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -141,6 +144,22 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
     const line = await prisma().phStockCountLine.findFirstOrThrow({ where: { countId: made.id }, select: { id: true } });
     return { id: made.id, line: line.id };
   };
+  withDocs.supplierName = `${base.tradeName} Supplies`;
+  withDocs.supplierId = dataOf(
+    await runAction(prisma(), actor, supplierActions.create, { restaurantId: base.restaurantId, clientKey: `seed-supplier-${base.restaurantId}`, name: withDocs.supplierName, defaultCurrency: 'IQD' }, META),
+  ).id;
+  const order = async (branchId: string) =>
+    dataOf(
+      await runAction(
+        prisma(),
+        actor,
+        poActions.create,
+        { restaurantId: base.restaurantId, branchId, clientKey: `seed-po-${branchId}`, supplierId: withDocs.supplierId, currency: 'IQD', lines: [{ productId: base.productId, unitId: base.unitId, qtyOrdered: 1, unitCostMinor: 100n }] },
+        META,
+      ),
+    ).id;
+  withDocs.po1 = await order(base.b1);
+  withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
   withDocs.receipt2 = await receipt(base.b2);
   const [c1, c2] = [await count(base.b1), await count(base.b2)];
@@ -184,8 +203,8 @@ interface Case {
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -196,6 +215,8 @@ const saleBody = (ids: Ids) => ({
   lines: [{ productId: ids.productId, unitId: ids.unitId, qty: 1 }],
   payments: [{ method: 'CASH', amountMinor: 100n, clientKey: key() }],
 });
+
+const poBody = (ids: Ids) => ({ clientKey: key(), supplierId: ids.supplierId, currency: 'IQD', lines: [{ productId: ids.productId, unitId: ids.unitId, qtyOrdered: 1, unitCostMinor: 100n }] });
 
 const returnBody = (saleId: string) => ({ saleId, lines: [{ saleLineId: 'planted', baseQty: 1 }], reason: 'Planted', clientKey: key() });
 
@@ -270,6 +291,21 @@ const CASES: Record<string, Case> = {
   'ph.receipts.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.receipts.returnReceipt': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.receipts.reprint': { body: (ids, n) => ({ saleId: pick(ids, n).saleId, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // Suppliers (phase 4): business-wide. A foreign supplier id is refused; inside the business any branch reaches them.
+  'ph.suppliers.create': { body: () => ({ clientKey: key(), name: `Planted ${key()}`, defaultCurrency: 'IQD' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
+  'ph.suppliers.update': { body: (ids) => ({ supplierId: ids.supplierId, expectedVersion: 1, name: `Planted ${key()}`, defaultCurrency: 'IQD' }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.suppliers.archive': { body: (ids) => ({ supplierId: ids.supplierId, archived: true }), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.suppliers.list': { body: () => ({ active: 'all' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.suppliers.get': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
+  // Purchase orders (phase 4): branch-scoped. The supplier and the product must be the business's own.
+  'ph.po.create': { body: (ids) => poBody(ids), foreignIds: 'refused', otherBranchIds: 'harmless' },
+  'ph.po.update': { body: (ids, n) => ({ ...poBody(ids), purchaseOrderId: pick(ids, n).purchaseOrderId, expectedVersion: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.po.order': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId, expectedVersion: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.po.cancel': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId, expectedVersion: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.po.close': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId, expectedVersion: 1, reason: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.po.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.po.get': { body: (ids, n) => ({ purchaseOrderId: pick(ids, n).purchaseOrderId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.po.suggest': { body: (ids) => ({ supplierId: ids.supplierId }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
   'ph.stock.balances': { body: (ids) => ({ productId: ids.productId, onlyWithStock: true }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.stock.movements': {
@@ -300,6 +336,13 @@ describe('the pharmacy isolation sweep', () => {
     const sales = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sales.'));
     expect(sales.sort()).toEqual(['ph.sales.cancel', 'ph.sales.create', 'ph.sales.discardHold', 'ph.sales.get', 'ph.sales.hold', 'ph.sales.holds', 'ph.sales.list', 'ph.sales.resume']);
     expect(sales.filter((name) => CASES[name] === undefined)).toEqual([]);
+  });
+
+  it('covers every phase 4 supplier and purchase order definition', () => {
+    const names = [...DEFINITIONS.keys()];
+    expect(names.filter((name) => name.startsWith('ph.suppliers.')).sort()).toEqual(['ph.suppliers.archive', 'ph.suppliers.create', 'ph.suppliers.get', 'ph.suppliers.list', 'ph.suppliers.update']);
+    expect(names.filter((name) => name.startsWith('ph.po.')).sort()).toEqual(['ph.po.cancel', 'ph.po.close', 'ph.po.create', 'ph.po.get', 'ph.po.list', 'ph.po.order', 'ph.po.suggest', 'ph.po.update']);
+    expect(names.filter((name) => (name.startsWith('ph.suppliers.') || name.startsWith('ph.po.')) && CASES[name] === undefined)).toEqual([]);
   });
 
   it('covers the sale screen search', () => {
@@ -350,7 +393,12 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const sales = await prisma().phSale.findMany({ where, orderBy });
   const shifts = await prisma().phShift.findMany({ where, orderBy });
   const returns = await prisma().phReturn.findMany({ where, orderBy });
+  const orders = await prisma().phPurchaseOrder.findMany({ where, orderBy });
   return json({
+    orders,
+    orderLines: await prisma().phPurchaseOrderLine.findMany({ where: { purchaseOrderId: { in: orders.map((o) => o.id) } }, orderBy }),
+    // Suppliers belong to the business, so they are compared for a whole business only.
+    suppliers: branchId ? undefined : await prisma().phSupplier.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
     sales,
     returns,
     reprints: await prisma().phReceiptReprint.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
@@ -379,11 +427,11 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
  */
 function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
   const docs = (n: 1 | 2) => {
-    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId } = pick(ids, n);
-    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId];
+    const { movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId } = pick(ids, n);
+    return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId];
   };
   if (branch) return docs(branch);
-  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ...docs(1), ...docs(2)];
+  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ...docs(1), ...docs(2)];
 }
 
 interface Attack {

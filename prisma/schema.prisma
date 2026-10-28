@@ -3022,6 +3022,7 @@ model PhSupplier {
   active          Boolean    @default(true)
   note            String     @default("")
   clientKey       String
+  payloadHash     String?
   createdById     String
   version         Int        @default(1)
   createdAt       DateTime   @default(now())
