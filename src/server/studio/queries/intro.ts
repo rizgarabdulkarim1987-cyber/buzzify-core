@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { advertShowsIn } from '@/server/domain/intro';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
+import { thumbsOf } from '@/server/studio/services/intro';
 
 /** A menu's intro settings for the Studio, with the platform's adverts that apply to its restaurant (read only: adverts belong to Buzzify). */
 export const menuIntro = defineQuery({
@@ -18,12 +19,15 @@ export const menuIntro = defineQuery({
       ctx.db.menuIntro.findUnique({ where: { menuId } }),
       ctx.db.platformAdvert.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
     ]);
+    const shown = platform.filter((advert) => advertShowsIn(advert, { menuId, restaurantId }));
+    const thumbs = await thumbsOf(ctx.db, [intro?.backgroundAssetId, ...shown.map((advert) => advert.imageAssetId)]);
     return {
+      thumbs,
       enabled: menu.introEnabled,
       locales: menu.locales,
       defaultLocale: menu.defaultLocale,
       intro: intro ?? { backgroundAssetId: null, overlay: 50, showLogo: true, showContact: true },
-      platformAdverts: platform.filter((advert) => advertShowsIn(advert, { menuId, restaurantId })).map(({ restaurantIds: _r, menuIds: _m, ...advert }) => advert),
+      platformAdverts: shown.map(({ restaurantIds: _r, menuIds: _m, ...advert }) => advert),
     };
   },
 });

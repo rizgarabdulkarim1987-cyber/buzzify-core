@@ -20,7 +20,7 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
@@ -32,6 +32,7 @@ describe('NAV_ITEMS', () => {
       '/studio/motion',
       '/studio/people',
       '/studio/announcements',
+      '/studio/platform/intro',
       '/studio/activity',
       '/studio/settings',
     ]);
@@ -47,12 +48,12 @@ describe('the Menu Styles area', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin the Pharmacy area right after the Cashier, with its own pill icon', () => {

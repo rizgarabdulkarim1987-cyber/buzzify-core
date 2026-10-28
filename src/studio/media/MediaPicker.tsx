@@ -19,8 +19,10 @@ export interface PickedMedia {
 export interface MediaPickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** The restaurant whose library is shown, with the shared library beside it. */
-  restaurantId: string;
+  /** The restaurant whose library is shown, with the shared library beside it; null shows the shared library alone (a Super Admin's). */
+  restaurantId: string | null;
+  /** What the library lists: pictures by default; `all` adds videos, for a background that may move. */
+  kinds?: 'pictures' | 'all';
   onPick: (items: PickedMedia[]) => void;
 }
 
@@ -28,7 +30,7 @@ export interface MediaPickerProps {
  * Pictures from the media library (spec 11): the restaurant's own and the shared ones, newest first, searchable by alt
  * text and file name. Several can be picked at once; they are added in the order they were picked.
  */
-export function MediaPicker({ open, onOpenChange, restaurantId, onPick }: MediaPickerProps) {
+export function MediaPicker({ open, onOpenChange, restaurantId, kinds = 'pictures', onPick }: MediaPickerProps) {
   const t = useT();
   const { locale } = useLocale();
   const [query, setQuery] = useState('');
@@ -44,7 +46,7 @@ export function MediaPicker({ open, onOpenChange, restaurantId, onPick }: MediaP
     if (!open) return;
     const timer = setTimeout(() => {
       startLoading(async () => {
-        const result = await listMedia({ restaurantId, page: 1, ...(query.trim() ? { q: query.trim() } : {}) });
+        const result = await listMedia({ ...(restaurantId ? { restaurantId } : {}), kinds, page: 1, ...(query.trim() ? { q: query.trim() } : {}) });
         if (!result.ok) {
           setProblem(describeFailure(t, locale, result.error).message);
           return;
@@ -58,11 +60,11 @@ export function MediaPicker({ open, onOpenChange, restaurantId, onPick }: MediaP
     return () => clearTimeout(timer);
     // Only a new opening, search or library starts over; the translator is read when a refusal is shown.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, query, restaurantId]);
+  }, [open, query, restaurantId, kinds]);
 
   const more = () =>
     startLoading(async () => {
-      const result = await listMedia({ restaurantId, page: page + 1, ...(query.trim() ? { q: query.trim() } : {}) });
+      const result = await listMedia({ ...(restaurantId ? { restaurantId } : {}), kinds, page: page + 1, ...(query.trim() ? { q: query.trim() } : {}) });
       if (!result.ok) return setProblem(describeFailure(t, locale, result.error).message);
       setRows((current) => [...current, ...result.data.rows]);
       setPage(page + 1);

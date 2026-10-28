@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { defineQuery } from '@/server/studio/framework/query';
+import { thumbsOf } from '@/server/studio/services/intro';
 
 /** The platform's intro background and every platform advert, for the Super Admin's page. */
 export const platformIntro = defineQuery({
@@ -15,6 +16,7 @@ export const platformIntro = defineQuery({
       ctx.db.menu.findMany({ orderBy: [{ restaurantId: 'asc' }, { name: 'asc' }], select: { id: true, name: true, restaurantId: true, slug: true } }),
     ]);
     // The picker: every restaurant, and every menu with the restaurant it belongs to.
-    return { backgroundAssetId: defaults?.backgroundAssetId ?? null, adverts, restaurants, menus };
+    const thumbs = await thumbsOf(ctx.db, [defaults?.backgroundAssetId, ...adverts.map((advert) => advert.imageAssetId)]);
+    return { backgroundAssetId: defaults?.backgroundAssetId ?? null, adverts, restaurants, menus, thumbs };
   },
 });
