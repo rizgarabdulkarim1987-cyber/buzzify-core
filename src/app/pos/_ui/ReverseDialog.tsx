@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { reversePosPayment } from '@/app/studio/_actions/pos';
 import { formatNumber } from '@/lib/pos-format';
-import { refundIsTerminal, usdRefund } from '@/lib/pos-pay-legs';
+import { cashRefund, refundIsTerminal } from '@/lib/pos-pay-legs';
 import { refundOpensDrawer } from '@/server/domain/pos/drawer';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { SERVER_TEXT } from '@/studio/errors';
@@ -39,7 +39,8 @@ export function ReverseButton({ orderId, paymentId, version, total, method, legs
   const [open, setOpen] = useState(false);
   const online = sync?.online ?? true;
   const terminal = refundIsTerminal(method);
-  const usd = usdRefund(legs);
+  // What crosses the counter: dinar cash legs, dollars, and the dinar change of the dollars taken back.
+  const hand = cashRefund(legs);
 
   return (
     <>
@@ -81,10 +82,11 @@ export function ReverseButton({ orderId, paymentId, version, total, method, legs
                 <dd>{money(total)}</dd>
               </div>
             </dl>
-            {usd ? (
+            {hand && hand.dollars > 0 ? (
               <ul className="flex flex-col gap-1 text-base font-semibold">
-                <li>{t('pos.reverse.usdGiveBack', { n: formatNumber(usd.dollars) })}</li>
-                {usd.dinarChange > 0 ? <li>{t('pos.reverse.usdTakeChange', { amount: money(usd.dinarChange) })}</li> : null}
+                {hand.dinars > 0 ? <li>{t('pos.reverse.dinarGiveBack', { amount: money(hand.dinars) })}</li> : null}
+                <li>{t('pos.reverse.usdGiveBack', { n: formatNumber(hand.dollars) })}</li>
+                {hand.dinarChange > 0 ? <li>{t('pos.reverse.usdTakeChange', { amount: money(hand.dinarChange) })}</li> : null}
               </ul>
             ) : null}
             <Field label={t('pos.reverse.reason')} error={errors.reason}>

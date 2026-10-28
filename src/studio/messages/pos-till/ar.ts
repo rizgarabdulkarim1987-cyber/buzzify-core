@@ -651,6 +651,7 @@ const posTill: Messages = {
   'pos.reverse.reason': 'السبب',
   'pos.reverse.reference': 'مرجع الاسترجاع على الجهاز (اختياري)',
   'pos.reverse.usdGiveBack': 'أعِد {n} دولار بالدولار',
+  'pos.reverse.dinarGiveBack': 'أعِد {amount} نقدًا بالدينار',
   'pos.reverse.usdTakeChange': 'استرجع الباقي المدفوع بالدينار: {amount}',
   'pos.receipt.reversed': 'مُسترجَع',
   'pos.receipt.reversedBy': 'بواسطة {name} · {time}',

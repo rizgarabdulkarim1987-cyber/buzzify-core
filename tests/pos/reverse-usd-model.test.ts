@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { refundIsTerminal, usdRefund } from '@/lib/pos-pay-legs';
+import { cashRefund, refundIsTerminal, usdRefund } from '@/lib/pos-pay-legs';
 import { usdDrawer } from '@/server/pos/payment-legs';
 
 describe('reversing a payment that took dollars', () => {
@@ -20,6 +20,20 @@ describe('reversing a payment that took dollars', () => {
     const bigRefund = { legs: [{ method: 'CASH_USD' as const, amount: 45_000, tenderedUsd: 30, rate: 1500 }] };
     expect(usdDrawer([sale], [bigRefund])).toMatchObject({ received: 10, refunded: 30, expectedUsd: 0, beyondDrawer: 20 });
     expect(usdDrawer([sale, sale], [sale])).toMatchObject({ expectedUsd: 10, beyondDrawer: 0 });
+  });
+
+  it('also names the dinar cash leg to give back for a mixed payment, so the net dinars match the drawer', () => {
+    // Bill 15,000: 5,000 in dinars and 10,000 in dollars, paid with $10 at 1500 (15,000), so 5,000 dinars change went out.
+    const legs = [{ method: 'CASH', amount: 5_000 }, { method: 'CASH_USD', amount: 10_000, tenderedUsd: 10, rate: 1500 }];
+    expect(cashRefund(legs)).toEqual({ dinars: 5_000, dollars: 10, dinarChange: 5_000 });
+    // In the sale the drawer took +5,000 dinars and +$10 and paid 5,000 change: net 0 dinars, as the reversal hands back.
+    const refund = cashRefund(legs)!;
+    expect(refund.dinars - refund.dinarChange).toBe(5_000 - 5_000);
+  });
+
+  it('gives back only dinars for a cash payment and nothing for a card one', () => {
+    expect(cashRefund([{ method: 'CASH', amount: 10_000 }])).toEqual({ dinars: 10_000, dollars: 0, dinarChange: 0 });
+    expect(cashRefund([{ method: 'FIB', amount: 10_000 }])).toBeNull();
   });
 
   it('has no dinar change to take back when the dollars were exact', () => {

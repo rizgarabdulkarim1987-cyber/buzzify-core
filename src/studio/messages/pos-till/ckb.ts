@@ -651,6 +651,7 @@ const posTill: Messages = {
   'pos.reverse.reason': 'هۆکار',
   'pos.reverse.reference': 'ژمارەی گەڕاندنەوە لەسەر ئامێر (ئارەزوومەندانە)',
   'pos.reverse.usdGiveBack': '{n} دۆلار بە دۆلار بگەڕێنەرەوە',
+  'pos.reverse.dinarGiveBack': '{amount} بە کاشی دینار بگەڕێنەرەوە',
   'pos.reverse.usdTakeChange': 'باقییە دینارەکە وەربگرەوە: {amount}',
   'pos.receipt.reversed': 'گەڕێندراوەتەوە',
   'pos.receipt.reversedBy': 'لەلایەن {name} · {time}',
