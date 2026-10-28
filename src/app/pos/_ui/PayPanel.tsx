@@ -166,7 +166,7 @@ function PayBody({
           ...(tip > 0 ? { tip: { amount: tip, method: tipMethod } } : {}),
         }),
       {
-        onOk: () => router.push(`/pos/orders/${orderId}/receipt`),
+        onOk: () => router.push(`/pos/orders/${orderId}/receipt?print=1`),
       },
     );
 

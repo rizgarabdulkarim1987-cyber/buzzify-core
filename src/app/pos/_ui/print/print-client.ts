@@ -1,5 +1,5 @@
 import { targetOf } from '@/server/domain/pos/bridge-protocol';
-import { packRaster, PAPER_DOTS, rasterJob } from '@/server/domain/pos/escpos';
+import { drawerKickOnly, packRaster, PAPER_DOTS, rasterJob } from '@/server/domain/pos/escpos';
 import type { PaperDoc } from '@/server/domain/pos/paper';
 import type { PrinterView } from '@/server/pos/printers';
 import { readBridgeUrl } from './bridge-url';
@@ -34,6 +34,10 @@ export async function printDoc(doc: PaperDoc, printer: PrinterView, opts: PrintO
   } catch (error) {
     return { ok: false, reason: 'printer', message: error instanceof Error ? error.message : 'could not draw the paper' };
   }
+  return post(bytes, printer, opts);
+}
+
+async function post(bytes: Uint8Array, printer: PrinterView, opts: Pick<PrintOptions, 'fetchImpl' | 'bridgeUrl'>): Promise<PrintResult> {
   const send = opts.fetchImpl ?? fetch;
   try {
     const response = await send(`${opts.bridgeUrl ?? readBridgeUrl()}/print`, {
@@ -47,6 +51,12 @@ export async function printDoc(doc: PaperDoc, printer: PrinterView, opts: PrintO
   } catch (error) {
     return { ok: false, reason: 'bridge', message: error instanceof Error ? error.message : 'bridge unreachable' };
   }
+}
+
+/** Opens the cash drawer wired to the printer, with no paper. */
+export async function kickDrawer(printer: PrinterView, opts: Pick<PrintOptions, 'fetchImpl' | 'bridgeUrl'> = {}): Promise<PrintResult> {
+  if (printer.drawerPin === null) return { ok: false, reason: 'printer', message: 'no drawer on this printer' };
+  return post(drawerKickOnly(printer.drawerPin), printer, opts);
 }
 
 /** True when the bridge on this PC answers; the settings screen shows it. */

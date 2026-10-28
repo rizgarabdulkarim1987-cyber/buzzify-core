@@ -11,7 +11,8 @@ import { posEntry } from '@/server/pos/entry';
 import { canPos } from '@/server/domain/pos/permissions';
 import { getActor } from '@/server/studio/auth/actor';
 import { query } from '@/server/studio/framework/invoke';
-import { posMyShift } from '@/server/studio/queries/pos';
+import { posMyShift, posPrinters } from '@/server/studio/queries/pos';
+import { PrintProvider } from '@/app/pos/_ui/print/PrintProvider';
 import { posAiState } from '@/server/studio/queries/pos-ai';
 import { posIdleMinutes } from '@/server/studio/queries/pos-idle';
 import { posComplaintBadge } from '@/server/studio/queries/pos-complaints';
@@ -59,6 +60,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
   const idleMinutes = await query(posIdleMinutes, {});
+  const printers = await query(posPrinters, {});
   const layout = layoutOf((await cookies()).get(LAYOUT_COOKIE)?.value);
   // From lg up the till is one screen: the page never scrolls, a page taller than the screen scrolls inside <main>.
   return (
@@ -102,7 +104,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
       <IdleGuard minutes={idleMinutesFor(entry.actor.role, idleMinutes)} shared={sharedDevice} />
       <AnnouncementBar userId={entry.actor.userId} initial={notices} />
       <main id="main" className="flex min-h-0 min-w-0 flex-1 flex-col lg:overflow-y-auto print:block print:overflow-visible">
-        {children}
+        <PrintProvider printers={printers}>{children}</PrintProvider>
       </main>
       <BrandFooter />
     </div>

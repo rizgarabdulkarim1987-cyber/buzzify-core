@@ -356,6 +356,38 @@ export const removePosPrinter = defineAction({
     }),
 });
 
+/** Opening the drawer with no sale is allowed with a reason, and always leaves a trace. */
+export const openPosDrawer = defineAction({
+  name: 'pos.openDrawer',
+  permission: null,
+  pos: 'shift.use',
+  input: z.object({ reason: z.string().trim().min(1, 'Enter a reason').max(200, 'Use at most 200 characters') }),
+  target: () => TILL,
+  run: (ctx, { reason }) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async () => {
+      ctx.audit({ action: 'pos.drawer.open', entityType: 'PosDrawer', entityId: restaurantId, changes: { reason: { before: null, after: reason } } });
+      return { opened: true as const };
+    });
+  },
+});
+
+/** A receipt printed again is not a new sale; it is recorded so a copy can be told from the original. */
+export const logPosReprint = defineAction({
+  name: 'pos.logReprint',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ paymentId: idField }),
+  target: () => TILL,
+  run: (ctx, { paymentId }) =>
+    ctx.transaction(async (tx) => {
+      const payment = await tx.posPayment.findFirst({ where: { id: paymentId }, select: { id: true } });
+      if (!payment) throw new StudioError('NOT_FOUND');
+      ctx.audit({ action: 'pos.receipt.reprint', entityType: 'PosPayment', entityId: payment.id, changes: {} });
+      return { logged: true as const };
+    }),
+});
+
 /** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
 export const posSetCategorySection = defineAction({
   name: 'pos.setCategorySection',

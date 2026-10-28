@@ -3,7 +3,8 @@
 import { POS_LEG_METHODS } from '@/server/domain/pos/payment-methods';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
+import { toast } from 'sonner';
+import { addPosExpense, closePosShift, openPosDrawer, openPosShift } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
 import { amountDigits, countKind, typedAmount } from '@/lib/pos-view';
 import type { ShiftSummary } from '@/server/pos/shifts';
@@ -14,6 +15,7 @@ import { cx } from '@/studio/ui/cx';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { useMoney } from './money';
+import { usePrint } from './print/PrintProvider';
 import { usePosCall } from './use-pos-call';
 
 const FLOATS = [0, 25_000, 50_000, 100_000] as const;
@@ -56,7 +58,8 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
-  const [dialog, setDialog] = useState<'none' | 'expense' | 'close'>('none');
+  const { hasReceiptPrinter, hasDrawer, printShift, openDrawer } = usePrint();
+  const [dialog, setDialog] = useState<'none' | 'expense' | 'close' | 'drawer'>('none');
   const [counted, setCounted] = useState('');
   const { shift } = summary;
   const open = shift.closedAt === null;
@@ -98,6 +101,11 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
               <Button variant="secondary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('expense')}>
                 {t('pos.shift.addExpense')}
               </Button>
+              {hasDrawer ? (
+                <Button variant="secondary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('drawer')}>
+                  {t('pos.drawer.open')}
+                </Button>
+              ) : null}
               {canClose ? (
                 <Button variant="primary" size="lg" className="min-h-14" disabled={pending} onClick={() => setDialog('close')}>
                   {t('pos.shift.countAndClose')}
@@ -105,9 +113,16 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
               ) : null}
             </div>
           ) : (
-            <Button variant="primary" size="lg" className="min-h-14 print:hidden" onClick={() => window.print()}>
-              {t('pos.receipt.print')}
-            </Button>
+            <div className="flex flex-col gap-2 print:hidden">
+              {hasReceiptPrinter ? (
+                <Button variant="primary" size="lg" className="min-h-14" onClick={() => void printShift(summary)}>
+                  {t('pos.print.slip')}
+                </Button>
+              ) : null}
+              <Button variant={hasReceiptPrinter ? 'secondary' : 'primary'} size="lg" className="min-h-14" onClick={() => window.print()}>
+                {t('pos.receipt.print')}
+              </Button>
+            </div>
           )}
         </section>
         <section aria-label={t('pos.shift.expenses')} className="flex flex-col gap-3 rounded-[28px] border border-line bg-raised p-6">
@@ -151,6 +166,28 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
               <Input name="reason" size="lg" maxLength={200} />
             </Field>
           </>
+        )}
+      </ConfirmDialog>
+
+      <ConfirmDialog
+        open={dialog === 'drawer'}
+        onOpenChange={(next) => !next && setDialog('none')}
+        title={t('pos.drawer.title')}
+        confirmLabel={t('pos.drawer.open')}
+        tone="primary"
+        onConfirm={async (form) => {
+          const reason = String(form.get('reason') ?? '').trim();
+          const result = await call(() => openPosDrawer({ reason }), { quiet: true, keepPage: true });
+          if (!result.ok) return { fields: result.error.fields ?? {}, message: result.error.fields ? undefined : t('pos.shift.refused') };
+          const kicked = await openDrawer();
+          if (kicked.ok) toast.success(t('pos.drawer.opened'));
+          return true;
+        }}
+      >
+        {(errors) => (
+          <Field label={t('pos.drawer.reason')} error={errors.reason}>
+            <Input name="reason" autoFocus size="lg" maxLength={200} />
+          </Field>
         )}
       </ConfirmDialog>
 

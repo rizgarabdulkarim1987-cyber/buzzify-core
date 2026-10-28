@@ -40,6 +40,7 @@ import { useProductOffer } from './offers';
 import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
+import { usePrint } from './print/PrintProvider';
 import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
@@ -97,6 +98,7 @@ export function OrderScreen({
   const money = useMoney();
   const router = useRouter();
   const { call, pending } = usePosCall();
+  const { printKitchenRound } = usePrint();
   const [tab, setTab] = useState<'menu' | 'order'>('menu');
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -413,7 +415,7 @@ export function OrderScreen({
           {canChange ? (
             <div className="flex flex-col gap-2">
               {kitchenOn ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: () => { if (order.kitchen.print) void printKitchenRound(order.id); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}

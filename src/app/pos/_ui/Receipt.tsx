@@ -1,7 +1,12 @@
 'use client';
 
 import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import { logPosReprint } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
+import { drawerShouldKick } from '@/server/domain/pos/drawer';
+import { settle } from '@/studio/settle';
+import { usePrint } from './print/PrintProvider';
 import type { Receipt as ReceiptData } from '@/server/pos/payments';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -9,11 +14,32 @@ import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { useMoney } from './money';
 import { ReverseButton } from './ReverseDialog';
 
+/** Payments whose original already went to the printer from this page, so a refresh or a second render never prints twice. */
+const AUTO_PRINTED = new Set<string>();
+
 /** The paid order as a slip: printable at 80 mm, with the screen controls left out of the print. */
-export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; canRefund?: boolean }) {
+export function Receipt({ receipt, canRefund = false, autoPrint = false }: { receipt: ReceiptData; canRefund?: boolean; autoPrint?: boolean }) {
   const t = useT();
   const money = useMoney();
+  const { hasReceiptPrinter, printReceipt } = usePrint();
+  const [problem, setProblem] = useState<string | null>(null);
+  const [printing, setPrinting] = useState(false);
   const s = receipt.snapshot;
+
+  // Arriving from a payment prints the original once, and opens the drawer if any of it was cash. The page never waits for it.
+  useEffect(() => {
+    if (!autoPrint || !hasReceiptPrinter || receipt.reversal || AUTO_PRINTED.has(receipt.paymentId)) return;
+    AUTO_PRINTED.add(receipt.paymentId);
+    void printReceipt(receipt, { copy: false, drawer: drawerShouldKick(receipt.legs) }).then((result) => setProblem(result.ok ? null : result.message));
+  }, [autoPrint, hasReceiptPrinter, printReceipt, receipt]);
+
+  const printPaper = async (copy: boolean) => {
+    setPrinting(true);
+    const result = await printReceipt(receipt, { copy, drawer: !copy && drawerShouldKick(receipt.legs) });
+    setPrinting(false);
+    setProblem(result.ok ? null : result.message);
+    if (copy && result.ok) await settle(() => logPosReprint({ paymentId: receipt.paymentId }));
+  };
   return (
     <div className="mx-auto flex w-full max-w-[80mm] flex-col gap-3 px-4 py-6 print:max-w-none print:p-0">
       <header className="text-center">
@@ -100,6 +126,14 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
       ) : null}
       <p className="text-center text-sm text-muted" dir="auto">{receipt.business.footer || t('pos.receipt.thanks')}</p>
       <div className="flex flex-col gap-2 print:hidden">
+        {problem ? (
+          <div role="alert" className="flex flex-col gap-2 rounded-md border-2 border-danger p-3 text-base">
+            <span>{t('pos.print.failed', { message: problem })}</span>
+            <Button variant="secondary" size="lg" className="min-h-12" disabled={printing} onClick={() => void printPaper(false)}>
+              {t('pos.print.retry')}
+            </Button>
+          </div>
+        ) : null}
         {receipt.parts.length > 1 ? (
           <nav className="flex flex-wrap gap-2" aria-label={t('pos.receipt.parts')}>
             {receipt.parts.map((p) => (
@@ -115,7 +149,12 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
           </nav>
         ) : null}
         {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} paymentId={receipt.paymentId} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} /> : null}
-        <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
+        {hasReceiptPrinter && !receipt.reversal ? (
+          <Button variant="primary" size="lg" className="min-h-12" disabled={printing} onClick={() => void printPaper(true)}>
+            {t('pos.print.copy')}
+          </Button>
+        ) : null}
+        <Button variant={hasReceiptPrinter ? 'secondary' : 'primary'} size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>
         <Link href={receipt.kind === 'DINE_IN' ? '/pos/tables' : `/pos/tables?area=${receipt.kind === 'DELIVERY' ? 'delivery' : 'takeaway'}`} className="inline-flex min-h-12 items-center justify-center rounded-md border border-line-strong text-base font-medium">

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readBridgeUrl, writeBridgeUrl } from '@/app/pos/_ui/print/bridge-url';
-import { printDoc } from '@/app/pos/_ui/print/print-client';
+import { kickDrawer, printDoc } from '@/app/pos/_ui/print/print-client';
 import type { PaperDoc } from '@/server/domain/pos/paper';
 import type { PrinterView } from '@/server/pos/printers';
 
@@ -72,6 +72,20 @@ describe('printDoc', () => {
   it('reports a bridge that refuses the origin as a bridge problem', async () => {
     const { impl } = fakeFetch({ ok: false, status: 403, json: { ok: false, error: 'origin not allowed' } });
     expect(await printDoc(DOC, printer(), { drawer: false, fetchImpl: impl, render, bridgeUrl: 'http://127.0.0.1:9101', dir: 'ltr' })).toMatchObject({ ok: false, reason: 'bridge' });
+  });
+});
+
+describe('kickDrawer', () => {
+  it('sends only the kick bytes to a printer that has a drawer pin', async () => {
+    const { impl, calls } = fakeFetch({ ok: true, status: 200, json: { ok: true } });
+    expect(await kickDrawer(printer({ drawerPin: 5 }), { fetchImpl: impl, bridgeUrl: 'http://127.0.0.1:9101' })).toEqual({ ok: true });
+    expect(bytesOf(calls[0].body.dataBase64)).toEqual([0x1b, 0x70, 0x01, 0x3c, 0x78]);
+  });
+
+  it('does nothing, and says why, when the printer has no drawer', async () => {
+    const { impl, calls } = fakeFetch({ ok: true, status: 200, json: { ok: true } });
+    expect(await kickDrawer(printer({ drawerPin: null }), { fetchImpl: impl, bridgeUrl: 'http://127.0.0.1:9101' })).toMatchObject({ ok: false, reason: 'printer' });
+    expect(calls).toHaveLength(0);
   });
 });
 
