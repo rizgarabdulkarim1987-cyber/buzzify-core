@@ -115,8 +115,9 @@ describe('the intake batch', () => {
   it('is the only batch of its receipt', async () => {
     const w = await world();
     const receipt = await receiptOf(w);
-    await batchOf(w, { receiptId: receipt.id });
-    await expect(batchOf(w, { receiptId: receipt.id })).rejects.toMatchObject({ code: 'P2002' });
+    const approved = { status: 'APPROVED', approvedAt: new Date(), approvedById: 'u1' };
+    await batchOf(w, { ...approved, receiptId: receipt.id });
+    await expect(batchOf(w, { ...approved, receiptId: receipt.id })).rejects.toMatchObject({ code: 'P2002' });
     // batches without a receipt are many
     await expect(batchOf(w, {})).resolves.toHaveProperty('id');
   });
@@ -125,9 +126,96 @@ describe('the intake batch', () => {
     const a = await world('A');
     const b = await world('B');
     await expect(batchOf(a, { supplierId: b.supplierId })).rejects.toMatchObject({ code: 'P2003' });
-    await expect(batchOf(a, { receiptId: (await receiptOf(b)).id })).rejects.toMatchObject({ code: 'P2003' });
+    await expect(batchOf(a, { status: 'APPROVED', approvedAt: new Date(), approvedById: 'u1', receiptId: (await receiptOf(b)).id })).rejects.toMatchObject({ code: 'P2003' });
     await expect(batchOf(a, { branchId: b.biz.branchId })).rejects.toMatchObject({ code: 'P2003' });
     await expect(batchOf(a, { supplierId: a.supplierId })).resolves.toHaveProperty('id');
+  });
+});
+
+describe('the intake batch (fixes)', () => {
+  it('links only a receipt of its own branch', async () => {
+    const biz = await pharmacy('Two', { branches: 2 });
+    const w = { biz };
+    const other = await prisma().phReceipt.create({
+      data: { restaurantId: biz.id, branchId: biz.branchIds[1]!, clientKey: `rc-${next()}`, receivedOn: new Date('2026-10-30T00:00:00.000Z'), createdById: 'u1' },
+      select: { id: true },
+    });
+    const approved = { status: 'APPROVED', approvedAt: new Date(), approvedById: 'u1' };
+    await expect(batchOf(w, { ...approved, receiptId: other.id })).rejects.toMatchObject({ code: 'P2003' });
+    await expect(batchOf(w, { ...approved, receiptId: (await receiptOf(w)).id })).resolves.toHaveProperty('id');
+  });
+
+  it('is cancelled exactly when it has a cancellation time, and an open batch has no receipt', async () => {
+    const w = await world();
+    await expect(batchOf(w, { status: 'CANCELLED' })).rejects.toThrow(/PhIntakeBatch_cancelled_has_time/);
+    await expect(batchOf(w, { cancelledAt: new Date() })).rejects.toThrow(/PhIntakeBatch_cancelled_has_time/);
+    await expect(batchOf(w, { status: 'CANCELLED', cancelledAt: new Date() })).resolves.toHaveProperty('id');
+    await expect(batchOf(w, { receiptId: (await receiptOf(w)).id })).rejects.toThrow(/PhIntakeBatch_open_has_no_receipt/);
+  });
+});
+
+describe('the extraction lease', () => {
+  it('is held only while the file is EXTRACTING, and then it is set', async () => {
+    const w = await world();
+    const since = new Date('2026-10-30T10:00:00.000Z');
+    await expect(fileOf(w, w.batchId, { extractingSince: since })).rejects.toThrow(/PhIntakeFile_lease_only_when_extracting/);
+    await expect(fileOf(w, w.batchId, { status: 'EXTRACTING' })).rejects.toThrow(/PhIntakeFile_lease_only_when_extracting/);
+    const made = await fileOf(w, w.batchId, { status: 'EXTRACTING', extractingSince: since });
+    const read = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: made.id } });
+    expect(read.extractingSince).toEqual(since);
+    await expect(prisma().phIntakeFile.update({ where: { id: made.id }, data: { status: 'EXTRACTED' } })).rejects.toThrow(/PhIntakeFile_lease_only_when_extracting/);
+    await expect(prisma().phIntakeFile.update({ where: { id: made.id }, data: { status: 'EXTRACTED', extractingSince: null } })).resolves.toHaveProperty('id');
+  });
+
+  it('can be found by business, status and age', async () => {
+    const w = await world();
+    const stale = await fileOf(w, w.batchId, { status: 'EXTRACTING', extractingSince: new Date('2026-10-30T09:00:00.000Z') });
+    await fileOf(w, w.batchId, { status: 'EXTRACTING', extractingSince: new Date('2026-10-30T11:59:00.000Z') });
+    const found = await prisma().phIntakeFile.findMany({
+      where: { restaurantId: w.biz.id, status: 'EXTRACTING', extractingSince: { lt: new Date('2026-10-30T11:00:00.000Z') } },
+      select: { id: true },
+    });
+    expect(found).toEqual([{ id: stale.id }]);
+  });
+});
+
+describe('an open AI reservation', () => {
+  const reserve = (w: { biz: Biz }, over: Data = {}) =>
+    prisma().phAiReservation.create({ data: { restaurantId: w.biz.id, month: '2026-10', microUsd: 5000n, fileId: `f-${next()}`, ...over } as never, select: { id: true } });
+
+  it('names its month (a usage row must exist), holds more than nothing, and is one per file', async () => {
+    const w = await world();
+    await expect(reserve(w)).rejects.toMatchObject({ code: 'P2003' });
+    await usageOf(w);
+    await expect(reserve(w, { microUsd: 0n })).rejects.toThrow(/PhAiReservation_positive/);
+    await expect(reserve(w, { microUsd: -1n })).rejects.toThrow(/PhAiReservation_positive/);
+    await expect(reserve(w, { microUsd: 1n, fileId: 'same' })).resolves.toHaveProperty('id');
+    await expect(reserve(w, { fileId: 'same' })).rejects.toMatchObject({ code: 'P2002' });
+  });
+
+  it('cannot name the month of another business', async () => {
+    const a = await world('A');
+    const b = await world('B');
+    await usageOf(b);
+    await expect(reserve(a)).rejects.toMatchObject({ code: 'P2003' });
+  });
+
+  it('is removed with its business', async () => {
+    const a = await world('A');
+    await usageOf(a);
+    await reserve(a);
+    await prisma().subscription.deleteMany({ where: { restaurantId: a.biz.id } });
+    await prisma().restaurant.delete({ where: { id: a.biz.id } });
+    expect(await prisma().phAiReservation.count({ where: { restaurantId: a.biz.id } })).toBe(0);
+  });
+});
+
+describe('the intake row flags', () => {
+  it('cannot be NULL even through raw SQL', async () => {
+    const w = await world();
+    const row = await rowOf(w, w.fileId, {});
+    // eslint-disable-next-line no-restricted-properties -- the test proves the database refuses a NULL that the client cannot write
+    await expect(prisma().$executeRaw`UPDATE "PhIntakeRow" SET "flags" = NULL WHERE "id" = ${row.id}`).rejects.toThrow(/PhIntakeRow_flags_not_null/);
   });
 });
 
@@ -319,8 +407,8 @@ describe('the AI call log', () => {
     const made = await callOf(w);
     await expect(prisma().phAiCall.update({ where: { id: made.id }, data: { costMicroUsd: 1n } })).rejects.toThrow(/PhAiCall is append-only: UPDATE refused/);
     await expect(prisma().phAiCall.delete({ where: { id: made.id } })).rejects.toThrow(/PhAiCall is append-only: DELETE refused/);
-    await expect(prisma().phAiCall.deleteMany({})).rejects.toThrow(/append-only/);
-    expect(await prisma().phAiCall.count()).toBe(1);
+    await expect(prisma().phAiCall.deleteMany({ where: { restaurantId: w.biz.id } })).rejects.toThrow(/append-only/);
+    expect(await prisma().phAiCall.count({ where: { restaurantId: w.biz.id } })).toBe(1);
   });
 });
 
@@ -347,7 +435,7 @@ describe('removing a whole business', () => {
 });
 
 describe('the tenant registries', () => {
-  const RESTAURANT_MODELS = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall'];
+  const RESTAURANT_MODELS = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall', 'PhAiReservation'];
 
   it('scopes every intake model by restaurant', () => {
     for (const model of RESTAURANT_MODELS) expect(RESTAURANT_SCOPED_MODELS as readonly string[], model).toContain(model);
