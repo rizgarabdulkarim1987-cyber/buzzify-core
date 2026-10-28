@@ -367,6 +367,27 @@ describe('the receipt, with a supplier and an order', () => {
   });
 });
 
+describe('the receipt answering an order (supplier and branch link)', () => {
+  it('is for the order supplier and branch only', async () => {
+    const w = await world('A', { branches: 2 });
+    const other = await supplierOf(w, { name: 'Second supplier' });
+    const po = await order(w);
+    await expect(receiptOf(w, { purchaseOrderId: po.id, supplierId: w.supplierId })).resolves.toHaveProperty('id');
+    await expect(receiptOf(w, { purchaseOrderId: po.id, supplierId: other.id })).rejects.toMatchObject({ code: 'P2003' });
+    await expect(receiptOf(w, { branchId: w.biz.branchIds[1], purchaseOrderId: po.id, supplierId: w.supplierId })).rejects.toMatchObject({ code: 'P2003' });
+  });
+});
+
+describe('the invoice dates', () => {
+  it('are due on or after the invoice date', async () => {
+    const w = await world('A');
+    const later = new Date('2026-11-05T00:00:00.000Z');
+    await expect(invoice(w, { invoiceDate: later, dueDate: DAY })).rejects.toThrow(/PhSupplierInvoice_due_not_before_invoice/);
+    await expect(invoice(w, { invoiceDate: DAY, dueDate: DAY })).resolves.toHaveProperty('id');
+    await expect(invoice(w, { invoiceDate: DAY, dueDate: later })).resolves.toHaveProperty('id');
+  });
+});
+
 describe('the supplier invoice', () => {
   it('refuses negative money and settlements above the total; accepts the boundary', async () => {
     const w = await world('A');

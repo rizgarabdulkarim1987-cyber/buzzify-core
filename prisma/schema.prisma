@@ -2525,7 +2525,8 @@ model PhReceipt {
   restaurant    Restaurant        @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch        Branch            @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
   supplier      PhSupplier?       @relation(fields: [restaurantId, supplierId], references: [restaurantId, id], onDelete: NoAction)
-  purchaseOrder PhPurchaseOrder?  @relation(fields: [restaurantId, purchaseOrderId, branchId], references: [restaurantId, id, branchId], onDelete: NoAction)
+  purchaseOrder PhPurchaseOrder?  @relation("PhReceiptOrderBranch", fields: [restaurantId, purchaseOrderId, branchId], references: [restaurantId, id, branchId], onDelete: NoAction)
+  purchaseOrderSupplier PhPurchaseOrder? @relation("PhReceiptOrderSupplier", fields: [restaurantId, purchaseOrderId, branchId, supplierId], references: [restaurantId, id, branchId, supplierId], onDelete: NoAction)
   lines         PhReceiptLine[]
   movements     PhStockMovement[]
 
@@ -3070,12 +3071,14 @@ model PhPurchaseOrder {
   branch       Branch                @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
   supplier     PhSupplier            @relation(fields: [restaurantId, supplierId], references: [restaurantId, id], onDelete: NoAction)
 
-  lines    PhPurchaseOrderLine[]
-  receipts PhReceipt[]
+  lines             PhPurchaseOrderLine[]
+  receipts          PhReceipt[]          @relation("PhReceiptOrderBranch")
+  receiptsOfSupplier PhReceipt[]         @relation("PhReceiptOrderSupplier")
 
   @@unique([restaurantId, clientKey])
   @@unique([restaurantId, id])
   @@unique([restaurantId, id, branchId])
+  @@unique([restaurantId, id, branchId, supplierId])
   @@unique([branchId, number])
   @@index([restaurantId, branchId, status, createdAt])
   @@index([restaurantId, supplierId])
