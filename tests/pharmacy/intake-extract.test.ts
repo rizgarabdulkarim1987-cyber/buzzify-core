@@ -8,12 +8,13 @@ import { extractionJsonSchema, headerArithmetic } from '@/server/domain/pharmacy
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as intakeActions from '@/server/pharmacy/actions/intake';
 import { MAX_ATTEMPTS } from '@/server/pharmacy/intake/ai';
-import { extractFile } from '@/server/pharmacy/intake/extract';
+import * as reviewQueries from '@/server/pharmacy/queries/intake-review';
+import { extractFile, MAX_OUTPUT_TOKENS } from '@/server/pharmacy/intake/extract';
 import { intakeKey, withIntakeStorage } from '@/server/pharmacy/intake/storage';
 import { asPh, grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { generateInvoices, modelAnswerFor, modelTextFor, renderInvoicePng, type SyntheticInvoice } from './fixtures/intake-invoices';
 import { memoryIntakeStorage, pdfWithPages } from './intake-helpers';
-import { act, dataOf, codeOf, phCodeOf } from './stock-helpers';
+import { act, ask, dataOf, codeOf, phCodeOf } from './stock-helpers';
 
 let keySeq = 0;
 const key = () => `extract-key-${(keySeq += 1)}-aaaa`;
@@ -448,7 +449,7 @@ describe('who may read an invoice', () => {
     const { w, fileId } = await ready(modelTextFor(INVOICES[14]!));
     const support = await person('support', { superAdmin: true });
     await grant(support, w.a.id);
-    expect(codeOf(await extract(w, support, fileId))).not.toBe('OK');
+    expect(codeOf(await extract(w, support, fileId))).toBe('FORBIDDEN');
     expect(provider.reached).toHaveLength(0);
   });
 
@@ -506,7 +507,7 @@ describe('audit', () => {
 });
 
 describe('fifty synthetic invoices', () => {
-  it('reads every one the way the ground truth says it can be read', async () => {
+  it('passes every valid answer through unchanged and flags what the code can compute (it cannot tell whether a real model guessed)', async () => {
     const w = await world({ budgetCents: 100_000 });
     const batchId = await newBatch(w);
     expect(INVOICES).toHaveLength(50);
@@ -552,4 +553,148 @@ describe('fifty synthetic invoices', () => {
     }
     expect(provider.reached).toHaveLength(6);
   }, 60_000);
+});
+
+const LINE_FIELDS = ['name', 'strength', 'form', 'pack', 'quantity', 'bonus', 'unitCost', 'lineTotal', 'lot', 'expiry', 'barcodeText', 'page'] as const;
+const fullLine = () => ({ name: 'Panadol', strength: '500 mg', form: 'tablet', pack: '10 tablets', quantity: 2, bonus: 1, unitCost: 500, lineTotal: 1000, lot: 'A1', expiry: '2027-03', barcodeText: '6291041500213', unclear: [] as string[], page: 1 });
+const nullHeader = { supplierName: null, invoiceNumber: null, invoiceDate: null, currency: null, total: null, discount: null, tax: null, unclear: [] as string[] };
+
+describe('what the pipeline can and cannot guarantee (review I-4)', () => {
+  // It guarantees: a null in the model's answer is a null in the row, a barcode reading goes only to extracted.gs1, nothing is computed
+  // into a stored field. It cannot guarantee that a real model left a cell null when it should: that is the prompt and UAT, not code.
+  it('keeps every nullable line field and the whole header null when the model left them null', async () => {
+    const lines = LINE_FIELDS.map((field) => ({ ...fullLine(), [field]: null }));
+    const { w, fileId } = await ready(JSON.stringify({ header: nullHeader, lines }));
+    expect(dataOf(await extract(w, w.pic, fileId))).toMatchObject({ status: 'EXTRACTED', rowCount: LINE_FIELDS.length });
+    const rows = await rowsOf(fileId);
+    rows.forEach((row, i) => {
+      const extracted = row.extracted as Record<string, unknown>;
+      expect(extracted, LINE_FIELDS[i]).toEqual(lines[i]);
+      expect(extracted[LINE_FIELDS[i]!], LINE_FIELDS[i]).toBeNull();
+    });
+    const header = (await prisma().phIntakeBatch.findFirstOrThrow()).header as { extracted: Record<string, unknown>; arithmetic: { status: string } };
+    expect(header.extracted).toEqual(nullHeader);
+    expect(header.arithmetic.status).toBe('UNKNOWN'); // a null total is not guessed from the lines
+  });
+
+  it('puts a barcode reading only in extracted.gs1 when the printed lot and expiry are null', async () => {
+    const line = { ...fullLine(), lot: null, expiry: null, barcodeText: '(01)06291041500213(10)LOT42(17)271231' };
+    const { w, fileId } = await ready(JSON.stringify({ header: nullHeader, lines: [line] }));
+    dataOf(await extract(w, w.pic, fileId));
+    const [row] = await rowsOf(fileId);
+    expect(row!.extracted).toMatchObject({ lot: null, expiry: null, gs1: { lot: 'LOT42', expiry: { date: '2027-12-31' }, source: 'barcode' } });
+    expect(row!.edited).toEqual({});
+    expect(row!.flags).toContain('MISSING');
+  });
+});
+
+describe('an answer cut off, and a write that fails (review I-2, I-5)', () => {
+  it('asks for a flat 32,000 output tokens, whatever the pages', async () => {
+    expect(MAX_OUTPUT_TOKENS).toBe(32_000);
+    const one = await ready(modelTextFor(INVOICES[16]!));
+    dataOf(await extract(one.w, one.w.pic, one.fileId));
+    await resetWorld();
+    const three = await ready(modelTextFor(INVOICES[17]!), { bytes: pdfWithPages(3, 'three'), mediaType: 'application/pdf', pages: 3 });
+    dataOf(await extract(three.w, three.w.pic, three.fileId));
+    expect(provider.calls.map((c) => c.maxTokens)).toEqual([32_000, 32_000]);
+  });
+
+  it('names an answer that stopped at the output limit EXTRACTION_TRUNCATED: no rows, paid for, the attempt not given back', async () => {
+    const { w, fileId, sha256 } = await ready(undefined);
+    provider.set(sha256, { text: '{"header":{"supplierName":"Al', stop: 'max_tokens' });
+    expect(dataOf(await extract(w, w.pic, fileId))).toMatchObject({ status: 'FAILED', failureCode: 'EXTRACTION_TRUNCATED', rowCount: 0 });
+    expect(await rowsOf(fileId)).toHaveLength(0);
+    expect(await fileOf(fileId)).toMatchObject({ status: 'FAILED', failureCode: 'EXTRACTION_TRUNCATED', attempts: 1, extractingSince: null });
+    expect((await usage(w))!.spentMicroUsd).toBeGreaterThan(0n);
+  });
+
+  it('still says TOO_MANY_LINES for a complete answer of more than 200 lines', async () => {
+    const big = byKind('large')[0]!;
+    const { w, fileId } = await ready(modelTextFor(big));
+    expect(dataOf(await extract(w, w.pic, fileId)).failureCode).toBe('TOO_MANY_LINES');
+  });
+
+  it('writes once more when the first write fails, and keeps the paid answer', async () => {
+    const inv = INVOICES[18]!;
+    const { w, fileId } = await ready(modelTextFor(inv));
+    const attempts: number[] = [];
+    const ph = (await asPh(w.pic.userId, w.a.id, w.b1))!;
+    const out = await extractFile(prisma(), { ph, scoped: phScopedClient(prisma(), ph), branchId: w.b1, fileId, audit: () => undefined }, {
+      beforeWrite: (attempt) => {
+        attempts.push(attempt);
+        if (attempt === 1) throw new Error('connection dropped');
+      },
+    });
+    expect(out).toMatchObject({ status: 'EXTRACTED', rowCount: inv.lines.length });
+    expect(attempts).toEqual([1, 2]);
+    expect(provider.reached).toHaveLength(1);
+  });
+
+  it('fails the file EXTRACTION_SAVE_FAILED when the write fails twice: never left EXTRACTING, no rows, no error, the call stays booked', async () => {
+    const { w, fileId } = await ready(modelTextFor(INVOICES[19]!));
+    const ph = (await asPh(w.pic.userId, w.a.id, w.b1))!;
+    const audits: string[] = [];
+    const out = await extractFile(prisma(), { ph, scoped: phScopedClient(prisma(), ph), branchId: w.b1, fileId, audit: (e) => void audits.push(e.action) }, {
+      beforeWrite: () => {
+        throw new Error('deadlock detected');
+      },
+    });
+    expect(out).toMatchObject({ status: 'FAILED', failureCode: 'EXTRACTION_SAVE_FAILED', rowCount: 0 });
+    expect(await fileOf(fileId)).toMatchObject({ status: 'FAILED', failureCode: 'EXTRACTION_SAVE_FAILED', extractingSince: null, attempts: 1 });
+    expect(await rowsOf(fileId)).toHaveLength(0);
+    expect((await usage(w))!.spentMicroUsd).toBeGreaterThan(0n);
+    expect(await prisma().phAiReservation.count()).toBe(0);
+    expect(audits).toEqual(['ph.intake.extract.call', 'ph.intake.extract']);
+  });
+});
+
+describe('two files of one batch (review I-6)', () => {
+  const answerWith = (over: Record<string, unknown>) => JSON.stringify({ header: { ...nullHeader, supplierName: 'Al-Noor', invoiceNumber: 'N-1', total: 1000, currency: 'IQD', ...over }, lines: [fullLine()] });
+
+  it.each([
+    ['first then second', false],
+    ['second then first', true],
+  ])('keeps the first value and lists a disagreeing key as a conflict, read as unset (%s)', async (_label, reversed) => {
+    const w = await world();
+    const batchId = await newBatch(w);
+    const one = await seedFile(w, batchId, Buffer.from('page-one'));
+    const two = await seedFile(w, batchId, Buffer.from('page-two'));
+    provider.set(one.sha256, answerWith({ total: 1000 }));
+    provider.set(two.sha256, answerWith({ total: 2500, invoiceDate: '2026-10-01' }));
+    for (const f of reversed ? [two, one] : [one, two]) dataOf(await extract(w, w.pic, f.fileId));
+
+    const stored = (await prisma().phIntakeBatch.findFirstOrThrow()).header as { extracted: Record<string, unknown>; conflicts: string[] };
+    expect(stored.conflicts).toEqual(['total']);
+    expect(stored.extracted.total).toBe(reversed ? 2500 : 1000); // the first to finish is kept, not overwritten
+    expect(stored.extracted.invoiceNumber).toBe('N-1');
+    expect(stored.extracted.invoiceDate).toBe('2026-10-01'); // a value only one file read is not a conflict
+
+    const got = dataOf(await ask(w.pic, reviewQueries.batchGet, { ...place(w), batchId })) as unknown as { header: { conflicts: string[]; values: { total: unknown; invoiceNumber: unknown } } };
+    expect(got.header.conflicts).toEqual(['total']);
+    expect(got.header.values.total).toBeNull();
+    expect(got.header.values.invoiceNumber).toBe('N-1');
+  });
+});
+
+describe('retrying keeps what a person added (review minor)', () => {
+  it('keeps a manual line and numbers the new lines after it', async () => {
+    const inv = INVOICES[20]!;
+    const { w, fileId } = await ready(modelTextFor(inv));
+    await prisma().phIntakeFile.update({ where: { id: fileId }, data: { status: 'FAILED', failureCode: 'AI_TIMEOUT' } });
+    const manual = await prisma().phIntakeRow.create({ data: { restaurantId: w.a.id, fileId, lineNo: 1, page: 1, extracted: {}, edited: { source: 'manual' } } });
+    dataOf(await extract(w, w.pic, fileId));
+    const rows = await rowsOf(fileId);
+    expect(rows).toHaveLength(inv.lines.length + 1);
+    expect(rows[0]!.id).toBe(manual.id);
+    expect(rows.map((r) => r.lineNo)).toEqual(Array.from({ length: inv.lines.length + 1 }, (_, i) => i + 1));
+  });
+
+  it('writes an audit row when the attempts are used up', async () => {
+    const { w, fileId } = await ready(modelTextFor(INVOICES[21]!));
+    await prisma().phIntakeFile.update({ where: { id: fileId }, data: { status: 'FAILED', failureCode: 'AI_TIMEOUT', attempts: MAX_ATTEMPTS } });
+    expect(dataOf(await extract(w, w.pic, fileId)).failureCode).toBe('EXTRACTION_ATTEMPTS_EXHAUSTED');
+    const rows = await prisma().auditLog.findMany({ where: { action: 'ph.intake.extract', entityId: fileId } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]!.changes).toMatchObject({ failureCode: { after: 'EXTRACTION_ATTEMPTS_EXHAUSTED' } });
+  });
 });

@@ -86,6 +86,8 @@ export interface StoredHeader {
   arithmetic?: unknown;
   /** The reason a person gave for a header total that does not add up, with the exact difference they accepted. */
   acknowledged?: { reason: string; difference: string } | null;
+  /** Header keys two files of the batch read differently (names only): each reads as unset until a person edits it. */
+  conflicts?: string[];
 }
 
 export type MatchState = 'MATCHED' | 'UNMATCHED' | 'AMBIGUOUS' | 'CHOSEN';
@@ -191,6 +193,7 @@ export function effectiveLine(extracted: unknown, edited: unknown): Line {
 export function effectiveHeader(header: unknown): HeaderValues {
   const stored = asObject(header) as StoredHeader;
   const base = { ...EMPTY_HEADER, ...asObject(stored.extracted) } as HeaderValues;
+  for (const key of Array.isArray(stored.conflicts) ? stored.conflicts : []) if (key in base) (base as unknown as Record<string, unknown>)[key] = null;
   return effectiveRow(base, asObject(stored.edited) as Partial<HeaderValues>);
 }
 

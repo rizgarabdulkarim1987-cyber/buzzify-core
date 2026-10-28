@@ -352,9 +352,10 @@ export interface SweepResult {
  * had the provider bill it). A reservation is swept only when it is older than `olderThanMs` (never less than the extraction
  * timeout plus a margin, so a live call is never touched) AND its file is gone, no longer EXTRACTING, or holds a stale lease.
  * Task 5 calls this before each extraction and at upload; a scheduled run is a launch step. Handles up to 1000 reservations
- * per business per run; the rest wait for the next. One bad row is recorded in `errors` and the sweep goes on.
+ * per business per run; the rest wait for the next. `onlyRestaurantId` limits a sweep to one business (the request path of a user);
+ * the all-business sweep belongs to the scheduled run. One bad row is recorded in `errors` and the sweep goes on.
  */
-export async function sweepAiReservations(db: Everyone, now: Date, olderThanMs: number = LEASE_MS): Promise<SweepResult> {
+export async function sweepAiReservations(db: Everyone, now: Date, olderThanMs: number = LEASE_MS, onlyRestaurantId?: string): Promise<SweepResult> {
   const cutoff = new Date(now.getTime() - Math.max(olderThanMs, MIN_STALE_MS));
   const result: SweepResult = { swept: 0, microUsd: 0n, errors: [] };
   const note = (id: string, error: unknown) => {
@@ -364,7 +365,7 @@ export async function sweepAiReservations(db: Everyone, now: Date, olderThanMs: 
   };
   let businesses: { id: string }[] = [];
   try {
-    businesses = await db.restaurant.findMany({ where: { phAiReservations: { some: { createdAt: { lt: cutoff } } } }, select: { id: true }, orderBy: { id: 'asc' } });
+    businesses = await db.restaurant.findMany({ where: { ...(onlyRestaurantId ? { id: onlyRestaurantId } : {}), phAiReservations: { some: { createdAt: { lt: cutoff } } } }, select: { id: true }, orderBy: { id: 'asc' } });
   } catch (error) {
     note('businesses', error);
     return result;

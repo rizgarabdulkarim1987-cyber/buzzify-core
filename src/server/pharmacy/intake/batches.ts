@@ -198,6 +198,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
       extracted: withCost ? asObject(stored.extracted) : omitHeaderMoney(asObject(stored.extracted)),
       edited: withCost ? asObject(stored.edited) : omitHeaderMoney(asObject(stored.edited)),
       status: header.status,
+      conflicts: Array.isArray(stored.conflicts) ? stored.conflicts : [],
       acknowledged: header.acknowledged ? { reason: header.acknowledged.reason, ...(withCost ? { difference: header.acknowledged.difference } : {}) } : null,
       ...(withCost
         ? {
