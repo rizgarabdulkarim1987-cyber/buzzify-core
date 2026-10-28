@@ -62,8 +62,13 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
   const own = person.userId === me;
   const canAssign = !person.deactivated && !person.isSuperAdmin;
   if (own && !canAssign) return null;
+  const canDelete = person.deactivated && !person.isSuperAdmin && !own;
   return (
-    <DropdownMenu modal={false}>
+    <div className="flex items-center justify-end gap-1">
+      {canDelete && (
+        <IconButton label={t('people.delete')} icon={<Trash2 aria-hidden />} size="sm" className="hover:text-danger" onClick={() => onAction('delete')} />
+      )}
+      <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <IconButton label={t('people.actions', { name: person.name })} icon={<MoreHorizontal aria-hidden />} size="sm" />
       </DropdownMenuTrigger>
@@ -99,6 +104,7 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </div>
   );
 }
 
