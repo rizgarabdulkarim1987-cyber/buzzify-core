@@ -8,8 +8,10 @@ A playful extra that brings guests back and lifts a dish: the guest spins a whee
 and enlarges its photo. It is an optional extra for every menu style, not a style of its own.
 
 ## Goals
-- Available in every template style and the classic menu, opened from the menu without changing the style's layout (same floating-entry
-  rule as the language and feedback controls; also offered as a card on the intro page when both are on).
+- The wheel lives INSIDE the Explore (`about`) tab (owner's decision, 2026-10-29): a section of that page, not a floating element, a header
+  button or a popup of its own, so it takes no space anywhere else in the menu and no style's layout changes. It therefore needs the About
+  tab on: the wheel shows only when `extras.about` and `extras.wheel` are both on, and a menu with the wheel ready is never "empty" for
+  the tab's rule. Winning dish opens the normal product sheet from the page.
 - The owner and managers switch it on and set it up from Business Core (this repository, as decided on 2026-10-27); the menu reads the
   switch live, like `feedbackEnabled`.
 - Slices are dishes chosen by the restaurant (a number from 4 to 12), shown by their real photo; a dish without a photo cannot be a slice.
@@ -39,4 +41,4 @@ and enlarges its photo. It is an optional extra for every menu style, not a styl
 
 ## Left to the builder
 The wheel's drawing (canvas or SVG), the stop animation, how it reads in right-to-left, the calm alternative, and the order of work
-with the intro and the About tab (all three share the floating-entry placement, so that part is built once).
+with the About tab (the wheel is built after it, inside it). The intro page may link to the Explore tab; it does not carry the wheel.
