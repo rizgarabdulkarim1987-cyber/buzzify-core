@@ -16,6 +16,15 @@ export function introLiveFor<T extends AdvertWindow>(adverts: readonly T[], now:
     .sort((a, b) => a.sortOrder - b.sortOrder);
 }
 
+/**
+ * Whether a platform advert shows in a menu: with no restaurant and no menu listed it shows in every menu; otherwise when the menu's
+ * restaurant is listed or the menu itself is.
+ */
+export function advertShowsIn(advert: { restaurantIds: readonly string[]; menuIds: readonly string[] }, menu: { menuId: string; restaurantId: string }): boolean {
+  if (advert.restaurantIds.length === 0 && advert.menuIds.length === 0) return true;
+  return advert.restaurantIds.includes(menu.restaurantId) || advert.menuIds.includes(menu.menuId);
+}
+
 /** An advert may link to an https address or to a path on the menu. Anything else (script, data, http, protocol-relative) is dropped. */
 export function safeHref(value: string): string {
   const href = value.trim();

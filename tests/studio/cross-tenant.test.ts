@@ -931,7 +931,7 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   // The platform's intro background and adverts (`platform.settings`).
   'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
   'platform.saveIntroDefault': [c('a default background', (w) => ({ backgroundAssetId: w.b.assetId }), ONLY_FORBIDDEN)],
-  'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId] }), ONLY_FORBIDDEN)],
+  'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId], menuIds: [w.b.menuId] }), ONLY_FORBIDDEN)],
   'platform.reorderPlatformAdverts': [c('the adverts', () => ({ ids: [] }), ONLY_FORBIDDEN)],
   'platform.deletePlatformAdvert': [c('an advert', () => ({ advertId: 'nope' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],

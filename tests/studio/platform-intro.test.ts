@@ -26,7 +26,7 @@ async function menuOf(restaurantId: string, slug: string) {
 const image = (restaurantId: string | null, label: string) =>
   prisma().mediaAsset.create({ data: { restaurantId, kind: 'IMAGE', storageKey: `k/${label}`, contentHash: `h-${label}`, mime: 'image/png', bytes: 10, storedBytes: 10, variants: { original: `k/${label}` } } }).then((row) => row.id);
 
-const advert = (over: Record<string, unknown> = {}) => ({ imageAssetId: shared, alts: { en: 'Sale' }, href: 'https://example.com', startsAt: null, endsAt: null, active: true, restaurantIds: [], ...over });
+const advert = (over: Record<string, unknown> = {}) => ({ imageAssetId: shared, alts: { en: 'Sale' }, href: 'https://example.com', startsAt: null, endsAt: null, active: true, restaurantIds: [], menuIds: [], ...over });
 
 beforeAll(() => {
   useTestDatabase();
@@ -49,6 +49,35 @@ afterAll(async () => {
   await resetWorld();
   await prisma().$disconnect();
   delete globalForPrisma.__prisma;
+});
+
+describe('choosing menus for an advert', () => {
+  it('shows an advert for one menu in that menu only, and for a listed restaurant in all its menus', async () => {
+    const second = await menuOf(a.id, 'plat-a2');
+    dataOf(await run(admin, savePlatformAdvert, advert({ menuIds: [menuA] })));
+    expect(dataOf(await ask(ownerA, menuIntro, { menuId: menuA })).platformAdverts).toHaveLength(1);
+    expect(dataOf(await ask(ownerA, menuIntro, { menuId: second })).platformAdverts).toHaveLength(0);
+    expect(dataOf(await ask(ownerB, menuIntro, { menuId: menuB })).platformAdverts).toHaveLength(0);
+    dataOf(await run(admin, savePlatformAdvert, advert({ restaurantIds: [a.id] })));
+    expect(dataOf(await ask(ownerA, menuIntro, { menuId: second })).platformAdverts).toHaveLength(1);
+  });
+
+  it('shows an advert that lists a restaurant or a menu in either, and in no other', async () => {
+    dataOf(await run(admin, savePlatformAdvert, advert({ restaurantIds: [b.id], menuIds: [menuA] })));
+    expect(dataOf(await ask(ownerA, menuIntro, { menuId: menuA })).platformAdverts).toHaveLength(1);
+    expect(dataOf(await ask(ownerB, menuIntro, { menuId: menuB })).platformAdverts).toHaveLength(1);
+  });
+
+  it('refuses a menu that does not exist', async () => {
+    expect(codeOf(await run(admin, savePlatformAdvert, advert({ menuIds: ['ghost'] })))).toBe('INVALID');
+  });
+
+  it('reads back the menus and restaurants an advert is limited to', async () => {
+    dataOf(await run(admin, savePlatformAdvert, advert({ menuIds: [menuB], restaurantIds: [a.id] })));
+    const read = dataOf(await ask(admin, platformIntro, {}));
+    expect(read.adverts[0]).toMatchObject({ menuIds: [menuB], restaurantIds: [a.id] });
+    expect(read.menus.map((m) => m.id).sort()).toEqual([menuA, menuB].sort());
+  });
 });
 
 describe('the platform intro', () => {

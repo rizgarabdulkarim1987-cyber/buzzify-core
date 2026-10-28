@@ -70,6 +70,7 @@ export const GLOBAL_MODELS = [
   // The platform's own intro background and adverts, shown on every (or the listed) restaurants' intro pages.
   'PlatformAdvert',
   'PlatformIntro',
+  'PlatformAdvertDaily',
   // Written by the Buzzify team for everyone; no restaurant owns one.
   'Announcement',
   // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).

@@ -56,6 +56,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'The end must come after the start': 'error.text.introWindow',
   'Reload the list and try again': 'error.text.introReload',
   'Choose restaurants that exist': 'error.text.introRestaurants',
+  'Choose menus that exist': 'error.text.introMenus',
   'Use a whole number from 0 to 100': 'error.text.introOverlay',
   'That code is not correct': 'error.text.codeWrong',
   'Enter the 6-digit code': 'error.text.codeFormat',

@@ -613,6 +613,7 @@ const en: Messages = {
   'error.text.introWindow': 'The end must come after the start',
   'error.text.introReload': 'Reload the list and try again',
   'error.text.introRestaurants': 'Choose restaurants that exist',
+  'error.text.introMenus': 'Choose menus that exist',
   'error.text.introOverlay': 'Use a whole number from 0 to 100',
   'error.text.codeWrong': 'That code is not correct',
   'error.text.codeFormat': 'Enter the 6-digit code',

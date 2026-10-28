@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { advertShowsIn } from '@/server/domain/intro';
 import { defineQuery } from '@/server/studio/framework/query';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -15,14 +16,14 @@ export const menuIntro = defineQuery({
     if (!menu) throw new StudioError('NOT_FOUND');
     const [intro, platform] = await Promise.all([
       ctx.db.menuIntro.findUnique({ where: { menuId } }),
-      ctx.db.platformAdvert.findMany({ where: { OR: [{ restaurantIds: { isEmpty: true } }, { restaurantIds: { has: restaurantId } }] }, orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
+      ctx.db.platformAdvert.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
     ]);
     return {
       enabled: menu.introEnabled,
       locales: menu.locales,
       defaultLocale: menu.defaultLocale,
       intro: intro ?? { backgroundAssetId: null, overlay: 50, showLogo: true, showContact: true },
-      platformAdverts: platform.map(({ restaurantIds: _ids, ...advert }) => advert),
+      platformAdverts: platform.filter((advert) => advertShowsIn(advert, { menuId, restaurantId })).map(({ restaurantIds: _r, menuIds: _m, ...advert }) => advert),
     };
   },
 });

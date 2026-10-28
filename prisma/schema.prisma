@@ -2482,9 +2482,27 @@ model PlatformAdvert {
   endsAt        DateTime?
   sortOrder     Int       @default(0)
   active        Boolean   @default(true)
-  /// Empty means every restaurant.
+  /// Both lists empty means every menu; otherwise the advert shows in a menu whose restaurant is listed or that is listed itself.
   restaurantIds String[]
+  menuIds       String[]
   createdAt     DateTime  @default(now())
+}
+
+/// How often a platform advert was seen and clicked in a menu on a day: counts only, no person, address or cookie.
+/// Global (no tenant scope): the Super Admin reads it across restaurants. Rows go when the advert goes.
+model PlatformAdvertDaily {
+  id           String   @id @default(cuid())
+  advertId     String
+  menuId       String
+  restaurantId String
+  /// YYYY-MM-DD in UTC.
+  day          String
+  views        Int      @default(0)
+  clicks       Int      @default(0)
+
+  @@unique([advertId, menuId, day])
+  @@index([day])
+  @@index([restaurantId, day])
 }
 
 /// The background intro pages use when a restaurant sets none. A single row, id 'singleton'.

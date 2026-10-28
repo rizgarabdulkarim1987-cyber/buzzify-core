@@ -18,25 +18,6 @@ CREATE UNIQUE INDEX "MenuIntro_menuId_key" ON "MenuIntro"("menuId");
 
 ALTER TABLE "MenuIntro" ADD CONSTRAINT "MenuIntro_menuId_fkey" FOREIGN KEY ("menuId") REFERENCES "Menu"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
-CREATE TABLE "IntroAdvert" (
-    "id" TEXT NOT NULL,
-    "menuId" TEXT NOT NULL,
-    "imageAssetId" TEXT NOT NULL,
-    "alts" JSONB NOT NULL DEFAULT '{}',
-    "href" TEXT NOT NULL DEFAULT '',
-    "startsAt" TIMESTAMP(3),
-    "endsAt" TIMESTAMP(3),
-    "sortOrder" INTEGER NOT NULL DEFAULT 0,
-    "active" BOOLEAN NOT NULL DEFAULT true,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "IntroAdvert_pkey" PRIMARY KEY ("id")
-);
-
-CREATE INDEX "IntroAdvert_menuId_sortOrder_idx" ON "IntroAdvert"("menuId", "sortOrder");
-
-ALTER TABLE "IntroAdvert" ADD CONSTRAINT "IntroAdvert_menuId_fkey" FOREIGN KEY ("menuId") REFERENCES "Menu"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
 CREATE TABLE "PlatformAdvert" (
     "id" TEXT NOT NULL,
     "imageAssetId" TEXT NOT NULL,
@@ -47,6 +28,7 @@ CREATE TABLE "PlatformAdvert" (
     "sortOrder" INTEGER NOT NULL DEFAULT 0,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "restaurantIds" TEXT[],
+    "menuIds" TEXT[],
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "PlatformAdvert_pkey" PRIMARY KEY ("id")

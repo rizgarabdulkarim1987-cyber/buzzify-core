@@ -624,6 +624,7 @@ const ar: Messages = {
   'error.text.introWindow': 'يجب أن تأتي النهاية بعد البداية',
   'error.text.introReload': 'أعد تحميل القائمة وحاول مرة أخرى',
   'error.text.introRestaurants': 'اختر مطاعم موجودة',
+  'error.text.introMenus': 'اختر قوائم موجودة',
   'error.text.introOverlay': 'استخدم رقمًا صحيحًا من 0 إلى 100',
   'error.text.codeWrong': 'هذا الرمز غير صحيح',
   'error.text.codeFormat': 'أدخل الرمز المكوّن من 6 أرقام',

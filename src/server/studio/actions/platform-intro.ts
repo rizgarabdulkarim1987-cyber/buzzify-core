@@ -4,7 +4,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { advertHref, requireIntroAsset, requireWindow } from '@/server/studio/services/intro';
 
 /**
- * What the Buzzify team shows on menus' intro pages: a default background, and adverts for every restaurant or the listed ones.
+ * What the Buzzify team shows on menus' intro pages: a default background, and adverts for every menu or the listed restaurants and menus.
  * Only Super Admins hold `platform.settings`. The pages read all of it per request, so nothing needs expiring.
  */
 
@@ -43,6 +43,7 @@ export const savePlatformAdvert = defineAction({
     endsAt: when,
     active: z.boolean(),
     restaurantIds: z.array(id).max(500),
+    menuIds: z.array(id).max(500),
   }),
   target: () => PLATFORM,
   run: (ctx, input) =>
@@ -54,7 +55,11 @@ export const savePlatformAdvert = defineAction({
       if (restaurantIds.length > 0 && (await tx.restaurant.count({ where: { id: { in: restaurantIds } } })) !== restaurantIds.length) {
         throw new StudioError('INVALID', undefined, { restaurantIds: 'Choose restaurants that exist' });
       }
-      const data = { imageAssetId: input.imageAssetId, alts: input.alts, href, startsAt: input.startsAt, endsAt: input.endsAt, active: input.active, restaurantIds };
+      const menuIds = [...new Set(input.menuIds)];
+      if (menuIds.length > 0 && (await tx.menu.count({ where: { id: { in: menuIds } } })) !== menuIds.length) {
+        throw new StudioError('INVALID', undefined, { menuIds: 'Choose menus that exist' });
+      }
+      const data = { imageAssetId: input.imageAssetId, alts: input.alts, href, startsAt: input.startsAt, endsAt: input.endsAt, active: input.active, restaurantIds, menuIds };
       let advertId = input.advertId;
       if (advertId) {
         if (!(await tx.platformAdvert.findUnique({ where: { id: advertId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');

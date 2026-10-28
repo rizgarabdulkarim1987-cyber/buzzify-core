@@ -8,10 +8,13 @@ export const platformIntro = defineQuery({
   input: z.object({}),
   target: () => ({ kind: 'platform' }) as const,
   run: async (ctx) => {
-    const [defaults, adverts] = await Promise.all([
+    const [defaults, adverts, restaurants, menus] = await Promise.all([
       ctx.db.platformIntro.findUnique({ where: { id: 'singleton' } }),
       ctx.db.platformAdvert.findMany({ orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }),
+      ctx.db.restaurant.findMany({ orderBy: { name: 'asc' }, select: { id: true, name: true } }),
+      ctx.db.menu.findMany({ orderBy: [{ restaurantId: 'asc' }, { name: 'asc' }], select: { id: true, name: true, restaurantId: true, slug: true } }),
     ]);
-    return { backgroundAssetId: defaults?.backgroundAssetId ?? null, adverts };
+    // The picker: every restaurant, and every menu with the restaurant it belongs to.
+    return { backgroundAssetId: defaults?.backgroundAssetId ?? null, adverts, restaurants, menus };
   },
 });
