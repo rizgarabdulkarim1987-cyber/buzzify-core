@@ -9,6 +9,7 @@ import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
+import { isolate } from './WriteBlocked';
 import { FIELD, FieldSelect, Note, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
 import { keyFor, outcomeUnknown, type KeyedAttempt } from './sell-logic';
 
@@ -91,7 +92,7 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
       onOpenChange={(next) => !next && onClose()}
       width="md"
       title={t(kind === 'return' ? 'pharmacy.returns.slip.title' : 'pharmacy.sales.receipt.title')}
-      description={target?.number ? <span data-testid="print-number">{t('pharmacy.sell.receipt.number', { number: target.number })}</span> : undefined}
+      description={target?.number ? <span data-testid="print-number">{t('pharmacy.sell.receipt.number', { number: isolate(target.number) })}</span> : undefined}
       footer={
         <>
           <button type="button" className={TOUCH_BTN} data-testid="receipt-reprint" onClick={() => void reprint()} disabled={busy || !receipt}>
@@ -113,8 +114,8 @@ export function PrintDialog({ target, onClose }: { target: PrintTarget | null; o
         <div className="flex flex-wrap items-end gap-3">
           <Field label={t('pharmacy.sell.receipt.width')}>
             <FieldSelect className={`${FIELD} pe-8`} value={width} onChange={(event) => setWidth(event.target.value as '80' | '58')} data-testid="receipt-width">
-              <option value="80">80 mm</option>
-              <option value="58">58 mm</option>
+              <option value="80">{'⁦80 mm⁩'}</option>
+              <option value="58">{'⁦58 mm⁩'}</option>
             </FieldSelect>
           </Field>
           {receipt && receipt.copyNumber > 0 && (

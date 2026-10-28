@@ -25,6 +25,7 @@ import { settle } from "@/studio/settle";
 import { Dialog } from "@/studio/ui/Dialog";
 import { Field } from "@/studio/ui/Field";
 import { Money } from "./money-parts";
+import { isolate } from "./WriteBlocked";
 import { phMessage } from "./ph-failure";
 import { OpenShiftPanel } from "./OpenShiftPanel";
 import { ShiftFigures } from "./ShiftFigures";
@@ -484,7 +485,7 @@ export function CloseDialog({
             </strong>
           </span>
           <span data-testid="close-as-of">
-            {t("pharmacy.shifts.close.asOf", { time: formatUtc(asOf) })}
+            {t("pharmacy.shifts.close.asOf", { time: isolate(formatUtc(asOf)) })}
           </span>
         </span>
       }
