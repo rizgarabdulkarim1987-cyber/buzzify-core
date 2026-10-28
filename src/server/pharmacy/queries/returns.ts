@@ -1,6 +1,6 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { getReturn, listReturns, returnableInput, returnableOf, returnGetInput, returnListInput } from '@/server/pharmacy/returns-reads';
+import { getReturn, listReturns, previewReturn, returnableInput, returnableOf, returnGetInput, returnListInput, returnPreviewInput } from '@/server/pharmacy/returns-reads';
 import { defineQuery } from '@/server/studio/framework/query';
 
 /**
@@ -41,5 +41,18 @@ export const returnable = defineQuery({
   run(ctx, input) {
     const { ph, scoped } = pharmacyOf(ctx);
     return returnableOf(scoped, ph, input);
+  },
+});
+
+/** What a return of the chosen quantities would refund now (read-only; the return judges again). */
+export const preview = defineQuery({
+  name: 'ph.returns.preview',
+  permission: null,
+  ph: 'catalog.view',
+  input: returnPreviewInput.extend(phPlaceInput.shape),
+  target: phTargetOf,
+  run(ctx, input) {
+    const { ph, scoped } = pharmacyOf(ctx);
+    return previewReturn(scoped, ph, input);
   },
 });

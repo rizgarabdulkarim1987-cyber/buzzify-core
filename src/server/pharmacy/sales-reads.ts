@@ -49,6 +49,8 @@ export interface SaleSummary {
   paidMinor: string;
   changeMinor: string;
   lineCount: number;
+  /** The payment methods used, once each. */
+  methods: ('CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL')[];
   soldById: string;
   createdAt: string;
 }
@@ -80,6 +82,7 @@ export async function listSales(
       soldById: true,
       createdAt: true,
       _count: { select: { lines: true } },
+      payments: { select: { method: true } },
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.pageSize + 1,
@@ -98,6 +101,7 @@ export async function listSales(
       paidMinor: String(r.paidMinor),
       changeMinor: String(r.changeMinor),
       lineCount: r._count.lines,
+      methods: [...new Set(r.payments.map((p) => p.method))],
       soldById: r.soldById,
       createdAt: r.createdAt.toISOString(),
     })),
@@ -181,6 +185,7 @@ export async function getSale(scoped: ScopedClient, ph: PhActor, input: { saleId
     paidMinor: String(sale.paidMinor),
     changeMinor: String(sale.changeMinor),
     lineCount: sale.lines.length,
+    methods: [...new Set(sale.payments.map((p) => p.method))],
     soldById: sale.soldById,
     pharmacistId: sale.pharmacistId,
     note: sale.note,

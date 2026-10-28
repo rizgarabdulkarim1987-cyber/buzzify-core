@@ -798,3 +798,49 @@ describe('reading returns', () => {
     expect(got.lines[0]!.allocations[0]).toMatchObject({ returnedBaseQty: 1 });
   });
 });
+
+describe('the refund preview (read-only) and the payment methods of a sale', () => {
+  it('previews exactly what the return then refunds, every step of an uneven discounted sale, and writes nothing', async () => {
+    const w = await world();
+    await stock(w);
+    const s = await sell(w, { lines: [{ productId: w.p.id, unitId: w.p.strip, qty: 1 }], invoiceDiscount: { kind: 'amount', value: 1n }, payments: [cash(899n)] });
+    const before = await counts();
+    for (let i = 0; i < 10; i += 1) {
+      const shown = dataOf(await ask(w.manager, returnQueries.preview, { ...at(w), saleId: s.id, lines: [byLine(s.line.id, 1)] }));
+      const made = dataOf(await act(w.manager, returnActions.create, ret(w, s.id, [byLine(s.line.id, 1)])));
+      expect(shown.refundMinor).toBe(made.refundMinor);
+      expect(shown.currency).toBe('IQD');
+      expect(shown.isFinal).toBe(i === 9);
+    }
+    expect(before.returns).toBe(0);
+    // Several lines' worth in one go equals what a real return of the same quantities gives.
+    const t = await sell(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 3 }], payments: [cash(300n)] });
+    const shown = dataOf(await ask(w.manager, returnQueries.preview, { ...at(w), saleId: t.id, lines: [byLine(t.line.id, 2)] }));
+    expect(shown.refundMinor).toBe('200');
+    expect(dataOf(await act(w.manager, returnActions.create, ret(w, t.id, [byLine(t.line.id, 2)]))).refundMinor).toBe('200');
+  });
+
+  it('refuses a cashier, more than remains, a line of another sale and a sale of another branch; writes nothing', async () => {
+    const w = await world();
+    await stock(w);
+    const s = await sell(w);
+    const other = await sell(w);
+    const zero = await counts();
+    expect(codeOf(await ask(w.cashier, returnQueries.preview, { ...at(w), saleId: s.id, lines: [byLine(s.line.id, 1)] }))).toBe('FORBIDDEN');
+    const over = await ask(w.manager, returnQueries.preview, { ...at(w), saleId: s.id, lines: [byLine(s.line.id, 4)] });
+    expect(phCodeOf(over)).toBe('RETURN_LIMIT');
+    expect(codeOf(await ask(w.manager, returnQueries.preview, { ...at(w), saleId: s.id, lines: [byLine(other.line.id, 1)] }))).toBe('INVALID');
+    expect(codeOf(await ask(w.owner, returnQueries.preview, { ...at(w, w.b2), saleId: s.id, lines: [byLine(s.line.id, 1)] }))).toBe('NOT_FOUND');
+    expect(await counts()).toEqual(zero);
+  });
+
+  it('the sales list and detail name the methods the sale was paid with', async () => {
+    const w = await world();
+    await stock(w);
+    const s = await sell(w, { payments: [{ method: 'CASH', amountMinor: 100n, clientKey: key('pay') }, { method: 'CARD_MANUAL', amountMinor: 200n, clientKey: key('pay') }] });
+    const list = dataOf(await ask(w.manager, saleQueries.list, { ...at(w) }));
+    expect([...list.items.find((x: { id: string }) => x.id === s.id)!.methods].sort()).toEqual(['CARD_MANUAL', 'CASH']);
+    const one = dataOf(await ask(w.manager, saleQueries.get, { ...at(w), saleId: s.id }));
+    expect([...one.methods].sort()).toEqual(['CARD_MANUAL', 'CASH']);
+  });
+});

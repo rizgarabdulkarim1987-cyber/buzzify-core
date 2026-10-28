@@ -259,6 +259,7 @@ const CASES: Record<string, Case> = {
   'ph.returns.get': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.returnable': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.returns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.returns.preview': { body: (ids, n) => ({ saleId: pick(ids, n).saleId, lines: [{ saleLineId: 'nope', baseQty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'refused' },
   // Printing (phase 3, task 6): a sale or return of another branch or business is NOT_FOUND; a reprint logs nothing then.
   'ph.receipts.get': { body: (ids, n) => ({ saleId: pick(ids, n).saleId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.receipts.returnReceipt': { body: (ids, n) => ({ returnId: pick(ids, n).returnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
@@ -303,7 +304,7 @@ describe('the pharmacy isolation sweep', () => {
 
   it('covers every phase 3 return definition', () => {
     const returns = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.returns.'));
-    expect(returns.sort()).toEqual(['ph.returns.create', 'ph.returns.get', 'ph.returns.list', 'ph.returns.returnable']);
+    expect(returns.sort()).toEqual(['ph.returns.create', 'ph.returns.get', 'ph.returns.list', 'ph.returns.preview', 'ph.returns.returnable']);
     expect(returns.filter((name) => CASES[name] === undefined)).toEqual([]);
   });
 
