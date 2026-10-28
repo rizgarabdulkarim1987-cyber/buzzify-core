@@ -114,6 +114,7 @@ model Restaurant {
   posSettings           PosSettings?
   posStaffs             PosStaff[]
   posKitchenSections    PosKitchenSection[]
+  posPrinters           PosPrinter[]
   posCategorySettings   PosCategorySetting[]
   posProductSettings    PosProductSetting[]
   posAreas              PosArea[]
@@ -1305,6 +1306,7 @@ model PosKitchenSection {
   staff        PosStaff[]
   categories   PosCategorySetting[]
   products     PosProductSetting[]
+  printers     PosPrinter[]
 
   @@index([restaurantId])
 }
@@ -1332,6 +1334,42 @@ model PosProductSetting {
   product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId])
+}
+
+enum PosPrinterRole {
+  RECEIPT
+  KITCHEN
+}
+
+enum PosPrinterTransport {
+  NETWORK
+  FILE
+}
+
+/// A thermal printer of the restaurant. The bridge program on each till PC reaches it by address.
+model PosPrinter {
+  id           String              @id @default(cuid())
+  restaurantId String
+  name         String
+  role         PosPrinterRole
+  transport    PosPrinterTransport
+  /// host:port for NETWORK, a Windows share path for FILE.
+  address      String
+  /// 58 or 80 (millimetres).
+  paperWidth   Int                 @default(80)
+  cut          Boolean             @default(true)
+  /// The drawer port pin (2 or 5) when a cash drawer hangs off this printer.
+  drawerPin    Int?
+  /// The printer that takes receipts; at most one per restaurant.
+  isDefault    Boolean             @default(false)
+  /// A KITCHEN printer for one section; null takes every section without a printer of its own.
+  sectionId    String?
+  sortOrder    Int                 @default(0)
+  createdAt    DateTime            @default(now())
+  restaurant   Restaurant          @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  section      PosKitchenSection?  @relation(fields: [sectionId], references: [id], onDelete: SetNull)
 
   @@index([restaurantId])
 }

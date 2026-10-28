@@ -63,6 +63,14 @@ export async function posSetAvailability(input: unknown) {
   return invoke(pos.posSetAvailability, input);
 }
 
+export async function savePosPrinter(input: unknown) {
+  return invoke(pos.savePosPrinter, input);
+}
+
+export async function removePosPrinter(input: unknown) {
+  return invoke(pos.removePosPrinter, input);
+}
+
 export async function createKitchenSection(input: unknown) {
   return invoke(pos.createKitchenSection, input);
 }

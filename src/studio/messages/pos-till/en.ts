@@ -132,6 +132,7 @@ const posTill: Messages = {
   'error.text.posAddressRequired': 'Enter an address',
   'error.text.posNameTooLong': 'Use at most 120 characters',
   'error.text.posUsdRate': 'Enter the dollar rate',
+  'error.text.posPrinterAddress': 'Enter the printer address',
   'error.text.posUsdRateChanged': 'The dollar rate changed. Check the bill and try again.',
   'error.text.posUsdShort': 'The dollars handed over are less than the amount',
   'error.text.posUsdCount': 'Count the dollars in the drawer',

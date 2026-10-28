@@ -59,6 +59,7 @@ export const POS_TEXT = {
   'The order was handed over and can no longer change': 'error.text.posHandedOver',
   'Use at most 120 characters': 'error.text.posNameTooLong',
   'Enter the dollar rate': 'error.text.posUsdRate',
+  'Enter the printer address': 'error.text.posPrinterAddress',
   'Use 4 to 8 digits': 'error.text.posPinShape',
   'Choose a PIN that is harder to guess': 'error.text.posPinWeak',
   'This account cannot use a quick sign-in PIN': 'error.text.posPinUnavailable',

@@ -132,6 +132,7 @@ const posTill: Messages = {
   'error.text.posAddressRequired': 'ناونیشانەکە بنووسە',
   'error.text.posNameTooLong': 'زۆرینە ١٢٠ پیت بەکاربهێنە',
   'error.text.posUsdRate': 'نرخی دۆلار بنووسە',
+  'error.text.posPrinterAddress': 'ناونیشانی پرینتەر بنووسە',
   'error.text.posUsdRateChanged': 'نرخی دۆلار گۆڕا. فاتورەکە بپشکنە و دووبارە هەوڵ بدەرەوە',
   'error.text.posUsdShort': 'ئەو دۆلارانەی وەرگیراون لە بڕەکە کەمترن',
   'error.text.posUsdCount': 'دۆلارەکانی ناو سندوقی پارە بژمێرە',

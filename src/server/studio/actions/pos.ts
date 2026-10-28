@@ -8,6 +8,7 @@ import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
+import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
 import {
@@ -306,6 +307,51 @@ export const deleteKitchenSection = defineAction({
     ctx.transaction(async (tx) => {
       const row = await removeKitchenSection(tx, sectionId);
       ctx.audit({ action: 'pos.section.delete', entityType: 'PosKitchenSection', entityId: row.id, changes: { name: { before: row.name, after: null } } });
+      return { deleted: true as const };
+    }),
+});
+
+// Printers -------------------------------------------------------------------------------------------------------------
+
+export const savePosPrinter = defineAction({
+  name: 'pos.savePrinter',
+  permission: null,
+  pos: 'settings.manage',
+  input: z
+    .object({
+      printerId: idField.optional(),
+      name: sectionName,
+      role: z.enum(['RECEIPT', 'KITCHEN']),
+      transport: z.enum(['NETWORK', 'FILE']),
+      address: z.string().trim().max(200, 'Use at most 120 characters'),
+      paperWidth: z.union([z.literal(58), z.literal(80)]),
+      cut: z.boolean(),
+      drawerPin: z.union([z.literal(2), z.literal(5)]).nullable(),
+      isDefault: z.boolean(),
+      sectionId: idField.nullable(),
+    })
+    .refine((input) => (input.transport === 'NETWORK' ? /^[^\s/:]+:\d{1,5}$/.test(input.address) : input.address !== ''), { message: 'Enter the printer address', path: ['address'] }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const { id, created } = await savePrinterIn(tx, restaurantId, input);
+      ctx.audit({ action: created ? 'pos.printer.create' : 'pos.printer.update', entityType: 'PosPrinter', entityId: id, changes: { name: { before: null, after: input.name } } });
+      return { printerId: id };
+    });
+  },
+});
+
+export const removePosPrinter = defineAction({
+  name: 'pos.removePrinter',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({ printerId: idField }),
+  target: () => TILL,
+  run: (ctx, { printerId }) =>
+    ctx.transaction(async (tx) => {
+      const row = await removePrinterIn(tx, printerId);
+      ctx.audit({ action: 'pos.printer.delete', entityType: 'PosPrinter', entityId: row.id, changes: { name: { before: row.name, after: null } } });
       return { deleted: true as const };
     }),
 });

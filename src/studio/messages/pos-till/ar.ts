@@ -132,6 +132,7 @@ const posTill: Messages = {
   'error.text.posAddressRequired': 'أدخل العنوان',
   'error.text.posNameTooLong': 'استخدم 120 حرفاً كحد أقصى',
   'error.text.posUsdRate': 'أدخل سعر الدولار',
+  'error.text.posPrinterAddress': 'أدخل عنوان الطابعة',
   'error.text.posUsdRateChanged': 'تغيّر سعر الدولار. راجع الفاتورة وحاول مجدداً',
   'error.text.posUsdShort': 'الدولارات المستلمة أقل من المبلغ',
   'error.text.posUsdCount': 'عُدّ الدولارات في الدرج',

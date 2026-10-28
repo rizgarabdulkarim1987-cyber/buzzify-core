@@ -13,6 +13,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { loadTillCatalog } from '@/server/pos/till-catalog';
+import { listPrintersIn } from '@/server/pos/printers';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
 import { listPosStaff } from '@/server/pos/staff';
@@ -35,6 +36,16 @@ export const posSettings = defineQuery({
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readPosSettings(ctx.db, restaurantOf(ctx)),
+});
+
+/** The printers, for every role: the till prints with them, only settings managers change them. */
+export const posPrinters = defineQuery({
+  name: 'pos.printers',
+  permission: null,
+  pos: 'pin.own',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listPrintersIn(ctx.db, restaurantOf(ctx)),
 });
 
 export const posStaff = defineQuery({
