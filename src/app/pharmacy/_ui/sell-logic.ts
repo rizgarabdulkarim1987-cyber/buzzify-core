@@ -471,6 +471,14 @@ export function outcomeUnknown(error: { message: string }): boolean {
   return error.message === NETWORK_FAILURE || error.message === UNEXPECTED_MESSAGE;
 }
 
+/**
+ * The answer to an open-shift request. A replay of an earlier request returns that shift as it is NOW: if it has closed
+ * since, it is not a shift to sell in. The key of that request is spent, so the person opens a new shift with a new key.
+ */
+export function openedShiftOrClosed(data: { status: 'OPEN' | 'CLOSED' }): { kind: 'open' | 'closed' } {
+  return { kind: data.status === 'OPEN' ? 'open' : 'closed' };
+}
+
 /** The refusals that mean "the total the server computed is not what was paid": prices or rounding moved. */
 export const TOTAL_MOVED_CODES: readonly string[] = ['PAYMENT_SHORT', 'PAYMENT_NON_CASH_OVERPAY', 'PAYMENT_CASH_NOT_NEEDED'];
 

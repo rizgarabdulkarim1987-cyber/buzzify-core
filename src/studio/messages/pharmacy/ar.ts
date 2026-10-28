@@ -875,6 +875,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.shift.float': 'نقد الافتتاح ({currency})',
   'pharmacy.sell.shift.floatHint': 'الخانات العشرية المسموحة: {digits}. اتركه فارغًا للصفر.',
   'pharmacy.sell.shift.open': 'فتح الوردية',
+  'pharmacy.sell.shift.closedAgain': 'أُغلقت ورديتك في هذه الأثناء. افتح وردية جديدة.',
   'pharmacy.sell.shift.openNow': 'الوردية مفتوحة · {currency}',
   'pharmacy.sell.search.region': 'البحث وإضافة الأصناف',
   'pharmacy.sell.search.label': 'ابحث أو امسح الباركود',

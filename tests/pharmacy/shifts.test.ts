@@ -149,6 +149,16 @@ describe('opening a shift', () => {
     expect(await prisma().phShift.count({ where: { userId: w.cashier.userId, status: 'OPEN' } })).toBe(1);
   });
 
+  it('a replayed open whose shift has since closed comes back with status CLOSED (never shown as open)', async () => {
+    const w = await world();
+    const clientKey = key('open-closed');
+    const first = dataOf(await open(w, w.cashier, { openingFloatMinor: 700n, clientKey }));
+    dataOf(await close(w, w.cashier, String(first.id), 700n));
+    const again = dataOf(await open(w, w.cashier, { openingFloatMinor: 700n, clientKey }));
+    expect(again).toMatchObject({ id: first.id, status: 'CLOSED', replayed: true });
+    expect(await prisma().phShift.count({ where: { status: 'OPEN' } })).toBe(0);
+  });
+
   it('a repeat of the same request returns the same shift, even after it closed; another request on the key is refused', async () => {
     const w = await world();
     const clientKey = key('open');

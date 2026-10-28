@@ -875,6 +875,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.shift.float': 'پارەی سەرەتا ({currency})',
   'pharmacy.sell.shift.floatHint': 'ژمارەی دەیی ڕێپێدراو: {digits}. بۆ سفر بەتاڵی بهێڵەرەوە.',
   'pharmacy.sell.shift.open': 'کردنەوەی شیفت',
+  'pharmacy.sell.shift.closedAgain': 'شیفتەکەت لەم ماوەیەدا داخرا. شیفتێکی نوێ بکەرەوە.',
   'pharmacy.sell.shift.openNow': 'شیفت کراوەیە · {currency}',
   'pharmacy.sell.search.region': 'گەڕان و زیادکردنی کاڵا',
   'pharmacy.sell.search.label': 'بگەڕێ یان سکان بکە',

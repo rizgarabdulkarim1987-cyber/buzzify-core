@@ -8,7 +8,7 @@ import { useLocale, useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
 import { FIELD, Note, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
-import { keyFor, minorDigits, outcomeUnknown, parseMoney, type Currency, type KeyedAttempt } from './sell-logic';
+import { keyFor, minorDigits, openedShiftOrClosed, outcomeUnknown, parseMoney, type Currency, type KeyedAttempt } from './sell-logic';
 import { useOnline } from './use-online';
 
 export interface OpenShift {
@@ -49,7 +49,14 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
       setProblem(outcomeUnknown(result.error) ? t('pharmacy.sell.offline.shiftUnknown') : phMessage(t, locale, result.error, 'pharmacy.sell'));
       return;
     }
-    const data = result.data as OpenShift;
+    const data = result.data as OpenShift & { status: 'OPEN' | 'CLOSED' };
+    const answer = openedShiftOrClosed(data);
+    if (answer.kind === 'closed') {
+      // The replay found the shift already closed: its key is spent, the next try is a new request.
+      attempt.current = null;
+      setProblem(t('pharmacy.sell.shift.closedAgain'));
+      return;
+    }
     onOpened({ id: data.id, currency: data.currency, openingFloatMinor: data.openingFloatMinor, openedAt: data.openedAt });
   };
 

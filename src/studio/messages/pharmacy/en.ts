@@ -881,6 +881,7 @@ const pharmacy: Messages = {
   'pharmacy.sell.shift.float': 'Opening cash ({currency})',
   'pharmacy.sell.shift.floatHint': 'Decimals allowed: {digits}. Leave empty for 0.',
   'pharmacy.sell.shift.open': 'Open shift',
+  'pharmacy.sell.shift.closedAgain': 'Your shift was closed in the meantime. Open a new one.',
   'pharmacy.sell.shift.openNow': 'Shift open · {currency}',
   'pharmacy.sell.search.region': 'Find and add items',
   'pharmacy.sell.search.label': 'Search or scan',

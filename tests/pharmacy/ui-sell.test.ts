@@ -15,6 +15,7 @@ import {
   holdSignature,
   keyFor,
   newClientKey,
+  openedShiftOrClosed,
   outcomeUnknown,
   overSellable,
   parseDraft,
@@ -676,5 +677,15 @@ describe('refreshing the cart after a refused payment', () => {
       ['p1', 'NO_PRICE'],
       ['p2', 'GONE'],
     ]);
+  });
+});
+
+describe('openedShiftOrClosed (the answer to an open request)', () => {
+  const base = { id: 's1', currency: 'IQD' as const, openingFloatMinor: '700', openedAt: '2026-10-28T08:00:00.000Z' };
+  it('an OPEN shift is handed on', () => {
+    expect(openedShiftOrClosed({ ...base, status: 'OPEN' })).toEqual({ kind: 'open' });
+  });
+  it('a replay that finds the shift CLOSED is not an open shift: the person opens a new one with a new key', () => {
+    expect(openedShiftOrClosed({ ...base, status: 'CLOSED' })).toEqual({ kind: 'closed' });
   });
 });
