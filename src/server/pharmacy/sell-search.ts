@@ -30,7 +30,7 @@ export const sellSearchInput = z.object({
    * Read these products (by id, active ones of this pharmacy only) instead of searching by `q`: how the screen refreshes the
    * prices and units of the products already in the cart (a held cart coming back, a refused payment). At most SELL_SEARCH_MAX.
    */
-  productIds: z.array(z.string().min(1).max(64), 'Enter a list').min(1, 'Choose at least one product').max(SELL_SEARCH_MAX, 'Choose fewer products').optional(),
+  productIds: z.array(z.string().min(1).max(64)).min(1, 'Choose at least one product').max(SELL_SEARCH_MAX, 'Choose fewer products').optional(),
 });
 
 export interface SellUnit {

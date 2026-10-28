@@ -1,23 +1,39 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { UNEXPECTED_MESSAGE } from '@/server/studio/framework/result';
+import { NETWORK_FAILURE } from '@/studio/settle';
 import {
+  blockedLines,
   buildCartRequest,
   cartFromResume,
   cartReducer,
   cashShortcuts,
+  createScanQueue,
   draftKey,
   emptyCart,
   estimateCart,
   formatMinor,
+  holdSignature,
+  keyFor,
   newClientKey,
+  outcomeUnknown,
   overSellable,
   parseDraft,
   parseMoney,
   parsePercent,
+  parseQtyText,
   paymentPreview,
+  refreshCart,
+  saleAttemptFor,
+  saleSignature,
+  scanOutcome,
   serializeDraft,
   shortcutOf,
+  TOTAL_MOVED_CODES,
+  unitOf,
   type AddableItem,
   type CartState,
+  type PayDraft,
+  type ScanItem,
 } from '@/app/pharmacy/_ui/sell-logic';
 
 /**
@@ -313,12 +329,14 @@ describe('the draft on the device', () => {
 
   it('round-trips a cart', () => {
     const c = cart();
-    expect(parseDraft(serializeDraft('IQD', c))).toEqual({ v: 1, currency: 'IQD', cart: c });
+    expect(parseDraft(serializeDraft('IQD', c))).toEqual({ v: 2, currency: 'IQD', cart: c, fromHoldId: null, attempt: null });
   });
 
   it('is scoped to the pharmacy, branch and person', () => {
-    expect(draftKey('r1', 'b1', 'u1')).not.toBe(draftKey('r1', 'b2', 'u1'));
-    expect(draftKey('r1', 'b1', 'u1')).not.toBe(draftKey('r1', 'b1', 'u2'));
+    expect(draftKey('r1', 'b1', 'u1', 'IQD')).not.toBe(draftKey('r1', 'b2', 'u1', 'IQD'));
+    expect(draftKey('r1', 'b1', 'u1', 'IQD')).not.toBe(draftKey('r1', 'b1', 'u2', 'IQD'));
+    // A shift in another currency never reads, overwrites or removes this draft.
+    expect(draftKey('r1', 'b1', 'u1', 'IQD')).not.toBe(draftKey('r1', 'b1', 'u1', 'USD'));
   });
 
   it('never throws on garbage and drops anything that is not a cart', () => {
@@ -336,7 +354,7 @@ describe('the draft on the device', () => {
 describe('a held cart coming back', () => {
   it('rebuilds lines from the hold with fresh product data, keeping quantity, discounts and batch', () => {
     const lookup = new Map([['p1', item()]]);
-    const { cart, missing } = cartFromResume(
+    const { cart, blockedNames } = cartFromResume(
       {
         currency: 'IQD',
         invoiceDiscount: { kind: 'percent', value: 3, reason: 'loyal' },
@@ -347,8 +365,10 @@ describe('a held cart coming back', () => {
       },
       lookup,
     );
-    expect(missing).toEqual(['Old product']);
-    expect(cart.lines).toHaveLength(1);
+    // The line whose product is gone is KEPT and marked, never dropped.
+    expect(blockedNames).toEqual(['Old product']);
+    expect(cart.lines).toHaveLength(2);
+    expect(cart.lines[1]).toMatchObject({ productId: 'gone', unitId: 'x', qty: 1, name: 'Old product', blocked: 'GONE' });
     expect(cart.lines[0]).toMatchObject({ unitId: 'box', qty: 2, discount: { kind: 'amount', value: '500' }, batchId: 'b1', batchLot: 'L1', batchReason: 'older first' });
     expect(cart.invoiceDiscount).toEqual({ kind: 'percent', value: '3' });
     expect(cart.discountReason).toBe('loyal');
@@ -368,6 +388,293 @@ describe('a held cart coming back', () => {
     expect(apart.cart.lines.map((l) => [l.qty, l.discount?.value ?? null])).toEqual([
       [2, '5'],
       [3, null],
+    ]);
+  });
+});
+
+// Task 8b: fixes from the review of the sale screen --------------------------------------------------------------------------
+
+describe('money text: commas and Arabic separators', () => {
+  it('a comma is a thousands separator only before groups of exactly three digits', () => {
+    expect(parseMoney('1,250', 'IQD')).toBe(1250n);
+    expect(parseMoney('1,234,567', 'IQD')).toBe(1_234_567n);
+    expect(parseMoney('1,250', 'USD')).toBe(125_000n);
+    expect(parseMoney('1,250.5', 'USD')).toBe(125_050n);
+    expect(parseMoney('12,345', 'USD')).toBe(1_234_500n);
+  });
+
+  it('regression: "12,5" for USD is 12.50, never 125.00; "1,25" is 1.25; "12,50" is 12.50', () => {
+    expect(parseMoney('12,5', 'USD')).toBe(1250n);
+    expect(parseMoney('1,25', 'USD')).toBe(125n);
+    expect(parseMoney('12,50', 'USD')).toBe(1250n);
+    expect(parseMoney('0,5', 'USD')).toBe(50n);
+  });
+
+  it('a decimal comma is refused for IQD (no decimals) and when it has too many decimals or the commas are mixed up', () => {
+    expect(parseMoney('12,5', 'IQD')).toBeNull();
+    expect(parseMoney('12,50', 'IQD')).toBeNull();
+    expect(parseMoney('1,2345', 'USD')).toBeNull();
+    expect(parseMoney('1,234,5', 'USD')).toBeNull();
+    expect(parseMoney('12,', 'USD')).toBeNull();
+    expect(parseMoney(',5', 'USD')).toBeNull();
+    expect(parseMoney('1,2,3', 'IQD')).toBeNull();
+  });
+
+  it('reads the Arabic decimal separator (U+066B), thousands separator (U+066C) and comma (U+060C) the same way', () => {
+    expect(parseMoney('١٢٫٥', 'USD')).toBe(1250n);
+    expect(parseMoney('١٢،٥', 'USD')).toBe(1250n);
+    expect(parseMoney('١٬٢٥٠', 'IQD')).toBe(1250n);
+    expect(parseMoney('١٬٢٥٠٫٥', 'USD')).toBe(125_050n);
+    expect(parseMoney('١،٢٥٠', 'IQD')).toBe(1250n);
+    expect(parseMoney('١٢،٥', 'IQD')).toBeNull();
+  });
+
+  it('percents use the same reading: "2,5" is 2.5 %, "1,000" is above 100 and refused, Arabic separators work', () => {
+    expect(parsePercent('2,5')).toBe(250);
+    expect(parsePercent('1,000')).toBeNull();
+    expect(parsePercent('٢٫٥')).toBe(250);
+    expect(parsePercent('٢،٥')).toBe(250);
+    expect(parsePercent('2,5,1')).toBeNull();
+  });
+
+  it('a typed quantity takes Arabic digits and is null when empty or zero', () => {
+    expect(parseQtyText('12')).toBe(12);
+    expect(parseQtyText('١٢')).toBe(12);
+    expect(parseQtyText('۳')).toBe(3);
+    expect(parseQtyText('')).toBeNull();
+    expect(parseQtyText('0')).toBeNull();
+    expect(parseQtyText('abc')).toBeNull();
+    expect(parseQtyText('99999999999')).toBe(1_000_000);
+  });
+});
+
+describe('scans', () => {
+  const hit = (over: Partial<ScanItem> = {}): ScanItem => ({ ...item(), matchedOn: 'barcode', notSellable: false, noPrice: false, ...over });
+
+  it('one sellable barcode match is added; none is unknown; several are a pick; one that cannot be sold is reported, not added', () => {
+    expect(scanOutcome('123', [hit()])).toMatchObject({ kind: 'add' });
+    expect(scanOutcome('123', [])).toEqual({ kind: 'unknown', code: '123' });
+    expect(scanOutcome('123', [hit({ matchedOn: 'tradeName' })])).toEqual({ kind: 'unknown', code: '123' });
+    expect(scanOutcome('123', [hit(), hit({ productId: 'p2' })])).toMatchObject({ kind: 'pick', code: '123' });
+    expect(scanOutcome('123', [hit({ sellableQty: 0 })])).toMatchObject({ kind: 'blocked' });
+    expect(scanOutcome('123', [hit({ noPrice: true })])).toMatchObject({ kind: 'blocked' });
+    expect(scanOutcome('123', [hit({ notSellable: true })])).toMatchObject({ kind: 'blocked' });
+  });
+
+  it('two scans that arrive before the first lookup returns are both handled, in order (none shared, none dropped)', async () => {
+    const started: string[] = [];
+    const finished: string[] = [];
+    const release: Record<string, () => void> = {};
+    const queue = createScanQueue(async (code) => {
+      started.push(code);
+      await new Promise<void>((resolve) => {
+        release[code] = resolve;
+      });
+      finished.push(code);
+    });
+    queue.push('111');
+    queue.push('222');
+    queue.push('333');
+    await Promise.resolve();
+    // Only the first lookup runs; the others wait for their turn instead of replacing it.
+    expect(started).toEqual(['111']);
+    expect(queue.pending()).toBe(3);
+    release['111']!();
+    await vi.waitFor(() => expect(started).toEqual(['111', '222']));
+    release['222']!();
+    await vi.waitFor(() => expect(started).toEqual(['111', '222', '333']));
+    release['333']!();
+    await queue.whenIdle();
+    expect(finished).toEqual(['111', '222', '333']);
+    expect(queue.pending()).toBe(0);
+  });
+
+  it('a lookup that throws does not stop the scans behind it, and the queue can be used again', async () => {
+    const seen: string[] = [];
+    const queue = createScanQueue(async (code) => {
+      seen.push(code);
+      if (code === 'bad') throw new Error('boom');
+    });
+    queue.push('bad');
+    queue.push('good');
+    await queue.whenIdle();
+    expect(seen).toEqual(['bad', 'good']);
+    queue.push('later');
+    await queue.whenIdle();
+    expect(seen).toEqual(['bad', 'good', 'later']);
+  });
+
+  it('every scan result lands in the cart: two scans of different products add two lines, a repeat raises the quantity', () => {
+    const results = [scanOutcome('1', [hit()]), scanOutcome('2', [hit({ productId: 'p2', tradeName: 'Brufen' })]), scanOutcome('1', [hit()])];
+    const cart = results.reduce((c, r) => (r.kind === 'add' ? cartReducer(c, { type: 'add', item: r.item }) : c), emptyCart());
+    expect(cart.lines.map((l) => [l.productId, l.qty])).toEqual([
+      ['p1', 2],
+      ['p2', 1],
+    ]);
+  });
+});
+
+describe('attempts and keys', () => {
+  const pay: PayDraft = { method: 'CASH', tendered: '', reference: '' };
+  let n = 0;
+  const make = (prefix: string) => `${prefix}-key-${(n += 1)}`;
+  const cartOf = (qty = 1) => cartReducer(withLines({ type: 'add', item: item() }), { type: 'qty', key: 'l1', qty });
+  const sigOf = (c: CartState, amount = 1500n, draft = pay, from: string | null = null) => saleSignature(c, 'IQD', draft, amount, from)!;
+
+  it('a retry of the same sale reuses both keys; a changed cart, payment or hold gets new ones', () => {
+    const a = saleAttemptFor(null, sigOf(cartOf()), pay, 1500n, null, make);
+    const again = saleAttemptFor(a, sigOf(cartOf()), pay, 1500n, null, make);
+    expect(again).toBe(a);
+    expect(again.key).toBe(a.key);
+    expect(again.paymentKey).toBe(a.paymentKey);
+    for (const changed of [sigOf(cartOf(2)), sigOf(cartOf(), 2000n), sigOf(cartOf(), 1500n, { ...pay, method: 'CARD_MANUAL' }), sigOf(cartOf(), 1500n, pay, 'hold-1'), sigOf(cartOf(), 1500n, { ...pay, reference: 'slip 7' })]) {
+      const next = saleAttemptFor(a, changed, pay, 1500n, null, make);
+      expect(next.key).not.toBe(a.key);
+      expect(next.paymentKey).not.toBe(a.paymentKey);
+    }
+  });
+
+  it('a double click (the same request twice before the first answer) sends one pair of keys', () => {
+    const sig = sigOf(cartOf());
+    const first = saleAttemptFor(null, sig, pay, 1500n, null, make);
+    const second = saleAttemptFor(first, sig, pay, 1500n, null, make);
+    expect([second.key, second.paymentKey]).toEqual([first.key, first.paymentKey]);
+  });
+
+  it('after a success or a definite refusal the caller drops the attempt, so the next try (e.g. after PAYMENT_SHORT) is a new request with new keys', () => {
+    const sig = sigOf(cartOf());
+    const first = saleAttemptFor(null, sig, pay, 1500n, null, make);
+    const afterRefusal = saleAttemptFor(null, sig, pay, 1500n, null, make);
+    expect(afterRefusal.key).not.toBe(first.key);
+  });
+
+  it('a signature does not depend on prices or on the key, only on what is sold, how it is paid and which hold it completes', () => {
+    const c = cartOf();
+    const repriced = refreshCart(c, new Map([['p1', item({ units: [{ id: 'box', label: 'box', baseQty: 24, priceMinor: '9999' }, { id: 'tab', label: 'tablet', baseQty: 1, priceMinor: '2000' }] })]]));
+    expect(sigOf(repriced)).toBe(sigOf(c));
+    expect(saleSignature(withLines({ type: 'add', item: item() }, { type: 'discount', key: 'l1', discount: { kind: 'percent', value: 'x' } }), 'IQD', pay, 1500n, null)).toBeNull();
+  });
+
+  it('a hold request has its own signature; it changes with the cart', () => {
+    expect(holdSignature(cartOf(), 'IQD')).toBe(holdSignature(cartOf(), 'IQD'));
+    expect(holdSignature(cartOf(), 'IQD')).not.toBe(holdSignature(cartOf(2), 'IQD'));
+  });
+
+  it('keyFor is the same idea for any single-key request (shift open, reprint, hold)', () => {
+    const first = keyFor(null, 'IQD:0', 'shift', make);
+    expect(keyFor(first, 'IQD:0', 'shift', make)).toBe(first);
+    expect(keyFor(first, 'USD:0', 'shift', make).key).not.toBe(first.key);
+    expect(keyFor(first, 'IQD:5000', 'shift', make).key).not.toBe(first.key);
+  });
+
+  it('only a dropped connection or an unexpected server error leaves the outcome unknown; any refusal is definite', () => {
+    expect(outcomeUnknown({ message: NETWORK_FAILURE })).toBe(true);
+    expect(outcomeUnknown({ message: UNEXPECTED_MESSAGE })).toBe(true);
+    expect(outcomeUnknown({ message: 'The payments do not cover the total' })).toBe(false);
+    expect(TOTAL_MOVED_CODES).toContain('PAYMENT_SHORT');
+  });
+
+  it('the attempt travels with the draft: a reload restores the same keys and the payment as typed', () => {
+    const c = cartOf(3);
+    const attempt = saleAttemptFor(null, sigOf(c, 4500n, pay, 'hold-9'), pay, 4500n, 'hold-9', make);
+    const back = parseDraft(serializeDraft('IQD', c, attempt, 'hold-9'));
+    expect(back?.attempt).toEqual(attempt);
+    expect(back?.fromHoldId).toBe('hold-9');
+    // The same cart and payment after the reload make the same signature, so the same keys are sent.
+    expect(saleAttemptFor(back!.attempt, sigOf(back!.cart, 4500n, pay, back!.fromHoldId), pay, 4500n, back!.fromHoldId, make)).toBe(back!.attempt);
+  });
+
+  it('a damaged attempt is dropped but the cart is kept', () => {
+    const c = cartOf();
+    const attempt = saleAttemptFor(null, sigOf(c), pay, 1500n, null, make);
+    const raw = JSON.parse(serializeDraft('IQD', c, attempt));
+    raw.attempt.paymentKey = 'x';
+    const back = parseDraft(JSON.stringify(raw));
+    expect(back?.attempt).toBeNull();
+    expect(back?.cart.lines).toHaveLength(1);
+  });
+});
+
+describe('keys: IME and handled keys', () => {
+  it('ignores a key while an input method is composing, and keyCode 229', () => {
+    expect(shortcutOf({ key: 'Enter', isComposing: true }, true)).toBeNull();
+    expect(shortcutOf({ key: 'Enter', keyCode: 229 }, true)).toBeNull();
+    expect(shortcutOf({ key: 'F4', isComposing: true }, false)).toBeNull();
+    expect(shortcutOf({ key: 'Enter', keyCode: 13 }, true)).toBe('addTop');
+  });
+
+  it('ignores a key that was already handled (a scanner’s closing Enter inside the search box)', () => {
+    expect(shortcutOf({ key: 'Enter', defaultPrevented: true }, true)).toBeNull();
+    expect(shortcutOf({ key: 'F4', defaultPrevented: true }, false)).toBeNull();
+    expect(shortcutOf({ key: 'Enter', defaultPrevented: false }, true)).toBe('addTop');
+  });
+});
+
+describe('a held cart that cannot be rebuilt in full', () => {
+  const held = (lines: Record<string, unknown>[]) => ({ currency: 'IQD' as const, lines });
+
+  it('keeps a line whose product is gone, marked GONE, with its quantity, held unit and name; it never turns into another product or unit', () => {
+    const { cart, blockedNames } = cartFromResume(held([{ productId: 'p1', unitId: 'box', qty: 2, tradeName: 'Panadol' }, { productId: 'p9', unitId: 'u9', qty: 4, tradeName: 'Old' }]), new Map([['p1', item()]]));
+    expect(cart.lines).toHaveLength(2);
+    expect(blockedNames).toEqual(['Old']);
+    expect(cart.lines[0]).toMatchObject({ productId: 'p1', unitId: 'box', qty: 2, blocked: null });
+    expect(cart.lines[1]).toMatchObject({ productId: 'p9', unitId: 'u9', qty: 4, name: 'Old', blocked: 'GONE' });
+    expect(blockedLines(cart).map((l) => l.productId)).toEqual(['p9']);
+  });
+
+  it('keeps the held unit when the product does not sell it any more (UNIT), next to the units sold now, with no price for it', () => {
+    const { cart } = cartFromResume(held([{ productId: 'p1', unitId: 'strip', qty: 1, tradeName: 'Panadol' }]), new Map([['p1', item()]]));
+    const line = cart.lines[0]!;
+    expect(line).toMatchObject({ unitId: 'strip', blocked: 'UNIT' });
+    expect(line.units.map((u) => u.id)).toEqual(['strip', 'box', 'tab']);
+    expect(unitOf(line).priceMinor).toBeNull();
+  });
+
+  it('marks NO_PRICE when the held unit has no open price now, and RESTRICTED for a controlled product', () => {
+    const noPrice = item({ units: [{ id: 'box', label: 'box', baseQty: 24, priceMinor: null }, { id: 'tab', label: 'tablet', baseQty: 1, priceMinor: '1500' }] });
+    expect(cartFromResume(held([{ productId: 'p1', unitId: 'box', qty: 1, tradeName: 'P' }]), new Map([['p1', noPrice]])).cart.lines[0]).toMatchObject({ unitId: 'box', blocked: 'NO_PRICE' });
+    expect(cartFromResume(held([{ productId: 'p1', unitId: 'box', qty: 1, tradeName: 'P' }]), new Map([['p1', { ...item(), notSellable: true }]])).cart.lines[0]).toMatchObject({ blocked: 'RESTRICTED' });
+  });
+
+  it('a blocked line is never merged into, and its stock does not count toward the over-stock warning', () => {
+    const { cart } = cartFromResume(held([{ productId: 'p1', unitId: 'strip', qty: 500, tradeName: 'P' }]), new Map([['p1', item()]]));
+    const next = cartReducer(cart, { type: 'add', item: item(), unitId: 'tab' });
+    expect(next.lines).toHaveLength(2);
+    expect(overSellable(cart).size).toBe(0);
+  });
+
+  it('only the cashier clears a mark: removing the line, or choosing a unit that has a price; a gone or controlled product is never cleared by a unit', () => {
+    const { cart } = cartFromResume(held([{ productId: 'p1', unitId: 'strip', qty: 1, tradeName: 'P' }, { productId: 'p9', unitId: 'u', qty: 1, tradeName: 'Old' }]), new Map([['p1', item()]]));
+    expect(refreshCart(cart, new Map([['p1', item()]])).lines.map((l) => l.blocked)).toEqual(['UNIT', 'GONE']);
+    const chosen = cartReducer(cart, { type: 'unit', key: cart.lines[0]!.key, unitId: 'tab' });
+    expect(chosen.lines[0]).toMatchObject({ unitId: 'tab', blocked: null });
+    const removed = cartReducer(chosen, { type: 'remove', key: cart.lines[1]!.key });
+    expect(blockedLines(removed)).toHaveLength(0);
+    const same = cartReducer(cart, { type: 'unit', key: cart.lines[1]!.key, unitId: 'u' });
+    expect(same.lines[1]!.blocked).toBe('GONE');
+  });
+
+  it('survives the draft round trip with its marks', () => {
+    const { cart } = cartFromResume(held([{ productId: 'p9', unitId: 'u9', qty: 4, tradeName: 'Old' }]), new Map());
+    expect(parseDraft(serializeDraft('IQD', cart))?.cart.lines[0]).toMatchObject({ blocked: 'GONE', unitId: 'u9', qty: 4 });
+  });
+});
+
+describe('refreshing the cart after a refused payment', () => {
+  it('takes the current prices, units and stock of the cart’s products by id and keeps unit, quantity and discount', () => {
+    let cart = withLines({ type: 'add', item: item() }, { type: 'qty', key: 'l1', qty: 3 }, { type: 'discount', key: 'l1', discount: { kind: 'percent', value: '10' } });
+    expect(estimateCart(cart, 'IQD', 0).totalMinor).toBe(4050n);
+    cart = refreshCart(cart, new Map([['p1', item({ sellableQty: 7, units: [{ id: 'box', label: 'box', baseQty: 24, priceMinor: '3200' }, { id: 'tab', label: 'tablet', baseQty: 1, priceMinor: '1600' }] })]]));
+    expect(cart.lines[0]).toMatchObject({ unitId: 'tab', qty: 3, sellableQty: 7, discount: { kind: 'percent', value: '10' }, blocked: null });
+    expect(estimateCart(cart, 'IQD', 0).totalMinor).toBe(4320n);
+  });
+
+  it('marks a line GONE when its product is missing from the answer, and NO_PRICE when its unit lost the price, instead of dropping it', () => {
+    const cart = withLines({ type: 'add', item: item() }, { type: 'add', item: item({ productId: 'p2', tradeName: 'Brufen' }) });
+    const next = refreshCart(cart, new Map([['p1', item({ units: [{ id: 'box', label: 'box', baseQty: 24, priceMinor: '3000' }, { id: 'tab', label: 'tablet', baseQty: 1, priceMinor: null }] })]]));
+    expect(next.lines.map((l) => [l.productId, l.blocked])).toEqual([
+      ['p1', 'NO_PRICE'],
+      ['p2', 'GONE'],
     ]);
   });
 });
