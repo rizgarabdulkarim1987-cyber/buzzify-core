@@ -125,6 +125,44 @@ describe.each([false, true])('a guest asks for the bill (captain approval %s)', 
     expect(await calls()).toHaveLength(0);
   });
 
+  it('records the call and leaves the order alone when staff change it at the same moment', async () => {
+    const open = await order(0, 'OPEN');
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    let held: () => void = () => undefined;
+    const holding = new Promise<void>((resolve) => {
+      held = resolve;
+    });
+    // Staff edit the order (row lock held, not yet committed) while the guest's call runs.
+    const staff = prisma().$transaction(async (tx) => {
+      await tx.posOrder.update({ where: { id: open.id }, data: { version: { increment: 1 }, status: 'PAID' } });
+      held();
+      await gate;
+    });
+    await holding;
+    const guest = call(1);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    release();
+    await staff;
+    await expect(guest).resolves.toEqual({ ok: true });
+    const after = await prisma().posOrder.findUniqueOrThrow({ where: { id: open.id } });
+    expect(after.status).toBe('PAID');
+    expect(after.version).toBe(open.version + 1);
+    expect(await calls()).toHaveLength(1);
+  });
+
+  it('audits a call, with the order it moved, and audits nothing for a repeat', async () => {
+    const open = await order(0, 'OPEN');
+    await call(1);
+    await call(1);
+    const rows = await prisma().auditLog.findMany({ where: { restaurantId: a.id, action: 'pos.billCall.call' } });
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ actorId: null, entityType: 'PosBillCall' });
+    expect(rows[0]!.changes).toMatchObject({ tableNumber: { before: null, after: 1 }, orderStatus: { before: 'OPEN', after: 'BILL_REQUESTED' }, orderId: open.id });
+  });
+
   it('is listed open and marked seen by a captain or a cashier, not by the kitchen', async () => {
     await call(1);
     await call(3);

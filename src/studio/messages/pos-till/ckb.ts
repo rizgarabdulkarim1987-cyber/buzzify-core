@@ -71,6 +71,7 @@ const posTill: Messages = {
   'activity.action.pos.request.edit': 'داواکاری کڕیارێکی گۆڕی',
   'activity.action.pos.request.approve': 'وەک کاپتن داواکاری کڕیارێکی پەسەند کرد',
   'activity.action.pos.request.captain': 'وەک کاپتن داواکارییەکی بۆ مێزێک وەرگرت',
+  'activity.action.pos.billCall.call': 'میوانێک هەژماری داوا کرد',
   'activity.action.pos.billCall.seen': 'نیشانکردنی داوای هەژمار وەک بینراو',
   'activity.entity.PosArea': 'ناوچەی هۆڵ',
   'activity.entity.PosTable': 'مێز',

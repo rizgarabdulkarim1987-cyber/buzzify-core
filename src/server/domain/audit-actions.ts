@@ -177,6 +177,7 @@ export const AUDIT_ACTIONS = [
   'pos.request.edit',
   'pos.request.approve',
   'pos.request.captain',
+  'pos.billCall.call',
   'pos.billCall.seen',
   'pos.qr.tables',
   'pos.zone.create',

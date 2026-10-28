@@ -71,6 +71,7 @@ const posTill: Messages = {
   'activity.action.pos.request.edit': 'عدّل طلب زبون',
   'activity.action.pos.request.approve': 'أكّد طلب زبون ككابتن',
   'activity.action.pos.request.captain': 'أخذ طلب لطاولة ككابتن',
+  'activity.action.pos.billCall.call': 'ضيف طلب الحساب',
   'activity.action.pos.billCall.seen': 'تأكيد رؤية طلب الحساب',
   'activity.entity.PosArea': 'منطقة القاعة',
   'activity.entity.PosTable': 'طاولة',

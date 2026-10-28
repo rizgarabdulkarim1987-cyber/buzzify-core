@@ -71,6 +71,7 @@ const posTill: Messages = {
   'activity.action.pos.request.edit': 'Changed a guest order',
   'activity.action.pos.request.approve': 'Approved a guest order as captain',
   'activity.action.pos.request.captain': 'Took an order for a table as captain',
+  'activity.action.pos.billCall.call': 'A guest asked for the bill',
   'activity.action.pos.billCall.seen': 'Marked a bill call as seen',
   'activity.entity.PosArea': 'Floor area',
   'activity.entity.PosTable': 'Table',

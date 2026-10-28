@@ -1,8 +1,7 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import type { TenantInfo } from '@/server/data/tenant';
-import { delegates, scopedClient, type AnyDb } from '@/server/data/tenant-db';
+import { scopedClient, type AnyDb } from '@/server/data/tenant-db';
 import { QrGateClosed, QrOrderRefusal, qrOrderGate } from './customer-orders-guest';
-import { bumpOrder, loadOrderForChange } from './orders';
 
 /** At most this many calls from one table inside the window; the guest is told to wait after that. */
 const MAX_CALLS = 3;
@@ -29,13 +28,32 @@ export async function callForBill(prisma: PrismaClient, tenant: Pick<TenantInfo,
     if (unseen > 0) return { ok: true } as const;
     if (recent >= MAX_CALLS) throw new QrOrderRefusal('TOO_MANY_REQUESTS');
 
-    // Read after the table lock, so the version is the live one; any other state is left as it is.
+    // Best effort: the call below is the notice. The move is one conditional update on the version just read, so staff
+    // changing or paying the order at the same moment match nothing here (no throw, which would abort the transaction).
     const live = await tx.posOrder.findFirst({ where: { restaurantId: gate.restaurantId, tableId: gate.tableId, status: { in: ['OPEN', 'READY'] } } });
+    let moved: { id: string; from: string } | null = null;
     if (live) {
-      await loadOrderForChange(delegates(tx), gate.restaurantId, live.id, live.version);
-      await bumpOrder(delegates(tx), gate.restaurantId, live.id, live.version, { status: 'BILL_REQUESTED' });
+      const { count } = await tx.posOrder.updateMany({
+        where: { id: live.id, restaurantId: gate.restaurantId, version: live.version, status: { in: ['OPEN', 'READY'] } },
+        data: { status: 'BILL_REQUESTED', version: { increment: 1 } },
+      });
+      if (count > 0) moved = { id: live.id, from: live.status };
     }
-    await tx.posBillCall.create({ data: { restaurantId: gate.restaurantId, tableId: gate.tableId, tableNumber: input.table, createdAt: now } });
+    const call = await tx.posBillCall.create({ data: { restaurantId: gate.restaurantId, tableId: gate.tableId, tableNumber: input.table, createdAt: now }, select: { id: true } });
+    await tx.auditLog.create({
+      data: {
+        actorId: null,
+        restaurantId: gate.restaurantId,
+        menuId: tenant.id,
+        action: 'pos.billCall.call',
+        entityType: 'PosBillCall',
+        entityId: call.id,
+        changes: {
+          tableNumber: { before: null, after: input.table },
+          ...(moved ? { orderId: moved.id, orderStatus: { before: moved.from, after: 'BILL_REQUESTED' } } : {}),
+        },
+      },
+    });
     return { ok: true } as const;
   });
 }
