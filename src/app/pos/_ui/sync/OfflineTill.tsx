@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { currentKey, deriveLocalState, localTotals, payableOf, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { OpDraft } from '@/lib/pos-sync/queue';
@@ -19,7 +19,7 @@ import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OptionsSheet, type Chosen } from '../OptionsSheet';
 import { useProductOffer } from '../offers';
-import { openOfflineDrawer, offlinePrintTargets, printOfflineReceipt, printOfflineRound } from '../print/offline-print';
+import { canOpenOfflineDrawer, openOfflineDrawer, offlinePrintTargets, printOfflineReceipt, printOfflineRound } from '../print/offline-print';
 import { printFailureText, type PrintResult } from '../print/print-client';
 import { useBarcodeScanner } from '../use-barcode-scanner';
 import { useMoney } from '../money';
@@ -89,21 +89,34 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
   const [message, setMessage] = useState<string | null>(null);
   const [drawerDialog, setDrawerDialog] = useState(false);
   const [drawerReason, setDrawerReason] = useState('');
+  // A bridge failure is said inside the dialog, where the cashier is looking, not on the board behind it.
+  const [drawerProblem, setDrawerProblem] = useState<string | null>(null);
+  const [drawerPending, setDrawerPending] = useState(false);
+  const drawerBusy = useRef(false);
   const snapshot = sync.snapshot!;
-  const { hasDrawer } = offlinePrintTargets(snapshot);
+  const drawerOffered = canOpenOfflineDrawer(snapshot);
 
-  // The drawer opens through the bridge at once; the audit note is queued and written when the device syncs.
+  // The drawer opens through the bridge at once; the audit note is queued and written when the device syncs. A second click
+  // while the first is on its way does nothing, so the drawer kicks once and one note is queued.
   const openDrawer = async () => {
-    const result = await openOfflineDrawer(snapshot);
-    if (!result.ok) {
-      setMessage(t('pos.print.failed', { message: printFailureText(result, t) }));
-      return;
+    if (drawerBusy.current) return;
+    drawerBusy.current = true;
+    setDrawerPending(true);
+    try {
+      const result = await openOfflineDrawer(snapshot);
+      if (!result.ok) {
+        setDrawerProblem(t('pos.print.failed', { message: printFailureText(result, t) }));
+        return;
+      }
+      await sync.enqueue({ kind: 'drawerOpen', payload: { reason: drawerReason.trim() } });
+      setDrawerDialog(false);
+      setDrawerReason('');
+      setDrawerProblem(null);
+      toast.success(t('pos.drawer.opened'));
+    } finally {
+      drawerBusy.current = false;
+      setDrawerPending(false);
     }
-    await sync.enqueue({ kind: 'drawerOpen', payload: { reason: drawerReason.trim() } });
-    setDrawerDialog(false);
-    setDrawerReason('');
-    setMessage(null);
-    toast.success(t('pos.drawer.opened'));
   };
 
   const open = async (tableId: string) => {
@@ -120,9 +133,9 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
         </p>
       ) : null}
       {!snapshot.openShift ? <p className="text-muted">{t('pos.offline.noShift')}</p> : null}
-      {hasDrawer ? (
+      {drawerOffered ? (
         <div>
-          <Button size="lg" className="min-h-12" onClick={() => setDrawerDialog(true)}>
+          <Button size="lg" className="min-h-12" onClick={() => (setDrawerProblem(null), setDrawerDialog(true))}>
             {t('pos.drawer.open')}
           </Button>
         </div>
@@ -136,12 +149,17 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
             <Button className="min-h-12" onClick={() => setDrawerDialog(false)}>
               {t('pos.offline.close')}
             </Button>
-            <Button variant="primary" className="min-h-12" disabled={drawerReason.trim() === ''} onClick={() => void openDrawer()}>
+            <Button variant="primary" className="min-h-12" disabled={drawerPending || drawerReason.trim() === ''} onClick={() => void openDrawer()}>
               {t('pos.drawer.open')}
             </Button>
           </>
         }
       >
+        {drawerProblem ? (
+          <p role="alert" className="rounded-md border border-danger bg-danger-wash px-3 py-2 text-sm text-text">
+            {drawerProblem}
+          </p>
+        ) : null}
         <label className="flex flex-col gap-1 text-sm text-text">
           {t('pos.drawer.reason')}
           <Textarea dir="auto" value={drawerReason} onChange={(e) => setDrawerReason(e.target.value)} maxLength={200} />

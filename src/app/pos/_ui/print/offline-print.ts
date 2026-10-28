@@ -12,6 +12,11 @@ export function offlinePrintTargets(snapshot: Pick<SyncSnapshot, 'printers'>): {
   return { receipt, hasDrawer: receipt?.drawerPin != null };
 }
 
+/** The offline "Open drawer" button: a receipt printer holding the drawer, and an open shift for the audit note to belong to. */
+export function canOpenOfflineDrawer(snapshot: Pick<SyncSnapshot, 'printers' | 'openShift'>): boolean {
+  return snapshot.openShift !== null && snapshot.openShift !== undefined && offlinePrintTargets(snapshot).hasDrawer;
+}
+
 const noPrinter: PrintResult = { ok: false, reason: 'printer', message: 'no printer' };
 
 interface Context {

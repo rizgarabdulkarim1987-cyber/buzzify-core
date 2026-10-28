@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { offlinePrintTargets } from '@/app/pos/_ui/print/offline-print';
+import { canOpenOfflineDrawer, offlinePrintTargets } from '@/app/pos/_ui/print/offline-print';
 import type { SyncSnapshot } from '@/lib/pos-sync/snapshot';
 import type { PrinterView } from '@/server/pos/printers';
 
@@ -21,5 +21,15 @@ describe('offlinePrintTargets', () => {
     const front = printer();
     expect(offlinePrintTargets(snap([printer({ id: 'x', isDefault: false, drawerPin: null }), front]))).toEqual({ receipt: front, hasDrawer: true });
     expect(offlinePrintTargets(snap([printer({ drawerPin: null })])).hasDrawer).toBe(false);
+  });
+});
+
+describe('canOpenOfflineDrawer', () => {
+  // The drawer note is an audit row on the person's shift: without an open shift there is nothing to put it on.
+  const shift = { id: 's', openedAt: '2026-10-28T08:00:00Z', openingFloat: 0 } as unknown as SyncSnapshot['openShift'];
+  it('offers the drawer only with a drawer printer and an open shift', () => {
+    expect(canOpenOfflineDrawer({ printers: [printer()], openShift: shift })).toBe(true);
+    expect(canOpenOfflineDrawer({ printers: [printer()], openShift: null })).toBe(false);
+    expect(canOpenOfflineDrawer({ printers: [printer({ drawerPin: null })], openShift: shift })).toBe(false);
   });
 });
