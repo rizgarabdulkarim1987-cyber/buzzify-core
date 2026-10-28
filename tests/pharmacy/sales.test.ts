@@ -1,7 +1,7 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as saleActions from '@/server/pharmacy/actions/sales';
 import * as saleQueries from '@/server/pharmacy/queries/sales';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, person, pharmacy, prisma, resetWorld, untilBlockedOnALock, useTestDatabase, type Person } from './fixture';
 import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
 /**
@@ -284,7 +284,7 @@ describe('shifts', () => {
       // eslint-disable-next-line no-restricted-properties -- the test plays the closing transaction's row lock
       await t.$queryRaw`SELECT id FROM "PhShift" WHERE id = ${shift.id} FOR UPDATE`;
       sold = act(w.cashier, saleActions.create, sale(w));
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      await untilBlockedOnALock();
       await t.phShift.update({ where: { id: shift.id }, data: { status: 'CLOSED', closedAt: NOW, countedMinor: 0n, expectedMinor: 0n, varianceMinor: 0n } });
     });
     const r = await sold!;

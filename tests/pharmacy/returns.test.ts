@@ -6,7 +6,7 @@ import * as stockActions from '@/server/pharmacy/actions/stock';
 import * as returnQueries from '@/server/pharmacy/queries/returns';
 import * as saleQueries from '@/server/pharmacy/queries/sales';
 import * as shiftQueries from '@/server/pharmacy/queries/shifts';
-import { DAY, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { DAY, NOW, person, pharmacy, prisma, resetWorld, untilBlockedOnALock, useTestDatabase, type Person } from './fixture';
 import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
 /**
@@ -98,18 +98,6 @@ const counts = async () => ({
   audit: await prisma().auditLog.count({ where: { action: { in: ['ph.return.create', 'ph.sale.cancel'] } } }),
 });
 const ZERO = { returns: 0, lines: 0, movements: 0, cash: 0, audit: 0 };
-
-/** Waits (bounded) until some backend of this database is waiting on a lock: the return queued behind the held shift row. */
-async function untilBlockedOnALock(timeoutMs = 5000) {
-  const until = Date.now() + timeoutMs;
-  for (;;) {
-    // eslint-disable-next-line no-restricted-properties -- the test inspects the database's own lock waits, no tenant rows
-    const rows = await prisma().$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
-    if ((rows[0]?.n ?? 0n) > 0n) return;
-    if (Date.now() > until) throw new Error('no backend ever waited on a lock');
-    await new Promise((r) => setTimeout(r, 20));
-  }
-}
 
 beforeAll(() => {
   useTestDatabase();

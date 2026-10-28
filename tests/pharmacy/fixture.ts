@@ -141,3 +141,15 @@ export async function grant(
 
 export const asPh = (userId: string, restaurantId: string, branchId?: string) =>
   resolvePhActor(prisma(), userId, { restaurantId, branchId, now: NOW });
+
+/** Waits (bounded) until some backend of this database is waiting on a lock: a writer queued behind a row the test holds. Replaces a sleep: the race is then really in progress. */
+export async function untilBlockedOnALock(timeoutMs = 5000) {
+  const until = Date.now() + timeoutMs;
+  for (;;) {
+    // eslint-disable-next-line no-restricted-properties -- the test inspects the database's own lock waits, no tenant rows
+    const rows = await prisma().$queryRaw<{ n: bigint }[]>`SELECT count(*)::bigint AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if ((rows[0]?.n ?? 0n) > 0n) return;
+    if (Date.now() > until) throw new Error('no backend ever waited on a lock');
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}

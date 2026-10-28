@@ -3,7 +3,7 @@ import { MAX_AMOUNT_MINOR } from '@/server/domain/pharmacy/sale';
 import * as saleActions from '@/server/pharmacy/actions/sales';
 import * as shiftActions from '@/server/pharmacy/actions/shifts';
 import * as shiftQueries from '@/server/pharmacy/queries/shifts';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, person, pharmacy, prisma, resetWorld, untilBlockedOnALock, useTestDatabase, type Person } from './fixture';
 import { act, ask, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
 /**
@@ -561,7 +561,7 @@ describe('a close racing a sale', () => {
     });
     await hasLock;
     const selling = sell(w, w.cashier);
-    await new Promise((resolve) => setTimeout(resolve, 600));
+    await untilBlockedOnALock();
     release();
     await closing;
     const result = await selling;
