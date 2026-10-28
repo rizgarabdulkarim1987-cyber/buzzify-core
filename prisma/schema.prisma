@@ -3426,6 +3426,15 @@ model PhIntakeRow {
   edited           Json           @default("{}")
   matchedProductId String?
   matchedUnitId    String?
+  /// MATCHED, UNMATCHED, AMBIGUOUS or CHOSEN (CHECK in the migration); a CHOSEN line is never rematched.
+  matchState       String         @default("UNMATCHED")
+  /// [{ productId, score }]: at most 5 products the matcher offers; names are read when shown.
+  candidates       Json           @default("[]")
+  /// What the reviewer acknowledged, with the flag set and difference they saw: { flags?, mismatch? }.
+  acknowledged     Json           @default("{}")
+  version          Int            @default(1)
+  lastKey          String?
+  lastKeyHash      String?
   flags            String[]       @default([])
   reviewed         Boolean        @default(false)
   note             String?
