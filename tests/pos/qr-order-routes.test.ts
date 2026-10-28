@@ -280,7 +280,7 @@ describe('reading the state of a request', () => {
     await world();
     const { publicId } = await (await send(cart([line(juice)]))).json();
     const view = await (await read(publicId)).json();
-    expect(Object.keys(view).sort()).toEqual(['lines', 'rejectReason', 'status']);
+    expect(Object.keys(view).sort()).toEqual(['awaitingCaptain', 'lines', 'rejectReason', 'status']);
     expect(Object.keys(view.lines[0]).sort()).toEqual(['name', 'note', 'options', 'quantity']);
   });
 });

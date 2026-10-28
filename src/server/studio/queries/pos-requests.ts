@@ -18,7 +18,7 @@ function restaurantOf(ctx: QueryContext): string {
 export const posRequests = defineQuery({
   name: 'pos.requests',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => {
@@ -30,7 +30,7 @@ export const posRequests = defineQuery({
 export const posRequest = defineQuery({
   name: 'pos.request',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({ requestId: idField }),
   target: () => TILL,
   run: (ctx, { requestId }) => readRequest(ctx.db, restaurantOf(ctx), requestId),
@@ -50,7 +50,7 @@ export const posQrSheet = defineQuery({
 export const posQrFlags = defineQuery({
   name: 'pos.qrFlags',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readQrFlags(ctx.db, restaurantOf(ctx)),

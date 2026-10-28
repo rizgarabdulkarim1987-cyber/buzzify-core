@@ -4,12 +4,16 @@ import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { isUniqueViolation, refuse } from '@/server/pos/errors';
 import { ensureMenuTablesIn } from '@/server/pos/qr-sheet';
 import { getStudioTranslator } from '@/studio/messages';
-import { acceptRequestIn, rejectRequestIn, removeRequestLineIn, setRequestLineQuantityIn } from '@/server/pos/customer-orders';
+import { acceptRequestIn, addRequestLineIn, approveRequestIn, rejectRequestIn, removeRequestLineIn, setRequestLineQuantityIn } from '@/server/pos/customer-orders';
+import { getCatalog, getTenant } from '@/server/data/public-menu';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 
-/** What the cashier does with a guest's QR order: change a quantity, remove a line, accept it into an order or reject it. */
+/**
+ * What the till does with a guest's QR order: the cashier or the captain changes a quantity, removes or adds a line, or
+ * rejects it; the captain approves one held for them; only the cashier accepts it into an order.
+ */
 
 const TILL = { kind: 'pos' } as const;
 /** Accepting reads the products' kitchen sections, so it targets the catalog menu. */
@@ -25,7 +29,7 @@ function till(ctx: ActionContext) {
 export const setPosRequestLineQuantity = defineAction({
   name: 'pos.setRequestLineQuantity',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({ lineId: idField, quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity) }),
   target: () => TILL,
   run: (ctx, input) => {
@@ -46,7 +50,7 @@ export const setPosRequestLineQuantity = defineAction({
 export const removePosRequestLine = defineAction({
   name: 'pos.removeRequestLine',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({ lineId: idField }),
   target: () => TILL,
   run: (ctx, input) => {
@@ -58,6 +62,63 @@ export const removePosRequestLine = defineAction({
         entityType: 'PosCustomerOrderLine',
         entityId: done.lineId,
         changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null } },
+      });
+      return { requestId: done.requestId };
+    });
+  },
+});
+
+/** Adds a dish to a waiting request, priced from the Menu's published catalog as the guest's own lines are. */
+export const addPosRequestLine = defineAction({
+  name: 'pos.addRequestLine',
+  permission: null,
+  pos: 'request.handle',
+  input: z.object({
+    requestId: idField,
+    productId: idField,
+    quantity: z.number().int().min(1).max(QR_LIMITS.maxQuantity),
+    note: z.string().trim().max(QR_LIMITS.maxNote, 'Use at most 300 characters').optional(),
+    variantId: idField.nullable().optional(),
+    optionIds: z.array(idField).max(50).optional(),
+  }),
+  target: () => CATALOG,
+  run: async (ctx, input) => {
+    const { restaurantId } = till(ctx);
+    if (ctx.menuId === null) throw new StudioError('NOT_FOUND');
+    // The catalog guests are priced against: the catalog menu's live revision, read before the transaction.
+    const menu = await ctx.db.menu.findFirst({ where: { id: ctx.menuId, restaurantId }, select: { slug: true } });
+    const tenant = menu ? await getTenant(menu.slug) : null;
+    if (!tenant || tenant.id !== ctx.menuId) throw refuse('CONFLICT', 'This product is not available');
+    const catalog = await getCatalog(tenant);
+    return ctx.transaction(async (tx) => {
+      const done = await addRequestLineIn(delegates(tx), restaurantId, catalog, input);
+      ctx.audit({
+        action: 'pos.request.edit',
+        entityType: 'PosCustomerOrderLine',
+        entityId: done.lineId,
+        changes: { name: { before: null, after: done.name }, quantity: { before: null, after: done.quantity } },
+      });
+      return { requestId: done.requestId, lineId: done.lineId };
+    });
+  },
+});
+
+/** The captain's approval of a guest order held for them; after it the cashier may accept it. */
+export const approvePosRequest = defineAction({
+  name: 'pos.approveRequest',
+  permission: null,
+  pos: 'request.approve',
+  input: z.object({ requestId: idField }),
+  target: () => TILL,
+  run: (ctx, input) => {
+    const { pos, restaurantId } = till(ctx);
+    return ctx.transaction(async (tx) => {
+      const done = await approveRequestIn(delegates(tx), restaurantId, { ...input, userId: pos.userId });
+      ctx.audit({
+        action: 'pos.request.approve',
+        entityType: 'PosCustomerOrder',
+        entityId: done.requestId,
+        changes: { captainApprovedAt: { before: null, after: done.approvedAt.toISOString() } },
       });
       return { requestId: done.requestId };
     });
@@ -101,7 +162,7 @@ export const acceptPosRequest = defineAction({
 export const rejectPosRequest = defineAction({
   name: 'pos.rejectRequest',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({ requestId: idField, reason: z.string().trim().max(200, 'Use at most 200 characters') }),
   target: () => TILL,
   run: (ctx, input) => {

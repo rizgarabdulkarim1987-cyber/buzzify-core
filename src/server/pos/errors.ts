@@ -44,6 +44,8 @@ export const POS_TEXT = {
   'The request has no items': 'error.text.posRequestEmpty',
   'This request expired': 'error.text.posRequestExpired',
   'The table has an order that cannot take more items': 'error.text.posOrderNotJoinable',
+  'Waiting for the captain': 'error.text.posWaitingCaptain',
+  'The request has too many items': 'error.text.posRequestFull',
   'A delivery zone with this name already exists': 'error.text.posZoneNameTaken',
   'Create at most 50 delivery zones': 'error.text.posTooManyZones',
   'Create at most 100 drivers': 'error.text.posTooManyDrivers',

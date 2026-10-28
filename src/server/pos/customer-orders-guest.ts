@@ -3,13 +3,11 @@ import type { PrismaClient } from '@/generated/prisma/client';
 import type { Locale } from '@/lib/locale';
 import type { TenantInfo } from '@/server/data/tenant';
 import { menuDb, scopedClient } from '@/server/data/tenant-db';
-import { defaultVariant } from '@/server/domain/catalog';
-import { expiryCutoff, isExpired, promoDiscountPerUnit, QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
-import { quoteCart } from '@/server/domain/pricing';
-import { resolveText } from '@/server/domain/translate';
+import { expiryCutoff, isExpired, QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import type { CartLineInput, Catalog } from '@/server/domain/types';
 import { posGate } from './actor';
-import { optionsSnapshotSchema, type OptionSnapshot } from './orders';
+import { awaitingCaptain, priceRequestLines } from './customer-orders';
+import { optionsSnapshotSchema } from './orders';
 
 /**
  * The guest's side of a QR order. Everything here is reached without a sign-in, from the Menu's table page, so it trusts
@@ -57,47 +55,6 @@ export interface GuestOrderInput {
   note: string;
 }
 
-type SnapshotLine = {
-  productId: string | null;
-  nameSnapshot: string;
-  unitPriceSnapshot: number;
-  optionsSnapshot: OptionSnapshot[];
-  promoDiscountPerUnit: number;
-  quantity: number;
-  note: string;
-};
-
-/** Prices the cart as the Menu would and turns each line into the snapshot the cashier sees. */
-function snapshotLines(catalog: Catalog, input: GuestOrderInput, now: Date): SnapshotLine[] {
-  const quote = quoteCart(catalog, { lines: input.lines.map(({ productId, variantId, optionIds, quantity }) => ({ productId, variantId, optionIds, quantity })), bundles: [] }, now);
-  if (quote.hasBlockingIssues) throw new QrOrderRefusal('INVALID_CART');
-  const products = new Map(catalog.products.map((product) => [product.id, product]));
-  const fallback = catalog.defaultLocale;
-  return quote.lines.map((line, index) => {
-    const product = products.get(line.productId);
-    const source = input.lines[index];
-    if (!product || !source) throw new QrOrderRefusal('INVALID_CART');
-    const variant = line.variantId ? (product.variants.find((v) => v.id === line.variantId) ?? null) : defaultVariant(product);
-    const chosen: OptionSnapshot[] = [];
-    if (variant) chosen.push({ id: variant.id, name: resolveText(variant.translations, 'name', fallback, fallback), priceDelta: variant.priceDelta });
-    for (const group of product.groups) {
-      for (const option of group.options) {
-        if (line.optionIds.includes(option.id)) chosen.push({ id: option.id, name: resolveText(option.translations, 'name', fallback, fallback), priceDelta: option.priceDelta });
-      }
-    }
-    const optionsTotal = chosen.reduce((sum, option) => sum + option.priceDelta, 0);
-    return {
-      productId: product.id,
-      nameSnapshot: resolveText(product.translations, 'name', fallback, fallback),
-      unitPriceSnapshot: product.basePrice,
-      optionsSnapshot: chosen,
-      promoDiscountPerUnit: promoDiscountPerUnit(product.basePrice, optionsTotal, line.unitPrice),
-      quantity: line.quantity,
-      note: source.note,
-    };
-  });
-}
-
 /**
  * Stores a guest's order as a request waiting for the cashier. The cart is priced again here from the published catalog;
  * the table's limits are counted in the database. Returns the request's public id, which is how the guest reads its state.
@@ -114,7 +71,8 @@ export async function submitCustomerOrder(
   if (input.bundleCount > 0) throw new QrOrderRefusal('BUNDLES_UNSUPPORTED');
   if (input.lines.length === 0 || input.lines.length > QR_LIMITS.maxLines) throw new QrOrderRefusal('INVALID_CART');
 
-  const lines = snapshotLines(catalog, input, now);
+  const lines = priceRequestLines(catalog, input.lines, now);
+  if (!lines) throw new QrOrderRefusal('INVALID_CART');
   const till = scopedClient(prisma, { restaurantId: gate.restaurantId });
   const productIds = [...new Set(lines.flatMap((line) => (line.productId ? [line.productId] : [])))];
   const [soldOut, existing] = await Promise.all([
@@ -128,6 +86,8 @@ export async function submitCustomerOrder(
     // Locks the restaurant's settings row, then the table's row (always in this order): two submissions count the hourly cap
     // and the table's limits one after the other.
     await tx.posSettings.updateMany({ where: { restaurantId: gate.restaurantId }, data: { restaurantId: gate.restaurantId } });
+    // Read under that lock: the request keeps the captain step it was sent with, whatever the switch does later.
+    const settings = await tx.posSettings.findFirst({ where: { restaurantId: gate.restaurantId }, select: { captainApproval: true } });
     const locked = await tx.posTable.updateMany({ where: { id: gate.tableId, restaurantId: gate.restaurantId }, data: { number: input.table } });
     // The table was removed between the gate and here.
     if (locked.count === 0) throw new QrGateClosed();
@@ -148,6 +108,7 @@ export async function submitCustomerOrder(
         tableNumber: input.table,
         locale: input.locale,
         customerNote: input.note,
+        requiresCaptain: settings?.captainApproval ?? false,
         createdAt: now,
         lines: {
           create: lines.map((line) => ({
@@ -184,6 +145,8 @@ export type GuestRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'
 export interface GuestRequestView {
   status: GuestRequestStatus;
   rejectReason: string;
+  /** Still waiting and held for the captain's approval before the cashier can take it. */
+  awaitingCaptain: boolean;
   lines: { name: string; quantity: number; options: string[]; note: string }[];
 }
 
@@ -203,9 +166,11 @@ export async function readGuestRequest(
     include: { lines: { orderBy: { id: 'asc' } } },
   });
   if (!row) return null;
+  const status = row.status === 'PENDING' && isExpired(row.createdAt, now) ? 'EXPIRED' : row.status;
   return {
-    status: row.status === 'PENDING' && isExpired(row.createdAt, now) ? 'EXPIRED' : row.status,
+    status,
     rejectReason: row.rejectReason,
+    awaitingCaptain: status === 'PENDING' && awaitingCaptain(row),
     lines: row.lines.map((line) => ({
       name: line.nameSnapshot,
       quantity: line.quantity,

@@ -54,7 +54,9 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const logo = await query(posRestaurantLogo, {});
   const sharedDevice = (await currentDevice())?.restaurantId === entry.actor.restaurantId;
   const handlesOrders = canPos(entry.actor.role, 'order.handle');
-  const flags = handlesOrders ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
+  // The captain sees the guests' orders too, so the requests badge follows `request.handle`, like the page's own queries.
+  const handlesRequests = canPos(entry.actor.role, 'request.handle');
+  const flags = handlesRequests ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0 };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
   const ai = canPos(entry.actor.role, 'report.view') ? await query(posAiState, {}) : { enabled: false };
   const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? flags.pendingRequests : item.key === 'complaints' ? complaints.count : 0 }));

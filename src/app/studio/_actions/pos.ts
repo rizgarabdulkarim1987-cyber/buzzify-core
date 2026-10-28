@@ -225,6 +225,14 @@ export async function removePosRequestLine(input: unknown) {
   return invoke(requests.removePosRequestLine, input);
 }
 
+export async function addPosRequestLine(input: unknown) {
+  return invoke(requests.addPosRequestLine, input);
+}
+
+export async function approvePosRequest(input: unknown) {
+  return invoke(requests.approvePosRequest, input);
+}
+
 export async function ensurePosMenuTables(input: unknown) {
   return invoke(requests.ensurePosMenuTables, input);
 }
