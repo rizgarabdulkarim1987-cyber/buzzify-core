@@ -27,6 +27,8 @@ export interface PoDraft {
   version: number;
   /** Idempotency key of the first save; kept with the draft so a retry after a lost answer replays. */
   clientKey: string;
+  /** The signature `clientKey` was made for: the key is reused only while the request is the same. */
+  keySig?: string;
   supplierId: string;
   supplierName: string;
   currency: Currency;
@@ -182,4 +184,52 @@ export function costVariance(args: { orderMinor: bigint; orderCurrency: Currency
   if (args.receivedMinor === args.orderMinor) return { kind: 'same' };
   const higher = args.receivedMinor > args.orderMinor;
   return { kind: higher ? 'higher' : 'lower', diffMinor: higher ? args.receivedMinor - args.orderMinor : args.orderMinor - args.receivedMinor, currency: args.receivedCurrency };
+}
+
+// Supplier form --------------------------------------------------------------------------------------------------------
+
+export interface SupplierDraft {
+  version: number;
+  clientKey: string;
+  /** The signature `clientKey` was made for: the key is reused only while the request is the same. */
+  keySig?: string;
+  name: string;
+  phone: string;
+  contactName: string;
+  addressNote: string;
+  defaultCurrency: Currency;
+  /** Days, as typed. */
+  termsDays: string;
+  note: string;
+}
+
+export function emptySupplierDraft(clientKey: string, currency: Currency): SupplierDraft {
+  return { version: 0, clientKey, name: '', phone: '', contactName: '', addressNote: '', defaultCurrency: currency, termsDays: '0', note: '' };
+}
+
+export type SupplierProblem = 'name' | 'terms';
+
+export function supplierInputOf(draft: SupplierDraft): { input?: Record<string, unknown>; problems: Record<string, SupplierProblem> } {
+  const problems: Record<string, SupplierProblem> = {};
+  if (draft.name.trim() === '') problems.name = 'name';
+  const terms = draft.termsDays.trim() === '' ? 0 : wholeOf(draft.termsDays);
+  if (terms === null || terms > 365) problems.termsDays = 'terms';
+  if (Object.keys(problems).length > 0) return { problems };
+  return {
+    problems,
+    input: {
+      name: draft.name,
+      phone: draft.phone,
+      contactName: draft.contactName,
+      addressNote: draft.addressNote,
+      defaultCurrency: draft.defaultCurrency,
+      termsDays: terms ?? 0,
+      note: draft.note,
+    },
+  };
+}
+
+/** Every field the server hashes, as typed; not the key and not the version. */
+export function supplierSignature(draft: SupplierDraft): string {
+  return JSON.stringify([draft.name, draft.phone, draft.contactName, draft.addressNote, draft.defaultCurrency, draft.termsDays, draft.note]);
 }

@@ -8,6 +8,9 @@ import {
   poSignature,
   poTotals,
   remainingOf,
+  emptySupplierDraft,
+  supplierInputOf,
+  supplierSignature,
   type PoDraft,
   type PoDraftLine,
 } from '@/app/pharmacy/_ui/purchasing-logic';
@@ -131,6 +134,26 @@ describe('costVariance', () => {
     expect(costVariance({ orderMinor: 2500n, orderCurrency: 'IQD', receivedMinor: 2700n, receivedCurrency: 'IQD' })).toEqual({ kind: 'higher', diffMinor: 200n, currency: 'IQD' });
     expect(costVariance({ orderMinor: 2500n, orderCurrency: 'IQD', receivedMinor: 2000n, receivedCurrency: 'IQD' })).toEqual({ kind: 'lower', diffMinor: 500n, currency: 'IQD' });
     expect(costVariance({ orderMinor: 2500n, orderCurrency: 'IQD', receivedMinor: 2500n, receivedCurrency: 'IQD' }).kind).toBe('same');
-    expect(costVariance({ orderMinor: 2500n, orderCurrency: 'IQD', receivedMinor: 2, receivedCurrency: 'USD' }).kind).toBe('currency');
+    expect(costVariance({ orderMinor: 2500n, orderCurrency: 'IQD', receivedMinor: 2n, receivedCurrency: 'USD' }).kind).toBe('currency');
+  });
+});
+
+describe('supplier form', () => {
+  const filled = { ...emptySupplierDraft('k-1', 'IQD'), name: '  Al Noor  Pharma ', termsDays: '30' };
+  it('builds the input with terms as a whole number', () => {
+    const built = supplierInputOf(filled);
+    expect(built.problems).toEqual({});
+    expect(built.input).toMatchObject({ name: '  Al Noor  Pharma ', defaultCurrency: 'IQD', termsDays: 30, phone: '', note: '' });
+  });
+  it('names the problems that need no server', () => {
+    expect(supplierInputOf({ ...filled, name: '   ' }).problems.name).toBe('name');
+    expect(supplierInputOf({ ...filled, termsDays: '400' }).problems.termsDays).toBe('terms');
+    expect(supplierInputOf({ ...filled, termsDays: '1.5' }).problems.termsDays).toBe('terms');
+    expect(supplierInputOf({ ...filled, termsDays: '' }).input).toMatchObject({ termsDays: 0 });
+  });
+  it('keeps one signature for one request, not counting the key or version', () => {
+    const a = supplierSignature(filled);
+    expect(supplierSignature({ ...filled, clientKey: 'z', version: 3 })).toBe(a);
+    expect(supplierSignature({ ...filled, phone: '0770' })).not.toBe(a);
   });
 });

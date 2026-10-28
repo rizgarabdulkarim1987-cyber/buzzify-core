@@ -116,6 +116,11 @@ export function Shell({
             {t('pharmacy.nav.receiving')}
           </Link>
         )}
+        {actor.role !== null && canPh(actor.role, 'purchase.manage') && (
+          <Link href="/pharmacy/purchasing" className={LINK}>
+            {t('pharmacy.nav.purchasing')}
+          </Link>
+        )}
         {actor.role !== null && canPh(actor.role, 'report.view') && (
           <Link href="/pharmacy/stock/movements" className={LINK}>
             {t('pharmacy.nav.movements')}
