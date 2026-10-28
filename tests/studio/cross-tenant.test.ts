@@ -628,6 +628,31 @@ const SWEPT: Record<string, Case[]> = {
     c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
     c("switches off B's box", (w) => ({ menuId: w.b.menuId, enabled: false })),
   ],
+  // The intro page before the menu: B's menu, and B's asset smuggled into A's.
+  'menus.setIntroEnabled': [c("switches on B's intro", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveIntro': [
+    c("B's intro", (w) => ({ menuId: w.b.menuId, backgroundAssetId: null, overlay: 50, showLogo: true, showContact: true })),
+    c("B's picture as A's background", (w) => ({ menuId: w.a.menuId, backgroundAssetId: w.b.assetId, overlay: 50, showLogo: true, showContact: true })),
+  ],
+  'menus.intro': [c("B's intro", (w) => ({ menuId: w.b.menuId }))],
+  // The About page: B's menu, B's picture and B's dish smuggled into A's, and B's offer through A.
+  'menus.setAboutEnabled': [c("switches on B's About page", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveAbout': [
+    c("B's About page", (w) => ({ menuId: w.b.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture as A's cover", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: w.b.assetId, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture in A's gallery", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [w.b.assetId], showHours: true, showContact: true })),
+  ],
+  'menus.saveAboutOffer': [
+    c("an offer on B's page", (w) => ({ menuId: w.b.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: null, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+    c("B's picture on A's offer", (w) => ({ menuId: w.a.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: w.b.assetId, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+  ],
+  'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
+  'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
+  'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
+  // The wheel: B's menu through A's session.
+  'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveWheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId, spinsPerDay: 1, startsAt: null, endsAt: null, title: {}, slices: [] }))],
+  'menus.wheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
@@ -921,6 +946,13 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
+  // The platform's intro background and adverts (`platform.settings`).
+  'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
+  'platform.introReports': [c('the intro report', () => ({ from: '2026-10-01', to: '2026-10-31' }), ONLY_FORBIDDEN)],
+  'platform.saveIntroDefault': [c('a default background', (w) => ({ backgroundAssetId: w.b.assetId }), ONLY_FORBIDDEN)],
+  'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId], menuIds: [w.b.menuId] }), ONLY_FORBIDDEN)],
+  'platform.reorderPlatformAdverts': [c('the adverts', () => ({ ids: [] }), ONLY_FORBIDDEN)],
+  'platform.deletePlatformAdvert': [c('an advert', () => ({ advertId: 'nope' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
   'people.deactivateUser': [c("B's owner", (w) => ({ userId: w.b.ownerId }), ONLY_FORBIDDEN)],

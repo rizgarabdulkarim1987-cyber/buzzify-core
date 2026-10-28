@@ -44,6 +44,10 @@ export const FEATURES = [
   { key: 'design.backgroundAnimation', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundVideo', area: 'design', status: 'live', project: 2, startsIn: 'PREMIUM' },
   { key: 'immersive.models3d', area: 'immersive', status: 'live', project: 2, startsIn: 'PREMIUM' },
+  // Guest-facing extras of the menu: the intro page, the restaurant's own page and the wheel of fortune (docs/superpowers/specs/2026-10-29-menu-*).
+  { key: 'menu.intro', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
+  { key: 'menu.about', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
+  { key: 'menu.wheel', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'design.premiumTemplates', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundImage', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.motionPresets', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },

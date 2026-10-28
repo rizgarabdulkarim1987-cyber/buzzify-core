@@ -76,3 +76,9 @@ export async function prunePublicRateLimits(prisma: Pick<PrismaClient, 'authRate
   });
   return count;
 }
+
+/** Deletes the wheel's spins recorded before `before`: they exist only to count a day's spins, so three days is more than enough. */
+export async function pruneWheelSpins(prisma: Pick<PrismaClient, 'wheelSpin'>, before: Date): Promise<number> {
+  const { count } = await prisma.wheelSpin.deleteMany({ where: { createdAt: { lt: before } } });
+  return count;
+}

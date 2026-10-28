@@ -3,7 +3,7 @@ import type { Actor } from '@/server/studio/auth/actor';
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview' | 'pharmacies';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview' | 'pharmacies';
 
 export interface NavItem {
   key: NavKey;
@@ -37,6 +37,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'people', href: '/studio/people', labelKey: 'nav.people', icon: 'people' },
   // What the Buzzify team tells every till and Studio user (docs/superpowers/specs/2026-10-26-staff-appearance-logo-announcements-design.md).
   { key: 'announcements', href: '/studio/announcements', labelKey: 'nav.announcements', icon: 'announcements' },
+  // The default background and adverts of every menu's intro page, and their report.
+  { key: 'platformIntro', href: '/studio/platform/intro', labelKey: 'nav.platformIntro', icon: 'media' },
   { key: 'activity', href: '/studio/activity', labelKey: 'nav.activity', icon: 'activity' },
   { key: 'settings', href: '/studio/settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
@@ -46,7 +48,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
  * allowed to invite does that from their restaurant's People tab. Billing, Activity and Settings need `platform.settings`
  * or `audit.view`, which no client policy can grant.
  */
-const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'pharmacies', 'people', 'announcements', 'activity', 'settings']);
+const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'pharmacies', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
 
 /** What the navigation needs to know about a restaurant an owner holds: its name and its menus. */
 export interface OwnedRestaurant {

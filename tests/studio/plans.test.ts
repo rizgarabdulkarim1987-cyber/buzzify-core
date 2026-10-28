@@ -103,7 +103,7 @@ describe('plans', () => {
     await act(owner, plans.setRestaurantPlan, { restaurantId: a.restaurant.id, plan: 'PRO', extras: {}, note: 'Deal' });
     const asOwner = dataOf(await read(owner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }));
     expect(asOwner).toMatchObject({ plan: 'PRO', note: 'Deal', canEdit: true });
-    expect(asOwner.features.map((f) => f.key)).toHaveLength(15);
+    expect(asOwner.features.map((f) => f.key)).toHaveLength(18);
     expect(asOwner.features.find((f) => f.key === 'immersive.explore')).toMatchObject({ allowed: false, inPlan: false, extra: null, lowestPlan: 'PREMIUM' });
     expect(dataOf(await read(otherAdmin, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: 'Deal', canEdit: false });
     expect(dataOf(await read(restaurantOwner, planQueries.restaurantPlan, { restaurantId: a.restaurant.id }))).toMatchObject({ note: null, canEdit: false });

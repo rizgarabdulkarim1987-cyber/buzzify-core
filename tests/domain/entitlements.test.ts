@@ -20,8 +20,8 @@ const live = (tier: PlanTier) =>
   [...defaultPlans().features[tier]].filter((key) => FEATURES.find((feature) => feature.key === key)!.status === 'live');
 
 describe('the feature catalog', () => {
-  it('lists the fifteen live features first, in the specs’ order', () => {
-    expect(FEATURE_KEYS.slice(0, 15)).toEqual([
+  it('lists the eighteen live features first, in the specs’ order', () => {
+    expect(FEATURE_KEYS.slice(0, 18)).toEqual([
       'design.fontPairs',
       'design.railStyles',
       'design.expressiveMotion',
@@ -37,8 +37,11 @@ describe('the feature catalog', () => {
       'design.backgroundAnimation',
       'design.backgroundVideo',
       'immersive.models3d',
+      'menu.intro',
+      'menu.about',
+      'menu.wheel',
     ]);
-    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(15);
+    expect(FEATURES.filter((feature) => feature.status === 'live')).toHaveLength(18);
     expect(FEATURES.filter((feature) => feature.status === 'reserved')).toHaveLength(17);
   });
 
@@ -62,8 +65,11 @@ describe('the feature catalog', () => {
       'selling.insights',
       'design.menuMotions',
       'design.backgroundAnimation',
+      'menu.intro',
+      'menu.about',
+      'menu.wheel',
     ]);
-    expect(live('PREMIUM')).toHaveLength(15);
+    expect(live('PREMIUM')).toHaveLength(18);
   });
 
   it('starts the scene files where the spec says: Lottie in Pro, video and models in Premium', () => {
@@ -155,7 +161,7 @@ describe('a restaurant’s entitlements', () => {
   it('lists the live features a change of plan takes away, in catalog order', () => {
     const premium = effectiveEntitlements({ plan: 'PREMIUM', plans: defaultPlans(), extras: {} });
     const basic = effectiveEntitlements({ plan: 'BASIC', plans: defaultPlans(), extras: {} });
-    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 15));
+    expect(featuresLost(premium, basic)).toEqual(FEATURE_KEYS.slice(0, 18));
     expect(featuresLost(basic, premium)).toEqual([]);
   });
 });
