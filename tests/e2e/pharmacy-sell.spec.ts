@@ -26,6 +26,8 @@ import {
 
 const DAY = 86_400_000;
 const BARCODE = '6001234567890';
+const BARCODE_2 = '6001234567891';
+const BARCODE_3 = '6001234567892';
 const db = () => createPrisma(databaseUrl(DEV_DB));
 const dateIn = (days: number) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
 
@@ -114,6 +116,78 @@ async function seedCatalog(shop: TestPharmacy, tag: string): Promise<{ sellable:
   }
 }
 
+/** One product with a tablet and a strip (10), optionally priced, stocked in the first branch and with a barcode on the strip. */
+async function seedOne(
+  shop: TestPharmacy,
+  input: { name: string; strength?: string; barcode?: string; tablet?: bigint; strip?: bigint; stock: boolean },
+): Promise<{ id: string; name: string }> {
+  const client = db();
+  try {
+    const strength = input.strength ?? '500 mg';
+    const product = await client.phProduct.create({
+      data: {
+        restaurantId: shop.id,
+        tradeName: input.name,
+        strength,
+        form: 'tablet',
+        identityKey: `${input.name}|${strength}|${shop.id}`,
+        searchText: searchTextOf({ tradeName: input.name, genericName: '', activeIngredient: '', strength, form: 'tablet', manufacturer: '' }),
+      },
+      select: { id: true },
+    });
+    const tablet = await client.phProductUnit.create({ data: { restaurantId: shop.id, productId: product.id, level: 0, label: 'tablet', baseQty: 1 }, select: { id: true } });
+    const strip = await client.phProductUnit.create({ data: { restaurantId: shop.id, productId: product.id, level: 1, label: 'strip', baseQty: 10 }, select: { id: true } });
+    if (input.tablet !== undefined && input.strip !== undefined) {
+      for (const [unitId, amountMinor] of [[tablet.id, input.tablet], [strip.id, input.strip]] as const) {
+        await client.phPrice.create({ data: { restaurantId: shop.id, productId: product.id, unitId, currency: 'IQD', amountMinor, validFrom: new Date('2026-01-01T00:00:00.000Z'), changedById: 'seed' } });
+      }
+    }
+    if (input.barcode) await client.phBarcode.create({ data: { restaurantId: shop.id, productId: product.id, unitId: strip.id, code: input.barcode } });
+    if (input.stock) {
+      const scoped = scopedClient(client, { restaurantId: shop.id, allBranches: true });
+      const batch = await client.phBatch.create({ data: { restaurantId: shop.id, productId: product.id, lot: 'LOT-1', expiryDate: new Date(`${dateIn(400)}T00:00:00.000Z`) }, select: { id: true } });
+      await scoped.$transaction(async (tx) => {
+        await applyMovement(tx, { restaurantId: shop.id, branchId: shop.branchIds[0]!, batchId: batch.id, userId: 'seed', type: 'RECEIPT', deltas: { available: 100 }, reason: '' });
+      });
+    }
+    return { id: product.id, name: input.name };
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+async function archiveProduct(productId: string): Promise<void> {
+  const client = db();
+  try {
+    await client.phProduct.update({ where: { id: productId }, data: { active: false } });
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+async function completedSales(restaurantId: string): Promise<number> {
+  const client = db();
+  try {
+    return await client.phSale.count({ where: { restaurantId, status: 'COMPLETED' } });
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+/** A new open price for one unit of a product (the old one is closed at the same moment). */
+async function raisePrice(restaurantId: string, productName: string, unitLabel: string, amountMinor: bigint): Promise<void> {
+  const client = db();
+  try {
+    const product = await client.phProduct.findFirstOrThrow({ where: { restaurantId, tradeName: productName }, select: { id: true } });
+    const unit = await client.phProductUnit.findFirstOrThrow({ where: { productId: product.id, label: unitLabel }, select: { id: true } });
+    const now = new Date(Date.now() - 1000);
+    await client.phPrice.updateMany({ where: { productId: product.id, unitId: unit.id, validTo: null }, data: { validTo: now } });
+    await client.phPrice.create({ data: { restaurantId, productId: product.id, unitId: unit.id, currency: 'IQD', amountMinor, validFrom: now, changedById: 'seed' } });
+  } finally {
+    await client.$disconnect();
+  }
+}
+
 async function openShiftInDb(shop: TestPharmacy, userId: string): Promise<void> {
   const client = db();
   try {
@@ -154,6 +228,7 @@ async function signInAndChoose(page: Page, user: StudioUser, shop: TestPharmacy,
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
 test.describe('Pharmacy sell @desktop', () => {
+  test.describe.configure({ mode: 'serial' });
   const restaurants: string[] = [];
   const people: string[] = [];
   /** The platform's kill switch for the pharmacy product: switched on for this run and put back after. */
@@ -347,6 +422,180 @@ test.describe('Pharmacy sell @desktop', () => {
     await expect(page.getByTestId('hold-cart')).toBeEnabled();
     await page.getByTestId('line-more').locator('> summary').click();
     await expect(page.getByTestId('batch-select')).toHaveCount(0);
+    await page.context().close();
+  });
+
+  // Task 8b -----------------------------------------------------------------------------------------------------------------
+
+  test('two scans that come before the first lookup returns both land; a held product beyond the first 30 name hits resumes intact; discard asks first; the quantity can be cleared and typed in Arabic digits', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned('Scans');
+    const tag = randomUUID().slice(0, 6);
+    const names = await seedCatalog(shop, tag);
+    const second = await seedOne(shop, { name: `Second ${tag}`, barcode: BARCODE_2, tablet: 300n, strip: 2500n, stock: true });
+    // 34 products share one trade name; the one held is the 35th, so a search by that name (30 hits) would not return it.
+    const dupName = `Twin ${tag}`;
+    for (let n = 1; n <= 34; n += 1) await seedOne(shop, { name: dupName, strength: `${n} mg`, stock: false });
+    const target = await seedOne(shop, { name: dupName, strength: '35 mg', barcode: BARCODE_3, tablet: 400n, strip: 3500n, stock: true });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/sell');
+    await page.getByTestId('shift-open').click();
+    await expect(page.getByTestId('sell-workspace')).toBeVisible();
+
+    // Two scans in one burst, the second typed before the first lookup can have returned: both are in the cart.
+    await page.keyboard.type(`${BARCODE}\n${BARCODE_2}\n`, { delay: 0 });
+    await expect(page.getByTestId('cart-line')).toHaveCount(2);
+    await expect(page.getByTestId('cart-line').nth(0)).toContainText(names.sellable);
+    await expect(page.getByTestId('cart-line').nth(1)).toContainText(second.name);
+    // A third, unknown one and an unknown fourth are BOTH said (neither replaces the other), until dismissed.
+    await page.keyboard.type('9990001112223\n9990001112224\n', { delay: 0 });
+    await expect(page.getByTestId('scan-unknown')).toHaveCount(2);
+    await page.getByTestId('scan-dismiss').first().click();
+    await expect(page.getByTestId('scan-unknown')).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.getByTestId('scan-unknown')).toHaveCount(0);
+    // A scan typed INSIDE the search box adds once and does not also add the top result of the half-typed text.
+    await page.getByTestId('sell-search').focus();
+    await page.keyboard.type(`${BARCODE_2}\n`, { delay: 0 });
+    await expect(page.getByTestId('cart-line')).toHaveCount(2);
+    await expect(page.getByTestId('sell-search')).toHaveValue('');
+
+    // The quantity field can be emptied (the line stays) and takes Arabic digits.
+    const qty = page.getByTestId('qty-input').first();
+    await qty.fill('');
+    await expect(page.getByTestId('cart-line')).toHaveCount(2);
+    await qty.pressSequentially('٣');
+    await expect(qty).toHaveValue('3');
+    await qty.blur();
+    await expect(qty).toHaveValue('3');
+
+    // Remove both, take the product beyond the 30 hits, hold it, and continue it: the line comes back as it was held.
+    await page.getByTestId('clear-cart').click();
+    await page.getByTestId('ask-confirm').click();
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await page.keyboard.type(`${BARCODE_3}\n`, { delay: 0 });
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cart-line')).toContainText('35 mg');
+    await page.keyboard.press('F8');
+    await expect(page.getByTestId('sell-notice')).toContainText('Cart held');
+    await page.getByTestId('open-holds').click();
+    await expect(page.getByTestId('hold-row')).toHaveCount(1);
+    await page.getByTestId('hold-resume').click();
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cart-line')).toContainText('35 mg');
+    await expect(page.getByTestId('held-blocked')).toHaveCount(0);
+    await expect(page.getByTestId('pay-open')).toBeEnabled();
+    expect(target.id).toBeTruthy();
+
+    // A held product that is archived meanwhile stays in the cart, marked; Pay and Hold stay off until it is removed.
+    await page.getByTestId('hold-cart').click();
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await archiveProduct(target.id);
+    await page.getByTestId('open-holds').click();
+    await page.getByTestId('hold-resume').click();
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('cart-line')).toHaveAttribute('data-blocked', 'GONE');
+    await expect(page.getByTestId('chip-blocked')).toContainText('no longer available');
+    await expect(page.getByTestId('held-blocked')).toContainText(dupName);
+    await expect(page.getByTestId('pay-open')).toBeDisabled();
+    await expect(page.getByTestId('hold-cart')).toBeDisabled();
+    await page.keyboard.press('F8');
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    // It survives a reload (the mark is part of the draft) and goes only when the cashier removes it.
+    await page.reload();
+    await expect(page.getByTestId('cart-line')).toHaveAttribute('data-blocked', 'GONE');
+    await page.getByTestId('remove-line').click();
+    await expect(page.getByTestId('held-blocked')).toHaveCount(0);
+
+    // Discarding a held cart asks first.
+    await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await page.keyboard.press('F8');
+    await expect(page.getByTestId('cart-empty')).toBeVisible();
+    await page.getByTestId('open-holds').click();
+    const rows = page.getByTestId('hold-row');
+    await expect(rows).toHaveCount(2);
+    await rows.nth(0).getByTestId('hold-discard').click();
+    await expect(page.getByTestId('hold-discard-ask')).toBeVisible();
+    await page.getByTestId('hold-discard-keep').click();
+    await expect(rows).toHaveCount(2);
+    await rows.nth(0).getByTestId('hold-discard').click();
+    await page.getByTestId('hold-discard-confirm').click();
+    await expect(rows).toHaveCount(1);
+    await page.context().close();
+  });
+
+  test('a sale whose answer is lost: the reload keeps the same keys, the repeat returns the sale that was already recorded, one sale in the books', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned('Lost');
+    await seedCatalog(shop, randomUUID().slice(0, 6));
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/sell');
+    await page.getByTestId('shift-open').click();
+    await expect(page.getByTestId('sell-search')).toBeFocused();
+    await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await page.keyboard.press('F4');
+    await page.getByTestId('pay-tendered').fill('5000');
+
+    // The server records the sale, but the browser never gets the answer.
+    await page.route('**/pharmacy/sell', async (route) => {
+      if (route.request().method() === 'POST' && route.request().headers()['next-action']) {
+        await route.fetch();
+        await route.abort();
+      } else await route.continue();
+    });
+    await page.getByTestId('pay-confirm').click();
+    await expect(page.getByTestId('pay-problem')).toContainText('may or may not have been recorded');
+    await expect(page.getByTestId('pay-problem')).toContainText('Sales');
+    await page.unroute('**/pharmacy/sell');
+    expect(await completedSales(shop.id)).toBe(1);
+    const stored = await page.evaluate(() => {
+      const key = Object.keys(localStorage).find((k) => k.startsWith('ph-sell-draft'));
+      return key ? (JSON.parse(localStorage.getItem(key)!) as { attempt: { key: string; paymentKey: string; amountMinor: string } | null }) : null;
+    });
+    expect(stored?.attempt?.key).toMatch(/^sale-/);
+    expect(stored?.attempt?.amountMinor).toBe('5000');
+
+    // Reload: the cart and the attempt come back, the screen warns, and the payment is filled in as it was sent.
+    await page.reload();
+    await expect(page.getByTestId('cart-line')).toHaveCount(1);
+    await expect(page.getByTestId('attempt-unknown')).toContainText('Check Sales');
+    await page.keyboard.press('F4');
+    await expect(page.getByTestId('pay-tendered')).toHaveValue('5000');
+    await page.getByTestId('pay-confirm').click();
+    await expect(page.getByTestId('sale-done')).toContainText('already saved');
+    await expect(page.getByTestId('sale-total')).toContainText('2,000');
+    expect(await completedSales(shop.id)).toBe(1);
+    const after = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('ph-sell-draft')).length);
+    expect(after).toBe(0);
+    await page.context().close();
+  });
+
+  test('a price that moved after the cart was filled: the refused payment shows the server total, refreshes the cart by id, and the retry sells at the new price', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned('Moved');
+    const names = await seedCatalog(shop, randomUUID().slice(0, 6));
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/sell');
+    await page.getByTestId('shift-open').click();
+    await expect(page.getByTestId('sell-search')).toBeFocused();
+    await page.keyboard.type(`${BARCODE}\n`, { delay: 0 });
+    await expect(page.getByTestId('line-total')).toContainText('2,000');
+    await raisePrice(shop.id, names.sellable, 'strip', 2200n);
+    await page.keyboard.press('F4');
+    await page.getByTestId('pay-tendered').fill('2000');
+    await page.getByTestId('pay-confirm').click();
+    await expect(page.getByTestId('pay-problem')).toContainText('2,200');
+    await expect(page.getByTestId('pay-total')).toContainText('2,200');
+    await expect(page.getByTestId('line-total')).toContainText('2,200');
+    await page.getByTestId('pay-exact').click();
+    await page.getByTestId('pay-confirm').click();
+    await expect(page.getByTestId('sale-total')).toContainText('2,200');
+    expect(await completedSales(shop.id)).toBe(1);
     await page.context().close();
   });
 

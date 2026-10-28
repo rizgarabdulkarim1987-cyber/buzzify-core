@@ -143,6 +143,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const searchBox = useRef<HTMLInputElement>(null);
   const searchSeq = useRef(0);
   const latest = useRef<{ q: string; items: SellItem[] } | null>(null);
+  const typingPause = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [issues, setIssues] = useState<ScanIssue[]>([]);
   const issueSeq = useRef(0);
 
@@ -245,6 +246,12 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     writeDraft();
   }, [shift, draftChecked, writeDraft, pending]);
 
+  // A cart emptied line by line is no longer the held cart it came from: a later hold or sale must not touch that hold.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follows the cart: an empty cart has no source hold
+    if (draftChecked && cart.lines.length === 0 && fromHoldId !== null) setFromHoldId(null);
+  }, [draftChecked, cart.lines.length, fromHoldId]);
+
   // Leaving with a cart ------------------------------------------------------------------------------------------------
   useEffect(() => {
     if (cart.lines.length === 0) return;
@@ -297,12 +304,14 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       return;
     }
     const timer = setTimeout(() => {
+      typingPause.current = null;
       void runSearch(q).then((items) => {
         if (!items) return;
         latest.current = { q, items };
         setView({ kind: 'results', q, items });
       });
     }, SEARCH_DELAY_MS);
+    typingPause.current = timer;
     return () => clearTimeout(timer);
   }, [query, runSearch]);
 
@@ -316,6 +325,9 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const addTop = async () => {
     const q = query.trim();
     if (q === '') return;
+    // Enter searches by itself: the typing pause must not fire a second search that would supersede this one (a slow first answer then added nothing).
+    if (typingPause.current) clearTimeout(typingPause.current);
+    typingPause.current = null;
     let items = latest.current?.q === q ? latest.current.items : null;
     if (!items) {
       items = await runSearch(q);
