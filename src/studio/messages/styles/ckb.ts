@@ -2,10 +2,14 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.group.themes': 'تێمەکان',
-    'styles.group.heritage': 'کوردی و عەرەبی',
-    'styles.group.motion': 'بە جووڵە',
-    'styles.group.shapes': 'شێوەی نوێ',
+    'styles.category.space': 'فەزا و خەیاڵ',
+    'styles.category.kurdish': 'میراتی کوردی',
+    'styles.category.arab': 'میراتی عەرەبی و عێراقی',
+    'styles.category.retro': 'ڕیترۆ و چاپکراو',
+    'styles.category.lists': 'لیست و خشتە',
+    'styles.category.cards': 'کارت و کاروسێل',
+    'styles.category.play': 'یاری و خۆشی',
+    'styles.category.cinema': 'جووڵە و سینەما',
   },
   {
     'themed-kurd': ['جاجم و نەورۆز', 'جاجمی چنراو، ئاگری نەورۆز و هەڵپەڕکێ لە نێوان بەشەکان'],

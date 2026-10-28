@@ -2,10 +2,14 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.group.themes': 'ثيمات',
-    'styles.group.heritage': 'كردي وعربي',
-    'styles.group.motion': 'بالحركة',
-    'styles.group.shapes': 'أشكال جديدة',
+    'styles.category.space': 'فضاء وخيال',
+    'styles.category.kurdish': 'تراث كردي',
+    'styles.category.arab': 'تراث عربي وعراقي',
+    'styles.category.retro': 'ريترو ومطبوعات',
+    'styles.category.lists': 'قوائم وجداول',
+    'styles.category.cards': 'بطاقات وكاروسيل',
+    'styles.category.play': 'ألعاب ومرح',
+    'styles.category.cinema': 'حركة وسينما',
   },
   {
     'themed-kurd': ['جاجيم ونوروز', 'سجاد كردي منسوج ونار نوروز وراقصون بين الأقسام'],

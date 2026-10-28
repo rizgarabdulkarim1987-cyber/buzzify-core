@@ -2469,6 +2469,8 @@ const ckb: Messages = {
   'design.filter.count_one': '{count} قاڵب',
   'design.filter.count_other': '{count} قاڵب',
   'design.filter.styles': 'ستایلەکان',
+  'design.filter.category': 'پۆل',
+  'design.filter.categoryAll': 'هەموو پۆلەکان',
   'design.filter.stylesCount_one': '{count} ستایل',
   'design.filter.stylesCount_other': '{count} ستایل',
   'design.comingSoon': 'بەم زووانە',

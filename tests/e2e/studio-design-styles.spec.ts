@@ -1,5 +1,6 @@
 import { expect, test, type Browser, type Page } from '@playwright/test';
 import { getStudioTranslator } from '@/studio/messages';
+import { CATEGORY_STYLES } from '@/studio/styles/categories';
 import { MENU_STYLES } from '@/studio/styles/catalog';
 import { TEMPLATE_FOR_STYLE } from '@/studio/styles/template-map';
 import { createTemporaryMenu, type TemporaryMenu } from './helpers/db';
@@ -38,12 +39,12 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     await expect(chip).toHaveAttribute('aria-pressed', 'true');
   }
 
-  test('shows the 35 styles, every one an ordinary template', async ({ browser }) => {
+  test('shows the 123 styles, every one an ordinary template', async ({ browser }) => {
     test.slow();
     const page = await signedIn(browser);
     await openStyles(page);
     const cards = page.locator('ul[data-styles] > li');
-    await expect(cards).toHaveCount(35);
+    await expect(cards).toHaveCount(123);
     await expect(page.getByText(en('design.filter.stylesCount_other', { count: 123 }))).toBeVisible();
     // Every catalog style maps to a template, so none is coming soon (the coming-soon path stays for a future style).
     expect(Object.keys(TEMPLATE_FOR_STYLE)).toHaveLength(MENU_STYLES.length);
@@ -51,6 +52,20 @@ test.describe('the Styles filter in the Templates gallery @desktop', () => {
     // Catalog order: the first style is the Kurdish theme, a real template card.
     const first = cards.first().getByRole('button');
     await expect(first).toHaveAccessibleName(en('design.select', { name: 'Jajim and Nowruz' }));
+  });
+
+  test('filters the styles by category, and All brings them back', async ({ browser }) => {
+    test.slow();
+    const page = await signedIn(browser);
+    await openStyles(page);
+    const cards = page.locator('ul[data-styles] > li');
+    const chip = (key: string) => page.getByRole('group', { name: en('design.filter.category') }).getByRole('button', { name: en(key), exact: true });
+    await chip('styles.category.lists').click();
+    await expect(cards).toHaveCount(CATEGORY_STYLES.lists.length);
+    await expect(page.getByRole('button', { name: en('design.select', { name: 'Periodic Table of Food' }) })).toBeVisible();
+    await expect(page.getByRole('button', { name: en('design.select', { name: 'Jajim and Nowruz' }) })).toHaveCount(0);
+    await chip('design.filter.categoryAll').click();
+    await expect(cards).toHaveCount(123);
   });
 
   test('previews The Book with the menu’s own products and applies it', async ({ browser }) => {

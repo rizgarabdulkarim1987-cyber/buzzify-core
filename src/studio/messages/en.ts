@@ -2464,6 +2464,8 @@ const en: Messages = {
   'design.filter.count_one': '{count} template',
   'design.filter.count_other': '{count} templates',
   'design.filter.styles': 'Styles',
+  'design.filter.category': 'Category',
+  'design.filter.categoryAll': 'All categories',
   'design.filter.stylesCount_one': '{count} style',
   'design.filter.stylesCount_other': '{count} styles',
   'design.comingSoon': 'Coming soon',

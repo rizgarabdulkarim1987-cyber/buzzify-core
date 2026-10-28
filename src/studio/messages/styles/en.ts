@@ -2,10 +2,14 @@ import { styleMessages } from './build';
 
 export default styleMessages(
   {
-    'styles.group.themes': 'Themes',
-    'styles.group.heritage': 'Kurdish & Arab',
-    'styles.group.motion': 'Motion-led',
-    'styles.group.shapes': 'New shapes',
+    'styles.category.space': 'Space & Sci-fi',
+    'styles.category.kurdish': 'Kurdish Heritage',
+    'styles.category.arab': 'Arab & Iraqi Heritage',
+    'styles.category.retro': 'Retro & Print',
+    'styles.category.lists': 'Lists & Ledgers',
+    'styles.category.cards': 'Cards & Carousels',
+    'styles.category.play': 'Play & Games',
+    'styles.category.cinema': 'Motion & Cinema',
   },
   {
     'themed-kurd': ['Jajim and Nowruz', 'Woven Kurdish rugs, a Nowruz fire and dancers between the sections'],
