@@ -818,3 +818,41 @@ export function baghdadMonth(now: Date): string {
   const d = new Date(now.getTime() + 3 * 3_600_000);
   return `${pad(d.getUTCFullYear(), 4)}-${pad(d.getUTCMonth() + 1)}`;
 }
+
+// Input size bound ---------------------------------------------------------------------------------------------------
+
+/**
+ * Constants of the input-token upper bound (R5-3). An image costs about w*h/750 tokens (Anthropic, scaled to <= 1.6 k) or <= 1.1 k
+ * (OpenAI high detail); a PDF page is its page image plus its text. Each is doubled for safety. They are checked at UAT against
+ * `PhAiCall.inputTokens`; an estimate that turns out low is still safe (the call is charged its reservation, the overrun audited).
+ */
+export const INPUT_BOUND = { imageTokensMax: 3_200, pdfPageTokensMax: 9_000, overheadTokens: 500, contextTokens: 200_000 } as const;
+
+export type MediaHint = { kind: 'image'; widthPx: number; heightPx: number } | { kind: 'pdf'; pages: number };
+
+const positiveInt = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
+
+/**
+ * An upper bound of a request's input tokens: text by UTF-8 bytes / 3 (a token is at least a byte; a third keeps room for the
+ * request's own structure), each image by its stored size capped at a fixed maximum, each PDF by its stored page count, plus a
+ * fixed overhead. `null` when it cannot be bounded (a missing or absurd hint, more than 10 pages): the caller refuses the file.
+ */
+export function inputTokensUpperBound(textBytes: number, media: readonly MediaHint[]): number | null {
+  if (!Number.isSafeInteger(textBytes) || textBytes < 0) return null;
+  let total = Math.ceil(textBytes / 3) + INPUT_BOUND.overheadTokens;
+  for (const item of media) {
+    if (item.kind === 'image') {
+      if (!positiveInt(item.widthPx) || !positiveInt(item.heightPx)) return null;
+      total += Math.min(INPUT_BOUND.imageTokensMax, 2 * Math.ceil((item.widthPx * item.heightPx) / 750));
+    } else {
+      if (!positiveInt(item.pages) || item.pages > INTAKE_LIMITS.maxPages) return null;
+      total += item.pages * INPUT_BOUND.pdfPageTokensMax;
+    }
+  }
+  return total;
+}
+
+/** Whether a request with this many input tokens and this output cap fits the model's context window. */
+export function fitsContext(inputTokens: number, maxOutputTokens: number): boolean {
+  return inputTokens + maxOutputTokens <= INPUT_BOUND.contextTokens;
+}
