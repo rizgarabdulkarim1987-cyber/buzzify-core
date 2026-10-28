@@ -3,7 +3,8 @@ import { canPos, type PosPermission, type PosRole } from './permissions';
 /** The pages of the till, each behind the permission that opens it (the same one its queries ask for). */
 export const TILL_PAGES = [
   { key: 'tables', href: '/pos/tables', permission: 'order.handle' },
-  { key: 'requests', href: '/pos/requests', permission: 'order.handle', needsQr: true },
+  { key: 'captain', href: '/pos/captain', permission: 'captain.order' },
+  { key: 'requests', href: '/pos/requests', permission: 'request.handle', needsQr: true },
   { key: 'shift', href: '/pos/shift', permission: 'shift.use' },
   { key: 'kitchen', href: '/pos/kitchen', permission: 'kitchen.view' },
   { key: 'report', href: '/pos/report', permission: 'report.view' },

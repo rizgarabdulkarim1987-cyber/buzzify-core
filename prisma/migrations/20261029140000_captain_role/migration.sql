@@ -1,0 +1,2 @@
+-- AlterEnum
+ALTER TYPE "PosRole" ADD VALUE 'CAPTAIN';

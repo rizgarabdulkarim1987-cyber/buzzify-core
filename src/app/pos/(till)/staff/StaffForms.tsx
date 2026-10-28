@@ -19,12 +19,12 @@ import { Select } from '@/studio/ui/Select';
 /** The roles a person in `own` may hand out: an owner any, a manager the floor roles. Mirrors `mayAssign` on the server. */
 function assignable(own: PosRole): readonly PosRole[] {
   if (own === 'OWNER') return POS_ROLES;
-  return own === 'MANAGER' ? ['CASHIER', 'KITCHEN'] : [];
+  return own === 'MANAGER' ? ['CASHIER', 'KITCHEN', 'CAPTAIN'] : [];
 }
 
 /** Whether a person in `own` may change a row now holding `current` (the server decides; this only hides what would be refused). */
 function mayChange(own: PosRole, current: PosRole): boolean {
-  return own === 'OWNER' || (own === 'MANAGER' && (current === 'CASHIER' || current === 'KITCHEN'));
+  return own === 'OWNER' || (own === 'MANAGER' && (current === 'CASHIER' || current === 'KITCHEN' || current === 'CAPTAIN'));
 }
 
 export function AddStaffForm({ ownRole }: { ownRole: PosRole }) {

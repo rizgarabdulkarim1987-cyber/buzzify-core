@@ -79,6 +79,7 @@ const ckb: Messages = {
   'pos.role.MANAGER': 'بەڕێوەبەر',
   'pos.role.CASHIER': 'کاشێر',
   'pos.role.KITCHEN': 'چێشتخانە',
+  'pos.role.CAPTAIN': 'کاپتن',
   'pos.home.title': 'کاشێر',
   'pos.home.intro': 'قاسەی {restaurant}. تۆ وەک {role} چووییتە ژوورەوە.',
   'pos.home.settings': 'ڕێکخستنەکان',

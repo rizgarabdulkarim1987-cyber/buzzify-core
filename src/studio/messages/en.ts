@@ -78,6 +78,7 @@ const en: Messages = {
   'pos.role.MANAGER': 'Manager',
   'pos.role.CASHIER': 'Cashier',
   'pos.role.KITCHEN': 'Kitchen',
+  'pos.role.CAPTAIN': 'Captain',
   'pos.home.title': 'Cashier',
   'pos.home.intro': 'The till of {restaurant}. You are signed in as {role}.',
   'pos.home.settings': 'Settings',

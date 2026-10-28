@@ -79,6 +79,7 @@ const ar: Messages = {
   'pos.role.MANAGER': 'مدير',
   'pos.role.CASHIER': 'كاشير',
   'pos.role.KITCHEN': 'مطبخ',
+  'pos.role.CAPTAIN': 'كابتن',
   'pos.home.title': 'الكاشير',
   'pos.home.intro': 'صندوق {restaurant}. أنت مسجّل الدخول بصفة {role}.',
   'pos.home.settings': 'الإعدادات',
