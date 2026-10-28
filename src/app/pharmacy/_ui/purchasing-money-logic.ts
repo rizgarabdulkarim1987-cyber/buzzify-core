@@ -98,8 +98,9 @@ export function invoiceTotalsOf(
 ): { linesMinor: bigint; adjustmentMinor: bigint; totalMinor: bigint } | null {
   let sum = 0n;
   for (const l of lines) {
-    const qty = wholeOf(l.qty);
-    const cost = parseMoney(l.cost, currency);
+    // A line restored from an older draft may lack a field: it is not a valid amount yet, never a crash.
+    const qty = wholeOf(l.qty ?? '');
+    const cost = parseMoney(l.cost ?? '', currency);
     if (qty === null || qty < 1 || !cost) return null;
     sum += cost.amount * BigInt(qty);
   }
@@ -108,7 +109,7 @@ export function invoiceTotalsOf(
   return { linesMinor: sum, adjustmentMinor: adj, totalMinor: sum + adj };
 }
 
-export type InvoiceProblem = 'supplier' | 'number' | 'date' | 'due' | 'currency' | 'lines' | 'qty' | 'exceeds' | 'cost' | 'adjustment' | 'reason';
+export type InvoiceProblem = 'total' | 'supplier' | 'number' | 'date' | 'due' | 'currency' | 'lines' | 'qty' | 'exceeds' | 'cost' | 'adjustment' | 'reason';
 
 export interface InvoiceBuilt {
   input?: Record<string, unknown>;
@@ -141,6 +142,9 @@ export function invoiceInputOf(draft: InvoiceDraft, rows: readonly InvoiceableRo
   const adj = parseSignedMoney(draft.adjustment, draft.currency);
   if (adj === null) problems.adjustment = 'adjustment';
   else if (adj !== 0n && draft.adjustmentReason.trim() === '') problems.adjustmentReason = 'reason';
+  // An invoice that bills nothing or less than nothing is not an invoice: say so here, as the server would.
+  const totals = invoiceTotalsOf(chosen.map((r) => draft.lines[r.receiptLineId]!), draft.adjustment, draft.currency);
+  if (totals && totals.totalMinor <= 0n) problems.total = 'total';
   if (Object.keys(problems).length > 0) return { problems };
   return {
     problems,
@@ -157,12 +161,29 @@ export function invoiceInputOf(draft: InvoiceDraft, rows: readonly InvoiceableRo
   };
 }
 
+/** A receipt line as the draft starts it: not ticked, the quantity left to invoice, the receipt cost. */
+const startLine = (row: InvoiceableRow, currency: Currency): InvoiceLineDraft => invoiceLinesStart([row], currency)[row.receiptLineId]!;
+
+/**
+ * Changes one line of a draft. A draft restored from an earlier visit holds only the receipt lines that existed then; a
+ * line it does not know starts from the receipt line instead of from nothing.
+ */
+export function editLine(draft: InvoiceDraft, row: InvoiceableRow, patch: Partial<InvoiceLineDraft>): InvoiceDraft {
+  const current = draft.lines[row.receiptLineId] ?? startLine(row, draft.currency);
+  return { ...draft, lines: { ...draft.lines, [row.receiptLineId]: { ...current, ...patch } } };
+}
+
+/** Ticks or unticks a line, with the same start for a line the draft has never seen. */
+export function tickLine(draft: InvoiceDraft, row: InvoiceableRow, checked: boolean): InvoiceDraft {
+  return editLine(draft, row, { checked });
+}
+
 /** Every field the server hashes, as typed, ticked lines only and in a fixed order; not the key. */
 export function invoiceSignature(draft: InvoiceDraft): string {
   const lines = Object.entries(draft.lines)
     .filter(([, l]) => l.checked)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([id, l]) => [id, l.qty.trim(), l.cost.trim()]);
+    .map(([id, l]) => [id, (l.qty ?? '').trim(), (l.cost ?? '').trim()]);
   return JSON.stringify([draft.supplierId, draft.number.trim(), draft.invoiceDate, draft.dueDate, draft.currency, draft.adjustment.trim(), draft.adjustmentReason.trim(), lines]);
 }
 

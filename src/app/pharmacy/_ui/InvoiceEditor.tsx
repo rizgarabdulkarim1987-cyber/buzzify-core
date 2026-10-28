@@ -9,7 +9,7 @@ import { formatNumber } from '@/lib/pos-format';
 import { draftKey, useDraft } from '@/lib/use-draft';
 import { useLeaveGuard } from '@/lib/use-leave-guard';
 import { parseMoney, type Currency } from '@/server/domain/pharmacy/money';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
@@ -24,11 +24,13 @@ import { phMessage } from './ph-failure';
 import { attemptKeyFor } from './purchasing-logic';
 import {
   dueFrom,
+  editLine,
   emptyInvoiceDraft,
   invoiceInputOf,
   invoiceLinesStart,
   invoiceSignature,
   invoiceTotalsOf,
+  tickLine,
   type InvoiceableRow,
   type InvoiceDraft,
 } from './purchasing-money-logic';
@@ -91,14 +93,19 @@ export function InvoiceEditor({
     setSaved(false);
     draft.set({ ...value, ...patch });
   };
-  const changeLine = (id: string, patch: Partial<InvoiceDraft['lines'][string]>) => change({ lines: { ...value.lines, [id]: { ...value.lines[id]!, ...patch } } });
+  // A draft restored from an earlier visit may not know a line received since: both start it from the receipt line.
+  const changeLine = (row: InvoiceableRow, patch: Partial<InvoiceDraft['lines'][string]>) => {
+    setSaved(false);
+    draft.set(editLine(value, row, patch));
+  };
   const problem = (field: string) => {
     const code = (built.problems as Record<string, string>)[field];
     return showProblems && code ? t(`pharmacy.purchasing.m.inv.problem.${code}`) : failure?.fields[field];
   };
   const toggle = (row: InvoiceableRow, on: boolean) => {
     const currency = on && row.currency !== null ? row.currency : value.currency;
-    change({ currency, lines: { ...value.lines, [row.receiptLineId]: { ...value.lines[row.receiptLineId]!, checked: on } } });
+    setSaved(false);
+    draft.set({ ...tickLine(value, row, on), currency });
   };
   const setInvoiceDate = (invoiceDate: string) => {
     const follows = value.dueDate === '' || value.dueDate === dueFrom(value.invoiceDate, supplier.termsDays);
@@ -208,7 +215,7 @@ export function InvoiceEditor({
                         {t('pharmacy.stock.batch.lot')}: <bdi dir="ltr">{r.lot}</bdi>
                       </span>
                       <span>
-                        {t('pharmacy.purchasing.m.inv.expiry')}: <bdi dir="ltr">{formatDate(`${r.expiry}T00:00:00.000Z`, locale)}</bdi>
+                        {t('pharmacy.purchasing.m.inv.expiry')}: <bdi dir="ltr">{phDate(`${r.expiry}T00:00:00.000Z`, locale)}</bdi>
                       </span>
                       <span>
                         {t('pharmacy.purchasing.m.inv.left')}: <bdi dir="ltr">{formatNumber(r.invoiceableQty)}</bdi> {r.unitLabel}
@@ -223,10 +230,10 @@ export function InvoiceEditor({
                     {l.checked && (
                       <div className="grid gap-3 sm:grid-cols-3">
                         <Field label={t('pharmacy.purchasing.m.inv.qty')} error={qtyProblem}>
-                          <Input className="min-h-11" dir="ltr" inputMode="numeric" autoComplete="off" data-testid="invoice-qty" value={l.qty} onChange={(e) => changeLine(r.receiptLineId, { qty: e.target.value })} />
+                          <Input className="min-h-11" dir="ltr" inputMode="numeric" autoComplete="off" data-testid="invoice-qty" value={l.qty} onChange={(e) => changeLine(r, { qty: e.target.value })} />
                         </Field>
                         <Field label={t('pharmacy.purchasing.m.inv.cost', { currency: value.currency })} error={costProblem}>
-                          <Input className="min-h-11" dir="ltr" inputMode="decimal" autoComplete="off" data-testid="invoice-cost" value={l.cost} onChange={(e) => changeLine(r.receiptLineId, { cost: e.target.value })} />
+                          <Input className="min-h-11" dir="ltr" inputMode="decimal" autoComplete="off" data-testid="invoice-cost" value={l.cost} onChange={(e) => changeLine(r, { cost: e.target.value })} />
                         </Field>
                         <p className="flex flex-col gap-1 text-sm text-text">
                           <span className="text-muted">{t('pharmacy.purchasing.m.inv.lineTotal')}</span>
@@ -267,7 +274,7 @@ export function InvoiceEditor({
             <Field label={t('pharmacy.purchasing.m.inv.dueDate')} error={problem('dueDate')} hint={t('pharmacy.purchasing.m.inv.dueHint', { days: supplier.termsDays })}>
               <Input className="min-h-11" dir="ltr" type="date" data-testid="invoice-due" value={value.dueDate} onChange={(e) => change({ dueDate: e.target.value })} />
             </Field>
-            <Field label={t('pharmacy.purchasing.m.inv.adjustment', { currency: value.currency })} error={problem('adjustment')} hint={t('pharmacy.purchasing.m.inv.adjustmentHint')} optional>
+            <Field label={t('pharmacy.purchasing.m.inv.adjustment', { currency: value.currency })} error={problem('adjustment') ?? problem('total')} hint={t('pharmacy.purchasing.m.inv.adjustmentHint')} optional>
               <Input className="min-h-11" dir="ltr" inputMode="decimal" autoComplete="off" data-testid="invoice-adjustment" value={value.adjustment} onChange={(e) => change({ adjustment: e.target.value })} />
             </Field>
             <Field label={t('pharmacy.purchasing.m.inv.adjustmentReason')} error={problem('adjustmentReason')} optional>

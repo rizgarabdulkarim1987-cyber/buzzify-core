@@ -12,6 +12,8 @@ import {
   dueFrom,
   invoiceLinesStart,
   canPaySelected,
+  tickLine,
+  editLine,
   creditSignature,
   emptyCreditDraft,
   emptyInvoiceDraft,
@@ -27,6 +29,7 @@ import {
   selectionTotals,
   statementCsv,
   type InvoiceDraft,
+  type InvoiceLineDraft,
   type OpenInvoice,
 } from '@/app/pharmacy/_ui/purchasing-money-logic';
 
@@ -74,7 +77,7 @@ describe('invoice totals', () => {
     const big = invoiceTotalsOf([{ qty: '9999999', cost: '9999999999' }], '', 'IQD');
     expect(big?.totalMinor).toBe(9999999n * 9999999999n);
   });
-  it('is null while a line or the adjustment is not a valid amount, and refuses a negative total', () => {
+  it('is null while a line or the adjustment is not a valid amount, and reports a negative total as it is', () => {
     expect(invoiceTotalsOf([{ qty: '1', cost: 'x' }], '', 'IQD')).toBeNull();
     expect(invoiceTotalsOf([{ qty: '1', cost: '100' }], 'x', 'IQD')).toBeNull();
     expect(invoiceTotalsOf([{ qty: '1', cost: '100' }], '-500', 'IQD')?.totalMinor).toBe(-400n);
@@ -374,5 +377,41 @@ describe('supplier return draft', () => {
     expect(returnSignature({ ...base, clientKey: 'z', keySig: 'q', lines: [l({ max: 99, productName: 'Other' })] })).toBe(a);
     expect(returnSignature({ ...base, lines: [l({ qty: '4' })] })).not.toBe(a);
     expect(returnSignature({ ...base, reason: 'expired' })).not.toBe(a);
+  });
+});
+
+describe('a restored invoice draft that never saw a receipt line', () => {
+  const x = { receiptLineId: 'rX', receiptId: 'rc2', receiptNumber: 'R-2', productName: 'Brufen', unitLabel: 'box', lot: 'L9', expiry: '2028-01-01', invoiceableQty: 7, currency: 'IQD' as const, unitCostMinor: '300' };
+  const restored = (): InvoiceDraft => draft({ number: 'INV-1', invoiceDate: '2026-10-28', lines: { r1: { checked: true, qty: '10', cost: '1500' } } });
+
+  it('crashed: a line made from nothing had no quantity, and the totals threw', () => {
+    const broken = { ...restored(), lines: { ...restored().lines, rX: { checked: true } as unknown as InvoiceLineDraft } };
+    const chosen = Object.values(broken.lines).filter((l) => l.checked);
+    expect(() => invoiceTotalsOf(chosen, '', 'IQD')).not.toThrow();
+    expect(() => invoiceSignature(broken)).not.toThrow();
+  });
+  it('ticking it starts from the receipt line (quantity left, receipt cost), so totals and the request are built', () => {
+    const next = tickLine(restored(), x, true);
+    expect(next.lines.rX).toEqual({ checked: true, qty: '7', cost: '300' });
+    const chosen = Object.values(next.lines).filter((l) => l.checked);
+    expect(invoiceTotalsOf(chosen, '', 'IQD')?.totalMinor).toBe(10n * 1500n + 7n * 300n);
+    expect(invoiceInputOf(next, [...lines.slice(0, 1), x]).problems).toEqual({});
+    expect(() => invoiceSignature(next)).not.toThrow();
+  });
+  it('editing it before it was ever ticked starts from the same line', () => {
+    const next = editLine(restored(), x, { qty: '3' });
+    expect(next.lines.rX).toEqual({ checked: false, qty: '3', cost: '300' });
+  });
+  it('keeps what the draft already had for a line it knows', () => {
+    const next = editLine(restored(), lines[0]!, { qty: '4' });
+    expect(next.lines.r1).toEqual({ checked: true, qty: '4', cost: '1500' });
+  });
+});
+
+describe('an invoice whose total is not above zero', () => {
+  it('is refused with a total problem before anything is sent', () => {
+    const built = invoiceInputOf(draft({ adjustment: '-20000', adjustmentReason: 'Discount' }), lines);
+    expect(built.input).toBeUndefined();
+    expect(built.problems.total).toBe('total');
   });
 });
