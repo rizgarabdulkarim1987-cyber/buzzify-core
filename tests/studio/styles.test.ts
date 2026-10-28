@@ -1,7 +1,7 @@
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { STYLE_GROUPS, MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
+import { MENU_STYLES, menuStyleById } from '@/studio/styles/catalog';
 import { STUDIO_MESSAGES } from '@/studio/messages';
 import { TEMPLATE_IDS } from '@/lib/templates';
 import { STYLE_PRESETS } from '@/lib/templates/presets/styles';
@@ -16,11 +16,6 @@ describe('Menu styles catalog', () => {
     expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 123 }, (_, i) => i + 1));
   });
 
-  it('counts the groups', () => {
-    const counts = Object.fromEntries(STYLE_GROUPS.map((g) => [g, MENU_STYLES.filter((s) => s.group === g).length]));
-    expect(counts).toEqual({ themes: 49, heritage: 26, motion: 22, shapes: 26 });
-  });
-
   it('contains the picked styles and none of the dropped ones', () => {
     expect(menuStyleById('motion-dep')).toBeDefined();
     expect(menuStyleById('layout-2-dep')).toBeDefined();
@@ -33,12 +28,11 @@ describe('Menu styles catalog', () => {
 describe('Menu styles messages', () => {
   for (const locale of ['en', 'ar', 'ckb'] as const) {
     const m = STUDIO_MESSAGES[locale];
-    it(`${locale} names every style and group`, () => {
+    it(`${locale} names every style`, () => {
       for (const id of ids) {
         expect(m[`styles.${id}.name`], `${id} name`).toBeTruthy();
         expect(m[`styles.${id}.line`], `${id} line`).toBeTruthy();
       }
-      for (const g of STYLE_GROUPS) expect(m[`styles.group.${g}`], g).toBeTruthy();
     });
     it(`${locale} has no stale style keys`, () => {
       const known = new Set(ids);

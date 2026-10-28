@@ -6,6 +6,7 @@ import { FONT_PAIR_VARIABLES } from '@/lib/font-pairs';
 import { BUSINESS_TYPES, STYLE_TAGS, TEMPLATES, templateList, type BusinessType, type StyleTag, type TemplateId, type TemplatePreset } from '@/lib/templates';
 import { useT } from '@/studio/i18n';
 import { MENU_STYLES, menuStyleById, type MenuStyle } from '@/studio/styles/catalog';
+import { STYLE_CATEGORIES, type StyleCategory } from '@/studio/styles/categories';
 import { templateForStyle } from '@/studio/styles/template-map';
 import { cx } from '@/studio/ui/cx';
 import { face } from '@/studio/workspace/brand/FontPairPicker';
@@ -196,6 +197,9 @@ export function Gallery({
   // The catalog view: the 35 picked styles in the library's order. The three that are real show as their templates.
   const [catalogOn, setCatalog] = useState(false);
   const catalog = canSeeStyles && catalogOn;
+  // The Styles view's category filter: one category, or all of them.
+  const [category, setCategory] = useState<StyleCategory | 'all'>('all');
+  const visibleStyles = useMemo(() => (category === 'all' ? MENU_STYLES : MENU_STYLES.filter((style) => style.category === category)), [category]);
   const presets = useMemo(
     () => templateList().filter((preset) => (business === 'all' || preset.business === business) && [...styles].every((style) => preset.tags.includes(style))),
     [business, styles],
@@ -217,6 +221,21 @@ export function Gallery({
           >
             {t('design.filter.styles')}
           </button>
+        )}
+        {catalog && (
+          <div role="group" aria-label={t('design.filter.category')} className="flex flex-wrap gap-1.5">
+            {(['all', ...STYLE_CATEGORIES] as const).map((value) => (
+              <button
+                key={value}
+                type="button"
+                aria-pressed={category === value}
+                onClick={() => setCategory(value)}
+                className={cx('h-7 rounded-full border px-3 text-sm transition-colors', category === value ? 'border-ink bg-hover text-text' : 'border-line text-muted hover:text-text')}
+              >
+                {value === 'all' ? t('design.filter.categoryAll') : t(`styles.category.${value}`)}
+              </button>
+            ))}
+          </div>
         )}
         {!catalog && (
           <>
@@ -256,12 +275,12 @@ export function Gallery({
           </>
         )}
         <p className="text-sm text-muted" aria-live="polite">
-          {catalog ? t('design.filter.stylesCount', { count: MENU_STYLES.length }) : t('design.filter.count', { count: presets.length })}
+          {catalog ? t('design.filter.stylesCount', { count: visibleStyles.length }) : t('design.filter.count', { count: presets.length })}
         </p>
       </div>
       <ul data-styles={catalog ? '' : undefined} className="grid grid-cols-2 gap-3 lg:grid-cols-3 2xl:grid-cols-4">
         {catalog ? (
-          MENU_STYLES.map((style) => {
+          visibleStyles.map((style) => {
             const templateId = templateForStyle(style.id);
             return templateId ? (
               <TemplateCard key={style.id} preset={TEMPLATES[templateId]} selected={selected === templateId} current={current === templateId} onSelect={() => onSelect(templateId)} />

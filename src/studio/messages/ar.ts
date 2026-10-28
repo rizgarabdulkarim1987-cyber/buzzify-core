@@ -2548,6 +2548,8 @@ const ar: Messages = {
   'design.filter.count_one': 'قالب واحد',
   'design.filter.count_other': '{count} قالبًا',
   'design.filter.styles': 'الستايلات',
+  'design.filter.category': 'التصنيف',
+  'design.filter.categoryAll': 'كل التصنيفات',
   'design.filter.stylesCount_one': 'ستايل واحد',
   'design.filter.stylesCount_other': '{count} ستايلًا',
   'design.comingSoon': 'قريبًا',
