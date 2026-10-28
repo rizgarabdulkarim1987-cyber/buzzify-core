@@ -3,7 +3,7 @@ import { findUnusualOperations } from '@/server/ai/alerts';
 import type { DailyReport, ShiftReport } from '@/server/pos/report';
 
 const none = { count: 0, total: 0 };
-const methods = { CASH: none, ZAINCASH: none, FIB: none, QICARD: none };
+const methods = { CASH: none, ZAINCASH: none, FIB: none, QICARD: none, CASH_USD: none };
 
 function shift(over: Partial<ShiftReport> = {}): ShiftReport {
   return {

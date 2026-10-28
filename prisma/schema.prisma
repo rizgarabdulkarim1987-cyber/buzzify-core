@@ -1225,6 +1225,8 @@ enum PosPaymentMethod {
   ZAINCASH
   FIB
   QICARD
+  /// Cash in US dollars: the leg's `amount` is the dinars it covers, `tenderedUsd` the dollars handed over.
+  CASH_USD
 }
 
 /// How one restaurant runs its till: rates, payment methods and the on/off switches of the cashier's features.
@@ -1556,6 +1558,10 @@ model PosPaymentLeg {
   amount       Int
   /// Integer IQD a cash customer handed over (at least `amount`); null for other methods.
   tendered     Int?
+  /// Whole US dollars a customer handed over for a CASH_USD leg; null for other methods.
+  tenderedUsd  Int?
+  /// Dinars per dollar, frozen when a CASH_USD leg was taken (a refund goes back at this rate); null for other methods.
+  rate         Int?
   reference    String?
   restaurant   Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   payment      PosPayment       @relation(fields: [paymentId], references: [id], onDelete: Cascade)
@@ -1581,6 +1587,11 @@ model PosShift {
   expectedCashAtClose Int?
   /// countedCash minus expectedCashAtClose: positive is over, negative is short.
   difference          Int?
+  /// Whole dollars counted in the drawer at close; null when the restaurant takes no dollars (or the shift is open).
+  countedUsd          Int?
+  expectedUsdAtClose  Int?
+  /// countedUsd minus expectedUsdAtClose.
+  differenceUsd       Int?
   /// Z report number, per restaurant, given when the shift closes. Null for a shift closed before numbering or still open.
   zNumber             Int?
   note                String               @default("")

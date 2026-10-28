@@ -129,7 +129,7 @@ interface CancelRow {
   occurredAt: Date;
 }
 
-const noSales = (): MethodSales => ({ CASH: { count: 0, total: 0 }, ZAINCASH: { count: 0, total: 0 }, FIB: { count: 0, total: 0 }, QICARD: { count: 0, total: 0 } });
+const noSales = (): MethodSales => ({ CASH: { count: 0, total: 0 }, ZAINCASH: { count: 0, total: 0 }, FIB: { count: 0, total: 0 }, QICARD: { count: 0, total: 0 }, CASH_USD: { count: 0, total: 0 } });
 
 function groupBy<T>(rows: readonly T[], key: (row: T) => string): Map<string, T[]> {
   const map = new Map<string, T[]>();

@@ -1,4 +1,4 @@
-import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import type { PosLegMethodKey, PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 
@@ -17,7 +17,7 @@ export interface TipInput {
 }
 
 export interface CheckedLeg {
-  method: PosPaymentMethodKey;
+  method: PosLegMethodKey;
   amount: number;
   tendered: number | null;
   reference: string | null;
@@ -82,7 +82,7 @@ export function checkLegs(total: number, legs: readonly LegInput[], tip: TipInpu
   };
 }
 
-type StoredPayment = Parameters<typeof legsOf>[0] & { tipAmount: number; tipMethod: PosPaymentMethodKey | null };
+type StoredPayment = Parameters<typeof legsOf>[0] & { tipAmount: number; tipMethod: PosLegMethodKey | null };
 
 /** Integer IQD of a payment that stays in the drawer: its cash legs plus a cash tip. */
 export function cashIn(payment: StoredPayment, total: number): number {
@@ -93,13 +93,13 @@ export function cashIn(payment: StoredPayment, total: number): number {
 }
 
 /** What a reversal gave back, by method: each leg of the payment it reversed, or the reversal's own method for an old row. */
-export function refundLegs(reversal: { method: PosPaymentMethodKey; amount: number; payment?: { legs: { method: PosPaymentMethodKey; amount: number }[] } | null }): { method: PosPaymentMethodKey; amount: number }[] {
+export function refundLegs(reversal: { method: PosLegMethodKey; amount: number; payment?: { legs: { method: PosLegMethodKey; amount: number }[] } | null }): { method: PosLegMethodKey; amount: number }[] {
   const legs = reversal.payment?.legs ?? [];
   return legs.length > 0 ? legs.map((leg) => ({ method: leg.method, amount: leg.amount })) : [{ method: reversal.method, amount: reversal.amount }];
 }
 
 /** The legs of a stored payment; a payment from before legs existed is one leg of its own method for its snapshot total. */
-export function legsOf(payment: { method: PosPaymentMethodKey; amountReceived: number; reference: string | null; legs?: { method: PosPaymentMethodKey; amount: number; tendered: number | null; reference: string | null }[] }, total: number): CheckedLeg[] {
+export function legsOf(payment: { method: PosLegMethodKey; amountReceived: number; reference: string | null; legs?: { method: PosLegMethodKey; amount: number; tendered: number | null; reference: string | null }[] }, total: number): CheckedLeg[] {
   if (payment.legs && payment.legs.length > 0) return payment.legs.map((leg) => ({ method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference }));
   return [{ method: payment.method, amount: total, tendered: payment.method === 'CASH' ? payment.amountReceived : null, reference: payment.reference }];
 }

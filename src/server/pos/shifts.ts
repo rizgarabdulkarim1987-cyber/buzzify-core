@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AnyDb } from '@/server/data/tenant-db';
 import { cashDifference, expectedCash } from '@/server/domain/pos/cash-drawer';
 import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
-import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
+import type { PosLegMethodKey } from '@/server/domain/pos/payment-methods';
 import type { PosRole } from '@/server/domain/pos/permissions';
 import { StudioError } from '@/server/studio/framework/result';
 import { nextCounterIn } from './counter';
@@ -67,7 +67,7 @@ async function drawerOf(db: AnyDb, restaurantId: string, shift: { id: string; op
   ]);
   const cashSales = payments.map((p) => cashIn(p, cashTotal.parse(p.totalsSnapshot).total)).filter((amount) => amount > 0);
   const cashRefunds = reversals.map((r) => r.cashPart).filter((amount) => amount > 0);
-  const refundsByMethod: Record<PosPaymentMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0 };
+  const refundsByMethod: Record<PosLegMethodKey, number> = { CASH: 0, ZAINCASH: 0, FIB: 0, QICARD: 0, CASH_USD: 0 };
   for (const r of reversals) for (const given of refundLegs(r)) refundsByMethod[given.method] += given.amount;
   const total = expectedCash({ openingFloat: shift.openingFloat, cashSales, expenses: expenses.map((e) => e.amount), cashRefunds });
   return { cashRefunds: cashRefunds.reduce((a, b) => a + b, 0), refundsByMethod, cashSales: cashSales.reduce((a, b) => a + b, 0), salesCount: cashSales.length, expenses, expensesTotal: expenses.reduce((a, e) => a + e.amount, 0), expectedCash: total };
@@ -113,7 +113,7 @@ export interface ShiftSummary {
   /** Cash handed back by reversals recorded in this shift (already inside expectedCash). */
   cashRefunds: number;
   /** Everything reversed in this shift, by method (cash included). */
-  refundsByMethod: Record<PosPaymentMethodKey, number>;
+  refundsByMethod: Record<PosLegMethodKey, number>;
   /** What the drawer should have held, frozen at close; null while the shift is open, so the count is blind. */
   expectedCash: number | null;
   openOrdersCount: number;
