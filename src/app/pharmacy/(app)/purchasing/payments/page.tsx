@@ -6,11 +6,12 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { list } from '@/server/pharmacy/queries/supplier-payments';
 import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -27,14 +28,14 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const { access, t, locale } = g;
   const supplierId = one(raw.supplier) || undefined;
   const withReversals = one(raw.reversals) === '1';
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(withReversals ? { includeReversals: true } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(withReversals ? { includeReversals: true } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ supplier: supplierId, reversals: withReversals ? '1' : undefined, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ supplier: supplierId, reversals: withReversals ? '1' : undefined, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/payments${text ? `?${text}` : ''}`;
   };
@@ -80,10 +81,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           </button>
         </form>
         <nav aria-label={t('pharmacy.purchasing.po.filter')} className="flex flex-wrap gap-2">
-          <Link href={href({ reversals: undefined, cursor: undefined })} aria-current={!withReversals ? 'page' : undefined} className={buttonClasses(!withReversals ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ reversals: undefined, pages: undefined })} aria-current={!withReversals ? 'page' : undefined} className={buttonClasses(!withReversals ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.purchasing.m.pay.hideReversals')}
           </Link>
-          <Link href={href({ reversals: '1', cursor: undefined })} aria-current={withReversals ? 'page' : undefined} data-testid="payments-with-reversals" className={buttonClasses(withReversals ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ reversals: '1', pages: undefined })} aria-current={withReversals ? 'page' : undefined} data-testid="payments-with-reversals" className={buttonClasses(withReversals ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.purchasing.m.pay.showReversals')}
           </Link>
         </nav>
@@ -100,7 +101,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                   className="grid min-h-11 min-w-0 grid-cols-1 gap-x-6 gap-y-1 rounded-sm px-1 py-3 hover:bg-hover md:grid-cols-[minmax(0,7rem)_minmax(0,2fr)_minmax(0,9rem)_minmax(0,10rem)_minmax(0,8rem)] md:items-center"
                 >
                   <span className="text-base font-medium text-text">
-                    <bdi dir="ltr">{formatDate(`${p.paidOn}T00:00:00.000Z`, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(`${p.paidOn}T00:00:00.000Z`, locale)}</bdi>
                   </span>
                   <span dir="auto" className="min-w-0 break-words text-sm text-text [overflow-wrap:anywhere]">
                     {p.supplierName}
@@ -117,7 +118,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.m.pay.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

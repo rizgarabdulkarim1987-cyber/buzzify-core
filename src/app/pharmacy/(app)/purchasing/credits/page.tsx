@@ -6,11 +6,12 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { list } from '@/server/pharmacy/queries/credit-notes';
 import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -27,14 +28,14 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
   const { access, t, locale } = g;
   const supplierId = one(raw.supplier) || undefined;
   const openOnly = one(raw.open) === '1';
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(openOnly ? { openOnly: true } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(openOnly ? { openOnly: true } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ supplier: supplierId, open: openOnly ? '1' : undefined, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ supplier: supplierId, open: openOnly ? '1' : undefined, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/credits${text ? `?${text}` : ''}`;
   };
@@ -76,10 +77,10 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
           </button>
         </form>
         <nav aria-label={t('pharmacy.purchasing.po.filter')} className="flex flex-wrap gap-2">
-          <Link href={href({ open: undefined, cursor: undefined })} aria-current={!openOnly ? 'page' : undefined} className={buttonClasses(!openOnly ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ open: undefined, pages: undefined })} aria-current={!openOnly ? 'page' : undefined} className={buttonClasses(!openOnly ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.receive.filter.all')}
           </Link>
-          <Link href={href({ open: '1', cursor: undefined })} aria-current={openOnly ? 'page' : undefined} data-testid="credits-open-filter" className={buttonClasses(openOnly ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ open: '1', pages: undefined })} aria-current={openOnly ? 'page' : undefined} data-testid="credits-open-filter" className={buttonClasses(openOnly ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.purchasing.m.cr.openOnly')}
           </Link>
         </nav>
@@ -104,7 +105,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
                     {c.supplierName}
                   </span>
                   <span className="text-sm text-text">
-                    <bdi dir="ltr">{formatDate(`${c.noteDate}T00:00:00.000Z`, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(`${c.noteDate}T00:00:00.000Z`, locale)}</bdi>
                   </span>
                   <span className="text-sm text-text">{c.amountMinor !== undefined && <Amount amount={c.amountMinor} currency={c.currency} locale={locale} className="font-medium" />}</span>
                   <span className="text-sm text-text md:text-end">
@@ -122,7 +123,7 @@ export default async function CreditsPage({ searchParams }: { searchParams: Prom
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.m.cr.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

@@ -13,6 +13,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -34,14 +35,14 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
   const supplierId = one(raw.supplier) || undefined;
   const overdue = one(raw.overdue) === '1';
   const band = BANDS.find((b) => b === one(raw.band));
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(overdue ? { overdueOnly: true } : {}), ...(band ? { band } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(overdue ? { overdueOnly: true } : {}), ...(band ? { band } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ supplier: supplierId, overdue: overdue ? '1' : undefined, band, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ supplier: supplierId, overdue: overdue ? '1' : undefined, band, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/payables${text ? `?${text}` : ''}`;
   };
@@ -78,7 +79,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
                 <ul className="flex flex-col border-t border-line">
                   {BANDS.map((b) => (
                     <li key={b} className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-line py-1.5 text-sm text-text">
-                      <Link href={href({ band: b, cursor: undefined })} className="inline-flex min-h-11 items-center rounded-sm hover:bg-hover">
+                      <Link href={href({ band: b, pages: undefined })} className="inline-flex min-h-11 items-center rounded-sm hover:bg-hover">
                         <BandChip band={b as BandName} t={t} />
                       </Link>
                       <span className="flex items-baseline gap-3">
@@ -113,10 +114,10 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
           </button>
         </form>
         <nav aria-label={t('pharmacy.purchasing.po.filter')} className="flex flex-wrap gap-2">
-          <Link href={href({ overdue: undefined, band: undefined, cursor: undefined })} aria-current={!overdue && !band ? 'page' : undefined} className={buttonClasses(!overdue && !band ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ overdue: undefined, band: undefined, pages: undefined })} aria-current={!overdue && !band ? 'page' : undefined} className={buttonClasses(!overdue && !band ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.receive.filter.all')}
           </Link>
-          <Link href={href({ overdue: '1', band: undefined, cursor: undefined })} aria-current={overdue ? 'page' : undefined} data-testid="payables-overdue-filter" className={buttonClasses(overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ overdue: '1', band: undefined, pages: undefined })} aria-current={overdue ? 'page' : undefined} data-testid="payables-overdue-filter" className={buttonClasses(overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.purchasing.m.inv.overdueOnly')}
           </Link>
         </nav>
@@ -143,7 +144,7 @@ export default async function PayablesPage({ searchParams }: { searchParams: Pro
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.m.pb.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

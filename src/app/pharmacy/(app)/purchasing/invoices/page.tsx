@@ -6,11 +6,12 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { list } from '@/server/pharmacy/queries/supplier-invoices';
 import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -30,14 +31,14 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const supplierId = one(raw.supplier) || undefined;
   const search = one(raw.q)?.trim() ?? '';
   const overdue = one(raw.overdue) === '1';
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(status ? { status } : {}), ...(supplierId ? { supplierId } : {}), ...(search ? { search } : {}), ...(overdue ? { overdue: true } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(status ? { status } : {}), ...(supplierId ? { supplierId } : {}), ...(search ? { search } : {}), ...(overdue ? { overdue: true } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ status, supplier: supplierId, q: search, overdue: overdue ? '1' : undefined, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ status, supplier: supplierId, q: search, overdue: overdue ? '1' : undefined, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/invoices${text ? `?${text}` : ''}`;
   };
@@ -84,15 +85,15 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
           </button>
         </form>
         <nav aria-label={t('pharmacy.purchasing.po.filter')} className="flex flex-wrap gap-2">
-          <Link href={href({ status: undefined, overdue: undefined, cursor: undefined })} aria-current={!status && !overdue ? 'page' : undefined} className={buttonClasses(!status && !overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ status: undefined, overdue: undefined, pages: undefined })} aria-current={!status && !overdue ? 'page' : undefined} className={buttonClasses(!status && !overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.receive.filter.all')}
           </Link>
           {STATUSES.map((s) => (
-            <Link key={s} href={href({ status: s, overdue: undefined, cursor: undefined })} aria-current={s === status ? 'page' : undefined} className={buttonClasses(s === status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+            <Link key={s} href={href({ status: s, overdue: undefined, pages: undefined })} aria-current={s === status ? 'page' : undefined} className={buttonClasses(s === status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
               {t(`pharmacy.purchasing.m.status.${s}`)}
             </Link>
           ))}
-          <Link href={href({ status: undefined, overdue: overdue ? undefined : '1', cursor: undefined })} aria-current={overdue ? 'page' : undefined} data-testid="invoice-overdue-filter" className={buttonClasses(overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ status: undefined, overdue: overdue ? undefined : '1', pages: undefined })} aria-current={overdue ? 'page' : undefined} data-testid="invoice-overdue-filter" className={buttonClasses(overdue ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.purchasing.m.inv.overdueOnly')}
           </Link>
         </nav>
@@ -126,7 +127,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                   </span>
                   <span className="text-sm text-text">
                     <span className="text-muted md:sr-only">{t('pharmacy.purchasing.m.col.due')}: </span>
-                    <bdi dir="ltr">{formatDate(`${i.dueDate}T00:00:00.000Z`, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(`${i.dueDate}T00:00:00.000Z`, locale)}</bdi>
                   </span>
                   <span className="text-sm text-text md:text-end">
                     {i.totalMinor !== undefined && <Amount amount={i.status === 'PAID' || i.status === 'VOID' ? i.totalMinor : i.balanceMinor} currency={i.currency} locale={locale} className="font-medium" />}
@@ -138,7 +139,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.m.inv.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

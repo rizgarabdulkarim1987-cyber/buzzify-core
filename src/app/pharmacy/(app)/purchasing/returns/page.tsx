@@ -8,11 +8,12 @@ import { canPh } from '@/server/domain/pharmacy/permissions';
 import { list } from '@/server/pharmacy/queries/supplier-returns';
 import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -28,15 +29,15 @@ export default async function SupplierReturnsPage({ searchParams }: { searchPara
   if (g.blocked) return g.blocked;
   const { access, t, locale } = g;
   const supplierId = one(raw.supplier) || undefined;
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(supplierId ? { supplierId } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const mayAdjust = access.actor.role !== null && canPh(access.actor.role, 'stock.adjust');
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ supplier: supplierId, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ supplier: supplierId, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/returns${text ? `?${text}` : ''}`;
   };
@@ -96,7 +97,7 @@ export default async function SupplierReturnsPage({ searchParams }: { searchPara
                     {r.supplierName}
                   </span>
                   <span className="text-sm text-text">
-                    <bdi dir="ltr">{formatDate(r.createdAt, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(r.createdAt, locale)}</bdi>
                   </span>
                   <span className="text-sm text-text tabular-nums">
                     <span className="text-muted md:sr-only">{t('pharmacy.purchasing.m.ret.qtyTotal')}: </span>
@@ -119,7 +120,7 @@ export default async function SupplierReturnsPage({ searchParams }: { searchPara
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.m.ret.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

@@ -8,6 +8,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -25,16 +26,16 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
   const { access, t } = g;
   const search = one(raw.q)?.trim() ?? '';
   const filter = ACTIVE.find((a) => a === one(raw.active)) ?? 'active';
-  const cursor = one(raw.cursor);
-  const page = await query(list, {
+  const pages = pagesOf(one(raw.pages));
+  const page = await loadPages((cursor) => query(list, {
     ...access.placeInput,
     ...(search ? { search } : {}),
     active: filter === 'all' ? 'all' : filter === 'active',
     ...(cursor ? { cursor } : {}),
-  });
+  }), pages);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ q: search, active: filter === 'active' ? undefined : filter, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ q: search, active: filter === 'active' ? undefined : filter, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/suppliers${text ? `?${text}` : ''}`;
   };
@@ -70,7 +71,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
         </form>
         <nav aria-label={t('pharmacy.purchasing.suppliers.filter')} className="flex flex-wrap gap-2">
           {ACTIVE.map((a) => (
-            <Link key={a} href={href({ active: a === 'active' ? undefined : a, cursor: undefined })} aria-current={a === filter ? 'page' : undefined} className={buttonClasses(a === filter ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+            <Link key={a} href={href({ active: a === 'active' ? undefined : a, pages: undefined })} aria-current={a === filter ? 'page' : undefined} className={buttonClasses(a === filter ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
               {t(`pharmacy.purchasing.suppliers.filter.${a}`)}
             </Link>
           ))}
@@ -117,7 +118,7 @@ export default async function SuppliersPage({ searchParams }: { searchParams: Pr
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.suppliers.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>

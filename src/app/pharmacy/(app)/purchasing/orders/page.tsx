@@ -8,11 +8,12 @@ import { formatPhMoney } from '@/server/domain/pharmacy/money';
 import { list } from '@/server/pharmacy/queries/purchase-orders';
 import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
 import { EmptyState } from '@/studio/ui/EmptyState';
+import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../gate';
 
@@ -31,14 +32,14 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   const status = STATUSES.find((s) => s === one(raw.status));
   const supplierId = one(raw.supplier) || undefined;
   const search = one(raw.q)?.trim() ?? '';
-  const cursor = one(raw.cursor);
+  const pages = pagesOf(one(raw.pages));
   const [page, supplierPage] = await Promise.all([
-    query(list, { ...access.placeInput, ...(status ? { status } : {}), ...(supplierId ? { supplierId } : {}), ...(search ? { search } : {}), ...(cursor ? { cursor } : {}) }),
+    loadPages((cursor) => query(list, { ...access.placeInput, ...(status ? { status } : {}), ...(supplierId ? { supplierId } : {}), ...(search ? { search } : {}), ...(cursor ? { cursor } : {}) }), pages),
     query(suppliers, { ...access.placeInput, active: 'all' }),
   ]);
   const href = (over: Record<string, string | undefined>) => {
     const next = new URLSearchParams();
-    for (const [k, v] of Object.entries({ status, supplier: supplierId, q: search, cursor, ...over })) if (v) next.set(k, v);
+    for (const [k, v] of Object.entries({ status, supplier: supplierId, q: search, pages: pages > 1 ? String(pages) : undefined, ...over })) if (v) next.set(k, v);
     const text = next.toString();
     return `/pharmacy/purchasing/orders${text ? `?${text}` : ''}`;
   };
@@ -98,11 +99,11 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           </button>
         </form>
         <nav aria-label={t('pharmacy.purchasing.po.filter')} className="flex flex-wrap gap-2">
-          <Link href={href({ status: undefined, cursor: undefined })} aria-current={!status ? 'page' : undefined} className={buttonClasses(!status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+          <Link href={href({ status: undefined, pages: undefined })} aria-current={!status ? 'page' : undefined} className={buttonClasses(!status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
             {t('pharmacy.receive.filter.all')}
           </Link>
           {STATUSES.map((s) => (
-            <Link key={s} href={href({ status: s, cursor: undefined })} aria-current={s === status ? 'page' : undefined} className={buttonClasses(s === status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
+            <Link key={s} href={href({ status: s, pages: undefined })} aria-current={s === status ? 'page' : undefined} className={buttonClasses(s === status ? 'primary' : 'secondary', 'lg', 'min-h-11')}>
               {t(`pharmacy.purchasing.po.status.${s}`)}
             </Link>
           ))}
@@ -140,7 +141,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                   </span>
                   <span className="text-sm text-text">
                     <span className="text-muted md:sr-only">{t('pharmacy.purchasing.po.expectedOn')}: </span>
-                    {o.expectedOn ? <bdi dir="ltr">{formatDate(`${o.expectedOn}T00:00:00.000Z`, locale)}</bdi> : <span className="text-muted">{t('pharmacy.receive.none')}</span>}
+                    {o.expectedOn ? <bdi dir="ltr">{phDate(`${o.expectedOn}T00:00:00.000Z`, locale)}</bdi> : <span className="text-muted">{t('pharmacy.receive.none')}</span>}
                   </span>
                   <span className="text-sm text-text tabular-nums">
                     <span className="text-muted md:sr-only">{t('pharmacy.receive.col.lines')}: </span>
@@ -158,7 +159,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         )}
         {page.nextCursor && (
           <nav aria-label={t('pharmacy.purchasing.po.title')}>
-            <Link href={href({ cursor: page.nextCursor })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+            <Link href={href({ pages: String(pages + 1) })} rel="next" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
               {t('pharmacy.purchasing.loadMore')}
             </Link>
           </nav>
