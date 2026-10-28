@@ -462,7 +462,8 @@ export async function createSale(
       INVALID_PAYMENT: ['PAYMENT_INVALID', 'Check the payments'],
     } as const;
     const [code, text] = reasons[checked.reason];
-    throw invalid('payments', text, code);
+    // The total the server computed rides along, so the screen can show it next to its own estimate.
+    throw invalid('payments', text, code, { totalMinor: String(totalMinor) });
   }
   if (paymentKeys.length > 0) {
     const used = await tx.phPayment.findFirst({ where: { clientKey: { in: paymentKeys } }, select: { id: true } });

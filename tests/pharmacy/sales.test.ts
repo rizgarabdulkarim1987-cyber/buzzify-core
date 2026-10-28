@@ -694,6 +694,8 @@ describe('rounding and payments', () => {
     expect(lineRow.totalMinor).toBe(300n);
     const short = await act(w.cashier, saleActions.create, sale(w, { lines: [{ productId: w.p.id, unitId: w.p.tablet, qty: 3 }], payments: [cash(200n)] }));
     expect(phCodeOf(short)).toBe('PAYMENT_SHORT');
+    // The refusal carries the total the server computed, so the screen can show it next to its own estimate.
+    expect(short.ok ? '' : short.error.fields?.totalMinor).toBe('250');
   });
 
   it('never rounds a positive total down to zero: it rounds up to one step', async () => {
