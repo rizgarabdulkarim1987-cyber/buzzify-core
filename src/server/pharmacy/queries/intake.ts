@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { canPh } from '@/server/domain/pharmacy/permissions';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { fileUrl as signedFileUrl } from '@/server/pharmacy/intake/files';
+import { usageView } from '@/server/pharmacy/intake/ai';
 import { getIntakeStorage, IntakeStorageNotConfiguredError } from '@/server/pharmacy/intake/storage';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { assertStaff } from '@/server/pharmacy/receipts';
@@ -29,5 +31,23 @@ export const fileUrl = defineQuery({
       }
       throw error;
     }
+  },
+});
+
+/**
+ * This month's AI usage (R5-12): needs `purchase.manage` (the framework) and `report.view` (here). The counts are for both; the
+ * money keys are present only for a role with `cost.view`. Business-wide: the branch only names the place of the request.
+ */
+export const usage = defineQuery({
+  name: 'ph.intake.usage',
+  permission: null,
+  ph: 'purchase.manage',
+  input: phPlaceInput,
+  target: phTargetOf,
+  async run(ctx) {
+    const { ph, scoped } = pharmacyOf(ctx);
+    assertStaff(ph);
+    if (!canPh(ph.role!, 'report.view')) throw new StudioError('FORBIDDEN');
+    return usageView(scoped, ph, new Date());
   },
 });
