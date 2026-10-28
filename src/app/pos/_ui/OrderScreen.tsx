@@ -120,7 +120,7 @@ export function OrderScreen({
   const [selected, setSelected] = useState<string[]>([]);
   const stillUnpaid = unpaidLineIds(order.lines);
   const picked = selected.filter((id) => stillUnpaid.includes(id));
-  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked);
+  const pickedTotal = partTotalOf(order.totals, order.taken, order.lines, picked, order.roundingStep);
   const leaveSplit = () => {
     setSplitting(false);
     setSelected([]);

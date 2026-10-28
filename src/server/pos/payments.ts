@@ -70,6 +70,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     everLive.map((line) => ({ id: line.id, total: lineTotal(pricedLine(line)), paid: line.paymentId !== null })),
     chosen.map((line) => line.id),
     { invoiceDiscount: sumOf(taken, 'invoiceDiscount'), service: sumOf(taken, 'service'), tax: sumOf(taken, 'tax'), deliveryFee: sumOf(taken, 'deliveryFee') },
+    rates.roundingStep,
   );
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
   const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
@@ -84,6 +85,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     tax: totals.tax,
     deliveryFee: totals.deliveryFee,
     total: totals.total,
+    rounding: totals.rounding,
     invoiceDiscountInput: invoiceDiscount ? { ...invoiceDiscount, reason: order.invoiceDiscountReason } : null,
     rates: effectiveRates(order.kind, rates),
     lines: live.map((line) => {

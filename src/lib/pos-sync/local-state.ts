@@ -1,6 +1,7 @@
 import { pickName } from '@/lib/pos-view';
 import type { OrderStatus } from '@/server/domain/pos/order-state';
 import { tillOfferPerUnit } from '@/server/domain/pos/line-offer';
+import { roundTo } from '@/server/domain/pos/rounding';
 import { computeTotals, type Discount, type Rates, type Totals } from '@/server/domain/pos/totals';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import type { QueuedOp } from './queue';
@@ -44,6 +45,11 @@ export interface LocalState {
   all: LocalOrder[];
   /** table id to the order that holds it. */
   byTable: Map<string, LocalOrder>;
+}
+
+/** What is actually taken for a bill: its total rounded to the restaurant's step, and the difference the rounding made. */
+export function payableOf(totals: Pick<Totals, 'total'>, rates: { roundingStep?: number }): { total: number; rounding: number } {
+  return roundTo(totals.total, rates.roundingStep ?? 0);
 }
 
 export function localTotals(order: Pick<LocalOrder, 'lines' | 'invoiceDiscount'>, rates: Rates): Totals {
@@ -179,7 +185,7 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
         order.cancelled = true;
         break;
       case 'payCash': {
-        const total = localTotals(order, snapshot.rates).total;
+        const total = payableOf(localTotals(order, snapshot.rates), snapshot.rates).total;
         order.status = 'PAID';
         order.paid = { total, amountReceived: op.payload.amountReceived, change: op.payload.amountReceived - total };
         break;

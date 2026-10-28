@@ -38,7 +38,7 @@ const TILL = { kind: 'pos' } as const;
 /** The same, confined to the restaurant's product-list menu and holding the Studio's content permissions there. */
 const CATALOG = { kind: 'pos', catalog: true } as const;
 const version = z.number().int().min(1);
-const sectionName = z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters');
+const sectionName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
 
 const percent = z.number().int().min(0).max(100);
 
@@ -420,7 +420,7 @@ export const posImportDiscard = defineAction({
 
 // The floor: areas and tables ------------------------------------------------------------------------------------------
 
-const areaName = z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters');
+const areaName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
 const tableNumber = z.number().int().min(1).max(100_000);
 
 export const createPosArea = defineAction({

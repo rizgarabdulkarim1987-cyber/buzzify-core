@@ -40,7 +40,8 @@ export interface SyncSnapshot {
   serverTime: string;
   restaurantId: string;
   user: { id: string; name: string; locale: Locale; can: { discount: boolean; cancel: boolean; pay: boolean } };
-  rates: Rates;
+  /** The service and tax rates, and the dinar step the payable total rounds to (absent: no rounding). */
+  rates: Rates & { roundingStep?: number };
   kitchen: { print: boolean; screen: boolean };
   catalog: TillCatalog | null;
   areas: { id: string; name: string; tables: { id: string; number: number }[] }[];

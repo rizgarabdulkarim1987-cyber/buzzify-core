@@ -74,7 +74,7 @@ describe('the offline read cache', () => {
     expect(s.restaurantId).toBe(a.id);
     expect(s.areas).toHaveLength(1);
     expect(s.areas[0]?.tables).toHaveLength(4);
-    expect(s.rates).toEqual({ serviceRatePercent: 0, taxRatePercent: 10 });
+    expect(s.rates).toEqual({ serviceRatePercent: 0, taxRatePercent: 10, roundingStep: 0 });
     expect(s.catalog?.products.map((p) => p.id)).toEqual([burger]);
     expect(s.orders).toHaveLength(1);
     expect(s.orders[0]).toMatchObject({ id: o.orderId, version: o.version, tableId: tables[0]!.id, status: 'OPEN' });

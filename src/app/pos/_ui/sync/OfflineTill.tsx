@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMemo, useState } from 'react';
-import { currentKey, deriveLocalState, localTotals, type LocalOrder } from '@/lib/pos-sync/local-state';
+import { currentKey, deriveLocalState, localTotals, payableOf, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { OpDraft } from '@/lib/pos-sync/queue';
 import { formatNumber, ltr } from '@/lib/pos-format';
 import { pickName, quickCash } from '@/lib/pos-view';
@@ -142,7 +142,8 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
   const [reason, setReason] = useState('');
   const [received, setReceived] = useState('');
 
-  const totals = localTotals(order, snapshot.rates);
+  const bill = localTotals(order, snapshot.rates);
+  const totals = { ...bill, ...payableOf(bill, snapshot.rates) };
   const finished = order.paid !== null || order.cancelled;
   const ref = order.serverId ? { id: order.serverId } : { op: order.key.slice(3) };
   const product = catalog?.products.find((p) => p.id === picked) ?? null;

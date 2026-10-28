@@ -24,6 +24,8 @@ export interface ShiftReport {
   salesByMethod: MethodSales;
   /** Sum of the totals (totalsSnapshot.total) of the shift's payments: the methods add up to it. */
   grossSales: number;
+  /** What rounding added (+) or took off (-) across the shift's bills; already inside grossSales. */
+  roundingTotal: number;
   /** Tips left on top of the bills, outside grossSales. */
   tipsTotal: number;
   /** The part of discountsTotal given as comps (dishes on the house), by their reason in the snapshots. */
@@ -73,6 +75,7 @@ export interface DailyReport {
     grossSales: number;
     discountsTotal: number;
     deliveryFeesTotal: number;
+    roundingTotal: number;
     netSales: number;
     cancelledOrders: number;
     cancelledLines: number;
@@ -167,6 +170,7 @@ export function sales(payments: readonly PaymentRow[]) {
   let grossSales = 0;
   let discountsTotal = 0;
   let deliveryFeesTotal = 0;
+  let roundingTotal = 0;
   let tipsTotal = 0;
   let compsTotal = 0;
   for (const p of payments) {
@@ -179,11 +183,12 @@ export function sales(payments: readonly PaymentRow[]) {
     discountsTotal += snapshotDiscounts(p.id, snapshot);
     compsTotal += snapshotDiscounts(p.id, snapshot, 'COMP');
     deliveryFeesTotal += snapshot.deliveryFee;
+    roundingTotal += snapshot.rounding;
     tipsTotal += p.tipAmount;
     const cash = cashIn(p, snapshot.total);
     if (cash > 0) cashTotals.push(cash);
   }
-  return { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal };
+  return { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, roundingTotal, cashTotals, tipsTotal };
 }
 
 /** A cancel belongs to a shift when its person made it between the opening and the close (or now, while open). */
@@ -226,7 +231,7 @@ async function outsideShiftsOf(db: AnyDb, dayCancels: readonly CancelRow[], shif
 
 function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], reversals: readonly ReversalRow[], expenses: readonly ExpenseRow[], cancels: readonly CancelRow[], now: Date, closedByName: string | null): ShiftReport {
   const { user, ...shift } = row;
-  const { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, cashTotals, tipsTotal } = sales(payments);
+  const { byMethod, grossSales, discountsTotal, compsTotal, deliveryFeesTotal, roundingTotal, cashTotals, tipsTotal } = sales(payments);
   const refundsByMethod = noSales();
   for (const r of reversals) {
     for (const given of refundLegs(r)) {
@@ -247,6 +252,7 @@ function shiftReport(row: ShiftWithName, payments: readonly PaymentRow[], revers
     discountsTotal,
     compsTotal,
     deliveryFeesTotal,
+    roundingTotal,
     refundsByMethod,
     refundsTotal,
     netSales: grossSales - refundsTotal,
@@ -316,7 +322,7 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
 
   const byMethod = noSales();
   const refundsByMethod = noSales();
-  const totals = { refundsTotal: 0, grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
+  const totals = { refundsTotal: 0, grossSales: 0, discountsTotal: 0, deliveryFeesTotal: 0, roundingTotal: 0, netSales: 0, cancelledOrders: 0, cancelledLines: 0, expensesTotal: 0, differenceTotal: 0 };
   for (const r of reports) {
     for (const method of Object.keys(byMethod) as PosPaymentMethod[]) {
       byMethod[method].count += r.salesByMethod[method].count;
@@ -328,6 +334,7 @@ export async function readDailyReport(db: AnyDb, restaurantId: string, input: { 
     totals.grossSales += r.grossSales;
     totals.discountsTotal += r.discountsTotal;
     totals.deliveryFeesTotal += r.deliveryFeesTotal;
+    totals.roundingTotal += r.roundingTotal;
     totals.netSales += r.netSales;
     totals.cancelledOrders += r.cancelledOrders;
     totals.cancelledLines += r.cancelledLines;

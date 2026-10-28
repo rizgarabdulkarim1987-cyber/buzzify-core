@@ -26,7 +26,7 @@ describe('partTotals', () => {
   });
 
   it('takes the whole bill when every line is chosen', () => {
-    expect(partTotals(full, lines, ['a', 'b', 'c'], none)).toEqual(full);
+    expect(partTotals(full, lines, ['a', 'b', 'c'], none)).toEqual({ ...full, rounding: 0 });
   });
 
   it('spreads a bill of free lines by count', () => {
