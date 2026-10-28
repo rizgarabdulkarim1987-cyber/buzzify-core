@@ -234,6 +234,8 @@ model Menu {
   brand           BrandConfig?
   intro           MenuIntro?
   introAdverts    IntroAdvert[]
+  about           MenuAbout?
+  aboutOffers     AboutOffer[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -2513,4 +2515,44 @@ model PlatformIntro {
   id                String   @id
   backgroundAssetId String?
   updatedAt         DateTime @updatedAt
+}
+
+/// The restaurant's own page inside the menu, shown to guests as "Explore" unless a title is set (docs/superpowers/specs/2026-10-29-menu-about-tab-design.md). One per menu.
+model MenuAbout {
+  id              String   @id @default(cuid())
+  menuId          String   @unique
+  /// { en?, ar?, ckb? }; empty falls back to the guest message "Explore".
+  titles          Json     @default("{}")
+  coverAssetId    String?
+  /// { en?, ar?, ckb? } to a list of story blocks (heading, paragraph, list), validated by cleanStory.
+  story           Json     @default("{}")
+  galleryAssetIds String[]
+  showHours       Boolean  @default(true)
+  showContact     Boolean  @default(true)
+  updatedAt       DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+}
+
+/// A unique offer or discount card on the About page. Information only: it moves no price.
+model AboutOffer {
+  id           String    @id @default(cuid())
+  menuId       String
+  /// { en?, ar?, ckb? } each
+  titles       Json      @default("{}")
+  bodies       Json      @default("{}")
+  label        Json      @default("{}")
+  imageAssetId String?
+  startsAt     DateTime?
+  endsAt       DateTime?
+  sortOrder    Int       @default(0)
+  active       Boolean   @default(true)
+  /// At most one of these; both are ids of this menu's own product or category.
+  productId    String?
+  categoryId   String?
+  createdAt    DateTime  @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@index([menuId, sortOrder])
 }

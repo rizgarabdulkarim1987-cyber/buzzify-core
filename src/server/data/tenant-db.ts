@@ -5,6 +5,8 @@ export const MENU_SCOPED_MODELS = [
   'BrandConfig',
   'MenuIntro',
   'IntroAdvert',
+  'MenuAbout',
+  'AboutOffer',
   'Category',
   'Product',
   'ProductVariant',
