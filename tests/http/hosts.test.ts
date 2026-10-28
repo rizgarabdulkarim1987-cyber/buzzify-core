@@ -23,6 +23,7 @@ describe('routeHost on the studio host', () => {
     '/api/studio/export',
     '/api/pos/sync',
     '/api/pos/sync/snapshot',
+    '/api/pharmacy/intake/files',
     '/_next/static/chunk.js',
     '/_next/webpack-hmr',
     '/favicon.ico',
@@ -35,7 +36,7 @@ describe('routeHost on the studio host', () => {
 });
 
 describe('routeHost on the public host', () => {
-  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/pharmacy', '/pharmacy/home', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export', '/api/pos/sync', '/api/pos/sync/snapshot'])(
+  it.each(['/studio', '/studio/menus', '/pos', '/pos/staff', '/pharmacy', '/pharmacy/home', '/api/auth', '/api/auth/sign-in/email', '/api/studio', '/api/studio/export', '/api/pos/sync', '/api/pos/sync/snapshot', '/api/pharmacy/intake/files'])(
     'answers 404 for %s',
     (pathname) => expect(routeHost({ host: PUBLIC, pathname }, cfg)).toEqual(NOT_FOUND),
   );
