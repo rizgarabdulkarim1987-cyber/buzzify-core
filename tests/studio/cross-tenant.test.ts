@@ -641,6 +641,20 @@ const SWEPT: Record<string, Case[]> = {
   'menus.reorderIntroAdverts': [c("B's adverts", (w) => ({ menuId: w.b.menuId, ids: [] }))],
   'menus.deleteIntroAdvert': [c("B's advert, in B", (w) => ({ menuId: w.b.menuId, advertId: 'nope' }))],
   'menus.intro': [c("B's intro", (w) => ({ menuId: w.b.menuId }))],
+  // The About page: B's menu, B's picture and B's dish smuggled into A's, and B's offer through A.
+  'menus.setAboutEnabled': [c("switches on B's About page", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveAbout': [
+    c("B's About page", (w) => ({ menuId: w.b.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture as A's cover", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: w.b.assetId, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture in A's gallery", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [w.b.assetId], showHours: true, showContact: true })),
+  ],
+  'menus.saveAboutOffer': [
+    c("an offer on B's page", (w) => ({ menuId: w.b.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: null, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+    c("B's picture on A's offer", (w) => ({ menuId: w.a.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: w.b.assetId, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+  ],
+  'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
+  'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
+  'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
