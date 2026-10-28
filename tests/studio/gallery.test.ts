@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { StudioI18nProvider } from '@/studio/i18n';
 import { getStudioTranslator, STUDIO_MESSAGES } from '@/studio/messages';
+import { STYLE_CATEGORIES } from '@/studio/styles/categories';
 import { Gallery } from '@/studio/workspace/design/Gallery';
 
 const en = getStudioTranslator('en');
@@ -16,11 +17,12 @@ const gallery = (canSeeStyles: boolean) =>
   render(createElement(Gallery, { restaurantType: 'RESTAURANT', current: 'classic', selected: 'classic', onSelect: () => {}, canSeeStyles }));
 
 describe('the template gallery', () => {
-  it('offers the Styles filter to someone who may read the style files', () => {
-    expect(gallery(true)).toContain(`>${en('design.filter.styles')}</button>`);
-  });
-
-  it('hides the Styles filter when the style files would answer "not found"', () => {
-    expect(gallery(false)).not.toContain(`>${en('design.filter.styles')}</button>`);
-  });
+  for (const canSee of [true, false]) {
+    it(`shows every category from the start, with no Styles button (may read style files: ${canSee})`, () => {
+      const html = gallery(canSee);
+      expect(html).toContain(`>${en('design.filter.categoryAll')}</button>`);
+      for (const category of STYLE_CATEGORIES) expect(html).toContain(`>${en(`styles.category.${category}`).replaceAll('&', '&amp;')}</button>`);
+      expect(html).not.toContain(`>${en('design.filter.styles')}</button>`);
+    });
+  }
 });
