@@ -53,7 +53,9 @@ export function offlineReceiptDoc(order: LocalOrder, tableNumber: number | null,
 
 /**
  * One paper per kitchen section for the lines not sent yet, and one cancellation slip per section for sent lines the
- * cashier cancelled since (each only once: `printedSlips` holds the slips already on paper).
+ * cashier cancelled on this device since the snapshot (each only once: `printedSlips` holds the slips already on paper). A
+ * line the snapshot already shows cancelled was dealt with online (its slip printed, or the kitchen acknowledged it), so it
+ * never prints again here.
  */
 export function offlineKitchenDocs(
   order: LocalOrder,
@@ -88,7 +90,7 @@ export function offlineKitchenDocs(
     docs.push({ sectionId, doc: { rows } });
   }
 
-  for (const [sectionId, lines] of bySection(order.lines.filter((l) => l.sent && l.cancelled))) {
+  for (const [sectionId, lines] of bySection(order.lines.filter((l) => l.sent && l.cancelled && l.cancelledHere))) {
     const slipKey = `${order.key}|${sectionId ?? ''}|${lines.map((l) => `${l.id}:${l.quantity}`).join(';')}`;
     if (printedSlips.has(slipKey)) continue;
     const rows: PaperRow[] = [center([t('pos.ticket.cancelled'), nameOf(sectionId)].filter(Boolean).join(' · '), { size: 2, bold: true })];

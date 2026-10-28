@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { LocalOrder } from '@/lib/pos-sync/local-state';
+import { deriveLocalState, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { SyncSnapshot } from '@/lib/pos-sync/snapshot';
 import type { PaperRow } from '@/server/domain/pos/paper';
 import type { PaperFormat } from '@/server/domain/pos/paper-docs';
@@ -74,8 +74,15 @@ describe('offlineKitchenDocs', () => {
     expect(offlineKitchenDocs(order({ lines: [line('a', { sent: true })] }), 4, snap, t, fmt, new Set())).toEqual([]);
   });
 
-  it('prints a cancellation slip once for a sent line that was cancelled', () => {
-    const o = order({ lines: [line('a', { sent: true, cancelled: true })] });
+  it('prints no slip for a sent line already cancelled in the snapshot (the kitchen had it before the device went offline)', () => {
+    expect(offlineKitchenDocs(order({ lines: [line('a', { sent: true, cancelled: true })] }), 4, snap, t, fmt, new Set())).toEqual([]);
+    const snapped = { ...snap, orders: [{ id: 'o1', number: 7, tableId: 't1', status: 'OPEN', version: 3, seatedAt: null, invoiceDiscount: null, lines: [line('a', { sent: true, cancelled: true })] }] } as unknown as SyncSnapshot;
+    const derived = deriveLocalState(snapped, []).all[0]!;
+    expect(offlineKitchenDocs(derived, 4, snapped, t, fmt, new Set())).toEqual([]);
+  });
+
+  it('prints a cancellation slip once for a sent line cancelled on this device', () => {
+    const o = order({ lines: [line('a', { sent: true, cancelled: true, cancelledHere: true })] });
     const first = offlineKitchenDocs(o, 4, snap, t, fmt, new Set());
     expect(first).toHaveLength(1);
     expect(first[0]?.slipKey).toBeTruthy();
