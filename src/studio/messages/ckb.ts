@@ -59,6 +59,7 @@ const ckb: Messages = {
   'nav.activity': 'چالاکی',
   'nav.settings': 'ڕێکخستنەکان',
   'nav.myRestaurant': 'ڕێستۆرانەکەم',
+  'nav.myMenu': 'ڕێکخستنەکانی مێنیو',
   'nav.cashier': 'کاشێر',
   'error.text.posCashRequired': 'پارەدانی نەقد دەبێت چالاک بمێنێتەوە',
   'error.text.posNotSelf': 'ناتوانیت ڕۆڵ یان دەسەڵاتی خۆت بگۆڕیت',

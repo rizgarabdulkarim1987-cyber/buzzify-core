@@ -38,9 +38,9 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   // The Cashier item shows only to a person whose restaurant has the till open: a menu-only restaurant sees no trace of it.
   const pos = await getPosAccess();
   const navItems = pos.actor && pos.gate?.open ? [...visibleNav(actor, owned), posNavItem()] : visibleNav(actor, owned);
-  const items: SidebarItem[] = navItems.map(({ labelKey, label, ...item }) => ({
+  const items: SidebarItem[] = navItems.map(({ labelKey, label, scope, ...item }) => ({
     ...item,
-    label: label ?? t(labelKey),
+    label: label ?? (scope ? `${t(labelKey)} · ${scope}` : t(labelKey)),
   }));
 
   return (
