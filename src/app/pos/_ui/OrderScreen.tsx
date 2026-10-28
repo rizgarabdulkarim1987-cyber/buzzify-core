@@ -289,7 +289,7 @@ export function OrderScreen({
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  's-keep-radius relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
+                                  'relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
                                   count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
                                 )}
                               >

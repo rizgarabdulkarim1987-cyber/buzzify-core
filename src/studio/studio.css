@@ -237,11 +237,11 @@
 }
 
 /*
- * A person's own button shape (src/lib/appearance.ts). `data-shape` is on <html> only for someone who chose a look, so
- * everyone else keeps each control's own radius. Round pills (rounded-full) and the till tiles (.s-keep-radius) keep theirs. Unlayered on purpose: it must win over a utility's `rounded-*`.
+ * A person's own button shape (src/lib/appearance.ts). `data-shape` is on <html> only for someone who chose a look. The shape
+ * applies to the till's table tiles (`.s-shape`) and nothing else: every other control keeps its own radius. Unlayered on
+ * purpose: it must win over a utility's `rounded-*`.
  */
-html[data-shape] button:not(.s-keep-radius):not([class*='rounded-full']),
-html[data-shape] .s-btn {
+html[data-shape] .s-shape {
   border-radius: var(--s-btn-radius);
 }
 
