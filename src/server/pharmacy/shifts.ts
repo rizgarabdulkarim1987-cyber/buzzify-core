@@ -22,6 +22,10 @@ import { cashTotals } from './shifts-reads';
  * NEEDS_APPROVAL and asks a manager to close the shift.
  */
 
+/** Advisory-lock namespaces (two-int form; 7101/7102 sales, 7111/7112 returns, 7121/7122 reprints). */
+const NS_CASH_KEY = 7131;
+const NS_SHIFT_OPEN = 7132;
+
 const REASON_MIN = 3;
 const REASON_MAX = 200;
 const TOO_LONG = 'Use at most 200 characters';
@@ -67,7 +71,7 @@ function who(ph: PhActor): string {
 /** Waits for any other transaction working on the same key, so a repeat finds the first one's result. */
 async function lockKey(tx: ScopedTx, restaurantId: string, clientKey: string): Promise<void> {
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one cash key
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-cash-key:${restaurantId}:${clientKey}`}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_CASH_KEY}::int, hashtext(${`${restaurantId}:${clientKey}`}))`;
 }
 
 interface LockedShift {
@@ -120,7 +124,7 @@ export async function openShift(
 
   await lockKey(tx, restaurantId, input.clientKey);
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one person's opens in one branch
-  await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`ph-shift-open:${restaurantId}:${branchId}:${userId}`}))`;
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_SHIFT_OPEN}::int, hashtext(${`${restaurantId}:${branchId}:${userId}`}))`;
 
   const earlier = await tx.phCashMovement.findFirst({ where: { clientKey: input.clientKey }, select: { type: true, userId: true, shiftId: true } });
   if (earlier) {
