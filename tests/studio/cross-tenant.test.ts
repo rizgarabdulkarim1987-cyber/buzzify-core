@@ -628,6 +628,19 @@ const SWEPT: Record<string, Case[]> = {
     c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
     c("switches off B's box", (w) => ({ menuId: w.b.menuId, enabled: false })),
   ],
+  // The intro page before the menu: B's menu, B's asset smuggled into A's, and B's advert through A.
+  'menus.setIntroEnabled': [c("switches on B's intro", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveIntro': [
+    c("B's intro", (w) => ({ menuId: w.b.menuId, backgroundAssetId: null, overlay: 50, showLogo: true, showContact: true })),
+    c("B's picture as A's background", (w) => ({ menuId: w.a.menuId, backgroundAssetId: w.b.assetId, overlay: 50, showLogo: true, showContact: true })),
+  ],
+  'menus.saveIntroAdvert': [
+    c("an advert on B's intro", (w) => ({ menuId: w.b.menuId, imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true })),
+    c("B's picture as A's advert", (w) => ({ menuId: w.a.menuId, imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true })),
+  ],
+  'menus.reorderIntroAdverts': [c("B's adverts", (w) => ({ menuId: w.b.menuId, ids: [] }))],
+  'menus.deleteIntroAdvert': [c("B's advert, in B", (w) => ({ menuId: w.b.menuId, advertId: 'nope' }))],
+  'menus.intro': [c("B's intro", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
