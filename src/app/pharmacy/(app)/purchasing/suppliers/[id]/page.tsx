@@ -10,7 +10,7 @@ import { currencies } from '@/server/pharmacy/queries/prices';
 import { list as orders } from '@/server/pharmacy/queries/purchase-orders';
 import { get } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -78,7 +78,7 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                       {o.number ?? t('pharmacy.purchasing.po.noNumber')}
                     </bdi>
                     <OrderStatus status={o.status} t={t} />
-                    <bdi dir="ltr">{formatDate(o.createdAt, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(o.createdAt, locale)}</bdi>
                   </Link>
                 </li>
               ))}

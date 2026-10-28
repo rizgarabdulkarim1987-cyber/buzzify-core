@@ -7,7 +7,7 @@ import { applyImport } from '@/app/pharmacy/_actions/catalog';
 import type { ProductColumn } from '@/server/domain/pharmacy/import-products';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { describeFailure } from '@/studio/errors';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Alert } from '@/studio/ui/Alert';
@@ -244,7 +244,7 @@ export function ImportWizard({ canSetPrices }: { canSetPrices: boolean }) {
           <div data-testid="import-duplicate" role="alert" className="flex flex-col gap-3 rounded-md bg-danger-wash px-3 py-2.5 text-sm text-danger">
             <p className="flex items-start gap-2.5">
               <TriangleAlert aria-hidden className="mt-px size-4 shrink-0" />
-              <span>{t('pharmacy.import.duplicateFile', { date: duplicateOf ? formatDate(duplicateOf, locale) : '' })}</span>
+              <span>{t('pharmacy.import.duplicateFile', { date: duplicateOf ? phDate(duplicateOf, locale) : '' })}</span>
             </p>
             <Field label={t('pharmacy.import.overrideReason')}>
               <Input dir="auto" maxLength={200} value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)} />

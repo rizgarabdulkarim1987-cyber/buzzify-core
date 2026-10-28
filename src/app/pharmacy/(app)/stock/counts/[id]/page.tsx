@@ -10,7 +10,7 @@ import { getPhPlaces } from '@/server/pharmacy/actor';
 import { get } from '@/server/pharmacy/queries/counts';
 import { categories } from '@/server/pharmacy/queries/products';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { EmptyState } from '@/studio/ui/EmptyState';
@@ -64,7 +64,7 @@ export default async function CountPage({ params }: { params: Promise<{ id: stri
         className="max-sm:px-4"
         above={back}
         title={t('pharmacy.counts.detail.title', { scope: value ? t('pharmacy.counts.detail.scopeValue', { scope, value }) : scope })}
-        description={[branchName ? t('pharmacy.counts.detail.branch', { branch: branchName }) : '', t('pharmacy.counts.detail.started', { time: formatDateTime(count.createdAt, locale) })].filter(Boolean).join(' · ')}
+        description={[branchName ? t('pharmacy.counts.detail.branch', { branch: branchName }) : '', t('pharmacy.counts.detail.started', { time: phDateTime(count.createdAt, locale) })].filter(Boolean).join(' · ')}
         actions={<CountStatus status={count.status} t={t} />}
       />
       <div className="flex min-w-0 flex-col gap-4 px-4 pb-10 sm:px-8">

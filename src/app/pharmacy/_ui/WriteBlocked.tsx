@@ -1,7 +1,7 @@
 'use client';
 
 import { Lock } from 'lucide-react';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 
 /** Whether the person may change the catalog here, and if not, why: a read-only pharmacy, a role that only looks, support. */
@@ -20,7 +20,7 @@ export function WriteBlocked({ writable, scope = 'catalog' }: { writable: Writab
   if (writable.ok) return null;
   const text =
     writable.reason === 'readOnly'
-      ? t(`pharmacy.${scope}.blocked.readOnly`, { date: formatDate(writable.until, locale) })
+      ? t(`pharmacy.${scope}.blocked.readOnly`, { date: phDate(writable.until, locale) })
       : t(`pharmacy.${scope}.blocked.${writable.reason}`);
   return (
     <p

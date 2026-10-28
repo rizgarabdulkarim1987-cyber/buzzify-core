@@ -8,7 +8,7 @@ import { formatExpiry } from '@/server/domain/pharmacy/expiry';
 import { formatPhMoney } from '@/server/domain/pharmacy/money';
 import type { ReceiptDetail } from '@/server/pharmacy/receipts';
 import type { MovementView } from '@/server/pharmacy/stock-reads';
-import { formatDate, formatDateTime } from '@/studio/format';
+import { phDate, phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { MovementList } from './MovementList';
 import { costVariance } from './purchasing-logic';
 import { ReceiptStatus } from './ReceiptStatus';
@@ -108,7 +108,7 @@ export function ReceiptView({
           <span dir="auto">{branchName}</span>
         </Item>
         <Item label={t('pharmacy.receive.field.receivedOn')}>
-          <bdi dir="ltr">{formatDate(`${receipt.receivedOn}T00:00:00.000Z`, locale)}</bdi>
+          <bdi dir="ltr">{phDate(`${receipt.receivedOn}T00:00:00.000Z`, locale)}</bdi>
         </Item>
         <Item label={t('pharmacy.receive.field.supplier')}>
           {receipt.supplierName ? <span dir="auto">{receipt.supplierName}</span> : <span className="text-muted">{t('pharmacy.receive.none')}</span>}
@@ -127,7 +127,7 @@ export function ReceiptView({
         )}
         {receipt.confirmedAt && (
           <Item label={t('pharmacy.receive.view.confirmedAt')}>
-            <bdi dir="ltr">{formatDateTime(receipt.confirmedAt, locale)}</bdi>
+            <bdi dir="ltr">{phDateTime(receipt.confirmedAt, locale)}</bdi>
           </Item>
         )}
         <Item label={t('pharmacy.receive.view.total')}>

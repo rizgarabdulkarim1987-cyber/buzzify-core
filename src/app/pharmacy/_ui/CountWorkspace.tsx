@@ -11,7 +11,7 @@ import { formatNumber, ltr } from '@/lib/pos-format';
 import { formatExpiry } from '@/server/domain/pharmacy/expiry';
 import type { CountDetail, CountLineView } from '@/server/pharmacy/counts';
 import type { StudioFailure } from '@/server/studio/framework/result';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
@@ -328,7 +328,7 @@ export function CountWorkspace({ userId, restaurantId, count, canCount, canAppro
       {count.status === 'CANCELLED' && <Notice tone="info" testid="count-cancelled-view">{t('pharmacy.counts.cancelledView')}</Notice>}
       {count.status === 'APPROVED' && (
         <Notice tone="ok" testid="count-approved-view">
-          {count.reason ? t('pharmacy.counts.approved.by', { time: ltr(count.approvedAt ? formatDateTime(count.approvedAt, locale) : ''), reason: count.reason }) : t('pharmacy.counts.approved.noReason', { time: ltr(count.approvedAt ? formatDateTime(count.approvedAt, locale) : '') })}
+          {count.reason ? t('pharmacy.counts.approved.by', { time: ltr(count.approvedAt ? phDateTime(count.approvedAt, locale) : ''), reason: count.reason }) : t('pharmacy.counts.approved.noReason', { time: ltr(count.approvedAt ? phDateTime(count.approvedAt, locale) : '') })}
         </Notice>
       )}
 

@@ -8,7 +8,7 @@ import { MoneyLocked, ReasonAction } from '@/app/pharmacy/_ui/ReasonAction';
 import { formatNumber } from '@/lib/pos-format';
 import { get, variance } from '@/server/pharmacy/queries/supplier-invoices';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -29,7 +29,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const compare = access.showCost ? await query(variance, { ...access.placeInput, invoiceId: id }) : null;
   const c = invoice.currency;
   const owing = invoice.status === 'OPEN' || invoice.status === 'PARTIAL';
-  const date = (d: string) => <bdi dir="ltr">{formatDate(`${d}T00:00:00.000Z`, locale)}</bdi>;
+  const date = (d: string) => <bdi dir="ltr">{phDate(`${d}T00:00:00.000Z`, locale)}</bdi>;
   return (
     <>
       <PageHeader

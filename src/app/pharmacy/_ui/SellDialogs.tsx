@@ -7,7 +7,7 @@ import { reprintReceipt, saleReceipt } from '@/app/pharmacy/_actions/receipts';
 import type { ReceiptResult } from '@/server/pharmacy/receipt-print';
 import type { HoldSummary } from '@/server/pharmacy/holds';
 import type { SaleResult } from '@/server/pharmacy/sales';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
@@ -222,7 +222,7 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
                   <Num>{formatMinor(BigInt(hold.totalPreviewMinor), hold.currency)}</Num> {hold.currency}
                 </span>
                 <span className="text-muted">
-                  {t('pharmacy.sell.holds.lines', { count: hold.lineCount })} · {hold.mine ? t('pharmacy.sell.holds.mine') : t('pharmacy.sell.holds.other')} · <Num>{formatDateTime(hold.createdAt, locale)}</Num>
+                  {t('pharmacy.sell.holds.lines', { count: hold.lineCount })} · {hold.mine ? t('pharmacy.sell.holds.mine') : t('pharmacy.sell.holds.other')} · <Num>{phDateTime(hold.createdAt, locale)}</Num>
                 </span>
               </p>
               {asking === hold.id ? (

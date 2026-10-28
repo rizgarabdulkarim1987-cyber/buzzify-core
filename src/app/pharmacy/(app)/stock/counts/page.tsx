@@ -9,7 +9,7 @@ import { getPhPlaces } from '@/server/pharmacy/actor';
 import { list } from '@/server/pharmacy/queries/counts';
 import { categories } from '@/server/pharmacy/queries/products';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -122,7 +122,7 @@ export default async function CountsPage({ searchParams }: { searchParams: Promi
                     {t('pharmacy.counts.col.counter')}: {t(count.countedById === actor.userId ? 'pharmacy.counts.counter.you' : 'pharmacy.counts.counter.other')}
                   </span>
                   <bdi dir="ltr" className="text-muted tabular-nums">
-                    {formatDateTime(count.createdAt, locale)}
+                    {phDateTime(count.createdAt, locale)}
                   </bdi>
                   <Link href={`/pharmacy/stock/counts/${count.id}`} className={`${LINK} ms-auto`}>
                     {t('pharmacy.counts.open')}

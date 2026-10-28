@@ -32,7 +32,7 @@ import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
 import type { SaleResult } from '@/server/pharmacy/sales';
 import type { HoldResult } from '@/server/pharmacy/holds';
 import type { StudioFailure } from '@/server/studio/framework/result';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
 import { Field } from '@/studio/ui/Field';
@@ -411,7 +411,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setFromHoldId(null);
     setAttempt(null);
     dispatch({ type: 'clear' });
-    setNotice({ tone: 'success', text: t('pharmacy.sell.held', { time: formatDateTime(held.heldUntil, locale) }) });
+    setNotice({ tone: 'success', text: t('pharmacy.sell.held', { time: phDateTime(held.heldUntil, locale) }) });
     searchBox.current?.focus();
   };
 
@@ -574,7 +574,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
           {t('pharmacy.sell.shift.float', { currency })}: <Num>{formatMinor(BigInt(shift.openingFloatMinor), currency)}</Num>
         </span>
         <span>
-          <Num>{formatDateTime(shift.openedAt, locale)}</Num>
+          <Num>{phDateTime(shift.openedAt, locale)}</Num>
         </span>
       </p>
 

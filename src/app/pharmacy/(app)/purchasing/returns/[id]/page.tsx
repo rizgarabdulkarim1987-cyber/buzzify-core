@@ -6,7 +6,7 @@ import { Amount, moneyText } from '@/app/pharmacy/_ui/money-status';
 import { formatNumber } from '@/lib/pos-format';
 import { get } from '@/server/pharmacy/queries/supplier-returns';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -32,7 +32,7 @@ export default async function SupplierReturnPage({ params }: { params: Promise<{
         {g.writeNotice}
         <section aria-labelledby="ret-head" className="flex min-w-0 flex-col gap-3" data-testid="return-head">
           <h2 id="ret-head" className="text-md font-semibold text-text">
-            {t('pharmacy.purchasing.m.inv.header')}
+            {t('pharmacy.purchasing.m.ret.detailHeader')}
           </h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm text-text sm:max-w-xl">
             <dt className="text-muted">{t('pharmacy.purchasing.po.supplier')}</dt>
@@ -43,7 +43,7 @@ export default async function SupplierReturnPage({ params }: { params: Promise<{
             </dd>
             <dt className="text-muted">{t('pharmacy.purchasing.m.ret.date')}</dt>
             <dd>
-              <bdi dir="ltr">{formatDate(r.createdAt, locale)}</bdi>
+              <bdi dir="ltr">{phDate(r.createdAt, locale)}</bdi>
             </dd>
             <dt className="text-muted">{t('pharmacy.purchasing.m.reason')}</dt>
             <dd dir="auto">{r.reason}</dd>
@@ -84,11 +84,11 @@ export default async function SupplierReturnPage({ params }: { params: Promise<{
                     {t('pharmacy.stock.batch.lot')}: <bdi dir="ltr">{l.lot}</bdi>
                   </span>
                   <span>
-                    {t('pharmacy.purchasing.m.inv.expiry')}: <bdi dir="ltr">{formatDate(`${l.expiryDate}T00:00:00.000Z`, locale)}</bdi>
+                    {t('pharmacy.purchasing.m.inv.expiry')}: <bdi dir="ltr">{phDate(`${l.expiryDate}T00:00:00.000Z`, locale)}</bdi>
                   </span>
                   <span>{t(`pharmacy.stock.bucket.${l.bucket.toLowerCase()}`)}</span>
                   <span className="text-text">
-                    {t('pharmacy.purchasing.m.inv.qty')}: <bdi dir="ltr">{formatNumber(l.qty)}</bdi> {l.baseUnit}
+                    {t('pharmacy.purchasing.m.ret.qtyReturned')}: <bdi dir="ltr">{formatNumber(l.qty)}</bdi> {l.baseUnit}
                   </span>
                   {l.unitCostMinor != null && l.costCurrency && (
                     <span>

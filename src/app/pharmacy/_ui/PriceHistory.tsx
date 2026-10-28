@@ -7,7 +7,7 @@ import { formatPhMoney, type Currency } from '@/server/domain/pharmacy/money';
 import type { PriceHistoryRow } from '@/server/pharmacy/prices';
 import type { ProductUnitView } from '@/server/pharmacy/products';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Alert, FailureAlert } from '@/studio/ui/Alert';
@@ -154,12 +154,12 @@ export function PriceHistory({ productId, units, currencies, initial, branchName
               </p>
               <p className="text-muted">
                 <span className="sr-only">{t('pharmacy.price.col.from')}: </span>
-                {formatDateTime(row.validFrom, locale)}
+                {phDateTime(row.validFrom, locale)}
                 {row.validTo && (
                   <>
                     {' – '}
                     <span className="sr-only">{t('pharmacy.price.col.to')}: </span>
-                    {formatDateTime(row.validTo, locale)}
+                    {phDateTime(row.validTo, locale)}
                   </>
                 )}
               </p>

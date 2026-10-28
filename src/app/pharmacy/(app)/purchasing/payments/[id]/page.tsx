@@ -6,7 +6,7 @@ import { Amount, PaymentChip } from '@/app/pharmacy/_ui/money-status';
 import { MoneyLocked, ReasonAction } from '@/app/pharmacy/_ui/ReasonAction';
 import { get } from '@/server/pharmacy/queries/supplier-payments';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -45,7 +45,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
         </p>
         <section aria-labelledby="pay-head" className="flex min-w-0 flex-col gap-3" data-testid="payment-head">
           <h2 id="pay-head" className="text-md font-semibold text-text">
-            {t('pharmacy.purchasing.m.inv.header')}
+            {t('pharmacy.purchasing.m.pay.detailHeader')}
           </h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm text-text sm:max-w-xl">
             <dt className="text-muted">{t('pharmacy.purchasing.po.supplier')}</dt>
@@ -58,7 +58,7 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
             <dd>{t(`pharmacy.purchasing.m.pay.method.${p.method}`)}</dd>
             <dt className="text-muted">{t('pharmacy.purchasing.m.pay.paidOn')}</dt>
             <dd>
-              <bdi dir="ltr">{formatDate(`${p.paidOn}T00:00:00.000Z`, locale)}</bdi>
+              <bdi dir="ltr">{phDate(`${p.paidOn}T00:00:00.000Z`, locale)}</bdi>
             </dd>
             <dt className="text-muted">{t(p.isReversal ? 'pharmacy.purchasing.m.reason' : 'pharmacy.purchasing.m.pay.reference')}</dt>
             <dd dir="auto">{p.reference || '—'}</dd>

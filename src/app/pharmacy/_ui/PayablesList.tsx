@@ -3,7 +3,7 @@
 import { HandCoins, Info } from 'lucide-react';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { buttonClasses } from '@/studio/ui/Button';
 import { Checkbox } from '@/studio/ui/Checkbox';
@@ -99,7 +99,7 @@ export function PayablesList({ rows, canPay }: { rows: PayableRowWire[]; canPay:
               </span>
               <span className="text-sm text-text">
                 <span className="text-muted md:sr-only">{t('pharmacy.purchasing.m.col.due')}: </span>
-                <bdi dir="ltr">{formatDate(`${r.dueDate}T00:00:00.000Z`, locale)}</bdi>
+                <bdi dir="ltr">{phDate(`${r.dueDate}T00:00:00.000Z`, locale)}</bdi>
               </span>
               <span className="flex flex-wrap gap-1.5">
                 <InvoiceStatusChip status={r.status} t={t} />

@@ -9,7 +9,7 @@ import { MoneyLocked } from '@/app/pharmacy/_ui/ReasonAction';
 import { get } from '@/server/pharmacy/queries/credit-notes';
 import { list as payables } from '@/server/pharmacy/queries/payables';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -39,7 +39,7 @@ export default async function CreditPage({ params }: { params: Promise<{ id: str
         {g.writeNotice}
         <section aria-labelledby="cr-head" className="flex min-w-0 flex-col gap-3" data-testid="credit-head">
           <h2 id="cr-head" className="text-md font-semibold text-text">
-            {t('pharmacy.purchasing.m.inv.header')}
+            {t('pharmacy.purchasing.m.cr.detailHeader')}
           </h2>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1.5 text-sm text-text sm:max-w-xl">
             <dt className="text-muted">{t('pharmacy.purchasing.po.supplier')}</dt>
@@ -50,7 +50,7 @@ export default async function CreditPage({ params }: { params: Promise<{ id: str
             </dd>
             <dt className="text-muted">{t('pharmacy.purchasing.m.cr.noteDate')}</dt>
             <dd>
-              <bdi dir="ltr">{formatDate(`${c.noteDate}T00:00:00.000Z`, locale)}</bdi>
+              <bdi dir="ltr">{phDate(`${c.noteDate}T00:00:00.000Z`, locale)}</bdi>
             </dd>
             {c.amountMinor !== undefined && (
               <>

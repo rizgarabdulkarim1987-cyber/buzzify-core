@@ -9,7 +9,7 @@ import { formatNumber } from '@/lib/pos-format';
 import { draftKey, useDraft } from '@/lib/use-draft';
 import { useLeaveGuard } from '@/lib/use-leave-guard';
 import type { ProductBalance } from '@/server/pharmacy/stock-reads';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
@@ -187,7 +187,7 @@ export function SupplierReturnForm({
                             {p.tradeName}
                           </span>
                           <span className="text-muted">
-                            {t('pharmacy.stock.batch.lot')} <bdi dir="ltr">{b.lot}</bdi> · {formatDate(`${b.expiryDate}T00:00:00.000Z`, locale)} · {t(`pharmacy.stock.bucket.${bucket.toLowerCase()}`)}: <bdi dir="ltr">{formatNumber(have)}</bdi>
+                            {t('pharmacy.stock.batch.lot')} <bdi dir="ltr">{b.lot}</bdi> · {phDate(`${b.expiryDate}T00:00:00.000Z`, locale)} · {t(`pharmacy.stock.bucket.${bucket.toLowerCase()}`)}: <bdi dir="ltr">{formatNumber(have)}</bdi>
                           </span>
                         </span>
                         <Button
@@ -230,7 +230,7 @@ export function SupplierReturnForm({
                         {l.productName}
                       </p>
                       <p className="text-sm text-muted">
-                        {t('pharmacy.stock.batch.lot')} <bdi dir="ltr">{l.lot}</bdi> · {formatDate(`${l.expiry}T00:00:00.000Z`, locale)} · {t(`pharmacy.stock.bucket.${l.bucket.toLowerCase()}`)} ({t('pharmacy.purchasing.m.ret.upTo', { max: formatNumber(l.max) })})
+                        {t('pharmacy.stock.batch.lot')} <bdi dir="ltr">{l.lot}</bdi> · {phDate(`${l.expiry}T00:00:00.000Z`, locale)} · {t(`pharmacy.stock.bucket.${l.bucket.toLowerCase()}`)} ({t('pharmacy.purchasing.m.ret.upTo', { max: formatNumber(l.max) })})
                       </p>
                     </div>
                     <Button size="lg" className="min-h-11" icon={<Trash2 aria-hidden />} onClick={() => change({ lines: value.lines.filter((_, j) => j !== i) })}>

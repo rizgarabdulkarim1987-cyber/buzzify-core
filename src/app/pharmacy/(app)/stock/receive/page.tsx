@@ -8,7 +8,7 @@ import { formatNumber } from '@/lib/pos-format';
 import { getPhPlaces } from '@/server/pharmacy/actor';
 import { list } from '@/server/pharmacy/queries/receipts';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
@@ -147,7 +147,7 @@ export default async function ReceiptsPage({ searchParams }: { searchParams: Pro
                   </span>
                   <span className="text-sm text-text">
                     <span className="text-muted md:sr-only">{t('pharmacy.receive.field.receivedOn')}: </span>
-                    <bdi dir="ltr">{formatDate(`${r.receivedOn}T00:00:00.000Z`, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(`${r.receivedOn}T00:00:00.000Z`, locale)}</bdi>
                   </span>
                   <span className="text-sm text-text tabular-nums">
                     <span className="text-muted md:sr-only">{t('pharmacy.receive.col.lines')}: </span>

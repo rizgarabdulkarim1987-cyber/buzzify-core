@@ -10,7 +10,7 @@ import { formatPhMoney } from '@/server/domain/pharmacy/money';
 import { getPhPlaces } from '@/server/pharmacy/actor';
 import { get, receipts } from '@/server/pharmacy/queries/purchase-orders';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate, formatDateTime } from '@/studio/format';
+import { phDate, phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
@@ -83,13 +83,13 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </div>
           <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-muted">{t('pharmacy.purchasing.po.expectedOn')}</dt>
-            <dd className="text-text">{order.expectedOn ? <bdi dir="ltr">{formatDate(`${order.expectedOn}T00:00:00.000Z`, locale)}</bdi> : t('pharmacy.receive.none')}</dd>
+            <dd className="text-text">{order.expectedOn ? <bdi dir="ltr">{phDate(`${order.expectedOn}T00:00:00.000Z`, locale)}</bdi> : t('pharmacy.receive.none')}</dd>
           </div>
           {order.orderedAt && (
             <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted">{t('pharmacy.purchasing.po.orderedAt')}</dt>
               <dd className="text-text">
-                <bdi dir="ltr">{formatDateTime(order.orderedAt, locale)}</bdi>
+                <bdi dir="ltr">{phDateTime(order.orderedAt, locale)}</bdi>
               </dd>
             </div>
           )}
@@ -190,7 +190,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                       {r.number ?? t('pharmacy.receive.noNumber')}
                     </bdi>
                     <ReceiptStatus status={r.status} t={t} />
-                    <bdi dir="ltr">{formatDate(`${r.receivedOn}T00:00:00.000Z`, locale)}</bdi>
+                    <bdi dir="ltr">{phDate(`${r.receivedOn}T00:00:00.000Z`, locale)}</bdi>
                     <span>{t('pharmacy.receive.totals.lines', { count: r.lines.length })}</span>
                   </Link>
                 </li>

@@ -9,10 +9,11 @@ import { SupplierTabs } from '@/app/pharmacy/_ui/SupplierTabs';
 import { statement } from '@/server/pharmacy/queries/payables';
 import { get } from '@/server/pharmacy/queries/suppliers';
 import { query } from '@/server/studio/framework/invoke';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
+import { todayInStudioZone } from '@/app/pharmacy/_ui/ph-date';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../../../gate';
 
@@ -37,7 +38,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
   if (!/^[\w-]{1,64}$/.test(id)) notFound();
   const { access, t, locale } = g;
   const supplier = await query(get, { ...access.placeInput, supplierId: id });
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayInStudioZone();
   const currencyText = one(raw.currency);
   const currency = currencyText === 'IQD' || currencyText === 'USD' ? currencyText : supplier.defaultCurrency;
   const to = DATE.test(one(raw.to) ?? '') ? one(raw.to)! : today;
@@ -78,7 +79,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
         ) : (
           <>
             <p className="text-sm text-muted">
-              <bdi dir="ltr">{currency}</bdi> · <bdi dir="ltr">{formatDate(`${view.from}T00:00:00.000Z`, locale)}</bdi> – <bdi dir="ltr">{formatDate(`${view.to}T00:00:00.000Z`, locale)}</bdi>
+              <bdi dir="ltr">{currency}</bdi> · <bdi dir="ltr">{phDate(`${view.from}T00:00:00.000Z`, locale)}</bdi> – <bdi dir="ltr">{phDate(`${view.to}T00:00:00.000Z`, locale)}</bdi>
             </p>
             {view.opening !== undefined && view.closing !== undefined ? (
               <>
@@ -139,7 +140,7 @@ export default async function StatementPage({ params, searchParams }: { params: 
                 {view.rows.map((r) => (
                   <li key={r.id} data-testid="statement-row" className="grid min-w-0 grid-cols-1 gap-x-6 gap-y-1 border-b border-line py-3 text-sm text-text md:grid-cols-[minmax(0,7rem)_minmax(0,1fr)_minmax(0,10rem)_minmax(0,9rem)_minmax(0,9rem)] md:items-center">
                     <span>
-                      <bdi dir="ltr">{formatDate(`${r.date}T00:00:00.000Z`, locale)}</bdi>
+                      <bdi dir="ltr">{phDate(`${r.date}T00:00:00.000Z`, locale)}</bdi>
                     </span>
                     <span className="min-w-0 break-words [overflow-wrap:anywhere]">
                       <Link href={`/pharmacy/purchasing/${LINKS[r.entity]}/${r.recordId}`} className="inline-flex min-h-11 items-center underline underline-offset-2 print:no-underline">

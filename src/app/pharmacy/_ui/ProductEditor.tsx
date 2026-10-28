@@ -10,7 +10,7 @@ import { useLeaveGuard } from '@/lib/use-leave-guard';
 import type { Currency } from '@/server/domain/pharmacy/money';
 import type { PriceHistoryRow } from '@/server/pharmacy/prices';
 import { describeFailure, type DescribedFailure } from '@/studio/errors';
-import { formatDateTime } from '@/studio/format';
+import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Alert } from '@/studio/ui/Alert';
@@ -316,7 +316,7 @@ export function ProductEditor(props: ProductEditorProps) {
           <History aria-hidden className="size-4 shrink-0 text-muted" />
           <span className="min-w-0 flex-1">
             {stale ? t('pharmacy.catalog.draft.stale') : t('pharmacy.catalog.draft.restored')}
-            {draft.restoredAt && <span className="text-muted"> ({formatDateTime(draft.restoredAt, locale)})</span>}
+            {draft.restoredAt && <span className="text-muted"> ({phDateTime(draft.restoredAt, locale)})</span>}
           </span>
           <Button size="sm" onClick={() => setRestoreSeen(true)}>
             {t('pharmacy.catalog.draft.keep')}

@@ -9,6 +9,7 @@ import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { buttonClasses } from '@/studio/ui/Button';
+import { todayInStudioZone } from '@/app/pharmacy/_ui/ph-date';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { purchasingGate } from '../../gate';
 
@@ -95,7 +96,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
         currency={currency}
         invoices={invoices}
         preselected={preselected}
-        today={new Date().toISOString().slice(0, 10)}
+        today={todayInStudioZone()}
         hasMore={open.nextCursor !== null}
       />
     </>
