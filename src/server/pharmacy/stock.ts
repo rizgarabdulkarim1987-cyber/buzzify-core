@@ -60,6 +60,11 @@ const NEEDS_REASON: ReadonlySet<PhMovementType> = new Set([
 /**
  * For a caller that touches several balances in one transaction: take them in this order (by batch id), so two
  * transactions that touch the same balances queue instead of waiting on each other.
+ *
+ * Rule for the writers that will come later (recall, block, quarantine release by batch): a sale takes the balances
+ * `FOR UPDATE` and only then the batch rows `FOR SHARE`, so a writer must NEVER lock or UPDATE a `PhBatch` row before the
+ * balances of that batch in the same transaction (balances first, in `lockOrder`, then the batch), or it can deadlock
+ * with a sale. Today no code updates a batch row (receipts only insert them).
  */
 export function lockOrder<T extends { batchId: string }>(
   rows: readonly T[],

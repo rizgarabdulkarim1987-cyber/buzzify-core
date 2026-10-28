@@ -19,8 +19,13 @@ import { applyMovement, lockOrder } from './stock';
  *
  * Lock order: (1) the return key (advisory, two-int form), (2) the approver's open shift `FOR SHARE` (a close takes it
  * `FOR UPDATE`, so no refund is ever posted into a closed shift; the database trigger is the backstop), (3) the sale row
- * `FOR UPDATE` (two returns of one sale queue up, so the second sees the first's quantities and refunds), (4) the stock
- * balances through `applyMovement` in batch order, (5) the branch's return numbering. The limit on each allocation is
+ * `FOR UPDATE` (two returns of one sale queue up, so the second sees the first's quantities and refunds), (4) the branch's
+ * return numbering (advisory, held to the end of the transaction), (5) the return rows, then the allocation counters and
+ * the stock balances through `applyMovement` in batch order. The number lock is deliberately taken BEFORE the balances,
+ * not last as in a sale: the return row (which carries the number) is the parent of the line rows, and nothing else takes
+ * that lock, so it cannot join a cycle; the cost is that returns of one branch queue behind one another while one waits
+ * for a balance a sale holds. Moving it after the movements would change where each failure surfaces for a small gain.
+ * The limit on each allocation is
  * also a guarded UPDATE (`returnedBaseQty + n <= baseQty`, count must be 1) as the backstop.
  *
  * What a return does: raises `returnedBaseQty` on each sold allocation, puts the units into QUARANTINE of the SAME batch
