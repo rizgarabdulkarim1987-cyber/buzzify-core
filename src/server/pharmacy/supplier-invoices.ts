@@ -57,8 +57,18 @@ const WHOLE = 'Enter a whole number';
 /** Statuses that still owe money: the only ones that can be overdue. */
 const OWING = ['OPEN', 'PARTIAL'] as const;
 
+/** No invoice or credit is dated before this. */
+const EARLIEST_DATE = '2000-01-01';
+/** The furthest a due date can be set past its invoice date. */
+const MAX_DUE_YEARS = 5;
+
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const midnight = (date: string) => new Date(`${date}T00:00:00.000Z`);
+const yearsAfter = (date: string, years: number) => {
+  const d = midnight(date);
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return iso(d);
+};
 
 const dateText = z
   .string()
@@ -77,7 +87,7 @@ export const invoiceFields = z.object({
   supplierId: z.string().min(1).max(64),
   /** The supplier's own number as written; its comparable form is made by the domain. */
   number: z.string().transform(cleanText).pipe(z.string().min(1, 'Enter the invoice number').max(60, 'Use at most 60 characters')),
-  invoiceDate: dateText,
+  invoiceDate: dateText.refine((v) => v >= EARLIEST_DATE, 'The invoice date cannot be before 2000-01-01'),
   /** Defaults to the invoice date plus the supplier's terms. */
   dueDate: dateText.nullish(),
   currency: z.enum(['IQD', 'USD'], 'Choose IQD or USD'),
@@ -209,7 +219,9 @@ export async function createInvoice(
     };
   }
 
+  if (input.invoiceDate > dueDateOf(utcToday(), 1)) throw invalid('invoiceDate', 'The invoice date cannot be later than tomorrow');
   if (input.dueDate && input.dueDate < input.invoiceDate) throw invalid('dueDate', 'The due date cannot be before the invoice date');
+  if (input.dueDate && input.dueDate > yearsAfter(input.invoiceDate, MAX_DUE_YEARS)) throw invalid('dueDate', 'The due date cannot be more than 5 years after the invoice date');
   const supplier = await tx.phSupplier.findFirst({ where: { id: input.supplierId }, select: { active: true, termsDays: true } });
   if (!supplier) throw supplierNotFound();
   if (!supplier.active) throw archived();
@@ -225,6 +237,7 @@ export async function createInvoice(
   const adjustment = domain('adjustmentReason', () => invoiceInput({ adjustmentMinor: input.adjustmentMinor, adjustmentReason: input.adjustmentReason }));
   const lineTotals = input.lines.map((l, i) => domain(`lines.${i}.unitCostMinor`, () => lineTotal(l.qtyInvoiced, l.unitCostMinor)));
   const total = domain('adjustmentMinor', () => invoiceTotal(lineTotals, adjustment.adjustmentMinor));
+  if (total <= 0n) throw invalid('lines', 'The invoice total must be more than zero', { phCode: 'ZERO_TOTAL' });
   const due = input.dueDate ?? dueDateOf(input.invoiceDate, supplier.termsDays);
   const fingerprint = invoiceFingerprint({ supplierId: input.supplierId, number: input.number, date: input.invoiceDate, currency: input.currency, totalMinor: total });
 

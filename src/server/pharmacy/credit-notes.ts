@@ -40,7 +40,7 @@ export const creditFields = z.object({
   number: z.string().trim().min(1, 'Enter the credit note number').max(60, 'Use at most 60 characters'),
   currency: z.enum(['IQD', 'USD'], 'Choose IQD or USD'),
   amountMinor: z.coerce.bigint('Enter an amount').min(1n, 'Use 1 or more').max(MAX_MINOR, 'Enter a smaller amount'),
-  noteDate: dateText,
+  noteDate: dateText.refine((v) => v >= '2000-01-01', 'The credit note date cannot be before 2000-01-01'),
   supplierReturnId: idText.optional(),
   note: z.string().transform(cleanText).pipe(z.string().max(300, 'Use at most 300 characters')).default(''),
 });

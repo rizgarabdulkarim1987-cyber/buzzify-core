@@ -223,6 +223,16 @@ describe('the supplier statement', () => {
     expect(codeOf(await ask(w.owner, payables.statement, { ...at(w), supplierId: 'nope', currency: 'IQD', from: '2026-09-01', to: '2026-10-27' }))).toBe('NOT_FOUND');
   });
 
+  it('keeps a credit note dated between 2000-01-01 and tomorrow', async () => {
+    const w = await world();
+    for (const noteDate of ['1999-12-31', '0026-10-21', '2026-10-29']) {
+      expect(codeOf(await note(w, { number: `CN-${noteDate}`, amountMinor: '1000', noteDate })), noteDate).toBe('INVALID');
+    }
+    expect(await prisma().phCreditNote.count()).toBe(0);
+    expect(codeOf(await note(w, { number: 'CN-EDGE-1', amountMinor: '1000', noteDate: '2000-01-01' }))).toBe('OK');
+    expect(codeOf(await note(w, { number: 'CN-EDGE-2', amountMinor: '1000', noteDate: '2026-10-28' }))).toBe('OK');
+  });
+
   it('refuses a range over a year, an upside-down range, and a bad date; one year exactly is fine', async () => {
     const w = await world();
     const bad = async (body: Record<string, unknown>) => codeOf(await ask(w.owner, payables.statement, { ...at(w), supplierId: w.supplierId, currency: 'IQD', ...body }));

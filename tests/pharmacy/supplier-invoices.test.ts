@@ -159,11 +159,35 @@ describe('creating an invoice', () => {
     expect(await prisma().phSupplierInvoice.count()).toBe(0);
   });
 
-  it('accepts a zero unit cost (a free line): the total is zero', async () => {
+  it('refuses an invoice whose total is zero or less (ZERO_TOTAL) and writes nothing, however the zero comes about', async () => {
     const w = await world();
     const r = await received(w, [rLine(w.p, { qty: 5, bonusQty: 5 })]);
-    const made = dataOf(await create(w, [iLine(r.lines[0]!, 10, 0)]));
-    expect(made.totalMinor).toBe('0');
+    const free = await create(w, [iLine(r.lines[0]!, 10, 0)]);
+    expect(codeOf(free)).toBe('INVALID');
+    expect(phCodeOf(free)).toBe('ZERO_TOTAL');
+    // A discount that brings the total to exactly zero is the same thing.
+    const discounted = await create(w, [iLine(r.lines[0]!, 10, 100)], { adjustmentMinor: '-1000', adjustmentReason: 'Full discount' });
+    expect(phCodeOf(discounted)).toBe('ZERO_TOTAL');
+    expect(await prisma().phSupplierInvoice.count()).toBe(0);
+    expect(await prisma().phSupplierInvoiceLine.count()).toBe(0);
+    expect(await invoicedOf(r.lines[0]!)).toBe(0);
+    expect(await prisma().auditLog.count({ where: { action: 'ph.invoice.create' } })).toBe(0);
+    // One minor unit more is an invoice.
+    expect(dataOf(await create(w, [iLine(r.lines[0]!, 10, 100)], { adjustmentMinor: '-999', adjustmentReason: 'Almost free' })).totalMinor).toBe('1');
+  });
+
+  it('keeps invoice and due dates between 2000-01-01 and tomorrow (invoice) or five years after the invoice date (due)', async () => {
+    const w = await world();
+    const r = await received(w, [rLine(w.p)]);
+    const line = iLine(r.lines[0]!, 10);
+    for (const invoiceDate of ['1999-12-31', '0026-10-21', '2026-10-29', '2062-10-21']) {
+      expect(codeOf(await create(w, [line], { invoiceDate })), invoiceDate).toBe('INVALID');
+    }
+    expect(codeOf(await create(w, [line], { dueDate: '2031-10-22' }))).toBe('INVALID');
+    expect(await prisma().phSupplierInvoice.count()).toBe(0);
+    // The edges pass: tomorrow, and exactly five years on.
+    expect(codeOf(await create(w, [iLine(r.lines[0]!, 1)], { invoiceDate: '2026-10-28', dueDate: '2031-10-28' }))).toBe('OK');
+    expect(codeOf(await create(w, [iLine(r.lines[0]!, 1)], { invoiceDate: '2000-01-01', dueDate: '2000-01-01' }))).toBe('OK');
   });
 
   it('audits ids, status, currency, amounts and line count, never the adjustment reason', async () => {
