@@ -31,6 +31,8 @@ export interface LineDraft {
   currency: Currency;
   freeOfCharge: boolean;
   acceptExpired: boolean;
+  /** Phase 4: the order line this line answers (receipts against an order only). */
+  purchaseOrderLineId?: string;
 }
 
 export interface ReceiptDraft {
@@ -43,6 +45,10 @@ export interface ReceiptDraft {
   receivedOn: string;
   note: string;
   lines: LineDraft[];
+  /** Phase 4: receiving against this order; the supplier then is the order's and cannot change. */
+  purchaseOrderId?: string;
+  purchaseOrderNumber?: string;
+  supplierId?: string;
 }
 
 const newKey = () =>
@@ -62,6 +68,8 @@ export function draftOfReceipt(receipt: ReceiptDetail, unitsOf: Record<string, {
     reference: receipt.reference,
     receivedOn: receipt.receivedOn,
     note: receipt.note,
+    ...(receipt.purchaseOrderId ? { purchaseOrderId: receipt.purchaseOrderId, purchaseOrderNumber: receipt.purchaseOrderNumber ?? '' } : {}),
+    ...(receipt.supplierId ? { supplierId: receipt.supplierId } : {}),
     lines: receipt.lines.map((l) => ({
       key: `l${l.lineNo}`,
       productId: l.productId,
@@ -77,6 +85,7 @@ export function draftOfReceipt(receipt: ReceiptDetail, unitsOf: Record<string, {
       currency: l.currency ?? currency,
       freeOfCharge: l.freeOfCharge,
       acceptExpired: l.acceptExpired,
+      ...(l.purchaseOrderLineId ? { purchaseOrderLineId: l.purchaseOrderLineId } : {}),
     })),
   };
 }
@@ -158,12 +167,21 @@ export function inputOf(draft: ReceiptDraft): Built {
       currency: l.currency,
       freeOfCharge: l.freeOfCharge,
       acceptExpired: l.acceptExpired,
+      ...(l.purchaseOrderLineId ? { purchaseOrderLineId: l.purchaseOrderLineId } : {}),
     };
   });
   if (Object.keys(problems).length > 0) return { problems };
   return {
     problems,
-    input: { supplierName: draft.supplierName, reference: draft.reference, receivedOn: draft.receivedOn, note: draft.note, lines },
+    input: {
+      supplierName: draft.supplierName,
+      reference: draft.reference,
+      receivedOn: draft.receivedOn,
+      note: draft.note,
+      ...(draft.supplierId ? { supplierId: draft.supplierId } : {}),
+      ...(draft.purchaseOrderId ? { purchaseOrderId: draft.purchaseOrderId } : {}),
+      lines,
+    },
   };
 }
 

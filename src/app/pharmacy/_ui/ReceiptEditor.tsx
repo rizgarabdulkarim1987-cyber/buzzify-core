@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, Info, PackageCheck, PackagePlus, Save, ShieldAlert, Trash2, TriangleAlert } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CircleAlert, CircleCheck, ClipboardList, Info, PackageCheck, PackagePlus, Save, ShieldAlert, Trash2, TriangleAlert } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
@@ -37,6 +37,8 @@ export interface ReceiptEditorProps {
   initial: ReceiptDraft | null;
   receiptId: string | null;
   currencies: Currency[];
+  /** Names the local draft when the receipt is not saved yet but is not a plain new one (receiving against an order). */
+  draftScope?: string;
 }
 
 interface Done {
@@ -60,7 +62,7 @@ function unitsOfDetail(p: ProductDetail): UnitChoice[] {
  * (`useDraft`) and saved to the server with "Save draft"; confirming saves first, then adds the stock. Each line says in
  * words how its expiry was understood. Nothing moves.
  */
-export function ReceiptEditor({ userId, restaurantId, branchId, branchName, initial, receiptId, currencies }: ReceiptEditorProps) {
+export function ReceiptEditor({ userId, restaurantId, branchId, branchName, initial, receiptId, currencies, draftScope }: ReceiptEditorProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -73,7 +75,7 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
   const [firstKey] = useState(newKey);
   const start = useMemo(() => initial ?? emptyDraft(firstKey, today), [initial, firstKey, today]);
   // The business and branch are part of the screen's name: one pharmacy's draft never opens in another.
-  const draft = useDraft<ReceiptDraft>(draftKey(userId, `receipt@${restaurantId}:${branchId}`, receiptId ?? 'new'), start);
+  const draft = useDraft<ReceiptDraft>(draftKey(userId, `receipt@${restaurantId}:${branchId}`, receiptId ?? draftScope ?? 'new'), start);
   const value = draft.value;
   const [savedId, setSavedId] = useState<string | null>(receiptId);
   const [pending, setPending] = useState<null | 'save' | 'confirm' | 'void'>(null);
@@ -296,6 +298,12 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
             <Info aria-hidden className="size-4 shrink-0" />
             {t('pharmacy.receive.intoBranch', { branch: isolate(branchName) })}
           </span>
+          {value.purchaseOrderId && (
+            <span data-testid="receipt-against-order" className="inline-flex items-center gap-1.5">
+              <ClipboardList aria-hidden className="size-4 shrink-0" />
+              {t('pharmacy.purchasing.receive.againstOrder', { number: value.purchaseOrderNumber || '' })}
+            </span>
+          )}
           <UnsavedBadge dirty={draft.dirty} saved={saved} />
         </div>
       </header>
@@ -331,7 +339,15 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
         <FormSection id={`${ids}-delivery`} title={t('pharmacy.receive.section.delivery')}>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <Field label={t('pharmacy.receive.field.supplier')} optional error={headerError('supplierName')}>
-              <Input className="min-h-11" dir="auto" maxLength={200} autoComplete="off" value={value.supplierName} onChange={(e) => change({ supplierName: e.target.value })} />
+              <Input
+                className="min-h-11"
+                dir="auto"
+                maxLength={200}
+                autoComplete="off"
+                readOnly={Boolean(value.purchaseOrderId)}
+                value={value.supplierName}
+                onChange={(e) => change({ supplierName: e.target.value })}
+              />
             </Field>
             <Field label={t('pharmacy.receive.field.reference')} hint={t('pharmacy.receive.field.referenceHint')} optional error={headerError('reference')}>
               <Input className="min-h-11" dir="ltr" maxLength={100} autoComplete="off" value={value.reference} onChange={(e) => change({ reference: e.target.value })} />
@@ -346,7 +362,14 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
         </FormSection>
 
         <FormSection id={`${ids}-lines`} title={t('pharmacy.receive.section.lines')} intro={t('pharmacy.receive.section.linesIntro')}>
-          <ReceiptProductPicker boxRef={searchRef} onPick={addProduct} disabled={busy} />
+          {value.purchaseOrderId ? (
+            <p data-testid="receipt-order-note" className="flex items-start gap-2.5 text-sm text-text">
+              <Info aria-hidden className="mt-px size-4 shrink-0 text-muted" />
+              {t('pharmacy.purchasing.receive.onlyOrder')}
+            </p>
+          ) : (
+            <ReceiptProductPicker boxRef={searchRef} onPick={addProduct} disabled={busy} />
+          )}
 
           {problems.lines && (
             <p role="alert" className="flex items-start gap-1.5 text-sm text-danger">
@@ -384,10 +407,10 @@ export function ReceiptEditor({ userId, restaurantId, branchId, branchName, init
                             {line.productMeta}
                           </p>
                         )}
-                        {(lineError(i, 'productId') || lineError(i, 'unitId')) && (
-                          <p className="flex items-start gap-1.5 text-sm text-danger">
+                        {(lineError(i, 'productId') || lineError(i, 'unitId') || lineError(i, 'purchaseOrderLineId')) && (
+                          <p data-testid="receipt-line-order-error" className="flex items-start gap-1.5 text-sm text-danger">
                             <CircleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-                            {lineError(i, 'productId') ?? lineError(i, 'unitId')}
+                            {lineError(i, 'productId') ?? lineError(i, 'unitId') ?? lineError(i, 'purchaseOrderLineId')}
                           </p>
                         )}
                       </div>

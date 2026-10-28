@@ -1,4 +1,5 @@
-import { ShieldAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, Equal, ShieldAlert, TriangleAlert } from 'lucide-react';
+import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
 import type { Locale } from '@/lib/locale';
@@ -9,6 +10,7 @@ import type { ReceiptDetail } from '@/server/pharmacy/receipts';
 import type { MovementView } from '@/server/pharmacy/stock-reads';
 import { formatDate, formatDateTime } from '@/studio/format';
 import { MovementList } from './MovementList';
+import { costVariance } from './purchasing-logic';
 import { ReceiptStatus } from './ReceiptStatus';
 
 function cost(l: ReceiptDetail['lines'][number], locale: Locale): string | null {
@@ -18,6 +20,43 @@ function cost(l: ReceiptDetail['lines'][number], locale: Locale): string | null 
   } catch {
     return `${l.unitCostMinor} ${l.currency}`;
   }
+}
+
+function money(amount: bigint, currency: 'IQD' | 'USD', locale: Locale): string {
+  try {
+    return formatPhMoney({ amount, currency }, locale);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
+/** The received cost against the order's: an icon and a sentence, never a colour alone. */
+function Variance({ l, t, locale }: { l: ReceiptDetail['lines'][number]; t: Translate; locale: Locale }) {
+  if (l.unitCostMinor == null || !l.currency || l.orderUnitCostMinor == null || !l.orderCurrency) return null;
+  const v = costVariance({ orderMinor: BigInt(l.orderUnitCostMinor), orderCurrency: l.orderCurrency, receivedMinor: BigInt(l.unitCostMinor), receivedCurrency: l.currency });
+  if (v.kind === 'currency') {
+    return (
+      <span data-variance="currency" className="inline-flex items-center gap-1 text-muted">
+        <TriangleAlert aria-hidden className="size-3.5 shrink-0" />
+        {t('pharmacy.purchasing.receive.variance.currency')}
+      </span>
+    );
+  }
+  if (v.kind === 'same') {
+    return (
+      <span data-variance="same" className="inline-flex items-center gap-1 text-muted">
+        <Equal aria-hidden className="size-3.5 shrink-0" />
+        {t('pharmacy.purchasing.receive.variance.same')}
+      </span>
+    );
+  }
+  const Icon = v.kind === 'higher' ? ArrowUp : ArrowDown;
+  return (
+    <span data-variance={v.kind} className="inline-flex items-center gap-1 font-medium text-text">
+      <Icon aria-hidden className="size-3.5 shrink-0" />
+      {t(`pharmacy.purchasing.receive.variance.${v.kind}`, { amount: money(v.diffMinor, v.currency, locale) })}
+    </span>
+  );
 }
 
 function Item({ label, children }: { label: string; children: ReactNode }) {
@@ -77,6 +116,15 @@ export function ReceiptView({
         <Item label={t('pharmacy.receive.field.reference')}>
           {receipt.reference ? <bdi dir="ltr">{receipt.reference}</bdi> : <span className="text-muted">{t('pharmacy.receive.none')}</span>}
         </Item>
+        {receipt.purchaseOrderId && (
+          <Item label={t('pharmacy.purchasing.receive.order')}>
+            <Link href={`/pharmacy/purchasing/orders/${receipt.purchaseOrderId}`} data-testid="receipt-order-link" className="underline underline-offset-2">
+              <bdi dir="ltr" className="tabular-nums">
+                {receipt.purchaseOrderNumber ?? ''}
+              </bdi>
+            </Link>
+          </Item>
+        )}
         {receipt.confirmedAt && (
           <Item label={t('pharmacy.receive.view.confirmedAt')}>
             <bdi dir="ltr">{formatDateTime(receipt.confirmedAt, locale)}</bdi>
@@ -145,6 +193,15 @@ export function ReceiptView({
                     <bdi dir="ltr" className="tabular-nums">
                       {cost(l, locale) ?? t('pharmacy.receive.none')}
                     </bdi>
+                  </span>
+                )}
+                {showCost && l.orderUnitCostMinor != null && l.orderCurrency && (
+                  <span data-cost data-testid="receipt-order-cost">
+                    <span className="text-muted">{t('pharmacy.purchasing.receive.orderCost')}: </span>
+                    <bdi dir="ltr" className="tabular-nums">
+                      {money(BigInt(l.orderUnitCostMinor), l.orderCurrency, locale)}
+                    </bdi>{' '}
+                    <Variance l={l} t={t} locale={locale} />
                   </span>
                 )}
               </p>
