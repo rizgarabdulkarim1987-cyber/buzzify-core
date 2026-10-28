@@ -61,8 +61,19 @@ export function layoutRows(rows: PaperRow[], widthDots: number, measure: Measure
     if (row.kind !== 'text') return [row];
     const size = row.size ?? 1;
     const bold = row.bold ?? false;
-    const room = Math.max(row.right ? usable - measure(row.right, size, bold) - 12 : usable, 40);
-    const lines = wrapRow(row.left, room, (s) => measure(s, size, bold));
+    const fit = (s: string) => measure(s, size, bold);
+    const rightWidth = row.right ? fit(row.right) + 12 : 0;
+    const room = Math.max(usable - rightWidth, 40);
+    // A word wider than the room beside the price would be cut inside, which breaks Arabic and Kurdish letter joins: give the
+    // text the full width instead and keep the price on the last line, or on a line of its own when it does not fit there.
+    if (row.right && row.left.split(' ').some((word) => fit(word) > room)) {
+      const lines = wrapRow(row.left, usable, fit);
+      const last = lines[lines.length - 1] ?? '';
+      const own = fit(last) + rightWidth > usable;
+      const out = lines.map((left, index) => ({ ...row, left, right: !own && index === lines.length - 1 ? row.right : undefined }));
+      return own ? [...out, { ...row, left: '', right: row.right }] : out;
+    }
+    const lines = wrapRow(row.left, room, fit);
     if (lines.length <= 1) return [row];
     return lines.map((left, index) => ({ ...row, left, right: index === 0 ? row.right : undefined }));
   });
