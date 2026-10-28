@@ -934,6 +934,12 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'pharmacies.list': [c('the pharmacy list', () => ({}), ONLY_FORBIDDEN)],
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
+  // The platform's intro background and adverts (`platform.settings`).
+  'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
+  'platform.saveIntroDefault': [c('a default background', (w) => ({ backgroundAssetId: w.b.assetId }), ONLY_FORBIDDEN)],
+  'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId] }), ONLY_FORBIDDEN)],
+  'platform.reorderPlatformAdverts': [c('the adverts', () => ({ ids: [] }), ONLY_FORBIDDEN)],
+  'platform.deletePlatformAdvert': [c('an advert', () => ({ advertId: 'nope' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
   'people.deactivateUser': [c("B's owner", (w) => ({ userId: w.b.ownerId }), ONLY_FORBIDDEN)],

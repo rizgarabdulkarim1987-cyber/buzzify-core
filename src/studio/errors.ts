@@ -55,6 +55,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Use an https address or a path starting with /': 'error.text.introHref',
   'The end must come after the start': 'error.text.introWindow',
   'Reload the list and try again': 'error.text.introReload',
+  'Choose restaurants that exist': 'error.text.introRestaurants',
   'Use a whole number from 0 to 100': 'error.text.introOverlay',
   'That code is not correct': 'error.text.codeWrong',
   'Enter the 6-digit code': 'error.text.codeFormat',
