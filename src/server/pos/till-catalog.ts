@@ -44,6 +44,8 @@ export interface TillProduct {
   /** Pulled from the guests' menu; the till still sells it. */
   hiddenFromGuests: boolean;
   sectionId: string | null;
+  /** The code a scanner reads for this product; null when none was set. */
+  barcode: string | null;
   variants: TillVariant[];
   groups: TillGroup[];
 }
@@ -96,7 +98,7 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
   const { offers, timeZone } = await loadTillOffers(prisma, restaurantId, menu.id);
   const [categorySettings, productSettings] = await Promise.all([
     side.posCategorySetting.findMany({ select: { categoryId: true, sectionId: true } }),
-    side.posProductSetting.findMany({ select: { productId: true, sectionId: true, soldOutOverride: true } }),
+    side.posProductSetting.findMany({ select: { productId: true, sectionId: true, soldOutOverride: true, barcode: true } }),
   ]);
   const categorySection = new Map(categorySettings.map((row) => [row.categoryId, row.sectionId]));
   const productSetting = new Map(productSettings.map((row) => [row.productId, row]));
@@ -126,6 +128,7 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
         available: product.isAvailable && !(setting?.soldOutOverride ?? false),
         hiddenFromGuests: product.isHidden,
         sectionId: setting?.sectionId ?? categorySection.get(product.categoryId) ?? null,
+        barcode: setting?.barcode ?? null,
         variants: product.variants.map((variant) => ({
           id: variant.id,
           names: namesOf(variant.translations, locales),

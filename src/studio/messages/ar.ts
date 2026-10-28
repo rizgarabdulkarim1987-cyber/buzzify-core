@@ -220,6 +220,7 @@ const ar: Messages = {
   'pos.catalog.productPrice': 'السعر (د.ع)',
   'pos.catalog.productCategory': 'الفئة',
   'pos.catalog.productSection': 'قسم المطبخ',
+  'pos.catalog.productBarcode': 'الباركود',
   'pos.catalog.productSave': 'حفظ المنتج',
   'pos.catalog.productDelete': 'حذف المنتج',
   'pos.catalog.productInStock': 'متوفر',

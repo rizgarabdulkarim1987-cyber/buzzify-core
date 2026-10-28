@@ -8,6 +8,7 @@ import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
+import { refuse } from '@/server/pos/errors';
 import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
@@ -429,6 +430,28 @@ export const posSetProductSetting = defineAction({
       if ((row?.sectionId ?? null) !== sectionId) changes.sectionId = { before: row?.sectionId ?? null, after: sectionId };
       if ((row?.soldOutOverride ?? false) !== soldOutOverride) changes.soldOutOverride = { before: row?.soldOutOverride ?? false, after: soldOutOverride };
       if (Object.keys(changes).length > 0) ctx.audit({ action: 'pos.product.setting', entityType: 'PosProductSetting', entityId: productId, changes });
+      return { productId };
+    });
+  },
+});
+
+/** The code a scanner reads for a product (empty clears it). One product per code in a restaurant. */
+export const posSetProductBarcode = defineAction({
+  name: 'pos.setProductBarcode',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, barcode: z.string().trim().max(120, 'Use at most 120 characters') }),
+  target: () => CATALOG,
+  run: (ctx, { productId, barcode: typed }) => {
+    const { restaurantId } = till(ctx);
+    const barcode = typed === '' ? null : typed;
+    return ctx.transaction(async (tx) => {
+      if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+      if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
+      const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
+      if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
+      else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
+      if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
       return { productId };
     });
   },

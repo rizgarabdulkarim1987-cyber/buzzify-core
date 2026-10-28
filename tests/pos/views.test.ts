@@ -13,6 +13,7 @@ const product = (id: string, categoryId: string, sortOrder: number, names: TillP
   available: true,
   hiddenFromGuests: false,
   sectionId: null,
+  barcode: null,
   variants: [],
   groups: [],
   ...extra,

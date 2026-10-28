@@ -1331,6 +1331,8 @@ model PosProductSetting {
   restaurantId    String
   sectionId       String?
   soldOutOverride Boolean            @default(false)
+  /// The code printed on the product's pack, scanned at the till. Text so leading zeros survive; unique per restaurant when set (a partial index in the migration).
+  barcode         String?
   product         Product            @relation(fields: [productId], references: [id], onDelete: Cascade)
   section         PosKitchenSection? @relation(fields: [sectionId], references: [id], onDelete: SetNull)
   restaurant      Restaurant         @relation(fields: [restaurantId], references: [id], onDelete: Cascade)

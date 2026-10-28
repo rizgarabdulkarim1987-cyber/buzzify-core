@@ -101,6 +101,10 @@ export async function posSetCategorySection(input: unknown) {
   return invoke(pos.posSetCategorySection, input);
 }
 
+export async function posSetProductBarcode(input: unknown) {
+  return invoke(pos.posSetProductBarcode, input);
+}
+
 export async function posSetProductSetting(input: unknown) {
   return invoke(pos.posSetProductSetting, input);
 }

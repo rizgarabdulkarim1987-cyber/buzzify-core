@@ -220,6 +220,7 @@ const ckb: Messages = {
   'pos.catalog.productPrice': 'نرخ (دینار)',
   'pos.catalog.productCategory': 'پۆل',
   'pos.catalog.productSection': 'بەشی چێشتخانە',
+  'pos.catalog.productBarcode': 'بارکۆد',
   'pos.catalog.productSave': 'پاشەکەوتکردنی بەرهەم',
   'pos.catalog.productDelete': 'سڕینەوەی بەرهەم',
   'pos.catalog.productInStock': 'بەردەستە',

@@ -100,14 +100,14 @@ export const posCatalogEditor = defineQuery({
     const restaurantId = restaurantOf(ctx);
     const [categorySettings, productSettings] = await Promise.all([
       ctx.db.posCategorySetting.findMany({ where: { restaurantId }, select: { categoryId: true, sectionId: true } }),
-      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true } }),
+      ctx.db.posProductSetting.findMany({ where: { restaurantId }, select: { productId: true, sectionId: true, soldOutOverride: true, barcode: true } }),
     ]);
     return {
       menuId: ctx.menuId,
       catalog,
       sections,
       categorySections: Object.fromEntries(categorySettings.map((row) => [row.categoryId, row.sectionId])),
-      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride }])),
+      productSettings: Object.fromEntries(productSettings.map((row) => [row.productId, { sectionId: row.sectionId, soldOutOverride: row.soldOutOverride, barcode: row.barcode }])),
     };
   },
 });

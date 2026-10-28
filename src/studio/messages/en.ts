@@ -219,6 +219,7 @@ const en: Messages = {
   'pos.catalog.productPrice': 'Price (IQD)',
   'pos.catalog.productCategory': 'Category',
   'pos.catalog.productSection': 'Kitchen section',
+  'pos.catalog.productBarcode': 'Barcode',
   'pos.catalog.productSave': 'Save product',
   'pos.catalog.productDelete': 'Delete product',
   'pos.catalog.productInStock': 'In stock',

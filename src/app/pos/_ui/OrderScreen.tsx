@@ -3,6 +3,7 @@
 import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { toast } from 'sonner';
 import { useMemo, useState } from 'react';
 import {
   addPosLine,
@@ -23,6 +24,7 @@ import { needsSheet, pickName, typedAmount, visibleProducts } from '@/lib/pos-vi
 import type { DriverRow, ZoneRow } from '@/server/pos/delivery-setup';
 import type { OrderView, OrderLineView } from '@/server/pos/orders';
 import { offerPerUnit } from '@/server/domain/pos/line-offer';
+import { productByBarcode } from '@/server/domain/pos/scan';
 import type { TillCatalog, TillProduct } from '@/server/pos/till-catalog';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
@@ -41,6 +43,7 @@ import { OffPremiseBar } from './OffPremiseBar';
 import { OptionsSheet, Stepper, type Chosen } from './OptionsSheet';
 import { PayPanel } from './PayPanel';
 import { usePrint } from './print/PrintProvider';
+import { useBarcodeScanner } from './use-barcode-scanner';
 import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
@@ -157,6 +160,15 @@ export function OrderScreen({
     if (needsSheet(product)) setSheet(product);
     else add(product, { variantId: product.variants[0]?.id, optionIds: [], quantity: 1, note: '' });
   };
+
+  // A scanned barcode adds the product like a tap on it; a code nobody has, or a sold-out product, says so.
+  useBarcodeScanner((code) => {
+    const id = catalog ? productByBarcode(catalog.products, code) : null;
+    const scanned = catalog?.products.find((p) => p.id === id);
+    if (!scanned) toast.error(t('pos.scan.unknown'));
+    else if (!scanned.available) toast.error(t('pos.scan.soldOut'));
+    else tapProduct(scanned);
+  }, canChange && dialog === 'none' && sheet === null);
 
   const reasonOf = (form: FormData) => String(form.get('reason') ?? '').trim();
   const failed = { message: t('pos.order.actionRefused') };

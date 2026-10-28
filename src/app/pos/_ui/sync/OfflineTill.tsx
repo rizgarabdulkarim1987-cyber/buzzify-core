@@ -9,6 +9,7 @@ import { formatNumber, ltr } from '@/lib/pos-format';
 import { pickName, quickCash } from '@/lib/pos-view';
 import { parseAmount } from '@/server/domain/pos/cash';
 import { offerPerUnit } from '@/server/domain/pos/line-offer';
+import { productByBarcode } from '@/server/domain/pos/scan';
 import { useLocale, useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { cx } from '@/studio/ui/cx';
@@ -17,6 +18,7 @@ import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OptionsSheet, type Chosen } from '../OptionsSheet';
 import { useProductOffer } from '../offers';
+import { useBarcodeScanner } from '../use-barcode-scanner';
 import { useMoney } from '../money';
 import { QueuePanel } from './QueuePanel';
 import { useSync } from './SyncProvider';
@@ -138,6 +140,14 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [picked, setPicked] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // The product list is in the snapshot, so a scan works with no connection; it opens the product like a tap on it.
+  useBarcodeScanner((code) => {
+    const id = catalog ? productByBarcode(catalog.products, code) : null;
+    const scanned = catalog?.products.find((p) => p.id === id);
+    if (!scanned) setMessage(t('pos.scan.unknown'));
+    else if (!scanned.available) setMessage(t('pos.scan.soldOut'));
+    else setPicked(scanned.id);
+  }, picked === null);
   const [dialog, setDialog] = useState<'cancel' | 'pay' | null>(null);
   const [reason, setReason] = useState('');
   const [received, setReceived] = useState('');
