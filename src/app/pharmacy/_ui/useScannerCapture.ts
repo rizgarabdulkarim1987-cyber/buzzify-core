@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { createScannerCapture, isPrintable, isTerminator, type ScannerOptions } from './scanner';
+import { createScannerCapture, isPrintable, isTerminator, swallowsTerminator, type ScannerOptions } from './scanner';
 
 export type ScannerCaptureOptions = ScannerOptions & {
   /** Listen at all. Default true. */
@@ -39,7 +39,7 @@ function writeValue(el: Editable, value: string): void {
  * Calls `onScan(code)` for every barcode a keyboard-wedge scanner types anywhere on the page (see `scanner.ts`).
  *
  * Text fields: nothing is ever blocked while a person types. A scan cannot be known until its terminator arrives, so
- * its characters do land in a focused field. When the terminator proves the run was a scan, the hook (a) cancels the
+ * its characters do land in a focused field. When the terminator proves the run was a scan (or a double-trigger duplicate that is dropped), the hook (a) cancels the
  * Enter/Tab (`preventDefault`, so a form does not submit and focus does not move), and (b) restores the field to the
  * value it had when the run began, so the barcode text does not stay in, say, a search box. Typing that ends in
  * Enter is left alone. With `ignoreWhenEditable` a field's keys are skipped entirely.
@@ -70,10 +70,11 @@ export function useScannerCapture(onScan: (code: string) => void, options: Scann
       }
       const result = scanner.feed(event.key, time);
       if (isTerminator(event.key)) {
-        if (result.kind === 'scan') {
+        if (swallowsTerminator(result)) {
+          // A dropped duplicate is swallowed the same way: its text must not stay in a search box nor its Enter add the top result.
           event.preventDefault();
           if (snapshot && snapshot.el.isConnected) writeValue(snapshot.el, snapshot.value);
-          handler.current(result.code);
+          if (result.kind === 'scan') handler.current(result.code);
         }
         snapshot = null;
       }

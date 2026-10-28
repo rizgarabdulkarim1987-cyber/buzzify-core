@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { normalizeScan } from '@/server/domain/pharmacy/barcode';
-import { createScannerCapture, type ScanEvent, type ScannerOptions } from '@/app/pharmacy/_ui/scanner';
+import { createScannerCapture, swallowsTerminator, type ScanEvent, type ScannerOptions } from '@/app/pharmacy/_ui/scanner';
 
 /** Types `text` with `gap` ms between keys starting at `start`, then `terminator`; returns every event. */
 function stream(options: ScannerOptions | undefined, text: string, gap: number, terminator: string | null = 'Enter', start = 1000) {
@@ -92,7 +92,7 @@ describe('scanner capture', () => {
   it('ignores an identical scan within 300 ms, accepts it later, accepts a different one at once', () => {
     const scanner = createScannerCapture();
     expect(scanOn(scanner, '123456', 0).kind).toBe('scan');
-    expect(scanOn(scanner, '123456', 100).kind).toBe('ignored');
+    expect(scanOn(scanner, '123456', 100)).toEqual({ kind: 'duplicate', code: '123456' });
     expect(scanOn(scanner, '654321', 200)).toEqual({ kind: 'scan', code: '654321' });
     expect(scanOn(scanner, '654321', 1000).kind).toBe('scan');
   });
@@ -103,7 +103,7 @@ describe('scanner capture', () => {
       scanOn(scanner, '123456', 0);
       return scanOn(scanner, '123456', 600).kind;
     };
-    expect(run({ duplicateWindowMs: 1000 })).toBe('ignored');
+    expect(run({ duplicateWindowMs: 1000 })).toBe('duplicate');
     expect(run({ duplicateWindowMs: 0 })).toBe('scan');
   });
 
@@ -166,5 +166,14 @@ describe('scanner capture', () => {
     for (const [i, ch] of Array.from('12345').entries()) scanner.feed(ch, i);
     expect(scanner.feed('Escape', 6)).toEqual({ kind: 'ignored' });
     expect(scanner.feed('Enter', 7)).toEqual({ kind: 'ignored' });
+  });
+});
+
+describe('which terminators the hook swallows', () => {
+  it('a scan and a dropped duplicate are swallowed (no Enter reaches a search box); typing and ignored are not', () => {
+    expect(swallowsTerminator({ kind: 'scan', code: '123456' })).toBe(true);
+    expect(swallowsTerminator({ kind: 'duplicate', code: '123456' })).toBe(true);
+    expect(swallowsTerminator({ kind: 'typing', text: 'ab' })).toBe(false);
+    expect(swallowsTerminator({ kind: 'ignored' })).toBe(false);
   });
 });

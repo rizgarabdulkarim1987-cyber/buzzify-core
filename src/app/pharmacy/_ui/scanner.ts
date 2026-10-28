@@ -15,6 +15,8 @@ import { normalizeScan } from '@/server/domain/pharmacy/barcode';
 
 export type ScanEvent =
   | { kind: 'scan'; code: string }
+  /** A scan identical to the one just accepted (a double trigger): not delivered, but its terminator is still a scanner's. */
+  | { kind: 'duplicate'; code: string }
   | { kind: 'typing'; text: string }
   | { kind: 'ignored' };
 
@@ -50,6 +52,11 @@ export const SCAN_DEFAULTS = {
   idleResetMs: 2000,
   maxLength: 128,
 } as const;
+
+/** Whether the terminator that produced `event` belongs to a scanner run (so the page must not act on it). */
+export function swallowsTerminator(event: ScanEvent): boolean {
+  return event.kind === 'scan' || event.kind === 'duplicate';
+}
 
 export function isTerminator(key: string): boolean {
   return key === 'Enter' || key === 'Tab';
@@ -118,7 +125,7 @@ export function createScannerCapture(options: ScannerOptions = {}): ScannerCaptu
         const code = normalizeScan(raw);
         if (code === '') return { kind: 'ignored' };
 
-        if (lastScan && lastScan.code === code && timeMs - lastScan.timeMs < duplicateWindowMs) return { kind: 'ignored' };
+        if (lastScan && lastScan.code === code && timeMs - lastScan.timeMs < duplicateWindowMs) return { kind: 'duplicate', code };
         lastScan = { code, timeMs };
         return { kind: 'scan', code };
       }
