@@ -69,7 +69,7 @@ async function loadRevisionSnapshot(prisma: PrismaClient, menuId: string, revisi
  * snapshot itself is not changed, so a plan never touches a revision or its hash.
  */
 export function tenantInfo(
-  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean },
+  menu: { id: string; slug: string; restaurantId: string; feedbackEnabled?: boolean; introEnabled?: boolean; aboutEnabled?: boolean; wheelEnabled?: boolean; about?: { titles: unknown } | null },
   revisionId: string,
   snapshot: MenuSnapshot,
   entitlements: Entitlements,
@@ -84,7 +84,7 @@ export function tenantInfo(
       intro: (menu.introEnabled ?? false) && features.intro,
       about: (menu.aboutEnabled ?? false) && features.about,
       wheel: (menu.wheelEnabled ?? false) && features.wheel,
-      aboutTitle: { en: '', ar: '', ckb: '' },
+      aboutTitle: aboutTitleOf(menu.about?.titles),
     },
     revisionId,
     slug: menu.slug,
@@ -100,6 +100,13 @@ export function tenantInfo(
     features,
     motions: allows(entitlements, 'design.menuMotions') ? (snapshot.motions ?? []) : [],
   };
+}
+
+/** The title the restaurant gave its About page, per language; '' where it left one empty. */
+function aboutTitleOf(titles: unknown): Record<'en' | 'ar' | 'ckb', string> {
+  const stored = typeof titles === 'object' && titles !== null && !Array.isArray(titles) ? (titles as Record<string, unknown>) : {};
+  const pick = (locale: string) => (typeof stored[locale] === 'string' ? (stored[locale] as string).trim() : '');
+  return { en: pick('en'), ar: pick('ar'), ckb: pick('ckb') };
 }
 
 /**
@@ -121,6 +128,7 @@ async function findPublicMenu(prisma: PrismaClient, slug: string): Promise<Publi
           introEnabled: true,
           aboutEnabled: true,
           wheelEnabled: true,
+          about: { select: { titles: true } },
           liveRevisionId: true,
           restaurant: { select: { ...GATE_SELECT.restaurant.select, plan: true, planExtras: true } },
         },
