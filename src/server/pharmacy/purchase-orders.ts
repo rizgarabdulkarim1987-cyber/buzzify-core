@@ -136,7 +136,7 @@ function lineRows(restaurantId: string, purchaseOrderId: string, lines: readonly
 export interface PoCreated {
   id: string;
   version: number;
-  status: 'DRAFT';
+  status: PoStatus;
   currency: 'IQD' | 'USD';
   lineCount: number;
   replayed: boolean;
@@ -156,11 +156,11 @@ export async function createPurchaseOrder(
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_CLIENT_KEY}::int, hashtext(${`${args.restaurantId}:${args.clientKey}`}))`;
   const earlier = await tx.phPurchaseOrder.findFirst({
     where: { clientKey: args.clientKey },
-    select: { id: true, version: true, currency: true, branchId: true, createdById: true, payloadHash: true, _count: { select: { lines: true } } },
+    select: { id: true, version: true, status: true, currency: true, branchId: true, createdById: true, payloadHash: true, _count: { select: { lines: true } } },
   });
   if (earlier) {
     if (earlier.branchId !== args.branchId || earlier.createdById !== args.userId || earlier.payloadHash !== hash) throw keyMismatch();
-    return { id: earlier.id, version: earlier.version, status: 'DRAFT', currency: earlier.currency, lineCount: earlier._count.lines, replayed: true };
+    return { id: earlier.id, version: earlier.version, status: earlier.status, currency: earlier.currency, lineCount: earlier._count.lines, replayed: true };
   }
   await liveSupplier(tx, input.supplierId);
   await checkLines(tx, input.lines);
@@ -226,6 +226,11 @@ export interface PoChanged {
   currency: 'IQD' | 'USD';
   lineCount: number;
   number: string | null;
+  /** What the order was before this change (for the audit trail). */
+  currencyBefore: 'IQD' | 'USD';
+  lineCountBefore: number;
+  supplierIdBefore: string;
+  supplierId: string;
 }
 
 /** Replaces a DRAFT's header and lines, if it is still a draft at `expectedVersion`. */
@@ -239,6 +244,7 @@ export async function updatePurchaseOrder(
   const { input } = args;
   await liveSupplier(tx, input.supplierId);
   await checkLines(tx, input.lines);
+  const lineCountBefore = await tx.phPurchaseOrderLine.count({ where: { purchaseOrderId: head.id } });
   await updateWithVersion(
     tx.phPurchaseOrder,
     {
@@ -251,7 +257,19 @@ export async function updatePurchaseOrder(
   );
   await tx.phPurchaseOrderLine.deleteMany({ where: { purchaseOrderId: head.id } });
   await tx.phPurchaseOrderLine.createMany({ data: lineRows(args.restaurantId, head.id, input.lines) });
-  return { id: head.id, version: args.expectedVersion + 1, status: 'DRAFT', before: 'DRAFT', currency: input.currency, lineCount: input.lines.length, number: null };
+  return {
+    id: head.id,
+    version: args.expectedVersion + 1,
+    status: 'DRAFT',
+    before: 'DRAFT',
+    currency: input.currency,
+    lineCount: input.lines.length,
+    number: null,
+    currencyBefore: head.currency,
+    lineCountBefore,
+    supplierIdBefore: head.supplierId,
+    supplierId: input.supplierId,
+  };
 }
 
 /** DRAFT to ORDERED: the supplier must still be live; the order gets its per-branch, per-UTC-day number. */
@@ -263,7 +281,6 @@ export async function placeOrder(
   const head = await lockHead(tx, args.restaurantId, args.purchaseOrderId);
   await assertVersion(tx, head, args.expectedVersion);
   if (head.status !== 'DRAFT') throw notDraft();
-  if (!canTransition(head.status, 'ORDERED', false)) throw badTransition();
   await liveSupplier(tx, head.supplierId);
   const lineCount = await tx.phPurchaseOrderLine.count({ where: { purchaseOrderId: head.id } });
   // The branch's numbering: taken last (R4-11). The day's count is stable under the lock, and the unique key is the backstop.
@@ -277,7 +294,7 @@ export async function placeOrder(
     { id: head.id, version: args.expectedVersion, data: { status: 'ORDERED', number, orderedAt: now, orderedById: args.userId }, entityType: 'PhPurchaseOrder' },
     tx,
   );
-  return { id: head.id, version: args.expectedVersion + 1, status: 'ORDERED', before: 'DRAFT', currency: head.currency, lineCount, number };
+  return { id: head.id, version: args.expectedVersion + 1, status: 'ORDERED', before: 'DRAFT', currency: head.currency, lineCount, number, currencyBefore: head.currency, lineCountBefore: lineCount, supplierIdBefore: head.supplierId, supplierId: head.supplierId };
 }
 
 /** Whether any line of the order has received anything (the counters task 5 maintains). */
@@ -301,7 +318,19 @@ async function moveTo(
   }
   await updateWithVersion(tx.phPurchaseOrder, { id: head.id, version: args.expectedVersion, data: { status: to, ...data }, entityType: 'PhPurchaseOrder' }, tx);
   const lineCount = await tx.phPurchaseOrderLine.count({ where: { purchaseOrderId: head.id } });
-  return { id: head.id, version: args.expectedVersion + 1, status: to, before: head.status, currency: head.currency, lineCount, number: head.number };
+  return {
+    id: head.id,
+    version: args.expectedVersion + 1,
+    status: to,
+    before: head.status,
+    currency: head.currency,
+    lineCount,
+    number: head.number,
+    currencyBefore: head.currency,
+    lineCountBefore: lineCount,
+    supplierIdBefore: head.supplierId,
+    supplierId: head.supplierId,
+  };
 }
 
 /** DRAFT, or ORDERED with nothing received, to CANCELLED. */

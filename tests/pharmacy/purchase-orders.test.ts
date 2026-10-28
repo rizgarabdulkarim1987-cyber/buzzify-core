@@ -195,6 +195,9 @@ describe('creating a purchase order', () => {
     const first = dataOf(await act(w.owner, poActions.create, payload));
     const again = dataOf(await act(w.owner, poActions.create, payload));
     expect(again).toMatchObject({ id: first.id, replayed: true, lineCount: 2, status: 'DRAFT' });
+    // After the order moved on, a replay reports the stored status, not DRAFT.
+    dataOf(await act(w.owner, poActions.order, ref(w, first.id, 1)));
+    expect(dataOf(await act(w.owner, poActions.create, payload))).toMatchObject({ id: first.id, replayed: true, status: 'ORDERED', version: 2 });
     expect(await prisma().phPurchaseOrder.count()).toBe(1);
     expect(await prisma().phPurchaseOrderLine.count()).toBe(2);
     expect(await prisma().auditLog.count({ where: { action: 'ph.po.create' } })).toBe(1);
@@ -238,6 +241,22 @@ describe('updating a draft', () => {
     expect(audit).toHaveLength(1);
     expect(JSON.stringify(audit[0]!.changes)).not.toContain('second');
     expect(audit[0]!.changes).toMatchObject({ version: { before: 1, after: 2 }, lineCount: { after: 1 } });
+  });
+
+  it('audits the OLD currency, line count and supplier as before (IQD 2 lines, supplier A -> USD 1 line, supplier B)', async () => {
+    const w = await world();
+    const supplierB = await prisma().phSupplier.create({
+      data: { restaurantId: w.a.id, name: 'Beta Pharma', nameKey: 'beta pharma', defaultCurrency: 'USD', clientKey: `sup-${(keySeq += 1)}-bbbb`, createdById: w.owner.userId },
+      select: { id: true },
+    });
+    const made = await draft(w);
+    dataOf(await act(w.owner, poActions.update, edit(w, made.id, 1, { currency: 'USD', supplierId: supplierB.id, lines: [lineOf(w.product)] })));
+    const audit = await prisma().auditLog.findFirstOrThrow({ where: { action: 'ph.po.update', entityId: made.id } });
+    expect(audit.changes).toMatchObject({
+      currency: { before: 'IQD', after: 'USD' },
+      lineCount: { before: 2, after: 1 },
+      supplierId: { before: w.supplierId, after: supplierB.id },
+    });
   });
 
   it('refuses a stale expectedVersion with CONFLICT and changes nothing', async () => {
@@ -540,7 +559,7 @@ describe('suggesting what to order', () => {
     await makeBatch(w.a.id, w.a.branchId, quarantined!.id, { buckets: { available: 2, quarantine: 50, reserved: 20, damaged: 9 } });
     // no minimum row at all, and a row with minimum 0: never suggested.
     await setMin(w, noMin!.id, 0);
-    // reorderQty wins over the gap: 4 of min 10 with reorder 24 -> 24 (nothing in stock, none in a batch).
+    // reorderQty wins over the gap: 4 of min 10 with reorder 24 -> 24 (4 available in one batch).
     await setMin(w, reorder!.id, 10, 24);
     await makeBatch(w.a.id, w.a.branchId, reorder!.id, { buckets: { available: 4 } });
     // An expired batch and a blocked batch hold stock that is not sellable.
@@ -552,7 +571,7 @@ describe('suggesting what to order', () => {
     await setMin(w, inactive!.id, 10);
     await prisma().phProduct.update({ where: { id: inactive!.id }, data: { active: false } });
     await setMin(w, otherBranch!.id, 10, 0, w.a.branchIds[1]);
-    // Stock of `above` at the other branch does not help `below` here, and stock here does not hide the other branch's gap.
+    // Stock of `below` at the other branch does not help `below` here, and stock here does not hide the other branch's gap.
     await makeBatch(w.a.id, w.a.branchIds[1], below!.id, { lot: 'ELSEWHERE', buckets: { available: 500 } });
 
     const got = dataOf(await ask(w.owner, poQueries.suggest, { restaurantId: w.a.id, branchId: w.a.branchId }));

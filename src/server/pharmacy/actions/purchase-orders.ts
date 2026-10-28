@@ -84,8 +84,9 @@ function changeAudit(changed: PoChanged, expected: number) {
     changes: {
       status: { before: changed.before, after: changed.status },
       version: { before: expected, after: changed.version },
-      currency: { before: changed.currency, after: changed.currency },
-      lineCount: { before: changed.lineCount, after: changed.lineCount },
+      currency: { before: changed.currencyBefore, after: changed.currency },
+      lineCount: { before: changed.lineCountBefore, after: changed.lineCount },
+      ...(changed.supplierIdBefore !== changed.supplierId ? { supplierId: { before: changed.supplierIdBefore, after: changed.supplierId } } : {}),
     },
   };
 }
