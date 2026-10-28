@@ -98,7 +98,7 @@ export function AboutForm({ menuId, view }: { menuId: string; view: AboutStudioV
   return (
     <div className="flex max-w-6xl flex-col px-8 pb-10 pt-6">
       <p className="max-w-[65ch] pb-4 text-sm text-muted">{t('aboutPage.intro')}</p>
-      <Section id="about-switch" title={t('aboutPage.show')} intro={t('aboutPage.showHelp')}>
+      <Section id="about-switch" title={t('workspace.tab.about')} intro={t('aboutPage.showHelp')}>
         <div className="flex flex-wrap items-center gap-4">
           <Checkbox label={t('aboutPage.show')} checked={view.enabled} disabled={switching} onChange={(event) => toggle(event.target.checked)} />
           {view.enabled && (

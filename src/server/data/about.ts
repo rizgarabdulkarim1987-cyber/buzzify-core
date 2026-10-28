@@ -115,7 +115,8 @@ export async function loadAbout(route: RouteContext): Promise<AboutView | null> 
   const info = details
     ? businessInfo(details, { hours: false, address: showContact, map: showContact, phone: showContact, whatsapp: showContact, social: showContact })
     : {};
-  const customTitle = pickText(tenant.extras.aboutTitle, locale, defaultLocale);
+  // The title is the language's own or the default word: never another language's custom title, which would read as a stranger's text.
+  const customTitle = tenant.extras.aboutTitle[locale]?.trim() ?? '';
 
   return {
     timeZone: tenant.timeZone,

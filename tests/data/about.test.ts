@@ -61,7 +61,7 @@ describe('loadAbout', () => {
     });
     await prisma.aboutOffer.create({ data: { menuId: x.menu.id, titles: { en: 'Lunch' }, bodies: { en: 'Soup' } } });
     const ar = await loadAbout(await route('ar'));
-    expect(ar?.title).toBe('Our home');
+    expect(ar?.title).toBe('استكشف');
     expect(ar?.story).toEqual([para('English story')]);
     expect(ar?.offers[0]).toMatchObject({ title: 'Lunch', body: 'Soup' });
     const ckb = await loadAbout(await route('ckb'));
@@ -72,6 +72,13 @@ describe('loadAbout', () => {
     await prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
     expect((await loadAbout(await route()))?.title).toBe('Explore');
     expect((await loadAbout(await route('ar')))?.title).toBe('استكشف');
+  });
+
+  it('gives a language without its own title Explore, never another language title', async () => {
+    await prisma.menuAbout.create({ data: { menuId: x.menu.id, titles: { ar: 'عنّا' }, story: { en: [para('Hello')] } } });
+    expect((await loadAbout(await route('en')))?.title).toBe('Explore');
+    expect((await loadAbout(await route('ar')))?.title).toBe('عنّا');
+    expect((await loadAbout(await route('ckb')))?.title).toBe('گەڕان');
   });
 
   it('drops expired and not-yet-started offers and the inactive one', async () => {

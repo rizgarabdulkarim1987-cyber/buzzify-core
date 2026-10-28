@@ -11,7 +11,7 @@ export async function generateMetadata({
   params: Promise<{ tenant: string; locale: string }>;
 }): Promise<Metadata> {
   const resolved = await resolvePublicRoute(await params);
-  if (resolved.kind !== 'live') return {};
+  if (resolved.kind !== 'live' || !resolved.route.tenant.extras?.about) return {};
   const { tenant, locale } = resolved.route;
   const custom = tenant.extras?.aboutTitle?.[locale]?.trim();
   return { title: custom || getTranslator(locale)('about.title') };
