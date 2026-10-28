@@ -39,6 +39,8 @@ const COVERED_ELSEWHERE = [
   'ph.products.get', 'ph.products.search', 'ph.products.list', 'ph.products.categories', 'ph.products.create', 'ph.products.update', 'ph.products.archive',
   'ph.prices.history', 'ph.prices.currencies', 'ph.prices.set', 'ph.prices.previewBulk', 'ph.prices.applyBulk',
   'ph.imports.preview', 'ph.imports.apply', 'ph.exports.products',
+  // Phase 4 suppliers: business-wide records; a foreign id, a foreign pharmacy and every role are proven in suppliers.test.ts.
+  'ph.suppliers.create', 'ph.suppliers.update', 'ph.suppliers.archive', 'ph.suppliers.list', 'ph.suppliers.get',
 ];
 
 // The world ------------------------------------------------------------------------------------------------------------
