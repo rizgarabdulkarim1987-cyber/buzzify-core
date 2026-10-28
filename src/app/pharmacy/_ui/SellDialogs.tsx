@@ -7,14 +7,14 @@ import { reprintReceipt, saleReceipt } from '@/app/pharmacy/_actions/receipts';
 import type { ReceiptResult } from '@/server/pharmacy/receipt-print';
 import type { HoldSummary } from '@/server/pharmacy/holds';
 import type { SaleResult } from '@/server/pharmacy/sales';
-import { describeFailure } from '@/studio/errors';
 import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Dialog } from '@/studio/ui/Dialog';
 import { Field } from '@/studio/ui/Field';
+import { phMessage } from './ph-failure';
 import { Num, Note, FIELD, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
-import { cashShortcuts, formatMinor, newClientKey, paymentPreview, plainMinor, type Currency, type PayDraft, type PayMethod } from './sell-logic';
+import { cashShortcuts, formatMinor, keyFor, outcomeUnknown, paymentPreview, plainMinor, type Currency, type KeyedAttempt, type PayDraft, type PayMethod } from './sell-logic';
 
 // Pay -----------------------------------------------------------------------------------------------------------------
 
@@ -34,6 +34,8 @@ export interface PayDialogProps {
   /** The last refusal or network failure, in words. */
   problem: string | null;
   offline: boolean;
+  /** The payment of an attempt whose outcome is unknown, to fill in again exactly as it was sent (so its keys still match). */
+  initial?: PayDraft | null;
   onSubmit: (draft: PayDraft, amountMinor: bigint) => void;
 }
 
@@ -42,14 +44,14 @@ export interface PayDialogProps {
  * the total. The amount defaults to the exact total, so a plain Enter completes a no-change sale. The attempt's keys are
  * the caller's: a retry after a failure sends the same ones.
  */
-export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, problem, offline, onSubmit }: PayDialogProps) {
+export function PayDialog({ open, onOpenChange, currency, totalMinor, busy, problem, offline, initial = null, onSubmit }: PayDialogProps) {
   const t = useT();
   const form = useId();
   const [draft, setDraft] = useState<PayDraft>({ method: 'CASH', tendered: '', reference: '' });
   const [opened, setOpened] = useState(false);
   if (open && !opened) {
     setOpened(true);
-    setDraft({ method: 'CASH', tendered: '', reference: '' });
+    setDraft(initial ?? { method: 'CASH', tendered: '', reference: '' });
   }
   if (!open && opened) setOpened(false);
 
@@ -167,12 +169,13 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
   const [items, setItems] = useState<HoldSummary[] | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
 
   const load = async () => {
     setItems(null);
     const result = await settle(() => listHolds({}));
     if (!result.ok) {
-      setProblem(describeFailure(t, locale, result.error).message);
+      setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
       setItems([]);
       return;
     }
@@ -189,6 +192,7 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
     setBusyId(id);
     const failed = await run(id);
     setBusyId(null);
+    setAsking(null);
     if (failed) setProblem(failed);
     else if (reload) await load();
   };
@@ -216,16 +220,33 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
                   {t('pharmacy.sell.holds.lines', { count: hold.lineCount })} · {hold.mine ? t('pharmacy.sell.holds.mine') : t('pharmacy.sell.holds.other')} · <Num>{formatDateTime(hold.createdAt, locale)}</Num>
                 </span>
               </p>
-              <span className="flex flex-wrap gap-2">
-                <button type="button" data-testid="hold-resume" className={TOUCH_BTN} disabled={!cartEmpty || busyId !== null} onClick={() => void act(hold.id, onResume, false)}>
-                  <Play aria-hidden className="size-4" />
-                  {t('pharmacy.sell.holds.resume')}
-                </button>
-                <button type="button" className={TOUCH_BTN} disabled={busyId !== null} onClick={() => void act(hold.id, onDiscard, true)}>
-                  <Trash2 aria-hidden className="size-4" />
-                  {t('pharmacy.sell.holds.discard')}
-                </button>
-              </span>
+              {asking === hold.id ? (
+                <span className="flex w-full flex-col gap-2" data-testid="hold-discard-ask">
+                  <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert">
+                    {t('pharmacy.sell.holds.discardAsk')}
+                  </Note>
+                  <span className="flex flex-wrap gap-2">
+                    <button type="button" className={TOUCH_BTN} data-testid="hold-discard-keep" disabled={busyId !== null} onClick={() => setAsking(null)}>
+                      {t('pharmacy.sell.holds.discardKeep')}
+                    </button>
+                    <button type="button" className={TOUCH_PRIMARY} data-testid="hold-discard-confirm" disabled={busyId !== null} onClick={() => void act(hold.id, onDiscard, true)}>
+                      <Trash2 aria-hidden className="size-4" />
+                      {t('pharmacy.sell.holds.discard')}
+                    </button>
+                  </span>
+                </span>
+              ) : (
+                <span className="flex flex-wrap gap-2">
+                  <button type="button" data-testid="hold-resume" className={TOUCH_BTN} disabled={!cartEmpty || busyId !== null} onClick={() => void act(hold.id, onResume, false)}>
+                    <Play aria-hidden className="size-4" />
+                    {t('pharmacy.sell.holds.resume')}
+                  </button>
+                  <button type="button" data-testid="hold-discard" className={TOUCH_BTN} disabled={busyId !== null} onClick={() => setAsking(hold.id)}>
+                    <Trash2 aria-hidden className="size-4" />
+                    {t('pharmacy.sell.holds.discard')}
+                  </button>
+                </span>
+              )}
             </li>
           ))}
         </ul>
@@ -255,6 +276,7 @@ export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
   const [problem, setProblem] = useState<string | null>(null);
   const [printFailed, setPrintFailed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const reprintKey = useRef<KeyedAttempt | null>(null);
   const saleId = sale?.id ?? null;
 
   useEffect(() => {
@@ -267,7 +289,7 @@ export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
     void settle(() => saleReceipt({ saleId, width, locale })).then((result) => {
       if (cancelled) return;
       if (result.ok) setReceipt(result.data as ReceiptResult);
-      else setProblem(describeFailure(t, locale, result.error).message);
+      else setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
     });
     return () => {
       cancelled = true;
@@ -291,10 +313,19 @@ export function ReceiptDialog({ sale, onClose }: ReceiptDialogProps) {
     if (!saleId || busy) return;
     setBusy(true);
     setProblem(null);
-    const result = await settle(() => reprintReceipt({ saleId, width, locale, clientKey: newClientKey('rp') }));
+    // One key per copy asked for: a repeat after a dropped connection sends the same key (the server returns the same copy);
+    // once a copy is made or refused, the next click asks for a new one.
+    reprintKey.current = keyFor(reprintKey.current, `${saleId}:${width}`, 'rp');
+    const key = reprintKey.current.key;
+    const result = await settle(() => reprintReceipt({ saleId, width, locale, clientKey: key }));
     setBusy(false);
-    if (result.ok) setReceipt(result.data as ReceiptResult);
-    else setProblem(describeFailure(t, locale, result.error).message);
+    if (result.ok) {
+      reprintKey.current = null;
+      setReceipt(result.data as ReceiptResult);
+    } else {
+      if (!outcomeUnknown(result.error)) reprintKey.current = null;
+      setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
+    }
   };
 
   const cur = sale?.currency ?? 'IQD';

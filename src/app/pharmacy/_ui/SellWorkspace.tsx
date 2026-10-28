@@ -23,6 +23,7 @@ import {
   Undo2,
   PackageX,
   ListChecks,
+  X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
@@ -30,7 +31,7 @@ import { discardHold, holdSale, createSale, resumeHold, sellSearch } from '@/app
 import type { SellItem, SellSettings } from '@/server/pharmacy/sell-search';
 import type { SaleResult } from '@/server/pharmacy/sales';
 import type { HoldResult } from '@/server/pharmacy/holds';
-import { describeFailure } from '@/studio/errors';
+import type { StudioFailure } from '@/server/studio/framework/result';
 import { formatDateTime } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
 import { NETWORK_FAILURE, settle } from '@/studio/settle';
@@ -40,26 +41,42 @@ import { phMessage } from './ph-failure';
 import { AskDialog, HoldsDialog, PayDialog, ReceiptDialog } from './SellDialogs';
 import { Chip, FIELD, Note, Num, TOUCH, TOUCH_BTN, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
 import {
+  blockedLines,
   buildCartRequest,
   buildPayment,
   cartFromResume,
   cartReducer,
+  createScanQueue,
   draftKey,
   emptyCart,
   estimateCart,
   formatMinor,
-  newClientKey,
+  holdSignature,
+  isAddable,
+  keyFor,
+  normalizeDigits,
+  outcomeUnknown,
   overSellable,
   parseDraft,
+  parseQtyText,
+  plainMinor,
+  refreshCart,
+  saleAttemptFor,
+  saleSignature,
+  scanOutcome,
   serializeDraft,
   shortcutOf,
+  TOTAL_MOVED_CODES,
   unitOf,
   type AddableItem,
   type CartLine,
   type CartState,
   type Currency,
   type DiscountDraft,
+  type KeyedAttempt,
   type PayDraft,
+  type SaleAttempt,
+  type ScanOutcome,
 } from './sell-logic';
 import { useOnline } from './use-online';
 import { useScannerCapture } from './useScannerCapture';
@@ -85,14 +102,14 @@ export interface SellWorkspaceProps {
 type View =
   | { kind: 'idle' }
   | { kind: 'results'; q: string; items: SellItem[] }
-  | { kind: 'unknown'; code: string }
-  | { kind: 'pick'; code: string; items: SellItem[] }
   | { kind: 'error'; message: string };
 
-type Attempt = { sig: string; key: string; paymentKey: string };
+/** A scan that was not simply added: said on screen until the cashier dismisses it (several can wait at once). */
+type ScanIssue = { id: number; outcome: Exclude<ScanOutcome, { kind: 'add' }> | { kind: 'failed'; code: string; message: string } };
 
 const SEARCH_DELAY_MS = 140;
 const SOON_DAYS = 90;
+const MAX_ISSUES = 50;
 
 function expirySoon(expiryDate: string): boolean {
   const ms = Date.parse(`${expiryDate}T00:00:00Z`) - Date.now();
@@ -103,8 +120,12 @@ function expirySoon(expiryDate: string): boolean {
  * The sale workspace. A shift gate first (no open shift, no sale), then one screen: a search and scan box with the
  * results next to the cart. Everything is a button or a key: F2 search, Enter adds the top result, a scanner adds the
  * scanned item, F4 pays, F8 holds, Escape clears. The cart's totals are an ESTIMATE from the prices shown; the sale
- * prices, discounts, rounds and takes stock again on the server, and the receipt shows what it stored. If the connection
- * fails the screen says the sale was not sent and keeps the cart on this device; a sale is never queued.
+ * prices, discounts, rounds and takes stock again on the server, and the receipt shows what it stored.
+ *
+ * Retries are safe by keys, not by hope. A sale is sent with a sale key and a payment key made for THAT sale (cart,
+ * payment, hold): the same sale sends the same keys, a changed one gets new ones. A dropped connection leaves the outcome
+ * unknown, so the attempt (keys and payment) is kept with the cart on this device, also across a reload, and the screen
+ * says the sale may or may not have been recorded. A definite refusal drops the attempt. A sale is never queued.
  */
 export function SellWorkspace(props: SellWorkspaceProps) {
   const { restaurantId, branchId, userId, settings, perms } = props;
@@ -122,11 +143,16 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const searchBox = useRef<HTMLInputElement>(null);
   const searchSeq = useRef(0);
   const latest = useRef<{ q: string; items: SellItem[] } | null>(null);
+  const [issues, setIssues] = useState<ScanIssue[]>([]);
+  const issueSeq = useRef(0);
 
   const [payOpen, setPayOpen] = useState(false);
   const [paying, setPaying] = useState(false);
+  const payLock = useRef(false);
   const [payProblem, setPayProblem] = useState<string | null>(null);
-  const attempt = useRef<Attempt | null>(null);
+  const attempt = useRef<SaleAttempt | null>(null);
+  const [pending, setPending] = useState<SaleAttempt | null>(null);
+  const holdAttempt = useRef<KeyedAttempt | null>(null);
   const [sale, setSale] = useState<SaleResult | null>(null);
 
   const [holdsOpen, setHoldsOpen] = useState(false);
@@ -142,6 +168,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const step = Number(settings.roundingStepMinor);
   const estimate = useMemo(() => estimateCart(cart, currency, step), [cart, currency, step]);
   const over = useMemo(() => overSellable(cart), [cart]);
+  const heldBlocked = useMemo(() => blockedLines(cart), [cart]);
   const hasRx = cart.lines.some((l) => l.rxLevel === 'RX');
   const rxBlocked = hasRx && !perms.rx;
   const anyDiscount = cart.invoiceDiscount !== null || cart.lines.some((l) => l.discount !== null);
@@ -152,33 +179,60 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     ? null
     : cart.lines.length === 0
       ? t('pharmacy.sell.blocked.empty')
-      : estimate.unpricedCount > 0
-        ? t('pharmacy.sell.blocked.unpriced')
-        : estimate.invalidCount > 0
-          ? t('pharmacy.sell.blocked.invalid')
-          : rxBlocked
-            ? t('pharmacy.sell.blocked.rx')
-            : cart.lines.some((l) => l.batchId && l.batchReason.trim().length < 3)
-              ? t('pharmacy.sell.batch.reasonNeeded')
-              : estimate.totalMinor <= 0n
-                ? t('pharmacy.sell.blocked.zero')
-                : null;
+      : heldBlocked.length > 0
+        ? t('pharmacy.sell.blocked.heldLines')
+        : estimate.unpricedCount > 0
+          ? t('pharmacy.sell.blocked.unpriced')
+          : estimate.invalidCount > 0
+            ? t('pharmacy.sell.blocked.invalid')
+            : rxBlocked
+              ? t('pharmacy.sell.blocked.rx')
+              : cart.lines.some((l) => l.batchId && l.batchReason.trim().length < 3)
+                ? t('pharmacy.sell.batch.reasonNeeded')
+                : estimate.totalMinor <= 0n
+                  ? t('pharmacy.sell.blocked.zero')
+                  : null;
   const canPay = shift !== null && blocked === null;
+  // A held cart's marked lines stop the hold too (an Rx or an empty total does not: a cart can be held for the pharmacist).
+  const canHold = cart.lines.length > 0 && heldBlocked.length === 0 && !holding;
 
+  /**
+   * A refusal in words. A dropped connection (and, for a write, an unexpected server error) is said with `unknownKey`: for a
+   * write it means the work may or may not have been recorded.
+   */
   const failure = useCallback(
-    (error: Parameters<typeof describeFailure>[2]) => (error.message === NETWORK_FAILURE ? t('pharmacy.sell.offline.notSent') : phMessage(t, locale, error, 'pharmacy.sell')),
+    (error: StudioFailure, unknownKey: string = 'pharmacy.sell.offline.searchFailed') => {
+      const write = unknownKey !== 'pharmacy.sell.offline.searchFailed';
+      const unknown = write ? outcomeUnknown(error) : error.message === NETWORK_FAILURE;
+      return unknown ? t(unknownKey) : phMessage(t, locale, error, 'pharmacy.sell');
+    },
     [t, locale],
   );
 
   // The draft cart lives on this device ------------------------------------------------------------------------------
-  const storageKey = draftKey(restaurantId, branchId, userId);
+  const storageKey = draftKey(restaurantId, branchId, userId, currency);
+  const writeDraft = useCallback(() => {
+    try {
+      if (cart.lines.length === 0) window.localStorage.removeItem(storageKey);
+      else window.localStorage.setItem(storageKey, serializeDraft(currency, cart, attempt.current, fromHoldId));
+    } catch {
+      /* the draft is a convenience */
+    }
+  }, [cart, currency, fromHoldId, storageKey]);
+  const setAttempt = (next: SaleAttempt | null) => {
+    attempt.current = next;
+    setPending(next);
+  };
   useEffect(() => {
     if (!shift || draftChecked) return;
     try {
       const draft = parseDraft(window.localStorage.getItem(storageKey));
-      if (draft && draft.currency === shift.currency) {
+      if (draft) {
         dispatch({ type: 'load', cart: draft.cart });
+        attempt.current = draft.attempt;
         // eslint-disable-next-line react-hooks/set-state-in-effect -- the draft is read from this device's storage once, after the shift is known
+        setPending(draft.attempt);
+        setFromHoldId(draft.fromHoldId);
         setRestored(true);
       }
     } catch {
@@ -188,13 +242,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   }, [shift, draftChecked, storageKey]);
   useEffect(() => {
     if (!shift || !draftChecked) return;
-    try {
-      if (cart.lines.length === 0) window.localStorage.removeItem(storageKey);
-      else window.localStorage.setItem(storageKey, serializeDraft(currency, cart));
-    } catch {
-      /* the draft is a convenience */
-    }
-  }, [cart, currency, shift, draftChecked, storageKey]);
+    writeDraft();
+  }, [shift, draftChecked, writeDraft, pending]);
 
   // Leaving with a cart ------------------------------------------------------------------------------------------------
   useEffect(() => {
@@ -218,7 +267,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     };
   }, [cart.lines.length]);
 
-  // Search ---------------------------------------------------------------------------------------------------------------
+  // Search (typing). Scans never come through here: they have their own queue below. ---------------------------------------
   const runSearch = useCallback(
     async (q: string): Promise<SellItem[] | null> => {
       const mine = ++searchSeq.current;
@@ -258,7 +307,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   }, [query, runSearch]);
 
   // Adding ---------------------------------------------------------------------------------------------------------------
-  const addable = (item: SellItem) => !item.notSellable && !item.noPrice && item.sellableQty > 0;
+  const addable = isAddable;
   const add = (item: AddableItem, unitId?: string) => {
     dispatch({ type: 'add', item, unitId });
     setNotice(null);
@@ -283,31 +332,36 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     }
   };
 
-  const onScan = useCallback(
-    async (code: string) => {
-      const items = await runSearch(code);
-      if (!items) return;
-      const hits = items.filter((i) => i.matchedOn === 'barcode');
-      if (hits.length === 0) {
-        setView({ kind: 'unknown', code });
-        return;
-      }
-      if (hits.length === 1) {
-        const item = hits[0]!;
-        if (!addable(item)) {
-          setView({ kind: 'results', q: code, items: hits });
-          return;
-        }
-        dispatch({ type: 'add', item });
-        setNotice(null);
-        setView({ kind: 'idle' });
-        return;
-      }
-      setView({ kind: 'pick', code, items: hits });
-    },
-    [runSearch],
-  );
-  useScannerCapture((code) => void onScan(code), { enabled: shift !== null && !dialogOpen });
+  // Scans: one at a time, in order, each added or said ---------------------------------------------------------------------
+  const report = useCallback((outcome: ScanIssue['outcome']) => {
+    issueSeq.current += 1;
+    const id = issueSeq.current;
+    setIssues((list) => [...list, { id, outcome }].slice(-MAX_ISSUES));
+  }, []);
+  const handleScan = async (code: string) => {
+    const result = await settle(() => sellSearch({ q: code, currency }));
+    if (!result.ok) {
+      if (result.error.message === NETWORK_FAILURE) setNotSent(true);
+      report({ kind: 'failed', code, message: result.error.message === NETWORK_FAILURE ? t('pharmacy.sell.scan.failed', { code }) : phMessage(t, locale, result.error, 'pharmacy.sell') });
+      return;
+    }
+    setNotSent(false);
+    const outcome = scanOutcome(code, (result.data as { items: SellItem[] }).items);
+    if (outcome.kind === 'add') {
+      dispatch({ type: 'add', item: outcome.item });
+      setNotice(null);
+    } else report(outcome);
+  };
+  const scanHandler = useRef(handleScan);
+  useEffect(() => {
+    scanHandler.current = handleScan;
+  });
+  const scanQueue = useRef<ReturnType<typeof createScanQueue> | null>(null);
+  useEffect(() => {
+    scanQueue.current = createScanQueue((code) => scanHandler.current(code));
+  }, []);
+  useScannerCapture((code) => scanQueue.current?.push(code), { enabled: shift !== null && !dialogOpen });
+  const dismissIssue = (id: number) => setIssues((list) => list.filter((i) => i.id !== id));
 
   // Keys -----------------------------------------------------------------------------------------------------------------
   const openPay = () => {
@@ -317,7 +371,14 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   };
   const holdCart = async () => {
     if (holding || cart.lines.length === 0 || !shift) return;
-    const req = buildCartRequest(cart, currency, newClientKey('hold'));
+    if (heldBlocked.length > 0) {
+      setNotice({ tone: 'danger', text: t('pharmacy.sell.blocked.heldLines') });
+      return;
+    }
+    // The same cart held again after a dropped connection sends the same key, so the server holds it once.
+    const sig = holdSignature(cart, currency);
+    if (sig) holdAttempt.current = keyFor(holdAttempt.current, sig, 'hold');
+    const req = sig && holdAttempt.current ? buildCartRequest(cart, currency, holdAttempt.current.key) : null;
     if (!req) {
       setNotice({ tone: 'danger', text: t('pharmacy.sell.blocked.invalid') });
       return;
@@ -327,14 +388,16 @@ export function SellWorkspace(props: SellWorkspaceProps) {
     setHolding(false);
     if (!result.ok) {
       if (result.error.message === NETWORK_FAILURE) setNotSent(true);
-      setNotice({ tone: 'danger', text: failure(result.error) });
+      if (!outcomeUnknown(result.error)) holdAttempt.current = null;
+      setNotice({ tone: 'danger', text: failure(result.error, 'pharmacy.sell.offline.holdUnknown') });
       return;
     }
     const held = result.data as HoldResult;
+    holdAttempt.current = null;
     // A resumed cart held again is a new hold: the old one is dropped so the shelf does not double.
     if (fromHoldId) await settle(() => discardHold({ saleId: fromHoldId }));
     setFromHoldId(null);
-    attempt.current = null;
+    setAttempt(null);
     dispatch({ type: 'clear' });
     setNotice({ tone: 'success', text: t('pharmacy.sell.held', { time: formatDateTime(held.heldUntil, locale) }) });
     searchBox.current?.focus();
@@ -355,6 +418,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       else if (key === 'escape') {
         setQuery('');
         setView({ kind: 'idle' });
+        setIssues([]);
         searchBox.current?.focus();
       }
     };
@@ -363,30 +427,77 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   });
 
   // Paying ---------------------------------------------------------------------------------------------------------------
+  /**
+   * The prices behind a refused payment moved (or the rounding did): read the cart's products again BY ID, fit every line to
+   * the fresh prices and units, and say what the server's total is, so the cashier checks the cart and tries again.
+   */
+  const refreshAfterRefusal = async (error: StudioFailure, base: string) => {
+    const ids = [...new Set(cart.lines.map((l) => l.productId))];
+    const fresh = new Map<string, SellItem>();
+    let failed = false;
+    for (let i = 0; i < ids.length && !failed; i += 30) {
+      const read = await settle(() => sellSearch({ q: '', currency, productIds: ids.slice(i, i + 30) }));
+      if (!read.ok) failed = true;
+      else for (const item of (read.data as { items: SellItem[] }).items) fresh.set(item.productId, item);
+    }
+    if (failed) {
+      setPayProblem(`${base} ${t('pharmacy.sell.pay.refreshFailed')}`);
+      return;
+    }
+    const next = refreshCart(cart, fresh);
+    dispatch({ type: 'load', cart: next });
+    const total = error.fields?.totalMinor;
+    const totalText = total && /^\d+$/.test(total) ? ` ${t('pharmacy.sell.pay.serverTotal', { total: `${formatMinor(BigInt(total), currency)} ${currency}` })}` : '';
+    const stopped = blockedLines(next);
+    if (stopped.length > 0) {
+      setPayOpen(false);
+      setNotice({ tone: 'danger', text: `${base}${totalText}` });
+      return;
+    }
+    setPayProblem(`${base}${totalText}`);
+  };
+
   const submitPay = async (draft: PayDraft, amountMinor: bigint) => {
+    if (payLock.current) return;
     const base = buildCartRequest(cart, currency, '');
-    if (!base) {
+    const sig = saleSignature(cart, currency, draft, amountMinor, fromHoldId);
+    if (!base || !sig) {
       setPayProblem(t('pharmacy.sell.blocked.invalid'));
       return;
     }
-    // One key pair per attempt: a retry of the same sale (same cart, same payment) sends the same keys, so the server
-    // records it once. Anything changed means a different sale and fresh keys.
-    const sig = JSON.stringify({ ...base, clientKey: null, pay: [draft.method, amountMinor.toString(), draft.reference.trim()], fromHoldId });
-    if (!attempt.current || attempt.current.sig !== sig) attempt.current = { sig, key: newClientKey('sale'), paymentKey: newClientKey('pay') };
-    const { key, paymentKey } = attempt.current;
+    // One key pair per attempt: a retry of the same sale (same cart, payment and hold) sends the same keys, so the server
+    // records it once, also after a reload (the attempt is kept in the draft). Anything changed is a different sale.
+    const next = saleAttemptFor(attempt.current, sig, draft, amountMinor, fromHoldId);
+    attempt.current = next;
+    setPending(next);
+    try {
+      window.localStorage.setItem(storageKey, serializeDraft(currency, cart, next, fromHoldId));
+    } catch {
+      /* the draft is a convenience */
+    }
+    payLock.current = true;
     setPaying(true);
     setPayProblem(null);
     const result = await settle(() =>
-      createSale({ ...base, clientKey: key, payments: [buildPayment(draft, amountMinor, paymentKey)], ...(fromHoldId ? { fromHoldId } : {}) }),
+      createSale({ ...base, clientKey: next.key, payments: [buildPayment(draft, amountMinor, next.paymentKey)], ...(fromHoldId ? { fromHoldId } : {}) }),
     );
+    payLock.current = false;
     setPaying(false);
     if (!result.ok) {
       if (result.error.message === NETWORK_FAILURE) setNotSent(true);
-      setPayProblem(failure(result.error));
+      // An unknown outcome keeps the attempt (and its keys); a refusal is the server's definite "no": a new try is a new sale.
+      if (outcomeUnknown(result.error)) {
+        setPayProblem(failure(result.error, 'pharmacy.sell.offline.notSent'));
+        return;
+      }
+      setAttempt(null);
+      const said = failure(result.error, 'pharmacy.sell.offline.notSent');
+      if (TOTAL_MOVED_CODES.includes(result.error.fields?.phCode ?? '')) await refreshAfterRefusal(result.error, said);
+      else setPayProblem(said);
       return;
     }
     setNotSent(false);
-    attempt.current = null;
+    setAttempt(null);
     setFromHoldId(null);
     dispatch({ type: 'clear' });
     setPayOpen(false);
@@ -398,28 +509,18 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   const resume = async (id: string): Promise<string | null> => {
     const result = await settle(() => resumeHold({ saleId: id }));
     if (!result.ok) return failure(result.error);
-    const held = result.data as { currency: Currency; invoiceDiscount?: unknown; lines: Record<string, unknown>[] };
+    const held = result.data as { currency: Currency; invoiceDiscount?: unknown; lines: Record<string, unknown>[]; items: SellItem[] };
     if (held.currency !== currency) return t('pharmacy.sell.holds.otherCurrency');
-    // Prices are decided again when the sale is made: look each product up for its name, units and price now.
-    const lookup = new Map<string, AddableItem>();
-    const names = new Map(held.lines.map((l) => [String(l.productId), String(l.tradeName ?? '')]));
-    await Promise.all(
-      [...names].map(async ([productId, name]) => {
-        const found = await settle(() => sellSearch({ q: name, currency }));
-        if (found.ok) for (const item of (found.data as { items: SellItem[] }).items) if (item.productId === productId) lookup.set(productId, item);
-      }),
-    );
-    const { cart: next, missing } = cartFromResume({ ...held, currency }, lookup);
+    // The server sends the held products with their units, current prices and stock: no search by name, nothing dropped.
+    const items = new Map(held.items.map((item) => [item.productId, item]));
+    const { cart: next } = cartFromResume({ ...held, currency }, items);
     if (next.lines.length === 0) return t('pharmacy.sell.holds.nothing');
-    attempt.current = null;
+    setAttempt(null);
+    holdAttempt.current = null;
     dispatch({ type: 'load', cart: next });
     setFromHoldId(id);
     setHoldsOpen(false);
-    setNotice(
-      missing.length > 0
-        ? { tone: 'danger', text: t('pharmacy.sell.holds.missing', { names: missing.join(', ') }) }
-        : { tone: 'info', text: t('pharmacy.sell.holds.resumed') },
-    );
+    setNotice(blockedLines(next).length > 0 ? null : { tone: 'info', text: t('pharmacy.sell.holds.resumed') });
     return null;
   };
   const discard = async (id: string): Promise<string | null> => {
@@ -428,10 +529,12 @@ export function SellWorkspace(props: SellWorkspaceProps) {
   };
 
   const clearAll = () => {
-    attempt.current = null;
+    setAttempt(null);
+    holdAttempt.current = null;
     setFromHoldId(null);
     dispatch({ type: 'clear' });
     setNotice(null);
+    setIssues([]);
     searchBox.current?.focus();
   };
 
@@ -473,6 +576,16 @@ export function SellWorkspace(props: SellWorkspaceProps) {
           {t('pharmacy.sell.draft.restored')}
         </Note>
       )}
+      {pending && !payOpen && !sale && (
+        <Note icon={<TriangleAlert aria-hidden />} tone="danger" role="alert" testId="attempt-unknown">
+          {t('pharmacy.sell.attempt.unknown')}
+        </Note>
+      )}
+      {heldBlocked.length > 0 && (
+        <Note icon={<Ban aria-hidden />} tone="danger" role="alert" testId="held-blocked">
+          {t('pharmacy.sell.holds.blocked', { count: heldBlocked.length, names: heldBlocked.map((l) => l.name).join(', ') })}
+        </Note>
+      )}
       {notice && (
         <Note icon={notice.tone === 'danger' ? <CircleAlert aria-hidden /> : <CircleCheck aria-hidden />} tone={notice.tone} role="status" testId="sell-notice">
           {notice.text}
@@ -496,6 +609,8 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 onKeyDown={(event) => {
+                  // A scanner's closing Enter was already taken by the scan capture (default prevented): it must not also add the top result.
+                  if (event.nativeEvent.defaultPrevented) return;
                   if (shortcutOf(event.nativeEvent, true) === 'addTop') {
                     event.preventDefault();
                     void addTop();
@@ -523,19 +638,9 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                 {view.message}
               </Note>
             )}
-            {view.kind === 'unknown' && (
-              <Note icon={<SearchX aria-hidden />} tone="danger" role="alert" testId="scan-unknown">
-                {t('pharmacy.sell.scan.unknown', { code: view.code })}
-              </Note>
-            )}
-            {view.kind === 'pick' && (
-              <div className="flex flex-col gap-2" data-testid="scan-pick">
-                <Note icon={<ListChecks aria-hidden />} tone="info" role="status">
-                  {t('pharmacy.sell.scan.pick', { code: view.code })}
-                </Note>
-                <ResultList items={view.items} currency={currency} onAdd={add} addable={addable} t={t} onDone={() => setView({ kind: 'idle' })} />
-              </div>
-            )}
+            {issues.map((issue) => (
+              <ScanIssueCard key={issue.id} issue={issue} currency={currency} add={add} dismiss={() => dismissIssue(issue.id)} t={t} />
+            ))}
             {view.kind === 'results' &&
               (view.items.length === 0 ? (
                 <p className="flex items-center gap-2.5 py-3 text-sm text-text" data-testid="sell-empty">
@@ -643,7 +748,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
                 </Note>
               )}
               <div className="hidden gap-2 lg:flex">
-                <button type="button" className={`${TOUCH_BTN} flex-1`} data-testid="hold-cart" disabled={holding} onClick={() => void holdCart()}>
+                <button type="button" className={`${TOUCH_BTN} flex-1`} data-testid="hold-cart" disabled={!canHold} onClick={() => void holdCart()}>
                   <Pause aria-hidden className="size-4" />
                   {t('pharmacy.sell.hold')} <kbd className="text-xs text-muted">F8</kbd>
                 </button>
@@ -661,7 +766,7 @@ export function SellWorkspace(props: SellWorkspaceProps) {
       {cart.lines.length > 0 && (
         <div className="fixed inset-x-0 bottom-0 z-30 flex items-center gap-2 border-t border-line bg-raised px-3 py-2 lg:hidden" data-testid="sell-bar">
           <span className="min-w-0 flex-1 text-md font-semibold text-text">{money(estimate.totalMinor)}</span>
-          <button type="button" className={TOUCH_BTN} data-testid="hold-cart-bar" disabled={holding} onClick={() => void holdCart()}>
+          <button type="button" className={TOUCH_BTN} data-testid="hold-cart-bar" disabled={!canHold} onClick={() => void holdCart()}>
             <Pause aria-hidden className="size-4" />
             {t('pharmacy.sell.hold')}
           </button>
@@ -672,7 +777,17 @@ export function SellWorkspace(props: SellWorkspaceProps) {
         </div>
       )}
 
-      <PayDialog open={payOpen} onOpenChange={setPayOpen} currency={currency} totalMinor={estimate.totalMinor} busy={paying} problem={payProblem} offline={!online} onSubmit={(d, a) => void submitPay(d, a)} />
+      <PayDialog
+        open={payOpen}
+        onOpenChange={setPayOpen}
+        currency={currency}
+        totalMinor={estimate.totalMinor}
+        busy={paying}
+        problem={payProblem}
+        offline={!online}
+        initial={pending ? { method: pending.method, tendered: plainMinor(BigInt(pending.amountMinor), currency), reference: pending.reference } : null}
+        onSubmit={(d, a) => void submitPay(d, a)}
+      />
       <HoldsDialog open={holdsOpen} onOpenChange={setHoldsOpen} cartEmpty={cart.lines.length === 0} onResume={resume} onDiscard={discard} />
       <ReceiptDialog
         sale={sale}
@@ -709,6 +824,9 @@ export function SellWorkspace(props: SellWorkspaceProps) {
 
 // Results -------------------------------------------------------------------------------------------------------------
 
+/** What a result row needs of a product: the cart's item plus the flags the search sets (a `SellItem` is one). */
+type ResultItem = AddableItem & { notSellable: boolean; noPrice: boolean };
+
 function ResultList({
   items,
   currency,
@@ -717,10 +835,10 @@ function ResultList({
   t,
   onDone,
 }: {
-  items: SellItem[];
+  items: ResultItem[];
   currency: Currency;
-  onAdd: (item: SellItem, unitId?: string) => void;
-  addable: (item: SellItem) => boolean;
+  onAdd: (item: ResultItem, unitId?: string) => void;
+  addable: (item: ResultItem) => boolean;
   t: ReturnType<typeof useT>;
   onDone?: () => void;
 }) {
@@ -805,7 +923,71 @@ function ResultList({
   );
 }
 
+// Scans that were not simply added -----------------------------------------------------------------------------------------
+
+/** One scan that needs the cashier: an unknown code, several matches, a product that cannot be sold now, or a lookup that failed. */
+function ScanIssueCard({ issue, currency, add, dismiss, t }: { issue: ScanIssue; currency: Currency; add: (item: AddableItem, unitId?: string) => void; dismiss: () => void; t: ReturnType<typeof useT> }) {
+  const o = issue.outcome;
+  const dismissButton = (
+    <button type="button" className={TOUCH_BTN} onClick={dismiss} data-testid="scan-dismiss">
+      <X aria-hidden className="size-4" />
+      {t('pharmacy.sell.scan.dismiss')}
+    </button>
+  );
+  if (o.kind === 'pick') {
+    return (
+      <div className="flex flex-col gap-2" data-testid="scan-pick">
+        <Note icon={<ListChecks aria-hidden />} tone="info" role="status">
+          {t('pharmacy.sell.scan.pick', { code: o.code })}
+        </Note>
+        <ResultList items={o.items} currency={currency} onAdd={add} addable={isAddable} t={t} onDone={dismiss} />
+        <div>{dismissButton}</div>
+      </div>
+    );
+  }
+  const text =
+    o.kind === 'unknown' ? t('pharmacy.sell.scan.unknown', { code: o.code }) : o.kind === 'blocked' ? t('pharmacy.sell.scan.blocked', { code: o.code, name: o.item.tradeName }) : o.message;
+  return (
+    <div className="flex flex-wrap items-start gap-2" data-testid={`scan-${o.kind}`}>
+      <div className="min-w-0 flex-1 basis-60">
+        <Note icon={o.kind === 'unknown' ? <SearchX aria-hidden /> : <CircleAlert aria-hidden />} tone="danger" role="alert">
+          {text}
+        </Note>
+      </div>
+      {dismissButton}
+    </div>
+  );
+}
+
 // Cart rows ------------------------------------------------------------------------------------------------------------
+
+/**
+ * A quantity field that can be emptied and retyped: while the field has focus it shows what was typed (Arabic digits are
+ * turned into Latin ones as they go in, anything else is dropped); a number from 1 is passed on, an empty field waits, and
+ * leaving the field shows the line's real quantity again.
+ */
+function QtyInput({ value, label, onCommit }: { value: number; label: string; onCommit: (qty: number) => void }) {
+  const [typed, setTyped] = useState<string | null>(null);
+  return (
+    <input
+      className="min-h-11 w-14 min-w-0 border-y border-line-strong bg-raised text-center text-base font-semibold text-text"
+      dir="ltr"
+      inputMode="numeric"
+      autoComplete="off"
+      aria-label={label}
+      data-testid="qty-input"
+      value={typed ?? String(value)}
+      onFocus={(event) => event.target.select()}
+      onChange={(event) => {
+        const text = normalizeDigits(event.target.value).replace(/D/g, '');
+        setTyped(text);
+        const qty = parseQtyText(text);
+        if (qty !== null) onCommit(qty);
+      }}
+      onBlur={() => setTyped(null)}
+    />
+  );
+}
 
 function DiscountEditor({
   label,
@@ -871,7 +1053,7 @@ function CartRow({
 }) {
   const unit = unitOf(line);
   return (
-    <li data-testid="cart-line" className="flex min-w-0 flex-col gap-2 py-3 first:pt-0">
+    <li data-testid="cart-line" data-blocked={line.blocked ?? undefined} className="flex min-w-0 flex-col gap-2 py-3 first:pt-0">
       <div className="flex min-w-0 items-start justify-between gap-2">
         <p className="min-w-0">
           <span className="block break-words text-base font-semibold text-text" dir="auto">
@@ -888,10 +1070,15 @@ function CartRow({
         </button>
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
+        {line.blocked && (
+          <Chip icon={<Ban aria-hidden />} tone="danger" testId="chip-blocked">
+            {t(`pharmacy.sell.line.blocked.${line.blocked}`)}
+          </Chip>
+        )}
         {line.rxLevel === 'RX' && (
           <Chip icon={<Pill aria-hidden />}>{t('pharmacy.sell.chip.rx')}</Chip>
         )}
-        {unit.priceMinor === null && (
+        {unit.priceMinor === null && !line.blocked && (
           <Chip icon={<Ban aria-hidden />} tone="danger">
             {t('pharmacy.sell.chip.noPrice')}
           </Chip>
@@ -912,27 +1099,23 @@ function CartRow({
           <button type="button" className={TOUCH_BTN} aria-label={t('pharmacy.sell.cart.less')} data-testid="qty-less" disabled={line.qty <= 1} onClick={() => dispatch({ type: 'step', key: line.key, delta: -1 })}>
             <Minus aria-hidden className="size-4" />
           </button>
-          <input
-            className="min-h-11 w-14 min-w-0 border-y border-line-strong bg-raised text-center text-base font-semibold text-text"
-            dir="ltr"
-            inputMode="numeric"
-            autoComplete="off"
-            aria-label={t('pharmacy.sell.cart.qty')}
-            data-testid="qty-input"
-            value={line.qty}
-            onFocus={(event) => event.target.select()}
-            onChange={(event) => {
-              const n = Number(event.target.value.replace(/\D/g, ''));
-              if (n >= 1) dispatch({ type: 'qty', key: line.key, qty: n });
-            }}
-          />
+          <QtyInput value={line.qty} label={t('pharmacy.sell.cart.qty')} onCommit={(qty) => dispatch({ type: 'qty', key: line.key, qty })} />
           <button type="button" className={TOUCH_BTN} aria-label={t('pharmacy.sell.cart.more')} data-testid="qty-more" onClick={() => dispatch({ type: 'step', key: line.key, delta: 1 })}>
             <Plus aria-hidden className="size-4" />
           </button>
         </div>
+        <span className="ms-auto text-md font-semibold text-text" data-testid="line-total">
+          {total && !total.unpriced ? (
+            <>
+              <Num>{formatMinor(total.totalMinor, currency)}</Num> {currency}
+            </>
+          ) : (
+            '—'
+          )}
+        </span>
         {line.units.length > 1 ? (
           <select
-            className={`${FIELD} w-auto min-w-36 flex-1 pe-6`}
+            className={`${FIELD} basis-full pe-8`}
             aria-label={t('pharmacy.sell.cart.unit')}
             data-testid="unit-select"
             value={line.unitId}
@@ -950,15 +1133,6 @@ function CartRow({
             {unit.label}
           </span>
         )}
-        <span className="ms-auto text-md font-semibold text-text" data-testid="line-total">
-          {total && !total.unpriced ? (
-            <>
-              <Num>{formatMinor(total.totalMinor, currency)}</Num> {currency}
-            </>
-          ) : (
-            '—'
-          )}
-        </span>
       </div>
       {(perms.discount || (perms.batchOverride && line.batches.length > 0)) && (
         <details className="min-w-0" data-testid="line-more">

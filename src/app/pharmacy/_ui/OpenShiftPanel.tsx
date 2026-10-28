@@ -1,14 +1,14 @@
 'use client';
 
 import { CircleAlert, DoorOpen, Hourglass, Lock } from 'lucide-react';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { openShift } from '@/app/pharmacy/_actions/shifts';
-import { NETWORK_FAILURE, settle } from '@/studio/settle';
+import { settle } from '@/studio/settle';
 import { useLocale, useT } from '@/studio/i18n';
 import { Field } from '@/studio/ui/Field';
 import { phMessage } from './ph-failure';
 import { FIELD, Note, TOUCH_PRIMARY, FieldInput, FieldSelect } from './sell-parts';
-import { minorDigits, newClientKey, parseMoney, type Currency } from './sell-logic';
+import { keyFor, minorDigits, outcomeUnknown, parseMoney, type Currency, type KeyedAttempt } from './sell-logic';
 import { useOnline } from './use-online';
 
 export interface OpenShift {
@@ -20,8 +20,8 @@ export interface OpenShift {
 
 /**
  * The gate before selling: no open shift, no sale. The cashier names the currency of the shift and the cash in the
- * drawer, and the sale workspace takes over. The key is made once and kept until the shift is open, so a retry after a
- * dropped connection opens one shift.
+ * drawer, and the sale workspace takes over. The key belongs to THAT request (currency and opening cash): a retry after a
+ * dropped connection sends the same key, so one shift opens; a changed currency or amount is another request with a new key.
  */
 export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { currencies: Currency[]; defaultCurrency: Currency; onOpened: (shift: OpenShift) => void }) {
   const t = useT();
@@ -29,7 +29,7 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
   const online = useOnline();
   const [currency, setCurrency] = useState<Currency>(defaultCurrency);
   const [float, setFloat] = useState('');
-  const [key] = useState(() => newClientKey('shift'));
+  const attempt = useRef<KeyedAttempt | null>(null);
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
@@ -39,10 +39,14 @@ export function OpenShiftPanel({ currencies, defaultCurrency, onOpened }: { curr
     if (busy || !online || amount === null) return;
     setBusy(true);
     setProblem(null);
-    const result = await settle(() => openShift({ currency, openingFloatMinor: amount.toString(), clientKey: key }));
+    attempt.current = keyFor(attempt.current, `${currency}:${amount.toString()}`, 'shift');
+    const clientKey = attempt.current.key;
+    const result = await settle(() => openShift({ currency, openingFloatMinor: amount.toString(), clientKey }));
     setBusy(false);
     if (!result.ok) {
-      setProblem(result.error.message === NETWORK_FAILURE ? t('pharmacy.sell.offline.notSent') : phMessage(t, locale, result.error, 'pharmacy.sell'));
+      // An unknown outcome keeps the key (a repeat opens one shift); a refusal drops it.
+      if (!outcomeUnknown(result.error)) attempt.current = null;
+      setProblem(outcomeUnknown(result.error) ? t('pharmacy.sell.offline.shiftUnknown') : phMessage(t, locale, result.error, 'pharmacy.sell'));
       return;
     }
     const data = result.data as OpenShift;
