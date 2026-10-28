@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { createPrisma } from '@/server/data/prisma';
 import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
@@ -187,6 +187,79 @@ async function setAvailable(shop: TestPharmacy, batchId: string, available: numb
   }
 }
 
+interface SeededUsd {
+  supplierId: string;
+  supplierName: string;
+  productU1: string;
+  productU2: string;
+  productIqd: string;
+}
+
+/**
+ * A second supplier (USD, 14 day terms) and one confirmed receipt of three lines at the first branch: U1 20 at 2.50 USD,
+ * U2 10 at 1.00 USD, and one line costed in IQD (5 at 1,000), so a USD invoice cannot take it. USD is switched on for the
+ * pharmacy. Written directly, like `seedReceived`.
+ */
+async function seedUsd(shop: TestPharmacy, userId: string): Promise<SeededUsd> {
+  const client = db();
+  try {
+    await client.phSettings.upsert({
+      where: { restaurantId: shop.id },
+      create: { restaurantId: shop.id, enabledCurrencies: ['IQD', 'USD'], defaultCurrency: 'IQD' },
+      update: { enabledCurrencies: ['IQD', 'USD'] },
+    });
+    const supplierName = `Dollar ${randomUUID().slice(0, 5)}`;
+    const supplier = await client.phSupplier.create({
+      data: { restaurantId: shop.id, name: supplierName, nameKey: supplierName.toLowerCase(), defaultCurrency: 'USD', termsDays: 14, clientKey: `e2e-${randomUUID()}`, createdById: userId },
+      select: { id: true },
+    });
+    const names = [`Uno ${randomUUID().slice(0, 5)}`, `Duo ${randomUUID().slice(0, 5)}`, `Tri ${randomUUID().slice(0, 5)}`];
+    const products = [await makeProduct(shop, names[0]!), await makeProduct(shop, names[1]!), await makeProduct(shop, names[2]!)];
+    const branchId = shop.branchIds[0]!;
+    const receipt = await client.phReceipt.create({
+      data: { restaurantId: shop.id, branchId, status: 'CONFIRMED', clientKey: `e2e-${randomUUID()}`, supplierName, supplierId: supplier.id, receivedOn: new Date(dayText(0)), createdById: userId, confirmedById: userId, confirmedAt: new Date(), number: 'R-000002' },
+      select: { id: true },
+    });
+    const specs = [
+      { p: products[0]!, qty: 20, cost: 250n, currency: 'USD' as const, lot: 'UA1' },
+      { p: products[1]!, qty: 10, cost: 100n, currency: 'USD' as const, lot: 'UB1' },
+      { p: products[2]!, qty: 5, cost: 1000n, currency: 'IQD' as const, lot: 'UC1' },
+    ];
+    for (const [i, spec] of specs.entries()) {
+      const expiry = new Date(dayText(400));
+      const batch = await client.phBatch.create({
+        data: { restaurantId: shop.id, productId: spec.p.id, lot: spec.lot, expiryDate: expiry, supplierName, unitCostMinor: spec.cost, costCurrency: spec.currency, costUnitId: spec.p.unitIds[0]! },
+        select: { id: true },
+      });
+      const line = await client.phReceiptLine.create({
+        data: { restaurantId: shop.id, receiptId: receipt.id, lineNo: i + 1, productId: spec.p.id, unitId: spec.p.unitIds[0]!, qty: spec.qty, baseQty: spec.qty, lot: spec.lot, expiryDate: expiry, unitCostMinor: spec.cost, costCurrency: spec.currency, batchId: batch.id },
+        select: { id: true },
+      });
+      await client.phBatch.update({ where: { id: batch.id }, data: { receiptLineId: line.id } });
+      await client.phStockBalance.create({ data: { restaurantId: shop.id, branchId, productId: spec.p.id, batchId: batch.id, available: spec.qty } });
+    }
+    return { supplierId: supplier.id, supplierName, productU1: names[0]!, productU2: names[1]!, productIqd: names[2]! };
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+async function paymentCount(shop: TestPharmacy, supplierId: string): Promise<number> {
+  const client = db();
+  try {
+    return await client.phSupplierPayment.count({ where: { restaurantId: shop.id, supplierId } });
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+async function mkShot(page: Page, name: string, fullPage = true): Promise<void> {
+  if (!SHOTS) return;
+  const file = path.join(SHOTS, '..', 'task-11b-shots', `${name}.png`);
+  mkdirSync(path.dirname(file), { recursive: true });
+  await page.screenshot({ path: file, fullPage });
+}
+
 async function makeStaff(userId: string, restaurantId: string, role: 'CASHIER' | 'STOCK'): Promise<void> {
   const client = db();
   try {
@@ -204,8 +277,18 @@ async function freshPage(browser: Browser, viewport: { width: number; height: nu
   return context.newPage();
 }
 
+/** A signed-in person's cookies, by person and place: the Studio limits sign-ins per account, and this run signs the owner in many times. */
+const sessions = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>();
+
 /** Signs in and chooses a place: `branch` 0 is "All branches" for an owner, 1 the first branch. */
 async function signInAndChoose(page: Page, user: StudioUser, shop: TestPharmacy, branch = 0): Promise<void> {
+  const key = `${user.email}:${shop.id}:${branch}`;
+  const saved = sessions.get(key);
+  if (saved) {
+    await page.context().addCookies(saved.cookies);
+    await page.goto('/pharmacy/home');
+    if (/\/pharmacy\/home$/.test(page.url())) return;
+  }
   await page.goto('/pharmacy');
   await page.getByLabel(/^(Email|البريد الإلكتروني)$/).fill(user.email);
   await page.locator('input[type="password"]').fill(user.password);
@@ -213,6 +296,7 @@ async function signInAndChoose(page: Page, user: StudioUser, shop: TestPharmacy,
   await expect(page).toHaveURL(/\/pharmacy\/select$/);
   await page.getByRole('group', { name: shop.name }).getByRole('button').nth(branch).click();
   await expect(page).toHaveURL(/\/pharmacy\/home$/);
+  sessions.set(key, await page.context().storageState());
 }
 
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
@@ -229,7 +313,7 @@ async function shoot(page: Page, name: string): Promise<void> {
 }
 
 /** At 375, 768 and 1280 px: no sideways scroll and no serious axe violation. Screenshots when `shot` names the screen. */
-async function checkWidths(page: Page, url: string, lang: 'en' | 'ar', shot?: string): Promise<void> {
+async function checkWidths(page: Page, url: string, lang: 'en' | 'ar' | 'ckb', shot?: string): Promise<void> {
   for (const width of WIDTHS) {
     await page.setViewportSize({ width, height: 900 });
     expect(await scrollsSideways(page), `${lang} ${url} at ${width}px`).toBe(false);
@@ -732,5 +816,202 @@ test.describe('Pharmacy purchasing money @desktop', () => {
     await checkWidths(arabic, receiveUrl, 'ar', 'receive-order');
     await arabic.context().close();
     await setUserLocale(owner.userId, 'en');
+  });
+  test('a STOCK clerk sees the blocked state on a new return to a supplier', async ({ browser }) => {
+    const { shop } = money;
+    expect(shop, 'the money run left its pharmacy').toBeTruthy();
+    const clerk = await createStudioUser({ label: 'ph-money-stock2', name: 'Money Stock Two' });
+    people.push(clerk.email);
+    await makeStaff(clerk.userId, shop!.id, 'STOCK');
+    const page = await freshPage(browser);
+    await signInAndChoose(page, clerk, shop!, 1);
+    await page.goto('/pharmacy/purchasing/returns/new');
+    await expect(page.getByTestId('return-blocked')).toContainText('may change stock');
+    await expect(page.getByTestId('return-form')).toHaveCount(0);
+    await page.context().close();
+  });
+
+  test('an answer lost on the way back is replayed by the same key, an edited payment gets a new one, and offline keeps the form', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, seeded } = money;
+    expect(shop && owner && seeded, 'the money run left its records').toBeTruthy();
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner!, shop!, 1);
+    const before = await paymentCount(shop!, seeded!.supplierId);
+    let lost = 0;
+    let loseNext = true;
+    await page.route('**/pharmacy/purchasing/payments/new**', async (route) => {
+      const request = route.request();
+      if (request.method() === 'POST' && request.headers()['next-action'] && loseNext) {
+        loseNext = false;
+        lost += 1;
+        // The server does the work and the answer never arrives.
+        await route.fetch();
+        await route.abort('failed');
+        return;
+      }
+      await route.continue();
+    });
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${seeded!.supplierId}&currency=IQD`);
+    await page.getByTestId('pay-amount').fill('1000');
+    await page.getByTestId('pay-save').click();
+    await expect(page.getByTestId('payment-error')).toBeVisible();
+    expect(lost).toBe(1);
+    expect(await paymentCount(shop!, seeded!.supplierId)).toBe(before + 1);
+    // Retry with nothing changed: the same key, so the server replays and no second payment is made.
+    await page.getByTestId('pay-save').click();
+    await expect(page).toHaveURL(/\/pharmacy\/purchasing\/payments\/(?!new$)[^/?]+$/);
+    expect(await paymentCount(shop!, seeded!.supplierId)).toBe(before + 1);
+
+    // A lost answer, then the person edits the amount: a different request, so a new key and a second payment.
+    loseNext = true;
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${seeded!.supplierId}&currency=IQD`);
+    await page.getByTestId('pay-amount').fill('2000');
+    await page.getByTestId('pay-save').click();
+    await expect(page.getByTestId('payment-error')).toBeVisible();
+    await page.getByTestId('pay-amount').fill('3000');
+    await page.getByTestId('pay-save').click();
+    await expect(page).toHaveURL(/\/pharmacy\/purchasing\/payments\/(?!new$)[^/?]+$/);
+    expect(await paymentCount(shop!, seeded!.supplierId)).toBe(before + 3);
+    // Offline, on a fresh form: the notice says so, what was typed stays, saving is off until the connection is back.
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${seeded!.supplierId}&currency=IQD`);
+    await page.getByTestId('pay-amount').fill('4321');
+    await page.getByTestId('pay-reference').fill('Slip 77');
+    await page.context().setOffline(true);
+    await page.evaluate(() => window.dispatchEvent(new Event('offline')));
+    await expect(page.getByTestId('stock-offline')).toBeVisible();
+    await expect(page.getByTestId('pay-save')).toBeDisabled();
+    await expect(page.getByTestId('pay-amount')).toHaveValue('4321');
+    await expect(page.getByTestId('pay-reference')).toHaveValue('Slip 77');
+    await page.context().setOffline(false);
+    await page.evaluate(() => window.dispatchEvent(new Event('online')));
+    await expect(page.getByTestId('stock-offline')).toHaveCount(0);
+    await expect(page.getByTestId('pay-save')).toBeEnabled();
+    await expect(page.getByTestId('pay-amount')).toHaveValue('4321');
+    await page.context().close();
+  });
+
+  test('a USD supplier end to end: one currency per invoice, then an explicit allocation across two invoices', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner } = money;
+    expect(shop && owner, 'the money run left its pharmacy').toBeTruthy();
+    const usd = await seedUsd(shop!, owner!.userId);
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner!, shop!, 1);
+
+    // Tick the USD line: the IQD line cannot join it, said in words.
+    await tickLines(page, usd.supplierId, [usd.productU1]);
+    const iqdLine = page.getByTestId('invoice-line').filter({ hasText: usd.productIqd });
+    await expect(iqdLine.getByTestId('invoice-line-check')).toBeDisabled();
+    await expect(iqdLine).toContainText('invoice is in another currency');
+    await expect(page.getByTestId('invoice-cost')).toHaveValue('2.50');
+    await page.getByTestId('invoice-number').fill('INV-U1');
+    await page.getByTestId('invoice-due').fill(dayText(5));
+    await expect(page.getByTestId('invoice-totals')).toContainText('50.00');
+    await page.getByTestId('invoice-save').click();
+    await expect(page).toHaveURL(/\/pharmacy\/purchasing\/invoices\/(?!new$)[^/?]+$/);
+    const u1 = new URL(page.url()).pathname.split('/').pop()!;
+    await expect(page.getByTestId('invoice-total')).toContainText('50.00');
+
+    await tickLines(page, usd.supplierId, [usd.productU2]);
+    await page.getByTestId('invoice-number').fill('INV-U2');
+    await page.getByTestId('invoice-due').fill(dayText(9));
+    await page.getByTestId('invoice-save').click();
+    await expect(page).toHaveURL(/\/pharmacy\/purchasing\/invoices\/(?!new$)[^/?]+$/);
+    const u2 = new URL(page.url()).pathname.split('/').pop()!;
+    await expect(page.getByTestId('invoice-total')).toContainText('10.00');
+
+    // What is owed is counted in USD on its own; nothing is added to an IQD total.
+    await page.goto(`/pharmacy/purchasing/payables?supplier=${usd.supplierId}`);
+    await expect(page.getByTestId('payables-total-USD')).toContainText('60.00');
+    await expect(page.getByTestId('payables-total-IQD')).toHaveCount(0);
+    // In IQD the supplier has nothing open: said on the payment screen.
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${usd.supplierId}&currency=IQD`);
+    await expect(page.getByTestId('alloc-none')).toBeVisible();
+
+    // Explicit allocation: 20.00 to INV-U1 (of 50.00) and all 10.00 of INV-U2, 30.00 in all.
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${usd.supplierId}&currency=USD&invoice=${u1},${u2}`);
+    await expect(page.getByTestId('alloc-explicit')).toBeChecked();
+    await page.getByTestId('pay-amount').fill('30');
+    await page.getByLabel('Amount for invoice INV-U1').fill('20');
+    await page.getByLabel('Amount for invoice INV-U2').fill('10');
+    await expect(page.getByTestId('alloc-status')).toContainText('fully placed');
+    await page.getByTestId('pay-save').click();
+    await expect(page).toHaveURL(/\/pharmacy\/purchasing\/payments\/(?!new$)[^/?]+$/);
+    await expect(page.getByTestId('payment-allocations')).toContainText('INV-U1');
+    await expect(page.getByTestId('payment-allocations')).toContainText('20.00');
+    await expect(page.getByTestId('payment-allocations')).toContainText('INV-U2');
+    await page.goto(`/pharmacy/purchasing/invoices/${u1}`);
+    await expect(page.locator('[data-chip="PARTIAL"]')).toBeVisible();
+    await expect(page.getByTestId('invoice-balance')).toContainText('30.00');
+    await page.goto(`/pharmacy/purchasing/invoices/${u2}`);
+    await expect(page.locator('[data-chip="PAID"]')).toBeVisible();
+    await page.goto(`/pharmacy/purchasing/suppliers/${usd.supplierId}/statement?currency=USD`);
+    await expect(page.getByTestId('statement-closing')).toContainText('30.00');
+    await expect(page.getByTestId('statement-invariant-ok')).toBeVisible();
+    await shoot(page, 'en-usd-statement-1280');
+    await page.context().close();
+  });
+
+  test('Sorani: the invoice and the statement render right to left, pass axe and have no sideways scroll; Arabic dates are in order', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, seeded } = money;
+    expect(shop && owner && seeded && money.invoiceA1, 'the money run left its records').toBeTruthy();
+    await setUserLocale(owner!.userId, 'ckb');
+    try {
+      const page = await freshPage(browser, { width: 375, height: 800 });
+      await signInAndChoose(page, owner!, shop!, 1);
+      await expect(page.locator('html')).toHaveAttribute('dir', 'rtl');
+      await page.goto(`/pharmacy/purchasing/invoices/${money.invoiceA1}`);
+      await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(page.getByTestId('invoice-head')).toContainText(/\d{4}-\d{2}-\d{2}/);
+      await checkWidths(page, 'invoice', 'ckb', 'invoice');
+      await page.goto(`/pharmacy/purchasing/suppliers/${seeded!.supplierId}/statement?currency=IQD`);
+      await expect(page.getByTestId('statement-row').first()).toContainText(/\d{4}-\d{2}-\d{2}/);
+      await checkWidths(page, 'statement', 'ckb', 'statement');
+      await page.context().close();
+    } finally {
+      await setUserLocale(owner!.userId, 'ar');
+    }
+    const arabic = await freshPage(browser, { width: 375, height: 800 });
+    await signInAndChoose(arabic, owner!, shop!, 1);
+    for (const [url, shot] of [
+      [`/pharmacy/purchasing/invoices/${money.invoiceA1}`, 'invoice'],
+      [`/pharmacy/purchasing/suppliers/${seeded!.supplierId}/statement?currency=IQD`, 'statement'],
+    ] as const) {
+      await arabic.goto(url);
+      await expect(arabic.getByRole('heading', { level: 1 })).toBeVisible();
+      await expect(arabic.locator('main, body').first()).toContainText(/\d{4}-\d{2}-\d{2}/);
+      await mkShot(arabic, `after/ar-${shot}-375`);
+    }
+    await arabic.context().close();
+    await setUserLocale(owner!.userId, 'en');
+  });
+
+  test('payment allocation at 375px: the sticky footer never covers the allocation controls, checked by clicking and by position', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, seeded } = money;
+    expect(shop && owner && seeded && money.invoiceA1, 'the money run left its records').toBeTruthy();
+    const page = await freshPage(browser, { width: 375, height: 700 });
+    await signInAndChoose(page, owner!, shop!, 1);
+    await page.goto(`/pharmacy/purchasing/payments/new?supplier=${seeded!.supplierId}&currency=IQD`);
+    await expect(page.getByTestId('payment-form')).toBeVisible();
+    // Clicking needs the radio to be the topmost thing at its point, so a covered radio fails here.
+    await page.getByTestId('alloc-explicit').scrollIntoViewIfNeeded();
+    await page.getByTestId('alloc-explicit').click();
+    await expect(page.getByTestId('alloc-explicit')).toBeChecked();
+    await page.getByTestId('alloc-auto').click();
+    await page.getByTestId('pay-amount').fill('500');
+    await mkShot(page, 'after/en-payment-new-375-viewport', false);
+    // At the very end of the page the allocation status sits above the footer.
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const status = page.getByTestId('alloc-status');
+    const footer = page.getByTestId('pay-total').locator('xpath=..');
+    const statusBox = await status.boundingBox();
+    const footerBox = await footer.boundingBox();
+    expect(statusBox && footerBox, 'both are on screen').toBeTruthy();
+    expect(statusBox!.y + statusBox!.height, 'the allocation status ends above the footer').toBeLessThanOrEqual(footerBox!.y + 1);
+    await mkShot(page, 'after/en-payment-new-375-bottom', false);
+    await page.context().close();
   });
 });
