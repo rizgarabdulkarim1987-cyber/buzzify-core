@@ -92,7 +92,7 @@ function Tile({ p, table, style }: { p: FloorProps; table: FloorTable; style?: C
   const sub = table.status === 'FREE' ? t('pos.calm.free') : [time.text, table.orderId ? formatNumber(table.total) : null].filter(Boolean).join(' · ');
   const count = table.pendingRequests > (table.status === 'PENDING_APPROVAL' ? 1 : 0) ? table.pendingRequests : 0;
   return (
-    <button {...button(table)} style={style} className="s-keep-radius tile relative select-none p-3">
+    <button {...button(table)} style={style} className="s-shape tile relative select-none p-3">
       <span aria-hidden="true" className="tile-no font-bold leading-none" dir="ltr" style={{ fontSize: 'max(22px, 40cqmin)' }}>
         {formatNumber(table.number)}
       </span>
@@ -366,7 +366,7 @@ function FreeChips({ p, tables }: { p: FloorProps; tables: FloorTable[] }) {
       <ul className="flex max-h-[7.5rem] flex-wrap gap-2 overflow-y-auto [scrollbar-width:thin]">
         {free.map((table) => (
           <li key={table.id}>
-            <button {...button(table)} className="s-keep-radius tile grid h-14 min-w-14 place-items-center px-3 text-xl font-bold">
+            <button {...button(table)} className="s-shape tile grid h-14 min-w-14 place-items-center px-3 text-xl font-bold">
               <span className="tile-no" aria-hidden="true" dir="ltr">
                 {formatNumber(table.number)}
               </span>
