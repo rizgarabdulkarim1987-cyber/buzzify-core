@@ -53,7 +53,8 @@ export const setPosRequestLineQuantity = defineAction({
         entityId: done.lineId,
         changes: { quantity: { before: done.before, after: done.after }, ...approvalChange(done.approvalCleared) },
       });
-      return { requestId: done.requestId };
+      // `sentBack`: the edit undid the captain's approval, so the screen can say the order went back to them.
+      return { requestId: done.requestId, sentBack: done.approvalCleared };
     });
   },
 });
@@ -74,7 +75,7 @@ export const removePosRequestLine = defineAction({
         entityId: done.lineId,
         changes: { name: { before: done.name, after: null }, quantity: { before: done.quantity, after: null }, ...approvalChange(done.approvalCleared) },
       });
-      return { requestId: done.requestId };
+      return { requestId: done.requestId, sentBack: done.approvalCleared };
     });
   },
 });
@@ -109,7 +110,7 @@ export const addPosRequestLine = defineAction({
         entityId: done.lineId,
         changes: { name: { before: null, after: done.name }, quantity: { before: null, after: done.quantity }, ...approvalChange(done.approvalCleared) },
       });
-      return { requestId: done.requestId, lineId: done.lineId };
+      return { requestId: done.requestId, lineId: done.lineId, sentBack: done.approvalCleared };
     });
   },
 });

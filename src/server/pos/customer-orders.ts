@@ -69,6 +69,8 @@ export interface RequestSummary {
   total: number;
   /** Held for the captain: placed while captain approval was on and not approved yet. The cashier cannot accept it. */
   awaitingCaptain: boolean;
+  /** Held for the captain and approved by them; an edit by someone who cannot approve sends it back. */
+  captainApproved: boolean;
 }
 
 export interface RequestLineView {
@@ -156,6 +158,7 @@ function detailOf(row: DetailRow, live: { id: string; version: number } | undefi
     lineCount: lines.length,
     total: lines.reduce((sum, line) => sum + line.lineTotal, 0),
     awaitingCaptain: awaitingCaptain(row),
+    captainApproved: row.status === 'PENDING' && row.requiresCaptain && row.captainApprovedAt !== null,
     status: row.status,
     expired: row.status === 'PENDING' && isExpired(row.createdAt, now),
     customerNote: row.customerNote,

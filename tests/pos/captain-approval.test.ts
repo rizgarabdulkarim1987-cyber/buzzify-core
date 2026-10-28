@@ -204,7 +204,7 @@ describe('edits after the approval', () => {
 
   it('a cashier adding a line sends the order back to the captain', async () => {
     const req = await approved();
-    dataOf(await run(cashier, addPosRequestLine, { requestId: req.id, productId: cake, quantity: 10 }));
+    expect(dataOf(await run(cashier, addPosRequestLine, { requestId: req.id, productId: cake, quantity: 10 })).sentBack).toBe(true);
     const audit = await prisma().auditLog.findFirst({ where: { action: 'pos.request.edit', actorId: cashier.userId } });
     expect(audit?.changes).toMatchObject({ captainApproval: { before: 'APPROVED', after: 'NEEDED' } });
     await expectHeldAgain(req.id);
@@ -212,19 +212,21 @@ describe('edits after the approval', () => {
 
   it('a cashier raising a quantity sends the order back to the captain', async () => {
     const req = await approved();
-    dataOf(await run(cashier, setPosRequestLineQuantity, { lineId: req.lines[0]!.id, quantity: 20 }));
+    expect(dataOf(await ask(cashier, posRequest, { requestId: req.id })).captainApproved).toBe(true);
+    expect(dataOf(await run(cashier, setPosRequestLineQuantity, { lineId: req.lines[0]!.id, quantity: 20 })).sentBack).toBe(true);
+    expect(dataOf(await ask(cashier, posRequest, { requestId: req.id }))).toMatchObject({ captainApproved: false, awaitingCaptain: true });
     await expectHeldAgain(req.id);
   });
 
   it('a cashier removing a line sends the order back to the captain', async () => {
     const req = await approved();
-    dataOf(await run(cashier, removePosRequestLine, { lineId: req.lines[1]!.id }));
+    expect(dataOf(await run(cashier, removePosRequestLine, { lineId: req.lines[1]!.id })).sentBack).toBe(true);
     await expectHeldAgain(req.id);
   });
 
   it('keeps the approval when the captain or a manager edits', async () => {
     const req = await approved();
-    dataOf(await run(captain, setPosRequestLineQuantity, { lineId: req.lines[0]!.id, quantity: 3 }));
+    expect(dataOf(await run(captain, setPosRequestLineQuantity, { lineId: req.lines[0]!.id, quantity: 3 })).sentBack).toBe(false);
     dataOf(await run(manager, addPosRequestLine, { requestId: req.id, productId: cake, quantity: 1 }));
     dataOf(await run(captain, removePosRequestLine, { lineId: req.lines[1]!.id }));
     expect((await stored(req.id)).captainApprovedByUserId).toBe(captain.userId);

@@ -5,7 +5,7 @@ import { delegates, scopedClient } from '@/server/data/tenant-db';
 import { callForBill, listOpenBillCalls } from '@/server/pos/bill-calls';
 import { QrGateClosed, QrOrderRefusal } from '@/server/pos/customer-orders-guest';
 import { markBillCallSeen } from '@/server/studio/actions/pos-captain';
-import { posQrFlags } from '@/server/studio/queries/pos-requests';
+import { posBillCalls, posQrFlags, posRequestCatalog } from '@/server/studio/queries/pos-requests';
 import { publishFixture } from '../helpers/db';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
@@ -170,6 +170,10 @@ describe.each([false, true])('a guest asks for the bill (captain approval %s)', 
     const open = await listOpenBillCalls(db, a.id);
     expect(open.map((c) => c.tableNumber).sort()).toEqual([1, 3]);
     expect(dataOf(await ask(captain, posQrFlags, {}))).toMatchObject({ billCalls: 2 });
+    const listed = dataOf(await ask(cashier, posBillCalls, {}));
+    expect(listed.map((c) => c.tableNumber).sort()).toEqual([1, 3]);
+    expect(dataOf(await ask(captain, posBillCalls, {}))).toHaveLength(2);
+    expect(codeOf(await ask(kitchen, posBillCalls, {}))).toBe('FORBIDDEN');
 
     expect(codeOf(await run(kitchen, markBillCallSeen, { id: open[0]!.id }))).toBe('FORBIDDEN');
     expect(dataOf(await run(captain, markBillCallSeen, { id: open[0]!.id }))).toEqual({ ok: true });
@@ -180,6 +184,13 @@ describe.each([false, true])('a guest asks for the bill (captain approval %s)', 
     expect(await prisma().auditLog.count({ where: { action: 'pos.billCall.seen' } })).toBe(2);
     // A call already seen is not an error.
     expect(codeOf(await run(captain, markBillCallSeen, { id: open[0]!.id }))).toBe('OK');
+  });
+
+  it('gives the captain and the cashier the till catalog to edit and take orders from, not the kitchen', async () => {
+    const forCaptain = dataOf(await ask(captain, posRequestCatalog, {}));
+    expect(forCaptain?.products.map((product) => product.names.en)).toEqual(['Burger']);
+    expect(dataOf(await ask(cashier, posRequestCatalog, {}))?.products).toHaveLength(1);
+    expect(codeOf(await ask(kitchen, posRequestCatalog, {}))).toBe('FORBIDDEN');
   });
 
   it('answers the route like the order route', async () => {

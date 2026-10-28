@@ -7,3 +7,13 @@ import { invoke } from '@/server/studio/framework/invoke';
 export async function setPosCaptainApproval(input: unknown) {
   return invoke(captain.setPosCaptainApproval, input);
 }
+
+/** The captain's order for a table, taken by mouth. */
+export async function placeCaptainOrder(input: unknown) {
+  return invoke(captain.placeCaptainOrder, input);
+}
+
+/** A guest's call for the bill, marked seen by the captain or the cashier. */
+export async function markBillCallSeen(input: unknown) {
+  return invoke(captain.markBillCallSeen, input);
+}
