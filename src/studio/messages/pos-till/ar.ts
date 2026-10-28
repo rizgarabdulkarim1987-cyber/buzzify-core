@@ -604,6 +604,8 @@ const posTill: Messages = {
   'pos.offline.kind.requestBill': 'طلب الفاتورة',
   'pos.offline.kind.cancelOrder': 'إلغاء طلب',
   'pos.offline.kind.payCash': 'دفعة نقدية',
+  'pos.offline.kind.drawerOpen': 'فتح الدرج',
+  'pos.offline.kind.receiptCopy': 'نسخة من الإيصال',
   'pos.offline.error.stale': 'تغيّر الطلب في مكان آخر (الإصدار الآن {v}).',
   'pos.offline.error.locked': 'الطلب {status} ولا يمكن تغييره.',
   'pos.offline.error.totalChanged': 'تغيّر الإجمالي: رأيت {expected} وهو الآن {total}.',

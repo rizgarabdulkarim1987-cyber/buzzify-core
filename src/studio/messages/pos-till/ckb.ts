@@ -604,6 +604,8 @@ const posTill: Messages = {
   'pos.offline.kind.requestBill': 'داوای فاتورە',
   'pos.offline.kind.cancelOrder': 'هەڵوەشاندنەوەی داواکاری',
   'pos.offline.kind.payCash': 'پارەدانی کاش',
+  'pos.offline.kind.drawerOpen': 'کردنەوەی چەکمەجە',
+  'pos.offline.kind.receiptCopy': 'کۆپیی پسوولە',
   'pos.offline.error.stale': 'داواکارییەکە لە شوێنێکی تر گۆڕدرا (ئێستا وەشانی {v}).',
   'pos.offline.error.locked': 'داواکارییەکە {status}ە و ناگۆڕدرێت.',
   'pos.offline.error.totalChanged': 'کۆی گشتی گۆڕا: تۆ {expected}ت بینی و ئێستا {total}ـە.',

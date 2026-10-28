@@ -604,6 +604,8 @@ const posTill: Messages = {
   'pos.offline.kind.requestBill': 'Request bill',
   'pos.offline.kind.cancelOrder': 'Cancel order',
   'pos.offline.kind.payCash': 'Cash payment',
+  'pos.offline.kind.drawerOpen': 'Drawer opened',
+  'pos.offline.kind.receiptCopy': 'Receipt copy',
   'pos.offline.error.stale': 'The order was changed elsewhere (now version {v}).',
   'pos.offline.error.locked': 'The order is already {status} and cannot change.',
   'pos.offline.error.totalChanged': 'The total changed: you saw {expected}, it is now {total}.',
