@@ -125,10 +125,11 @@ describe('the drawer in two currencies', () => {
     const managerShift = dataOf(await run(manager, openPosShift, { openingFloat: 10_000 })).shiftId;
     const version = (await prisma().posOrder.findUniqueOrThrow({ where: { id: orderId } })).version;
     dataOf(await run(manager, reversePosPayment, { orderId, paymentId, expectedVersion: version, reason: 'wrong order' }));
-    const summary = dataOf(await ask(manager, posShift, { shiftId: managerShift }));
-    expect(summary.usdBeyondDrawer).toBe(12);
+    // The count is blind: while the shift is open the screen must not hint at the dollars it expects.
+    expect(dataOf(await ask(manager, posShift, { shiftId: managerShift })).usdBeyondDrawer).toBeNull();
     const closed = dataOf(await run(manager, closePosShift, { shiftId: managerShift, countedCash: 13_000, countedUsd: 0, note: '' }));
     expect(closed).toMatchObject({ expectedUsd: 0, countedUsd: 0, differenceUsd: 0 });
+    expect(dataOf(await ask(manager, posShift, { shiftId: managerShift })).usdBeyondDrawer).toBe(12);
   });
 
   it('keeps shifts without dollars exactly as before', async () => {
