@@ -123,12 +123,12 @@ export async function sellSearch(
  * nearest batches. The caller has checked the branch.
  */
 export async function sellItemsByIds(
-  db: ScopedDb,
+  scoped: ScopedDb,
   args: { branchId: string; currency: 'IQD' | 'USD'; productIds: readonly string[]; now?: Date },
 ): Promise<SellItem[]> {
   const ids = [...new Set(args.productIds)];
   if (ids.length === 0) return [];
-  const rows = await db.phProduct.findMany({
+  const rows = await scoped.phProduct.findMany({
     where: { id: { in: ids }, active: true },
     select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, level: true, label: true, baseQty: true, sellable: true } } },
   });
@@ -144,7 +144,7 @@ export async function sellItemsByIds(
       form: row.form,
       packLabel: packLabelOf(row.units),
     }));
-  return sellItemsOf(db, { branchId: args.branchId, currency: args.currency, found, now: args.now ?? new Date() });
+  return sellItemsOf(scoped, { branchId: args.branchId, currency: args.currency, found, now: args.now ?? new Date() });
 }
 
 async function sellItemsOf(

@@ -599,6 +599,97 @@ describe('Studio enforcement rules', () => {
       });
     });
 
+    describe('the sale, shift, cash and return tables are written by their own services alone (phase 3)', () => {
+      const SERVICES = 'src/server/pharmacy/';
+      /**
+       * Table -> the only files that may write it, each for a reason: `sales.ts` makes a sale, `holds.ts` a held cart
+       * (a HELD `PhSale` with lines), `shifts.ts` opens and closes a shift and posts paid in/out, `returns.ts` makes a return
+       * (and a cancel), moves a sale to RETURNED_*, bumps `returnedBaseQty` on the allocation and posts the refund,
+       * `receipt-print.ts` logs a reprint. Anything else is a new writer: it is not allowed until this table says so.
+       */
+      const WRITERS: Record<string, string[]> = {
+        PhSale: ['sales.ts', 'holds.ts', 'returns.ts'],
+        PhSaleLine: ['sales.ts', 'holds.ts'],
+        PhSaleLineAllocation: ['sales.ts', 'returns.ts'],
+        PhPayment: ['sales.ts'],
+        PhShift: ['shifts.ts'],
+        PhCashMovement: ['sales.ts', 'shifts.ts', 'returns.ts'],
+        PhReturn: ['returns.ts'],
+        PhReturnLine: ['returns.ts'],
+        PhReceiptReprint: ['receipt-print.ts'],
+      };
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|upsert|delete|deleteMany)';
+      /** Relations that only the tables above own: a nested write through the parent (`payments: { create: ... }`). */
+      const NESTED = ['payments', 'movements', 'sales', 'returns', 'allocations'];
+
+      /** The tables of `WRITERS` that `source` writes: by any receiver, a destructured delegate, raw SQL, or a nested write. */
+      function salesTableWrites(source: string): string[] {
+        const found: string[] = [];
+        for (const table of Object.keys(WRITERS)) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push(table);
+          else if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(table);
+          else if (new RegExp(`(?:insert\\s+into|update|delete\\s+from)\\s+(?:"${table}"|${table}\\b)`, 'i').test(source)) found.push(table);
+        }
+        if (new RegExp(`\\b(?:${NESTED.join('|')})\\s*:\\s*\\{\\s*(?:create|createMany|connectOrCreate|upsert|update|updateMany|delete|deleteMany)\\b`).test(source)) {
+          found.push('nested');
+        }
+        return found;
+      }
+      const offenders = (path: string, source: string) =>
+        salesTableWrites(source).filter((table) => table === 'nested' || !WRITERS[table]!.some((file) => path === `${SERVICES}${file}`));
+
+      it('recognises a write however the receiver is spelled, raw SQL and a nested write included', () => {
+        expect(salesTableWrites('await tx.phSale.create({ data });')).toEqual(['PhSale']);
+        expect(salesTableWrites('await ctx.scoped!.phPayment.createMany({ data });')).toEqual(['PhPayment']);
+        expect(salesTableWrites('await getPrisma().phShift.updateMany({});')).toEqual(['PhShift']);
+        expect(salesTableWrites('const { phCashMovement } = tx;')).toEqual(['PhCashMovement']);
+        expect(salesTableWrites('await tx.$executeRaw`UPDATE "PhSaleLineAllocation" SET "returnedBaseQty" = 1`;')).toEqual(['PhSaleLineAllocation']);
+        expect(salesTableWrites('await tx.$executeRaw`delete from "PhReturnLine"`;')).toEqual(['PhReturnLine']);
+        expect(salesTableWrites('await tx.phReceiptReprint.upsert({});')).toEqual(['PhReceiptReprint']);
+        expect(salesTableWrites('await tx.phReturn.delete({ where });')).toEqual(['PhReturn']);
+        expect(salesTableWrites('await tx.phSaleLine.deleteMany({});')).toEqual(['PhSaleLine']);
+        expect(salesTableWrites('await tx.phShift.update({ where, data: { payments: { create: [] } } });')).toEqual(['PhShift', 'nested']);
+        expect(salesTableWrites('await tx.phSale.findMany({ where });\nawait tx.phShift.count();\nawait tx.phPayment.aggregate({});')).toEqual([]);
+        expect(salesTableWrites("await tx.$queryRaw`SELECT * FROM \"PhSale\"`;")).toEqual([]);
+      });
+
+      it('names a write in a file that is not the table’s service', () => {
+        expect(offenders('src/server/pharmacy/stock.ts', 'await tx.phSale.update({ where, data });')).toEqual(['PhSale']);
+        expect(offenders('src/server/pharmacy/receipts.ts', 'await tx.phCashMovement.create({ data });')).toEqual(['PhCashMovement']);
+        expect(offenders('src/server/pharmacy/actions/sales.ts', 'await tx.phPayment.create({ data });')).toEqual(['PhPayment']);
+        expect(offenders('src/app/pharmacy/_actions/sales.ts', 'await tx.phShift.create({ data });')).toEqual(['PhShift']);
+        expect(offenders('src/server/pharmacy/holds.ts', 'await tx.phShift.updateMany({});')).toEqual(['PhShift']);
+        expect(offenders('src/server/pharmacy/shifts-reads.ts', 'await tx.phSale.deleteMany({});')).toEqual(['PhSale']);
+        expect(offenders('src/server/pharmacy/sales.ts', 'await tx.phSale.create({ data });\nawait tx.phPayment.createMany({ data });')).toEqual([]);
+        expect(offenders('src/server/pharmacy/returns.ts', 'await tx.phReturn.create({ data });')).toEqual([]);
+      });
+
+      it('holds for every file under src/server and src/app', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app')].flatMap((path) =>
+          offenders(path, read(path)).map((table) => `${path}: ${table}`),
+        );
+        expect(found).toEqual([]);
+      });
+
+      it('finds each table’s writes in its own services, so the check is not passing on a stale path', () => {
+        for (const [table, files] of Object.entries(WRITERS)) {
+          for (const file of files) {
+            const found = salesTableWrites(read(`${SERVICES}${file}`));
+            expect(found, `${file} should write ${table}`).toContain(table);
+          }
+        }
+      });
+
+      it('still leaves the stock tables to stock.ts: no sales service writes them', () => {
+        for (const file of ['sales.ts', 'holds.ts', 'shifts.ts', 'returns.ts', 'receipt-print.ts']) {
+          const source = read(`${SERVICES}${file}`);
+          expect(/\bphStock(?:Balance|Movement)\s*\.\s*(?:create|createMany|update|updateMany|upsert|delete|deleteMany)\b/.test(source), file).toBe(false);
+          expect(/(?:insert\s+into|update|delete\s+from)\s+"?PhStock(?:Balance|Movement)"?/i.test(source), `${file} raw`).toBe(false);
+        }
+      });
+    });
+
     it('holds for every file under src/server/pharmacy and src/app/pharmacy', () => {
       const offenders = [...sourceFiles('src/server/pharmacy'), ...sourceFiles('src/app/pharmacy')].flatMap((path) =>
         pharmacyClientViolations(path, read(path)).map((specifier) => `${path}: ${specifier}`),
