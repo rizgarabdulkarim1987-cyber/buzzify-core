@@ -82,7 +82,7 @@ export type HeadingStyle = (typeof HEADING_STYLES)[number];
  * How guests browse the menu: `scroll` is the long page every template has always had; the others are shapes that
  * replace some of the structural knobs (see `SHAPE_SETS`).
  */
-export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes', 'depth', 'kinetic', 'theatre', 'stacked', 'morph', 'fly', 'ink', 'steam', 'citadel', 'lanterns', 'carpet', 'rugs', 'lattice', 'gate', 'station', 'frost', 'beach', 'printer', 'spine', 'sheet', 'serp', 'typew', 'cassette', 'radio', 'space-deck', 'zel', 'saj', 'crate', 'space-lift', 'space-holo', 'space-count', 'newroz', 'klash', 'dengbej', 'space-comet', 'manus', 'space-drift', 'sadu', 'halay', 'dabka', 'faqi', 'ahwar', 'opera', 'resmal', 'khurjin', 'sadaf', 'mashra', 'fold', 'tone', 'wash', 'jewel', 'apoth', 'qays', 'clay', 'space-isle', 'flying-carpet', 'shan', 'bourse', 'peg', 'kew', 'lira', 'balloon', 'cable', 'kiosk', 'arcade', 'space-zero', 'kilim', 'henar', 'jamana', 'clips', 'ads', 'space-ctrl', 'space-warp', 'space-worm', 'space-hole', 'bazaar', 'stamps', 'deco', 'marquee', 'album', 'afish', 'pass', 'xayat', 'ticket', 'space-orbit', 'tannour', 'daf', 'space-const', 'honey', 'city', 'snake', 'film', 'pshtwen'] as const;
+export const BODY_KINDS = ['scroll', 'book', 'magazine', 'board', 'elevator', 'periodic', 'metro', 'cabinet', 'shelves', 'tickets', 'tabletop', 'comics', 'homescreen', 'treasure', 'levels', 'fridge', 'bento', 'mailboxes', 'depth', 'kinetic', 'theatre', 'stacked', 'morph', 'fly', 'ink', 'steam', 'citadel', 'lanterns', 'carpet', 'rugs', 'lattice', 'gate', 'station', 'frost', 'beach', 'printer', 'spine', 'sheet', 'serp', 'typew', 'cassette', 'radio', 'space-deck', 'zel', 'saj', 'crate', 'space-lift', 'space-holo', 'space-count', 'newroz', 'klash', 'dengbej', 'space-comet', 'manus', 'space-drift', 'sadu', 'halay', 'dabka', 'faqi', 'ahwar', 'opera', 'resmal', 'khurjin', 'sadaf', 'mashra', 'fold', 'tone', 'wash', 'jewel', 'apoth', 'qays', 'clay', 'space-isle', 'flying-carpet', 'shan', 'bourse', 'peg', 'kew', 'lira', 'balloon', 'cable', 'kiosk', 'arcade', 'space-zero', 'kilim', 'henar', 'jamana', 'clips', 'ads', 'space-ctrl', 'space-warp', 'space-worm', 'space-hole', 'bazaar', 'stamps', 'deco', 'marquee', 'album', 'afish', 'pass', 'xayat', 'ticket', 'space-orbit', 'tannour', 'daf', 'space-const', 'honey', 'city', 'snake', 'film', 'pshtwen', 'dj', 'neon', 'holo', 'blueprint', 'giant-type', 'wall', 'hud', 'aqua', 'bank', 'chat', 'andalus'] as const;
 export type BodyKind = (typeof BODY_KINDS)[number];
 
 /** The three background modes every preset supports (spec 6). */
@@ -252,6 +252,17 @@ export const SHAPE_SETS: Record<BodyKind, ReadonlyArray<keyof DesignLayout>> = {
   'snake': ['hero', 'nav', 'card', 'heading'],
   'film': ['hero', 'nav', 'card', 'heading'],
   'pshtwen': ['hero', 'nav', 'card', 'heading'],
+  'dj': ['hero', 'nav', 'card', 'heading'],
+  'neon': ['hero', 'nav', 'card', 'heading'],
+  'holo': ['hero', 'nav', 'card', 'heading'],
+  'blueprint': ['hero', 'nav', 'card', 'heading'],
+  'giant-type': ['hero', 'nav', 'card', 'heading'],
+  'wall': ['hero', 'nav', 'card', 'heading'],
+  'hud': ['hero', 'nav', 'card', 'heading'],
+  'aqua': ['hero', 'nav', 'card', 'heading'],
+  'bank': ['hero', 'nav', 'card', 'heading'],
+  'chat': ['hero', 'nav', 'card', 'heading'],
+  'andalus': ['hero', 'nav', 'card', 'heading'],
 };
 
 /** The shape a design browses in; `scroll` when it names none. */
@@ -555,6 +566,17 @@ export const TEMPLATE_IDS = [
   'the-snakes-and-ladders',
   'the-film-strip',
   'the-pshtwen',
+  'the-dj-decks',
+  'neon-alley',
+  'holo-cards',
+  'the-blueprint',
+  'giant-type',
+  'the-open-wall',
+  'the-fighter-radar',
+  'the-aquarium',
+  'the-bank-of-taste',
+  'the-waiter-chats',
+  'andalusia',
 ] as const;
 export type TemplateId = (typeof TEMPLATE_IDS)[number];
 

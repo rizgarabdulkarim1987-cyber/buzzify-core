@@ -119,6 +119,17 @@ export const TEMPLATE_FOR_STYLE: Partial<Record<string, TemplateId>> = {
   'crazy-snake': 'the-snakes-and-ladders',
   'classic-film': 'the-film-strip',
   'kurd-clothes-pshtwen': 'the-pshtwen',
+  'signature-dj': 'the-dj-decks',
+  'signature-neon': 'neon-alley',
+  'signature-holo': 'holo-cards',
+  'signature-bp': 'the-blueprint',
+  'signature-type': 'giant-type',
+  'signature-wall': 'the-open-wall',
+  'signature-2-hud': 'the-fighter-radar',
+  'signature-2-aqua': 'the-aquarium',
+  'signature-2-bank': 'the-bank-of-taste',
+  'signature-2-chat': 'the-waiter-chats',
+  'kurd-arab-and': 'andalusia',
 };
 
 /** The template a catalog style is made real as, or null while it is coming soon. */

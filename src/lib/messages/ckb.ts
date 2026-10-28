@@ -236,6 +236,8 @@ const ckb: Messages = {
   'tpl.mag.sections_one': '{n} بەش',
   'tpl.mag.sections_other': '{n} بەش',
   'tpl.board.gate': 'دەرگای {letter}: {name}',
+  'tpl.wall.farther': 'وێنەی بچووکتر، خواردنی زیاتر بە یەکجار',
+  'tpl.wall.closer': 'وێنەی گەورەتر',
   'tpl.dense.ready': 'ئامادەیە',
   'tpl.nowShowing': 'ئێستا نمایش دەکرێت',
   'tpl.snake.roll': 'زار فڕێ بدە بۆ پێشنیاری خواردنێک',

@@ -250,6 +250,8 @@ const ar: Messages = {
   'tpl.mag.sections_many': '{n} قسمًا',
   'tpl.mag.sections_other': '{n} قسم',
   'tpl.board.gate': 'البوابة {letter}: {name}',
+  'tpl.wall.farther': 'صور أصغر، أطباق أكثر مرة وحدة',
+  'tpl.wall.closer': 'صور أكبر',
   'tpl.dense.ready': 'جاهز',
   'tpl.nowShowing': 'يُعرض الآن',
   'tpl.snake.roll': 'ارمِ الزار لاقتراح طبق',

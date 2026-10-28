@@ -95,6 +95,21 @@ Batch 10 also adds the 77 to the catalog (`src/studio/styles/catalog.ts`): their
 `src/studio/styles/pages/`, each style gets a poster, and the Styles filter shows 112 cards. Styles of later batches
 show as coming soon with their mockup until their batch lands.
 
+## Later picks (88 in all)
+
+The same day the user added eleven picks from the signature rounds and the Kurdish-Arab page, built the same way
+(batches 23–26), each its own kind:
+
+| Kind | Style | Module |
+|---|---|---|
+| `dj`, `neon`, `holo` | DJ decks, neon alley, holo cards | `ClubBody` |
+| `blueprint`, `giant-type`, `wall` | the blueprint, giant letters, the open wall | own modules |
+| `hud`, `aqua`, `bank` | fighter radar, the aquarium, the bank of taste | own modules |
+| `chat`, `andalus` | the waiter chats, Andalusia | own modules |
+
+Dropped as a repeat: the signature "negative" film strip, which draws the same shape as the classic `film`.
+`holo` (trading cards) and `space-holo` (a lifted hologram) only share a theme and both stay.
+
 ## Rules for the mockups' motion
 
 - Endless motion (drifting rows, orbiting rings, swaying strings) stops while a finger is on it, pauses off screen,

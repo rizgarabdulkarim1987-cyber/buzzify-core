@@ -236,6 +236,8 @@ const en: Messages = {
   'tpl.mag.sections_one': '{n} section',
   'tpl.mag.sections_other': '{n} sections',
   'tpl.board.gate': 'Gate {letter}: {name}',
+  'tpl.wall.farther': 'Smaller tiles, more at once',
+  'tpl.wall.closer': 'Larger tiles',
   'tpl.dense.ready': 'Ready',
   'tpl.nowShowing': 'Now showing',
   'tpl.snake.roll': 'Roll the die for a suggestion',

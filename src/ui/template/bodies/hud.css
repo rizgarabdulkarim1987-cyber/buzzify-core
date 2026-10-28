@@ -1,0 +1,384 @@
+/*
+ * The Fighter Radar body (kind `hud`): a pilot's targeting screen. A faint grid on the screen, a radar sweeping by each
+ * sector's name, a scan line passing down behind the dishes, and every dish two by two inside four targeting brackets
+ * with a crosshair and its target code. Everything is scoped under [data-body='hud'], logical properties only. Colours
+ * come from the template's tokens: the phosphor is `--accent`, the words `--text` on `--bg`. The one fixed colour is
+ * the lock red of an added dish's brackets (decoration on the photo, never under words).
+ */
+[data-body='hud'] {
+  --hd-g: var(--accent);
+  --hd-dim: color-mix(in srgb, var(--accent) 35%, var(--bg));
+  --hd-grid: color-mix(in srgb, var(--accent) 7%, transparent);
+  --hd-lock: #ff4d4d;
+  --nav-room: 3.5rem;
+  --column: 52rem;
+  padding-block-end: 1rem;
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--hd-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--hd-grid) 1px, transparent 1px);
+  background-size: 1.5rem 1.5rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip: sector keys */
+
+[data-body='hud'] .tpl-strip-sticky {
+  border-block-end: 1px solid var(--hd-dim);
+}
+[data-body='hud'] .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='hud'] .hd-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem;
+  border: 1px solid var(--hd-dim);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms, border-color 150ms;
+}
+[data-body='hud'] .hd-chip-code {
+  color: var(--hd-g);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+[data-body='hud'] .hd-chip[aria-current='true'] {
+  border-color: var(--hd-g);
+  background: var(--hd-g);
+  color: var(--on-accent);
+}
+[data-body='hud'] .hd-chip[aria-current='true'] .hd-chip-code {
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the sector: heading, radar, scan line */
+
+[data-body='hud'] .hd-section {
+  position: relative;
+  padding: 0.5rem 0.75rem 0.75rem;
+  overflow: clip;
+}
+/* The scan line: a band of phosphor sliding down the sector, behind the dishes (their words sit above it). */
+[data-body='hud'] .hd-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+[data-body='hud'] .hd-scan > i {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    transparent calc(100% - 5rem),
+    color-mix(in srgb, var(--hd-g) 12%, transparent) calc(100% - 0.75rem),
+    transparent
+  );
+  transform: translateY(-100%);
+}
+[data-body='hud'] .hd-section[data-live] .hd-scan > i {
+  animation: hd-scan 4.5s linear infinite;
+}
+@keyframes hd-scan {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
+  }
+}
+
+[data-body='hud'] .hd-head {
+  position: relative;
+  z-index: 1;
+  margin-block: 0.125rem 0.5rem;
+}
+[data-body='hud'] .hd-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.125rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+[data-body='hud'] .hd-title small {
+  color: var(--hd-g);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  direction: ltr;
+}
+[data-body='hud'] .hd-title > span {
+  min-inline-size: 0;
+}
+[data-body='hud'] .hd-title b {
+  margin-inline-start: auto;
+  padding-inline: 0.375rem;
+  border: 1px solid var(--hd-dim);
+  color: var(--hd-g);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+/* The radar: a ring with its cross and a sweeping cone of phosphor. */
+[data-body='hud'] .hd-radar {
+  position: relative;
+  flex: none;
+  inline-size: 2rem;
+  block-size: 2rem;
+  overflow: hidden;
+  border: 1.5px solid var(--hd-g);
+  border-radius: 50%;
+  background:
+    linear-gradient(var(--hd-dim), var(--hd-dim)) center / 1px 100% no-repeat,
+    linear-gradient(90deg, var(--hd-dim), var(--hd-dim)) center / 100% 1px no-repeat,
+    radial-gradient(circle, transparent 0 30%, var(--hd-dim) 31% 33%, transparent 34%);
+}
+[data-body='hud'] .hd-radar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, color-mix(in srgb, var(--hd-g) 70%, transparent), transparent 70deg);
+}
+[data-body='hud'] .hd-section[data-live] .hd-radar::before {
+  animation: hd-sweep 3s linear infinite;
+}
+@keyframes hd-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ------------------------------------------------------------------ the targets, two by two */
+
+[data-body='hud'] .hd-grid {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.875rem 0.625rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+[data-body='hud'] .hd-target {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+}
+/* The photo inside its brackets; the brackets stand a little outside the photo. */
+[data-body='hud'] .hd-frame {
+  position: relative;
+  aspect-ratio: 16 / 10;
+  margin: 0.375rem;
+  overflow: visible;
+  box-shadow: none;
+}
+[data-body='hud'] .hd-frame > :first-child {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='hud'] .hd-frame img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The crosshair at the photo's middle. */
+[data-body='hud'] .hd-frame::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  inline-size: 1.375rem;
+  block-size: 1.375rem;
+  margin-block-start: -0.6875rem;
+  margin-inline-start: -0.6875rem;
+  background:
+    linear-gradient(var(--hd-g), var(--hd-g)) center / 2px 100% no-repeat,
+    linear-gradient(90deg, var(--hd-g), var(--hd-g)) center / 100% 2px no-repeat;
+  opacity: 0.7;
+  pointer-events: none;
+}
+[data-body='hud'] .hd-reticle {
+  position: absolute;
+  inset: -0.375rem;
+  pointer-events: none;
+  transition: scale 420ms cubic-bezier(0.23, 1, 0.32, 1), opacity 300ms ease-out;
+}
+[data-body='hud'] .hd-reticle > i {
+  position: absolute;
+  inline-size: 1rem;
+  block-size: 1rem;
+  border: 2px solid var(--hd-g);
+  transition: border-color 200ms, inline-size 300ms cubic-bezier(0.23, 1, 0.32, 1), block-size 300ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+[data-body='hud'] .hd-reticle > i:nth-child(1) {
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  border-block-end: 0;
+  border-inline-end: 0;
+}
+[data-body='hud'] .hd-reticle > i:nth-child(2) {
+  inset-block-start: 0;
+  inset-inline-end: 0;
+  border-block-end: 0;
+  border-inline-start: 0;
+}
+[data-body='hud'] .hd-reticle > i:nth-child(3) {
+  inset-block-end: 0;
+  inset-inline-start: 0;
+  border-block-start: 0;
+  border-inline-end: 0;
+}
+[data-body='hud'] .hd-reticle > i:nth-child(4) {
+  inset-block-end: 0;
+  inset-inline-end: 0;
+  border-block-start: 0;
+  border-inline-start: 0;
+}
+/* Not yet seen: the brackets wait wide and faint; once seen (`data-in`) they close in on the dish. */
+[data-body='hud'][data-armed] .hd-target:not([data-in]) .hd-reticle {
+  opacity: 0;
+  scale: 1.3;
+}
+/* Pointed at or added: the brackets lock on (larger, and red once added). */
+[data-body='hud'] .hd-target:is(:hover, :focus-within) .hd-reticle > i,
+[data-body='hud'] .hd-target[data-locked] .hd-reticle > i {
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+}
+[data-body='hud'] .hd-target[data-locked] .hd-reticle > i {
+  border-color: var(--hd-lock);
+}
+[data-body='hud'] .hd-target[data-locked] .hd-frame::after {
+  background:
+    linear-gradient(var(--hd-lock), var(--hd-lock)) center / 2px 100% no-repeat,
+    linear-gradient(90deg, var(--hd-lock), var(--hd-lock)) center / 100% 2px no-repeat;
+  opacity: 1;
+}
+
+/* The target code on the photo's top corner, on its own dark backing. */
+[data-body='hud'] .hd-code {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.25rem;
+  inset-inline-end: 0.25rem;
+  padding: 0.0625rem 0.3125rem;
+  background: var(--bg);
+  color: var(--hd-g);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1.3;
+  pointer-events: none;
+}
+/* The labels (the sale, popular, new) on the photo's foot, each on its own backing. */
+[data-body='hud'] .hd-badges {
+  position: absolute;
+  z-index: 2;
+  inset-block-end: 0.25rem;
+  inset-inline-start: 0.25rem;
+  max-inline-size: calc(100% - 0.5rem);
+  pointer-events: none;
+}
+[data-body='hud'] .hd-badges .tpl-badge:not(.tpl-badge-sale) {
+  border-radius: 0;
+  background: var(--bg);
+  box-shadow: inset 0 0 0 1px var(--hd-dim);
+  color: var(--text);
+}
+[data-body='hud'] .hd-badges .tpl-badge-sale {
+  border-radius: 0;
+}
+
+[data-body='hud'] .hd-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  margin-block-start: 0.25rem;
+  padding: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+[data-body='hud'] .hd-name:focus-visible::after {
+  outline-color: var(--hd-g);
+  border-radius: 0;
+}
+[data-body='hud'] .hd-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.375rem;
+  margin-block-start: auto;
+  padding-block-start: 0.25rem;
+}
+[data-body='hud'] .hd-price {
+  display: flex;
+  flex-direction: column;
+  min-inline-size: 0;
+  color: var(--hd-g);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+[data-body='hud'] .hd-price .tpl-was {
+  margin-inline-start: 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+}
+[data-body='hud'] .hd-add {
+  flex: none;
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border: 1.5px solid var(--hd-g);
+  border-radius: 0;
+  background: var(--bg);
+  color: var(--hd-g);
+}
+
+/* ------------------------------------------------------------------ hold, less motion, wider screens */
+
+[data-body='hud'][data-hold] .hd-section[data-live] .hd-scan > i,
+[data-body='hud'][data-hold] .hd-section[data-live] .hd-radar::before {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='hud'] .hd-section[data-live] .hd-scan > i,
+  [data-body='hud'] .hd-section[data-live] .hd-radar::before {
+    animation: none;
+  }
+  [data-body='hud'] :is(.hd-reticle, .hd-reticle > i) {
+    transition: none;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='hud'] .hd-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.25rem 1rem;
+  }
+  [data-body='hud'] .hd-title {
+    font-size: 1.375rem;
+  }
+}
