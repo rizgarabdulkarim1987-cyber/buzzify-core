@@ -291,6 +291,38 @@ export function parseIntakeStorageEnv(source: Source): IntakeStorageEnv | null {
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
+// Pharmacy AI pricing
+// ---------------------------------------------------------------------------------------------------------------------
+
+export interface AiPricingEnv {
+  /** Micro-dollars per million input tokens. */
+  inputPerMtok: bigint;
+  /** Micro-dollars per million output tokens. */
+  outputPerMtok: bigint;
+}
+
+const PRICE_VARIABLES = ['AI_PRICE_INPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK'] as const;
+
+/**
+ * The model's price, which the pharmacy AI budget is counted in. Both variables or neither, each a positive whole number,
+ * and NO default: with none set the pharmacy AI refuses to run (a wrong guessed price would make the budget meaningless).
+ */
+export function parseAiPricingEnv(source: Source): AiPricingEnv | null {
+  const values = PRICE_VARIABLES.map((name) => {
+    const value = unset(source[name]);
+    return typeof value === 'string' ? value.trim() : null;
+  });
+  if (values.every((v) => v === null)) return null;
+  const missing = PRICE_VARIABLES.filter((_, n) => values[n] === null);
+  if (missing.length > 0) throw new Error(`AI pricing is only partly configured: set ${missing.join(', ')} as well, or unset the other.`);
+  const [input, output] = values.map((v, n) => {
+    if (!/^[1-9][0-9]{0,17}$/.test(v!)) throw new Error(`${PRICE_VARIABLES[n]} must be a positive whole number (micro-dollars per million tokens).`);
+    return BigInt(v!);
+  }) as [bigint, bigint];
+  return { inputPerMtok: input, outputPerMtok: output };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
 // Scheduled publishing
 // ---------------------------------------------------------------------------------------------------------------------
 
@@ -491,4 +523,7 @@ export const storageEnv = lazy(parseStorageEnv);
 
 /** Where pharmacy invoice files are stored privately, or null when not configured. */
 export const intakeStorageEnv = lazy(parseIntakeStorageEnv);
+
+/** The model price for the pharmacy AI budget, or null when not configured (the AI then refuses to run). */
+export const aiPricingEnv = lazy(parseAiPricingEnv);
 
