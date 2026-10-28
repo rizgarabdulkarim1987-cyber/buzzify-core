@@ -101,6 +101,10 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This person is already a Super Admin': 'error.text.personIsSuperAdmin',
   'There must always be one active Super Admin': 'error.text.lastSuperAdmin',
   'This account is already deactivated': 'error.text.alreadyDeactivated',
+  'This is a till account. Till staff cannot also be Studio members': 'error.text.tillAccount',
+  'You cannot delete your own account': 'error.text.deleteSelf',
+  'Deactivate this account first, then delete it': 'error.text.deleteDeactivateFirst',
+  'This account has till history, so it can only stay deactivated': 'error.text.deleteHasTillHistory',
   'This account is not deactivated': 'error.text.notDeactivated',
   'You cannot deactivate your own account': 'error.text.deactivateSelf',
 

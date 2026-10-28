@@ -25,6 +25,10 @@ export async function assignDesigner(input: unknown) {
   return invoke(people.assignDesigner, input);
 }
 
+export async function addTillStaff(input: unknown) {
+  return invoke(people.addTillStaff, input);
+}
+
 export async function unassignMember(input: unknown) {
   return invoke(people.unassignMember, input);
 }

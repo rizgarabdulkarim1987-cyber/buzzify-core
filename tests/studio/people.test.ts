@@ -580,6 +580,34 @@ describe('deactivating and reactivating', () => {
   });
 });
 
+describe('till staff from the restaurant page', () => {
+  const till = (email: string, role = 'CASHIER') => ({ restaurantId: atelier.id, name: 'Sara', email, role, password: GOOD });
+
+  it('lets a Super Admin add a cashier, a manager and a kitchen member, and lists them', async () => {
+    for (const role of ['CASHIER', 'MANAGER', 'KITCHEN']) {
+      expect(codeOf(await run(admin, people.addTillStaff, till(address(`till-${role}`), role)))).toBe('OK');
+    }
+    const rows = dataOf(await ask(admin, peopleQueries.restaurantTillStaff, { restaurantId: atelier.id }));
+    expect(rows.map((r) => r.role).sort()).toEqual(['CASHIER', 'KITCHEN', 'MANAGER']);
+    const created = await prisma().user.findUniqueOrThrow({ where: { email: address('till-CASHIER').toLowerCase() } });
+    expect(await prisma().membership.count({ where: { userId: created.id } })).toBe(0);
+    expect(await audit('pos.staff.create')).toHaveLength(3);
+  });
+
+  it('is for Super Admins only: an owner and a designer are refused', async () => {
+    expect(codeOf(await run(olive, people.addTillStaff, till(address('x1'))))).toBe('FORBIDDEN');
+    expect(codeOf(await run(dee, people.addTillStaff, till(address('x2'))))).toBe('FORBIDDEN');
+    expect(await prisma().posStaff.count()).toBe(0);
+  });
+
+  it('refuses the owner role, an address that has an account, and a weak password', async () => {
+    expect(codeOf(await run(admin, people.addTillStaff, till(address('y1'), 'OWNER')))).toBe('INVALID');
+    expect(codeOf(await run(admin, people.addTillStaff, till(olive.email)))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, people.addTillStaff, { ...till(address('y2')), password: 'short' }))).toBe('INVALID');
+    expect(await prisma().posStaff.count()).toBe(0);
+  });
+});
+
 describe('deleting an account', () => {
   it('deletes a deactivated account for good, with its memberships and till rows, and records it', async () => {
     const till = await person('till', { memberships: [[atelier.id, 'DESIGNER']] });
