@@ -1,3 +1,4 @@
+import type { Locale } from '@/lib/locale';
 import type { AnyDb, ScopedDb } from '@/server/data/tenant-db';
 import { cleanStory, type StoryByLocale } from '@/server/domain/about';
 import { loadAssets } from '@/server/media/resolve';
@@ -34,4 +35,37 @@ export async function requireOfferTarget(db: ScopedDb | AnyDb, menuId: string, p
   if (categoryId && !(await scoped.category.findFirst({ where: { id: categoryId, menuId }, select: { id: true } }))) {
     throw new StudioError('NOT_FOUND', undefined, { categoryId: 'Choose a category of this menu' });
   }
+}
+
+export type LocaleTexts = Partial<Record<'en' | 'ar' | 'ckb', string>>;
+
+export interface AboutOfferRow {
+  id: string;
+  titles: LocaleTexts;
+  bodies: LocaleTexts;
+  label: LocaleTexts;
+  imageAssetId: string | null;
+  /** ISO instants, as stored; the form shows them as dates in the menu's time zone. */
+  startsAt: string | null;
+  endsAt: string | null;
+  active: boolean;
+  /** Its last day has passed. */
+  ended: boolean;
+  productId: string | null;
+  categoryId: string | null;
+}
+
+/** Everything the Studio's About tab shows. */
+export interface AboutStudioView {
+  slug: string;
+  restaurantId: string;
+  /** A thumbnail for each picture the page and its offers name. */
+  thumbs: Record<string, string>;
+  targets: { products: { id: string; name: string }[]; categories: { id: string; name: string }[] };
+  enabled: boolean;
+  locales: Locale[];
+  defaultLocale: Locale;
+  timezone: string;
+  about: { titles: LocaleTexts; coverAssetId: string | null; story: StoryByLocale; galleryAssetIds: string[]; showHours: boolean; showContact: boolean };
+  offers: AboutOfferRow[];
 }
