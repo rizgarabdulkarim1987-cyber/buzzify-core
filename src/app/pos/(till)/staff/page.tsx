@@ -6,7 +6,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
 import { RolesMatrix } from '@/app/pos/_ui/RolesMatrix';
-import { AddStaffForm, StaffList } from './StaffForms';
+import { StaffList } from './StaffForms';
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: getStudioTranslator(await requestStudioLocale())('pos.staff.title') };
@@ -21,7 +21,6 @@ export default async function PosStaffPage() {
       <PageHeader title={t('pos.staff.title')} description={t('pos.staff.intro')} />
       <div className="flex flex-col gap-8 px-8 pb-8">
         <StaffList people={people} ownRole={access.actor?.role ?? 'CASHIER'} ownUserId={access.actor?.userId ?? ''} />
-        <AddStaffForm ownRole={access.actor?.role ?? 'CASHIER'} />
         <RolesMatrix />
       </div>
     </>

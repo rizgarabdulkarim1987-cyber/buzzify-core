@@ -3,17 +3,13 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { changePosStaffRole, clearPosStaffPin, createPosStaff, setPosStaffActive } from '@/app/studio/_actions/pos';
+import { changePosStaffRole, clearPosStaffPin, setPosStaffActive } from '@/app/studio/_actions/pos';
 import { POS_ROLES, type PosRole } from '@/server/domain/pos/permissions';
 import type { PosStaffView } from '@/server/pos/staff';
-import { requireFields, useActionForm } from '@/studio/forms';
 import { describeFailure } from '@/studio/errors';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
-import { Field } from '@/studio/ui/Field';
-import { FormError } from '@/studio/ui/FormError';
-import { Input, PasswordInput } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 
 /** The roles a person in `own` may hand out: an owner any, a manager the floor roles. Mirrors `mayAssign` on the server. */
@@ -25,59 +21,6 @@ function assignable(own: PosRole): readonly PosRole[] {
 /** Whether a person in `own` may change a row now holding `current` (the server decides; this only hides what would be refused). */
 function mayChange(own: PosRole, current: PosRole): boolean {
   return own === 'OWNER' || (own === 'MANAGER' && (current === 'CASHIER' || current === 'KITCHEN'));
-}
-
-export function AddStaffForm({ ownRole }: { ownRole: PosRole }) {
-  const t = useT();
-  const router = useRouter();
-  const roles = assignable(ownRole);
-  const form = useActionForm(
-    (values) =>
-      createPosStaff({
-        name: values.name ?? '',
-        email: values.email ?? '',
-        role: values.role ?? '',
-        ...(values.password ? { password: values.password } : {}),
-      }),
-    {
-      keep: ['name', 'email', 'role'],
-      validate: (values) => requireFields(values, { name: t('error.text.nameEnter'), email: t('error.text.emailInvalid') }),
-      onSuccess: () => {
-        toast.success(t('pos.staff.created'));
-        router.refresh();
-      },
-    },
-  );
-
-  return (
-    <section aria-labelledby="pos-add-staff" className="flex flex-col gap-4 border-t border-line pt-6">
-      <h2 id="pos-add-staff" className="text-base font-semibold text-text">
-        {t('pos.staff.add')}
-      </h2>
-      <form {...form.props} className="flex max-w-md flex-col gap-4">
-        <FormError form={form} fields={['name', 'email', 'role', 'password']} />
-        <Field label={t('pos.staff.name')} error={form.fieldError('name')}>
-          <Input name="name" autoComplete="off" defaultValue={form.value('name')} />
-        </Field>
-        <Field label={t('pos.staff.email')} error={form.fieldError('email')}>
-          <Input name="email" type="email" dir="ltr" className="rtl:text-right" autoComplete="off" defaultValue={form.value('email')} />
-        </Field>
-        <Field label={t('pos.staff.password')} hint={t('pos.staff.passwordHint')} error={form.fieldError('password')}>
-          <PasswordInput name="password" autoComplete="new-password" />
-        </Field>
-        <Field label={t('pos.staff.role')} error={form.fieldError('role')}>
-          <Select
-            name="role"
-            defaultValue={form.value('role') ?? roles[roles.length - 1] ?? 'CASHIER'}
-            options={roles.map((role) => ({ value: role, label: t(`pos.role.${role}`) }))}
-          />
-        </Field>
-        <Button type="submit" pending={form.pending} className="self-start">
-          {t('pos.staff.create')}
-        </Button>
-      </form>
-    </section>
-  );
 }
 
 export function StaffList({ people, ownRole, ownUserId }: { people: PosStaffView[]; ownRole: PosRole; ownUserId: string }) {
