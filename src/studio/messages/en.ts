@@ -1871,6 +1871,7 @@ const en: Messages = {
   'media.library.selectAll': 'Select all {count}',
   'media.library.selectOne': 'Select {name}',
   'media.library.selectedCount': '{count} selected',
+  'media.library.selectEvery': 'Select all {count} in the library',
   'media.library.deleteSelected': 'Delete selected',
   'media.library.bulkDeleteTitle': 'Delete {count} pictures?',
   'media.library.bulkDeleteBody': 'They are removed from the library and from storage. A picture a menu uses cannot be deleted and stays.',

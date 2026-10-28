@@ -1884,6 +1884,7 @@ const ar: Messages = {
   'media.library.selectAll': 'تحديد الكل ({count})',
   'media.library.selectOne': 'تحديد {name}',
   'media.library.selectedCount': 'تم تحديد {count}',
+  'media.library.selectEvery': 'تحديد كل الـ {count} في المكتبة',
   'media.library.deleteSelected': 'حذف المحدد',
   'media.library.bulkDeleteTitle': 'حذف {count} صورة؟',
   'media.library.bulkDeleteBody': 'ستُزال من المكتبة ومن التخزين. الصورة التي تستخدمها قائمة لا يمكن حذفها وتبقى.',

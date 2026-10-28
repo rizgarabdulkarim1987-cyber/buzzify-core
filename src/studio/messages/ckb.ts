@@ -1875,6 +1875,7 @@ const ckb: Messages = {
   'media.library.selectAll': 'هەموو هەڵبژێرە ({count})',
   'media.library.selectOne': 'هەڵبژاردنی {name}',
   'media.library.selectedCount': '{count} هەڵبژێردراوە',
+  'media.library.selectEvery': 'هەموو {count}ەکە لە کتێبخانە هەڵبژێرە',
   'media.library.deleteSelected': 'سڕینەوەی هەڵبژێردراوەکان',
   'media.library.bulkDeleteTitle': '{count} وێنە بسڕدرێنەوە؟',
   'media.library.bulkDeleteBody': 'لە کتێبخانە و لە هەڵگرتنەوە لادەبرێن. وێنەیەک کە مێنیوویەک بەکاری دێنێت ناسڕدرێتەوە و دەمێنێت.',
