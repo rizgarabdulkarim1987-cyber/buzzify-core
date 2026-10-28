@@ -101,8 +101,8 @@ describe('what guests see instead of a locked choice', () => {
   });
 
   it('says which guest features a plan shows', () => {
-    expect(guestFeatures(BASIC)).toEqual({ explore: false, stage: false, intro: false, about: false, wheel: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
-    expect(guestFeatures(PRO)).toEqual({ explore: false, stage: false, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
+    expect(guestFeatures(BASIC)).toEqual({ explore: true, stage: false, intro: true, about: false, wheel: false, smartSelling: false, offers: false, socialProof: false, motions: false, rails: ['plain'] });
+    expect(guestFeatures(PRO)).toEqual({ explore: true, stage: false, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: ['drum', 'flap', 'deck', 'plain'] });
     expect(guestFeatures(PREMIUM)).toEqual({ explore: true, stage: true, intro: true, about: true, wheel: true, smartSelling: true, offers: true, socialProof: true, motions: true, rails: [...RAIL_STYLES] });
   });
 });
@@ -151,24 +151,22 @@ describe('what the Preview tab says guests on the plan do not see', () => {
   it('counts a suggested option or a bigger size as smart selling, which offers them as upgrades', () => {
     const suggested = product([{ options: [{ isSuggested: true }] }]);
     const sizes = product([], [{ priceDelta: 0 }, { priceDelta: 150 }]);
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, PRO)).toEqual(['immersive.explore']);
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [sizes] }, BASIC)).toEqual(['immersive.explore', 'selling.smart']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, PRO)).toEqual([]);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [suggested] }, BASIC)).toEqual(['selling.smart']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [sizes] }, BASIC)).toEqual(['selling.smart']);
     const offer = { id: 'o', kind: 'SPECIAL' as const, percentOff: null, productIds: ['p'], categoryIds: [], startsOn: null, endsOn: null, startMinute: null, endMinute: null, daysOfWeek: 127, roundTo: 5, translations: {}, sortOrder: 0 };
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, PRO)).toEqual(['immersive.explore']);
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, BASIC)).toEqual(['immersive.explore', 'selling.offers']);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, PRO)).toEqual([]);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [], promotions: [offer] }, BASIC)).toEqual(['selling.offers']);
     // One size, or sizes at one price, offer nothing to upgrade to.
-    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([
-      'immersive.explore',
-    ]);
+    expect(hiddenFromGuests(PLAIN_VIEW, { ...noSelling, products: [product([], [{ priceDelta: 0 }, { priceDelta: 0 }])] }, BASIC)).toEqual([]);
   });
 
   it('names the menu’s motions when the plan leaves them out, and only when it has some', () => {
     const catalog = { ...noSelling, products: [] };
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [{}])).toEqual(['immersive.explore', 'design.menuMotions']);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [])).toEqual(['immersive.explore']);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC)).toEqual(['immersive.explore']);
-    expect(hiddenFromGuests(PLAIN_VIEW, catalog, PRO, [{}])).toEqual(['immersive.explore']);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [{}])).toEqual(['design.menuMotions']);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC, [])).toEqual([]);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, BASIC)).toEqual([]);
+    expect(hiddenFromGuests(PLAIN_VIEW, catalog, PRO, [{}])).toEqual([]);
   });
 });
 
@@ -221,9 +219,9 @@ describe('scene files', () => {
 
   it('tells the Preview tab about a file guests do not see, right after the brand’s choices', () => {
     const catalog = { upsellRules: [], pairingRules: [], bundles: [], products: [] };
-    expect(hiddenFromGuests(designed(MEDIA.video), catalog, PRO)).toEqual(['design.backgroundVideo', 'immersive.explore']);
-    expect(hiddenFromGuests(designed(MEDIA.lottie), catalog, PRO)).toEqual(['immersive.explore']);
-    expect(hiddenFromGuests({ ...designed(MEDIA.model), fontPairId: 'fine' }, catalog, BASIC)).toEqual(['design.fontPairs', 'immersive.models3d', 'immersive.explore']);
+    expect(hiddenFromGuests(designed(MEDIA.video), catalog, PRO)).toEqual(['design.backgroundVideo']);
+    expect(hiddenFromGuests(designed(MEDIA.lottie), catalog, PRO)).toEqual([]);
+    expect(hiddenFromGuests({ ...designed(MEDIA.model), fontPairId: 'fine' }, catalog, BASIC)).toEqual(['design.fontPairs', 'immersive.models3d']);
     expect(hiddenFromGuests(designed(MEDIA.model), catalog, PREMIUM)).toEqual([]);
   });
 });

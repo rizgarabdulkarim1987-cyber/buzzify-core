@@ -59,18 +59,18 @@ afterAll(async () => {
 });
 
 describe('loadIntro', () => {
-  it('is null when the intro is off or the plan lacks it', async () => {
+  it('is null when the menu switched the intro off, and shows on every plan', async () => {
     expect(await loadIntro(await tenant(), 'en', new Date())).not.toBeNull();
     await prisma.menu.update({ where: { id: x.menu.id }, data: { introEnabled: false } });
     expect(await loadIntro(await tenant(), 'en', new Date())).toBeNull();
     await prisma.menu.update({ where: { id: x.menu.id }, data: { introEnabled: true } });
     await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC' } });
-    expect(await loadIntro(await tenant(), 'en', new Date())).toBeNull();
+    expect(await loadIntro(await tenant(), 'en', new Date())).not.toBeNull();
   });
 
-  it('is on for one restaurant when the Super Admin grants the feature on a plan without it', async () => {
-    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC', planExtras: { features: { 'menu.intro': true } } } });
-    expect(await loadIntro(await tenant(), 'en', new Date())).not.toBeNull();
+  it('is off for one restaurant when the Super Admin switches the feature off', async () => {
+    await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'BASIC', planExtras: { features: { 'menu.intro': false } } } });
+    expect(await loadIntro(await tenant(), 'en', new Date())).toBeNull();
   });
 
   it('carries the languages of the menu with its default first', async () => {

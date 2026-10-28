@@ -133,24 +133,18 @@ describe('GET /{slug}/t/{table}', () => {
 });
 
 describe('the intro', () => {
-  it('sends a new visitor to the intro, keeping the query', async () => {
+  it('sends a visitor to the intro, keeping the query', async () => {
     const response = await enter('intro-cafe', { search: '?src=card' });
     expect(response.status).toBe(307);
     expect(response.headers.get('location')).toBe('/intro-cafe/intro?src=card');
-    expect(response.headers.get('vary')?.toLowerCase()).toContain('cookie');
   });
 
-  it('sends a visitor with a language cookie straight to that language', async () => {
-    expect((await enter('intro-cafe', { cookie: 'bz_lang_intro-cafe=ar' })).headers.get('location')).toBe('/intro-cafe/ar');
+  it('sends a visitor with a language cookie to the intro as well: every scan meets it', async () => {
+    expect((await enter('intro-cafe', { cookie: 'bz_lang_intro-cafe=ar' })).headers.get('location')).toBe('/intro-cafe/intro');
   });
 
-  it('ignores a cookie for a language the menu does not have, and one for another menu', async () => {
-    expect((await enter('intro-cafe', { cookie: 'bz_lang_intro-cafe=fr' })).headers.get('location')).toBe('/intro-cafe/intro');
-    expect((await enter('intro-cafe', { cookie: 'bz_lang_atelier=ar' })).headers.get('location')).toBe('/intro-cafe/intro');
-  });
-
-  it('never sends a table link to the intro', async () => {
-    expect((await enterTable('intro-cafe', '04')).headers.get('location')).toBe('/intro-cafe/en/t/04');
+  it('sends a table link to the intro, carrying the table', async () => {
+    expect((await enterTable('intro-cafe', '04')).headers.get('location')).toBe('/intro-cafe/intro?table=04');
   });
 
   it('leaves menus with the intro off as they are, cookie or not', async () => {
