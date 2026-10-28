@@ -655,6 +655,10 @@ const SWEPT: Record<string, Case[]> = {
   'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
   'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
   'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
+  // The wheel: B's menu through A's session.
+  'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveWheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId, spinsPerDay: 1, startsAt: null, endsAt: null, title: {}, slices: [] }))],
+  'menus.wheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
