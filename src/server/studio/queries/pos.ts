@@ -13,6 +13,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { idField } from '@/server/studio/services/content';
 import { catalogMenuOf } from '@/server/pos/catalog-menu';
 import { loadTillCatalog } from '@/server/pos/till-catalog';
+import { readExpo } from '@/server/pos/expo';
 import { listPrintersIn } from '@/server/pos/printers';
 import { readPosSettings } from '@/server/pos/settings';
 import { listKitchenSections } from '@/server/pos/kitchen-sections';
@@ -287,6 +288,16 @@ export const posKitchenQueue = defineQuery({
   input: z.object({ sectionId: idField.nullable().optional() }),
   target: () => TILL,
   run: async (ctx, input) => ({ cards: await readKitchenQueue(ctx.db, restaurantOf(ctx), kitchenActor(ctx), input), readAt: new Date() }),
+});
+
+/** The pass: each order's sections, waiting or ready. Not for a kitchen member tied to one section. */
+export const posExpo = defineQuery({
+  name: 'pos.expo',
+  permission: null,
+  pos: 'kitchen.view',
+  input: z.object({}),
+  target: () => TILL,
+  run: async (ctx) => ({ ...(await readExpo(ctx.db, restaurantOf(ctx), kitchenActor(ctx))), readAt: new Date() }),
 });
 
 const ticketInput = z.object({ orderId: idField, batch: z.number().int().min(1).max(2_147_483_647).optional() });
