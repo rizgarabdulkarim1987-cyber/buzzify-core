@@ -5,7 +5,7 @@ import { addPosLine, cancelPosOrder } from '@/server/studio/actions/pos-orders';
 import { payPosOrder } from '@/server/studio/actions/pos-payments';
 import { closePosShift, openPosShift } from '@/server/studio/actions/pos-shifts';
 import { posOffPremiseBoard, posOffPremiseFlags } from '@/server/studio/queries/pos-delivery';
-import { posKitchenQueue, posShift } from '@/server/studio/queries/pos';
+import { posKitchenQueue, posOrder, posShift } from '@/server/studio/queries/pos';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
@@ -142,6 +142,27 @@ describe('cash with the driver', () => {
     expect((await ask(bCashier, posOffPremiseBoard, {})).ok).toBe(true);
     expect(dataOf(await ask(bCashier, posOffPremiseBoard, {})).delivery).toEqual([]);
     dataOf(await run(cashier, closePosShift, { shiftId, countedCash: 7000, note: '' }));
+  });
+
+  it('shows the rounded total the cashier will collect on the cards, the driver list and the shift screen', async () => {
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { roundingStep: 1000 } });
+    const shiftId = dataOf(await run(cashier, openPosShift, { openingFloat: 0 })).shiftId;
+    // 5,000 + a 2,300 fee = 7,300, rounded to 7,000.
+    const d = await open({ ...delivery, deliveryFee: 2300 });
+    const t = await open(takeaway);
+    await prisma().posOrderLine.updateMany({ where: { orderId: t.orderId }, data: { unitPriceSnapshot: 5600 } });
+    const collect = async (orderId: string) => dataOf(await ask(cashier, posOrder, { orderId })).totals.total;
+    expect(await collect(d.orderId)).toBe(7000);
+    expect(await collect(t.orderId)).toBe(6000);
+    let v = d.version;
+    for (const to of ['PREPARING', 'READY']) v = dataOf(await run(cashier, advancePosFulfillment, { orderId: d.orderId, expectedVersion: v, to })).version;
+    v = dataOf(await run(cashier, assignPosDriver, { orderId: d.orderId, expectedVersion: v, driverId })).version;
+    for (const to of ['OUT', 'DELIVERED']) v = dataOf(await run(cashier, advancePosFulfillment, { orderId: d.orderId, expectedVersion: v, to })).version;
+    const board = dataOf(await ask(cashier, posOffPremiseBoard, {}));
+    expect(board.delivery[0]!.total).toBe(7000);
+    expect(board.takeaway[0]!.total).toBe(6000);
+    expect(board.cashWithDrivers).toEqual([{ driverId, driverName: 'Ali', count: 1, amount: 7000 }]);
+    expect(dataOf(await ask(cashier, posShift, { shiftId })).unsettledDeliveries).toEqual({ count: 1, amount: 7000 });
   });
 });
 

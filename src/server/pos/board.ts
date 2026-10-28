@@ -4,7 +4,7 @@ import { LOCKED_STATUSES } from '@/server/domain/pos/order-state';
 import { tableStatus, type TableStatus } from '@/server/domain/pos/table-status';
 import { baghdadDayRange } from '@/lib/baghdad';
 import { pendingByTable } from './customer-orders';
-import { orderTotals, readRates } from './orders';
+import { payableTotal, readRates } from './orders';
 
 export interface BoardView {
   areas: { id: string; name: string; tableCount: number; busyCount: number }[];
@@ -57,7 +57,7 @@ export async function readBoard(db: AnyDb, restaurantId: string, options: { area
       areaId: table.areaId,
       status: tableStatus(order, { hasPendingRequest: (pending.get(table.id) ?? 0) > 0 }),
       seatedAt: order?.seatedAt ?? null,
-      total: order ? orderTotals(order, order.lines, settings).totals.total : 0,
+      total: order ? payableTotal(order, order.lines, settings) : 0,
       orderId: order?.id ?? null,
       orderVersion: order?.version ?? null,
       pendingRequests: pending.get(table.id) ?? 0,

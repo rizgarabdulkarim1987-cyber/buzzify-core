@@ -45,6 +45,11 @@ export function orderTotals(
   return { totals: computeTotals(lines.map(pricedLine), invoiceDiscount, effectiveRates(order.kind, rates), order.kind === 'DELIVERY' ? order.deliveryFee : 0), invoiceDiscount };
 }
 
+/** What the cashier collects for the whole bill: its total rounded to the restaurant's step, as the order screen shows it. */
+export function payableTotal(order: Parameters<typeof orderTotals>[0], lines: readonly PosOrderLine[], rates: Rates & { roundingStep: number }): number {
+  return roundTo(orderTotals(order, lines, rates).totals.total, rates.roundingStep).total;
+}
+
 export interface TillRates extends Rates {
   usdEnabled: boolean;
   usdRate: number;
