@@ -3,7 +3,10 @@ import type { Prisma } from '@/generated/prisma/client';
 import type { ScopedTx } from '@/server/data/tenant-db';
 import { parsePolicy } from '@/server/domain/permissions';
 import { sendAfterResponse } from '@/server/studio/auth/auth';
+import { addPosStaff } from '@/server/pos/staff';
 import { emailField } from '@/server/studio/auth/fields';
+import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
+import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
@@ -151,6 +154,53 @@ export const assignDesigner = defineAction({
       });
       return { assigned: true as const };
     }),
+});
+
+/** The roles a Super Admin hands out here: the till's, not the owner's (an owner is invited, and holds a Studio membership). */
+const TILL_ROLES = ['MANAGER', 'CASHIER', 'KITCHEN'] as const;
+
+/**
+ * Makes a till account for a restaurant: a new person with a password and a role at the till, who is not a Studio
+ * member. The same account the till's own staff page makes; here a Super Admin makes it, for any restaurant.
+ */
+export const addTillStaff = defineAction({
+  name: 'people.addTillStaff',
+  permission: 'people.manage',
+  input: z.object({
+    restaurantId: idField,
+    name: z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters'),
+    email: emailField,
+    role: z.enum(TILL_ROLES),
+    password: z.string().min(1, 'Choose a password').max(1024, 'Use at most 128 characters'),
+  }),
+  target: (i) => atRestaurant(i.restaurantId),
+  run: async (ctx, input) => {
+    const restaurantId = restaurantOf(ctx);
+    let userId: string;
+    try {
+      ({ userId } = await createPasswordUser(ctx.db, { email: input.email, name: input.name, password: input.password, locale: ctx.actor.locale }));
+    } catch (error) {
+      if (error instanceof PasswordPolicyError) throw new StudioError('INVALID', undefined, { password: passwordProblemMessage(error.reason) });
+      if (error instanceof EmailTakenError) throw new StudioError('CONFLICT', 'An account with this email already exists', { email: 'An account with this email already exists' });
+      throw error;
+    }
+    try {
+      return await ctx.transaction(async (tx) => {
+        const { id } = await addPosStaff(tx, { restaurantId, userId, role: input.role });
+        ctx.audit({
+          action: 'pos.staff.create',
+          entityType: 'PosStaff',
+          entityId: id,
+          changes: { role: { before: null, after: input.role }, email: { before: null, after: input.email } },
+        });
+        return { staffId: id };
+      });
+    } catch (error) {
+      // The account was made a moment ago for this till row; without the row it would be an orphan.
+      await ctx.db.user.delete({ where: { id: userId } }).catch(() => undefined);
+      throw error;
+    }
+  },
 });
 
 export const unassignMember = defineAction({
