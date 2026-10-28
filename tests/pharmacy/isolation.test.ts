@@ -7,7 +7,7 @@ import { runAction, type ActionDef } from '@/server/studio/framework/action';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
 import type { ActionResult } from '@/server/studio/framework/result';
 import { dataOf, makeBatch, makeProduct, META } from './stock-helpers';
-import { NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { NOW, grant, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 
 /**
  * Isolation of the stock definitions (phase 2): a person of business A with a valid session who sends a hand-made input
@@ -361,7 +361,8 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
     receiptLines: await prisma().phReceiptLine.findMany({ where: { receiptId: { in: receipts.map((r) => r.id) } }, orderBy }),
     counts,
     countLines: await prisma().phStockCountLine.findMany({ where: { countId: { in: counts.map((c) => c.id) } }, orderBy }),
-    audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId }, orderBy }),
+    // Support reads are logged by design (a granted Super Admin leaves a `support.read` row even when refused): checked on their own.
+    audit: branchId ? undefined : await prisma().auditLog.findMany({ where: { restaurantId: ids.restaurantId, action: { not: 'support.read' } }, orderBy }),
   });
 }
 
@@ -474,5 +475,117 @@ describe('the sweep is not passing because everyone is refused', () => {
     expect(codeOf(all)).toBe('OK');
     expect(json(all)).toContain(a.move1);
     expect(json(all)).not.toContain(a.move2);
+  });
+});
+
+// Roles and support (phase 3) ------------------------------------------------------------------------------------------
+
+/**
+ * Who may call each phase 3 definition, in the caller's own place and naming the pharmacy's own branch-1 documents. A
+ * stock-only role and a Super Admin (with or without a support grant) are refused on every one of them: they cannot sell,
+ * count cash, return or print. An accountant reads (sales, shifts, returns, receipts) but sells and counts no cash; a
+ * cashier works only on their own shift and sales and never returns or cancels. `OK` means the call went through the
+ * permission and scope checks (a cashier's `CONFLICT` is a sale-state refusal, not a permission one).
+ */
+const REFUSED_ALWAYS = ['stock', 'support', 'supportNoGrant'] as const;
+const ROLE_MATRIX: Record<string, { accountant: string; cashier: string }> = {
+  'ph.sales.create': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
+  'ph.sales.get': { accountant: 'OK', cashier: 'NOT_FOUND' },
+  'ph.sales.list': { accountant: 'OK', cashier: 'OK' },
+  'ph.sales.hold': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
+  'ph.sales.resume': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
+  'ph.sales.discardHold': { accountant: 'FORBIDDEN', cashier: 'CONFLICT' },
+  'ph.sales.holds': { accountant: 'FORBIDDEN', cashier: 'OK' },
+  'ph.sell.search': { accountant: 'OK', cashier: 'OK' },
+  'ph.shifts.open': { accountant: 'FORBIDDEN', cashier: 'OK' },
+  'ph.cash.paidIn': { accountant: 'FORBIDDEN', cashier: 'OK' },
+  'ph.cash.paidOut': { accountant: 'FORBIDDEN', cashier: 'OK' },
+  'ph.shifts.close': { accountant: 'OK', cashier: 'FORBIDDEN' },
+  'ph.shifts.current': { accountant: 'FORBIDDEN', cashier: 'OK' },
+  'ph.shifts.report': { accountant: 'OK', cashier: 'NOT_FOUND' },
+  'ph.shifts.list': { accountant: 'OK', cashier: 'OK' },
+  'ph.returns.create': { accountant: 'FORBIDDEN', cashier: 'FORBIDDEN' },
+  'ph.sales.cancel': { accountant: 'FORBIDDEN', cashier: 'FORBIDDEN' },
+  'ph.returns.get': { accountant: 'OK', cashier: 'FORBIDDEN' },
+  'ph.returns.returnable': { accountant: 'OK', cashier: 'FORBIDDEN' },
+  'ph.returns.list': { accountant: 'OK', cashier: 'FORBIDDEN' },
+  'ph.returns.preview': { accountant: 'INVALID', cashier: 'FORBIDDEN' },
+  'ph.receipts.get': { accountant: 'OK', cashier: 'OK' },
+  'ph.receipts.returnReceipt': { accountant: 'OK', cashier: 'OK' },
+  'ph.receipts.reprint': { accountant: 'OK', cashier: 'OK' },
+};
+const PHASE3 = /^ph\.(sales|sell|shifts|cash|returns|receipts)\./;
+
+describe('who may call the phase 3 definitions', () => {
+  let people: Record<'stock' | 'accountant' | 'cashier' | 'support' | 'supportNoGrant', Person>;
+  beforeAll(async () => {
+    const { a } = world;
+    people = {
+      stock: await person('stockA1', { staff: [a.restaurantId, 'STOCK', [a.b1]] }),
+      accountant: await person('accA1', { staff: [a.restaurantId, 'ACCOUNTANT', [a.b1]] }),
+      cashier: await person('cashA1', { staff: [a.restaurantId, 'CASHIER', [a.b1]] }),
+      support: await person('supA', { superAdmin: true }),
+      supportNoGrant: await person('supB', { superAdmin: true }),
+    };
+    await grant(people.support, a.restaurantId, { scopes: ['catalog.read', 'sales.read', 'stock.read'] });
+  });
+
+  it('has a row for every phase 3 definition, and none for one that does not exist', () => {
+    const phase3 = [...DEFINITIONS.keys()].filter((name) => PHASE3.test(name));
+    expect(phase3.filter((name) => ROLE_MATRIX[name] === undefined), 'definitions without a row').toEqual([]);
+    expect(Object.keys(ROLE_MATRIX).filter((name) => !DEFINITIONS.has(name)), 'rows for no definition').toEqual([]);
+  });
+
+  it('refuses a stock-only role, a support grant and a Super Admin with none on every phase 3 definition, and changes nothing', async () => {
+    const { a } = world;
+    const place = { restaurantId: a.restaurantId, branchId: a.b1 };
+    const before = await snapshot(a);
+    for (const name of Object.keys(ROLE_MATRIX)) {
+      for (const who of REFUSED_ALWAYS) {
+        const result = await run(DEFINITIONS.get(name)!, people[who], { ...CASES[name]!.body(a, 1), ...place });
+        expect(codeOf(result), `${name} as ${who}`).toBe('FORBIDDEN');
+        expect(json(result), `${name} as ${who} shows ${a.tradeName}`).not.toContain(a.tradeName);
+      }
+    }
+    expect(await snapshot(a)).toBe(before);
+    // The granted Super Admin left a trail of what they tried to read.
+    expect(await prisma().auditLog.count({ where: { restaurantId: a.restaurantId, actorId: people.support.userId, action: 'support.read' } })).toBeGreaterThan(0);
+  });
+
+  it('keeps the cashier to their own sales and shifts, and away from returns, cancels and other people’s drawers', async () => {
+    const { a } = world;
+    const place = { restaurantId: a.restaurantId, branchId: a.b1 };
+    for (const [name, expected] of Object.entries(ROLE_MATRIX)) {
+      if (name === 'ph.shifts.close') continue;
+      const result = await run(DEFINITIONS.get(name)!, people.cashier, { ...CASES[name]!.body(a, 1), ...place });
+      expect(codeOf(result), `${name} as the cashier`).toBe(expected.cashier);
+    }
+    expect(codeOf(await run(DEFINITIONS.get('ph.shifts.close')!, people.cashier, { ...CASES['ph.shifts.close']!.body(a, 1), ...place }))).toBe('FORBIDDEN');
+    // The cashier's lists show none of the owner's sales or shifts (the cashier has sold nothing).
+    expect(json(await run(DEFINITIONS.get('ph.sales.list')!, people.cashier, place))).not.toContain(a.sale1);
+    expect(json(await run(DEFINITIONS.get('ph.shifts.list')!, people.cashier, place))).not.toContain(a.shift1);
+    // What the cashier did by the way (opening a shift) is the cashier's own and in branch 1.
+    expect(await prisma().phShift.count({ where: { userId: people.cashier.userId, branchId: a.b2 } })).toBe(0);
+    expect(await prisma().phShift.count({ where: { userId: people.cashier.userId, branchId: a.b1 } })).toBe(1);
+  });
+
+  it('lets the accountant read, refuses what sells, counts cash or returns, and keeps the accountant to branch 1', async () => {
+    const { a } = world;
+    const place = { restaurantId: a.restaurantId, branchId: a.b1 };
+    for (const [name, expected] of Object.entries(ROLE_MATRIX)) {
+      if (name === 'ph.shifts.close') continue;
+      const result = await run(DEFINITIONS.get(name)!, people.accountant, { ...CASES[name]!.body(a, 1), ...place });
+      expect(codeOf(result), `${name} as the accountant`).toBe(expected.accountant);
+    }
+    const second = await run(DEFINITIONS.get('ph.sales.get')!, people.accountant, { ...place, saleId: a.sale2 });
+    expect(codeOf(second)).toBe('NOT_FOUND');
+  });
+
+  it('lets a report.view holder close another person’s drawer (the accountant), as the last case: it really closes it', async () => {
+    const { a } = world;
+    const place = { restaurantId: a.restaurantId, branchId: a.b1 };
+    const result = await run(DEFINITIONS.get('ph.shifts.close')!, people.accountant, { ...CASES['ph.shifts.close']!.body(a, 1), ...place });
+    expect(codeOf(result)).toBe(ROLE_MATRIX['ph.shifts.close']!.accountant);
+    expect((await prisma().phShift.findUniqueOrThrow({ where: { id: a.shift1 } })).status).toBe('CLOSED');
   });
 });
