@@ -670,8 +670,8 @@ export function rankMatches(input: MatchInput, candidates: readonly Candidate[])
  *     3000 px  sparse   1.16     0.75       0.48      0.22        0.11      0.031     0.010
  *
  *   The old whole-image Laplacian variance (limit 100) read sigma 3 at 1600 px as 528 to 718, a pass, and could not tell a sparse
- *   page from a blurred one. The limit sits between sigma 1.5 (lowest 0.22, still readable) and sigma 2 (highest 0.17, not) of
- *   that table at its upper edge and well above sigma 3 (highest 0.065); sharp pages (lowest 1.16) are four times above it.
+ *   page from a blurred one. The limit 0.2 sits between sigma 1.5 (lowest 0.22, still readable) and sigma 2 (highest 0.17,
+ *   not), three times above sigma 3 (highest 0.065); sharp pages (lowest 1.16) are almost six times above it.
  * - minMeanLuma: mean grey level 0..255; below 50 the page is under-exposed.
  * - minContrast: standard deviation of the grey level of the whole image; below 25 ink and paper are not separable. (A page
  *   of fewer than about four text rows is mostly paper and reads as low contrast: 8 rows measure 33, 3 rows 20.)
