@@ -512,9 +512,17 @@ function normalisedSearch(search: string): { number: { contains: string } }[] {
 export async function listInvoices(scoped: ScopedClient, ph: PhActor, input: InvoiceListInput): Promise<{ items: InvoiceSummary[]; nextCursor: string | null }> {
   const today = utcToday();
   const search = input.search ? cleanText(input.search) : '';
+  // Continue after the cursor invoice's (invoiceDate, id) read without the filters: a paid or voided cursor invoice may have left the status or overdue filter since the last page.
+  let afterCursor: object[] = [];
+  if (input.cursor) {
+    const at = await scoped.phSupplierInvoice.findFirst({ where: { id: input.cursor }, select: { id: true, invoiceDate: true } });
+    if (!at) throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+    afterCursor = [{ OR: [{ invoiceDate: { lt: at.invoiceDate } }, { invoiceDate: at.invoiceDate, id: { lt: at.id } }] }];
+  }
   const rows = await scoped.phSupplierInvoice.findMany({
     where: {
       AND: [
+        ...afterCursor,
         input.supplierId ? { supplierId: input.supplierId } : {},
         input.status ? { status: input.status } : {},
         input.overdue ? { status: { in: [...OWING] }, dueDate: { lt: midnight(today) } } : {},
@@ -525,7 +533,6 @@ export async function listInvoices(scoped: ScopedClient, ph: PhActor, input: Inv
     include: { supplier: { select: { name: true } } },
     orderBy: [{ invoiceDate: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
-    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
   const more = rows.length > PAGE_SIZE;
   const page = more ? rows.slice(0, PAGE_SIZE) : rows;

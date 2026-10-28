@@ -132,11 +132,13 @@ describe('the supplier statement', () => {
       ['2026-10-10', 'CREDIT_NOTE', 'CN-1', '250000', '850000'],
       ['2026-10-12', 'INVOICE', 'A-4', '300000', '1150000'],
       ['2026-10-15', 'PAYMENT', 'CHQ 2', '200000', '950000'],
-      ['2026-10-20', 'PAYMENT_REVERSAL', 'Paid twice by mistake', '200000', '1150000'],
+      ['2026-10-20', 'PAYMENT_REVERSAL', 'CHQ 2', '200000', '1150000'],
       ['2026-10-27', 'INVOICE_VOID', 'A-4', '300000', '850000'],
     ]);
-    // Every row names the record it came from (the invoice twice: it was billed and then voided).
-    expect(s.rows.map((r: { id: string }) => r.id)).toEqual([ids.inv1, p1.id, ids.inv2, c1.id, ids.inv4, p2.id, r2.id, ids.inv4]);
+    // Every row names the record it came from (the invoice twice: it was billed and then voided) and has an id of its own.
+    expect(new Set(s.rows.map((r: { id: string }) => r.id)).size).toBe(8);
+    expect(s.rows[7].id).toBe(`${ids.inv4}#void`);
+    expect(s.rows.map((r: { recordId: string }) => r.recordId)).toEqual([ids.inv1, p1.id, ids.inv2, c1.id, ids.inv4, p2.id, r2.id, ids.inv4]);
     expect(s.totalsByKind).toEqual({ INVOICE: '1800000', PAYMENT: '600000', PAYMENT_REVERSAL: '200000', CREDIT_NOTE: '250000', INVOICE_VOID: '300000' });
     // Open invoices: Inv1 1,000,000 - 400,000 = 600,000 and Inv2 500,000 - 100,000 = 400,000; unapplied credit 150,000: 1,000,000 - 150,000 = 850,000.
     expect(s.invariant).toEqual({ ok: true, difference: '0' });
@@ -152,7 +154,7 @@ describe('the supplier statement', () => {
       ['2026-10-18', 'PAYMENT', 'WIRE', '5000', '15000'],
       ['2026-10-22', 'CREDIT_NOTE', 'CN-2', '1000', '14000'],
     ]);
-    expect(s.rows[2].id).toBe(c2.id);
+    expect(s.rows[2].recordId).toBe(c2.id);
     // Open Inv3 15,000 minus the unapplied USD credit 1,000.
     expect(s.invariant).toEqual({ ok: true, difference: '0' });
     expect(s.totalsByKind).toEqual({ INVOICE: '20000', PAYMENT: '5000', PAYMENT_REVERSAL: '0', CREDIT_NOTE: '1000', INVOICE_VOID: '0' });
@@ -167,7 +169,7 @@ describe('the supplier statement', () => {
       ['2026-10-10', 'CREDIT_NOTE', 'CN-1', '250000', '850000'],
       ['2026-10-12', 'INVOICE', 'A-4', '300000', '1150000'],
       ['2026-10-15', 'PAYMENT', 'CHQ 2', '200000', '950000'],
-      ['2026-10-20', 'PAYMENT_REVERSAL', 'Paid twice by mistake', '200000', '1150000'],
+      ['2026-10-20', 'PAYMENT_REVERSAL', 'CHQ 2', '200000', '1150000'],
       ['2026-10-27', 'INVOICE_VOID', 'A-4', '300000', '850000'],
     ]);
     expect(s.closing).toBe('850000');
@@ -224,7 +226,12 @@ describe('the supplier statement', () => {
   it('refuses a range over a year, an upside-down range, and a bad date; one year exactly is fine', async () => {
     const w = await world();
     const bad = async (body: Record<string, unknown>) => codeOf(await ask(w.owner, payables.statement, { ...at(w), supplierId: w.supplierId, currency: 'IQD', ...body }));
-    expect(await bad({ from: '2025-10-26', to: '2026-10-27' })).toBe('INVALID');
+    expect(await bad({ from: '2025-10-25', to: '2026-10-27' })).toBe('INVALID');
+    expect(await bad({ from: '2025-10-26', to: '2026-10-27' })).toBe('OK');
+    // A calendar year that holds 29 February: 2027-03-01 to 2028-03-01 is 366 days.
+    expect(await bad({ from: '2027-03-01', to: '2028-02-29' })).toBe('OK');
+    expect(await bad({ from: '2027-03-01', to: '2028-03-01' })).toBe('OK');
+    expect(await bad({ from: '2027-02-27', to: '2028-02-29' })).toBe('INVALID');
     expect(await bad({ from: '2026-10-28', to: '2026-10-27' })).toBe('INVALID');
     expect(await bad({ from: '2026-02-30', to: '2026-10-27' })).toBe('INVALID');
     expect(await bad({ from: '2026-09-01', to: '2026-10-27', currency: 'EUR' })).toBe('INVALID');
@@ -365,6 +372,47 @@ describe('the payables list', () => {
     expect(soon.items.map((i: { id: string }) => i.id)).toEqual([ids.soon]);
     expect((await payablesOf(w, { band: 'OVERDUE_60_PLUS', overdueOnly: true })).items).toHaveLength(1);
     expect((await payablesOf(w, { band: 'NOT_DUE', overdueOnly: true })).items).toHaveLength(0);
+  });
+
+  it('keeps every open payable when the invoice the next page continues from is paid or fully credited in between', async () => {
+    for (const how of ['paid', 'credited'] as const) {
+      await resetWorld();
+      const { w, ids } = await payablesWorld();
+      const all = (await payablesOf(w)).items.map((i: { id: string }) => i.id);
+      const first = await payablesOf(w, { take: 2 });
+      expect(first.items.map((i: { id: string }) => i.id)).toEqual(all.slice(0, 2));
+      expect(first.nextCursor).toBe(ids.d45);
+      if (how === 'paid') dataOf(await pay(w, { amountMinor: '250000', paidOn: '2026-10-21', allocations: [alloc(ids.d45, 250_000)] }));
+      else {
+        const c = dataOf(await note(w, { number: `CN-${how}`, amountMinor: '250000', noteDate: '2026-10-25' }));
+        dataOf(await act(w.owner, payActions.applyCreditNote, { restaurantId: w.a.id, clientKey: nextKey('cr'), creditNoteId: c.id, allocations: [alloc(ids.d45, 250_000)] }));
+      }
+      const second = await payablesOf(w, { take: 10, cursor: first.nextCursor });
+      expect(second.items.map((i: { id: string }) => i.id), how).toEqual(all.slice(2));
+      expect(second.totals.find((t: { currency: string }) => t.currency === 'IQD')!.count).toBe(4);
+    }
+  });
+
+  it('refuses a cursor that names no invoice of the business', async () => {
+    const { w } = await payablesWorld();
+    expect(codeOf(await ask(w.owner, payables.list, { ...at(w), cursor: 'nope' }))).toBe('INVALID');
+  });
+
+  it('puts the edge days in the right band: today, +7, +8, -1, -30, -31, -60, -61', async () => {
+    const w = await world();
+    const due = { 'E-0': '2026-10-27', 'E+7': '2026-11-03', 'E+8': '2026-11-04', 'E-1': '2026-10-26', 'E-30': '2026-09-27', 'E-31': '2026-09-26', 'E-60': '2026-08-28', 'E-61': '2026-08-27' };
+    for (const [number, dueDate] of Object.entries(due)) await invoice(w, 1_000, { number, dueDate });
+    const numbers = async (band: string) => (await payablesOf(w, { band })).items.map((i: { number: string }) => i.number).sort();
+    expect(await numbers('DUE_7')).toEqual(['E+7', 'E-0']);
+    expect(await numbers('NOT_DUE')).toEqual(['E+8']);
+    expect(await numbers('OVERDUE_1_30')).toEqual(['E-1', 'E-30']);
+    expect(await numbers('OVERDUE_31_60')).toEqual(['E-31', 'E-60']);
+    expect(await numbers('OVERDUE_60_PLUS')).toEqual(['E-61']);
+    // The filter and the item's own band agree for every invoice.
+    const every = (await payablesOf(w)).items;
+    for (const band of ['DUE_7', 'NOT_DUE', 'OVERDUE_1_30', 'OVERDUE_31_60', 'OVERDUE_60_PLUS']) {
+      expect(every.filter((i: { dueBand: string }) => i.dueBand === band).map((i: { number: string }) => i.number).sort()).toEqual(await numbers(band));
+    }
   });
 
   it('moves a void invoice, a paid one and a fully credited one out of the list', async () => {

@@ -647,6 +647,24 @@ describe('reading invoices', () => {
     expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(55);
   });
 
+  it('keeps every invoice when the cursor invoice leaves the status filter between two pages', async () => {
+    const w = await world();
+    const rows = Array.from({ length: 55 }, (_, i) => ({
+      restaurantId: w.a.id, supplierId: w.supplierId, number: `Q-${i}`, numberRaw: `Q-${i}`, invoiceDate: new Date('2026-10-21T00:00:00Z'), dueDate: new Date('2026-11-21T00:00:00Z'),
+      currency: 'IQD' as const, totalMinor: 0n, fingerprint: `fq-${i}`, clientKey: `keyset-key-${i}-aaaa`, createdById: w.owner.userId,
+    }));
+    await prisma().phSupplierInvoice.createMany({ data: rows });
+    const first = dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id, status: 'OPEN' }));
+    expect(first.items).toHaveLength(50);
+    // The invoice the next page continues from is paid in the meantime.
+    await prisma().phSupplierInvoice.update({ where: { id: first.nextCursor! }, data: { status: 'PAID' } });
+    const second = dataOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id, status: 'OPEN', cursor: first.nextCursor }));
+    expect(second.items).toHaveLength(5);
+    expect(second.nextCursor).toBeNull();
+    expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(55);
+    expect(codeOf(await ask(w.owner, invoiceQueries.list, { restaurantId: w.a.id, cursor: 'nope' }))).toBe('INVALID');
+  });
+
   it('shows the three cost variances per line (order, received, invoiced) and the positive and negative totals', async () => {
     const w = await world();
     // The order says 2500 and 1000; goods arrive booked at 2600 and 1000; the invoice says 2700, 900 and a line with no order.

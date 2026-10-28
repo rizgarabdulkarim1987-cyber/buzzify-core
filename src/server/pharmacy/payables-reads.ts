@@ -28,7 +28,8 @@ import { mayViewCost } from './products';
  * credit note on `noteDate`, and a void on the day of `voidedAt`. Within a day rows keep the order they were made in.
  */
 
-const MAX_RANGE_DAYS = 365;
+/** 366 days apart (to - from), so a range of one calendar year that holds 29 February is allowed. */
+const MAX_RANGE_DAYS = 366;
 export const PAYABLES_PAGE = 50;
 export const BALANCES_LIMIT = 200;
 const DAY_MS = 86_400_000;
@@ -73,7 +74,10 @@ const shownNumber = (stored: string) => stored.split('#void-')[0]!;
 // Statement -------------------------------------------------------------------------------------------------------------
 
 export interface StatementRowView {
+  /** Unique within the statement (a voided invoice has a row for the invoice and one for the void). */
   id: string;
+  /** The invoice, payment or credit note the row comes from. */
+  recordId: string;
   entity: 'INVOICE' | 'PAYMENT' | 'CREDIT_NOTE';
   kind: StatementKind;
   date: string;
@@ -114,6 +118,7 @@ async function netEffect(scoped: ScopedClient, supplierId: string, currency: 'IQ
 
 interface Entry {
   id: string;
+  rowId: string;
   entity: StatementRowView['entity'];
   kind: StatementKind;
   day: string;
@@ -141,17 +146,22 @@ export async function supplierStatement(scoped: ScopedClient, ph: PhActor, input
   const [invoices, voids, payments, notes, opening] = await Promise.all([
     scoped.phSupplierInvoice.findMany({ where: { ...bySupplier, invoiceDate: inRange }, select: { id: true, numberRaw: true, invoiceDate: true, totalMinor: true, createdAt: true } }),
     scoped.phSupplierInvoice.findMany({ where: { ...bySupplier, status: 'VOID', voidedAt: inRange }, select: { id: true, numberRaw: true, totalMinor: true, voidedAt: true } }),
-    scoped.phSupplierPayment.findMany({ where: { ...bySupplier, paidOn: inRange }, select: { id: true, reference: true, isReversal: true, amountMinor: true, paidOn: true, createdAt: true } }),
+    scoped.phSupplierPayment.findMany({ where: { ...bySupplier, paidOn: inRange }, select: { id: true, reference: true, reversesId: true, isReversal: true, amountMinor: true, paidOn: true, createdAt: true } }),
     scoped.phCreditNote.findMany({ where: { ...bySupplier, noteDate: inRange }, select: { id: true, number: true, amountMinor: true, noteDate: true, createdAt: true } }),
     netEffect(scoped, supplier.id, currency, { lt: lo }),
   ]);
 
+  // A reversal's own reference is the reason given (free text): the statement shows the payment it undid instead.
+  const reversed = [...new Set(payments.flatMap((r) => (r.reversesId ? [r.reversesId] : [])))];
+  const originals = new Map(
+    reversed.length === 0 ? [] : (await scoped.phSupplierPayment.findMany({ where: { id: { in: reversed } }, select: { id: true, reference: true } })).map((r) => [r.id, r.reference] as const),
+  );
   const entries: Entry[] = [
-    ...invoices.map((r): Entry => ({ id: r.id, entity: 'INVOICE', kind: 'INVOICE', day: iso(r.invoiceDate), stamp: r.createdAt.getTime(), ref: r.numberRaw, amountMinor: r.totalMinor })),
-    ...voids.map((r): Entry => ({ id: r.id, entity: 'INVOICE', kind: 'INVOICE_VOID', day: iso(r.voidedAt!), stamp: r.voidedAt!.getTime(), ref: r.numberRaw, amountMinor: r.totalMinor })),
-    ...payments.map((r): Entry => ({ id: r.id, entity: 'PAYMENT', kind: r.isReversal ? 'PAYMENT_REVERSAL' : 'PAYMENT', day: iso(r.paidOn), stamp: r.createdAt.getTime(), ref: r.reference, amountMinor: r.amountMinor })),
-    ...notes.map((r): Entry => ({ id: r.id, entity: 'CREDIT_NOTE', kind: 'CREDIT_NOTE', day: iso(r.noteDate), stamp: r.createdAt.getTime(), ref: r.number, amountMinor: r.amountMinor })),
-  ].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.stamp - b.stamp || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+    ...invoices.map((r): Entry => ({ id: r.id, rowId: r.id, entity: 'INVOICE', kind: 'INVOICE', day: iso(r.invoiceDate), stamp: r.createdAt.getTime(), ref: r.numberRaw, amountMinor: r.totalMinor })),
+    ...voids.map((r): Entry => ({ id: r.id, rowId: `${r.id}#void`, entity: 'INVOICE', kind: 'INVOICE_VOID', day: iso(r.voidedAt!), stamp: r.voidedAt!.getTime(), ref: r.numberRaw, amountMinor: r.totalMinor })),
+    ...payments.map((r): Entry => ({ id: r.id, rowId: r.id, entity: 'PAYMENT', kind: r.isReversal ? 'PAYMENT_REVERSAL' : 'PAYMENT', day: iso(r.paidOn), stamp: r.createdAt.getTime(), ref: r.reversesId ? (originals.get(r.reversesId) ?? '') : r.reference, amountMinor: r.amountMinor })),
+    ...notes.map((r): Entry => ({ id: r.id, rowId: r.id, entity: 'CREDIT_NOTE', kind: 'CREDIT_NOTE', day: iso(r.noteDate), stamp: r.createdAt.getTime(), ref: r.number, amountMinor: r.amountMinor })),
+  ].sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : a.stamp - b.stamp || (a.rowId < b.rowId ? -1 : a.rowId > b.rowId ? 1 : 0)));
 
   const built = buildStatement({
     openingMinor: opening,
@@ -160,7 +170,8 @@ export async function supplierStatement(scoped: ScopedClient, ph: PhActor, input
   const counts = Object.fromEntries(KINDS.map((k) => [k, entries.filter((e) => e.kind === k).length])) as Record<StatementKind, number>;
   const withCost = mayViewCost(ph);
   const rows = entries.map((e, n): StatementRowView => ({
-    id: e.id,
+    id: e.rowId,
+    recordId: e.id,
     entity: e.entity,
     kind: e.kind,
     date: e.day,
@@ -248,21 +259,28 @@ export async function listPayables(scoped: ScopedClient, ph: PhActor, input: Pay
   const today = utcToday();
   const take = input.take ?? PAYABLES_PAGE;
   const window = input.band ? dueWindow(input.band, today) : null;
-  const where = {
+  const base = {
     status: { in: [...OWING] },
     ...(input.supplierId ? { supplierId: input.supplierId } : {}),
     ...(input.currency ? { currency: input.currency } : {}),
     AND: [...(window ? [{ dueDate: window }] : []), ...(input.overdueOnly ? [{ dueDate: { lt: midnight(today) } }] : [])],
   };
+  // The page continues after the cursor invoice's (dueDate, id), read without the filters: that invoice may have been paid or
+  // credited since the last page, and a cursor that is itself filtered out must not make the next page skip or lose a row.
+  let afterCursor: object[] = [];
+  if (input.cursor) {
+    const at = await scoped.phSupplierInvoice.findFirst({ where: { id: input.cursor }, select: { id: true, dueDate: true } });
+    if (!at) throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+    afterCursor = [{ OR: [{ dueDate: { gt: at.dueDate } }, { dueDate: at.dueDate, id: { gt: at.id } }] }];
+  }
   const [rows, groups] = await Promise.all([
     scoped.phSupplierInvoice.findMany({
-      where,
+      where: { ...base, AND: [...base.AND, ...afterCursor] },
       include: { supplier: { select: { name: true } } },
       orderBy: [{ dueDate: 'asc' }, { id: 'asc' }],
       take: take + 1,
-      ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
     }),
-    scoped.phSupplierInvoice.groupBy({ by: ['currency', 'dueDate'], where, _count: { _all: true }, _sum: { totalMinor: true, paidMinor: true, creditedMinor: true } }),
+    scoped.phSupplierInvoice.groupBy({ by: ['currency', 'dueDate'], where: base, _count: { _all: true }, _sum: { totalMinor: true, paidMinor: true, creditedMinor: true } }),
   ]);
   const withCost = mayViewCost(ph);
   const more = rows.length > take;

@@ -544,8 +544,16 @@ export async function listPurchaseOrders(
   input: PoListInput & { branchId?: string },
 ): Promise<{ items: PoSummary[]; nextCursor: string | null }> {
   const search = input.search ? cleanText(input.search) : '';
+  // Continue after the cursor order's (createdAt, id) read without the filters: an order that changed status since the last page may have left the status filter.
+  let afterCursor: object[] = [];
+  if (input.cursor) {
+    const at = await scoped.phPurchaseOrder.findFirst({ where: { id: input.cursor }, select: { id: true, createdAt: true } });
+    if (!at) throw new StudioError('INVALID', 'Check the highlighted fields', { cursor: 'This page of results is no longer available' });
+    afterCursor = [{ OR: [{ createdAt: { lt: at.createdAt } }, { createdAt: at.createdAt, id: { lt: at.id } }] }];
+  }
   const rows = await scoped.phPurchaseOrder.findMany({
     where: {
+      AND: afterCursor,
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(input.status ? { status: input.status } : {}),
       ...(input.supplierId ? { supplierId: input.supplierId } : {}),
@@ -566,7 +574,6 @@ export async function listPurchaseOrders(
     },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: PAGE_SIZE + 1,
-    ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
   });
   const more = rows.length > PAGE_SIZE;
   const page = more ? rows.slice(0, PAGE_SIZE) : rows;

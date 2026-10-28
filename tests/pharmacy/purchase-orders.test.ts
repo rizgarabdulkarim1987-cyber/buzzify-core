@@ -486,6 +486,27 @@ describe('reading purchase orders', () => {
     expect(byStatus.items[0]).toMatchObject({ supplierName: 'Al-Noor', currency: 'IQD', totalMinor: '0', lineCount: 0 });
   });
 
+  it('keeps every order when the cursor order leaves the status filter between two pages', async () => {
+    const w = await world();
+    const rows = Array.from({ length: 55 }, (_, i) => ({
+      restaurantId: w.a.id,
+      branchId: w.a.branchId,
+      supplierId: w.supplierId,
+      currency: 'IQD' as const,
+      clientKey: `keyset-po-${String(i).padStart(2, '0')}-aaaa`,
+      createdById: w.owner.userId,
+      createdAt: new Date(NOW.getTime() + i * 1000),
+    }));
+    await prisma().phPurchaseOrder.createMany({ data: rows });
+    const first = dataOf(await ask(w.owner, poQueries.list, { restaurantId: w.a.id, status: 'DRAFT' }));
+    expect(first.items).toHaveLength(50);
+    await prisma().phPurchaseOrder.update({ where: { id: first.nextCursor! }, data: { status: 'CANCELLED' } });
+    const second = dataOf(await ask(w.owner, poQueries.list, { restaurantId: w.a.id, status: 'DRAFT', cursor: first.nextCursor }));
+    expect(second.items).toHaveLength(5);
+    expect(new Set([...first.items, ...second.items].map((i) => i.id)).size).toBe(55);
+    expect(codeOf(await ask(w.owner, poQueries.list, { restaurantId: w.a.id, cursor: 'nope' }))).toBe('INVALID');
+  });
+
   it('gets one order with labels, ordered / received / invoiced / to receive per line, and totals', async () => {
     const w = await world();
     const o = await placed(w);
