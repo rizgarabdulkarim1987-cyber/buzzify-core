@@ -586,7 +586,7 @@ function nameScore(a: string, b: string): number {
  * The stored-code spellings a scan can mean: the text itself, and for a GS1 element string or a GTIN-14 the GTIN-14 and its
  * EAN-13 form (the leading 0 indicator dropped), since the catalog stores what is printed on the pack.
  */
-function barcodeForms(raw: string): string[] {
+export function barcodeForms(raw: string): string[] {
   const scan = normalizeScan(raw);
   if (scan === '') return [];
   const forms = new Set([scan]);

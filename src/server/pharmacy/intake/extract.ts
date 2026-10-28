@@ -17,6 +17,7 @@ import type { AuditEntry } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
 import { claimFileForExtraction, LEASE_MS, MAX_ATTEMPTS, releaseFile, runPharmacyAi, sweepAiReservations, type AiPricing } from './ai';
+import { matchRows } from './review';
 import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from './storage';
 
 /**
@@ -277,6 +278,9 @@ export async function extractFile(db: Everyone, args: ExtractArgs, deps: Extract
   if (saved.kind === 'lease') return outcome(await statusNow(), 'LEASE_LOST');
   if (saved.kind === 'closed') return failWith('BATCH_NOT_OPEN');
   if (saved.kind === 'reviewed') return failWith('FILE_ALREADY_REVIEWED');
+
+  // The lines meet the catalog. A failure here leaves the rows unmatched (the reviewer can rematch): it never undoes a reading.
+  await matchRows(db, { restaurantId }, file.batchId, now).catch(() => console.error(`[intake] could not match the lines of batch ${file.batchId}`));
 
   const counts: Record<string, number> = {};
   for (const p of flagged) for (const flag of p.flags) counts[flag] = (counts[flag] ?? 0) + 1;

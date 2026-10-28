@@ -7,6 +7,7 @@ import { packLabelOf, validateLadder, type LadderCode, type UnitLevel } from '@/
 import { updateWithVersion } from '@/server/studio/framework/concurrency';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { clearUnitMatches } from './intake/rows';
 import { BARCODE_IN_USE_MESSAGE, barcodeInUse, barcodeRow, heldElsewhere, inUse, syncBarcodes, type SharedCode } from './barcodes';
 
 /**
@@ -484,7 +485,13 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   if (priced > 0 || (await unitsWithStock(tx, removedIds)).length > 0) {
     throw new StudioError('CONFLICT', 'This unit has prices, stock or sales, so it cannot be removed', { phCode: 'UNIT_IN_USE' });
   }
-  if (removedIds.length > 0) await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+  if (removedIds.length > 0) {
+    // Invoice lines of an OPEN intake batch matched to a removed pack go back to unmatched (same transaction); a line of an
+    // approved or cancelled batch is history that points at the unit, so the unit stays (review I5).
+    const intake = await clearUnitMatches(tx, current.restaurantId, removedIds, new Date());
+    if (intake.blocked > 0) throw new StudioError('CONFLICT', 'This unit has prices, stock or sales, so it cannot be removed', { phCode: 'UNIT_IN_USE' });
+    await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+  }
 
   const unitIdByLevel = new Map<number, string>();
   for (const l of levels) {
