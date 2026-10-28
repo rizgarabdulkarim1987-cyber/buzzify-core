@@ -160,7 +160,6 @@ const en: Messages = {
   'about.whatsapp': 'WhatsApp',
   'about.map': 'Open the map',
   'about.closed': 'Closed',
-  'about.overnight': 'until {time} the next day',
   'explore.chapters': 'Chapters',
   'explore.inside': 'What is inside',
   'explore.together': 'Put it back together',

@@ -160,7 +160,6 @@ const ckb: Messages = {
   'about.whatsapp': 'واتساپ',
   'about.map': 'نەخشە بکەرەوە',
   'about.closed': 'داخراوە',
-  'about.overnight': 'تا {time}ی ڕۆژی دواتر',
   'explore.chapters': 'بەشەکان',
   'explore.inside': 'لە ناوەوەدا چییە',
   'explore.together': 'وەک خۆی بیگەڕێنەوە',

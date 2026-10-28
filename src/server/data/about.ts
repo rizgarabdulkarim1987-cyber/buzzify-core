@@ -6,6 +6,7 @@ import { getCatalog } from '@/server/data/public-menu';
 import { getPrisma } from '@/server/data/prisma';
 import { menuDb } from '@/server/data/tenant-db';
 import type { RouteContext } from '@/server/route-context';
+import { DAYS, type Day } from '@/server/domain/restaurant-profile';
 import { aboutIsEmpty, hoursView, offersLiveFor, type HoursRow, type StoryBlock, type StoryByLocale } from '@/server/domain/about';
 import { getTranslator } from '@/lib/messages';
 import { loadAssets, resolveDraftMedia } from '@/server/media/resolve';
@@ -25,6 +26,9 @@ export interface AboutOfferView {
 }
 
 export interface AboutView {
+  /** The menu's time zone and the weekday it is in there now, so the hours table marks today the same on the server and in the browser. */
+  timeZone: string;
+  today: Day;
   /** What the guest reads on the tab and in the header: the restaurant's title, else "Explore" in the guest's language. */
   title: string;
   cover: ImageItem | null;
@@ -56,6 +60,11 @@ function pickStory(story: unknown, locale: Locale, defaultLocale: Locale): Story
     if (Array.isArray(blocks) && blocks.length > 0) return blocks;
   }
   return [];
+}
+
+function dayIn(now: Date, timeZone: string): Day {
+  const name = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(now).slice(0, 3).toLowerCase();
+  return DAYS.find((day) => day === name) ?? 'mon';
 }
 
 /**
@@ -109,6 +118,8 @@ export async function loadAbout(route: RouteContext): Promise<AboutView | null> 
   const customTitle = pickText(tenant.extras.aboutTitle, locale, defaultLocale);
 
   return {
+    timeZone: tenant.timeZone,
+    today: dayIn(now, tenant.timeZone),
     title: customTitle || getTranslator(locale)('about.title'),
     cover: imageOf(about?.coverAssetId),
     story: pickStory(about?.story, locale, defaultLocale),

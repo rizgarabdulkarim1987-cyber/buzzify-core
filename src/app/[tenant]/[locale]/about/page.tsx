@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTranslator } from '@/lib/messages';
 import { loadAbout } from '@/server/data/about';
+import { AboutPage } from '@/ui/about/AboutPage';
 import { resolvePublicRoute, searchString, withPublicMenu, type SearchParams } from '@/server/public-page';
 
 export async function generateMetadata({
@@ -28,6 +29,6 @@ export default async function Page({
     // Off, not in the plan, or nothing filled in: the page does not exist, so it answers like any other missing page.
     const view = await loadAbout(route);
     if (!view) notFound();
-    return <main><h1>{view.title}</h1></main>;
+    return <AboutPage view={view} />;
   });
 }

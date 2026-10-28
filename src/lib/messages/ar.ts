@@ -168,7 +168,6 @@ const ar: Messages = {
   'about.whatsapp': 'واتساب',
   'about.map': 'افتح الخريطة',
   'about.closed': 'مغلق',
-  'about.overnight': 'حتى {time} من اليوم التالي',
   'explore.chapters': 'الأقسام',
   'explore.inside': 'ما بداخله',
   'explore.together': 'أعده كما كان',

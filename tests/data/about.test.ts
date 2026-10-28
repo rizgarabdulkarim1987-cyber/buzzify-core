@@ -117,6 +117,13 @@ describe('loadAbout', () => {
     expect(hidden?.contacts).toEqual({});
   });
 
+  it('carries the menu time zone and today in that zone, for the hours table', async () => {
+    await prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
+    const view = await loadAbout(await route());
+    expect(view?.timeZone).toBe('Asia/Baghdad');
+    expect(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']).toContain(view?.today);
+  });
+
   it('shows hours as nothing, never NaN, when the week is empty', async () => {
     await prisma.menuAbout.create({ data: { menuId: x.menu.id, story: { en: [para('Hello')] } } });
     expect((await loadAbout(await route()))?.hours).toBeNull();
