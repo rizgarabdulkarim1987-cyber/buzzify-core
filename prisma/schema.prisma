@@ -1248,6 +1248,17 @@ model PosSettings {
   idleMinutes           Int                @default(15)
   /// A cashier's discount, cancel and refund need a manager PIN on the spot.
   requireApproval       Boolean            @default(true)
+  /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
+  roundingStep          Int                @default(0)
+  /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
+  usdEnabled            Boolean            @default(false)
+  usdRate               Int                @default(0)
+  /// The business details printed on every receipt.
+  invoiceName           String             @default("")
+  invoiceAddress        String             @default("")
+  invoicePhone          String             @default("")
+  invoiceTaxNumber      String             @default("")
+  invoiceFooter         String             @default("")
   /// The menu whose rows are this restaurant's product list; null until the cashier is first set up.
   catalogMenuId         String?
   version               Int                @default(1)

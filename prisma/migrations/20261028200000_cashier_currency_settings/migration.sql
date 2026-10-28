@@ -1,0 +1,9 @@
+-- AlterTable
+ALTER TABLE "PosSettings" ADD COLUMN     "roundingStep" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "usdEnabled" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "usdRate" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "invoiceName" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "invoiceAddress" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "invoicePhone" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "invoiceTaxNumber" TEXT NOT NULL DEFAULT '',
+ADD COLUMN     "invoiceFooter" TEXT NOT NULL DEFAULT '';

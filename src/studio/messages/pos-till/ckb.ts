@@ -131,6 +131,7 @@ const posTill: Messages = {
   'error.text.posHandedOver': 'داواکارییەکە ڕادەستکرا و ئیتر ناگۆڕدرێت',
   'error.text.posAddressRequired': 'ناونیشانەکە بنووسە',
   'error.text.posNameTooLong': 'زۆرینە ١٢٠ پیت بەکاربهێنە',
+  'error.text.posUsdRate': 'نرخی دۆلار بنووسە',
   'error.text.posOperationApplied': 'ئەم کردارە پێشتر بۆ سێرڤەر نێردراوە',
   'error.text.posBadStep': 'ئەم هەنگاوە لەم دۆخەی داواکارییەدا ڕێگەپێدراو نییە',
   'activity.entity.PosDeliveryZone': 'ناوچەی گەیاندن',

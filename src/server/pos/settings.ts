@@ -19,6 +19,14 @@ export interface PosSettingsView {
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
   idleMinutes: number;
+  roundingStep: number;
+  usdEnabled: boolean;
+  usdRate: number;
+  invoiceName: string;
+  invoiceAddress: string;
+  invoicePhone: string;
+  invoiceTaxNumber: string;
+  invoiceFooter: string;
   requireApproval: boolean;
   catalogMenuId: string | null;
   version: number;
@@ -39,6 +47,14 @@ export const POS_SETTINGS_DEFAULTS: PosSettingsView = {
   deliveryEnabled: false,
   complaintsEnabled: false,
   idleMinutes: 15,
+  roundingStep: 0,
+  usdEnabled: false,
+  usdRate: 0,
+  invoiceName: '',
+  invoiceAddress: '',
+  invoicePhone: '',
+  invoiceTaxNumber: '',
+  invoiceFooter: '',
   requireApproval: true,
   catalogMenuId: null,
   version: 0,
@@ -56,6 +72,14 @@ type Row = {
   deliveryEnabled: boolean;
   complaintsEnabled: boolean;
   idleMinutes: number;
+  roundingStep: number;
+  usdEnabled: boolean;
+  usdRate: number;
+  invoiceName: string;
+  invoiceAddress: string;
+  invoicePhone: string;
+  invoiceTaxNumber: string;
+  invoiceFooter: string;
   requireApproval: boolean;
   catalogMenuId: string | null;
   version: number;
@@ -74,6 +98,14 @@ function view(row: Row): PosSettingsView {
     deliveryEnabled: row.deliveryEnabled,
     complaintsEnabled: row.complaintsEnabled,
     idleMinutes: row.idleMinutes,
+    roundingStep: row.roundingStep,
+    usdEnabled: row.usdEnabled,
+    usdRate: row.usdRate,
+    invoiceName: row.invoiceName,
+    invoiceAddress: row.invoiceAddress,
+    invoicePhone: row.invoicePhone,
+    invoiceTaxNumber: row.invoiceTaxNumber,
+    invoiceFooter: row.invoiceFooter,
     requireApproval: row.requireApproval,
     catalogMenuId: row.catalogMenuId,
     version: row.version,

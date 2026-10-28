@@ -38,7 +38,7 @@ const TILL = { kind: 'pos' } as const;
 /** The same, confined to the restaurant's product-list menu and holding the Studio's content permissions there. */
 const CATALOG = { kind: 'pos', catalog: true } as const;
 const version = z.number().int().min(1);
-const sectionName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
+const sectionName = z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters');
 
 const percent = z.number().int().min(0).max(100);
 
@@ -66,8 +66,17 @@ export const updatePosSettings = defineAction({
     // 0 switches the idle sign-out off.
     idleMinutes: z.number().int().min(0).max(240),
     requireApproval: z.boolean(),
+    // The payable total rounds to a multiple of this many dinars; 0 switches rounding off.
+    roundingStep: z.union([z.literal(0), z.literal(250), z.literal(500), z.literal(1000)]).default(0),
+    usdEnabled: z.boolean().default(false),
+    usdRate: z.number().int().min(0).max(100_000).default(0),
+    invoiceName: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceAddress: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoicePhone: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceTaxNumber: z.string().trim().max(120, 'Use at most 120 characters').default(''),
+    invoiceFooter: z.string().trim().max(120, 'Use at most 120 characters').default(''),
     version: z.number().int().min(0),
-  }),
+  }).refine((input) => !input.usdEnabled || input.usdRate > 0, { message: 'Enter the dollar rate', path: ['usdRate'] }),
   target: () => TILL,
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
@@ -411,7 +420,7 @@ export const posImportDiscard = defineAction({
 
 // The floor: areas and tables ------------------------------------------------------------------------------------------
 
-const areaName = z.string().trim().min(1, 'Enter a name').max(60, 'Use at most 60 characters');
+const areaName = z.string().trim().min(1, 'Enter a name').max(120, 'Use at most 120 characters');
 const tableNumber = z.number().int().min(1).max(100_000);
 
 export const createPosArea = defineAction({

@@ -131,6 +131,7 @@ const posTill: Messages = {
   'error.text.posHandedOver': 'The order was handed over and can no longer change',
   'error.text.posAddressRequired': 'Enter an address',
   'error.text.posNameTooLong': 'Use at most 120 characters',
+  'error.text.posUsdRate': 'Enter the dollar rate',
   'error.text.posOperationApplied': 'This operation was already sent to the server',
   'error.text.posBadStep': 'That step is not allowed from the order’s current state',
   'activity.entity.PosDeliveryZone': 'Delivery zone',

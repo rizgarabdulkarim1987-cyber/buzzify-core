@@ -131,6 +131,7 @@ const posTill: Messages = {
   'error.text.posHandedOver': 'سُلّم الطلب ولم يعد قابلاً للتعديل',
   'error.text.posAddressRequired': 'أدخل العنوان',
   'error.text.posNameTooLong': 'استخدم 120 حرفاً كحد أقصى',
+  'error.text.posUsdRate': 'أدخل سعر الدولار',
   'error.text.posOperationApplied': 'هذه العملية أُرسلت للسيرفر من قبل',
   'error.text.posBadStep': 'هذه الخطوة غير مسموحة في حالة الطلب الحالية',
   'activity.entity.PosDeliveryZone': 'منطقة توصيل',
