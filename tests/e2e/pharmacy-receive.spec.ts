@@ -135,6 +135,8 @@ function futureDates() {
 }
 
 test.describe('Pharmacy receiving @desktop', () => {
+  // One worker for the whole describe: each worker's hooks switch the shared pharmacy application on and then put it back off, so parallel workers would switch it off under a running test.
+  test.describe.configure({ mode: 'serial' });
   const restaurants: string[] = [];
   const people: string[] = [];
   /** The platform's kill switch for the pharmacy product: switched on for this run and put back after. */
