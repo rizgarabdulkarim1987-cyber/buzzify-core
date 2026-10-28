@@ -1799,11 +1799,13 @@ const pharmacy: Messages = {
   'pharmacy.intake.fail.EXTRACTION_ATTEMPTS_EXHAUSTED': 'ئەم فایلە زۆر جار هەوڵی خوێندنەوەی بۆ دراوە. دێڕەکان بە دەست بنووسە.',
   'pharmacy.intake.fail.NOT_CLAIMABLE': 'ئێستا ناتوانرێت ئەم فایلە بخوێنرێتەوە. لەوانەیە پێشتر خوێنرابێتەوە یان دەستەکەی داخرابێت.',
   'pharmacy.intake.fail.EXTRACTION_INVALID': 'وەڵامی زیرەکی دەستکرد بەکارنەهات. دووبارە هەوڵبدەرەوە یان دێڕەکان بە دەست بنووسە.',
-  'pharmacy.intake.fail.TOO_MANY_LINES': 'ئەم پسوولەیە لە ٢٠٠ دێڕ زیاترە. بیکە بە فایلی بچووکتر یان دێڕەکان بە دەست بنووسە.',
+  'pharmacy.intake.fail.TOO_MANY_LINES': 'ئەم پسوولەیە لە ٢٠٠ دێڕ زیاترە. لە هەر وێنەیەکدا دێڕی کەمتر بگرە یان دێڕەکان بە دەست بنووسە.',
   'pharmacy.intake.fail.FILE_MISSING': 'فایلە پاشەکەوتکراوەکە نەدۆزرایەوە. دووبارە بارکەرەوە.',
   'pharmacy.intake.fail.INTAKE_STORAGE_NOT_CONFIGURED': 'بارکردنی پسوولە هێشتا ڕێک نەخراوە.',
   'pharmacy.intake.fail.BATCH_NOT_OPEN': 'ئەم دەستەیە داخراوە، بۆیە فایلەکانی ناخوێنرێنەوە.',
   'pharmacy.intake.fail.FILE_ALREADY_REVIEWED': 'هەندێک دێڕی ئەم فایلە پێشتر پشکنراون، بۆیە ناتوانرێت دووبارە بخوێنرێتەوە.',
+  'pharmacy.intake.fail.EXTRACTION_TRUNCATED': 'پسوولەکە دێڕی زۆرە بۆ ئەوەی یەک جار بخوێنرێتەوە. لە هەر فایلێکدا دێڕ یان لاپەڕەی کەمتر بارکە یان دێڕەکان بە دەست بنووسە.',
+  'pharmacy.intake.fail.EXTRACTION_SAVE_FAILED': 'پسوولەکە خوێندرایەوە بەڵام دێڕەکان پاشەکەوت نەکران. کەمێکی تر دووبارە هەوڵبدەرەوە.',
 };
 
 export default pharmacy;

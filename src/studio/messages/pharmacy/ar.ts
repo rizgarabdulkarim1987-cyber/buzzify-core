@@ -1799,11 +1799,13 @@ const pharmacy: Messages = {
   'pharmacy.intake.fail.EXTRACTION_ATTEMPTS_EXHAUSTED': 'تمت محاولة قراءة هذا الملف مرات كثيرة. أدخل البنود يدوياً.',
   'pharmacy.intake.fail.NOT_CLAIMABLE': 'لا يمكن قراءة هذا الملف الآن. ربما قُرئ بالفعل أو أن دفعته مغلقة.',
   'pharmacy.intake.fail.EXTRACTION_INVALID': 'تعذّر استخدام إجابة الذكاء الاصطناعي. حاول مرة أخرى أو أدخل البنود يدوياً.',
-  'pharmacy.intake.fail.TOO_MANY_LINES': 'تحتوي هذه الفاتورة على أكثر من 200 بند. قسّمها إلى ملفات أصغر أو أدخل البنود يدوياً.',
+  'pharmacy.intake.fail.TOO_MANY_LINES': 'تحتوي هذه الفاتورة على أكثر من 200 بند. صوّر عدداً أقل من الصفوف في كل صورة أو أدخل البنود يدوياً.',
   'pharmacy.intake.fail.FILE_MISSING': 'تعذّر العثور على الملف المحفوظ. ارفعه من جديد.',
   'pharmacy.intake.fail.INTAKE_STORAGE_NOT_CONFIGURED': 'رفع الفواتير غير مفعّل بعد.',
   'pharmacy.intake.fail.BATCH_NOT_OPEN': 'هذه الدفعة مغلقة، لذا لا يمكن قراءة ملفاتها.',
   'pharmacy.intake.fail.FILE_ALREADY_REVIEWED': 'تمت مراجعة بعض بنود هذا الملف بالفعل، لذا لا يمكن قراءته من جديد.',
+  'pharmacy.intake.fail.EXTRACTION_TRUNCATED': 'عدد بنود الفاتورة كبير جداً للقراءة دفعة واحدة. ارفع عدداً أقل من البنود أو الصفحات في كل ملف أو أدخل البنود يدوياً.',
+  'pharmacy.intake.fail.EXTRACTION_SAVE_FAILED': 'تمت قراءة الفاتورة لكن تعذّر حفظ البنود. حاول مرة أخرى بعد قليل.',
 };
 
 export default pharmacy;

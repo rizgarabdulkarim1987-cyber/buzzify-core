@@ -1805,11 +1805,13 @@ const pharmacy: Messages = {
   'pharmacy.intake.fail.EXTRACTION_ATTEMPTS_EXHAUSTED': 'This file was tried too many times. Enter the lines by hand.',
   'pharmacy.intake.fail.NOT_CLAIMABLE': 'This file cannot be read now. It may already be read, or its batch is closed.',
   'pharmacy.intake.fail.EXTRACTION_INVALID': 'The AI’s answer could not be used. Try again, or enter the lines by hand.',
-  'pharmacy.intake.fail.TOO_MANY_LINES': 'This invoice has more than 200 lines. Split it into smaller files, or enter the lines by hand.',
+  'pharmacy.intake.fail.TOO_MANY_LINES': 'This invoice has more than 200 lines. Photograph fewer rows per picture, or enter the lines by hand.',
   'pharmacy.intake.fail.FILE_MISSING': 'The stored file could not be found. Upload it again.',
   'pharmacy.intake.fail.INTAKE_STORAGE_NOT_CONFIGURED': 'Invoice upload is not set up yet.',
   'pharmacy.intake.fail.BATCH_NOT_OPEN': 'This batch is closed, so its files cannot be read.',
   'pharmacy.intake.fail.FILE_ALREADY_REVIEWED': 'Some lines of this file were already checked, so it cannot be read again.',
+  'pharmacy.intake.fail.EXTRACTION_TRUNCATED': 'The invoice has too many lines to read in one go. Upload fewer lines or pages per file, or enter the lines by hand.',
+  'pharmacy.intake.fail.EXTRACTION_SAVE_FAILED': 'The invoice was read but the lines could not be saved. Try again in a moment.',
 };
 
 export default pharmacy;
