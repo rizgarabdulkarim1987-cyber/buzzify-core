@@ -1,8 +1,8 @@
 'use client';
 
-import { CircleAlert, CircleCheck, ListOrdered, SquarePen } from 'lucide-react';
+import { CircleAlert, CircleCheck, Info, ListOrdered, SquarePen } from 'lucide-react';
 import { useId } from 'react';
-import { formatDate } from '@/studio/format';
+import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { useLocale, useT } from '@/studio/i18n';
 import { Input } from '@/studio/ui/Input';
 import { Amount } from './money-status';
@@ -94,7 +94,7 @@ export function AllocationFields({
                 </span>
                 <span>
                   <span className="text-muted">{t('pharmacy.purchasing.m.col.due')}: </span>
-                  <bdi dir="ltr">{formatDate(`${inv.dueDate}T00:00:00.000Z`, locale)}</bdi>
+                  <bdi dir="ltr">{phDate(`${inv.dueDate}T00:00:00.000Z`, locale)}</bdi>
                 </span>
                 <span>
                   <span className="text-muted">{t('pharmacy.purchasing.m.alloc.remaining')}: </span>
@@ -116,12 +116,14 @@ export function AllocationFields({
         </ol>
       )}
       <p role="status" data-testid="alloc-status" className={`flex items-start gap-2.5 text-sm ${preview.error && preview.error !== 'AMOUNT' ? 'text-danger' : 'text-text'}`}>
-        {preview.error && preview.error !== 'AMOUNT' ? <CircleAlert aria-hidden className="mt-px size-4 shrink-0" /> : <CircleCheck aria-hidden className="mt-px size-4 shrink-0 text-muted" />}
+        {preview.error && preview.error !== 'AMOUNT' ? <CircleAlert aria-hidden className="mt-px size-4 shrink-0" /> : preview.error === 'AMOUNT' ? <Info aria-hidden className="mt-px size-4 shrink-0 text-muted" /> : <CircleCheck aria-hidden className="mt-px size-4 shrink-0 text-muted" />}
         <span className="min-w-0">
           {error ??
             (preview.error && preview.error !== 'AMOUNT'
               ? t(`pharmacy.purchasing.m.alloc.err.${preview.error}`)
-              : t('pharmacy.purchasing.m.alloc.ok'))}
+              : preview.error === 'AMOUNT'
+                ? t('pharmacy.purchasing.m.alloc.typeAmount')
+                : t('pharmacy.purchasing.m.alloc.ok'))}
           {preview.leftoverMinor > 0n && (
             <>
               {' '}

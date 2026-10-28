@@ -1736,6 +1736,12 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.CREDIT_ALREADY_ON_INVOICE': 'ئەم تێبینی کرێدیتە پێشتر لەسەر یەکێک لە پسوولە هەڵبژێردراوەکان بەکارهاتووە؛ تێبینی تەنها یەکجار لەسەر پسوولەیەک دەچێت. پسوولەیەکی تر هەڵبژێرە یان تێبینییەکی تر تۆمار بکە.',
   'pharmacy.purchasing.fail.NOTHING_TO_APPLY': 'هیچ پسوولەیەکی کراوە نییە بۆ بەکارهێنانی کرێدیتەکە لەسەری.',
   'pharmacy.purchasing.fail.INSUFFICIENT_STOCK': 'کاڵای پێویست نییە بۆ گەڕاندنەوە: تەنها {have} لەو خانەیەدا ماوە. دووبارە باری بکە و بڕەکە کەم بکەرەوە.',
+  'pharmacy.purchasing.m.alloc.typeAmount': 'بڕەکە بنووسە بۆ ئەوەی ببینیت بۆ کوێ دەچێت.',
+  'pharmacy.purchasing.m.inv.problem.total': 'کۆی پسوولە دەبێت لە سفر زیاتر بێت. ڕێکخستنەکە بپشکنە.',
+  'pharmacy.purchasing.m.ret.detailHeader': 'زانیاری گەڕاندنەوە',
+  'pharmacy.purchasing.m.pay.detailHeader': 'زانیاری پارەدان',
+  'pharmacy.purchasing.m.cr.detailHeader': 'زانیاری تێبینی کرێدیت',
+  'pharmacy.purchasing.m.ret.qtyReturned': 'بڕی گەڕێندراوە',
 };
 
 export default pharmacy;

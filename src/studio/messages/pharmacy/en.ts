@@ -1742,6 +1742,12 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.CREDIT_ALREADY_ON_INVOICE': 'This credit note is already on one of the chosen invoices; a note goes on a given invoice once. Choose another invoice, or record another note.',
   'pharmacy.purchasing.fail.NOTHING_TO_APPLY': 'There is no open invoice to apply the credit to.',
   'pharmacy.purchasing.fail.INSUFFICIENT_STOCK': 'Not enough stock for the return: only {have} left in that bucket. Reload and lower the quantity.',
+  'pharmacy.purchasing.m.alloc.typeAmount': 'Type the amount to see where it goes.',
+  'pharmacy.purchasing.m.inv.problem.total': 'The invoice total must be above zero. Check the adjustment.',
+  'pharmacy.purchasing.m.ret.detailHeader': 'Return details',
+  'pharmacy.purchasing.m.pay.detailHeader': 'Payment details',
+  'pharmacy.purchasing.m.cr.detailHeader': 'Credit note details',
+  'pharmacy.purchasing.m.ret.qtyReturned': 'Quantity returned',
 };
 
 export default pharmacy;

@@ -1736,6 +1736,12 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.fail.CREDIT_ALREADY_ON_INVOICE': 'إشعار الدائن هذا مطبق بالفعل على إحدى الفواتير المختارة؛ يُطبق الإشعار على فاتورة معينة مرة واحدة. اختر فاتورة أخرى أو سجّل إشعارًا آخر.',
   'pharmacy.purchasing.fail.NOTHING_TO_APPLY': 'لا توجد فاتورة مفتوحة لتطبيق الرصيد عليها.',
   'pharmacy.purchasing.fail.INSUFFICIENT_STOCK': 'لا توجد بضاعة كافية للإرجاع: المتبقي {have} فقط في تلك الخانة. أعد التحميل وخفّض الكمية.',
+  'pharmacy.purchasing.m.alloc.typeAmount': 'اكتب المبلغ لترى أين يذهب.',
+  'pharmacy.purchasing.m.inv.problem.total': 'يجب أن يكون إجمالي الفاتورة أكبر من صفر. راجع التسوية.',
+  'pharmacy.purchasing.m.ret.detailHeader': 'بيانات المرتجع',
+  'pharmacy.purchasing.m.pay.detailHeader': 'بيانات الدفعة',
+  'pharmacy.purchasing.m.cr.detailHeader': 'بيانات إشعار الدائن',
+  'pharmacy.purchasing.m.ret.qtyReturned': 'الكمية المرتجعة',
 };
 
 export default pharmacy;
