@@ -1038,6 +1038,7 @@ const pharmacy: Messages = {
   'pharmacy.shifts.cashier': 'الكاشير',
   'pharmacy.shifts.closedBy': 'أغلقها',
   'pharmacy.shifts.closedByOwner': 'كاشير الوردية',
+  'pharmacy.shifts.approvedBy': 'وافق عليها',
   'pharmacy.shifts.cash': 'النقد في الدرج',
   'pharmacy.shifts.plus': 'زائد',
   'pharmacy.shifts.minus': 'ناقص',

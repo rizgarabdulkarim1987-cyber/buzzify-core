@@ -2658,6 +2658,8 @@ model PhShift {
   varianceMinor     BigInt?
   closeReason       String        @default("")
   approvedById      String?
+  /// Who closed the shift (the signed-in actor); null while open and on shifts closed before this column existed.
+  closedById        String?
   restaurant        Restaurant    @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
   branch            Branch        @relation(fields: [restaurantId, branchId], references: [restaurantId, id], onDelete: NoAction)
 

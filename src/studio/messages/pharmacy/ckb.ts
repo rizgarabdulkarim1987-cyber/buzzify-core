@@ -1038,6 +1038,7 @@ const pharmacy: Messages = {
   'pharmacy.shifts.cashier': 'کاشێر',
   'pharmacy.shifts.closedBy': 'داخستی',
   'pharmacy.shifts.closedByOwner': 'کاشێری ئیشپێکردنەکە',
+  'pharmacy.shifts.approvedBy': 'پەسەندی کرد',
   'pharmacy.shifts.cash': 'کاش لە دڕاوەر',
   'pharmacy.shifts.plus': 'زیاد',
   'pharmacy.shifts.minus': 'کەم',

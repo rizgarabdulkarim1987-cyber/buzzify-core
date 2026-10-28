@@ -124,6 +124,7 @@ export const close = defineAction({
           varianceMinor: { before: null, after: audit.varianceMinor },
           reason: { before: null, after: audit.reason },
           approvedById: { before: null, after: audit.approvedById },
+          closedById: { before: null, after: audit.closedById },
         },
       });
       return result;

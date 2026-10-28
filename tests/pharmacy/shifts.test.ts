@@ -439,6 +439,26 @@ describe('closing a shift', () => {
     expect((await shiftRow(id)).approvedById).toBeNull();
   });
 
+  it('records who closed the shift on every close, apart from the approver of an over-limit difference', async () => {
+    const w = await world({ limit: 100n });
+    // Own close: the cashier is the closer, nobody approves.
+    const own = await opened(w, w.cashier, 1000n);
+    expect(dataOf(await close(w, w.cashier, own, 1000n))).toMatchObject({ closedById: w.cashier.userId, approvedById: null });
+    expect(await shiftRow(own)).toMatchObject({ closedById: w.cashier.userId, approvedById: null });
+    // A manager closes another person's drawer within the limit: the manager is the closer, there is no approver.
+    const other = await opened(w, w.cashier2, 1000n);
+    const closed = dataOf(await close(w, w.manager, other, 950n, { reason: 'Counted for the cashier' }));
+    expect(closed).toMatchObject({ closedById: w.manager.userId, approvedById: null });
+    expect(await shiftRow(other)).toMatchObject({ closedById: w.manager.userId, approvedById: null, userId: w.cashier2.userId });
+    // Over the limit the closer is also the approver; the report returns both.
+    const over = await opened(w, w.pharmacist, 1000n);
+    dataOf(await close(w, w.accountant, over, 500n, { reason: 'Drawer was short' }));
+    const got = loose<{ shift: Record<string, unknown> }>(dataOf(await report(w, w.accountant, over)));
+    expect(got.shift).toMatchObject({ closedById: w.accountant.userId, approvedById: w.accountant.userId });
+    const open = await opened(w, w.manager, 100n);
+    expect(loose<{ shift: Record<string, unknown> }>(dataOf(await report(w, w.manager, open))).shift).toMatchObject({ closedById: null });
+  });
+
   it('closing twice is CONFLICT ALREADY_CLOSED and changes nothing', async () => {
     const w = await world();
     const id = await opened(w, w.cashier, 100n);

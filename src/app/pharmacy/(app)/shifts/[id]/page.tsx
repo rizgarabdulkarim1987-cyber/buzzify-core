@@ -48,7 +48,7 @@ export default async function ShiftReportPage({ params }: { params: Promise<{ id
     throw error;
   }
   const { shift, totals } = data;
-  const names = await peopleOf(placeInput, [shift.userId, shift.approvedById]);
+  const names = await peopleOf(placeInput, [shift.userId, shift.closedById, shift.approvedById]);
   const mine = shift.userId === actor.userId;
   const permission = mine ? 'shift.use' : 'report.view';
   const mayClose = shift.status === 'OPEN' && roleMay(actor, permission) && access.writable(permission).ok;

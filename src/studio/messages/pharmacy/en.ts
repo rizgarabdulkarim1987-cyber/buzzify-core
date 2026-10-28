@@ -1044,6 +1044,7 @@ const pharmacy: Messages = {
   'pharmacy.shifts.cashier': 'Cashier',
   'pharmacy.shifts.closedBy': 'Closed by',
   'pharmacy.shifts.closedByOwner': 'The cashier of the shift',
+  'pharmacy.shifts.approvedBy': 'Approved by',
   'pharmacy.shifts.cash': 'Cash in the drawer',
   'pharmacy.shifts.plus': 'plus',
   'pharmacy.shifts.minus': 'minus',

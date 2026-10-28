@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   cashAttempt,
   closeOutcome,
+  closeActors,
   closePlan,
   formatUtc,
   paidOutHint,
@@ -165,5 +166,17 @@ describe('personLabel', () => {
     expect(personLabel({ u1: 'Sara Ali' }, 'cm9abcdefghijkl')).toBe('cm9abcde');
     expect(personLabel({ u1: '  ' }, 'u1')).toBe('u1');
     expect(personLabel({}, 'abc')).toBe('abc');
+  });
+});
+
+describe('closeActors', () => {
+  it('shows the closer, and the approver separately only when it is another person', () => {
+    expect(closeActors({ closedById: 'm1', approvedById: null })).toEqual({ closer: 'm1', approver: null });
+    expect(closeActors({ closedById: 'm1', approvedById: 'm1' })).toEqual({ closer: 'm1', approver: null });
+    expect(closeActors({ closedById: 'm1', approvedById: 'o1' })).toEqual({ closer: 'm1', approver: 'o1' });
+  });
+  it('a shift closed before closedById existed falls back to its approver, else nobody (the cashier)', () => {
+    expect(closeActors({ closedById: null, approvedById: 'o1' })).toEqual({ closer: 'o1', approver: null });
+    expect(closeActors({ closedById: null, approvedById: null })).toEqual({ closer: null, approver: null });
   });
 });

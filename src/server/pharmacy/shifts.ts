@@ -18,7 +18,7 @@ import { cashTotals } from './shifts-reads';
  *
  * Approval (a ruling, task 4): a variance above `PhSettings.shiftVarianceLimitMinor` (when it is above 0) can only be
  * closed by a person who holds `report.view` (the owner, a manager, the pharmacist in charge, an accountant). That
- * person is the signed-in actor, so `approvedById` is authenticated; nobody is named by id. A cashier meets
+ * person is the signed-in actor, so `approvedById` is authenticated; nobody is named by id. `closedById` is the actor of every close (the owner of the shift or somebody closing it for them); `approvedById` stays for the over-limit approval only. A cashier meets
  * NEEDS_APPROVAL and asks a manager to close the shift.
  */
 
@@ -237,6 +237,7 @@ export interface CloseResult {
   countedMinor: string;
   varianceMinor: string;
   approvedById: string | null;
+  closedById: string;
   closedAt: string;
 }
 
@@ -250,6 +251,7 @@ export interface CloseAudit {
   varianceMinor: string;
   reason: string;
   approvedById: string | null;
+  closedById: string;
 }
 
 /**
@@ -293,7 +295,7 @@ export async function closeShift(
 
   const done = await tx.phShift.updateMany({
     where: { id: shift.id, status: 'OPEN' },
-    data: { status: 'CLOSED', closedAt: now, expectedMinor: totals.expected, countedMinor: input.countedMinor, varianceMinor: variance, closeReason: reason, approvedById: approverId },
+    data: { status: 'CLOSED', closedAt: now, expectedMinor: totals.expected, countedMinor: input.countedMinor, varianceMinor: variance, closeReason: reason, approvedById: approverId, closedById: userId },
   });
   if (done.count !== 1) throw conflict('ALREADY_CLOSED', 'This shift is already closed');
   return {
@@ -304,6 +306,7 @@ export async function closeShift(
       countedMinor: String(input.countedMinor),
       varianceMinor: String(variance),
       approvedById: approverId,
+      closedById: userId,
       closedAt: now.toISOString(),
     },
     audit: {
@@ -316,6 +319,7 @@ export async function closeShift(
       varianceMinor: String(variance),
       reason,
       approvedById: approverId,
+      closedById: userId,
     },
   };
 }

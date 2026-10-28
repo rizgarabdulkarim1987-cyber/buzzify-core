@@ -3,7 +3,7 @@ import type { Translate } from '@/lib/i18n';
 import type { ShiftTotals, ShiftView } from '@/server/pharmacy/shifts-reads';
 import { Money, Row, FIGURES, ShiftStatus } from './money-parts';
 import { Note, Num } from './sell-parts';
-import { formatUtc, personLabel, shiftCashRows } from './shifts-logic';
+import { closeActors, formatUtc, personLabel, shiftCashRows } from './shifts-logic';
 import { closePlan } from './shifts-logic';
 
 /**
@@ -15,6 +15,7 @@ export function ShiftFigures({ shift, totals, t, names = {} }: { shift: ShiftVie
   const cur = shift.currency;
   const rows = shiftCashRows(totals);
   const closed = shift.status === 'CLOSED';
+  const { closer, approver } = closeActors(shift);
   const variance = closed && shift.varianceMinor !== null ? BigInt(shift.varianceMinor) : null;
   return (
     <div className="flex min-w-0 flex-col gap-5" data-testid="shift-figures">
@@ -36,7 +37,15 @@ export function ShiftFigures({ shift, totals, t, names = {} }: { shift: ShiftVie
         {closed && (
           <>
             <dt className="text-muted">{t('pharmacy.shifts.closedBy')}</dt>
-            <dd data-testid="closed-by">{shift.approvedById ? <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, shift.approvedById)}</span> : t('pharmacy.shifts.closedByOwner')}</dd>
+            <dd data-testid="closed-by">
+              {closer ? <Person names={names} id={closer} /> : t('pharmacy.shifts.closedByOwner')}
+            </dd>
+            {approver && (
+              <>
+                <dt className="text-muted">{t('pharmacy.shifts.approvedBy')}</dt>
+                <dd data-testid="approved-by"><Person names={names} id={approver} /></dd>
+              </>
+            )}
           </>
         )}
       </dl>
@@ -143,4 +152,8 @@ export function VarianceNote({ variance, currency, reason, t }: { variance: bigi
       )}
     </div>
   );
+}
+
+function Person({ names, id }: { names: Record<string, string>; id: string }) {
+  return <span dir="auto" className="break-words [overflow-wrap:anywhere]">{personLabel(names, id)}</span>;
 }

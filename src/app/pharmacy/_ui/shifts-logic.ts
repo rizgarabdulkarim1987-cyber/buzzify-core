@@ -145,3 +145,12 @@ export function personLabel(names: Readonly<Record<string, string>>, id: string)
   const name = names[id]?.trim();
   return name ? name : shortId(id);
 }
+
+/**
+ * Who closed a shift and who approved its over-limit difference. Shifts closed before `closedById` existed fall back to
+ * the approver (the only actor they recorded); `approver` is given only when it is a different person from the closer.
+ */
+export function closeActors(shift: { closedById: string | null; approvedById: string | null }): { closer: string | null; approver: string | null } {
+  const closer = shift.closedById ?? shift.approvedById;
+  return { closer, approver: shift.approvedById && shift.approvedById !== closer ? shift.approvedById : null };
+}

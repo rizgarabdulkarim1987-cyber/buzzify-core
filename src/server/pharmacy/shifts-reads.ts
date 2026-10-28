@@ -42,6 +42,7 @@ export interface ShiftView {
   varianceMinor: string | null;
   closeReason: string;
   approvedById: string | null;
+  closedById: string | null;
 }
 
 export interface ShiftRow {
@@ -58,6 +59,7 @@ export interface ShiftRow {
   varianceMinor: bigint | null;
   closeReason: string;
   approvedById: string | null;
+  closedById: string | null;
 }
 
 export const SHIFT_SELECT = {
@@ -74,6 +76,7 @@ export const SHIFT_SELECT = {
   varianceMinor: true,
   closeReason: true,
   approvedById: true,
+  closedById: true,
 } as const;
 
 const str = (v: bigint | null) => (v === null ? null : String(v));
@@ -92,6 +95,7 @@ export const shiftView = (row: ShiftRow): ShiftView => ({
   varianceMinor: str(row.varianceMinor),
   closeReason: row.closeReason,
   approvedById: row.approvedById,
+  closedById: row.closedById,
 });
 
 /** The cash side of a shift, from its movements. Every figure is a not-negative amount except `expected`, which may be. */
