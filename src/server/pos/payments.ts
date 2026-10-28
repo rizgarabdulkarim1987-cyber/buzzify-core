@@ -73,7 +73,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     rates.roundingStep,
   );
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
-  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true } });
+  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true, invoiceTaxNumber: true } });
   const enabled = (settings?.enabledPaymentMethods ?? []) as PosPaymentMethodKey[];
   const legs = input.legs ?? [singleLeg(input, totals.total)];
   const checked = checkLegs(totals.total, legs, input.tip ?? null, enabled);
@@ -86,6 +86,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     deliveryFee: totals.deliveryFee,
     total: totals.total,
     rounding: totals.rounding,
+    ...(settings?.invoiceTaxNumber ? { taxNumber: settings.invoiceTaxNumber } : {}),
     invoiceDiscountInput: invoiceDiscount ? { ...invoiceDiscount, reason: order.invoiceDiscountReason } : null,
     rates: effectiveRates(order.kind, rates),
     lines: live.map((line) => {
@@ -162,6 +163,8 @@ export interface Receipt {
   reference: string | null;
   paidAt: Date;
   cashierName: string | null;
+  /** The business details printed at the top and bottom; the current settings (the tax number is frozen in the snapshot). */
+  business: { name: string; address: string; phone: string; footer: string };
   snapshot: TotalsSnapshot;
   /** The order's version now, which a reversal must quote. */
   orderVersion: number;
@@ -179,6 +182,7 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
   if (!payment) return null;
   const snapshot = parseTotalsSnapshot(payment.id, payment.totalsSnapshot);
   const legs = legsOf(payment, snapshot.total);
+  const details = await db.posSettings.findFirst({ where: { restaurantId }, select: { invoiceName: true, invoiceAddress: true, invoicePhone: true, invoiceFooter: true } });
   const all = await db.posPayment.findMany({ where: { orderId, restaurantId }, orderBy: { part: 'asc' }, select: { id: true, part: true, totalsSnapshot: true } });
   return {
     paymentId: payment.id,
@@ -208,6 +212,7 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
     reference: payment.reference,
     paidAt: payment.paidAt,
     cashierName: payment.user?.name ?? null,
+    business: { name: details?.invoiceName ?? '', address: details?.invoiceAddress ?? '', phone: details?.invoicePhone ?? '', footer: details?.invoiceFooter ?? '' },
     snapshot,
     orderVersion: payment.order.version,
     reversal: payment.reversal

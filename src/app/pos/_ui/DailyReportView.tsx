@@ -48,6 +48,7 @@ export function DailyReportView({ report }: { report: DailyReport }) {
           />
         ) : null}
         {totals.deliveryFeesTotal > 0 ? <Stat label={t('pos.report.deliveryFees')} value={money(totals.deliveryFeesTotal)} /> : null}
+        {totals.roundingTotal !== 0 ? <Stat label={t('pos.report.rounding')} value={money(totals.roundingTotal)} /> : null}
         <Stat label={t('pos.report.expenses')} value={money(totals.expensesTotal)} />
         <Stat label={t('pos.report.cancelled')} value={`${formatNumber(totals.cancelledOrders)} / ${formatNumber(totals.cancelledLines)}`} hint={t('pos.report.cancelledHint')} />
       </dl>
@@ -105,6 +106,7 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
         <Line label={t('pos.report.discounts')} value={money(shift.discountsTotal)} />
         {shift.refundsTotal > 0 ? <Line label={t('pos.report.refunds')} value={money(shift.refundsTotal)} /> : null}
         {shift.deliveryFeesTotal > 0 ? <Line label={t('pos.report.deliveryFees')} value={money(shift.deliveryFeesTotal)} /> : null}
+        {shift.roundingTotal !== 0 ? <Line label={t('pos.report.rounding')} value={money(shift.roundingTotal)} /> : null}
         <Line label={t('pos.shift.expenses')} value={money(shift.expenses.reduce((sum, e) => sum + e.amount, 0))} />
         <Line label={t('pos.shift.expected')} value={money(shift.expectedCash)} />
         {shift.countedCash !== null ? <Line label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}

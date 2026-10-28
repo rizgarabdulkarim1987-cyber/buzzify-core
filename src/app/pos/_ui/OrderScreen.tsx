@@ -394,6 +394,7 @@ export function OrderScreen({
             {order.totals.service > 0 ? <Row label={t('pos.totals.service')} value={money(order.totals.service)} /> : null}
             {order.totals.tax > 0 ? <Row label={t('pos.totals.tax')} value={money(order.totals.tax)} /> : null}
             {order.totals.deliveryFee > 0 ? <Row label={t('pos.totals.deliveryFee')} value={money(order.totals.deliveryFee)} /> : null}
+            {order.totals.rounding !== 0 ? <Row label={t('pos.totals.rounding')} value={`${order.totals.rounding > 0 ? '+' : '−'} ${money(Math.abs(order.totals.rounding))}`} /> : null}
             <div className="mt-2 flex items-baseline justify-between gap-3 rounded-2xl bg-hover px-4 py-3">
               <dt className="text-lg font-bold">{t('pos.calm.finalTotal')}</dt>
               <dd className="text-3xl font-bold tracking-tight">{money(order.totals.total)}</dd>

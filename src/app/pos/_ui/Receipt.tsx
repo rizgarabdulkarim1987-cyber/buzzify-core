@@ -17,6 +17,14 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
   return (
     <div className="mx-auto flex w-full max-w-[80mm] flex-col gap-3 px-4 py-6 print:max-w-none print:p-0">
       <header className="text-center">
+        {receipt.business.name || receipt.business.address || receipt.business.phone || s.taxNumber ? (
+          <div className="mb-2 flex flex-col text-sm text-muted" data-testid="receipt-business">
+            {receipt.business.name ? <strong className="text-lg text-text" dir="auto">{receipt.business.name}</strong> : null}
+            {receipt.business.address ? <span dir="auto">{receipt.business.address}</span> : null}
+            {receipt.business.phone ? <span dir="ltr">{receipt.business.phone}</span> : null}
+            {s.taxNumber ? <span dir="auto">{t('pos.receipt.taxNumber', { n: s.taxNumber })}</span> : null}
+          </div>
+        ) : null}
         <h1 className="text-lg font-semibold">{t('pos.receipt.heading', { n: formatNumber(receipt.orderNumber) })}</h1>
         <p className="text-sm text-muted">
           {receipt.tableNumber !== null ? `${t('pos.receipt.table', { n: formatNumber(receipt.tableNumber) })} · ` : ''}
@@ -62,6 +70,7 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
         {s.service > 0 ? <Line label={t('pos.totals.service')} value={money(s.service)} /> : null}
         {s.tax > 0 ? <Line label={t('pos.totals.tax')} value={money(s.tax)} /> : null}
         {s.deliveryFee > 0 ? <Line label={t('pos.totals.deliveryFee')} value={money(s.deliveryFee)} /> : null}
+        {s.rounding !== 0 ? <Line label={t('pos.totals.rounding')} value={`${s.rounding > 0 ? '+' : '−'} ${money(Math.abs(s.rounding))}`} /> : null}
         <div className="flex justify-between text-lg font-semibold">
           <dt>{t('pos.totals.total')}</dt>
           <dd>{money(s.total)}</dd>
@@ -89,7 +98,7 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
           {receipt.reversal.reference ? <span className="text-sm text-muted" dir="ltr">{receipt.reversal.reference}</span> : null}
         </div>
       ) : null}
-      <p className="text-center text-sm text-muted">{t('pos.receipt.thanks')}</p>
+      <p className="text-center text-sm text-muted" dir="auto">{receipt.business.footer || t('pos.receipt.thanks')}</p>
       <div className="flex flex-col gap-2 print:hidden">
         {receipt.parts.length > 1 ? (
           <nav className="flex flex-wrap gap-2" aria-label={t('pos.receipt.parts')}>
