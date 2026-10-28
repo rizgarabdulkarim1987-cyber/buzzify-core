@@ -226,6 +226,18 @@ describe('batch identity, load and replays', () => {
     expect(await prisma().phReceipt.count()).toBe(1);
   });
 
+  it('a repeated clientKey from another user is refused, even with the same content', async () => {
+    const { a, owner, p } = await world();
+    const input = draft(a.id, a.branchId, [line(p)]);
+    dataOf(await act(owner, receiptActions.create, input));
+    const other = await person('stock-replay', { staff: [a.id, 'STOCK', [a.branchId]] });
+    const again = await act(other, receiptActions.create, input);
+    expect(codeOf(again)).toBe('CONFLICT');
+    expect(again.ok ? null : again.error.fields).toMatchObject({ phCode: 'CLIENT_KEY_MISMATCH' });
+    expect(codeOf(await act(owner, receiptActions.create, input))).toBe('OK');
+    expect(await prisma().phReceipt.count()).toBe(1);
+  });
+
   it('refuses an archived product on a line', async () => {
     const { a, owner, p } = await world();
     await prisma().phProduct.update({ where: { id: p.id }, data: { active: false } });

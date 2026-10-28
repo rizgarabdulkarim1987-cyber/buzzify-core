@@ -180,6 +180,7 @@ export interface DraftResult {
 
 const REPLAY_SELECT = {
   id: true,
+  createdById: true,
   version: true,
   status: true,
   branchId: true,
@@ -197,6 +198,7 @@ const keyMismatch = () =>
 
 type ReplayRow = {
   id: string;
+  createdById: string;
   version: number;
   status: 'DRAFT' | 'CONFIRMED' | 'VOID';
   branchId: string;
@@ -210,15 +212,17 @@ type ReplayRow = {
 };
 
 /**
- * A repeated `clientKey` returns its receipt only when it is the same request: same branch, header and lines. Nothing
+ * A repeated `clientKey` returns its receipt only when it is the same request: same user, same branch, header and lines. Nothing
  * is written. (The lines are validated again so a bad repeat is refused the same way as the first.)
  */
 async function replayOf(
   tx: ScopedTx,
   existing: ReplayRow,
-  args: { restaurantId: string; branchId: string; input: ReceiptInput },
+  args: { restaurantId: string; branchId: string; userId: string; input: ReceiptInput },
 ): Promise<DraftResult> {
   const { input } = args;
+  // The key belongs to whoever first used it: another user's repeat is not a replay.
+  if (existing.createdById !== args.userId) throw keyMismatch();
   const rows = await lineRows(tx, args.restaurantId, existing.id, input.lines);
   // The stored supplier is the order's when there is an order, else exactly what was sent (omitting it is a different request).
   const orderSupplier = existing.purchaseOrderId
