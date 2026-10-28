@@ -6,7 +6,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import { refuse } from './errors';
 import { effectiveRates, loadOrderForChange, optionsSnapshotSchema, orderTotals, pricedLine, readRates } from './orders';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
-import { checkLegs, legsOf, type LegInput, type TipInput } from './payment-legs';
+import { changeOf, checkLegs, legsOf, type LegInput, type TipInput } from './payment-legs';
 import { consumeForPayment } from './recipes';
 import { lockOpenShiftOf } from './shifts';
 import { parseTotalsSnapshot, type TotalsSnapshot } from './totals-snapshot';
@@ -73,10 +73,10 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     rates.roundingStep,
   );
   if (totals.total !== input.expectedTotal) throw refuse('CONFLICT', 'The total changed. Check the bill and try again.');
-  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true, invoiceTaxNumber: true } });
+  const settings = await db.posSettings.findFirst({ where: { restaurantId }, select: { enabledPaymentMethods: true, invoiceTaxNumber: true, usdEnabled: true, usdRate: true } });
   const enabled = (settings?.enabledPaymentMethods ?? []) as PosPaymentMethodKey[];
   const legs = input.legs ?? [singleLeg(input, totals.total)];
-  const checked = checkLegs(totals.total, legs, input.tip ?? null, enabled);
+  const checked = checkLegs(totals.total, legs, input.tip ?? null, enabled, { enabled: settings?.usdEnabled ?? false, rate: settings?.usdRate ?? 0 });
 
   const snapshot: TotalsSnapshot = {
     subtotal: totals.subtotal,
@@ -127,7 +127,7 @@ export async function payOrderIn(db: AnyDb, restaurantId: string, input: PayInpu
     select: { id: true },
   });
   await db.posPaymentLeg.createMany({
-    data: checked.legs.map((leg) => ({ restaurantId, paymentId: payment.id, method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference })),
+    data: checked.legs.map((leg) => ({ restaurantId, paymentId: payment.id, method: leg.method, amount: leg.amount, tendered: leg.tendered, tenderedUsd: leg.tenderedUsd, rate: leg.rate, reference: leg.reference })),
   });
   // The chosen lines belong to this payment now; a line another cashier paid a moment ago matches nothing here.
   const locked = await db.posOrderLine.updateMany({
@@ -155,7 +155,7 @@ export interface Receipt {
   customer: { name: string; phone: string; address: string; addressNote: string; zoneName: string; driverName: string } | null;
   method: string;
   /** How the bill was paid: one leg per method. */
-  legs: { method: string; amount: number; tendered: number | null; reference: string | null }[];
+  legs: { method: string; amount: number; tendered: number | null; reference: string | null; tenderedUsd: number | null; rate: number | null }[];
   /** The tip left on top of the bill (not in the snapshot total); null when none. */
   tip: { amount: number; method: string } | null;
   amountReceived: number;
@@ -205,10 +205,10 @@ export async function readReceipt(db: AnyDb, restaurantId: string, orderId: stri
             driverName: payment.order.driverNameSnapshot,
           },
     method: payment.method,
-    legs: legs.map((leg) => ({ method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference })),
+    legs: legs.map((leg) => ({ method: leg.method, amount: leg.amount, tendered: leg.tendered, reference: leg.reference, tenderedUsd: leg.tenderedUsd, rate: leg.rate })),
     tip: payment.tipAmount > 0 && payment.tipMethod ? { amount: payment.tipAmount, method: payment.tipMethod } : null,
     amountReceived: payment.amountReceived,
-    change: Math.max(0, (legs.find((leg) => leg.method === 'CASH')?.tendered ?? 0) - (legs.find((leg) => leg.method === 'CASH')?.amount ?? 0) - (payment.tipMethod === 'CASH' ? payment.tipAmount : 0)),
+    change: changeOf(legs, payment.tipMethod === 'CASH' ? payment.tipAmount : 0),
     reference: payment.reference,
     paidAt: payment.paidAt,
     cashierName: payment.user?.name ?? null,
