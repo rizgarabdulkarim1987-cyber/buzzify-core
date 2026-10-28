@@ -9,6 +9,7 @@ import { sendAfterResponse } from '@/server/studio/auth/auth';
 import { checkPasswordPolicy, PasswordPolicyError, passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, normalizeEmail } from '@/server/studio/auth/users';
 import { StudioError } from '@/server/studio/framework/result';
+import { TILL_ACCOUNT } from '@/server/studio/services/people';
 
 /**
  * Invitations: the only way to get an account. An invitation is a row and a link. The link carries a token of 32 random
@@ -123,6 +124,7 @@ export async function createInvitation(
       throw invalidEmail('This person already has an account. Assign them to a client instead');
     }
     if (restaurantId !== null) {
+      if (await d.posStaff.findFirst({ where: { userId: existing.id }, select: { id: true } })) throw invalidEmail(TILL_ACCOUNT);
       const membership = await d.membership.findUnique({
         where: { userId_restaurantId: { userId: existing.id, restaurantId } },
         select: { role: true },
@@ -385,6 +387,8 @@ export async function acceptInvitation(
       };
       if (row.restaurantId !== null && row.role !== null) {
         const restaurantId = row.restaurantId;
+        // The person may have become till staff after the invitation was sent.
+        if (await tx.posStaff.findFirst({ where: { userId }, select: { id: true } })) throw new StudioError('CONFLICT', TILL_ACCOUNT);
         const held = await tx.membership.findUnique({ where: { userId_restaurantId: { userId, restaurantId } }, select: { id: true, role: true } });
         if (!held) {
           await tx.membership.create({ data: { userId, restaurantId, role: row.role } });

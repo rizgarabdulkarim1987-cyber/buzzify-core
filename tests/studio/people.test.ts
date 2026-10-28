@@ -402,6 +402,26 @@ describe('memberships', () => {
     expect(codeOf(await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: 'nowhere' }))).toBe('NOT_FOUND');
   });
 
+  it('refuses to make a till account a designer: a person is either till staff or a Studio member', async () => {
+    const till = await person('till');
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    expect(codeOf(await run(admin, people.assignDesigner, { userId: till.userId, restaurantId: atelier.id }))).toBe('CONFLICT');
+    expect(await prisma().membership.count({ where: { userId: till.userId } })).toBe(0);
+  });
+
+  it('refuses to invite a till account into the Studio, and gives no membership on an older invitation', async () => {
+    const till = await person('till');
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    expect(codeOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: till.email }))).toBe('INVALID');
+
+    // An invitation sent before the person became till staff is refused when it is accepted.
+    const other = await person('other');
+    const { url } = dataOf(await run(admin, people.inviteOwner, { restaurantId: atelier.id, email: other.email }));
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: other.userId, role: 'CASHIER' } });
+    await expect(acceptInvitation(prisma(), { token: tokenOf(url), signedInUserId: other.userId, now: new Date() })).rejects.toMatchObject({ code: 'CONFLICT' });
+    expect(await prisma().membership.count({ where: { userId: other.userId } })).toBe(0);
+  });
+
   it('removes a member from one restaurant and leaves their others alone', async () => {
     await run(admin, people.assignDesigner, { userId: dee.userId, restaurantId: bistro.id });
     expect(dataOf(await run(admin, people.unassignMember, { userId: dee.userId, restaurantId: atelier.id }))).toEqual({ unassigned: true });
@@ -557,6 +577,39 @@ describe('deactivating and reactivating', () => {
     expect(await invokePublic(session.signIn, { email: dee.email, password: GOOD })).toMatchObject({ ok: true });
     expect(await audit('user.reactivated')).toMatchObject([{ actorId: admin.userId, entityId: dee.userId }]);
     expect(codeOf(await run(admin, people.reactivateUser, { userId: 'nobody' }))).toBe('NOT_FOUND');
+  });
+});
+
+describe('deleting an account', () => {
+  it('deletes a deactivated account for good, with its memberships and till rows, and records it', async () => {
+    const till = await person('till', { memberships: [[atelier.id, 'DESIGNER']] });
+    await prisma().posStaff.create({ data: { restaurantId: atelier.id, userId: till.userId, role: 'CASHIER' } });
+    dataOf(await run(admin, people.deactivateUser, { userId: till.userId }));
+    expect(dataOf(await run(admin, people.deleteUser, { userId: till.userId }))).toEqual({ deleted: true });
+    expect(await prisma().user.count({ where: { id: till.userId } })).toBe(0);
+    expect(await prisma().membership.count({ where: { userId: till.userId } })).toBe(0);
+    expect(await prisma().posStaff.count({ where: { userId: till.userId } })).toBe(0);
+    expect(await audit('user.deleted')).toMatchObject([{ actorId: admin.userId, entityType: 'User', entityId: till.userId }]);
+  });
+
+  it('refuses an active account, oneself, a Super Admin, an unknown account, and one with a till shift', async () => {
+    expect(codeOf(await run(admin, people.deleteUser, { userId: dee.userId }))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, people.deleteUser, { userId: admin.userId }))).toBe('INVALID');
+    const other = await person('other-admin', { superAdmin: true });
+    dataOf(await run(admin, people.deactivateUser, { userId: other.userId }));
+    expect(codeOf(await run(admin, people.deleteUser, { userId: other.userId }))).toBe('FORBIDDEN');
+    expect(codeOf(await run(admin, people.deleteUser, { userId: 'nobody' }))).toBe('NOT_FOUND');
+
+    const cashier = await person('cashier');
+    await prisma().posShift.create({ data: { restaurantId: atelier.id, userId: cashier.userId, openingFloat: 0 } });
+    dataOf(await run(admin, people.deactivateUser, { userId: cashier.userId }));
+    expect(codeOf(await run(admin, people.deleteUser, { userId: cashier.userId }))).toBe('CONFLICT');
+    expect(await prisma().user.count({ where: { id: cashier.userId } })).toBe(1);
+  });
+
+  it('is for Super Admins only', async () => {
+    dataOf(await run(admin, people.deactivateUser, { userId: dee.userId }));
+    expect(codeOf(await run(olive, people.deleteUser, { userId: dee.userId }))).not.toBe('OK');
   });
 });
 
