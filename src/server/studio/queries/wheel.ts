@@ -27,6 +27,15 @@ function firstAssetId(media: unknown): string | null {
   return null;
 }
 
+/** The address of a dish's first resolved image, when its media holds one with no library asset behind it. */
+function firstImageUrl(media: unknown): string | null {
+  if (!Array.isArray(media)) return null;
+  for (const item of media as { kind?: unknown; url?: unknown }[]) {
+    if (item?.kind === 'image' && typeof item.url === 'string' && item.url.startsWith('/')) return item.url;
+  }
+  return null;
+}
+
 /** A menu's wheel for the Studio: the saved settings and slices, and the dishes with a photo it could use. */
 export const menuWheel = defineQuery({
   name: 'menus.wheel',
@@ -60,7 +69,9 @@ export const menuWheel = defineQuery({
       slices: slices.map((slice) => ({ productId: slice.productId, label: slice.label as LocaleTexts, weight: slice.weight })),
       candidates: withPhoto.map((row) => {
         const asset = assets.get(firstAssetId(row.media) ?? '');
-        return { id: row.id, name: nameOf(row, menu.defaultLocale), thumb: asset ? storage.publicUrl(thumbKey(asset.kind, asset.variants as unknown as AssetVariants)) : null };
+        // A photo from the library has a thumbnail; one already resolved into the menu's media (no asset kept) shows its own address.
+        const thumb = asset ? storage.publicUrl(thumbKey(asset.kind, asset.variants as unknown as AssetVariants)) : firstImageUrl(row.media);
+        return { id: row.id, name: nameOf(row, menu.defaultLocale), thumb };
       }),
     };
   },

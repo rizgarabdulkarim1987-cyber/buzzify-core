@@ -1,5 +1,5 @@
 import type { WheelSliceView } from '@/server/data/wheel';
-import { SPIN_MS } from './useWheel';
+import { SPIN_MS } from './geometry';
 
 const R = 100;
 

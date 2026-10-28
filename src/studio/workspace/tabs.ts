@@ -5,7 +5,7 @@ import type { Permission } from '@/server/domain/permissions';
  * needs (`view`: anyone who may open the menu), and is hidden, never disabled, otherwise (spec 10.1).
  */
 
-export type WorkspaceTabKey = 'content' | 'prices' | 'availability' | 'sales' | 'design' | 'brand' | 'motion' | 'about' | 'settings' | 'qr' | 'data' | 'revisions' | 'preview';
+export type WorkspaceTabKey = 'content' | 'prices' | 'availability' | 'sales' | 'design' | 'brand' | 'motion' | 'about' | 'wheel' | 'settings' | 'qr' | 'data' | 'revisions' | 'preview';
 
 export interface WorkspaceTab {
   key: WorkspaceTabKey;
@@ -27,6 +27,8 @@ export const WORKSPACE_TABS: readonly WorkspaceTab[] = [
   { key: 'motion', path: '/motion', labelKey: 'workspace.tab.motion', needs: ['brand.edit'] },
   // The restaurant's own page inside the menu, shown to guests as Explore (docs/superpowers/specs/2026-10-29-menu-about-tab-design.md).
   { key: 'about', path: '/about', labelKey: 'workspace.tab.about', needs: ['content.edit'] },
+  // The wheel of fortune, a section of that page (docs/superpowers/specs/2026-10-29-menu-wheel-of-fortune-design.md).
+  { key: 'wheel', path: '/wheel', labelKey: 'workspace.tab.wheel', needs: ['content.edit'] },
   { key: 'settings', path: '/settings', labelKey: 'workspace.tab.settings', needs: ['menu.settings'] },
   { key: 'qr', path: '/qr', labelKey: 'workspace.tab.qr', needs: ['qr.manage'] },
   { key: 'data', path: '/data', labelKey: 'workspace.tab.data', needs: ['import.run', 'export.run'] },
@@ -35,7 +37,7 @@ export const WORKSPACE_TABS: readonly WorkspaceTab[] = [
 ];
 
 /** The tabs whose pages exist so far; each part of the workspace adds its own when it ships. */
-export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'about', 'settings', 'qr', 'data', 'revisions', 'preview']);
+export const BUILT_TABS: ReadonlySet<WorkspaceTabKey> = new Set<WorkspaceTabKey>(['content', 'prices', 'availability', 'sales', 'design', 'brand', 'motion', 'about', 'wheel', 'settings', 'qr', 'data', 'revisions', 'preview']);
 
 /** The tabs a person sees: built, and allowed to them. */
 export function visibleTabs(permissions: ReadonlySet<Permission>, built: ReadonlySet<WorkspaceTabKey> = BUILT_TABS): WorkspaceTab[] {
