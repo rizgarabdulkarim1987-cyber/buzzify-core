@@ -9,9 +9,9 @@ import { LanguageButtons } from './LanguageButtons';
 /**
  * The page a guest sees before the menu: the restaurant's background, its name or logo, a language choice that leads straight to the menu,
  * the platform's adverts and the restaurant's contacts. Plain markup apart from the parts that need the browser (the video, the language
- * memory, the advert views), so the language links work without JavaScript. `search` is the visitor's query (a QR scan, a campaign): it goes on to the menu.
+ * memory, the advert views), so the language links work without JavaScript. `search` is the visitor's query (a QR scan, a campaign): it goes on to the menu, and `table` is the table a table code was scanned at.
  */
-export function IntroPage({ view, slug, name, locale, search = '' }: { view: IntroView; slug: string; name: string; locale: Locale; search?: string }) {
+export function IntroPage({ view, slug, name, locale, search = '', table = null }: { view: IntroView; slug: string; name: string; locale: Locale; search?: string; table?: string | null }) {
   const t = getTranslator(locale);
   const shade = view.overlay / 100;
   const top = (shade * 0.55).toFixed(2);
@@ -33,7 +33,7 @@ export function IntroPage({ view, slug, name, locale, search = '' }: { view: Int
           )}
         </h1>
 
-        <LanguageButtons slug={slug} search={search} locales={view.locales} enter={t('intro.enter')} label={t('intro.language')} />
+        <LanguageButtons slug={slug} search={search} table={table} locales={view.locales} enter={t('intro.enter')} label={t('intro.language')} />
 
         {view.adverts.length > 0 && <AdvertSlider slug={slug} adverts={view.adverts} label={t('intro.advert')} />}
 
