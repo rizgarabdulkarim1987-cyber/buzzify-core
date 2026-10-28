@@ -1,4 +1,4 @@
-import type { PaperDoc } from '@/server/domain/pos/paper';
+import type { PaperDoc, PaperRow } from '@/server/domain/pos/paper';
 
 export interface Rendered {
   rgba: Uint8ClampedArray;
@@ -9,15 +9,82 @@ export interface Rendered {
 const BASE = 24;
 const PAD = 8;
 
+/** The width of a text in dots, in the row's font size and weight. */
+export type Measure = (text: string, size: 1 | 2, bold: boolean) => number;
+
+/**
+ * Splits a line to fit `maxWidth`: at spaces where it can, inside a word wider than the line at the last character that
+ * fits (whole code points, so a surrogate pair is never cut). Pieces keep the text's logical order, so right-to-left
+ * lines are shaped by the canvas one piece at a time.
+ */
+export function wrapRow(text: string, maxWidth: number, measure: (s: string) => number): string[] {
+  if (measure(text) <= maxWidth) return [text];
+  const lines: string[] = [];
+  let line = '';
+  const push = (piece: string) => {
+    lines.push(piece);
+    line = '';
+  };
+  for (const word of text.split(' ')) {
+    const joined = line === '' ? word : `${line} ${word}`;
+    if (measure(joined) <= maxWidth) {
+      line = joined;
+      continue;
+    }
+    if (line !== '') push(line);
+    if (measure(word) <= maxWidth) {
+      line = word;
+      continue;
+    }
+    // A word wider than the line: fill lines character by character.
+    let piece = '';
+    for (const char of Array.from(word)) {
+      if (piece !== '' && measure(piece + char) > maxWidth) {
+        lines.push(piece);
+        piece = '';
+      }
+      piece += char;
+    }
+    line = piece;
+  }
+  if (line !== '') lines.push(line);
+  return lines;
+}
+
+/**
+ * Expands text rows so none is wider than its space. The right-hand column (a price) is reserved first and stays on the
+ * first line; the rest of the text wraps under itself.
+ */
+export function layoutRows(rows: PaperRow[], widthDots: number, measure: Measure): PaperRow[] {
+  const usable = widthDots - PAD * 2;
+  return rows.flatMap((row): PaperRow[] => {
+    if (row.kind !== 'text') return [row];
+    const size = row.size ?? 1;
+    const bold = row.bold ?? false;
+    const room = Math.max(row.right ? usable - measure(row.right, size, bold) - 12 : usable, 40);
+    const lines = wrapRow(row.left, room, (s) => measure(s, size, bold));
+    if (lines.length <= 1) return [row];
+    return lines.map((left, index) => ({ ...row, left, right: index === 0 ? row.right : undefined }));
+  });
+}
+
 /**
  * Draws the rows on a canvas, black on white. The browser's own text engine shapes Arabic and Kurdish and orders the
  * numbers inside a line, which is why the paper is a picture and not a code page. The only file of the print path that
  * needs a DOM.
  */
 export function renderDoc(doc: PaperDoc, widthDots: number, dir: 'rtl' | 'ltr', font: string): Rendered {
+  const fontOf = (size: 1 | 2, bold: boolean) => `${bold ? '700 ' : ''}${BASE * size}px ${font}`;
+  const probe = new OffscreenCanvas(1, 1).getContext('2d');
+  if (!probe) throw new Error('canvas unavailable');
+  probe.direction = dir;
+  const rows = layoutRows(doc.rows, widthDots, (text, size, bold) => {
+    probe.font = fontOf(size, bold);
+    return probe.measureText(text).width;
+  });
   const rowHeight = (size: 1 | 2) => Math.round(BASE * size * 1.45);
   let height = PAD * 2;
-  for (const row of doc.rows) height += row.kind === 'text' ? rowHeight(row.size ?? 1) : row.kind === 'rule' ? 14 : row.kind === 'gap' ? 24 : 72;
+  for (const row of rows) height += row.kind === 'text' ? rowHeight(row.size ?? 1) : row.kind === 'rule' ? 14 : row.kind === 'gap' ? 24 : 72;
 
   const canvas = new OffscreenCanvas(widthDots, Math.max(height, 8));
   const ctx = canvas.getContext('2d');
@@ -31,10 +98,10 @@ export function renderDoc(doc: PaperDoc, widthDots: number, dir: 'rtl' | 'ltr', 
   const endX = dir === 'rtl' ? PAD : widthDots - PAD;
 
   let y = PAD;
-  for (const row of doc.rows) {
+  for (const row of rows) {
     if (row.kind === 'text') {
       const size = row.size ?? 1;
-      ctx.font = `${row.bold ? '700 ' : ''}${BASE * size}px ${font}`;
+      ctx.font = fontOf(size, row.bold ?? false);
       const middle = y + rowHeight(size) / 2;
       if (row.align === 'center') {
         ctx.textAlign = 'center';
