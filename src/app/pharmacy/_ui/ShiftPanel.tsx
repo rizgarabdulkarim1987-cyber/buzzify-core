@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useRef, useState, type FormEvent } from "react";
+import { useState, useTransition, type FormEvent } from "react";
 import {
   cashPaidIn,
   cashPaidOut,
@@ -37,13 +37,19 @@ import {
 } from "./sell-parts";
 import {
   formatMinor,
-  keyFor,
   outcomeUnknown,
   parseMoney,
   type Currency,
   type KeyedAttempt,
 } from "./sell-logic";
-import { closePlan, paidOutHint, shortId } from "./shifts-logic";
+import {
+  cashAttempt,
+  closeOutcome,
+  closePlan,
+  formatUtc,
+  paidOutHint,
+  shortId,
+} from "./shifts-logic";
 
 const available = (minor: bigint | string, currency: Currency) =>
   `${formatMinor(BigInt(minor), currency)} ${currency}`;
@@ -75,9 +81,12 @@ export function ShiftPanel({
   totals,
   currencies,
   defaultCurrency,
+  asOf,
 }: {
   shift: ShiftView | null;
   totals: ShiftTotals | null;
+  /** When the server read the figures (ISO). */
+  asOf: string;
   currencies: Currency[];
   defaultCurrency: Currency;
 }) {
@@ -85,6 +94,9 @@ export function ShiftPanel({
   const router = useRouter();
   const [dialog, setDialog] = useState<"in" | "out" | "close" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // The paid in/out attempt lives here, not in the dialog: closing the dialog after a lost answer must not forget the
+  // key, or typing the same movement again would be recorded twice.
+  const [cashKey, setCashKey] = useState<KeyedAttempt | null>(null);
 
   if (!shift || !totals) {
     return (
@@ -168,6 +180,8 @@ export function ShiftPanel({
       {(dialog === "in" || dialog === "out") && (
         <CashDialog
           kind={dialog}
+          attempt={cashKey}
+          onAttempt={setCashKey}
           currency={shift.currency}
           expectedMinor={expected}
           onClose={() => setDialog(null)}
@@ -182,6 +196,7 @@ export function ShiftPanel({
         open={dialog === "close"}
         shift={shift}
         expectedMinor={expected}
+        asOf={asOf}
         closingForOther={false}
         onClose={() => setDialog(null)}
         onClosed={() => {
@@ -197,12 +212,17 @@ export function ShiftPanel({
 
 export function CashDialog({
   kind,
+  attempt,
+  onAttempt,
   currency,
   expectedMinor,
   onClose,
   onDone,
 }: {
   kind: "in" | "out";
+  /** Kept by the parent so it outlives this dialog while the outcome of a send is unknown. */
+  attempt: KeyedAttempt | null;
+  onAttempt: (next: KeyedAttempt | null) => void;
   currency: Currency;
   expectedMinor: bigint;
   onClose: () => void;
@@ -214,7 +234,6 @@ export function CashDialog({
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
-  const attempt = useRef<KeyedAttempt | null>(null);
 
   const parsed = amount.trim() === "" ? null : parseMoney(amount, currency);
   const invalidAmount =
@@ -227,12 +246,9 @@ export function CashDialog({
     if (!ready || busy || parsed === null) return;
     setBusy(true);
     setProblem(null);
-    attempt.current = keyFor(
-      attempt.current,
-      `${kind}:${parsed}:${reason.trim()}`,
-      "cash",
-    );
-    const clientKey = attempt.current.key;
+    const next = cashAttempt(attempt, kind, parsed, reason);
+    onAttempt(next);
+    const clientKey = next.key;
     const call = kind === "in" ? cashPaidIn : cashPaidOut;
     const result = await settle(() =>
       call({
@@ -243,7 +259,7 @@ export function CashDialog({
     );
     setBusy(false);
     if (!result.ok) {
-      if (!outcomeUnknown(result.error)) attempt.current = null;
+      if (!outcomeUnknown(result.error)) onAttempt(null);
       setProblem(
         outcomeUnknown(result.error)
           ? t("pharmacy.shifts.cash.unknown")
@@ -251,7 +267,7 @@ export function CashDialog({
       );
       return;
     }
-    attempt.current = null;
+    onAttempt(null);
     onDone(
       t(
         kind === "in"
@@ -381,6 +397,7 @@ export function CloseDialog({
   open,
   shift,
   expectedMinor,
+  asOf,
   closingForOther,
   onClose,
   onClosed,
@@ -388,6 +405,8 @@ export function CloseDialog({
   open: boolean;
   shift: ShiftView;
   expectedMinor: bigint;
+  /** When the server read the expected cash (ISO): the figure is as of then, and the person may read it again. */
+  asOf: string;
   closingForOther: boolean;
   onClose: () => void;
   onClosed: () => void;
@@ -399,6 +418,11 @@ export function CloseDialog({
   const [busy, setBusy] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [needsManager, setNeedsManager] = useState(false);
+  // Closing has no idempotency key: after a lost answer a later ALREADY_CLOSED is most likely the earlier attempt.
+  const [lostBefore, setLostBefore] = useState(false);
+  const [closedProbably, setClosedProbably] = useState(false);
+  const router = useRouter();
+  const [refreshing, startRefresh] = useTransition();
 
   const value =
     counted.trim() === "" ? null : parseMoney(counted, shift.currency);
@@ -407,7 +431,8 @@ export function CloseDialog({
   const ready =
     plan !== null &&
     (!plan.needsReason || reason.trim().length >= 3) &&
-    !needsManager;
+    !needsManager &&
+    !closedProbably;
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
@@ -423,11 +448,13 @@ export function CloseDialog({
     );
     setBusy(false);
     if (!result.ok) {
-      if (result.error.fields?.phCode === "NEEDS_APPROVAL")
-        setNeedsManager(true);
+      const outcome = closeOutcome(result.error, lostBefore);
+      if (outcome === "unknown") setLostBefore(true);
+      if (outcome === "needs-approval") setNeedsManager(true);
+      else if (outcome === "closed-probably") setClosedProbably(true);
       else
         setProblem(
-          outcomeUnknown(result.error)
+          outcome === "unknown"
             ? t("pharmacy.shifts.close.unknown")
             : failure(result.error),
         );
@@ -447,11 +474,16 @@ export function CloseDialog({
           : "pharmacy.shifts.close.title",
       )}
       description={
-        <span data-testid="close-expected">
-          {t("pharmacy.shifts.expected")}:{" "}
-          <strong className="text-text">
-            <Money minor={expectedMinor} currency={shift.currency} />
-          </strong>
+        <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span data-testid="close-expected">
+            {t("pharmacy.shifts.expected")}:{" "}
+            <strong className="text-text">
+              <Money minor={expectedMinor} currency={shift.currency} />
+            </strong>
+          </span>
+          <span data-testid="close-as-of">
+            {t("pharmacy.shifts.close.asOf", { time: formatUtc(asOf) })}
+          </span>
         </span>
       }
       footer={
@@ -488,6 +520,18 @@ export function CloseDialog({
         onSubmit={(event) => void submit(event)}
         className="flex flex-col gap-4"
       >
+        <div>
+          <button
+            type="button"
+            className={TOUCH_BTN}
+            data-testid="close-refresh"
+            disabled={refreshing || busy}
+            onClick={() => startRefresh(() => router.refresh())}
+          >
+            <RefreshCw aria-hidden className="size-4" />
+            {t("pharmacy.shifts.close.refresh")}
+          </button>
+        </div>
         <Field
           label={t("pharmacy.shifts.close.counted", {
             currency: shift.currency,
@@ -560,6 +604,25 @@ export function CloseDialog({
             {t("pharmacy.shifts.fail.NEEDS_APPROVAL", {
               id: shortId(shift.id),
             })}
+          </Note>
+        )}
+        {closedProbably && (
+          <Note
+            icon={<CircleCheck aria-hidden />}
+            tone="info"
+            role="status"
+            testId="close-probably"
+          >
+            <span>
+              {t("pharmacy.shifts.close.probably")}{" "}
+              <Link
+                href={`/pharmacy/shifts/${shift.id}`}
+                className="font-medium underline underline-offset-2"
+                data-testid="close-open-report"
+              >
+                {t("pharmacy.shifts.openReport")}
+              </Link>
+            </span>
           </Note>
         )}
         {problem && (

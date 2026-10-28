@@ -9,7 +9,7 @@ import { CloseDialog } from './ShiftPanel';
 import { TOUCH_PRIMARY } from './sell-parts';
 
 /** The close form of an open shift on its report page: a manager (report.view) closes a colleague's shift here, with a reason. */
-export function CloseShiftButton({ shift, expectedMinor, closingForOther }: { shift: ShiftView; expectedMinor: string; closingForOther: boolean }) {
+export function CloseShiftButton({ shift, expectedMinor, asOf, closingForOther }: { shift: ShiftView; expectedMinor: string; asOf: string; closingForOther: boolean }) {
   const t = useT();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -23,6 +23,7 @@ export function CloseShiftButton({ shift, expectedMinor, closingForOther }: { sh
         open={open}
         shift={shift}
         expectedMinor={BigInt(expectedMinor)}
+        asOf={asOf}
         closingForOther={closingForOther}
         onClose={() => setOpen(false)}
         onClosed={() => {

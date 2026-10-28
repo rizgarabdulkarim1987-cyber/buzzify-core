@@ -56,7 +56,7 @@ export default async function ShiftReportPage({ params }: { params: Promise<{ id
       <div className="flex min-w-0 flex-col gap-5 px-4 pb-10 sm:px-8">
         {mayClose && (
           <div className="flex flex-wrap items-center gap-3">
-            <CloseShiftButton shift={shift} expectedMinor={totals.expectedMinor} closingForOther={!mine} />
+            <CloseShiftButton shift={shift} expectedMinor={totals.expectedMinor} asOf={new Date().toISOString()} closingForOther={!mine} />
             {!mine && <p className="text-sm text-muted">{t('pharmacy.shifts.closeOtherHint')}</p>}
           </div>
         )}
