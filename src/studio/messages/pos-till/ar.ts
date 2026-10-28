@@ -577,6 +577,7 @@ const posTill: Messages = {
   'pos.offline.amountReceived': 'المبلغ المستلم',
   'pos.offline.change': 'الباقي',
   'pos.offline.paid': 'تم الدفع {total} · الباقي {change}',
+  'pos.offline.receiptProvisional': 'إيصال مؤقت: يصدر الرقم النهائي بعد إرسال الدفع',
   'pos.offline.paidProvisional': 'إيصال مؤقت: يصبح نهائيًا بعد إرسال الدفعة.',
   'pos.offline.print': 'طباعة الإيصال',
   'pos.offline.refuse.stale': 'النسخة المحفوظة في هذا الجهاز قديمة جدًا. اتصل لتحديثها.',

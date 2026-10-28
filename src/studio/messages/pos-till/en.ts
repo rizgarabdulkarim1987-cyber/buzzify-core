@@ -577,6 +577,7 @@ const posTill: Messages = {
   'pos.offline.amountReceived': 'Cash received',
   'pos.offline.change': 'Change',
   'pos.offline.paid': 'Paid {total} · change {change}',
+  'pos.offline.receiptProvisional': 'Provisional receipt: the final number comes once the payment is sent',
   'pos.offline.paidProvisional': 'Provisional receipt: it is final once the payment is sent.',
   'pos.offline.print': 'Print receipt',
   'pos.offline.refuse.stale': 'The saved copy on this device is too old. Connect to refresh it.',

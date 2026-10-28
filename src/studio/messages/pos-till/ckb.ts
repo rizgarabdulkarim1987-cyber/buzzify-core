@@ -577,6 +577,7 @@ const posTill: Messages = {
   'pos.offline.amountReceived': 'کاشی وەرگیراو',
   'pos.offline.change': 'ماوە',
   'pos.offline.paid': 'پارە درا {total} · ماوە {change}',
+  'pos.offline.receiptProvisional': 'پسوولەی کاتی: ژمارەی کۆتایی دوای ناردنی پارەدان دەدرێت',
   'pos.offline.paidProvisional': 'پسوولەی کاتی: دوای ناردنی پارەدانەکە کۆتایی دەبێت.',
   'pos.offline.print': 'چاپکردنی پسوولە',
   'pos.offline.refuse.stale': 'ئەو کۆپییەی لەم ئامێرەدایە زۆر کۆنە. هێڵ بەستەوە بۆ نوێکردنەوەی.',
