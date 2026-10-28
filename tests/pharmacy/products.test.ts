@@ -501,10 +501,28 @@ describe('pharmacy products', () => {
       'PhReturnLine',
       'PhReceiptReprint',
     ];
+    // Phase 4 purchasing records are self-contained too: a supplier, invoice, payment, allocation or credit note holds money
+    // and no unit; an invoice line points at a received line, which keeps its own qty AND baseQty; a supplier return line is
+    // in base units with its own cost copy. An order line names a product and a unit with the ordered count, and the
+    // receipt that answers it keeps its own baseQty, so a later resize of the unit changes no stock or money already
+    // booked. Decided here, not by omission.
+    const SELF_CONTAINED_PURCHASING = [
+      'PhSupplier',
+      'PhPurchaseOrder',
+      'PhPurchaseOrderLine',
+      'PhSupplierInvoice',
+      'PhSupplierInvoiceLine',
+      'PhSupplierPayment',
+      'PhSupplierPaymentAllocation',
+      'PhSupplierReturn',
+      'PhSupplierReturnLine',
+      'PhCreditNote',
+      'PhCreditAllocation',
+    ];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
   });
 });
