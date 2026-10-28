@@ -3345,6 +3345,11 @@ const ckb: Messages = {
   'introPage.noAdverts': 'هیچ ڕیکلامێک لەسەر ئەم مینیوە نییە.',
   'introPage.save': 'پاشەکەوتکردن',
   'introPage.saved': 'پاشەکەوت کرا',
+  'introPage.upload': 'بارکردن لەم ئامێرەوە',
+  'introPage.uploading': 'بارکردن {percent}%',
+  'introPage.fileChosen': 'فایل هەڵبژێردرا (ڤیدیۆ دوای پرۆسەکردن دەردەکەوێت)',
+  'introPage.statusOn': 'دەروازە چالاکە: میوان پێش مینیو دەیبینێت.',
+  'introPage.statusOff': 'دەروازە ڕاگیراوە: میوان یەکسەر دەچێتە مینیو. لە خوارەوە چالاکی بکە.',
 };
 
 export default ckb;

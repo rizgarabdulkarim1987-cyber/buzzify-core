@@ -3340,6 +3340,11 @@ const en: Messages = {
   'introPage.noAdverts': 'No adverts are showing on this menu.',
   'introPage.save': 'Save',
   'introPage.saved': 'Saved',
+  'introPage.upload': 'Upload from this device',
+  'introPage.uploading': 'Uploading {percent}%',
+  'introPage.fileChosen': 'File chosen (a video shows after it is processed)',
+  'introPage.statusOn': 'The intro is ON: guests see it before the menu.',
+  'introPage.statusOff': 'The intro is OFF: guests go straight to the menu. Turn it on below.',
 };
 
 export default en;
