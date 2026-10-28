@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات عائمة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Geist+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes spinr { to { transform: rotate(-360deg); } }
+  @keyframes blink { 50% { opacity: .25; } }
+  @keyframes fl { from { transform: scaleY(1); opacity: .9; } to { transform: scaleY(1.18); opacity: 1; } }
+  @keyframes tw { 50% { opacity: .35; } }
+
+  /* ===== shared deep-space look: black, starfield, neon glass, mono labels ===== */
+  [class*="m-sp-"] {
+    background:
+      radial-gradient(1px 1px at 20px 30px, #fff, transparent 70%),
+      radial-gradient(1px 1px at 130px 90px, rgba(255,255,255,.7), transparent 70%),
+      radial-gradient(1.5px 1.5px at 70px 160px, #b9c8ff, transparent 70%),
+      radial-gradient(1px 1px at 175px 200px, #fff, transparent 70%),
+      radial-gradient(2px 2px at 100px 60px, rgba(138,91,255,.9), transparent 70%),
+      radial-gradient(ellipse at 85% 0, rgba(138,91,255,.22), transparent 55%),
+      radial-gradient(ellipse at 0 55%, rgba(0,212,255,.12), transparent 50%),
+      #000;
+    background-size: 200px 220px, 200px 220px, 200px 220px, 200px 220px, 230px 260px, 100% 100%, 100% 100%;
+    color: #fff; font-family: 'Space Grotesk', 'IBM Plex Sans Arabic', sans-serif;
+  }
+  [class*="m-sp-"] .ml { font: 500 11px 'Geist Mono', 'IBM Plex Mono', 'IBM Plex Sans Arabic'; letter-spacing: .18em; text-transform: uppercase; color: rgba(214,226,255,.85); }
+  [class*="m-sp-"] .top { padding: 60px 18px 14px; position: relative; }
+  [class*="m-sp-"] .top h1 { font: 700 34px 'Space Grotesk', 'IBM Plex Sans Arabic'; letter-spacing: -.01em; margin-top: 6px; }
+  [class*="m-sp-"] .top p { color: rgba(214,226,255,.7); font-size: 13.5px; margin-top: 2px; }
+  [class*="m-sp-"] .chips { background: rgba(0,0,0,.72); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255,255,255,.08); }
+  [class*="m-sp-"] .chips button { font: 500 11.5px 'Geist Mono', 'IBM Plex Sans Arabic'; letter-spacing: .08em; border: 1px solid rgba(255,255,255,.16); border-radius: 999px; padding: 6px 12px 6px 10px; color: rgba(255,255,255,.78); display: inline-flex; gap: 7px; align-items: center; }
+  [class*="m-sp-"] .chips button::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: var(--c); box-shadow: 0 0 8px var(--c); }
+  [class*="m-sp-"] .chips button.on { border-color: var(--c); color: #fff; box-shadow: 0 0 16px -3px var(--c), inset 0 0 12px -6px var(--c); }
+  [class*="m-sp-"] .glass { background: linear-gradient(160deg, rgba(255,255,255,.08), rgba(255,255,255,.015)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-radius: 14px; box-shadow: 0 0 26px -8px var(--c), inset 0 0 22px -14px var(--c); }
+  [class*="m-sp-"] .num { font: 500 11px 'Geist Mono'; color: var(--c); letter-spacing: .1em; }
+  [class*="m-sp-"] .pr { font: 500 12.5px 'Geist Mono', 'IBM Plex Sans Arabic'; color: #fff; }
+  [class*="m-sp-"] .gadd { font: 500 11.5px 'Geist Mono', 'IBM Plex Sans Arabic'; letter-spacing: .12em; color: var(--c); text-transform: uppercase; }
+  [class*="m-sp-"] .cart { background: rgba(6,8,18,.92); border-top: 1px solid rgba(255,255,255,.12); font-family: 'Geist Mono', 'IBM Plex Sans Arabic'; backdrop-filter: blur(10px); }
+  [class*="m-sp-"] .cart .sum { color: #00d4ff; }
+  [class*="m-sp-"] .sl { display: flex; justify-content: space-between; align-items: baseline; padding: 0 18px 10px; }
+  [class*="m-sp-"] .sl b { font: 700 20px 'Space Grotesk', 'IBM Plex Sans Arabic'; }
+  [class*="m-sp-"] .rail { position: fixed; right: 12px; top: 32%; height: 36%; width: 1px; background: rgba(255,255,255,.18); z-index: 25; pointer-events: none; }
+  [class*="m-sp-"] .rail i { position: absolute; left: -3px; top: 0; width: 7px; height: 7px; border-radius: 50%; background: #4d7cff; box-shadow: 0 0 10px #4d7cff; }
+  [class*="m-sp-"] .orb { position: absolute; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #d8e6ff, #3b6cff 38%, #0b1a4a 75%); box-shadow: 0 0 40px rgba(77,124,255,.55); }
+
+
+  /* every floating thing bobs on its own clock; parallax (JS) moves the outer wrapper, the bob moves the inner one */
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(var(--h, -10px)) rotate(calc(var(--r, 0deg) * -.6)); } }
+  @keyframes pad { 0%, 100% { transform: scaleX(1); opacity: .9; } 50% { transform: scaleX(.78); opacity: .5; } }
+  @keyframes beam { 0%, 100% { opacity: .55; } 50% { opacity: .85; } 52% { opacity: .4; } 54% { opacity: .8; } }
+  [class*="m-sp-"] .fl { will-change: transform; }
+  [class*="m-sp-"] .bob { animation: bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite; }
+  [class*="m-sp-"] .card { padding: 7px; }
+  [class*="m-sp-"] .card .ph { height: 100px; border-radius: 9px; }
+  [class*="m-sp-"] .card b { display: block; font: 700 13.5px 'Space Grotesk', 'IBM Plex Sans Arabic'; margin-top: 6px; line-height: 1.25; }
+  [class*="m-sp-"] .card .ft { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  [class*="m-sp-"] section { padding: 14px 14px 8px; }
+
+  /* 1. ZERO GRAVITY — cards scattered at angles and depths; near ones drift faster than far ones as you scroll */
+  .m-sp-zero .field { display: grid; grid-template-columns: repeat(2, 1fr); gap: 18px 14px; padding: 6px 0 20px; }
+  .m-sp-zero .fl:nth-child(even) { margin-top: 36px; }
+  .m-sp-zero .card { transform-origin: center; }
+  .m-sp-zero .fl[data-z="0"] .card { scale: .9; filter: saturate(.85) brightness(.85); }
+  .m-sp-zero .fl[data-z="2"] .card { scale: 1.06; box-shadow: 0 18px 40px -12px var(--c), 0 0 26px -8px var(--c); }
+
+  /* 2. LEVITATION — every dish hovers over a glowing pad; the glow shrinks as the dish rises */
+  .m-sp-lift .field { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px 14px; }
+  .m-sp-lift .spot { position: relative; padding-bottom: 26px; }
+  .m-sp-lift .spot::after { content: ''; position: absolute; left: 14%; right: 14%; bottom: 4px; height: 12px; border-radius: 50%; background: radial-gradient(ellipse, var(--c), transparent 70%); filter: blur(2px); animation: pad var(--t, 6s) ease-in-out var(--dl, 0s) infinite; }
+  .m-sp-lift .card { --h: -14px; }
+
+  /* 3. FLOATING ISLANDS — every section an asteroid island drifting in space, dishes on top of it */
+  .m-sp-isle section { padding: 20px 10px 24px; }
+  .m-sp-isle .isle { position: relative; width: 94%; margin-inline-start: var(--o, 3%); }
+  .m-sp-isle .deck { position: relative; z-index: 1; padding: 12px 10px 14px; border-radius: 22px 22px 8px 8px; background: linear-gradient(180deg, rgba(255,255,255,.07), rgba(255,255,255,.02)); border: 1px solid color-mix(in srgb, var(--c) 55%, transparent); border-bottom: 3px solid var(--c); box-shadow: 0 0 30px -10px var(--c); }
+  .m-sp-isle .deck .grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+  .m-sp-isle .rock { height: 70px; margin: -2px 6% 0; clip-path: polygon(0 0, 100% 0, 92% 30%, 84% 52%, 70% 64%, 62% 88%, 50% 100%, 40% 84%, 28% 70%, 16% 48%, 8% 28%); background: linear-gradient(180deg, #3b2f55, #1a1428 60%, #0d0a16); }
+  .m-sp-isle .rock::after { content: ''; display: block; height: 100%; background: radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--c) 70%, transparent) 0 3px, transparent 4px), radial-gradient(circle at 62% 46%, color-mix(in srgb, var(--c) 70%, transparent) 0 2px, transparent 3px), radial-gradient(circle at 50% 70%, color-mix(in srgb, var(--c) 60%, transparent) 0 2px, transparent 3px); }
+  .m-sp-isle .peb { position: absolute; width: var(--w); height: var(--w); border-radius: 38% 62% 50% 50%; background: linear-gradient(#3b2f55, #120e1d); top: var(--y); inset-inline-end: var(--x); }
+
+  /* 4. BUBBLES — every dish sealed in a floating glass bubble; big and small bubbles packed together */
+  .m-sp-bub .cloud { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 10px; padding: 4px 0 10px; }
+  .m-sp-bub .fl { width: var(--d); }
+  .m-sp-bub .sphere { position: relative; aspect-ratio: 1; border-radius: 50%; overflow: hidden; box-shadow: inset 0 0 0 1.5px rgba(255,255,255,.35), inset -10px -14px 26px rgba(0,0,0,.45), 0 0 24px -6px var(--c); }
+  .m-sp-bub .sphere .ph { position: absolute; inset: 0; }
+  .m-sp-bub .sphere::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 24%, rgba(255,255,255,.75) 0 6%, transparent 18%), radial-gradient(circle at 50% 50%, transparent 58%, color-mix(in srgb, var(--c) 35%, transparent) 72%); pointer-events: none; }
+  .m-sp-bub .lbl { text-align: center; margin-top: 4px; }
+  .m-sp-bub .lbl b { display: block; font-size: 12.5px; line-height: 1.2; }
+  .m-sp-bub .sphere .add { position: absolute; z-index: 1; bottom: 10%; left: 50%; translate: -50% 0; width: 26px; height: 26px; border-radius: 50%; background: var(--c); color: #000; font-weight: 800; }
+
+  /* 5. DRIFT — every section a stream of cards drifting slowly sideways; touch it and it stops */
+  .m-sp-drift section { padding: 14px 0 8px; }
+  .m-sp-drift .sl { padding-inline: 18px; }
+  .m-sp-drift .stream { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 14px 16px 20px; }
+  .m-sp-drift .stream::-webkit-scrollbar { display: none; }
+  .m-sp-drift .fl { flex: none; width: 46%; }
+  .m-sp-drift .card .ph { height: 112px; }
+
+  /* 6. HOLOGRAMS — every dish projected up out of a glowing emitter, flickering slightly */
+  .m-sp-holo .field { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px 14px; }
+  .m-sp-holo .proj { position: relative; padding-bottom: 30px; }
+  .m-sp-holo .proj::before { content: ''; position: absolute; left: 8%; right: 8%; bottom: 10px; top: 30%; clip-path: polygon(0 0, 100% 0, 64% 100%, 36% 100%); background: linear-gradient(0deg, color-mix(in srgb, var(--c) 55%, transparent), transparent); animation: beam 4s linear var(--dl, 0s) infinite; }
+  .m-sp-holo .proj::after { content: ''; position: absolute; left: 32%; right: 32%; bottom: 2px; height: 10px; border-radius: 50%; background: radial-gradient(ellipse, #fff, var(--c) 45%, transparent 72%); box-shadow: 0 0 16px var(--c); }
+  .m-sp-holo .card { position: relative; background: color-mix(in srgb, var(--c) 10%, rgba(8,10,20,.55)); }
+  .m-sp-holo .card .ph { opacity: .92; }
+  .m-sp-holo .card::after { content: ''; position: absolute; inset: 0; border-radius: 14px; background: repeating-linear-gradient(transparent 0 3px, color-mix(in srgb, var(--c) 14%, transparent) 3px 4px); pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٦ منيوهات عائمة · Floating</h1>
+  <p>الأطباق نفسها طايفة بالهوا وتتمايل بخفة، كل وحدة على إيقاعها: بدون جاذبية، ومعلّقة فوق ضوء، وجزر طايفة، وفقاعات، وتيارات تنجرف، وهولوغرام. نفس ستايل الفضاء، وكلها بصور أكل حقيقية وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const NEON = { grill: '#ff5a4d', fast: '#ffb020', fresh: '#22e6a8', sweet: '#ff3ea5', drink: '#00d4ff' };
+const CODE = { grill: 'GRILL', fast: 'FAST', fresh: 'FRESH', sweet: 'SWEET', drink: 'DRINKS' };
+MENU.forEach(s => s.c = NEON[s.id]);
+const pad = n => String(n).padStart(2, '0');
+// steady pseudo-random so every dish keeps its own float
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const clock = no => `--t:${(5 + rnd(no) * 3).toFixed(2)}s;--dl:-${(rnd(no + 7) * 6).toFixed(2)}s`;
+const sl = (s, si) => `<div class="sl"><b>${s.t}</b><span class="ml">${pad(si + 1)} — ${CODE[s.id]}</span></div>`;
+const head = (h, p, lab) => `<div class="top"><span class="ml">${lab}</span><h1>${h}</h1><p>${p}</p></div>`;
+const card = it => `<div class="ph" ${bg(it.img, 240)}></div><b>${it.n}</b><div class="ft"><span class="pr">${it.p}</span>${addBtn(it, '+ أضف', 'add gadd')}</div>`;
+const secs = body => MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${body(s, si)}</section>`).join('');
+const STYLES = [
+ { key: 'sp-zero', fam: 'عائم · انعدام الجاذبية', name: 'انعدام الجاذبية',
+   desc: 'الأطباق طايفة بالهوا بدون جاذبية: كل كرت مايل بزاوية وطاف على مسافة مختلفة، القريب أكبر ومضوي والبعيد أصغر وأخفت، وكلها تتمايل ببطء. وانت تنزل، القريب يتحرك أسرع من البعيد فتحس بالعمق.',
+   mo: '<b>الشكل:</b> شبكة مبعثرة بزوايا وأعماق مختلفة بدل الصفوف المستقيمة.',
+   render: () => `
+    ${head('انعدام الجاذبية', 'كل شي طايف', '00 — ZERO G')}
+    ${chips(s => s.t)}
+    ${secs((s, si) => `${sl(s, si)}<div class="field">${s.items.map(it => `<div class="fl" data-z="${Math.floor(rnd(it.no + 3) * 3)}"><div class="card glass bob" style="${clock(it.no)};--r:${((rnd(it.no) - .5) * 10).toFixed(1)}deg">${card(it)}</div></div>`).join('')}</div>`)}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-lift', fam: 'عائم · طفو مغناطيسي', name: 'الطفو المغناطيسي',
+   desc: 'كل طبق طايف فوق قاعدة ضوء بلون قسمه، يصعد وينزل ببطء، ولمن يصعد يصغر الضوء اللي تحته ولمن ينزل يكبر، مثل الأشياء المعلّقة بالمغناطيس.',
+   mo: '<b>الشكل:</b> فراغ بين الكرت والأرض بدل الكروت اللاصقة، كلها معلّقة.',
+   render: () => `
+    ${head('الطفو المغناطيسي', 'معلّق بالهوا، جاهز تاخذه', '00 — LEVITATE')}
+    ${chips(s => s.t)}
+    ${secs((s, si) => `${sl(s, si)}<div class="field">${s.items.map(it => `<div class="spot" style="${clock(it.no)}"><div class="fl"><div class="card glass bob">${card(it)}</div></div></div>`).join('')}</div>`)}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-isle', fam: 'عائم · جزر طايفة', name: 'الجزر الطايفة',
+   desc: 'كل قسم جزيرة صخرية طايفة بالفضاء، فوقها أطباقه، وتحتها صخرة بكريستالات بلون القسم، وحواليها حصى طايف. كل جزيرة تتمايل بإيقاعها، ومزاحة شوية يمين ويسار.',
+   mo: '<b>الشكل:</b> كتل طايفة منفصلة بدل الصفحة المتصلة، كل قسم جزيرة.',
+   render: () => `
+    ${head('الجزر الطايفة', 'كل جزيرة قسم', '00 — ISLANDS')}
+    ${chips(s => s.t)}
+    ${secs((s, si) => `${sl(s, si)}<div class="fl"><div class="isle bob" style="${clock(si + 40)};--h:-8px;--o:${['3%', '0%', '6%', '1%', '5%'][si]}"><div class="deck"><div class="grid">${s.items.map(it => `<div class="card glass">${card(it)}</div>`).join('')}</div></div><div class="rock"></div><i class="peb" style="--w:14px;--x:-8px;--y:70%"></i><i class="peb" style="--w:9px;--x:96%;--y:84%"></i></div></div>`)}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-drift', fam: 'عائم · انجراف', name: 'الانجراف',
+   desc: 'كل قسم تيار أطباق طايفة تنجرف ببطء للجنب، تيار يروح يمين واللي بعده يسار، وكل كرت يتمايل. تلمس التيار فيوقف وتسحبه بإيدك.',
+   mo: '<b>الشكل:</b> صفوف أفقية تتحرك لحالها بدل الصفوف الثابتة.',
+   render: () => `
+    ${head('الانجراف', 'المسه حتى يوقف', '00 — DRIFT')}
+    ${chips(s => s.t)}
+    ${secs((s, si) => `${sl(s, si)}<div class="stream" data-dir="${si % 2 ? 1 : -1}">${s.items.map(it => `<div class="fl"><div class="card glass bob" style="${clock(it.no)}">${card(it)}</div></div>`).join('')}</div>`)}
+    ${cart('طلبك')}` },
+
+ { key: 'sp-holo', fam: 'عائم · هولوغرام', name: 'الهولوغرام',
+   desc: 'كل طبق صورة هولوغرام طايفة فوق جهاز عرض صغير، يطلع منه شعاع ضوء بلون القسم يرفع الكرت، وعلى الكرت خطوط مسح ورجفة خفيفة مثل أفلام الخيال العلمي.',
+   mo: '<b>الشكل:</b> كروت معروضة بأشعة من تحت بدل الكروت المطبوعة.',
+   render: () => `
+    ${head('الهولوغرام', 'كل طبق معروض بشعاع', '00 — HOLOGRAM')}
+    ${chips(s => s.t)}
+    ${secs((s, si) => `${sl(s, si)}<div class="field">${s.items.map(it => `<div class="proj" style="${clock(it.no)}"><div class="fl"><div class="card glass bob" style="--h:-7px">${card(it)}</div></div></div>`).join('')}</div>`)}
+    ${cart('طلبك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const pulse = (el, k = 1.08) => { if (!reduce) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+// near things move more than far things as the page scrolls; k(el) says how much
+function parallax(sel, k) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); el.style.transform = `translateY(${((b.top + b.height / 2 - cy) * k(el)).toFixed(1)}px)`; }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+const WIRE = {
+  'sp-zero': {
+    init() { parallax('.fl', el => [.08, 0, -.1][el.dataset.z]); },
+    added(a) { pulse(a.closest('.card')); },
+  },
+  'sp-lift': { added(a) { pulse(a.closest('.card')); } },
+  'sp-isle': {
+    init() { parallax('section > .fl', () => -.05); },
+    added(a) { pulse(a.closest('.card'), 1.05); },
+  },
+  'sp-bub': { added(a) { pulse(a.closest('.sphere'), 1.12); } },
+  'sp-drift': {
+    // each stream drifts on its own until a finger or the mouse is on it
+    init() {
+      if (reduce) return;
+      const streams = [...screen.querySelectorAll('.stream')].map(el => ({ el, dir: Number(el.dataset.dir), hold: false, x: 0 }));
+      streams.forEach(s => {
+        const hold = v => () => { s.hold = v; if (!v) s.x = s.el.scrollLeft; };
+        ['pointerenter', 'pointerdown', 'touchstart'].forEach(t => s.el.addEventListener(t, hold(true), { passive: true }));
+        ['pointerleave', 'touchend'].forEach(t => s.el.addEventListener(t, hold(false), { passive: true }));
+        s.x = s.el.scrollLeft;
+      });
+      let raf = requestAnimationFrame(function tick() {
+        streams.forEach(s => {
+          if (s.hold) return;
+          const max = s.el.scrollWidth - s.el.clientWidth; if (max <= 0) return;
+          s.x += s.dir * .35;
+          // RTL scrollLeft runs from 0 to -max; bounce at the ends
+          if (s.x > 0) { s.x = 0; s.dir = -1; } if (s.x < -max) { s.x = -max; s.dir = 1; }
+          s.el.scrollLeft = s.x;
+        });
+        raf = requestAnimationFrame(tick);
+      });
+      cleanups.push(() => cancelAnimationFrame(raf));
+    },
+    added(a) { pulse(a.closest('.card')); },
+  },
+  'sp-holo': { added(a) { pulse(a.closest('.card'), 1.06); } },
+};
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,261 @@
+/*
+ * The Cassette (kind `cassette`, family ledger): each section is a tape. Its shell (a dark mix of `--text`) carries a
+ * hand-written paper label (`--raised`, two `--accent` stripes under the words) with the section's name and side
+ * number, and a window with two reels that turn while the tape is on the screen, faster for a moment when a dish is
+ * added (stopped under a finger, off with less motion). Under it the J-card (`--raised`, folded under an `--accent` band) lists the
+ * dishes as tracks: side A, then side B, each with its number, photo, name, price and add.
+ */
+[data-body='cassette'] {
+  --cs-shell: color-mix(in srgb, var(--text) 88%, var(--bg));
+  --cs-shell-hi: color-mix(in srgb, var(--text) 72%, var(--bg));
+  --cs-hub: color-mix(in srgb, var(--accent) 45%, var(--text));
+  --cs-spoke: var(--bg);
+  --cs-turn: 3s;
+  --nav-room: 3.5rem;
+  background: var(--bg);
+}
+
+/* ------------------------------------------------------------------ the strip: tape spines */
+
+[data-body='cassette'] .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='cassette'] .lg-chip {
+  padding-inline: 0.75rem;
+  border-radius: 0.25rem;
+  background: var(--cs-shell);
+  color: var(--bg);
+  font-size: 0.875rem;
+  font-weight: 700;
+  transition: background-color 120ms, color 120ms;
+}
+[data-body='cassette'] .lg-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the tape */
+
+[data-body='cassette'] .lg-section {
+  padding: 0.75rem 0.75rem 0.375rem;
+}
+[data-body='cassette'] .cs-tape {
+  position: relative;
+  padding: 0.625rem 0.875rem 0.875rem;
+  border-radius: 0.625rem;
+  background: linear-gradient(var(--cs-shell-hi), var(--cs-shell) 30%);
+  box-shadow: 0 0.5rem 1rem rgb(0 0 0 / 0.3);
+}
+/* The four screws at the shell's corners (decoration). */
+[data-body='cassette'] .cs-tape::before {
+  content: '';
+  position: absolute;
+  inset: 0.3rem;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--cs-shell-hi) 0 0.15rem, transparent 0.2rem) 0 0 / 0.5rem 0.5rem no-repeat,
+    radial-gradient(circle, var(--cs-shell-hi) 0 0.15rem, transparent 0.2rem) 100% 0 / 0.5rem 0.5rem no-repeat,
+    radial-gradient(circle, var(--cs-shell-hi) 0 0.15rem, transparent 0.2rem) 0 100% / 0.5rem 0.5rem no-repeat,
+    radial-gradient(circle, var(--cs-shell-hi) 0 0.15rem, transparent 0.2rem) 100% 100% / 0.5rem 0.5rem no-repeat;
+}
+[data-body='cassette'] .cs-label {
+  position: relative;
+  padding: 0.375rem 0.75rem 1.5rem;
+  border-radius: 0.25rem;
+  background:
+    linear-gradient(var(--accent) 0 50%, color-mix(in srgb, var(--accent) 45%, var(--raised)) 50%) 0 calc(100% - 0.375rem) / 100% 0.75rem no-repeat,
+    var(--raised);
+}
+[data-body='cassette'] .lg-title {
+  justify-content: space-between;
+  color: var(--text);
+}
+/* The hand-written name: the display face, a little crooked, as a pen writes on a label. */
+[data-body='cassette'] .lg-title > span {
+  flex: 1 1 auto;
+  min-inline-size: 0;
+  font-size: 1.375rem;
+  font-weight: 700;
+  rotate: -1.5deg;
+  overflow-wrap: anywhere;
+}
+[data-body='cassette'] .lg-title small {
+  order: -1;
+  color: var(--muted);
+}
+[data-body='cassette'] .lg-title small::before {
+  content: 'C·';
+}
+[data-body='cassette'] .lg-title [data-count] {
+  padding-inline: 0.375rem;
+  border: 1.5px solid var(--text);
+  border-radius: 999px;
+}
+[data-body='cassette'] .cs-win {
+  position: relative;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  inline-size: 72%;
+  margin: -0.875rem auto 0;
+  padding: 0.5rem 1.125rem;
+  border-radius: 1.5rem;
+  background: var(--cs-shell-hi);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--cs-shell-hi) 60%, var(--bg));
+}
+/* The brown tape running between the reels. */
+[data-body='cassette'] .cs-band {
+  flex: 1;
+  block-size: 1.25rem;
+  margin-inline: -0.25rem;
+  background: var(--cs-hub);
+  opacity: 0.85;
+}
+[data-body='cassette'] .cs-reel {
+  position: relative;
+  z-index: 1;
+  flex: none;
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, var(--cs-spoke) 0 0.3rem, transparent 0.35rem),
+    conic-gradient(
+      var(--cs-spoke) 0 12deg,
+      transparent 12deg 60deg,
+      var(--cs-spoke) 60deg 72deg,
+      transparent 72deg 120deg,
+      var(--cs-spoke) 120deg 132deg,
+      transparent 132deg 180deg,
+      var(--cs-spoke) 180deg 192deg,
+      transparent 192deg 240deg,
+      var(--cs-spoke) 240deg 252deg,
+      transparent 252deg 300deg,
+      var(--cs-spoke) 300deg 312deg,
+      transparent 312deg
+    ),
+    var(--cs-hub);
+  box-shadow: 0 0 0 0.25rem var(--cs-hub);
+}
+/* The reels turn only while the tape is on the screen (`data-play`), faster for a moment after an add (`data-ff`). */
+[data-body='cassette'] .cs-tape[data-play] .cs-reel {
+  animation: lg-cs-reel var(--cs-turn) linear infinite;
+}
+[data-body='cassette'] .cs-tape[data-ff] {
+  --cs-turn: 0.5s;
+}
+[data-body='cassette'] .cs-tape:active .cs-reel {
+  animation-play-state: paused;
+}
+@keyframes lg-cs-reel {
+  to {
+    rotate: 1turn;
+  }
+}
+
+/* ------------------------------------------------------------------ the J-card */
+
+[data-body='cassette'] .cs-jcard {
+  margin: 0.5rem 0.375rem 0;
+  padding: 0.25rem 0.75rem;
+  border-block-start: 0.375rem solid var(--accent);
+  background: var(--raised);
+  box-shadow: 0 0.1875rem 0.5rem rgb(0 0 0 / 0.12);
+}
+[data-body='cassette'] .cs-track {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block: 0.375rem;
+  border-block-end: 1px dashed var(--line);
+}
+[data-body='cassette'] .cs-track:last-child {
+  border-block-end: 0;
+}
+/* Side B starts under a solid rule, as the J-card turns over. */
+[data-body='cassette'] .cs-track[data-flip] {
+  margin-block-start: 0.25rem;
+  border-block-start: 2px solid var(--accent);
+}
+[data-body='cassette'] .cs-no {
+  flex: none;
+  inline-size: 1.75rem;
+  color: var(--accent-ink);
+  font-size: 0.875rem;
+  font-style: normal;
+  font-weight: 800;
+}
+[data-body='cassette'] .cs-ph {
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 0.25rem;
+}
+[data-body='cassette'] .cs-tx {
+  flex: 1;
+  min-inline-size: 0;
+}
+[data-body='cassette'] .cs-name {
+  font-size: 0.875rem;
+}
+[data-body='cassette'] .cs-desc {
+  font-size: 0.75rem;
+}
+[data-body='cassette'] .cs-price {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.8125rem;
+  font-weight: 800;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+[data-body='cassette'] .cs-price .tpl-was {
+  font-size: 0.75rem;
+}
+[data-body='cassette'] .cs-add.tpl-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  background: var(--cs-shell);
+  color: var(--bg);
+}
+[data-body='cassette'] .cs-add svg {
+  inline-size: 1rem;
+  block-size: 1rem;
+}
+[data-body='cassette'] .cs-name:focus-visible::after {
+  border-radius: 0.25rem;
+  outline-offset: -2px;
+}
+
+@media (hover: hover) {
+  [data-body='cassette'] .cs-track:hover .cs-name {
+    color: var(--accent-ink);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='cassette'] .cs-reel {
+    inline-size: 3rem;
+    block-size: 3rem;
+  }
+  [data-body='cassette'] .cs-ph {
+    inline-size: 3.5rem;
+    block-size: 3.5rem;
+  }
+  [data-body='cassette'] .cs-name {
+    font-size: 0.9375rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='cassette'] .cs-reel {
+    animation: none !important;
+  }
+  [data-body='cassette'] .lg-chip {
+    transition: none;
+  }
+}

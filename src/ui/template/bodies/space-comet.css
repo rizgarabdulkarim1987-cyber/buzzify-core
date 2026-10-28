@@ -1,0 +1,293 @@
+/*
+ * Meteor Shower (family `spine`, kind `space-comet`): buzzify.me's deep-space look. Every dish is a meteor falling on a
+ * slant: a glass card with a round glowing photo and a neon tail streaming up behind it in the section's hue, the cards
+ * staggered left and right in a ragged diagonal. Text and buttons use the template tokens; the hue (`--h`) is
+ * decoration only (tail, glow, border). The tail is the one physical drawing, so it is mirrored for RTL.
+ */
+[data-body='space-comet'] {
+  --nav-room: 3.5rem;
+  --column: 44rem;
+  --cm-photo: 4.75rem;
+  --cm-tilt: -28deg;
+  --cm-dir: 1;
+  padding-block-end: 1rem;
+  color: var(--text);
+  background:
+    radial-gradient(1px 1px at 20px 30px, color-mix(in srgb, var(--text) 90%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 60%, transparent), transparent 70%),
+    radial-gradient(2px 2px at 100px 60px, color-mix(in srgb, var(--accent) 80%, transparent), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, color-mix(in srgb, var(--text) 80%, transparent), transparent 70%),
+    var(--bg);
+  background-size: 200px 220px, 200px 220px, 230px 260px, 200px 220px, auto;
+}
+[data-body='space-comet']:dir(rtl) {
+  --cm-tilt: 28deg;
+  --cm-dir: -1;
+}
+[data-body='space-comet'] :is(.cm-chip, .cm-section) {
+  --cm-neon: oklch(0.76 0.18 var(--h, 280));
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+[data-body='space-comet'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  backdrop-filter: blur(10px);
+}
+[data-body='space-comet'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='space-comet'] .cm-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--text) 16%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  color: var(--text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: border-color 150ms, box-shadow 150ms;
+}
+/* The chip's mark: a little meteor, a dot with its streak. */
+[data-body='space-comet'] .cm-chip-mark {
+  position: relative;
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--cm-neon);
+  box-shadow: 0 0 8px var(--cm-neon);
+}
+[data-body='space-comet'] .cm-chip-mark::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0.3rem;
+  inline-size: 0.75rem;
+  block-size: 2px;
+  background: linear-gradient(to right, var(--cm-neon), transparent);
+  transform-origin: left center;
+  transform: rotate(var(--cm-tilt));
+}
+[data-body='space-comet']:dir(rtl) .cm-chip-mark::after {
+  background: linear-gradient(to left, var(--cm-neon), transparent);
+  transform-origin: right center;
+}
+[data-body='space-comet'] .cm-chip[aria-current='true'] {
+  border-color: var(--cm-neon);
+  box-shadow: 0 0 16px -3px var(--cm-neon), inset 0 0 12px -6px var(--cm-neon);
+}
+
+/* ------------------------------------------------------------------ the sections */
+
+[data-body='space-comet'] .cm-section {
+  position: relative;
+  padding-block: 0.875rem 0.625rem;
+  overflow: clip;
+}
+[data-body='space-comet'] .cm-head {
+  padding-inline: 1rem;
+  margin-block-end: 0.25rem;
+}
+[data-body='space-comet'] .cm-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+[data-body='space-comet'] .cm-title > span {
+  min-inline-size: 0;
+  overflow-wrap: anywhere;
+}
+[data-body='space-comet'] .cm-title small {
+  order: 2;
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.18em;
+}
+[data-body='space-comet'] .cm-title [data-count] {
+  order: 3;
+  padding-inline: 0.5rem;
+  border: 1px solid var(--cm-neon);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------------ the meteors */
+
+[data-body='space-comet'] .cm-thread {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin: 0;
+  padding: 0.375rem 0.875rem 0.875rem;
+  list-style: none;
+}
+[data-body='space-comet'] .cm-bead {
+  position: relative;
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: var(--cm-photo) minmax(0, 1fr);
+  gap: 0.625rem;
+  align-items: center;
+  inline-size: 76%;
+  margin-inline-start: var(--o, 0%);
+  padding: 0.5rem;
+  border: 1px solid color-mix(in oklab, var(--cm-neon) 55%, transparent);
+  border-radius: 0.875rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, transparent), color-mix(in srgb, var(--text) 2%, transparent)),
+    color-mix(in srgb, var(--bg) 84%, transparent);
+  box-shadow: 0 0 26px -8px var(--cm-neon), inset 0 0 22px -14px var(--cm-neon);
+  transition:
+    opacity 450ms cubic-bezier(0.23, 1, 0.32, 1),
+    translate 450ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+/* The tail: a neon streak from the card's end edge, up and away, the way the meteor came. */
+[data-body='space-comet'] .cm-bead::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 1.125rem;
+  inset-inline-start: 100%;
+  inline-size: 6.875rem;
+  block-size: 3px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--cm-neon), transparent);
+  filter: drop-shadow(0 0 6px var(--cm-neon));
+  transform-origin: left center;
+  transform: rotate(var(--cm-tilt));
+  pointer-events: none;
+}
+[data-body='space-comet']:dir(rtl) .cm-bead::before {
+  background: linear-gradient(to left, var(--cm-neon), transparent);
+  transform-origin: right center;
+}
+[data-body='space-comet'] .cm-section[data-live] .cm-bead::before {
+  animation: cm-streak 2.4s ease-in-out infinite;
+}
+[data-body='space-comet'] .cm-section[data-live] .cm-bead:nth-child(even)::before {
+  animation-delay: -1.2s;
+}
+@keyframes cm-streak {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: rotate(var(--cm-tilt)) scaleX(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: rotate(var(--cm-tilt)) scaleX(1);
+  }
+}
+/* A meteor falls into place along its slant the first time it is seen. */
+[data-body='space-comet'][data-armed] .cm-bead:not([data-in]) {
+  opacity: 0;
+  translate: calc(var(--cm-dir) * 1.75rem) -1.25rem;
+}
+
+[data-body='space-comet'] .cm-ball {
+  inline-size: var(--cm-photo);
+  block-size: var(--cm-photo);
+  border-radius: 50%;
+  box-shadow: 0 0 22px -2px var(--cm-neon);
+}
+[data-body='space-comet'] .cm-ball > *,
+[data-body='space-comet'] .cm-ball img {
+  inline-size: 100%;
+  block-size: 100%;
+  overflow: hidden;
+  border-radius: 50%;
+  object-fit: cover;
+}
+[data-body='space-comet'] .cm-text {
+  min-inline-size: 0;
+}
+[data-body='space-comet'] .cm-num {
+  display: block;
+  color: var(--muted);
+  font-family: ui-monospace, 'SFMono-Regular', Menlo, monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  line-height: 1.3;
+}
+[data-body='space-comet'] .cm-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+[data-body='space-comet'] .cm-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.125rem 0.375rem;
+  margin-block-start: 0.375rem;
+}
+[data-body='space-comet'] .cm-badges {
+  order: 3;
+  flex-basis: 100%;
+}
+[data-body='space-comet'] .cm-price {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+[data-body='space-comet'] .cm-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+}
+
+@media (hover: hover) {
+  [data-body='space-comet'] .cm-chip:hover:not([aria-current='true']) {
+    border-color: var(--cm-neon);
+  }
+  [data-body='space-comet'] .cm-bead:hover {
+    box-shadow: 0 0 30px -4px var(--cm-neon), inset 0 0 22px -12px var(--cm-neon);
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='space-comet'] {
+    --cm-photo: 5.5rem;
+  }
+  [data-body='space-comet'] .cm-bead {
+    inline-size: 64%;
+  }
+  [data-body='space-comet'] .cm-name {
+    font-size: 1.0625rem;
+  }
+}
+
+[data-body='space-comet'][data-hold] .cm-bead::before {
+  animation-play-state: paused;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-body='space-comet'] .cm-bead::before {
+    animation: none !important;
+  }
+  [data-body='space-comet'] :is(.cm-chip, .cm-bead) {
+    transition: none;
+  }
+}

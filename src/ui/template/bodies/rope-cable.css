@@ -1,0 +1,115 @@
+/*
+ * The Cable Car (`cable`, family `rope`): each section is a mountain cable line (its coloured dot from the section's
+ * hue, decoration only); each dish is a cabin hanging from the cable by its arm and grip, its photo in the window, its
+ * name and price on the cabin (the accent pair). Faint peaks stand behind the line. Adding a dish rocks its cabin.
+ */
+[data-body='cable'] {
+  --cb-steel: color-mix(in srgb, var(--text) 82%, var(--bg));
+  --cb-peak: color-mix(in srgb, var(--accent) 14%, var(--bg));
+  --cb-peak-far: color-mix(in srgb, var(--text) 9%, var(--bg));
+  background: linear-gradient(color-mix(in srgb, var(--bg) 82%, var(--accent)), var(--bg) 40rem) var(--bg);
+}
+
+[data-body='cable'] .rp-chip {
+  border-radius: 1.125rem;
+}
+[data-body='cable'] .rp-chip-mark,
+[data-body='cable'] .rp-mark {
+  display: block;
+  flex: none;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: 50%;
+  background: hsl(var(--rp-hue, 205) 70% 50%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text) 25%, transparent);
+}
+[data-body='cable'] .rp-chip-mark {
+  background: var(--accent);
+}
+[data-body='cable'] .rp-chip[aria-current='true'] .rp-chip-mark {
+  background: var(--on-accent);
+}
+[data-body='cable'] .rp-title {
+  font-weight: 800;
+}
+
+/* The cable across the whole line, and the peaks behind the cabins. */
+[data-body='cable'] .rp-line {
+  background:
+    linear-gradient(135deg, transparent 49%, var(--cb-peak) 50%) 0 100% / 5rem 3.5rem repeat-x,
+    linear-gradient(225deg, transparent 49%, var(--cb-peak-far) 50%) 2.5rem 100% / 5rem 4.25rem repeat-x;
+}
+[data-body='cable'] .rp-line::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 0.75rem;
+  inset-inline: 0;
+  block-size: 3px;
+  border-radius: 2px;
+  background: var(--cb-steel);
+  pointer-events: none;
+}
+[data-body='cable'] .rp-row {
+  padding-block-start: 0.75rem;
+}
+/* A cabin: the grip on the cable, the arm down to the roof, then the box. */
+[data-body='cable'] .rp-hang {
+  position: relative;
+  padding-block-start: 1.625rem;
+}
+[data-body='cable'] .rp-hang::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 50%;
+  inline-size: 3px;
+  block-size: 1.75rem;
+  margin-inline-start: -1.5px;
+  background: var(--cb-steel);
+}
+[data-body='cable'] .rp-hang::after {
+  content: '';
+  position: absolute;
+  inset-block-start: -0.25rem;
+  inset-inline-start: 50%;
+  inline-size: 1.125rem;
+  block-size: 0.5625rem;
+  margin-inline-start: -0.5625rem;
+  border-radius: 0.25rem;
+  background: var(--cb-steel);
+}
+[data-body='cable'] .rp-piece {
+  padding: 0.4375rem;
+  border-radius: 1rem 1rem 0.75rem 0.75rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 0.5rem 0.875rem rgb(0 0 0 / 0.25);
+}
+[data-body='cable'] .rp-win {
+  block-size: 5.75rem;
+  border: 3px solid color-mix(in srgb, var(--on-accent) 85%, transparent);
+  border-radius: 0.625rem;
+}
+[data-body='cable'] .rp-price {
+  color: var(--on-accent);
+}
+[data-body='cable'] .rp-price .tpl-was,
+[data-body='cable'] .rp-badges .tpl-badge:not(.tpl-badge-sale) {
+  color: inherit;
+  opacity: 0.9;
+}
+[data-body='cable'] .rp-badges .tpl-badge:not(.tpl-badge-sale) {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--on-accent) 45%, transparent);
+}
+[data-body='cable'] .rp-add {
+  border-radius: 50%;
+  background: var(--on-accent);
+  color: var(--accent);
+}
+
+@media (min-width: 640px) {
+  [data-body='cable'] .rp-win {
+    block-size: 7.5rem;
+  }
+}

@@ -1,0 +1,383 @@
+/*
+ * The DJ Decks (family club, kind `dj`, ClubBody.tsx): every dish a turntable. A dark deck holds a platter at its start
+ * and, in the column at its end, the tone arm (pivot at the top) and the add button (the deck's start button, at the
+ * bottom). The record spins with the dish's photo as its label; a fixed sheen lies over the grooves (it does not turn,
+ * as light on a real record does not). The arm rests beside the platter and swings its needle onto the outer grooves
+ * when the deck crosses the middle of the screen ([data-cue]), where its pilot light comes on.
+ *
+ * Geometry, in cqi of the deck's content box (club-deck.ts has the same numbers, unit-tested): the platter 70cqi square
+ * at the start; the arm's pivot 9cqi in from the end and 5cqi down; the arm 36cqi long. Resting it hangs 6deg (the
+ * needle beside the platter); playing it turns 50deg (the needle on the grooves, outside the photo). RTL mirrors the
+ * deck, so the arm turns the other way (--dj-dir).
+ *
+ * The records run only in a section on screen ([data-live]), never while a finger is down ([data-hold] on the body),
+ * and a pointer on a deck (or focus in it) stops its record and lifts its arm. With less motion ([data-still]) nothing
+ * turns and every needle rests on its record. The vinyl and the metal are fixed colours: pure decoration, no words on
+ * them (the badges carry their own backing).
+ */
+[data-body='dj'] {
+  --dj-dir: 1;
+  --dj-vinyl: #111113;
+  --dj-groove: #222226;
+  --dj-metal-hi: #e2e2e6;
+  --dj-metal-lo: #7c7c84;
+  --dj-deck-hi: color-mix(in oklab, var(--raised) 88%, var(--text));
+  background:
+    radial-gradient(ellipse 120% 40% at 50% 0, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    var(--bg);
+}
+[data-body='dj']:dir(rtl) {
+  --dj-dir: -1;
+}
+
+/* ------------------------------------------------------------------ the strip: the record's sides */
+
+[data-body='dj'] .ck-chip {
+  border-radius: 0.25rem;
+  border-color: transparent;
+  background: var(--raised);
+}
+[data-body='dj'] .dj-chip-side {
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+[data-body='dj'] .ck-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+[data-body='dj'] .ck-chip[aria-current='true'] .dj-chip-side {
+  color: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the heading: a small record and a level meter */
+
+[data-body='dj'] .dj-title {
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+[data-body='dj'] .dj-disc {
+  display: grid;
+  flex: none;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  background: repeating-radial-gradient(circle, var(--dj-vinyl) 0 1px, var(--dj-groove) 1px 2px);
+  box-shadow: 0 0.125rem 0.375rem rgb(0 0 0 / 0.4);
+}
+[data-body='dj'] .dj-disc b {
+  display: grid;
+  place-items: center;
+  inline-size: 1.25rem;
+  block-size: 1.25rem;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1;
+}
+[data-body='dj'] .dj-eq {
+  display: flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 3px;
+  block-size: 1.375rem;
+}
+[data-body='dj'] .dj-eq i {
+  inline-size: 4px;
+  block-size: 100%;
+  border-radius: 1px;
+  background: var(--accent);
+  transform-origin: bottom;
+  scale: 1 0.4;
+  animation: club-dj-eq 0.9s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+[data-body='dj'] .dj-eq i:nth-child(2) {
+  animation-delay: -0.3s;
+  animation-duration: 0.7s;
+}
+[data-body='dj'] .dj-eq i:nth-child(3) {
+  animation-delay: -0.6s;
+}
+[data-body='dj'] .dj-eq i:nth-child(4) {
+  animation-delay: -0.15s;
+  animation-duration: 1.1s;
+}
+[data-body='dj'] .dj-eq i:nth-child(5) {
+  animation-delay: -0.45s;
+  animation-duration: 0.8s;
+}
+
+/* ------------------------------------------------------------------ the deck */
+
+[data-body='dj'] .dj-deck {
+  container-type: inline-size;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'top' 'name' 'price';
+  grid-template-rows: auto 1fr auto;
+  row-gap: 0.125rem;
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  background: linear-gradient(160deg, var(--dj-deck-hi), var(--raised) 60%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent),
+    0 0.5rem 1rem -0.625rem rgb(0 0 0 / 0.6);
+}
+[data-body='dj'] .dj-top {
+  position: relative;
+  grid-area: top;
+  block-size: 70cqi;
+  margin-block-end: 0.375rem;
+}
+[data-body='dj'] .ck-badges,
+[data-body='dj'] .dj-add {
+  grid-area: top;
+}
+[data-body='dj'] .ck-badges {
+  margin: 0;
+  max-inline-size: 70cqi;
+}
+[data-body='dj'] .dj-name {
+  grid-area: name;
+  align-self: start;
+}
+[data-body='dj'] .dj-price {
+  grid-area: price;
+}
+/* The start button: round, in the button colour, at the bottom of the arm's column. */
+[data-body='dj'] .dj-add {
+  margin: 0;
+  border-radius: 50%;
+  background: var(--button);
+  color: var(--on-button);
+  box-shadow:
+    0 0 0 3px var(--raised),
+    0 0.25rem 0.5rem rgb(0 0 0 / 0.45);
+}
+
+/* The platter: a metal rim round the record. */
+[data-body='dj'] .dj-platter {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  inline-size: 70cqi;
+  block-size: 70cqi;
+  border-radius: 50%;
+  background: radial-gradient(circle closest-side, #2c2c31 0 93%, var(--dj-metal-lo) 94% 96%, #3a3a40 97%);
+  box-shadow: 0 0.375rem 0.875rem rgb(0 0 0 / 0.55);
+  transition: box-shadow 300ms;
+}
+[data-body='dj'] .dj-scratch,
+[data-body='dj'] .dj-sheen {
+  position: absolute;
+  inset: 4%;
+  border-radius: 50%;
+}
+[data-body='dj'] .dj-record {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle closest-side, transparent 0 68%, rgb(255 255 255 / 0.06) 69% 70%, transparent 71% 96%, rgb(255 255 255 / 0.08) 97%),
+    repeating-radial-gradient(circle, var(--dj-vinyl) 0 1.5px, var(--dj-groove) 1.5px 3px);
+  animation: club-dj-spin 4.8s linear var(--dl, 0s) infinite;
+  animation-play-state: paused;
+}
+/* The label: the dish's photo, 64% of the record. */
+[data-body='dj'] .dj-label {
+  position: absolute;
+  inset: 18%;
+  overflow: hidden;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--dj-vinyl);
+}
+[data-body='dj'] .dj-img {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  border-radius: 50%;
+}
+[data-body='dj'] .dj-img img {
+  object-fit: cover;
+}
+/* Light on the grooves (not the label): it stays put while the record turns under it. */
+[data-body='dj'] .dj-sheen {
+  background: conic-gradient(
+    from 20deg,
+    transparent 0 6%,
+    rgb(255 255 255 / 0.16) 11%,
+    transparent 17% 50%,
+    rgb(255 255 255 / 0.11) 60%,
+    transparent 67%
+  );
+  mask: radial-gradient(circle closest-side, transparent 0 66%, #000 67%);
+  pointer-events: none;
+}
+[data-body='dj'] .dj-spindle {
+  position: absolute;
+  inset: calc(50% - 3cqi);
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, var(--dj-metal-hi), var(--dj-metal-lo));
+  box-shadow: 0 0 0 2px var(--dj-vinyl);
+}
+
+/* The pilot light, in the platter's corner (outside the record). */
+[data-body='dj'] .dj-led {
+  position: absolute;
+  inset-block-start: 63cqi;
+  inset-inline-start: 0.5cqi;
+  inline-size: 3.5cqi;
+  block-size: 3.5cqi;
+  min-inline-size: 5px;
+  min-block-size: 5px;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--accent) 25%, var(--dj-vinyl));
+  transition:
+    background-color 250ms,
+    box-shadow 250ms;
+}
+
+/* The tone arm: a counterweight above the pivot, the tube, the headshell at its tip. */
+[data-body='dj'] .dj-pivot {
+  position: absolute;
+  inset-block-start: 0.5cqi;
+  inset-inline-end: 4.5cqi;
+  inline-size: 9cqi;
+  block-size: 9cqi;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #55555c, #24242a 70%);
+  box-shadow:
+    0 0 0 1.5px var(--dj-metal-lo),
+    0 0.125rem 0.25rem rgb(0 0 0 / 0.5);
+}
+[data-body='dj'] .dj-arm {
+  --dj-arm: 6;
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 5cqi;
+  inset-inline-end: 8cqi;
+  inline-size: 2cqi;
+  min-inline-size: 3px;
+  block-size: 36cqi;
+  transform-origin: 50% 0;
+  rotate: calc(var(--dj-dir) * var(--dj-arm) * 1deg);
+  transition: rotate 520ms cubic-bezier(0.3, 0.7, 0.2, 1);
+  pointer-events: none;
+}
+[data-body='dj'] .dj-tube {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--dj-metal-hi), var(--dj-metal-lo));
+  transform-origin: 50% 0;
+}
+[data-body='dj'] .dj-arm::before {
+  content: '';
+  position: absolute;
+  inset-block-start: -6cqi;
+  inset-inline: -1.25cqi;
+  block-size: 4.5cqi;
+  border-radius: 1cqi;
+  background: linear-gradient(90deg, #6a6a72, #2c2c32);
+}
+[data-body='dj'] .dj-arm::after {
+  content: '';
+  position: absolute;
+  inset-block-end: -3.5cqi;
+  inset-inline: -1.75cqi;
+  block-size: 6cqi;
+  border-radius: 1cqi 1cqi 0.5cqi 0.5cqi;
+  background: #2a2a30;
+  box-shadow: inset 0 0 0 1px var(--dj-metal-lo);
+}
+
+/* Playing: the needle on the record, the pilot light on, the platter lit in the accent. */
+[data-body='dj'] .dj-deck[data-cue] .dj-arm,
+[data-body='dj'][data-still] .dj-arm {
+  --dj-arm: 50;
+}
+[data-body='dj'] .dj-deck[data-cue] .dj-led {
+  background: var(--accent);
+  box-shadow: 0 0 0.5rem var(--accent);
+}
+[data-body='dj'] .dj-deck[data-cue] .dj-platter {
+  box-shadow:
+    0 0 0 2px var(--accent),
+    0 0 1.25rem -0.25rem var(--accent),
+    0 0.375rem 0.875rem rgb(0 0 0 / 0.55);
+}
+/* The needle rides the grooves a little while it plays. */
+[data-body='dj'] .dj-deck[data-cue] .dj-tube {
+  animation: club-dj-ride 1.7s ease-in-out infinite alternate;
+  animation-play-state: paused;
+}
+
+/* The motion runs only in a section on screen, and never under a finger. */
+[data-body='dj']:not([data-hold]) .ck-section[data-live] :is(.dj-record, .dj-eq i, .dj-tube) {
+  animation-play-state: running;
+}
+/* A deck under the pointer (or with focus in it) stops, its arm lifted. */
+[data-body='dj'] .dj-deck:focus-within .dj-record {
+  animation-play-state: paused;
+}
+[data-body='dj'] .dj-deck:focus-within .dj-arm {
+  --dj-arm: 6;
+}
+@media (hover: hover) {
+  [data-body='dj'] .dj-deck:hover .dj-record {
+    animation-play-state: paused;
+  }
+  [data-body='dj'] .dj-deck:hover .dj-arm {
+    --dj-arm: 6;
+  }
+  [data-body='dj'] .ck-chip:hover:not([aria-current='true']) {
+    background: var(--dj-deck-hi);
+  }
+}
+
+[data-body='dj'][data-still] :is(.dj-record, .dj-eq i),
+[data-body='dj'][data-still] .dj-deck[data-cue] .dj-tube {
+  animation: none;
+}
+[data-body='dj'][data-still] :is(.dj-arm, .dj-led, .dj-platter) {
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='dj'] :is(.dj-record, .dj-eq i),
+  [data-body='dj'] .dj-deck[data-cue] .dj-tube {
+    animation: none;
+  }
+  [data-body='dj'] :is(.dj-arm, .dj-led, .dj-platter) {
+    transition: none;
+  }
+  [data-body='dj'] .dj-arm {
+    --dj-arm: 50;
+  }
+}
+
+@keyframes club-dj-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes club-dj-eq {
+  from {
+    scale: 1 0.18;
+  }
+  to {
+    scale: 1 1;
+  }
+}
+@keyframes club-dj-ride {
+  from {
+    rotate: -0.8deg;
+  }
+  to {
+    rotate: 0.8deg;
+  }
+}

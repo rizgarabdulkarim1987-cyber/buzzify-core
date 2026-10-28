@@ -1,0 +1,301 @@
+/*
+ * The orbit family's structure (OrbitBody: The Solar System, The Tannour, The Daf): every section a square circle, its
+ * name and count in the centre, its dishes on one ring round it. Positions come from orbit-rings.ts as percent of the
+ * circle's width (`--x`, `--y`, the photo size `--s`), placed with container units of `.ob-system`. The ring turns in
+ * CSS while its system is on screen (`data-live`) and nothing holds it; every moon turns back as much, so the photos
+ * stay upright. Each style's own sheet draws its centre, its ring and its moons. Logical properties only: a
+ * right-to-left page mirrors the ring.
+ */
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) {
+  --nav-room: 3.5rem;
+  --column: 40rem;
+  --ob-turn: 160s;
+  --ob-word-bg: color-mix(in srgb, var(--bg) 84%, transparent);
+  --ob-word-ink: var(--text);
+  --ob-price-ink: var(--accent-ink);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.625rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--text) 22%, transparent);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms, border-color 150ms;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip-mark {
+  flex: none;
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip[aria-current='true'] .ob-chip-mark {
+  background: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ the circle */
+
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-section {
+  position: relative;
+  padding: 0.75rem 1rem 1.25rem;
+  overflow-x: clip;
+}
+/* The system: the container the ring's numbers measure; room above and under the circle for the moons' words. */
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-system {
+  container-type: inline-size;
+  inline-size: min(100%, 34rem);
+  margin-inline: auto;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-orbit {
+  position: relative;
+  inline-size: 100%;
+  aspect-ratio: 1;
+  margin-block: 3cqi 18cqi;
+}
+/* The centre: the section's name and count, the jump's focus target. */
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-core {
+  position: absolute;
+  inset-block-start: 50%;
+  inset-inline-start: 50%;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  inline-size: 30cqi;
+  block-size: 30cqi;
+  margin-block-start: -15cqi;
+  margin-inline-start: -15cqi;
+  border-radius: 50%;
+  text-align: center;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.125rem;
+  max-inline-size: 100%;
+  margin: 0;
+  font-size: 0.75rem;
+  line-height: 1.15;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-title > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: normal;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-title [data-count] {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* ------------------------------------------------------------------ the ring and its moons */
+
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-ring {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+  animation: ob-turn var(--ob-turn) linear infinite paused;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-slot {
+  position: absolute;
+  inset-block-start: calc(var(--y) * 1cqi - var(--s) * 0.5cqi);
+  inset-inline-start: calc(var(--x) * 1cqi - var(--s) * 0.5cqi);
+  inline-size: calc(var(--s) * 1cqi);
+  pointer-events: auto;
+}
+/* A moon: its photo, then its words under it. It turns back round its photo's centre, so the photo stays upright. */
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-moon {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transform-origin: 50% calc(var(--s) * 0.5cqi);
+  animation: ob-unturn var(--ob-turn) linear infinite paused;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-photo {
+  inline-size: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--card);
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-photo img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-add {
+  --rim-add-size: 1.75rem;
+  inset-block-start: -0.25rem;
+  inset-inline-end: -0.375rem;
+}
+/* The labels (offer, popular, new) sit on the photo's lower edge, in one line. */
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-badges {
+  position: absolute;
+  inset-block-start: calc(var(--s) * 1cqi - 0.875rem);
+  inset-inline: -0.5rem;
+  z-index: 2;
+  flex-wrap: nowrap;
+  justify-content: center;
+  overflow: hidden;
+  pointer-events: none;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-badges .tpl-badge {
+  flex: none;
+  padding-inline: 0.375rem;
+  background: var(--bg);
+  color: var(--text);
+  line-height: 1.3;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-badges .tpl-badge-sale {
+  background: var(--button);
+  color: var(--on-button);
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-words {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  inline-size: calc(100% + 1rem);
+  margin-block-start: 0.25rem;
+  padding: 0.125rem 0.375rem 0.1875rem;
+  border-radius: 0.375rem;
+  background: var(--ob-word-bg);
+  text-align: center;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  inline-size: 100%;
+  padding: 0;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  color: var(--ob-word-ink);
+  font-size: 0.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .tpl-open.ob-name:focus-visible::after {
+  outline-offset: 2px;
+  border-radius: 0.75rem;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-price {
+  color: var(--ob-price-ink);
+  font-size: 0.75rem;
+  font-weight: 800;
+  line-height: 1.25;
+  white-space: nowrap;
+}
+
+/* ------------------------------------------------------------------ the turn: on screen, untouched, motion allowed */
+
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-system[data-live] :is(.ob-ring, .ob-moon) {
+  animation-play-state: running;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf'])[data-hold] .ob-system :is(.ob-ring, .ob-moon),
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-system:is(:hover, :focus-within) :is(.ob-ring, .ob-moon) {
+  animation-play-state: paused;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf'])[data-still] :is(.ob-ring, .ob-moon) {
+  animation: none;
+}
+@keyframes ob-turn {
+  to {
+    rotate: 360deg;
+  }
+}
+@keyframes ob-unturn {
+  to {
+    rotate: -360deg;
+  }
+}
+
+/* ------------------------------------------------------------------ the dishes past a full ring */
+
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-rest {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .obr-row {
+  gap: 0.625rem;
+  padding: 0.375rem;
+  border-radius: 0.875rem;
+  background: var(--raised);
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .obr-photo {
+  border-radius: 50%;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .obr-name {
+  font-size: 0.875rem;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .obr-price {
+  color: var(--ob-price-ink);
+  font-size: 0.8125rem;
+}
+:is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .obr-add {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+}
+
+@media (hover: hover) {
+  :is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip:hover:not([aria-current='true']) {
+    border-color: var(--accent);
+  }
+}
+
+@media (min-width: 640px) {
+  :is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-name {
+    font-size: 0.875rem;
+  }
+  :is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-title {
+    font-size: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) :is(.ob-ring, .ob-moon) {
+    animation: none;
+  }
+  :is([data-body='space-orbit'], [data-body='tannour'], [data-body='daf']) .ob-chip {
+    transition: none;
+  }
+}

@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>تراث مجنون</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  .pop { opacity: 0; transform: scale(.92); transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .pop.in { opacity: 1; transform: none; }
+  .hd { padding: 58px 16px 10px; }
+  @keyframes bobble { 0%, 100% { transform: translateY(0) rotate(-1deg); } 50% { transform: translateY(-4px) rotate(1deg); } }
+  @keyframes step { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-6px); } }
+  @keyframes flick { 0%, 100% { opacity: .85; transform: scale(1); } 50% { opacity: 1; transform: scale(1.06); } }
+
+  /* 1. MARSH BOATS — every dish rides a mashoof through the reeds */
+  .m-ahwar { background: linear-gradient(#f7b267 0, #f4845f 120px, #2f6f73 240px, #1e4f5a); color: #fff3df; font-family: 'Cairo', sans-serif; }
+  .m-ahwar .hd h1 { font: 400 36px 'Rakkas'; color: #fff3df; text-shadow: 0 2px 0 rgba(0,0,0,.2); }
+  .m-ahwar .hd p { font-size: 13px; }
+  .m-ahwar .chips { background: rgba(30,79,90,.94); }
+  .m-ahwar .chips button { background: #5c7c3a; color: #f3f7e8; border-radius: 3px 14px 3px 14px; padding: 5px 13px; font-weight: 700; }
+  .m-ahwar .chips button.on { background: #e9d8a6; color: #1e4f5a; }
+  .m-ahwar section { position: relative; padding: 12px 10px 18px; background: repeating-linear-gradient(170deg, transparent 0 22px, rgba(255,255,255,.06) 22px 24px); border-top: 1px solid rgba(255,255,255,.12); }
+  .m-ahwar section::before, .m-ahwar section::after { content: ''; position: absolute; top: 0; bottom: 0; width: 12px; background: repeating-linear-gradient(90deg, #6d8b3a 0 2px, transparent 2px 4px); opacity: .7; }
+  .m-ahwar section::before { right: 0; } .m-ahwar section::after { left: 0; }
+  .m-ahwar .lab { font: 400 22px 'Rakkas'; padding: 0 8px 8px; color: #e9d8a6; }
+  .m-ahwar .fleet { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 10px; padding: 0 8px; }
+  .m-ahwar .boat { display: flex; flex-direction: column; align-items: center; animation: bobble 3.2s ease-in-out infinite; animation-delay: var(--dl); }
+  .m-ahwar .cargo { width: 74%; aspect-ratio: 1.15; border-radius: 50% 50% 8px 8px; border: 3px solid #e9d8a6; margin-bottom: -10px; position: relative; z-index: 1; }
+  .m-ahwar .hull { width: 100%; background: #4a2e1a; color: #f3e2c4; clip-path: polygon(0 0, 100% 0, 90% 70%, 78% 100%, 22% 100%, 10% 70%); padding: 14px 18% 12px; text-align: center; position: relative; }
+  .m-ahwar .hull::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 4px; background: #8a5a32; }
+  .m-ahwar .hull b { display: block; font-size: 13.5px; line-height: 1.3; }
+  .m-ahwar .hull span { font-size: 12px; color: #ffd27a; font-weight: 800; }
+  .m-ahwar .boat .add { margin-top: 6px; background: #e9d8a6; color: #1e4f5a; border-radius: 14px; padding: 3px 14px; font-weight: 800; font-size: 12.5px; }
+  .m-ahwar .cart { background: #4a2e1a; color: #ffd27a; }
+
+  /* 2. CLAY TABLETS — Sumerian tablets, a cylinder seal for the sections */
+  .m-clay { background: #e7d3b1; color: #4a2e15; font-family: 'Reem Kufi', sans-serif; }
+  .m-clay .hd h1 { font: 700 32px 'Reem Kufi'; }
+  .m-clay .hd p { font-size: 13px; color: #7a5a36; }
+  .m-clay .chips { background: linear-gradient(#c79a62, #b0844f); box-shadow: inset 0 3px 6px rgba(0,0,0,.25), inset 0 -3px 6px rgba(0,0,0,.2); border-radius: 0; }
+  .m-clay .chips button { color: #3b230c; padding: 5px 12px; font-weight: 700; text-shadow: 0 1px 0 rgba(255,255,255,.35); border-inline-end: 2px dotted rgba(59,35,12,.4); }
+  .m-clay .chips button.on { background: rgba(59,35,12,.18); box-shadow: inset 0 2px 5px rgba(0,0,0,.35); }
+  .m-clay section { padding: 12px 12px 16px; }
+  .m-clay .lab { font: 700 20px 'Reem Kufi'; padding: 0 4px 8px; }
+  .m-clay .lab small { font-size: 12px; color: #7a5a36; margin-inline-start: 6px; }
+  .m-clay .tabs { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .m-clay .tab { background: radial-gradient(circle at 30% 20%, #d3a771, #b07f49 70%); border-radius: 14px 18px 12px 16px; padding: 10px 9px 9px; box-shadow: 0 6px 0 #8a6236, 0 10px 18px rgba(0,0,0,.2); position: relative; }
+  .m-clay .tab::before { content: ''; position: absolute; inset: 4px 8px auto; height: 5px; background: repeating-linear-gradient(90deg, #6e4a24 0 2px, transparent 2px 5px, #6e4a24 5px 6px, transparent 6px 11px); opacity: .7; }
+  .m-clay .tab .ph { height: 104px; border-radius: 8px; box-shadow: inset 0 0 0 3px rgba(74,46,21,.5), inset 0 4px 10px rgba(0,0,0,.5); margin-top: 6px; }
+  .m-clay .tab b { display: block; font-size: 15px; margin-top: 6px; color: #3b230c; text-shadow: 0 1px 0 rgba(255,255,255,.35); }
+  .m-clay .tab .ln { display: flex; justify-content: space-between; align-items: center; margin-top: 4px; }
+  .m-clay .tab .ln span { font: 700 12.5px 'Cairo'; }
+  .m-clay .tab .add { background: #4a2e15; color: #f0d9b0; border-radius: 6px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+  .m-clay .cut::after { content: '✓ منقوش'; position: absolute; top: 18px; inset-inline-start: 14px; background: rgba(59,35,12,.85); color: #f0d9b0; font-size: 12px; padding: 2px 8px; border-radius: 4px; }
+  .m-clay .cart { background: #4a2e15; color: #f0d9b0; }
+
+  /* 3. HALPARKE — every section a dance line, dishes holding hands */
+  .m-dabka { background: linear-gradient(#ed2024 0 6px, #fff 6px 12px, #278e43 12px 18px, #fbf6ec 18px); color: #2a1d12; font-family: 'IBM Plex Sans Arabic', sans-serif; }
+  .m-dabka .hd h1 { font: 800 32px 'Changa'; display: flex; gap: 10px; align-items: center; }
+  .m-dabka .sun { width: 34px; height: 34px; border-radius: 50%; background: #febd11; box-shadow: 0 0 0 4px #fff, 0 0 0 6px #febd11; }
+  .m-dabka .hd p { font-size: 13px; color: #6a5a48; }
+  .m-dabka .chips { background: #fbf6ec; }
+  .m-dabka .chips button { border-radius: 4px; padding: 5px 12px; font-weight: 700; background: #fff; border-bottom: 3px solid var(--c); }
+  .m-dabka .chips button.on { background: var(--c); color: #fff; }
+  .m-dabka section { padding: 12px 0 18px; }
+  .m-dabka .lab { padding: 0 14px 8px; font: 800 18px 'Changa'; display: flex; gap: 8px; align-items: center; }
+  .m-dabka .lab i { font-style: normal; font-size: 12px; background: #2a1d12; color: #fff; border-radius: 10px; padding: 1px 8px; }
+  .m-dabka .line { display: flex; gap: 0; overflow-x: auto; scrollbar-width: none; padding: 10px 14px 6px; }
+  .m-dabka .line::-webkit-scrollbar { display: none; }
+  .m-dabka .dn { flex: none; width: 128px; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; animation: step 1.1s ease-in-out infinite; }
+  .m-dabka .dn:nth-child(even) { animation-delay: -.55s; }
+  .m-dabka .dn::before { content: ''; position: absolute; top: 52px; inset-inline-end: -14px; width: 28px; height: 4px; border-radius: 2px; background: #c08b5c; z-index: 0; }
+  .m-dabka .dn:last-child::before { display: none; }
+  .m-dabka .dn:first-child::after { content: ''; position: absolute; top: 38px; inset-inline-start: 2px; border: 9px solid transparent; border-top: 16px solid #ed2024; transform: rotate(-30deg); }
+  .m-dabka .face { width: 92px; aspect-ratio: 1; border-radius: 50%; border: 4px solid #fff; box-shadow: 0 0 0 3px var(--c), 0 6px 10px rgba(0,0,0,.18); position: relative; z-index: 1; }
+  .m-dabka .robe { margin-top: -8px; width: 104px; padding: 14px 6px 8px; border-radius: 10px 10px 30px 30px; background: linear-gradient(var(--c) 0 9px, #fff 9px 13px, var(--c) 13px); color: #fff; }
+  .m-dabka .robe b { display: block; font-size: 12.5px; line-height: 1.3; text-shadow: 0 1px 2px rgba(0,0,0,.35); }
+  .m-dabka .robe span { font-size: 11.5px; font-weight: 800; }
+  .m-dabka .dn .add { margin-top: 5px; background: #2a1d12; color: #fff; border-radius: 12px; padding: 2px 12px; font-size: 12px; font-weight: 700; }
+  .m-dabka .cart { background: #278e43; color: #fff; }
+
+  /* 4. TANNOUR — every section an oven seen from above, dishes stuck to the wall like bread */
+  .m-tannour { background: #2e1c10; color: #ffe8c7; font-family: 'Cairo', sans-serif; }
+  .m-tannour .hd h1 { font: 400 34px 'Lalezar'; color: #ffb35c; }
+  .m-tannour .hd p { font-size: 13px; color: #d9b48a; }
+  .m-tannour .chips { background: #2e1c10; }
+  .m-tannour .chips button { background: #5a3820; color: #ffe8c7; border-radius: 50%; padding: 6px 13px; border-radius: 18px; font-weight: 700; }
+  .m-tannour .chips button.on { background: #ff8a2a; color: #2e1c10; }
+  .m-tannour section { padding: 14px 10px 10px; }
+  .m-tannour .oven { position: relative; width: 100%; aspect-ratio: 1; border-radius: 50%; background: radial-gradient(circle, #ffb347 0, #e8541c 14%, #3a1a0c 30%, #5e3218 52%, #a8693a 66%, #c9895a 70%, #7d4a26 74%, transparent 75%); }
+  .m-tannour .fire { position: absolute; left: 50%; top: 50%; width: 30%; transform: translate(-50%, -50%); text-align: center; font: 400 20px 'Lalezar'; color: #fff6dc; text-shadow: 0 0 12px #ff8a2a; line-height: 1.15; }
+  .m-tannour .fire small { display: block; font: 600 11px 'Cairo'; color: #ffd6a0; }
+  .m-tannour .bread { position: absolute; width: 27%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; text-align: center; }
+  .m-tannour .bread .ph { width: 100%; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #e7b77a, 0 6px 10px rgba(0,0,0,.5); }
+  .m-tannour .bread b { font-size: 11.5px; line-height: 1.2; margin-top: 4px; background: rgba(46,28,16,.82); padding: 1px 6px; border-radius: 6px; }
+  .m-tannour .bread span { font-size: 11px; font-weight: 800; color: #ffb35c; background: rgba(46,28,16,.82); padding: 0 6px; border-radius: 6px; }
+  .m-tannour .bread .add { position: absolute; top: -2px; inset-inline-end: -2px; width: 26px; height: 26px; border-radius: 50%; background: #ff8a2a; color: #2e1c10; font-weight: 900; box-shadow: 0 2px 4px rgba(0,0,0,.4); }
+  .m-tannour .cart { background: #ff8a2a; color: #2e1c10; }
+
+  /* 5. OLD DINAR — every dish an Iraqi banknote, its price the denomination */
+  .m-dinar { background: #e8e4d4; color: #2b2a22; font-family: 'Amiri', serif; }
+  .m-dinar .hd h1 { font: 700 32px 'Amiri'; }
+  .m-dinar .hd p { font-size: 14px; color: #6b6655; }
+  .m-dinar .chips { background: #e8e4d4; }
+  .m-dinar .chips button { border: 1px solid var(--c); padding: 4px 12px; border-radius: 2px; font: 700 14px 'Amiri'; color: #2b2a22; background: color-mix(in srgb, var(--c) 14%, #fff); }
+  .m-dinar .chips button.on { background: var(--c); color: #fff; }
+  .m-dinar section { padding: 10px 12px 14px; }
+  .m-dinar .lab { font: 700 20px 'Amiri'; padding: 0 4px 8px; }
+  .m-dinar .note { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; margin-bottom: 10px; padding: 9px 10px; border-radius: 4px; background: repeating-radial-gradient(circle at 80% 50%, color-mix(in srgb, var(--c) 20%, transparent) 0 1.5px, transparent 1.5px 7px), color-mix(in srgb, var(--c) 18%, #f7f3e6); border: 2px solid color-mix(in srgb, var(--c) 60%, #000); box-shadow: inset 0 0 0 4px #f7f3e6, inset 0 0 0 5px color-mix(in srgb, var(--c) 50%, #000), 0 4px 8px rgba(0,0,0,.12); position: relative; }
+  .m-dinar .oval { width: 96px; height: 104px; border-radius: 50%; border: 3px double color-mix(in srgb, var(--c) 60%, #000); }
+  .m-dinar .bank { font-size: 11.5px; color: #4d4a3c; }
+  .m-dinar .note b { display: block; font-size: 19px; line-height: 1.25; }
+  .m-dinar .den { display: flex; align-items: baseline; gap: 6px; }
+  .m-dinar .den strong { font: 700 24px 'Amiri'; color: color-mix(in srgb, var(--c) 70%, #000); }
+  .m-dinar .serial { font: 700 11px 'IBM Plex Mono', 'Cairo'; color: #b3261e; letter-spacing: 1px; }
+  .m-dinar .note .add { position: absolute; bottom: 10px; inset-inline-end: 12px; background: #2b2a22; color: #f7f3e6; border-radius: 3px; padding: 3px 12px; font: 700 13px 'Amiri'; }
+  .m-dinar .cart { background: #2b2a22; color: #f7f3e6; }
+
+  /* 6. BAGHDAD KIA — every section a minibus, every dish a seat by the window */
+  .m-kia { background: #4a4d52; color: #fff; font-family: 'Cairo', sans-serif; }
+  .m-kia .route { margin: 0 12px; background: #111; border-radius: 8px; padding: 8px 12px; color: #ffd400; font: 700 18px 'Changa'; text-align: center; text-shadow: 0 0 8px rgba(255,212,0,.6); border: 2px solid #333; }
+  .m-kia .hd p { text-align: center; margin-top: 8px; font-size: 13px; color: #dcdcdc; }
+  .m-kia .chips { background: #4a4d52; }
+  .m-kia .chips button { background: #ffd400; color: #111; border-radius: 6px; padding: 5px 12px; font-weight: 800; }
+  .m-kia .chips button.on { background: #fff; box-shadow: 0 0 0 2px #ffd400; }
+  .m-kia section { padding: 12px 10px 6px; }
+  .m-kia .bus { background: linear-gradient(#f4f4f0 0 72%, #1f5fbf 72% 78%, #f4f4f0 78%); color: #1b1b1b; border-radius: 22px 30px 10px 10px; padding: 10px 10px 26px; position: relative; margin-bottom: 26px; }
+  .m-kia .sign { display: inline-block; background: #111; color: #ffd400; font: 700 13px 'Changa'; padding: 2px 10px; border-radius: 4px; margin-bottom: 8px; }
+  .m-kia .seats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .m-kia .seat { display: flex; flex-direction: column; gap: 2px; text-align: center; }
+  .m-kia .seat .ph { aspect-ratio: 1.1; border-radius: 10px 10px 6px 6px; border: 4px solid #2b2f36; }
+  .m-kia .seat b { font-size: 12px; line-height: 1.25; }
+  .m-kia .seat span { font-size: 11.5px; font-weight: 800; color: #1f5fbf; }
+  .m-kia .seat .add { background: #ffd400; color: #111; border-radius: 10px; padding: 1px 0; font-size: 11.5px; font-weight: 800; }
+  .m-kia .bus::before, .m-kia .bus::after { content: ''; position: absolute; bottom: -18px; width: 40px; height: 40px; border-radius: 50%; background: radial-gradient(circle, #bbb 0 30%, #1b1b1b 32%); }
+  .m-kia .bus::before { inset-inline-start: 34px; } .m-kia .bus::after { inset-inline-end: 34px; }
+  .m-kia .cart { background: #ffd400; color: #111; }
+
+  /* 7. MISBAHA — dishes are amber beads on one long string */
+  .m-misb { background: radial-gradient(circle at 50% 0, #1d4a37, #0d2219 70%); color: #f6e7c1; font-family: 'Amiri', serif; }
+  .m-misb .hd { display: flex; justify-content: space-between; align-items: end; }
+  .m-misb .hd h1 { font: 700 34px 'Amiri'; }
+  .m-misb .hd p { font-size: 14px; color: #cdb98a; }
+  .m-misb .count { font: 700 13px 'Cairo'; background: #f0b429; color: #0d2219; border-radius: 12px; padding: 4px 10px; }
+  .m-misb .chips { background: rgba(13,34,25,.95); }
+  .m-misb .chips button { border: 1px solid #f0b429; color: #f6e7c1; border-radius: 16px; padding: 4px 13px; font: 700 14px 'Amiri'; }
+  .m-misb .chips button.on { background: #f0b429; color: #0d2219; }
+  .m-misb section { position: relative; padding: 4px 14px 6px; }
+  .m-misb section::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: repeating-linear-gradient(#c9a36a 0 6px, #8a6a3a 6px 8px); }
+  .m-misb .imam { position: relative; z-index: 1; margin: 6px auto 10px; width: 140px; text-align: center; }
+  .m-misb .imam i { display: block; width: 26px; height: 54px; margin: 0 auto; border-radius: 13px; background: linear-gradient(90deg, #8a4a12, #f0b429, #8a4a12); }
+  .m-misb .imam b { display: block; margin-top: -4px; background: #6d1b3b; color: #f6e7c1; padding: 4px 8px 6px; border-radius: 0 0 10px 10px; font-size: 17px; border-top: 3px solid #f0b429; }
+  .m-misb .bead { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 96px 1fr; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .m-misb .ball { width: 96px; aspect-ratio: 1; border-radius: 50%; padding: 5px; background: radial-gradient(circle at 30% 25%, #ffe08a, #f0b429 40%, #8a4a12); box-shadow: 0 6px 12px rgba(0,0,0,.5); grid-column: 2; }
+  .m-misb .ball .ph { width: 100%; height: 100%; border-radius: 50%; }
+  .m-misb .txt { grid-column: 3; text-align: start; }
+  .m-misb .bead:nth-child(odd) .txt { grid-column: 1; grid-row: 1; text-align: end; }
+  .m-misb .txt b { display: block; font-size: 16px; line-height: 1.25; }
+  .m-misb .txt span { font: 700 12.5px 'Cairo'; color: #f0b429; }
+  .m-misb .txt .add { display: inline-block; margin-top: 4px; border: 1px solid #f0b429; color: #f6e7c1; border-radius: 12px; padding: 1px 12px; font: 700 13px 'Amiri'; }
+  .m-misb .cart { background: #f0b429; color: #0d2219; }
+
+  /* 8. ERBIL QAYSARI — dishes are shops under the arches of the covered bazaar */
+  .m-qays { background: #d9bf98; color: #3a2614; font-family: 'Reem Kufi', 'Cairo', sans-serif; }
+  .m-qays .hd { background: repeating-linear-gradient(90deg, #b88b5a 0 40px, #c99e6c 40px 80px); border-bottom: 6px solid #8a5f33; text-align: center; padding-bottom: 14px; }
+  .m-qays .hd h1 { font: 700 30px 'Reem Kufi'; color: #2b1a0b; }
+  .m-qays .hd p { font-size: 13px; color: #3a2614; font-weight: 600; }
+  .m-qays .chips { background: #d9bf98; }
+  .m-qays .chips button { background: #8a5f33; color: #fdf1dc; border-radius: 14px 14px 3px 3px; padding: 5px 13px; font-weight: 700; }
+  .m-qays .chips button.on { background: #2b1a0b; color: #ffd27a; }
+  .m-qays section { padding: 12px 10px 16px; }
+  .m-qays .alley { font: 700 17px 'Reem Kufi'; background: #2b1a0b; color: #ffd27a; display: inline-block; padding: 3px 14px; border-radius: 4px; margin: 0 4px 10px; }
+  .m-qays .shops { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 10px; }
+  .m-qays .shop { background: #c49a6c; border-radius: 50% 50% 6px 6px / 26% 26% 6px 6px; padding: 10px 8px 8px; box-shadow: inset 0 0 0 4px #a67a4c, 0 6px 10px rgba(0,0,0,.18); display: flex; flex-direction: column; gap: 4px; position: relative; }
+  .m-qays .shop .ph { aspect-ratio: 1; border-radius: 50% 50% 4px 4px / 30% 30% 4px 4px; box-shadow: inset 0 0 0 3px #3a2614; }
+  .m-qays .awn { height: 12px; margin: -6px 4px 0; border-radius: 0 0 8px 8px; background: repeating-linear-gradient(90deg, var(--c) 0 10px, #fdf1dc 10px 20px); position: relative; z-index: 1; }
+  .m-qays .shop b { text-align: center; background: #fdf1dc; border-radius: 3px; font-size: 13.5px; padding: 1px 4px; }
+  .m-qays .shop .ln { display: flex; justify-content: space-between; align-items: center; }
+  .m-qays .shop .ln span { font: 800 12px 'Cairo'; background: #2b1a0b; color: #ffd27a; padding: 1px 8px; border-radius: 3px; }
+  .m-qays .shop .add { background: var(--c); color: #fff; border-radius: 10px; padding: 2px 10px; font-size: 12px; font-weight: 700; }
+  .m-qays .cart { background: #2b1a0b; color: #ffd27a; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات مجنونة من تراثنا · عراقي وكردي</h1>
+  <p>مشاحيف الأهوار، ألواح سومر، صف الدبكة الكردية، التنّور، الدينار القديم، كيا خط بغداد، المسبحة، وقيصرية أربيل. كل شكل يغيّر طريقة التصفح، وكلها تبين هواية أطباق بصورها وأسعارها، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const ORD = ['الأول', 'الثاني', 'الثالث', 'الرابع', 'الخامس'];
+// tannour: the dishes sit on a ring around the fire, starting at the top
+const ring = (i, n) => { const a = (-90 + i * 360 / n) * Math.PI / 180; return `left:${(50 + 33 * Math.cos(a)).toFixed(1)}%;top:${(50 + 33 * Math.sin(a)).toFixed(1)}%`; };
+const serial = no => `${'أبجدهوزح'[no % 8]}/${toAr(String(no * 7919 % 100000).padStart(6, '0'))}`;
+const STYLES = [
+ { key: 'ahwar', fam: 'عراقي · الجنوب', name: 'مشاحيف الأهوار',
+   desc: 'المنيو هور بالجنوب وقت الغروب: كل قسم مجرى ماي بين القصب، وكل طبق مشحوف خشب حامل صورته، واسمه وسعره مكتوبين على جنب المشحوف. المشاحيف تتهز شوية على الماي.',
+   mo: '<b>الشكل:</b> قوارب بدل الكروت، والأطباق حمولتها، والقصب على حواف كل مجرى.',
+   render: () => `
+    <div class="hd"><h1>مشاحيف الأهوار</h1><p>كل مشحوف طبق · كل مجرى قسم</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2 class="lab">مجرى ${s.t}</h2><div class="fleet">${s.items.map((it, i) => `<div class="boat" style="--dl:-${(i * 0.8) % 3.2}s"><div class="cargo ph" ${bg(it.img, 260)}></div><div class="hull"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, 'حمّل')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('حمولتك')}` },
+
+ { key: 'clay', fam: 'عراقي · سومر', name: 'ألواح سومر',
+   desc: 'كل طبق لوح طين سومري بحواف منقوشة بالمسماري، وصورته مكبوسة جوّا الطين، واسمه محفور. الأقسام على شريط ختم أسطواني مثل أختام سومر. تدوس «انقش» فينحفر عليه «منقوش».',
+   mo: '<b>الشكل:</b> ألواح طين بدل الكروت، وشريط الأقسام ختم أسطواني محفور.',
+   render: () => `
+    <div class="hd"><h1>ألواح سومر</h1><p>منيو محفور بالطين من أوروك</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><h2 class="lab">اللوح ${ORD[si]}: ${s.t}<small>${toAr(s.items.length)} ألواح</small></h2><div class="tabs">${s.items.map(it => `<div class="tab"><div class="ph" ${bg(it.img, 260)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'انقش')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('ألواحك')}` },
+
+ { key: 'dabka', fam: 'كردي', name: 'هەڵپەڕکێ · الدبكة',
+   desc: 'كل قسم صف دبكة كردية: الأطباق راقصين ماسكين إيد بعض بزي كردي ملوّن، وصورة الطبق بالراس، واسمه وسعره عالزي، وأول واحد بالصف ماسك الچفية الحمرة. الصف يدبك بخطوة وحدة.',
+   mo: '<b>الشكل:</b> صفوف راقصين متماسكين تسحبها يمين ويسار، تتحرك بإيقاع الدبكة.',
+   render: () => `
+    <div class="hd"><h1><span class="sun"></span>هەڵپەڕکێ</h1><p>كل صف قسم · كل راقص طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><h2 class="lab">صف ${s.t}<i>${toAr(s.items.length)} راقصين</i></h2><div class="line">${s.items.map(it => `<div class="dn"><div class="face ph" ${bg(it.img, 240)}></div><div class="robe"><b>${it.n}</b><span>${it.p}</span></div>${addBtn(it, 'ادخل الصف')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('صفّك')}` },
+
+ { key: 'tannour', fam: 'عراقي وكردي', name: 'التنّور',
+   desc: 'كل قسم تنّور طين تشوفه من فوق: النار بالنص واسم القسم بيها، والأطباق ملزوقة عالجدار مثل خبز التنّور بصورها وأسعارها، دايرة حول النار.',
+   mo: '<b>الشكل:</b> دوائر نار بدل الشبكة، والأطباق على حلقة حوالين النار.',
+   render: () => `
+    <div class="hd"><h1>التنّور</h1><p>الطازج ملزوق على الجدار</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="oven"><div class="fire">${s.t}<small>${toAr(s.items.length)} أطباق</small></div>${s.items.map((it, i, a) => `<div class="bread" style="${ring(i, a.length)}"><div class="ph" ${bg(it.img, 200)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div></section>`).join('')}
+    ${cart('خبزتك')}` },
+
+ { key: 'misb', fam: 'عراقي وكردي', name: 'المسبحة',
+   desc: 'المنيو كله مسبحة كهرب وحدة طويلة: كل طبق خرزة صفرة بصورته، واسمه وسعره جنبها يمين ويسار بالتناوب، وكل قسم يبدي بـ«الشاهد» وشرّابته عليها اسمه. وفوق عدّاد يحسب طلبك مثل التسبيح.',
+   mo: '<b>الشكل:</b> خيط واحد نازل بالنص والأطباق خرز عليه، بدل الشبكة.',
+   render: () => `
+    <div class="hd"><div><h1>المسبحة</h1><p>خرزة خرزة، طبق طبق</p></div><span class="count">العدّاد: <em class="cn">٠</em></span></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="imam"><i></i><b>${s.t}</b></div>${s.items.map(it => `<div class="bead"><div class="ball"><div class="ph" ${bg(it.img, 220)}></div></div><div class="txt"><b>${it.n}</b><span>${it.p}</span><br>${addBtn(it, 'سبّح')}</div></div>`).join('')}</section>`).join('')}
+    ${cart('خرزاتك')}` },
+
+ { key: 'qays', fam: 'كردي · أربيل', name: 'قيصرية أربيل',
+   desc: 'المنيو سوق القيصرية المسقّف بأربيل: كل قسم «سوق» بلافتته، وكل طبق دكان تحت قوس حجر بمظلة مخططة، صورته بالواجهة واسمه على اللافتة وسعره على لوحة صغيرة.',
+   mo: '<b>الشكل:</b> دكاكين بأقواس ومظلات بدل الكروت، والأقسام أسواق.',
+   render: () => `
+    <div class="hd"><h1>قەیسەری · قيصرية أربيل</h1><p>كل سوق قسم · كل دكان طبق</p></div>
+    ${chips(s => `سوق ${s.t}`)}
+    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><span class="alley">سوق ${s.t}</span><div class="shops">${s.items.map(it => `<div class="shop"><div class="ph" ${bg(it.img, 260)}></div><div class="awn"></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'اشتري')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('مشترياتك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const SHOUTS = ['يلا صعدوا!', 'باب الشرقي، باب الشرقي!', 'اكو مكان ورا!', 'نازل؟ لا صاعد!'];
+const WIRE = {
+  ahwar: {
+    added(a) { if (!reduce) a.closest('.boat').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(6px) rotate(-3deg)' }, { transform: 'translateY(-3px) rotate(2deg)' }, { transform: 'translateY(0)' }], { duration: 600, easing: ease }); },
+  },
+  clay: {
+    added(a) { a.closest('.tab').classList.add('cut'); },
+  },
+  dabka: {
+    // the dancer stamps: a quick dip and rise
+    added(a) { if (!reduce) a.closest('.dn').querySelector('.face').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(8px)' }, { transform: 'translateY(-8px)' }, { transform: 'translateY(0)' }], { duration: 420, easing: ease }); },
+  },
+  tannour: {
+    added(a) { if (!reduce) a.closest('.bread').querySelector('.ph').animate([{ filter: 'brightness(1)' }, { filter: 'brightness(1.6) sepia(.4)' }, { filter: 'brightness(1)' }], { duration: 500, easing: ease }); },
+  },
+  kia: {
+    added() { setTimeout(() => toast(`🚐 ${SHOUTS[count % SHOUTS.length]}`), 700); },
+  },
+  misb: {
+    // a bead clicks over on the string, like counting
+    added(a) {
+      screen.querySelector('.cn').textContent = toAr(count);
+      if (!reduce) a.closest('.bead').querySelector('.ball').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(10px)' }, { transform: 'translateY(0)' }], { duration: 260, easing: ease });
+    },
+  },
+  qays: {
+    added(a) { if (!reduce) a.closest('.shop').querySelector('.awn').animate([{ transform: 'scaleY(1)' }, { transform: 'scaleY(1.8)' }, { transform: 'scaleY(1)' }], { duration: 400, easing: ease }); },
+  },
+};
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

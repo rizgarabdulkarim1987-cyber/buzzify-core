@@ -1,0 +1,126 @@
+/*
+ * The Balloon Bunch (`balloon`, family `swing`): each section is a bunch of balloons of one colour (its hue mixed with
+ * the accent: decoration only, never under text); each dish is a balloon with its photo inside, tied by a string to a
+ * small card with its name, price and add button. Balloons float up and down at different heights instead of swinging;
+ * adding a dish sends its balloon up and back.
+ */
+[data-body='balloon'] {
+  background: linear-gradient(var(--bg), color-mix(in srgb, var(--bg) 88%, var(--accent)));
+}
+[data-body='balloon'] .sw-section {
+  --bl-fill: color-mix(in oklab, var(--accent) 45%, hsl(var(--sw-hue, 340) 78% 62%));
+}
+
+/* The chips are small balloons too. */
+[data-body='balloon'] .sw-chip {
+  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
+  padding-inline: 0.875rem;
+}
+[data-body='balloon'] .sw-chip[aria-current='true'] {
+  translate: 0 -2px;
+}
+[data-body='balloon'] .sw-mark {
+  display: block;
+  flex: none;
+  inline-size: 0.875rem;
+  block-size: 1rem;
+  border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%;
+  background: var(--bl-fill);
+}
+[data-body='balloon'] .sw-title {
+  font-size: 1.25rem;
+}
+
+/* A bunch: the middle balloon of each three floats lower, so the tops make a wave. */
+[data-body='balloon'] .sw-grid {
+  gap: 0.75rem 0.5rem;
+}
+[data-body='balloon'] .sw-item:nth-child(3n + 2) {
+  margin-block-start: 1.625rem;
+}
+[data-body='balloon'] .sw-hang {
+  animation-name: swing-float;
+}
+@keyframes swing-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(calc(var(--sw-a, 2deg) * 0.5));
+  }
+  50% {
+    transform: translateY(-0.4375rem) rotate(calc(var(--sw-a, 2deg) * -0.5));
+  }
+}
+/* The balloon first, its knot, the string, then the card. */
+[data-body='balloon'] .sw-frame {
+  order: -1;
+  aspect-ratio: 1 / 1.15;
+  overflow: visible;
+  border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%;
+  background: var(--bl-fill);
+  box-shadow:
+    inset -0.5rem -0.625rem 0 rgb(0 0 0 / 0.12),
+    0 0.5rem 0.875rem rgb(0 0 0 / 0.15);
+}
+[data-body='balloon'] .sw-frame > :first-child {
+  inset: 0.3125rem;
+  inline-size: auto;
+  block-size: auto;
+  overflow: hidden;
+  border-radius: inherit;
+}
+/* The shine, and the knot under the balloon. */
+[data-body='balloon'] .sw-frame::before {
+  content: '';
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 12%;
+  inset-inline-start: 18%;
+  inline-size: 16%;
+  block-size: 22%;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 0.7);
+  pointer-events: none;
+}
+[data-body='balloon'] .sw-frame::after {
+  content: '';
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline-start: 50%;
+  margin-inline-start: -0.375rem;
+  border: 0.375rem solid transparent;
+  border-block-start: 0.5625rem solid var(--bl-fill);
+  border-block-end: 0;
+}
+[data-body='balloon'] .sw-cord {
+  inline-size: 1.5px;
+  block-size: calc(var(--sw-rope) * 0.5 + 0.75rem);
+  margin-block-start: 0.5rem;
+  background: var(--muted);
+}
+[data-body='balloon'] .sw-text {
+  padding: 0.25rem 0.375rem 0.375rem;
+  border-radius: 0.625rem;
+  background: var(--raised);
+  color: var(--text);
+  box-shadow: 0 0.1875rem 0.5rem rgb(0 0 0 / 0.08);
+}
+[data-body='balloon'] .sw-add {
+  border-radius: 0.625rem;
+  background: var(--button);
+  color: var(--on-button);
+}
+[data-body='balloon'] .sw-name:focus-visible::after {
+  border-radius: 1.5rem;
+}
+
+@media (min-width: 640px) {
+  [data-body='balloon'] {
+    --sw-cols: 4;
+  }
+  [data-body='balloon'] .sw-item:nth-child(3n + 2) {
+    margin-block-start: 0;
+  }
+  [data-body='balloon'] .sw-item:nth-child(even) {
+    margin-block-start: 1.625rem;
+  }
+}

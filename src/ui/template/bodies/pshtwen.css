@@ -1,0 +1,316 @@
+/*
+ * The pshtwen (family `wrap`, kind `pshtwen`): the long Kurdish cloth sash. Every section is a sash woven in the accent
+ * (one of three stripe weaves, `data-weave`, the stripes only a shade either side of the accent so the words on it keep
+ * their contrast); every dish is one wrap of it, tilted the other way from the one above and laid over it, its words in
+ * `--on-accent`. The sash ends in a knot with fringes that swing while on screen (`data-live`) and stop under a finger
+ * (`data-hold`). As the page scrolls, each wrap winds in from its side and settles once (`data-in`, only once the hook
+ * has armed: the first screen is settled already). Logical properties only; the tilts and sides mirror in Arabic.
+ */
+[data-body='pshtwen'] {
+  --nav-room: 3.5rem;
+  --column: 42rem;
+  --dir: 1;
+  --pw-cloth: var(--accent);
+  --pw-ink: var(--on-accent);
+  --pw-dark: color-mix(in srgb, var(--accent) 86%, var(--text));
+  --pw-light: color-mix(in srgb, var(--accent) 88%, var(--bg));
+  --pw-deep: color-mix(in srgb, var(--accent) 60%, #000);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+[data-body='pshtwen']:dir(rtl) {
+  --dir: -1;
+}
+
+/* ------------------------------------------------------------------ the strip: a swatch of each sash */
+
+[data-body='pshtwen'] .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+[data-body='pshtwen'] .pw-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.5rem 0.875rem;
+  border-radius: 0.25rem;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  box-shadow: inset 0 0 0 1px var(--line);
+  transition: background-color 150ms, color 150ms;
+}
+[data-body='pshtwen'] .pw-chip-band {
+  inline-size: 1.25rem;
+  block-size: 0.875rem;
+  border-radius: 0.125rem;
+  background: repeating-linear-gradient(var(--pw-cloth) 0 3px, var(--pw-dark) 3px 4px, var(--pw-light) 4px 5px);
+}
+[data-body='pshtwen'] .pw-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+[data-body='pshtwen'] .pw-chip[aria-current='true'] .pw-chip-band {
+  box-shadow: 0 0 0 1px var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ a sash: its name, its wraps, its knot */
+
+[data-body='pshtwen'] .pw-main {
+  overflow-x: clip;
+}
+[data-body='pshtwen'] .pw-section {
+  padding: 1rem 0.75rem 0.5rem;
+}
+[data-body='pshtwen'] .pw-head {
+  padding-inline: 0.25rem;
+  margin-block-end: 0.375rem;
+}
+[data-body='pshtwen'] .pw-head:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+[data-body='pshtwen'] .pw-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.375rem;
+  line-height: 1.25;
+}
+[data-body='pshtwen'] .pw-title [data-count] {
+  color: var(--muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+[data-body='pshtwen'] .pw-sash {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0.25rem 0.25rem 0;
+  list-style: none;
+}
+/* A wrap: the cloth (the accent, woven), tilted to its side, laid over the wrap above. */
+[data-body='pshtwen'] .pw-wrap {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: 0.625rem;
+  min-block-size: 4.5rem;
+  margin-block-start: -0.25rem;
+  padding: 0.5rem 0.625rem;
+  border-radius: 0.1875rem;
+  background-color: var(--pw-cloth);
+  color: var(--pw-ink);
+  box-shadow: 0 0.25rem 0 rgb(0 0 0 / 0.18), inset 0 1px 0 color-mix(in srgb, var(--pw-light) 70%, transparent);
+  rotate: calc(var(--s, 1) * var(--dir) * -1.2deg);
+  transition:
+    translate 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    rotate 700ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 400ms ease-out;
+}
+[data-body='pshtwen'] .pw-wrap:first-child {
+  margin-block-start: 0;
+}
+/* The three weaves: fine stripes, a double band, a chevron; all a shade either side of the accent. */
+[data-body='pshtwen'] [data-weave='0'] .pw-wrap {
+  background-image:
+    repeating-linear-gradient(90deg, transparent 0 1.375rem, color-mix(in srgb, var(--pw-light) 60%, transparent) 1.375rem 1.5rem),
+    repeating-linear-gradient(var(--pw-cloth) 0 0.375rem, var(--pw-dark) 0.375rem 0.5rem, var(--pw-cloth) 0.5rem 0.75rem, var(--pw-light) 0.75rem 0.875rem);
+}
+[data-body='pshtwen'] [data-weave='1'] .pw-wrap {
+  background-image:
+    linear-gradient(var(--pw-dark) 0 0.1875rem, transparent 0.1875rem calc(100% - 0.1875rem), var(--pw-dark) calc(100% - 0.1875rem)),
+    linear-gradient(transparent 0.3125rem, var(--pw-light) 0.3125rem 0.4375rem, transparent 0.4375rem calc(100% - 0.4375rem), var(--pw-light) calc(100% - 0.4375rem) calc(100% - 0.3125rem), transparent calc(100% - 0.3125rem)),
+    repeating-linear-gradient(90deg, var(--pw-cloth) 0 0.25rem, var(--pw-dark) 0.25rem 0.3125rem);
+}
+[data-body='pshtwen'] [data-weave='2'] .pw-wrap {
+  background-image:
+    repeating-linear-gradient(45deg, transparent 0 0.375rem, color-mix(in srgb, var(--pw-dark) 70%, transparent) 0.375rem 0.5rem),
+    repeating-linear-gradient(-45deg, transparent 0 0.375rem, color-mix(in srgb, var(--pw-light) 55%, transparent) 0.375rem 0.5rem);
+}
+[data-body='pshtwen'] .pw-wrap:nth-child(even) {
+  background-position: 0.75rem 0;
+}
+/* The fold where the wrap tucks under its neighbour. */
+[data-body='pshtwen'] .pw-wrap::before {
+  content: '';
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 0;
+  inline-size: 0.375rem;
+  border-start-start-radius: inherit;
+  border-end-start-radius: inherit;
+  background: linear-gradient(90deg, var(--pw-deep), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+[data-body='pshtwen'] .pw-photo {
+  position: relative;
+  inline-size: 3.5rem;
+  block-size: 3.5rem;
+  overflow: hidden;
+  border-radius: 0.375rem;
+  box-shadow: 0 0 0 2px var(--bg);
+}
+[data-body='pshtwen'] .pw-photo > * {
+  inline-size: 100%;
+  block-size: 100%;
+}
+[data-body='pshtwen'] .pw-photo img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+[data-body='pshtwen'] .pw-text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-inline-size: 0;
+}
+[data-body='pshtwen'] .pw-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  padding: 0;
+  color: var(--pw-ink);
+  font-size: 0.9375rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-shadow: 0 1px 0 color-mix(in srgb, var(--pw-cloth) 70%, transparent);
+  overflow-wrap: anywhere;
+}
+[data-body='pshtwen'] .pw-desc {
+  color: var(--pw-ink);
+  font-size: 0.75rem;
+  opacity: 0.88;
+}
+[data-body='pshtwen'] .pw-badges {
+  font-size: 0.75rem;
+}
+[data-body='pshtwen'] .pw-badges .tpl-badge:not(.tpl-badge-sale) {
+  color: var(--pw-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--pw-ink) 55%, transparent);
+}
+[data-body='pshtwen'] .pw-price {
+  color: var(--pw-ink);
+  font-size: 0.875rem;
+  font-weight: 900;
+  text-align: end;
+  white-space: nowrap;
+}
+[data-body='pshtwen'] .pw-price .tpl-was {
+  display: block;
+  color: var(--pw-ink);
+  opacity: 0.8;
+}
+[data-body='pshtwen'] .pw-add {
+  inline-size: 2.25rem;
+  min-inline-size: 2.25rem;
+  block-size: 2.25rem;
+  padding: 0;
+  border-radius: 0.25rem;
+  background: var(--bg);
+  color: var(--text);
+}
+[data-body='pshtwen'] .pw-wrap:not(:has(.pw-add)) {
+  grid-template-columns: 3.5rem minmax(0, 1fr) auto;
+}
+
+/* Winding in: a wrap not yet seen waits off to its side, turned further, and swings in when first seen. */
+[data-body='pshtwen'][data-armed] .pw-wrap:not([data-in]) {
+  opacity: 0;
+  translate: calc(var(--s, 1) * var(--dir) * -45%) 0;
+  rotate: calc(var(--s, 1) * var(--dir) * -7deg);
+}
+
+/* The knot: the cloth bunched and tied, its fringes hanging. */
+[data-body='pshtwen'] .pw-knot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-block-start: -0.125rem;
+}
+[data-body='pshtwen'] .pw-tie {
+  inline-size: 3.25rem;
+  block-size: 1.5rem;
+  border-radius: 0.75rem 0.75rem 0.5rem 0.5rem;
+  background:
+    linear-gradient(100deg, transparent 45%, var(--pw-deep) 45% 50%, transparent 50%),
+    linear-gradient(80deg, transparent 50%, var(--pw-dark) 50% 55%, transparent 55%),
+    var(--pw-cloth);
+  box-shadow: 0 0.25rem 0 rgb(0 0 0 / 0.18);
+}
+[data-body='pshtwen'] .pw-fringe {
+  display: flex;
+  justify-content: center;
+  gap: 0.25rem;
+  margin-block-start: -0.125rem;
+}
+[data-body='pshtwen'] .pw-fringe i {
+  inline-size: 0.3125rem;
+  block-size: var(--len, 1.75rem);
+  border-end-start-radius: 0.1875rem;
+  border-end-end-radius: 0.1875rem;
+  background: repeating-linear-gradient(var(--pw-cloth) 0 0.375rem, var(--pw-deep) 0.375rem 0.5rem);
+  transform-origin: 50% 0;
+  animation: pw-fringe 2.6s ease-in-out var(--dl, 0s) infinite paused;
+}
+[data-body='pshtwen'] .pw-knot[data-live] .pw-fringe i {
+  animation-play-state: running;
+}
+[data-body='pshtwen'][data-hold] .pw-knot .pw-fringe i {
+  animation-play-state: paused;
+}
+@keyframes pw-fringe {
+  0%,
+  100% {
+    transform: skewX(8deg);
+  }
+  50% {
+    transform: skewX(-8deg);
+  }
+}
+
+@media (hover: hover) {
+  [data-body='pshtwen'] .pw-chip:hover:not([aria-current='true']) {
+    background: color-mix(in srgb, var(--accent) 14%, var(--raised));
+  }
+  [data-body='pshtwen'] .pw-wrap[data-in]:hover,
+  [data-body='pshtwen']:not([data-armed]) .pw-wrap:hover {
+    rotate: 0deg;
+  }
+}
+
+@media (min-width: 640px) {
+  [data-body='pshtwen'] .pw-wrap {
+    grid-template-columns: 4.5rem minmax(0, 1fr) auto auto;
+    min-block-size: 5.5rem;
+  }
+  [data-body='pshtwen'] .pw-photo {
+    inline-size: 4.5rem;
+    block-size: 4.5rem;
+  }
+  [data-body='pshtwen'] .pw-name {
+    font-size: 1.0625rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-body='pshtwen'] .pw-wrap,
+  [data-body='pshtwen'] .pw-chip {
+    transition: none;
+  }
+  [data-body='pshtwen'] .pw-fringe i {
+    animation: none;
+  }
+}

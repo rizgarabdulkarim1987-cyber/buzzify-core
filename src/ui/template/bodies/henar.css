@@ -1,0 +1,158 @@
+/*
+ * The Halabja Pomegranate (`henar`, family `float`): every section a pomegranate split open, its crown on top and its
+ * thick red rind (`--accent`) round the pulp, and every dish a ruby seed floating in it, its photo inside the seed. A
+ * seed glints when its dish is added. The pulp is `--bg` tinted with the accent and carries `--text`; the glints and the
+ * seed's shine are white light (decoration, never under words).
+ */
+[data-body='henar'] {
+  --hn-rind: var(--accent);
+  --hn-rind-dark: color-mix(in oklab, var(--accent) 70%, #000);
+  --hn-pulp: color-mix(in oklab, var(--accent) 14%, var(--bg));
+  --hn-seed: color-mix(in oklab, var(--accent) 80%, #fff);
+  --fl-cols: 3;
+  --fl-tilt: 0;
+  --fl-gap: 1.75rem;
+  background: radial-gradient(ellipse at 50% 0, color-mix(in oklab, var(--accent) 22%, var(--bg)), var(--bg) 70%);
+}
+
+[data-body='henar'] .fl-chip {
+  border: 1px solid var(--hn-rind);
+  border-radius: 999px;
+}
+[data-body='henar'] .fl-chip-mark {
+  inline-size: 0.625rem;
+  block-size: 0.75rem;
+  border-radius: 42% 58% 52% 48% / 48% 42% 58% 52%;
+  background: var(--hn-seed);
+}
+[data-body='henar'] .fl-chip[aria-current='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+[data-body='henar'] .fl-chip[aria-current='true'] .fl-chip-mark {
+  background: var(--on-accent);
+}
+
+/* The crown: the calyx of the fruit, standing on the rind. */
+[data-body='henar'] .fl-over {
+  display: block;
+  position: relative;
+  z-index: 1;
+  inline-size: 4rem;
+  block-size: 1.875rem;
+  margin: 0 auto -0.375rem;
+  background: var(--hn-rind-dark);
+  clip-path: polygon(0 100%, 8% 20%, 24% 66%, 36% 0, 50% 60%, 64% 0, 76% 66%, 92% 20%, 100% 100%);
+}
+/* The fruit: the red rind round the pulp, a pale membrane just inside it. */
+[data-body='henar'] .fl-frame {
+  padding: 1.25rem 0.625rem 1.125rem;
+  border: 0.875rem solid var(--hn-rind);
+  border-radius: 48% 48% 44% 44% / 12% 12% 10% 10%;
+  background: radial-gradient(ellipse at 50% 40%, color-mix(in oklab, var(--accent) 8%, var(--bg)), var(--hn-pulp));
+  box-shadow:
+    inset 0 0 0 4px color-mix(in oklab, var(--text) 30%, var(--hn-pulp)),
+    0 0 40px -10px var(--accent);
+}
+[data-body='henar'] .fl-title {
+  justify-content: center;
+  font-size: 1.375rem;
+  text-align: center;
+}
+[data-body='henar'] .fl-title small {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+[data-body='henar'] .fl-title [data-count] {
+  padding-inline: 0.5rem;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.75rem;
+}
+[data-body='henar'] .fl-field {
+  column-gap: 0.5rem;
+}
+
+/* The seed: a ruby with the photo inside, a shine at its top corner. */
+[data-body='henar'] .fl-art {
+  overflow: hidden;
+  border: 4px solid var(--hn-seed);
+  border-radius: 42% 58% 52% 48% / 48% 42% 58% 52%;
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.4),
+    0 5px 12px color-mix(in srgb, var(--accent) 45%, transparent);
+  transition: border-color 300ms;
+}
+[data-body='henar'] .fl-photo {
+  aspect-ratio: 0.88;
+}
+[data-body='henar'] .fl-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 24%, rgb(255 255 255 / 0.7) 0 7%, transparent 16%),
+    linear-gradient(transparent 60%, color-mix(in srgb, var(--accent) 35%, transparent));
+  pointer-events: none;
+}
+[data-body='henar'] .fl-item[data-z='2'] .fl-art {
+  box-shadow:
+    inset 0 0 0 2px rgb(255 255 255 / 0.5),
+    0 8px 18px color-mix(in srgb, var(--accent) 60%, transparent);
+}
+/* The glint that sweeps across a seed on add (FloatBody animates it). */
+[data-body='henar'] .fl-glint {
+  display: block;
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 35%, rgb(255 255 255 / 0.85) 50%, transparent 65%);
+  opacity: 0;
+  pointer-events: none;
+}
+[data-body='henar'] .fl-item[data-picked] .fl-art {
+  border-color: color-mix(in oklab, #ffd23f 70%, var(--accent));
+}
+
+[data-body='henar'] .fl-text {
+  text-align: center;
+}
+[data-body='henar'] .fl-name {
+  font-size: 0.8125rem;
+  text-align: center;
+}
+[data-body='henar'] .fl-badges,
+[data-body='henar'] .fl-meta {
+  justify-content: center;
+}
+[data-body='henar'] .fl-price {
+  font-size: 0.8125rem;
+}
+[data-body='henar'] .fl-add {
+  inline-size: 2rem;
+  min-inline-size: 2rem;
+  block-size: 2rem;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: none;
+}
+
+@media (min-width: 640px) {
+  [data-body='henar'] {
+    --fl-cols: 4;
+  }
+}
+
+/* The seeds sit loosely in the pulp: the middle one of each three a little lower. */
+[data-body='henar'] .fl-item:nth-child(3n + 2) {
+  margin-block-start: 1.25rem;
+}
+@media (min-width: 640px) {
+  [data-body='henar'] .fl-item:nth-child(3n + 2) {
+    margin-block-start: 0;
+  }
+  [data-body='henar'] .fl-item:nth-child(even) {
+    margin-block-start: 1.25rem;
+  }
+}

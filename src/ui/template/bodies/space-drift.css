@@ -1,0 +1,164 @@
+/*
+ * Drift in space (`space-drift`, family `drift`): deep space with a field of stars; every section is a stream of glass
+ * cards floating sideways, each card swaying on its own clock. Only the look (no logo, no agency words). Colours from
+ * the template's tokens: space is `--bg` with nebulae of `--accent`; the stars are pure decoration (never under text);
+ * a card is `--card` over `--bg` glass with an `--accent` rim and glow.
+ */
+[data-body='space-drift'] {
+  --dr-w: 44%;
+  --dr-max: 13rem;
+  --sd-rim: color-mix(in srgb, var(--accent) 55%, transparent);
+  --sd-glow: color-mix(in srgb, var(--accent) 45%, transparent);
+  --sd-star: color-mix(in srgb, var(--text) 80%, transparent);
+  background:
+    radial-gradient(1px 1px at 20px 30px, var(--sd-star), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 55%, transparent), transparent 70%),
+    radial-gradient(1.5px 1.5px at 70px 160px, color-mix(in srgb, var(--accent) 70%, var(--text)), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, var(--sd-star), transparent 70%),
+    radial-gradient(2px 2px at 100px 60px, color-mix(in srgb, var(--accent) 80%, transparent), transparent 70%),
+    radial-gradient(ellipse at 85% 0, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
+    radial-gradient(ellipse at 0 55%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 50%),
+    var(--bg);
+  background-size:
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    230px 260px,
+    100% 100%,
+    100% 100%;
+}
+
+/* The strip: glass pills with a glowing dot; the lit one takes the accent rim and glow. */
+[data-body='space-drift'] .tpl-strip-sticky {
+  backdrop-filter: blur(10px);
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+}
+[data-body='space-drift'] .dr-chip {
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 999px;
+  letter-spacing: 0.04em;
+}
+[data-body='space-drift'] .dr-chip-mark {
+  display: block;
+  inline-size: 0.4rem;
+  block-size: 0.4rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+[data-body='space-drift'] .dr-chip[aria-current='true'] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 16px -3px var(--sd-glow),
+    inset 0 0 12px -6px var(--sd-glow);
+}
+
+/* The heading: the section's number in the accent, its name, its count. */
+[data-body='space-drift'] .dr-section {
+  padding-block: 0.875rem 0.25rem;
+}
+[data-body='space-drift'] .dr-head {
+  padding-inline: 1.125rem;
+}
+[data-body='space-drift'] .dr-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+[data-body='space-drift'] .dr-title small {
+  order: -1;
+  color: var(--accent-ink);
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  letter-spacing: 0.1em;
+}
+[data-body='space-drift'] .dr-title b {
+  margin-inline-start: auto;
+  color: var(--muted);
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+}
+
+/* The stream: the cards float with room above and below for their sway. */
+[data-body='space-drift'] .dr-row {
+  padding-block: 1rem 1.25rem;
+}
+
+/* A card: glass with a glowing accent rim; photo, name, then price and add on one line, labels under. */
+[data-body='space-drift'] .dr-dish {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'photo photo'
+    'name name'
+    'price add'
+    'badges badges';
+  align-items: center;
+  column-gap: 0.375rem;
+  padding: 0.4375rem;
+  border: 1px solid var(--sd-rim);
+  border-radius: 0.875rem;
+  background: linear-gradient(160deg, var(--card), color-mix(in srgb, var(--card) 60%, var(--bg)));
+  box-shadow:
+    0 0 26px -8px var(--sd-glow),
+    inset 0 0 22px -14px var(--sd-glow);
+  text-align: start;
+  animation: sd-bob var(--dr-t, 6s) ease-in-out var(--dr-dl, 0s) infinite;
+  animation-play-state: var(--dr-play, paused);
+}
+[data-body='space-drift'] .dr-dish:nth-child(even) {
+  --sd-tilt: -1.5deg;
+}
+[data-body='space-drift'] .dr-photo {
+  grid-area: photo;
+  inline-size: 100%;
+  block-size: 7rem;
+  border-radius: 0.5625rem;
+}
+[data-body='space-drift'] .dr-words {
+  display: contents;
+}
+[data-body='space-drift'] .dr-name {
+  grid-area: name;
+  margin-block-start: 0.375rem;
+  text-align: start;
+}
+[data-body='space-drift'] .dr-price {
+  grid-area: price;
+  margin-block-start: 0.25rem;
+  font-family: ui-monospace, 'SFMono-Regular', monospace;
+  font-weight: 600;
+}
+[data-body='space-drift'] .dr-add {
+  grid-area: add;
+  margin: 0;
+  background: transparent;
+  color: var(--accent-ink);
+  box-shadow: inset 0 0 0 1px var(--sd-rim);
+}
+[data-body='space-drift'] .dr-badges {
+  grid-area: badges;
+  justify-content: flex-start;
+}
+[data-body='space-drift'] .dr-badges:empty {
+  display: none;
+}
+
+@keyframes sd-bob {
+  0%,
+  100% {
+    transform: translateY(0) rotate(var(--sd-tilt, 1.5deg));
+  }
+  50% {
+    transform: translateY(-0.5rem) rotate(calc(var(--sd-tilt, 1.5deg) * -0.6));
+  }
+}
+
+@media (hover: hover) {
+  [data-body='space-drift'] .dr-dish:hover {
+    border-color: var(--accent);
+  }
+}
+@media (min-width: 640px) {
+  [data-body='space-drift'] .dr-photo {
+    block-size: 8.5rem;
+  }
+}

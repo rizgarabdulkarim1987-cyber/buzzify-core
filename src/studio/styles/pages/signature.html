@@ -1,0 +1,577 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات تكشّخ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Cairo:wght@400;600;700;900&family=Changa:wght@300;500;700;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Arabic:wght@300;400;600&family=Lalezar&family=Tajawal:wght@200;300;500;800;900&family=Reem+Kufi:wght@400;700&family=Aref+Ruqaa:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  /* ---------------- gallery ---------------- */
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 900px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 320px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .art .mini { position: absolute; inset: 0; pointer-events: none; transform-origin: top center; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover h2 { font-size: 22px; }
+  .cover .tag { font-size: 13px; color: #ffd23f; font-weight: 700; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .who { font-size: 12px; color: #9a9aa3; }
+  .cover .sk { font-size: 11px; color: #9a9aa3; direction: ltr; text-align: right; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; }
+
+  /* ---------------- overlay app ---------------- */
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 50; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; scroll-behavior: smooth; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .tabs { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 56px 10px 12px; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs button { flex: none; white-space: nowrap; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .cart .cnt { transition: transform .2s; display: inline-block; }
+  .cart .cnt.bump { transform: scale(1.35); }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(20px); opacity: 0; z-index: 60; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: .25s; pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+
+  /* =====================================================================
+     1. SHOWROOM — dishes presented like luxury cars on a glossy floor
+     ===================================================================== */
+  .m-show { background: radial-gradient(ellipse 120% 60% at 50% 0, #2a2a2e, #050505 60%); color: #f2f2f2; font-family: 'Tajawal'; }
+  .m-show .hd { padding: 26px 18px 6px; }
+  .m-show .hd small { font: 300 10px 'Tajawal'; letter-spacing: 6px; color: #8d8d95; display: block; direction: ltr; text-align: right; }
+  .m-show .hd h1 { font-weight: 200; font-size: 40px; line-height: 1.05; letter-spacing: -1px; }
+  .m-show .hd h1 b { font-weight: 900; }
+  .m-show .tabs { background: rgba(5,5,5,.86); backdrop-filter: blur(10px); border-bottom: 1px solid #222; }
+  .m-show .tabs button { font: 300 14px 'Tajawal'; color: #8d8d95; padding: 4px 8px; border-bottom: 1px solid transparent; }
+  .m-show .tabs button.on { color: #fff; border-color: #fff; font-weight: 500; }
+  .m-show .hero { position: relative; padding: 30px 18px 10px; text-align: center; }
+  .m-show .hero::before { content: ''; position: absolute; top: -20px; left: 50%; width: 120%; height: 380px; transform: translateX(-50%); background: conic-gradient(from 160deg at 50% 0, transparent 0deg, rgba(255,255,255,.13) 20deg, rgba(255,255,255,.13) 40deg, transparent 60deg); pointer-events: none; }
+  .m-show .hero .ph { width: 86%; aspect-ratio: 1; margin: 0 auto; border-radius: 50%; -webkit-box-reflect: below 6px linear-gradient(transparent 70%, rgba(255,255,255,.22)); box-shadow: 0 30px 50px rgba(0,0,0,.8); animation: turntable 24s linear infinite; }
+  @keyframes turntable { to { transform: rotate(360deg); } }
+  .m-show .hero .ttl { margin-top: 26%; position: relative; }
+  .m-show .hero .ttl small { font-size: 11px; letter-spacing: 4px; color: #c9a96e; }
+  .m-show .hero .ttl h2 { font-weight: 800; font-size: 30px; margin: 4px 0; }
+  .m-show .specs { display: flex; justify-content: center; margin-top: 12px; }
+  .m-show .specs div { padding: 0 14px; border-left: 1px solid #333; text-align: center; }
+  .m-show .specs div:last-child { border: 0; }
+  .m-show .specs b { display: block; font-weight: 200; font-size: 22px; }
+  .m-show .specs span { font-size: 10px; color: #8d8d95; letter-spacing: 1px; }
+  .m-show .price { font-weight: 200; font-size: 34px; margin-top: 12px; }
+  .m-show .price small { font-size: 13px; color: #8d8d95; }
+  .m-show .cta { margin-top: 10px; border: 1px solid #fff; padding: 10px 30px; font-weight: 500; letter-spacing: 1px; }
+  .m-show section { padding: 34px 14px 10px; }
+  .m-show section > h3 { font-weight: 200; font-size: 28px; margin-bottom: 18px; display: flex; justify-content: space-between; align-items: baseline; }
+  .m-show section > h3 small { font-size: 11px; color: #8d8d95; letter-spacing: 3px; }
+  .m-show .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 34px 14px; }
+  .m-show .car .ph { aspect-ratio: 1; border-radius: 50%; -webkit-box-reflect: below 4px linear-gradient(transparent 75%, rgba(255,255,255,.18)); box-shadow: 0 16px 24px rgba(0,0,0,.7); transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+  .m-show .car:active .ph { transform: scale(.96) rotate(-8deg); }
+  .m-show .car .nm { margin-top: 30%; font-weight: 500; font-size: 15px; }
+  .m-show .car .sp { font-size: 10.5px; color: #8d8d95; margin-top: 2px; letter-spacing: .5px; }
+  .m-show .car .row { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .m-show .car .row b { font-weight: 200; font-size: 20px; }
+  .m-show .add { width: 32px; height: 32px; border: 1px solid #fff; border-radius: 50%; font-weight: 200; font-size: 20px; line-height: 1; }
+  .m-show .cart { background: #f2f2f2; color: #050505; }
+  .m-show .cart b { font-weight: 800; }
+
+  /* =====================================================================
+     2. BLUEPRINT — every dish is a technical drawing with callouts
+     ===================================================================== */
+  .m-bp { --line: rgba(255,255,255,.82); background-color: #0b3a68; background-image: linear-gradient(rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.07) 1px, transparent 1px), linear-gradient(rgba(255,255,255,.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.03) 1px, transparent 1px); background-size: 60px 60px, 60px 60px, 12px 12px, 12px 12px; color: #fff; font-family: 'IBM Plex Sans Arabic'; }
+  .m-bp .mono { font-family: 'IBM Plex Mono'; direction: ltr; unicode-bidi: isolate; }
+  .m-bp .hd { margin: 18px 14px 0; border: 1.5px solid var(--line); display: grid; grid-template-columns: 1fr auto; }
+  .m-bp .hd > div { padding: 8px 10px; }
+  .m-bp .hd h1 { font-weight: 600; font-size: 22px; }
+  .m-bp .hd .meta { border-right: 1.5px solid var(--line); font-size: 10px; line-height: 1.7; text-align: left; }
+  .m-bp .tabs { background: rgba(11,58,104,.92); border-bottom: 1.5px dashed var(--line); }
+  .m-bp .tabs button { font: 400 12px 'IBM Plex Mono'; padding: 4px 9px; border: 1px solid rgba(255,255,255,.4); }
+  .m-bp .tabs button.on { background: #fff; color: #0b3a68; border-color: #fff; }
+  .m-bp .hero { position: relative; margin: 18px 14px 0; height: 380px; border: 1.5px solid var(--line); }
+  .m-bp .hero .ph { position: absolute; width: 58%; aspect-ratio: 1; top: 50px; left: 21%; border-radius: 50%; outline: 1.5px dashed var(--line); outline-offset: 10px; }
+  .m-bp .co { position: absolute; font-size: 11.5px; line-height: 1.3; }
+  .m-bp .co b { display: block; font-size: 12.5px; }
+  .m-bp .co::after { content: ''; position: absolute; height: 1.5px; background: var(--line); transform-origin: right center; }
+  .m-bp .co::before { content: ''; position: absolute; width: 7px; height: 7px; border-radius: 50%; background: #fff; }
+  .m-bp .co.a { top: 34px; right: 10px; } .m-bp .co.a::after { width: 66px; top: 26px; right: 64px; transform: rotate(-24deg); } .m-bp .co.a::before { top: 50px; right: 122px; }
+  .m-bp .co.b { top: 170px; left: 8px; text-align: left; } .m-bp .co.b::after { width: 46px; top: 10px; left: 62px; } .m-bp .co.b::before { top: 7px; left: 106px; }
+  .m-bp .co.c { top: 250px; right: 8px; } .m-bp .co.c::after { width: 50px; top: 10px; right: 64px; } .m-bp .co.c::before { top: 7px; right: 112px; }
+  .m-bp .dim { position: absolute; bottom: 52px; left: 21%; width: 58%; border-top: 1.5px solid var(--line); text-align: center; font-size: 10px; padding-top: 2px; }
+  .m-bp .dim::before, .m-bp .dim::after { content: ''; position: absolute; top: -6px; width: 1.5px; height: 11px; background: var(--line); }
+  .m-bp .dim::before { left: 0; } .m-bp .dim::after { right: 0; }
+  .m-bp .hero .foot { position: absolute; bottom: 0; left: 0; right: 0; border-top: 1.5px solid var(--line); display: flex; justify-content: space-between; align-items: center; padding: 6px 10px; }
+  .m-bp .hero .foot b { font-size: 17px; }
+  .m-bp .stamp { position: absolute; top: 14px; left: 12px; border: 2px solid #ff6b6b; color: #ff6b6b; font-weight: 600; font-size: 12px; padding: 2px 8px; transform: rotate(-10deg); }
+  .m-bp section { padding: 26px 14px 6px; }
+  .m-bp section > h3 { font-weight: 600; font-size: 17px; display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+  .m-bp section > h3 .mono { font-size: 11px; border: 1px solid var(--line); padding: 1px 6px; }
+  .m-bp .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .m-bp .dwg { border: 1.5px solid var(--line); position: relative; }
+  .m-bp .dwg .pic { position: relative; padding: 14px; border-bottom: 1.5px solid var(--line); }
+  .m-bp .dwg .pic .ph { aspect-ratio: 1; border-radius: 50%; }
+  .m-bp .dwg .pic::before, .m-bp .dwg .pic::after { content: ''; position: absolute; width: 10px; height: 10px; border: 1.5px solid var(--line); }
+  .m-bp .dwg .pic::before { top: 5px; right: 5px; border-left: 0; border-bottom: 0; }
+  .m-bp .dwg .pic::after { bottom: 5px; left: 5px; border-right: 0; border-top: 0; }
+  .m-bp .dwg .ref { position: absolute; top: 4px; left: 6px; font-size: 9px; opacity: .8; }
+  .m-bp .dwg .nm { padding: 6px 8px 2px; font-weight: 600; font-size: 13.5px; }
+  .m-bp .dwg .sp { padding: 0 8px; font-size: 10px; opacity: .75; }
+  .m-bp .dwg .row { display: flex; justify-content: space-between; align-items: center; padding: 4px 8px 7px; }
+  .m-bp .add { width: 28px; height: 28px; border: 1.5px solid var(--line); font-size: 16px; }
+  .m-bp .cart { background: #fff; color: #0b3a68; font-family: 'IBM Plex Mono'; }
+
+  /* =====================================================================
+     3. GIANT TYPE — food lives inside enormous letters
+     ===================================================================== */
+  .m-type { background: #111; color: #111; font-family: 'Cairo'; }
+  .m-type .hd { background: #e6ff00; padding: 18px 14px 10px; overflow: hidden; }
+  .m-type .hd h1 { font: 400 92px/0.9 'Lalezar'; letter-spacing: -2px; background-image: url(https://images.unsplash.com/photo-1555939594-58d7cb561ad1?w=800&q=70); background-size: cover; background-position: center; -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .m-type .hd p { font-weight: 900; font-size: 14px; margin-top: 4px; }
+  .m-type .mq { overflow: hidden; white-space: nowrap; background: #111; color: #e6ff00; padding: 8px 0; font: 400 26px 'Lalezar'; }
+  .m-type .mq span { display: inline-block; animation: mq 14s linear infinite; }
+  .m-type .mq span i { font-style: normal; color: transparent; -webkit-text-stroke: 1px #e6ff00; margin: 0 10px; }
+  @keyframes mq { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+  .m-type .tabs { background: #111; }
+  .m-type .tabs button { font: 900 13px 'Cairo'; padding: 6px 12px; border-radius: 30px; background: #222; color: #fff; }
+  .m-type .tabs button.on { background: #ff2e88; }
+  .m-type section { padding: 6px 12px 22px; }
+  .m-type section:nth-of-type(5n+1) { background: #e6ff00; }
+  .m-type section:nth-of-type(5n+2) { background: #ff2e88; }
+  .m-type section:nth-of-type(5n+3) { background: #00e5ff; }
+  .m-type section:nth-of-type(5n+4) { background: #ff7a00; }
+  .m-type section:nth-of-type(5n) { background: #b388ff; }
+  .m-type section > h3 { font: 400 112px/0.95 'Lalezar'; letter-spacing: -3px; background-size: cover; background-position: center; -webkit-background-clip: text; background-clip: text; color: transparent; margin: 0 -4px 6px; filter: saturate(1.3) contrast(1.1); }
+  .m-type .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .m-type .it { background: #fff; border: 3px solid #111; box-shadow: 5px 5px 0 #111; transition: transform .12s, box-shadow .12s; }
+  .m-type .it:active { transform: translate(5px,5px); box-shadow: 0 0 0 #111; }
+  .m-type .it .ph { aspect-ratio: 1; border-bottom: 3px solid #111; }
+  .m-type .it .nm { font-weight: 900; font-size: 14px; padding: 6px 8px 0; line-height: 1.25; }
+  .m-type .it .row { display: flex; justify-content: space-between; align-items: center; padding: 2px 8px 8px; }
+  .m-type .it .row b { font: 400 22px 'Lalezar'; }
+  .m-type .add { width: 30px; height: 30px; background: #111; color: #e6ff00; font-weight: 900; font-size: 18px; }
+  .m-type .big { grid-column: 1 / -1; display: grid; grid-template-columns: 1.3fr 1fr; }
+  .m-type .big .ph { aspect-ratio: auto; height: 100%; min-height: 170px; border-bottom: 0; border-left: 3px solid #111; }
+  .m-type .big .nm { font: 400 26px/1.05 'Lalezar'; padding: 10px; }
+  .m-type .cart { background: #111; color: #e6ff00; font-weight: 900; }
+
+  /* =====================================================================
+     4. INFINITE WALL — the whole menu at once, drag anywhere
+     ===================================================================== */
+  .m-wall { background: #f4efe6; overflow: hidden !important; font-family: 'Changa'; color: #1b1b1b; }
+  .m-wall .top { position: absolute; top: 0; left: 0; right: 0; z-index: 20; background: linear-gradient(#f4efe6 70%, transparent); padding: 16px 14px 18px; }
+  .m-wall .top h1 { font-weight: 800; font-size: 24px; }
+  .m-wall .top p { font-size: 12px; color: #6b655d; }
+  .m-wall .tabs { position: relative; padding: 8px 0 0; }
+  .m-wall .tabs button { font: 500 12.5px 'Changa'; padding: 5px 12px; border-radius: 30px; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.1); }
+  .m-wall .tabs button.on { background: #1b1b1b; color: #fff; }
+  .m-wall .vp { position: absolute; inset: 0; touch-action: none; cursor: grab; }
+  .m-wall .vp.drag { cursor: grabbing; }
+  .m-wall .cv { position: absolute; top: 0; left: 0; width: 1500px; height: 1300px; transform-origin: 0 0; will-change: transform; }
+  .m-wall .cv.fly { transition: transform .7s cubic-bezier(.2,.8,.2,1); }
+  .m-wall .zone { position: absolute; border-radius: 34px; padding: 18px; }
+  .m-wall .zone h3 { font-weight: 800; font-size: 46px; line-height: 1; margin-bottom: 14px; opacity: .9; }
+  .m-wall .zone .g { display: grid; grid-template-columns: repeat(3, 150px); gap: 14px; }
+  .m-wall .tile { background: #fff; border-radius: 18px; padding: 6px; box-shadow: 0 6px 16px rgba(0,0,0,.08); }
+  .m-wall .tile .ph { aspect-ratio: 1; border-radius: 13px; }
+  .m-wall .tile .nm { font-weight: 500; font-size: 14px; margin: 5px 4px 0; }
+  .m-wall .tile .row { display: flex; justify-content: space-between; align-items: center; margin: 0 4px 2px; font-weight: 700; font-size: 13px; }
+  .m-wall .add { width: 28px; height: 28px; border-radius: 50%; background: #1b1b1b; color: #fff; font-size: 16px; }
+  .m-wall .zoom { position: absolute; bottom: 80px; left: 12px; z-index: 20; display: flex; flex-direction: column; gap: 6px; }
+  .m-wall .zoom button { width: 44px; height: 44px; border-radius: 50%; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,.15); font-weight: 700; font-size: 18px; }
+  .m-wall .zoom button.all { font-size: 11px; line-height: 1.1; }
+  .m-wall .cart { position: absolute; left: 0; right: 0; bottom: 0; background: #1b1b1b; color: #fff; }
+
+  /* =====================================================================
+     5. HOLO CARDS — premium trading cards with a living foil
+     ===================================================================== */
+  .m-holo { background: radial-gradient(ellipse at 50% 0, #241b46, #07060d 60%); color: #fff; font-family: 'Cairo'; }
+  .m-holo .hd { padding: 26px 16px 4px; text-align: center; }
+  .m-holo .hd small { font: 700 11px 'Cairo'; letter-spacing: 3px; background: linear-gradient(90deg,#ff9cf3,#9cf3ff,#fff59c,#ff9cf3); background-size: 300%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: foilText 6s linear infinite; }
+  @keyframes foilText { to { background-position: 300% 0; } }
+  .m-holo .hd h1 { font: 400 40px 'Lalezar'; }
+  .m-holo .tabs { background: rgba(7,6,13,.88); backdrop-filter: blur(10px); }
+  .m-holo .tabs button { font: 700 12.5px 'Cairo'; padding: 6px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,.18); }
+  .m-holo .tabs button.on { border-color: transparent; background: linear-gradient(120deg,#ff9cf3,#9cf3ff,#fff59c); color: #111; }
+  .m-holo section { padding: 22px 12px 6px; }
+  .m-holo section > h3 { font: 400 26px 'Lalezar'; margin-bottom: 12px; }
+  .m-holo .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; perspective: 800px; }
+  .m-holo .hc { --mx: 50%; --my: 50%; --rx: 0deg; --ry: 0deg; position: relative; border-radius: 14px; padding: 6px; background: linear-gradient(140deg,#3a2f6b,#16122c); transform: rotateX(var(--rx)) rotateY(var(--ry)); transition: transform .15s ease-out; box-shadow: 0 14px 26px rgba(0,0,0,.5); }
+  .m-holo .hc.r1 { background: linear-gradient(140deg,#c9a24a,#6b4f12 50%,#e3c06a); }
+  .m-holo .hc.r2 { background: linear-gradient(140deg,#9b5de5,#3c1a78 50%,#c77dff); }
+  .m-holo .hc .ph { aspect-ratio: 3/3.4; border-radius: 9px; position: relative; overflow: hidden; }
+  .m-holo .hc .foil { position: absolute; inset: 0; border-radius: 14px; pointer-events: none; mix-blend-mode: color-dodge; opacity: .32; background: radial-gradient(circle at var(--mx) var(--my), rgba(255,255,255,.55), transparent 32%), repeating-linear-gradient(115deg, #ff9cf3 0%, #9cf3ff 7%, #fff59c 14%, #ff9cf3 21%); background-size: 100% 100%, 300% 300%; background-position: center, var(--mx) var(--my); animation: foil 7s ease-in-out infinite alternate; }
+  @keyframes foil { from { background-position: center, 0% 0%; } to { background-position: center, 100% 100%; } }
+  .m-holo .hc .rar { position: absolute; top: 12px; right: 12px; z-index: 2; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.6); }
+  .m-holo .hc .nm { font: 400 18px 'Lalezar'; margin: 6px 4px 0; line-height: 1.1; }
+  .m-holo .hc .st { display: flex; gap: 8px; font-size: 10px; margin: 2px 4px; opacity: .85; }
+  .m-holo .hc .row { display: flex; justify-content: space-between; align-items: center; margin: 2px 4px 2px; }
+  .m-holo .hc .row b { font-size: 15px; }
+  .m-holo .add { width: 30px; height: 30px; border-radius: 9px; background: #fff; color: #111; font-weight: 900; font-size: 17px; }
+  .m-holo .hero { margin: 16px 18px 0; }
+  .m-holo .hero .hc .ph { aspect-ratio: 4/3.3; }
+  .m-holo .hero .hc .nm { font-size: 28px; }
+  .m-holo .cart { background: linear-gradient(120deg,#ff9cf3,#9cf3ff,#fff59c); color: #111; }
+
+  /* =====================================================================
+     6. DJ DECKS — every plate spins like a record
+     ===================================================================== */
+  .m-dj { background: #0e0e10; color: #f1f1f1; font-family: 'Changa'; }
+  .m-dj .hd { padding: 22px 16px 8px; display: flex; justify-content: space-between; align-items: end; }
+  .m-dj .hd h1 { font-weight: 800; font-size: 32px; line-height: 1; letter-spacing: -1px; }
+  .m-dj .hd h1 small { display: block; font-weight: 300; font-size: 12px; color: #ff4d2e; letter-spacing: 2px; margin-bottom: 4px; }
+  .m-dj .eq { display: flex; gap: 3px; align-items: end; height: 30px; }
+  .m-dj .eq i { width: 5px; background: #ff4d2e; animation: eq .9s ease-in-out infinite alternate; }
+  .m-dj .eq i:nth-child(2) { animation-delay: -.3s; } .m-dj .eq i:nth-child(3) { animation-delay: -.6s; } .m-dj .eq i:nth-child(4) { animation-delay: -.15s; } .m-dj .eq i:nth-child(5) { animation-delay: -.45s; }
+  @keyframes eq { from { height: 15%; } to { height: 100%; } }
+  .m-dj .tabs { background: rgba(14,14,16,.9); backdrop-filter: blur(8px); }
+  .m-dj .tabs button { font: 500 12.5px 'Changa'; padding: 6px 12px; border-radius: 4px; background: #1c1c20; color: #aaa; }
+  .m-dj .tabs button b { color: #ff4d2e; margin-left: 4px; font-weight: 800; }
+  .m-dj .tabs button.on { background: #ff4d2e; color: #fff; }
+  .m-dj .tabs button.on b { color: #fff; }
+  .m-dj section { padding: 20px 12px 6px; }
+  .m-dj section > h3 { font-weight: 800; font-size: 22px; margin-bottom: 12px; display: flex; gap: 8px; align-items: baseline; }
+  .m-dj section > h3 small { font-weight: 300; font-size: 11px; color: #ff4d2e; letter-spacing: 2px; }
+  .m-dj .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 10px; }
+  .m-dj .deck { background: linear-gradient(160deg,#26262b,#18181b); border-radius: 12px; padding: 10px; position: relative; box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+  .m-dj .plat { position: relative; aspect-ratio: 1; border-radius: 50%; background: repeating-radial-gradient(circle, #111 0 2px, #1d1d1d 2px 4px); box-shadow: 0 6px 14px rgba(0,0,0,.6); display: grid; place-items: center; animation: spin 6s linear infinite; }
+  .m-dj .deck.stop .plat { animation-play-state: paused; }
+  .m-dj .plat .ph { width: 80%; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 0 0 3px #0e0e10; }
+  .m-dj .plat::after { content: ''; position: absolute; width: 7%; aspect-ratio: 1; border-radius: 50%; background: #ddd; box-shadow: 0 0 0 3px #0e0e10; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .m-dj .arm { position: absolute; top: 8px; left: 10px; width: 6px; height: 46%; background: linear-gradient(#bbb,#777); border-radius: 3px; transform-origin: top center; transform: rotate(-24deg); transition: transform .4s; z-index: 2; }
+  .m-dj .arm::before { content: ''; position: absolute; top: -6px; left: -6px; width: 18px; height: 18px; border-radius: 50%; background: #444; border: 2px solid #999; }
+  .m-dj .deck.stop .arm { transform: rotate(-4deg); }
+  .m-dj .nm { font-weight: 700; font-size: 14px; margin-top: 8px; }
+  .m-dj .row { display: flex; justify-content: space-between; align-items: center; margin-top: 2px; }
+  .m-dj .row b { font-weight: 500; color: #ff4d2e; font-size: 14px; }
+  .m-dj .add { width: 30px; height: 30px; border-radius: 50%; background: #ff4d2e; color: #fff; font-weight: 800; font-size: 17px; }
+  .m-dj .hero { margin: 14px 12px 0; }
+  .m-dj .hero .deck { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; align-items: center; padding: 14px; }
+  .m-dj .hero .nm { font-size: 22px; line-height: 1.1; }
+  .m-dj .hero p { font-size: 12px; color: #999; margin-top: 4px; }
+  .m-dj .cart { background: #ff4d2e; color: #fff; }
+
+  /* =====================================================================
+     7. BOUTIQUE — dishes in jewellery display cases
+     ===================================================================== */
+  .m-btq { background: radial-gradient(ellipse at 50% -10%, #1d4636, #0a1d16 60%); color: #e8dcc2; font-family: 'Amiri'; }
+  .m-btq .gold { background: linear-gradient(180deg,#f6e3a8,#c9a24a 45%,#8a6420 55%,#e3c06a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .m-btq .hd { text-align: center; padding: 34px 16px 10px; }
+  .m-btq .hd small { font: 400 11px 'El Messiri'; letter-spacing: 6px; color: #b89a5c; }
+  .m-btq .hd h1 { font: 700 42px 'Aref Ruqaa'; line-height: 1.2; }
+  .m-btq .orn { color: #b89a5c; letter-spacing: 8px; font-size: 12px; }
+  .m-btq .tabs { background: rgba(10,29,22,.92); backdrop-filter: blur(8px); border-top: 1px solid rgba(201,162,74,.3); border-bottom: 1px solid rgba(201,162,74,.3); justify-content: flex-start; }
+  .m-btq .tabs button { font: 400 14px 'El Messiri'; color: #a8977a; padding: 4px 10px; }
+  .m-btq .tabs button.on { color: #f6e3a8; }
+  .m-btq .tabs button.on::after { content: '◆'; display: block; font-size: 7px; text-align: center; color: #c9a24a; }
+  .m-btq .case { position: relative; background: linear-gradient(180deg,#132f25,#0c231b); border: 1px solid rgba(201,162,74,.45); padding: 14px 14px 0; box-shadow: inset 0 0 30px rgba(0,0,0,.6), 0 14px 24px rgba(0,0,0,.4); }
+  .m-btq .case .ph { aspect-ratio: 1; border-radius: 50%; box-shadow: 0 18px 22px rgba(0,0,0,.7); }
+  .m-btq .case::before { content: ''; position: absolute; inset: 0; background: linear-gradient(120deg, rgba(255,255,255,.16) 0 18%, transparent 18% 40%, rgba(255,255,255,.07) 40% 44%, transparent 44%); pointer-events: none; z-index: 2; }
+  .m-btq .case::after { content: ''; position: absolute; top: -40px; left: 50%; width: 70%; height: 120px; transform: translateX(-50%); background: radial-gradient(ellipse at top, rgba(255,240,200,.28), transparent 70%); pointer-events: none; }
+  .m-btq .plq { margin: 12px -14px 0; padding: 8px 10px 10px; text-align: center; background: linear-gradient(180deg,#0a1d16,#081711); border-top: 1px solid rgba(201,162,74,.45); }
+  .m-btq .plq b { display: block; font-size: 16px; color: #f2e6c9; }
+  .m-btq .plq span { display: flex; justify-content: center; align-items: center; gap: 10px; font: 400 13px 'El Messiri'; color: #c9a24a; margin-top: 2px; }
+  .m-btq .add { font: 400 12px 'El Messiri'; color: #f6e3a8; border: 1px solid #c9a24a; padding: 2px 10px; }
+  .m-btq .hero { padding: 26px 26px 6px; }
+  .m-btq .hero .plq b { font-size: 22px; }
+  .m-btq section { padding: 28px 14px 6px; }
+  .m-btq section > h3 { text-align: center; font: 400 24px 'Aref Ruqaa'; margin-bottom: 16px; }
+  .m-btq .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; }
+  .m-btq .cart { background: linear-gradient(90deg,#8a6420,#e3c06a,#8a6420); color: #0a1d16; font-family: 'El Messiri'; }
+
+  /* =====================================================================
+     8. NEON ALLEY — real neon tubes on a brick wall
+     ===================================================================== */
+  .m-neon { background-color: #2a1b17; background-image: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.75)), repeating-linear-gradient(0deg, transparent 0 26px, #1a100d 26px 29px), repeating-linear-gradient(90deg, #5a3426 0 58px, #1a100d 58px 61px); background-size: auto, auto, 122px 58px; color: #fff; font-family: 'Cairo'; }
+  .m-neon .glow { font: 400 1em 'Lalezar'; color: #fff; }
+  .m-neon .hd { text-align: center; padding: 34px 12px 12px; }
+  .m-neon .hd h1 { font: 400 56px/1 'Lalezar'; color: #fff6fb; text-shadow: 0 0 4px #fff, 0 0 10px #ff2bd6, 0 0 22px #ff2bd6, 0 0 42px #ff2bd6, 0 0 80px #ff2bd6; animation: flick 5s infinite; }
+  .m-neon .hd p { font: 400 20px 'Lalezar'; color: #eaffff; text-shadow: 0 0 4px #fff, 0 0 12px #00e5ff, 0 0 28px #00e5ff; margin-top: 6px; }
+  @keyframes flick { 0%, 18%, 22%, 25%, 53%, 57%, 100% { opacity: 1; } 20%, 24%, 55% { opacity: .35; } }
+  .m-neon .tabs { background: rgba(10,6,5,.86); backdrop-filter: blur(6px); }
+  .m-neon .tabs button { font: 400 15px 'Lalezar'; padding: 4px 12px; color: #c9b8b2; border: 1px solid #3a2a26; border-radius: 6px; }
+  .m-neon .tabs button.on { color: #fff; border-color: #00e5ff; text-shadow: 0 0 8px #00e5ff; box-shadow: 0 0 10px rgba(0,229,255,.5), inset 0 0 8px rgba(0,229,255,.4); }
+  .m-neon section { padding: 26px 12px 6px; }
+  .m-neon section > h3 { font: 400 46px/1 'Lalezar'; text-align: center; margin-bottom: 18px; color: #fff; text-shadow: 0 0 4px #fff, 0 0 12px var(--c), 0 0 26px var(--c), 0 0 52px var(--c); }
+  .m-neon section:nth-of-type(odd) > h3 { animation: flick 7s infinite; }
+  .m-neon .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 12px; }
+  .m-neon .lb { background: #0d0908; border-radius: 10px; padding: 6px; border: 2px solid var(--c); box-shadow: 0 0 10px var(--c), inset 0 0 10px rgba(255,255,255,.04); }
+  .m-neon .lb .ph { aspect-ratio: 1; border-radius: 6px; }
+  .m-neon .lb .nm { font: 400 17px 'Lalezar'; margin: 6px 4px 0; text-shadow: 0 0 8px var(--c); }
+  .m-neon .lb .row { display: flex; justify-content: space-between; align-items: center; margin: 0 4px 2px; font-weight: 700; font-size: 13px; }
+  .m-neon .add { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--c); color: #fff; font-weight: 900; box-shadow: 0 0 8px var(--c); }
+  .m-neon .hero { margin: 8px 14px 0; }
+  .m-neon .hero .lb .ph { aspect-ratio: 4/3; }
+  .m-neon .hero .lb .nm { font-size: 26px; }
+  .m-neon .cart { background: #0d0908; border-top: 2px solid #ff2bd6; box-shadow: 0 -4px 20px rgba(255,43,214,.4); color: #fff; }
+
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات تكشّخ</h1>
+  <p>هذي مو قوالب ألوان. كل وحدة شخصية كاملة، بس كلها تمشي على القاعدة: الأطباق بصورها الحقيقية تبين مرة وحدة، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b> فينفتح منيو كامل تكدر تنزل بيه وتدوس الأقسام وتضيف للسلة. زر ⤢ يكبّره لشاشة كاملة، وزر ✕ يسكّره.</p>
+  <div class="covers" id="covers" data-multiselect></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 600) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const FEAT = { n: 'مشاوي مشكلة للعائلة', d: 'كباب، تكة، أوصال ودجاج، مع خبز التنور والصوص', p: '٣٥٬٠٠٠', img: '1555939594-58d7cb561ad1', kcal: '١٨٠٠', min: '٢٥', heat: '٢' };
+const MENU = [
+  { id: 'grill', t: 'المشويات', c: '#ff2bd6', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن والبهارات', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0', kcal: '٤٥٠', min: '١٥' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص الفلفل', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e', kcal: '٧٨٠', min: '٢٠' },
+    { n: 'ريش مشوية', d: 'ريش غنم بالباربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947', kcal: '٩٢٠', min: '٢٥' },
+    { n: 'برياني دجاج', d: 'بسمتي ودجاج ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a', kcal: '٦٤٠', min: '١٢' },
+  ]},
+  { id: 'fast', t: 'السريع', c: '#ffb800', items: [
+    { n: 'دبل سماش', d: 'لحم مضغوط وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd', kcal: '٨٥٠', min: '١٠' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم وبطاطا', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783', kcal: '٦٢٠', min: '٨' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec', kcal: '٩٥٠', min: '١٢' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38', kcal: '٨٠٠', min: '١٥' },
+    { n: 'سمبوسة', d: '٥ قطع لحم أو خضار', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950', kcal: '٤٢٠', min: '٦' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9', kcal: '٧١٠', min: '١٤' },
+  ]},
+  { id: 'fresh', t: 'السلطات', c: '#39ff88', items: [
+    { n: 'سلطة الموسم', d: 'خضار طازجة وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd', kcal: '٢٢٠', min: '٥' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d', kcal: '٣٩٠', min: '٧' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', c: '#00e5ff', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9', kcal: '٤٨٠', min: '٣' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات وزبدة', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445', kcal: '٦٥٠', min: '١٠' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c', kcal: '٥٢٠', min: '٤' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb', kcal: '٥٩٠', min: '٣' },
+  ]},
+  { id: 'drink', t: 'المشروبات', c: '#b388ff', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085', kcal: '١٩٠', min: '٤' },
+    { n: 'موهيتو فراولة', d: 'نعناع وليمون وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e', kcal: '١٤٠', min: '٤' },
+  ]},
+];
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const tabs = (fmt) => `<nav class="tabs">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}">${fmt ? fmt(s, i) : s.t}</button>`).join('')}</nav>`;
+const sections = (head, item, wrap = (s, inner) => `<div class="grid">${inner}</div>`) => MENU.map((s, si) => `<section data-sec="${s.id}" style="--c:${s.c}">${head(s, si)}${wrap(s, s.items.map((it, k) => item(it, s, k, si)).join(''))}</section>`).join('');
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: <b class="cnt">٠</b></span><span class="sum">٠ د.ع ←</span></div>`;
+const LETTERS = 'ABCDE';
+
+const STYLES = [
+ { key: 'bp', name: 'تشريح الطبق', tag: 'كل طبق مخطط هندسي', who: 'للبرغر والمطاعم العصرية والشباب', sk: 'design-taste-frontend · brutalist-skill · frontend-design',
+   desc: 'خلفية زرقاء مثل مخططات المهندسين. صورة الطبق بنص المخطط، وحواليها خطوط تأشر على مكوناته، وقياسات، ورقم لوحة لكل طبق. يحسس الزبون إن الطبق مدروس بالمليمتر.',
+   render: () => `
+    <div class="hd"><div><h1>مطبخ الورشة</h1><div style="font-size:12px;opacity:.8">مخططات تنفيذية للجوع</div></div><div class="meta mono">SHEET 01/05<br>REV. 2026<br>SCALE 1:1</div></div>
+    ${tabs((s, i) => `${LETTERS[i]}·${s.t}`)}
+    <div class="hero"><div class="stamp">معتمد ✓</div><div class="ph" ${bg(FEAT.img, 700)}></div>
+      <div class="co a"><b>كباب لحم</b><span class="mono">x2 · 180g</span></div>
+      <div class="co b"><b>تكة دجاج</b><span class="mono">x4 · 220g</span></div>
+      <div class="co c"><b>خبز تنور</b><span class="mono">x3 · fresh</span></div>
+      <div class="dim mono">⌀ 38 cm</div>
+      <div class="foot"><b>${FEAT.n}</b><span><span class="mono" style="font-size:16px">${FEAT.p}</span> <button class="add add-x" style="margin-right:8px">+</button></span></div></div>
+    ${sections((s, si) => `<h3><span class="mono">${LETTERS[si]}</span>${s.t}</h3>`, (it, s, k, si) => `
+      <div class="dwg"><div class="pic"><span class="ref mono">DWG-${LETTERS[si]}${String(k + 1).padStart(2, '0')}</span><div class="ph" ${bg(it.img)}></div></div><div class="nm">${it.n}</div><div class="sp">${it.d}</div><div class="row"><span class="mono">${it.p}</span><button class="add">+</button></div></div>`)}
+    ${cart('القائمة')}` },
+
+ { key: 'type', name: 'حروف عملاقة', tag: 'الأكل ساكن جوة الحروف', who: 'للكافيهات والمحلات اللي جمهورها شباب', sk: 'gpt-taste · brutalist-skill · ui-ux-pro-max',
+   desc: 'اسم كل قسم مكتوب بحروف ضخمة تملي الشاشة، وجوة الحروف صورة الأكل نفسه. ألوان فاقعة، شريط أسماء يمشي، وبطاقات بحدود سودة سميكة تنضغط تحت إصبعك.',
+   render: () => `
+    <div class="hd"><h1>مشاوي</h1><p>أكل حقيقي، حروف كبيرة، وما نحب الكلام الكثير.</p></div>
+    <div class="mq"><span>${Array(2).fill(MENU.flatMap(s => s.items.map(i => i.n)).map(n => `${n}<i>✦</i>`).join('')).join('')}</span></div>
+    ${tabs()}
+    ${sections(s => `<h3 style="background-image:url(${U(s.items[0].img, 800)})">${s.t.replace('ال', '')}</h3>`, (it, s, k) => k === 0 ? `
+      <div class="it big"><div><div class="nm">${it.n}</div><div style="padding:0 10px;font-size:13px;font-weight:700">${it.d}</div><div class="row" style="padding:10px"><b>${it.p}</b><button class="add">+</button></div></div><div class="ph" ${bg(it.img)}></div></div>` : `
+      <div class="it"><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="row"><b>${it.p}</b><button class="add">+</button></div></div>`)}
+    ${cart('السلة')}` },
+
+ { key: 'wall', name: 'الجدار المفتوح', tag: 'المنيو كله قدامك مرة وحدة', who: 'للمطاعم اللي عندها أطباق كثيرة', sk: 'emil-design-eng · animation-performance · impeccable',
+   desc: 'بدل ما تنزل للأسفل، المنيو كله جدار كبير تسحبه بإصبعك لأي اتجاه، وكل قسم منطقة بلون. تدوس اسم القسم فيطير الجدار له، وزر «الكل» يصغّر الجدار حتى تشوف كل الأطباق مرة وحدة.',
+   render: () => {
+     const pos = [[40, 40, '#ffd6c9'], [560, 40, '#fff1b8'], [40, 720, '#d4f5dd'], [560, 720, '#d9ecff'], [1080, 720, '#ecdcff']];
+     return `<div class="vp" id="vp"><div class="cv" id="cv">${MENU.map((s, i) => `
+       <div class="zone" data-sec="${s.id}" style="left:${pos[i][0]}px;top:${pos[i][1] + 120}px;background:${pos[i][2]}"><h3>${s.t}</h3><div class="g">${s.items.map(it => `
+         <div class="tile"><div class="ph" ${bg(it.img, 400)}></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`).join('')}</div></div>`).join('')}
+       <div class="zone" style="left:1080px;top:160px;background:#1b1b1b;color:#fff;width:390px"><h3 style="font-size:30px">طبق اليوم</h3><div class="tile" style="color:#1b1b1b"><div class="ph" ${bg(FEAT.img, 700)} style="aspect-ratio:4/3"></div><div class="nm" style="font-size:18px">${FEAT.n}</div><div class="row"><span>${FEAT.p}</span><button class="add">+</button></div></div></div>
+     </div></div>
+     <div class="top"><h1>جدار المطبخ</h1><p>اسحب بإصبعك لأي اتجاه 👆</p>${tabs()}</div>
+     <div class="zoom"><button data-z="in">+</button><button data-z="out">−</button><button data-z="all" class="all">شوف<br>الكل</button></div>
+     ${cart()}`; } },
+
+ { key: 'holo', name: 'كروت هولوغرام', tag: 'كل طبق كارت نادر يلمع', who: 'للحلويات والبرغر والمطاعم اللي تحب الضجة', sk: 'gpt-taste · emil-design-eng · animate',
+   desc: 'كل طبق كارت مثل كروت اللاعبين النادرة، وعليه طبقة قوس قزح تلمع وتتحرك ويا إصبعك، والكارت يميل بالاتجاه اللي تأشر عليه. الطبق المميز كارت «أسطوري» ذهبي.',
+   render: () => `
+    <div class="hd"><small>LIMITED EDITION · الإصدار ٢٦</small><h1>اجمعها كلها</h1></div>
+    ${tabs()}
+    <div class="hero"><div class="hc r1"><span class="rar">★ أسطوري</span><div class="ph" ${bg(FEAT.img, 800)}></div><div class="nm">${FEAT.n}</div><div class="st"><span>🔥 ${FEAT.kcal} سعرة</span><span>⏱ ${FEAT.min} د</span><span>👥 ٤</span></div><div class="row"><b>${FEAT.p} د.ع</b><button class="add">+</button></div><div class="foil"></div></div></div>
+    ${sections(s => `<h3>${s.t}</h3>`, (it, s, k) => `
+      <div class="hc ${k === 0 ? 'r2' : ''}"><span class="rar">${k === 0 ? '◆ نادر' : 'عادي'}</span><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="st"><span>🔥 ${it.kcal}</span><span>⏱ ${it.min} د</span></div><div class="row"><b>${it.p}</b><button class="add">+</button></div><div class="foil"></div></div>`)}
+    ${cart('مجموعتك')}` },
+
+ { key: 'dj', name: 'صحون الدي جي', tag: 'كل صحن يلف مثل أسطوانة', who: 'للمطاعم الليلية والكافيهات اللي بيها موسيقى', sk: 'gsap · animate · emil-design-eng',
+   desc: 'كل طبق صحن مدور يلف على جهاز دي جي، ويا ذراع إبرة. تدوس على الصحن فيوقف وتنزل الإبرة. الأقسام «تراكات»، وفوق معادل صوت يرقص.',
+   render: () => `
+    <div class="hd"><h1><small>NOW PLAYING</small>مطبخ<br>الليل</h1><div class="eq"><i></i><i></i><i></i><i></i><i></i></div></div>
+    ${tabs((s, i) => `<b>${LETTERS[i]}</b>${s.t}`)}
+    <div class="hero"><div class="deck"><div class="plat"><div class="ph" ${bg(FEAT.img, 600)}></div></div><div><div class="nm">${FEAT.n}</div><p>${FEAT.d}</p><div class="row" style="margin-top:10px"><b>${FEAT.p}</b><button class="add">+</button></div></div><div class="arm"></div></div></div>
+    ${sections((s, si) => `<h3>${s.t}<small>SIDE ${LETTERS[si]}</small></h3>`, it => `
+      <div class="deck"><div class="arm"></div><div class="plat"><div class="ph" ${bg(it.img, 400)}></div></div><div class="nm">${it.n}</div><div class="row"><b>${it.p}</b><button class="add">+</button></div></div>`)}
+    ${cart('البلاي ليست')}` },
+
+ { key: 'neon', name: 'زقاق النيون', tag: 'لافتات نيون حقيقية ترمش', who: 'للبرغر والشاورما والسهرات', sk: 'design-taste-frontend · animate · frontend-design',
+   desc: 'جدار طابوق، وأسماء الأقسام لافتات نيون حقيقية، كل قسم بلون، وبعضها يرمش مثل النيون القديم. الصور داخل علب ضوئية بنفس لون القسم.',
+   render: () => `
+    <div class="hd"><h1>برغر الليل</h1><p>مفتوح لحد الفجر</p></div>
+    ${tabs()}
+    <div class="hero" style="--c:#ff2bd6"><div class="lb"><div class="ph" ${bg(FEAT.img, 800)}></div><div class="nm">${FEAT.n}</div><div class="row"><span>${FEAT.p} د.ع</span><button class="add">+</button></div></div></div>
+    ${sections(s => `<h3>${s.t}</h3>`, it => `
+      <div class="lb"><div class="ph" ${bg(it.img)}></div><div class="nm">${it.n}</div><div class="row"><span>${it.p}</span><button class="add">+</button></div></div>`)}
+    ${cart()}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover card" data-choice="${s.key}-${s.name}">
+    <div class="art" data-open="${s.key}"><div class="mini screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="tag">${s.tag}</span><h2>${s.name}</h2><p>${s.desc}</p><span class="who">👥 ${s.who}</span><span class="sk">${s.sk}</span>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  const s = STYLES.find(x => x.key === el.dataset.mini);
+  el.innerHTML = s.render();
+  el.style.cssText = 'position:absolute;inset:auto;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+document.querySelectorAll('[data-mini="wall"] .cv').forEach(cv => cv.style.transform = 'translate(-40px,-30px) scale(.42)');
+
+// ---------- app ----------
+const app = document.getElementById('app'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+let current = null, count = 0, total = 0;
+const toAr = x => String(x).replace(/\d/g, d => '٠١٢٣٤٥٦٧٨٩'[d]);
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+
+function open(key) {
+  const s = STYLES.find(x => x.key === key);
+  current = key; count = 0; total = 0;
+  screen.className = `screen m-${key}`;
+  screen.onscroll = null;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on');
+  document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+
+function wire(key) {
+  // add to cart
+  screen.querySelectorAll('.add, .add-x').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation();
+    const card = b.closest('.car,.dwg,.it,.tile,.hc,.deck,.case,.lb,.hero,.foot');
+    const priceEl = card && [...card.querySelectorAll('b,span,.mono')].reverse().find(x => /[٠-٩]{1,3}٬[٠-٩]{3}/.test(x.textContent) && x.children.length < 3);
+    const m = (priceEl ? priceEl.textContent : '').match(/[٠-٩]{1,3}٬[٠-٩]{3}/);
+    count++; total += m ? fromAr(m[0]) : 0;
+    const c = screen.querySelector('.cart .cnt'); c.textContent = toAr(count); c.classList.add('bump'); setTimeout(() => c.classList.remove('bump'), 200);
+    screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+    const nm = card && card.querySelector('.nm, h2, b');
+    toast(`انضاف ${nm ? nm.textContent.trim() : ''} ✓`);
+  }));
+
+  if (key === 'wall') return wireWall();
+
+  // tabs → sections
+  const nav = screen.querySelector('.tabs'), btns = [...nav.querySelectorAll('button')];
+  btns.forEach(b => b.addEventListener('click', () => {
+    const sec = screen.querySelector(`[data-sec="${b.dataset.to}"]`);
+    screen.scrollTop = sec.offsetTop - nav.offsetHeight + 2;
+  }));
+  screen.onscroll = () => {
+    let cur = MENU[0].id;
+    for (const s of MENU) { const el = screen.querySelector(`[data-sec="${s.id}"]`); if (el.offsetTop - nav.offsetHeight - 60 <= screen.scrollTop) cur = s.id; }
+    btns.forEach(b => b.classList.toggle('on', b.dataset.to === cur));
+    const on = btns.find(b => b.classList.contains('on')); nav.scrollTo({ left: on.offsetLeft - nav.clientWidth / 2 + on.clientWidth / 2, behavior: 'smooth' });
+  };
+
+  if (key === 'holo') screen.querySelectorAll('.hc').forEach(c => {
+    c.addEventListener('pointermove', e => {
+      const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+      c.style.setProperty('--mx', `${x * 100}%`); c.style.setProperty('--my', `${y * 100}%`);
+      c.style.setProperty('--ry', `${(x - .5) * 18}deg`); c.style.setProperty('--rx', `${(.5 - y) * 18}deg`);
+      c.querySelector('.foil').style.animation = 'none';
+    });
+    c.addEventListener('pointerleave', () => { c.style.setProperty('--rx', '0deg'); c.style.setProperty('--ry', '0deg'); c.querySelector('.foil').style.animation = ''; });
+  });
+
+  if (key === 'dj') screen.querySelectorAll('.deck').forEach(d => d.addEventListener('click', () => d.classList.toggle('stop')));
+}
+
+function wireWall() {
+  const vp = screen.querySelector('#vp'), cv = screen.querySelector('#cv');
+  const W = 1500, H = 1300;
+  let s = .62, x = -20, y = 0;
+  const apply = (fly) => { cv.classList.toggle('fly', !!fly); cv.style.transform = `translate(${x}px,${y}px) scale(${s})`; };
+  const clamp = () => { const vw = vp.clientWidth, vh = vp.clientHeight; x = Math.min(60, Math.max(vw - W * s - 60, x)); y = Math.min(160, Math.max(vh - H * s - 80, y)); };
+  apply();
+  let down = null;
+  vp.addEventListener('pointerdown', e => { if (e.target.closest('.add')) return; down = { px: e.clientX, py: e.clientY, x, y, moved: false }; vp.setPointerCapture(e.pointerId); vp.classList.add('drag'); });
+  vp.addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - down.px, dy = e.clientY - down.py; if (Math.abs(dx) + Math.abs(dy) > 4) down.moved = true; x = down.x + dx; y = down.y + dy; clamp(); apply(); });
+  const up = () => { down = null; vp.classList.remove('drag'); };
+  vp.addEventListener('pointerup', up); vp.addEventListener('pointercancel', up);
+  vp.addEventListener('wheel', e => { e.preventDefault(); x -= e.deltaX; y -= e.deltaY; clamp(); apply(); }, { passive: false });
+  const zoomTo = (ns, cx = vp.clientWidth / 2, cy = vp.clientHeight / 2) => { x = cx - (cx - x) * ns / s; y = cy - (cy - y) * ns / s; s = ns; clamp(); apply(true); };
+  screen.querySelectorAll('.zoom button').forEach(b => b.addEventListener('click', () => {
+    if (b.dataset.z === 'in') zoomTo(Math.min(1.1, s * 1.3));
+    if (b.dataset.z === 'out') zoomTo(Math.max(.22, s / 1.3));
+    if (b.dataset.z === 'all') { s = Math.min(vp.clientWidth / (W + 40), (vp.clientHeight - 200) / (H + 40)); x = (vp.clientWidth - W * s) / 2; y = 150; apply(true); }
+  }));
+  const btns = [...screen.querySelectorAll('.tabs button')];
+  btns.forEach(b => b.addEventListener('click', () => {
+    const z = screen.querySelector(`.zone[data-sec="${b.dataset.to}"]`);
+    s = .62; x = -z.offsetLeft * s + 16; y = -z.offsetTop * s + 160; clamp(); apply(true);
+    btns.forEach(o => o.classList.toggle('on', o === b));
+  }));
+}
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

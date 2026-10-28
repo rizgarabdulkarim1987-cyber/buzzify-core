@@ -10,21 +10,21 @@ import { TEMPLATE_FOR_STYLE, templateForStyle } from '@/studio/styles/template-m
 const ids = MENU_STYLES.map((s) => s.id);
 
 describe('Menu styles catalog', () => {
-  it('holds 35 styles with unique ids, numbered 1 to 35', () => {
-    expect(MENU_STYLES).toHaveLength(35);
-    expect(new Set(ids).size).toBe(35);
-    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 35 }, (_, i) => i + 1));
+  it('holds 123 styles with unique ids, numbered 1 to 123', () => {
+    expect(MENU_STYLES).toHaveLength(123);
+    expect(new Set(ids).size).toBe(123);
+    expect(MENU_STYLES.map((s) => s.number)).toEqual(Array.from({ length: 123 }, (_, i) => i + 1));
   });
 
   it('counts the groups', () => {
     const counts = Object.fromEntries(STYLE_GROUPS.map((g) => [g, MENU_STYLES.filter((s) => s.group === g).length]));
-    expect(counts).toEqual({ themes: 8, heritage: 3, motion: 8, shapes: 16 });
+    expect(counts).toEqual({ themes: 49, heritage: 26, motion: 22, shapes: 26 });
   });
 
   it('contains the picked styles and none of the dropped ones', () => {
     expect(menuStyleById('motion-dep')).toBeDefined();
     expect(menuStyleById('layout-2-dep')).toBeDefined();
-    for (const gone of ['themed-par', 'kurd-arab-and', 'kurd-arab-jli', 'kurd-arab-hwr', 'kurd-arab-chy', 'kurd-arab-sad']) {
+    for (const gone of ['themed-par', 'signature-2-film', 'kurd-arab-jli', 'kurd-arab-hwr', 'kurd-arab-chy', 'kurd-arab-sad']) {
       expect(menuStyleById(gone), gone).toBeUndefined();
     }
   });

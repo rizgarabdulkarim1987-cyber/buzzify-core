@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات مجنونة</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  .pop { opacity: 0; transform: scale(.92); transition: opacity 300ms var(--ease-out), transform 300ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .pop.in { opacity: 1; transform: none; }
+  .hd { padding: 58px 16px 10px; }
+  @keyframes sway { 0%, 100% { transform: rotate(-2deg); } 50% { transform: rotate(2deg); } }
+  @keyframes floaty { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+  @keyframes bulbs { 50% { opacity: .35; } }
+
+  /* 1. LAUNDROMAT — every dish behind a washing-machine porthole */
+  .m-wash { background: repeating-linear-gradient(0deg, #dfe9ee 0 38px, #cfdde4 38px 40px), #dfe9ee; color: #17323f; font-family: 'Changa', sans-serif; }
+  .m-wash .neon { display: inline-block; font: 400 30px 'Lalezar'; color: #ff3d8b; text-shadow: 0 0 10px #ff3d8b88; border: 3px solid #ff3d8b; border-radius: 12px; padding: 2px 14px; background: #17323f; }
+  .m-wash .hd p { margin-top: 8px; font-weight: 600; }
+  .m-wash .chips { background: rgba(223,233,238,.95); }
+  .m-wash .chips button { background: radial-gradient(circle at 35% 30%, #fff6c9, #e0b84a 70%); color: #3b2c05; border-radius: 20px; padding: 6px 13px; font-weight: 800; box-shadow: 0 2px 0 #9c7a1f; }
+  .m-wash .chips button.on { background: #17323f; color: #ffd84d; box-shadow: 0 2px 0 #000; }
+  .m-wash section { padding: 10px 12px 16px; }
+  .m-wash .lab { background: #17323f; color: #fff; border-radius: 8px; padding: 6px 12px; font-weight: 800; margin-bottom: 10px; display: flex; justify-content: space-between; }
+  .m-wash .lab small { color: #7fe3ff; font: 700 12px 'IBM Plex Mono', 'Changa'; }
+  .m-wash .machines { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .m-wash .wm { background: #fbfdfe; border-radius: 12px; box-shadow: 0 6px 0 #a9bcc6, 0 10px 20px rgba(0,0,0,.12); padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .m-wash .panel { width: 100%; display: flex; justify-content: space-between; align-items: center; background: #e3ecf0; border-radius: 6px; padding: 4px 6px; }
+  .m-wash .panel i { width: 16px; height: 16px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #fff, #8aa3ae); }
+  .m-wash .lcd { background: #10261c; color: #6dff9e; font: 700 12px 'IBM Plex Mono', 'Changa'; padding: 2px 6px; border-radius: 3px; }
+  .m-wash .door { width: 82%; aspect-ratio: 1; border-radius: 50%; border: 9px solid #c9d3d8; box-shadow: inset 0 0 0 3px #8aa3ae, 0 2px 6px rgba(0,0,0,.2); overflow: hidden; position: relative; }
+  .m-wash .door .ph { position: absolute; inset: 0; border-radius: 50%; }
+  .m-wash .door::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: linear-gradient(135deg, rgba(255,255,255,.55), transparent 45%); }
+  .m-wash .wm b { font-size: 14px; }
+  .m-wash .wm .add { background: #17323f; color: #ffd84d; border-radius: 16px; padding: 5px 14px; font-weight: 800; font-size: 12.5px; }
+  .m-wash .cart { background: #17323f; color: #ffd84d; }
+
+  /* 2. BLISTER PACK — every dish a bubble you press through the foil */
+  .m-pill { background: #eef2f6; color: #1d2b36; font-family: 'IBM Plex Sans Arabic', sans-serif; }
+  .m-pill .hd h1 { font: 800 30px 'Changa'; display: flex; gap: 10px; align-items: center; }
+  .m-pill .hd h1 i { width: 30px; height: 30px; background: #0aa36b; clip-path: polygon(35% 0, 65% 0, 65% 35%, 100% 35%, 100% 65%, 65% 65%, 65% 100%, 35% 100%, 35% 65%, 0 65%, 0 35%, 35% 35%); }
+  .m-pill .hd p { font-size: 13px; color: #56656f; }
+  .m-pill .chips { background: #eef2f6; }
+  .m-pill .chips button { background: #fff; border: 1.5px solid var(--c); color: #1d2b36; border-radius: 20px; padding: 5px 13px; font-weight: 700; }
+  .m-pill .chips button.on { background: var(--c); color: #fff; }
+  .m-pill .strip { margin: 14px 12px 18px; border-radius: 14px; padding: 12px; background: linear-gradient(135deg, #f4f6f8, #c6ced5 40%, #eef1f4 60%, #b9c2ca); box-shadow: 0 6px 14px rgba(0,0,0,.15); }
+  .m-pill .strip h2 { display: flex; justify-content: space-between; font-size: 16px; padding: 0 4px 8px; border-bottom: 1px dashed #8d99a3; margin-bottom: 10px; }
+  .m-pill .strip h2 small { font-size: 11px; color: #56656f; font-weight: 600; }
+  .m-pill .cells { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
+  .m-pill .cell { display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+  .m-pill .bub { width: 86%; aspect-ratio: 1; border-radius: 50%; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,.25), inset 0 0 0 4px rgba(255,255,255,.7); transition: transform 160ms var(--ease-out); }
+  .m-pill .bub .ph { position: absolute; inset: 5px; border-radius: 50%; }
+  .m-pill .bub::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 25%, rgba(255,255,255,.8), transparent 30%); }
+  .m-pill .cell.popped .bub { transform: scale(.86); }
+  .m-pill .cell.popped .bub::before { content: '✓'; position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; font-size: 30px; font-weight: 900; color: #fff; background: rgba(10,163,107,.7); border-radius: 50%; }
+  .m-pill .cell b { font-size: 12.5px; margin-top: 4px; }
+  .m-pill .cell span { font-size: 11.5px; font-weight: 700; color: #3e4c56; }
+  .m-pill .cell .add { margin-top: 2px; background: #1d2b36; color: #fff; border-radius: 10px; padding: 3px 10px; font-size: 11.5px; font-weight: 700; }
+  .m-pill .cart { background: #0aa36b; color: #fff; }
+
+  /* 3. JEWELLER'S CASE — dishes as jewels on velvet trays */
+  .m-jewel { background: radial-gradient(circle at 50% 0, #3a1830, #140a14 70%); color: #f3dfb0; font-family: 'Amiri', serif; }
+  .m-jewel .hd { text-align: center; }
+  .m-jewel .hd h1 { font: 700 34px 'Amiri'; background: linear-gradient(#fff3cf, #c99a3e); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .m-jewel .hd p { color: #cdb27a; font-size: 14px; letter-spacing: 1px; }
+  .m-jewel .chips { background: rgba(20,10,20,.94); justify-content: flex-start; }
+  .m-jewel .chips button { border: 1px solid #a8823b; color: #e6c27a; padding: 5px 14px; border-radius: 2px; font: 700 14px 'Amiri'; }
+  .m-jewel .chips button.on { background: linear-gradient(#f3d58a, #b98a2f); color: #2a1220; }
+  .m-jewel .tray { margin: 14px 12px 20px; background: radial-gradient(circle at 50% 30%, #6d1b3b, #3d0c22); border: 3px solid #b98a2f; border-radius: 10px; box-shadow: inset 0 8px 18px rgba(0,0,0,.6), 0 10px 26px rgba(0,0,0,.5); padding: 12px 10px 16px; }
+  .m-jewel .tray h2 { text-align: center; font: 700 22px 'Amiri'; color: #f3d58a; margin-bottom: 8px; }
+  .m-jewel .gems { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 10px; }
+  .m-jewel .gem { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; position: relative; }
+  .m-jewel .set { width: 76%; aspect-ratio: 1; border-radius: 50%; padding: 5px; background: conic-gradient(#fff3cf, #b98a2f, #fff3cf, #8a6420, #fff3cf); box-shadow: 0 8px 16px rgba(0,0,0,.55); position: relative; }
+  .m-jewel .set .ph { width: 100%; height: 100%; border-radius: 50%; }
+  .m-jewel .set::after { content: '✦'; position: absolute; top: 4%; inset-inline-end: 6%; color: #fff; font-size: 18px; text-shadow: 0 0 8px #fff; }
+  .m-jewel .gem b { font-size: 16px; color: #fff3cf; }
+  .m-jewel .ptag { position: absolute; top: 6px; inset-inline-start: 0; background: #fffaf0; color: #3d0c22; font: 700 11px 'Cairo'; padding: 2px 7px; border-radius: 3px; transform: rotate(-12deg); box-shadow: 0 2px 4px rgba(0,0,0,.4); }
+  .m-jewel .gem .add { border: 1px solid #b98a2f; color: #f3d58a; padding: 3px 14px; border-radius: 2px; font: 700 13px 'Amiri'; }
+  .m-jewel .cart { background: linear-gradient(#f3d58a, #b98a2f); color: #2a1220; }
+
+  /* 4. SNAKES & LADDERS — the whole menu is one board you can roll on */
+  .m-snake { background: #fff8e7; color: #2b1d0e; font-family: 'Baloo Bhaijaan 2', 'Cairo', sans-serif; }
+  .m-snake .hd { display: flex; justify-content: space-between; align-items: center; }
+  .m-snake .hd h1 { font: 800 28px 'Baloo Bhaijaan 2'; line-height: 1.1; }
+  .m-snake .hd p { font-size: 12px; color: #7a6a52; }
+  .m-snake .dice { background: #e63946; color: #fff; border-radius: 14px; padding: 10px 14px; font-weight: 800; font-size: 15px; box-shadow: 0 4px 0 #8f1d27; flex: none; }
+  .m-snake .dice:active { transform: translateY(3px); box-shadow: 0 1px 0 #8f1d27; }
+  .m-snake .chips { background: #fff8e7; }
+  .m-snake .chips button { background: var(--c); color: #fff; border-radius: 10px; padding: 5px 12px; font-weight: 800; opacity: .55; }
+  .m-snake .chips button.on { opacity: 1; box-shadow: 0 3px 0 rgba(0,0,0,.25); }
+  .m-snake .board { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(5, auto); margin: 8px 10px 20px; border: 5px solid #2b1d0e; border-radius: 10px; overflow: hidden; }
+  .m-snake .sqr { aspect-ratio: 1 / 1.18; padding: 4px; display: flex; flex-direction: column; gap: 2px; position: relative; background: color-mix(in srgb, var(--c) 22%, #fff); border: 1px solid rgba(43,29,14,.15); transition: box-shadow 200ms ease; }
+  .m-snake .sqr:nth-child(even) { background: color-mix(in srgb, var(--c) 36%, #fff); }
+  .m-snake .sqr em { font: 800 12px 'Baloo Bhaijaan 2'; font-style: normal; }
+  .m-snake .sqr .ph { flex: 1; border-radius: 6px; min-height: 0; }
+  .m-snake .sqr b { font-size: 11px; line-height: 1.15; }
+  .m-snake .sqr .add { position: absolute; bottom: 30px; inset-inline-start: 6px; background: #fff; color: #2b1d0e; border-radius: 8px; padding: 0 6px; font-size: 11px; font-weight: 800; box-shadow: 0 1px 3px rgba(0,0,0,.3); }
+  .m-snake .sqr.hl { box-shadow: inset 0 0 0 3px #2b1d0e; }
+  .m-snake .sqr.end { background: #ffd23f; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; text-align: center; }
+  .m-snake .sqr.start { background: #2b1d0e; color: #fff; align-items: center; justify-content: center; font-weight: 800; font-size: 14px; text-align: center; }
+  .m-snake svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2; }
+  .m-snake .tok { position: absolute; z-index: 3; width: 26px; height: 26px; border-radius: 50%; background: #e63946; border: 3px solid #fff; box-shadow: 0 3px 6px rgba(0,0,0,.4); transition: left 120ms var(--ease-out), top 120ms var(--ease-out); pointer-events: none; }
+  .m-snake .cart { background: #2b1d0e; color: #ffd23f; }
+
+  /* 5. CABLE CAR — every section a cable line, every dish a hanging cabin */
+  .m-cable { background: linear-gradient(#7ec8f2, #c8ecff 60%, #eaf7ff); color: #12324a; font-family: 'Cairo', sans-serif; }
+  .m-cable .hd h1 { font: 900 30px 'Cairo'; }
+  .m-cable .hd p { font-size: 13px; color: #2b5877; }
+  .m-cable .chips { background: rgba(126,200,242,.95); }
+  .m-cable .chips button { background: #fff; color: var(--c); border-radius: 18px; padding: 5px 13px; font-weight: 800; }
+  .m-cable .chips button.on { background: var(--c); color: #fff; }
+  .m-cable section { position: relative; padding: 10px 0 18px; }
+  .m-cable .line { padding: 0 14px 4px; font-weight: 800; display: flex; gap: 6px; align-items: center; }
+  .m-cable .line i { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+  .m-cable .wire { position: absolute; top: 46px; left: 0; right: 0; height: 3px; background: #2b3a46; border-radius: 2px; }
+  .m-cable .cabins { display: flex; gap: 12px; overflow-x: auto; scrollbar-width: none; padding: 6px 14px 4px; scroll-snap-type: x proximity; }
+  .m-cable .cabins::-webkit-scrollbar { display: none; }
+  .m-cable .cab { flex: none; width: 146px; scroll-snap-align: start; padding-top: 26px; position: relative; transform-origin: 50% 0; animation: sway 4s ease-in-out infinite; animation-delay: var(--dl); }
+  .m-cable .cab::before { content: ''; position: absolute; top: 0; left: 50%; width: 3px; height: 28px; margin-left: -1.5px; background: #2b3a46; }
+  .m-cable .cab::after { content: ''; position: absolute; top: -4px; left: 50%; width: 18px; height: 9px; margin-left: -9px; border-radius: 4px; background: #2b3a46; }
+  .m-cable .box { background: var(--c); border-radius: 16px 16px 12px 12px; padding: 7px; box-shadow: 0 8px 14px rgba(18,50,74,.25); }
+  .m-cable .win { border-radius: 10px; overflow: hidden; border: 3px solid rgba(255,255,255,.85); }
+  .m-cable .win .ph { height: 92px; }
+  .m-cable .box b { display: block; color: #fff; font-size: 13.5px; margin-top: 5px; line-height: 1.3; }
+  .m-cable .bot { display: flex; justify-content: space-between; align-items: center; color: #fff; font-weight: 800; font-size: 12.5px; margin-top: 3px; }
+  .m-cable .box .add { background: #fff; color: #12324a; width: 28px; height: 28px; border-radius: 50%; font-weight: 900; }
+  .m-cable .mount { height: 70px; background: linear-gradient(135deg, transparent 49%, #8fb3a0 50%) 0 0 / 80px 70px repeat-x, linear-gradient(225deg, transparent 49%, #7aa18c 50%) 40px 0 / 80px 70px repeat-x; }
+  .m-cable .cart { background: #12324a; color: #fff; }
+
+  /* 6. BALLOONS — every dish a balloon, every section a bunch */
+  .m-balloon { background: linear-gradient(#ffe9f3, #e9f4ff); color: #2a2340; font-family: 'Lemonada', 'Cairo', sans-serif; }
+  .m-balloon .hd h1 { font: 700 28px 'Lemonada'; }
+  .m-balloon .hd p { font-size: 12.5px; color: #6b6386; }
+  .m-balloon .chips { background: rgba(255,233,243,.95); }
+  .m-balloon .chips button { background: var(--c); color: #fff; border-radius: 50% 50% 46% 46% / 60% 60% 40% 40%; padding: 6px 14px; font: 700 12px 'Lemonada'; opacity: .7; }
+  .m-balloon .chips button.on { opacity: 1; transform: translateY(-2px); }
+  .m-balloon section { padding: 10px 10px 20px; }
+  .m-balloon .lab { font: 700 18px 'Lemonada'; padding: 0 6px 6px; }
+  .m-balloon .bunch { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .m-balloon .bl { display: flex; flex-direction: column; align-items: center; text-align: center; animation: floaty 3.4s ease-in-out infinite; animation-delay: var(--dl); }
+  .m-balloon .bl:nth-child(3n+2) { margin-top: 26px; }
+  .m-balloon .orb { width: 100%; aspect-ratio: 1 / 1.15; border-radius: 50% 50% 48% 48% / 55% 55% 45% 45%; padding: 5px; background: var(--c); box-shadow: inset -8px -10px 0 rgba(0,0,0,.12), 0 8px 14px rgba(0,0,0,.15); position: relative; }
+  .m-balloon .orb .ph { width: 100%; height: 100%; border-radius: inherit; }
+  .m-balloon .orb::before { content: ''; position: absolute; top: 12%; inset-inline-start: 18%; width: 16%; height: 22%; border-radius: 50%; background: rgba(255,255,255,.7); z-index: 1; }
+  .m-balloon .orb::after { content: ''; position: absolute; bottom: -8px; left: 50%; margin-left: -6px; border: 6px solid transparent; border-top: 9px solid var(--c); border-bottom: 0; }
+  .m-balloon .str { width: 1.5px; height: 18px; background: #6b6386; margin-top: 8px; }
+  .m-balloon .card { background: #fff; border-radius: 10px; padding: 4px 6px; box-shadow: 0 3px 8px rgba(0,0,0,.08); width: 100%; }
+  .m-balloon .card b { display: block; font-size: 11.5px; line-height: 1.35; }
+  .m-balloon .card span { font: 800 11px 'Cairo'; }
+  .m-balloon .card .add { display: block; margin: 3px auto 0; background: #2a2340; color: #fff; border-radius: 10px; padding: 1px 12px; font-size: 13px; font-weight: 900; }
+  .m-balloon .cart { background: #2a2340; color: #fff; }
+
+  /* 7. CLAW MACHINE — dishes in capsules inside a glass arcade box */
+  .m-claw { background: #2a0f45; color: #fff; font-family: 'Baloo Bhaijaan 2', 'Cairo', sans-serif; }
+  .m-claw .marq { margin: 0 12px; padding: 10px; border-radius: 16px; background: #ff2e88; text-align: center; font: 800 26px 'Baloo Bhaijaan 2'; box-shadow: 0 0 0 4px #ffd84d; position: relative; }
+  .m-claw .marq::before { content: ''; position: absolute; inset: 4px; border-radius: 12px; border: 3px dotted #fff7b0; animation: bulbs 1s steps(1) infinite; }
+  .m-claw .hd p { text-align: center; margin-top: 8px; color: #e3c8ff; font-size: 13px; }
+  .m-claw .chips { background: #2a0f45; }
+  .m-claw .chips button { background: #ffd84d; color: #2a0f45; border-radius: 50%; min-width: 0; padding: 6px 12px; border-radius: 16px; font-weight: 800; box-shadow: 0 3px 0 #a8840f; }
+  .m-claw .chips button.on { background: #ff2e88; color: #fff; box-shadow: 0 3px 0 #9a0f4f; }
+  .m-claw section { padding: 10px 12px 18px; }
+  .m-claw .glass { border: 6px solid #ff2e88; border-radius: 14px; background: linear-gradient(160deg, rgba(255,255,255,.14), rgba(255,255,255,.03) 40%), #3c1763; padding: 10px 8px 12px; position: relative; }
+  .m-claw .glass h2 { font-size: 18px; color: #ffd84d; padding: 0 4px 6px; }
+  .m-claw .pile { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 8px; }
+  .m-claw .cap { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; transform: rotate(var(--r)); }
+  .m-claw .ball { width: 92%; aspect-ratio: 1; border-radius: 50%; position: relative; overflow: hidden; box-shadow: 0 6px 10px rgba(0,0,0,.4); background: rgba(255,255,255,.25); }
+  .m-claw .ball .ph { position: absolute; inset: 0; }
+  .m-claw .ball::before { content: ''; position: absolute; inset: 0 0 52% 0; background: var(--c); opacity: .88; z-index: 1; border-bottom: 3px solid rgba(255,255,255,.7); }
+  .m-claw .ball::after { content: ''; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 30% 22%, rgba(255,255,255,.75), transparent 28%); z-index: 2; }
+  .m-claw .ball span { position: absolute; top: 14%; inset-inline: 0; z-index: 3; font: 800 11.5px 'Cairo'; color: #fff; }
+  .m-claw .cap b { font-size: 12px; line-height: 1.25; }
+  .m-claw .cap .add { background: #ffd84d; color: #2a0f45; border-radius: 10px; padding: 1px 10px; font-size: 11.5px; font-weight: 800; }
+  .m-claw .grab { position: absolute; z-index: 60; width: 40px; margin-left: -20px; pointer-events: none; display: flex; flex-direction: column; align-items: center; }
+  .m-claw .grab i { width: 3px; height: 160px; background: #d8d8e0; }
+  .m-claw .grab b { width: 40px; height: 22px; border: 5px solid #d8d8e0; border-top: 0; border-radius: 0 0 20px 20px; }
+  .m-claw .cart { background: #ff2e88; color: #fff; }
+
+  /* 8. PASSPORT — every section a visa page, every dish a stamp */
+  .m-pass { background: #f4efe1; color: #1f2a44; font-family: 'Reem Kufi', 'Cairo', sans-serif; }
+  .m-pass .pcover { margin: 0; padding: 58px 16px 16px; background: #1f2a44; color: #e6c27a; text-align: center; border-radius: 0 0 18px 18px; }
+  .m-pass .pcover .emb { width: 54px; height: 54px; margin: 0 auto 6px; border-radius: 50%; border: 2px solid #e6c27a; display: grid; place-items: center; font-size: 26px; }
+  .m-pass .pcover h1 { font: 700 28px 'Reem Kufi'; }
+  .m-pass .pcover p { font-size: 12px; letter-spacing: 3px; font-family: 'IBM Plex Mono', 'Reem Kufi'; }
+  .m-pass .chips { background: #f4efe1; }
+  .m-pass .chips button { border: 2px solid var(--c); color: var(--c); border-radius: 4px; padding: 4px 11px; font-weight: 700; filter: saturate(.8) brightness(.8); }
+  .m-pass .chips button.on { background: var(--c); color: #fff; filter: none; }
+  .m-pass .pg { margin: 12px 10px 18px; background: repeating-radial-gradient(circle at 50% 120%, rgba(31,42,68,.05) 0 2px, transparent 2px 9px), #fbf8ef; border-radius: 8px; padding: 12px; box-shadow: 0 3px 10px rgba(0,0,0,.1); position: relative; }
+  .m-pass .pg h2 { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; border-bottom: 1px solid #d8cfb8; padding-bottom: 6px; margin-bottom: 12px; }
+  .m-pass .pg h2 small { font: 700 10.5px 'IBM Plex Mono', 'Cairo'; color: #8a7f66; }
+  .m-pass .stamps { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px 12px; }
+  .m-pass .st { border: 3px double var(--c); color: var(--c); border-radius: 12px; padding: 6px; transform: rotate(var(--r)); text-align: center; position: relative; background: rgba(255,255,255,.4); }
+  .m-pass .st .ph { height: 92px; border-radius: 8px; filter: saturate(1.05); }
+  .m-pass .st b { display: block; font-size: 14px; margin-top: 4px; filter: brightness(.75); }
+  .m-pass .st small { display: block; font: 700 11px 'IBM Plex Mono', 'Cairo'; filter: brightness(.75); }
+  .m-pass .st .add { margin-top: 4px; background: var(--c); color: #fff; border-radius: 6px; padding: 2px 12px; font-size: 12px; font-weight: 700; }
+  .m-pass .ok { position: absolute; inset: 30% 6% auto; z-index: 3; border: 3px solid #c62828; color: #c62828; border-radius: 8px; font: 700 18px 'Reem Kufi'; padding: 2px 0; transform: rotate(-14deg); background: rgba(255,255,255,.75); pointer-events: none; }
+  .m-pass .cart { background: #1f2a44; color: #e6c27a; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات مجنونة · أغرب جولة</h1>
+  <p>محل غسالات، شريط حبوب، فيترينة صائغ، لعبة الحيّة والدرج، تلفريك بالجبل، عنقود بالونات، مكينة المخلب، وجواز سفر بأختام. كلها مجنونة بالشكل، بس تبين هواية أطباق بصورها وأسعارها وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const TILT = [-4, 3, -2, 4, -3, 2];
+// snakes & ladders: the start square, every dish in order, then the finish, laid out boustrophedon over 4 columns
+const SQUARES = [{ start: true }, ...MENU.flatMap(s => s.items.map(it => ({ it, s }))), { end: true }];
+const sqPos = k => { const r = Math.floor(k / 4); return `grid-row:${r + 1};grid-column:${r % 2 ? 4 - (k % 4) : (k % 4) + 1}`; };
+const STYLES = [
+ { key: 'wash', fam: 'أماكن', name: 'مغسلة الطعم',
+   desc: 'المنيو محل غسالات: كل طبق غسالة، وصورته تبين من الشباك الدايري مال الباب، وسعره على شاشة خضرة صغيرة. تدوس «ابدأ» فتدور الصورة جوّا الغسالة وينضاف الطبق.',
+   mo: '<b>الشكل:</b> صفوف غسالات بأبواب دايرية، والطلب يدوّر الطبق مثل الغسيل.',
+   render: () => `
+    <div class="hd"><span class="neon">مغسلة الطعم ٢٤/٧</span><p>اختار غسالتك، ودوس ابدأ</p></div>
+    ${chips(s => `🪙 ${s.t}`)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="lab"><span>${s.e} صف ${s.t}</span><small>${toAr(s.items.length)} غسالات</small></div><div class="machines">${s.items.map(it => `<div class="wm"><div class="panel"><i></i><span class="lcd">${it.p}</span><i></i></div><div class="door"><div class="ph" ${bg(it.img, 280)}></div></div><b>${it.n}</b>${addBtn(it, 'ابدأ ▶')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('بالغسالة')}` },
+
+ { key: 'jewel', fam: 'فخامة', name: 'فيترينة الصائغ',
+   desc: 'المنيو فيترينة مجوهرات: كل قسم صينية مخمل، وكل طبق جوهرة بإطار ذهب دايري بصورته، وسعره على تيكيت صغير معلّق مثل محلات الذهب. تدوس «اقتني» فتلمع الجوهرة.',
+   mo: '<b>الشكل:</b> صواني مخمل بجواهر دايرية وتيكيتات أسعار مايلة.',
+   render: () => `
+    <div class="hd"><h1>فيترينة الصائغ</h1><p>قطع الطعم النادرة</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}" class="tray"><h2>${s.t}</h2><div class="gems">${s.items.map(it => `<div class="gem"><span class="ptag">${it.p}</span><div class="set"><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b>${addBtn(it, 'اقتني')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('مقتنياتك')}` },
+
+ { key: 'snake', fam: 'ألعاب', name: 'الحيّة والدرج',
+   desc: 'المنيو كله لوحة «الحيّة والدرج» وحدة: كل طبق مربع مرقّم بصورته وسعره، والأقسام ألوان. ترمي الزار فيمشي الحجر ويوقف على طبق يقترحه عليك. وتكدر تختار أي مربع مباشرة.',
+   mo: '<b>الشكل:</b> لوحة مربعات متعرّجة بحيّة ودرج، وزار يختارلك طبق.',
+   render: () => `
+    <div class="hd"><div><h1>الحيّة والدرج</h1><p>ارمي الزار، أو اختار مربعك</p></div><button class="dice">🎲 ارمي</button></div>
+    ${chips(s => s.t)}
+    <div class="board">${SQUARES.map((q, k) => q.start ? `<div class="sqr start" style="${sqPos(k)}">ابدأ<br>هنا</div>` : q.end ? `<div class="sqr end" style="${sqPos(k)}">🏆<br>شبعت!</div>` : `<div class="sqr" data-s="${q.s.id}" style="${sqPos(k)};--c:${q.s.c}"><em>${toAr(k)}</em><div class="ph" ${bg(q.it.img, 200)}></div><b>${q.it.n}</b><b>${q.it.p}</b>${addBtn(q.it)}</div>`).join('')}
+      <svg viewBox="0 0 4 5" preserveAspectRatio="none" aria-hidden="true">
+        <g stroke="#7a4b1e" stroke-width="5" vector-effect="non-scaling-stroke"><line x1="0.55" y1="1.5" x2="1.25" y2="3.5" vector-effect="non-scaling-stroke"/><line x1="0.85" y1="1.4" x2="1.55" y2="3.4" vector-effect="non-scaling-stroke"/>${[0, 1, 2, 3, 4].map(i => `<line x1="${0.6 + i * 0.14}" y1="${1.62 + i * 0.4}" x2="${0.9 + i * 0.14}" y2="${1.52 + i * 0.4}" stroke-width="4" vector-effect="non-scaling-stroke"/>`).join('')}</g>
+        <path d="M3.3 0.6 C 2.3 1.1, 3.7 1.9, 2.7 2.5 S 3.3 3.8, 2.5 4.4" fill="none" stroke="#2ba84a" stroke-width="10" stroke-linecap="round" vector-effect="non-scaling-stroke" opacity=".85"/>
+        <circle cx="3.3" cy="0.6" r="0.09" fill="#1f7a36"/>
+      </svg>
+      <span class="tok"></span></div>
+    ${cart('مربعاتك')}` },
+
+ { key: 'cable', fam: 'رحلة', name: 'تلفريك الجبل',
+   desc: 'كل قسم خط تلفريك بالجبل، وكل طبق كابينة معلّقة بالسلك تتمرجح شوية، وصورته بشبّاكها واسمه وسعره عليها. تسحب الخط يمين ويسار، والخطوط كلها تحت بعض.',
+   mo: '<b>الشكل:</b> خطوط أسلاك أفقية بكابينات معلّقة تتمرجح، مو كروت.',
+   render: () => `
+    <div class="hd"><h1>تلفريك الجبل</h1><p>كل خط قسم · كل كابينة طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><div class="line"><i></i>خط ${s.t}</div><span class="wire"></span><div class="cabins">${s.items.map((it, i) => `<div class="cab" style="--dl:-${i * 0.7}s"><div class="box"><div class="win"><div class="ph" ${bg(it.img, 300)}></div></div><b>${it.n}</b><div class="bot"><span>${it.p}</span>${addBtn(it)}</div></div></div>`).join('')}</div></section>`).join('')}
+    <div class="mount"></div>
+    ${cart('كابيناتك')}` },
+
+ { key: 'balloon', fam: 'حفلة', name: 'عنقود البالونات',
+   desc: 'كل طبق بالون ملوّن بصورته جوّاه، مربوط بخيط بكرت صغير عليه اسمه وسعره. البالونات تطوف شوية فوق وجوّه، وكل قسم عنقود بلونه. تضيف طبق فيطير بالونه لفوق ويرجع.',
+   mo: '<b>الشكل:</b> بالونات بأرتفاعات مختلفة بخيوط وكروت، بدل الشبكة المستقيمة.',
+   render: () => `
+    <div class="hd"><h1>عنقود البالونات</h1><p>كل بالون طبق · اختار بالونك</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}" style="--c:${s.c}"><h2 class="lab">${s.e} ${s.t}</h2><div class="bunch">${s.items.map((it, i) => `<div class="bl" style="--dl:-${(i * 0.9) % 3.4}s"><div class="orb"><div class="ph" ${bg(it.img, 240)}></div></div><span class="str"></span><div class="card"><b>${it.n}</b><span>${it.p}</span>${addBtn(it)}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('بالوناتك')}` },
+
+ { key: 'pass', fam: 'سفر', name: 'جواز الطعم',
+   desc: 'المنيو جواز سفر: الغلاف كحلي بشعار ذهبي، وكل قسم صفحة تأشيرة، وكل طبق ختم ملوّن مايل بصورته واسمه ورسومه. تدوس «اختم» فينطبع عليه ختم أحمر «تمت».',
+   mo: '<b>الشكل:</b> صفحات جواز بأختام مايلة بدل الكروت، والطلب ختم أحمر.',
+   render: () => `
+    <div class="pcover"><div class="emb">🍽</div><h1>جواز الطعم</h1><p>PASSPORT · جواز</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" class="pg"><h2>تأشيرة: ${s.t}<small>صفحة ${toAr(si + 1)}</small></h2><div class="stamps">${s.items.map((it, i) => `<div class="st" style="--c:${s.c};--r:${TILT[i % 6] / 1.5}deg"><div class="ph" ${bg(it.img, 260)}></div><b>${it.n}</b><small>الرسوم ${it.p}</small>${addBtn(it, 'اختم')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('أختامك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const WIRE = {
+  wash: {
+    // the dish spins in the drum
+    added(a) { if (!reduce) a.closest('.wm').querySelector('.door .ph').animate([{ transform: 'rotate(0)' }, { transform: 'rotate(720deg)' }], { duration: 800, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' }); },
+  },
+  pill: {
+    added(a) { a.closest('.cell').classList.add('popped'); },
+  },
+  jewel: {
+    added(a) { if (!reduce) a.closest('.gem').querySelector('.set').animate([{ transform: 'scale(1)', filter: 'brightness(1)' }, { transform: 'scale(1.08)', filter: 'brightness(1.5)' }, { transform: 'scale(1)', filter: 'brightness(1)' }], { duration: 450, easing: ease }); },
+  },
+  snake: {
+    noSpy: true,
+    pos: 0,
+    place(k) {
+      const sq = screen.querySelectorAll('.board .sqr')[k], tok = screen.querySelector('.tok');
+      tok.style.left = `${sq.offsetLeft + sq.offsetWidth - 32}px`;
+      tok.style.top = `${sq.offsetTop + 4}px`;
+    },
+    init() { WIRE.snake.pos = 0; WIRE.snake.place(0); },
+    go(id) {
+      const sq = screen.querySelectorAll(`.sqr[data-s="${id}"]`);
+      screen.querySelectorAll('.sqr.hl').forEach(x => x.classList.remove('hl'));
+      sq.forEach(x => x.classList.add('hl'));
+      sq[0].scrollIntoView({ block: 'center', behavior: reduce ? 'instant' : 'smooth' });
+      mark('.chips [data-to]', id);
+    },
+    click(e) {
+      if (!e.target.closest('.dice')) return;
+      const W = WIRE.snake, n = 1 + Math.floor(Math.random() * 6), last = SQUARES.length - 1;
+      const target = Math.min(W.pos + n, last);
+      screen.querySelectorAll('.sqr.hl').forEach(x => x.classList.remove('hl'));
+      let k = W.pos;
+      const step = () => {
+        k++; W.place(k);
+        if (k < target) return setTimeout(step, reduce ? 0 : 140);
+        W.pos = target;
+        const sq = screen.querySelectorAll('.board .sqr')[target];
+        if (target === last) { toast(`🎲 ${toAr(n)} · وصلت للآخر! نرجع للبداية`); W.pos = 0; setTimeout(() => W.place(0), 900); return; }
+        sq.classList.add('hl');
+        mark('.chips [data-to]', sq.dataset.s);
+        toast(`🎲 ${toAr(n)} · وقعت على ${sq.querySelector('b').textContent}`);
+      };
+      if (target > W.pos) step();
+    },
+  },
+  balloon: {
+    added(a) { if (!reduce) a.closest('.bl').querySelector('.orb').animate([{ transform: 'translateY(0)' }, { transform: 'translateY(-26px) scale(1.06)', offset: .4 }, { transform: 'translateY(0)' }], { duration: 650, easing: ease }); },
+  },
+  claw: {
+    // the claw drops from above onto the capsule and lifts it a little
+    added(a) {
+      if (reduce) return;
+      const ball = a.closest('.cap').querySelector('.ball'), r = ball.getBoundingClientRect(), sr = screen.getBoundingClientRect();
+      const g = document.createElement('div'); g.className = 'grab'; g.innerHTML = '<i></i><b></b>';
+      g.style.left = `${r.left - sr.left + r.width / 2}px`;
+      g.style.top = `${r.top - sr.top + screen.scrollTop - 170}px`;
+      screen.appendChild(g);
+      g.animate([{ transform: 'translateY(-120px)' }, { transform: 'translateY(0)', offset: .45 }, { transform: 'translateY(0)', offset: .6 }, { transform: 'translateY(-120px)' }], { duration: 900, easing: 'cubic-bezier(0.77, 0, 0.175, 1)' }).onfinish = () => g.remove();
+      ball.animate([{ transform: 'translateY(0)' }, { transform: 'translateY(0)', offset: .6 }, { transform: 'translateY(-34px)', offset: .85 }, { transform: 'translateY(0)' }], { duration: 1100, easing: ease });
+    },
+  },
+  pass: {
+    added(a) {
+      const st = a.closest('.st');
+      if (st.querySelector('.ok')) return;
+      const ok = document.createElement('div'); ok.className = 'ok'; ok.textContent = 'تمت ✓';
+      st.appendChild(ok);
+      if (!reduce) ok.animate([{ transform: 'rotate(-14deg) scale(1.8)', opacity: 0 }, { transform: 'rotate(-14deg) scale(1)', opacity: 1 }], { duration: 220, easing: ease });
+    },
+  },
+};
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

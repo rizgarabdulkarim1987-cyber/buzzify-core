@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات بشكل مختلف ٢</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+
+  /* ===== buzzify.me motions ===== */
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(var(--h, -8px)) rotate(calc(var(--r, 0deg) * -.6)); } }
+  @keyframes sway { 0%, 100% { transform: rotate(var(--r, 4deg)); } 50% { transform: rotate(calc(var(--r, 4deg) * -1)); } }
+  @keyframes glint { to { background-position: 60px 30px, -40px 50px, 0 0; } }
+  @keyframes fringe { 0%, 100% { transform: skewX(8deg); } 50% { transform: skewX(-8deg); } }
+  .screen .bob { animation: bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite; }
+  .screen .fl { will-change: transform; }
+  .screen .ph { background-size: cover; background-position: center; }
+  .screen .rail { position: fixed; right: 7px; top: 32%; height: 36%; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--rc) 30%, transparent); z-index: 25; pointer-events: none; }
+  .screen .rail i { position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+  .screen .hd { padding: 62px 18px 12px; }
+  .screen .hd h1 { font: 400 38px 'Lalezar'; line-height: 1.15; }
+  .screen .hd p { font-size: 13.5px; opacity: .85; }
+  .screen .chips button { padding: 6px 13px; font-weight: 700; font-size: 13px; border-radius: 999px; }
+
+  /* 1. GOLD LIRAS — every section a gold chain hanging in an arc, every dish a milled gold coin on it */
+  .m-lira { --rc: #e7b84a; background: radial-gradient(120% 60% at 50% 0, #5a1a5f, #2a0a2e 70%); color: #fbe9c2; font-family: 'Cairo', sans-serif; }
+  .m-lira .hd h1 { color: #f3c95c; text-shadow: 0 2px 0 #7a4a0a; }
+  .m-lira .chips { background: rgba(42,10,46,.94); }
+  .m-lira .chips button { background: #f3c95c; color: #2a0a2e; }
+  .m-lira .chips button.on { background: #fff4d6; box-shadow: 0 0 0 2px #f3c95c; }
+  .m-lira section { padding: 14px 10px 10px; }
+  .m-lira h2 { font: 400 22px 'Lalezar'; color: #f3c95c; padding: 0 8px; }
+  .m-lira .str { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0 8px; padding-top: 6px; margin-bottom: 8px; }
+  .m-lira .chain { position: absolute; inset: 0 2% auto; height: 46px; border-bottom: 3px dotted #e7b84a; border-radius: 0 0 50% 50%; }
+  .m-lira .cn { text-align: center; margin-top: var(--drop); transform-origin: 50% 0; animation: sway var(--t, 4s) ease-in-out var(--dl, 0s) infinite; }
+  .m-lira .link { width: 3px; height: 16px; margin: 0 auto; background: repeating-linear-gradient(#e7b84a 0 4px, transparent 4px 6px); }
+  .m-lira .coin { position: relative; width: 92%; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; padding: 7px; background: repeating-conic-gradient(#f8d677 0 6deg, #b98420 6deg 12deg); box-shadow: 0 6px 14px rgba(0,0,0,.45), inset 0 0 0 2px #fff2c4; }
+  .m-lira .coin .ph { width: 100%; height: 100%; border-radius: 50%; box-shadow: 0 0 0 3px #f3c95c, inset 0 0 12px rgba(0,0,0,.4); }
+  .m-lira .coin::before { content: ''; position: absolute; top: -7px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; border: 3px solid #e7b84a; }
+  .m-lira .cn b { display: block; font-size: 13px; line-height: 1.2; margin-top: 6px; }
+  .m-lira .cn span { font-size: 12px; font-weight: 700; color: #f3c95c; }
+  .m-lira .add { display: block; margin: 3px auto 0; background: linear-gradient(#f8d677, #c99227); color: #2a0a2e; border-radius: 999px; padding: 1px 12px; font-size: 12px; font-weight: 900; }
+  .m-lira .cart { background: linear-gradient(#f8d677, #c99227); color: #2a0a2e; }
+
+  /* 2. KRAS U FISTAN — every section a long dress; each dish a tier of the skirt, each tier wider than the one above */
+  .m-kras { --rc: #b0127a; background: #fbf3ea; color: #2a1020; font-family: 'Cairo', sans-serif; }
+  .m-kras .hd h1 { font-family: 'El Messiri'; font-weight: 700; color: #7a0e55; }
+  .m-kras .chips { background: rgba(251,243,234,.95); }
+  .m-kras .chips button { background: var(--c); color: #fff; border-radius: 6px; }
+  .m-kras .chips button.on { background: #2a1020; }
+  .m-kras section { padding: 18px 12px 10px; }
+  .m-kras .bod { position: relative; width: 52%; margin: 0 auto; padding: 22px 0 10px; text-align: center; border-radius: 40% 40% 6px 6px / 30% 30% 6px 6px; background: var(--dc); color: #fff; }
+  .m-kras .bod b { font: 700 19px 'El Messiri'; }
+  .m-kras .neck { position: absolute; top: -1px; left: 50%; width: 34%; height: 18px; margin-left: -17%; border-radius: 0 0 50% 50%; background: #fbf3ea; box-shadow: 0 3px 0 #e7b84a; }
+  .m-kras .skirt { display: flex; flex-direction: column; align-items: center; gap: 3px; margin-top: 3px; }
+  .m-kras .tier { width: var(--w); display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 4px; color: #fff; transform-origin: 50% 0;
+    background: radial-gradient(circle, rgba(255,240,190,.7) 0 1px, transparent 1.6px) 0 0 / 11px 11px, radial-gradient(circle, rgba(255,255,255,.5) 0 1px, transparent 1.6px) 5px 5px / 13px 13px, linear-gradient(var(--dc), color-mix(in srgb, var(--dc) 75%, #000));
+    animation: glint 6s linear infinite; border-bottom: 3px solid #e7b84a; }
+  .m-kras .tier .ph { flex: none; width: 52px; height: 52px; border-radius: 50%; box-shadow: 0 0 0 2px #e7b84a; }
+  .m-kras .tier .tx { flex: 1; min-width: 0; }
+  .m-kras .tier b { display: block; font-size: 14px; }
+  .m-kras .tier small { display: block; font-size: 11.5px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-kras .tier span { font-weight: 700; font-size: 13px; color: #ffe08a; white-space: nowrap; }
+  .m-kras .add { width: 30px; height: 30px; border-radius: 50%; background: #e7b84a; color: #2a1020; font-size: 18px; font-weight: 900; }
+  .m-kras .cart { background: #7a0e55; color: #fff; }
+
+  /* 3. FAQIYANA — every section one long sheer sleeve flying sideways; the dishes are pieces of it and a wave runs along it */
+  .m-faqi { --rc: #e5007e; background: linear-gradient(#ffe9f3, #fff 60%, #f1e6ff); color: #3a0f2c; font-family: 'Cairo', sans-serif; }
+  .m-faqi .hd h1 { font-family: 'Lemonada'; font-weight: 700; font-size: 30px; color: #c2186b; }
+  .m-faqi .chips { background: rgba(255,233,243,.95); }
+  .m-faqi .chips button { background: #fff; color: #c2186b; box-shadow: 0 0 0 1.5px #f3a6cc; }
+  .m-faqi .chips button.on { background: #c2186b; color: #fff; }
+  .m-faqi section { padding: 14px 0 6px; }
+  .m-faqi h2 { font: 400 22px 'Lalezar'; color: var(--dc); padding: 0 16px; }
+  .m-faqi .sleeve { display: flex; overflow-x: auto; scrollbar-width: none; padding: 26px 16px 30px; }
+  .m-faqi .sleeve::-webkit-scrollbar { display: none; }
+  .m-faqi .pc { flex: none; width: 40%; will-change: transform; }
+  .m-faqi .tul { margin-inline-end: -1px; padding: 12px 10px 12px; text-align: center; background: linear-gradient(color-mix(in srgb, var(--dc) 30%, transparent), color-mix(in srgb, var(--dc) 14%, transparent)); border-block: 2px solid color-mix(in srgb, var(--dc) 60%, transparent); backdrop-filter: blur(2px); }
+  .m-faqi .pc:first-child .tul { border-start-start-radius: 40px; border-end-start-radius: 8px; }
+  /* the sleeve ends on the left in RTL, cut into a swallow tail */
+  .m-faqi .pc:last-child .tul { clip-path: polygon(0 0, 100% 0, 100% 100%, 0 100%, 14% 50%); padding-inline-end: 22px; }
+  .m-faqi .tul .ph { width: 78%; margin: 0 auto; aspect-ratio: 1; border-radius: 50%; box-shadow: 0 6px 14px rgba(194,24,107,.25), 0 0 0 3px #fff; }
+  .m-faqi .tul b { display: block; font-size: 13.5px; margin-top: 6px; line-height: 1.2; }
+  .m-faqi .tul span { font-size: 12.5px; font-weight: 700; color: var(--dc); }
+  .m-faqi .add { display: block; margin: 4px auto 0; padding: 2px 14px; border-radius: 999px; background: var(--dc); color: #fff; font-size: 12px; font-weight: 700; }
+  .m-faqi .cart { background: #c2186b; color: #fff; }
+
+  /* 4. TROUSSEAU WARDROBE — every section a wardrobe rail, every dish a dress on a hanger made of the dish photo */
+  .m-jhaz { --rc: #a0522d; background: linear-gradient(90deg, #5a3a22, #7a5234 50%, #5a3a22); color: #fff5e6; font-family: 'Cairo', sans-serif; }
+  .m-jhaz .hd h1 { color: #ffd9a8; }
+  .m-jhaz .chips { background: rgba(70,44,26,.95); }
+  .m-jhaz .chips button { background: #ffd9a8; color: #4a2c16; }
+  .m-jhaz .chips button.on { background: #fff; }
+  .m-jhaz section { padding: 16px 0 8px; margin: 0 10px 12px; background: rgba(0,0,0,.22); border-radius: 10px; box-shadow: inset 0 4px 14px rgba(0,0,0,.4); }
+  .m-jhaz h2 { display: flex; justify-content: space-between; align-items: baseline; padding: 0 14px; font: 400 21px 'Lalezar'; color: #ffd9a8; }
+  .m-jhaz h2 small { font: 700 12px 'Cairo'; opacity: .8; }
+  .m-jhaz .rack { position: relative; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 10px 14px 6px; }
+  .m-jhaz .rack::-webkit-scrollbar { display: none; }
+  .m-jhaz .hg { position: relative; flex: none; width: 36%; text-align: center; }
+  /* each hanger carries its own piece of the rail so the rail runs as far as the dresses do */
+  .m-jhaz .hg::before { content: ''; position: absolute; top: 4px; left: -4px; right: -4px; height: 6px; background: linear-gradient(#e8e8e8, #8a8a8a); }
+  .m-jhaz .hg .sw { transform-origin: 50% 4px; animation: sway var(--t, 4s) ease-in-out var(--dl, 0s) infinite; }
+  .m-jhaz .hook { width: 16px; height: 14px; margin: 0 auto; border: 3px solid #d8d8d8; border-bottom: 0; border-radius: 10px 10px 0 0; }
+  .m-jhaz .hook::after { content: ''; display: block; width: 300%; height: 5px; margin: 9px 0 0 -100%; border-radius: 3px; background: #d8d8d8; }
+  .m-jhaz .dress { aspect-ratio: .68; margin-top: -2px; clip-path: polygon(34% 0, 66% 0, 76% 10%, 64% 32%, 100% 100%, 0 100%, 36% 32%, 24% 10%); filter: saturate(1.15); }
+  .m-jhaz .hg b { display: block; font-size: 13.5px; margin-top: 6px; line-height: 1.2; }
+  .m-jhaz .hg span { font-size: 12.5px; font-weight: 700; color: #ffd9a8; }
+  .m-jhaz .add { display: block; margin: 4px auto 0; padding: 2px 14px; border-radius: 999px; background: #ffd9a8; color: #4a2c16; font-size: 12px; font-weight: 900; }
+  .m-jhaz .cart { background: #2e1c0e; color: #ffd9a8; }
+
+  /* 5. PSHTWEN — the long waist sash; every dish one wrap of it, wraps tilted left and right over each other */
+  .m-pshtwen { --rc: #6b5a3a; background: #e9e2d2; color: #2b241a; font-family: 'Cairo', sans-serif; }
+  .m-pshtwen .hd h1 { color: #4a3d26; }
+  .m-pshtwen .chips { background: rgba(233,226,210,.95); }
+  .m-pshtwen .chips button { background: #4a3d26; color: #e9e2d2; border-radius: 4px; }
+  .m-pshtwen .chips button.on { background: #a33a26; }
+  .m-pshtwen section { padding: 16px 12px 6px; overflow: hidden; }
+  .m-pshtwen h2 { font: 400 22px 'Lalezar'; color: #4a3d26; padding: 0 4px 4px; }
+  .m-pshtwen .wraps { display: flex; flex-direction: column; }
+  .m-pshtwen .wrap { display: flex; align-items: center; gap: 10px; padding: 9px 12px; margin-top: -4px; border-radius: 3px; color: #fff;
+    background: repeating-linear-gradient(90deg, transparent 0 22px, rgba(255,255,255,.08) 22px 24px), repeating-linear-gradient(0deg, #7d6a45 0 6px, #6b5a3a 6px 9px, #a33a26 9px 11px, #6b5a3a 11px 14px);
+    box-shadow: 0 4px 0 rgba(0,0,0,.18); }
+  .m-pshtwen .wrap[data-s="-1"] { rotate: -1.4deg; } .m-pshtwen .wrap[data-s="1"] { rotate: 1.4deg; }
+  .m-pshtwen .wrap .ph { flex: none; width: 56px; height: 56px; border-radius: 6px; box-shadow: 0 0 0 2px #e9e2d2; }
+  .m-pshtwen .wrap .tx { flex: 1; min-width: 0; }
+  .m-pshtwen .wrap b { display: block; font-size: 15px; text-shadow: 0 1px 0 rgba(0,0,0,.4); }
+  .m-pshtwen .wrap small { display: block; font-size: 12px; opacity: .85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .m-pshtwen .wrap span { font-weight: 900; font-size: 13.5px; color: #ffe2a8; white-space: nowrap; }
+  .m-pshtwen .add { width: 32px; height: 32px; border-radius: 4px; background: #e9e2d2; color: #4a3d26; font-size: 19px; font-weight: 900; }
+  .m-pshtwen .knot { display: flex; justify-content: center; gap: 4px; margin-top: -2px; }
+  .m-pshtwen .knot i { width: 5px; height: 26px; border-radius: 0 0 3px 3px; background: repeating-linear-gradient(#6b5a3a 0 6px, #a33a26 6px 8px); transform-origin: 50% 0; animation: fringe 2.6s ease-in-out infinite; }
+  .m-pshtwen .knot i:nth-child(2n) { animation-delay: -1.3s; height: 32px; }
+  .m-pshtwen .cart { background: #4a3d26; color: #e9e2d2; }
+
+  /* 6. JAMANA — every dish a checked headscarf square turned on its corner, with a swinging fringe */
+  .m-jamana { --rc: #111; background: #f6f4ef; color: #111; font-family: 'Cairo', sans-serif; }
+  .m-jamana .hd h1 { color: #111; }
+  .m-jamana .chips { background: rgba(246,244,239,.95); }
+  .m-jamana .chips button { background: #fff; color: #111; box-shadow: 0 0 0 1.5px #111; border-radius: 3px; }
+  .m-jamana .chips button.on { background: #111; color: #fff; }
+  .m-jamana section { padding: 14px 10px 8px; }
+  .m-jamana .band { padding: 6px 14px; font: 400 21px 'Lalezar'; color: #fff; background: #111; box-shadow: 0 6px 0 -2px #f6f4ef, 0 8px 0 -2px #111; }
+  .m-jamana .lattice { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; padding-top: 18px; }
+  .m-jamana .dm { text-align: center; padding-bottom: 14px; }
+  .m-jamana .dm:nth-child(2n) { margin-top: 64px; }
+  .m-jamana .sq { position: relative; width: 70%; margin: 14% auto 0; aspect-ratio: 1; rotate: 45deg; padding: 9px;
+    background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0 / 14px 14px; box-shadow: 0 0 0 2px #111, 0 10px 16px rgba(0,0,0,.18); transition: rotate 380ms cubic-bezier(0.23, 1, 0.32, 1); }
+  .m-jamana .sq .ph { width: 100%; height: 100%; box-shadow: 0 0 0 3px #fff; }
+  .m-jamana .fringe { width: 26px; height: 22px; margin: 4px auto 0; background: repeating-linear-gradient(90deg, #111 0 2px, transparent 2px 5px); transform-origin: 50% 0; animation: fringe var(--t, 2.4s) ease-in-out infinite; }
+  .m-jamana .dm b { display: block; font-size: 14px; margin-top: 4px; }
+  .m-jamana .dm span { font-size: 12.5px; font-weight: 900; }
+  .m-jamana .add { display: block; margin: 4px auto 0; padding: 2px 14px; border-radius: 3px; background: #111; color: #fff; font-size: 12px; font-weight: 700; }
+  .m-jamana .cart { background: #111; color: #fff; }
+
+  /* 7. KLASH — Hawraman woven shoes; every dish a footprint, left and right, stamping in as you walk the trail */
+  .m-klash { --rc: #4a6b3a; background: linear-gradient(#cfe0c2, #e7dcc4 30%, #d9c7a2); color: #2c2416; font-family: 'Cairo', sans-serif; }
+  .m-klash .hd h1 { color: #3a5a2c; }
+  .m-klash .chips { background: rgba(207,224,194,.95); }
+  .m-klash .chips button { background: #fffdf6; color: #3a5a2c; box-shadow: inset 0 0 0 1.5px #3a5a2c; }
+  .m-klash .chips button.on { background: #3a5a2c; color: #fffdf6; }
+  .m-klash section { padding: 16px 14px 6px; }
+  .m-klash h2 { font: 400 22px 'Lalezar'; color: #3a5a2c; }
+  .m-klash .trail { position: relative; padding: 6px 0; }
+  .m-klash .trail::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; border-left: 3px dashed rgba(90,70,40,.35); }
+  .m-klash .stp { position: relative; display: flex; align-items: center; gap: 10px; width: 78%; margin-bottom: 4px; }
+  .m-klash .stp.l { margin-inline-start: 0; } .m-klash .stp.r { margin-inline-start: 22%; flex-direction: row-reverse; text-align: end; }
+  .m-klash .sole { flex: none; width: 74px; aspect-ratio: .52; padding: 6px; border-radius: 50% 50% 44% 44% / 62% 62% 38% 38%; background: repeating-linear-gradient(0deg, #fffdf6 0 3px, #ece4d0 3px 5px); box-shadow: 0 0 0 2px #fffdf6, 0 0 0 4px #b9a77e, 0 6px 10px rgba(0,0,0,.2); }
+  .m-klash .stp.l .sole { rotate: -8deg; } .m-klash .stp.r .sole { rotate: 8deg; }
+  .m-klash .sole .ph { width: 100%; height: 100%; border-radius: inherit; outline: 2px dashed rgba(122,100,60,.6); outline-offset: 2px; }
+  .m-klash .tx { flex: 1; min-width: 0; background: rgba(255,253,246,.8); border-radius: 10px; padding: 8px 10px; }
+  .m-klash .tx b { display: block; font-size: 15px; }
+  .m-klash .tx small { display: block; font-size: 12px; opacity: .75; }
+  .m-klash .ln { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 4px; }
+  .m-klash .ln span { font-weight: 900; font-size: 13px; color: #3a5a2c; }
+  .m-klash .add { padding: 2px 12px; border-radius: 999px; background: #3a5a2c; color: #fffdf6; font-size: 12px; font-weight: 700; }
+  .m-klash .pop { opacity: 0; transform: scale(1.25); transition: opacity 240ms cubic-bezier(0.23, 1, 0.32, 1), transform 320ms cubic-bezier(0.23, 1, 0.32, 1); transition-delay: var(--d, 0ms); }
+  .m-klash .pop.in { opacity: 1; transform: none; }
+  .m-klash .cart { background: #3a5a2c; color: #fffdf6; }
+
+  /* 8. TAILOR — a tape measure opens each section; every dish a pinked fabric swatch pinned to the board */
+  .m-xayat { --rc: #c9a227; background: #3b4048; color: #f3efe6; font-family: 'Cairo', sans-serif; }
+  .m-xayat .hd h1 { color: #f2d36b; }
+  .m-xayat .chips { background: rgba(59,64,72,.95); }
+  .m-xayat .chips button { background: #f2d36b; color: #2a2e34; border-radius: 3px; }
+  .m-xayat .chips button.on { background: #fff; }
+  .m-xayat section { padding: 18px 12px 6px; }
+  .m-xayat .tape { position: relative; height: 34px; margin: 0 -12px 0 0; padding: 0 12px; display: flex; align-items: center; color: #2a2e34; }
+  /* only the ruler unrolls, so the section name never squashes */
+  .m-xayat .tape::before { content: ''; position: absolute; inset: 0; transform: scaleX(var(--sx, 1)); transform-origin: 100% 50%; box-shadow: 0 4px 0 rgba(0,0,0,.25);
+    background: repeating-linear-gradient(90deg, #2a2e34 0 1px, transparent 1px 8px) bottom / 100% 9px no-repeat, repeating-linear-gradient(90deg, #2a2e34 0 2px, transparent 2px 40px) bottom / 100% 15px no-repeat, #f2d36b; }
+  .m-xayat .tape b { position: relative; font: 400 20px 'Lalezar'; background: #f2d36b; padding: 0 6px; }
+  .m-xayat .board { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 12px; padding-top: 18px; }
+  .m-xayat .sw { position: relative; padding: 8px 8px 16px; background: var(--fab, #f3efe6); color: #2a2e34; transform-origin: 50% 0; animation: sway var(--t, 4s) ease-in-out var(--dl, 0s) infinite;
+    --z: 7px; mask: conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) 50% / calc(2 * var(--z)) 100%; }
+  .m-xayat .sw:nth-child(4n+1) { --fab: #e9e2d2; } .m-xayat .sw:nth-child(4n+2) { --fab: #d7dde4; } .m-xayat .sw:nth-child(4n+3) { --fab: #e6d6c0; } .m-xayat .sw:nth-child(4n) { --fab: #dcdccf; }
+  .m-xayat .pin { position: absolute; top: 4px; left: 50%; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: radial-gradient(circle at 35% 35%, #ff8a7a, #c0261a); z-index: 2; box-shadow: 0 2px 2px rgba(0,0,0,.4); }
+  .m-xayat .sw .ph { aspect-ratio: 1.2; border-radius: 2px; }
+  .m-xayat .sw b { display: block; font-size: 14px; margin-top: 6px; }
+  .m-xayat .ln { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .m-xayat .ln span { font-weight: 900; font-size: 13px; }
+  .m-xayat .add { padding: 2px 10px; border-radius: 3px; background: #2a2e34; color: #f2d36b; font-size: 12px; font-weight: 700; }
+  .m-xayat .cart { background: #2a2e34; color: #f2d36b; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات من اللبس الكردي · نسائي و رجالي</h1>
+  <p>أربعة من لبس الكرديات: ليرات الذهب، والكراس والفستان، والفقيانة، ودولاب جهاز العروس. وأربعة من لبس الرجال: البشتوين، والجامانة، وكلاش هورامان، وخيّاط الشال. كل وحدة تغيّر شكل المنيو، والأكل بصوره الحقيقية، وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const clock = no => `--t:${(5 + rnd(no) * 3).toFixed(2)}s;--dl:-${(rnd(no + 7) * 6).toFixed(2)}s`;
+const rail = '<div class="rail"><i></i></div>';
+const hd = (h, p) => `<div class="hd"><h1>${h}</h1><p>${p}</p></div>`;
+const n2 = n => String(n).padStart(2, '0');
+// split a list into rows of k
+const rows = (a, k) => a.reduce((r, x, i) => (i % k ? r[r.length - 1].push(x) : r.push([x]), r), []);
+const DRESS = ['#0f7a5a', '#b0127a', '#5b2a9a', '#c8301e', '#0b5fa5'];
+const STYLES = [
+ { key: 'lira', fam: 'نسائي · ليرات الذهب', name: 'ليرات الذهب',
+   desc: 'الكردية تلبس على راسها وصدرها سلاسل ليرات ذهب. هنا كل قسم سلسلة ذهب نازلة بقوس، وكل طبق ليرة ذهب مدوّرة بحافة محززة، صورته بنصها، معلّقة بالسلسلة والنص أوطى من الطرفين.',
+   mo: '<b>الحركة:</b> الليرات تتمرجح بالسلسلة، وتضيف طبق فترن الليرة وتلف.',
+   render: () => `
+    ${rail}${hd('ليرات الذهب', 'كل سلسلة قسم · كل ليرة طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2>${rows(s.items, 3).map(r => `<div class="str"><div class="chain"></div>${r.map((it, i) => `<div class="cn" style="--drop:${[0, 30, 0][i]}px;--t:${(3.2 + rnd(it.no) * 1.4).toFixed(2)}s;--dl:-${(rnd(it.no + 2) * 3).toFixed(2)}s;--r:${(2 + rnd(it.no + 4) * 3).toFixed(1)}deg"><div class="link"></div><div class="coin"><div class="ph" ${bg(it.img, 220)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div>`).join('')}</section>`).join('')}
+    ${cart('ذهبك')}` },
+
+ { key: 'faqi', fam: 'نسائي · فقيانة', name: 'الفقيانة',
+   desc: 'الفقيانة هي الردن الطويل الشفاف اللي تربطه الكردية ورا ظهرها ويطير بالهوا وهي ترقص. هنا كل قسم ردن تول طويل ممدود بالعرض، والأطباق قطع منه، والردن كله يتموج مثل الموج وهو يطير.',
+   mo: '<b>الحركة:</b> موجة تمشي على طول الردن، تحط إصبعك فتوقف وتسحبه بالعرض.',
+   render: () => `
+    ${rail}${hd('الفقيانة', 'كل ردن قسم · اسحبه بالعرض')}
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}" style="--dc:${DRESS[si]}"><h2>${s.t}</h2><div class="sleeve" data-dir="${si % 2 ? 1 : -1}">${s.items.map((it, i) => `<div class="pc" data-i="${i}"><div class="tul"><div class="ph" ${bg(it.img, 220)}></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('رقصتك')}` },
+
+ { key: 'pshtwen', fam: 'رجالي · پشتوێن', name: 'البشتوين',
+   desc: 'البشتوين هو الحزام القماش الطويل اللي يلفّه الكردي على خصره لفّات فوق لفّات. هنا كل قسم بشتوين مخطط، وكل طبق لفّة منه، واللفّات مايلة شوية يمين ويسار فوق بعض، وبالآخر عقدة بشراشيب.',
+   mo: '<b>الحركة:</b> وانت تنزل اللفّات تنلف من الجانبين وتستقر بمكانها.',
+   render: () => `
+    ${rail}${hd('البشتوين', 'كل حزام قسم · كل لفّة طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>${s.t}</h2><div class="wraps">${s.items.map((it, i) => `<div class="wrap fl" data-s="${i % 2 ? 1 : -1}"><div class="ph" ${bg(it.img, 160)}></div><div class="tx"><b>${it.n}</b><small>${it.d}</small></div><span>${it.p}</span>${addBtn(it)}</div>`).join('')}</div><div class="knot"><i></i><i></i><i></i><i></i><i></i></div></section>`).join('')}
+    ${cart('حزامك')}` },
+
+ { key: 'jamana', fam: 'رجالي · جامانة', name: 'الجامانة',
+   desc: 'الجامانة هي لفّة الراس المربّعة أبيض وأسود بشراشيبها. هنا كل طبق مربّع جامانة مقلوب على زاويته مثل المعيّن، صورته بالنص وشراشيب تتدلّى من زاويته، والمعيّنات متداخلة مثل نقشة القماش.',
+   mo: '<b>الحركة:</b> المعيّنات تطفو، والشراشيب تتمايل، وتضيف طبق فيدور المعيّن ربع لفّة.',
+   render: () => `
+    ${rail}${hd('الجامانة', 'كل معيّن طبق · الشراشيب تحته')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="band">${s.t}</div><div class="lattice">${s.items.map(it => `<div class="dm"><div class="bob" style="${clock(it.no)};--h:-5px"><div class="sq"><div class="ph" ${bg(it.img, 220)}></div></div><div class="fringe" style="--t:${(2.2 + rnd(it.no) * 1.2).toFixed(2)}s"></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'klash', fam: 'رجالي · كلاش هورامان', name: 'كلاش هورامان',
+   desc: 'الكلاش هو حذاء هورامان الأبيض المحبوك باليد. هنا كل قسم درب جبلي، وكل طبق خطوة كلاش: نعل أبيض محبوك صورته جوّاه، والخطوات يسار ويمين مثل آثار رجل ماشي، والأكل جنب كل خطوة.',
+   mo: '<b>الحركة:</b> الخطوات تنطبع وحدة ورا وحدة وانت تنزل، مثل واحد ماشي قدّامك.',
+   render: () => `
+    ${rail}${hd('كلاش هورامان', 'امشي على الدرب · كل خطوة طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><h2>درب ${s.t}</h2><div class="trail">${s.items.map((it, i) => `<div class="stp pop ${i % 2 ? 'r' : 'l'}"><div class="sole"><div class="ph" ${bg(it.img, 200)}></div></div><div class="tx"><b>${it.n}</b><small>${it.d}</small><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div></div>`).join('')}</div></section>`).join('')}
+    ${cart('دربك')}` },
+
+ { key: 'xayat', fam: 'رجالي · شال و شەپک', name: 'خيّاط الشال',
+   desc: 'الشال و شەپک ينخيّط عند الخيّاط من قماش صوف. هنا كل قسم يبدي بشريط قياس الخيّاط بأرقامه، وكل طبق قطعة قماش مقصوصة بمقص مسنّن، صورته عليها، مثبّتة بدبوس على اللوح.',
+   mo: '<b>الحركة:</b> شريط القياس ينفرد وانت توصله، والقطع ترفرف شوية من الدبوس.',
+   render: () => `
+    ${rail}${hd('خيّاط الشال', 'كل شريط قسم · كل قطعة قماش طبق')}
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="tape fl"><b>${s.t}</b></div><div class="board">${s.items.map(it => `<div class="sw" style="--t:${(3.6 + rnd(it.no) * 2).toFixed(2)}s;--dl:-${(rnd(it.no + 1) * 4).toFixed(2)}s;--r:${((rnd(it.no + 8) - .5) * 5).toFixed(1)}deg"><i class="pin"></i><div class="ph" ${bg(it.img, 220)}></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'فصّل')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبيتك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+const pulse = (el, k = 1.08) => { if (!reduce && el) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+const twirl = el => { if (!reduce && el) el.animate([{ transform: 'perspective(500px) rotateY(0)' }, { transform: 'perspective(500px) rotateY(360deg)' }], { duration: 700, easing: ease }); };
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+// fn(el, d) on scroll, d = how far the element sits below the middle of the screen
+function onDepth(sel, fn) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); fn(el, b.top + b.height / 2 - cy); }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+const WIRE = {
+  lira: { added(a) { twirl(a.closest('.cn').querySelector('.coin')); } },
+  kras: {
+    // the skirt swings: tiers below the middle lean one way, tiers above lean back
+    init() { onDepth('.tier', (el, d) => { el.style.transform = `skewX(${clamp(d * .012, -5, 5).toFixed(2)}deg)`; }); },
+    added(a) { pulse(a.closest('.tier'), 1.04); },
+  },
+  faqi: {
+    // a wave runs along every sleeve; touching a sleeve holds it still
+    init() {
+      if (reduce) return;
+      const sleeves = [...screen.querySelectorAll('.sleeve')].map(el => ({ el, pcs: [...el.children], hold: false }));
+      sleeves.forEach(s => {
+        ['pointerdown', 'touchstart'].forEach(t => s.el.addEventListener(t, () => s.hold = true, { passive: true }));
+        ['pointerup', 'pointerleave', 'touchend'].forEach(t => s.el.addEventListener(t, () => s.hold = false, { passive: true }));
+      });
+      let t = 0, raf = requestAnimationFrame(function tick() {
+        t += .03;
+        sleeves.forEach(s => { if (s.hold) return; s.pcs.forEach((p, i) => { const k = Math.sin(t + i * .9); p.style.transform = `translateY(${(k * 14).toFixed(1)}px) rotate(${(Math.cos(t + i * .9) * 3).toFixed(2)}deg)`; }); });
+        raf = requestAnimationFrame(tick);
+      });
+      cleanups.push(() => cancelAnimationFrame(raf));
+    },
+    added(a) { pulse(a.closest('.tul').querySelector('.ph'), 1.1); },
+  },
+  jhaz: { added(a) { twirl(a.closest('.hg').querySelector('.dress')); } },
+  pshtwen: {
+    // wraps arrive from alternate sides and settle as they reach the middle of the screen
+    init() { onDepth('.wrap', (el, d) => { el.style.transform = `translateX(${(Math.max(0, d - 60) * .35 * Number(el.dataset.s)).toFixed(1)}px)`; }); },
+    added(a) { pulse(a.closest('.wrap'), 1.03); },
+  },
+  jamana: {
+    added(a) { const q = a.closest('.dm').querySelector('.sq'); q.dataset.k = Number(q.dataset.k || 0) + 1; q.style.rotate = `${45 + q.dataset.k * 90}deg`; },
+  },
+  klash: { added(a) { pulse(a.closest('.stp').querySelector('.sole'), 1.1); } },
+  xayat: {
+    // the tape measure unrolls as its section comes up
+    init() { onDepth('.tape', (el, d) => { el.style.setProperty('--sx', clamp(1 - Math.max(0, d - 60) / 420, .2, 1).toFixed(3)); }); },
+    added(a) { pulse(a.closest('.sw'), 1.05); },
+  },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

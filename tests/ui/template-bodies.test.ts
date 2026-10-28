@@ -25,7 +25,11 @@ describe('the body registry', () => {
     // Each line is `kind: dynamic(() => import('./XBody').then((m) => m.XBody))`: the import literal inside `dynamic()`
     // is what lets Next preload the shape's chunk and CSS for a server-drawn menu.
     expect(REGISTRY_LINES.map((line) => line.kind).sort()).toEqual(Object.keys(BODIES).sort());
-    for (const line of REGISTRY_LINES) expect(line.module, line.kind).toBe(line.name);
+    // A family module serves several kinds; each kind loads its own export, which that module must define.
+    for (const line of REGISTRY_LINES) {
+      const body = readFileSync(join(process.cwd(), 'src/ui/template/bodies', `${line.module}.tsx`), 'utf8');
+      expect(body, line.kind).toMatch(new RegExp(`^export function ${line.name}\\b`, 'm'));
+    }
     const source = readFileSync(join(process.cwd(), 'src/ui/template/bodies/index.ts'), 'utf8');
     expect(source, 'no shape is imported statically').not.toMatch(/^import [^;]*from '\.\/\w+Body'/m);
   });

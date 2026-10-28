@@ -48,7 +48,7 @@ describe('style page files', () => {
 
   it('drops the unpicked styles', async () => {
     expect(keysOf(await (await page('themed')).text())).not.toContain('par');
-    expect(keysOf(await (await page('kurd-arab')).text())).toEqual(['cit', 'ram', 'lyl']);
+    expect(keysOf(await (await page('kurd-arab')).text())).toEqual(['cit', 'and', 'ram', 'lyl']);
     expect(keysOf(await (await page('layout-2')).text())).toHaveLength(8);
   });
 

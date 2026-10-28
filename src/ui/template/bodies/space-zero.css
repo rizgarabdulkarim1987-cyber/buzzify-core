@@ -1,0 +1,103 @@
+/*
+ * Zero Gravity (`space-zero`, family `float`): glass cards adrift over a starfield, buzzify.me's deep-space look (no
+ * logo, no agency copy). The neon is `--accent`; the glass is `--text` at low strength over `--bg`; the stars are
+ * `--text` and `--accent` dots (decoration, never under words). Labels are monospace.
+ */
+[data-body='space-zero'] {
+  --sz-glow: color-mix(in srgb, var(--accent) 55%, transparent);
+  --sz-glass: color-mix(in srgb, var(--text) 7%, var(--bg));
+  --sz-mono: ui-monospace, 'IBM Plex Mono', 'Geist Mono', monospace;
+  background:
+    radial-gradient(1px 1px at 20px 30px, var(--text), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 70%, transparent), transparent 70%),
+    radial-gradient(1.5px 1.5px at 70px 160px, color-mix(in srgb, var(--accent) 60%, var(--text)), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, var(--text), transparent 70%),
+    radial-gradient(2px 2px at 100px 60px, var(--accent), transparent 70%),
+    radial-gradient(ellipse at 85% 0, color-mix(in srgb, var(--accent) 22%, transparent), transparent 55%),
+    var(--bg);
+  background-size:
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    200px 220px,
+    230px 260px,
+    100% 100%,
+    100% 100%;
+}
+
+[data-body='space-zero'] .tpl-strip-sticky {
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  backdrop-filter: blur(10px);
+}
+[data-body='space-zero'] .fl-chip {
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 999px;
+  font-family: var(--sz-mono);
+  font-weight: 500;
+}
+[data-body='space-zero'] .fl-chip-mark {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+}
+[data-body='space-zero'] .fl-chip[aria-current='true'] {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 16px -3px var(--accent),
+    inset 0 0 12px -6px var(--accent);
+}
+
+/* The section's label: its number in mono, the name large, the count in neon. */
+[data-body='space-zero'] .fl-title {
+  justify-content: space-between;
+  font-size: 1.25rem;
+}
+[data-body='space-zero'] .fl-title small {
+  order: 2;
+  margin-inline-start: auto;
+  color: var(--muted);
+  font: 500 0.75rem var(--sz-mono);
+  letter-spacing: 0.18em;
+}
+[data-body='space-zero'] .fl-title [data-count] {
+  order: 3;
+  color: var(--accent-ink);
+  font: 500 0.75rem var(--sz-mono);
+}
+
+/* The glass card. */
+[data-body='space-zero'] .fl-sway {
+  padding: 0.4375rem;
+  border: 1px solid var(--sz-glow);
+  border-radius: 0.875rem;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--text) 9%, var(--bg)), var(--sz-glass));
+  box-shadow:
+    0 0 26px -8px var(--accent),
+    inset 0 0 22px -14px var(--accent);
+}
+[data-body='space-zero'] .fl-item[data-z='2'] .fl-sway {
+  box-shadow:
+    0 18px 40px -12px var(--accent),
+    0 0 26px -8px var(--accent),
+    inset 0 0 22px -14px var(--accent);
+}
+[data-body='space-zero'] .fl-item[data-z='0'] .fl-sway {
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+  box-shadow: none;
+}
+[data-body='space-zero'] .fl-photo {
+  border-radius: 0.5625rem;
+}
+[data-body='space-zero'] .fl-price {
+  color: var(--text);
+  font-family: var(--sz-mono);
+  font-weight: 500;
+}
+[data-body='space-zero'] .fl-add {
+  border: 1px solid var(--accent);
+  background: transparent;
+  color: var(--accent-ink);
+  box-shadow: 0 0 12px -4px var(--accent);
+}

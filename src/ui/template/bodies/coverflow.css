@@ -1,0 +1,238 @@
+/*
+ * The Coverflow family (CoverflowBody.tsx): every section a sideways row that snaps a card to its middle; the middle
+ * card is large and forward, its neighbours smaller and dimmer (`--k`, 0 to 1, set from the row's scroll). This sheet is
+ * the structure every style shares; each style's look is in its own sheet (space-deck, zel, saj, crate). Logical
+ * properties only, so Arabic mirrors. Colours come from the template's tokens; each section sets its hue as --g.
+ */
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) {
+  /* The card's width: three cards on a phone (the middle one and two neighbours), more on a wide screen. */
+  --cf-card: 8.5rem;
+  --cf-gap: 0.5rem;
+  /* How small and dim a card a card's width away gets (the style may change them). */
+  --cf-far-scale: 0.8;
+  --cf-far-fade: 0.85;
+  --cf-tilt: 0deg;
+  --nav-room: 3.5rem;
+  --column: 52rem;
+  --tall-last: var(--tall-last-panel);
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+
+/* ------------------------------------------------------------------ the strip of sections */
+
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .tpl-strip-list {
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.75rem 0.875rem;
+  border: 1px solid color-mix(in srgb, var(--text) 30%, transparent);
+  border-radius: 999px;
+  background: var(--raised);
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition: background-color 150ms, color 150ms, border-color 150ms;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-chip-mark {
+  inline-size: 0.5rem;
+  block-size: 0.5rem;
+  border-radius: 50%;
+  background: var(--accent);
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-chip[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-chip[aria-current='true'] .cf-chip-mark {
+  background: var(--on-accent);
+}
+
+/* ------------------------------------------------------------------ a section and its heading */
+
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-section {
+  position: relative;
+  padding-block: 0.5rem 0.75rem;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-head {
+  position: relative;
+  padding-inline: 1rem;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: 0;
+  color: var(--text);
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-title small,
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-title [data-count] {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------------ the row */
+
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-row {
+  display: flex;
+  gap: var(--cf-gap);
+  margin: 0;
+  /* The row opens at its start edge, so the first screen holds three cards; the last card can still reach the middle. */
+  padding-block: 0.75rem 0.5rem;
+  padding-inline: 1rem calc(50% - var(--cf-card) / 2);
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x mandatory;
+  list-style: none;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-card {
+  --k: 1;
+  position: relative;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  inline-size: var(--cf-card);
+  min-inline-size: 0;
+  scroll-snap-align: center;
+  text-align: center;
+  opacity: calc(var(--cf-far-fade) + (1 - var(--cf-far-fade)) * var(--k));
+  transform: scale(calc(var(--cf-far-scale) + (1 - var(--cf-far-scale)) * var(--k))) rotate(calc((1 - var(--k)) * var(--cf-tilt)));
+  transform-origin: 50% 60%;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-photo {
+  position: relative;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-frame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-frame > * {
+  inline-size: 100%;
+  block-size: 100%;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-frame img {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+/* The labels (the sale badge first) on the photo's top corner; taps go through them to the card. */
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-badges {
+  position: absolute;
+  z-index: 2;
+  inset-block-start: 0.25rem;
+  inset-inline: 0.25rem;
+  justify-content: flex-start;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  pointer-events: none;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin-block-start: 0.375rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.25;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.125rem 0.5rem;
+  margin-block-start: auto;
+  padding-block-start: 0.25rem;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-price {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-price .tpl-was {
+  margin-inline-start: 0.25rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-add {
+  inline-size: 2.25rem;
+  block-size: 2.25rem;
+}
+
+/* ------------------------------------------------------------------ the arrows and the counter */
+
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-ctl {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  color: var(--text);
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-arrow {
+  display: grid;
+  place-items: center;
+  inline-size: 2.5rem;
+  block-size: 2.5rem;
+  border: 1px solid color-mix(in srgb, var(--text) 35%, transparent);
+  border-radius: 0.5rem;
+  color: var(--text);
+  transition: background-color 150ms, opacity 150ms;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-arrow:disabled {
+  opacity: 0.35;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-arrow:focus-visible {
+  outline: 2px solid var(--accent-ink);
+  outline-offset: 2px;
+}
+:is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-count {
+  min-inline-size: 4.5rem;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  text-align: center;
+  unicode-bidi: isolate;
+}
+
+@media (hover: hover) {
+  :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-arrow:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--text) 10%, transparent);
+  }
+  :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-chip:hover:not([aria-current='true']) {
+    border-color: var(--accent);
+  }
+}
+
+@media (min-width: 640px) {
+  :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) {
+    --cf-card: 12rem;
+    --cf-gap: 0.75rem;
+  }
+  :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) .cf-name {
+    font-size: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-body='space-deck'], [data-body='zel'], [data-body='saj'], [data-body='crate']) :is(.cf-chip, .cf-arrow) {
+    transition: none;
+  }
+}

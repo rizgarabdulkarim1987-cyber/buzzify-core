@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>منيوهات عربية وكردية</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700;900&family=Changa:wght@400;600;800&family=El+Messiri:wght@400;600;700&family=IBM+Plex+Mono:wght@500;700&family=IBM+Plex+Sans+Arabic:wght@400;600;700&family=Lalezar&family=Lemonada:wght@500;700&family=Reem+Kufi:wght@400;600;700&family=Rakkas&family=Baloo+Bhaijaan+2:wght@600;800&display=swap" rel="stylesheet">
+<style>
+  :root { --ease-out: cubic-bezier(0.23, 1, 0.32, 1); --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1); --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1); }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body { background: #0c0c0e; color: #eee; font-family: 'Cairo', sans-serif; }
+  button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
+
+  .gal { max-width: 1400px; margin: 0 auto; padding: 32px 16px 80px; }
+  .gal h1 { font: 400 46px 'Lalezar'; }
+  .gal > p { color: #b8b8c0; line-height: 1.8; margin-top: 4px; max-width: 940px; }
+  .covers { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 22px; margin-top: 26px; }
+  .cover { border-radius: 22px; overflow: hidden; background: #18181c; border: 2px solid transparent; display: flex; flex-direction: column; }
+  .cover .art { height: 300px; position: relative; overflow: hidden; cursor: pointer; }
+  .cover .body { padding: 14px 16px 16px; display: flex; flex-direction: column; gap: 6px; flex: 1; }
+  .cover .fam { align-self: flex-start; font-size: 11.5px; font-weight: 700; padding: 2px 10px; border-radius: 10px; background: #2a2a31; color: #ffd23f; }
+  .cover h2 { font-size: 22px; }
+  .cover p { font-size: 13.5px; color: #b8b8c0; line-height: 1.75; }
+  .cover .mo { font-size: 12.5px; color: #d9d9e0; background: #222228; border-radius: 10px; padding: 8px 10px; line-height: 1.7; }
+  .cover .mo b { color: #ffd23f; }
+  .cover .acts { display: flex; gap: 8px; margin-top: auto; padding-top: 8px; }
+  .cover .open { flex: 1; background: #ffd23f; color: #111; font-weight: 900; border-radius: 12px; padding: 11px; font-size: 15px; transition: transform 140ms var(--ease-out); }
+  .cover .open:active { transform: scale(.97); }
+
+  .app { position: fixed; inset: 0; z-index: 100; background: rgba(0,0,0,.82); display: none; align-items: center; justify-content: center; backdrop-filter: blur(6px); }
+  .app.on { display: flex; }
+  .device { width: min(430px, 100vw); height: min(900px, 100dvh); position: relative; overflow: hidden; border-radius: 34px; box-shadow: 0 30px 80px rgba(0,0,0,.6); transform: translateZ(0); }
+  .app.full .device { width: 100vw; height: 100dvh; border-radius: 0; }
+  @media (max-width: 500px) { .device { border-radius: 0; height: 100dvh; } }
+  .chrome { position: absolute; top: 10px; left: 10px; z-index: 90; display: flex; gap: 6px; }
+  .chrome button { width: 38px; height: 38px; border-radius: 50%; background: rgba(0,0,0,.6); color: #fff; font-size: 17px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,.2); }
+  .screen { position: absolute; inset: 0; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; scrollbar-width: none; }
+  .screen::-webkit-scrollbar, .hs::-webkit-scrollbar, .chips::-webkit-scrollbar { display: none; }
+  .ph { background-size: cover; background-position: center; }
+  .chips { position: sticky; top: 0; z-index: 20; display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; padding: 9px 12px; }
+  .chips button { flex: none; white-space: nowrap; transition: background-color 180ms ease, color 180ms ease; }
+  .cart { position: sticky; bottom: 0; z-index: 30; display: flex; justify-content: space-between; align-items: center; padding: 13px 16px calc(13px + env(safe-area-inset-bottom)); font-weight: 700; }
+  .odo { direction: ltr; display: inline-flex; height: 1.25em; overflow: hidden; vertical-align: bottom; }
+  .odo span { display: block; transition: transform 380ms var(--ease-out); }
+  .odo span i { display: block; height: 1.25em; line-height: 1.25em; font-style: normal; }
+  .toast { position: absolute; bottom: 72px; left: 50%; transform: translateX(-50%) translateY(16px); opacity: 0; z-index: 85; background: #111; color: #fff; padding: 8px 16px; border-radius: 20px; font-size: 13px; transition: opacity 200ms var(--ease-out), transform 200ms var(--ease-out); pointer-events: none; white-space: nowrap; }
+  .toast.on { opacity: 1; transform: translateX(-50%); }
+  .add { transition: transform 120ms var(--ease-out); flex: none; }
+  .add:active { transform: scale(.9); }
+  .hs { display: flex; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; }
+  .rv { opacity: 0; transform: translateY(14px); transition: opacity 400ms var(--ease-out), transform 400ms var(--ease-out); transition-delay: var(--d, 0ms); }
+  .rv.in { opacity: 1; transform: none; }
+  @keyframes rot { to { transform: rotate(360deg); } }
+  @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+
+  @keyframes flick { 0%, 100% { transform: scaleY(1) skewX(0); } 33% { transform: scaleY(1.12) skewX(3deg); } 66% { transform: scaleY(.94) skewX(-3deg); } }
+
+  /* 1. SHANASHEEL — Baghdad's wooden bay windows: every section a floor of a brick house, every dish a window */
+  .m-shan { background: repeating-linear-gradient(0deg, transparent 0 15px, #7c5530 15px 17px), repeating-linear-gradient(90deg, #c49a68 0 34px, #b48a58 34px 36px); color: #2a1708; font-family: 'Cairo', sans-serif; }
+  .m-shan .hd { padding: 62px 18px 16px; text-align: center; background: linear-gradient(#2a1708, #3d2410); color: #f3d9a6; border-bottom: 6px solid #6b4423; }
+  .m-shan .hd h1 { font: 700 36px 'Reem Kufi'; }
+  .m-shan .hd p { font-size: 13.5px; opacity: .8; }
+  .m-shan .chips { background: #3d2410; }
+  .m-shan .chips button { padding: 6px 13px; border-radius: 6px 6px 0 0; background: #6b4423; color: #f3d9a6; font-weight: 700; font-size: 13px; }
+  .m-shan .chips button.on { background: #f3d9a6; color: #3d2410; }
+  .m-shan section { padding: 0 12px 16px; }
+  .m-shan .beam { margin: 0 -12px 14px; padding: 7px 16px; background: linear-gradient(#5a3518, #3d2410); color: #f3d9a6; font: 700 18px 'Reem Kufi'; display: flex; justify-content: space-between; box-shadow: 0 6px 0 #2a1708; }
+  .m-shan .beam small { font: 600 12px 'Cairo'; opacity: .75; }
+  .m-shan .wins { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px 12px; }
+  .m-shan .win { background: #4a2e16; border: 4px solid #6b4423; border-radius: 46% 46% 6px 6px / 18% 18% 6px 6px; padding: 7px 7px 0; box-shadow: 0 10px 0 -3px #2e1c0c, 6px 12px 16px rgba(0,0,0,.35); }
+  .m-shan .lat { height: 38px; border-radius: 46% 46% 0 0 / 70% 70% 0 0; background: repeating-linear-gradient(45deg, #2a190b 0 2px, transparent 2px 8px), repeating-linear-gradient(-45deg, #2a190b 0 2px, transparent 2px 8px), #e2b56e; }
+  .m-shan .win .ph { height: 96px; margin-top: 4px; border: 3px solid #2a190b; }
+  .m-shan .sill { margin: 6px -11px 0; padding: 6px 10px 8px; background: #6b4423; color: #f3d9a6; border-radius: 0 0 4px 4px; }
+  .m-shan .sill b { display: block; font-size: 14px; }
+  .m-shan .sill .ln { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; }
+  .m-shan .add { background: #f3d9a6; color: #3d2410; border-radius: 4px; padding: 2px 9px; font-weight: 800; font-size: 12px; }
+  .m-shan .win.lit .lat { background: repeating-linear-gradient(45deg, #2a190b 0 2px, transparent 2px 8px), repeating-linear-gradient(-45deg, #2a190b 0 2px, transparent 2px 8px), #ffd76a; box-shadow: 0 0 22px #ffcf5a; }
+  .m-shan .cart { background: #2a1708; color: #f3d9a6; }
+
+  /* 2. SPICE SOUQ — every dish an open burlap sack seen from above, three to a row, with a paper tag on a stick */
+  .m-sack { background: linear-gradient(#efe0bf, #e2cb9c); color: #3a2410; font-family: 'Changa', sans-serif; }
+  .m-sack .hd { padding: 62px 18px 12px; }
+  .m-sack .hd h1 { font: 400 40px 'Lalezar'; color: #8a2d12; }
+  .m-sack .hd p { font-size: 13.5px; color: #6b4a2a; }
+  .m-sack .chips { background: #efe0bf; border-bottom: 2px dashed #b8925c; }
+  .m-sack .chips button { padding: 5px 12px; border-radius: 4px; background: #2d2b28; color: #f5f0e6; font-weight: 600; font-size: 13px; transform: rotate(var(--t)); }
+  .m-sack .chips button.on { background: #8a2d12; }
+  .m-sack section { padding: 12px 10px 6px; }
+  .m-sack .slate { display: inline-block; margin: 0 6px 12px; padding: 4px 16px; background: #2d2b28; color: #f5f0e6; border: 4px solid #7a5530; font: 600 16px 'Changa'; }
+  .m-sack .row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 8px; padding-bottom: 12px; border-bottom: 10px solid #7a5530; box-shadow: 0 6px 0 #5a3a1e; }
+  .m-sack .sack { position: relative; padding: 7px 6px 9px; border-radius: 20px 20px 28px 28px / 14px 14px 36px 36px; background: repeating-linear-gradient(0deg, rgba(0,0,0,.1) 0 1px, transparent 1px 4px), repeating-linear-gradient(90deg, rgba(0,0,0,.1) 0 1px, transparent 1px 4px), #b8925c; box-shadow: inset 0 -10px 16px rgba(0,0,0,.2), 0 4px 6px rgba(0,0,0,.2); text-align: center; }
+  .m-sack .mouth { aspect-ratio: 1.45; border-radius: 50%; border: 6px solid #d8b47c; box-shadow: inset 0 6px 10px rgba(0,0,0,.45); }
+  .m-sack .tag { position: relative; margin: 8px 2px 0; padding: 4px 4px 5px; background: #fffaf0; border-radius: 3px; box-shadow: 0 2px 3px rgba(0,0,0,.2); transform: rotate(var(--r)); transform-origin: top center; }
+  .m-sack .tag::before { content: ''; position: absolute; top: -9px; left: 50%; width: 2px; height: 10px; background: #5a3a1e; }
+  .m-sack .tag b { display: block; font-size: 12.5px; line-height: 1.2; }
+  .m-sack .tag span { font-size: 11.5px; color: #8a2d12; font-weight: 700; }
+  .m-sack .add { margin-top: 5px; background: #8a2d12; color: #fff; border-radius: 999px; padding: 1px 10px; font-size: 12px; font-weight: 700; }
+  .m-sack .cart { background: #2d2b28; color: #f5f0e6; }
+
+  /* 3. ZELLIGE — every dish an eight-point star tile set in a mosaic wall under a pointed arch */
+  .m-zel { background: conic-gradient(from 45deg, #0d5566 25%, #f3ead6 0 50%, #0d5566 0 75%, #f3ead6 0) 0 0 / 26px 26px, #f3ead6; color: #10303a; font-family: 'El Messiri', sans-serif; }
+  .m-zel .hd { margin: 56px 14px 10px; padding: 26px 16px 18px; text-align: center; background: #f3ead6; border: 3px solid #0d5566; border-radius: 50% 50% 8px 8px / 34% 34% 8px 8px; }
+  .m-zel .hd h1 { font: 700 34px 'Reem Kufi'; color: #0d5566; }
+  .m-zel .hd p { font-size: 13.5px; }
+  .m-zel .chips { background: rgba(243,234,214,.96); border-bottom: 3px solid #0d5566; }
+  .m-zel .chips button { padding: 6px 13px; border: 2px solid #0d5566; border-radius: 999px; font-weight: 700; font-size: 13px; color: #0d5566; background: #f3ead6; }
+  .m-zel .chips button.on { background: #0d5566; color: #f3ead6; }
+  .m-zel section { margin: 14px 10px; padding: 0 10px 14px; background: #f3ead6; border: 3px solid #0d5566; border-radius: 6px; }
+  .m-zel .arch { margin: -3px auto 12px; width: 70%; padding: 14px 10px 6px; text-align: center; background: #0d5566; color: #f3ead6; border-radius: 0 0 50% 50% / 0 0 40% 40%; font: 700 19px 'Reem Kufi'; }
+  .m-zel .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 8px; }
+  .m-zel .tile { text-align: center; }
+  .m-zel .star { width: 94%; margin: 0 auto; aspect-ratio: 1; padding: 5px; background: #c8962e; }
+  .m-zel .star .ph { width: 100%; height: 100%; }
+  .m-zel .tile b { display: block; font-size: 13px; line-height: 1.25; margin-top: 5px; }
+  .m-zel .tile span { font-size: 12px; color: #0d5566; font-weight: 700; }
+  .m-zel .add { display: block; margin: 3px auto 0; background: #0d5566; color: #f3ead6; border-radius: 999px; padding: 1px 12px; font-size: 12px; font-weight: 700; }
+  .m-zel .cart { background: #0d5566; color: #f3ead6; }
+
+  /* 4. SADU — Bedouin woven bands: every section a band of the weave, dishes in woven diamonds */
+  .m-sadu { background: #1b120e; color: #f3e6c8; font-family: 'Cairo', sans-serif; }
+  .m-sadu .hd { padding: 62px 18px 14px; text-align: center; }
+  .m-sadu .hd h1 { font: 400 42px 'Rakkas'; color: #e8a33a; }
+  .m-sadu .hd p { font-size: 13.5px; opacity: .8; }
+  .m-sadu .chips { background: #1b120e; }
+  .m-sadu .chips button { padding: 6px 13px; background: #a51d1d; color: #f3e6c8; font-weight: 700; font-size: 13px; clip-path: polygon(8px 0, calc(100% - 8px) 0, 100% 50%, calc(100% - 8px) 100%, 8px 100%, 0 50%); }
+  .m-sadu .chips button.on { background: #e8a33a; color: #1b120e; }
+  .m-sadu section { margin: 12px 0; background: #a51d1d; }
+  .m-sadu .edge { height: 14px; background: linear-gradient(135deg, #1b120e 25%, transparent 25%) -7px 0 / 14px 14px, linear-gradient(225deg, #1b120e 25%, transparent 25%) -7px 0 / 14px 14px, #f3e6c8; }
+  .m-sadu .edge.b { transform: scaleY(-1); }
+  .m-sadu .stripe { height: 6px; background: repeating-linear-gradient(90deg, #f3e6c8 0 6px, #1b120e 6px 12px, #e8a33a 12px 18px, #1b120e 18px 24px); }
+  .m-sadu .ttl { padding: 8px 16px 4px; display: flex; justify-content: space-between; align-items: baseline; }
+  .m-sadu .ttl b { font: 400 24px 'Rakkas'; }
+  .m-sadu .ttl small { font-size: 12px; opacity: .85; }
+  .m-sadu .dias { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 8px; padding: 8px 12px 14px; }
+  .m-sadu .dd { text-align: center; }
+  .m-sadu .dia { width: 72%; margin: 12px auto 14px; aspect-ratio: 1; transform: rotate(45deg); overflow: hidden; border: 4px solid #f3e6c8; outline: 3px solid #1b120e; outline-offset: 2px; }
+  .m-sadu .dia .ph { width: 100%; height: 100%; transform: rotate(-45deg) scale(1.45); }
+  .m-sadu .dd b { display: block; font-size: 13px; line-height: 1.2; }
+  .m-sadu .dd span { font-size: 12px; color: #ffd27a; font-weight: 700; }
+  .m-sadu .add { display: block; margin: 3px auto 0; background: #1b120e; color: #f3e6c8; padding: 1px 12px; font-size: 12px; font-weight: 700; border-radius: 3px; }
+  .m-sadu .cart { background: #1b120e; color: #f3e6c8; border-top: 4px solid #e8a33a; }
+
+  /* 5. KURDISH KILIM — every section a hand-woven rug: border, fringe, and dishes in medallions on the field */
+  .m-kilim { background: #efe3c4; color: #2a1a12; font-family: 'El Messiri', sans-serif; }
+  .m-kilim .hd { padding: 62px 18px 12px; text-align: center; }
+  .m-kilim .hd h1 { font: 700 34px 'El Messiri'; color: #8e2a26; }
+  .m-kilim .hd p { font-size: 13.5px; color: #5a3a2a; }
+  .m-kilim .chips { background: #efe3c4; }
+  .m-kilim .chips button { padding: 6px 13px; background: #1f3157; color: #efe3c4; font-weight: 700; font-size: 13px; border-radius: 3px; }
+  .m-kilim .chips button.on { background: #8e2a26; }
+  .m-kilim section { padding: 10px 12px 14px; }
+  .m-kilim .fr { height: 12px; margin: 0 10px; background: repeating-linear-gradient(90deg, #d9cba5 0 2px, transparent 2px 5px); }
+  .m-kilim .rug { padding: 10px; background: repeating-linear-gradient(45deg, #1f3157 0 6px, #d9a23a 6px 12px, #8e2a26 12px 18px, #efe3c4 18px 24px); }
+  .m-kilim .field { padding: 10px 10px 14px; background: radial-gradient(circle at 50% 50%, transparent 0 6px, transparent 7px), #8e2a26; border: 4px solid #efe3c4; }
+  .m-kilim .field h2 { text-align: center; color: #efe3c4; font: 700 20px 'El Messiri'; margin-bottom: 8px; }
+  .m-kilim .meds { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .m-kilim .med { text-align: center; color: #efe3c4; }
+  .m-kilim .hex { padding: 5px; background: #d9a23a; clip-path: polygon(50% 0, 100% 22%, 100% 78%, 50% 100%, 0 78%, 0 22%); }
+  .m-kilim .hex .ph { height: 120px; clip-path: polygon(50% 0, 100% 22%, 100% 78%, 50% 100%, 0 78%, 0 22%); }
+  .m-kilim .med b { display: block; font-size: 14px; margin-top: 6px; }
+  .m-kilim .med .ln { display: flex; justify-content: center; gap: 8px; align-items: center; font-size: 12.5px; color: #ffd98a; font-weight: 700; }
+  .m-kilim .add { background: #efe3c4; color: #8e2a26; border-radius: 3px; padding: 1px 9px; font-weight: 800; font-size: 12px; }
+  .m-kilim .cart { background: #1f3157; color: #efe3c4; }
+
+  /* 6. HAWRAMAN — the terraced Kurdish mountain village: houses stepped down the slope, one's roof is the next one's yard */
+  .m-hawr { background: linear-gradient(#a9d3ee 0, #d9ecf5 160px, #cbb99a 160px, #b9a582); color: #2b2117; font-family: 'Cairo', sans-serif; }
+  .m-hawr .hd { padding: 62px 18px 22px; position: relative; }
+  .m-hawr .hd::after { content: ''; position: absolute; left: 0; right: 0; bottom: -2px; height: 46px; background: #8b7a62; clip-path: polygon(0 100%, 0 60%, 14% 20%, 26% 54%, 40% 0, 56% 46%, 70% 14%, 84% 50%, 100% 22%, 100% 100%); }
+  .m-hawr .hd h1 { font: 400 36px 'Lalezar'; color: #24435f; }
+  .m-hawr .hd p { font-size: 13.5px; color: #3c4e5c; }
+  .m-hawr .chips { background: #b9a582; }
+  .m-hawr .chips button { padding: 6px 13px; background: #2f6fa8; color: #fff; font-weight: 700; font-size: 13px; border-radius: 3px; }
+  .m-hawr .chips button.on { background: #24435f; }
+  .m-hawr section { padding: 14px 10px 10px; }
+  .m-hawr .lvl { font: 400 20px 'Lalezar'; color: #24435f; padding: 0 6px 8px; }
+  .m-hawr .terr { display: flex; flex-direction: column; }
+  .m-hawr .step { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0 6px; width: 86%; margin-inline-start: var(--s); }
+  .m-hawr .step + .step { margin-top: -6px; }
+  .m-hawr .house { position: relative; padding: 0 6px 8px; background: radial-gradient(circle at 20% 30%, rgba(0,0,0,.12) 0 3px, transparent 4px) 0 0 / 18px 14px, radial-gradient(circle at 70% 70%, rgba(255,255,255,.18) 0 4px, transparent 5px) 0 0 / 22px 16px, #c9b79a; border: 1px solid #8b7a62; }
+  .m-hawr .roof { margin: 0 -7px 6px; padding: 5px 8px 7px; background: #a08a64; border-bottom: 5px dotted #5a4128; display: flex; justify-content: space-between; align-items: center; gap: 4px; }
+  .m-hawr .roof b { font-size: 13px; line-height: 1.2; }
+  .m-hawr .wnd { height: 84px; border: 5px solid #2f6fa8; border-radius: 3px; box-shadow: inset 0 0 0 2px #1d4a72; }
+  .m-hawr .wnd .ph { height: 100%; }
+  .m-hawr .foot { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; font-size: 12.5px; font-weight: 700; }
+  .m-hawr .add { background: #2f6fa8; color: #fff; border-radius: 3px; padding: 1px 9px; font-weight: 800; font-size: 12px; }
+  .m-hawr .house.lit .wnd { border-color: #ffc94a; box-shadow: 0 0 18px #ffc94a; }
+  .m-hawr .cart { background: #24435f; color: #fff; }
+
+  /* 7. NEWROZ — every section a mountain with a bonfire on its peak; dishes are torches climbing the zigzag path */
+  .m-newroz { background: linear-gradient(#0d0b1f, #2a1530 60%, #3a1a1a); color: #fff3e0; font-family: 'Cairo', sans-serif; }
+  .m-newroz .hd { padding: 62px 18px 12px; text-align: center; }
+  .m-newroz .hd h1 { font: 400 40px 'Lalezar'; color: #ffb43a; text-shadow: 0 0 18px rgba(255,140,40,.6); }
+  .m-newroz .hd p { font-size: 13.5px; opacity: .85; }
+  .m-newroz .chips { background: rgba(13,11,31,.92); }
+  .m-newroz .chips button { padding: 6px 13px; border: 1px solid #ff8a2a; border-radius: 999px; font-weight: 700; font-size: 13px; color: #ffcf8a; }
+  .m-newroz .chips button.on { background: #ff8a2a; color: #1a0d05; box-shadow: 0 0 14px #ff8a2a; }
+  .m-newroz section { position: relative; padding: 10px 14px 20px; }
+  .m-newroz section::before { content: ''; position: absolute; inset: 56px 0 0; background: linear-gradient(#2c2230, #17121c); clip-path: polygon(50% 0, 100% 78%, 100% 100%, 0 100%, 0 78%); }
+  .m-newroz .peak { position: relative; text-align: center; padding-bottom: 6px; }
+  .m-newroz .fire { width: 46px; height: 54px; margin: 0 auto; transform-origin: bottom; background: radial-gradient(ellipse at 50% 100%, #fff 0 12%, #ffd23f 26%, #ff7a1a 52%, transparent 70%); clip-path: polygon(50% 0, 70% 34%, 86% 22%, 82% 62%, 100% 100%, 0 100%, 18% 62%, 14% 22%, 30% 34%); animation: flick .5s ease-in-out infinite; filter: drop-shadow(0 0 10px #ff7a1a); }
+  .m-newroz .peak b { display: block; font: 400 24px 'Lalezar'; color: #ffb43a; }
+  .m-newroz .path { position: relative; display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+  .m-newroz .tor { position: relative; width: 66%; display: grid; grid-template-columns: 70px 1fr; gap: 10px; align-items: center; margin-inline-start: var(--x); }
+  .m-newroz .flame { height: 70px; border-radius: 50%; box-shadow: 0 0 0 3px #ffb43a, 0 0 22px 4px rgba(255,122,26,.7); }
+  .m-newroz .tor b { display: block; font-size: 14.5px; }
+  .m-newroz .tor span { font-size: 12.5px; color: #ffcf8a; font-weight: 700; }
+  .m-newroz .add { display: block; margin-top: 3px; background: #ff8a2a; color: #1a0d05; border-radius: 999px; padding: 1px 12px; font-weight: 800; font-size: 12px; }
+  .m-newroz .cart { background: #0d0b1f; color: #ffcf8a; border-top: 1px solid #ff8a2a; }
+
+  /* 8. ISTIKAN — tea-house trays: every section a brass tray, every dish a tea glass on its saucer */
+  .m-chai { background: radial-gradient(circle at 10px 10px, rgba(255,255,255,.06) 0 2px, transparent 3px) 0 0 / 22px 22px, #123b3a; color: #f7ecd6; font-family: 'Cairo', sans-serif; }
+  .m-chai .hd { padding: 62px 18px 12px; text-align: center; }
+  .m-chai .hd h1 { font: 700 38px 'Lemonada'; color: #f1c27d; }
+  .m-chai .hd p { font-size: 13.5px; opacity: .85; }
+  .m-chai .chips { background: #123b3a; }
+  .m-chai .chips button { padding: 6px 13px; border-radius: 999px; background: #0b2827; color: #f1c27d; font-weight: 700; font-size: 13px; border: 1px solid #c58b3e; }
+  .m-chai .chips button.on { background: #c58b3e; color: #1d1206; }
+  .m-chai section { padding: 10px 12px 12px; }
+  .m-chai .tray { padding: 14px 10px 16px; border-radius: 18px; background: radial-gradient(ellipse at 30% 20%, #f6d48d, #c58b3e 55%, #8a5a20); box-shadow: inset 0 0 0 5px #8a5a20, inset 0 0 0 7px #f6d48d, 0 10px 20px rgba(0,0,0,.4); }
+  .m-chai .tray h2 { text-align: center; font: 700 18px 'Lemonada'; color: #3b2208; margin-bottom: 10px; }
+  .m-chai .glasses { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px 6px; }
+  .m-chai .gl { text-align: center; color: #2a1606; }
+  .m-chai .cup { position: relative; width: 66%; margin: 0 auto; aspect-ratio: .62; clip-path: polygon(4% 0, 96% 0, 74% 46%, 90% 100%, 10% 100%, 26% 46%); }
+  .m-chai .cup .ph { position: absolute; inset: 0; }
+  .m-chai .cup::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(255,255,255,.55) 0 8%, transparent 14% 80%, rgba(255,255,255,.3) 88%), linear-gradient(rgba(255,255,255,.35) 0 4%, transparent 6%); }
+  .m-chai .saucer { width: 88%; height: 10px; margin: -2px auto 0; border-radius: 50%; background: radial-gradient(ellipse, #fff 0 40%, #d9d2c4 70%); box-shadow: 0 2px 2px rgba(0,0,0,.3); }
+  .m-chai .gl b { display: block; font-size: 12.5px; line-height: 1.2; margin-top: 5px; }
+  .m-chai .gl span { font-size: 11.5px; font-weight: 800; color: #5a2a06; }
+  .m-chai .add { display: block; margin: 3px auto 0; background: #123b3a; color: #f1c27d; border-radius: 999px; padding: 1px 12px; font-weight: 800; font-size: 12px; }
+  .m-chai .cart { background: #0b2827; color: #f1c27d; }
+
+  /* ===== buzzify.me motions, in heritage colours ===== */
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(var(--r, 0deg)); } 50% { transform: translateY(var(--h, -8px)) rotate(calc(var(--r, 0deg) * -.6)); } }
+  @keyframes sway { 0%, 100% { transform: rotate(var(--r, 3deg)); } 50% { transform: rotate(calc(var(--r, 3deg) * -1)); } }
+  @keyframes ember { from { transform: translate(0, 0) scale(1); opacity: 1; } to { transform: translate(var(--dx), -150px) scale(.3); opacity: 0; } }
+  @keyframes steam { from { transform: translateY(0) scaleX(1); opacity: .55; } to { transform: translateY(-34px) scaleX(1.8); opacity: 0; } }
+  .screen .bob { animation: bob var(--t, 6s) ease-in-out var(--dl, 0s) infinite; }
+  .screen .fl { will-change: transform; }
+  /* the thin progress line with a glowing dot */
+  .screen .rail { position: fixed; right: 7px; top: 32%; height: 36%; width: 2px; border-radius: 2px; background: color-mix(in srgb, var(--rc) 30%, transparent); z-index: 25; pointer-events: none; }
+  .screen .rail i { position: absolute; left: -3px; top: 0; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); box-shadow: 0 0 10px var(--rc); }
+  .m-shan { --rc: #ffcf5a; } .m-sack { --rc: #8a2d12; } .m-zel { --rc: #c8962e; } .m-sadu { --rc: #e8a33a; }
+  .m-kilim { --rc: #8e2a26; } .m-hawr { --rc: #2f6fa8; } .m-newroz { --rc: #ff8a2a; } .m-chai { --rc: #f1c27d; }
+  /* reveal: things rise in as they enter the screen */
+  .screen .rv { opacity: 0; transform: translateY(26px) scale(.96); transition: opacity 500ms var(--ease-out) var(--d, 0ms), transform 500ms var(--ease-out) var(--d, 0ms); }
+  .screen .rv.in { opacity: 1; transform: none; }
+  .m-sack .tag { animation: sway 3.6s ease-in-out var(--dl, 0s) infinite; }
+
+  /* zellige: every section is a turning carousel; the star in the middle comes forward */
+  .m-zel .flow { display: flex; gap: 6px; overflow-x: auto; scrollbar-width: none; scroll-snap-type: x mandatory; padding: 8px calc(50% - 85px) 6px; }
+  .m-zel .flow::-webkit-scrollbar { display: none; }
+  .m-zel .flow .tile { flex: none; width: 170px; scroll-snap-align: center; transform: scale(calc(.66 + .34 * var(--k, 1))); opacity: calc(.45 + .55 * var(--k, 1)); }
+  .m-zel .ctl { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 6px; font: 700 13px 'El Messiri'; color: #0d5566; }
+  .m-zel .ctl button { width: 34px; height: 34px; border: 2px solid #0d5566; border-radius: 6px; font-size: 15px; color: #0d5566; }
+  .m-zel .cnt { direction: ltr; unicode-bidi: isolate; }
+
+  /* sadu: the woven band drifts sideways on its own */
+  .m-sadu .dias { display: flex; grid-template-columns: none; overflow-x: auto; scrollbar-width: none; }
+  .m-sadu .dias::-webkit-scrollbar { display: none; }
+  .m-sadu .dd { flex: none; width: 30%; }
+
+  /* newroz: embers fly up from every fire */
+  .m-newroz .embers { position: absolute; left: 50%; top: 40px; width: 0; height: 0; pointer-events: none; }
+  .m-newroz .embers i { position: absolute; width: 4px; height: 4px; border-radius: 50%; background: #ffd23f; box-shadow: 0 0 6px #ff7a1a; animation: ember var(--t) linear var(--dl) infinite; }
+
+  /* chai: steam rises over every glass */
+  .m-chai .gl { position: relative; }
+  .m-chai .steam { position: absolute; top: -14px; left: 50%; width: 30px; height: 30px; margin-left: -15px; pointer-events: none; }
+  .m-chai .steam i { position: absolute; bottom: 0; left: var(--x); width: 7px; height: 18px; border-radius: 50%; background: rgba(255,255,255,.55); filter: blur(3px); animation: steam 2.4s ease-out var(--dl) infinite; }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; }
+    .rv, .pop { transform: none !important; transition: opacity 200ms ease !important; }
+  }
+  /* Studio showroom: ?style=<key> shows that one style full size, with nothing else around it. */
+  .solo body > :not(#app) { display: none !important; }
+  .solo #close, .solo #full { display: none !important; }
+  .solo .app { background: #000; backdrop-filter: none; }
+</style>
+</head>
+<body>
+
+<div class="gal">
+  <h1>٨ منيوهات عربية وكردية · بحركات buzzify</h1>
+  <p>أشكال من عندنا: شناشيل بغداد، وسوق البهارات، ونجوم الزليج، والسدو البدوي، والكليم الكردي، وقرية هورامان، ونار نوروز، واستكان الچاي. والحركات من buzzify.me: طفو، وعمق، وعرض دوّار، وانجراف، وجزيئات طايرة، وخط تقدّم بنقطة مضوية. كلها بصور أكل حقيقية وكل قسم بدوسة. <b>اضغط «افتح المنيو»</b>.</p>
+  <div class="covers" id="covers"></div>
+</div>
+
+<div class="app" id="app">
+  <div class="device" id="device">
+    <div class="chrome"><button id="close" aria-label="سكّر">✕</button><button id="full" aria-label="شاشة كاملة">⤢</button></div>
+    <div class="screen" id="screen"></div>
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+const U = (id, w = 500) => `https://images.unsplash.com/photo-${id}?w=${w}&q=72&auto=format&fit=crop`;
+const MENU = [
+  { id: 'grill', t: 'المشويات', g: 'A', c: '#e3262b', e: '🔥', w: 'linear-gradient(#ff7a3d, #c73b1d)', blob: '46% 54% 52% 48% / 40% 46% 54% 60%', items: [
+    { n: 'تكة دجاج', d: 'متبّلة باللبن', p: '٨٬٠٠٠', img: '1599487488170-d11ec9c172f0' },
+    { n: 'ستيك أنكس', d: 'مع بطاطا وصوص', p: '٢٢٬٠٠٠', img: '1600891964092-4316c288032e' },
+    { n: 'ريش مشوية', d: 'ريش غنم باربكيو', p: '١٨٬٠٠٠', img: '1544025162-d76694265947' },
+    { n: 'برياني دجاج', d: 'بسمتي ومكسرات', p: '١٠٬٠٠٠', img: '1631515243349-e0cb75fb8d3a' },
+  ]},
+  { id: 'fast', t: 'السريع', g: 'B', c: '#f08c00', e: '🍔', w: 'linear-gradient(#ffd23f, #f08c00)', blob: '58% 42% 46% 54% / 52% 58% 42% 48%', items: [
+    { n: 'دبل سماش', d: 'لحم وجبن شيدر', p: '٩٬٠٠٠', img: '1568901346375-23c9450c58cd' },
+    { n: 'شاورما عربي', d: 'دجاج وثوم', p: '٥٬٠٠٠', img: '1529006557810-274b9b2fc783' },
+    { n: 'بروستد', d: '٤ قطع مع ثومية', p: '٧٬٠٠٠', img: '1626082927389-6cd097cdc6ec' },
+    { n: 'بيتزا مارغريتا', d: 'طماطم وموزاريلا', p: '١٠٬٠٠٠', img: '1565299624946-b28f40a0ae38' },
+    { n: 'سمبوسة', d: '٥ قطع', p: '٣٬٠٠٠', img: '1601050690597-df0568f70950' },
+    { n: 'باستا بولونيز', d: 'بيني بصلصة اللحم', p: '٨٬٥٠٠', img: '1621996346565-e3dbc646d9a9' },
+  ]},
+  { id: 'fresh', t: 'السلطات', g: 'C', c: '#2ba84a', e: '🥗', w: 'linear-gradient(#5fd37a, #1f8a4c)', blob: '50% 50% 40% 60% / 60% 44% 56% 40%', items: [
+    { n: 'سلطة الموسم', d: 'خضار وليمون', p: '٤٬٠٠٠', img: '1512621776951-a57141f2eefd' },
+    { n: 'توست أفوكادو', d: 'مع بيض مسلوق', p: '٦٬٠٠٠', img: '1541519227354-08fa5d50c44d' },
+  ]},
+  { id: 'sweet', t: 'الحلويات', g: 'D', c: '#e5007e', e: '🍰', w: 'linear-gradient(#ff8fc7, #c2186b)', blob: '42% 58% 60% 40% / 48% 52% 48% 52%', items: [
+    { n: 'تيراميسو', d: 'قهوة وماسكاربوني', p: '٥٬٠٠٠', img: '1571877227200-a0d98ea607e9' },
+    { n: 'بان كيك بالعسل', d: '٥ طبقات', p: '٦٬٠٠٠', img: '1567620905732-2d1ec7ab7445' },
+    { n: 'براونيز', d: 'شوكولاتة دافئة', p: '٤٬٠٠٠', img: '1606313564200-e75d5e30476c' },
+    { n: 'كاسة أوريو', d: 'كريمة وشوكولاتة', p: '٤٬٥٠٠', img: '1563805042-7684c019e1cb' },
+  ]},
+  { id: 'drink', t: 'المشروبات', g: 'E', c: '#0077c8', e: '🥤', w: 'linear-gradient(#59b8ff, #1f5fbf)', blob: '54% 46% 50% 50% / 44% 56% 44% 56%', items: [
+    { n: 'لاتيه', d: 'إسبريسو وحليب', p: '٣٬٠٠٠', img: '1495474472287-4d71bcdd2085' },
+    { n: 'موهيتو فراولة', d: 'نعناع وفراولة', p: '٣٬٥٠٠', img: '1497534446932-c925b458314e' },
+  ]},
+];
+const DIG = '٠١٢٣٤٥٦٧٨٩';
+const toAr = x => String(x).replace(/\d/g, d => DIG[d]);
+const bg = (id, w) => `style="background-image:url(${U(id, w)})"`;
+const odo = () => `<span class="odo">${[0, 1].map(() => `<span>${[...DIG].map(d => `<i>${d}</i>`).join('')}</span>`).join('')}</span>`;
+const cart = (label = 'طلبك') => `<div class="cart"><span>${label}: ${odo()}</span><span class="sum">٠ د.ع ←</span></div>`;
+const addBtn = (it, txt = '+', cls = 'add') => `<button class="${cls}" data-n="${it.n}" data-p="${it.p}" aria-label="أضف ${it.n}">${txt}</button>`;
+const chips = (fmt = s => s.t) => `<nav class="chips">${MENU.map((s, i) => `<button data-to="${s.id}" class="${i ? '' : 'on'}" style="--c:${s.c};--t:${[-3, 2, -1, 3, -2][i]}deg">${fmt(s, i)}</button>`).join('')}</nav>`;
+let no = 0; MENU.forEach(s => s.items.forEach(it => it.no = ++no));
+let box = 100; MENU.forEach(s => { s.from = box + 1; s.items.forEach(it => it.box = ++box); s.to = box; });
+
+const rnd = i => ((i * 9301 + 49297) % 233280) / 233280;
+const clock = no => `--t:${(5 + rnd(no) * 3).toFixed(2)}s;--dl:-${(rnd(no + 7) * 6).toFixed(2)}s`;
+const rail = '<div class="rail"><i></i></div>';
+const pad2 = n => toAr(String(n).padStart(2, '0'));
+// zellige: an eight-point star, sixteen corners alternating outer and inner
+const STAR = `polygon(${[...Array(16)].map((_, i) => { const a = (i * 22.5 - 90) * Math.PI / 180, r = i % 2 ? 38 : 50; return `${(50 + r * Math.cos(a)).toFixed(1)}% ${(50 + r * Math.sin(a)).toFixed(1)}%`; }).join(',')})`;
+const STYLES = [
+ { key: 'shan', fam: 'عراقي · بغداد', name: 'الشناشيل',
+   desc: 'المنيو بيت بغدادي قديم من الطابوق: كل قسم طابق بجسر خشب عليه اسمه، وكل طبق شناشيل خشب بشبّاك منقوش وصورته جوّا، واسمه وسعره على العتبة. الشناشيل تطفو وتتمايل بخفة، وتضيف طبق فيضوي شبّاكه.',
+   mo: '<b>الحركة:</b> طفو وتمايل مثل الكروت المعلّقة، وخط تقدّم بنقطة مضوية.',
+   render: () => `
+    ${rail}<div class="hd"><h1>الشناشيل</h1><p>كل طابق قسم · كل شبّاك طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="beam">${s.t}<small>${toAr(s.items.length)} شبابيك</small></div><div class="wins">${s.items.map(it => `<div class="win bob" style="${clock(it.no)};--h:-6px"><div class="lat"></div><div class="ph" ${bg(it.img, 260)}></div><div class="sill"><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'اطلب')}</div></div></div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'zel', fam: 'عربي · أندلسي', name: 'نجوم الزليج',
+   desc: 'كل قسم لوحة زليج تحت قوس، وكل طبق نجمة ثمانية من الفسيفساء بصورته. النجوم تدور بالعرض مثل عرض دوّار: النجمة بالنص تكبر وتتقدم واللي جنبها تصغر وتخفت، وتحتها أسهم وعدّاد.',
+   mo: '<b>الحركة:</b> عرض دوّار يكبّر الطبق الوسطاني، بأسهم وعدّاد «٠٢ / ٠٤».',
+   render: () => `
+    ${rail}<div class="hd"><h1>نجوم الزليج</h1><p>اسحب النجوم، والنجمة بالنص هي طبقك</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="arch">${s.t}</div><div class="flow">${s.items.map(it => `<div class="tile"><div class="star" style="clip-path:${STAR}"><div class="ph" style="clip-path:${STAR};background-image:url(${U(it.img, 260)})"></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div><div class="ctl"><button data-dir="-1" aria-label="السابق">→</button><span class="cnt">01 / ${String(s.items.length).padStart(2, '0')}</span><button data-dir="1" aria-label="التالي">←</button></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'sadu', fam: 'عربي · بدوي', name: 'السدو',
+   desc: 'المنيو حياكة سدو بدوية: كل قسم شريط منسوج أحمر بحواف مسننة وخطوط، والأطباق بمعيّنات منسوجة بالشريط. الشريط ينجرف لحاله ببطء للجنب، شريط يروح وشريط يرجع، وتلمسه فيوقف.',
+   mo: '<b>الحركة:</b> انجراف أفقي بطيء لكل شريط، يوقف لمن تلمسه.',
+   render: () => `
+    ${rail}<div class="hd"><h1>السدو</h1><p>كل شريط قسم · كل معيّن طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map((s, si) => `<section data-sec="${s.id}"><div class="edge"></div><div class="stripe"></div><div class="ttl"><b>${s.t}</b><small>${toAr(s.items.length)} أطباق</small></div><div class="dias" data-dir="${si % 2 ? 1 : -1}">${s.items.map(it => `<div class="dd"><div class="dia"><div class="ph" ${bg(it.img, 220)}></div></div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div>`).join('')}</div><div class="stripe"></div><div class="edge b"></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'kilim', fam: 'كردي', name: 'الكليم الكردي',
+   desc: 'كل قسم سجادة كليم كردية منسوجة بالإيد: إطار بنقشة ألوان، وأهداب بالطرفين، وعلى الأرضية الحمرة الأطباق بميداليات سداسية. الميداليات طايفة على أعماق مختلفة، فوانت تنزل القريبة تتحرك أسرع.',
+   mo: '<b>الحركة:</b> عمق مثل انعدام الجاذبية: كل ميدالية بسرعة مختلفة وتتمايل.',
+   render: () => `
+    ${rail}<div class="hd"><h1>الكليم الكردي</h1><p>كل سجادة قسم · كل ميدالية طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="fr"></div><div class="rug"><div class="field"><h2>${s.t}</h2><div class="meds">${s.items.map(it => `<div class="fl" data-z="${Math.floor(rnd(it.no + 3) * 3)}"><div class="med bob" style="${clock(it.no)};--h:-6px;--r:${((rnd(it.no) - .5) * 4).toFixed(1)}deg"><div class="hex"><div class="ph" ${bg(it.img, 260)}></div></div><b>${it.n}</b><div class="ln"><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div></div>`).join('')}</div></div></div><div class="fr"></div></section>`).join('')}
+    ${cart('طلبك')}` },
+
+ { key: 'newroz', fam: 'كردي', name: 'نار نوروز',
+   desc: 'كل قسم جبل وعلى قمته نار نوروز يطير منها شرار، والأطباق مشاعل نازلة على درب متعرّج بجنب الجبل، يمين ويسار. الشرار يصعد مثل ذيل المذنّب، والمشاعل تطفو بخفة.',
+   mo: '<b>الحركة:</b> جزيئات شرار طايرة من كل نار، ومشاعل تتمايل على الدرب.',
+   render: () => `
+    ${rail}<div class="hd"><h1>نار نوروز</h1><p>كل جبل قسم · كل مشعل طبق</p></div>
+    ${chips(s => s.t)}
+    ${MENU.map(s => `<section data-sec="${s.id}"><div class="peak"><div class="fire"></div><div class="embers">${[...Array(10)].map((_, i) => `<i style="--t:${(1.6 + rnd(i + s.items.length) * 1.4).toFixed(2)}s;--dl:-${(rnd(i * 3 + 1) * 2.5).toFixed(2)}s;--dx:${((rnd(i * 7 + 2) - .5) * 70).toFixed(0)}px"></i>`).join('')}</div><b>${s.t}</b></div><div class="path">${s.items.map((it, i) => `<div class="tor bob" style="${clock(it.no)};--h:-5px;--x:${i % 2 ? '34%' : '0%'}"><div class="flame ph" ${bg(it.img, 180)}></div><div><b>${it.n}</b><span>${it.p}</span>${addBtn(it, 'أضف')}</div></div>`).join('')}</div></section>`).join('')}
+    ${cart('طلبك')}` },
+];
+
+// ---------- gallery ----------
+const covers = document.getElementById('covers');
+covers.innerHTML = STYLES.map(s => `
+  <div class="cover">
+    <div class="art" data-open="${s.key}"><div class="screen m-${s.key}" data-mini="${s.key}"></div></div>
+    <div class="body"><span class="fam">${s.fam}</span><h2>${s.name}</h2><p>${s.desc}</p><div class="mo">${s.mo}</div>
+      <div class="acts"><button class="open" data-open="${s.key}">افتح المنيو</button></div></div>
+  </div>`).join('');
+document.querySelectorAll('[data-mini]').forEach(el => {
+  el.innerHTML = STYLES.find(x => x.key === el.dataset.mini).render();
+  el.querySelectorAll('.rv,.pop').forEach(x => x.classList.add('in'));
+  el.querySelectorAll('.lid').forEach(x => x.remove());
+  el.style.cssText += ';position:absolute;top:0;right:0;width:430px;height:900px;transform:scale(var(--k));transform-origin:top right;overflow:hidden;pointer-events:none';
+});
+function fitMinis() { document.querySelectorAll('.art').forEach(a => a.style.setProperty('--k', a.clientWidth / 430)); }
+fitMinis(); addEventListener('resize', fitMinis);
+
+// ---------- app ----------
+const app = document.getElementById('app'), device = document.getElementById('device'), screen = document.getElementById('screen'), toastEl = document.getElementById('toast');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let count = 0, total = 0, current = null, cleanups = [];
+const fromAr = s => Number(s.replace(/[٠-٩]/g, d => DIG.indexOf(d)).replace(/[^\d]/g, ''));
+const fmt = n => toAr(n.toLocaleString('en-US')).replace(/,/g, '٬');
+const ALL = MENU.flatMap(s => s.items);
+
+function open(key) {
+  cleanups.forEach(f => f()); cleanups = [];
+  device.querySelectorAll('.door').forEach(d => d.remove());
+  const s = STYLES.find(x => x.key === key);
+  count = 0; total = 0; current = key; lastJump = null;
+  screen.className = `screen m-${key}`;
+  screen.innerHTML = s.render();
+  screen.scrollTo({ top: 0, behavior: 'instant' });
+  app.classList.add('on'); document.body.style.overflow = 'hidden';
+  wire(key);
+}
+function closeApp() { app.classList.remove('on', 'full'); document.body.style.overflow = ''; cleanups.forEach(f => f()); cleanups = []; }
+document.getElementById('close').onclick = closeApp;
+document.getElementById('full').onclick = () => app.classList.toggle('full');
+app.addEventListener('click', e => { if (e.target === app) closeApp(); });
+addEventListener('keydown', e => { if (e.key === 'Escape') closeApp(); });
+document.addEventListener('click', e => { const o = e.target.closest('[data-open]'); if (o) open(o.dataset.open); });
+function toast(t) { toastEl.textContent = t; toastEl.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => toastEl.classList.remove('on'), 1300); }
+function setOdo(n) { const d = String(Math.min(n, 99)).padStart(2, '0'); screen.querySelectorAll('.cart .odo > span').forEach((c, i) => c.style.transform = `translateY(-${Number(d[i]) * 1.25}em)`); }
+function addToCart(n, p) {
+  count++; total += fromAr(p);
+  setOdo(count);
+  screen.querySelector('.cart .sum').textContent = `${fmt(total)} د.ع ←`;
+  toast(`انضاف ${n} ✓`);
+}
+
+// distance of an element from the top of the scrolling screen, whatever its offset parent
+const topOf = el => el.getBoundingClientRect().top - screen.getBoundingClientRect().top + screen.scrollTop;
+const mark = (sel, id) => screen.querySelectorAll(sel).forEach(b => b.classList.toggle('on', b.dataset.to === id));
+const navH = () => (screen.querySelector('.chips') || { offsetHeight: 0 }).offsetHeight;
+// near the end the last sections cannot reach the top, so remember what was tapped
+let lastJump = null;
+const jumpY = id => (lastJump = id, screen.scrollTo({ top: topOf(screen.querySelector(`[data-sec="${id}"]`)) - navH() + 2, behavior: reduce ? 'instant' : 'smooth' }));
+function spyY(onChange) {
+  const secs = [...screen.querySelectorAll('[data-sec]')];
+  const run = () => { let cur = secs[0].dataset.sec; const off = screen.scrollTop + navH() + 60; secs.forEach(s => { if (topOf(s) <= off) cur = s.dataset.sec; }); if (lastJump && screen.scrollTop >= screen.scrollHeight - screen.clientHeight - 2) cur = lastJump; onChange(cur); };
+  screen.addEventListener('scroll', run, { passive: true });
+  cleanups.push(() => screen.removeEventListener('scroll', run));
+  run();
+}
+
+function wire(key) {
+  setOdo(0);
+  const io = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); } }), { root: screen, threshold: .12 });
+  screen.querySelectorAll('.rv,.pop').forEach((el, i) => { if (!el.style.getPropertyValue('--d')) el.style.setProperty('--d', `${(i % 4) * 50}ms`); io.observe(el); });
+  cleanups.push(() => io.disconnect());
+  const W = WIRE[key] || {};
+  screen.onclick = e => {
+    const a = e.target.closest('.add[data-n]');
+    if (a) { e.stopPropagation(); addToCart(a.dataset.n, a.dataset.p); W.added && W.added(a); return; }
+    const to = e.target.closest('[data-to]');
+    if (to) return (W.go || jumpY)(to.dataset.to);
+    W.click && W.click(e);
+  };
+  if (!W.noSpy) spyY(id => mark('.chips [data-to]', id));
+  W.init && W.init();
+}
+
+
+const ease = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const pulse = (el, k = 1.08) => { if (!reduce && el) el.animate([{ scale: '1' }, { scale: String(k) }, { scale: '1' }], { duration: 360, easing: ease }); };
+// the thin progress line on the right edge
+function railOn() {
+  const dot = screen.querySelector('.rail i'); if (!dot) return;
+  const run = () => { const m = screen.scrollHeight - screen.clientHeight; dot.style.top = `${m > 0 ? screen.scrollTop / m * 100 : 0}%`; };
+  screen.addEventListener('scroll', run, { passive: true }); cleanups.push(() => screen.removeEventListener('scroll', run)); run();
+}
+// near things move more than far things as the page scrolls
+function parallax(sel, k) {
+  if (reduce) return;
+  const els = [...screen.querySelectorAll(sel)]; let raf = 0;
+  const run = () => { raf = 0; const sr = screen.getBoundingClientRect(), cy = sr.top + sr.height / 2; els.forEach(el => { const b = el.getBoundingClientRect(); el.style.transform = `translateY(${((b.top + b.height / 2 - cy) * k(el)).toFixed(1)}px)`; }); };
+  const on = () => { if (!raf) raf = requestAnimationFrame(run); };
+  screen.addEventListener('scroll', on, { passive: true }); cleanups.push(() => { screen.removeEventListener('scroll', on); cancelAnimationFrame(raf); }); run();
+}
+const WIRE = {
+  shan: { added(a) { a.closest('.win').classList.add('lit'); } },
+  sack: { added(a) { pulse(a.closest('.sack'), 1.06); } },
+  zel: {
+    init() {
+      screen.querySelectorAll('.flow').forEach(d => {
+        const tiles = [...d.children], cnt = d.parentElement.querySelector('.cnt');
+        const run = () => {
+          const r = d.getBoundingClientRect(), mid = r.left + r.width / 2; let best = 0, bk = -1;
+          tiles.forEach((c, i) => { const b = c.getBoundingClientRect(); const k = Math.max(0, 1 - Math.abs(b.left + b.width / 2 - mid) / (b.width * 1.1)); c.style.setProperty('--k', k.toFixed(3)); if (k > bk) { bk = k; best = i; } });
+          cnt.textContent = `${String(best + 1).padStart(2, '0')} / ${String(tiles.length).padStart(2, '0')}`;
+        };
+        d.addEventListener('scroll', run, { passive: true }); cleanups.push(() => d.removeEventListener('scroll', run)); run();
+      });
+    },
+    click(e) {
+      const b = e.target.closest('[data-dir]'); if (!b) return;
+      const d = b.closest('section').querySelector('.flow'), step = d.firstElementChild.offsetWidth + 6;
+      d.scrollBy({ left: -Number(b.dataset.dir) * step, behavior: reduce ? 'instant' : 'smooth' });
+    },
+    added(a) { pulse(a.closest('.tile').querySelector('.star'), 1.12); },
+  },
+  sadu: {
+    init() {
+      if (reduce) return;
+      const streams = [...screen.querySelectorAll('.dias')].map(el => ({ el, dir: Number(el.dataset.dir), hold: false, x: el.scrollLeft }));
+      streams.forEach(s => {
+        const hold = v => () => { s.hold = v; if (!v) s.x = s.el.scrollLeft; };
+        ['pointerenter', 'pointerdown', 'touchstart'].forEach(t => s.el.addEventListener(t, hold(true), { passive: true }));
+        ['pointerleave', 'touchend'].forEach(t => s.el.addEventListener(t, hold(false), { passive: true }));
+      });
+      let raf = requestAnimationFrame(function tick() {
+        streams.forEach(s => {
+          if (s.hold) return;
+          const max = s.el.scrollWidth - s.el.clientWidth; if (max <= 0) return;
+          s.x += s.dir * .35;
+          // RTL scrollLeft runs from 0 to -max; bounce at the ends
+          if (s.x > 0) { s.x = 0; s.dir = -1; } if (s.x < -max) { s.x = -max; s.dir = 1; }
+          s.el.scrollLeft = s.x;
+        });
+        raf = requestAnimationFrame(tick);
+      });
+      cleanups.push(() => cancelAnimationFrame(raf));
+    },
+    added(a) { pulse(a.closest('.dd').querySelector('.dia'), 1.1); },
+  },
+  kilim: {
+    init() { parallax('.meds .fl', el => [.07, 0, -.08][el.dataset.z]); },
+    added(a) { pulse(a.closest('.med').querySelector('.hex'), 1.08); },
+  },
+  hawr: {
+    init() { parallax('.step', el => [-.03, -.07, -.11][el.dataset.z]); },
+    added(a) { a.closest('.house').classList.add('lit'); },
+  },
+  newroz: { added(a) { pulse(a.closest('.tor').querySelector('.flame'), 1.15); } },
+  chai: { added(a) { pulse(a.closest('.gl').querySelector('.cup'), 1.1); } },
+};
+Object.values(WIRE).forEach(W => { const i = W.init; W.init = () => { railOn(); i && i(); }; });
+// ---------- solo: one style, full size, for the Studio showroom ----------
+(() => {
+  const key = new URL(location.href).searchParams.get('style');
+  if (!key || !STYLES.some(s => s.key === key)) return;
+  document.documentElement.classList.add('solo');
+  closeApp = () => {};
+  open(key);
+  app.classList.add('full');
+})();
+</script>
+</body>
+</html>

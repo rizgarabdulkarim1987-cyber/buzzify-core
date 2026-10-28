@@ -1,0 +1,110 @@
+/*
+ * Zellige Stars (family coverflow, kind `zel`): the page is a zellige floor of small tiles in the accent and the
+ * background colour; every section is a cream panel under a pointed arch, its name on a plaque hanging from the arch;
+ * every dish is an eight-point mosaic star (`--cf-star`, set by the body) with its photo inside a gold-and-accent rim.
+ * The middle star is large, its neighbours small and pale. All colours from the template's tokens (the gold rim is the
+ * accent warmed, decoration only).
+ */
+[data-body='zel'] {
+  --zl-tile: color-mix(in srgb, var(--accent) 22%, var(--bg));
+  --zl-gold: color-mix(in oklab, var(--accent) 35%, #c8962e);
+  --cf-card: 8.75rem;
+  --cf-far-scale: 0.7;
+  --cf-far-fade: 0.85;
+  --cf-gap: 0.25rem;
+  background: conic-gradient(from 45deg, var(--zl-tile) 25%, var(--bg) 0 50%, var(--zl-tile) 0 75%, var(--bg) 0) 0 0 / 1.625rem 1.625rem, var(--bg);
+}
+
+[data-body='zel'] .cf-chip {
+  border: 2px solid var(--accent);
+  background: var(--bg);
+  color: var(--text);
+}
+[data-body='zel'] .cf-chip-mark {
+  inline-size: 0.625rem;
+  block-size: 0.625rem;
+  border-radius: 0;
+  clip-path: var(--cf-star);
+}
+
+/* The panel: the template's background, a thick accent rim, a pointed arch over the top. */
+[data-body='zel'] .cf-section {
+  margin: 1rem 0.625rem;
+  padding-block: 0 0.875rem;
+  border: 3px solid var(--accent);
+  border-start-start-radius: 50% 3.5rem;
+  border-start-end-radius: 50% 3.5rem;
+  border-end-start-radius: 0.375rem;
+  border-end-end-radius: 0.375rem;
+  background: var(--bg);
+  overflow: hidden;
+}
+/* The arch's tympanum: a band of the mosaic under the arch, behind the plaque. */
+[data-body='zel'] .cf-section::before {
+  content: '';
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  block-size: 3.25rem;
+  background:
+    radial-gradient(circle at 50% 50%, var(--zl-gold) 0 18%, transparent 19%) 0 0 / 1.25rem 1.25rem,
+    conic-gradient(from 45deg, var(--accent) 25%, var(--zl-tile) 0 50%, var(--accent) 0 75%, var(--zl-tile) 0) 0 0 / 1.25rem 1.25rem;
+  opacity: 0.55;
+  pointer-events: none;
+}
+[data-body='zel'] .cf-head {
+  display: flex;
+  justify-content: center;
+  padding-block-start: 0.625rem;
+}
+[data-body='zel'] .cf-title {
+  position: relative;
+  justify-content: center;
+  max-inline-size: 80%;
+  padding: 0.5rem 1.125rem 0.625rem;
+  border-end-start-radius: 50% 40%;
+  border-end-end-radius: 50% 40%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 1.1875rem;
+  text-align: center;
+}
+[data-body='zel'] .cf-title small,
+[data-body='zel'] .cf-title [data-count] {
+  color: var(--on-accent);
+  opacity: 0.85;
+}
+[data-body='zel'] .cf-ornament {
+  display: none;
+}
+
+/* The star: a gold-and-accent mosaic rim (a larger star behind) and the photo cut into a star inside it. */
+[data-body='zel'] .cf-photo {
+  inline-size: 94%;
+  margin-inline: auto;
+  aspect-ratio: 1;
+  padding: 0.3125rem;
+}
+[data-body='zel'] .cf-photo::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  clip-path: var(--cf-star);
+  background:
+    conic-gradient(from 22.5deg, var(--zl-gold) 0 12.5%, var(--accent) 0 25%, var(--zl-gold) 0 37.5%, var(--accent) 0 50%, var(--zl-gold) 0 62.5%, var(--accent) 0 75%, var(--zl-gold) 0 87.5%, var(--accent) 0);
+}
+[data-body='zel'] .cf-frame {
+  block-size: 100%;
+  clip-path: var(--cf-star);
+}
+[data-body='zel'] .cf-name {
+  margin-block-start: 0.25rem;
+}
+[data-body='zel'] .cf-add {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+[data-body='zel'] .cf-arrow {
+  border: 2px solid var(--accent);
+  border-radius: 0.375rem;
+}

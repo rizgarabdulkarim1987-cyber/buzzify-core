@@ -1,0 +1,225 @@
+/*
+ * The lens family (LensBody.tsx): the structure every lens style shares, and the deep-space look of its three space
+ * styles. The engine writes `--lv` on each dish on screen (its signed distance from the screen's middle, -1 to 1);
+ * every rule that bends a dish sits under `[data-lens]` (set only while motion runs), so with less motion, or before
+ * the script, every dish is flat and full size. `--lt` is the distance without its sign. Logical properties only.
+ */
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) {
+  --nav-room: 3.5rem;
+  --column: 46rem;
+  --dir: 1;
+  padding-block-end: 1rem;
+  color: var(--text);
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']):dir(rtl) {
+  --dir: -1;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) [data-lens-item] > * {
+  --lt: max(var(--lv, 0), calc(-1 * var(--lv, 0)));
+}
+
+/* ------------------------------------------------------------------ the strip */
+
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .tpl-strip-list {
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4375rem;
+  min-block-size: 2.5rem;
+  padding-inline: 0.875rem;
+  color: var(--text);
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  transition:
+    background-color 150ms,
+    color 150ms,
+    box-shadow 150ms;
+}
+
+/* ------------------------------------------------------------------ sections and the two-column grid */
+
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-main {
+  position: relative;
+  overflow-x: clip;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-section {
+  position: relative;
+  z-index: 1;
+  padding: 0.75rem 0.75rem 0.5rem;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 0.5rem;
+  margin: 0 0 0.625rem;
+  font-size: 1.25rem;
+  line-height: 1.25;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-title [data-count] {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  opacity: 0.75;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-item {
+  min-inline-size: 0;
+}
+
+/* ------------------------------------------------------------------ the space styles: a starfield, neon glass */
+
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) {
+  --ln-star: color-mix(in srgb, var(--text) 70%, transparent);
+  background:
+    radial-gradient(1px 1px at 20px 30px, var(--ln-star), transparent 70%),
+    radial-gradient(1px 1px at 130px 90px, color-mix(in srgb, var(--text) 45%, transparent), transparent 70%),
+    radial-gradient(1.5px 1.5px at 70px 160px, var(--ln-star), transparent 70%),
+    radial-gradient(1px 1px at 175px 200px, var(--ln-star), transparent 70%),
+    var(--bg);
+  background-size: 200px 220px, 200px 220px, 200px 220px, 200px 220px, 100% 100%;
+}
+/* The section's neon: decoration only (edges, glows, dots), never under words. */
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) :is(.ln-chip, .ln-section) {
+  --ln-neon: color-mix(in oklab, oklch(0.72 0.19 var(--h, 245)) 70%, var(--accent));
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .tpl-strip-sticky {
+  background: color-mix(in srgb, var(--bg) 78%, transparent);
+  border-block-end: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  backdrop-filter: blur(10px);
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-chip {
+  border: 1px solid color-mix(in srgb, var(--text) 18%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--raised) 70%, transparent);
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-chip-mark {
+  inline-size: 0.375rem;
+  block-size: 0.375rem;
+  border-radius: 50%;
+  background: var(--ln-neon);
+  box-shadow: 0 0 0.5rem var(--ln-neon);
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-chip[aria-current='true'] {
+  border-color: var(--ln-neon);
+  background: var(--raised);
+  box-shadow: 0 0 1rem -0.2rem var(--ln-neon), inset 0 0 0.75rem -0.4rem var(--ln-neon);
+}
+.tpl:is(:lang(ar), :lang(ckb)) :is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-chip {
+  font-family: inherit;
+  letter-spacing: 0;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-title small {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 0.75rem;
+  letter-spacing: 0.12em;
+  color: var(--accent-ink);
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-title small::after {
+  content: '';
+  display: inline-block;
+  inline-size: 1.25rem;
+  block-size: 1px;
+  margin-inline-start: 0.375rem;
+  vertical-align: middle;
+  background: var(--ln-neon);
+}
+
+/* The glass card: a dark pane over the card colour, a neon hairline and a soft glow in the section's hue. */
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  block-size: 100%;
+  padding: 0.5rem 0.5rem 0.625rem;
+  border: 1px solid color-mix(in srgb, var(--ln-neon) 55%, transparent);
+  border-radius: 0.875rem;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--text) 7%, var(--card)), var(--card));
+  box-shadow: 0 0 1.5rem -0.5rem var(--ln-neon), inset 0 0 1.375rem -0.875rem var(--ln-neon);
+  will-change: transform;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-photo {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+  border-radius: 0.625rem;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  inline-size: 100%;
+  margin-block-start: 0.4375rem;
+  padding: 0;
+  color: var(--text);
+  font-size: 0.9375rem;
+  font-weight: 700;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.25rem 0.5rem;
+  margin-block-start: auto;
+  padding-block-start: 0.375rem;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-price {
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-add {
+  min-inline-size: 2.5rem;
+  block-size: 2.5rem;
+  background: transparent;
+  color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--ln-neon), 0 0 0.75rem -0.25rem var(--ln-neon);
+}
+:is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-badges:not(:empty) {
+  margin-block-start: 0.375rem;
+}
+
+/*
+ * The sky behind a space style's sections (streaks, rings): a layer one screen tall that stays at the viewport while
+ * the menu scrolls under it (sticky inside the menu, and pulled out of the flow by its own negative margin).
+ */
+:is([data-body='space-warp'], [data-body='space-worm']) .ln-sky {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 0;
+  block-size: 100dvh;
+  margin-block-end: -100dvh;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+@media (min-width: 640px) {
+  :is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole']) .ln-grid {
+    gap: 1rem 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is([data-body='space-warp'], [data-body='space-worm'], [data-body='space-hole'], [data-body='bazaar'], [data-body='stamps']) .ln-chip {
+    transition: none;
+  }
+}
