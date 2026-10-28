@@ -236,6 +236,9 @@ model Menu {
   introAdverts    IntroAdvert[]
   about           MenuAbout?
   aboutOffers     AboutOffer[]
+  wheel           MenuWheel?
+  wheelSlices     WheelSlice[]
+  wheelSpins      WheelSpin[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -2555,4 +2558,57 @@ model AboutOffer {
   menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
 
   @@index([menuId, sortOrder])
+}
+
+/// The wheel of fortune inside the Explore page (docs/superpowers/specs/2026-10-29-menu-wheel-of-fortune-design.md). One per menu.
+model MenuWheel {
+  id          String    @id @default(cuid())
+  menuId      String    @unique
+  /// Spins one guest may make a day (1 to 10); an address may make three times as many.
+  spinsPerDay Int       @default(1)
+  startsAt    DateTime?
+  endsAt      DateTime?
+  /// { en?, ar?, ckb? }
+  title       Json      @default("{}")
+  updatedAt   DateTime  @updatedAt
+
+  menu   Menu         @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  slices WheelSlice[]
+}
+
+/// A dish on the wheel. The product is one of this menu's; it is skipped at spin time when hidden, unavailable or gone.
+model WheelSlice {
+  id        String @id @default(cuid())
+  wheelId   String
+  menuId    String
+  productId String
+  /// An optional prize line such as "10% off today": information only.
+  label     Json   @default("{}")
+  weight    Int    @default(1)
+  sortOrder Int    @default(0)
+
+  wheel MenuWheel @relation(fields: [wheelId], references: [id], onDelete: Cascade)
+  menu  Menu      @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([wheelId, productId])
+  @@index([menuId])
+}
+
+/// One spin, kept for three days to count a guest's and an address's spins of the day. No personal data: a random cookie key and a salted hash.
+model WheelSpin {
+  id        String   @id @default(cuid())
+  menuId    String
+  guestKey  String
+  ipHash    String
+  /// YYYY-MM-DD in the menu's time zone.
+  day       String
+  /// 0 for a guest's first spin of the day, 1 for the second; unique with the guest and day, so two spins at once cannot both take the last one.
+  slot      Int
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, day, guestKey, slot])
+  @@index([menuId, day, ipHash])
+  @@index([createdAt])
 }
