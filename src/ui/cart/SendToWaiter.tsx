@@ -119,6 +119,8 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
   const [sent, setSent] = useState<Sent | null>(() => readSent(tenant.slug));
   const [phase, setPhase] = useState<Phase>('PENDING');
   const [reason, setReason] = useState('');
+  // Held for the captain's check before the cashier sees it as ready to accept.
+  const [withCaptain, setWithCaptain] = useState(false);
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -138,8 +140,10 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
           return;
         }
         if (!response.ok) return;
-        const body = (await response.json()) as { status: Phase; rejectReason: string };
-        if (stopped || body.status === 'PENDING') return;
+        const body = (await response.json()) as { status: Phase; rejectReason: string; awaitingCaptain?: boolean };
+        if (stopped) return;
+        setWithCaptain(body.status === 'PENDING' && body.awaitingCaptain === true);
+        if (body.status === 'PENDING') return;
         setPhase(body.status);
         setReason(body.rejectReason);
       } catch {
@@ -180,6 +184,7 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
       const next = { publicId: body.publicId, table };
       writeSent(tenant.slug, next);
       setPhase('PENDING');
+      setWithCaptain(false);
       setReason('');
       setNote('');
       setSent(next);
@@ -203,6 +208,11 @@ function OrderPanel({ canSend, available, scanned }: { canSend: boolean; availab
       <section className="mt-8 rounded-2xl border border-line p-4" aria-live="polite" data-testid="qr-status">
         <h2 className="font-display text-xl">{t(`qr.${phase}.title`)}</h2>
         <p className="mt-1 text-muted">{t(`qr.${phase}.body`)}</p>
+        {phase === 'PENDING' && withCaptain ? (
+          <p className="mt-2" data-testid="qr-with-captain">
+            {t('qr.captain')}
+          </p>
+        ) : null}
         {phase === 'REJECTED' && reason ? <p className="mt-2 break-words" dir="auto">{reason}</p> : null}
         {phase !== 'PENDING' ? (
           <button type="button" onClick={again} className="mt-4 min-h-12 rounded-full border border-line px-6">

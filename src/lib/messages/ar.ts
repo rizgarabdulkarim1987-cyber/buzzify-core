@@ -103,6 +103,7 @@ const ar: Messages = {
   'qr.EXPIRED': 'لم يُرد على طلبك في الوقت المناسب',
   'qr.PENDING.title': 'بانتظار الكاشير',
   'qr.PENDING.body': 'تم إرسال طلبك. أبقِ هذه الصفحة مفتوحة.',
+  'qr.captain': 'طلبك عند الكابتن ليراجعه، ثم يصل إلى الكاشير.',
   'qr.ACCEPTED.title': 'تم قبول الطلب',
   'qr.ACCEPTED.body': 'المطعم يحضّره الآن.',
   'qr.REJECTED.title': 'لم يتم قبول الطلب',

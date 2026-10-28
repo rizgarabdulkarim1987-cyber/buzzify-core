@@ -95,6 +95,7 @@ const en: Messages = {
   'qr.EXPIRED': 'Your order was not answered in time',
   'qr.PENDING.title': 'Waiting for the cashier',
   'qr.PENDING.body': 'Your order was sent. Keep this page open.',
+  'qr.captain': 'Your order is with the captain for a check, then it goes to the cashier.',
   'qr.ACCEPTED.title': 'Order accepted',
   'qr.ACCEPTED.body': 'The restaurant is preparing it.',
   'qr.REJECTED.title': 'Order not accepted',
