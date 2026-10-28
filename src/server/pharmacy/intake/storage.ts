@@ -1,4 +1,4 @@
-import { createHmac } from 'node:crypto';
+import { createHmac, timingSafeEqual } from 'node:crypto';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve, sep } from 'node:path';
@@ -16,9 +16,9 @@ export interface IntakeStorage {
   put(key: string, bytes: Uint8Array, mediaType: string): Promise<void>;
   /** The stored bytes, or null when there is none. */
   get(key: string): Promise<{ bytes: Uint8Array; mediaType: string } | null>;
-  /** A URL that downloads the file until `ttlSeconds` pass; 1..300. */
-  signedUrl(key: string, ttlSeconds: number): Promise<string>;
-  /** Removes the object; a key with no object is fine. */
+  /** A URL that shows the file (`inline`, for the viewer) or downloads it until `ttlSeconds` pass; 1..300. */
+  signedUrl(key: string, ttlSeconds: number, options?: { inline?: boolean }): Promise<string>;
+  /** Removes the object; a key with no object is fine. Throws when the store refused the delete. */
   delete(key: string): Promise<void>;
 }
 
@@ -60,6 +60,23 @@ function assertTtl(ttlSeconds: number): void {
 /** The folder development keeps invoices in: outside the repository tree. */
 export const DEV_INTAKE_DIR = join(tmpdir(), 'buzzify-intake');
 
+function devSignature(key: string, expires: number, secret: string): string {
+  return createHmac('sha256', secret).update(`GET\n${key}\n${expires}`).digest('hex');
+}
+
+/** Whether a development URL (`?expires=&sig=`) was minted for this key and is still alive. */
+export function verifyDevIntakeSignature(
+  key: string,
+  expires: string | null,
+  sig: string | null,
+  options: { secret?: string; now?: () => number } = {},
+): boolean {
+  if (!KEY.test(key) || !expires || !sig || !/^\d{1,15}$/.test(expires) || !/^[0-9a-f]{64}$/.test(sig)) return false;
+  if (Number(expires) <= (options.now ?? Date.now)()) return false;
+  const wanted = Buffer.from(devSignature(key, Number(expires), options.secret ?? authEnv().secret), 'hex');
+  return timingSafeEqual(wanted, Buffer.from(sig, 'hex'));
+}
+
 /**
  * Files in a folder under the system temp directory. Refused in production, where a missing bucket must switch upload off
  * instead of writing to a local disk. Its signed URLs are HMAC-signed paths (`/api/dev-intake/<key>?expires=&sig=`).
@@ -95,7 +112,7 @@ export function fsIntakeStorage(options: { dir?: string; secret?: string; now?: 
       assertKey(key);
       assertTtl(ttlSeconds);
       const expires = now() + ttlSeconds * 1000;
-      const sig = createHmac('sha256', options.secret ?? authEnv().secret).update(`GET\n${key}\n${expires}`).digest('hex');
+      const sig = devSignature(key, expires, options.secret ?? authEnv().secret);
       return `/api/dev-intake/${key}?expires=${expires}&sig=${sig}`;
     },
     async delete(key) {
@@ -120,14 +137,15 @@ export function r2IntakeStorage(config: IntakeStorageEnv, client?: { send(comman
       const found = await r2.get(key, MAX_OBJECT_BYTES);
       return found ? { bytes: found.bytes, mediaType: found.contentType } : null;
     },
-    async signedUrl(key, ttlSeconds) {
+    async signedUrl(key, ttlSeconds, options) {
       assertKey(key);
       assertTtl(ttlSeconds);
-      return r2.presignGet(key, { fileName: 'invoice', expiresInSec: ttlSeconds });
+      return r2.presignGet(key, { fileName: 'invoice', expiresInSec: ttlSeconds, inline: options?.inline === true });
     },
     async delete(key) {
       assertKey(key);
-      await r2.delete([key]);
+      // Strict: a refused delete must reach the purge, which only marks a file purged once its object is really gone.
+      await r2.delete([key], { strict: true });
     },
   };
 }
@@ -149,7 +167,16 @@ const globalForIntake = globalThis as unknown as { __buzzifyIntakeStorage?: Inta
 /** The storage this process uses, made on first use and kept. */
 export function getIntakeStorage(): IntakeStorage {
   if (globalForIntake.__buzzifyIntakeStorageOverride) return globalForIntake.__buzzifyIntakeStorageOverride;
-  return (globalForIntake.__buzzifyIntakeStorage ??= resolveIntakeStorage(intakeStorageEnv()));
+  if (globalForIntake.__buzzifyIntakeStorage) return globalForIntake.__buzzifyIntakeStorage;
+  let env: IntakeStorageEnv | null;
+  try {
+    env = intakeStorageEnv();
+  } catch (error) {
+    // A half-set or public-bucket setting reads as "not configured" to callers; the cause (variable names only) is logged.
+    console.error('[intake] storage settings are invalid:', error instanceof Error ? error.message : 'unknown');
+    throw new IntakeStorageNotConfiguredError();
+  }
+  return (globalForIntake.__buzzifyIntakeStorage = resolveIntakeStorage(env));
 }
 
 /** Test seam: uses `adapter` from now on, and returns the function that puts the previous one back. Not for application code. */

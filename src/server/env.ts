@@ -282,6 +282,11 @@ export function parseIntakeStorageEnv(source: Source): IntakeStorageEnv | null {
     const missing = INTAKE_VARIABLES.filter((name) => parsed[name] === null);
     throw new Error(`Invoice storage is only partly configured: set ${missing.join(', ')} as well, or unset the others.`);
   }
+  // The public media bucket is world-readable; invoices must never share it (same name, with or without the same account).
+  const publicBucket = typeof source.R2_BUCKET === 'string' ? source.R2_BUCKET.trim() : '';
+  if (publicBucket && parsed.PH_INTAKE_R2_BUCKET === publicBucket) {
+    throw new Error('PH_INTAKE_R2_BUCKET is the public media bucket (R2_BUCKET): invoices need their own private bucket.');
+  }
   return {
     accountId: parsed.PH_INTAKE_R2_ACCOUNT_ID!,
     accessKeyId: parsed.PH_INTAKE_R2_ACCESS_KEY_ID!,
@@ -467,6 +472,10 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   // Pharmacy invoice storage is optional (without it upload is switched off), but never half set.
   if (INTAKE_VARIABLES.some((name) => text(name))) {
     for (const name of INTAKE_VARIABLES) if (!text(name)) report(name, 'is not set (invoice storage needs all four PH_INTAKE_R2_ variables or none)');
+    const privateBucket = text('PH_INTAKE_R2_BUCKET');
+    if (privateBucket && privateBucket === text('R2_BUCKET')) {
+      report('PH_INTAKE_R2_BUCKET', 'is the public media bucket (R2_BUCKET); invoices need their own private bucket');
+    }
   }
 
   const cronSecret = text('CRON_SECRET');
