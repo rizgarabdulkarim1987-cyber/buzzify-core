@@ -512,6 +512,7 @@ const posTill: Messages = {
   'pos.offline.send': 'إرسال إلى المطبخ',
   'pos.offline.bill': 'طلب الفاتورة',
   'pos.offline.pay': 'استلام نقدًا',
+  'pos.offline.partPaid': 'جزء من هذه الفاتورة مدفوع. أكملها عند عودة الشبكة.',
   'pos.offline.cancel': 'إلغاء الطلب',
   'pos.offline.cancelTitle': 'إلغاء هذا الطلب؟',
   'pos.offline.reason': 'السبب',

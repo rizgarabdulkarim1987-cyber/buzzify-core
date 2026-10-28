@@ -512,6 +512,7 @@ const posTill: Messages = {
   'pos.offline.send': 'ناردن بۆ چێشتخانە',
   'pos.offline.bill': 'داوای فاتورە',
   'pos.offline.pay': 'وەرگرتنی کاش',
+  'pos.offline.partPaid': 'بەشێک لەم فاتورەیە دراوە. کاتێک تۆڕ گەڕایەوە تەواوی بکە.',
   'pos.offline.cancel': 'هەڵوەشاندنەوەی داواکاری',
   'pos.offline.cancelTitle': 'ئەم داواکارییە هەڵبوەشێنرێتەوە؟',
   'pos.offline.reason': 'هۆکار',

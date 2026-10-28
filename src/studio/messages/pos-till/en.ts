@@ -512,6 +512,7 @@ const posTill: Messages = {
   'pos.offline.send': 'Send to kitchen',
   'pos.offline.bill': 'Request bill',
   'pos.offline.pay': 'Take cash',
+  'pos.offline.partPaid': 'Part of this bill is already paid. Finish it when the network is back.',
   'pos.offline.cancel': 'Cancel order',
   'pos.offline.cancelTitle': 'Cancel this order?',
   'pos.offline.reason': 'Reason',

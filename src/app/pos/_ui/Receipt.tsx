@@ -105,7 +105,7 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
             ))}
           </nav>
         ) : null}
-        {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} paymentId={receipt.parts.length > 1 ? receipt.paymentId : undefined} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} /> : null}
+        {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} paymentId={receipt.paymentId} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} /> : null}
         <Button variant="primary" size="lg" className="min-h-12" onClick={() => window.print()}>
           {t('pos.receipt.print')}
         </Button>

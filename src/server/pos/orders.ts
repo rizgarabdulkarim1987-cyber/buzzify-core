@@ -143,6 +143,8 @@ export async function setInvoiceDiscountIn(
 ) {
   const order = await loadOrderForChange(db, restaurantId, input.orderId, input.expectedVersion);
   assertNotHandedOver(order);
+  // Parts already paid took their share of the old discount, so the bill must not be re-priced under them.
+  if ((await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) throw refuse('CONFLICT', 'This order already has payments');
   // The reason lives with the discount: clearing the discount clears it too.
   const why = input.discount ? input.why : undefined;
   const version = await bumpOrder(db, restaurantId, order.id, input.expectedVersion, {

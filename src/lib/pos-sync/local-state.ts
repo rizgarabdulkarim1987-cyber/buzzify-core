@@ -27,6 +27,8 @@ export interface LocalOrder {
   version: number;
   seatedAt: string | null;
   invoiceDiscount: Discount | null;
+  /** A part of the bill is already paid (from the snapshot): the offline till cannot take the rest. */
+  partPaid?: boolean;
   lines: SnapshotLine[];
   /** Operations of this order that have not been applied. */
   waiting: number;
@@ -116,6 +118,7 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       version: order.version,
       seatedAt: order.seatedAt,
       invoiceDiscount: order.invoiceDiscount,
+      partPaid: order.partPaid,
       // A snapshot cached by a device before offers reached the till has no `promoPerUnit`: those lines carry none.
       lines: order.lines.map((line) => ({ ...line, promoPerUnit: line.promoPerUnit ?? 0, options: [...line.options] })),
       waiting: 0,

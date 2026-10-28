@@ -231,6 +231,13 @@ export async function cancelLineIn(db: AnyDb, restaurantId: string, input: { lin
   if (count === 0) throw refuse('CONFLICT', 'The line is cancelled');
   // Cancelling the last line the kitchen was still cooking, or the last line not sent yet, can finish the order.
   const finalStatus = await settleStatus(db, restaurantId, order.id, status, version);
+  // A part of the bill is already paid and nothing unpaid is left: the order is complete (otherwise it could never close).
+  const unpaidLeft = await db.posOrderLine.count({ where: { orderId: order.id, restaurantId, cancelledAt: null, paymentId: null } });
+  if (unpaidLeft === 0 && (await db.posPayment.count({ where: { orderId: order.id, restaurantId } })) > 0) {
+    const closed = await db.posOrder.updateMany({ where: { id: order.id, restaurantId, version }, data: { status: 'PAID', version: { increment: 1 } } });
+    if (closed.count === 0) throw refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
+    return { orderId: order.id, lineId: line.id, version: version + 1, name: line.nameSnapshot, quantity: line.quantity, sent: line.sentAt !== null, from: order.status, to: 'PAID' as const };
+  }
   return { orderId: order.id, lineId: line.id, version, name: line.nameSnapshot, quantity: line.quantity, sent: line.sentAt !== null, from: order.status, to: finalStatus };
 }
 

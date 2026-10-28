@@ -138,7 +138,8 @@ function PayBody({
           orderId,
           expectedVersion: version,
           expectedTotal: total,
-          legs: toLegs(effective, references, tendered),
+          // A bill that came to nothing (comped) has no amounts to split: the single-method call records it.
+          ...(total === 0 ? { method: "CASH", amountReceived: 0 } : { legs: toLegs(effective, references, tendered) }),
           ...(lineIds ? { lineIds } : {}),
           ...(tip > 0 ? { tip: { amount: tip, method: tipMethod } } : {}),
         }),
