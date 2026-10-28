@@ -21,6 +21,26 @@ export function PrintProvider({ printers, children }: { printers: PrinterView[];
   return <PrintersContext.Provider value={printers}>{children}</PrintersContext.Provider>;
 }
 
+const SLIPS_KEY = 'pos.printedCancelSlips';
+
+/** Cancellation slips this device already printed (kept in the browser; a cleared browser at worst prints one again). */
+function printedSlips(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(SLIPS_KEY) ?? '[]') as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+function rememberSlip(printed: Set<string>, key: string): void {
+  printed.add(key);
+  try {
+    localStorage.setItem(SLIPS_KEY, JSON.stringify([...printed].slice(-200)));
+  } catch {
+    // Private mode or a full store: the slip may print again later, which is safe.
+  }
+}
+
 function bodyFont(): string {
   return typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily || 'sans-serif';
 }
@@ -63,15 +83,24 @@ export function usePrint() {
     [fail, format],
   );
 
-  /** Sends the round just sent to the kitchen to each section's printer; a section with no printer keeps the screen. */
+  /** Sends the round just sent to the kitchen to each section's printer; a section with no printer is said out loud, never dropped silently. */
   const printKitchenRound = useCallback(
     async (orderId: string) => {
       if (!latest.current.printers.some((p) => p.role === 'KITCHEN')) return;
       const fetched = await fetchOrderKitchenTicket({ orderId });
-      if (!fetched.ok) return;
-      for (const { sectionId, doc } of kitchenDocs(fetched.data, latest.current.t, format())) {
+      if (!fetched.ok) {
+        toast.error(latest.current.t('pos.print.ticketFailed'));
+        return;
+      }
+      const printed = printedSlips();
+      for (const { sectionId, doc, slipKey } of kitchenDocs(fetched.data, latest.current.t, format(), printed)) {
         const printer = printerForSection(latest.current.printers, sectionId);
-        if (printer) fail(await printDoc(doc as PaperDoc, printer, { drawer: false, font: bodyFont() }));
+        if (!printer) {
+          toast.error(latest.current.t('pos.print.noKitchenPrinter'));
+          continue;
+        }
+        const result = fail(await printDoc(doc as PaperDoc, printer, { drawer: false, font: bodyFont() }));
+        if (result.ok && slipKey) rememberSlip(printed, slipKey);
       }
     },
     [fail, format],

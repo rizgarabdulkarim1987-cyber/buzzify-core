@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { drawerShouldKick } from '@/server/domain/pos/drawer';
+import { drawerShouldKick, receiptPrintOptions } from '@/server/domain/pos/drawer';
 import { createPosArea, createPosTables, logPosReprint, openPosDrawer } from '@/server/studio/actions/pos';
 import { addPosLine, openPosOrder } from '@/server/studio/actions/pos-orders';
 import { payPosOrder } from '@/server/studio/actions/pos-payments';
@@ -73,6 +73,14 @@ describe('drawerShouldKick', () => {
   it('is false for card-only and for nothing', () => {
     expect(drawerShouldKick([{ method: 'QICARD' }, { method: 'ZAINCASH' }])).toBe(false);
     expect(drawerShouldKick([])).toBe(false);
+  });
+});
+
+describe('receiptPrintOptions', () => {
+  it('opens the drawer for a cash original only, never for a copy', () => {
+    expect(receiptPrintOptions(false, [{ method: 'CASH' }])).toEqual({ copy: false, drawer: true });
+    expect(receiptPrintOptions(true, [{ method: 'CASH' }])).toEqual({ copy: true, drawer: false });
+    expect(receiptPrintOptions(false, [{ method: 'QICARD' }])).toEqual({ copy: false, drawer: false });
   });
 });
 

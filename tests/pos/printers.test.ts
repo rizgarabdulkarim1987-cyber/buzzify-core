@@ -74,6 +74,8 @@ describe('savePosPrinter', () => {
   it('refuses a network address that is not host:port and an empty file address', async () => {
     expect(codeOf(await run(manager, savePosPrinter, { ...RECEIPT, address: '192.168.1.50' }))).toBe('INVALID');
     expect(codeOf(await run(manager, savePosPrinter, { ...RECEIPT, transport: 'FILE', address: '' }))).toBe('INVALID');
+    expect(codeOf(await run(manager, savePosPrinter, { ...RECEIPT, transport: 'FILE', address: '\\\\attacker.example\\share' }))).toBe('INVALID');
+    expect(codeOf(await run(manager, savePosPrinter, { ...RECEIPT, address: '8.8.8.8:9100' }))).toBe('INVALID');
     expect(codeOf(await run(manager, savePosPrinter, { ...RECEIPT, transport: 'FILE', address: '\\\\localhost\\XP80' }))).toBe('OK');
   });
 

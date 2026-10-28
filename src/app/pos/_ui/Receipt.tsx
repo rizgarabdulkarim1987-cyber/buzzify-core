@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { logPosReprint } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
-import { drawerShouldKick } from '@/server/domain/pos/drawer';
+import { receiptPrintOptions } from '@/server/domain/pos/drawer';
 import { settle } from '@/studio/settle';
 import { usePrint } from './print/PrintProvider';
 import type { Receipt as ReceiptData } from '@/server/pos/payments';
@@ -22,22 +22,26 @@ export function Receipt({ receipt, canRefund = false, autoPrint = false }: { rec
   const t = useT();
   const money = useMoney();
   const { hasReceiptPrinter, printReceipt } = usePrint();
-  const [problem, setProblem] = useState<string | null>(null);
+  const [problem, setProblem] = useState<{ message: string; copy: boolean } | null>(null);
   const [printing, setPrinting] = useState(false);
   const s = receipt.snapshot;
 
   // Arriving from a payment prints the original once, and opens the drawer if any of it was cash. The page never waits for it.
+  // `?print=1` is dropped from the address right away, so a reload or a restored tab does not print (and kick the drawer) again.
   useEffect(() => {
     if (!autoPrint || !hasReceiptPrinter || receipt.reversal || AUTO_PRINTED.has(receipt.paymentId)) return;
     AUTO_PRINTED.add(receipt.paymentId);
-    void printReceipt(receipt, { copy: false, drawer: drawerShouldKick(receipt.legs) }).then((result) => setProblem(result.ok ? null : result.message));
+    const address = new URL(window.location.href);
+    address.searchParams.delete('print');
+    window.history.replaceState(window.history.state, '', `${address.pathname}${address.search}`);
+    void printReceipt(receipt, receiptPrintOptions(false, receipt.legs)).then((result) => setProblem(result.ok ? null : { message: result.message, copy: false }));
   }, [autoPrint, hasReceiptPrinter, printReceipt, receipt]);
 
   const printPaper = async (copy: boolean) => {
     setPrinting(true);
-    const result = await printReceipt(receipt, { copy, drawer: !copy && drawerShouldKick(receipt.legs) });
+    const result = await printReceipt(receipt, receiptPrintOptions(copy, receipt.legs));
     setPrinting(false);
-    setProblem(result.ok ? null : result.message);
+    setProblem(result.ok ? null : { message: result.message, copy });
     if (copy && result.ok) await settle(() => logPosReprint({ paymentId: receipt.paymentId }));
   };
   return (
@@ -128,8 +132,8 @@ export function Receipt({ receipt, canRefund = false, autoPrint = false }: { rec
       <div className="flex flex-col gap-2 print:hidden">
         {problem ? (
           <div role="alert" className="flex flex-col gap-2 rounded-md border-2 border-danger p-3 text-base">
-            <span>{t('pos.print.failed', { message: problem })}</span>
-            <Button variant="secondary" size="lg" className="min-h-12" disabled={printing} onClick={() => void printPaper(false)}>
+            <span>{t('pos.print.failed', { message: problem.message })}</span>
+            <Button variant="secondary" size="lg" className="min-h-12" disabled={printing} onClick={() => void printPaper(problem.copy)}>
               {t('pos.print.retry')}
             </Button>
           </div>

@@ -74,6 +74,23 @@ describe('kitchenDocs', () => {
   });
 });
 
+describe('kitchenDocs cancel slips already printed', () => {
+  const ticket = {
+    orderNumber: 7, kind: 'DINE_IN', queueNumber: null, tableNumber: 2, areaName: null, cashierName: 'Ali', printedAt: new Date(0),
+    sheets: [{ sectionId: 's1', sectionName: 'Grill', batch: 2, sentAt: new Date(0), lines: [{ name: 'Kebab', quantity: 1, options: [], note: '' }] }],
+    cancelSlips: [{ sectionId: 's1', sectionName: 'Grill', lines: [{ name: 'Rice', quantity: 1, reason: 'out' }] }],
+  } as KitchenTicket;
+
+  it('names each slip, and prints the sheets only once its name was already printed', () => {
+    const first = kitchenDocs(ticket, t, fmt);
+    const key = first.find((d) => d.slipKey)?.slipKey;
+    expect(key).toBeTruthy();
+    const again = kitchenDocs(ticket, t, fmt, new Set([key as string]));
+    expect(again).toHaveLength(1);
+    expect(again[0].slipKey).toBeUndefined();
+  });
+});
+
 describe('shiftDoc', () => {
   it('lists opening float, sales, expenses and the count', () => {
     const summary = {

@@ -415,6 +415,8 @@ const posTill: Messages = {
   'pos.split.leftToPay': 'المتبقي للدفع',
   'pos.receipt.print': 'طباعة',
   'pos.print.failed': 'لم يُطبع الورق: {message}',
+  'pos.print.noKitchenPrinter': 'قسم بلا طابعة مطبخ، فلم تُطبع تذكرته. افتح تذكرة المطبخ للطلب.',
+  'pos.print.ticketFailed': 'تعذّرت قراءة تذكرة المطبخ فلم تُطبع. افتح تذكرة المطبخ للطلب.',
   'pos.print.retry': 'أعد المحاولة',
   'pos.print.copy': 'اطبع نسخة',
   'pos.print.slip': 'اطبع الكشف',

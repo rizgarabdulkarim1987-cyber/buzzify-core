@@ -107,6 +107,25 @@ describe('createScanner', () => {
     return { codes, key };
   }
 
+  it('says which keys it consumed, so the page can stop Enter from pressing the focused button', () => {
+    let now = 0;
+    const scanner = createScanner(() => undefined, () => now);
+    const press = (key: string, gap: number, targetIsField = false) => {
+      now += gap;
+      return scanner.key({ key, targetIsField });
+    };
+    expect(press('4', 10)).toBe(false); // the first character cannot be told from a person typing
+    expect(press('0', 10)).toBe(true); // a second one inside the gap is a burst
+    expect(press('0', 10)).toBe(true);
+    expect(press('6', 10)).toBe(true);
+    expect(press('Enter', 10)).toBe(true);
+    expect(press('Enter', 10)).toBe(false); // a lone Enter is the cashier's
+    press('4', 10);
+    press('0', 10);
+    expect(press('Enter', 10)).toBe(false); // too short to be a scan
+    expect(press('Enter', 10, true)).toBe(false);
+  });
+
   it('reads a fast burst ended by Enter as a scan', () => {
     const { codes, key } = typer();
     for (const k of ['4', '0', '0', '6']) key(k, 10);

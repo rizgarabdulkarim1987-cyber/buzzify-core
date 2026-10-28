@@ -9,28 +9,32 @@ export interface ScanKey {
 }
 
 /** Feeds key presses in; calls `onScan` with the code of each burst that ended with Enter. Text stays text, so leading zeros survive. */
-export function createScanner(onScan: (code: string) => void, now: () => number = Date.now): { key(event: ScanKey): void } {
+export function createScanner(onScan: (code: string) => void, now: () => number = Date.now): { key(event: ScanKey): boolean } {
   let buffer = '';
   let last: number | null = null;
   return {
+    /** True when the key belongs to a scan in progress (so the page must not also act on it: Enter would press the focused button). */
     key(event) {
       const at = now();
       if (event.targetIsField) {
         buffer = '';
         last = null;
-        return;
+        return false;
       }
       if (event.key === 'Enter') {
         const code = buffer;
         buffer = '';
         last = null;
-        if (code.length >= MIN_LENGTH) onScan(code);
-        return;
+        if (code.length < MIN_LENGTH) return false;
+        onScan(code);
+        return true;
       }
-      if (event.key.length !== 1) return;
-      if (last !== null && at - last > MAX_GAP_MS) buffer = '';
+      if (event.key.length !== 1) return false;
+      const inBurst = last !== null && at - last <= MAX_GAP_MS;
+      if (!inBurst) buffer = '';
       buffer += event.key;
       last = at;
+      return inBurst;
     },
   };
 }

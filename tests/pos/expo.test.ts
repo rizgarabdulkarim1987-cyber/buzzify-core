@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { groupExpo, type ExpoLine } from '@/server/domain/pos/expo';
+import { readExpo } from '@/server/pos/expo';
 import { createKitchenSection, createPosArea, createPosTables } from '@/server/studio/actions/pos';
 import { markPosLinesReady, sendPosToKitchen } from '@/server/studio/actions/pos-kitchen';
 import { addPosLine, openPosOrder } from '@/server/studio/actions/pos-orders';
@@ -121,6 +122,23 @@ describe('posExpo', () => {
     dataOf(await run(cashier, payPosOrder, { orderId: opened.orderId, expectedVersion: version, expectedTotal: 5000, amountReceived: 5000 }));
     expect(dataOf(await ask(manager, posExpo, {})).orders).toHaveLength(0);
     expect(sent).toBeDefined();
+  });
+
+  it('still shows a live order when the read is capped and finished paid orders fill the oldest lines', async () => {
+    const finished = dataOf(await run(cashier, openPosOrder, { tableId }));
+    const first = dataOf(await run(cashier, addPosLine, { orderId: finished.orderId, productId, quantity: 1, note: '', optionIds: [], expectedVersion: finished.version }));
+    dataOf(await run(cashier, sendPosToKitchen, { orderId: finished.orderId, expectedVersion: first.version }));
+    const lineIds = (await prisma().posOrderLine.findMany({ where: { orderId: finished.orderId } })).map((l) => l.id);
+    dataOf(await run(manager, markPosLinesReady, { lineIds }));
+    const version = (await prisma().posOrder.findFirstOrThrow({ where: { id: finished.orderId } })).version;
+    dataOf(await run(cashier, payPosOrder, { orderId: finished.orderId, expectedVersion: version, expectedTotal: 5000, amountReceived: 5000 }));
+
+    const live = dataOf(await run(cashier, openPosOrder, { tableId }));
+    const second = dataOf(await run(cashier, addPosLine, { orderId: live.orderId, productId, quantity: 1, note: '', optionIds: [], expectedVersion: live.version }));
+    dataOf(await run(cashier, sendPosToKitchen, { orderId: live.orderId, expectedVersion: second.version }));
+
+    const read = await readExpo(prisma(), a.id, { userId: manager.userId, role: 'MANAGER' }, new Date(), 1);
+    expect(read.orders.map((o) => o.orderId)).toEqual([live.orderId]);
   });
 
   it('is not for a kitchen member tied to one section', async () => {

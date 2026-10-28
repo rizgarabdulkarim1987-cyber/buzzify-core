@@ -16,7 +16,8 @@ export function useBarcodeScanner(onScan: (code: string) => void, enabled = true
     const scanner = createScanner((code) => latest.current(code));
     const handle = (event: KeyboardEvent) => {
       const target = event.target instanceof HTMLElement ? event.target : null;
-      scanner.key({ key: event.key, targetIsField: target !== null && (FIELDS.has(target.tagName) || target.isContentEditable) });
+      const consumed = scanner.key({ key: event.key, targetIsField: target !== null && (FIELDS.has(target.tagName) || target.isContentEditable) });
+      if (consumed) event.preventDefault();
     };
     window.addEventListener('keydown', handle);
     return () => window.removeEventListener('keydown', handle);

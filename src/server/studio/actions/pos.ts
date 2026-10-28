@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { guardedAi } from '@/server/ai/ai-error-code';
 import { menuImportInput } from '@/server/ai/menu-import';
 import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
+import { printerAddressAllowed } from '@/server/domain/pos/bridge-protocol';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { saveProductBasics } from '@/server/pos/catalog-edit';
 import { publishAfter } from '@/server/pos/catalog-publish';
@@ -331,7 +332,7 @@ export const savePosPrinter = defineAction({
       isDefault: z.boolean(),
       sectionId: idField.nullable(),
     })
-    .refine((input) => (input.transport === 'NETWORK' ? /^[^\s/:]+:\d{1,5}$/.test(input.address) : input.address !== ''), { message: 'Enter the printer address', path: ['address'] }),
+    .refine((input) => printerAddressAllowed(input.transport, input.address), { message: 'Enter the printer address', path: ['address'] }),
   target: () => TILL,
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);

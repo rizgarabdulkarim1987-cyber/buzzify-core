@@ -415,6 +415,8 @@ const posTill: Messages = {
   'pos.split.leftToPay': 'Left to pay',
   'pos.receipt.print': 'Print',
   'pos.print.failed': 'The paper did not print: {message}',
+  'pos.print.noKitchenPrinter': 'A section has no kitchen printer, so its ticket was not printed. Open the order\'s kitchen ticket.',
+  'pos.print.ticketFailed': 'The kitchen ticket could not be read, so it was not printed. Open the order\'s kitchen ticket.',
   'pos.print.retry': 'Try again',
   'pos.print.copy': 'Print a copy',
   'pos.print.slip': 'Print the slip',

@@ -7,15 +7,22 @@ import { KITCHEN_QUEUE_WINDOW_HOURS, QUEUE_LIMIT, readKitchenScope, type Kitchen
  * The pass: every order with food sent to the kitchen, by section, so the person at the pass sees when a whole table is
  * ready. Only for those who see every section (a kitchen member tied to one section has the kitchen screen).
  */
-export async function readExpo(db: AnyDb, restaurantId: string, actor: KitchenActor, now = new Date()): Promise<{ orders: ExpoOrder[]; screen: boolean }> {
+export async function readExpo(db: AnyDb, restaurantId: string, actor: KitchenActor, now = new Date(), limit = QUEUE_LIMIT * 5): Promise<{ orders: ExpoOrder[]; screen: boolean }> {
   const scope = await readKitchenScope(db, restaurantId, actor);
   if (scope.sectionId !== null) throw new StudioError('FORBIDDEN');
   if (!scope.screen) return { orders: [], screen: false };
   const oldest = new Date(now.getTime() - KITCHEN_QUEUE_WINDOW_HOURS * 3_600_000);
   const rows = await db.posOrderLine.findMany({
-    where: { restaurantId, sentAt: { not: null, gte: oldest }, cancelledAt: null, order: { status: { notIn: ['REJECTED', 'CANCELLED'] } } },
+    where: {
+      restaurantId,
+      sentAt: { not: null, gte: oldest },
+      cancelledAt: null,
+      order: { status: { notIn: ['REJECTED', 'CANCELLED'] } },
+      // A paid order whose food is all ready is gone from the pass (groupExpo drops it too); filtering it here keeps it from using up the cap.
+      NOT: { order: { status: 'PAID', lines: { none: { sentAt: { not: null }, cancelledAt: null, readyAt: null } } } },
+    },
     orderBy: [{ sentAt: 'asc' }, { id: 'asc' }],
-    take: QUEUE_LIMIT * 5,
+    take: limit,
     select: {
       orderId: true,
       sectionId: true,

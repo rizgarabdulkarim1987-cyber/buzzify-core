@@ -78,7 +78,7 @@ export function receiptDoc(receipt: Receipt, t: PaperText, fmt: PaperFormat, opt
 }
 
 /** One paper per kitchen sheet and per cancellation slip, each tagged with the section whose printer takes it. */
-export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperFormat): { sectionId: string | null; doc: PaperDoc }[] {
+export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperFormat, printedSlips: ReadonlySet<string> = new Set()): { sectionId: string | null; doc: PaperDoc; slipKey?: string }[] {
   const head = join([
     ticket.kind !== 'DINE_IN' && ticket.queueNumber !== null
       ? t(ticket.kind === 'DELIVERY' ? 'pos.ticket.delivery' : 'pos.ticket.takeaway', { n: fmt.number(ticket.queueNumber) })
@@ -88,7 +88,7 @@ export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperForma
     ticket.areaName,
     ticket.cashierName,
   ]);
-  const docs: { sectionId: string | null; doc: PaperDoc }[] = [];
+  const docs: { sectionId: string | null; doc: PaperDoc; slipKey?: string }[] = [];
   for (const sheet of ticket.sheets) {
     const rows: PaperRow[] = [center(`${sheet.sectionName} · ${t('pos.ticket.order', { n: fmt.number(ticket.orderNumber) })}`, { size: 2, bold: true })];
     if (head) rows.push(center(head));
@@ -101,7 +101,10 @@ export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperForma
     rows.push({ kind: 'gap' });
     docs.push({ sectionId: sheet.sectionId, doc: { rows } });
   }
+  // A cancellation stays on the ticket until the kitchen screen acknowledges it; a kitchen that only prints must not get it on every later round.
   for (const slip of ticket.cancelSlips) {
+    const slipKey = `${ticket.orderNumber}|${slip.sectionId ?? ''}|${slip.lines.map((l) => `${l.quantity}×${l.name}:${l.reason}`).join(';')}`;
+    if (printedSlips.has(slipKey)) continue;
     const rows: PaperRow[] = [center(`${t('pos.ticket.cancelled')} · ${slip.sectionName}`, { size: 2, bold: true })];
     if (head) rows.push(center(head));
     rows.push({ kind: 'rule' });
@@ -110,7 +113,7 @@ export function kitchenDocs(ticket: KitchenTicket, t: PaperText, fmt: PaperForma
       if (line.reason) rows.push(plain(line.reason));
     }
     rows.push({ kind: 'gap' });
-    docs.push({ sectionId: slip.sectionId, doc: { rows } });
+    docs.push({ sectionId: slip.sectionId, doc: { rows }, slipKey });
   }
   return docs;
 }

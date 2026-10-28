@@ -415,6 +415,8 @@ const posTill: Messages = {
   'pos.split.leftToPay': 'ماوە بۆ پێدان',
   'pos.receipt.print': 'چاپکردن',
   'pos.print.failed': 'کاغەزەکە چاپ نەکرا: {message}',
+  'pos.print.noKitchenPrinter': 'بەشێک پرینتەری مەتبەخی نییە، بۆیە تیکێتەکەی چاپ نەکرا. تیکێتی مەتبەخی داواکارییەکە بکەرەوە.',
+  'pos.print.ticketFailed': 'تیکێتی مەتبەخ نەخوێندرایەوە، بۆیە چاپ نەکرا. تیکێتی مەتبەخی داواکارییەکە بکەرەوە.',
   'pos.print.retry': 'دووبارە هەوڵ بدەرەوە',
   'pos.print.copy': 'ڕوونووسێک چاپ بکە',
   'pos.print.slip': 'کەشفەکە چاپ بکە',

@@ -17,6 +17,18 @@ export function parseTarget(target) {
   throw new Error('bad target');
 }
 
+/** Mirrors printerAddressAllowed in src/server/domain/pos/bridge-protocol.ts: a target must be a printer, never any file or host. */
+export function targetAllowed(target, extraPorts = []) {
+  const parsed = parseTarget(target);
+  if (parsed.transport === 'FILE') return /^\\\\(?:localhost|127\.0\.0\.1)\\[A-Za-z0-9 _-]+(?:\.[A-Za-z0-9 _-]+)*$/.test(parsed.path) && parsed.path.length <= 100;
+  const match = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(parsed.host);
+  if (!match) return false;
+  const [a, b, c, d] = match.slice(1).map(Number);
+  if ([a, b, c, d].some((part) => part > 255)) return false;
+  const privateRange = a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+  return privateRange && ((parsed.port >= 9100 && parsed.port <= 9109) || extraPorts.includes(parsed.port));
+}
+
 export async function defaultSend(target, bytes) {
   const parsed = parseTarget(target);
   if (parsed.transport === 'FILE') {
@@ -31,7 +43,7 @@ export async function defaultSend(target, bytes) {
   });
 }
 
-export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSend } = {}) {
+export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSend, extraPorts = [] } = {}) {
   const server = createServer(async (req, res) => {
     const origin = req.headers.origin;
     const allowed = typeof origin === 'string' && allowedOrigins.includes(origin);
@@ -60,7 +72,7 @@ export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSe
     let job;
     try {
       job = JSON.parse(Buffer.concat(chunks).toString('utf8'));
-      parseTarget(job.target);
+      if (!targetAllowed(job.target, extraPorts)) throw new Error('target is not a printer');
       if (typeof job.dataBase64 !== 'string') throw new Error('bad data');
     } catch {
       return reply(400, { ok: false, error: 'bad request' });
@@ -86,15 +98,17 @@ export function startBridge({ port = 9101, allowedOrigins = [], send = defaultSe
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const origins = [];
+  const extraPorts = [];
   let port = 9101;
   for (let i = 2; i < process.argv.length; i += 1) {
     if (process.argv[i] === '--origin') origins.push(process.argv[++i]);
     else if (process.argv[i] === '--port') port = Number(process.argv[++i]);
+    else if (process.argv[i] === '--printer-port') extraPorts.push(Number(process.argv[++i]));
   }
   if (origins.length === 0) {
     console.error('Usage: node bridge.mjs --origin https://your-till-address [--port 9101]');
     process.exit(1);
   }
-  const running = await startBridge({ port, allowedOrigins: origins });
+  const running = await startBridge({ port, allowedOrigins: origins, extraPorts });
   console.log(`Buzzify print bridge listening on http://127.0.0.1:${running.port} for ${origins.join(', ')}`);
 }
