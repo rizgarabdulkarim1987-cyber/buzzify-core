@@ -68,6 +68,7 @@ export const POS_TEXT = {
   'Register at most 20 devices': 'error.text.posTooManyDevices',
   'Enter a device name': 'error.text.posDeviceName',
   'This payment was already reversed': 'error.text.posAlreadyReversed',
+  'Reverse the later parts of this bill first': 'error.text.posReverseLaterFirst',
   'This payment method is switched off': 'error.text.posMethodOff',
   'The dollar rate changed. Check the bill and try again.': 'error.text.posUsdRateChanged',
   'The dollars handed over are less than the amount': 'error.text.posUsdShort',

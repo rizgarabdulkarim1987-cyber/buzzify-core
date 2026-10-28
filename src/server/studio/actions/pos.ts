@@ -395,6 +395,22 @@ export const logPosReprint = defineAction({
     }),
 });
 
+/** A copy printed while the till was offline, recorded when it syncs: the order's payment, found by the order. */
+export const logPosOrderReprint = defineAction({
+  name: 'pos.logOrderReprint',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField }),
+  target: () => TILL,
+  run: (ctx, { orderId }) =>
+    ctx.transaction(async (tx) => {
+      const payment = await tx.posPayment.findFirst({ where: { orderId }, orderBy: { paidAt: 'desc' }, select: { id: true } });
+      if (!payment) throw new StudioError('NOT_FOUND');
+      ctx.audit({ action: 'pos.receipt.reprint', entityType: 'PosPayment', entityId: payment.id, changes: {} });
+      return { logged: true as const };
+    }),
+});
+
 /** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
 export const posSetCategorySection = defineAction({
   name: 'pos.setCategorySection',
@@ -451,18 +467,23 @@ export const posSetProductBarcode = defineAction({
   run: (ctx, { productId, barcode: typed }) => {
     const { restaurantId } = till(ctx);
     const barcode = typed === '' ? null : typed;
-    return ctx.transaction(async (tx) => {
-      if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
-      if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
-      const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
-      if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
-      else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
-      if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
-      return { productId };
-    }).catch((error: unknown) => {
-      // Two saves of one code at once: the database's unique index refuses the second, which says what the pre-check says.
-      throw isUniqueViolation(error) ? refuse('CONFLICT', 'This barcode belongs to another product') : error;
-    });
+    const attempt = () =>
+      ctx.transaction(async (tx) => {
+        if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+        if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
+        const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
+        if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
+        else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
+        if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
+        return { productId };
+      });
+    // A unique violation means a save raced this one: either for the same product (its row now exists) or for the same code
+    // (another product now holds it). One more attempt tells them apart with the ordinary checks, so the message is always the true one.
+    return attempt()
+      .catch((error: unknown) => (isUniqueViolation(error) ? attempt() : Promise.reject(error)))
+      .catch((error: unknown) => {
+        throw isUniqueViolation(error) ? refuse('CONFLICT', 'This barcode belongs to another product') : error;
+      });
   },
 });
 

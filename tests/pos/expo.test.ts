@@ -1,5 +1,5 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
-import { groupExpo, type ExpoLine } from '@/server/domain/pos/expo';
+import { EXPO_SERVED_AFTER_MINUTES, groupExpo, type ExpoLine } from '@/server/domain/pos/expo';
 import { readExpo } from '@/server/pos/expo';
 import { createKitchenSection, createPosArea, createPosTables } from '@/server/studio/actions/pos';
 import { markPosLinesReady, sendPosToKitchen } from '@/server/studio/actions/pos-kitchen';
@@ -54,6 +54,47 @@ describe('groupExpo', () => {
       line({ orderId: 'paid-cooking', orderStatus: 'PAID', ready: false }),
     ]);
     expect(grouped.map((o) => o.orderId)).toEqual(['paid-cooking']);
+  });
+
+  describe('a table already served', () => {
+    const now = at(40);
+    it('sinks a dine-in table whose food went out long ago below the tables still waiting, without dropping it', () => {
+      const grouped = groupExpo(
+        [
+          line({ orderId: 'served', orderNumber: 1, sentAt: at(0), ready: true, readyAt: at(10) }),
+          line({ orderId: 'cooking', orderNumber: 2, sentAt: at(20), ready: false }),
+          line({ orderId: 'fresh', orderNumber: 3, sentAt: at(25), ready: true, readyAt: at(38) }),
+        ],
+        now,
+      );
+      expect(grouped.map((o) => o.orderId)).toEqual(['fresh', 'cooking', 'served']);
+      expect(grouped.map((o) => o.served)).toEqual([false, false, true]);
+    });
+
+    it('counts a table that asked for the bill as served, however recent its food', () => {
+      const grouped = groupExpo(
+        [line({ orderId: 'bill', orderStatus: 'BILL_REQUESTED', sentAt: at(0), ready: true, readyAt: at(39) }), line({ orderId: 'cooking', sentAt: at(30) })],
+        now,
+      );
+      expect(grouped.map((o) => o.orderId)).toEqual(['cooking', 'bill']);
+    });
+
+    it('counts a takeaway or delivery handed over as served', () => {
+      const grouped = groupExpo(
+        [
+          line({ orderId: 'out', kind: 'DELIVERY', fulfillment: 'OUT', sentAt: at(0), ready: true, readyAt: at(39) }),
+          line({ orderId: 'shelf', kind: 'TAKEAWAY', fulfillment: 'READY', sentAt: at(5), ready: true, readyAt: at(39) }),
+          line({ orderId: 'cooking', sentAt: at(30) }),
+        ],
+        now,
+      );
+      expect(grouped.map((o) => o.orderId)).toEqual(['shelf', 'cooking', 'out']);
+    });
+
+    it(`keeps a table ready for under ${EXPO_SERVED_AFTER_MINUTES} minutes on top, as ready to run`, () => {
+      const grouped = groupExpo([line({ orderId: 'cooking', sentAt: at(0) }), line({ orderId: 'ready', sentAt: at(5), ready: true, readyAt: at(40 - EXPO_SERVED_AFTER_MINUTES + 1) })], now);
+      expect(grouped.map((o) => o.orderId)).toEqual(['ready', 'cooking']);
+    });
   });
 
   it('names a section without one by an empty name, last', () => {

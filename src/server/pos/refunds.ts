@@ -18,6 +18,21 @@ export interface ReverseInput {
 const alreadyReversed = (): StudioError => refuse('CONFLICT', 'This payment was already reversed');
 
 /**
+ * Split parts round cumulatively, so an earlier part can carry the rounding of a later one (two guests of 600 at a step of
+ * 1000 pay 1000 and 0). Reversing such a part while a later part still stands would refund the later guest's share too and
+ * leave their food unpaid, so it waits until the later parts are reversed. Without rounding every part paid exactly its own
+ * share and can be reversed in any order.
+ */
+async function carriesLaterRounding(db: AnyDb, restaurantId: string, orderId: string, payment: { id: string; part: number; totalsSnapshot: unknown }): Promise<boolean> {
+  const later = await db.posPayment.findMany({
+    where: { orderId, restaurantId, part: { gt: payment.part }, reversal: { is: null } },
+    select: { id: true, totalsSnapshot: true },
+  });
+  if (later.length === 0) return false;
+  return [payment, ...later].some((p) => parseTotalsSnapshot(p.id, p.totalsSnapshot).rounding !== 0);
+}
+
+/**
  * Reverses a whole payment as a counter-entry: one `PosPaymentReversal` per payment, for the payment's own method and its
  * snapshot total (never retyped). The payment row and the order's status are untouched; the order's version moves by one
  * (compare-and-set on `expectedVersion`, so two people reversing at once cannot both win). The reverser needs an open shift
@@ -33,6 +48,8 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
   const payment = payments[0];
   if (!payment) throw refuse('CONFLICT', 'The order is not paid yet');
   if (await db.posPaymentReversal.findFirst({ where: { paymentId: payment.id, restaurantId }, select: { id: true } })) throw alreadyReversed();
+  const amount = parseTotalsSnapshot(payment.id, payment.totalsSnapshot).total;
+  if (await carriesLaterRounding(db, restaurantId, order.id, payment)) throw refuse('CONFLICT', 'Reverse the later parts of this bill first');
 
   const shiftId = await lockOpenShiftOf(db, restaurantId, input.userId);
   const { count } = await db.posOrder.updateMany({
@@ -41,7 +58,6 @@ export async function reversePaymentIn(db: AnyDb, restaurantId: string, input: R
   });
   if (count === 0) throw refuse('CONFLICT', 'The order was changed by someone else. Reload it and try again.');
 
-  const amount = parseTotalsSnapshot(payment.id, payment.totalsSnapshot).total;
   // Only the cash that stayed in the drawer goes back out of it: the cash legs (and a cash tip is the guest's to keep).
   const cashPart = legsOf(payment, amount)
     .filter((leg) => leg.method === 'CASH')

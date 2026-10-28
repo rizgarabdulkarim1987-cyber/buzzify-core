@@ -157,15 +157,25 @@ const usdOf = (payment: UsdLegs) => {
 /**
  * What cash in dollars did to a drawer. A sale puts its dollars in and sends its dinar change out; reversing it is the exact
  * opposite (the dollars go back out at what was handed over, the dinar change comes back), so the two drawers stay balanced.
+ *
+ * A shift can reverse a dollar sale from another shift while its own drawer took fewer dollars (often none). Those dollars
+ * cannot have come out of this drawer, which has no dollar float, so they were paid from outside it (the safe, another
+ * drawer). Decision: the expected count never goes below zero (a negative count would turn a correct count of 0 into a fake
+ * "over"), and the excess is reported apart as `beyondDrawer` so a manager sees it and where to look. The true net is
+ * `expectedUsd - beyondDrawer`. Order is not modelled: a refund taken from dollars received later in the same shift counts as
+ * paid from the drawer.
  */
 export function usdDrawer(sold: readonly UsdLegs[], reversed: readonly UsdLegs[]) {
   const sales = sold.map(usdOf);
   const refunds = reversed.map(usdOf);
   const sum = (rows: { dollars: number; change: number }[], key: 'dollars' | 'change') => rows.reduce((total, row) => total + row[key], 0);
+  const net = sum(sales, 'dollars') - sum(refunds, 'dollars');
   return {
     received: sum(sales, 'dollars'),
     refunded: sum(refunds, 'dollars'),
-    expectedUsd: sum(sales, 'dollars') - sum(refunds, 'dollars'),
+    expectedUsd: Math.max(0, net),
+    /** Dollars refunded beyond what the drawer took: paid from outside it. */
+    beyondDrawer: Math.max(0, -net),
     /** Dinars that left the drawer as change for dollars, net of the change a reversal took back. */
     dinarChange: sum(sales, 'change') - sum(refunds, 'change'),
   };

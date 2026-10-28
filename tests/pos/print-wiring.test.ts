@@ -82,6 +82,12 @@ describe('receiptPrintOptions', () => {
     expect(receiptPrintOptions(true, [{ method: 'CASH' }])).toEqual({ copy: true, drawer: false });
     expect(receiptPrintOptions(false, [{ method: 'QICARD' }])).toEqual({ copy: false, drawer: false });
   });
+
+  it('keeps the drawer shut for a split part of 0 (the rounding carried by an earlier part)', () => {
+    expect(receiptPrintOptions(false, [{ method: 'CASH', amount: 0 }])).toEqual({ copy: false, drawer: false });
+    expect(receiptPrintOptions(false, [{ method: 'CASH', amount: 1000 }])).toEqual({ copy: false, drawer: true });
+    expect(refundOpensDrawer([{ method: 'CASH', amount: 0 }])).toBe(false);
+  });
 });
 
 describe('openPosDrawer', () => {

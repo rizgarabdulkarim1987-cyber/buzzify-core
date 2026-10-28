@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { toast } from 'sonner';
 import { currentKey, deriveLocalState, localTotals, payableOf, type LocalOrder } from '@/lib/pos-sync/local-state';
 import type { OpDraft } from '@/lib/pos-sync/queue';
-import { formatNumber, ltr } from '@/lib/pos-format';
+import { formatNumber, formatStamp, ltr } from '@/lib/pos-format';
 import { pickName, quickCash } from '@/lib/pos-view';
 import { parseAmount } from '@/server/domain/pos/cash';
 import { offerPerUnit } from '@/server/domain/pos/line-offer';
@@ -18,6 +19,8 @@ import { Input } from '@/studio/ui/Input';
 import { Textarea } from '@/studio/ui/Textarea';
 import { OptionsSheet, type Chosen } from '../OptionsSheet';
 import { useProductOffer } from '../offers';
+import { canOpenOfflineDrawer, openOfflineDrawer, offlinePrintTargets, printOfflineReceipt, printOfflineRound } from '../print/offline-print';
+import { printFailureText, type PrintResult } from '../print/print-client';
 import { useBarcodeScanner } from '../use-barcode-scanner';
 import { useMoney } from '../money';
 import { QueuePanel } from './QueuePanel';
@@ -84,7 +87,37 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
   const t = useT();
   const sync = useSync();
   const [message, setMessage] = useState<string | null>(null);
+  const [drawerDialog, setDrawerDialog] = useState(false);
+  const [drawerReason, setDrawerReason] = useState('');
+  // A bridge failure is said inside the dialog, where the cashier is looking, not on the board behind it.
+  const [drawerProblem, setDrawerProblem] = useState<string | null>(null);
+  const [drawerPending, setDrawerPending] = useState(false);
+  const drawerBusy = useRef(false);
   const snapshot = sync.snapshot!;
+  const drawerOffered = canOpenOfflineDrawer(snapshot);
+
+  // The drawer opens through the bridge at once; the audit note is queued and written when the device syncs. A second click
+  // while the first is on its way does nothing, so the drawer kicks once and one note is queued.
+  const openDrawer = async () => {
+    if (drawerBusy.current) return;
+    drawerBusy.current = true;
+    setDrawerPending(true);
+    try {
+      const result = await openOfflineDrawer(snapshot);
+      if (!result.ok) {
+        setDrawerProblem(t('pos.print.failed', { message: printFailureText(result, t) }));
+        return;
+      }
+      await sync.enqueue({ kind: 'drawerOpen', payload: { reason: drawerReason.trim() } });
+      setDrawerDialog(false);
+      setDrawerReason('');
+      setDrawerProblem(null);
+      toast.success(t('pos.drawer.opened'));
+    } finally {
+      drawerBusy.current = false;
+      setDrawerPending(false);
+    }
+  };
 
   const open = async (tableId: string) => {
     const result = await sync.enqueue({ kind: 'openOrder', payload: { tableId } });
@@ -100,6 +133,38 @@ function Board({ local, onPick }: { local: ReturnType<typeof deriveLocalState>; 
         </p>
       ) : null}
       {!snapshot.openShift ? <p className="text-muted">{t('pos.offline.noShift')}</p> : null}
+      {drawerOffered ? (
+        <div>
+          <Button size="lg" className="min-h-12" onClick={() => (setDrawerProblem(null), setDrawerDialog(true))}>
+            {t('pos.drawer.open')}
+          </Button>
+        </div>
+      ) : null}
+      <Dialog
+        open={drawerDialog}
+        onOpenChange={setDrawerDialog}
+        title={t('pos.drawer.title')}
+        footer={
+          <>
+            <Button className="min-h-12" onClick={() => setDrawerDialog(false)}>
+              {t('pos.offline.close')}
+            </Button>
+            <Button variant="primary" className="min-h-12" disabled={drawerPending || drawerReason.trim() === ''} onClick={() => void openDrawer()}>
+              {t('pos.drawer.open')}
+            </Button>
+          </>
+        }
+      >
+        {drawerProblem ? (
+          <p role="alert" className="rounded-md border border-danger bg-danger-wash px-3 py-2 text-sm text-text">
+            {drawerProblem}
+          </p>
+        ) : null}
+        <label className="flex flex-col gap-1 text-sm text-text">
+          {t('pos.drawer.reason')}
+          <Textarea dir="auto" value={drawerReason} onChange={(e) => setDrawerReason(e.target.value)} maxLength={200} />
+        </label>
+      </Dialog>
       {snapshot.areas.map((area) => (
         <section key={area.id} className="flex flex-col gap-2">
           <h2 dir="auto" className="text-base font-semibold text-text">
@@ -154,6 +219,20 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
 
   const bill = localTotals(order, snapshot.rates);
   const totals = { ...bill, ...payableOf(bill, snapshot.rates) };
+  const { receipt: receiptPrinter } = offlinePrintTargets(snapshot);
+  const tableNumber = snapshot.areas.flatMap((area) => area.tables).find((table) => table.id === order.tableId)?.number ?? null;
+  const printContext = (target: LocalOrder) => ({
+    snapshot,
+    order: target,
+    tableNumber,
+    t,
+    fmt: { money, number: formatNumber, stamp: formatStamp },
+    font: typeof document === 'undefined' ? 'sans-serif' : getComputedStyle(document.body).fontFamily || 'sans-serif',
+  });
+  // A failed print never undoes the sale: it is said out loud, and the browser's print dialog is still there.
+  const reportPrint = (result: PrintResult) => {
+    if (!result.ok) setMessage(t('pos.print.failed', { message: printFailureText(result, t) }));
+  };
   const finished = order.paid !== null || order.cancelled;
   const ref = order.serverId ? { id: order.serverId } : { op: order.key.slice(3) };
   const product = catalog?.products.find((p) => p.id === picked) ?? null;
@@ -234,7 +313,22 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
             {t('pos.offline.paid', { total: money(order.paid.total), change: money(order.paid.change) })}
           </p>
           <p className="text-sm text-muted">{t('pos.offline.paidProvisional')}</p>
-          <Button size="lg" className="min-h-12 self-start print:hidden" onClick={() => window.print()}>
+          <Button
+            size="lg"
+            className="min-h-12 self-start print:hidden"
+            onClick={async () => {
+              // The receipt printer takes it silently (a copy: no drawer); the browser's print dialog is the way out when there is none or it fails.
+              if (receiptPrinter) {
+                const result = await printOfflineReceipt(printContext(order), { copy: true, drawer: false });
+                if (result.ok) {
+                  await queue({ kind: 'receiptCopy', orderRef: ref, expectedVersion: order.version, payload: {} });
+                  return;
+                }
+                reportPrint(result);
+              }
+              window.print();
+            }}
+          >
             {t('pos.offline.print')}
           </Button>
         </div>
@@ -243,7 +337,10 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
       {!finished ? (
         <>
           <div className="flex flex-wrap gap-2 print:hidden">
-            <Button size="lg" className="min-h-12" onClick={() => void queue(withRef('sendToKitchen'))} disabled={!order.lines.some((l) => !l.sent && !l.cancelled)}>
+            <Button size="lg" className="min-h-12" onClick={async () => {
+                const before = order;
+                if ((await queue(withRef('sendToKitchen'))) && snapshot.kitchen.print) for (const result of await printOfflineRound(printContext(before))) reportPrint(result);
+              }} disabled={!order.lines.some((l) => !l.sent && !l.cancelled)}>
               {t('pos.offline.send')}
             </Button>
             <Button size="lg" className="min-h-12" onClick={() => void queue(withRef('requestBill'))} disabled={order.lines.length === 0 || order.status === 'BILL_REQUESTED'}>
@@ -347,7 +444,10 @@ function OrderView({ order, onBack }: { order: LocalOrder; onBack: () => void })
               disabled={!canConfirmPay}
               data-testid="offline-pay-confirm"
               onClick={async () => {
-                if (amount !== null && (await queue({ kind: 'payCash', orderRef: ref, expectedVersion: order.version, payload: { expectedTotal: totals.total, amountReceived: amount } }))) setDialog(null);
+                if (amount === null || !(await queue({ kind: 'payCash', orderRef: ref, expectedVersion: order.version, payload: { expectedTotal: totals.total, amountReceived: amount } }))) return;
+                setDialog(null);
+                // The sale is queued; the original prints now and opens the drawer (an offline sale is always cash). A failure is shown, the sale stands.
+                if (receiptPrinter) reportPrint(await printOfflineReceipt(printContext({ ...order, paid: { total: totals.total, amountReceived: amount, change: amount - totals.total } }), { copy: false, drawer: true }));
               }}
             >
               {t('pos.offline.confirm')}

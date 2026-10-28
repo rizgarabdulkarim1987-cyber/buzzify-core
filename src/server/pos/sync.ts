@@ -7,6 +7,7 @@ import { readOrderView } from '@/server/pos/orders';
 import { findStoredOperation, payloadHash } from '@/server/pos/sync-operation';
 import { sendPosToKitchen } from '@/server/studio/actions/pos-kitchen';
 import { addPosLine, cancelPosOrder, openPosOrder, requestPosBill } from '@/server/studio/actions/pos-orders';
+import { logPosOrderReprint, openPosDrawer } from '@/server/studio/actions/pos';
 import { payPosOrder } from '@/server/studio/actions/pos-payments';
 import type { Actor } from '@/server/studio/auth/actor';
 import { runAction, type ActionDef, type RequestMeta } from '@/server/studio/framework/action';
@@ -25,6 +26,8 @@ const ACTIONS = {
   requestBill: requestPosBill,
   cancelOrder: cancelPosOrder,
   payCash: payPosOrder,
+  drawerOpen: openPosDrawer,
+  receiptCopy: logPosOrderReprint,
 } as unknown as Record<OpKind, ActionDef<unknown, unknown>>;
 
 const TEXT = {
@@ -40,7 +43,10 @@ const TEXT = {
 function inputFor(op: Op, orderId: string): unknown {
   switch (op.kind) {
     case 'openOrder':
+    case 'drawerOpen':
       return op.payload;
+    case 'receiptCopy':
+      return { orderId };
     case 'addLine':
       return { orderId, expectedVersion: op.expectedVersion, ...op.payload, clientAt: op.clientAt };
     case 'sendToKitchen':
@@ -55,7 +61,7 @@ function inputFor(op: Op, orderId: string): unknown {
 
 /** What identifies the request for the same-id check: everything but the id, the device and the time. */
 function hashed(op: Op): unknown {
-  return op.kind === 'openOrder' ? { kind: op.kind, payload: op.payload } : { kind: op.kind, orderRef: op.orderRef, expectedVersion: op.expectedVersion, payload: op.payload };
+  return op.kind === 'openOrder' || op.kind === 'drawerOpen' ? { kind: op.kind, payload: op.payload } : { kind: op.kind, orderRef: op.orderRef, expectedVersion: op.expectedVersion, payload: op.payload };
 }
 
 const refKey = (ref: OrderRef): string => ('id' in ref ? `id:${ref.id}` : `op:${ref.op}`);
@@ -122,7 +128,7 @@ export async function applyOperations(ctx: SyncContext, deviceId: string, raw: r
     }
     if (code === 'NOT_FOUND') {
       if (op.kind === 'addLine' && order) return error(op.operationId, 'productUnavailable');
-      return error(op.operationId, op.kind === 'openOrder' || order ? 'invalid' : 'unknownRef');
+      return error(op.operationId, op.kind === 'openOrder' || op.kind === 'drawerOpen' || order ? 'invalid' : 'unknownRef');
     }
     if (message === TEXT.locked) return error(op.operationId, 'locked', { currentVersion: order?.version ?? null, orderStatus: order?.status ?? null });
     if (code === 'CONFLICT' && order && 'expectedVersion' in op && (message === TEXT.stale || order.version !== op.expectedVersion)) {
@@ -136,7 +142,7 @@ export async function applyOperations(ctx: SyncContext, deviceId: string, raw: r
     const parsed = operationSchema.safeParse(item);
     if (!parsed.success) return { answer: error(operationIdOf(item), 'invalid'), key: null };
     const op = parsed.data;
-    const key = op.kind === 'openOrder' ? `op:${op.operationId}` : refKey(op.orderRef);
+    const key = op.kind === 'openOrder' || op.kind === 'drawerOpen' ? `op:${op.operationId}` : refKey(op.orderRef);
     if (op.deviceId !== deviceId) return { answer: error(op.operationId, 'invalid'), key };
 
     const stored = await findStoredOperation(db, restaurantId, op.operationId);
@@ -144,7 +150,7 @@ export async function applyOperations(ctx: SyncContext, deviceId: string, raw: r
     if (failed.has(key)) return { answer: { operationId: op.operationId, status: 'skipped' }, key };
 
     let orderId = '';
-    if (op.kind !== 'openOrder') {
+    if (op.kind !== 'openOrder' && op.kind !== 'drawerOpen') {
       if ('id' in op.orderRef) orderId = op.orderRef.id;
       else {
         const creator = await findStoredOperation(db, restaurantId, op.orderRef.op);

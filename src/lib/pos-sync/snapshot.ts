@@ -1,6 +1,7 @@
 import type { Locale } from '@/lib/locale';
 import type { OrderStatus } from '@/server/domain/pos/order-state';
 import type { Discount, Rates } from '@/server/domain/pos/totals';
+import type { PrinterView } from '@/server/pos/printers';
 import type { TillCatalog } from '@/server/pos/till-catalog';
 
 /**
@@ -48,4 +49,8 @@ export interface SyncSnapshot {
   /** Live dine-in orders, one per table at most. */
   orders: SnapshotOrder[];
   openShift: { id: string } | null;
+  /** The restaurant's printers, so the offline till can print through the bridge. Absent in a snapshot stored before this existed. */
+  printers?: PrinterView[];
+  /** What the receipt prints at its top and bottom. Absent in an older stored snapshot. */
+  business?: { name: string; address: string; phone: string; taxNumber: string; footer: string };
 }
