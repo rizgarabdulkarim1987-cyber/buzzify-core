@@ -130,6 +130,7 @@ const ar: Messages = {
   'pos.method.ZAINCASH': 'زين كاش',
   'pos.method.FIB': 'المصرف العراقي الأول',
   'pos.method.QICARD': 'كي كارد',
+  'pos.method.CASH_USD': 'نقداً (دولار أمريكي)',
   'pos.staff.title': 'موظفو الكاشير',
   'pos.staff.intro': 'الأشخاص الذين يعملون على هذا الصندوق وما يسمح لكل منهم.',
   'pos.staff.name': 'الاسم',

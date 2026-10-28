@@ -46,6 +46,8 @@ export function orderTotals(
 }
 
 export interface TillRates extends Rates {
+  usdEnabled: boolean;
+  usdRate: number;
   roundingStep: number;
   tableRingMinutes: number;
   kitchenPrintEnabled: boolean;
@@ -56,9 +58,9 @@ export interface TillRates extends Rates {
 export async function readRates(db: AnyDb, restaurantId: string): Promise<TillRates> {
   const settings = await db.posSettings.findFirst({
     where: { restaurantId },
-    select: { serviceRatePercent: true, taxRatePercent: true, roundingStep: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
+    select: { serviceRatePercent: true, taxRatePercent: true, roundingStep: true, usdEnabled: true, usdRate: true, tableRingMinutes: true, kitchenPrintEnabled: true, kitchenScreenEnabled: true },
   });
-  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, roundingStep: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
+  return settings ?? { serviceRatePercent: 0, taxRatePercent: 0, roundingStep: 0, usdEnabled: false, usdRate: 0, tableRingMinutes: 60, kitchenPrintEnabled: false, kitchenScreenEnabled: false };
 }
 
 // The order's version guard ---------------------------------------------------------------------------------------------
@@ -253,6 +255,8 @@ export interface OrderView {
   totals: Totals & { rounding: number };
   /** The restaurant's rounding step in dinars (0: off); the screen needs it to price one guest's part. */
   roundingStep: number;
+  /** Cash in US dollars: whether the till takes it and the dinars per dollar. */
+  usd: { enabled: boolean; rate: number };
   rates: Rates;
   kitchen: { print: boolean; screen: boolean };
   /** Set when the whole bill is paid: the last payment taken. */
@@ -346,6 +350,7 @@ export async function readOrderView(db: AnyDb, restaurantId: string, orderId: st
     }),
     totals: { ...totals, total: payable.total, rounding: payable.rounding },
     roundingStep: settings.roundingStep,
+    usd: { enabled: settings.usdEnabled && settings.usdRate > 0, rate: settings.usdRate },
     rates,
     kitchen: { print: settings.kitchenPrintEnabled, screen: settings.kitchenScreenEnabled },
     paid: order.status === 'PAID' && paidLast ? { paymentId: paidLast.id, method: paidLast.method, amountReceived: paidLast.amountReceived, paidAt: paidLast.paidAt } : null,

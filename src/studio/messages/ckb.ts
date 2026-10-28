@@ -130,6 +130,7 @@ const ckb: Messages = {
   'pos.method.ZAINCASH': 'زەین کاش',
   'pos.method.FIB': 'بانکی یەکەمی عێراق',
   'pos.method.QICARD': 'کی کارد',
+  'pos.method.CASH_USD': 'کاش (دۆلاری ئەمریکی)',
   'pos.staff.title': 'کارمەندانی کاشێر',
   'pos.staff.intro': 'ئەو کەسانەی لەسەر ئەم قاسەیە کار دەکەن و هەر یەکەیان چی بکات.',
   'pos.staff.name': 'ناو',

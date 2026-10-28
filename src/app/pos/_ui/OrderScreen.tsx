@@ -487,8 +487,8 @@ export function OrderScreen({
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
-      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} />
-      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} lineIds={picked} />
+      <PayPanel open={dialog === 'pay'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={order.parts.length > 0 ? order.leftToPay : order.totals.total} methods={order.paymentMethods} usd={order.usd} />
+      <PayPanel open={dialog === 'paySelected'} onClose={() => setDialog('none')} orderId={order.id} version={order.version} total={pickedTotal} methods={order.paymentMethods} usd={order.usd} lineIds={picked} />
 
       <ConfirmDialog
         open={dialog === 'cancelOrder'}

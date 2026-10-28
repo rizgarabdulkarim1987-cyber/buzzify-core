@@ -68,6 +68,7 @@ export const POS_TEXT = {
   'This payment method is switched off': 'error.text.posMethodOff',
   'The dollar rate changed. Check the bill and try again.': 'error.text.posUsdRateChanged',
   'The dollars handed over are less than the amount': 'error.text.posUsdShort',
+  'Count the dollars in the drawer': 'error.text.posUsdCount',
   'A dollar payment needs the dollars handed over and the rate': 'error.text.posUsdLeg',
   'Card and wallet payments take the exact total': 'error.text.posExactTotal',
   'This operation was already applied': 'error.text.posOperationApplied',

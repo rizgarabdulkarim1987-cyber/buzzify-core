@@ -129,6 +129,7 @@ const en: Messages = {
   'pos.method.ZAINCASH': 'ZainCash',
   'pos.method.FIB': 'First Iraqi Bank',
   'pos.method.QICARD': 'Qi Card',
+  'pos.method.CASH_USD': 'Cash (US dollars)',
   'pos.staff.title': 'Cashier staff',
   'pos.staff.intro': 'The people who work at this till, and what each may do.',
   'pos.staff.name': 'Name',

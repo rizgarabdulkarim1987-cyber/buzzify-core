@@ -64,7 +64,7 @@ export const closePosShift = defineAction({
   permission: null,
   pos: 'shift.use',
   allowLapsed: true,
-  input: z.object({ shiftId: idField, countedCash: money, note: z.string().trim().max(300, 'Use at most 300 characters') }),
+  input: z.object({ shiftId: idField, countedCash: money, countedUsd: money.optional(), note: z.string().trim().max(300, 'Use at most 300 characters') }),
   target: () => TILL,
   run: (ctx, input) => {
     const { pos, restaurantId } = till(ctx);
@@ -74,9 +74,9 @@ export const closePosShift = defineAction({
         action: 'pos.shift.close',
         entityType: 'PosShift',
         entityId: done.shiftId,
-        changes: { expected: { before: null, after: done.expected }, counted: { before: null, after: done.counted }, difference: { before: null, after: done.difference }, zNumber: { before: null, after: done.zNumber } },
+        changes: { expected: { before: null, after: done.expected }, counted: { before: null, after: done.counted }, difference: { before: null, after: done.difference }, ...(done.countedUsd === null ? {} : { countedUsd: { before: null, after: done.countedUsd }, differenceUsd: { before: null, after: done.differenceUsd } }), zNumber: { before: null, after: done.zNumber } },
       });
-      return { shiftId: done.shiftId, expected: done.expected, counted: done.counted, difference: done.difference, zNumber: done.zNumber };
+      return { shiftId: done.shiftId, expected: done.expected, counted: done.counted, difference: done.difference, expectedUsd: done.expectedUsd, countedUsd: done.countedUsd, differenceUsd: done.differenceUsd, zNumber: done.zNumber };
     });
   },
 });

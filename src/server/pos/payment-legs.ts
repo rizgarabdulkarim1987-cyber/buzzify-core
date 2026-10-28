@@ -143,3 +143,30 @@ export function changeOf(legs: readonly CheckedLeg[], cashTip: number): number {
   const dollars = legs.filter((leg) => leg.method === 'CASH_USD').reduce((sum, leg) => sum + usdChange(leg.tenderedUsd ?? 0, leg.rate ?? 0, leg.amount), 0);
   return dinars + dollars;
 }
+
+type UsdLegs = { legs?: { method: PosLegMethodKey; amount: number; tenderedUsd?: number | null; rate?: number | null }[] };
+
+const usdOf = (payment: UsdLegs) => {
+  const legs = (payment.legs ?? []).filter((leg) => leg.method === 'CASH_USD');
+  return {
+    dollars: legs.reduce((sum, leg) => sum + (leg.tenderedUsd ?? 0), 0),
+    change: legs.reduce((sum, leg) => sum + usdChange(leg.tenderedUsd ?? 0, leg.rate ?? 0, leg.amount), 0),
+  };
+};
+
+/**
+ * What cash in dollars did to a drawer. A sale puts its dollars in and sends its dinar change out; reversing it is the exact
+ * opposite (the dollars go back out at what was handed over, the dinar change comes back), so the two drawers stay balanced.
+ */
+export function usdDrawer(sold: readonly UsdLegs[], reversed: readonly UsdLegs[]) {
+  const sales = sold.map(usdOf);
+  const refunds = reversed.map(usdOf);
+  const sum = (rows: { dollars: number; change: number }[], key: 'dollars' | 'change') => rows.reduce((total, row) => total + row[key], 0);
+  return {
+    received: sum(sales, 'dollars'),
+    refunded: sum(refunds, 'dollars'),
+    expectedUsd: sum(sales, 'dollars') - sum(refunds, 'dollars'),
+    /** Dinars that left the drawer as change for dollars, net of the change a reversal took back. */
+    dinarChange: sum(sales, 'change') - sum(refunds, 'change'),
+  };
+}

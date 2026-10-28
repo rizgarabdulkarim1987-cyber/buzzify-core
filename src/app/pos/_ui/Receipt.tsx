@@ -77,7 +77,7 @@ export function Receipt({ receipt, canRefund = false }: { receipt: ReceiptData; 
         </div>
         {receipt.legs.map((leg) => (
           <div key={leg.method} className="flex flex-col">
-            <Line label={leg.method === 'CASH' ? t('pos.receipt.cash') : t(`pos.method.${leg.method}`)} value={money(leg.method === 'CASH' ? (leg.tendered ?? leg.amount) : leg.amount)} />
+            <Line label={leg.method === 'CASH' ? t('pos.receipt.cash') : t(`pos.method.${leg.method}`)} value={leg.method === 'CASH_USD' && leg.tenderedUsd !== null ? t('pos.usd.amount', { n: formatNumber(leg.tenderedUsd) }) : money(leg.method === 'CASH' ? (leg.tendered ?? leg.amount) : leg.amount)} />
             {leg.reference ? (
               <div className="flex justify-between gap-3 text-muted" data-testid="receipt-reference">
                 <dt>{t('pos.receipt.reference')}</dt>

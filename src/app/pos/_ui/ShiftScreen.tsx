@@ -1,6 +1,6 @@
 'use client';
 
-import { POS_PAYMENT_METHODS } from '@/server/domain/pos/payment-methods';
+import { POS_LEG_METHODS } from '@/server/domain/pos/payment-methods';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { addPosExpense, closePosShift, openPosShift } from '@/app/studio/_actions/pos';
@@ -83,10 +83,13 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             {!open ? <Row label={t('pos.shift.cashSales', { n: formatNumber(summary.salesCount) })} value={money(summary.cashSales)} /> : null}
             <Row label={t('pos.shift.expenses')} value={`− ${money(summary.expensesTotal)}`} />
             {!open && summary.cashRefunds > 0 ? <Row label={t('pos.shift.cashRefunds')} value={`− ${money(summary.cashRefunds)}`} /> : null}
-            {POS_PAYMENT_METHODS.filter((m) => m !== 'CASH' && summary.refundsByMethod[m] > 0).map((m) => (
+            {POS_LEG_METHODS.filter((m) => m !== 'CASH' && m !== 'CASH_USD' && summary.refundsByMethod[m] > 0).map((m) => (
               <Row key={m} label={t('pos.shift.terminalRefunds', { method: t(`pos.method.${m}`) })} value={money(summary.refundsByMethod[m])} />
             ))}
             {!open && shift.countedCash !== null ? <Row label={t('pos.shift.counted')} value={money(shift.countedCash)} /> : null}
+            {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.expectedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.expectedUsdAtClose ?? 0) })} /> : null}
+            {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.countedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.countedUsd) })} /> : null}
+            {!open && shift.differenceUsd !== null ? <Row label={t('pos.shift.differenceUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.differenceUsd) })} /> : null}
             {!open && difference !== null ? <Verdict difference={difference} /> : null}
           </dl>
           {shift.note ? <p className="text-base text-muted">{shift.note}</p> : null}
@@ -167,9 +170,11 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
         tone="primary"
         onConfirm={async (form) => {
           const countedCash = typedAmount(String(form.get('counted') ?? ''));
-          if (countedCash === null) return { fields: { countedCash: t('pos.shift.enterCount') } };
+          if (countedCash === null) return { fields: { countedCash: t('pos.shift.enterCount') } as Record<string, string> };
+          const countedUsd = summary.countsDollars ? typedAmount(String(form.get('countedUsd') ?? '')) : undefined;
+          if (countedUsd === null) return { fields: { countedUsd: t('pos.shift.enterUsdCount') } as Record<string, string> };
           const note = String(form.get('note') ?? '').trim();
-          const result = await call(() => closePosShift({ shiftId: shift.id, countedCash, note }), { quiet: true });
+          const result = await call(() => closePosShift({ shiftId: shift.id, countedCash, ...(countedUsd === undefined ? {} : { countedUsd }), note }), { quiet: true });
           if (result.ok) {
             router.push(`/pos/shift/${shift.id}`);
             return true;
@@ -182,6 +187,11 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             <Field label={t('pos.shift.counted')} error={errors.countedCash}>
               <Input name="counted" autoFocus size="lg" inputMode="numeric" dir="ltr" value={counted} onChange={(event) => setCounted(amountDigits(event.target.value))} />
             </Field>
+            {summary.countsDollars ? (
+              <Field label={t('pos.shift.countedUsd')} error={errors.countedUsd}>
+                <Input name="countedUsd" size="lg" inputMode="numeric" dir="ltr" />
+              </Field>
+            ) : null}
             <Field label={t('pos.shift.note')} optional>
               <Input name="note" size="lg" maxLength={300} />
             </Field>
