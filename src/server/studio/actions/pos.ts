@@ -9,7 +9,7 @@ import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
 import { addKitchenSection, removeKitchenSection, renameKitchenSectionIn } from '@/server/pos/kitchen-sections';
-import { refuse } from '@/server/pos/errors';
+import { isUniqueViolation, refuse } from '@/server/pos/errors';
 import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
@@ -325,7 +325,7 @@ export const savePosPrinter = defineAction({
       name: sectionName,
       role: z.enum(['RECEIPT', 'KITCHEN']),
       transport: z.enum(['NETWORK', 'FILE']),
-      address: z.string().trim().max(200, 'Use at most 120 characters'),
+      address: z.string().trim().max(200, 'Use at most 200 characters'),
       paperWidth: z.union([z.literal(58), z.literal(80)]),
       cut: z.boolean(),
       drawerPin: z.union([z.literal(2), z.literal(5)]).nullable(),
@@ -336,11 +336,16 @@ export const savePosPrinter = defineAction({
   target: () => TILL,
   run: (ctx, input) => {
     const { restaurantId } = till(ctx);
-    return ctx.transaction(async (tx) => {
-      const { id, created } = await savePrinterIn(tx, restaurantId, input);
-      ctx.audit({ action: created ? 'pos.printer.create' : 'pos.printer.update', entityType: 'PosPrinter', entityId: id, changes: { name: { before: null, after: input.name } } });
-      return { printerId: id };
-    });
+    return ctx
+      .transaction(async (tx) => {
+        const { id, created } = await savePrinterIn(tx, restaurantId, input);
+        ctx.audit({ action: created ? 'pos.printer.create' : 'pos.printer.update', entityType: 'PosPrinter', entityId: id, changes: { name: { before: null, after: input.name } } });
+        return { printerId: id };
+      })
+      .catch((error: unknown) => {
+        // Two saves that both make a receipt printer the default: the partial unique index lets one win.
+        throw isUniqueViolation(error) ? refuse('CONFLICT', 'Another printer was just made the default. Try again') : error;
+      });
   },
 });
 
@@ -454,6 +459,9 @@ export const posSetProductBarcode = defineAction({
       else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
       if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
       return { productId };
+    }).catch((error: unknown) => {
+      // Two saves of one code at once: the database's unique index refuses the second, which says what the pre-check says.
+      throw isUniqueViolation(error) ? refuse('CONFLICT', 'This barcode belongs to another product') : error;
     });
   },
 });

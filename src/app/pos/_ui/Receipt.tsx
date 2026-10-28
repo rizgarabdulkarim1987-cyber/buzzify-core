@@ -6,6 +6,7 @@ import { logPosReprint } from '@/app/studio/_actions/pos';
 import { formatNumber, formatStamp } from '@/lib/pos-format';
 import { receiptPrintOptions } from '@/server/domain/pos/drawer';
 import { settle } from '@/studio/settle';
+import { printFailureText } from './print/print-client';
 import { usePrint } from './print/PrintProvider';
 import type { Receipt as ReceiptData } from '@/server/pos/payments';
 import { useT } from '@/studio/i18n';
@@ -34,14 +35,14 @@ export function Receipt({ receipt, canRefund = false, autoPrint = false }: { rec
     const address = new URL(window.location.href);
     address.searchParams.delete('print');
     window.history.replaceState(window.history.state, '', `${address.pathname}${address.search}`);
-    void printReceipt(receipt, receiptPrintOptions(false, receipt.legs)).then((result) => setProblem(result.ok ? null : { message: result.message, copy: false }));
-  }, [autoPrint, hasReceiptPrinter, printReceipt, receipt]);
+    void printReceipt(receipt, receiptPrintOptions(false, receipt.legs)).then((result) => setProblem(result.ok ? null : { message: printFailureText(result, t), copy: false }));
+  }, [autoPrint, hasReceiptPrinter, printReceipt, receipt, t]);
 
   const printPaper = async (copy: boolean) => {
     setPrinting(true);
     const result = await printReceipt(receipt, receiptPrintOptions(copy, receipt.legs));
     setPrinting(false);
-    setProblem(result.ok ? null : { message: result.message, copy });
+    setProblem(result.ok ? null : { message: printFailureText(result, t), copy });
     if (copy && result.ok) await settle(() => logPosReprint({ paymentId: receipt.paymentId }));
   };
   return (
@@ -152,7 +153,7 @@ export function Receipt({ receipt, canRefund = false, autoPrint = false }: { rec
             ))}
           </nav>
         ) : null}
-        {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} paymentId={receipt.paymentId} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} /> : null}
+        {canRefund && !receipt.reversal ? <ReverseButton orderId={receipt.orderId} paymentId={receipt.paymentId} version={receipt.orderVersion} total={receipt.snapshot.total} method={receipt.method as PosPaymentMethodKey} legs={receipt.legs} /> : null}
         {hasReceiptPrinter && !receipt.reversal ? (
           <Button variant="primary" size="lg" className="min-h-12" disabled={printing} onClick={() => void printPaper(true)}>
             {t('pos.print.copy')}

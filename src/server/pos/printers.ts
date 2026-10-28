@@ -59,14 +59,15 @@ export async function savePrinterIn(tx: ScopedTx, restaurantId: string, input: P
   if (input.printerId === undefined) {
     const last = await tx.posPrinter.aggregate({ _max: { sortOrder: true } });
     created = true;
+    if (data.isDefault) await tx.posPrinter.updateMany({ where: { isDefault: true }, data: { isDefault: false } });
     id = (await tx.posPrinter.create({ data: { restaurantId, ...data, sortOrder: (last._max.sortOrder ?? -1) + 1 }, select: { id: true } })).id;
   } else {
     const existing = await tx.posPrinter.findFirst({ where: { id: input.printerId }, select: { id: true } });
     if (!existing) throw new StudioError('NOT_FOUND');
+    if (data.isDefault) await tx.posPrinter.updateMany({ where: { isDefault: true, id: { not: existing.id } }, data: { isDefault: false } });
     await tx.posPrinter.updateMany({ where: { id: existing.id }, data });
     id = existing.id;
   }
-  if (data.isDefault) await tx.posPrinter.updateMany({ where: { isDefault: true, id: { not: id } }, data: { isDefault: false } });
   return { id, created };
 }
 

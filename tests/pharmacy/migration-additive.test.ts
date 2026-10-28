@@ -40,7 +40,7 @@ function applicationInserts(sql: string): string[] {
  * Cashier migrations that touch only POS tables and must backfill rows or change an index (payment legs copy each old
  * payment into one leg; a split bill needs `PosPayment` unique per order and part instead of per order). They never touch a pharmacy table. Add a name here only for that case.
  */
-const POS_ONLY = new Set(['20261028100000_cashier_split_payments', '20261028110000_cashier_payment_parts']);
+const POS_ONLY = new Set(['20261028100000_cashier_split_payments', '20261028110000_cashier_payment_parts', '20261029130000_printer_default_unique']);
 
 function pharmacyMigrations(): { name: string; sql: string }[] {
   if (!existsSync(MIGRATIONS)) return [];

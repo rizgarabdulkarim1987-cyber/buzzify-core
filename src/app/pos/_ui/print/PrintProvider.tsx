@@ -12,7 +12,7 @@ import type { Receipt } from '@/server/pos/payments';
 import type { ShiftSummary } from '@/server/pos/shifts';
 import { useT } from '@/studio/i18n';
 import { useMoney } from '../money';
-import { kickDrawer, printDoc, type PrintResult } from './print-client';
+import { kickDrawer, printDoc, printFailureText, type PrintResult } from './print-client';
 
 const PrintersContext = createContext<PrinterView[]>([]);
 const noPrinter: PrintResult = { ok: false, reason: 'printer', message: 'no printer' };
@@ -61,7 +61,7 @@ export function usePrint() {
 
   const format = useCallback((): PaperFormat => ({ money: latest.current.money, number: formatNumber, stamp: formatStamp }), []);
   const fail = useCallback((result: PrintResult) => {
-    if (!result.ok) toast.error(latest.current.t('pos.print.failed', { message: result.message }));
+    if (!result.ok) toast.error(latest.current.t('pos.print.failed', { message: printFailureText(result, latest.current.t) }));
     return result;
   }, []);
 
@@ -93,11 +93,11 @@ export function usePrint() {
     [fail, format],
   );
 
-  /** Sends the round just sent to the kitchen to each section's printer; a section with no printer is said out loud, never dropped silently. */
+  /** Sends the round just sent to the kitchen (the given batch, else the latest) to each section's printer; a section with no printer is said out loud, never dropped silently. */
   const printKitchenRound = useCallback(
-    async (orderId: string) => {
+    async (orderId: string, batch?: number) => {
       if (!latest.current.printers.some((p) => p.role === 'KITCHEN')) return;
-      const fetched = await fetchOrderKitchenTicket({ orderId });
+      const fetched = await fetchOrderKitchenTicket({ orderId, ...(batch === undefined ? {} : { batch }) });
       if (!fetched.ok) {
         toast.error(latest.current.t('pos.print.ticketFailed'));
         return;

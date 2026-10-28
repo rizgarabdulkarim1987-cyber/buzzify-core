@@ -61,6 +61,7 @@ export const POS_TEXT = {
   'Enter the dollar rate': 'error.text.posUsdRate',
   'Enter the printer address': 'error.text.posPrinterAddress',
   'This barcode belongs to another product': 'error.text.posBarcodeTaken',
+  'Another printer was just made the default. Try again': 'error.text.posDefaultPrinterTaken',
   'Use 4 to 8 digits': 'error.text.posPinShape',
   'Choose a PIN that is harder to guess': 'error.text.posPinWeak',
   'This account cannot use a quick sign-in PIN': 'error.text.posPinUnavailable',

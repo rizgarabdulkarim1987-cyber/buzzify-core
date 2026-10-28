@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { readBridgeUrl, writeBridgeUrl } from '@/app/pos/_ui/print/bridge-url';
-import { kickDrawer, printDoc } from '@/app/pos/_ui/print/print-client';
+import { kickDrawer, printDoc, printFailureText } from '@/app/pos/_ui/print/print-client';
 import type { PaperDoc } from '@/server/domain/pos/paper';
 import type { PrinterView } from '@/server/pos/printers';
 
@@ -119,5 +119,17 @@ describe('the bridge address of this device', () => {
     expect(readBridgeUrl()).toBe('http://localhost:9200');
     store['pos.bridgeUrl'] = 'https://evil.example';
     expect(readBridgeUrl()).toBe('http://127.0.0.1:9101');
+  });
+});
+
+describe('printFailureText', () => {
+  const t = (key: string) => `T:${key}`;
+
+  it('shows the translated bridge text for a bridge failure', () => {
+    expect(printFailureText({ ok: false, reason: 'bridge', message: 'bridge unreachable' }, t)).toBe('T:pos.print.reason.bridge');
+  });
+
+  it('shows the translated printer text for a printer failure', () => {
+    expect(printFailureText({ ok: false, reason: 'printer', message: 'ECONNREFUSED' }, t)).toBe('T:pos.print.reason.printer');
   });
 });

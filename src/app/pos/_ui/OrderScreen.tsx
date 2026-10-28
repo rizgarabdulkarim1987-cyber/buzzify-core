@@ -427,7 +427,7 @@ export function OrderScreen({
           {canChange ? (
             <div className="flex flex-col gap-2">
               {kitchenOn ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: () => { if (order.kitchen.print) void printKitchenRound(order.id); } })}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}

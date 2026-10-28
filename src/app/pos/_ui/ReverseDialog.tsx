@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { reversePosPayment } from '@/app/studio/_actions/pos';
+import { refundOpensDrawer } from '@/server/domain/pos/drawer';
 import type { PosPaymentMethodKey } from '@/server/domain/pos/payment-methods';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
@@ -21,10 +22,12 @@ interface Props {
   version: number;
   total: number;
   method: PosPaymentMethodKey;
+  /** Every leg of the payment, so a split bill that took any cash opens the drawer on refund. */
+  legs: readonly { method: string }[];
 }
 
 /** The manager's "Reverse payment" button and its dialog: the amount and method are read-only, the reason is required. */
-export function ReverseButton({ orderId, paymentId, version, total, method }: Props) {
+export function ReverseButton({ orderId, paymentId, version, total, method, legs }: Props) {
   const t = useT();
   const money = useMoney();
   const { call } = usePosCall();
@@ -51,8 +54,8 @@ export function ReverseButton({ orderId, paymentId, version, total, method }: Pr
           const reference = String(form.get('reference') ?? '').trim();
           const result = await call(() => reversePosPayment({ orderId, ...(paymentId ? { paymentId } : {}), expectedVersion: version, reason, ...(terminal && reference !== '' ? { reference } : {}) }), { quiet: true });
           if (result.ok) {
-            // Cash goes back out of the drawer, so it opens (no paper).
-            if (!terminal) void openDrawer();
+            // Cash goes back out of the drawer, so it opens (no paper): for any cash leg, not only when cash was the main method.
+            if (refundOpensDrawer(legs)) void openDrawer();
             return true;
           }
           const fields = result.error.fields;

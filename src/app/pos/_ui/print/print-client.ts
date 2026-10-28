@@ -7,6 +7,11 @@ import { renderDoc } from './render-doc';
 
 export type PrintResult = { ok: true } | { ok: false; reason: 'bridge' | 'printer'; message: string };
 
+/** What the cashier reads when a print fails: a sentence in the screen's language, not the bridge's English error. */
+export function printFailureText(result: Extract<PrintResult, { ok: false }>, t: (key: string) => string): string {
+  return t(`pos.print.reason.${result.reason}`);
+}
+
 export interface PrintOptions {
   /** Kick the cash drawer after the paper (only if the printer has a drawer pin). */
   drawer: boolean;

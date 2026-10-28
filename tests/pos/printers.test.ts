@@ -2,7 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { printerForReceipt, printerForSection, type PrinterView } from '@/server/pos/printers';
 import { createKitchenSection, deleteKitchenSection, removePosPrinter, savePosPrinter } from '@/server/studio/actions/pos';
 import { posPrinters } from '@/server/studio/queries/pos';
-import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
+import { ask, codeOf, dataOf, failureOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
 vi.mock('next/headers', () => ({ headers: vi.fn(), cookies: vi.fn() }));
 
@@ -124,5 +124,22 @@ describe('choosing a printer', () => {
     expect(printerForSection(printers, null)?.id).toBe('any');
     expect(printerForSection([view({ id: 'grill', sectionId: 's1' })], 's2')).toBeNull();
     expect(printerForSection([view({ id: 'r', role: 'RECEIPT' })], 's1')).toBeNull();
+  });
+});
+
+describe('savePosPrinter, edge cases', () => {
+  it('says 200 when the address is too long', async () => {
+    const result = await run(manager, savePosPrinter, { ...RECEIPT, address: 'x'.repeat(201) });
+    expect(failureOf(result).fields?.address).toBe('Use at most 200 characters');
+  });
+
+  it('leaves exactly one default receipt printer when two are saved at once', async () => {
+    const results = await Promise.all([
+      run(manager, savePosPrinter, RECEIPT),
+      run(manager, savePosPrinter, { ...RECEIPT, name: 'Back', address: '192.168.1.51:9100' }),
+    ]);
+    // Never a raw error: each save is OK or a clear refusal.
+    for (const result of results) expect(['OK', 'CONFLICT']).toContain(codeOf(result));
+    expect(await prisma().posPrinter.count({ where: { restaurantId: a.id, isDefault: true } })).toBe(1);
   });
 });
