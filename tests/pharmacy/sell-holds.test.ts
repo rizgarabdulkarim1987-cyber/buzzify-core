@@ -358,11 +358,10 @@ describe('resuming and discarding', () => {
     await prisma().phPrice.create({ data: { restaurantId: w.a.id, productId: w.p.id, unitId: w.p.strip, branchId: null, currency: 'IQD', amountMinor: 950n, validFrom: new Date(NOW.getTime() - 500), changedById: 'seed' } });
     await prisma().phProduct.update({ where: { id: gone.id }, data: { active: false } });
     await prisma().phPrice.updateMany({ where: { productId: unpriced.id }, data: { validTo: new Date(NOW.getTime() - 1000) } });
-    const got = dataOf(await act(w.cashier2, saleActions.resume, { restaurantId: w.a.id, branchId: w.b1, saleId: held.id }));
-    expect(got.lines.map((l: { tradeName: string }) => l.tradeName)).toEqual(['Panadol', 'Goneprod', 'Unpricedprod']);
-    const byId = new Map<string, { tradeName: string; sellableQty: number; noPrice: boolean; units: { id: string; label: string; baseQty: number; priceMinor: string | null }[]; batches: { lot: string }[] }>(
-      got.items.map((i: { productId: string }) => [i.productId, i]),
-    );
+    type Item = { productId: string; tradeName: string; sellableQty: number; noPrice: boolean; units: { id: string; label: string; baseQty: number; priceMinor: string | null }[]; batches: { lot: string }[] };
+    const got = dataOf(await act(w.cashier2, saleActions.resume, { restaurantId: w.a.id, branchId: w.b1, saleId: held.id })) as unknown as { lines: { tradeName: string }[]; items: Item[] };
+    expect(got.lines.map((l) => l.tradeName)).toEqual(['Panadol', 'Goneprod', 'Unpricedprod']);
+    const byId = new Map(got.items.map((i) => [i.productId, i] as const));
     const panadol = byId.get(w.p.id)!;
     expect(panadol.units.find((u) => u.id === w.p.strip)).toMatchObject({ priceMinor: '950' });
     expect(panadol.units.find((u) => u.id === w.p.tablet)).toMatchObject({ baseQty: 1, priceMinor: '100' });
