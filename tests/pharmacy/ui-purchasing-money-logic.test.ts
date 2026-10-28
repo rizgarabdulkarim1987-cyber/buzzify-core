@@ -2,7 +2,12 @@ import { describe, expect, it } from 'vitest';
 import { planAllocation, PurchasingError } from '@/server/domain/pharmacy/purchasing';
 import {
   allocationPreview,
+  addReturnLine,
   applyInputOf,
+  emptyReturnDraft,
+  returnInputOf,
+  returnSignature,
+  type ReturnLineDraft,
   creditInputOf,
   dueFrom,
   invoiceLinesStart,
@@ -339,5 +344,35 @@ describe('credit input, applying credit, due date and line start', () => {
     expect(start.r1).toEqual({ checked: false, qty: '10', cost: '1500' });
     const usd = invoiceLinesStart([{ ...lines[0]!, currency: 'USD' as const, unitCostMinor: '1250' }], 'USD');
     expect(usd.r1!.cost).toBe('12.50');
+  });
+});
+
+describe('supplier return draft', () => {
+  const l = (patch: Partial<ReturnLineDraft> = {}): ReturnLineDraft => ({ batchId: 'b1', bucket: 'AVAILABLE', qty: '3', max: 10, productName: 'Amoxil', lot: 'L1', expiry: '2028-01-01', ...patch });
+  const base = { ...emptyReturnDraft('k'), supplierId: 's1', reason: 'damaged boxes', lines: [l()] };
+
+  it('sends the supplier, reason, note and lines by batch and bucket in whole base units', () => {
+    const built = returnInputOf({ ...base, note: ' x ' });
+    expect(built.problems).toEqual({});
+    expect(built.input).toEqual({ supplierId: 's1', reason: 'damaged boxes', note: 'x', lines: [{ batchId: 'b1', bucket: 'AVAILABLE', qty: 3 }] });
+  });
+  it('refuses a quantity above what the screen saw, a duplicate batch and bucket, a short reason and no lines', () => {
+    expect(returnInputOf({ ...base, lines: [l({ qty: '11' })] }).problems['lines.0.qty']).toBe('exceeds');
+    expect(returnInputOf({ ...base, lines: [l({ qty: '0' })] }).problems['lines.0.qty']).toBe('qty');
+    expect(returnInputOf({ ...base, lines: [l(), l()] }).problems['lines.1.batchId']).toBe('duplicate');
+    expect(returnInputOf({ ...base, reason: 'ab' }).problems.reason).toBe('reason');
+    expect(returnInputOf({ ...base, lines: [] }).problems.lines).toBe('lines');
+    expect(returnInputOf({ ...base, supplierId: '' }).problems.supplierId).toBe('supplier');
+  });
+  it('the same batch in the other bucket is another line', () => {
+    expect(returnInputOf({ ...base, lines: [l(), l({ bucket: 'QUARANTINE' })] }).problems).toEqual({});
+  });
+  it('adding a line twice keeps one, and the signature ignores the key and the screen-only fields', () => {
+    expect(addReturnLine([l()], l({ qty: '9' }))).toHaveLength(1);
+    expect(addReturnLine([l()], l({ bucket: 'QUARANTINE' }))).toHaveLength(2);
+    const a = returnSignature(base);
+    expect(returnSignature({ ...base, clientKey: 'z', keySig: 'q', lines: [l({ max: 99, productName: 'Other' })] })).toBe(a);
+    expect(returnSignature({ ...base, lines: [l({ qty: '4' })] })).not.toBe(a);
+    expect(returnSignature({ ...base, reason: 'expired' })).not.toBe(a);
   });
 });

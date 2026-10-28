@@ -394,6 +394,64 @@ export function applyInputOf(
   };
 }
 
+// Supplier returns -----------------------------------------------------------------------------------------------------
+
+export interface ReturnLineDraft {
+  batchId: string;
+  bucket: 'AVAILABLE' | 'QUARANTINE';
+  /** Whole base units, as typed. */
+  qty: string;
+  /** What the screen saw in that bucket when the line was added; the server decides again. */
+  max: number;
+  productName: string;
+  lot: string;
+  expiry: string;
+}
+
+export interface ReturnDraft {
+  clientKey: string;
+  keySig?: string | undefined;
+  supplierId: string;
+  reason: string;
+  note: string;
+  lines: ReturnLineDraft[];
+}
+
+export function emptyReturnDraft(clientKey: string): ReturnDraft {
+  return { clientKey, supplierId: '', reason: '', note: '', lines: [] };
+}
+
+/** Adds a line unless that batch and bucket is already on the return. */
+export function addReturnLine(lines: readonly ReturnLineDraft[], line: ReturnLineDraft): ReturnLineDraft[] {
+  return lines.some((l) => l.batchId === line.batchId && l.bucket === line.bucket) ? [...lines] : [...lines, line];
+}
+
+export type ReturnProblem = 'supplier' | 'reason' | 'lines' | 'qty' | 'exceeds' | 'duplicate';
+
+export function returnInputOf(draft: ReturnDraft): { input?: Record<string, unknown>; problems: Record<string, ReturnProblem> } {
+  const problems: Record<string, ReturnProblem> = {};
+  if (!draft.supplierId) problems.supplierId = 'supplier';
+  if (draft.reason.trim().length < 3) problems.reason = 'reason';
+  if (draft.lines.length === 0) problems.lines = 'lines';
+  const seen = new Set<string>();
+  const lines = draft.lines.map((l, i) => {
+    const qty = wholeOf(l.qty);
+    if (qty === null || qty < 1) problems[`lines.${i}.qty`] = 'qty';
+    else if (qty > l.max) problems[`lines.${i}.qty`] = 'exceeds';
+    const pair = `${l.batchId}|${l.bucket}`;
+    if (seen.has(pair)) problems[`lines.${i}.batchId`] = 'duplicate';
+    seen.add(pair);
+    return { batchId: l.batchId, bucket: l.bucket, qty: qty ?? 0 };
+  });
+  if (Object.keys(problems).length > 0) return { problems };
+  return { problems, input: { supplierId: draft.supplierId, reason: draft.reason.trim(), note: draft.note.trim(), lines } };
+}
+
+/** Every field the server hashes, as typed; not the key and not what the screen only displays. */
+export function returnSignature(draft: ReturnDraft): string {
+  return JSON.stringify([draft.supplierId, draft.reason.trim(), draft.note.trim(), draft.lines.map((l) => [l.batchId, l.bucket, l.qty.trim()])]);
+}
+
 // Reason actions (void, reverse) ----------------------------------------------------------------------------------------
 
 /** The key of a reason action: kept while the reason is unchanged (a retry after a lost answer replays), new after an edit. */
