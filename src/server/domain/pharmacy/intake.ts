@@ -648,29 +648,49 @@ export function rankMatches(input: MatchInput, candidates: readonly Candidate[])
 // Image quality gate (before any AI call)
 
 /**
- * Starting limits, to be recalibrated on real invoice photos at UAT (the tests only pin that each limit decides its reason).
- * - minShortSidePx: the short side of the image; below 800 px a printed invoice line is under about 8 px tall and unreadable.
- * - minLaplacianVariance (only meaningful at a fixed working size: the metric must be computed after resizing the grey image
- *   to a fixed short side, or the threshold drifts with the camera's megapixels): variance of the Laplacian of the grey image (sharpness); the common rule of thumb is that a focused
- *   photograph of text is well above 100 and a motion- or focus-blurred one is below it.
+ * Starting limits, to be recalibrated on real invoice photos at UAT (the tests pin that each limit decides its reason, and that
+ * the blur limit holds at 1000, 1600 and 3000 px wide).
+ * - minShortSidePx: the short side of the image as sent; below 800 px a printed invoice line is under about 8 px tall and unreadable.
+ * - minSharpness: how sharp the text is, measured the way the model will see it: the grey image is fitted into 1568 px on its
+ *   long edge (never enlarged: that is the size the model reads at, so what the model cannot read is what is measured), cut into
+ *   64 px tiles, tiles with almost no ink (grey level spread under 12) are ignored so a sparse invoice is not judged by its blank
+ *   paper, and each remaining tile scores its Laplacian variance divided by its grey-level variance (sharpness relative to its
+ *   own contrast, so pale ink and dark ink read alike). `sharpness` is the MEDIAN tile score. Sharp text scores 1 or more;
+ *   the blur that turns 10 px glyphs to mush scores well under 0.1; no textured tile at all scores 0.
+ *
+ *   Measured on synthetic invoice pages (tests/pharmacy/intake-helpers.ts: 3 to 9 px glyphs at 1600 px wide, row pitch 24,
+ *   JPEG 92; the drawing and the blur scale with the photo; "sparse" is 8 text rows on an otherwise blank page; median score):
+ *
+ *                       sharp   sigma 0.7  sigma 1   sigma 1.5   sigma 2   sigma 3   sigma 5      (sigma at 1600 px)
+ *     1000 px  full     1.62     1.62       0.63      0.41        0.17      0.065     0.034
+ *     1000 px  sparse   1.45     1.45       0.53      0.34        0.13      0.042     0.015
+ *     1600 px  full     1.46     0.88       0.70      0.32        0.16      0.046     0.024
+ *     1600 px  sparse   1.31     0.80       0.64      0.28        0.13      0.033     0.011
+ *     3000 px  full     1.28     0.83       0.54      0.26        0.15      0.044     0.021
+ *     3000 px  sparse   1.16     0.75       0.48      0.22        0.11      0.031     0.010
+ *
+ *   The old whole-image Laplacian variance (limit 100) read sigma 3 at 1600 px as 528 to 718, a pass, and could not tell a sparse
+ *   page from a blurred one. The limit sits between sigma 1.5 (lowest 0.22, still readable) and sigma 2 (highest 0.17, not) of
+ *   that table at its upper edge and well above sigma 3 (highest 0.065); sharp pages (lowest 1.16) are four times above it.
  * - minMeanLuma: mean grey level 0..255; below 50 the page is under-exposed.
- * - minContrast: standard deviation of the grey level; below 25 ink and paper are not separable.
+ * - minContrast: standard deviation of the grey level of the whole image; below 25 ink and paper are not separable. (A page
+ *   of fewer than about four text rows is mostly paper and reads as low contrast: 8 rows measure 33, 3 rows 20.)
  */
 export const QUALITY_LIMITS = {
   minShortSidePx: 800,
-  minLaplacianVariance: 100,
+  minSharpness: 0.2,
   minMeanLuma: 50,
   minContrast: 25,
 } as const;
 
-export type QualityMetrics = { width: number; height: number; laplacianVariance: number; meanLuma: number; contrast: number };
+export type QualityMetrics = { width: number; height: number; sharpness: number; meanLuma: number; contrast: number };
 export type QualityReason = 'BLURRY' | 'TOO_SMALL' | 'TOO_DARK' | 'LOW_CONTRAST';
 
 /** PDFs go straight to the model (text and vector pages have no pixel sharpness to measure). A NaN metric fails its check. */
 export function qualityDecision(metrics: QualityMetrics, mediaType: string): { ok: boolean; reasons: QualityReason[] } {
   if (mediaType === 'application/pdf') return { ok: true, reasons: [] };
   const reasons: QualityReason[] = [];
-  if (!(metrics.laplacianVariance >= QUALITY_LIMITS.minLaplacianVariance)) reasons.push('BLURRY');
+  if (!(metrics.sharpness >= QUALITY_LIMITS.minSharpness)) reasons.push('BLURRY');
   if (!(Math.min(metrics.width, metrics.height) >= QUALITY_LIMITS.minShortSidePx)) reasons.push('TOO_SMALL');
   if (!(metrics.meanLuma >= QUALITY_LIMITS.minMeanLuma)) reasons.push('TOO_DARK');
   if (!(metrics.contrast >= QUALITY_LIMITS.minContrast)) reasons.push('LOW_CONTRAST');

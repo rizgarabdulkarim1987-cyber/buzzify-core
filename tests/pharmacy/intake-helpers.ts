@@ -43,24 +43,28 @@ function lcg(seed: number): () => number {
 }
 
 /**
- * A text-like page: rows of small black blocks (glyph-sized: 3 to 9 px wide, 10 to 14 px tall on a 1600 px page) on white, like a printed invoice. Built from shapes, so it
- * does not depend on fonts installed on the machine. `seed` changes the page (and its sha256).
+ * A text-like page: rows of small black blocks (glyph-sized: 3 to 9 px wide, 10 to 14 px tall at `scale` 1) on white, like a printed invoice. Built from shapes, so it
+ * does not depend on fonts installed on the machine. `seed` changes the page (and its sha256). `scale` multiplies every size
+ * of the drawing (glyphs, row pitch, margins): a photo of the same page taken at 1000, 1600 or 3000 px wide is `scale`
+ * 0.625, 1 or 1.875. `lines` limits the text to that many rows and leaves the rest of the page blank (a sparse invoice).
  */
-export async function pageImage(opts: { width?: number; height?: number; seed?: number; ink?: number; paper?: number; format?: 'jpeg' | 'png' | 'webp' } = {}): Promise<Buffer> {
+export async function pageImage(opts: { width?: number; height?: number; seed?: number; ink?: number; paper?: number; format?: 'jpeg' | 'png' | 'webp'; scale?: number; lines?: number } = {}): Promise<Buffer> {
   const width = opts.width ?? 1600;
   const height = opts.height ?? 2200;
   const ink = opts.ink ?? 10;
   const paper = opts.paper ?? 250;
+  const k = opts.scale ?? 1;
   const rand = lcg(opts.seed ?? 1);
   const rects: string[] = [];
-  for (let row = 0; row < Math.floor(height / 24) - 2; row += 1) {
-    let x = 60;
-    const y = 50 + row * 24;
-    while (x < width - 80) {
-      const w = 3 + Math.floor(rand() * 7);
-      rects.push(`<rect x="${x}" y="${y}" width="${w}" height="${10 + Math.floor(rand() * 5)}" fill="rgb(${ink},${ink},${ink})"/>`);
-      x += w + 2 + Math.floor(rand() * 4);
-      if (rand() < 0.15) x += 10;
+  const rows = Math.min(Math.floor(height / (24 * k)) - 2, opts.lines ?? Infinity);
+  for (let row = 0; row < rows; row += 1) {
+    let x = 60 * k;
+    const y = (50 + row * 24) * k;
+    while (x < width - 80 * k) {
+      const w = (3 + Math.floor(rand() * 7)) * k;
+      rects.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${((10 + Math.floor(rand() * 5)) * k).toFixed(2)}" fill="rgb(${ink},${ink},${ink})"/>`);
+      x += (w / k + 2 + Math.floor(rand() * 4)) * k;
+      if (rand() < 0.15) x += 10 * k;
     }
   }
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}"><rect width="100%" height="100%" fill="rgb(${paper},${paper},${paper})"/>${rects.join('')}</svg>`;
@@ -68,6 +72,21 @@ export async function pageImage(opts: { width?: number; height?: number; seed?: 
   const format = opts.format ?? 'jpeg';
   return format === 'png' ? image.png().toBuffer() : format === 'webp' ? image.webp().toBuffer() : image.jpeg({ quality: 92 }).toBuffer();
 }
+
+/**
+ * The page of a photo taken `width` px wide and out of focus: the drawing at `scale` = width / 1600, blurred by `sigma` px at
+ * the 1600 px size (`sigma` 3 is a clearly unreadable photo, 0.7 a slightly soft one). The blur is scaled with the photo, so
+ * the same defocus is the same severity at 1000, 1600 and 3000 px.
+ */
+export async function photoOfPage(opts: { width: number; seed?: number; sigma?: number; lines?: number }): Promise<Buffer> {
+  const scale = opts.width / 1600;
+  const base = await pageImage({ width: opts.width, height: Math.round(opts.width * 1.4), scale, seed: opts.seed ?? 7, lines: opts.lines, format: 'png' });
+  const sigma = (opts.sigma ?? 0) * scale;
+  return (sigma > 0.3 ? sharp(base).blur(sigma) : sharp(base)).jpeg({ quality: 92 }).toBuffer();
+}
+
+/** The blurred invoice the upload tests use: a 1600 px photo at sigma 3, which the gate must refuse. */
+export const blurredPage = (seed: number): Promise<Buffer> => photoOfPage({ width: 1600, seed, sigma: 3 });
 
 /** A page with a bytes-for-bytes different body of the same quality (for tests that need many different files). */
 export const uniquePage = (seed: number, over: Parameters<typeof pageImage>[0] = {}) => pageImage({ ...over, seed });

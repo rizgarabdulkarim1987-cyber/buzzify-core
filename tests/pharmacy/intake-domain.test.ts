@@ -526,20 +526,20 @@ describe('rankMatches', () => {
 });
 
 describe('qualityDecision', () => {
-  const good = { width: 2000, height: 1500, laplacianVariance: 400, meanLuma: 150, contrast: 60 };
+  const good = { width: 2000, height: 1500, sharpness: 1.2, meanLuma: 150, contrast: 60 };
   it('good image passes', () => {
     expect(qualityDecision(good, 'image/jpeg')).toEqual({ ok: true, reasons: [] });
   });
   it('each limit yields its reason, just either side of the constant', () => {
-    expect(qualityDecision({ ...good, laplacianVariance: QUALITY_LIMITS.minLaplacianVariance - 0.01 }, 'image/png').reasons).toEqual(['BLURRY']);
-    expect(qualityDecision({ ...good, laplacianVariance: QUALITY_LIMITS.minLaplacianVariance }, 'image/png').ok).toBe(true);
+    expect(qualityDecision({ ...good, sharpness: QUALITY_LIMITS.minSharpness - 0.001 }, 'image/png').reasons).toEqual(['BLURRY']);
+    expect(qualityDecision({ ...good, sharpness: QUALITY_LIMITS.minSharpness }, 'image/png').ok).toBe(true);
     expect(qualityDecision({ ...good, width: QUALITY_LIMITS.minShortSidePx - 1 }, 'image/webp').reasons).toEqual(['TOO_SMALL']);
     expect(qualityDecision({ ...good, height: QUALITY_LIMITS.minShortSidePx }, 'image/webp').ok).toBe(true);
     expect(qualityDecision({ ...good, meanLuma: QUALITY_LIMITS.minMeanLuma - 1 }, 'image/jpeg').reasons).toEqual(['TOO_DARK']);
     expect(qualityDecision({ ...good, contrast: QUALITY_LIMITS.minContrast - 1 }, 'image/jpeg').reasons).toEqual(['LOW_CONTRAST']);
   });
   it('several reasons together; PDFs skip pixel metrics', () => {
-    const bad = { width: 100, height: 100, laplacianVariance: 1, meanLuma: 5, contrast: 1 };
+    const bad = { width: 100, height: 100, sharpness: 0, meanLuma: 5, contrast: 1 };
     expect(qualityDecision(bad, 'image/jpeg').reasons.sort()).toEqual(['BLURRY', 'LOW_CONTRAST', 'TOO_DARK', 'TOO_SMALL']);
     expect(qualityDecision(bad, 'application/pdf')).toEqual({ ok: true, reasons: [] });
   });

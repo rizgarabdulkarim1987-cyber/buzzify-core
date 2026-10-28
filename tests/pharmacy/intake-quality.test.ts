@@ -2,45 +2,42 @@ import sharp from 'sharp';
 import { describe, expect, it } from 'vitest';
 import { QUALITY_LIMITS } from '@/server/domain/pharmacy/intake';
 import { assessQuality, ImageUnreadableError, imageQualityMetrics } from '@/server/pharmacy/intake/quality';
-import { pageImage, pdfWithPages } from './intake-helpers';
+import { blurredPage, pageImage, pdfWithPages, photoOfPage } from './intake-helpers';
 
 /**
  * The quality gate on text-like synthetic pages made with sharp (nothing binary is committed): the same page sharp,
- * blurred, small, dark and flat. Each rendering must fail for its own reason and a good photo must pass.
- *
- * Calibration of `QUALITY_LIMITS` (measured here, Laplacian variance at the working size; sharp page | blur sigma 1, 2, 3, 5, 8):
- *   1600x2200: 22182 | 14967, 3498, 718, 149, 15      1000x1400: 12164 | 4820, 678, 129, 31, 5      820x1100: 9222 | 2164, 267, 54, 16, 4
- * The limit of 100 separates a sharp page from a heavily blurred one by two orders of magnitude, so it is kept. A fixed
- * sigma is not a fixed severity (the working size shrinks a large photo, and its blur with it): the blurred fixture is the
- * 1000x1400 page at sigma 5 (31), which is below the limit at every size. Real photos are softer than these hard-edged
- * pages, so the limit is recalibrated on real invoices at UAT (listed).
+ * blurred, small, dark and flat. Each rendering must fail for its own reason and a good photo must pass. The numbers behind
+ * `QUALITY_LIMITS` are in the comment on that constant; this file pins what they must keep deciding:
+ *   - a photo of the page at 1000, 1600 and 3000 px wide (the drawing and the blur scale with the photo) reads the same;
+ *   - blur of sigma 3 at 1600 px (and its equal at the other widths) FAILS, whatever the resolution;
+ *   - a sharp page PASSES, including a sparse one that is mostly blank paper.
  */
-const BLUR_SIGMA = 5;
-const blurredPage = async () => sharp(await pageImage({ width: 1000, height: 1400 })).blur(BLUR_SIGMA).jpeg({ quality: 92 }).toBuffer();
+const WIDTHS = [1000, 1600, 3000] as const;
 
 describe('image quality metrics', () => {
   it('measures a sharp full-size page as readable', async () => {
     const metrics = await imageQualityMetrics(await pageImage());
     expect(metrics.width).toBe(1600);
     expect(metrics.height).toBe(2200);
-    expect(metrics.laplacianVariance).toBeGreaterThan(QUALITY_LIMITS.minLaplacianVariance);
+    expect(metrics.sharpness).toBeGreaterThan(QUALITY_LIMITS.minSharpness);
     expect(metrics.meanLuma).toBeGreaterThan(QUALITY_LIMITS.minMeanLuma);
     expect(metrics.contrast).toBeGreaterThan(QUALITY_LIMITS.minContrast);
   });
 
-  it('gives the same sharpness whatever the megapixels: a 4x larger rendering of the same page is not "sharper"', async () => {
-    const small = await imageQualityMetrics(await pageImage({ width: 1200, height: 1600 }));
-    const large = await imageQualityMetrics(await sharp(await pageImage({ width: 1200, height: 1600 })).resize(3600, 4800).jpeg().toBuffer());
-    // The large one is the small one enlarged (softer): it must not read as hugely different, and must still pass.
-    expect(large.laplacianVariance).toBeGreaterThan(QUALITY_LIMITS.minLaplacianVariance);
-    expect(small.laplacianVariance).toBeGreaterThan(QUALITY_LIMITS.minLaplacianVariance);
+  it.each(WIDTHS)('reads a sharp page the same at %i px wide, sparse or full', async (width) => {
+    for (const lines of [undefined, 8]) {
+      const metrics = await imageQualityMetrics(await photoOfPage({ width, lines }));
+      expect(metrics.sharpness, `${width} ${lines ?? 'full'}`).toBeGreaterThan(QUALITY_LIMITS.minSharpness * 3);
+    }
   });
 
-  it('is much lower for the same page blurred', async () => {
-    const sharpMetrics = await imageQualityMetrics(await pageImage({ width: 1000, height: 1400 }));
-    const blurred = await imageQualityMetrics(await blurredPage());
-    expect(blurred.laplacianVariance).toBeLessThan(sharpMetrics.laplacianVariance / 100);
-    expect(blurred.laplacianVariance).toBeLessThan(QUALITY_LIMITS.minLaplacianVariance);
+  it.each(WIDTHS)('is far lower for the same page out of focus (sigma 3 at 1600 px), at %i px wide', async (width) => {
+    for (const lines of [undefined, 8]) {
+      const sharpOne = await imageQualityMetrics(await photoOfPage({ width, lines }));
+      const blurred = await imageQualityMetrics(await photoOfPage({ width, lines, sigma: 3 }));
+      expect(blurred.sharpness, `${width} ${lines ?? 'full'}`).toBeLessThan(QUALITY_LIMITS.minSharpness / 2);
+      expect(blurred.sharpness).toBeLessThan(sharpOne.sharpness / 10);
+    }
   });
 
   it('applies the EXIF rotation before measuring the size', async () => {
@@ -61,15 +58,28 @@ describe('the quality decision on renderings of one page', () => {
     expect(result.reasons).toEqual([]);
   });
 
+  it.each(WIDTHS)('passes a sharp page, full or sparse, at %i px wide, and a slightly soft one (sigma 0.7)', async (width) => {
+    for (const lines of [undefined, 8]) {
+      expect((await assessQuality(await photoOfPage({ width, lines }), 'image/jpeg')).reasons, `${width} ${lines ?? 'full'} sharp`).toEqual([]);
+      expect((await assessQuality(await photoOfPage({ width, lines, sigma: 0.7 }), 'image/jpeg')).reasons, `${width} ${lines ?? 'full'} soft`).toEqual([]);
+    }
+  });
+
+  it.each(WIDTHS)('rejects the blurred page (sigma 3 at 1600 px) as BLURRY at %i px wide', async (width) => {
+    const full = await assessQuality(await photoOfPage({ width, sigma: 3 }), 'image/jpeg');
+    expect(full.reasons, `${width} full`).toEqual(['BLURRY']);
+    // A blurred sparse page also loses what little ink contrast it had: BLURRY stays among the reasons.
+    const sparse = await assessQuality(await photoOfPage({ width, lines: 8, sigma: 3 }), 'image/jpeg');
+    expect(sparse.reasons, `${width} sparse`).toContain('BLURRY');
+  });
+
+  it('rejects the 1600 px photo at sigma 3 that the upload tests use', async () => {
+    expect((await assessQuality(await blurredPage(1), 'image/jpeg')).reasons).toEqual(['BLURRY']);
+  });
+
   it('passes the same page as PNG and WebP', async () => {
     expect((await assessQuality(await pageImage({ format: 'png' }), 'image/png')).ok).toBe(true);
     expect((await assessQuality(await pageImage({ format: 'webp' }), 'image/webp')).ok).toBe(true);
-  });
-
-  it('rejects the blurred page as BLURRY, and only for that', async () => {
-    const result = await assessQuality(await blurredPage(), 'image/jpeg');
-    expect(result.ok).toBe(false);
-    expect(result.reasons).toEqual(['BLURRY']);
   });
 
   it('rejects a small page as TOO_SMALL', async () => {

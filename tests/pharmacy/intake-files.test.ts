@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import sharp from 'sharp';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as intakeActions from '@/server/pharmacy/actions/intake';
@@ -7,7 +6,7 @@ import { purgeExpiredIntakeFiles } from '@/server/pharmacy/intake/files';
 import { withIntakeStorage } from '@/server/pharmacy/intake/storage';
 import * as intakeQueries from '@/server/pharmacy/queries/intake';
 import { DAY, grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
-import { memoryIntakeStorage, pageImage, pdfWithPages } from './intake-helpers';
+import { blurredPage, memoryIntakeStorage, pageImage, pdfWithPages } from './intake-helpers';
 import { act, ask, codeOf, dataOf, phCodeOf } from './stock-helpers';
 
 let keySeq = 0;
@@ -292,7 +291,7 @@ describe('uploading a file', () => {
   it('does not count purged or rejected files as stored', async () => {
     const w = await world(1);
     const batch = await newBatch(w);
-    const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 33 })).blur(5).jpeg({ quality: 92 }).toBuffer();
+    const blurry = await blurredPage(33);
     const rejected = dataOf(await upload(w, w.owner, batch.id, blurry));
     expect(rejected.status).toBe('REJECTED_QUALITY');
     expect((await upload(w, w.owner, batch.id, padded(pdf(1, 'a'), 900 * 1024))).ok).toBe(true);
@@ -488,7 +487,7 @@ describe('the same file twice (SHA-256)', () => {
   it('rejects a poor photo once and answers a second upload of it with the first result', async () => {
     const w = await world();
     const batch = await newBatch(w);
-    const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 44 })).blur(5).jpeg({ quality: 92 }).toBuffer();
+    const blurry = await blurredPage(44);
     const first = dataOf(await upload(w, w.owner, batch.id, blurry));
     const again = dataOf(await upload(w, w.owner, batch.id, blurry));
     expect(again).toMatchObject({ fileId: first.fileId, duplicate: true, status: 'REJECTED_QUALITY' });
@@ -517,13 +516,13 @@ describe('the quality gate', () => {
   it('rejects a blurred photo as REJECTED_QUALITY with the reasons, and stores no object at all', async () => {
     const w = await world();
     const batch = await newBatch(w, w.pic);
-    const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 55 })).blur(5).jpeg({ quality: 92 }).toBuffer();
+    const blurry = await blurredPage(55);
     const done = dataOf(await upload(w, w.pic, batch.id, blurry));
     expect(done).toMatchObject({ status: 'REJECTED_QUALITY', reasons: ['BLURRY'], duplicate: false });
     const row = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: done.fileId } });
     expect(row).toMatchObject({ status: 'REJECTED_QUALITY', storageKey: null, failureCode: 'BLURRY', sha256: sha(blurry) });
     expect(row.quality).toMatchObject({ reasons: ['BLURRY'] });
-    expect(row.quality).toHaveProperty('laplacianVariance');
+    expect(row.quality).toHaveProperty('sharpness');
     expect(storage.objects.size).toBe(0);
     expect(row.expiresAt.getTime()).toBe(NOW.getTime() + 30 * DAY);
   });
@@ -603,7 +602,7 @@ describe('seeing a stored file', () => {
   it('is NOT_FOUND once the bytes are gone (rejected for quality, or purged)', async () => {
     const w = await world();
     const batch = await newBatch(w);
-    const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 77 })).blur(5).jpeg({ quality: 92 }).toBuffer();
+    const blurry = await blurredPage(77);
     const rejected = dataOf(await upload(w, w.owner, batch.id, blurry));
     expect(codeOf(await ask(w.owner, intakeQueries.fileUrl, { ...place(w), fileId: rejected.fileId }))).toBe('NOT_FOUND');
   });
@@ -640,7 +639,7 @@ describe('purging expired files', () => {
   it('frees a rejected file’s slot too (no object to delete)', async () => {
     const w = await world();
     const batch = await newBatch(w);
-    const blurry = await sharp(await pageImage({ width: 1000, height: 1400, seed: 88 })).blur(5).jpeg({ quality: 92 }).toBuffer();
+    const blurry = await blurredPage(88);
     const rejected = dataOf(await upload(w, w.owner, batch.id, blurry));
     expect(rejected.status).toBe('REJECTED_QUALITY');
     const result = await purgeExpiredIntakeFiles(prisma(), { now: new Date(NOW.getTime() + 31 * DAY), limit: 100, storage });

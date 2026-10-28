@@ -3,14 +3,19 @@ import { qualityDecision, type QualityMetrics, type QualityReason } from '@/serv
 
 /**
  * The pixel metrics of an uploaded invoice photo (R5-6), measured BEFORE any AI call. The image is turned upright by its
- * EXIF orientation, reduced to grey and, if larger, shrunk to fit a fixed working box, so the thresholds in
- * `QUALITY_LIMITS` do not depend on how many megapixels the phone has. The decision is the pure `qualityDecision`.
+ * EXIF orientation, reduced to grey and, if its long edge is over 1568 px, shrunk to that: the size the model reads at, so a
+ * photo is judged by what the model will see, and one already smaller is not enlarged. Sharpness is a per-tile score (see
+ * `QUALITY_LIMITS`, which holds the measured table). The decision is the pure `qualityDecision`.
  */
 
-/** The working box the grey image is fitted into (never enlarged). */
-const WORKING_BOX_PX = 1000;
+/** The long edge the model reads an image at; a larger photo is shrunk to it, a smaller one is left alone. */
+const MODEL_LONG_EDGE_PX = 1568;
 /** A decompression bomb guard: more pixels than this is refused as unreadable. */
-const MAX_INPUT_PIXELS = 100_000_000;
+const MAX_INPUT_PIXELS = 50_000_000;
+/** Side of a sharpness tile. */
+const TILE_PX = 64;
+/** A tile whose grey level spread (standard deviation) is below this holds no ink and is ignored. */
+const FLAT_TILE_STD = 12;
 
 export class ImageUnreadableError extends Error {
   readonly code = 'IMAGE_UNREADABLE';
@@ -20,24 +25,46 @@ export class ImageUnreadableError extends Error {
   }
 }
 
-/** Variance of the 4-neighbour Laplacian over the interior of a grey image (sharpness). */
-function laplacianVariance(grey: Uint8Array, width: number, height: number): number {
-  if (width < 3 || height < 3) return 0;
-  let sum = 0;
-  let sumSquares = 0;
-  let count = 0;
-  for (let y = 1; y < height - 1; y += 1) {
-    const row = y * width;
-    for (let x = 1; x < width - 1; x += 1) {
-      const i = row + x;
-      const value = grey[i - width]! + grey[i + width]! + grey[i - 1]! + grey[i + 1]! - 4 * grey[i]!;
-      sum += value;
-      sumSquares += value * value;
-      count += 1;
+/**
+ * The median, over the tiles that hold ink, of the tile's Laplacian variance divided by its grey-level variance. 0 when no tile
+ * holds ink (a blank or smeared page has nothing sharp to read).
+ */
+function tileSharpness(grey: Uint8Array, width: number, height: number): number {
+  const scores: number[] = [];
+  for (let top = 0; top + TILE_PX <= height; top += TILE_PX) {
+    for (let left = 0; left + TILE_PX <= width; left += TILE_PX) {
+      let sum = 0;
+      let sumSquares = 0;
+      let lapSum = 0;
+      let lapSquares = 0;
+      let lapCount = 0;
+      for (let y = top; y < top + TILE_PX; y += 1) {
+        const row = y * width;
+        for (let x = left; x < left + TILE_PX; x += 1) {
+          const i = row + x;
+          const v = grey[i]!;
+          sum += v;
+          sumSquares += v * v;
+          if (y > 0 && y < height - 1 && x > 0 && x < width - 1) {
+            const lap = grey[i - width]! + grey[i + width]! + grey[i - 1]! + grey[i + 1]! - 4 * v;
+            lapSum += lap;
+            lapSquares += lap * lap;
+            lapCount += 1;
+          }
+        }
+      }
+      const n = TILE_PX * TILE_PX;
+      const mean = sum / n;
+      const variance = Math.max(0, sumSquares / n - mean * mean);
+      if (Math.sqrt(variance) < FLAT_TILE_STD || lapCount === 0) continue;
+      const lapMean = lapSum / lapCount;
+      scores.push((lapSquares / lapCount - lapMean * lapMean) / variance);
     }
   }
-  const mean = sum / count;
-  return sumSquares / count - mean * mean;
+  if (scores.length === 0) return 0;
+  scores.sort((a, b) => a - b);
+  const mid = scores.length >> 1;
+  return scores.length % 2 === 1 ? scores[mid]! : (scores[mid - 1]! + scores[mid]!) / 2;
 }
 
 /** Width, height (as displayed, after EXIF rotation), sharpness, mean grey level and contrast (standard deviation). */
@@ -52,7 +79,7 @@ export async function imageQualityMetrics(bytes: Uint8Array): Promise<QualityMet
     const { data, info } = await input
       .rotate()
       .greyscale()
-      .resize(WORKING_BOX_PX, WORKING_BOX_PX, { fit: 'inside', withoutEnlargement: true })
+      .resize(MODEL_LONG_EDGE_PX, MODEL_LONG_EDGE_PX, { fit: 'inside', withoutEnlargement: true })
       .raw()
       .toBuffer({ resolveWithObject: true });
     const pixels = info.width * info.height;
@@ -67,7 +94,7 @@ export async function imageQualityMetrics(bytes: Uint8Array): Promise<QualityMet
     return {
       width,
       height,
-      laplacianVariance: laplacianVariance(data, info.width, info.height),
+      sharpness: tileSharpness(data, info.width, info.height),
       meanLuma,
       contrast: Math.sqrt(Math.max(0, sumSquares / pixels - meanLuma * meanLuma)),
     };
