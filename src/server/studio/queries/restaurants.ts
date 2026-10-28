@@ -122,6 +122,7 @@ export const listRestaurants = defineQuery({
       /** The plans' names in the reader's language, as the platform owner set them. */
       planNames: Object.fromEntries(PLAN_TIERS.map((tier) => [tier, plans.names[tier][ctx.actor.locale]])) as Record<PlanTier, string>,
       canCreate: ctx.permissions.has('restaurant.create'),
+      canDelete: ctx.permissions.has('restaurant.delete'),
     };
   },
 });
