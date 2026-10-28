@@ -15,7 +15,7 @@ import { useReturnFailure } from './SaleActions';
 import { phMessage } from './ph-failure';
 import { FIELD, FieldInput, FieldSelect, Note, Num, TOUCH_BTN, TOUCH_PRIMARY } from './sell-parts';
 import { keyFor, outcomeUnknown, type KeyedAttempt } from './sell-logic';
-import { parseReturnQty, refundMethodChoices, returnRequest, returnSignature, type RefundMethod } from './shifts-logic';
+import { parseReturnQty, previewCurrent, refundMethodChoices, returnRequest, returnSignature, type RefundMethod } from './shifts-logic';
 
 export interface ReturnWorkspaceProps {
   data: Returnable;
@@ -41,12 +41,16 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
   const [done, setDone] = useState<ReturnResult | null>(null);
   const [preview, setPreview] = useState<{ refundMinor: string; isFinal: boolean } | null>(null);
   const [previewProblem, setPreviewProblem] = useState<string | null>(null);
+  // The quantities the figure (or the refusal) shown was asked for: the return cannot be sent while a newer choice is still being asked.
+  const [settledWire, setSettledWire] = useState<string | null>(null);
   const attempt = useRef<KeyedAttempt | null>(null);
 
   const rows = data.lines.map((l) => ({ saleLineId: l.id, remaining: l.remainingBaseQty, text: texts[l.id] ?? '' }));
   const request = returnRequest(rows);
   const wire = JSON.stringify(request.lines);
   const choices = refundMethodChoices(data.paidMethods, data.defaultRefundMethod);
+  const fresh = !request.ok || previewCurrent(settledWire, wire);
+  const shown = fresh ? preview : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -55,6 +59,7 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
       // eslint-disable-next-line react-hooks/set-state-in-effect -- nothing valid chosen: the old figure is no longer the server's answer for this request
       setPreview(null);
       setPreviewProblem(null);
+      setSettledWire(null);
       return;
     }
     const timer = setTimeout(() => {
@@ -67,6 +72,7 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
           setPreview(null);
           setPreviewProblem(phMessage(t, locale, result.error, 'pharmacy.returns'));
         }
+        setSettledWire(wire);
       });
     }, 250);
     return () => {
@@ -109,7 +115,7 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
 
   const submit = async (event: FormEvent) => {
     event.preventDefault();
-    if (busy || !request.ok || reason.trim().length < 3 || !shiftOk) return;
+    if (busy || !request.ok || !fresh || reason.trim().length < 3 || !shiftOk) return;
     setBusy(true);
     setProblem(null);
     attempt.current = keyFor(attempt.current, returnSignature(data.saleId, request.lines, reason, method), 'ret');
@@ -201,10 +207,10 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
       <div className="flex flex-col gap-1.5 rounded-md border border-line bg-surface px-3 py-2.5" data-testid="return-preview">
         <p className="flex flex-wrap items-baseline justify-between gap-x-3 text-md font-semibold text-text">
           <span>{t('pharmacy.returns.refundPreview')}</span>
-          <span data-testid="preview-refund">{preview ? <Money minor={preview.refundMinor} currency={data.currency} /> : <span aria-label={t('pharmacy.returns.noPreview')}>—</span>}</span>
+          <span data-testid="preview-refund">{shown ? <Money minor={shown.refundMinor} currency={data.currency} /> : <span aria-label={t('pharmacy.returns.noPreview')}>—</span>}</span>
         </p>
-        <p className="text-xs text-muted">{preview?.isFinal ? t('pharmacy.returns.previewFinal') : t('pharmacy.returns.previewNote')}</p>
-        {previewProblem && (
+        <p className="text-xs text-muted">{shown?.isFinal ? t('pharmacy.returns.previewFinal') : t('pharmacy.returns.previewNote')}</p>
+        {fresh && previewProblem && (
           <Note icon={<CircleAlert aria-hidden />} tone="danger" role="status" testId="preview-problem">
             {previewProblem}
           </Note>
@@ -227,7 +233,7 @@ export function ReturnWorkspace({ data, shiftOk }: ReturnWorkspaceProps) {
         </Note>
       )}
       <div>
-        <button type="submit" className={TOUCH_PRIMARY} data-testid="return-confirm" disabled={busy || !request.ok || reason.trim().length < 3 || !shiftOk}>
+        <button type="submit" className={TOUCH_PRIMARY} data-testid="return-confirm" disabled={busy || !request.ok || !fresh || reason.trim().length < 3 || !shiftOk}>
           {busy ? <Hourglass aria-hidden className="size-4" /> : <Undo2 aria-hidden className="size-4" />}
           {busy ? t('pharmacy.sell.pay.saving') : t('pharmacy.returns.confirm')}
         </button>

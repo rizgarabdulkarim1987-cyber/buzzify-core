@@ -56,7 +56,8 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
   const [can, made] = mayRead
     ? await Promise.all([query(returnable, { ...placeInput, saleId: sale.id }), query(listReturns, { ...placeInput, saleId: sale.id, pageSize: 50 })])
     : [null, null];
-  const mayReturn = roleMay(actor, 'return.approve') && access.writable('return.approve').ok;
+  const returnWrite = access.writable('return.approve');
+  const mayReturn = roleMay(actor, 'return.approve') && returnWrite.ok;
   const cur = sale.currency;
 
   return (
@@ -74,7 +75,10 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
           mayReturn={mayReturn}
           roleCannotReturn={!roleMay(actor, 'return.approve')}
           returnable={can?.returnable ?? false}
-          window={can?.window ?? null}
+          returnWindow={can?.window ?? null}
+          writeBlocked={roleMay(actor, 'return.approve') && !returnWrite.ok && returnWrite.reason !== 'role' ? returnWrite : null}
+          cancelLines={(can?.lines ?? []).filter((l) => l.remainingBaseQty > 0).map((l) => ({ saleLineId: l.id, baseQty: l.remainingBaseQty }))}
+          currency={sale.currency}
           paid={can?.paidMethods ?? sale.methods}
           defaultMethod={can?.defaultRefundMethod ?? sale.methods[0] ?? 'CASH'}
         />

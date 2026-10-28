@@ -167,12 +167,14 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
   const t = useT();
   const { locale } = useLocale();
   const [items, setItems] = useState<HoldSummary[] | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
 
   const load = async () => {
     setItems(null);
+    setHasMore(false);
     const result = await settle(() => listHolds({}));
     if (!result.ok) {
       setProblem(phMessage(t, locale, result.error, 'pharmacy.sell'));
@@ -180,7 +182,9 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
       return;
     }
     setProblem(null);
-    setItems((result.data as { items: HoldSummary[] }).items);
+    const data = result.data as { items: HoldSummary[]; hasMore?: boolean };
+    setHasMore(data.hasMore === true);
+    setItems(data.items);
   };
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reads the branch's holds from the server each time the dialog opens
@@ -203,6 +207,7 @@ export function HoldsDialog({ open, onOpenChange, cartEmpty, onResume, onDiscard
         {!cartEmpty && <Note icon={<CircleAlert aria-hidden />} tone="info">{t('pharmacy.sell.holds.needEmpty')}</Note>}
         {problem && <Note icon={<CircleAlert aria-hidden />} tone="danger" role="alert">{problem}</Note>}
         {items === null && <Note icon={<Hourglass aria-hidden />} role="status">{t('pharmacy.sell.loading')}</Note>}
+        {hasMore && <Note icon={<CircleAlert aria-hidden />} tone="info" role="status" testId="holds-more">{t('pharmacy.sell.holds.more')}</Note>}
         {items?.length === 0 && !problem && (
           <p className="flex items-center gap-2.5 py-4 text-sm text-muted">
             <PackageOpen aria-hidden className="size-4 shrink-0" />
