@@ -48,6 +48,15 @@ export const posPrinters = defineQuery({
   run: (ctx) => listPrintersIn(ctx.db, restaurantOf(ctx)),
 });
 
+export const posSectionList = defineQuery({
+  name: 'pos.sectionList',
+  permission: null,
+  pos: 'settings.manage',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listKitchenSections(ctx.db, restaurantOf(ctx)),
+});
+
 export const posStaff = defineQuery({
   name: 'pos.staff',
   permission: null,
