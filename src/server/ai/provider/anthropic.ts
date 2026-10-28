@@ -52,7 +52,7 @@ export function toAnthropicParams(req: AiRequest, env: Record<string, string | u
     max_tokens: req.maxTokens,
     system: req.system,
     messages,
-    output_config: { effort: effortFor(req.purpose), ...(req.jsonSchema ? { format: { type: 'json_schema', schema: req.jsonSchema } } : {}) },
+    output_config: { effort: effortFor(req.purpose), ...(req.jsonSchema ? { format: { type: 'json_schema', schema: strictSchema(req.jsonSchema) } } : {}) },
   };
   if (req.tools && req.tools.length > 0) {
     body.tools = req.tools.map((tool) => ({ name: tool.name, description: tool.description, input_schema: strictSchema(tool.inputSchema), strict: true }));

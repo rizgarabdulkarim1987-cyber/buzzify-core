@@ -322,44 +322,47 @@ export function parseExtraction(raw: unknown): ExtractionResult {
   return { ok: true, value: { header: h.data, lines: parsed } };
 }
 
-const nullable = (type: 'string' | 'integer', extra: Record<string, unknown> = {}) => ({ type: [type, 'null'], ...extra });
+const nullable = (type: 'string' | 'integer') => ({ type: [type, 'null'] });
 const objectOf = (properties: Record<string, unknown>) => ({
   type: 'object',
   additionalProperties: false,
   required: Object.keys(properties),
   properties,
 });
-const unclearNotes = { type: 'array', maxItems: 20, items: { type: 'string', maxLength: 200 } };
+const unclearNotes = { type: 'array', items: { type: 'string' } };
 
-/** The same shape for the provider: strict, every property required and nullable (the model says null, never invents). */
+/**
+ * The same shape for the provider: strict, every property required and nullable (the model says null, never invents). It carries
+ * NO limits (no maxLength, minimum, maximum, maxItems ...): strict structured output rejects them, so the limits live in the Zod
+ * schemas above, which re-validate every answer (a cut string, a negative number, a 201st line are handled there).
+ */
 export const extractionJsonSchema = objectOf({
   header: objectOf({
-    supplierName: nullable('string', { maxLength: 200 }),
-    invoiceNumber: nullable('string', { maxLength: 100 }),
-    invoiceDate: nullable('string', { maxLength: 40 }),
+    supplierName: nullable('string'),
+    invoiceNumber: nullable('string'),
+    invoiceDate: nullable('string'),
     currency: { type: ['string', 'null'], enum: ['IQD', 'USD', null] },
-    total: nullable('integer', { minimum: 0 }),
-    discount: nullable('integer', { minimum: 0 }),
-    tax: nullable('integer', { minimum: 0 }),
+    total: nullable('integer'),
+    discount: nullable('integer'),
+    tax: nullable('integer'),
     unclear: unclearNotes,
   }),
   lines: {
     type: 'array',
-    maxItems: MAX_LINES,
     items: objectOf({
-      name: nullable('string', { maxLength: 200 }),
-      strength: nullable('string', { maxLength: 60 }),
-      form: nullable('string', { maxLength: 60 }),
-      pack: nullable('string', { maxLength: 60 }),
-      quantity: nullable('integer', { minimum: 0 }),
-      bonus: nullable('integer', { minimum: 0 }),
-      unitCost: nullable('integer', { minimum: 0 }),
-      lineTotal: nullable('integer', { minimum: 0 }),
-      lot: nullable('string', { maxLength: 100 }),
-      expiry: nullable('string', { maxLength: 40 }),
-      barcodeText: nullable('string', { maxLength: 200 }),
+      name: nullable('string'),
+      strength: nullable('string'),
+      form: nullable('string'),
+      pack: nullable('string'),
+      quantity: nullable('integer'),
+      bonus: nullable('integer'),
+      unitCost: nullable('integer'),
+      lineTotal: nullable('integer'),
+      lot: nullable('string'),
+      expiry: nullable('string'),
+      barcodeText: nullable('string'),
       unclear: unclearNotes,
-      page: nullable('integer', { minimum: 1, maximum: 1000 }),
+      page: nullable('integer'),
     }),
   },
 });

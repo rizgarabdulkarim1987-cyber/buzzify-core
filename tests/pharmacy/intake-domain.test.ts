@@ -268,7 +268,7 @@ describe('parseExtraction', () => {
     expect(s.additionalProperties).toBe(false);
     expect(s.required).toEqual(['header', 'lines']);
     const lineSchema = s.properties.lines.items;
-    expect(s.properties.lines.maxItems).toBe(200);
+    expect(s.properties.lines.maxItems).toBeUndefined(); // limits live in Zod (strict output rejects them): see intake-extract-schema
     expect(lineSchema.additionalProperties).toBe(false);
     expect(lineSchema.required.slice().sort()).toEqual(Object.keys(lineSchema.properties).sort());
     expect(Object.keys(lineSchema.properties).sort()).toEqual(
@@ -277,7 +277,7 @@ describe('parseExtraction', () => {
     const h = s.properties.header;
     expect(Object.keys(h.properties).sort()).toEqual(Object.keys(extractionShapes.header).sort());
     expect(Object.keys(lineSchema.properties).sort()).toEqual(Object.keys(extractionShapes.line).sort());
-    expect(lineSchema.properties.page.maximum).toBe(1000);
+    expect(lineSchema.properties.page.maximum).toBeUndefined();
     expect(h.required.slice().sort()).toEqual(Object.keys(h.properties).sort());
     for (const [k, v] of Object.entries<Node>(lineSchema.properties)) {
       if (k === 'unclear') continue;
