@@ -572,7 +572,8 @@ describe('seeing a stored file', () => {
     const two = dataOf(await ask(w.pic, intakeQueries.fileUrl, { ...place(w), fileId: file.fileId }));
     expect(one.expiresInSeconds).toBe(300);
     expect(one.url).toContain(before.storageKey!);
-    expect(storage.urls).toEqual([{ key: before.storageKey, ttlSeconds: 300 }, { key: before.storageKey, ttlSeconds: 300 }]);
+    // Inline: the viewer shows the invoice in the page instead of downloading it.
+    expect(storage.urls).toEqual([{ key: before.storageKey, ttlSeconds: 300, inline: true }, { key: before.storageKey, ttlSeconds: 300, inline: true }]);
     expect(two.url).toBeTruthy();
     const after = await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: file.fileId } });
     expect(after).toEqual(before);

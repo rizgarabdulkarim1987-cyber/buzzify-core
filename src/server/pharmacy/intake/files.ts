@@ -284,7 +284,7 @@ export async function fileUrl(
   if (!file) throw notFound();
   const batch = await scoped.phIntakeBatch.findFirst({ where: { id: file.batchId }, select: { id: true } });
   if (!batch || !file.storageKey) throw notFound();
-  return { url: await storage.signedUrl(file.storageKey, SIGNED_URL_SECONDS), expiresInSeconds: SIGNED_URL_SECONDS };
+  return { url: await storage.signedUrl(file.storageKey, SIGNED_URL_SECONDS, { inline: true }), expiresInSeconds: SIGNED_URL_SECONDS };
 }
 
 // Letting go ---------------------------------------------------------------------------------------------------------------

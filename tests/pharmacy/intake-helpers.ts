@@ -4,12 +4,12 @@ import type { IntakeStorage } from '@/server/pharmacy/intake/storage';
 /** An in-memory adapter: counts what is stored, so "no second object" can be asserted. */
 export function memoryIntakeStorage(): IntakeStorage & {
   objects: Map<string, { bytes: Uint8Array; mediaType: string }>;
-  urls: { key: string; ttlSeconds: number }[];
+  urls: { key: string; ttlSeconds: number; inline: boolean }[];
   /** Test hooks: run inside `put` (before the object is kept) and `delete`; a throw from either fails that call. */
   hooks: { onPut?: (key: string) => Promise<void> | void; onDelete?: (key: string) => Promise<void> | void };
 } {
   const objects = new Map<string, { bytes: Uint8Array; mediaType: string }>();
-  const urls: { key: string; ttlSeconds: number }[] = [];
+  const urls: { key: string; ttlSeconds: number; inline: boolean }[] = [];
   const hooks: { onPut?: (key: string) => Promise<void> | void; onDelete?: (key: string) => Promise<void> | void } = {};
   return {
     objects,
@@ -22,8 +22,8 @@ export function memoryIntakeStorage(): IntakeStorage & {
     async get(key) {
       return objects.get(key) ?? null;
     },
-    async signedUrl(key, ttlSeconds) {
-      urls.push({ key, ttlSeconds });
+    async signedUrl(key, ttlSeconds, options) {
+      urls.push({ key, ttlSeconds, inline: options?.inline === true });
       return `memory://${key}?ttl=${ttlSeconds}`;
     },
     async delete(key) {
