@@ -28,6 +28,12 @@ export class ScriptedProvider extends FakeProvider {
     return this;
   }
 
+  /** Forget every scripted answer. */
+  clear(): this {
+    this.script.clear();
+    return this;
+  }
+
   override async complete(req: AiRequest): Promise<AiResponse> {
     this.calls.push(req);
     const media = req.messages.flatMap((m) => m.content).find((c) => c.type === 'document' || c.type === 'image');
@@ -66,6 +72,7 @@ export class FileScriptedProvider extends ScriptedProvider {
   override async complete(req: AiRequest): Promise<AiResponse> {
     try {
       const script = JSON.parse(readFileSync(this.path, 'utf8')) as Record<string, ScriptedAnswer>;
+      this.clear();
       for (const [sha, answer] of Object.entries(script)) this.set(sha, answer);
     } catch {
       // No readable script: an unscripted file then fails like any unknown document (a provider error).

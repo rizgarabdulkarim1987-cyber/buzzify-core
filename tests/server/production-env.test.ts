@@ -40,6 +40,13 @@ describe('checkProductionEnv', () => {
     ).toEqual({ ok: true });
   });
 
+  it('refuses the canned AI providers and the browser-test script path', () => {
+    expect(named(problemsWith({ AI_PROVIDER: 'scripted' }))).toEqual(['AI_PROVIDER']);
+    expect(named(problemsWith({ AI_PROVIDER: 'fake' }))).toEqual(['AI_PROVIDER']);
+    expect(named(problemsWith({ PH_INTAKE_E2E_SCRIPT: '/tmp/x.json' }))).toEqual(['PH_INTAKE_E2E_SCRIPT']);
+    expect(problemsWith({ AI_PROVIDER: 'openai' })).toEqual([]);
+  });
+
   it('names every missing variable at once, so one failed deploy shows the whole list', () => {
     const result = checkProductionEnv({});
     expect(result.ok).toBe(false);

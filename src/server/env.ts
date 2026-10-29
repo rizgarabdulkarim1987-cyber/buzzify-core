@@ -443,6 +443,11 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   if (!authUrl) report('BETTER_AUTH_URL', 'is not set (the address the Studio is served on, such as https://studio.buzzify.me)');
   else if (!isHttps(authUrl)) report('BETTER_AUTH_URL', 'must start with https://');
 
+  // The canned AI providers and the browser tests' script path exist for development only.
+  const aiProvider = text('AI_PROVIDER');
+  if (aiProvider === 'fake' || aiProvider === 'scripted') report('AI_PROVIDER', 'must not be fake or scripted in production');
+  if (text('PH_INTAKE_E2E_SCRIPT')) report('PH_INTAKE_E2E_SCRIPT', 'is for browser tests only; remove it from production');
+
   if (!text('RESEND_API_KEY')) report('RESEND_API_KEY', 'is not set (create an API key in Resend)');
 
   const publicHost = text('PUBLIC_MENU_HOST')?.toLowerCase();

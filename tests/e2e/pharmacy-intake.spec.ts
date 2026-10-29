@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { createPrisma } from '@/server/data/prisma';
 import { DEV_DB, databaseUrl } from '../../scripts/db-config';
 import { generateInvoices, modelTextFor, renderInvoicePng } from '../pharmacy/fixtures/intake-invoices';
 import { blurredPage } from '../pharmacy/intake-helpers';
+import { INTAKE_SCRIPT_PATH } from './helpers/intake-env';
 import { seriousViolations } from './helpers/axe';
 import { assignMember, createStudioUser, hideDevTools, removeRestaurants, removeStudioUsers, setUserLocale, uniqueClientAddress, type StudioUser } from './helpers/studio';
 
@@ -20,6 +20,9 @@ import { assignMember, createStudioUser, hideDevTools, removeRestaurants, remove
  * a pharmacy past its grace period is read-only; and every new screen passes axe and does not scroll sideways at 375, 768
  * and 1280 px in English, Arabic and Sorani.
  *
+ * Run it only through `playwright.intake.config.ts`: that config starts its own dev server with the scripted provider and sets
+ * `PH_INTAKE_E2E_CONFIG`; without it the suite skips, so it can never send these invoices to a real provider.
+ *
  * The AI is the scripted provider (`AI_PROVIDER=scripted`, `PH_INTAKE_E2E_SCRIPT=<json>`): the dev server this run drives
  * reads the answer for each file's SHA-256 from that file on every call. The hook exists only outside production. The run
  * needs the dev server to be started with that variable and the two model prices (see the playwright config used for it).
@@ -30,7 +33,7 @@ const DAY = 86_400_000;
 const db = () => createPrisma(databaseUrl(DEV_DB));
 const SHOTS = process.env.INTAKE_SHOTS;
 const WIDTHS = [375, 768, 1280] as const;
-const SCRIPT = process.env.PH_INTAKE_E2E_SCRIPT ?? path.join(tmpdir(), 'ph-intake-e2e-script.json');
+const SCRIPT = INTAKE_SCRIPT_PATH;
 const INVOICES = generateInvoices();
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 
@@ -223,6 +226,7 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
   // One worker, one order: the hooks switch the shared pharmacy application on and then put it back, and the tests follow
   // one pharmacy's batches from the first upload to the last accessibility pass.
   test.describe.configure({ mode: 'serial' });
+  test.skip(process.env.PH_INTAKE_E2E_CONFIG !== '1', 'run through playwright.intake.config.ts (its own server with the scripted AI provider)');
   const restaurants: string[] = [];
   const people: string[] = [];
   let applicationWas: 'ACTIVE' | 'DISABLED' | null = null;
