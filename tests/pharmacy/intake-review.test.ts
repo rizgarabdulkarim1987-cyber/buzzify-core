@@ -1130,3 +1130,118 @@ describe('reading batches', () => {
     expect(dataOf(await ask(w.owner, reviewQueries.batchList, { ...place(w) })).items[0]).toHaveProperty('totalMinor', '10000');
   });
 });
+
+// The unit rule and the batch scan (review fixes I1, I5) -------------------------------------------------------------------
+
+describe('the pack unit is never taken silently (review I1)', () => {
+  const stateOf = async (w: World, over: Record<string, unknown>) => {
+    await product(w.a.id, 'Panadol', { strength: '500 mg', form: 'tablet' });
+    const b = await batch(w);
+    const id = await row(w, b.fileId, over);
+    await matchRows(prisma(), { restaurantId: w.a.id }, b.batchId, NOW);
+    return rowOf(id);
+  };
+
+  it('a product with several units and a pack text that names one is matched with that unit', async () => {
+    const w = await world();
+    const made = await stateOf(w, { pack: '10 strip' });
+    expect(made).toMatchObject({ matchState: 'MATCHED' });
+    const strip = await prisma().phProductUnit.findFirstOrThrow({ where: { productId: made.matchedProductId!, label: 'strip' } });
+    expect(made.matchedUnitId).toBe(strip.id);
+  });
+
+  it('a product with several units and a pack text that names none is AMBIGUOUS, with no unit chosen', async () => {
+    for (const pack of ['', '30', 'box']) {
+      await resetWorld();
+      const w = await world();
+      const made = await stateOf(w, { pack });
+      expect(made, `pack "${pack}"`).toMatchObject({ matchState: 'AMBIGUOUS', matchedUnitId: null });
+    }
+  });
+
+  it('the batch read gives the units of the matched product, for the unit select', async () => {
+    const w = await world();
+    const { batchId, rowId } = await clean(w);
+    const read = await readRow(w, batchId, rowId);
+    expect(read.match?.units?.map((u) => u.label).sort()).toEqual(['strip', 'tablet']);
+  });
+});
+
+describe('one scan for the whole batch (review I5)', () => {
+  const scan = (w: World, who: Person, batchId: string, barcode: string, branch: 1 | 2 = 1) =>
+    act(who, reviewActions.intakeScan, { ...place(w, branch), batchId, barcode, clientKey: key() });
+
+  it('puts the product on the first open line that looks like it, with the unit of the code', async () => {
+    const w = await world();
+    const p = await product(w.a.id, 'Brufen', { strength: '400 mg', form: 'tablet', barcode: EAN13 });
+    const b = await batch(w);
+    const other = await row(w, b.fileId, { name: 'Something unrelated', pack: '' });
+    const target = await row(w, b.fileId, { name: 'Brufen 400', strength: '', form: '', pack: '' });
+    const out = dataOf(await scan(w, w.pic, b.batchId, EAN13));
+    expect(out).toMatchObject({ rowId: target, how: 'open', productName: 'Brufen' });
+    expect(await rowOf(target)).toMatchObject({ matchState: 'CHOSEN', matchedProductId: p.id, matchedUnitId: p.strip });
+    expect(await rowOf(other)).toMatchObject({ matchedProductId: null });
+  });
+
+  it('a scan of the same product again lands on the line that already holds it and changes nothing else', async () => {
+    const w = await world();
+    const p = await product(w.a.id, 'Brufen', { barcode: EAN13 });
+    const b = await batch(w);
+    const target = await row(w, b.fileId, { name: 'Brufen', pack: '' });
+    await scan(w, w.pic, b.batchId, EAN13);
+    const again = dataOf(await scan(w, w.pic, b.batchId, EAN13));
+    expect(again).toMatchObject({ rowId: target, how: 'same', filled: [] });
+    expect(await rowOf(target)).toMatchObject({ matchedProductId: p.id });
+  });
+
+  it('a GS1 code fills an empty lot and expiry, marked barcode, and never replaces a value the line has', async () => {
+    const w = await world();
+    await product(w.a.id, 'Brufen', { barcode: EAN13 });
+    const b = await batch(w);
+    const empty = await row(w, b.fileId, { name: 'Brufen', pack: '', lot: null, expiry: null });
+    const gs1 = `(01)${GTIN14}(17)280331(10)A1`;
+    const out = dataOf(await scan(w, w.pic, b.batchId, gs1));
+    expect(out.filled).toEqual(['expiry', 'lot']);
+    expect((await rowOf(empty)).edited).toMatchObject({ lot: 'A1', fieldSources: { lot: 'barcode', expiry: 'barcode' } });
+    const kept = await row(w, b.fileId, { name: 'Brufen', pack: '', lot: 'KEEP', expiry: '2029-01' });
+    await prisma().phIntakeRow.update({ where: { id: empty }, data: { matchState: 'UNMATCHED', matchedProductId: null, matchedUnitId: null } });
+    await scan(w, w.pic, b.batchId, gs1);
+    expect((await rowOf(kept)).edited).toEqual({});
+  });
+
+  it('no line for the product: NO_LINE_FOR_BARCODE with the product name, nothing written', async () => {
+    const w = await world();
+    await product(w.a.id, 'Brufen', { barcode: EAN13 });
+    const b = await batch(w);
+    const line = await row(w, b.fileId, { name: 'Completely different', pack: '' });
+    const before = await rowOf(line);
+    const out = await scan(w, w.pic, b.batchId, EAN13);
+    expect(codeOf(out)).toBe('NOT_FOUND');
+    expect(phCodeOf(out)).toBe('NO_LINE_FOR_BARCODE');
+    expect(JSON.stringify(out)).toContain('Brufen');
+    expect(await rowOf(line)).toMatchObject({ version: before.version });
+  });
+
+  it('an unknown code is BARCODE_UNKNOWN; a code on two products is BARCODE_AMBIGUOUS', async () => {
+    const w = await world();
+    const b = await batch(w);
+    await row(w, b.fileId, { name: 'Anything' });
+    expect(phCodeOf(await scan(w, w.pic, b.batchId, EAN13))).toBe('BARCODE_UNKNOWN');
+    const one = await product(w.a.id, 'One');
+    const two = await product(w.a.id, 'Two');
+    for (const x of [one, two]) await prisma().phBarcode.create({ data: { restaurantId: w.a.id, productId: x.id, unitId: x.strip, code: EAN13, shared: true } });
+    expect(phCodeOf(await scan(w, w.pic, b.batchId, EAN13))).toBe('BARCODE_AMBIGUOUS');
+  });
+
+  it('is refused for a batch that is not open, for the other branch, and for a role without purchase.manage', async () => {
+    const w = await world();
+    await product(w.a.id, 'Brufen', { barcode: EAN13 });
+    const closed = await batch(w, { status: 'CANCELLED' });
+    await row(w, closed.fileId, { name: 'Brufen' });
+    expect(codeOf(await scan(w, w.pic, closed.batchId, EAN13))).not.toBe('OK');
+    const open = await batch(w);
+    await row(w, open.fileId, { name: 'Brufen' });
+    expect(codeOf(await scan(w, w.pic, open.batchId, EAN13, 2))).not.toBe('OK');
+    expect(codeOf(await scan(w, w.cashier, open.batchId, EAN13))).not.toBe('OK');
+  });
+});
