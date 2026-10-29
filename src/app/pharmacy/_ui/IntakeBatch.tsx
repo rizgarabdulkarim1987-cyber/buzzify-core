@@ -64,6 +64,10 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
   const [cancelling, setCancelling] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
   const stop = useRef(false);
+  /** Files being read right now: a second press on the same file while its answer is awaited does nothing. */
+  const inflight = useRef(new Set<string>());
+  /** Pictures whose link was already asked for again after a failed load (once each, so a dead link does not loop). */
+  const refetched = useRef(new Set<string>());
   const open = data.status === 'OPEN';
   const busy = reading.size > 0 || runState !== 'idle';
 
@@ -97,6 +101,8 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
 
   /** Reads one file; says whether a "Read all" run goes on, stops for a reason every file would meet, or stops offline. */
   const readOne = async (fileId: string, again: boolean): Promise<{ stop: 'continue' | 'sameReason' | 'network'; fresh: BatchState | null }> => {
+    if (inflight.current.has(fileId)) return { stop: 'continue', fresh: null };
+    inflight.current.add(fileId);
     setReading((s) => new Set(s).add(fileId));
     setErrors((e) => Object.fromEntries(Object.entries(e).filter(([id]) => id !== fileId)));
     const result = await settle(() => (again ? retryIntakeFile({ fileId }) : readIntakeFile({ fileId })));
@@ -109,6 +115,7 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
       halt = runDecision({ failureCode: (result.data as { failureCode: string | null }).failureCode });
     }
     const next = await refresh();
+    inflight.current.delete(fileId);
     setReading((s) => {
       const n = new Set(s);
       n.delete(fileId);
@@ -157,6 +164,11 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
     setCancelling(false);
     if (!result.ok) {
       setCancelError(phMessage(t, locale, result.error, 'pharmacy.intake'));
+      // Someone else already closed it: show the batch as it is now.
+      if (result.error.fields?.phCode === 'BATCH_NOT_OPEN') {
+        await refresh();
+        router.refresh();
+      }
       return;
     }
     setPanel(false);
@@ -322,7 +334,11 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
                     <div data-testid="file-picture">
                       {f.mediaType.startsWith('image/') ? (
                         // eslint-disable-next-line @next/next/no-img-element -- a short-lived signed link to a private file: not an optimisable asset
-                        <img src={picture.url} alt={t('pharmacy.intake.pictureAlt', { n: formatNumber(index + 1) })} className="max-h-72 w-auto max-w-full rounded-md border border-line object-contain" />
+                        <img src={picture.url} alt={t('pharmacy.intake.pictureAlt', { n: formatNumber(index + 1) })} className="max-h-72 w-auto max-w-full rounded-md border border-line object-contain" onError={() => {
+                            if (refetched.current.has(f.id)) return;
+                            refetched.current.add(f.id);
+                            void showPicture(f.id);
+                          }} />
                       ) : (
                         <a href={picture.url} target="_blank" rel="noopener noreferrer" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
                           <FileText aria-hidden />
