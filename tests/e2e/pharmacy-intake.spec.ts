@@ -174,6 +174,29 @@ async function setFile(fileId: string, data: Record<string, unknown>): Promise<v
   }
 }
 
+async function fileIdBySha(shop: TestPharmacy, hash: string): Promise<string | null> {
+  const client = db();
+  try {
+    return (await client.phIntakeFile.findFirst({ where: { restaurantId: shop.id, sha256: hash }, select: { id: true } }))?.id ?? null;
+  } finally {
+    await client.$disconnect();
+  }
+}
+
+/** A batch whose only file has been "being read" for 15 minutes: its reading died, past the server's 10 minute lease. */
+async function seedStale(shop: TestPharmacy, userId: string): Promise<string> {
+  const client = db();
+  try {
+    const batch = await client.phIntakeBatch.create({ data: { restaurantId: shop.id, branchId: shop.branchIds[0]!, clientKey: `stale-${randomUUID()}`, payloadHash: 'seed', createdById: userId }, select: { id: true } });
+    await client.phIntakeFile.create({
+      data: { restaurantId: shop.id, batchId: batch.id, sha256: createHash('sha256').update(`stale-${batch.id}`).digest('hex'), storageKey: null, mediaType: 'image/png', bytes: 1000, pages: 1, status: 'EXTRACTING', extractingSince: new Date(Date.now() - 15 * 60_000), attempts: 1, uploadedById: userId, expiresAt: new Date(Date.now() + 30 * DAY) },
+    });
+    return batch.id;
+  } finally {
+    await client.$disconnect();
+  }
+}
+
 async function freshPage(browser: Browser, viewport: { width: number; height: number } = { width: 1280, height: 900 }): Promise<Page> {
   const context = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() }, viewport });
   await hideDevTools(context);
@@ -336,7 +359,13 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await page.getByTestId('intake-start').click();
     await expect(items.nth(3)).toHaveAttribute('data-state', 'duplicate', { timeout: 60_000 });
     await expect(items.nth(3)).toContainText('already uploaded');
-    await expect(page.getByTestId('intake-summary')).toContainText('Stored');
+    // The counts, not just the labels: one stored, one rejected, one already uploaded, none failed or waiting.
+    const count = (label: string) => page.getByTestId('intake-summary').locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd');
+    await expect(count('Stored')).toHaveText('1');
+    await expect(count('Rejected')).toHaveText('1');
+    await expect(count('Already uploaded')).toHaveText('1');
+    await expect(count('Failed')).toHaveText('0');
+    await expect(count('Waiting')).toHaveText('0');
     await shoot(page, 'en-new-uploaded-1280');
 
     await page.getByTestId('intake-open-batch').click();
@@ -375,7 +404,8 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await expect(row).toContainText(`Lines read: ${INVOICES[0]!.lines.length}`);
     await expect(row.getByTestId('intake-attention')).toContainText('Needs attention: 1');
     await expect(page.getByTestId('usage-spent')).not.toHaveText('$0.00');
-    await expect(page.getByTestId('usage-calls-note')).toHaveCount(0);
+    // The figures moved with the reading: spent is more than nothing and the bar says so.
+    await expect(page.getByRole('meter', { name: 'Budget used' })).not.toHaveAttribute('aria-valuenow', '0');
     await shoot(page, 'en-list-1280');
     await page.getByRole('navigation', { name: 'Filter batches by state' }).getByRole('link', { name: 'Approved' }).click();
     await expect(page.getByTestId('intake-empty')).toContainText('No batches in this state');
@@ -464,17 +494,24 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     const png = await good(4);
     const url = await uploadBatch(page, [file('slow.png', 'image/png', png)]);
     const only = page.getByTestId('intake-file');
-    const id = await db().phIntakeFile.findFirst({ where: { restaurantId: shop.id, status: 'UPLOADED', sha256: sha(png) }, select: { id: true } });
+    const id = await fileIdBySha(shop, sha(png));
     expect(id).toBeTruthy();
     // Another tab (here: the database) says a reading started; the page reloads and shows it.
-    await setFile(id!.id, { status: 'EXTRACTING', extractingSince: new Date(), attempts: 1 });
+    await setFile(id!, { status: 'EXTRACTING', extractingSince: new Date(), attempts: 1 });
     await page.goto(url);
     await expect(only).toHaveAttribute('data-state', 'EXTRACTING');
     await expect(only.getByTestId('file-reading')).toContainText('Reading…');
     // It ends elsewhere; the open page notices on its own, without a reload.
-    await setFile(id!.id, { status: 'UPLOADED', extractingSince: null });
+    await setFile(id!, { status: 'UPLOADED', extractingSince: null });
     await expect(only).toHaveAttribute('data-state', 'UPLOADED', { timeout: 15_000 });
     await expect(only.getByTestId('file-reading')).toHaveCount(0);
+    // And it stops: with nothing being read, no further refresh goes out (a refresh is a Server Action POST to this page).
+    const posts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.headers()['next-action']) posts.push(request.url());
+    });
+    await page.waitForTimeout(8_000);
+    expect(posts).toEqual([]);
     await page.context().close();
   });
 
@@ -572,6 +609,9 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await expect(uploaded.getByTestId('file-read')).toBeDisabled();
     await expect(uploaded.getByTestId('file-read-why')).toContainText('Your role cannot use the AI');
     await expect(uploaded.getByTestId('file-manual')).toBeVisible();
+    const failed = page.getByTestId('intake-file').filter({ has: page.locator('[data-chip="failed"]') });
+    await expect(failed.getByTestId('file-retry')).toBeDisabled();
+    await expect(failed.getByTestId('file-retry-why')).toContainText('Your role cannot use the AI');
     await expect(page.getByTestId('intake-read-all')).toBeDisabled();
     await expect(page.getByTestId('intake-noai-note')).toBeVisible();
     await expect(page.getByTestId('intake-cancel')).toBeEnabled();
@@ -592,6 +632,104 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
       await expect(till.getByTestId('intake-upload')).toHaveCount(0);
     }
     await till.context().close();
+  });
+
+  test('a reading that died is said in words, offers Try again and Enter manually, and is not polled for ever', async ({ browser }) => {
+    test.setTimeout(120_000);
+    const { shop, owner } = await owned();
+    const batchId = await seedStale(shop, owner.userId);
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    const posts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.headers()['next-action']) posts.push(request.url());
+    });
+    await page.goto(`/pharmacy/purchasing/intake/${batchId}`);
+    const only = page.getByTestId('intake-file');
+    await expect(only).toHaveAttribute('data-stale', 'true');
+    await expect(only.getByTestId('file-stale')).toContainText('The reading did not finish');
+    await expect(only.getByTestId('file-reading')).toHaveCount(0);
+    await expect(only.getByTestId('file-retry')).toBeEnabled();
+    await expect(only.getByTestId('file-manual')).toBeVisible();
+    // Nothing refreshes it: no Server Action goes out while the page sits there.
+    await page.waitForTimeout(8_000);
+    expect(posts).toEqual([]);
+    await shoot(page, 'en-detail-stale-1280');
+    await page.context().close();
+  });
+
+  test('a lost answer to a file upload: sending again shows the file the server kept, with its reasons and the retake hint', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned();
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/purchasing/intake/new');
+    await page.getByTestId('intake-pick').setInputFiles([file('lost-blur.jpg', 'image/jpeg', await blurredPage(41))]);
+    let aborted = false;
+    await page.route('**/api/pharmacy/intake/files', async (route) => {
+      if (!aborted) {
+        aborted = true;
+        await route.fetch();
+        await route.abort('connectionreset');
+        return;
+      }
+      await route.continue();
+    });
+    await page.getByTestId('intake-start').click();
+    // The connection broke after the server did the work: the file waits (it is not marked failed) and the screen says it paused.
+    await expect(page.getByTestId('intake-paused')).toBeVisible({ timeout: 60_000 });
+    expect(aborted).toBe(true);
+    const item = page.getByTestId('up-item').first();
+    await expect(item).toHaveAttribute('data-state', 'queued');
+    await page.getByTestId('intake-start').click();
+    // The same file comes back as the server's rejected picture: reasons and retake hint, not a green "Already uploaded".
+    await expect(item).toHaveAttribute('data-state', 'rejected', { timeout: 60_000 });
+    await expect(item.getByTestId('quality-reasons')).toContainText('blurry');
+    await expect(item.getByTestId('quality-reasons')).toContainText('Retake the photo in good light');
+    await page.unroute('**/api/pharmacy/intake/files');
+    await page.context().close();
+  });
+
+  test('the connection going in the middle of a queue pauses it: the rest stay waiting and go when it is back', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned();
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto('/pharmacy/purchasing/intake/new');
+    await page.getByTestId('intake-pick').setInputFiles([file('q1.png', 'image/png', await good(11)), file('q2.png', 'image/png', await good(12)), file('q3.png', 'image/png', await good(13))]);
+    await page.route('**/api/pharmacy/intake/files', (route) => route.abort('connectionreset'));
+    await page.getByTestId('intake-start').click();
+    await expect(page.getByTestId('intake-paused')).toBeVisible({ timeout: 60_000 });
+    const items = page.getByTestId('up-item');
+    for (const i of [0, 1, 2]) await expect(items.nth(i)).toHaveAttribute('data-state', 'queued');
+    await expect(page.getByTestId('intake-summary').locator('dt', { hasText: /^Failed$/ }).locator('xpath=following-sibling::dd')).toHaveText('0');
+    await page.unroute('**/api/pharmacy/intake/files');
+    await page.getByTestId('intake-start').click();
+    for (const i of [0, 1, 2]) await expect(items.nth(i)).toHaveAttribute('data-state', 'stored', { timeout: 60_000 });
+    await expect(page.getByTestId('intake-paused')).toHaveCount(0);
+    await page.context().close();
+  });
+
+  test('a file already in another batch of the branch says so and links to that batch', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner } = await owned();
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    const png = await good(14);
+    const firstUrl = await uploadBatch(page, [file('shared.png', 'image/png', png)]);
+    await page.goto('/pharmacy/purchasing/intake/new');
+    await page.getByTestId('intake-pick').setInputFiles([file('shared-again.png', 'image/png', png)]);
+    await page.getByTestId('intake-start').click();
+    const item = page.getByTestId('up-item').first();
+    await expect(item).toHaveAttribute('data-state', 'elsewhere', { timeout: 60_000 });
+    await expect(page.getByTestId('up-elsewhere')).toContainText('already uploaded in another batch');
+    await expect(page.getByTestId('up-elsewhere-link')).toHaveAttribute('href', firstUrl);
+    // It is not counted as stored in this batch.
+    const count = (label: string) => page.getByTestId('intake-summary').locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd');
+    await expect(count('Stored')).toHaveText('0');
+    await expect(count('In another batch')).toHaveText('1');
+    await shoot(page, 'en-new-elsewhere-1280');
+    await page.context().close();
   });
 
   test('a pharmacy past its grace period is read-only: the reason in words, no upload, no reading, no cancel', async ({ browser }) => {
