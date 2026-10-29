@@ -587,15 +587,18 @@ export interface SalesSettingsView extends SalesSettings {
   upsellDeltaCapRatio: number;
   cartPairingMaxOffers: number;
   categories: Array<{ id: string; names: Names; completesMeal: boolean }>;
+  /** The owner's switch for the order and view counts on dish cards (read live; the plan's grant is in `upgrade`). */
+  dishCountsEnabled: boolean;
 }
 
 export async function salesSettingsView(db: QueryContext['db'], menuId: string): Promise<SalesSettingsView> {
-  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true, defaultLocale: true } });
+  const menu = await db.menu.findUniqueOrThrow({ where: { id: menuId }, select: { engineConfig: true, version: true, defaultLocale: true, dishCountsEnabled: true } });
   const categories = await db.category.findMany({ where: { menuId }, orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }], select: { id: true, translations: true, completesMeal: true } });
   const config = resolveEngineConfig(menu.engineConfig);
   return {
     ...salesSettings(config),
     version: menu.version,
+    dishCountsEnabled: menu.dishCountsEnabled,
     defaultLocale: isLocale(menu.defaultLocale) ? menu.defaultLocale : 'en',
     upsellMaxOffers: config.upsellMaxOffers,
     pairingMaxOffers: config.pairingMaxOffers,
