@@ -321,6 +321,7 @@ export function TransferEditor({ userId, restaurantId, branches, reach, placeBra
                       <Field label={t('pharmacy.receive.field.unit')}>
                         <Select
                           className="[&_select]:min-h-11"
+                          data-testid="transfer-unit"
                           value={line.unitId}
                           onChange={(e) => changeLine(line.key, { unitId: e.target.value })}
                           options={line.units.map((u) => ({ value: u.id, label: u.baseQty > 1 ? `${u.label} (${formatNumber(u.baseQty)})` : u.label }))}

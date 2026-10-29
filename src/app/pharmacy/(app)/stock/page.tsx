@@ -6,7 +6,7 @@ import { StockBlocked } from '@/app/pharmacy/_ui/StockBlocked';
 import { StockList } from '@/app/pharmacy/_ui/StockList';
 import { transfersWaiting } from '@/app/pharmacy/_ui/transfers-counts';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
-import { getPhPlaces } from '@/server/pharmacy/actor';
+import { getPhBranches, getPhPlaces } from '@/server/pharmacy/actor';
 import { balances } from '@/server/pharmacy/queries/stock';
 import { inTransit as inTransitQuery } from '@/server/pharmacy/queries/transfers';
 import { query } from '@/server/studio/framework/invoke';
@@ -78,7 +78,9 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
     else rows.push({ toBranchId: item.toBranchId, qty: item.qty });
   }
   const branches = places.find((p) => p.restaurantId === access.placeInput.restaurantId)?.branches ?? [];
-  const branchNames = Object.fromEntries(branches.map((b) => [b.id, b.name]));
+  // The destination of a transfer may be a branch the person does not work in: its name comes from the business's list.
+  const everyBranch = mayTransfer ? await getPhBranches(actor.restaurantId) : [];
+  const branchNames = Object.fromEntries([...everyBranch, ...branches].map((b) => [b.id, b.name]));
   const adjust = access.writable('stock.adjust');
   const adjustBranchId = adjust.ok ? access.place.branchId : null;
   const links = (over: Partial<Params>) => {
