@@ -1,4 +1,4 @@
-import { Archive, Ban, CircleAlert, CircleCheck, CircleDashed, FileCheck, FolderOpen, Hourglass, ImageOff, TriangleAlert, Upload } from 'lucide-react';
+import { Archive, Ban, CircleAlert, CircleCheck, CircleDashed, FileCheck, FolderInput, FolderOpen, Hourglass, ImageOff, TriangleAlert, Upload } from 'lucide-react';
 import type { ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
 import { batchChip, fileChip, qualityReasons, type BatchStatusName, type FileChipKind, type FileStatusName, type UploadStatus } from './intake-logic';
@@ -47,6 +47,7 @@ const UPLOAD_ICONS: Record<UploadStatus | 'lost', ReactNode> = {
   stored: <CircleCheck aria-hidden />,
   rejected: <ImageOff aria-hidden />,
   duplicate: <FileCheck aria-hidden />,
+  elsewhere: <FolderInput aria-hidden />,
   failed: <TriangleAlert aria-hidden />,
   invalid: <CircleAlert aria-hidden />,
   lost: <CircleAlert aria-hidden />,

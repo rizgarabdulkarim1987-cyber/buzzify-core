@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
+import { LEASE_MS } from './ai';
 import { approvalOf, effectiveHeader, evaluateRows, headerView, loadRows, verdictTokenOf, type Ack, type RowView, type StoredHeader } from './rows';
 
 /**
@@ -132,6 +133,11 @@ const ackOf = (ack: Ack, withCost: boolean): RowRead['acknowledged'] => ({
   mismatch: ack.mismatch ? (withCost ? { difference: ack.mismatch.difference } : {}) : null,
 });
 
+/** A file still EXTRACTING whose lease is older than the server's lease: its reading died, and the server will take it again. */
+function isStaleReading(file: { status: string; extractingSince: Date | null }, now: Date): boolean {
+  return file.status === 'EXTRACTING' && file.extractingSince !== null && file.extractingSince.getTime() < now.getTime() - LEASE_MS;
+}
+
 export async function getBatch(scoped: ScopedClient, batchId: string, branchId: string | undefined, withCost: boolean, now: Date) {
   const batch = await scoped.phIntakeBatch.findFirst({
     where: { id: batchId, ...(branchId ? { branchId } : {}) },
@@ -140,7 +146,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
   if (!batch) throw new StudioError('NOT_FOUND', 'Batch not found');
   const files = await scoped.phIntakeFile.findMany({
     where: { batchId },
-    select: { id: true, status: true, failureCode: true, pages: true, mediaType: true, bytes: true, attempts: true, extractedAt: true },
+    select: { id: true, status: true, failureCode: true, pages: true, mediaType: true, bytes: true, attempts: true, extractedAt: true, extractingSince: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
   });
   const records = await loadRows(scoped, batchId);
@@ -224,7 +230,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
           }
         : {}),
     },
-    files: files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts, extractedAt: f.extractedAt?.toISOString() ?? null })),
+    files: files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts, extractedAt: f.extractedAt?.toISOString() ?? null, stale: isStaleReading(f, now) })),
     rows: rows.map(read),
     approval,
     /** What this read rests on: the approval sends it back and the server refuses (`APPROVAL_STALE`) when it no longer matches. */

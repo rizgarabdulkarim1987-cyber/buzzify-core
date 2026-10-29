@@ -18,6 +18,7 @@ import {
   checkClientFile,
   effectiveStatus,
   emptyIntakeDraft,
+  isNetworkFailure,
   itemOf,
   nextUpload,
   outcomeOfUpload,
@@ -57,8 +58,12 @@ async function send(file: File, place: { restaurantId: string; branchId: string;
   form.append('file', file, file.name);
   try {
     const response = await fetch(UPLOAD_URL, { method: 'POST', body: form });
-    const body = (await response.json()) as UploadAnswer;
-    return body;
+    try {
+      return (await response.json()) as UploadAnswer;
+    } catch {
+      // An answer that is not the route's JSON (a proxy's 413 or 502 page): the connection worked, the file was not taken.
+      return { error: { code: 'INVALID', message: `The upload was not accepted (HTTP ${response.status}).` } };
+    }
   } catch {
     return { error: { code: 'INVALID', message: NETWORK_FAILURE } };
   }
@@ -92,6 +97,8 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
   const counter = useRef(0);
   const [problem, setProblem] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  /** The last run stopped because the connection was lost; the rest of the files wait. */
+  const [paused, setPaused] = useState(false);
   const pickRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
 
@@ -144,6 +151,7 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
     running.current = true;
     setBusy(true);
     setProblem(null);
+    setPaused(false);
     try {
       let batchId = latest.current.batchId;
       if (!batchId) {
@@ -165,13 +173,26 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
         if (!next) break;
         commit((c) => ({ items: setItem(c.items, next.key, { status: 'uploading' }) }));
         const answer = await send(files.current.get(next.key)!, { restaurantId, branchId, batchId });
-        const outcome = outcomeOfUpload(answer);
+        // The connection went: this file and the rest stay queued (the bytes are still here) until the connection is back.
+        if ('error' in answer && isNetworkFailure(answer.error)) {
+          commit((c) => ({ items: setItem(c.items, next.key, { status: 'queued' }) }));
+          setPaused(true);
+          break;
+        }
+        const outcome = outcomeOfUpload(answer, batchId);
         if (outcome.status === 'failed') {
-          commit((c) => ({ items: setItem(c.items, next.key, { status: 'failed', message: outcome.message, phCode: outcome.phCode, retryable: outcome.retryable }) }));
+          commit((c) => ({ items: setItem(c.items, next.key, { status: 'failed', message: outcome.message, phCode: outcome.phCode, code: outcome.error.code, retryable: outcome.retryable }) }));
         } else {
           files.current.delete(next.key);
           syncHeld();
-          commit((c) => ({ items: setItem(c.items, next.key, { status: outcome.status, fileId: 'fileId' in outcome ? outcome.fileId : undefined, reasons: 'reasons' in outcome ? outcome.reasons : undefined }) }));
+          commit((c) => ({
+            items: setItem(c.items, next.key, {
+              status: outcome.status,
+              fileId: 'fileId' in outcome ? outcome.fileId : undefined,
+              reasons: 'reasons' in outcome ? outcome.reasons : undefined,
+              batchId: 'batchId' in outcome ? outcome.batchId : undefined,
+            }),
+          }));
         }
       }
     } finally {
@@ -182,7 +203,7 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
   }
 
   const failureText = (item: UploadItem) =>
-    phMessage(t, locale, { code: 'INVALID', message: item.message ?? NETWORK_FAILURE, ...(item.phCode ? { fields: { phCode: item.phCode } } : {}) }, 'pharmacy.intake');
+    phMessage(t, locale, { code: item.code ?? 'INVALID', message: item.message ?? NETWORK_FAILURE, ...(item.phCode ? { fields: { phCode: item.phCode } } : {}) }, 'pharmacy.intake');
 
   const queued = value.items.filter((i) => i.status === 'queued' && hasFile(i.key)).length;
   const finished = value.batchId !== null && summary.waiting === 0 && !busy && value.items.length > 0;
@@ -300,6 +321,19 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
                   {state === 'lost' && <p className="text-sm text-text">{t('pharmacy.intake.up.lostBody')}</p>}
                   {state === 'rejected' && <QualityReasons reasons={item.reasons} t={t} />}
                   {state === 'duplicate' && <p className="text-sm text-text">{t('pharmacy.intake.up.duplicateBody')}</p>}
+                  {state === 'elsewhere' && (
+                    <div className="flex min-w-0 flex-col items-start gap-2">
+                      <p data-testid="up-elsewhere" className="text-sm text-text">
+                        {t('pharmacy.intake.up.elsewhereBody')}
+                      </p>
+                      {item.batchId && (
+                        <Link href={`/pharmacy/purchasing/intake/${item.batchId}`} data-testid="up-elsewhere-link" className="s-btn inline-flex min-h-11 items-center justify-center gap-2 rounded-md border border-line-strong bg-raised px-4 text-base font-medium text-text hover:bg-hover [&_svg]:size-4">
+                          <FolderOpen aria-hidden />
+                          {t('pharmacy.intake.up.elsewhereLink')}
+                        </Link>
+                      )}
+                    </div>
+                  )}
                   {state === 'failed' && <p className="text-sm text-danger">{failureText(item)}</p>}
                   <div className="flex flex-wrap gap-2">
                     {state === 'failed' && item.retryable && (
@@ -308,7 +342,7 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
                       </Button>
                     )}
                     {(state === 'queued' || state === 'invalid' || state === 'failed' || state === 'lost') && (
-                      <Button size="lg" className="min-h-11" icon={<Trash2 aria-hidden />} disabled={state === 'queued' && busy && item.status === 'uploading'} onClick={() => remove(item.key)}>
+                      <Button size="lg" className="min-h-11" icon={<Trash2 aria-hidden />} onClick={() => remove(item.key)}>
                         {t('pharmacy.intake.up.remove')}
                       </Button>
                     )}
@@ -330,6 +364,12 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
           )}
         </div>
         {!online && queued > 0 && <p className="text-sm text-muted">{t('pharmacy.intake.up.offlineKeep')}</p>}
+        {paused && queued > 0 && (
+          <p role="status" data-testid="intake-paused" className="flex items-start gap-2.5 text-sm text-text">
+            <Info aria-hidden className="mt-px size-4 shrink-0 text-muted" />
+            <span className="min-w-0">{t('pharmacy.intake.up.pausedOffline')}</span>
+          </p>
+        )}
       </section>
 
       {value.items.length > 0 && (
@@ -337,12 +377,13 @@ export function IntakeUpload({ userId, restaurantId, branchId, branchName, suppl
           <h2 id="up-summary" className="text-sm font-medium text-muted">
             {t('pharmacy.intake.up.summary')}
           </h2>
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-5">
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-3 lg:grid-cols-6">
             {(
               [
                 ['stored', summary.stored],
                 ['rejected', summary.rejected],
                 ['duplicate', summary.duplicate],
+                ['elsewhere', summary.elsewhere],
                 ['failed', summary.failed],
                 ['waiting', summary.waiting],
               ] as const

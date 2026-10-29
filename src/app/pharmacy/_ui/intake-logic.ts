@@ -1,3 +1,5 @@
+import type { ErrorCode } from '@/server/studio/framework/result';
+import { NETWORK_FAILURE } from '@/studio/settle';
 import { attemptKeyFor } from './purchasing-logic';
 import { newClientKey } from './sell-logic';
 
@@ -38,7 +40,8 @@ export function checkClientFile(file: { name: string; type: string; size: number
 
 // The upload queue -----------------------------------------------------------------------------------------------------
 
-export type UploadStatus = 'queued' | 'uploading' | 'stored' | 'rejected' | 'duplicate' | 'failed' | 'invalid';
+/** `duplicate`: the same bytes are already in this batch. `elsewhere`: they are in another batch (its id is kept when the server says it). */
+export type UploadStatus = 'queued' | 'uploading' | 'stored' | 'rejected' | 'duplicate' | 'elsewhere' | 'failed' | 'invalid';
 
 /** One file of the draft. The bytes are not here: only the browser's memory holds them, so a draft can be saved as JSON. */
 export interface UploadItem {
@@ -53,6 +56,10 @@ export interface UploadItem {
   /** Why a file failed, in the server's own words (translated when shown). */
   message?: string | undefined;
   phCode?: string | undefined;
+  /** The error's own code (INVALID, CONFLICT, ...), kept so a failed file's sentence is the same after a reload. */
+  code?: ErrorCode | undefined;
+  /** The other batch that already holds this file (`elsewhere`). */
+  batchId?: string | undefined;
   retryable?: boolean | undefined;
   /** Why a file was never queued. */
   problem?: FileProblem | undefined;
@@ -90,26 +97,53 @@ export function qualityReasons(source: string | readonly string[] | null | undef
 }
 
 /** The route's answer: `{ data }` or `{ error }` (the Studio route shape). */
-export type UploadAnswer = { data: unknown } | { error: { code: string; message: string; fields?: Record<string, string> | undefined } };
+export type UploadAnswer = { data: unknown } | { error: { code: ErrorCode; message: string; fields?: Record<string, string> | undefined } };
 
 export type UploadOutcome =
   | { status: 'stored'; fileId: string }
   | { status: 'rejected'; fileId: string; reasons: string[] }
   | { status: 'duplicate'; fileId?: string }
-  | { status: 'failed'; retryable: boolean; message: string; phCode?: string; error: { code: string; message: string; fields?: Record<string, string> | undefined } };
+  | { status: 'elsewhere'; fileId?: string; batchId?: string }
+  | { status: 'failed'; retryable: boolean; message: string; phCode?: string; error: { code: ErrorCode; message: string; fields?: Record<string, string> | undefined } };
 
-/** Refusals that sending the same file again cannot change. */
-const FINAL = new Set(['TOO_LARGE', 'UNSUPPORTED_TYPE', 'TOO_MANY_PAGES', 'PAGES_UNKNOWN', 'TOO_MANY_FILES', 'STORAGE_LIMIT', 'BATCH_NOT_OPEN', 'INTAKE_STORAGE_NOT_CONFIGURED', 'SUPPLIER_ARCHIVED']);
+/**
+ * Refusals that sending the same file again cannot change: exactly the codes the server answers a file with (files.ts
+ * REFUSALS and the quality reader, the batch and storage rules). The unit test lists them against the server's own.
+ */
+export const FINAL_REFUSALS: ReadonlySet<string> = new Set([
+  'UNSUPPORTED_TYPE',
+  'EMPTY',
+  'TOO_LARGE',
+  'TYPE_MISMATCH',
+  'PDF_UNREADABLE',
+  'TOO_MANY_PAGES',
+  'IMAGE_UNREADABLE',
+  'TOO_MANY_FILES',
+  'STORAGE_LIMIT',
+  'BATCH_NOT_OPEN',
+  'INTAKE_STORAGE_NOT_CONFIGURED',
+  'SUPPLIER_ARCHIVED',
+]);
 
-export function outcomeOfUpload(answer: UploadAnswer): UploadOutcome {
+/** A call that never got an answer: the connection dropped, so what was sent may be sent again. */
+export const isNetworkFailure = (error: { message: string }): boolean => error.message === NETWORK_FAILURE;
+
+/**
+ * How one upload's answer settles its item. `batchId` is the batch being filled: the same bytes answered as a duplicate are
+ * judged by the stored file's own state (a picture the server refused for quality keeps its reasons and the retake hint) and by
+ * where it lives (in this batch, or in another one, which is said and linked, never shown as "already uploaded" here).
+ */
+export function outcomeOfUpload(answer: UploadAnswer, batchId: string): UploadOutcome {
   if ('error' in answer) {
     const phCode = answer.error.fields?.phCode;
-    if (phCode === 'DUPLICATE_FILE') return { status: 'duplicate' };
-    return { status: 'failed', retryable: !(phCode && FINAL.has(phCode)), message: answer.error.message, ...(phCode ? { phCode } : {}), error: answer.error };
+    // The server hides a batch the actor's branches do not reach, so only "it is elsewhere" is known.
+    if (phCode === 'DUPLICATE_FILE') return { status: 'elsewhere' };
+    return { status: 'failed', retryable: !(phCode && FINAL_REFUSALS.has(phCode)), message: answer.error.message, ...(phCode ? { phCode } : {}), error: answer.error };
   }
-  const added = answer.data as { fileId: string; status: string; duplicate: boolean; reasons?: string[] };
-  if (added.duplicate) return { status: 'duplicate', fileId: added.fileId };
+  const added = answer.data as { fileId: string; batchId?: string; status: string; duplicate: boolean; reasons?: string[] };
+  if (added.duplicate && added.batchId && added.batchId !== batchId) return { status: 'elsewhere', fileId: added.fileId, batchId: added.batchId };
   if (added.status === 'REJECTED_QUALITY') return { status: 'rejected', fileId: added.fileId, reasons: qualityReasons(added.reasons ?? []) };
+  if (added.duplicate) return { status: 'duplicate', fileId: added.fileId };
   return { status: 'stored', fileId: added.fileId };
 }
 
@@ -119,6 +153,7 @@ export function uploadSummary(items: readonly UploadItem[]) {
     stored: count('stored'),
     rejected: count('rejected'),
     duplicate: count('duplicate'),
+    elsewhere: count('elsewhere'),
     failed: count('failed'),
     waiting: count('queued', 'uploading'),
     invalid: count('invalid'),
@@ -204,8 +239,10 @@ const reasonOf = (ctx: ControlContext): false | DisabledReason => (!ctx.writable
  * A file's controls. Read and Try again are shown for the states they belong to and disabled, with the reason, when this
  * person or moment cannot use them. "Enter manually" is offered whenever the AI path failed or is not open to this role.
  */
-export function fileControls(status: FileStatusName, ctx: ControlContext): { read: Control; retry: Control; manual: boolean } {
+export function fileControls(fileStatus: FileStatusName, ctx: ControlContext, stale = false): { read: Control; retry: Control; manual: boolean } {
   const disabled = reasonOf(ctx);
+  // A reading whose worker died (EXTRACTING past the server's lease) is treated like a failed one: the server takes it again.
+  const status: FileStatusName = fileStatus === 'EXTRACTING' && stale ? 'FAILED' : fileStatus;
   return {
     read: status === 'UPLOADED' ? { shown: true, disabled } : { shown: false, disabled: false },
     retry: status === 'FAILED' ? { shown: true, disabled } : { shown: false, disabled: false },
@@ -218,9 +255,10 @@ export function fileControls(status: FileStatusName, ctx: ControlContext): { rea
 export const POLL_MS = 3000;
 const POLL_GIVE_UP = 5;
 
-/** Refresh the batch every 3 seconds while a file is being read; stop when none is, or after five failed refreshes in a row. */
-export function pollPlan(files: readonly { status: string }[], failures: number): { poll: boolean; delayMs: number } {
-  return { poll: failures < POLL_GIVE_UP && files.some((f) => f.status === 'EXTRACTING'), delayMs: POLL_MS };
+/** Refresh the batch every 3 seconds while a file is being read (and its reading is not stale); stop when none is, or after five failed refreshes in a row. */
+export function pollPlan(files: readonly { status: string; stale?: boolean | undefined }[], failures: number): { poll: boolean; delayMs: number } {
+  // A stale reading (past the server's lease) will not change by itself: polling it would go on for ever.
+  return { poll: failures < POLL_GIVE_UP && files.some((f) => f.status === 'EXTRACTING' && !f.stale), delayMs: POLL_MS };
 }
 
 /** The next file "Read all" takes: the first uploaded one this run has not tried yet. */
@@ -233,6 +271,18 @@ const RUN_STOPPERS = new Set(['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING
 /** A failure that would repeat for every other file (budget, plan, set-up): "Read all" stops there instead of trying the rest. */
 export const stopsReadAll = (code: string | null | undefined): boolean => code != null && RUN_STOPPERS.has(code);
 
+/**
+ * What "Read all" does after one file: carry on (the failure belongs to that file, which shows its own sentence), stop for a
+ * reason the next file would meet too (budget, plan, set-up, closed batch), or stop because the connection is gone.
+ */
+export function runDecision(result: { error?: { code: string; message: string; fields?: Record<string, string> | undefined }; failureCode?: string | null }): 'continue' | 'sameReason' | 'network' {
+  if (result.error) {
+    if (isNetworkFailure(result.error)) return 'network';
+    return stopsReadAll(result.error.fields?.phCode) ? 'sameReason' : 'continue';
+  }
+  return stopsReadAll(result.failureCode) ? 'sameReason' : 'continue';
+}
+
 // The batch as the detail screen holds it ----------------------------------------------------------------------------------
 
 /** What the detail screen needs from `ph.intake.batch.get`: the batch's state, its files and how many lines each file holds. */
@@ -240,13 +290,13 @@ export interface BatchState {
   status: BatchStatusName;
   version: number;
   receiptId: string | null;
-  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number }[];
+  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number; stale: boolean }[];
   rowsByFile: Record<string, number>;
 }
 
 export function batchStateOf(data: {
   batch: { status: BatchStatusName; version: number; receiptId: string | null };
-  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number }[];
+  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number; stale?: boolean }[];
   rows: { fileId: string; removed: boolean }[];
 }): BatchState {
   const rowsByFile: Record<string, number> = {};
@@ -255,7 +305,7 @@ export function batchStateOf(data: {
     status: data.batch.status,
     version: data.batch.version,
     receiptId: data.batch.receiptId,
-    files: data.files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts })),
+    files: data.files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts, stale: f.stale === true })),
     rowsByFile,
   };
 }

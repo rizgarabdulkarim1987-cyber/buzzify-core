@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { INTAKE_LIMITS } from '@/server/domain/pharmacy/intake';
+import { NETWORK_FAILURE } from '@/studio/settle';
 import {
   CLIENT_LIMITS,
   attentionOf,
@@ -10,6 +12,9 @@ import {
   emptyIntakeDraft,
   fileChip,
   fileControls,
+  FINAL_REFUSALS,
+  isNetworkFailure,
+  runDecision,
   itemOf,
   microUsdText,
   nextToRead,
@@ -31,7 +36,7 @@ const item = (patch: Partial<UploadItem> = {}): UploadItem => ({ key: 'k1', name
 
 describe('client pre-checks mirror the server limits', () => {
   it('uses the server limits', () => {
-    expect(CLIENT_LIMITS).toEqual({ maxBytes: 8 * 1024 * 1024, maxFiles: 20 });
+    expect(CLIENT_LIMITS).toEqual({ maxBytes: INTAKE_LIMITS.maxBytes, maxFiles: INTAKE_LIMITS.maxFilesPerBatch });
   });
 
   it('accepts JPEG, PNG, WebP and PDF', () => {
@@ -101,36 +106,41 @@ describe('what the server answered for one upload', () => {
   const added = { fileId: 'f1', batchId: 'b1', status: 'UPLOADED', duplicate: false, mediaType: 'image/jpeg', pages: 1, bytes: 10, reasons: [] };
 
   it('a stored file', () => {
-    expect(outcomeOfUpload({ data: added })).toEqual({ status: 'stored', fileId: 'f1' });
+    expect(outcomeOfUpload({ data: added }, 'b1')).toEqual({ status: 'stored', fileId: 'f1' });
   });
 
   it('a poor image is rejected with its reasons in a fixed order', () => {
-    expect(outcomeOfUpload({ data: { ...added, status: 'REJECTED_QUALITY', reasons: ['TOO_DARK', 'BLURRY'] } })).toEqual({ status: 'rejected', fileId: 'f1', reasons: ['BLURRY', 'TOO_DARK'] });
+    expect(outcomeOfUpload({ data: { ...added, status: 'REJECTED_QUALITY', reasons: ['TOO_DARK', 'BLURRY'] } }, 'b1')).toEqual({ status: 'rejected', fileId: 'f1', reasons: ['BLURRY', 'TOO_DARK'] });
   });
 
-  it('the same bytes again is a duplicate, whatever its stored status', () => {
-    expect(outcomeOfUpload({ data: { ...added, duplicate: true } })).toEqual({ status: 'duplicate', fileId: 'f1' });
-    expect(outcomeOfUpload({ data: { ...added, duplicate: true, status: 'REJECTED_QUALITY', reasons: ['BLURRY'] } })).toMatchObject({ status: 'duplicate' });
+  it('the same bytes again in this batch: a stored one is "already uploaded", a rejected one keeps its reasons', () => {
+    expect(outcomeOfUpload({ data: { ...added, duplicate: true } }, 'b1')).toEqual({ status: 'duplicate', fileId: 'f1' });
+    expect(outcomeOfUpload({ data: { ...added, duplicate: true, status: 'REJECTED_QUALITY', reasons: ['TOO_DARK', 'BLURRY'] } }, 'b1')).toEqual({ status: 'rejected', fileId: 'f1', reasons: ['BLURRY', 'TOO_DARK'] });
   });
 
-  it('a file that exists in another branch is a duplicate without an id', () => {
-    expect(outcomeOfUpload({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'DUPLICATE_FILE' } } })).toEqual({ status: 'duplicate' });
+  it('the same bytes already in another batch of the branch say so and name that batch', () => {
+    expect(outcomeOfUpload({ data: { ...added, duplicate: true, batchId: 'b2' } }, 'b1')).toEqual({ status: 'elsewhere', fileId: 'f1', batchId: 'b2' });
+    expect(outcomeOfUpload({ data: { ...added, duplicate: true, batchId: 'b2', status: 'REJECTED_QUALITY', reasons: ['BLURRY'] } }, 'b1')).toMatchObject({ status: 'elsewhere', batchId: 'b2' });
+  });
+
+  it('a file that exists where this branch cannot see it is "elsewhere" without a batch to open', () => {
+    expect(outcomeOfUpload({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'DUPLICATE_FILE' } } }, 'b1')).toEqual({ status: 'elsewhere' });
   });
 
   it('refusals that repeating cannot fix are failed without a retry', () => {
-    for (const phCode of ['TOO_LARGE', 'UNSUPPORTED_TYPE', 'TOO_MANY_PAGES', 'PAGES_UNKNOWN', 'TOO_MANY_FILES', 'STORAGE_LIMIT', 'BATCH_NOT_OPEN', 'INTAKE_STORAGE_NOT_CONFIGURED']) {
-      expect(outcomeOfUpload({ error: { code: 'INVALID', message: 'x', fields: { phCode } } })).toMatchObject({ status: 'failed', retryable: false, phCode });
+    for (const phCode of ['TOO_LARGE', 'UNSUPPORTED_TYPE', 'EMPTY', 'TYPE_MISMATCH', 'PDF_UNREADABLE', 'IMAGE_UNREADABLE', 'TOO_MANY_PAGES', 'TOO_MANY_FILES', 'STORAGE_LIMIT', 'BATCH_NOT_OPEN', 'INTAKE_STORAGE_NOT_CONFIGURED', 'SUPPLIER_ARCHIVED']) {
+      expect(outcomeOfUpload({ error: { code: 'INVALID', message: 'x', fields: { phCode } } }, 'b1')).toMatchObject({ status: 'failed', retryable: false, phCode });
     }
   });
 
   it('a lost connection or an unknown failure can be tried again', () => {
-    expect(outcomeOfUpload({ error: { code: 'INVALID', message: 'The connection failed before an answer came back.' } })).toMatchObject({ status: 'failed', retryable: true });
-    expect(outcomeOfUpload({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'RETRY' } } })).toMatchObject({ status: 'failed', retryable: true });
+    expect(outcomeOfUpload({ error: { code: 'INVALID', message: 'The connection failed before an answer came back.' } }, 'b1')).toMatchObject({ status: 'failed', retryable: true });
+    expect(outcomeOfUpload({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'RETRY' } } }, 'b1')).toMatchObject({ status: 'failed', retryable: true });
   });
 
   it('summarises the queue in counts', () => {
-    const items = [item({ key: 'a', status: 'stored' }), item({ key: 'b', status: 'rejected' }), item({ key: 'c', status: 'duplicate' }), item({ key: 'd', status: 'failed' }), item({ key: 'e', status: 'queued' }), item({ key: 'f', status: 'uploading' }), item({ key: 'g', status: 'invalid' })];
-    expect(uploadSummary(items)).toEqual({ stored: 1, rejected: 1, duplicate: 1, failed: 1, waiting: 2, invalid: 1, busy: true, total: 7 });
+    const items = [item({ key: 'a', status: 'stored' }), item({ key: 'b', status: 'rejected' }), item({ key: 'c', status: 'duplicate' }), item({ key: 'd', status: 'failed' }), item({ key: 'e', status: 'queued' }), item({ key: 'f', status: 'uploading' }), item({ key: 'g', status: 'invalid' }), item({ key: 'h', status: 'elsewhere' })];
+    expect(uploadSummary(items)).toEqual({ stored: 1, rejected: 1, duplicate: 1, elsewhere: 1, failed: 1, waiting: 2, invalid: 1, busy: true, total: 8 });
   });
 });
 
@@ -299,5 +309,62 @@ describe('the batch as the detail screen holds it', () => {
     expect(state).toMatchObject({ status: 'OPEN', version: 4, receiptId: null });
     expect(state.files.map((f) => f.id)).toEqual(['f1', 'f2']);
     expect(state.rowsByFile).toEqual({ f1: 2 });
+  });
+});
+
+describe('final refusals match what the server sends', () => {
+  it('lists every code the server answers a file refusal with, and none it never sends', () => {
+    // The server's file refusals (files.ts REFUSALS, the quality reader and the batch rules), by the code on the wire.
+    const server = ['UNSUPPORTED_TYPE', 'EMPTY', 'TOO_LARGE', 'TYPE_MISMATCH', 'PDF_UNREADABLE', 'TOO_MANY_PAGES', 'IMAGE_UNREADABLE', 'TOO_MANY_FILES', 'STORAGE_LIMIT', 'BATCH_NOT_OPEN', 'INTAKE_STORAGE_NOT_CONFIGURED', 'SUPPLIER_ARCHIVED'];
+    for (const code of server) expect(FINAL_REFUSALS.has(code), code).toBe(true);
+    expect(FINAL_REFUSALS.has('PAGES_UNKNOWN')).toBe(false);
+    expect(FINAL_REFUSALS.size).toBe(server.length);
+  });
+
+  it('a lost connection is retryable, never final', () => {
+    const lost = { error: { code: 'INVALID' as const, message: NETWORK_FAILURE } };
+    expect(isNetworkFailure(lost.error)).toBe(true);
+    expect(outcomeOfUpload(lost, 'b1')).toMatchObject({ status: 'failed', retryable: true });
+    expect(isNetworkFailure({ message: 'The file is empty' })).toBe(false);
+  });
+
+  it('keeps the error code of a failed upload', () => {
+    expect(outcomeOfUpload({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'STORAGE_LIMIT' } } }, 'b1')).toMatchObject({ status: 'failed', error: { code: 'CONFLICT' } });
+  });
+});
+
+describe('a file whose reading died', () => {
+  it('is not polled for ever: only a reading that is not stale keeps the polling going', () => {
+    expect(pollPlan([{ status: 'EXTRACTING', stale: true }], 0).poll).toBe(false);
+    expect(pollPlan([{ status: 'EXTRACTING', stale: true }, { status: 'EXTRACTING', stale: false }], 0).poll).toBe(true);
+    expect(pollPlan([{ status: 'EXTRACTING' }], 0).poll).toBe(true);
+  });
+
+  it('offers Try again and Enter manually, like a failed one, and Read stays hidden', () => {
+    const ctx = { batchOpen: true, mayAi: true, writable: true, online: true, busy: false };
+    expect(fileControls('EXTRACTING', ctx, true)).toMatchObject({ read: { shown: false }, retry: { shown: true, disabled: false }, manual: true });
+    expect(fileControls('EXTRACTING', ctx, false)).toMatchObject({ retry: { shown: false }, manual: false });
+    expect(fileControls('EXTRACTING', { ...ctx, mayAi: false }, true).retry).toEqual({ shown: true, disabled: 'noAi' });
+  });
+
+  it('batchStateOf carries the stale flag', () => {
+    const base = { id: 'f', status: 'EXTRACTING' as const, failureCode: null, pages: 1, mediaType: 'image/png', bytes: 1, attempts: 1 };
+    const state = batchStateOf({ batch: { status: 'OPEN', version: 1, receiptId: null }, files: [{ ...base, stale: true }, { ...base, id: 'g' }], rows: [] });
+    expect(state.files.map((f) => f.stale)).toEqual([true, false]);
+  });
+});
+
+describe('what "Read all" does after one file', () => {
+  it('carries on past an error that belongs to that file', () => {
+    expect(runDecision({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'NOT_CLAIMABLE' } } })).toBe('continue');
+    expect(runDecision({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'FILE_HAS_REVIEW_EDITS' } } })).toBe('continue');
+    expect(runDecision({ failureCode: 'EXTRACTION_INVALID' })).toBe('continue');
+    expect(runDecision({ failureCode: null })).toBe('continue');
+  });
+
+  it('stops for a reason every other file would meet, and says which', () => {
+    expect(runDecision({ failureCode: 'AI_BUDGET_REACHED' })).toBe('sameReason');
+    expect(runDecision({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'BATCH_NOT_OPEN' } } })).toBe('sameReason');
+    expect(runDecision({ error: { code: 'INVALID', message: NETWORK_FAILURE } })).toBe('network');
   });
 });

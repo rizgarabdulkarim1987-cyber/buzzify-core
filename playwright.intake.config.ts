@@ -10,7 +10,7 @@ import { E2E_ORIGIN } from './tests/e2e/helpers/origin';
  * two model prices, and never reuses a server that is already running (one without the hook would call a real provider).
  * The desktop project only, with no setup projects.
  */
-export default {
+const config = {
   ...base,
   projects: [{ name: 'desktop', use: { ...devices['Desktop Chrome'] }, grep: /@desktop/ }],
   webServer: {
@@ -28,3 +28,5 @@ export default {
     },
   },
 };
+
+export default config;
