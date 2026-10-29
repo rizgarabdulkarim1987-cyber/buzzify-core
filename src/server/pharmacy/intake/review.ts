@@ -801,7 +801,7 @@ export async function acknowledgeHeader(
     changes: {
       acknowledged: { before: false, after: true },
       headerStatus: { before: view.arithmetic.status, after: view.arithmetic.status },
-      covers: { before: null, after: [...(mismatched ? ['difference'] : []), ...(adjustment !== null ? ['adjustment'] : [])] },
+      covers: { before: null, after: [...(mismatched ? ['total'] : []), ...(adjustment !== null ? ['adjustment'] : [])] },
       lines: { before: null, after: rowCount },
     },
   });

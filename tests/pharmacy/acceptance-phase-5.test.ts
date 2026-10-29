@@ -59,8 +59,8 @@ type Row = {
   matchState: string;
 };
 type BatchRead = {
-  batch: { id: string; status: string; version: number };
-  header: { values: Record<string, unknown>; arithmetic?: { status: string; difference?: string } };
+  batch: { id: string; status: string; version: number; supplierId: string | null };
+  header: { values: Record<string, unknown>; arithmetic?: { status: string; difference?: string }; adjustment?: { discount: string; tax: string; acknowledged: { reason: string } | null } | null };
   rows: Row[];
   verdictToken: string;
   approval: { ok: boolean };
