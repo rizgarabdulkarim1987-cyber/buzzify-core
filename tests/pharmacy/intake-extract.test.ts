@@ -399,9 +399,37 @@ describe('claiming and re-reading', () => {
     await prisma().phIntakeRow.update({ where: { id: rows[0]!.id }, data: { reviewed: true } });
     const callsBefore = provider.reached.length;
     const refused = await extract(w, w.pic, fileId, 1, intakeActions.retry);
-    expect(phCodeOf(refused)).toBe('FILE_ALREADY_REVIEWED');
+    expect(phCodeOf(refused)).toBe('FILE_HAS_REVIEW_EDITS');
     expect(provider.reached.length).toBe(callsBefore);
     expect(await rowsOf(fileId)).toHaveLength(inv.lines.length);
+  });
+
+  it('refuses a retry once any model line has an edit, a removal, a note or a chosen match (review I4), and keeps a hand-added line', async () => {
+    const inv = INVOICES[10]!;
+    for (const touch of [
+      { edited: { lot: 'FIXED' } },
+      { edited: { removed: true } },
+      { note: 'a note' },
+      { matchState: 'CHOSEN' },
+    ]) {
+      const { w, fileId } = await ready(modelTextFor(inv));
+      dataOf(await extract(w, w.pic, fileId));
+      const rows = await rowsOf(fileId);
+      await prisma().phIntakeRow.update({ where: { id: rows[0]!.id }, data: touch });
+      await prisma().phIntakeFile.update({ where: { id: fileId }, data: { status: 'FAILED', failureCode: 'AI_TIMEOUT' } });
+      const callsBefore = provider.reached.length;
+      expect(phCodeOf(await extract(w, w.pic, fileId, 1, intakeActions.retry)), JSON.stringify(touch)).toBe('FILE_HAS_REVIEW_EDITS');
+      expect(provider.reached.length).toBe(callsBefore);
+      expect(await rowsOf(fileId)).toHaveLength(rows.length);
+      await resetWorld();
+    }
+    // a line a person added is theirs: it is no reason to refuse, and it is kept
+    const { w, fileId } = await ready(modelTextFor(inv));
+    dataOf(await extract(w, w.pic, fileId));
+    const manual = await prisma().phIntakeRow.create({ data: { restaurantId: w.a.id, fileId, lineNo: 99, page: 1, extracted: {}, edited: { source: 'manual', lot: 'M' }, note: 'mine' } });
+    await prisma().phIntakeFile.update({ where: { id: fileId }, data: { status: 'FAILED', failureCode: 'AI_TIMEOUT' } });
+    dataOf(await extract(w, w.pic, fileId, 1, intakeActions.retry));
+    expect((await rowsOf(fileId)).map((r) => r.id)).toContain(manual.id);
   });
 
   it('never overwrites what a person edited in the header when a retry reads the file again', async () => {

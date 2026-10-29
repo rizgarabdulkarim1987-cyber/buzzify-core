@@ -105,6 +105,18 @@ const wrap = (changes: Record<string, unknown>): NonNullable<AuditEntry['changes
 
 type FileStatus = ExtractStatus;
 
+const TOUCHED_SELECT = { edited: true, reviewed: true, note: true, matchState: true } as const;
+
+/**
+ * A line of the model's reading that a person worked on: edited, removed, noted, reviewed or matched by hand. Reading the file
+ * again would replace it, so the retry is refused. (A line a person added, `edited.source = 'manual'`, is kept by a retry.)
+ */
+function touched(r: { edited: unknown; reviewed: boolean; note: string | null; matchState: string }): boolean {
+  const edited = r.edited !== null && typeof r.edited === 'object' && !Array.isArray(r.edited) ? (r.edited as Record<string, unknown>) : {};
+  if (edited.source === 'manual') return false;
+  return r.reviewed || (r.note ?? '').trim() !== '' || r.matchState === 'CHOSEN' || Object.keys(edited).length > 0;
+}
+
 /** Reads one file into rows, or says why not. Throws only for a file the actor may not see or a batch that cannot be read. */
 export async function extractFile(db: Everyone, args: ExtractArgs, deps: ExtractDeps = {}): Promise<ExtractOutcome> {
   const { ph, scoped, fileId } = args;
@@ -117,8 +129,8 @@ export async function extractFile(db: Everyone, args: ExtractArgs, deps: Extract
   const batch = await scoped.phIntakeBatch.findFirst({ where: { id: file.batchId, branchId: args.branchId }, select: { id: true, status: true } });
   if (!batch) throw notFound();
   if (batch.status !== 'OPEN') throw new StudioError('CONFLICT', 'Only an open batch can be read', { phCode: 'BATCH_NOT_OPEN' });
-  if ((await scoped.phIntakeRow.count({ where: { fileId, reviewed: true } })) > 0) {
-    throw new StudioError('CONFLICT', 'This file has rows that were already checked', { phCode: 'FILE_ALREADY_REVIEWED' });
+  if ((await scoped.phIntakeRow.findMany({ where: { fileId }, select: TOUCHED_SELECT })).some(touched)) {
+    throw new StudioError('CONFLICT', 'This file has lines that were already edited or checked', { phCode: 'FILE_HAS_REVIEW_EDITS' });
   }
 
   const writer = scopedClient(db, { restaurantId, allBranches: true });
@@ -269,7 +281,7 @@ export async function extractFile(db: Everyone, args: ExtractArgs, deps: Extract
           if (held.length === 0) return { kind: 'lease' as const };
           const current = await tx.phIntakeBatch.findFirst({ where: { id: file.batchId }, select: { status: true, header: true } });
           if (!current || current.status !== 'OPEN') return { kind: 'closed' as const };
-          if ((await tx.phIntakeRow.count({ where: { fileId, reviewed: true } })) > 0) return { kind: 'reviewed' as const };
+          if ((await tx.phIntakeRow.findMany({ where: { fileId }, select: TOUCHED_SELECT })).some(touched)) return { kind: 'reviewed' as const };
 
           // A retry replaces the model's rows only: a line a person added by hand (`edited.source = 'manual'`) stays, and the new lines are numbered after it.
           const existing = await tx.phIntakeRow.findMany({ where: { fileId }, select: { id: true, lineNo: true, edited: true } });
@@ -318,7 +330,7 @@ export async function extractFile(db: Everyone, args: ExtractArgs, deps: Extract
 
     if (saved.kind === 'lease') return outcome(await statusNow(), 'LEASE_LOST');
     if (saved.kind === 'closed') return failWith('BATCH_NOT_OPEN');
-    if (saved.kind === 'reviewed') return failWith('FILE_ALREADY_REVIEWED');
+    if (saved.kind === 'reviewed') return failWith('FILE_HAS_REVIEW_EDITS');
 
     // The lines meet the catalog. A failure here leaves the rows unmatched (the reviewer can rematch): it never undoes a reading.
     await matchRows(db, { restaurantId }, file.batchId, now).catch(() => console.error(`[intake] could not match the lines of batch ${file.batchId}`));
