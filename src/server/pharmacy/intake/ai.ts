@@ -23,17 +23,20 @@ import { mayViewCost } from '../products';
  * the pharmacy's own tables (`PhAiUsageMonth`, `PhAiReservation`, `PhAiCall`) and counted in money, not in requests.
  *
  * A call first RESERVES its worst case against the month's budget in one conditional UPDATE (`spent + reserved + worst <=
- * budget`), so concurrent calls can never pass the budget; it then calls the provider; then SETTLES in one transaction: the
- * reservation is deleted, `reserved` falls by the worst case and `spent` rises by the actual cost (at most the reservation: an
- * answer already paid for is never thrown away, the overrun is audited). The call log holds no prompt and no answer.
+ * budget`), so concurrent calls cannot pass the budget as long as the worst case is a true bound; it then calls the provider;
+ * then SETTLES in one transaction: the reservation is deleted, `reserved` falls by the worst case and `spent` rises by the
+ * ACTUAL cost in full. An answer already paid for is never thrown away, and a cost above the reservation (the bound was not an
+ * upper bound) is booked, logged as an error and audited, never hidden: `spent` may then pass the budget by that one overrun,
+ * and the next reservation sees it and refuses. The budget is therefore a control with a bounded overshoot, not a guarantee of
+ * "never over". The call log holds no prompt and no answer.
  *
  * The caller must hold the file's lease (`claimFileForExtraction` returns it); the reservation is made only while that lease is
  * still the file's, and a settle that finds it lost still books the money but reports LEASE_LOST so the caller drops the answer.
  *
  * Budget safety beats accuracy. A reservation whose worker died is NEVER given back as unspent: the sweeper books it as spend at
  * the reserved amount. Cost of being wrong: a crash before the provider was called wastes up to one worst case of the month's
- * budget (the month under-uses its budget; it never overspends). A timeout or abort, where the provider probably billed the
- * input, books the input side; a plain provider error books nothing.
+ * budget (the month under-uses its budget). A timeout or abort, where the provider probably billed the input, books the input side;
+ * a plain provider error books nothing.
  *
  * One clock: every age here is measured against the `now` the caller passes (reservations are stamped with it).
  *
@@ -55,10 +58,13 @@ type Everyone = Parameters<typeof scopedClient>[0];
 export interface AiPricing {
   inputPerMtok: bigint;
   outputPerMtok: bigint;
+  /** The model id these prices are for (`AI_PRICE_MODEL`). When the provider names the model it would run and it differs, the call is refused. */
+  model?: string;
 }
 
 export type AiFailureCode =
   | 'AI_PRICING_NOT_SET'
+  | 'AI_PRICING_MODEL_MISMATCH'
   | 'AI_NOT_IN_PLAN'
   | 'AI_NOT_CONFIGURED'
   | 'AI_INPUT_TOO_LARGE'
@@ -104,9 +110,9 @@ export type RunResult =
       response: AiResponse;
       model: string;
       usage: { inputTokens: number; outputTokens: number };
-      /** What was booked as spent: never more than the reservation. */
+      /** What was booked as spent: the actual cost, in full. */
       costMicroUsd: bigint;
-      /** What the call cost above its reservation (0 normally). */
+      /** What the call cost above its reservation (0 normally; booked in full inside `costMicroUsd`, and logged). */
       overrunMicroUsd: bigint;
     }
   | { ok: false; code: AiFailureCode };
@@ -263,7 +269,13 @@ export async function runPharmacyAi(db: Everyone, args: RunArgs, opts: RunOption
     if (budget <= 0n) return fail('AI_NOT_IN_PLAN');
     provider = opts.provider ?? (await resolveAiProvider(db));
     if (!provider) return fail('AI_NOT_CONFIGURED');
-    held = await reserve(scoped, args, month, worst, budget);
+    // The price is for one model. If the provider says it would run another, the budget would be counted in the wrong money.
+    const running = provider.modelFor?.('extract');
+    if (pricing.model !== undefined && running !== undefined && running !== pricing.model) {
+      logError('the price is declared for another model than the one that would run', ids);
+      return fail('AI_PRICING_MODEL_MISMATCH');
+    }
+    held =await reserve(scoped, args, month, worst, budget);
   } catch (error) {
     logError('could not reserve', ids, error);
     return fail('AI_PROVIDER_ERROR');
@@ -293,8 +305,10 @@ export async function runPharmacyAi(db: Everyone, args: RunArgs, opts: RunOption
   const reported = response !== null && (response.inputTokens > 0 || response.outputTokens > 0);
   const billedMaybe = code === 'AI_TIMEOUT' || opts.signal?.aborted === true;
   const actual = response !== null ? (reported ? estimateCostMicroUsd({ inputTokens: response.inputTokens, outputTokens: response.outputTokens }, pricing) : worst) : billedMaybe ? inputSide : 0n;
-  const charged = actual < worst ? actual : worst;
+  // The actual cost is booked in full. Above the reservation means the input bound was not an upper bound: say so loudly.
+  const charged = actual;
   const overrunMicroUsd = actual > worst ? actual - worst : 0n;
+  if (overrunMicroUsd > 0n) logError('overrun: the call cost more than its reservation (the input bound was too low); the real cost is booked', ids);
   const inputTokens = response?.inputTokens ?? 0;
   const outputTokens = response?.outputTokens ?? 0;
   const status = code === null ? 'OK' : code === 'AI_TIMEOUT' ? 'TIMEOUT' : 'ERROR';
@@ -305,11 +319,19 @@ export async function runPharmacyAi(db: Everyone, args: RunArgs, opts: RunOption
       // Still the holder of the lease? (Read after the usage lock; a lost lease changes the answer, never the books.)
       const mine = (await tx.phIntakeFile.count({ where: { id: args.fileId, status: 'EXTRACTING', extractingSince: args.lease } })) === 1;
       const removed = await tx.phAiReservation.deleteMany({ where: { id: held.reservationId } });
-      // A sweeper may have booked it as spend already (count 0): at the reserved amount, which is never below this call's charge, so nothing more is added.
-      const swept = removed.count === 0;
-      await book(tx, month, state, swept ? 0n : worst, swept ? 0n : charged, { calls: swept ? 0 : 1, inputTokens, outputTokens });
+      const gone = removed.count === 0;
+      // Gone either because an earlier attempt of THIS settle committed (its reply was lost) or because the sweeper booked it as spend.
+      // The first leaves this call's own row behind: then there is nothing left to book or log (the settle is idempotent).
+      const model = response?.model ?? 'none';
+      const ownRow =
+        gone &&
+        (await tx.phAiCall.count({ where: { fileId: args.fileId, purpose: args.purpose, status, model, inputTokens: response ? inputTokens : null, outputTokens: response ? outputTokens : null } })) > 0;
+      if (ownRow) return mine;
+      // A sweeper booked the reserved amount already: only what the call cost above that is still owed.
+      const owed = gone ? overrunMicroUsd : charged;
+      await book(tx, month, state, gone ? 0n : worst, owed, { calls: gone ? 0 : 1, inputTokens, outputTokens });
       await tx.phAiCall.create({
-        data: { restaurantId: args.restaurantId, purpose: args.purpose, model: response?.model ?? 'none', inputTokens: response ? inputTokens : null, outputTokens: response ? outputTokens : null, ms: Date.now() - started, status, costMicroUsd: swept ? 0n : charged, fileId: args.fileId },
+        data: { restaurantId: args.restaurantId, purpose: args.purpose, model, inputTokens: response ? inputTokens : null, outputTokens: response ? outputTokens : null, ms: Date.now() - started, status, costMicroUsd: owed, fileId: args.fileId },
       });
       return mine;
     });

@@ -91,7 +91,7 @@ const jsonObject = (value: unknown): { [key: string]: Json } => JSON.parse(JSON.
 const notFound = () => new StudioError('NOT_FOUND', 'File not found');
 
 /** Codes where the model was never called: such a refusal does not use up one of the file's attempts. */
-const NO_CALL_MADE = new Set(['AI_PRICING_NOT_SET', 'AI_NOT_IN_PLAN', 'AI_NOT_CONFIGURED', 'AI_INPUT_TOO_LARGE', 'AI_BUDGET_REACHED', 'EXTRACTION_IN_PROGRESS', 'FILE_MISSING', 'INTAKE_STORAGE_NOT_CONFIGURED']);
+const NO_CALL_MADE = new Set(['AI_PRICING_NOT_SET', 'AI_PRICING_MODEL_MISMATCH', 'AI_NOT_IN_PLAN', 'AI_NOT_CONFIGURED', 'AI_INPUT_TOO_LARGE', 'AI_BUDGET_REACHED', 'EXTRACTION_IN_PROGRESS', 'FILE_MISSING', 'INTAKE_STORAGE_NOT_CONFIGURED']);
 
 /**
  * The most the model may write: a flat 32,000 tokens whatever the page count (200 lines x about 130 tokens + 2,000 for the header

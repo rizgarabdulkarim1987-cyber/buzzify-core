@@ -1801,6 +1801,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.cr.detailHeader': 'بيانات إشعار الدائن',
   'pharmacy.purchasing.m.ret.qtyReturned': 'الكمية المرتجعة',
   'pharmacy.intake.fail.AI_PRICING_NOT_SET': 'قراءة الفواتير بالذكاء الاصطناعي غير مفعّلة بعد. أدخل البنود يدوياً أو اتصل بدعم Buzzify.',
+  'pharmacy.intake.fail.AI_PRICING_MODEL_MISMATCH': 'قراءة الفواتير بالذكاء الاصطناعي متوقفة حتى يراجع دعم Buzzify إعداداتها. أدخل البنود يدوياً الآن.',
   'pharmacy.intake.fail.AI_NOT_IN_PLAN': 'باقتك لا تشمل قراءة الفواتير بالذكاء الاصطناعي. أدخل البنود يدوياً.',
   'pharmacy.intake.fail.AI_NOT_CONFIGURED': 'الذكاء الاصطناعي غير متاح الآن. أدخل البنود يدوياً وحاول لاحقاً.',
   'pharmacy.intake.fail.AI_INPUT_TOO_LARGE': 'هذا الملف كبير جداً للقراءة دفعة واحدة. أرسل صفحات أقل أو أدخل البنود يدوياً.',

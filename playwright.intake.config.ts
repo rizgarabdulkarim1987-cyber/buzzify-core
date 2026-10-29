@@ -25,6 +25,7 @@ const config = {
       PH_INTAKE_E2E_SCRIPT: INTAKE_SCRIPT_PATH,
       AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '3000000',
       AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '15000000',
+      AI_PRICE_MODEL: 'scripted-e2e',
     },
   },
 };

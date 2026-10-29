@@ -1807,6 +1807,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.cr.detailHeader': 'Credit note details',
   'pharmacy.purchasing.m.ret.qtyReturned': 'Quantity returned',
   'pharmacy.intake.fail.AI_PRICING_NOT_SET': 'Reading invoices with AI is not set up yet. Enter the lines by hand, or ask Buzzify support.',
+  'pharmacy.intake.fail.AI_PRICING_MODEL_MISMATCH': 'Reading invoices with AI is paused until Buzzify support checks its settings. Enter the lines by hand for now.',
   'pharmacy.intake.fail.AI_NOT_IN_PLAN': 'Your plan does not include AI invoice reading. Enter the lines by hand.',
   'pharmacy.intake.fail.AI_NOT_CONFIGURED': 'AI is not available right now. Enter the lines by hand and try again later.',
   'pharmacy.intake.fail.AI_INPUT_TOO_LARGE': 'This file is too large to read in one go. Send fewer pages or enter the lines by hand.',

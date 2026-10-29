@@ -3,6 +3,9 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import { AiProviderError } from '@/server/ai/errors';
 import { FakeProvider } from '@/server/ai/provider/fake';
 import { setAiProviderForTests } from '@/server/ai/provider';
+import { createAnthropicProvider } from '@/server/ai/provider/anthropic';
+import { modelFor } from '@/server/ai/provider/models';
+import { createOpenAiProvider, openAiModelFor } from '@/server/ai/provider/openai';
 import type { AiRequest, AiResponse } from '@/server/ai/provider/types';
 import { parseAiPricingEnv } from '@/server/env';
 import { estimateCostMicroUsd, fitsContext, INPUT_BOUND, inputTokensUpperBound } from '@/server/domain/pharmacy/intake';
@@ -151,23 +154,34 @@ afterEach(() => {
 });
 
 describe('the pricing environment', () => {
-  it('has no defaults: both prices or neither, positive whole numbers', () => {
+  it('has no defaults: the two prices and the model they are for, all or none, prices positive whole numbers', () => {
+    const full = { AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '3000000', AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '15000000', AI_PRICE_MODEL: 'claude-opus-5-5' };
     expect(parseAiPricingEnv({})).toBeNull();
-    expect(parseAiPricingEnv({ AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '', AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '  ' })).toBeNull();
-    expect(parseAiPricingEnv({ AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '3000000', AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '15000000' })).toEqual({ inputPerMtok: 3_000_000n, outputPerMtok: 15_000_000n });
-    expect(() => parseAiPricingEnv({ AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '3000000' })).toThrow(/AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK/);
-    expect(() => parseAiPricingEnv({ AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '3000000' })).toThrow(/AI_PRICE_INPUT_USD_MICRO_PER_MTOK/);
+    expect(parseAiPricingEnv({ AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '', AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '  ', AI_PRICE_MODEL: ' ' })).toBeNull();
+    expect(parseAiPricingEnv(full)).toEqual({ inputPerMtok: 3_000_000n, outputPerMtok: 15_000_000n, model: 'claude-opus-5-5' });
+    expect(() => parseAiPricingEnv({ ...full, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '' })).toThrow(/AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK/);
+    expect(() => parseAiPricingEnv({ ...full, AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '' })).toThrow(/AI_PRICE_INPUT_USD_MICRO_PER_MTOK/);
+    // prices without the model they are for are as good as none: the price must say which model it prices
+    expect(() => parseAiPricingEnv({ ...full, AI_PRICE_MODEL: '' })).toThrow(/AI_PRICE_MODEL/);
+    expect(() => parseAiPricingEnv({ AI_PRICE_MODEL: 'claude-opus-5-5' })).toThrow(/AI_PRICE_INPUT_USD_MICRO_PER_MTOK/);
     for (const bad of ['0', '-5', '1.5', '3e6', 'abc']) {
-      expect(() => parseAiPricingEnv({ AI_PRICE_INPUT_USD_MICRO_PER_MTOK: bad, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '1' })).toThrow();
+      expect(() => parseAiPricingEnv({ ...full, AI_PRICE_INPUT_USD_MICRO_PER_MTOK: bad, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '1' })).toThrow();
     }
+  });
+
+  it('the Anthropic and OpenAI providers say which model they use for extraction (what the price is checked against)', () => {
+    expect(createAnthropicProvider('k'.repeat(30), { ask: 'my-claude' }).modelFor?.('extract')).toBe('my-claude');
+    expect(createAnthropicProvider('k'.repeat(30)).modelFor?.('extract')).toBe(modelFor('extract'));
+    expect(createOpenAiProvider('k'.repeat(30), { ask: 'my-gpt' }).modelFor?.('extract')).toBe('my-gpt');
+    expect(createOpenAiProvider('k'.repeat(30)).modelFor?.('extract')).toBe(openAiModelFor('extract'));
   });
 });
 
 describe('the input size bound (pure)', () => {
-  it('counts text by bytes / 3, an image by its stored size capped, a PDF by its pages, plus the overhead', () => {
+  it('counts text by bytes (a token is at least a byte), an image by its stored size capped, a PDF by its pages, plus the overhead', () => {
     expect(inputTokensUpperBound(0, [])).toBe(INPUT_BOUND.overheadTokens);
-    expect(inputTokensUpperBound(3_000, [])).toBe(1_000 + INPUT_BOUND.overheadTokens);
-    expect(inputTokensUpperBound(Buffer.byteLength('فاتورة'.repeat(100)), [])).toBe(Math.ceil(Buffer.byteLength('فاتورة'.repeat(100)) / 3) + INPUT_BOUND.overheadTokens);
+    expect(inputTokensUpperBound(3_000, [])).toBe(3_000 + INPUT_BOUND.overheadTokens);
+    expect(inputTokensUpperBound(Buffer.byteLength('فاتورة'.repeat(100)), [])).toBe(Buffer.byteLength('فاتورة'.repeat(100)) + INPUT_BOUND.overheadTokens);
     expect(inputTokensUpperBound(0, [{ kind: 'image', widthPx: 100, heightPx: 75 }])).toBe(INPUT_BOUND.overheadTokens + 2 * 10);
     expect(inputTokensUpperBound(0, [{ kind: 'image', widthPx: 4000, heightPx: 6000 }])).toBe(INPUT_BOUND.overheadTokens + INPUT_BOUND.imageTokensMax);
     expect(inputTokensUpperBound(0, [{ kind: 'pdf', pages: 10 }])).toBe(INPUT_BOUND.overheadTokens + 10 * INPUT_BOUND.pdfPageTokensMax);
@@ -240,6 +254,9 @@ describe('real sized files against a normal budget', () => {
     expect(pdfTokens).toBeLessThan(95_000);
     const real: AiPricing = { inputPerMtok: 5_000_000n, outputPerMtok: 25_000_000n };
     expect(worstCaseMicroUsd(pdf, 8_000, real, hintPdf)!).toBeLessThan(1_000_000n);
+    // what a real provider reports for such a page (the fake would count the 8 MB of base64 as text)
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 3_000, outputTokens: 1_000 } });
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 40_000, outputTokens: 2_000 } });
     const a = await call(w, { input: image, media: hintImage, maxOutputTokens: 4_000 }, { provider, pricing: real });
     const b = await call(w, { input: pdf, media: hintPdf, maxOutputTokens: 4_000 }, { provider, pricing: real });
     expect(a.ok).toBe(true);
@@ -279,17 +296,83 @@ describe('a call that works', () => {
     expect(await usageRow(w)).toMatchObject({ spentMicroUsd: CENT, reservedMicroUsd: 0n });
   });
 
-  it('charges the reserved amount, keeps the paid answer and puts the overrun in the audit when the actual cost is above it', async () => {
+  it('books the ACTUAL cost in full, keeps the paid answer and audits the overrun when the actual cost is above the reservation', async () => {
     const w = await world();
     const provider = new SlowFake();
     provider.enqueue({ response: { content: [{ type: 'text', text: 'PAID-ANSWER' }], inputTokens: 20_000, outputTokens: 5_000 } });
     const audits: CallAudit[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const result = await call(w, {}, { provider, audit: async (c) => void audits.push(c) });
     expect(worstCaseMicroUsd(REQ, ONE_CENT_OUT, PRICE)).toBe(CENT);
-    expect(result).toMatchObject({ ok: true, text: 'PAID-ANSWER', costMicroUsd: CENT, overrunMicroUsd: 15_000n });
-    expect(audits[0]).toMatchObject({ costMicroUsd: '10000', overrunMicroUsd: '15000' });
-    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: CENT, reservedMicroUsd: 0n });
-    expect((await calls(w))[0]).toMatchObject({ status: 'OK', costMicroUsd: CENT });
+    expect(result).toMatchObject({ ok: true, text: 'PAID-ANSWER', costMicroUsd: 25_000n, overrunMicroUsd: 15_000n });
+    expect(audits[0]).toMatchObject({ costMicroUsd: '25000', overrunMicroUsd: '15000', reservedMicroUsd: '10000' });
+    expect(await usageRow(w)).toMatchObject({ spentMicroUsd: 25_000n, reservedMicroUsd: 0n });
+    expect((await calls(w))[0]).toMatchObject({ status: 'OK', costMicroUsd: 25_000n });
+    // an overrun is an error to look at: the bound was not an upper bound
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('overrun'), expect.anything());
+    spy.mockRestore();
+  });
+
+  it('after an overrun the next reservation sees the real spend: spent above the budget refuses every further call this month', async () => {
+    const w = await world({ budgetCents: 2 });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const provider = new SlowFake();
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 20_000, outputTokens: 5_000 } });
+    expect((await call(w, {}, { provider })).ok).toBe(true);
+    spy.mockRestore();
+    expect((await usageRow(w))!.spentMicroUsd).toBe(25_000n);
+    const second = new SlowFake();
+    expect(await call(w, {}, { provider: second })).toEqual({ ok: false, code: 'AI_BUDGET_REACHED' });
+    expect(second.reached).toBe(0);
+    const row = await usageRow(w);
+    expect(row!.reservedMicroUsd).toBe(0n);
+    // the overshoot is bounded: one overrun, never more than one call's excess
+    expect(row!.spentMicroUsd - 2n * CENT).toBe(5_000n);
+  });
+
+  it('when the sweeper already booked the reservation, an overrun adds only the excess over what it booked', async () => {
+    const w = await world();
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 20_000, outputTokens: 5_000 } });
+    const running = call(w, { fileId }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    expect((await sweepAiReservations(prisma(), new Date(NOW.getTime() + 30 * MIN))).swept).toBe(1);
+    provider.release();
+    expect((await running).ok).toBe(true);
+    spy.mockRestore();
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: 25_000n });
+  });
+
+  it('a settle whose reply was lost and is retried writes the call row once (the retry finds the reservation gone and its own row there)', async () => {
+    const w = await world();
+    const provider = new GatedFake();
+    const fileId = await seedFile(w, 'EXTRACTING', NOW);
+    provider.enqueue({ response: { content: [{ type: 'text', text: '{}' }], inputTokens: 700, outputTokens: 300, model: 'fake-model' } });
+    const running = call(w, { fileId }, { provider });
+    await vi.waitFor(() => expect(provider.reached).toBe(1), { timeout: 30_000, interval: 5 });
+    // what a first settle attempt that committed (but whose reply was lost) leaves behind
+    await prisma().phAiReservation.deleteMany({ where: { fileId } });
+    await prisma().phAiUsageMonth.update({ where: { restaurantId_month: { restaurantId: w.a.id, month: '2026-10' } }, data: { reservedMicroUsd: 0n, spentMicroUsd: 1000n, calls: 1 } });
+    await prisma().phAiCall.create({ data: { restaurantId: w.a.id, purpose: 'extract', model: 'fake-model', status: 'OK', costMicroUsd: 1000n, fileId, inputTokens: 700, outputTokens: 300 } });
+    provider.release();
+    expect((await running).ok).toBe(true);
+    expect((await calls(w)).filter((c) => c.fileId === fileId)).toHaveLength(1);
+    expect(await usageRow(w)).toMatchObject({ reservedMicroUsd: 0n, spentMicroUsd: 1000n });
+  });
+
+  it('refuses when the price was declared for another model than the one that would run, before reserving or calling', async () => {
+    const w = await world();
+    const provider = Object.assign(new SlowFake(), { modelFor: () => 'claude-opus-5-5' });
+    const fileId = await seedFile(w, 'EXTRACTING');
+    expect(await call(w, { fileId }, { provider, pricing: { ...PRICE, model: 'gpt-5' } })).toEqual({ ok: false, code: 'AI_PRICING_MODEL_MISMATCH' });
+    expect(provider.reached).toBe(0);
+    expect(await usageRow(w)).toBeNull();
+    expect(await prisma().phAiReservation.count()).toBe(0);
+    // the same price for the model that runs is fine; a provider that does not name its model (a test double) is not checked
+    expect((await call(w, { fileId }, { provider, pricing: { ...PRICE, model: 'claude-opus-5-5' } })).ok).toBe(true);
+    expect((await call(w, {}, { provider: new SlowFake(), pricing: { ...PRICE, model: 'anything' } })).ok).toBe(true);
   });
 
   it('survives an audit callback that fails', async () => {

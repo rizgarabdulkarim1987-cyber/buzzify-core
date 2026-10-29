@@ -1801,6 +1801,7 @@ const pharmacy: Messages = {
   'pharmacy.purchasing.m.cr.detailHeader': 'زانیاری تێبینی کرێدیت',
   'pharmacy.purchasing.m.ret.qtyReturned': 'بڕی گەڕێندراوە',
   'pharmacy.intake.fail.AI_PRICING_NOT_SET': 'خوێندنەوەی پسوولە بە زیرەکی دەستکرد هێشتا ڕێک نەخراوە. دێڕەکان بە دەست بنووسە، یان پەیوەندی بە پشتگیری Buzzify بکە.',
+  'pharmacy.intake.fail.AI_PRICING_MODEL_MISMATCH': 'خوێندنەوەی پسوولە بە زیرەکی دەستکرد ڕاگیراوە تا پشتگیری Buzzify ڕێکخستنەکانی بپشکنێت. ئێستا دێڕەکان بە دەست بنووسە.',
   'pharmacy.intake.fail.AI_NOT_IN_PLAN': 'پلانەکەت خوێندنەوەی پسوولە بە زیرەکی دەستکرد ناگرێتەوە. دێڕەکان بە دەست بنووسە.',
   'pharmacy.intake.fail.AI_NOT_CONFIGURED': 'زیرەکی دەستکرد ئێستا بەردەست نییە. دێڕەکان بە دەست بنووسە و دواتر هەوڵبدەرەوە.',
   'pharmacy.intake.fail.AI_INPUT_TOO_LARGE': 'ئەم فایلە زۆر گەورەیە بۆ ئەوەی یەک جار بخوێنرێتەوە. لاپەڕەی کەمتر بنێرە یان دێڕەکان بە دەست بنووسە.',

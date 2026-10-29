@@ -95,6 +95,7 @@ export function createAnthropicProvider(apiKey: string, models: { ask?: string |
   const env = { ...process.env, ...(models.ask ? { AI_MODEL_ASK: models.ask, AI_MODEL_EXTRACT: models.ask } : {}), ...(models.fast ? { AI_MODEL_FAST: models.fast } : {}) };
   return {
     name: 'anthropic',
+    modelFor: (purpose) => modelFor(purpose, env),
     async complete(req) {
       const { beta, body } = toAnthropicParams(req, env);
       try {

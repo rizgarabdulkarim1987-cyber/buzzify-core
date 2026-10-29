@@ -111,6 +111,7 @@ beforeEach(async () => {
   // One micro-dollar per token, both ways: a normal call costs a few thousand micro-dollars against a ten dollar month.
   vi.stubEnv('AI_PRICE_INPUT_USD_MICRO_PER_MTOK', '1000000');
   vi.stubEnv('AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', '1000000');
+  vi.stubEnv('AI_PRICE_MODEL', 'scripted-test');
 });
 afterEach(() => {
   restore();

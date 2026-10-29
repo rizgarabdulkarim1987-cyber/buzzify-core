@@ -40,8 +40,8 @@ import {
  * It writes to a database and spends the AI key, so it refuses to run unless the flag is given, and refuses production, a
  * deployment and any database that is not on this machine and named *test or *eval (see `evalRefusal`). The database is
  * `DATABASE_URL` if set, else the local test database on `BUZZIFY_DB_PORT`. The provider and its key are the platform's
- * (the saved AI settings or ANTHROPIC_API_KEY / OPENAI_API_KEY), and `AI_PRICE_INPUT_USD_MICRO_PER_MTOK` and
- * `AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK` must be set. Files are kept in the temp folder adapter, never in the production bucket.
+ * (the saved AI settings or ANTHROPIC_API_KEY / OPENAI_API_KEY), and `AI_PRICE_INPUT_USD_MICRO_PER_MTOK`,
+ * `AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK` and `AI_PRICE_MODEL` (the model they are the price of) must be set. Files are kept in the temp folder adapter, never in the production bucket.
  * The throwaway business is deleted at the end unless `--keep`.
  */
 

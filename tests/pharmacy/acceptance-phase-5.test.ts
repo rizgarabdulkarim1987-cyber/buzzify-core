@@ -212,6 +212,7 @@ function installFakes() {
   setAiProviderForTests(provider);
   vi.stubEnv('AI_PRICE_INPUT_USD_MICRO_PER_MTOK', PRICE);
   vi.stubEnv('AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', PRICE);
+  vi.stubEnv('AI_PRICE_MODEL', 'scripted-test');
 }
 function removeFakes() {
   restore();

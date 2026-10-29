@@ -563,6 +563,18 @@ describe('countPdfPages', () => {
     expect(countPdfPages(enc(tiny(1) + '\n3 0 obj\n<< /Type /Page /Parent 2 0 R >>\nendobj\nstartxref\n0\n%%EOF'))).toBeNull();
     expect(countPdfPages(enc(tiny(2).replace('/Count 2', '/Count 9')))).toBeNull();
   });
+  it('allows the header line and one binary comment line, and returns null for any other % (a comment can hide a page or a /Count)', () => {
+    expect(countPdfPages(enc(tiny(2).replace('%PDF-1.4\n', '%PDF-1.4\n%âãÏÓ\n')))).toBe(2);
+    // a /Type /Page hidden by a comment is still a page to the provider
+    expect(countPdfPages(enc(tiny(1).replace('trailer', '9 0 obj\n<< /Type %x\n/Page /Parent 2 0 R >>\nendobj\ntrailer')))).toBeNull();
+    // a /Count hidden by a comment
+    expect(countPdfPages(enc(tiny(2).replace('/Count 2', '/Count%c\n2')))).toBeNull();
+    expect(countPdfPages(enc(tiny(1).replace('/Type /Catalog', '/Type /Catalog %note\n')))).toBeNull();
+  });
+  it('returns null when a string can hide an endobj, or a page token sits outside an object', () => {
+    expect(countPdfPages(enc(tiny(1).replace('/Parent 2 0 R >>', '/X (endobj) /Type /Page >>')))).toBeNull();
+    expect(countPdfPages(enc(tiny(1).replace('trailer', 'trailer\n/Type /Page')))).toBeNull();
+  });
   it('ignores stream bodies (a /Type /Page or # inside a stream is not a page or an escape)', () => {
     const withStream = tiny(2).replace('trailer', '9 0 obj\n<< /Length 30 >>\nstream\n/Type /Page /A#1 /Type /Page\nendstream\nendobj\ntrailer');
     expect(countPdfPages(enc(withStream))).toBe(2);
@@ -604,7 +616,7 @@ describe('budget maths', () => {
     expect(settle({ spent: 5n, reserved: 3n }, 3n, 2n)).toEqual({ spent: 7n, reserved: 0n });
     expect(settle({ spent: 5n, reserved: 3n }, 3n, 0n)).toEqual({ spent: 5n, reserved: 0n });
   });
-  it('settle refuses an overrun and an unknown (or already settled) reservation instead of hiding it', () => {
+  it('settle books an overrun in full, and refuses an unknown (or already settled) reservation instead of hiding it', () => {
     const code = (fn: () => unknown) => {
       try {
         fn();
@@ -613,7 +625,9 @@ describe('budget maths', () => {
         return e instanceof BudgetError ? e.code : 'OTHER';
       }
     };
-    expect(code(() => settle({ spent: 90n, reserved: 10n }, 10n, 50n))).toBe('OVERRUN');
+    // an actual above the reservation is booked in full (the ledger never under-reports what the provider billed)
+    expect(settle({ spent: 90n, reserved: 10n }, 10n, 50n)).toEqual({ spent: 140n, reserved: 0n });
+    expect(code(() => settle({ spent: 90n, reserved: 10n }, 10n, 50n))).toBeNull();
     expect(code(() => settle({ spent: 5n, reserved: 1n }, 3n, 0n))).toBe('UNKNOWN_RESERVATION');
     expect(code(() => settle({ spent: 5n, reserved: 0n }, 3n, 1n))).toBe('UNKNOWN_RESERVATION');
   });

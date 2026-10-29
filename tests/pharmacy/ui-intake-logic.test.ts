@@ -257,7 +257,7 @@ describe('Read all runs one file at a time', () => {
   });
 
   it('stops for a reason that would repeat on the next file, not for a bad file', () => {
-    for (const code of ['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING_NOT_SET', 'AI_NOT_CONFIGURED', 'INTAKE_STORAGE_NOT_CONFIGURED', 'BATCH_NOT_OPEN']) expect(stopsReadAll(code)).toBe(true);
+    for (const code of ['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING_NOT_SET', 'AI_PRICING_MODEL_MISMATCH', 'AI_NOT_CONFIGURED', 'INTAKE_STORAGE_NOT_CONFIGURED', 'BATCH_NOT_OPEN']) expect(stopsReadAll(code)).toBe(true);
     for (const code of ['EXTRACTION_INVALID', 'AI_TIMEOUT', 'TOO_MANY_LINES', 'AI_REFUSED', null]) expect(stopsReadAll(code)).toBe(false);
   });
 });

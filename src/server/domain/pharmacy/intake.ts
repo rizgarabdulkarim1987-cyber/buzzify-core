@@ -500,11 +500,14 @@ export function openFlags(flags: readonly Flag[], ack: RowAcknowledgement, misma
 export type ApprovalReason =
   | { code: 'NO_ROWS' }
   | { code: 'OPEN_FLAG'; rowIndex: number; flag: Flag }
-  | { code: 'HEADER_MISMATCH' };
+  | { code: 'HEADER_MISMATCH' }
+  | { code: 'HEADER_ADJUSTMENT' };
 
 /**
- * Whether a batch can be approved: at least one row, no open flag, and a header mismatch only with a stated reason for the
- * same difference. The caller recomputes `flags` and the differences from the stored values; nothing here trusts a client.
+ * Whether a batch can be approved: at least one row, no open flag, a header mismatch only with a stated reason for the same
+ * difference, and a header discount or tax (the receipt's costs are the printed pre-discount ones, so it must be known and
+ * accepted) only with a stated reason for those amounts. The caller recomputes `flags`, the differences and the adjustment from
+ * the stored values; nothing here trusts a client.
  */
 export function canApprove(
   rows: ReadonlyArray<{ flags: readonly Flag[]; mismatchDifference?: bigint | null } & RowAcknowledgement>,
@@ -513,6 +516,8 @@ export function canApprove(
     difference?: bigint | null;
     acknowledgedReason?: string | null;
     acknowledgedDifference?: bigint | null;
+    /** A non-zero header discount or tax is on the invoice, and whether a reason for those very amounts is on record. */
+    adjustment?: { present: boolean; acknowledged: boolean };
   },
 ): { ok: boolean; reasons: ApprovalReason[] } {
   const reasons: ApprovalReason[] = [];
@@ -523,6 +528,7 @@ export function canApprove(
   const headerAcknowledged =
     (headerAck.acknowledgedReason ?? '').trim() !== '' && headerAck.difference != null && headerAck.acknowledgedDifference === headerAck.difference;
   if (headerAck.status === 'MISMATCH' && !headerAcknowledged) reasons.push({ code: 'HEADER_MISMATCH' });
+  if (headerAck.adjustment?.present && !headerAck.adjustment.acknowledged) reasons.push({ code: 'HEADER_ADJUSTMENT' });
   return { ok: reasons.length === 0, reasons };
 }
 
@@ -757,6 +763,11 @@ export function qualityDecision(metrics: QualityMetrics, mediaType: string): { o
  * - not a PDF, no page object, or objects kept in compressed object streams (`/ObjStm`);
  * - a `#` name escape (`/P#61ge`) outside stream bodies, which could hide a page or an object stream from a text scan;
  * - more than one `%%EOF` or `startxref` (incremental update or linearised file: page objects can repeat);
+ * - any `%` (a comment) outside stream bodies other than the header line, one binary comment line right after it and the final
+ *   `%%EOF`: a comment such as `/Count%c` + newline + `100` hides a token from a text scan while the provider's parser still
+ *   sees it, so a PDF with one is refused (the person uses a photo);
+ * - a different number of `endobj` and `obj` keywords (a string such as `(endobj)` could end a scanned object early), or a
+ *   `/Type /Page` token anywhere that is not inside a scanned object;
  * - a leaf-page count that differs from the largest `/Count` of the page-tree nodes.
  * Stream bodies (binary content, images) are removed before any scan. The bytes are decoded as latin1 (one char per byte;
  * the exact code page does not matter because only ASCII tokens are matched).
@@ -765,6 +776,11 @@ export function countPdfPages(bytes: Uint8Array): number | null {
   const decoder = new TextDecoder('latin1');
   if (!decoder.decode(bytes.subarray(0, 1024)).includes('%PDF-')) return null;
   const body = decoder.decode(bytes).replace(/stream\r?\n[\s\S]*?endstream/g, 'stream endstream');
+  // Comments: the header line, one binary comment line straight after it, and %%EOF are the only ones allowed.
+  const commentFree = body.replace(/^%PDF-[^\r\n]*(\r\n|\r|\n)(%[^\r\n]*(\r\n|\r|\n))?/, '').replace(/%%EOF/g, '');
+  if (commentFree.includes('%')) return null;
+  if ((body.match(/\bendobj\b/g)?.length ?? 0) !== (body.match(/\b\d+\s+\d+\s+obj\b/g)?.length ?? 0)) return null;
+  const pageTokens = body.match(/\/Type\s*\/Page(?![A-Za-z])/g)?.length ?? 0;
   if (/\/Type\s*\/ObjStm/.test(body) || /\/[^\s/<>[\]()%]*#[0-9A-Fa-f]{2}/.test(body)) return null;
   if ((body.match(/%%EOF/g)?.length ?? 0) > 1 || (body.match(/startxref/g)?.length ?? 0) > 1) return null;
   let leaves = 0;
@@ -774,7 +790,7 @@ export function countPdfPages(bytes: Uint8Array): number | null {
     if (/\/Type\s*\/Page(?![A-Za-z])/.test(dict)) leaves++;
     else if (/\/Type\s*\/Pages(?![A-Za-z])/.test(dict)) declared = Math.max(declared, Number(/\/Count\s+(\d+)/.exec(dict)?.[1] ?? 0));
   }
-  return leaves > 0 && leaves === declared ? leaves : null;
+  return leaves > 0 && leaves === declared && pageTokens === leaves ? leaves : null;
 }
 
 export const INTAKE_LIMITS = { maxBytes: 8 * 1024 * 1024, maxPages: 10, maxFilesPerBatch: 20 } as const;
@@ -842,25 +858,25 @@ export function canReserve(state: { spent: bigint; reserved: bigint; budget: big
 
 /** A bookkeeping error in the budget: the caller must treat it as a defect and alert, not retry silently. */
 export class BudgetError extends Error {
-  constructor(readonly code: 'OVERRUN' | 'UNKNOWN_RESERVATION') {
+  constructor(readonly code: 'UNKNOWN_RESERVATION') {
     super(code);
     this.name = 'BudgetError';
   }
 }
 
 /**
- * Ends a reservation: it is released and the actual cost is booked as spent. The reservation must be an upper bound of the
- * actual cost (input tokens counted from a trustworthy page count or image size, output tokens capped), which is what keeps
- * spent + reserved within the budget. So an actual above the reservation throws OVERRUN (nothing changes; the caller books
- * at most the reservation and raises the alarm), and a reservation larger than what is reserved at all (a double settle, or
- * an amount that was never reserved) throws UNKNOWN_RESERVATION instead of releasing other calls' reservations. A double
- * settle while other reservations are in flight cannot be told apart in aggregate: the caller must settle each call once.
+ * Ends a reservation: it is released and the ACTUAL cost is booked as spent, in full. The reservation is meant to be an upper
+ * bound of the actual cost (input tokens bounded from a trustworthy page count or image size, output tokens capped), which is
+ * what keeps spent + reserved within the budget. When the bound is nevertheless exceeded the money was spent, so the ledger
+ * says so: spent may then pass the budget by that one overrun, which refuses every further reservation (the caller logs and
+ * audits it). A reservation larger than what is reserved at all (a double settle, or an amount that was never reserved) throws
+ * UNKNOWN_RESERVATION instead of releasing other calls' reservations. A double settle while other reservations are in flight
+ * cannot be told apart in aggregate: the caller must settle each call once.
  */
 export function settle(state: { spent: bigint; reserved: bigint }, reservedAmount: bigint, actual: bigint): { spent: bigint; reserved: bigint } {
   const amount = whole(reservedAmount, 'reservedAmount');
   const cost = whole(actual, 'actual');
   if (amount > state.reserved) throw new BudgetError('UNKNOWN_RESERVATION');
-  if (cost > amount) throw new BudgetError('OVERRUN');
   return { spent: state.spent + cost, reserved: state.reserved - amount };
 }
 
@@ -873,9 +889,12 @@ export function baghdadMonth(now: Date): string {
 // Input size bound ---------------------------------------------------------------------------------------------------
 
 /**
- * Constants of the input-token upper bound (R5-3). An image costs about w*h/750 tokens (Anthropic, scaled to <= 1.6 k) or <= 1.1 k
- * (OpenAI high detail); a PDF page is its page image plus its text. Each is doubled for safety. They are checked at UAT against
- * `PhAiCall.inputTokens`; an estimate that turns out low is still safe (the call is charged its reservation, the overrun audited).
+ * Constants of the input-token upper bound (R5-3). An image costs about w*h/750 tokens (Anthropic scales it down to at most about
+ * 1.6 k) or at most about 1.1 k (OpenAI high detail); a PDF page is its page image plus its text. Each is doubled for safety:
+ * the image figure is min(3,200, 2 x ceil(w*h/750)) from the stored pixel size, so a small image is bounded by its own size and
+ * a large one by twice the largest figure either provider documents. They are checked at UAT against `PhAiCall.inputTokens`.
+ * An estimate that turns out low is no longer hidden: the call's real cost is booked in full (the month can pass its budget by
+ * that one overrun and then refuses everything), and the overrun is logged and audited.
  */
 export const INPUT_BOUND = { imageTokensMax: 3_200, pdfPageTokensMax: 9_000, overheadTokens: 500, contextTokens: 200_000 } as const;
 
@@ -884,13 +903,13 @@ export type MediaHint = { kind: 'image'; widthPx: number; heightPx: number } | {
 const positiveInt = (n: unknown): n is number => typeof n === 'number' && Number.isSafeInteger(n) && n > 0;
 
 /**
- * An upper bound of a request's input tokens: text by UTF-8 bytes / 3 (a token is at least a byte; a third keeps room for the
- * request's own structure), each image by its stored size capped at a fixed maximum, each PDF by its stored page count, plus a
- * fixed overhead. `null` when it cannot be bounded (a missing or absurd hint, more than 10 pages): the caller refuses the file.
+ * An upper bound of a request's input tokens: text by UTF-8 BYTES (a token is at least one byte, so the byte count is a true
+ * bound), each image by its stored size capped at a fixed maximum, each PDF by its stored page count (established by
+ * `countPdfPages`, which refuses a PDF whose count cannot be told) times a conservative per-page figure, plus a fixed overhead. `null` when it cannot be bounded (a missing or absurd hint, more than 10 pages): the caller refuses the file.
  */
 export function inputTokensUpperBound(textBytes: number, media: readonly MediaHint[]): number | null {
   if (!Number.isSafeInteger(textBytes) || textBytes < 0) return null;
-  let total = Math.ceil(textBytes / 3) + INPUT_BOUND.overheadTokens;
+  let total = textBytes + INPUT_BOUND.overheadTokens;
   for (const item of media) {
     if (item.kind === 'image') {
       if (!positiveInt(item.widthPx) || !positiveInt(item.heightPx)) return null;

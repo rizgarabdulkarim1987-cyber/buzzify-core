@@ -266,7 +266,7 @@ export function nextToRead(files: readonly { id: string; status: string }[], tri
   return files.find((f) => f.status === 'UPLOADED' && !tried.has(f.id))?.id ?? null;
 }
 
-const RUN_STOPPERS = new Set(['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING_NOT_SET', 'AI_NOT_CONFIGURED', 'INTAKE_STORAGE_NOT_CONFIGURED', 'BATCH_NOT_OPEN']);
+const RUN_STOPPERS = new Set(['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING_NOT_SET', 'AI_PRICING_MODEL_MISMATCH', 'AI_NOT_CONFIGURED', 'INTAKE_STORAGE_NOT_CONFIGURED', 'BATCH_NOT_OPEN']);
 
 /** A failure that would repeat for every other file (budget, plan, set-up): "Read all" stops there instead of trying the rest. */
 export const stopsReadAll = (code: string | null | undefined): boolean => code != null && RUN_STOPPERS.has(code);

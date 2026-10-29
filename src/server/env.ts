@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { modelFor } from '@/server/ai/provider/models';
+import { openAiModelFor } from '@/server/ai/provider/openai';
 
 /**
  * Configuration comes in three independent sections, each parsed on first use from `process.env` and then kept, so one
@@ -304,13 +306,17 @@ export interface AiPricingEnv {
   inputPerMtok: bigint;
   /** Micro-dollars per million output tokens. */
   outputPerMtok: bigint;
+  /** The model id the prices are for (`AI_PRICE_MODEL`): a price that belongs to another model than the one running is refused. */
+  model: string;
 }
 
-const PRICE_VARIABLES = ['AI_PRICE_INPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK'] as const;
+const PRICE_VARIABLES = ['AI_PRICE_INPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', 'AI_PRICE_MODEL'] as const;
 
 /**
- * The model's price, which the pharmacy AI budget is counted in. Both variables or neither, each a positive whole number,
- * and NO default: with none set the pharmacy AI refuses to run (a wrong guessed price would make the budget meaningless).
+ * The model's price, which the pharmacy AI budget is counted in, and the model it is the price of (`AI_PRICE_MODEL`, the id
+ * the provider is configured to run for extraction). All three or none; the two prices are positive whole numbers; NO
+ * default: with none set the pharmacy AI refuses to run (a wrong guessed price would make the budget meaningless). A price
+ * that names no model is as good as none, so that the price cannot silently outlive a change of model or provider.
  */
 export function parseAiPricingEnv(source: Source): AiPricingEnv | null {
   const values = PRICE_VARIABLES.map((name) => {
@@ -320,11 +326,13 @@ export function parseAiPricingEnv(source: Source): AiPricingEnv | null {
   if (values.every((v) => v === null)) return null;
   const missing = PRICE_VARIABLES.filter((_, n) => values[n] === null);
   if (missing.length > 0) throw new Error(`AI pricing is only partly configured: set ${missing.join(', ')} as well, or unset the other.`);
-  const [input, output] = values.map((v, n) => {
+  const [input, output] = values.slice(0, 2).map((v, n) => {
     if (!/^[1-9][0-9]{0,17}$/.test(v!)) throw new Error(`${PRICE_VARIABLES[n]} must be a positive whole number (micro-dollars per million tokens).`);
     return BigInt(v!);
   }) as [bigint, bigint];
-  return { inputPerMtok: input, outputPerMtok: output };
+  const model = values[2]!;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:/-]{0,119}$/.test(model)) throw new Error('AI_PRICE_MODEL must be a model id such as claude-opus-5-5 (letters, digits and . _ : / -).');
+  return { inputPerMtok: input, outputPerMtok: output, model };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -447,6 +455,22 @@ export function checkProductionEnv(source: Source = process.env): ProductionEnvC
   const aiProvider = text('AI_PROVIDER');
   if (aiProvider === 'fake' || aiProvider === 'scripted') report('AI_PROVIDER', 'must not be fake or scripted in production');
   if (text('PH_INTAKE_E2E_SCRIPT')) report('PH_INTAKE_E2E_SCRIPT', 'is for browser tests only; remove it from production');
+
+  // The pharmacy AI price: none is allowed (the AI then refuses to run), a half-set one is not, and the price must be for the
+  // extraction model the environment names. (A provider and model saved in the Studio are checked at run time, per call.)
+  try {
+    const price = parseAiPricingEnv(source);
+    if (price) {
+      const running = aiProvider === 'openai' ? openAiModelFor('extract', source) : modelFor('extract', source);
+      if (running !== price.model) report('AI_PRICE_MODEL', 'is not the extraction model this environment runs (AI_MODEL_EXTRACT / AI_OPENAI_MODEL_EXTRACT): price the model that runs');
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : '';
+    const name = PRICE_VARIABLES.find((variable) => message.includes(variable)) ?? PRICE_VARIABLES[0];
+    // A partly set price names the variable that is missing, a malformed one the variable that is wrong.
+    const missing = /set (.+?) as well/.exec(message)?.[1]?.split(', ')[0];
+    report(missing ?? name, 'is not set correctly (the pharmacy AI price needs AI_PRICE_INPUT_USD_MICRO_PER_MTOK, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK and AI_PRICE_MODEL together, or none)');
+  }
 
   if (!text('RESEND_API_KEY')) report('RESEND_API_KEY', 'is not set (create an API key in Resend)');
 

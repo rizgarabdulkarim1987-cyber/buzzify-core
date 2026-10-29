@@ -47,6 +47,22 @@ describe('checkProductionEnv', () => {
     expect(problemsWith({ AI_PROVIDER: 'openai' })).toEqual([]);
   });
 
+  it('checks the pharmacy AI price: none is fine, a half-set one or one for another model than AI_MODEL_EXTRACT is not', () => {
+    const price = { AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '5000000', AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: '25000000', AI_PRICE_MODEL: 'claude-opus-5-5' };
+    expect(problemsWith({})).toEqual([]);
+    expect(problemsWith(price)).toEqual([]);
+    // a price without the model it is for (or with a missing side) is refused, naming the missing variable
+    expect(named(problemsWith({ ...price, AI_PRICE_MODEL: undefined }))).toEqual(['AI_PRICE_MODEL']);
+    expect(named(problemsWith({ ...price, AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK: undefined }))).toEqual(['AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK']);
+    expect(named(problemsWith({ ...price, AI_PRICE_INPUT_USD_MICRO_PER_MTOK: '1.5' }))).toEqual(['AI_PRICE_INPUT_USD_MICRO_PER_MTOK']);
+    // the environment's own extraction model must be the one that was priced
+    expect(problemsWith({ ...price, AI_MODEL_EXTRACT: 'claude-opus-5-5' })).toEqual([]);
+    expect(named(problemsWith({ ...price, AI_MODEL_EXTRACT: 'claude-sonnet-5' }))).toEqual(['AI_PRICE_MODEL']);
+    expect(named(problemsWith({ ...price, AI_PROVIDER: 'openai', AI_OPENAI_MODEL_EXTRACT: 'gpt-5-mini' }))).toEqual(['AI_PRICE_MODEL']);
+    // no price at all: the AI refuses to run, and the deploy check does not mind
+    expect(problemsWith({ AI_MODEL_EXTRACT: 'anything' })).toEqual([]);
+  });
+
   it('names every missing variable at once, so one failed deploy shows the whole list', () => {
     const result = checkProductionEnv({});
     expect(result.ok).toBe(false);
