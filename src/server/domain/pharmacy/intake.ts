@@ -552,6 +552,8 @@ export type Candidate = {
   barcodes: ReadonlyArray<{ code: string; unitId: string }>;
   /** The unit an identity match proposes (the invoice names none). */
   defaultUnitId?: string | null;
+  /** The product's units, when known: a product with several is only MATCHED when the invoice's pack text names one of them. */
+  units?: ReadonlyArray<{ id: string; level: number; label: string; baseQty: number }>;
 };
 export type MatchInput = { barcode?: string | null; name: string; strength: string; form: string; pack: string };
 export type MatchResult = {
@@ -560,6 +562,43 @@ export type MatchResult = {
   unitId?: string | null;
   candidates: Array<{ productId: string; score: number }>;
 };
+
+type PackUnit = { id: string; label: string; baseQty: number };
+
+/**
+ * The unit an invoice's pack text names ("30 box", "strip"): by size and name, else by name when only one unit has it. Null when
+ * the text does not decide, so the reviewer chooses and a box is never taken for a strip.
+ */
+export function unitByPack<U extends PackUnit>(units: readonly U[], pack: string): U | null {
+  const wanted = normalizeForSearch(pack).trim();
+  if (wanted === '') return null;
+  const bySize = units.filter((u) => normalizeForSearch(`${u.baseQty} ${u.label}`).trim() === wanted);
+  if (bySize.length === 1) return bySize[0]!;
+  if (bySize.length > 1) return null;
+  const byName = units.filter((u) => normalizeForSearch(u.label).trim() === wanted);
+  return byName.length === 1 ? byName[0]! : null;
+}
+
+/** Whether two product names share a word of three letters or more (a scan is offered to the line that looks like its product). */
+export function namesResemble(a: string, b: string): boolean {
+  const words = (s: string) => normalizeForSearch(s).split(/\s+/).filter((w) => w.length >= 3);
+  const wb = new Set(words(b));
+  return words(a).some((w) => wb.has(w));
+}
+
+/**
+ * The line a scanned product belongs to: the first line (in line order) still open (UNMATCHED or AMBIGUOUS) whose name resembles
+ * the product, else the first line that already holds that product, else none.
+ */
+export function pickScanTarget(
+  rows: ReadonlyArray<{ id: string; state: string; productId: string | null; name: string }>,
+  product: { id: string; tradeName: string },
+): { rowId: string; how: 'open' | 'same' } | null {
+  const open = rows.find((r) => (r.state === 'UNMATCHED' || r.state === 'AMBIGUOUS') && namesResemble(r.name, product.tradeName));
+  if (open) return { rowId: open.id, how: 'open' };
+  const same = rows.find((r) => r.productId === product.id);
+  return same ? { rowId: same.id, how: 'same' } : null;
+}
 
 const MAX_CANDIDATES = 5;
 /** Candidates below this name similarity (0..1000) are not offered. */
@@ -629,7 +668,14 @@ export function rankMatches(input: MatchInput, candidates: readonly Candidate[])
   const wanted = keyOf({ tradeName: input.name, strength: input.strength, form: input.form, packLabel: input.pack });
   const exact = candidates.filter((c) => keyOf(c) === wanted);
   if (exact.length === 1) {
-    return { status: 'MATCHED', productId: exact[0]!.productId, unitId: exact[0]!.defaultUnitId ?? null, candidates: [{ productId: exact[0]!.productId, score: 1000 }] };
+    const only = exact[0]!;
+    // A product with several units is matched only when the invoice's pack text names one of them: the top unit is never assumed.
+    if (only.units && only.units.length > 1) {
+      const unit = unitByPack(only.units, input.pack);
+      if (!unit) return { status: 'AMBIGUOUS', candidates: [{ productId: only.productId, score: 1000 }] };
+      return { status: 'MATCHED', productId: only.productId, unitId: unit.id, candidates: [{ productId: only.productId, score: 1000 }] };
+    }
+    return { status: 'MATCHED', productId: only.productId, unitId: only.defaultUnitId ?? null, candidates: [{ productId: only.productId, score: 1000 }] };
   }
 
   const name = normalizeForSearch(input.name);
