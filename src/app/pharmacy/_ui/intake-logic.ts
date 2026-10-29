@@ -181,7 +181,7 @@ export const attentionOf = (files: readonly { status: string }[]): number => fil
 
 // Controls --------------------------------------------------------------------------------------------------------------------
 
-export type DisabledReason = 'readOnly' | 'closed' | 'noAi' | 'offline' | 'busy';
+export type DisabledReason = 'readOnly' | 'branch' | 'closed' | 'noAi' | 'offline' | 'busy';
 /** `disabled` is the reason a shown control cannot be used now; false when it can (and always false when not shown). */
 export type Control = { shown: boolean; disabled: false | DisabledReason };
 
@@ -194,9 +194,11 @@ export interface ControlContext {
   online: boolean;
   /** A reading is running from this screen. */
   busy: boolean;
+  /** The branch chosen is the batch's branch (reading and cancelling happen there). Defaults to true. */
+  branchOk?: boolean;
 }
 
-const reasonOf = (ctx: ControlContext): false | DisabledReason => (!ctx.writable ? 'readOnly' : !ctx.batchOpen ? 'closed' : !ctx.mayAi ? 'noAi' : !ctx.online ? 'offline' : ctx.busy ? 'busy' : false);
+const reasonOf = (ctx: ControlContext): false | DisabledReason => (!ctx.writable ? 'readOnly' : ctx.branchOk === false ? 'branch' : !ctx.batchOpen ? 'closed' : !ctx.mayAi ? 'noAi' : !ctx.online ? 'offline' : ctx.busy ? 'busy' : false);
 
 /**
  * A file's controls. Read and Try again are shown for the states they belong to and disabled, with the reason, when this
@@ -230,6 +232,33 @@ const RUN_STOPPERS = new Set(['AI_BUDGET_REACHED', 'AI_NOT_IN_PLAN', 'AI_PRICING
 
 /** A failure that would repeat for every other file (budget, plan, set-up): "Read all" stops there instead of trying the rest. */
 export const stopsReadAll = (code: string | null | undefined): boolean => code != null && RUN_STOPPERS.has(code);
+
+// The batch as the detail screen holds it ----------------------------------------------------------------------------------
+
+/** What the detail screen needs from `ph.intake.batch.get`: the batch's state, its files and how many lines each file holds. */
+export interface BatchState {
+  status: BatchStatusName;
+  version: number;
+  receiptId: string | null;
+  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number }[];
+  rowsByFile: Record<string, number>;
+}
+
+export function batchStateOf(data: {
+  batch: { status: BatchStatusName; version: number; receiptId: string | null };
+  files: { id: string; status: FileStatusName; failureCode: string | null; pages: number; mediaType: string; bytes: number; attempts: number }[];
+  rows: { fileId: string; removed: boolean }[];
+}): BatchState {
+  const rowsByFile: Record<string, number> = {};
+  for (const r of data.rows) if (!r.removed) rowsByFile[r.fileId] = (rowsByFile[r.fileId] ?? 0) + 1;
+  return {
+    status: data.batch.status,
+    version: data.batch.version,
+    receiptId: data.batch.receiptId,
+    files: data.files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts })),
+    rowsByFile,
+  };
+}
 
 // Usage ------------------------------------------------------------------------------------------------------------------------
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CLIENT_LIMITS,
   attentionOf,
+  batchStateOf,
   batchChip,
   batchKeyFor,
   checkClientFile,
@@ -203,6 +204,7 @@ describe('what a file may do', () => {
 
   it('gives one reason, the most basic first: read-only, closed batch, no ai.use, offline, busy', () => {
     expect(fileControls('UPLOADED', { ...ctx, writable: false, mayAi: false }).read.disabled).toBe('readOnly');
+    expect(fileControls('UPLOADED', { ...ctx, branchOk: false, mayAi: false }).read.disabled).toBe('branch');
     expect(fileControls('UPLOADED', { ...ctx, batchOpen: false, mayAi: false }).read.disabled).toBe('closed');
     expect(fileControls('UPLOADED', { ...ctx, mayAi: false, online: false }).read.disabled).toBe('noAi');
     expect(fileControls('UPLOADED', { ...ctx, online: false }).read.disabled).toBe('offline');
@@ -278,5 +280,24 @@ describe('AI usage figures', () => {
     expect(usageState({ ...base, budgetMicroUsd: '10000000', spentMicroUsd: '10000000', reservedMicroUsd: '0', remainingMicroUsd: '0' }, true)).toBe('used');
     expect(usageState({ ...base, budgetMicroUsd: '10000000', spentMicroUsd: '1000000', reservedMicroUsd: '0', remainingMicroUsd: '9000000' }, true)).toBe('ok');
     expect(usageState(base, true)).toBe('countsOnly');
+  });
+});
+
+describe('the batch as the detail screen holds it', () => {
+  it('keeps status, version, receipt and files, and counts the lines of each file without the removed ones', () => {
+    const file = (id: string) => ({ id, status: 'EXTRACTED' as const, failureCode: null, pages: 1, mediaType: 'image/png', bytes: 5, attempts: 1 });
+    const state = batchStateOf({
+      batch: { status: 'OPEN', version: 4, receiptId: null },
+      files: [file('f1'), file('f2')],
+      rows: [
+        { fileId: 'f1', removed: false },
+        { fileId: 'f1', removed: false },
+        { fileId: 'f1', removed: true },
+        { fileId: 'f2', removed: true },
+      ],
+    });
+    expect(state).toMatchObject({ status: 'OPEN', version: 4, receiptId: null });
+    expect(state.files.map((f) => f.id)).toEqual(['f1', 'f2']);
+    expect(state.rowsByFile).toEqual({ f1: 2 });
   });
 });
