@@ -6,7 +6,10 @@ import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as approveActions from '@/server/pharmacy/actions/intake-approve';
 import * as receiptActions from '@/server/pharmacy/actions/receipts';
 import * as reviewActions from '@/server/pharmacy/actions/intake-review';
-import { expireOpenBatches, NS_APPROVE_INVOICE } from '@/server/pharmacy/intake/approve';
+import { setAiProviderForTests } from '@/server/ai/provider';
+import { scriptedProvider } from '@/server/ai/provider/scripted';
+import * as intakeActions from '@/server/pharmacy/actions/intake';
+import { expireOpenBatches, NS_APPROVE_INVOICE, retryable } from '@/server/pharmacy/intake/approve';
 import { getBatch } from '@/server/pharmacy/intake/batches';
 import { matchRows } from '@/server/pharmacy/intake/review';
 import { withIntakeStorage } from '@/server/pharmacy/intake/storage';
@@ -140,9 +143,9 @@ async function row(w: World, fileId: string, over: Record<string, unknown> = {})
 }
 
 /** A batch of one matched, clean line with a supplier: approvable as it stands. */
-async function ready(w: World, o: { line?: Record<string, unknown>; header?: Record<string, unknown>; supplierId?: string | null; storageKey?: string | null } = {}) {
+async function ready(w: World, o: { branch?: 1 | 2; line?: Record<string, unknown>; header?: Record<string, unknown>; supplierId?: string | null; storageKey?: string | null } = {}) {
   const p = await productOnce(w.a.id, 'Panadol');
-  const b = await batch(w, { header: headerOf(o.header), supplierId: o.supplierId, storageKey: o.storageKey });
+  const b = await batch(w, { branch: o.branch, header: headerOf(o.header), supplierId: o.supplierId, storageKey: o.storageKey });
   const rowId = await row(w, b.fileId, o.line);
   await matchRows(prisma(), { restaurantId: w.a.id }, b.batchId, NOW);
   return { ...b, rowId, p };
@@ -206,7 +209,11 @@ beforeEach(async () => {
   storage = memoryIntakeStorage();
   restore = withIntakeStorage(storage);
 });
-afterEach(() => restore());
+afterEach(() => {
+  restore();
+  setAiProviderForTests(undefined);
+  vi.unstubAllEnvs();
+});
 
 describe('approval makes a DRAFT receipt and nothing else', () => {
   it('lines equal the effective rows exactly (IQD), edits and a free line included; stock and invoices untouched', async () => {
@@ -743,5 +750,159 @@ describe('the audit trail', () => {
     const before = await prisma().auditLog.count();
     expect(codeOf(await approve(w, w.pic, blocked.batchId))).toBe('CONFLICT');
     expect(await prisma().auditLog.count()).toBe(before);
+  });
+});
+
+describe('review fixes: the duplicate guard sees the whole business and is never skipped', () => {
+  it('the same invoice approved from another branch is a duplicate (ids only)', async () => {
+    const w = await world();
+    const one = await ready(w, { branch: 1 });
+    dataOf(await approve(w, w.pic, one.batchId));
+    const two = await ready(w, { branch: 2 });
+    const refused = await approve(w, w.manager2, two.batchId, {}, 2);
+    expect(phCodeOf(refused)).toBe('DUPLICATE_INVOICE');
+    expect(refused.ok ? '' : refused.error.fields?.batchId).toBe(one.batchId);
+    expect(JSON.stringify(refused.ok ? {} : refused.error)).not.toContain('Panadol');
+    expect((await batchOf(two.batchId)).status).toBe('OPEN');
+    expect(await prisma().phReceipt.count()).toBe(1);
+  });
+
+  it('a voided draft receipt no longer holds its invoice', async () => {
+    const w = await world();
+    const one = await ready(w);
+    const done = dataOf(await approve(w, w.pic, one.batchId));
+    dataOf(await act(w.owner, receiptActions.voidReceipt, { ...place(w), receiptId: done.receiptId, expectedVersion: 1, reason: 'wrong supplier' }));
+    const again = await ready(w);
+    expect(codeOf(await approve(w, w.pic, again.batchId))).toBe('OK');
+  });
+
+  it('refuses an approval with no usable invoice number: missing, conflicting between files, or empty after cleaning', async () => {
+    const w = await world();
+    const missing = await ready(w, { header: { invoiceNumber: null } });
+    expect(phCodeOf(await approve(w, w.pic, missing.batchId))).toBe('INVOICE_NUMBER_REQUIRED');
+    const conflicting = await ready(w);
+    await prisma().phIntakeBatch.update({ where: { id: conflicting.batchId }, data: { header: { ...headerOf(), conflicts: ['invoiceNumber'] } } });
+    expect(phCodeOf(await approve(w, w.pic, conflicting.batchId))).toBe('INVOICE_NUMBER_REQUIRED');
+    const hidden = await ready(w);
+    await prisma().phIntakeBatch.update({ where: { id: hidden.batchId }, data: { header: { ...headerOf(), edited: { invoiceNumber: '\u200B \u200F' } } } });
+    expect(phCodeOf(await approve(w, w.pic, hidden.batchId))).toBe('INVOICE_NUMBER_REQUIRED');
+    for (const id of [missing.batchId, conflicting.batchId, hidden.batchId]) expect((await batchOf(id)).status).toBe('OPEN');
+    expect(await prisma().phReceipt.count()).toBe(0);
+    // typing the number clears it
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId: missing.batchId, patch: { invoiceNumber: 'INV-55' } }));
+    expect(codeOf(await approve(w, w.pic, missing.batchId))).toBe('OK');
+  });
+
+  it('a unit cost that is not a whole safe number is refused as a line problem, never a crash', async () => {
+    const w = await world();
+    const r = await ready(w);
+    await prisma().phIntakeRow.update({ where: { id: r.rowId }, data: { extracted: { ...LINE, unitCost: 1e20, lineTotal: 10000 } } });
+    const refused = await approve(w, w.pic, r.batchId);
+    expect(['CONFLICT', 'INVALID']).toContain(codeOf(refused));
+  });
+});
+
+describe('review fixes: reserved key, retry sentence', () => {
+  it('a manual receipt cannot claim the key an approval uses', async () => {
+    const w = await world();
+    const r = await ready(w);
+    const p = await productOnce(w.a.id, 'Panadol');
+    const refused = await act(w.owner, receiptActions.create, {
+      ...place(w),
+      clientKey: `intake-approve:${r.batchId}`,
+      receivedOn: '2026-10-29',
+      lines: [{ productId: p.id, unitId: p.strip, qty: 1, lot: 'X1', expiry: '2028-01-31', unitCostMinor: '100', currency: 'IQD' }],
+    });
+    expect(codeOf(refused)).toBe('INVALID');
+    expect(refused.ok ? '' : refused.error.fields?.clientKey).toMatch(/reserved/);
+    expect(await prisma().phReceipt.count()).toBe(0);
+    expect(codeOf(await approve(w, w.pic, r.batchId))).toBe('OK');
+  });
+
+  it('a deadlock in an approval reads as an invoice problem to try again, not a receipt problem', () => {
+    const e = retryable(Object.assign(new Error('deadlock detected'), { code: '40P01' })) as { code: string; message: string; fields?: Record<string, string> };
+    expect(e).toMatchObject({ code: 'CONFLICT', fields: { phCode: 'RETRY' } });
+    expect(e.message).not.toMatch(/receipt/i);
+    const other = new Error('boom');
+    expect(retryable(other)).toBe(other);
+  });
+});
+
+describe('review fixes: the expiry sweep leaves batches that are being worked on', () => {
+  const day = 86_400_000;
+
+  it('a batch whose line was edited lately survives however old it is; one untouched for 31 days goes; both leave an audit row of ids', async () => {
+    const w = await world();
+    const worked = await ready(w);
+    const idle = await ready(w, { header: { invoiceNumber: 'INV-2' } });
+    for (const b of [worked, idle]) await prisma().phIntakeBatch.update({ where: { id: b.batchId }, data: { updatedAt: new Date(NOW.getTime() - 40 * day) } });
+    dataOf(await update(w, w.pic, worked.rowId, { lot: 'L77' }));
+    expect((await batchOf(worked.batchId)).updatedAt.getTime()).toBe(NOW.getTime());
+    expect(await expireOpenBatches(prisma(), { now: NOW, storage })).toEqual({ cancelled: 1, failed: 0 });
+    expect((await batchOf(worked.batchId)).status).toBe('OPEN');
+    expect((await batchOf(idle.batchId)).status).toBe('CANCELLED');
+    const entries = await prisma().auditLog.findMany({ where: { action: 'ph.intake.expire' } });
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ entityType: 'PhIntakeBatch', entityId: idle.batchId, restaurantId: w.a.id, actorId: null });
+    expect(JSON.stringify(entries[0]!.changes)).not.toMatch(/Panadol|INV-/);
+  });
+
+  it('a header edit, a match and an upload each count as work', async () => {
+    const w = await world();
+    const r = await ready(w);
+    const stale = () => prisma().phIntakeBatch.update({ where: { id: r.batchId }, data: { updatedAt: new Date(NOW.getTime() - 40 * day) } });
+    await stale();
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId: r.batchId, patch: { invoiceNumber: 'INV-3' } }));
+    expect((await batchOf(r.batchId)).updatedAt.getTime()).toBe(NOW.getTime());
+    await stale();
+    dataOf(await act(w.pic, reviewActions.rematchBatch, { ...place(w), batchId: r.batchId }));
+    expect((await batchOf(r.batchId)).updatedAt.getTime()).toBe(NOW.getTime());
+  });
+
+  it('a batch with a file waiting to be read or being read is skipped', async () => {
+    const w = await world();
+    const reading = await ready(w);
+    await addFile(w, reading.batchId, { status: 'EXTRACTING' });
+    const uploaded = await ready(w, { header: { invoiceNumber: 'INV-U' } });
+    await addFile(w, uploaded.batchId, { status: 'UPLOADED' });
+    for (const b of [reading, uploaded]) await prisma().phIntakeBatch.update({ where: { id: b.batchId }, data: { updatedAt: new Date(NOW.getTime() - 40 * day) } });
+    expect(await expireOpenBatches(prisma(), { now: NOW, storage })).toEqual({ cancelled: 0, failed: 0 });
+    for (const b of [reading, uploaded]) expect((await batchOf(b.batchId)).status).toBe('OPEN');
+  });
+});
+
+describe('from a real reading to a draft receipt', () => {
+  it('runs the extraction service with a scripted model, matches, and approves into a DRAFT receipt', async () => {
+    const w = await world();
+    await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'standard', name: { en: 'Standard' }, limits: { branches: 5, users: 20, storageMb: 50, aiMonthlyBudgetMinor: 1000 } } });
+    vi.stubEnv('AI_PRICE_INPUT_USD_MICRO_PER_MTOK', '1000000');
+    vi.stubEnv('AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', '1000000');
+    const provider = scriptedProvider();
+    setAiProviderForTests(provider);
+    const p = await product(w.a.id, 'Panadol');
+    const batchId = dataOf(await act(w.pic, intakeActions.createBatch, { ...place(w), clientKey: key() })).id;
+    const bytes = Buffer.from('real-reading-invoice-bytes');
+    const fileId = `real-${(seq += 1)}-file`;
+    const storageKey = `intake/${w.a.id}/${fileId}`;
+    storage.objects.set(storageKey, { bytes: new Uint8Array(bytes), mediaType: 'image/png' });
+    const sha = createHash('sha256').update(bytes).digest('hex');
+    await prisma().phIntakeFile.create({
+      data: { id: fileId, restaurantId: w.a.id, batchId, sha256: sha, storageKey, mediaType: 'image/png', bytes: bytes.length, pages: 1, quality: { width: 1000, height: 1400 }, status: 'UPLOADED', expiresAt: new Date(NOW.getTime() + 30 * 86_400_000), uploadedById: w.owner.userId },
+    });
+    provider.set(
+      sha,
+      JSON.stringify({
+        header: { supplierName: 'Acme Pharma', invoiceNumber: 'INV-7', invoiceDate: '2026-10-20', currency: 'IQD', total: 12000, discount: null, tax: null, unclear: [] },
+        lines: [{ name: 'Panadol', strength: '500 mg', form: 'tablet', pack: '10 strip', quantity: 12, bonus: 2, unitCost: 1000, lineTotal: 12000, lot: 'ab-12', expiry: '03/2028', barcodeText: null, unclear: [], page: 1 }],
+      }),
+    );
+    expect(dataOf(await act(w.pic, intakeActions.extract, { ...place(w), fileId }))).toMatchObject({ status: 'EXTRACTED', rowCount: 1 });
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { supplierId: w.supplierId } }));
+    const done = dataOf(await approve(w, w.stock, batchId));
+    const receipt = await prisma().phReceipt.findUniqueOrThrow({ where: { id: done.receiptId }, include: { lines: true } });
+    expect(receipt).toMatchObject({ status: 'DRAFT', supplierId: w.supplierId, invoiceRef: 'INV-7' });
+    expect(receipt.lines).toHaveLength(1);
+    expect(receipt.lines[0]).toMatchObject({ productId: p.id, unitId: p.strip, qty: 12, bonusQty: 2, lot: 'AB-12', unitCostMinor: 1000n, costCurrency: 'IQD', expiryPrecision: 'MONTH' });
+    expect(receipt.lines[0]!.expiryDate.toISOString().slice(0, 10)).toBe('2028-03-31');
   });
 });
