@@ -600,6 +600,13 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'What you saw has changed: look at it again before you confirm': 'error.text.phIntakeAckStale',
   'Enter the invoice date as a day, such as 2028-03-31': 'error.text.phIntakeDateInvalid',
   'There is no difference to acknowledge': 'error.text.phIntakeNoDifference',
+  'Only an open batch can be approved or cancelled': 'error.text.phIntakeNotOpenApprove',
+  'The invoice is not what you reviewed: look at it again before you approve': 'error.text.phIntakeApprovalStale',
+  'This key was already used for a different approval': 'error.text.phIntakeApprovalKey',
+  'The invoice files could not be deleted: try again': 'error.text.phIntakeDeleteFailed',
+  'Some files are still being read: wait for them': 'error.text.phIntakeStillReading',
+  'The invoice still has open items: check them before you approve': 'error.text.phIntakeOpenItems',
+  'Choose the supplier before you approve': 'error.text.phIntakeChooseSupplier',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
@@ -610,7 +617,7 @@ export interface DescribedFailure {
 }
 
 /** Details the server sends in `fields` that are not about a field the person filled in. */
-const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested', 'existingInvoiceId', 'existingCreditNoteId']);
+const DETAILS = new Set(['retryAfterSec', 'changedBy', 'changedAt', 'inUseWord', 'inUseMenu', 'pendingNumber', 'pendingAt', 'unknownColumns', 'missingColumns', 'duplicateColumns', 'rows', 'limit', 'limitCode', 'limitKind', 'phCode', 'productId', 'productName', 'productArchived', 'unitId', 'currentFrom', 'rowNumber', 'batchId', 'importedAt', 'available', 'requested', 'existingInvoiceId', 'existingCreditNoteId', 'reasons', 'files']);
 
 /** Keeps a name from reordering the words around it in a right-to-left sentence (first strong isolate, pop isolate). */
 const isolate = (text: string) => `\u2068${text}\u2069`;
