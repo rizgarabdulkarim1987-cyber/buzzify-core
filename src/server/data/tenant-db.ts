@@ -25,7 +25,7 @@ export const MENU_SCOPED_MODELS = [
 ] as const;
 
 /** Rows that belong to one restaurant and carry a required `restaurantId`. */
-export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary', 'PhSettings', 'PhStaff', 'PhStaffBranch', 'PhCategory', 'PhProduct', 'PhProductUnit', 'PhBarcode', 'PhProductBranch', 'PhPrice', 'PhPriceChangeBatch', 'PhImportBatch', 'PhImportRow', 'PhBatch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhReceiptLine', 'PhStockCount', 'PhStockCountLine', 'PhExpiryAction', 'PhShift', 'PhCashMovement', 'PhSale', 'PhSaleLine', 'PhSaleLineAllocation', 'PhPayment', 'PhReturn', 'PhReturnLine', 'PhReceiptReprint', 'PhSupplier', 'PhPurchaseOrder', 'PhPurchaseOrderLine', 'PhSupplierInvoice', 'PhSupplierInvoiceLine', 'PhSupplierPayment', 'PhSupplierPaymentAllocation', 'PhSupplierReturn', 'PhSupplierReturnLine', 'PhCreditNote', 'PhCreditAllocation', 'PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall', 'PhAiReservation', 'SupportAccessGrant'] as const;
+export const RESTAURANT_SCOPED_MODELS = ['Branch', 'PosSettings', 'PosStaff', 'PosKitchenSection', 'PosCategorySetting', 'PosProductSetting', 'PosArea', 'PosTable', 'PosOrder', 'PosOrderLine', 'PosPayment', 'PosShift', 'PosCashExpense', 'PosCustomerOrder', 'PosCustomerOrderLine', 'PosDeliveryZone', 'PosDriver', 'PosSyncOperation', 'PosPaymentReversal', 'PosSharedDevice', 'PosPinAttempt', 'PosInventoryItem', 'PosSupplier', 'PosPurchaseInvoice', 'PosPurchaseLine', 'PosStockCount', 'PosStockMovement', 'PosRecipeLine', 'PosComplaint', 'PosComplaintNote', 'PosAiPackage', 'PosAiUsageMonth', 'PosAiCall', 'PosAiSummary', 'PhSettings', 'PhStaff', 'PhStaffBranch', 'PhCategory', 'PhProduct', 'PhProductUnit', 'PhBarcode', 'PhProductBranch', 'PhPrice', 'PhPriceChangeBatch', 'PhImportBatch', 'PhImportRow', 'PhBatch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhReceiptLine', 'PhStockCount', 'PhStockCountLine', 'PhExpiryAction', 'PhShift', 'PhCashMovement', 'PhSale', 'PhSaleLine', 'PhSaleLineAllocation', 'PhPayment', 'PhReturn', 'PhReturnLine', 'PhReceiptReprint', 'PhSupplier', 'PhPurchaseOrder', 'PhPurchaseOrderLine', 'PhSupplierInvoice', 'PhSupplierInvoiceLine', 'PhSupplierPayment', 'PhSupplierPaymentAllocation', 'PhSupplierReturn', 'PhSupplierReturnLine', 'PhCreditNote', 'PhCreditAllocation', 'PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall', 'PhAiReservation', 'PhTransfer', 'PhTransferLine', 'SupportAccessGrant'] as const;
 
 /**
  * Rows that belong to one restaurant or, with a null `restaurantId`, to the platform's shared library: the media library.
@@ -106,6 +106,15 @@ export const RESTAURANT_CONFINED_MODELS: Readonly<Record<string, 'id' | 'restaur
  * `branchId`: like receipt lines, they are reached through their parent, which is on this list.
  */
 export const PHARMACY_BRANCH_SCOPED_MODELS: readonly string[] = ['PhStaffBranch', 'PhProductBranch', 'PhStockBalance', 'PhStockMovement', 'PhReceipt', 'PhStockCount', 'PhExpiryAction', 'PhShift', 'PhSale', 'PhReturn', 'PhPurchaseOrder', 'PhSupplierReturn', 'PhIntakeBatch'];
+
+/**
+ * Rows that join two branches of one restaurant (`fromBranchId`, `toBranchId`, both required) and carry no `branchId`: a
+ * stock transfer. A client limited to branches sees the rows with EITHER end in its scope (the sender and the receiver
+ * both read the transfer, a third branch's actor sees nothing); a create must name both ends and at least one of them in
+ * scope; neither end can be changed by an update. The owner's client (`allBranches`) is limited to its restaurant only.
+ * Its child rows (`PhTransferLine`) carry no branch: like receipt lines, they are reached through the parent.
+ */
+export const PHARMACY_EITHER_BRANCH_MODELS: readonly string[] = ['PhTransfer'];
 
 let branchScoped = new Set<string>(PHARMACY_BRANCH_SCOPED_MODELS);
 
@@ -312,8 +321,62 @@ function confineBranch(branchIds: readonly string[]) {
   };
 }
 
+/**
+ * The guard for an either-branch model (`PHARMACY_EITHER_BRANCH_MODELS`) in a client limited to `branchIds`: reads,
+ * updates and deletes are filtered to rows whose `fromBranchId` OR `toBranchId` is in the list, a create must name both
+ * branches with at least one in the list, and neither end may be changed (a transfer never moves). An empty list matches
+ * nothing.
+ */
+function confineEitherBranch(branchIds: readonly string[]) {
+  const allowed = new Set(branchIds);
+
+  function checkCreate(data: unknown): unknown {
+    const row = (data ?? {}) as Record<string, unknown>;
+    if (row.fromBranch !== undefined || row.toBranch !== undefined) {
+      throw new Error('Branch scope: a scoped write may not set a branch by relation');
+    }
+    const { fromBranchId, toBranchId } = row;
+    if (typeof fromBranchId !== 'string' || typeof toBranchId !== 'string') throw new Error('Branch scope: a write must name both its branches');
+    if (!allowed.has(fromBranchId) && !allowed.has(toBranchId)) {
+      throw new Error('Branch scope: refusing to write a row for branches outside the scope');
+    }
+    return data;
+  }
+
+  function checkUpdate(data: unknown): unknown {
+    const row = (data ?? {}) as Record<string, unknown>;
+    if (row.fromBranchId !== undefined || row.toBranchId !== undefined || row.fromBranch !== undefined || row.toBranch !== undefined) {
+      throw new Error('Branch scope: a scoped update may not change the branches of a row');
+    }
+    return data;
+  }
+
+  function scopeWhere(args: Args): Args {
+    const where = args.where ?? {};
+    const existing = where.AND === undefined ? [] : Array.isArray(where.AND) ? where.AND : [where.AND];
+    const list = [...allowed];
+    return { ...args, where: { ...where, AND: [...existing, { OR: [{ fromBranchId: { in: list } }, { toBranchId: { in: list } }] }] } };
+  }
+
+  return function rewrite(model: string, operation: string, input: Args): Args {
+    if (UPDATING.has(operation)) return { ...scopeWhere(input), data: checkUpdate(input.data) };
+    if (FILTERED.has(operation)) return scopeWhere(input);
+    if (CREATING.has(operation)) {
+      const data = input.data;
+      if (Array.isArray(data)) for (const row of data) checkCreate(row);
+      else checkCreate(data);
+      return input;
+    }
+    if (operation === 'upsert') {
+      return { ...scopeWhere(input), create: checkCreate(input.create), update: checkUpdate(input.update) };
+    }
+    throw new Error(`Operation ${operation} is not allowed on ${model} in a client scoped to branches`);
+  };
+}
+
 const MENU_SCOPED = new Set<string>(MENU_SCOPED_MODELS);
 const RESTAURANT_SCOPED = new Set<string>(RESTAURANT_SCOPED_MODELS);
+const EITHER_BRANCH = new Set<string>(PHARMACY_EITHER_BRANCH_MODELS);
 
 /**
  * A Prisma extension for one scope. It fails closed: a menu-scoped model needs `scope.menuId` and a restaurant-scoped
@@ -335,6 +398,7 @@ function tenantScope(scope: Scope) {
   // Read when the client is built, so a client keeps the list it was made under.
   const branchModels = branchScoped;
   const branchRule = scope.branchIds === undefined ? null : confineBranch(scope.branchIds);
+  const eitherRule = scope.branchIds === undefined ? null : confineEitherBranch(scope.branchIds);
   const rules = new Map<string, Array<ReturnType<typeof confine>>>();
   const add = (model: string, confinement: Confinement) => {
     rules.set(model, [...(rules.get(model) ?? []), confine(confinement)]);
@@ -352,6 +416,9 @@ function tenantScope(scope: Scope) {
   if (branchRule !== null) {
     for (const model of branchModels) rules.set(model, [...(rules.get(model) ?? []), branchRule]);
   }
+  if (eitherRule !== null) {
+    for (const model of EITHER_BRANCH) rules.set(model, [...(rules.get(model) ?? []), eitherRule]);
+  }
   // Every scoped client confines the media library: to the restaurant and the shared rows, or to the shared rows alone.
   const library = confineToLibrary(scope.restaurantId ?? null);
   for (const model of RESTAURANT_OR_SHARED_MODELS) rules.set(model, [library]);
@@ -368,6 +435,9 @@ function tenantScope(scope: Scope) {
             throw new Error(`Tenant scope: ${model} is restaurant-scoped and this client has no restaurant`);
           }
           if (branchModels.has(model) && scope.branchIds === undefined && scope.allBranches === undefined) {
+            throw new Error(`Tenant scope: ${model} is branch-scoped and this client has neither branches nor allBranches`);
+          }
+          if (EITHER_BRANCH.has(model) && scope.branchIds === undefined && scope.allBranches === undefined) {
             throw new Error(`Tenant scope: ${model} is branch-scoped and this client has neither branches nor allBranches`);
           }
           const rewrites = rules.get(model);

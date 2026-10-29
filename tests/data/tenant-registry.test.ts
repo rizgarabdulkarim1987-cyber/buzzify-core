@@ -6,6 +6,7 @@ import {
   MENU_CONFINED_MODELS,
   MENU_SCOPED_MODELS,
   PHARMACY_BRANCH_SCOPED_MODELS,
+  PHARMACY_EITHER_BRANCH_MODELS,
   RESTAURANT_CONFINED_MODELS,
   RESTAURANT_OR_SHARED_MODELS,
   RESTAURANT_SCOPED_MODELS,
@@ -64,6 +65,18 @@ describe('tenant scoping registry', () => {
     const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body));
     expect([...PHARMACY_BRANCH_SCOPED_MODELS].sort()).toEqual(withBranch);
     for (const model of PHARMACY_BRANCH_SCOPED_MODELS) expect(models.has(model), `${model} is a model`).toBe(true);
+  });
+
+  // A model that joins two branches (both ends required, no branchId) is confined by either end, so a new one cannot be served
+  // to a client limited to branches without a decision here.
+  it('lists every model with required fromBranchId and toBranchId columns as either-branch, and only real models', () => {
+    const joining = names((body) => /^\s*fromBranchId\s+String(?!\?)\b/m.test(body) && /^\s*toBranchId\s+String(?!\?)\b/m.test(body));
+    expect([...PHARMACY_EITHER_BRANCH_MODELS].sort()).toEqual(joining);
+    for (const model of PHARMACY_EITHER_BRANCH_MODELS) {
+      expect(models.has(model), `${model} is a model`).toBe(true);
+      expect(RESTAURANT_SCOPED_MODELS as readonly string[], model).toContain(model);
+      expect(PHARMACY_BRANCH_SCOPED_MODELS, `${model} is not also single-branch`).not.toContain(model);
+    }
   });
 
   it('confines only models outside the scoped classes, each by a required column it has', () => {

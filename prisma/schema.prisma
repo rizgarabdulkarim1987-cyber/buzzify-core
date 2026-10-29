@@ -190,6 +190,8 @@ model Restaurant {
   phAiUsageMonths            PhAiUsageMonth[]
   phAiCalls                  PhAiCall[]
   phAiReservations           PhAiReservation[]
+  phTransfers                PhTransfer[]
+  phTransferLines            PhTransferLine[]
   supportAccessGrants   SupportAccessGrant[]
 
   @@index([name])
@@ -231,6 +233,8 @@ model Branch {
   phPurchaseOrders  PhPurchaseOrder[]
   phSupplierReturns PhSupplierReturn[]
   phIntakeBatches   PhIntakeBatch[]
+  phTransfersFrom   PhTransfer[] @relation("PhTransferFrom")
+  phTransfersTo     PhTransfer[] @relation("PhTransferTo")
 
   @@unique([restaurantId, id])
   @@index([restaurantId])
@@ -2196,6 +2200,7 @@ model PhProduct {
   movements    PhStockMovement[]
   receiptLines PhReceiptLine[]
   intakeRows   PhIntakeRow[]
+  transferLines PhTransferLine[]
   saleLines    PhSaleLine[]
   countLines   PhStockCountLine[]
   purchaseOrderLines PhPurchaseOrderLine[]
@@ -2437,6 +2442,7 @@ model PhBatch {
   receiptLines    PhReceiptLine[]
   saleAllocations PhSaleLineAllocation[]
   supplierReturnLines PhSupplierReturnLine[]
+  transferLines   PhTransferLine[]
 
   @@unique([restaurantId, productId, lot, expiryDate, supplierName])
   @@unique([restaurantId, productId, lot, expiryDate])
@@ -2792,6 +2798,7 @@ model PhSale {
   @@unique([id, currency])
   @@unique([branchId, number])
   @@index([restaurantId, branchId, createdAt])
+  @@index([restaurantId, branchId, completedAt])
   @@index([shiftId])
 }
 
@@ -3504,4 +3511,86 @@ model PhAiCall {
   @@unique([restaurantId, id])
   @@index([restaurantId, createdAt])
   @@index([restaurantId, fileId])
+}
+
+enum PhTransferStatus {
+  REQUESTED
+  SENT
+  RECEIVED
+  PARTIAL
+  CANCELLED
+}
+
+enum PhTransferDiffReason {
+  LOST
+  DAMAGED_IN_TRANSIT
+  OTHER
+}
+
+/// A movement of stock between two different branches of one business. REQUESTED -> SENT -> RECEIVED | PARTIAL, or
+/// CANCELLED from REQUESTED only. Stock leaves the sender with a TRANSFER_OUT when it is sent and enters the destination
+/// with a TRANSFER_IN when it is received; in between, "in transit" is derived from the open lines (R6-2), not a bucket.
+/// `number` is a per-sending-branch running number given when the transfer is requested. It has no `branchId`: it names two
+/// branches, so the tenant client confines it by either end (`PHARMACY_EITHER_BRANCH_MODELS`). CHECKs (two branches, the
+/// status/timestamp implications, note length) are in the migration.
+model PhTransfer {
+  id            String           @id @default(cuid())
+  restaurantId  String
+  fromBranchId  String
+  toBranchId    String
+  status        PhTransferStatus @default(REQUESTED)
+  number        String?
+  clientKey     String
+  payloadHash   String
+  note          String           @default("")
+  requestedById String
+  requestedAt   DateTime         @default(now())
+  sentById      String?
+  sentAt        DateTime?
+  receivedById  String?
+  receivedAt    DateTime?
+  cancelledById String?
+  cancelledAt   DateTime?
+  version       Int              @default(1)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  restaurant    Restaurant       @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  fromBranch    Branch           @relation("PhTransferFrom", fields: [restaurantId, fromBranchId], references: [restaurantId, id], onDelete: NoAction)
+  toBranch      Branch           @relation("PhTransferTo", fields: [restaurantId, toBranchId], references: [restaurantId, id], onDelete: NoAction)
+  lines         PhTransferLine[]
+
+  @@unique([restaurantId, id])
+  @@unique([restaurantId, clientKey])
+  @@unique([fromBranchId, number])
+  @@index([restaurantId, fromBranchId, status])
+  @@index([restaurantId, toBranchId, status])
+  @@index([restaurantId, status, sentAt])
+}
+
+/// One line of a transfer, in whole base units. `batchId` is null while the line is only requested and set when it is sent
+/// (FEFO can split one requested product into several lines, one per batch). `receivedQty + lostQty + damagedQty` never
+/// exceeds `sentQty`; a lost or damaged quantity needs a `diffReason`. CHECKs are in the migration.
+model PhTransferLine {
+  id           String                @id @default(cuid())
+  restaurantId String
+  transferId   String
+  lineNo       Int
+  productId    String
+  batchId      String?
+  requestedQty Int
+  sentQty      Int                   @default(0)
+  receivedQty  Int                   @default(0)
+  lostQty      Int                   @default(0)
+  damagedQty   Int                   @default(0)
+  diffReason   PhTransferDiffReason?
+  quarantine   Boolean               @default(false)
+  restaurant   Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  transfer     PhTransfer            @relation(fields: [restaurantId, transferId], references: [restaurantId, id], onDelete: Cascade)
+  product      PhProduct             @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  batch        PhBatch?              @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+
+  @@unique([restaurantId, id])
+  @@unique([transferId, lineNo])
+  @@index([restaurantId, batchId])
+  @@index([restaurantId, productId])
 }

@@ -523,10 +523,14 @@ describe('pharmacy products', () => {
     // and a matched unit only names the product it was matched to; approval copies the values into a receipt line, which
     // keeps its own qty AND baseQty. The usage and call tables hold money and counts only. Decided here, not by omission.
     const SELF_CONTAINED_INTAKE = ['PhIntakeBatch', 'PhIntakeFile', 'PhIntakeRow', 'PhAiUsageMonth', 'PhAiCall', 'PhAiReservation'];
+    // Phase 6 transfer records are self-contained: a line is in base units of the product it names and keeps its own sent,
+    // received, lost and damaged counts, so a later resize of a unit or archive of the product changes nothing in a transfer
+    // already made (an archived product is refused when a new transfer is requested). Decided here, not by omission.
+    const SELF_CONTAINED_TRANSFERS = ['PhTransfer', 'PhTransferLine'];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !SELF_CONTAINED_TRANSFERS.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
   });
 });
