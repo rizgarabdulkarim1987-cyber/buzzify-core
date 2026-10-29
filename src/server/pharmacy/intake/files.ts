@@ -9,6 +9,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
 import { assertStaff } from '../receipts';
 import { NS_CLIENT_KEY } from '../suppliers';
+import { touchBatch } from './rows';
 import { ImageUnreadableError, assessQuality, type QualityAssessment } from './quality';
 import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from './storage';
 
@@ -256,6 +257,7 @@ export async function commitFile(
   // eslint-disable-next-line no-restricted-properties -- row lock on the batch (a parallel cancel waits on it); the branch is part of the match
   const locked = await tx.$queryRaw<{ id: string }[]>`SELECT "id" FROM "PhIntakeBatch" WHERE "id" = ${args.batchId} AND "restaurantId" = ${args.restaurantId} AND "branchId" = ${args.branchId} FOR UPDATE`;
   if (locked.length === 0) throw batchNotFound();
+  await touchBatch(tx, args.batchId, args.now);
   const admission = await admitFile(tx, args);
   if (admission.kind === 'duplicate') return admission.added;
 

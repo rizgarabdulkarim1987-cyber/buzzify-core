@@ -17,7 +17,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
 import { claimFileForExtraction, LEASE_MS, MAX_ATTEMPTS, releaseFile, runPharmacyAi, sweepAiReservations, type AiPricing } from './ai';
 import { matchRows } from './review';
-import { arithmeticJson, effectiveHeader, type StoredHeader } from './rows';
+import { arithmeticJson, effectiveHeader, touchBatch, type StoredHeader } from './rows';
 import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from './storage';
 
 /**
@@ -281,6 +281,7 @@ export async function extractFile(db: Everyone, args: ExtractArgs, deps: Extract
           if (held.length === 0) return { kind: 'lease' as const };
           const current = await tx.phIntakeBatch.findFirst({ where: { id: file.batchId }, select: { status: true, header: true } });
           if (!current || current.status !== 'OPEN') return { kind: 'closed' as const };
+          await touchBatch(tx, file.batchId, now);
           if ((await tx.phIntakeRow.findMany({ where: { fileId }, select: TOUCHED_SELECT })).some(touched)) return { kind: 'reviewed' as const };
 
           // A retry replaces the model's rows only: a line a person added by hand (`edited.source = 'manual'`) stays, and the new lines are numbered after it.

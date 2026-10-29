@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { asRetryable, confirmReceipt, createDraft, receiptInput, updateDraft, voidDraft } from '@/server/pharmacy/receipts';
+import { asRetryable, confirmReceipt, INTAKE_KEY_PREFIX, createDraft, receiptInput, updateDraft, voidDraft } from '@/server/pharmacy/receipts';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -15,7 +15,12 @@ import { StudioError } from '@/server/studio/framework/result';
 const CONFIRM_TIMEOUT_MS = 60_000;
 
 const receiptId = z.string().min(1).max(64);
-const clientKey = z.string().trim().min(8, 'Use at least 8 characters').max(100, 'Use at most 100 characters');
+const clientKey = z
+  .string()
+  .trim()
+  .min(8, 'Use at least 8 characters')
+  .max(100, 'Use at most 100 characters')
+  .refine((v) => !v.startsWith(INTAKE_KEY_PREFIX), 'This key is reserved: use another');
 
 const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
 

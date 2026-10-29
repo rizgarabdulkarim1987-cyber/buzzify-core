@@ -1,8 +1,8 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
-import { approveBatch, approveInput, cancelBatch, cancelInput } from '@/server/pharmacy/intake/approve';
+import { approveBatch, approveInput, cancelBatch, cancelInput, retryable } from '@/server/pharmacy/intake/approve';
 import { storageOrRefuse } from '@/server/pharmacy/intake/files';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import { asRetryable, assertStaff } from '@/server/pharmacy/receipts';
+import { assertStaff } from '@/server/pharmacy/receipts';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
 
@@ -47,7 +47,7 @@ export const approve = defineAction({
         { timeoutMs: APPROVE_TIMEOUT_MS },
       );
     } catch (error) {
-      throw asRetryable(error);
+      throw retryable(error);
     }
   },
 });
@@ -66,7 +66,7 @@ export const cancel = defineAction({
     try {
       return await ctx.transaction((tx) => cancelBatch(tx, storage, { restaurantId: ph.restaurantId, branchId, batchId: input.batchId, reason: input.reason, now: new Date(), audit: (e) => ctx.audit(e) }), { timeoutMs: APPROVE_TIMEOUT_MS });
     } catch (error) {
-      throw asRetryable(error);
+      throw retryable(error);
     }
   },
 });

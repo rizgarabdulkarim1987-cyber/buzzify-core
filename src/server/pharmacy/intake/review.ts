@@ -25,6 +25,7 @@ import {
   headerView,
   loadRows,
   lockBatch,
+  touchBatch,
   readAck,
   recomputeBatch,
   ROW_SELECT,
@@ -271,6 +272,7 @@ async function openBatch(tx: ScopedTx, a: { restaurantId: string; branchId: stri
   const batch = await tx.phIntakeBatch.findFirst({ where: { id: a.batchId }, select: { status: true, version: true, header: true, supplierId: true } });
   if (!batch) throw batchNotFound();
   if (batch.status !== 'OPEN') throw notOpen();
+  await touchBatch(tx, a.batchId, new Date());
   return { batchId: a.batchId, version: batch.version, header: asObject(batch.header) as StoredHeader, supplierId: batch.supplierId };
 }
 

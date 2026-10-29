@@ -4,7 +4,7 @@ import { baghdadDayOf } from '@/lib/baghdad';
 import { scopedClient, type ScopedTx } from '@/server/data/tenant-db';
 import { invoiceFingerprint, normalizeInvoiceNumber } from '@/server/domain/pharmacy/purchasing';
 import { StudioError } from '@/server/studio/framework/result';
-import { createDraft, receiptLineInput, type ReceiptInput } from '../receipts';
+import { asRetryable, createDraft, INTAKE_KEY_PREFIX, receiptLineInput, type ReceiptInput } from '../receipts';
 import { intakeClientKey, releaseFileKey } from './files';
 import { approvalOf, lockBatch, recomputeBatch, verdictTokenOf, type StoredHeader } from './rows';
 import type { IntakeStorage } from './storage';
@@ -28,6 +28,9 @@ import type { IntakeStorage } from './storage';
 /** Advisory namespaces of the approval (unused by any other lock): its request key, and one supplier's invoice number. */
 export const NS_APPROVE_KEY = 7301;
 export const NS_APPROVE_INVOICE = 7302;
+
+/** Time a sweep transaction may take (it deletes remote objects). */
+const SWEEP_TIMEOUT_MS = 60_000;
 
 /** An open batch not touched for this many days is cancelled by the sweep. */
 export const EXPIRE_DAYS = 30;
@@ -128,6 +131,10 @@ export async function approveBatch(
   const lines: ReceiptInput['lines'] = [];
   const unusable: Array<{ code: string; rowId: string }> = [];
   for (const r of live) {
+    if (r.line.unitCost !== null && !Number.isSafeInteger(r.line.unitCost)) {
+      unusable.push({ code: 'INVALID_LINE', rowId: r.id });
+      continue;
+    }
     const parsed = receiptLineInput.safeParse({
       productId: r.matchedProductId,
       unitId: r.matchedUnitId,
@@ -146,35 +153,43 @@ export async function approveBatch(
   }
   if (unusable.length > 0) throw notApprovable(unusable);
 
-  // The same invoice is entered once: by the supplier's number, or its fingerprint, among the supplier invoices, and among the
-  // batches already approved. The guard lock makes two batches of one invoice meet.
+  // The same invoice is entered once, so it must have a number to be compared by: the guard is never skipped.
   const number = header.values.invoiceNumber;
   const numberKey = number === null ? null : safeNumber(number);
-  if (numberKey !== null) {
-    // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one supplier's invoice number
-    await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_APPROVE_INVOICE}::int, hashtext(${`${a.restaurantId}:${batch.supplierId}:${numberKey}`}))`;
-    const fingerprint =
-      header.values.invoiceDate !== null && header.values.total !== null
-        ? invoiceFingerprint({ supplierId: batch.supplierId, number: numberKey, date: header.values.invoiceDate, currency, totalMinor: BigInt(header.values.total) })
-        : null;
-    const twin = await tx.phSupplierInvoice.findFirst({ where: { OR: [{ supplierId: batch.supplierId, number: numberKey }, ...(fingerprint ? [{ fingerprint }] : [])] }, select: { id: true } });
-    if (twin) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', existingInvoiceId: twin.id });
-    const sibling = await tx.phIntakeBatch.findFirst({
-      where: { status: 'APPROVED', supplierId: batch.supplierId, id: { not: a.batchId }, header: { path: ['approval', 'invoiceKey'], equals: numberKey } },
-      select: { id: true },
-    });
-    if (sibling) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', batchId: sibling.id });
+  if (number === null || numberKey === null) {
+    throw new StudioError('INVALID', 'Enter the invoice number before you approve', { invoiceNumber: 'Enter the invoice number before you approve', phCode: 'INVOICE_NUMBER_REQUIRED' });
   }
+  // By the supplier's number (however it is spelled) or its fingerprint, among the supplier invoices and among the batches
+  // already approved, in EVERY branch of the business (an invoice photographed in two branches is one invoice). The guard lock
+  // makes two batches of one invoice meet; it has no branch in its key.
+  // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one supplier's invoice number
+  await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_APPROVE_INVOICE}::int, hashtext(${`${a.restaurantId}:${batch.supplierId}:${numberKey}`}))`;
+  const fingerprint =
+    header.values.invoiceDate !== null && header.values.total !== null
+      ? invoiceFingerprint({ supplierId: batch.supplierId, number: numberKey, date: header.values.invoiceDate, currency, totalMinor: BigInt(header.values.total) })
+      : null;
+  const twin = await tx.phSupplierInvoice.findFirst({ where: { OR: [{ supplierId: batch.supplierId, number: numberKey }, ...(fingerprint ? [{ fingerprint }] : [])] }, select: { id: true } });
+  if (twin) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', existingInvoiceId: twin.id });
+  // The batch table is branch-scoped through `tx`, so this read is raw and filtered by the business alone (only ids come back).
+  // A batch whose receipt was voided no longer holds its invoice.
+  // eslint-disable-next-line no-restricted-properties -- business-wide duplicate check across branches; the business is part of the match
+  const siblings = await tx.$queryRaw<{ id: string }[]>`
+    SELECT b."id" FROM "PhIntakeBatch" b LEFT JOIN "PhReceipt" r ON r."id" = b."receiptId" AND r."restaurantId" = b."restaurantId"
+    WHERE b."restaurantId" = ${a.restaurantId} AND b."supplierId" = ${batch.supplierId} AND b."status" = 'APPROVED' AND b."id" <> ${a.batchId}
+      AND COALESCE(r."status"::text, '') <> 'VOID'
+      AND (b."header"->'approval'->>'invoiceKey' = ${numberKey} OR (${fingerprint}::text IS NOT NULL AND b."header"->'approval'->>'fingerprint' = ${fingerprint}::text))
+    ORDER BY b."id" LIMIT 1`;
+  if (siblings[0]) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', batchId: siblings[0].id });
 
   const receipt = await createDraft(tx, {
     restaurantId: a.restaurantId,
     branchId: a.branchId,
-    clientKey: `intake-approve:${a.batchId}`,
+    clientKey: `${INTAKE_KEY_PREFIX}${a.batchId}`,
     userId: a.userId,
     input: {
       supplierName: '',
       supplierId: batch.supplierId,
-      reference: (number ?? '').slice(0, 100),
+      reference: number.slice(0, 100),
       receivedOn: baghdadDayOf(a.now),
       note: '',
       lines,
@@ -190,7 +205,7 @@ export async function approveBatch(
       approvedAt: a.now,
       approvedById: a.userId,
       version: { increment: 1 },
-      header: toJson({ ...stored, approval: { clientKey: a.clientKey, payloadHash: hash, invoiceKey: numberKey } }),
+      header: toJson({ ...stored, approval: { clientKey: a.clientKey, payloadHash: hash, invoiceKey: numberKey, fingerprint } }),
     },
   });
   if (won.count !== 1) throw stale();
@@ -228,6 +243,12 @@ const safeNumber = (raw: string): string | null => {
     return null;
   }
 };
+
+/** A deadlock or serialisation failure in an approval or a cancel: its own sentence (the receipt one speaks of a receipt). */
+export function retryable(error: unknown): unknown {
+  const e = asRetryable(error);
+  return e === error ? error : new StudioError('CONFLICT', 'Someone else is changing this invoice: try again', { phCode: 'RETRY' });
+}
 
 /** Row ids and flag codes only: the reasons are machine readable and carry no value of the invoice. */
 function notApprovable(reasons: ReadonlyArray<Record<string, unknown>>): StudioError {
@@ -318,14 +339,27 @@ export async function expireOpenBatches(
     const due = await scoped.phIntakeBatch.findMany({ where: { status: 'OPEN', updatedAt: { lt: cutoff } }, select: { id: true }, orderBy: [{ updatedAt: 'asc' }, { id: 'asc' }], take: limit - cancelled - failed });
     for (const { id } of due) {
       try {
-        const done = await scoped.$transaction(async (tx) => {
-          await lockBatch(tx, restaurantId, id);
-          const batch = await tx.phIntakeBatch.findFirst({ where: { id }, select: { status: true, version: true, header: true, updatedAt: true } });
-          if (!batch || batch.status !== 'OPEN' || batch.updatedAt >= cutoff) return false;
-          await releaseBatch(tx, args.storage, { restaurantId, batchId: id, version: batch.version, header: batch.header, now: args.now, note: { expired: true } });
-          return true;
-        });
-        if (done) cancelled += 1;
+        const done = await scoped.$transaction(
+          async (tx) => {
+            await lockBatch(tx, restaurantId, id);
+            const batch = await tx.phIntakeBatch.findFirst({ where: { id }, select: { status: true, version: true, header: true, updatedAt: true } });
+            if (!batch || batch.status !== 'OPEN' || batch.updatedAt >= cutoff) return null;
+            // Worked on lately: a file waiting to be read or being read keeps the batch alive (uploads, reads and edits also touch the batch).
+            const active = await tx.phIntakeFile.count({
+              where: { batchId: id, status: { in: ['UPLOADED', 'EXTRACTING'] } },
+            });
+            if (active > 0) return null;
+            return releaseBatch(tx, args.storage, { restaurantId, batchId: id, version: batch.version, header: batch.header, now: args.now, note: { expired: true } });
+          },
+          { timeout: SWEEP_TIMEOUT_MS },
+        );
+        if (done !== null) {
+          cancelled += 1;
+          // The system acts: no actor, ids and counts only.
+          await everyone.auditLog.create({
+            data: { restaurantId, action: 'ph.intake.expire', entityType: 'PhIntakeBatch', entityId: id, changes: { status: { before: 'OPEN', after: 'CANCELLED' }, releasedFiles: { before: null, after: done } } },
+          });
+        }
       } catch {
         failed += 1;
         console.error(`[intake] could not expire batch ${id}`);

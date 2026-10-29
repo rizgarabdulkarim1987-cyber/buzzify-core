@@ -386,6 +386,15 @@ export async function lockBatch(tx: ScopedTx, restaurantId: string, batchId: str
   await tx.$queryRaw`SELECT "id" FROM "PhIntakeBatch" WHERE "id" = ${batchId} AND "restaurantId" = ${restaurantId} FOR UPDATE`;
 }
 
+/**
+ * Marks the batch as worked on (its `updatedAt`, which the 30-day expiry reads) without touching its version: every intake write
+ * that holds the batch lock calls this, so a batch under review never looks idle. Row, file and header edits otherwise leave the
+ * batch row alone.
+ */
+export async function touchBatch(tx: ScopedTx, batchId: string, now: Date): Promise<void> {
+  await tx.phIntakeBatch.updateMany({ where: { id: batchId }, data: { updatedAt: now } });
+}
+
 /** All rows of a batch, in file then line order. */
 export async function loadRows(tx: ScopedDb, batchId: string): Promise<RowRecord[]> {
   const files = await tx.phIntakeFile.findMany({ where: { batchId }, select: { id: true }, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }] });

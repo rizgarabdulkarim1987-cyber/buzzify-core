@@ -30,6 +30,9 @@ export function asRetryable(error: unknown): unknown {
 }
 
 
+/** Receipt keys that start with this belong to invoice-intake approval: no other path may claim one. */
+export const INTAKE_KEY_PREFIX = 'intake-approve:';
+
 export const MAX_RECEIPT_LINES = 200;
 /** The largest `bigint` a Postgres BIGINT column holds. */
 export const MAX_MINOR = 9_223_372_036_854_775_807n;
