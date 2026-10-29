@@ -2,6 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import * as saleActions from '@/server/pharmacy/actions/sales';
 import * as transferActions from '@/server/pharmacy/actions/transfers';
 import * as transferQueries from '@/server/pharmacy/queries/transfers';
+import { asRetryableTransfer, branchPart } from '@/server/pharmacy/transfers';
 import { DAY, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { act, ask, balanceOf, codeOf, dataOf, makeBatch, makeProduct, phCodeOf } from './stock-helpers';
 
@@ -115,7 +116,7 @@ describe('the hand figures: 30 asked, 18 + 12 sent, 25 received and 5 lost', () 
     expect((await conserved(w.a.id)).total).toBe(38);
 
     const t = await requested(w);
-    expect(t).toMatchObject({ number: 'T-20261027-000001', status: 'REQUESTED', fromBranchId: w.b1, toBranchId: w.b2, version: 1, replayed: false });
+    expect(t).toMatchObject({ number: `T-${branchPart(w.b1)}-20261027-000001`, status: 'REQUESTED', fromBranchId: w.b1, toBranchId: w.b2, version: 1, replayed: false });
     expect(t.lines).toEqual([{ lineNo: 1, productId: w.p.id, requestedQty: 30 }]);
     expect((await conserved(w.a.id)).total).toBe(38);
 
@@ -160,7 +161,7 @@ describe('the hand figures: 30 asked, 18 + 12 sent, 25 received and 5 lost', () 
     const t = await requested(w, { lines: [{ productId: w.p.id, qty: 25 }] });
     const sent = dataOf(await send(w, w.owner, t));
     const detail = dataOf(await get(w, w.destMgr, t.id));
-    expect(detail).toMatchObject({ status: 'SENT', number: 'T-20261027-000001', requestedQty: 25, sentQty: 25, inTransitQty: 25, lineCount: 1 });
+    expect(detail).toMatchObject({ status: 'SENT', number: `T-${branchPart(w.b1)}-20261027-000001`, requestedQty: 25, sentQty: 25, inTransitQty: 25, lineCount: 1 });
     expect(detail.requestLines).toEqual([expect.objectContaining({ productName: 'Panadol', requestedQty: 25, sentQty: 25 })]);
     expect(detail.sentLines).toEqual([expect.objectContaining({ batchId: b, lot: 'ONLY', expiryDate: '2028-03-31', sentQty: 25, inTransitQty: 25 })]);
     const done = dataOf(await receive(w, w.owner, { id: t.id, version: sent.version }, [{ lineId: sent.lines[0]!.lineId, receivedQty: 25 }]));
@@ -213,6 +214,14 @@ describe('receiving damaged, lost and quarantined units', () => {
     await prisma().phBatch.update({ where: { id: b2 }, data: { status: 'RECALLED' } });
     expect(codeOf(await receive(w2, w2.destMgr, { id: t2.id, version: sent2.version }, [{ lineId: sent2.lines[0]!.lineId, receivedQty: 20 }]))).toBe('OK');
     expect(await balanceOf(b2, w2.b2)).toMatchObject({ available: 0, quarantine: 20 });
+    // the line records that the units were quarantined, also when nobody flagged them (the recalled batch did)
+    expect(await prisma().phTransferLine.findUniqueOrThrow({ where: { id: sent2.lines[0]!.lineId } })).toMatchObject({ quarantine: true, receivedQty: 20 });
+  });
+
+  it('leaves quarantine false on a line whose units went to available', async () => {
+    const { w, t, sent, line } = await sentFor();
+    dataOf(await receive(w, w.destMgr, { id: t.id, version: sent.version }, [{ lineId: line, receivedQty: 30 }]));
+    expect(await prisma().phTransferLine.findUniqueOrThrow({ where: { id: line } })).toMatchObject({ quarantine: false });
   });
 
   it('refuses a receipt that does not account for every unit, or every line, or names more than was sent', async () => {
@@ -439,13 +448,15 @@ describe('who may act at each end', () => {
 describe('requesting, changing and cancelling', () => {
   it('numbers per sending branch and per UTC day, also in parallel', async () => {
     const w = await world();
-    expect((await requested(w)).number).toBe('T-20261027-000001');
-    expect((await requested(w)).number).toBe('T-20261027-000002');
-    expect((await requested(w, { fromBranchId: w.b2, toBranchId: w.b1 })).number).toBe('T-20261027-000001');
+    const [p1, p2] = [branchPart(w.b1), branchPart(w.b2)];
+    expect(p1).not.toBe(p2);
+    expect((await requested(w)).number).toBe(`T-${p1}-20261027-000001`);
+    expect((await requested(w)).number).toBe(`T-${p1}-20261027-000002`);
+    expect((await requested(w, { fromBranchId: w.b2, toBranchId: w.b1 })).number).toBe(`T-${p2}-20261027-000001`);
     vi.setSystemTime(new Date(NOW.getTime() + DAY));
-    expect((await requested(w)).number).toBe('T-20261028-000001');
+    expect((await requested(w)).number).toBe(`T-${p1}-20261028-000001`);
     const results = await Promise.all([1, 2, 3, 4].map(() => request(w, w.owner)));
-    expect(results.map((r) => dataOf(r).number).sort()).toEqual(['T-20261028-000002', 'T-20261028-000003', 'T-20261028-000004', 'T-20261028-000005']);
+    expect(results.map((r) => dataOf(r).number).sort()).toEqual([2, 3, 4, 5].map((n) => `T-${p1}-20261028-00000${n}`));
   });
 
   it('checks the branches, the products and the lines', async () => {
@@ -608,5 +619,144 @@ describe('what the audit keeps', () => {
     expect(receiveRow.entityId).toBe(t2.id);
     expect(JSON.stringify(receiveRow.changes)).toContain('PARTIAL');
     expect(rows.find((r) => r.action === 'ph.transfer.send')!.entityId).toBe(t2.id);
+  });
+});
+
+describe('review fixes: sentences, replays, ties, both ends, keys and conservation', () => {
+  it('says in a sentence why a wrong person is refused', async () => {
+    const w = await world();
+    await batch(w, w.b1, 50);
+    const t = await requested(w);
+    const notSender = await send(w, w.destMgr, t);
+    expect(!notSender.ok && notSender.error.message).toBe('Only the sending branch can send this transfer');
+    const sent = dataOf(await send(w, w.senderMgr, t));
+    const lines = [{ lineId: sent.lines[0]!.lineId, receivedQty: 30 }];
+    const notReceiver = await receive(w, w.senderMgr, { id: t.id, version: sent.version }, lines);
+    expect(!notReceiver.ok && notReceiver.error.message).toBe('Only the receiving branch can receive this transfer');
+    const third = await request(w, w.thirdMgr);
+    expect(phCodeOf(third)).toBe('NOT_YOUR_BRANCH');
+    expect(!third.ok && third.error.message).toBe('You do not work at either branch of this transfer');
+  });
+
+  it('says why a loss and an out-of-order send need someone with more rights', async () => {
+    const w = await world();
+    const early = await batch(w, w.b1, 20, { expiry: '2027-06-30' });
+    const late = await batch(w, w.b1, 20, { expiry: '2028-03-31' });
+    const t = await requested(w, { lines: [{ productId: w.p.id, qty: 10 }] });
+    const line = (await prisma().phTransferLine.findFirstOrThrow({ where: { transferId: t.id } })).id;
+    const clerk = await send(w, w.stock1, t, { picks: [{ lineId: line, batchId: late, qty: 10 }] });
+    expect(!clerk.ok && clerk.error.message).toBe('Sending out of expiry order needs a person who can override batches');
+    expect(await avail(early, w.b1)).toBe(20);
+    const sent = dataOf(await send(w, w.stock1, t));
+    const lost = await receive(w, w.stock2, { id: t.id, version: sent.version }, [{ lineId: sent.lines[0]!.lineId, receivedQty: 5, lostQty: 5, lostReason: 'LOST' }]);
+    expect(phCodeOf(lost)).toBe('LOSS_NEEDS_REPORT_VIEW');
+    expect(!lost.ok && lost.error.message).toBe('Units reported lost need a person who can view reports');
+  });
+
+  it('replays the stored status of a request after it was sent, and the stored override flag of a send', async () => {
+    const w = await world();
+    const early = await batch(w, w.b1, 20, { expiry: '2027-06-30' });
+    const late = await batch(w, w.b1, 20, { expiry: '2028-03-31' });
+    const reqKey = key('req');
+    const t = dataOf(await request(w, w.destMgr, { clientKey: reqKey, lines: [{ productId: w.p.id, qty: 10 }] }));
+    const line = (await prisma().phTransferLine.findFirstOrThrow({ where: { transferId: t.id } })).id;
+    const sendKey = key('send');
+    const picks = [{ lineId: line, batchId: late, qty: 10 }];
+    expect(dataOf(await send(w, w.senderMgr, t, { clientKey: sendKey, picks }))).toMatchObject({ override: true, replayed: false });
+    expect(dataOf(await send(w, w.senderMgr, t, { clientKey: sendKey, picks }))).toMatchObject({ override: true, replayed: true });
+    expect((await prisma().phTransfer.findUniqueOrThrow({ where: { id: t.id } })).sendOverride).toBe(true);
+    expect(dataOf(await request(w, w.destMgr, { clientKey: reqKey, lines: [{ productId: w.p.id, qty: 10 }] }))).toMatchObject({ id: t.id, status: 'SENT', replayed: true });
+    expect(await avail(early, w.b1)).toBe(20);
+
+    const plain = await requested(w, { lines: [{ productId: w.p.id, qty: 5 }] });
+    const k2 = key('send');
+    expect(dataOf(await send(w, w.senderMgr, plain, { clientKey: k2 }))).toMatchObject({ override: false });
+    expect(dataOf(await send(w, w.senderMgr, plain, { clientKey: k2 }))).toMatchObject({ override: false, replayed: true });
+  });
+
+  it('is no override when two batches share an expiry, whichever the clerk picks', async () => {
+    const w = await world();
+    const a = await batch(w, w.b1, 10, { lot: 'AAA', expiry: '2027-06-30' });
+    const b = await batch(w, w.b1, 10, { lot: 'BBB', expiry: '2027-06-30' });
+    const t = await requested(w, { lines: [{ productId: w.p.id, qty: 10 }] });
+    const line = (await prisma().phTransferLine.findFirstOrThrow({ where: { transferId: t.id } })).id;
+    const sent = await send(w, w.stock1, t, { picks: [{ lineId: line, batchId: b, qty: 10 }] });
+    expect(dataOf(sent)).toMatchObject({ override: false });
+    expect(await avail(a, w.b1)).toBe(10);
+    expect(await avail(b, w.b1)).toBe(0);
+  });
+
+  it('takes a second send or cancel with another key as a refusal, and leaves the stock where the first left it', async () => {
+    const w = await world();
+    const b = await batch(w, w.b1, 50);
+    const t = await requested(w);
+    const sent = dataOf(await send(w, w.senderMgr, t));
+    expect(phCodeOf(await send(w, w.senderMgr, t))).toBe('VERSION_CONFLICT');
+    expect(phCodeOf(await send(w, w.senderMgr, { id: t.id, version: sent.version }))).toBe('NOT_REQUESTED');
+    expect(phCodeOf(await cancel(w, w.destMgr, { id: t.id, version: sent.version }))).toBe('NOT_REQUESTED');
+    expect(await avail(b, w.b1)).toBe(20);
+    expect(await prisma().phStockMovement.count({ where: { type: 'TRANSFER_OUT' } })).toBe(1);
+
+    const t2 = await requested(w);
+    const cancelled = dataOf(await cancel(w, w.destMgr, t2));
+    expect(phCodeOf(await cancel(w, w.destMgr, { id: t2.id, version: cancelled.version }))).toBe('NOT_REQUESTED');
+    expect(phCodeOf(await cancel(w, w.destMgr, t2))).toBe('VERSION_CONFLICT');
+    expect(phCodeOf(await send(w, w.senderMgr, { id: t2.id, version: cancelled.version }))).toBe('NOT_REQUESTED');
+  });
+
+  it('lets a person limited to both ends do every step', async () => {
+    const w = await world();
+    const b = await batch(w, w.b1, 50);
+    const both = await person('bothEnds', { staff: [w.a.id, 'STOCK', [w.b1, w.b2]] });
+    const t = dataOf(await request(w, both));
+    const sent = dataOf(await send(w, both, t));
+    expect(codeOf(await receive(w, both, { id: t.id, version: sent.version }, [{ lineId: sent.lines[0]!.lineId, receivedQty: 30 }]))).toBe('OK');
+    expect(await avail(b, w.b2)).toBe(30);
+    expect(dataOf(await get(w, both, t.id))).toMatchObject({ status: 'RECEIVED' });
+  });
+
+  it('refuses a key held by a transfer the person cannot see, as already used', async () => {
+    const w = await world();
+    const k = key('req');
+    dataOf(await request(w, w.destMgr, { clientKey: k }));
+    const taken = await request(w, w.thirdMgr, { clientKey: k, fromBranchId: w.b3, toBranchId: w.b1 });
+    expect(phCodeOf(taken)).toBe('CLIENT_KEY_USED');
+    expect(await prisma().phTransfer.count()).toBe(1);
+  });
+
+  it('turns a deadlock or a serialisation failure into a conflict the person can retry, and leaves other errors alone', () => {
+    for (const e of [{ code: 'P2034' }, { message: 'ERROR: deadlock detected' }, { meta: { message: '40001' } }, { message: 'could not serialize 40P01' }]) {
+      expect(asRetryableTransfer(e)).toMatchObject({ code: 'CONFLICT', fields: { phCode: 'VERSION_CONFLICT' } });
+    }
+    const other = new Error('boom');
+    expect(asRetryableTransfer(other)).toBe(other);
+    expect(asRetryableTransfer(null)).toBeNull();
+    const unique = { code: 'P2002' };
+    expect(asRetryableTransfer(unique)).toBe(unique);
+  });
+
+  it('keeps every batch whole through send and receive: balances equal the movements, and units never appear or vanish', async () => {
+    const w = await world();
+    const early = await batch(w, w.b1, 18, { lot: 'EARLY', expiry: '2027-06-30' });
+    const late = await batch(w, w.b1, 20, { lot: 'LATE', expiry: '2028-03-31' });
+    const t = await requested(w);
+    const sent = dataOf(await send(w, w.senderMgr, t));
+    const perBatch = async (batchId: string) => {
+      const rows = await prisma().phStockBalance.findMany({ where: { batchId } });
+      const held = rows.reduce((n, r) => n + r.available + r.reserved + r.quarantine + r.damaged, 0);
+      const road = await prisma().phTransferLine.findMany({ where: { batchId, requestLineId: { not: null }, transfer: { status: 'SENT' } } });
+      const moves = await prisma().phStockMovement.findMany({ where: { batchId } });
+      const moved = moves.reduce((n, m) => n + m.availableDelta + m.reservedDelta + m.quarantineDelta + m.damagedDelta, 0);
+      // the ledger and the balances agree for this batch, whichever branch holds the units
+      expect(moved, 'balances equal the sum of the movements').toBe(held);
+      return { held, road: road.reduce((n, l) => n + (l.sentQty - l.receivedQty - l.damagedQty - l.lostQty), 0) };
+    };
+    expect(await perBatch(early)).toMatchObject({ held: 0, road: 18 });
+    expect(await perBatch(late)).toMatchObject({ held: 8, road: 12 });
+    const lines = sent.lines.map((l) => ({ lineId: l.lineId, receivedQty: l.sentQty - (l.batchId === late ? 3 : 0), damagedQty: 0, lostQty: l.batchId === late ? 3 : 0, lostReason: l.batchId === late ? 'LOST' : undefined }));
+    dataOf(await receive(w, w.owner, { id: t.id, version: sent.version }, lines));
+    expect(await perBatch(early)).toMatchObject({ held: 18, road: 0 });
+    expect(await perBatch(late)).toMatchObject({ held: 8 + 9, road: 0 });
+    expect(await conserved(w.a.id)).toMatchObject({ held: 35, road: 0, lost: 3, total: 38 });
   });
 });

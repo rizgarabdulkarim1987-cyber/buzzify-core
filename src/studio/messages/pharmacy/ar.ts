@@ -2198,6 +2198,11 @@ const pharmacy: Messages = {
   'error.text.phTrLinesMismatch': 'أبلغ عن كل بند من التحويل مرة واحدة',
   'error.text.phTrMax500': 'استخدم 500 بند على الأكثر',
   'error.text.phTrTooManyLines': 'يمكن إرسال التحويل من 500 دفعة على الأكثر',
+  'error.text.phTrNotSender': 'يمكن للفرع المرسل فقط إرسال هذا التحويل',
+  'error.text.phTrNotReceiver': 'يمكن للفرع المستلم فقط استلام هذا التحويل',
+  'error.text.phTrLossApproval': 'الوحدات المبلغ عن فقدها تحتاج شخصاً يملك صلاحية عرض التقارير',
+  'error.text.phTrOverride': 'الإرسال بغير ترتيب الانتهاء يحتاج شخصاً يملك صلاحية تجاوز الدفعات',
+  'error.text.phTrNotYourBranch': 'أنت لا تعمل في أي من فرعي هذا التحويل',
 };
 
 export default pharmacy;

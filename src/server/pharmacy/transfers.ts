@@ -118,7 +118,14 @@ const keyMismatch = () => new StudioError('CONFLICT', 'This key was already used
 const stale = () => new StudioError('CONFLICT', 'Someone else changed this transfer: reload it', { phCode: 'VERSION_CONFLICT' });
 const notRequested = () => new StudioError('CONFLICT', 'Only a requested transfer can be changed or sent', { phCode: 'NOT_REQUESTED' });
 const notSent = () => new StudioError('CONFLICT', 'Only a sent transfer can be received', { phCode: 'NOT_SENT' });
-const forbidden = (phCode: string) => new StudioError('FORBIDDEN', undefined, { phCode });
+const REFUSAL_SENTENCE: Record<string, string> = {
+  NOT_SENDER: 'Only the sending branch can send this transfer',
+  NOT_RECEIVER: 'Only the receiving branch can receive this transfer',
+  LOSS_NEEDS_REPORT_VIEW: 'Units reported lost need a person who can view reports',
+  OVERRIDE_NEEDED: 'Sending out of expiry order needs a person who can override batches',
+  NOT_YOUR_BRANCH: 'You do not work at either branch of this transfer',
+};
+const forbidden = (phCode: string) => new StudioError('FORBIDDEN', REFUSAL_SENTENCE[phCode], { phCode });
 
 const SENTENCE: Record<TransferCode, string> = {
   INVALID_QUANTITY: 'Enter a whole number',
@@ -171,6 +178,9 @@ export function asRetryableTransfer(error: unknown): unknown {
 /** Whether the actor works at this branch. */
 export const mayUseBranch = (ph: PhActor, branchId: string): boolean => ph.allBranches || ph.branchIds.includes(branchId);
 
+/** The short part of a branch's id that stands in transfer numbers: `T-<branch>-<day>-<sequence>`. */
+export const branchPart = (branchId: string): string => branchId.slice(-4).toUpperCase();
+
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -208,7 +218,7 @@ function assertVersion(header: Header, version: number): void {
 export interface TransferCreated {
   id: string;
   number: string;
-  status: 'REQUESTED';
+  status: 'REQUESTED' | 'SENT' | 'RECEIVED' | 'PARTIAL' | 'CANCELLED';
   fromBranchId: string;
   toBranchId: string;
   version: number;
@@ -242,7 +252,7 @@ export async function requestTransfer(
   });
   if (earlier) {
     if (earlier.requestedById !== ph.userId || earlier.payloadHash !== hash) throw keyMismatch();
-    return { id: earlier.id, number: earlier.number ?? '', status: 'REQUESTED', fromBranchId: earlier.fromBranchId, toBranchId: earlier.toBranchId, version: earlier.version, lines: earlier.lines, replayed: true };
+    return { id: earlier.id, number: earlier.number ?? '', status: earlier.status, fromBranchId: earlier.fromBranchId, toBranchId: earlier.toBranchId, version: earlier.version, lines: earlier.lines, replayed: true };
   }
 
   if (input.fromBranchId === input.toBranchId) throw new StudioError('INVALID', 'Choose two different branches', { toBranchId: 'Choose two different branches' });
@@ -254,10 +264,11 @@ export async function requestTransfer(
   // The number first (the only lock this request takes after its key), counted raw: the count is of the sender's whole day.
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one branch's transfer numbers
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_NUMBER}::int, hashtext(${`tr:${input.fromBranchId}`}))`;
-  const prefix = `T-${iso(now).replaceAll('-', '')}-`;
+  const head = `T-${branchPart(input.fromBranchId)}-`;
+  const prefix = `${head}${iso(now).replaceAll('-', '')}-`;
   // eslint-disable-next-line no-restricted-properties -- counts the sending branch's numbers of the day under the number lock; the filter names the business and the branch
   const counted = await tx.$queryRaw<{ n: bigint }[]>`SELECT count(*) AS n FROM "PhTransfer" WHERE "restaurantId" = ${args.restaurantId} AND "fromBranchId" = ${input.fromBranchId} AND "number" LIKE ${`${prefix}%`}`;
-  const number = `T-${saleNumber(now.toISOString(), Number(counted[0]?.n ?? 0n) + 1)}`;
+  const number = `${head}${saleNumber(now.toISOString(), Number(counted[0]?.n ?? 0n) + 1)}`;
 
   const made = await tx.phTransfer.create({
     data: {
@@ -441,7 +452,7 @@ export async function sendTransfer(
   });
   await tx.phTransfer.update({
     where: { id: header.id },
-    data: { status: 'SENT', sentById: ph.userId, sentAt: now, sendKey: input.clientKey, sendHash: hash, version: { increment: 1 } },
+    data: { status: 'SENT', sentById: ph.userId, sentAt: now, sendKey: input.clientKey, sendHash: hash, sendOverride: plan.override, version: { increment: 1 } },
   });
   const result = await sentResult(tx, header.id, false);
   return { ...result, override: plan.override, movementIds };
@@ -460,7 +471,7 @@ async function sentResult(tx: ScopedTx, transferId: string, replayed: boolean): 
     version: t.version,
     fromBranchId: t.fromBranchId,
     toBranchId: t.toBranchId,
-    override: false,
+    override: t.sendOverride,
     totalQty: t.lines.reduce((sum, l) => sum + l.sentQty, 0),
     lines: t.lines.map((l) => ({ lineId: l.id, requestLineId: l.requestLineId!, productId: l.productId, batchId: l.batchId!, sentQty: l.sentQty })),
     movementIds: [],
@@ -560,7 +571,7 @@ export async function receiveTransfer(
     }
     await tx.phTransferLine.update({
       where: { id: line.lineId },
-      data: { receivedQty: line.receivedQty, damagedQty: line.damagedQty, lostQty: line.lostQty, lostReason: line.lostReason, quarantine: line.quarantine },
+      data: { receivedQty: line.receivedQty, damagedQty: line.damagedQty, lostQty: line.lostQty, lostReason: line.lostReason, quarantine: line.quarantine || !sellable },
     });
   }
   await tx.phTransfer.update({

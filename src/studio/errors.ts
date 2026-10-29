@@ -633,6 +633,11 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Report every line of the transfer once': 'error.text.phTrLinesMismatch',
   'Use at most 500 lines': 'error.text.phTrMax500',
   'A transfer can be sent from at most 500 batches': 'error.text.phTrTooManyLines',
+  'Only the sending branch can send this transfer': 'error.text.phTrNotSender',
+  'Only the receiving branch can receive this transfer': 'error.text.phTrNotReceiver',
+  'Units reported lost need a person who can view reports': 'error.text.phTrLossApproval',
+  'Sending out of expiry order needs a person who can override batches': 'error.text.phTrOverride',
+  'You do not work at either branch of this transfer': 'error.text.phTrNotYourBranch',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */

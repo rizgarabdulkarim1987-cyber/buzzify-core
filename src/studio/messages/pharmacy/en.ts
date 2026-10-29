@@ -2204,6 +2204,11 @@ const pharmacy: Messages = {
   'error.text.phTrLinesMismatch': 'Report every line of the transfer once',
   'error.text.phTrMax500': 'Use at most 500 lines',
   'error.text.phTrTooManyLines': 'A transfer can be sent from at most 500 batches',
+  'error.text.phTrNotSender': 'Only the sending branch can send this transfer',
+  'error.text.phTrNotReceiver': 'Only the receiving branch can receive this transfer',
+  'error.text.phTrLossApproval': 'Units reported lost need a person who can view reports',
+  'error.text.phTrOverride': 'Sending out of expiry order needs a person who can override batches',
+  'error.text.phTrNotYourBranch': 'You do not work at either branch of this transfer',
 };
 
 export default pharmacy;

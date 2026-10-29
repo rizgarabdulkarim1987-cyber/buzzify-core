@@ -3553,6 +3553,7 @@ model PhTransfer {
   cancelledAt   DateTime?
   sendKey       String?
   sendHash      String?
+  sendOverride  Boolean          @default(false)
   receiveKey    String?
   receiveHash   String?
   version       Int              @default(1)

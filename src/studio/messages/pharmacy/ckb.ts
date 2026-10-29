@@ -2198,6 +2198,11 @@ const pharmacy: Messages = {
   'error.text.phTrLinesMismatch': 'هەر دێڕێکی گواستنەوەکە یەکجار ڕاپۆرت بکە',
   'error.text.phTrMax500': 'زیاتر لە ٥٠٠ دێڕ بەکارمەهێنە',
   'error.text.phTrTooManyLines': 'گواستنەوە لە زیاتر لە ٥٠٠ دەستە ناناردرێت',
+  'error.text.phTrNotSender': 'تەنها لقی نێرەر دەتوانێت ئەم گواستنەوەیە بنێرێت',
+  'error.text.phTrNotReceiver': 'تەنها لقی وەرگر دەتوانێت ئەم گواستنەوەیە وەربگرێت',
+  'error.text.phTrLossApproval': 'ئەو یەکانەی وەک ونبوو ڕاپۆرت دراون پێویستیان بە کەسێکە ڕاپۆرتەکان ببینێت',
+  'error.text.phTrOverride': 'ناردن بێ ڕیزبەندی بەسەرچوون پێویستی بە کەسێکە دەستەکان تێپەڕێنێت',
+  'error.text.phTrNotYourBranch': 'تۆ لە هیچ یەکێک لە دوو لقەکەی ئەم گواستنەوەیە کارناکەیت',
 };
 
 export default pharmacy;
