@@ -593,7 +593,7 @@ export async function scanBarcode(tx: ScopedTx, a: { restaurantId: string; branc
   const hit = live[0]!;
   const views = evaluateRows(await loadRows(tx, open.batchId), a.now).filter((r) => !r.removed);
   const target = pickScanTarget(views.map((r) => ({ id: r.id, state: r.matchState, productId: r.matchedProductId, name: r.line.name ?? '' })), { id: hit.productId, tradeName: hit.product.tradeName });
-  if (!target) throw new StudioError('NOT_FOUND', 'No line fits this product', { phCode: 'NO_LINE_FOR_BARCODE', productId: hit.productId });
+  if (!target) throw new StudioError('NOT_FOUND', 'No line fits this product', { phCode: 'NO_LINE_FOR_BARCODE', productId: hit.productId, productName: hit.product.tradeName });
   const row = views.find((r) => r.id === target.rowId)!;
   const record = (await tx.phIntakeRow.findFirst({ where: { id: row.id }, select: ROW_SELECT })) as unknown as RowRecord;
   const edited = asObject(record.edited);
