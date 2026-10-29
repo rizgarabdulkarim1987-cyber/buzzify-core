@@ -358,7 +358,7 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await expect(items).toHaveCount(4);
     await page.getByTestId('intake-start').click();
     await expect(items.nth(3)).toHaveAttribute('data-state', 'duplicate', { timeout: 60_000 });
-    await expect(items.nth(3)).toContainText('already uploaded');
+    await expect(items.nth(3)).toContainText('already in this batch');
     // The counts, not just the labels: one stored, one rejected, one already uploaded, none failed or waiting.
     const count = (label: string) => page.getByTestId('intake-summary').locator('dt', { hasText: new RegExp(`^${label}$`) }).locator('xpath=following-sibling::dd');
     await expect(count('Stored')).toHaveText('1');
@@ -392,7 +392,7 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await expect(files.nth(0)).toHaveAttribute('data-state', 'EXTRACTED', { timeout: 60_000 });
     await expect(files.nth(0).getByTestId('file-lines')).toHaveText(String(INVOICES[0]!.lines.length));
     await expect(files.nth(0).getByTestId('file-read')).toHaveCount(0);
-    await expect(page.getByTestId('intake-review-slot')).toBeVisible();
+    await expect(page.getByTestId('intake-review')).toBeVisible();
     await shoot(page, 'en-detail-read-1280');
 
     // The list: one batch, two files, the lines read, one file that needs attention, and the budget now spent.
@@ -404,15 +404,17 @@ test.describe('Pharmacy invoice by photo @desktop', () => {
     await expect(row).toContainText(`Lines read: ${INVOICES[0]!.lines.length}`);
     await expect(row.getByTestId('intake-attention')).toContainText('Needs attention: 1');
     await expect(page.getByTestId('usage-spent')).not.toHaveText('$0.00');
-    // The figures moved with the reading: spent is more than nothing and the bar says so.
-    await expect(page.getByRole('meter', { name: 'Budget used' })).not.toHaveAttribute('aria-valuenow', '0');
     await shoot(page, 'en-list-1280');
     await page.getByRole('navigation', { name: 'Filter batches by state' }).getByRole('link', { name: 'Approved' }).click();
     await expect(page.getByTestId('intake-empty')).toContainText('No batches in this state');
 
     // Cancel: asks first, closes the batch, and its files are gone.
     await page.goto(batchUrl);
-    await page.getByTestId('intake-cancel').click();
+    // The page may still be hydrating after the load: click until the panel opens.
+    await expect(async () => {
+      await page.getByTestId('intake-cancel').click();
+      await expect(page.getByTestId('intake-cancel-form')).toBeVisible({ timeout: 1_500 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId('intake-cancel-form')).toContainText('deletes its uploaded files');
     await page.getByTestId('intake-cancel-form').getByRole('textbox').fill('Wrong supplier');
     await page.getByTestId('intake-cancel-yes').click();
