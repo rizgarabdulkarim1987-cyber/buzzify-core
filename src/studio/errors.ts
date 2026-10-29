@@ -607,6 +607,9 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Some files are still being read: wait for them': 'error.text.phIntakeStillReading',
   'The invoice still has open items: check them before you approve': 'error.text.phIntakeOpenItems',
   'Choose the supplier before you approve': 'error.text.phIntakeChooseSupplier',
+  'Enter the invoice number before you approve': 'error.text.phIntakeNumberRequired',
+  'Someone else is changing this invoice: try again': 'error.text.phIntakeRetry',
+  'This key is reserved: use another': 'error.text.phKeyReserved',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
