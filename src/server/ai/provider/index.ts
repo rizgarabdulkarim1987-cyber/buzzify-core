@@ -35,7 +35,11 @@ export function envFakeProvider(): AiProvider | undefined {
 }
 let fakeInstance: FakeProvider | undefined;
 
-/** Environment variables a hosting platform sets on a deployment; a canned AI provider is never allowed where one is set. */
+/**
+ * Environment variables a hosting platform MAY set on a deployment; a canned AI provider is refused where one is set. This is
+ * best effort only: not every host sets one (do not rely on `HOSTINGER`). The guarantee is `NODE_ENV=production` plus the
+ * deploy check (`checkProductionEnv`), which fails on `AI_PROVIDER=fake|scripted`.
+ */
 const DEPLOYMENT_MARKERS = ['VERCEL', 'HOSTINGER', 'RENDER'] as const;
 
 /** Throws when the canned providers (`fake`, `scripted`) are asked for in production or on a deployment. */

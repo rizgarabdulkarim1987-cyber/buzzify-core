@@ -352,8 +352,12 @@ supplier invoices; an approval makes one DRAFT receipt, which a person confirms 
 - **Approval** (`ph.intake.approve`): `purchase.manage`. Everything is decided from stored values under the batch lock: the
   version and the **verdict token** the screen last read (`APPROVAL_STALE` when anything changed), the open flags recomputed,
   the header arithmetic, the supplier, the currency, the invoice number (`INVOICE_NUMBER_REQUIRED`), and a **business-wide
-  duplicate guard** by the supplier's number (spelling-insensitive) or fingerprint against supplier invoices and approved
-  batches of every branch, ignoring batches whose receipt was voided (`DUPLICATE_INVOICE`, naming the earlier one). Then one
+  duplicate guard** by the supplier's number (spelling-insensitive) or fingerprint against supplier invoices, approved
+  batches **and receipts entered by hand** of every branch (a non-void receipt, draft or confirmed, of the same supplier whose
+  reference reads as the same invoice number; an old receipt with no supplier id matches by supplier name), ignoring batches
+  whose receipt was voided (`DUPLICATE_INVOICE`, naming the earlier batch or receipt). Entering a receipt by hand does not
+  take the guard's lock, so two people entering the same invoice at the same instant by two routes can still both succeed;
+  the guard catches the second one the moment either is looked at again by an approval. Then one
   `createDraft` receipt with key `intake-approve:<batchId>` (a reserved key). Replay by `clientKey` returns the same receipt.
 - **Cancel and expiry**: cancel deletes the batch's objects first, then closes it; `expireOpenBatches` cancels batches left
   open 30 days; the purge script deletes files older than 30 days. Lines read stay as history.
@@ -377,14 +381,17 @@ branches; another branch's or business's ids behave as not found.
 state is its flags, `reviewed`, its acknowledgement and its match (`UNMATCHED`, `MATCHED`, `AMBIGUOUS`, `CHOSEN`).
 
 **The approval gate.** An approval is refused (`NOT_APPROVABLE`, with row ids and flag codes only) while any line has an open
-flag, there are no lines, or the header total differs from the lines and is not acknowledged. Every acknowledgement is
-**bound to what the person was shown**: a note covers exactly the flags the line raised then (`ACK_STALE` otherwise), a
-mismatch reason is bound to that difference and currency, and an edit that changes the difference reopens it. Every write to a
-line or the header names the version the person read (`VERSION_CONFLICT`).
+flag, there are no lines, the header total differs from the lines and is not acknowledged, or the header carries a
+**discount or tax** that is not acknowledged (`HEADER_ADJUSTMENT`). Every acknowledgement is **bound to what the person was
+shown**: a note covers exactly the flags the line raised then (`ACK_STALE` otherwise), a mismatch reason is bound to that
+difference and currency, a discount/tax reason is bound to those two amounts and the currency, and an edit that changes
+either reopens it. One reason (`ph.intake.header.acknowledge`) may cover both. The message says what the screen knows: the
+receipt keeps the printed unit costs, so its cost does **not** include the header discount or tax. Every write to a line or
+the header names the version the person read (`VERSION_CONFLICT`).
 
 **Locks** (written in the header comments): client key (7201) -> upload lock (7210) -> batch row FOR UPDATE -> file rows by id
 -> line rows by id; approval: its key (7301) -> batch -> files -> lines -> the invoice guard (7302, supplier and number) ->
-the receipt service. The AI usage row is locked first in the runner, then the file's reservation, then the file.
+the receipt service. In the runner the order is the AI usage row, then the file (a share lock), then the file's reservation.
 
 **Storage, retention, environment**
 
@@ -394,16 +401,29 @@ the receipt service. The AI usage row is locked first in the runner, then the fi
 - Signed picture links live at most 5 minutes and are minted per request after the access check.
 - Retention is 30 days. `npx tsx scripts/pharmacy-intake-purge.ts [--limit N]` deletes expired objects from the bucket first,
   then marks the files `PURGED`; `npx tsx scripts/pharmacy-intake-expire.ts [--days N]` cancels stale open batches. Both print
-  counts only and exit 1 when a deletion failed. **Scheduling both daily is a launch step**; nothing schedules them yet.
-- `AI_PRICE_INPUT_USD_MICRO_PER_MTOK` and `AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK`: no default; unset means `AI_PRICING_NOT_SET`.
-  `AI_PROVIDER=fake` or `scripted` is refused in production and on a deployment, and the deploy check fails on it.
+  counts only and exit 1 when a deletion failed. Both also release a file still `EXTRACTING` after its lease (10 minutes) ran
+  out (a worker that died), so an expired file is purged and a stale one never keeps a batch open; a live lease is left alone.
+  `npx tsx scripts/pharmacy-intake-sweep.ts` runs the AI reservation sweeper for **every** business (a request-time sweep only
+  touches the caller's own business). **Scheduling the three daily is a launch step**; nothing schedules them yet.
+- `AI_PRICE_INPUT_USD_MICRO_PER_MTOK`, `AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK` and `AI_PRICE_MODEL` (the model id these prices are
+  for): no default; any of the three unset means `AI_PRICING_NOT_SET`. When the provider's extraction model differs from
+  `AI_PRICE_MODEL` the reading is refused with `AI_PRICING_MODEL_MISMATCH` (before any call), and the deploy check fails on a
+  half-set or mismatching set. Change the model and the prices together.
+  `AI_PROVIDER=fake` or `scripted` is refused when `NODE_ENV=production`, and (best effort) when `VERCEL`, `HOSTINGER` or `RENDER`
+  is set; a host that sets none of them is protected by `NODE_ENV=production` and the deploy check alone, so do not rely on the markers.
 
 **AI budget unit.** The plan limit `aiMonthlyBudgetMinor` is read as **USD cents** (one cent = 10,000 micro-dollars); spend is
 stored in micro-dollars per Baghdad month. A reading reserves its worst case (bounded input plus every output token allowed) in
-one conditional update (`spent + reserved + worst <= budget`), calls the model, then settles to the real cost (never above the
-reservation; an overrun is audited, an answer paid for is never thrown away). A reservation whose worker died is booked as
-**spend** at the reserved amount by the sweeper (it runs at every upload and reading): the month can under-use its budget after
-a crash, never overspend. A timeout bills the input side; a plain provider error bills nothing. `PhAiCall` keeps metadata only.
+one conditional update (`spent + reserved + worst <= budget`), calls the model, then settles to the **actual** cost: when the
+provider bills more than the reservation the whole actual is booked (logged as an overrun), and the next reservation sees it, so a
+reading that overran can only make the following ones refused sooner. The input bound is a true upper bound (text by bytes, an
+image by its pixels capped at the model maximum, a PDF by its page count at a conservative per-page figure; a PDF whose page
+count cannot be established, for example one with comments or damaged structure, is refused). The budget is therefore a
+**control with a bounded overshoot** (at most one reading's excess over its reservation, per reading in flight), **not** a
+promise that the month is never overspent. A reservation whose worker died is booked as **spend** at the reserved amount by the
+sweeper (it runs at every upload and reading, scoped to the caller's business, and for all businesses in the sweep script): after
+a crash the month can under-use its budget. A timeout bills the input side; a plain provider error bills nothing. Settling twice
+(a lost reply) writes one `PhAiCall` row. `PhAiCall` keeps metadata only.
 
 **Audit.** Ids, counts, statuses, flag codes, tokens and cost; never a name, lot, amount, number, note, reason or picture.
 
@@ -413,7 +433,14 @@ a crash, never overspend. A timeout bills the input side; a plain provider error
   Decide on real photos (UAT D3).
 - Restore of a removed line (there is no server action; removal asks first).
 - Line and header discounts and tax are **not folded into the receipt cost**: a discounted line is `MATH_MISMATCH`, accepted with a
-  reason at the printed pre-discount cost (UAT D5).
+  reason at the printed pre-discount cost, and a header discount or tax must be acknowledged before approval
+  (`HEADER_ADJUSTMENT`) (UAT D5).
+- An unprinted bonus is **0 by definition** (a line with no bonus column or an empty one receives only its quantity); the
+  reader does not distinguish "not printed" from "zero". If a supplier prints bonuses on a separate sheet the person types them.
+- Review edits that are not saved yet are kept in this browser's IndexedDB (key: user, pharmacy, branch, batch), never on the
+  server. They are **not cleared on sign-out**: the next person on the same browser profile and user id sees them, and they stay
+  until saved, discarded or the browser data is cleared. Use a separate profile on a shared computer.
+- A PDF containing `%` comments or a structure the page counter cannot verify is refused rather than guessed (`PDF_UNREADABLE`): export it again or photograph it.
 - A catalog index for 50k+ products in matching beyond the trigram search; the two matching statements disable sequential scans
   for their own transaction as a planner workaround.
 - Scheduling of the purge, the expiry sweep and the bucket lifecycle rule (launch steps).
@@ -440,7 +467,7 @@ The e2e config starts its own dev server with the file-scripted provider and set
 ## What is NOT built
 
 - **Phase 6 onward**: transfers and chain reports (6); assistant, prescriptions, credit,
-  controlled-drug register, advanced printing (7). Phases 4 (purchasing) and 5 (invoice by photo) are built; what phase 5 leaves out is listed at the end of its section above; what it leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
+  controlled-drug register, advanced printing (7). Phases 4 (purchasing) and 5 (invoice by photo) are built; what phase 5 leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
   - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
