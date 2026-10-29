@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { OP_KINDS, operationSchema } from '@/lib/pos-sync/op-schema';
 
@@ -8,7 +9,15 @@ import { OP_KINDS, operationSchema } from '@/lib/pos-sync/op-schema';
  */
 const ALLOWED = ['openOrder', 'addLine', 'sendToKitchen', 'requestBill', 'cancelOrder', 'payCash'];
 
+/** The kinds the schema really accepts: read off the union's own variants, not the hand-written OP_KINDS list. */
+const schemaKinds = (): string[] => operationSchema.options.map((variant) => String(variant.shape.kind.value));
+
 describe('the offline sync cannot reach guest requests', () => {
+  it('has a schema variant for exactly the allowed kinds, and OP_KINDS lists the same', () => {
+    expect(schemaKinds().sort()).toEqual([...ALLOWED].sort());
+    expect([...OP_KINDS].sort()).toEqual(schemaKinds().sort());
+  });
+
   it('queues only the known till kinds; a new kind must be added here on purpose, after it is gated', () => {
     expect([...OP_KINDS].sort()).toEqual([...ALLOWED].sort());
   });
@@ -25,7 +34,7 @@ describe('the offline sync cannot reach guest requests', () => {
   });
 
   it('runs only till order actions: the sync server imports neither the request nor the captain actions', () => {
-    const source = readFileSync('src/server/pos/sync.ts', 'utf8');
+    const source = readFileSync(fileURLToPath(new URL('../../src/server/pos/sync.ts', import.meta.url)), 'utf8');
     expect(source).not.toMatch(/pos-requests|pos-captain|customer-orders|bill-calls/);
   });
 });

@@ -89,9 +89,9 @@ const post = (slug: string, body: unknown) =>
   );
 
 describe.each([
-  ['a captain', () => a.captain],
-  ['a manager', () => a.manager],
-])('%s of restaurant A and the guest order of restaurant B', (_label, who) => {
+  ['a captain', () => a.captain, 'FORBIDDEN'],
+  ['a manager', () => a.manager, 'NOT_FOUND'],
+])('%s of restaurant A and the guest order of restaurant B', (_label, who, acceptCode) => {
   it('cannot approve, edit, reject or accept it, and nothing changes', async () => {
     const req = await guestOfB();
     const line = req.lines[0]!;
@@ -99,9 +99,10 @@ describe.each([
     expect(codeOf(await run(me, approvePosRequest, { requestId: req.id }))).toBe('NOT_FOUND');
     expect(codeOf(await run(me, setPosRequestLineQuantity, { lineId: line.id, quantity: 5 }))).toBe('NOT_FOUND');
     expect(codeOf(await run(me, removePosRequestLine, { lineId: line.id }))).toBe('NOT_FOUND');
-    expect(codeOf(await run(me, addPosRequestLine, { requestId: req.id, productId: b.burger, quantity: 1 }))).not.toBe('OK');
+    expect(codeOf(await run(me, addPosRequestLine, { requestId: req.id, productId: b.burger, quantity: 1 }))).toBe('CONFLICT');
     expect(codeOf(await run(me, rejectPosRequest, { requestId: req.id, reason: 'x' }))).toBe('NOT_FOUND');
-    expect(codeOf(await run(me, acceptPosRequest, { requestId: req.id }))).not.toBe('OK');
+    // Accepting is the cashier's step: a captain is refused outright, a manager reaches the lookup and finds nothing.
+    expect(codeOf(await run(me, acceptPosRequest, { requestId: req.id }))).toBe(acceptCode);
 
     const after = await prisma().posCustomerOrder.findUniqueOrThrow({ where: { id: req.id }, include: { lines: true } });
     expect(after).toMatchObject({ status: 'PENDING', captainApprovedAt: null, requiresCaptain: true });
@@ -142,7 +143,10 @@ describe('bill calls', () => {
     await run(a.captain, markBillCallSeen, { id: call.id });
     await run(a.manager, markBillCallSeen, { id: call.id });
     expect((await prisma().posBillCall.findUniqueOrThrow({ where: { id: call.id } })).seenAt).toBeNull();
-    expect(dataOf(await ask(b.captain, posBillCalls, {}))).toHaveLength(1);
+    // Positive control: B's own captain can mark it, so the unchanged row above is isolation, not a broken action.
+    await run(b.captain, markBillCallSeen, { id: call.id });
+    expect((await prisma().posBillCall.findUniqueOrThrow({ where: { id: call.id } })).seenAt).not.toBeNull();
+    expect(dataOf(await ask(b.captain, posBillCalls, {}))).toEqual([]);
   });
 
   it('a guest asking for the bill at the table of B makes a call for B only, never for A', async () => {
