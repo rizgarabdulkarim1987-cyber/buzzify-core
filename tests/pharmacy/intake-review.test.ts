@@ -7,6 +7,7 @@ import { identityKeyOf, searchTextOf } from '@/server/domain/pharmacy/product-id
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as productActions from '@/server/pharmacy/actions/products';
 import * as reviewActions from '@/server/pharmacy/actions/intake-review';
+import { LEASE_MS } from '@/server/pharmacy/intake/ai';
 import { getBatch, listBatches } from '@/server/pharmacy/intake/batches';
 import { matchRows } from '@/server/pharmacy/intake/review';
 import * as reviewQueries from '@/server/pharmacy/queries/intake-review';
@@ -1005,6 +1006,22 @@ describe('reading batches', () => {
     const item = dataOf(await ask(w.pic, reviewQueries.batchList, { ...place(w) })).items.find((i) => i.id === b.batchId)!;
     expect(item).toMatchObject({ fileCount: 4, rowCount: 2, attentionCount: 2, createdById: w.owner.userId });
     expect(dataOf(await get(w, w.owner, b.batchId)).batch.createdById).toBe(w.owner.userId);
+  });
+
+  it('a file still EXTRACTING past the server lease reads as stale; a fresh one, and one in any other state, does not', async () => {
+    const w = await world();
+    const b = await batch(w);
+    const make = (n: number, status: 'EXTRACTING' | 'UPLOADED', since: Date | null) =>
+      prisma().phIntakeFile.create({
+        data: { restaurantId: w.a.id, batchId: b.batchId, sha256: createHash('sha256').update(`stale-${n}-${b.batchId}`).digest('hex'), storageKey: null, mediaType: 'image/png', bytes: 10, pages: 1, uploadedById: w.owner.userId, status, extractingSince: since, expiresAt: new Date(NOW.getTime() + 86_400_000) },
+        select: { id: true },
+      });
+    const dead = await make(1, 'EXTRACTING', new Date(NOW.getTime() - LEASE_MS - 1000));
+    const live = await make(2, 'EXTRACTING', new Date(NOW.getTime() - LEASE_MS + 60_000));
+    const idle = await make(3, 'UPLOADED', null);
+    const files = dataOf(await get(w, w.owner, b.batchId)).files;
+    const staleOf = (id: string) => files.find((f) => f.id === id)?.stale;
+    expect([staleOf(dead.id), staleOf(live.id), staleOf(idle.id), staleOf(b.fileId)]).toEqual([true, false, false, false]);
   });
 
   it('branch-limited roles see their own branch’s batches only; the manager sees both', async () => {
