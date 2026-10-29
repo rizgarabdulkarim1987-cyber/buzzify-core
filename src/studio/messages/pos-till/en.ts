@@ -742,6 +742,13 @@ const posTill: Messages = {
   'pos.settings.state.CANCELLED': 'Cancelled',
   'pos.settings.state.EXPIRED': 'Expired',
   // The calm layouts of the tables screen (docs/superpowers/specs/2026-10-26-pos-calm-layouts-design.md)
+  'pos.desk.open': 'Order look',
+  'pos.desk.title': 'Order look',
+  'pos.desk.subtitle': 'Changes on this device only, for big screens.',
+  'pos.desk.name.classic': 'Classic',
+  'pos.desk.name.photo': 'Big photos',
+  'pos.desk.name.rows': 'Quick rows',
+  'pos.desk.name.cards': 'Cards',
   'pos.layout.open': 'Screen layout',
   'pos.layout.title': 'Screen layout',
   'pos.layout.subtitle': 'Changes this device only.',

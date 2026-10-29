@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
+import { DESK_COOKIE, LAYOUT_COOKIE, deskOf, layoutOf } from '@/lib/pos-floor';
 import { idleMinutesFor } from '@/lib/pos-idle';
 import { tillNav } from '@/server/domain/pos/nav';
 import { getPosAccess } from '@/server/pos/actor';
@@ -26,6 +26,7 @@ import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { HeaderMenu } from '@/app/pos/_ui/HeaderMenu';
 import { IdleGuard } from '@/app/pos/_ui/IdleGuard';
 import { LayoutPicker } from '@/app/pos/_ui/floor/LayoutPicker';
+import { DeskPicker } from '@/app/pos/_ui/DeskPicker';
 import { ShiftPill } from '@/app/pos/_ui/ShiftPill';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
@@ -62,10 +63,12 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
   const idleMinutes = await query(posIdleMinutes, {});
   const printers = await query(posPrinters, {});
-  const layout = layoutOf((await cookies()).get(LAYOUT_COOKIE)?.value);
+  const jar = await cookies();
+  const layout = layoutOf(jar.get(LAYOUT_COOKIE)?.value);
+  const desk = deskOf(jar.get(DESK_COOKIE)?.value);
   // From lg up the till is one screen: the page never scrolls, a page taller than the screen scrolls inside <main>.
   return (
-    <div data-layout={layout} className="till flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden print:block print:h-auto print:overflow-visible">
+    <div data-layout={layout} data-desk={desk} className="till flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden print:block print:h-auto print:overflow-visible">
       <a
         href="#main"
         className="sr-only rounded-md bg-ink px-3 py-2 text-on-ink focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50"
@@ -97,6 +100,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
               {t('pos.shell.account')}
             </Link>
             {handlesOrders ? <LayoutPicker current={layout} /> : null}
+            {handlesOrders ? <DeskPicker current={desk} /> : null}
             {sharedDevice ? <SwitchUserButton /> : <SignOutButton />}
           </HeaderMenu>
         </div>

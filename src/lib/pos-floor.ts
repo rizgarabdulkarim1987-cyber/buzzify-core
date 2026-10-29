@@ -15,6 +15,16 @@ export function isLayoutId(value: unknown): value is LayoutId {
   return typeof value === 'string' && (LAYOUTS as readonly string[]).includes(value);
 }
 
+/** How the order screen looks on a big screen. A per-device cookie like the layout, read by the server. */
+export const DESKS = ['classic', 'photo', 'rows', 'cards'] as const;
+export type DeskId = (typeof DESKS)[number];
+export const DEFAULT_DESK: DeskId = 'classic';
+export const DESK_COOKIE = 'pos-desk';
+
+export function deskOf(value: string | undefined): DeskId {
+  return (DESKS as readonly string[]).includes(value ?? '') ? (value as DeskId) : DEFAULT_DESK;
+}
+
 export function layoutOf(value: string | undefined): LayoutId {
   return isLayoutId(value) ? value : DEFAULT_LAYOUT;
 }

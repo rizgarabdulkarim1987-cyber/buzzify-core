@@ -243,8 +243,8 @@ export function OrderScreen({
 
       <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
-      <div className="grid gap-4 max-lg:flex-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
-        <section aria-label={t('pos.order.tabMenu')} className={cx('hidden min-w-0 flex-col gap-3 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0')}>
+      <div className="pos-order-grid grid gap-4 max-lg:flex-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section aria-label={t('pos.order.tabMenu')} className={cx('pos-menu hidden min-w-0 flex-col gap-3 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0')}>
           {!catalog ? (
             <Alert>{t('pos.order.noCatalog')}</Alert>
           ) : (
@@ -259,7 +259,7 @@ export function OrderScreen({
                 placeholder={t('pos.order.search')}
                 aria-label={t('pos.order.search')}
               />
-              <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1 overflow-x-auto pb-1">
+              <div role="tablist" aria-label={t('pos.order.categories')} className="pos-cats flex gap-1 overflow-x-auto pb-1">
                 {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
                   <button
                     key={category.id ?? 'all'}
@@ -267,6 +267,7 @@ export function OrderScreen({
                     role="tab"
                     aria-selected={categoryId === category.id}
                     onClick={() => setCategoryId(category.id)}
+                    style={{ '--hue': category.id ? hueOf(category.id) : 160 } as CSSProperties}
                     className={cx(
                       'min-h-12 shrink-0 rounded-full border px-5 text-base font-semibold whitespace-nowrap',
                       categoryId === category.id ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text hover:bg-hover',
@@ -284,7 +285,7 @@ export function OrderScreen({
                   {sections.map((section) => (
                     <section key={section.id ?? 'all'} aria-label={section.label ?? undefined}>
                       {section.label ? <h2 className="mb-3 text-lg font-bold text-muted">{section.label}</h2> : null}
-                      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
+                      <ul className="pos-tiles grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
                           const offer = offerFor(product);
@@ -295,7 +296,7 @@ export function OrderScreen({
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  'relative flex min-h-[4.5rem] w-full flex-row items-center overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:min-h-28 sm:flex-col sm:items-start sm:rounded-3xl',
+                                  'pos-tile relative flex min-h-[4.5rem] w-full flex-row items-center overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:min-h-28 sm:flex-col sm:items-start sm:rounded-3xl',
                                   count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : product.image ? 'border-line' : 'border-[hsl(var(--hue)_35%_80%)]',
                                   'max-sm:border-s-[6px] max-sm:border-s-[hsl(var(--hue)_65%_48%)]',
                                 )}
@@ -310,10 +311,10 @@ export function OrderScreen({
                                     decoding="async"
                                     draggable={false}
                                     style={product.image.placeholder ? { backgroundImage: `url(${product.image.placeholder})`, backgroundSize: 'cover' } : undefined}
-                                    className={cx('m-2 size-16 shrink-0 rounded-xl bg-hover object-cover sm:m-0 sm:aspect-[4/3] sm:size-auto sm:w-full sm:rounded-none', !product.available && 'grayscale')}
+                                    className={cx('pos-tile-img m-2 size-16 shrink-0 rounded-xl bg-hover object-cover sm:m-0 sm:aspect-[4/3] sm:size-auto sm:w-full sm:rounded-none', !product.available && 'grayscale')}
                                   />
                                 ) : null}
-                                <span className="flex w-full flex-1 flex-col items-start gap-1.5 p-3 sm:gap-2 sm:p-4">
+                                <span className="pos-tile-body flex w-full flex-1 flex-col items-start gap-1.5 p-3 sm:gap-2 sm:p-4">
                                 <span className="line-clamp-2 text-base leading-snug font-bold text-text sm:text-lg">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
                                   <span className="flex flex-wrap items-baseline gap-x-2">
@@ -353,7 +354,7 @@ export function OrderScreen({
           )}
         </section>
 
-        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0')}>
+        <section aria-label={t('pos.order.tabOrder')} className={cx('pos-ticket flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0')}>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-2xl font-bold">{t('pos.calm.ticket')}</h2>
             <span className="text-base text-muted">{t('pos.calm.items', { n: formatNumber(itemCount) })}</span>

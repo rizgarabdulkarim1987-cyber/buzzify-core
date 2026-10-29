@@ -742,6 +742,13 @@ const posTill: Messages = {
   'pos.settings.state.CANCELLED': 'هەڵوەشێنراوەتەوە',
   'pos.settings.state.EXPIRED': 'بەسەرچووە',
   // The calm layouts of the tables screen (docs/superpowers/specs/2026-10-26-pos-calm-layouts-design.md)
+  'pos.desk.open': 'شێوازی داواکاری',
+  'pos.desk.title': 'شێوازی داواکاری',
+  'pos.desk.subtitle': 'تەنها لەسەر ئەم ئامێرە دەگۆڕێت، بۆ شاشەی گەورە.',
+  'pos.desk.name.classic': 'کلاسیک',
+  'pos.desk.name.photo': 'وێنەی گەورە',
+  'pos.desk.name.rows': 'ڕیزی خێرا',
+  'pos.desk.name.cards': 'کارت',
   'pos.layout.open': 'ڕیزبەندی شاشە',
   'pos.layout.title': 'ڕیزبەندی شاشە',
   'pos.layout.subtitle': 'تەنها لەم ئامێرەدا دەگۆڕێت.',
