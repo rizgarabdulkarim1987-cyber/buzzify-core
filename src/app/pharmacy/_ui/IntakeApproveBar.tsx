@@ -2,7 +2,7 @@
 
 import { CircleCheck, Lock, ReceiptText } from 'lucide-react';
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
 import { formatNumber } from '@/lib/pos-format';
 import { useT } from '@/studio/i18n';
 import { Button, buttonClasses } from '@/studio/ui/Button';
@@ -25,6 +25,12 @@ export interface IntakeApproveBarProps {
   link: { href: string; label: string } | null;
 }
 
+const subscribeWide = (cb: () => void) => {
+  const query = window.matchMedia('(min-width: 768px)');
+  query.addEventListener('change', cb);
+  return () => query.removeEventListener('change', cb);
+};
+
 /**
  * The bar at the bottom of the review: how many lines and open items there are, why the batch cannot be approved yet (each
  * reason jumps to the first line it concerns) and the button. Approving asks first and says plainly that it makes a DRAFT
@@ -33,6 +39,8 @@ export interface IntakeApproveBarProps {
 export function IntakeApproveBar({ data, blockers, block, busy, onConfirm, onJump, message, link }: IntakeApproveBarProps) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
+  // The list of reasons starts open where there is room; on a phone it starts closed so the bar does not cover the lines.
+  const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia('(min-width: 768px)').matches, () => true);
   const counts = reviewCounts(data);
   const reasonOfBlock = block && block !== 'blocked' ? t(`pharmacy.intake.reason.${block}`) : null;
 
@@ -73,7 +81,7 @@ export function IntakeApproveBar({ data, blockers, block, busy, onConfirm, onJum
       </div>
 
       {blockers.length > 0 ? (
-        <details open data-testid="approve-blockers" className="min-w-0 text-sm">
+        <details open={wide} data-testid="approve-blockers" className="min-w-0 text-sm">
           <summary className="min-h-11 cursor-pointer py-2 font-medium text-text">
             {t('pharmacy.intake.rv.bar.why')} ({formatNumber(blockers.length)})
           </summary>

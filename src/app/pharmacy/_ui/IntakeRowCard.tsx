@@ -74,6 +74,8 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
   const [scan, setScan] = useState('');
   const [picking, setPicking] = useState(false);
   const locked = block !== false || busy;
+  /** A batch that is approved or cancelled shows its lines as they ended; the controls are not there to be disabled. */
+  const closed = block === 'closed';
   const describedBy = block ? whyId : undefined;
   const line = row.line;
   const current = rowFormOf(row, currency);
@@ -141,10 +143,10 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
     return text.trim() === '' ? <NotRead t={t} /> : <bdi dir="auto">{text}</bdi>;
   };
 
-  const cell = (field: EditField, extra?: ReactNode) => {
+  const cell = (field: EditField, extra?: ReactNode, wide = false) => {
     const source = rowFieldSource(row, field);
     return (
-      <div key={field} className={CELL} data-testid={`cell-${field}`}>
+      <div key={field} className={wide ? `${CELL} col-span-2 sm:col-span-3` : CELL} data-testid={`cell-${field}`}>
         <dt className="text-sm text-muted">{t(`pharmacy.intake.rv.field.${field}`)}</dt>
         <dd className="min-w-0 break-words text-base text-text [overflow-wrap:anywhere]">{show(field)}</dd>
         {source !== 'read' && (
@@ -170,14 +172,16 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
           <Button size="lg" className="min-h-11" icon={<Eye aria-hidden />} data-testid="row-show-original" onClick={props.onShow}>
             {t('pharmacy.intake.rv.showOnOriginal')}
           </Button>
-          {!editing && (
+          {!editing && !closed && (
             <Button size="lg" className="min-h-11" icon={<Pencil aria-hidden />} data-testid="row-edit" disabled={locked} aria-describedby={describedBy} onClick={props.onEdit}>
               {t('pharmacy.intake.rv.edit')}
             </Button>
           )}
-          <Button size="lg" className="min-h-11" icon={<Trash2 aria-hidden />} data-testid="row-remove" disabled={locked} aria-describedby={describedBy} onClick={props.onRemove}>
-            {t('pharmacy.intake.rv.remove')}
-          </Button>
+          {!closed && (
+            <Button size="lg" className="min-h-11" icon={<Trash2 aria-hidden />} data-testid="row-remove" disabled={locked} aria-describedby={describedBy} onClick={props.onRemove}>
+              {t('pharmacy.intake.rv.remove')}
+            </Button>
+          )}
         </div>
       </div>
 
@@ -194,10 +198,12 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
               <span className="italic text-muted">{t('pharmacy.intake.rv.match.none')}</span>
             )}
           </span>
-          <Button size="lg" className="min-h-11" data-testid="row-choose" disabled={locked} aria-describedby={describedBy} onClick={() => setPicking(true)}>
-            {product ? t('pharmacy.intake.rv.match.change') : t('pharmacy.intake.rv.match.choose')}
-          </Button>
-          {product && row.matchState === 'CHOSEN' && (
+          {!closed && (
+            <Button size="lg" className="min-h-11" data-testid="row-choose" disabled={locked} aria-describedby={describedBy} onClick={() => setPicking(true)}>
+              {product ? t('pharmacy.intake.rv.match.change') : t('pharmacy.intake.rv.match.choose')}
+            </Button>
+          )}
+          {product && row.matchState === 'CHOSEN' && !closed && (
             <Button size="lg" className="min-h-11" icon={<X aria-hidden />} data-testid="row-clear-match" disabled={locked} aria-describedby={describedBy} onClick={props.onClearMatch}>
               {t('pharmacy.intake.rv.match.clear')}
             </Button>
@@ -207,8 +213,8 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
       {picking && <IntakeProductDialog open onOpenChange={setPicking} row={row} onChoose={props.onChoose} />}
 
       {!editing ? (
-        <dl className="grid min-w-0 gap-x-6 gap-y-3 sm:grid-cols-2 xl:grid-cols-3" data-testid="row-values">
-          {cell('name')}
+        <dl className="grid min-w-0 grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3" data-testid="row-values">
+          {cell('name', undefined, true)}
           {cell('strength')}
           {cell('form')}
           {cell('pack')}
@@ -218,7 +224,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
           {cell('lineTotal')}
           {cell('lot')}
           {cell('expiry', <dd className="text-xs text-muted">{t('pharmacy.intake.rv.expiryHint')}</dd>)}
-          {cell('barcodeText')}
+          {cell('barcodeText', undefined, true)}
         </dl>
       ) : (
         <form
@@ -256,6 +262,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
         </form>
       )}
 
+      {!closed && (
       <div
         className="flex min-w-0 max-w-xl flex-col gap-1"
         onKeyDown={(e) => {
@@ -285,6 +292,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
           </div>
         </Field>
       </div>
+      )}
 
       <div className="flex min-w-0 flex-col gap-2" data-testid="row-flags">
         {flags.length === 0 ? (
@@ -307,7 +315,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
           </p>
         )}
         {blockedByValue && <p className="text-sm text-muted">{t('pharmacy.intake.rv.review.needsValue')}</p>}
-        {noteable && !reviewing && (
+        {noteable && !reviewing && !closed && (
           <Button size="lg" className="min-h-11 w-fit" icon={<ClipboardCheck aria-hidden />} data-testid="row-review-open" disabled={locked} aria-describedby={describedBy} onClick={() => setReviewing(true)}>
             {t('pharmacy.intake.rv.review.open')}
           </Button>
