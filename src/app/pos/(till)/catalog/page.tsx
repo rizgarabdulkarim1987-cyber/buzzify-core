@@ -41,7 +41,7 @@ export default async function PosCatalogPage() {
         {editor ? (
           <>
             <CatalogImport currency={state.menus.find((menu) => menu.id === state.chosenId)?.currency ?? 'IQD'} />
-            <CatalogEditor data={editor} />
+            <CatalogEditor data={editor} canPictures={Boolean(access.actor?.viaMembership)} />
           </>
         ) : (
           <CatalogSetup menus={state.menus} />

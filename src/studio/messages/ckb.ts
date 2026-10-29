@@ -223,6 +223,7 @@ const ckb: Messages = {
   'pos.catalog.productSection': 'بەشی چێشتخانە',
   'pos.catalog.productBarcode': 'بارکۆد',
   'pos.catalog.productSave': 'پاشەکەوتکردنی بەرهەم',
+  'pos.catalog.productPicture': 'وێنە',
   'pos.catalog.productDelete': 'سڕینەوەی بەرهەم',
   'pos.catalog.productInStock': 'بەردەستە',
   'pos.catalog.productSoldOutTill': 'لە کاشێر تەواو بووە',

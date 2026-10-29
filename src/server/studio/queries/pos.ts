@@ -105,6 +105,7 @@ export const posCatalogEditor = defineQuery({
     ]);
     return {
       menuId: ctx.menuId,
+      restaurantId,
       catalog,
       sections,
       categorySections: Object.fromEntries(categorySettings.map((row) => [row.categoryId, row.sectionId])),

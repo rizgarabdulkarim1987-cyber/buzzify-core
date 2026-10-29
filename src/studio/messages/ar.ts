@@ -223,6 +223,7 @@ const ar: Messages = {
   'pos.catalog.productSection': 'قسم المطبخ',
   'pos.catalog.productBarcode': 'الباركود',
   'pos.catalog.productSave': 'حفظ المنتج',
+  'pos.catalog.productPicture': 'الصورة',
   'pos.catalog.productDelete': 'حذف المنتج',
   'pos.catalog.productInStock': 'متوفر',
   'pos.catalog.productSoldOutTill': 'نفد عند الكاشير',

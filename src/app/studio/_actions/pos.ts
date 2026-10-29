@@ -52,6 +52,10 @@ export async function posSaveProductBasics(input: unknown) {
   return invoke(pos.posSaveProductBasics, input);
 }
 
+export async function posSetProductPicture(input: unknown) {
+  return invoke(pos.posSetProductPicture, input);
+}
+
 export async function posDeleteProduct(input: unknown) {
   return invoke(pos.posDeleteProduct, input);
 }

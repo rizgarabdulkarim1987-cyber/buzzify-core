@@ -8,12 +8,9 @@ import { saveProduct, textsOf, type ProductSave, type Texts } from '@/server/stu
  * (versions, slugs, audit, draft hash), fed the product as it already is with these three replaced, so sizes, option
  * groups, pictures and tags are carried through untouched. Their editing stays in the Studio's product editor.
  */
-export async function saveProductBasics(
-  ctx: ActionContext,
-  input: { productId: string; version: number; names: Texts; price: number; categoryId: string },
-): Promise<{ version: number }> {
+async function productSave(ctx: ActionContext, productId: string, version: number): Promise<ProductSave> {
   const row = await ctx.db.product.findFirst({
-    where: { id: input.productId },
+    where: { id: productId },
     include: {
       variants: { orderBy: { sortOrder: 'asc' } },
       groups: { orderBy: { sortOrder: 'asc' }, include: { options: { orderBy: { sortOrder: 'asc' } } } },
@@ -22,12 +19,12 @@ export async function saveProductBasics(
   if (!row) throw new StudioError('NOT_FOUND');
   const save: ProductSave = {
     productId: row.id,
-    version: input.version,
+    version,
     slug: row.slug,
-    categoryId: input.categoryId,
-    names: input.names,
+    categoryId: row.categoryId,
+    names: textsOf(row.translations, 'name'),
     descriptions: textsOf(row.translations, 'description'),
-    price: input.price,
+    price: row.basePrice,
     isSignature: row.isSignature,
     isFeatured: row.isFeatured,
     allergens: row.allergens as ProductSave['allergens'],
@@ -57,6 +54,26 @@ export async function saveProductBasics(
       })),
     })),
   };
-  const saved = await saveProduct(ctx, save);
+  return save;
+}
+
+export async function saveProductBasics(
+  ctx: ActionContext,
+  input: { productId: string; version: number; names: Texts; price: number; categoryId: string },
+): Promise<{ version: number }> {
+  const save = await productSave(ctx, input.productId, input.version);
+  const saved = await saveProduct(ctx, { ...save, categoryId: input.categoryId, names: input.names, price: input.price });
+  return { version: saved.version };
+}
+
+/**
+ * Makes a library picture the product's main one (the first, which the menu and the till show). A main picture it had
+ * before is replaced; drawings, videos and any further pictures stay behind it.
+ */
+export async function setProductPicture(ctx: ActionContext, input: { productId: string; version: number; assetId: string }): Promise<{ version: number }> {
+  const save = await productSave(ctx, input.productId, input.version);
+  const first = save.media[0];
+  const rest = first && (first.kind === 'asset' || first.kind === 'image') ? save.media.slice(1) : save.media;
+  const saved = await saveProduct(ctx, { ...save, media: [{ kind: 'asset', assetId: input.assetId }, ...rest] });
   return { version: saved.version };
 }

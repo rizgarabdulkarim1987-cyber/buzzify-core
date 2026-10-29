@@ -222,6 +222,7 @@ const en: Messages = {
   'pos.catalog.productSection': 'Kitchen section',
   'pos.catalog.productBarcode': 'Barcode',
   'pos.catalog.productSave': 'Save product',
+  'pos.catalog.productPicture': 'Picture',
   'pos.catalog.productDelete': 'Delete product',
   'pos.catalog.productInStock': 'In stock',
   'pos.catalog.productSoldOutTill': 'Sold out at the till',

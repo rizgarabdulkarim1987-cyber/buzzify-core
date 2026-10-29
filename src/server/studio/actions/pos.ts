@@ -4,7 +4,7 @@ import { menuImportInput } from '@/server/ai/menu-import';
 import { bringAiPhotos, previewAiMenuImport, translateAiMenu } from '@/server/studio/services/imports-ai';
 import { printerAddressAllowed } from '@/server/domain/pos/bridge-protocol';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
-import { saveProductBasics } from '@/server/pos/catalog-edit';
+import { saveProductBasics, setProductPicture } from '@/server/pos/catalog-edit';
 import { publishAfter } from '@/server/pos/catalog-publish';
 import { previewPosImport } from '@/server/pos/menu-import';
 import { createAreaIn, createTablesIn, deleteAreaIn, deleteTableIn, MAX_TABLES_PER_CALL, moveTableIn, renameAreaIn } from '@/server/pos/floor';
@@ -191,6 +191,15 @@ export const posSaveProductBasics = defineAction({
   input: z.object({ productId: idField, version, names: namesField, price: priceField, categoryId: idField }),
   target: () => CATALOG,
   run: (ctx, input) => publishAfter(ctx, () => saveProductBasics(ctx, input)),
+});
+
+export const posSetProductPicture = defineAction({
+  name: 'pos.setProductPicture',
+  permission: null,
+  pos: 'catalog.manage',
+  input: z.object({ productId: idField, version, assetId: idField }),
+  target: () => CATALOG,
+  run: (ctx, input) => publishAfter(ctx, () => setProductPicture(ctx, input)),
 });
 
 export const posDeleteProduct = defineAction({
