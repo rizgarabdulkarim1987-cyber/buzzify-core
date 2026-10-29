@@ -96,7 +96,7 @@ describe('formatAmount', () => {
   });
   it('is null for a value that was not read and for no currency', () => {
     expect(formatAmount(null, 'IQD')).toBeNull();
-    expect(formatAmount(100, null)).toBe('100');
+    expect(formatAmount(100, null)).toBeNull();
   });
 });
 

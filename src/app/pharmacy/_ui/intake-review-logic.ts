@@ -36,6 +36,14 @@ export interface ReviewLine {
   freeOfCharge: boolean;
 }
 
+/** A unit of a product: `baseQty` is how many base units (tablets) one of it holds. */
+export interface PackUnit {
+  id: string;
+  label: string;
+  baseQty: number;
+  level: number;
+}
+
 export interface ReviewRow {
   id: string;
   fileId: string;
@@ -50,8 +58,8 @@ export interface ReviewRow {
   flags: string[];
   openFlags: string[];
   matchState: string;
-  match: { productId: string; unitId: string | null; name: string; strength: string; form: string; unitLabel: string | null } | null;
-  candidates: Array<{ productId: string; name: string; strength: string; form: string; score: number }>;
+  match: { productId: string; unitId: string | null; name: string; strength: string; form: string; unitLabel: string | null; units?: PackUnit[] } | null;
+  candidates: Array<{ productId: string; name: string; strength: string; form: string; score: number; units?: PackUnit[] }>;
   reviewed: boolean;
   note: string | null;
   acknowledged: { flags: string[]; mismatch: { difference?: string } | null };
@@ -85,8 +93,8 @@ export interface ReviewData {
 
 /** `1,250` for IQD, `12.50` for USD, grouped, exact for any size; null for a value that was not read. */
 export function formatAmount(value: number | string | bigint | null | undefined, currency: Currency | null): string | null {
-  if (value === null || value === undefined) return null;
-  return formatMinor(BigInt(value), currency ?? 'IQD');
+  if (value === null || value === undefined || currency === null) return null;
+  return formatMinor(BigInt(value), currency);
 }
 
 function amountText(value: number | string | bigint | null | undefined, currency: Currency | null): string {
@@ -176,7 +184,7 @@ export function rowFieldSource(row: ReviewRow, field: EditField | 'freeOfCharge'
 }
 
 /** The flags the screen shows the server when a line is marked reviewed: what the line raises now, not only what is still open. */
-export const reviewShown = (row: ReviewRow): FlagCode[] => FLAG_ORDER.filter((f) => row.flags.includes(f)).sort();
+export const reviewShown = (row: ReviewRow): string[] => [...row.flags].sort();
 
 /** The flags of a line in the order they are listed. */
 export const orderedFlags = (flags: readonly string[]): FlagCode[] => FLAG_ORDER.filter((f) => flags.includes(f));
@@ -257,6 +265,10 @@ export interface ReviewContext {
   /** The branch chosen is this batch's branch. */
   branchOk: boolean;
   online: boolean;
+  /** Something typed on the screen is not saved yet. */
+  unsaved?: boolean;
+  /** A save or another write is running. */
+  writing?: boolean;
 }
 
 export type EditBlock = 'readOnly' | 'branch' | 'closed' | 'noAi' | 'offline';
@@ -271,7 +283,7 @@ export function editReason(ctx: ReviewContext): false | EditBlock {
   return false;
 }
 
-export type ApproveBlock = 'readOnly' | 'branch' | 'closed' | 'offline' | 'blocked';
+export type ApproveBlock = 'readOnly' | 'branch' | 'closed' | 'offline' | 'unsaved' | 'writing' | 'blocked';
 
 /** Why the approve button is disabled, or false. Approving needs `purchase.manage` only: a role without `ai.use` may approve a clean batch. */
 export function approveControl(data: ReviewData, ctx: ReviewContext): false | ApproveBlock {
@@ -279,6 +291,8 @@ export function approveControl(data: ReviewData, ctx: ReviewContext): false | Ap
   if (!ctx.branchOk) return 'branch';
   if (!ctx.open) return 'closed';
   if (!ctx.online) return 'offline';
+  if (ctx.unsaved) return 'unsaved';
+  if (ctx.writing) return 'writing';
   if (approveBlockers(data).length > 0) return 'blocked';
   return false;
 }
@@ -288,8 +302,9 @@ export function approveControl(data: ReviewData, ctx: ReviewContext): false | Ap
 export type HeaderSource = 'read' | 'edited' | 'conflict' | 'notRead';
 
 export function headerFieldSource(header: ReviewHeader, field: HeaderField): HeaderSource {
-  if (header.conflicts.includes(field)) return 'conflict';
+  // A value a person set ends the disagreement between files.
   if (field in header.edited) return 'edited';
+  if (header.conflicts.includes(field)) return 'conflict';
   const read = header.extracted[field];
   return read !== null && read !== undefined && read !== '' ? 'read' : 'notRead';
 }
@@ -381,3 +396,51 @@ export const emptyReviewDraft = (): ReviewDraft => ({ forms: {}, header: null, k
 
 /** True when something typed is not saved yet. Keys alone are not unsaved work. */
 export const hasUnsaved = (draft: ReviewDraft): boolean => Object.keys(draft.forms).length > 0 || draft.header !== null;
+
+// The pack unit and the quantity in base units ---------------------------------------------------------------------------------
+
+const normPack = (text: string): string => text.toLowerCase().replace(/s+/g, ' ').trim();
+
+/** The unit the invoice's pack text names ("10 strip", "box"), or null when it does not decide: then the person chooses. */
+export function unitForPack<U extends { id: string; label: string; baseQty: number }>(units: readonly U[], pack: string | null): U | null {
+  const wanted = normPack(pack ?? '');
+  if (wanted === '') return null;
+  const bySize = units.filter((u) => normPack(`${u.baseQty} ${u.label}`) === wanted);
+  if (bySize.length === 1) return bySize[0]!;
+  if (bySize.length > 1) return null;
+  const byName = units.filter((u) => normPack(u.label) === wanted);
+  return byName.length === 1 ? byName[0]! : null;
+}
+
+/** What one pack holds and what the line comes to in base units (bonus separately), as text, so a strip taken for a box shows at once. */
+export function baseFigures(row: ReviewRow): { perPack: number; unitLabel: string; base: string; bonusBase: string } | null {
+  const unit = row.match?.units?.find((u) => u.id === row.match?.unitId);
+  if (!unit || row.line.quantity === null) return null;
+  const per = BigInt(unit.baseQty);
+  return { perPack: unit.baseQty, unitLabel: unit.label, base: String(BigInt(row.line.quantity) * per), bonusBase: String(BigInt(row.line.bonus ?? 0) * per) };
+}
+
+// Unsaved work and open items --------------------------------------------------------------------------------------------------
+
+/** The line numbers (and whether the header) that hold unsaved work, for the sentence that says why approving waits. */
+export function unsavedParts(draft: ReviewDraft, rows: readonly ReviewRow[]): { lines: number[]; header: boolean } {
+  const lines = rows.filter((r) => r.id in draft.forms).map((r) => r.lineNo).sort((a, b) => a - b);
+  return { lines, header: draft.header !== null };
+}
+
+/** The lines still to look at: an open item or a form being edited. Removed lines are not. */
+export function openRowIds(rows: readonly ReviewRow[], forms: Record<string, unknown>): string[] {
+  return rows.filter((r) => !r.removed && (r.openFlags.length > 0 || r.id in forms)).map((r) => r.id);
+}
+
+/** The next line to look at after `current` (the first when none), wrapping round; null when there is none. */
+export function nextOpenId(rows: readonly ReviewRow[], current: string | null, forms: Record<string, unknown>): string | null {
+  const open = new Set(openRowIds(rows, forms));
+  if (open.size === 0) return null;
+  const at = current === null ? -1 : rows.findIndex((r) => r.id === current);
+  for (let i = 1; i <= rows.length; i += 1) {
+    const r = rows[(at + i) % rows.length]!;
+    if (open.has(r.id)) return r.id;
+  }
+  return null;
+}
