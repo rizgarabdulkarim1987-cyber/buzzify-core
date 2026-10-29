@@ -285,6 +285,11 @@ export interface HeaderView {
   arithmetic: Arithmetic;
   /** The difference a person accepted, when it is still the current one. */
   acknowledged: { reason: string; difference: string } | null;
+  /**
+   * A non-zero header discount or tax: the receipt's costs are the printed (pre-discount) ones, so a person must say they know.
+   * Amounts are minor units as text. `acknowledged` is set while the reason on record is for exactly these amounts and currency.
+   */
+  adjustment: { discount: string; tax: string; acknowledged: { reason: string } | null } | null;
   status: 'OK' | 'MISMATCH' | 'UNKNOWN';
 }
 
@@ -295,14 +300,24 @@ export function headerView(header: unknown, rows: readonly RowView[]): HeaderVie
     { total: values.total, tax: values.tax, discount: values.discount },
   );
   const stored = asObject((asObject(header) as StoredHeader).acknowledged);
-  const ack = typeof stored.reason === 'string' && typeof stored.difference === 'string' && /^-?\d+$/.test(stored.difference) ? { reason: stored.reason, difference: stored.difference, currency: typeof stored.currency === 'string' ? stored.currency : null } : null;
+  const whole = (v: unknown): string | null => (typeof v === 'string' && /^-?\d+$/.test(v) ? v : null);
+  // One reason may cover a difference, a discount/tax, or both: each part is checked against its own stored figures.
+  const ack =
+    typeof stored.reason === 'string' && stored.reason !== ''
+      ? { reason: stored.reason, difference: whole(stored.difference), discount: whole(stored.discount), tax: whole(stored.tax), currency: typeof stored.currency === 'string' ? stored.currency : null }
+      : null;
   const current = arithmetic.status === 'MISMATCH' ? arithmetic.difference : null;
   // Bound to the difference AND the currency it was accepted in: another currency is another amount.
-  const bound = ack !== null && current !== null && BigInt(ack.difference) === current && ack.currency === values.currency;
+  const bound = ack !== null && ack.difference !== null && current !== null && BigInt(ack.difference) === current && ack.currency === values.currency;
+  const discount = values.discount ?? 0;
+  const tax = values.tax ?? 0;
+  const adjusted = discount !== 0 || tax !== 0;
+  const adjustmentBound = adjusted && ack !== null && ack.discount === String(discount) && ack.tax === String(tax) && ack.currency === values.currency;
   return {
     values,
     arithmetic,
-    acknowledged: bound ? { reason: ack.reason, difference: ack.difference } : null,
+    acknowledged: bound ? { reason: ack.reason, difference: ack.difference! } : null,
+    adjustment: adjusted ? { discount: String(discount), tax: String(tax), acknowledged: adjustmentBound ? { reason: ack!.reason } : null } : null,
     status: arithmetic.status,
   };
 }
@@ -330,6 +345,7 @@ export function approvalOf(rows: readonly RowView[], header: HeaderView, process
       difference: current,
       acknowledgedReason: header.acknowledged?.reason ?? null,
       acknowledgedDifference: header.acknowledged ? BigInt(header.acknowledged.difference) : null,
+      adjustment: { present: header.adjustment !== null, acknowledged: header.adjustment?.acknowledged != null },
     },
   );
   // A file still waiting to be read, or being read, may still bring lines: the batch is not ready while any is.
@@ -371,7 +387,7 @@ export function verdictTokenOf(a: { version: number; supplierId: string | null; 
             r.note,
           ],
     ),
-    header: [HEADER_FIELDS.map((f) => a.header.values[f]), arithmeticJson(a.header.arithmetic), a.header.acknowledged, a.header.status],
+    header: [HEADER_FIELDS.map((f) => a.header.values[f]), arithmeticJson(a.header.arithmetic), a.header.acknowledged, a.header.status, a.header.adjustment],
   };
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }

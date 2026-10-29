@@ -877,6 +877,7 @@ describe('from a real reading to a draft receipt', () => {
     await prisma().appPlan.create({ data: { applicationId: 'pharmacy', code: 'standard', name: { en: 'Standard' }, limits: { branches: 5, users: 20, storageMb: 50, aiMonthlyBudgetMinor: 1000 } } });
     vi.stubEnv('AI_PRICE_INPUT_USD_MICRO_PER_MTOK', '1000000');
     vi.stubEnv('AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK', '1000000');
+    vi.stubEnv('AI_PRICE_MODEL', 'scripted-test');
     const provider = scriptedProvider();
     setAiProviderForTests(provider);
     const p = await product(w.a.id, 'Panadol');
@@ -904,5 +905,158 @@ describe('from a real reading to a draft receipt', () => {
     expect(receipt.lines).toHaveLength(1);
     expect(receipt.lines[0]).toMatchObject({ productId: p.id, unitId: p.strip, qty: 12, bonusQty: 2, lot: 'AB-12', unitCostMinor: 1000n, costCurrency: 'IQD', expiryPrecision: 'MONTH' });
     expect(receipt.lines[0]!.expiryDate.toISOString().slice(0, 10)).toBe('2028-03-31');
+  });
+});
+
+// Whole-phase review fixes ------------------------------------------------------------------------------------------------
+
+describe('a manual receipt of the same invoice (whole-phase review I1)', () => {
+  const manual = (w: World, over: Record<string, unknown> = {}) =>
+    prisma().phReceipt.create({
+      data: { restaurantId: w.a.id, branchId: w.b1, clientKey: key(), supplierId: w.supplierId, supplierName: 'Acme Pharma', invoiceRef: 'inv-1', receivedOn: new Date('2026-10-30T00:00:00.000Z'), createdById: w.owner.userId, ...over },
+      select: { id: true },
+    });
+  const refusedFor = async (w: World, batchId: string) => {
+    const refused = await approve(w, w.pic, batchId);
+    expect(phCodeOf(refused)).toBe('DUPLICATE_INVOICE');
+    return refused.ok ? '' : refused.error.fields?.receiptId;
+  };
+
+  it('refuses while a DRAFT receipt of the same supplier carries that number, however it is spelled, and names the receipt', async () => {
+    const w = await world();
+    const draft = await manual(w, { invoiceRef: ' inv-1 ' });
+    const r = await ready(w);
+    expect(await refusedFor(w, r.batchId)).toBe(draft.id);
+    expect((await batchOf(r.batchId)).status).toBe('OPEN');
+    expect(await prisma().phReceipt.count()).toBe(1);
+  });
+
+  it('refuses for a CONFIRMED receipt, a receipt of another branch, Arabic digits, and a legacy receipt that names the supplier only by name', async () => {
+    const w = await world();
+    const r = await ready(w);
+    const confirmed = await manual(w, { status: 'CONFIRMED', number: 'R-000001', confirmedById: w.owner.userId, confirmedAt: NOW });
+    expect(await refusedFor(w, r.batchId)).toBe(confirmed.id);
+    await prisma().phReceipt.deleteMany({});
+    const otherBranch = await manual(w, { branchId: w.b2, invoiceRef: 'INV-١' });
+    expect(await refusedFor(w, r.batchId)).toBe(otherBranch.id);
+    await prisma().phReceipt.deleteMany({});
+    const legacy = await manual(w, { supplierId: null, supplierName: ' ACME pharma ', invoiceRef: 'Inv-1' });
+    expect(await refusedFor(w, r.batchId)).toBe(legacy.id);
+  });
+
+  it('does not refuse for a VOID receipt, another supplier, another number, or no number at all', async () => {
+    const w = await world();
+    const other = await prisma().phSupplier.create({ data: { restaurantId: w.a.id, name: 'Other Co', nameKey: 'other co', clientKey: key(), defaultCurrency: 'IQD', createdById: 'seed' }, select: { id: true } });
+    await manual(w, { status: 'VOID', voidedAt: NOW });
+    await manual(w, { supplierId: other.id, supplierName: 'Other Co' });
+    await manual(w, { invoiceRef: 'INV-10' });
+    await manual(w, { invoiceRef: '' });
+    const r = await ready(w);
+    expect(codeOf(await approve(w, w.pic, r.batchId))).toBe('OK');
+  });
+
+  it('the draft an approval makes is still found by the next batch of that invoice through its batch', async () => {
+    const w = await world();
+    const first = await ready(w);
+    dataOf(await approve(w, w.pic, first.batchId));
+    const second = await ready(w, { header: { invoiceNumber: 'inv-1' } });
+    const refused = await approve(w, w.pic, second.batchId);
+    expect(phCodeOf(refused)).toBe('DUPLICATE_INVOICE');
+    expect(refused.ok ? '' : refused.error.fields?.batchId).toBe(first.batchId);
+  });
+});
+
+describe('a header discount or tax (whole-phase review I4)', () => {
+  const adjusted = (w: World, header: Record<string, unknown> = {}) => ready(w, { header: { total: 9500, discount: 500, tax: 0, ...header } });
+  const reasonsOf = (result: Awaited<ReturnType<typeof approve>>): Array<Record<string, unknown>> => JSON.parse((result.ok ? '[]' : result.error.fields?.reasons) ?? '[]');
+  const accept = (w: World, batchId: string, shown: object, reason = 'The cost on the receipt is the printed one, before the discount') =>
+    vact(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason, shown });
+
+  it('a consistent header discount blocks approval until it is acknowledged, bound to the amounts, and the receipt keeps the printed cost', async () => {
+    const w = await world();
+    const r = await adjusted(w);
+    const blocked = await approve(w, w.pic, r.batchId);
+    expect(phCodeOf(blocked)).toBe('NOT_APPROVABLE');
+    expect(reasonsOf(blocked)).toEqual([{ code: 'HEADER_ADJUSTMENT' }]);
+    const read = dataOf(await get(w, w.owner, r.batchId));
+    expect(read.approval.reasons).toContainEqual({ code: 'HEADER_ADJUSTMENT' });
+    expect(read.header.adjustment).toMatchObject({ discount: '500', tax: '0', acknowledged: null });
+    // the screen must name the amounts it showed
+    expect(phCodeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD', discount: '400', tax: '0' }))).toBe('ACK_STALE');
+    expect(phCodeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD', discount: '500', tax: '1' }))).toBe('ACK_STALE');
+    expect(phCodeOf(await accept(w, r.batchId, { difference: null, currency: 'USD', discount: '500', tax: '0' }))).toBe('ACK_STALE');
+    expect(phCodeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD' }))).toBe('ACK_STALE');
+    expect(codeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD', discount: '500', tax: '0' }))).toBe('OK');
+    const done = dataOf(await approve(w, w.pic, r.batchId));
+    expect(await prisma().phReceiptLine.findFirstOrThrow({ where: { receiptId: done.receiptId } })).toMatchObject({ unitCostMinor: 1000n, qty: 10 });
+  });
+
+  it('a tax counts too, and editing the discount, the tax or the currency after the acknowledgement brings it back', async () => {
+    const w = await world();
+    const r = await adjusted(w, { total: 10100, discount: 0, tax: 100 });
+    expect(reasonsOf(await approve(w, w.pic, r.batchId))).toEqual([{ code: 'HEADER_ADJUSTMENT' }]);
+    expect(codeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD', discount: '0', tax: '100' }))).toBe('OK');
+    expect(dataOf(await get(w, w.owner, r.batchId)).approval.ok).toBe(true);
+    // a different tax (and a total that still adds up): the old acknowledgement does not cover it
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId: r.batchId, patch: { tax: 200, total: 10200 } }));
+    const reopened = dataOf(await get(w, w.owner, r.batchId));
+    expect(reopened.approval.reasons).toEqual([{ code: 'HEADER_ADJUSTMENT' }]);
+    expect(reopened.header.adjustment).toMatchObject({ discount: '0', tax: '200', acknowledged: null });
+    expect(codeOf(await accept(w, r.batchId, { difference: null, currency: 'IQD', discount: '0', tax: '200' }))).toBe('OK');
+    expect(dataOf(await get(w, w.owner, r.batchId)).approval.ok).toBe(true);
+    // another currency is another amount
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId: r.batchId, patch: { currency: 'USD' } }));
+    const usd = dataOf(await get(w, w.owner, r.batchId));
+    expect(usd.header.adjustment?.acknowledged).toBeNull();
+    expect(usd.approval.reasons).toContainEqual({ code: 'HEADER_ADJUSTMENT' });
+  });
+
+  it('no discount, no tax, or zero amounts need nothing', async () => {
+    const w = await world();
+    const none = await ready(w, { header: { discount: null, tax: null } });
+    expect(codeOf(await approve(w, w.pic, none.batchId))).toBe('OK');
+    const zero = await ready(w, { header: { invoiceNumber: 'INV-2', discount: 0, tax: 0 } });
+    expect(codeOf(await approve(w, w.pic, zero.batchId))).toBe('OK');
+  });
+
+  it('one reason covers a header total that does not add up AND a discount, each bound to its own figures', async () => {
+    const w = await world();
+    const r = await adjusted(w, { total: 9000, discount: 300, tax: 0 });
+    const read = dataOf(await get(w, w.owner, r.batchId));
+    expect(read.approval.reasons).toEqual(expect.arrayContaining([{ code: 'HEADER_MISMATCH' }, { code: 'HEADER_ADJUSTMENT' }]));
+    // the difference alone does not clear the discount
+    expect(phCodeOf(await accept(w, r.batchId, { difference: '-700', currency: 'IQD' }))).toBe('ACK_STALE');
+    expect(codeOf(await accept(w, r.batchId, { difference: '-700', currency: 'IQD', discount: '300', tax: '0' }))).toBe('OK');
+    const after = dataOf(await get(w, w.owner, r.batchId));
+    expect(after.approval.ok).toBe(true);
+    expect(after.header.acknowledged).toMatchObject({ difference: '-700' });
+  });
+
+  it('there is nothing to acknowledge on a plain header, and every role that may approve sees the adjustment', async () => {
+    const w = await world();
+    const plain = await ready(w);
+    expect(phCodeOf(await accept(w, plain.batchId, { difference: null, currency: 'IQD', discount: '0', tax: '0' }))).toBe('NO_DIFFERENCE');
+    const r = await adjusted(w, { invoiceNumber: 'INV-3' });
+    for (const who of [w.accountant, w.stock]) expect(dataOf(await get(w, who, r.batchId)).header.adjustment).toMatchObject({ discount: '500', tax: '0' });
+  });
+});
+
+describe('a file left reading by a dead worker does not keep a batch alive (whole-phase review I3)', () => {
+  const day = 86_400_000;
+  it('a stale lease is idle: the batch expires and the object goes; a live lease still keeps it', async () => {
+    const w = await world();
+    const dead = await ready(w, { storageKey: `intake/${w.a.id}/dead` });
+    storage.objects.set(`intake/${w.a.id}/dead`, { bytes: new Uint8Array([1]), mediaType: 'image/png' });
+    const stuck = await addFile(w, dead.batchId, { status: 'EXTRACTING', storageKey: `intake/${w.a.id}/stuck` });
+    storage.objects.set(`intake/${w.a.id}/stuck`, { bytes: new Uint8Array([2]), mediaType: 'image/png' });
+    await prisma().phIntakeFile.update({ where: { id: stuck }, data: { extractingSince: new Date(NOW.getTime() - 11 * 60_000) } });
+    const live = await ready(w, { header: { invoiceNumber: 'INV-L' } });
+    await addFile(w, live.batchId, { status: 'EXTRACTING' });
+    for (const b of [dead, live]) await prisma().phIntakeBatch.update({ where: { id: b.batchId }, data: { updatedAt: new Date(NOW.getTime() - 40 * day) } });
+    expect(await expireOpenBatches(prisma(), { now: NOW, storage })).toEqual({ cancelled: 1, failed: 0 });
+    expect((await batchOf(dead.batchId)).status).toBe('CANCELLED');
+    expect((await batchOf(live.batchId)).status).toBe('OPEN');
+    expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: stuck } })).toMatchObject({ status: 'PURGED', storageKey: null, extractingSince: null });
+    expect(storage.objects.size).toBe(0);
   });
 });

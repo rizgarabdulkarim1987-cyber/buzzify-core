@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as intakeActions from '@/server/pharmacy/actions/intake';
+import { baghdadMonth } from '@/server/domain/pharmacy/intake';
 import { purgeExpiredIntakeFiles } from '@/server/pharmacy/intake/files';
 import { withIntakeStorage } from '@/server/pharmacy/intake/storage';
 import * as intakeQueries from '@/server/pharmacy/queries/intake';
@@ -608,6 +609,35 @@ describe('seeing a stored file', () => {
   });
 });
 
+describe('an upload sweeps only its own business (whole-phase review I6)', () => {
+  it('books the caller’s dead reservations but leaves another business’s for its own scheduled run', async () => {
+    const w = await world();
+    const other = await pharmacy('B', { branches: 1 });
+    const ownerB = await person('ownerB', { membership: [other.id, 'OWNER'] });
+    const month = baghdadMonth(NOW);
+    const old = new Date(NOW.getTime() - 30 * 60_000);
+    const seedReservation = async (restaurantId: string, branchId: string, userId: string, tag: string) => {
+      const b = await prisma().phIntakeBatch.create({ data: { restaurantId, branchId, clientKey: `sweep-${tag}-aaaa`, payloadHash: 'x', createdById: userId }, select: { id: true } });
+      const f = await prisma().phIntakeFile.create({
+        data: { restaurantId, batchId: b.id, sha256: sha(Buffer.from(`sweep-${tag}`)), storageKey: null, mediaType: 'application/pdf', bytes: 10, pages: 1, status: 'UPLOADED', expiresAt: new Date(NOW.getTime() + 30 * DAY), uploadedById: userId },
+        select: { id: true },
+      });
+      await prisma().phAiUsageMonth.create({ data: { restaurantId, month, reservedMicroUsd: 2000n } });
+      await prisma().phAiReservation.create({ data: { restaurantId, month, microUsd: 2000n, fileId: f.id, createdAt: old } });
+    };
+    await seedReservation(w.a.id, w.b1, w.owner.userId, 'mine');
+    await seedReservation(other.id, other.branchIds[0]!, ownerB.userId, 'theirs');
+    const batch = await newBatch(w);
+    dataOf(await upload(w, w.owner, batch.id, pdf(1, 'sweeper')));
+    expect(await prisma().phAiReservation.count({ where: { restaurantId: w.a.id } })).toBe(0);
+    expect(await prisma().phAiUsageMonth.findUniqueOrThrow({ where: { restaurantId_month: { restaurantId: w.a.id, month } } })).toMatchObject({ spentMicroUsd: 2000n, reservedMicroUsd: 0n });
+    // the other business is untouched: its reservation, its usage row and its call log
+    expect(await prisma().phAiReservation.count({ where: { restaurantId: other.id } })).toBe(1);
+    expect(await prisma().phAiUsageMonth.findUniqueOrThrow({ where: { restaurantId_month: { restaurantId: other.id, month } } })).toMatchObject({ spentMicroUsd: 0n, reservedMicroUsd: 2000n });
+    expect(await prisma().phAiCall.count({ where: { restaurantId: other.id } })).toBe(0);
+  });
+});
+
 describe('purging expired files', () => {
   it('deletes the object, blanks the key, marks PURGED and frees the SHA slot, keeping rows', async () => {
     const w = await world();
@@ -651,13 +681,25 @@ describe('purging expired files', () => {
     const w = await world();
     const batch = await newBatch(w);
     const busy = await uploaded(w, w.owner, batch.id, pdf(1, 'busy'));
-    await prisma().phIntakeFile.update({ where: { id: busy.fileId }, data: { status: 'EXTRACTING', extractingSince: NOW } });
     const later = new Date(NOW.getTime() + 31 * DAY);
+    // a lease taken a minute ago: its worker may still be running
+    await prisma().phIntakeFile.update({ where: { id: busy.fileId }, data: { status: 'EXTRACTING', extractingSince: new Date(later.getTime() - 60_000) } });
     expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 0, objectsDeleted: 0, failed: 0 });
     expect(storage.objects.size).toBe(1);
     expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: busy.fileId } })).toMatchObject({ status: 'EXTRACTING' });
     await prisma().phIntakeFile.update({ where: { id: busy.fileId }, data: { status: 'EXTRACTED', extractingSince: null } });
     expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
+  });
+
+  it('takes a file left reading by a dead worker (a lease older than the lease length): the claim is released and the object goes', async () => {
+    const w = await world();
+    const batch = await newBatch(w);
+    const stuck = await uploaded(w, w.owner, batch.id, pdf(1, 'dead-worker'));
+    const later = new Date(NOW.getTime() + 31 * DAY);
+    await prisma().phIntakeFile.update({ where: { id: stuck.fileId }, data: { status: 'EXTRACTING', extractingSince: new Date(later.getTime() - 11 * 60_000), attempts: 1 } });
+    expect(await purgeExpiredIntakeFiles(prisma(), { now: later, limit: 100, storage })).toEqual({ purged: 1, objectsDeleted: 1, failed: 0 });
+    expect(storage.objects.size).toBe(0);
+    expect(await prisma().phIntakeFile.findUniqueOrThrow({ where: { id: stuck.fileId } })).toMatchObject({ status: 'PURGED', storageKey: null, extractingSince: null, failureCode: null });
   });
 
   it('marks a file purged only after its object is really gone; a refused delete leaves it and is counted', async () => {
@@ -705,7 +747,8 @@ describe('purging expired files', () => {
       });
       await new Promise((resolve) => setTimeout(resolve, 400));
       expect(settled).toBe(false);
-      await tx.phIntakeFile.update({ where: { id: file.fileId }, data: { status: 'EXTRACTING', extractingSince: NOW } });
+      // a worker claimed it just now (a live lease at the time of the purge)
+      await tx.phIntakeFile.update({ where: { id: file.fileId }, data: { status: 'EXTRACTING', extractingSince: later } });
     });
     expect(await purge).toEqual({ purged: 0, objectsDeleted: 0, failed: 0 });
     expect(storage.objects.size).toBe(1);

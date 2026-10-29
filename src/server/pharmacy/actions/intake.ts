@@ -84,8 +84,9 @@ export const addFile = defineAction({
     assertMayIntake(ph);
     const branchId = branchOf(input);
     const storage = storageOrRefuse();
-    // Reservations of crashed extractions are booked as spend here too, so a quiet business does not leave them held.
-    await sweepAiReservations(ctx.db, new Date()).catch(() => undefined);
+    // Reservations of crashed extractions are booked as spend here too, so a quiet business does not leave them held. A user's
+    // request sweeps ONLY its own business: the all-business sweep belongs to the scheduled run (scripts/pharmacy-intake-sweep.ts).
+    await sweepAiReservations(ctx.db, new Date(), undefined, ph.restaurantId).catch(() => undefined);
     // Type (from the bytes), size, pages, hash and image quality are settled first: decoding an image takes a moment.
     const bytes = Buffer.from(input.base64, 'base64');
     const file = await prepareFile({ bytes });

@@ -9,6 +9,7 @@ import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from '../actor';
 import { assertStaff } from '../receipts';
 import { NS_CLIENT_KEY } from '../suppliers';
+import { LEASE_MS } from './ai';
 import { touchBatch } from './rows';
 import { ImageUnreadableError, assessQuality, type QualityAssessment } from './quality';
 import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from './storage';
@@ -327,7 +328,9 @@ export async function releaseFileKey(
 
 /**
  * Purges up to `limit` files past their `expiresAt` across every business, one transaction each. Each file's row is locked and
- * looked at again first: one that is being extracted, already purged, or no longer due is left alone. A file whose object could
+ * looked at again first: one that is being read (a lease younger than `LEASE_MS`), already purged, or no longer due is left alone.
+ * A file whose lease is older than that belongs to a dead worker: its claim is released with the purge (the late worker, if it
+ * wakes up, is fenced by the lease it no longer holds), so retention holds even when nobody presses "Try again". A file whose object could
  * not be deleted stays as it was (the next run retries it) and is counted in `failed`; only its id is logged. Returns counts
  * only. Scheduling it is a launch step.
  */
@@ -338,8 +341,14 @@ export async function purgeExpiredIntakeFiles(
   let purged = 0;
   let objectsDeleted = 0;
   let failed = 0;
+  const staleBefore = new Date(args.now.getTime() - LEASE_MS);
+  /** Past retention, and not being read by a live worker. */
+  const dueFiles = {
+    expiresAt: { lte: args.now },
+    OR: [{ status: { notIn: ['PURGED', 'EXTRACTING'] as Array<'PURGED' | 'EXTRACTING'> } }, { status: 'EXTRACTING' as const, extractingSince: { lt: staleBefore } }],
+  };
   const businesses = await everyone.restaurant.findMany({
-    where: { phIntakeFiles: { some: { expiresAt: { lte: args.now }, status: { notIn: ['PURGED', 'EXTRACTING'] } } } },
+    where: { phIntakeFiles: { some: dueFiles } },
     select: { id: true },
     orderBy: { id: 'asc' },
   });
@@ -347,7 +356,7 @@ export async function purgeExpiredIntakeFiles(
     if (purged + failed >= args.limit) break;
     const scoped = scopedClient(everyone, { restaurantId, allBranches: true });
     const due = await scoped.phIntakeFile.findMany({
-      where: { expiresAt: { lte: args.now }, status: { notIn: ['PURGED', 'EXTRACTING'] } },
+      where: dueFiles,
       select: { id: true },
       orderBy: [{ expiresAt: 'asc' }, { id: 'asc' }],
       take: args.limit - purged - failed,
@@ -357,8 +366,9 @@ export async function purgeExpiredIntakeFiles(
         const released = await scoped.$transaction(async (tx) => {
           // eslint-disable-next-line no-restricted-properties -- row lock on the file: a parallel extraction or release waits on it
           await tx.$queryRaw`SELECT "id" FROM "PhIntakeFile" WHERE "id" = ${id} AND "restaurantId" = ${restaurantId} FOR UPDATE`;
-          const file = await tx.phIntakeFile.findFirst({ where: { id }, select: { id: true, sha256: true, storageKey: true, status: true, expiresAt: true } });
-          if (!file || file.status === 'PURGED' || file.status === 'EXTRACTING' || file.expiresAt > args.now) return null;
+          const file = await tx.phIntakeFile.findFirst({ where: { id }, select: { id: true, sha256: true, storageKey: true, status: true, expiresAt: true, extractingSince: true } });
+          if (!file || file.status === 'PURGED' || file.expiresAt > args.now) return null;
+          if (file.status === 'EXTRACTING' && (file.extractingSince === null || file.extractingSince >= staleBefore)) return null;
           return releaseFileKey(tx, args.storage, file);
         });
         if (released) {

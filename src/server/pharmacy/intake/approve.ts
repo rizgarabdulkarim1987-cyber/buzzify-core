@@ -5,6 +5,7 @@ import { scopedClient, type ScopedTx } from '@/server/data/tenant-db';
 import { invoiceFingerprint, normalizeInvoiceNumber } from '@/server/domain/pharmacy/purchasing';
 import { StudioError } from '@/server/studio/framework/result';
 import { asRetryable, createDraft, INTAKE_KEY_PREFIX, receiptLineInput, type ReceiptInput } from '../receipts';
+import { LEASE_MS } from './ai';
 import { intakeClientKey, releaseFileKey } from './files';
 import { approvalOf, lockBatch, recomputeBatch, verdictTokenOf, type StoredHeader } from './rows';
 import type { IntakeStorage } from './storage';
@@ -115,13 +116,13 @@ export async function approveBatch(
   if (!verdict.ok) {
     const reasons = verdict.reasons.flatMap((r): Array<Record<string, unknown>> => {
       if (r.code === 'OPEN_FLAG') return [{ code: r.code, rowId: live[r.rowIndex]!.id, flag: r.flag }];
-      if (r.code === 'NO_ROWS' || r.code === 'HEADER_MISMATCH') return [{ code: r.code }];
+      if (r.code === 'NO_ROWS' || r.code === 'HEADER_MISMATCH' || r.code === 'HEADER_ADJUSTMENT') return [{ code: r.code }];
       return [];
     });
     throw notApprovable(reasons);
   }
   if (!batch.supplierId) throw new StudioError('INVALID', 'Choose the supplier before you approve', { supplierId: 'Choose the supplier before you approve', phCode: 'SUPPLIER_REQUIRED' });
-  const supplier = await tx.phSupplier.findFirst({ where: { id: batch.supplierId }, select: { active: true } });
+  const supplier = await tx.phSupplier.findFirst({ where: { id: batch.supplierId }, select: { active: true, name: true } });
   if (!supplier) throw new StudioError('NOT_FOUND', 'Supplier not found');
   if (!supplier.active) throw new StudioError('CONFLICT', 'This supplier is archived', { phCode: 'SUPPLIER_ARCHIVED' });
   const currency = header.values.currency;
@@ -180,6 +181,11 @@ export async function approveBatch(
       AND (b."header"->'approval'->>'invoiceKey' = ${numberKey} OR (${fingerprint}::text IS NOT NULL AND b."header"->'approval'->>'fingerprint' = ${fingerprint}::text))
     ORDER BY b."id" LIMIT 1`;
   if (siblings[0]) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', batchId: siblings[0].id });
+  // A receipt entered by hand (the outage path, or goods received before the invoice arrived) carries the supplier's number in its
+  // reference. Any receipt of this supplier that is not void, in any branch, counts: confirming a second one doubles the stock.
+  // The supplier is the receipt's supplier, or (an old receipt) the same name.
+  const entered = await manualReceiptWithInvoiceNumber(tx, { restaurantId: a.restaurantId, supplierId: batch.supplierId, supplierName: supplier.name, numberKey });
+  if (entered) throw new StudioError('CONFLICT', 'This invoice was already entered', { phCode: 'DUPLICATE_INVOICE', receiptId: entered });
 
   const receipt = await createDraft(tx, {
     restaurantId: a.restaurantId,
@@ -234,6 +240,25 @@ export async function approveBatch(
     },
   });
   return { batchId: a.batchId, receiptId: receipt.id, lineCount: lines.length, replayed: false };
+}
+
+/**
+ * The id of a non-void receipt of the supplier (business-wide) whose reference reads as the same invoice number, or null. The
+ * reference is free text, so it is normalised exactly as the supplier invoice number is (spelling, case, Arabic digits) and
+ * compared here; the query only narrows to the supplier's receipts that have a reference at all, one row per distinct reference.
+ */
+async function manualReceiptWithInvoiceNumber(tx: ScopedTx, a: { restaurantId: string; supplierId: string; supplierName: string; numberKey: string }): Promise<string | null> {
+  // eslint-disable-next-line no-restricted-properties -- business-wide duplicate check across branches (the receipt table is branch-scoped through `tx`); the business is part of the match
+  const refs = await tx.$queryRaw<{ id: string; ref: string }[]>`
+    SELECT (array_agg(r."id" ORDER BY r."createdAt", r."id"))[1] AS "id", r."invoiceRef" AS "ref"
+    FROM "PhReceipt" r
+    WHERE r."restaurantId" = ${a.restaurantId} AND r."status" <> 'VOID' AND btrim(r."invoiceRef") <> ''
+      AND (r."supplierId" = ${a.supplierId} OR (r."supplierId" IS NULL AND lower(btrim(r."supplierName")) = lower(btrim(${a.supplierName}))))
+    GROUP BY r."invoiceRef"
+    ORDER BY min(r."createdAt"), 1
+    LIMIT 20000`;
+  for (const r of refs) if (safeNumber(r.ref) === a.numberKey) return r.id;
+  return null;
 }
 
 const safeNumber = (raw: string): string | null => {
@@ -345,8 +370,9 @@ export async function expireOpenBatches(
             const batch = await tx.phIntakeBatch.findFirst({ where: { id }, select: { status: true, version: true, header: true, updatedAt: true } });
             if (!batch || batch.status !== 'OPEN' || batch.updatedAt >= cutoff) return null;
             // Worked on lately: a file waiting to be read or being read keeps the batch alive (uploads, reads and edits also touch the batch).
+            // A read whose lease is older than the lease length belongs to a dead worker: it keeps nothing alive.
             const active = await tx.phIntakeFile.count({
-              where: { batchId: id, status: { in: ['UPLOADED', 'EXTRACTING'] } },
+              where: { batchId: id, OR: [{ status: 'UPLOADED' }, { status: 'EXTRACTING', extractingSince: { gte: new Date(args.now.getTime() - LEASE_MS) } }] },
             });
             if (active > 0) return null;
             return releaseBatch(tx, args.storage, { restaurantId, batchId: id, version: batch.version, header: batch.header, now: args.now, note: { expired: true } });

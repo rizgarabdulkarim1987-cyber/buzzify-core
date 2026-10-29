@@ -225,6 +225,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
       acknowledged: header.acknowledged ? { reason: header.acknowledged.reason, ...(withCost ? { difference: header.acknowledged.difference } : {}) } : null,
       ...(withCost
         ? {
+            adjustment: header.adjustment,
             arithmetic:
               arithmetic.status === 'UNKNOWN'
                 ? { status: 'UNKNOWN' as const }

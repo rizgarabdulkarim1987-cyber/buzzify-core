@@ -737,34 +737,75 @@ export async function updateHeader(
 export const headerAckInput = z.object({
   batchId: z.string().min(1).max(64),
   version: z.number().int().min(1),
-  /** The difference and currency the screen showed. The server compares them with its own (`ACK_STALE`); the stored acknowledgement is its own. */
-  shown: z.object({ difference: z.string().regex(/^-?\d{1,30}$/), currency: z.enum(['IQD', 'USD']).nullable() }),
+  /**
+   * What the screen showed: the difference (when the lines and the total differ), the currency, and the discount and tax (when the
+   * invoice has either). The server compares each with its own (`ACK_STALE`); the stored acknowledgement is its own.
+   */
+  shown: z.object({
+    difference: z.string().regex(/^-?\d{1,30}$/).nullish(),
+    currency: z.enum(['IQD', 'USD']).nullable(),
+    discount: z.string().regex(/^-?\d{1,30}$/).nullish(),
+    tax: z.string().regex(/^-?\d{1,30}$/).nullish(),
+  }),
   reason: z.string().trim().min(1, 'Write what you checked').max(500, 'Use at most 500 characters'),
 });
 
-/** Accepts the difference between the printed total and the lines, with a reason, bound to that exact difference and currency. */
+/**
+ * Accepts, with a reason, what the header says that the receipt will not: the difference between the printed total and the
+ * lines (bound to that exact difference and currency) and a header discount or tax (the receipt keeps the printed, pre-discount
+ * unit costs; bound to those exact amounts and the currency). One reason may cover both; each is checked against what the person
+ * was shown.
+ */
 export async function acknowledgeHeader(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; batchId: string; version: number; shown: { difference: string; currency: 'IQD' | 'USD' | null }; reason: string; now: Date; audit: Audit },
-): Promise<HeaderResult & { difference: string }> {
+  a: {
+    restaurantId: string;
+    branchId: string;
+    batchId: string;
+    version: number;
+    shown: { difference?: string | null; currency: 'IQD' | 'USD' | null; discount?: string | null; tax?: string | null };
+    reason: string;
+    now: Date;
+    audit: Audit;
+  },
+): Promise<HeaderResult & { difference: string | null }> {
   const open = await openBatch(tx, a);
   if (a.version !== open.version) throw staleInvoice();
   const evaluated = evaluateRows(await loadRows(tx, open.batchId), a.now);
   const rowCount = evaluated.filter((r) => !r.removed).length;
   const view = headerView(open.header, evaluated);
-  if (view.arithmetic.status !== 'MISMATCH') throw new StudioError('CONFLICT', 'There is no difference to acknowledge', { phCode: 'NO_DIFFERENCE' });
-  const difference = view.arithmetic.difference.toString();
-  if (a.shown.difference !== difference || a.shown.currency !== view.values.currency) throw ackStale();
-  const header = toJson({ ...open.header, acknowledged: { reason: cleanText(a.reason), difference, currency: view.values.currency }, arithmetic: arithmeticJson(view.arithmetic) });
+  const mismatched = view.arithmetic.status === 'MISMATCH';
+  const adjustment = view.adjustment;
+  if (!mismatched && adjustment === null) throw new StudioError('CONFLICT', 'There is nothing to acknowledge', { phCode: 'NO_DIFFERENCE' });
+  const difference = view.arithmetic.status === 'MISMATCH' ? view.arithmetic.difference.toString() : null;
+  // The person acknowledges what they were shown: every figure the header now has to be acknowledged must be the one they saw.
+  if (a.shown.currency !== view.values.currency) throw ackStale();
+  if ((a.shown.difference ?? null) !== difference) throw ackStale();
+  if (adjustment !== null && (a.shown.discount !== adjustment.discount || a.shown.tax !== adjustment.tax)) throw ackStale();
+  const header = toJson({
+    ...open.header,
+    acknowledged: {
+      reason: cleanText(a.reason),
+      currency: view.values.currency,
+      ...(difference !== null ? { difference } : {}),
+      ...(adjustment !== null ? { discount: adjustment.discount, tax: adjustment.tax } : {}),
+    },
+    arithmetic: arithmeticJson(view.arithmetic),
+  });
   await tx.phIntakeBatch.updateMany({ where: { id: open.batchId }, data: { header, version: { increment: 1 } } });
   a.audit({
     action: 'ph.intake.header.acknowledge',
     entityType: 'PhIntakeBatch',
     entityId: open.batchId,
-    // No amount, difference or currency: the audit holds that the header was acknowledged and how many lines it was added up from.
-    changes: { acknowledged: { before: false, after: true }, headerStatus: { before: 'MISMATCH', after: 'MISMATCH' }, lines: { before: null, after: rowCount } },
+    // No amount, difference or currency: the audit holds that the header was acknowledged, for what kind of reason, and how many lines it was added up from.
+    changes: {
+      acknowledged: { before: false, after: true },
+      headerStatus: { before: view.arithmetic.status, after: view.arithmetic.status },
+      covers: { before: null, after: [...(mismatched ? ['difference'] : []), ...(adjustment !== null ? ['adjustment'] : [])] },
+      lines: { before: null, after: rowCount },
+    },
   });
-  return { batchId: open.batchId, version: open.version + 1, status: 'MISMATCH', difference };
+  return { batchId: open.batchId, version: open.version + 1, status: view.arithmetic.status, difference };
 }
 
 // Rematching -------------------------------------------------------------------------------------------------------------
