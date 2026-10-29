@@ -49,7 +49,7 @@ export function ProductPicker({ catalog, disabled, onPick }: { catalog: TillCata
       {products.length === 0 ? (
         <EmptyState title={t('pos.order.noProducts')} />
       ) : (
-        <ul className="grid grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] gap-2">
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))]">
           {products.map((product) => (
             <li key={product.id} className="flex">
               <button

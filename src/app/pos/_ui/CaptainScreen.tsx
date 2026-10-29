@@ -193,7 +193,10 @@ function NewOrder({ catalog }: { catalog: TillCatalog }) {
           autoComplete="off"
           dir="ltr"
           value={table}
-          onChange={(event) => setTable(amountDigits(event.target.value))}
+          onChange={(event) => {
+            setTable(amountDigits(event.target.value));
+            setTableError(undefined);
+          }}
           className="max-w-40 text-center text-xl font-bold"
         />
       </Field>
@@ -248,7 +251,7 @@ function NewOrder({ catalog }: { catalog: TillCatalog }) {
       </div>
 
       {/* Kept in reach at the foot of a phone screen while the dishes are picked. */}
-      <div className="sticky bottom-0 bg-bg py-3">
+      <div className="sticky bottom-0 bg-surface py-3">
         <Button variant="primary" size="lg" className="min-h-14 w-full text-lg" disabled={pending || lines.length === 0} onClick={send} data-testid="captain-send">
           {t('pos.captain.send')} · {formatNumber(count)}
         </Button>

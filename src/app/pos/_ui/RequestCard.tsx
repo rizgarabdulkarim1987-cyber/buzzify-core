@@ -61,7 +61,7 @@ export function BillCalls({ calls, now, call, pending }: { calls: BillCallView[]
   const text = useElapsedText();
   if (calls.length === 0) return null;
   return (
-    <section aria-labelledby="bill-calls-title" className="flex flex-col gap-2 rounded-lg border-2 border-danger bg-raised p-3" data-testid="bill-calls">
+    <section aria-labelledby="bill-calls-title" className="flex flex-col gap-2" data-testid="bill-calls">
       <h2 id="bill-calls-title" className="text-lg font-bold text-text">
         {t('pos.billCalls.title')} · <span dir="ltr">{formatNumber(calls.length)}</span>
       </h2>
