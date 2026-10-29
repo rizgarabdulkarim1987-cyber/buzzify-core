@@ -8,7 +8,7 @@ import { useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
 import { Select } from '@/studio/ui/Select';
-import { zoomStep } from './intake-review-logic';
+import { urlFresh, zoomStep } from './intake-review-logic';
 import { Message } from './intake-review-parts';
 
 export interface OriginalFocus {
@@ -98,6 +98,8 @@ export function IntakeOriginal({ files, focus, online }: IntakeOriginalProps) {
                   onChange={(e) => {
                     setFileId(e.target.value);
                     setPage(1);
+                    const old = loaded[e.target.value];
+                    if (old && !urlFresh(old.at, Date.now())) void load(e.target.value);
                   }}
                   options={shown.map((f, i) => ({ value: f.id, label: t('pharmacy.intake.fileN', { n: formatNumber(i + 1) }) }))}
                 />
@@ -151,7 +153,13 @@ export function IntakeOriginal({ files, focus, online }: IntakeOriginalProps) {
               className="max-h-[70vh] min-h-48 overflow-auto rounded-md border border-line bg-raised"
             >
               {isPdf ? (
-                <object key={`${file.id}-${page}`} data={`${held.url}#page=${Math.min(page, pageCount)}`} type="application/pdf" aria-label={t('pharmacy.intake.pictureAlt', { n: formatNumber(shown.indexOf(file) + 1) })} className="h-[70vh] w-full">
+                <object
+                  key={`${file.id}-${page}`}
+                  ref={(el) => {
+                    if (el && !urlFresh(held.at, Date.now()) && state !== 'loading') void load(file.id);
+                  }}
+                  data={`${held.url}#page=${Math.min(page, pageCount)}`} type="application/pdf" aria-label={t('pharmacy.intake.pictureAlt', { n: formatNumber(shown.indexOf(file) + 1) })} className="h-[70vh] w-full"
+                >
                   <a href={held.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-11 items-center gap-2 p-3 text-sm font-medium text-text underline">
                     <FileText aria-hidden className="size-4" />
                     {t('pharmacy.intake.openPdf')}
@@ -177,6 +185,7 @@ export function IntakeOriginal({ files, focus, online }: IntakeOriginalProps) {
               )}
             </div>
           )}
+          {state === 'loading' && held && <Message tone="info" testId="original-refreshing">{t('pharmacy.intake.rv.original.refreshing')}</Message>}
           {state === 'failed' && <Message tone="error">{t('pharmacy.intake.pictureFailed')}</Message>}
           {state === 'expired' && <Message tone="error" testId="original-expired">{t('pharmacy.intake.rv.original.expired')}</Message>}
         </>

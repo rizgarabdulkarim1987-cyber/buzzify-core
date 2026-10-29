@@ -21,6 +21,8 @@ export interface IntakeApproveBarProps {
   onConfirm: () => Promise<void>;
   onJump: (blocker: Blocker) => void;
   message: { tone: 'error' | 'ok' | 'info'; text: string } | null;
+  /** Where the typed work that is not saved sits (line numbers, header), for the reason line. */
+  unsavedText?: string;
   /** Where a duplicate-invoice refusal leads. */
   link: { href: string; label: string } | null;
 }
@@ -36,13 +38,13 @@ const subscribeWide = (cb: () => void) => {
  * reason jumps to the first line it concerns) and the button. Approving asks first and says plainly that it makes a DRAFT
  * receipt and puts nothing into stock. A role without `ai.use` can still approve a batch that is clean. No motion.
  */
-export function IntakeApproveBar({ data, blockers, block, busy, onConfirm, onJump, message, link }: IntakeApproveBarProps) {
+export function IntakeApproveBar({ data, blockers, block, busy, onConfirm, onJump, message, link, unsavedText }: IntakeApproveBarProps) {
   const t = useT();
   const [confirming, setConfirming] = useState(false);
   // The list of reasons starts open where there is room; on a phone it starts closed so the bar does not cover the lines.
   const wide = useSyncExternalStore(subscribeWide, () => window.matchMedia('(min-width: 768px)').matches, () => true);
   const counts = reviewCounts(data);
-  const reasonOfBlock = block && block !== 'blocked' ? t(`pharmacy.intake.reason.${block}`) : null;
+  const reasonOfBlock = block && block !== 'blocked' ? t(`pharmacy.intake.reason.${block}`, { where: unsavedText ?? '' }) : null;
 
   const label = (b: Blocker): string => {
     switch (b.kind) {

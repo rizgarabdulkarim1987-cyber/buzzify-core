@@ -1,17 +1,19 @@
 'use client';
 
-import { ClipboardCheck, Eye, Pencil, ScanBarcode, Save, Trash2, Undo2, UserCheck, X } from 'lucide-react';
+import { ClipboardCheck, Eye, Pencil, Save, Trash2, Undo2, UserCheck, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { formatNumber } from '@/lib/pos-format';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
+import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
 import {
   EDIT_FIELDS,
   MONEY_FIELDS,
   NOTE_FLAGS,
+  baseFigures,
   formatAmount,
   jumpId,
   matchChipOf,
@@ -43,8 +45,8 @@ export interface IntakeRowCardProps {
   onSave: () => void;
   onDiscard: () => void;
   onRemove: () => void;
-  onReview: (note: string) => void;
-  onScan: (text: string) => void;
+  /** Resolves to true when the line was marked reviewed; the typed text stays until then. */
+  onReview: (note: string, mismatchReason: string | null) => Promise<boolean>;
   onChoose: (productId: string, unitId: string) => Promise<string | null>;
   onClearMatch: () => void;
   onShow: () => void;
@@ -71,7 +73,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
   const t = useT();
   const [reviewing, setReviewing] = useState(false);
   const [note, setNote] = useState('');
-  const [scan, setScan] = useState('');
+  const [mismatchNote, setMismatchNote] = useState('');
   const [picking, setPicking] = useState(false);
   const locked = block !== false || busy;
   /** A batch that is approved or cancelled shows its lines as they ended; the controls are not there to be disabled. */
@@ -82,6 +84,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
   const value = (field: EditField) => form?.[field] ?? current[field];
   const flags = orderedFlags(row.flags);
   const open = row.openFlags;
+  const mismatchOpen = open.includes('MATH_MISMATCH');
   const noteable = open.some((f) => (NOTE_FLAGS as readonly string[]).includes(f));
   const blockedByValue = open.some((f) => f === 'MISSING' || f === 'AMBIGUOUS_MATCH');
 
@@ -124,7 +127,8 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
     if (flag === 'MISSING') return t('pharmacy.intake.rv.flag.MISSING', { fields: missingFields(row).map((f) => t(`pharmacy.intake.rv.missing.${f}`)).join(', ') });
     if (flag === 'MATH_MISMATCH') {
       const figures = mathFigures(row, currency);
-      return t('pharmacy.intake.rv.flag.MATH_MISMATCH', { expected: figures?.expected ?? '', actual: figures?.actual ?? '', difference: figures?.difference ?? '', currency: currency ?? '' });
+      if (!figures || currency === null) return t('pharmacy.intake.rv.currencyNotSet');
+      return t('pharmacy.intake.rv.flag.MATH_MISMATCH', { expected: figures.expected, actual: figures.actual, difference: figures.difference, currency });
     }
     if (flag === 'MODEL_UNCLEAR') return t('pharmacy.intake.rv.flag.MODEL_UNCLEAR', { note: isolate(line.unclear.join(' · ')) });
     return t(`pharmacy.intake.rv.flag.${flag}`);
@@ -137,7 +141,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
     }
     if (MONEY_FIELDS.includes(field)) {
       const m = field === 'unitCost' ? line.unitCost : line.lineTotal;
-      return m === null ? <NotRead t={t} /> : <bdi dir="ltr" className="tabular-nums">{formatAmount(m, currency)} {currency ?? ''}</bdi>;
+      return m === null ? <NotRead t={t} /> : <bdi dir="ltr" className="tabular-nums">{formatAmount(m, currency) ?? t('pharmacy.intake.rv.currencyNotSet')} {currency ?? ''}</bdi>;
     }
     const text = (line[field as 'name'] ?? '') as string;
     return text.trim() === '' ? <NotRead t={t} /> : <bdi dir="auto">{text}</bdi>;
@@ -162,6 +166,7 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
   const hintFor = (field: EditField) => (field === 'expiry' ? t('pharmacy.intake.rv.expiryHint') : field === 'unitCost' ? t('pharmacy.intake.rv.costNote') : MONEY_FIELDS.includes(field) && currency === null ? t('pharmacy.intake.rv.moneyNeedsCurrency') : undefined);
 
   const product = row.match;
+  const base = baseFigures(row);
   const productText = product ? [product.name, product.strength, product.form].filter((p) => p.trim() !== '').join(' · ') : null;
 
   return (
@@ -210,6 +215,33 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
           )}
         </div>
       </div>
+      {product && (
+        <div className="flex min-w-0 flex-col gap-1" data-testid="row-unit">
+          {!closed && product.units && product.units.length > 0 && (
+            <label className="flex max-w-sm min-w-0 flex-col gap-1 text-sm text-muted">
+              {t('pharmacy.intake.rv.unit.label')}
+              <Select
+                size="lg"
+                className="min-h-11"
+                data-testid="row-unit-select"
+                disabled={locked}
+                aria-describedby={describedBy}
+                value={product.unitId ?? ''}
+                onChange={(e) => {
+                  if (e.target.value !== '') void props.onChoose(product.productId, e.target.value);
+                }}
+                options={[{ value: '', label: t('pharmacy.intake.rv.unit.choose') }, ...product.units.map((u) => ({ value: u.id, label: t('pharmacy.intake.rv.unit.option', { label: u.label, qty: formatNumber(u.baseQty) }) }))]}
+              />
+            </label>
+          )}
+          <p data-testid="row-base" className="text-sm text-text">
+            {base
+              ? t('pharmacy.intake.rv.unit.sentence', { qty: formatNumber(line.quantity ?? 0), unit: base.unitLabel, per: formatNumber(base.perPack), base: formatNumber(Number(base.base)) }) +
+                (base.bonusBase !== '0' ? ' ' + t('pharmacy.intake.rv.unit.bonus', { bonus: formatNumber(Number(base.bonusBase)) }) : '')
+              : t('pharmacy.intake.rv.unit.none')}
+          </p>
+        </div>
+      )}
       {picking && <IntakeProductDialog open onOpenChange={setPicking} row={row} onChoose={props.onChoose} />}
 
       {!editing ? (
@@ -262,38 +294,6 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
         </form>
       )}
 
-      {!closed && (
-      <div
-        className="flex min-w-0 max-w-xl flex-col gap-1"
-        onKeyDown={(e) => {
-          if (e.key !== 'Enter') return;
-          e.preventDefault();
-          if (!locked && scan.trim() !== '') {
-            props.onScan(scan.trim());
-            setScan('');
-          }
-        }}
-      >
-        <Field label={t('pharmacy.intake.rv.scan.label')} hint={t('pharmacy.intake.rv.scan.hint')}>
-          <div className="relative">
-            <ScanBarcode aria-hidden className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted" />
-            <Input
-              size="lg"
-              className="min-h-11 ps-8"
-              dir="ltr"
-              autoComplete="off"
-              enterKeyHint="done"
-              data-testid="row-scan"
-              disabled={locked}
-              aria-describedby={describedBy}
-              value={scan}
-              onChange={(e) => setScan(e.target.value)}
-            />
-          </div>
-        </Field>
-      </div>
-      )}
-
       <div className="flex min-w-0 flex-col gap-2" data-testid="row-flags">
         {flags.length === 0 ? (
           <Message tone="ok" testId="row-clean">{t('pharmacy.intake.rv.noFlags')}</Message>
@@ -327,18 +327,25 @@ export function IntakeRowCard(props: IntakeRowCardProps) {
             className="flex max-w-xl flex-col gap-2 rounded-md border border-line-strong bg-raised p-3"
             onSubmit={(e) => {
               e.preventDefault();
-              if (!locked && note.trim() !== '') {
-                props.onReview(note.trim());
+              if (locked || note.trim() === '' || (mismatchOpen && mismatchNote.trim() === '')) return;
+              void props.onReview(note.trim(), mismatchOpen ? mismatchNote.trim() : null).then((ok) => {
+                if (!ok) return;
                 setReviewing(false);
                 setNote('');
-              }
+                setMismatchNote('');
+              });
             }}
           >
             <Field label={t('pharmacy.intake.rv.review.note')} hint={t('pharmacy.intake.rv.review.hint')}>
               <Textarea className="min-h-20" dir="auto" maxLength={500} data-testid="row-review-note" value={note} onChange={(e) => setNote(e.target.value)} />
             </Field>
+            {mismatchOpen && (
+              <Field label={t('pharmacy.intake.rv.review.diffReason', { difference: mathFigures(row, currency)?.difference ?? '', currency: currency ?? '' })}>
+                <Textarea className="min-h-20" dir="auto" maxLength={500} data-testid="row-mismatch-reason" value={mismatchNote} onChange={(e) => setMismatchNote(e.target.value)} />
+              </Field>
+            )}
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" variant="primary" size="lg" className="min-h-11" data-testid="row-review-save" disabled={locked || note.trim() === ''}>
+              <Button type="submit" variant="primary" size="lg" className="min-h-11" data-testid="row-review-save" disabled={locked || note.trim() === '' || (mismatchOpen && mismatchNote.trim() === '')}>
                 {t('pharmacy.intake.rv.review.save')}
               </Button>
               <Button size="lg" className="min-h-11" onClick={() => setReviewing(false)}>

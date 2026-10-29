@@ -1,21 +1,23 @@
 'use client';
 
-import { Columns2, Info, Lock, PanelTop, Plus, RefreshCw, WifiOff } from 'lucide-react';
+import { Columns2, Filter, Info, ListChecks, Lock, PanelTop, Plus, RefreshCw, WifiOff } from 'lucide-react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import {
   acknowledgeIntakeHeader,
   addIntakeRow,
   approveIntakeBatch,
   clearIntakeMatch,
-  fillIntakeFromBarcode,
   matchIntakeRow,
   rematchIntake,
   removeIntakeRow,
   reviewIntakeRow,
+  scanIntakeBarcode,
   updateIntakeHeader,
   updateIntakeRow,
 } from '@/app/pharmacy/_actions/intake';
+import { findSuppliers } from '@/app/pharmacy/_actions/purchase-orders';
 import { formatNumber } from '@/lib/pos-format';
+import { isolate } from './WriteBlocked';
 import { draftKey, useDraft } from '@/lib/use-draft';
 import { useLeaveGuard } from '@/lib/use-leave-guard';
 import type { ActionResult, StudioFailure } from '@/server/studio/framework/result';
@@ -24,12 +26,13 @@ import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { Select } from '@/studio/ui/Select';
-import { approveSignature, approveBlockers, approveControl, buildHeaderPatch, buildRowPatch, duplicateTarget, editReason, emptyReviewDraft, hasUnsaved, historyOf, jumpId, reviewShown, rowKeyFor, type Blocker, type EditField, type HeaderFormField, type ReviewData, type ReviewDraft, type ReviewRow } from './intake-review-logic';
+import { approveSignature, approveBlockers, approveControl, buildHeaderPatch, buildRowPatch, duplicateTarget, editReason, emptyReviewDraft, hasUnsaved, historyOf, jumpId, nextOpenId, openRowIds, reviewShown, rowKeyFor, unsavedParts, type Blocker, type EditField, type HeaderFormField, type ReviewData, type ReviewDraft, type ReviewRow } from './intake-review-logic';
 import { Message } from './intake-review-parts';
 import { IntakeApproveBar } from './IntakeApproveBar';
 import { IntakeHeaderCard } from './IntakeHeaderCard';
 import { IntakeOriginal, type OriginalFocus } from './IntakeOriginal';
 import { IntakeRowCard } from './IntakeRowCard';
+import { IntakeScan, type ScanOutcome } from './IntakeScan';
 import { phMessage } from './ph-failure';
 import { newClientKey } from './sell-logic';
 import { UnsavedBadge } from './UnsavedBadge';
@@ -95,15 +98,27 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
   const [addTo, setAddTo] = useState('');
   const [link, setLink] = useState<{ href: string; label: string } | null>(null);
   const pendingFocus = useRef<string | null>(null);
+  const [onlyOpenPref, setOnlyOpenPref] = useState<boolean | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const lastFocused = useRef<string | null>(null);
+  const approving = useRef(false);
 
   const open = data.batch.status === 'OPEN';
+  // Only drafts that still have somewhere to go count: a form for a line that was removed, or any form of a closed batch, is dropped.
+  const liveForms = open ? Object.fromEntries(Object.entries(draft.value.forms).filter(([id]) => data.rows.some((r) => r.id === id && !r.removed))) : {};
+  const liveDraft: ReviewDraft = { ...draft.value, forms: liveForms, header: open ? draft.value.header : null };
+  const unsaved = hasUnsaved(liveDraft);
+  const busy = saving !== null || scanning;
   const ctx = { open, mayAi, writable, branchOk, online };
   const block = editReason(ctx);
-  const approveBlock = approveControl(data, ctx);
+  const approveBlock = approveControl(data, { ...ctx, unsaved, writing: busy });
   const blockers = approveBlockers(data);
   const currency = data.header.values.currency;
-  const unsaved = hasUnsaved(draft.value);
-  const busy = saving !== null;
+  const parts = unsavedParts(liveDraft, data.rows);
+  const unsavedText = [...(parts.lines.length > 0 ? [t('pharmacy.intake.rv.unsavedWhere.lines', { lines: parts.lines.map((n) => formatNumber(n)).join(', ') })] : []), ...(parts.header ? [t('pharmacy.intake.rv.unsavedWhere.header')] : [])].join(' · ');
+  const openIds = openRowIds(data.rows, liveForms);
+  const onlyOpen = open && (onlyOpenPref ?? openIds.length > 0);
+  const shownRows = onlyOpen ? data.rows.filter((r) => openIds.includes(r.id)) : data.rows;
   const extracted = data.files.filter((f) => f.status === 'EXTRACTED');
   const target = addTo !== '' && extracted.some((f) => f.id === addTo) ? addTo : (extracted[0]?.id ?? '');
 
@@ -171,30 +186,62 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
     if (done.ok) dropRow(row.id);
   };
 
-  const scanRow = async (row: ReviewRow, text: string) => {
-    let version = row.version;
-    if (row.line.barcodeText !== text) {
-      const patch = { barcodeText: text };
-      const key = rowKeyFor(latest.current.keys[row.id], row.id, row.version, patch);
-      commit((c) => ({ ...c, keys: { ...c.keys, [row.id]: key } }));
-      const saved = await write(row.id, () => updateIntakeRow({ rowId: row.id, version, patch, clientKey: key.clientKey }));
-      if (!saved.ok) return;
-      commit((c) => ({ ...c, keys: Object.fromEntries(Object.entries(c.keys).filter(([k]) => k !== row.id)) }));
-      version = saved.fresh?.rows.find((r) => r.id === row.id)?.version ?? version + 1;
+  /** One scan for the whole batch: the server finds the line; the screen brings it into view and says what happened. */
+  const scanBatch = async (code: string): Promise<ScanOutcome> => {
+    setScanning(true);
+    const result = await settle(() => scanIntakeBarcode({ batchId: data.batch.id, barcode: code, clientKey: newClientKey('iscan') }));
+    if (!result.ok) {
+      setScanning(false);
+      const fields = result.error.fields ?? {};
+      if (fields.phCode === 'NO_LINE_FOR_BARCODE') return { tone: 'info', text: t('pharmacy.intake.rv.scanAll.none', { name: isolate(String(fields.productName ?? '')) }), noLine: { productName: String(fields.productName ?? ''), code } };
+      if (RELOAD_ON.has(fields.phCode ?? '')) await reload();
+      return { tone: 'error', text: phMessage(t, locale, result.error, 'pharmacy.intake') };
     }
-    const filled = await write(row.id, () => fillIntakeFromBarcode({ rowId: row.id, version }));
-    if (filled.ok) {
-      const fields = ((filled.data as { filled?: string[] }).filled ?? []).map((f) => t(`pharmacy.intake.rv.field.${f}`)).join(', ');
-      setNote(row.id, { tone: 'ok', text: fields ? t('pharmacy.intake.rv.scan.filled', { fields }) : t('pharmacy.intake.rv.scan.nothing') });
-    } else if (filled.failure.fields?.phCode === 'NOTHING_TO_FILL') {
-      setNote(row.id, { tone: 'info', text: t('pharmacy.intake.rv.scan.nothing') });
-    }
+    const r = result.data as { rowId: string; lineNo: number; productName: string; how: 'open' | 'same'; filled: string[] };
+    await reload();
+    setScanning(false);
+    // A line the filter hides is shown, so the person can see where the scan went.
+    if (!openIds.includes(r.rowId)) setOnlyOpenPref(false);
+    lastFocused.current = r.rowId;
+    window.setTimeout(() => document.getElementById(jumpId(r.rowId))?.scrollIntoView({ block: 'center' }), 0);
+    const base = t(r.how === 'open' ? 'pharmacy.intake.rv.scanAll.matched' : 'pharmacy.intake.rv.scanAll.same', { n: formatNumber(r.lineNo), name: isolate(r.productName) });
+    const fields = r.filled.map((f) => t(`pharmacy.intake.rv.field.${f}`)).join(', ');
+    return { tone: 'ok', text: fields ? `${base} ${t('pharmacy.intake.rv.scanAll.filled', { fields })}` : base };
   };
 
-  const reviewRow = async (row: ReviewRow, note: string) => {
-    await write(row.id, () =>
-      reviewIntakeRow({ rowId: row.id, version: row.version, shown: reviewShown(row), note, ...(row.flags.includes('MATH_MISMATCH') ? { mismatchReason: note } : {}) }),
-    );
+  /** No line fits the scanned product: add one for it (named after the product, holding the code), then scan again so it takes the product. */
+  const addLineFor = async (productName: string, code: string) => {
+    if (target === '') return;
+    const added = await write('toolbar', () => addIntakeRow({ fileId: target }));
+    if (!added.ok) return;
+    const id = (added.data as { rowId: string }).rowId;
+    const fresh = await reload();
+    const row = fresh?.rows.find((r) => r.id === id);
+    if (!row) return;
+    const named = await write('toolbar', () => updateIntakeRow({ rowId: id, version: row.version, patch: { name: productName, barcodeText: code }, clientKey: newClientKey('irow') }));
+    if (named.ok) await scanBatch(code);
+    pendingFocus.current = id;
+  };
+
+  const reviewRow = async (row: ReviewRow, note: string, mismatchReason: string | null): Promise<boolean> => {
+    const done = await write(row.id, () => reviewIntakeRow({ rowId: row.id, version: row.version, shown: reviewShown(row), note, ...(mismatchReason !== null ? { mismatchReason } : {}) }));
+    return done.ok;
+  };
+
+  /** Lines to look at next: from the line last touched, round to the first. */
+  const nextOpen = () => {
+    const id = nextOpenId(data.rows, lastFocused.current, liveForms);
+    if (!id) return;
+    lastFocused.current = id;
+    const el = document.getElementById(jumpId(id));
+    el?.scrollIntoView({ block: 'center' });
+    el?.focus({ preventScroll: true });
+  };
+
+  /** The supplier picker's search: the suppliers whose name has this text (the server limits the list; this asks it again). */
+  const findSupplier = async (q: string): Promise<Array<{ id: string; name: string }> | null> => {
+    const found = await settle(() => findSuppliers({ search: q, active: true }));
+    return found.ok ? (found.data as { items: Array<{ id: string; name: string }> }).items.map((x) => ({ id: x.id, name: x.name })) : null;
   };
 
   const chooseProduct = async (row: ReviewRow, productId: string, unitId: string): Promise<string | null> => {
@@ -229,20 +276,25 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
     if (done.ok) commit((c) => ({ ...c, header: null }));
   };
 
-  const acknowledge = async (reason: string) => {
+  const acknowledge = async (reason: string): Promise<boolean> => {
     const a = data.header.arithmetic;
-    if (!a || a.status !== 'MISMATCH' || a.difference === undefined) return;
-    await write('ack', () => acknowledgeIntakeHeader({ batchId: data.batch.id, version: data.batch.version, shown: { difference: a.difference, currency }, reason }));
+    if (!a || a.status !== 'MISMATCH' || a.difference === undefined) return false;
+    const done = await write('ack', () => acknowledgeIntakeHeader({ batchId: data.batch.id, version: data.batch.version, shown: { difference: a.difference, currency }, reason }));
+    return done.ok;
   };
 
   // Approval -------------------------------------------------------------------------------------------------------------
 
   const approve = async () => {
+    // Typed work not saved, or a write still running: nothing is approved on a screen that is ahead of the server. A second press while the first is answered does nothing.
+    if (approving.current || hasUnsaved({ ...latest.current, forms: Object.fromEntries(Object.entries(latest.current.forms).filter(([id]) => id in liveForms)) }) || busy) return;
+    approving.current = true;
     setLink(null);
     const sig = approveSignature(data.batch.version, data.verdictToken);
     const key = attemptKeyFor(latest.current.approve ?? { clientKey: '', keySig: undefined }, sig, 'iappr', newClientKey);
     commit((c) => ({ ...c, approve: key }));
     const done = await write('approve', () => approveIntakeBatch({ batchId: data.batch.id, clientKey: key.clientKey, expectedVersion: data.batch.version, verdictToken: data.verdictToken }));
+    approving.current = false;
     if (done.ok) {
       commit((c) => ({ ...c, approve: null }));
       onApproved();
@@ -269,7 +321,7 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
 
   const rows = (
     <ul aria-label={t('pharmacy.intake.rv.pane.table')} data-testid="review-rows" className="flex min-w-0 flex-col border-t border-line">
-      {data.rows.map((row) => (
+      {shownRows.map((row) => (
         <IntakeRowCard
           key={row.id}
           row={row}
@@ -285,8 +337,7 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
             setNote(row.id, null);
           }}
           onRemove={() => setRemoving(row)}
-          onReview={(note) => void reviewRow(row, note)}
-          onScan={(text) => void scanRow(row, text)}
+          onReview={(note, mismatchReason) => reviewRow(row, note, mismatchReason)}
           onChoose={(productId, unitId) => chooseProduct(row, productId, unitId)}
           onClearMatch={() => void write(row.id, () => clearIntakeMatch({ rowId: row.id, version: row.version }))}
           onShow={() => showOriginal(row)}
@@ -341,6 +392,7 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
           <IntakeHeaderCard
             data={data}
             suppliers={suppliers}
+            findSupplier={findSupplier}
             block={block}
             form={draft.value.header}
             onOpen={() => commit((c) => ({ ...c, header: {} }))}
@@ -350,7 +402,7 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
               commit((c) => ({ ...c, header: null }));
               setNote('header', null);
             }}
-            onAcknowledge={(reason) => void acknowledge(reason)}
+            onAcknowledge={acknowledge}
             busy={saving === 'header' || saving === 'ack'}
             message={notes.header ?? null}
             ackMessage={notes.ack ?? null}
@@ -377,6 +429,33 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
               <Button size="lg" className="min-h-11" icon={<RefreshCw aria-hidden />} data-testid="rematch" disabled={block !== false || busy || data.rows.length === 0} aria-describedby={block ? WHY : undefined} onClick={() => void rematch()}>
                 {t('pharmacy.intake.rv.rematch')}
               </Button>
+            </div>
+          )}
+          {open && (
+            <IntakeScan
+              onScan={scanBatch}
+              onAddLine={(name, code) => void addLineFor(name, code)}
+              blocked={block ? t(`pharmacy.intake.reason.${block}`) : null}
+            />
+          )}
+          {open && data.rows.length > 0 && (
+            <div className="flex min-w-0 flex-wrap items-center gap-3" data-testid="review-filter">
+              <Button
+                size="lg"
+                className="min-h-11"
+                icon={<Filter aria-hidden />}
+                data-testid="filter-open"
+                aria-pressed={onlyOpen}
+                onClick={() => setOnlyOpenPref(!onlyOpen)}
+              >
+                {onlyOpen ? t('pharmacy.intake.rv.filter.all') : t('pharmacy.intake.rv.filter.only', { count: formatNumber(openIds.length) })}
+              </Button>
+              <Button size="lg" className="min-h-11" icon={<ListChecks aria-hidden />} data-testid="next-open" disabled={openIds.length === 0} onClick={nextOpen}>
+                {openIds.length === 0 ? t('pharmacy.intake.rv.next.none') : t('pharmacy.intake.rv.next')}
+              </Button>
+              <span data-testid="filter-count" className="text-sm text-muted">
+                {t('pharmacy.intake.rv.filter.showing', { shown: formatNumber(shownRows.length), total: formatNumber(data.rows.length) })}
+              </span>
             </div>
           )}
           {notes.toolbar && <Message tone={notes.toolbar.tone} testId="toolbar-message">{notes.toolbar.text}</Message>}
@@ -406,6 +485,7 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
               blockers={blockers}
               block={approveBlock}
               busy={saving === 'approve'}
+              unsavedText={unsavedText}
               onConfirm={approve}
               onJump={jump}
               message={notes.approve ?? null}

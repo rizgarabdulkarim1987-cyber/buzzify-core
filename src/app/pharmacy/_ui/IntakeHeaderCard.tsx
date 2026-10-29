@@ -1,7 +1,7 @@
 'use client';
 
 import { CircleCheck, Lock, Pencil, Save, Undo2 } from 'lucide-react';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useT } from '@/studio/i18n';
 import { Button } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
@@ -15,6 +15,8 @@ import { isolate } from './WriteBlocked';
 export interface IntakeHeaderCardProps {
   data: ReviewData;
   suppliers: Array<{ id: string; name: string }>;
+  /** Searches the suppliers on the server by name; null when the search failed. */
+  findSupplier?: (q: string) => Promise<Array<{ id: string; name: string }> | null>;
   /** Why editing is not possible now, or false. */
   block: false | EditBlock;
   /** The unsaved header form, or null when the card is showing the values. */
@@ -23,7 +25,8 @@ export interface IntakeHeaderCardProps {
   onChange: (field: HeaderFormField, value: string) => void;
   onSave: () => void;
   onDiscard: () => void;
-  onAcknowledge: (reason: string) => void;
+  /** Resolves to true when the difference was accepted; the typed reason stays until then. */
+  onAcknowledge: (reason: string) => Promise<boolean>;
   busy: boolean;
   message: { tone: 'error' | 'ok' | 'info'; text: string } | null;
   ackMessage: { tone: 'error' | 'ok' | 'info'; text: string } | null;
@@ -39,9 +42,22 @@ const SHOWN: readonly HeaderField[] = ['invoiceNumber', 'invoiceDate', 'currency
  * Amounts are text with their currency, never floating point. A value that was not read says "Not read".
  */
 export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
-  const { data, suppliers, block, form, onOpen, onChange, onSave, onDiscard, onAcknowledge, busy, message, ackMessage } = props;
+  const { data, suppliers, findSupplier, block, form, onOpen, onChange, onSave, onDiscard, onAcknowledge, busy, message, ackMessage } = props;
   const t = useT();
   const [reason, setReason] = useState('');
+  const [query, setQuery] = useState('');
+  const [found, setFound] = useState<Array<{ id: string; name: string }> | null>(null);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const askSeq = useRef(0);
+  const search = async (q: string) => {
+    setQuery(q);
+    if (!findSupplier) return;
+    const seq = ++askSeq.current;
+    const result = await findSupplier(q.trim());
+    if (seq !== askSeq.current) return; // an older answer arriving late is dropped
+    setSearchFailed(result === null);
+    if (result !== null) setFound(result);
+  };
   const current = headerFormOf(data);
   const editing = form !== null;
   const value = (field: HeaderFormField) => form?.[field] ?? current[field];
@@ -49,13 +65,18 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
   const arithmetic = data.header.arithmetic;
   const lockedWhy = block ? t(`pharmacy.intake.reason.${block}`) : null;
 
+  // The chosen supplier is always in the list under its name, even when it is archived or the search does not return it.
+  const chosenId = value('supplierId');
+  const base = found ?? suppliers;
+  const supplierOptions = [...(chosenId !== '' && !base.some((s) => s.id === chosenId) ? [{ id: chosenId, name: (chosenId === current.supplierId ? data.batch.supplierName : null) ?? suppliers.find((s) => s.id === chosenId)?.name ?? chosenId }] : []), ...base].map((s) => ({ value: s.id, label: s.name }));
+
   const show = (field: HeaderField): ReactNode => {
     const v = data.header.values[field];
     if (v === null || v === undefined || v === '') return <NotRead t={t} />;
     if (MONEY.includes(field)) {
       return (
         <bdi dir="ltr" className="tabular-nums">
-          {formatAmount(v as number, data.header.values.currency)} {data.header.values.currency ?? ''}
+          {formatAmount(v as number, data.header.values.currency) ?? t('pharmacy.intake.rv.currencyNotSet')} {data.header.values.currency ?? ''}
         </bdi>
       );
     }
@@ -126,7 +147,7 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
           </div>
           {SHOWN.map((field) => (
             <div key={field} className="flex min-w-0 flex-col gap-0.5" data-testid={`header-field-${field}`}>
-              <dt className="text-muted">{t(`pharmacy.intake.rv.header.${field}`).replace(/ \(.*\)$/, '')}</dt>
+              <dt className="text-muted">{t(`pharmacy.intake.rv.header.short.${field}`)}</dt>
               <dd className="min-w-0 break-words text-text [overflow-wrap:anywhere]">{show(field)}</dd>
               <dd>
                 <SourceTag source={headerFieldSource(data.header, field)} t={t} />
@@ -144,18 +165,27 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
             if (!busy) onSave();
           }}
         >
-          <Field label={t('pharmacy.intake.rv.header.supplier')}>
-            <Select
-              size="lg"
-              className="min-h-11"
-              data-testid="header-supplier"
-              value={value('supplierId')}
-              onChange={(e) => onChange('supplierId', e.target.value)}
-              options={[{ value: '', label: t('pharmacy.intake.rv.header.supplierNone') }, ...suppliers.map((s) => ({ value: s.id, label: s.name }))]}
-            />
+          <Field label={t('pharmacy.intake.rv.header.supplier')} hint={searchFailed ? t('pharmacy.intake.rv.header.supplierFailed') : t('pharmacy.intake.rv.header.supplierFindHint')}>
+            <div className="flex min-w-0 flex-col gap-2">
+              {findSupplier && (
+                <Input size="lg" className="min-h-11" dir="auto" autoComplete="off" aria-label={t('pharmacy.intake.rv.header.supplierFind')} placeholder={t('pharmacy.intake.rv.header.supplierFind')} data-testid="header-supplier-search" value={query} onChange={(e) => void search(e.target.value)} />
+              )}
+              <Select
+                size="lg"
+                className="min-h-11"
+                data-testid="header-supplier"
+                value={value('supplierId')}
+                onChange={(e) => onChange('supplierId', e.target.value)}
+                options={[{ value: '', label: t('pharmacy.intake.rv.header.supplierNone') }, ...supplierOptions]}
+              />
+            </div>
           </Field>
           {SHOWN.map((field) => {
-            const source = headerFieldSource(data.header, field);
+            // Typing or choosing a value ends the disagreement: the tag stops saying "conflict" at once.
+            const stored = headerFieldSource(data.header, field);
+            const touched = form !== null && form[field] !== undefined;
+            const source = stored === 'conflict' && touched ? 'edited' : stored;
+            const extractedValue = data.header.extracted[field];
             return (
               <Field
                 key={field}
@@ -165,6 +195,11 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
                 <div className="flex min-w-0 flex-col gap-1">
                   {inputFor(field)}
                   <SourceTag source={source} t={t} />
+                  {stored === 'conflict' && extractedValue !== null && extractedValue !== undefined && extractedValue !== '' && (
+                    <Button size="lg" className="min-h-11 w-fit" data-testid={`header-use-${field}`} onClick={() => onChange(field, String(extractedValue))}>
+                      {t('pharmacy.intake.rv.header.useRead', { value: String(extractedValue) })}
+                    </Button>
+                  )}
                 </div>
               </Field>
             );
@@ -211,10 +246,7 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
                 data-testid="arith-form"
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (!busy && block === false && reason.trim() !== '') {
-                    onAcknowledge(reason.trim());
-                    setReason('');
-                  }
+                  if (!busy && block === false && reason.trim() !== '') void onAcknowledge(reason.trim()).then((ok) => ok && setReason(''));
                 }}
               >
                 <Field label={t('pharmacy.intake.rv.arith.reason')} hint={t('pharmacy.intake.rv.arith.reasonHint')}>
