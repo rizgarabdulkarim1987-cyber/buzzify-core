@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { baghdadDayOf } from '@/lib/baghdad';
 import type { ScopedDb, ScopedTx } from '@/server/data/tenant-db';
 import {
@@ -334,6 +335,45 @@ export function approvalOf(rows: readonly RowView[], header: HeaderView, process
   // A file still waiting to be read, or being read, may still bring lines: the batch is not ready while any is.
   if (processingFiles > 0) return { ok: false, reasons: [{ code: 'FILES_STILL_PROCESSING', files: processingFiles }, ...verdict.reasons] };
   return verdict;
+}
+
+/**
+ * The verdict token: a hash over everything an approval rests on, so a reviewer approves exactly what they saw. It covers the
+ * batch version and supplier, every file (id and status: a second file finishing its reading changes it), every line (version,
+ * effective values, match, derived and open flags, acknowledgement, removed or not) and the header (effective values, arithmetic,
+ * acknowledgement). It is computed from the full rows whoever asks, so a reader without `cost.view` gets the same token.
+ * `batch.get` returns it; the approval computes it again inside its transaction and refuses with `APPROVAL_STALE` on a difference.
+ */
+export function verdictTokenOf(a: { version: number; supplierId: string | null; files: ReadonlyArray<{ id: string; status: string }>; rows: readonly RowView[]; header: HeaderView }): string {
+  const canonical = {
+    version: a.version,
+    supplierId: a.supplierId,
+    files: a.files.map((f) => [f.id, f.status]),
+    rows: a.rows.map((r) =>
+      r.removed
+        ? [r.id, r.version, true]
+        : [
+            r.id,
+            r.version,
+            false,
+            r.fileId,
+            r.lineNo,
+            LINE_FIELDS.map((f) => r.line[f]),
+            r.line.unclear,
+            r.matchedProductId,
+            r.matchedUnitId,
+            r.matchState,
+            r.derived,
+            r.open,
+            arithmeticJson(r.arithmetic),
+            r.ack,
+            r.reviewed,
+            r.note,
+          ],
+    ),
+    header: [HEADER_FIELDS.map((f) => a.header.values[f]), arithmeticJson(a.header.arithmetic), a.header.acknowledged, a.header.status],
+  };
+  return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
 
 export type ApprovalVerdict = { ok: boolean; reasons: Array<ApprovalReason | { code: 'FILES_STILL_PROCESSING'; files: number }> };

@@ -10,7 +10,7 @@ import type { PhActor } from '../actor';
 import { assertStaff } from '../receipts';
 import { NS_CLIENT_KEY } from '../suppliers';
 import { ImageUnreadableError, assessQuality, type QualityAssessment } from './quality';
-import type { IntakeStorage } from './storage';
+import { getIntakeStorage, IntakeStorageNotConfiguredError, type IntakeStorage } from './storage';
 
 /**
  * Invoice intake, step one (R5-4, R5-5, R5-6, R5-13): batches of uploaded supplier invoices, their private storage, the size
@@ -48,6 +48,18 @@ export function assertMayIntake(ph: PhActor): void {
 }
 
 // Batches ---------------------------------------------------------------------------------------------------------------
+
+/** The private storage, or the typed state when production has none (upload is then off, never a fallback). */
+export function storageOrRefuse(): IntakeStorage {
+  try {
+    return getIntakeStorage();
+  } catch (error) {
+    if (error instanceof IntakeStorageNotConfiguredError) {
+      throw new StudioError('CONFLICT', 'Invoice upload is not set up yet', { phCode: error.code });
+    }
+    throw error;
+  }
+}
 
 export interface BatchCreated {
   id: string;

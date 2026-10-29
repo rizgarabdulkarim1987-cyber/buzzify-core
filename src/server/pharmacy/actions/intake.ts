@@ -3,8 +3,8 @@ import { INTAKE_LIMITS } from '@/server/domain/pharmacy/intake';
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { sweepAiReservations } from '@/server/pharmacy/intake/ai';
 import { extractFile } from '@/server/pharmacy/intake/extract';
-import { admitFile, assertMayIntake, commitFile, createBatch as makeBatch, intakeClientKey, newFileId, prepareFile } from '@/server/pharmacy/intake/files';
-import { getIntakeStorage, intakeKey, IntakeStorageNotConfiguredError, type IntakeStorage } from '@/server/pharmacy/intake/storage';
+import { admitFile, assertMayIntake, commitFile, createBatch as makeBatch, intakeClientKey, newFileId, prepareFile, storageOrRefuse } from '@/server/pharmacy/intake/files';
+import { intakeKey } from '@/server/pharmacy/intake/storage';
 import { pharmacyOf } from '@/server/pharmacy/products';
 import { defineAction } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
@@ -24,18 +24,6 @@ function branchOf(input: { branchId?: string }): string {
 
 /** The most base64 text a file of the largest accepted size plus one byte (so `TOO_LARGE` is answered by the service) takes. */
 const MAX_BASE64_LENGTH = Math.ceil((INTAKE_LIMITS.maxBytes + 1) / 3) * 4;
-
-/** The private storage, or the typed state when production has none (upload is then off, never a fallback). */
-function storageOrRefuse(): IntakeStorage {
-  try {
-    return getIntakeStorage();
-  } catch (error) {
-    if (error instanceof IntakeStorageNotConfiguredError) {
-      throw new StudioError('CONFLICT', 'Invoice upload is not set up yet', { phCode: error.code });
-    }
-    throw error;
-  }
-}
 
 export const createBatch = defineAction({
   name: 'ph.intake.batch.create',

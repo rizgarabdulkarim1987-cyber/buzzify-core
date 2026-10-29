@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import type { ScopedClient } from '@/server/data/tenant-db';
 import { StudioError } from '@/server/studio/framework/result';
-import { approvalOf, effectiveHeader, evaluateRows, headerView, loadRows, type Ack, type RowView, type StoredHeader } from './rows';
+import { approvalOf, effectiveHeader, evaluateRows, headerView, loadRows, verdictTokenOf, type Ack, type RowView, type StoredHeader } from './rows';
 
 /**
  * Invoice intake, reading batches (R5-14: `purchase.manage`). Everything is derived from the stored extraction, edits, match
@@ -218,6 +218,8 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
     files: files.map((f) => ({ id: f.id, status: f.status, failureCode: f.failureCode, pages: f.pages, mediaType: f.mediaType, bytes: f.bytes, attempts: f.attempts, extractedAt: f.extractedAt?.toISOString() ?? null })),
     rows: rows.map(read),
     approval,
+    /** What this read rests on: the approval sends it back and the server refuses (`APPROVAL_STALE`) when it no longer matches. */
+    verdictToken: verdictTokenOf({ version: batch.version, supplierId: batch.supplierId, files, rows, header }),
     ...(withCost ? { totals: [...totals].map(([c, total]) => ({ currency: c, lineTotalMinor: total.toString() })) } : {}),
   };
 }
