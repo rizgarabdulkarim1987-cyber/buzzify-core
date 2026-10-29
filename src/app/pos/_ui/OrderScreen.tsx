@@ -289,10 +289,23 @@ export function OrderScreen({
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  'relative flex min-h-28 w-full flex-col items-start gap-2 rounded-3xl border bg-raised p-4 text-start hover:bg-hover disabled:opacity-60',
+                                  'relative flex min-h-28 w-full flex-col items-start overflow-hidden rounded-3xl border bg-raised text-start hover:bg-hover disabled:opacity-60',
                                   count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
                                 )}
                               >
+                                {product.image ? (
+                                  // eslint-disable-next-line @next/next/no-img-element -- library renditions are already sized; the blur placeholder fills in while it loads
+                                  <img
+                                    src={product.image.url}
+                                    alt=""
+                                    loading="lazy"
+                                    decoding="async"
+                                    draggable={false}
+                                    style={product.image.placeholder ? { backgroundImage: `url(${product.image.placeholder})`, backgroundSize: 'cover' } : undefined}
+                                    className={cx('aspect-[4/3] w-full bg-hover object-cover', !product.available && 'grayscale')}
+                                  />
+                                ) : null}
+                                <span className="flex w-full flex-1 flex-col items-start gap-2 p-4">
                                 <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
                                   <span className="flex flex-wrap items-baseline gap-x-2">
@@ -313,6 +326,7 @@ export function OrderScreen({
                                   ) : needsSheet(product) ? (
                                     <SlidersHorizontal size={18} aria-hidden className="text-muted" />
                                   ) : null}
+                                </span>
                                 </span>
                               </button>
                             </li>
