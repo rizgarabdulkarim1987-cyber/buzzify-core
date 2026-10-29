@@ -290,6 +290,17 @@ export const getPhPlaces = cache(async (): Promise<PhPlaceChoice[]> => {
 });
 
 /**
+ * Every branch of the business with its name, for the person's own pharmacy: the other end of a transfer may be any branch
+ * (identity only: an id and a name, never stock). Empty without a place.
+ */
+export const getPhBranches = cache(async (restaurantId: string): Promise<Array<{ id: string; name: string }>> => {
+  const studioActor = await getActor();
+  if (!studioActor) return [];
+  const own = (await listPhPlaces(getPrisma(), studioActor.userId, new Date())).some((p) => p.restaurantId === restaurantId);
+  return own ? getPrisma().branch.findMany({ where: { restaurantId }, select: { id: true, name: true }, orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }] }) : [];
+});
+
+/**
  * The signed cookie value for a place the person behind the request chose, or null when the place is not theirs (or
  * nobody is signed in). The picker's form posts here through `/pharmacy/select/choose`.
  */

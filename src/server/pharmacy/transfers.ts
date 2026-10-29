@@ -698,6 +698,9 @@ export interface TransferDetail extends TransferSummary {
     batchId: string;
     lot: string;
     expiryDate: string;
+    expiryPrecision: 'DAY' | 'MONTH';
+    /** The batch's state now (a recall on the road sends the received units to quarantine). */
+    batchStatus: 'ACTIVE' | 'RECALLED' | 'BLOCKED';
     sentQty: number;
     receivedQty: number;
     damagedQty: number;
@@ -722,7 +725,7 @@ export async function getTransfer(scoped: ScopedClient, transferId: string): Pro
   const productIds = [...new Set(t.lines.map((l) => l.productId))];
   const batchIds = [...new Set(t.lines.flatMap((l) => (l.batchId ? [l.batchId] : [])))];
   const products = await scoped.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, tradeName: true } });
-  const batches = batchIds.length === 0 ? [] : await scoped.phBatch.findMany({ where: { id: { in: batchIds } }, select: { id: true, lot: true, expiryDate: true } });
+  const batches = batchIds.length === 0 ? [] : await scoped.phBatch.findMany({ where: { id: { in: batchIds } }, select: { id: true, lot: true, expiryDate: true, expiryPrecision: true, status: true } });
   const name = new Map(products.map((p) => [p.id, p.tradeName]));
   const batch = new Map(batches.map((b) => [b.id, b]));
   const requestLines = t.lines.filter((l) => l.requestLineId === null);
@@ -750,6 +753,8 @@ export async function getTransfer(scoped: ScopedClient, transferId: string): Pro
       batchId: l.batchId!,
       lot: batch.get(l.batchId!)?.lot ?? '',
       expiryDate: batch.get(l.batchId!) ? iso(batch.get(l.batchId!)!.expiryDate) : '',
+      expiryPrecision: batch.get(l.batchId!)?.expiryPrecision ?? 'MONTH',
+      batchStatus: batch.get(l.batchId!)?.status ?? 'ACTIVE',
       sentQty: l.sentQty,
       receivedQty: l.receivedQty,
       damagedQty: l.damagedQty,
