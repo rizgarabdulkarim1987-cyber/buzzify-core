@@ -13,7 +13,7 @@ import { Field } from '@/studio/ui/Field';
 import { Textarea } from '@/studio/ui/Textarea';
 import type { ReviewData } from './intake-review-logic';
 import { IntakeReview } from './IntakeReview';
-import { batchStateOf, fileControls, nextToRead, pollPlan, runDecision, type BatchState, type Control, type DisabledReason } from './intake-logic';
+import { batchStateOf, fileControls, manualEntryHref, nextToRead, pollPlan, runDecision, type BatchState, type Control, type DisabledReason } from './intake-logic';
 import { FileStatus, QualityReasons } from './intake-parts';
 import { OfflineNotice } from './OfflineNotice';
 import { phMessage } from './ph-failure';
@@ -37,7 +37,6 @@ export interface IntakeBatchProps {
 }
 
 const NOTE = 'flex items-start gap-2.5 text-sm text-text [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0';
-const MANUAL = '/pharmacy/stock/receive/new';
 
 /**
  * The batch's files: a thumbnail on request (a signed link made when asked), a chip with icon and word, the sentence for a
@@ -191,6 +190,7 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
       </div>
     ) : null;
 
+  const manualHref = manualEntryHref(review.batch.supplierId);
   const readable = data.files.filter((f) => f.status === 'UPLOADED').length;
   const readAllControl = fileControls('UPLOADED', ctx).read;
 
@@ -249,7 +249,7 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
                   {runState === 'stopping' ? t('pharmacy.intake.run.stopping') : t('pharmacy.intake.run.stop')}
                 </Button>
               )}
-              <Link href={MANUAL} data-testid="intake-manual" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+              <Link href={manualHref} data-testid="intake-manual" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
                 <PenLine aria-hidden />
                 {t('pharmacy.intake.manual')}
               </Link>
@@ -368,7 +368,7 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initi
                     {control(c.read, t('pharmacy.intake.read'), <ScanText aria-hidden />, () => void readOne(f.id, false), 'file-read', `read-${f.id}`)}
                     {control(c.retry, t('pharmacy.intake.retry'), <RotateCw aria-hidden />, () => void readOne(f.id, true), 'file-retry', `retry-${f.id}`)}
                     {c.manual && (
-                      <Link href={MANUAL} data-testid="file-manual" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
+                      <Link href={manualHref} data-testid="file-manual" className={buttonClasses('secondary', 'lg', 'min-h-11')}>
                         <PenLine aria-hidden />
                         {t('pharmacy.intake.manual')}
                       </Link>

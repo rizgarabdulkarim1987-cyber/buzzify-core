@@ -10,6 +10,7 @@ import {
   checkClientFile,
   effectiveStatus,
   emptyIntakeDraft,
+  manualEntryHref,
   fileChip,
   fileControls,
   FINAL_REFUSALS,
@@ -366,5 +367,15 @@ describe('what "Read all" does after one file', () => {
     expect(runDecision({ failureCode: 'AI_BUDGET_REACHED' })).toBe('sameReason');
     expect(runDecision({ error: { code: 'CONFLICT', message: 'x', fields: { phCode: 'BATCH_NOT_OPEN' } } })).toBe('sameReason');
     expect(runDecision({ error: { code: 'INVALID', message: NETWORK_FAILURE } })).toBe('network');
+  });
+});
+
+describe('the manual entry link', () => {
+  it('carries the batch supplier so the receipt starts with it chosen', () => {
+    expect(manualEntryHref('ph_sup-1')).toBe('/pharmacy/stock/receive/new?supplier=ph_sup-1');
+  });
+  it('is the plain screen when the batch has no supplier or the id is not a plain id', () => {
+    expect(manualEntryHref(null)).toBe('/pharmacy/stock/receive/new');
+    expect(manualEntryHref('a&b=c')).toBe('/pharmacy/stock/receive/new');
   });
 });

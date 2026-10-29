@@ -11,6 +11,11 @@ import { newClientKey } from './sell-logic';
  * judges the picture); these checks only spare a round trip and say the reason at once. No motion, no I/O.
  */
 
+/** Where "Enter it by hand" goes: the new receipt screen, with the batch's supplier already chosen when it has one. */
+export function manualEntryHref(supplierId: string | null): string {
+  return supplierId && /^[\w-]{1,64}$/.test(supplierId) ? `/pharmacy/stock/receive/new?supplier=${encodeURIComponent(supplierId)}` : '/pharmacy/stock/receive/new';
+}
+
 // Limits the browser can check ----------------------------------------------------------------------------------------
 
 /** The server's per-file and per-batch limits (INTAKE_LIMITS); the page count of a PDF is only known on the server. */

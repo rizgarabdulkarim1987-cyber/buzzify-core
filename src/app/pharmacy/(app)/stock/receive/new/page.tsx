@@ -9,6 +9,7 @@ import { ReceiveBlocked } from '@/app/pharmacy/_ui/ReceiveBlocked';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { currencies } from '@/server/pharmacy/queries/prices';
 import { get as getProduct } from '@/server/pharmacy/queries/products';
+import { get as getSupplier } from '@/server/pharmacy/queries/suppliers';
 import { get as getOrder } from '@/server/pharmacy/queries/purchase-orders';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
@@ -28,6 +29,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function NewReceiptPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const raw = await searchParams;
   const orderParam = Array.isArray(raw.order) ? raw.order[0] : raw.order;
+  const supplierParam = Array.isArray(raw.supplier) ? raw.supplier[0] : raw.supplier;
   const [access, locale] = await Promise.all([catalogAccess(), requestStudioLocale()]);
   const t = getStudioTranslator(locale);
   const { actor, place } = access;
@@ -126,15 +128,19 @@ export default async function NewReceiptPage({ searchParams }: { searchParams: P
       />
     );
   }
+  // "Enter it by hand" from an invoice batch arrives with the batch's supplier; one that is unknown, archived or malformed is ignored.
+  const supplier = supplierParam && /^[\w-]{1,64}$/.test(supplierParam) ? await query(getSupplier, { ...access.placeInput, supplierId: supplierParam }).catch(() => null) : null;
+  const chosen = supplier && supplier.active ? supplier : null;
   return (
     <ReceiptEditor
       userId={actor.userId}
       restaurantId={access.placeInput.restaurantId}
       branchId={place.branchId}
       branchName={place.branchName ?? ''}
-      initial={null}
+      initial={chosen ? { ...emptyDraft(newKey(), utcToday()), supplierName: chosen.name, supplierId: chosen.id } : null}
       receiptId={null}
       currencies={currencyList}
+      draftScope={chosen ? `supplier-${chosen.id}` : undefined}
     />
   );
 }
