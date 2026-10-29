@@ -318,10 +318,129 @@ goes on a given invoice once); editing a payment or an invoice (void and enter a
 dedicated `payable.manage` permission; a second approver for void or reversal; automatic reorder (phase 7). A voided
 invoice's number can be entered again, and its row keeps a `#void-<id>` suffix in the raw data.
 
+## Phase 5: invoice by photo (AI intake)
+
+Plan: `docs/superpowers/plans/2026-10-29-pharmacy-phase-5.md`. Rulings R5-1 to R5-17 and the later ones are in section 16 of
+the spec, each with its cost if wrong. The owner's checklist for real invoices is `docs/pharmacy/intake-uat.md`. The central
+rule: **a value the model cannot see is null, and stays null until a person types it.** Intake never writes stock, price or
+supplier invoices; an approval makes one DRAFT receipt, which a person confirms on the ordinary receive screen.
+
+**What exists**
+
+- **Upload** (`/pharmacy/purchasing/intake/new`, camera or files; the multipart route is `POST /api/pharmacy/intake/files`,
+  Studio host only): JPEG, PNG, WebP or PDF, up to 8 MB, a PDF up to 10 pages (counted by a small parser: a linearised,
+  incrementally saved or object-stream PDF is refused `PDF_UNREADABLE`, the person uses a photo or types it), up to 20 files
+  per batch, the business's stored bytes counted against `limits.storageMb`. The type is read from the bytes. An image goes
+  through the **quality gate before any AI call** (sharpness, short side, brightness, contrast; reasons `BLURRY`, `TOO_SMALL`,
+  `TOO_DARK`, `LOW_CONTRAST`, with a "retake" hint). The same bytes twice are one file (SHA-256), with no second object and no
+  second charge. Objects live in a **private R2 bucket** under `intake/<restaurantId>/<fileId>`; the object is written outside
+  any transaction.
+- **Reading** (`ph.intake.extract`, `ph.intake.retry`): the file is claimed with a 10-minute lease, a worst-case cost is
+  RESERVED against the month's budget, the model is called once with the invoice as the only document (no tools, a strict JSON
+  schema, invoice text only as data), the answer is re-validated, and one transaction saves the rows, merges the header and
+  frees the claim. At most 200 lines per file (`TOO_MANY_LINES`), a flat output cap (`EXTRACTION_TRUNCATED`), at most 5
+  readings per file (`EXTRACTION_ATTEMPTS_EXHAUSTED`). Any failure leaves the file `FAILED` with a code, the batch open and the
+  manual receive screen one tap away.
+- **Matching** (automatic after a reading, and "Match products again"): exact barcode, then exact identity (name, strength,
+  form, pack), then name similarity through the trigram index. Any doubt is `AMBIGUOUS` and a person chooses; a product with
+  several units is matched only when the invoice's pack text names one. Nothing is merged across strengths or packs.
+- **Review** (`/pharmacy/purchasing/intake/<batch>`): header card and one card per line beside the original picture. Flags
+  (each with an icon and a sentence): `MISSING`, `MATH_MISMATCH`, `MODEL_UNCLEAR`, `AMBIGUOUS_MATCH`, `EXPIRED`,
+  `DUPLICATE_LINE`, all derived from the stored values at read time. A person clears a flag by typing the value, choosing the
+  match, or marking the line reviewed with a note (a printed total that does not add up needs its own reason). A scan field
+  fills lot and expiry from a GS1 barcode only where the line has none. "Only lines with open items" is on by default.
+- **Approval** (`ph.intake.approve`): `purchase.manage`. Everything is decided from stored values under the batch lock: the
+  version and the **verdict token** the screen last read (`APPROVAL_STALE` when anything changed), the open flags recomputed,
+  the header arithmetic, the supplier, the currency, the invoice number (`INVOICE_NUMBER_REQUIRED`), and a **business-wide
+  duplicate guard** by the supplier's number (spelling-insensitive) or fingerprint against supplier invoices and approved
+  batches of every branch, ignoring batches whose receipt was voided (`DUPLICATE_INVOICE`, naming the earlier one). Then one
+  `createDraft` receipt with key `intake-approve:<batchId>` (a reserved key). Replay by `clientKey` returns the same receipt.
+- **Cancel and expiry**: cancel deletes the batch's objects first, then closes it; `expireOpenBatches` cancels batches left
+  open 30 days; the purge script deletes files older than 30 days. Lines read stay as history.
+- **Usage card** on the list: calls, tokens, and (with `cost.view`) spent, reserved and remaining USD for the Baghdad month.
+
+**Permissions** (read from `permissions.ts`, not changed by this phase)
+
+| Action | OWNER | BRANCH_MANAGER | PHARMACIST_IN_CHARGE | PHARMACIST | STOCK | ACCOUNTANT | CASHIER |
+|---|---|---|---|---|---|---|---|
+| Upload, read, retry, edit lines and header, match, scan (`purchase.manage` AND `ai.use`) | yes | yes | yes | no | no | no | no |
+| View batches, list, original picture (`purchase.manage`) | yes | yes | yes | no | yes | yes | no |
+| Approve and cancel (`purchase.manage`) | yes | yes | yes | no | yes | yes | no |
+| Usage card (`purchase.manage` and `report.view`; money with `cost.view`) | yes | yes | yes | no | no | yes | no |
+
+**Owner decision D4:** STOCK and ACCOUNTANT can approve a fully clean batch but every edit control is disabled for them with
+the reason. A support grant reads none of it. Branch confinement: a person sees and acts only on batches of their own
+branches; another branch's or business's ids behave as not found.
+
+**Pipeline and statuses.** Batch: `OPEN` -> `APPROVED` (with `receiptId`) or `CANCELLED`. File: `UPLOADED` -> `EXTRACTING` ->
+`EXTRACTED` | `FAILED` (code), or `REJECTED_QUALITY` (never stored), later `PURGED`. A line has no status of its own: its
+state is its flags, `reviewed`, its acknowledgement and its match (`UNMATCHED`, `MATCHED`, `AMBIGUOUS`, `CHOSEN`).
+
+**The approval gate.** An approval is refused (`NOT_APPROVABLE`, with row ids and flag codes only) while any line has an open
+flag, there are no lines, or the header total differs from the lines and is not acknowledged. Every acknowledgement is
+**bound to what the person was shown**: a note covers exactly the flags the line raised then (`ACK_STALE` otherwise), a
+mismatch reason is bound to that difference and currency, and an edit that changes the difference reopens it. Every write to a
+line or the header names the version the person read (`VERSION_CONFLICT`).
+
+**Locks** (written in the header comments): client key (7201) -> upload lock (7210) -> batch row FOR UPDATE -> file rows by id
+-> line rows by id; approval: its key (7301) -> batch -> files -> lines -> the invoice guard (7302, supplier and number) ->
+the receipt service. The AI usage row is locked first in the runner, then the file's reservation, then the file.
+
+**Storage, retention, environment**
+
+- `PH_INTAKE_R2_ACCOUNT_ID`, `PH_INTAKE_R2_ACCESS_KEY_ID`, `PH_INTAKE_R2_SECRET_ACCESS_KEY`, `PH_INTAKE_R2_BUCKET`: all or none,
+  the bucket different from `R2_BUCKET`. Without them upload answers `INTAKE_STORAGE_NOT_CONFIGURED`; it never uses the public
+  bucket. Outside production a temp folder adapter is used (never in production).
+- Signed picture links live at most 5 minutes and are minted per request after the access check.
+- Retention is 30 days. `npx tsx scripts/pharmacy-intake-purge.ts [--limit N]` deletes expired objects from the bucket first,
+  then marks the files `PURGED`; `npx tsx scripts/pharmacy-intake-expire.ts [--days N]` cancels stale open batches. Both print
+  counts only and exit 1 when a deletion failed. **Scheduling both daily is a launch step**; nothing schedules them yet.
+- `AI_PRICE_INPUT_USD_MICRO_PER_MTOK` and `AI_PRICE_OUTPUT_USD_MICRO_PER_MTOK`: no default; unset means `AI_PRICING_NOT_SET`.
+  `AI_PROVIDER=fake` or `scripted` is refused in production and on a deployment, and the deploy check fails on it.
+
+**AI budget unit.** The plan limit `aiMonthlyBudgetMinor` is read as **USD cents** (one cent = 10,000 micro-dollars); spend is
+stored in micro-dollars per Baghdad month. A reading reserves its worst case (bounded input plus every output token allowed) in
+one conditional update (`spent + reserved + worst <= budget`), calls the model, then settles to the real cost (never above the
+reservation; an overrun is audited, an answer paid for is never thrown away). A reservation whose worker died is booked as
+**spend** at the reserved amount by the sweeper (it runs at every upload and reading): the month can under-use its budget after
+a crash, never overspend. A timeout bills the input side; a plain provider error bills nothing. `PhAiCall` keeps metadata only.
+
+**Audit.** Ids, counts, statuses, flag codes, tokens and cost; never a name, lot, amount, number, note, reason or picture.
+
+**What is NOT built (phase 5)**
+
+- Barcode decoding from the picture (zxing): the model does not read barcodes; GS1 text typed or scanned fills lot and expiry.
+  Decide on real photos (UAT D3).
+- Restore of a removed line (there is no server action; removal asks first).
+- Line and header discounts and tax are **not folded into the receipt cost**: a discounted line is `MATH_MISMATCH`, accepted with a
+  reason at the printed pre-discount cost (UAT D5).
+- A catalog index for 50k+ products in matching beyond the trigram search; the two matching statements disable sequential scans
+  for their own transaction as a planner workaround.
+- Scheduling of the purge, the expiry sweep and the bucket lifecycle rule (launch steps).
+- Real-invoice evaluation: the 50 invoices of the acceptance test are synthetic; run `docs/pharmacy/intake-uat.md`.
+- The server exposes one value per conflicting header field, not both values the files disagreed on.
+- Sorani Kurdish is not a declared supported language of the reading (Arabic, English and mixed are).
+- Trigram matching finds nothing for Arabic and Kurdish names under a database ctype of C (exact barcode and exact identity
+  still match); the Neon database must be UTF-8 (UAT D2).
+- ar and ckb strings are machine drafts.
+
+**How to run the phase 5 tests** (always `BUZZIFY_DB_PORT=<port>`, one database test file at a time)
+
+```sh
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-5.test.ts     # 50 synthetic invoices end to end, outage, budget (about a minute)
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/intake-eval.test.ts            # the evaluation script's comparison and its safety guard (no database use)
+# one file at a time: intake-schema, intake-domain, intake-storage, intake-quality, intake-files, intake-upload-request, intake-purge-guard,
+# intake-ai, intake-extract-schema, intake-extract, intake-review, intake-scan-domain, intake-approve, intake-scripted-env, intake-dev-route,
+# ui-intake-logic, ui-intake-review-logic, ui-intake-review-fixes, isolation, receipts, supplier-invoices, purchase-orders
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.intake.config.ts --workers=1   # pharmacy-intake.spec.ts, pharmacy-intake-review.spec.ts (own server, AI_PROVIDER=scripted)
+```
+
+The e2e config starts its own dev server with the file-scripted provider and sets `Application(pharmacy)` ACTIVE and back.
+
 ## What is NOT built
 
-- **Phase 5 onward**: AI intake (5); transfers and chain reports (6); assistant, prescriptions, credit,
-  controlled-drug register, advanced printing (7). Phase 4 (purchasing) is built; what it leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
+- **Phase 6 onward**: transfers and chain reports (6); assistant, prescriptions, credit,
+  controlled-drug register, advanced printing (7). Phases 4 (purchasing) and 5 (invoice by photo) are built; what phase 5 leaves out is listed at the end of its section above; what it leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
   - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
@@ -437,7 +556,7 @@ use `--workers=1`. The kill switch is `Application(pharmacy).status`: the specs 
 it `DISABLED` closes `/pharmacy` for everyone.
 
 The phase 0 and 1 acceptance scenarios are in `tests/pharmacy/acceptance-phase-0-1.test.ts`, those of phase 2 in
-`tests/pharmacy/acceptance-phase-2.test.ts`, those of phase 3 in `tests/pharmacy/acceptance-phase-3.test.ts`, those of phase 4 in `tests/pharmacy/acceptance-phase-4.test.ts`. Run one test file at a time: the suites share one test database. The standard
+`tests/pharmacy/acceptance-phase-2.test.ts`, those of phase 3 in `tests/pharmacy/acceptance-phase-3.test.ts`, those of phase 4 in `tests/pharmacy/acceptance-phase-4.test.ts`, those of phase 5 in `tests/pharmacy/acceptance-phase-5.test.ts`. Run one test file at a time: the suites share one test database. The standard
 `npm run test:e2e` setup needs the seeded ATELIER menu (`prisma db seed`) in the database it runs against.
 
 For a local catalog to browse, `npx tsx prisma/seed-load-pharmacy.ts` seeds 50,000 products. It refuses any database
@@ -448,8 +567,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-twenty-five pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) and the four of phase 4 (listed under Phase 4 above), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+twenty-eight pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -462,7 +581,7 @@ the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, p
 `main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
 `20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
 `20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
-`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other twenty-five folders). They run on
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other twenty-eight folders). They run on
 production in the same `migrate deploy`, so they need the same dry run.
 
 Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
@@ -471,7 +590,7 @@ of the migrations. The old five-column batch unique index (business, product, lo
 next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the twenty-five has been run against Neon.
+is not available yet, so none of the twenty-eight has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -505,6 +624,7 @@ the row ships DISABLED. So set it ACTIVE first, then start the trials, then give
   end to end on Neon.
 - **Phase 4 owner list:** see the rulings table in section 16 of the spec: R4-4a (a void frees the supplier's number), R4-4b (only confirmed receipts of a supplier record can be invoiced), R4-7a (a supplier return needs `stock.adjust`), R4-9a (money actions need `report.view`; STOCK may enter invoices but not pay), R4-12a (branch redaction on invoices), R4-13a (the order suggestion's wording), a credit note on an invoice once, and no un-apply. Known gaps: cursor-plus-skip paging (the cursor row is looked up inside the list's own filter) exists in 9 older lists of phases 1 to 3 (counts, prices, products, receipts, returns, sales, shifts, and two in stock reads); the receipts, counts and shifts lists filter on status, so a row whose status changes between pages can drop out of the next page. Of the phase 4 lists only invoices, purchase orders, credit notes and the payables reads use a keyset; the payments, supplier returns and suppliers lists still use cursor-plus-skip. ar and ckb strings are machine drafts.
 - **Open items from the whole-phase review (not fixed):** (M-3) the supplier statement and the payables reads take several reads that are not one snapshot, so a concurrent write between them can show a false non-zero invariant difference for a moment; reading again clears it. (M-7) the older receipt confirm takes row locks on lots in an order that can differ between two branches receiving the same lot, so two such confirms can deadlock; Postgres ends one with a deadlock error and a retry succeeds.
+- **Phase 5 owner list:** see the rulings table in section 16 of the spec and `docs/pharmacy/intake-uat.md` (D1 to D6): month-first dates, Arabic and Kurdish search under the Neon locale, image barcode decoding, who may edit (STOCK and ACCOUNTANT approve but do not edit), discounts and tax outside the receipt cost, native review of ar and ckb. Known gaps: scheduling of the purge and expiry scripts and the bucket lifecycle rule; no restore of a removed line; the approval's request key lives in `PhIntakeBatch.header.approval` (JSON, no index); real-invoice figures (quality limits, token bounds) are synthetic until UAT. Before launch: the private bucket, its `PH_INTAKE_R2_*` variables, `AI_PRICE_*` and the plan budget.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
 - **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".
