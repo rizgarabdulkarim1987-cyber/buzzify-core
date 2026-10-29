@@ -1,8 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { placeCaptainOrder } from '@/server/studio/actions/pos-captain';
+import { openPosOrder } from '@/server/studio/actions/pos-orders';
 import { acceptPosRequest } from '@/server/studio/actions/pos-requests';
-import { posRequests } from '@/server/studio/queries/pos-requests';
+import { posOrder } from '@/server/studio/queries/pos';
+import { posRequest, posRequests } from '@/server/studio/queries/pos-requests';
 import { publishFixture } from '../helpers/db';
 import { ask, codeOf, dataOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
@@ -69,6 +71,22 @@ describe('the captain orders for a table', () => {
     expect(await prisma().posOrderLine.count({ where: { orderId: done.orderId } })).toBe(1);
     const audit = await prisma().auditLog.findFirst({ where: { action: 'pos.request.captain', entityId: requestId } });
     expect(audit).toMatchObject({ actorId: captain.userId, restaurantId: a.id });
+  });
+
+  it('joins the live order of the table when the cashier accepts it with the order version', async () => {
+    const table = await prisma().posTable.findFirstOrThrow({ where: { restaurantId: a.id, number: 1 } });
+    const opened = dataOf(await run(cashier, openPosOrder, { tableId: table.id }));
+    const { requestId } = dataOf(await run(captain, placeCaptainOrder, order({ lines: [{ productId: cake, quantity: 2 }] })));
+    const detail = dataOf(await ask(cashier, posRequest, { requestId }));
+    expect(detail).toMatchObject({ liveOrderId: opened.orderId, liveOrderVersion: opened.version });
+    const done = dataOf(await run(cashier, acceptPosRequest, { requestId, expectedOrderVersion: opened.version }));
+    expect(done).toMatchObject({ orderId: opened.orderId, created: false });
+    const joined = await prisma().posOrder.findUniqueOrThrow({ where: { id: opened.orderId } });
+    expect(joined.version).toBeGreaterThan(opened.version);
+    expect(await prisma().posOrder.count({ where: { restaurantId: a.id } })).toBe(1);
+    const view = dataOf(await ask(cashier, posOrder, { orderId: opened.orderId }));
+    expect(view.lines).toHaveLength(1);
+    expect(view.totals.subtotal).toBe(6000);
   });
 
   it('works with the approval switch on and off, and for a manager', async () => {
