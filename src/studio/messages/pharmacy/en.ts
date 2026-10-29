@@ -553,6 +553,7 @@ const pharmacy: Messages = {
   'error.text.phCostUnitMissing': 'This batch has a cost but no cost unit',
   'error.text.phReturnLineChoose': 'Choose a line of this sale',
   'error.text.phRefundChoose': 'Choose how to refund',
+  'error.text.phGroupChoose': 'Choose how to group',
   'error.text.phTextMax300': 'Use at most 300 characters',
   'error.text.phReturnLimit': 'You can return only what was sold and not yet returned',
   'error.text.phReturnKeyMismatch': 'This key was already used for a different return',

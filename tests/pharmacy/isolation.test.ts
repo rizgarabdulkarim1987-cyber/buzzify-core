@@ -483,6 +483,16 @@ const CASES: Record<string, Case> = {
   'ph.transfers.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
   'ph.transfers.get': { body: (ids, n) => ({ transferId: pick(ids, n).transferId }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
   'ph.transfers.inTransit': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
+  // Reports (phase 6, task 4): read-only aggregates of the actor's own branches; the input names no id, so another side's ids can only appear if the SQL leaks. The transfers report names both ends of a transfer.
+  'ph.reports.sales': { body: () => ({ from: '2026-10-01', to: '2026-10-31', groupBy: 'branch' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.returns': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.discounts': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.margin': { body: () => ({ from: '2026-10-01', to: '2026-10-31', groupBy: 'product' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.stockValuation': { body: () => ({ groupBy: 'product' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.expiry': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.damaged': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  'ph.reports.transfers': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
+  'ph.reports.lowStock': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
@@ -608,6 +618,15 @@ describe('the pharmacy isolation sweep', () => {
   it('covers every phase 6 transfer definition', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.transfers.'));
     expect(names.sort()).toEqual(['ph.transfers.cancel', 'ph.transfers.get', 'ph.transfers.inTransit', 'ph.transfers.list', 'ph.transfers.receive', 'ph.transfers.request', 'ph.transfers.send', 'ph.transfers.update']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('covers every phase 6 report definition', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.reports.'));
+    expect(names.sort()).toEqual([
+      'ph.reports.damaged', 'ph.reports.discounts', 'ph.reports.expiry', 'ph.reports.lowStock', 'ph.reports.margin',
+      'ph.reports.returns', 'ph.reports.sales', 'ph.reports.stockValuation', 'ph.reports.transfers',
+    ]);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 

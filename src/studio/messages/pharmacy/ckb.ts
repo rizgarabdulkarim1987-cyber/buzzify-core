@@ -547,6 +547,7 @@ const pharmacy: Messages = {
   'error.text.phCostUnitMissing': 'ئەم دەستەیە تێچووی هەیە بەڵام یەکەی تێچووی نییە',
   'error.text.phReturnLineChoose': 'هێڵێک لەم فرۆشتنە هەڵبژێرە',
   'error.text.phRefundChoose': 'شێوازی گەڕاندنەوەی پارەکە هەڵبژێرە',
+  'error.text.phGroupChoose': 'شێوازی کۆکردنەوە هەڵبژێرە',
   'error.text.phTextMax300': 'زۆرینە ٣٠٠ پیت بەکاربهێنە',
   'error.text.phReturnLimit': 'تەنها ئەوەی فرۆشراوە و هێشتا نەگەڕاوەتەوە دەتوانیت بیگەڕێنیتەوە',
   'error.text.phReturnKeyMismatch': 'ئەم کلیلە پێشتر بۆ گەڕاندنەوەیەکی تر بەکارهاتووە',

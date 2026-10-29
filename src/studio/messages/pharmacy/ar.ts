@@ -547,6 +547,7 @@ const pharmacy: Messages = {
   'error.text.phCostUnitMissing': 'لهذه الدفعة تكلفة لكن بلا وحدة تكلفة',
   'error.text.phReturnLineChoose': 'اختر سطرا من عملية البيع هذه',
   'error.text.phRefundChoose': 'اختر طريقة الاسترداد',
+  'error.text.phGroupChoose': 'اختر طريقة التجميع',
   'error.text.phTextMax300': 'استخدم 300 حرف كحد أقصى',
   'error.text.phReturnLimit': 'يمكنك إرجاع ما بيع ولم يرجع بعد فقط',
   'error.text.phReturnKeyMismatch': 'استخدم هذا المفتاح من قبل لإرجاع مختلف',

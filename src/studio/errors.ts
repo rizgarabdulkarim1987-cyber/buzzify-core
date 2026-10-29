@@ -546,6 +546,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This batch has a cost but no cost unit': 'error.text.phCostUnitMissing',
   'Choose a line of this sale': 'error.text.phReturnLineChoose',
   'Choose how to refund': 'error.text.phRefundChoose',
+  'Choose how to group': 'error.text.phGroupChoose',
   'Use at most 300 characters': 'error.text.phTextMax300',
   'You can return only what was sold and not yet returned': 'error.text.phReturnLimit',
   'This key was already used for a different return': 'error.text.phReturnKeyMismatch',
