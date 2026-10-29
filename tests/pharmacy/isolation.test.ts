@@ -103,6 +103,9 @@ interface Ids {
   /** One extracted line in each of those files (phase 5, task 6). */
   intakeRow1: string;
   intakeRow2: string;
+  /** A requested transfer from branch 1 to branch 2 and one from branch 2 to branch 1 (phase 6, task 2); each touches both branches. */
+  transfer1: string;
+  transfer2: string;
 }
 interface World {
   a: Ids;
@@ -124,7 +127,7 @@ const receiptDraft = (ids: Ids, branchId: string, key: string) => ({
 });
 
 
-async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2'>; owner: Person }> {
+async function seedSide(label: 'ALPHA' | 'BRAVO'): Promise<{ ids: Omit<Ids, 'receipt1' | 'receipt2' | 'count1' | 'count2' | 'line1' | 'line2' | 'supplierId' | 'supplierName' | 'po1' | 'po2' | 'invoiceId' | 'invoiceNumber' | 'invReceiptId' | 'invLineId' | 'paymentId' | 'creditNoteId' | 'supplierReturn1' | 'supplierReturn2' | 'intakeBatch1' | 'intakeBatch2' | 'intakeFile1' | 'intakeFile2' | 'intakeRow1' | 'intakeRow2' | 'transfer1' | 'transfer2'>; owner: Person }> {
   const biz = await pharmacy(label, { branches: 2 });
   const [b1, b2] = biz.branchIds as [string, string];
   const owner = await person(`owner${label}`, { membership: [biz.id, 'OWNER'] });
@@ -265,6 +268,17 @@ async function seedDocuments(base: Awaited<ReturnType<typeof seedSide>>['ids'], 
   };
   const [i1, i2] = [await intakeIn(base.b1, 1), await intakeIn(base.b2, 2)];
   Object.assign(withDocs, { intakeBatch1: i1.batch, intakeBatch2: i2.batch, intakeFile1: i1.file, intakeFile2: i2.file, intakeRow1: i1.row, intakeRow2: i2.row });
+  // One requested transfer each way (straight in the database): both touch both branches, so they are read at business level.
+  const transferIn = async (from: string, to: string, n: 1 | 2) => {
+    const made = await prisma().phTransfer.create({
+      data: { restaurantId: base.restaurantId, fromBranchId: from, toBranchId: to, number: `T-SEED-${n}`, clientKey: `seed-transfer-${n}-${base.restaurantId}`, payloadHash: 'seed', requestedById: owner.userId, requestedAt: NOW },
+      select: { id: true },
+    });
+    await prisma().phTransferLine.create({ data: { restaurantId: base.restaurantId, transferId: made.id, fromBranchId: from, toBranchId: to, lineNo: 1, productId: base.productId, requestedQty: 1 } });
+    return made.id;
+  };
+  withDocs.transfer1 = await transferIn(base.b1, base.b2, 1);
+  withDocs.transfer2 = await transferIn(base.b2, base.b1, 2);
   withDocs.po1 = await order(base.b1);
   withDocs.po2 = await order(base.b2);
   withDocs.receipt1 = await receipt(base.b1);
@@ -306,12 +320,14 @@ interface Case {
   foreignIds: Outcome;
   /** Naming branch 2's ids from branch 1 or from no branch (a branch-1-only person). */
   otherBranchIds: Outcome;
+  /** A transfer names both of its branches, so a person of one end legitimately sees the other end's id in it. */
+  bothEnds?: true;
 }
 
 const pick = (ids: Ids, branch: 1 | 2) =>
   branch === 1
-    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1 }
-    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2 };
+    ? { batchId: ids.batch1, movementId: ids.move1, receiptId: ids.receipt1, countId: ids.count1, lineId: ids.line1, saleId: ids.sale1, shiftId: ids.shift1, returnId: ids.return1, purchaseOrderId: ids.po1, supplierReturnId: ids.supplierReturn1, intakeBatchId: ids.intakeBatch1, intakeFileId: ids.intakeFile1, intakeRowId: ids.intakeRow1, transferId: ids.transfer1 }
+    : { batchId: ids.batch2, movementId: ids.move2, receiptId: ids.receipt2, countId: ids.count2, lineId: ids.line2, saleId: ids.sale2, shiftId: ids.shift2, returnId: ids.return2, purchaseOrderId: ids.po2, supplierReturnId: ids.supplierReturn2, intakeBatchId: ids.intakeBatch2, intakeFileId: ids.intakeFile2, intakeRowId: ids.intakeRow2, transferId: ids.transfer2 };
 let keySeq = 0;
 const key = () => `isolation-key-${(keySeq += 1)}`;
 const line = (ids: Ids) => ({ productId: ids.productId, unitId: ids.unitId, qty: 1, lot: 'planted', expiry: '2028-03-15', unitCostMinor: 100n, currency: 'IQD' });
@@ -457,6 +473,16 @@ const CASES: Record<string, Case> = {
   'ph.supplierReturns.create': { body: (ids, n) => supplierReturnBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.supplierReturns.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.supplierReturns.get': { body: (ids, n) => ({ returnId: pick(ids, n).supplierReturnId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // Transfers (phase 6, task 2): a transfer belongs to both of its branches, so a person of either end reads it (with only two branches every
+  // transfer touches branch 1; the third-branch proof is in transfers.test.ts). Writes carry a stale version so a success changes nothing the other cases read.
+  'ph.transfers.request': { body: (ids, n) => ({ clientKey: key(), fromBranchId: n === 1 ? ids.b1 : ids.b2, toBranchId: n === 1 ? ids.b2 : ids.b1, lines: [{ productId: ids.productId, qty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.update': { body: (ids, n) => ({ transferId: pick(ids, n).transferId, version: 99, lines: [{ productId: ids.productId, qty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.cancel': { body: (ids, n) => ({ transferId: pick(ids, n).transferId, version: 99 }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.send': { body: (ids, n) => ({ transferId: pick(ids, n).transferId, version: 99, clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.receive': { body: (ids, n) => ({ transferId: pick(ids, n).transferId, version: 99, clientKey: key(), lines: [{ lineId: 'none', receivedQty: 1 }] }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
+  'ph.transfers.get': { body: (ids, n) => ({ transferId: pick(ids, n).transferId }), foreignIds: 'refused', otherBranchIds: 'harmless', bothEnds: true },
+  'ph.transfers.inTransit': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
@@ -579,6 +605,12 @@ describe('the pharmacy isolation sweep', () => {
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });
 
+  it('covers every phase 6 transfer definition', () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.transfers.'));
+    expect(names.sort()).toEqual(['ph.transfers.cancel', 'ph.transfers.get', 'ph.transfers.inTransit', 'ph.transfers.list', 'ph.transfers.receive', 'ph.transfers.request', 'ph.transfers.send', 'ph.transfers.update']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
   it('covers the sale screen search', () => {
     const sell = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.sell.'));
     expect(sell).toEqual(['ph.sell.search']);
@@ -633,6 +665,9 @@ async function snapshot(ids: Ids, branchId?: string): Promise<string> {
   const businessWide = branchId ? undefined : { where: { restaurantId: ids.restaurantId }, orderBy };
   const intakeBatches = await prisma().phIntakeBatch.findMany({ where, orderBy });
   return json({
+    // Transfers belong to two branches, so they are compared for a whole business only (phase 6).
+    transfers: businessWide ? await prisma().phTransfer.findMany(businessWide) : undefined,
+    transferLines: businessWide ? await prisma().phTransferLine.findMany(businessWide) : undefined,
     // Intake batches are branch-scoped; their files are reached through the batch (phase 5).
     intakeBatches,
     intakeFiles: await prisma().phIntakeFile.findMany({ where: { batchId: { in: intakeBatches.map((x) => x.id) } }, orderBy }),
@@ -682,7 +717,7 @@ function tracesOf(ids: Ids, branch?: 1 | 2): string[] {
     return [n === 1 ? ids.b1 : ids.b2, movementId, receiptId, countId, lineId, saleId, shiftId, returnId, purchaseOrderId, supplierReturnId, intakeBatchId, intakeFileId, intakeRowId];
   };
   if (branch) return docs(branch);
-  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ...docs(1), ...docs(2)];
+  return [ids.restaurantId, ids.categoryId, ids.tradeName, ids.batch1, ids.batch2, ids.lot1, ids.lot2, ids.supplierId, ids.supplierName, ids.invoiceId, ids.invoiceNumber, ids.invReceiptId, ids.invLineId, ids.paymentId, ids.creditNoteId, ids.transfer1, ids.transfer2, ...docs(1), ...docs(2)];
 }
 
 interface Attack {
@@ -749,7 +784,7 @@ describe.each(Object.keys(CASES))('%s', (name) => {
 
   it('keeps a branch-1-only person out of branch 2, to read and to write', async () => {
     const { a, b, managerA1 } = world;
-    const guarded = { ids: a, branchId: a.b2, traces: tracesOf(a, 2) };
+    const guarded = { ids: a, branchId: a.b2, traces: tracesOf(a, 2).filter((trace) => !(c.bothEnds && trace === a.b2)) };
     // The other branch named as the place: the framework refuses it.
     await attack(name, { who: managerA1, place: { restaurantId: a.restaurantId, branchId: a.b2 }, names: a, branch: 2, outcome: 'refused', refusals: STRICT, guarded });
     // Branch 2's documents named from branch 1, and from no branch (all of the person's branches, which is branch 1).

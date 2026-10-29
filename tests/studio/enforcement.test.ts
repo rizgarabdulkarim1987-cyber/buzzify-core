@@ -763,7 +763,7 @@ describe('Studio enforcement rules', () => {
        * orders (head, lines, and the received counters a confirmed receipt raises), `supplier-invoices.ts` invoices, their
        * lines, the settled counters (`settleInvoice`) and `PhReceiptLine.invoicedQty`, `supplier-payments.ts` payments, their
        * allocations and the credit applications (the note's own counter belongs to `credit-notes.ts`), `credit-notes.ts` the
-       * notes, `supplier-returns.ts` returns and their lines. Anything else is a new writer: not allowed until this table says so.
+       * notes, `supplier-returns.ts` returns and their lines, `transfers.ts` transfers and their lines. Anything else is a new writer: not allowed until this table says so.
        */
       const WRITERS: Record<string, string[]> = {
         PhSupplier: ['suppliers.ts'],
@@ -777,12 +777,16 @@ describe('Studio enforcement rules', () => {
         PhCreditAllocation: ['supplier-payments.ts'],
         PhSupplierReturn: ['supplier-returns.ts'],
         PhSupplierReturnLine: ['supplier-returns.ts'],
+        // Transfers between branches (phase 6): the header and its lines (request and sent lines) are written by one service.
+        PhTransfer: ['transfers.ts'],
+        PhTransferLine: ['transfers.ts'],
       };
-      /** Counter columns on tables that other services own: column -> the only file that may write it. */
-      const COUNTERS: Record<string, string> = {
-        invoicedQty: 'supplier-invoices.ts',
-        receivedQty: 'purchase-orders.ts',
-        receivedBonus: 'purchase-orders.ts',
+      /** Counter columns on tables that other services own: column -> the only files that may write it. */
+      const COUNTERS: Record<string, string[]> = {
+        invoicedQty: ['supplier-invoices.ts'],
+        // A transfer line has its own received quantity: the transfers service writes it (the purchase order counter stays with orders).
+        receivedQty: ['purchase-orders.ts', 'transfers.ts'],
+        receivedBonus: ['purchase-orders.ts'],
       };
       const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)';
 
@@ -811,7 +815,7 @@ describe('Studio enforcement rules', () => {
       }
       const offenders = (path: string, source: string) => [
         ...purchasingTableWrites(source).filter((table) => !WRITERS[table]!.some((file) => path === `${SERVICES}${file}`)),
-        ...counterWrites(source).filter((column) => path !== `${SERVICES}${COUNTERS[column]!}`),
+        ...counterWrites(source).filter((column) => !COUNTERS[column]!.some((file) => path === `${SERVICES}${file}`)),
       ];
 
       it('recognises a write however the receiver is spelled, a version update, raw SQL and a counter included', () => {
@@ -826,6 +830,11 @@ describe('Studio enforcement rules', () => {
         expect(purchasingTableWrites('await tx.phSupplierPaymentAllocation.upsert({});')).toEqual(['PhSupplierPaymentAllocation']);
         expect(purchasingTableWrites('await tx.phSupplierReturnLine.deleteMany({});')).toEqual(['PhSupplierReturnLine']);
         expect(purchasingTableWrites('await tx.phSupplierInvoiceLine.update({ where, data });')).toEqual(['PhSupplierInvoiceLine']);
+        expect(purchasingTableWrites('await tx.phTransfer.update({ where, data });')).toEqual(['PhTransfer']);
+        expect(purchasingTableWrites('await ctx.scoped!.phTransferLine.createMany({ data });')).toEqual(['PhTransferLine']);
+        expect(purchasingTableWrites('await updateWithVersion(tx.phTransfer, { id }, tx);')).toEqual(['PhTransfer']);
+        expect(purchasingTableWrites('await tx.$executeRaw`UPDATE "PhTransferLine" SET "sentQty" = 1`;')).toEqual(['PhTransferLine']);
+        expect(purchasingTableWrites('await tx.phTransfer.findMany({});\nawait tx.phTransferLine.count({});\nawait tx.$queryRaw`SELECT "id" FROM "PhTransfer" FOR UPDATE`;')).toEqual([]);
         expect(purchasingTableWrites('await tx.phSupplierReturn.findMany({});\nawait tx.phSupplier.count();\nawait updateWithVersion(tx.phProduct, {}, tx);')).toEqual([]);
         expect(purchasingTableWrites("await tx.$queryRaw`SELECT * FROM \"PhSupplierInvoice\"`;")).toEqual([]);
         expect(counterWrites('await tx.phReceiptLine.updateMany({ where: { id }, data: { invoicedQty: { increment: 1 } } });')).toEqual(['invoicedQty']);
@@ -849,6 +858,9 @@ describe('Studio enforcement rules', () => {
         expect(offenders('src/server/pharmacy/receipts.ts', 'await tx.phReceiptLine.update({ where, data: { invoicedQty: 3 } });')).toEqual(['invoicedQty']);
         expect(offenders('src/server/pharmacy/receipts.ts', 'await tx.phPurchaseOrderLine.update({ where, data: { receivedQty: 3 } });')).toEqual(['PhPurchaseOrderLine', 'receivedQty']);
         expect(offenders('src/server/pharmacy/supplier-invoices.ts', 'await tx.phPurchaseOrderLine.update({ where, data: { receivedBonus: 1 } });')).toEqual(['PhPurchaseOrderLine', 'receivedBonus']);
+        expect(offenders('src/server/pharmacy/stock.ts', 'await tx.phTransfer.update({ where, data });')).toEqual(['PhTransfer']);
+        expect(offenders('src/server/pharmacy/actions/transfers.ts', 'await tx.phTransferLine.create({ data });')).toEqual(['PhTransferLine']);
+        expect(offenders('src/server/pharmacy/transfers.ts', 'await tx.phTransfer.update({ where, data });\nawait tx.phTransferLine.createMany({ data });')).toEqual([]);
         expect(offenders('src/server/pharmacy/suppliers.ts', 'await tx.phSupplier.create({ data });')).toEqual([]);
         expect(offenders('src/server/pharmacy/purchase-orders.ts', 'await tx.phPurchaseOrderLine.update({ where, data: { receivedQty: 3 } });')).toEqual([]);
         expect(offenders('src/server/pharmacy/supplier-invoices.ts', 'await tx.phReceiptLine.updateMany({ where, data: { invoicedQty: { increment: 1 } } });')).toEqual([]);
@@ -864,7 +876,9 @@ describe('Studio enforcement rules', () => {
         for (const [table, files] of Object.entries(WRITERS)) {
           for (const file of files) expect(purchasingTableWrites(read(`${SERVICES}${file}`)), `${file} should write ${table}`).toContain(table);
         }
-        for (const [column, file] of Object.entries(COUNTERS)) expect(counterWrites(read(`${SERVICES}${file}`)), `${file} should write ${column}`).toContain(column);
+        for (const [column, files] of Object.entries(COUNTERS)) {
+          for (const file of files) expect(counterWrites(read(`${SERVICES}${file}`)), `${file} should write ${column}`).toContain(column);
+        }
       });
 
       it('leaves the stock tables to stock.ts: no purchasing service writes them', () => {
