@@ -138,7 +138,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
   const records = await loadRows(scoped, batchId);
   const rows = evaluateRows(records, now);
   const header = headerView(batch.header, rows);
-  const approval = approvalOf(rows, header);
+  const approval = approvalOf(rows, header, files.filter((f) => f.status === 'UPLOADED' || f.status === 'EXTRACTING').length);
   const candidateOfRow = new Map(records.map((r) => [r.id, candidatesOf(r.candidates)]));
 
   const productIds = [...new Set(rows.flatMap((r) => [...(r.matchedProductId ? [r.matchedProductId] : []), ...(candidateOfRow.get(r.id) ?? []).map((c) => c.productId)]))];

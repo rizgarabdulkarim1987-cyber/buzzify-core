@@ -3,7 +3,7 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@/generated/prisma/client';
 import { scopedClient } from '@/server/data/tenant-db';
-import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
+import { identityKeyOf, searchTextOf } from '@/server/domain/pharmacy/product-identity';
 import type { PhRole } from '@/server/domain/pharmacy/permissions';
 import * as productActions from '@/server/pharmacy/actions/products';
 import * as reviewActions from '@/server/pharmacy/actions/intake-review';
@@ -12,6 +12,7 @@ import { matchRows } from '@/server/pharmacy/intake/review';
 import * as reviewQueries from '@/server/pharmacy/queries/intake-review';
 import { databaseUrl, TEST_DB } from '../../scripts/db-config';
 import { grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import type { ActionDef } from '@/server/studio/framework/action';
 import { act, ask, codeOf, dataOf, phCodeOf } from './stock-helpers';
 
 /**
@@ -70,7 +71,8 @@ async function product(restaurantId: string, tradeName: string, o: { strength?: 
       strength,
       form,
       active: o.active ?? true,
-      identityKey: `${tradeName}|${strength}|${form}|${restaurantId}|${(seq += 1)}`,
+      // the key the catalog writes (the manufacturer field makes two fixtures of one name different)
+      identityKey: identityKeyOf({ tradeName, strength, form, manufacturer: `maker-${(seq += 1)}`, packLabel: '10 strip' }),
       searchText: searchTextOf({ tradeName, genericName: '', activeIngredient: '', strength, form, manufacturer: '' }),
     },
     select: { id: true },
@@ -136,10 +138,34 @@ async function clean(w: World, over: Record<string, unknown> = {}) {
 }
 
 const update = (w: World, who: Person, rowId: string, patch: object, extra: Record<string, unknown> = {}, branch: 1 | 2 = 1) =>
-  act(who, reviewActions.rowUpdate, { ...place(w, branch), rowId, patch, clientKey: key(), ...extra });
+  vact(who, reviewActions.rowUpdate, { ...place(w, branch), rowId, patch, clientKey: key(), ...extra });
 const get = (w: World, who: Person, batchId: string, branch?: 1 | 2) => ask(who, reviewQueries.batchGet, { restaurantId: w.a.id, ...(branch ? { branchId: branch === 1 ? w.b1 : w.b2 } : { branchId: w.b1 }), batchId });
 const rowOf = (id: string) => prisma().phIntakeRow.findUniqueOrThrow({ where: { id } });
 const readRow = async (w: World, batchId: string, rowId: string) => dataOf(await get(w, w.owner, batchId)).rows.find((r) => r.id === rowId)!;
+
+/**
+ * Calls a write the way the screen does: with the version it last read and with what it showed the person (the flags of a line
+ * for a review, the difference and currency for a header acknowledgement). Anything the test passes itself is kept, so a stale
+ * version or a wrong "shown" can be tried on purpose.
+ */
+async function vact<I, O>(who: Person, def: ActionDef<I, O>, input: Record<string, unknown>) {
+  const out = { ...input };
+  const full = async (batchId: string) => getBatch(scopedClient(prisma(), { restaurantId: String(input.restaurantId), allBranches: true }), batchId, undefined, true, NOW);
+  if (typeof out.rowId === 'string') {
+    const found = await prisma().phIntakeRow.findUnique({ where: { id: out.rowId }, select: { version: true, file: { select: { batchId: true } } } });
+    if (out.version === undefined) out.version = found?.version ?? 1;
+    if (def === (reviewActions.rowReview as unknown) && out.shown === undefined && found) out.shown = (await full(found.file.batchId)).rows.find((r) => r.id === out.rowId)?.flags ?? [];
+  } else if (typeof out.batchId === 'string') {
+    const found = await prisma().phIntakeBatch.findUnique({ where: { id: out.batchId }, select: { version: true } });
+    if (out.version === undefined) out.version = found?.version ?? 1;
+    if (def === (reviewActions.headerAcknowledge as unknown) && out.shown === undefined && found) {
+      const read = await full(out.batchId);
+      const a = read.header.arithmetic;
+      out.shown = { difference: a && a.status !== 'UNKNOWN' ? a.difference : '0', currency: read.header.values.currency ?? null };
+    }
+  }
+  return act(who, def, out);
+}
 
 beforeAll(() => {
   useTestDatabase();
@@ -162,6 +188,7 @@ const checkDigit = (digits: string): string => {
 };
 const EAN13 = `622103100234${checkDigit('622103100234')}`;
 const GTIN14 = `0${EAN13.slice(0, 12)}${checkDigit(`0${EAN13.slice(0, 12)}`)}`;
+const GS1 = { gtin: GTIN14, lot: 'A1', expiry: { date: '2028-03-31', precision: 'MONTH' as const }, source: 'barcode' };
 
 describe('matching lines to the catalog', () => {
   const matchOne = async (w: World, over: Record<string, unknown>) => {
@@ -183,6 +210,21 @@ describe('matching lines to the catalog', () => {
     const p = await product(w.a.id, 'Brufen', { barcode: EAN13 });
     expect(await matchOne(w, { name: '?', barcodeText: GTIN14 })).toMatchObject({ matchState: 'MATCHED', matchedProductId: p.id });
     expect(await matchOne(w, { name: '?', barcodeText: `(01)${GTIN14}(17)280331(10)A1` })).toMatchObject({ matchState: 'MATCHED', matchedProductId: p.id });
+  });
+
+  it('the other direction too: an EAN-13, UPC-A or GTIN-8 on the invoice meets the same item stored as a GTIN-14 or EAN-13 (review minor)', async () => {
+    const w = await world();
+    const stored14 = await product(w.a.id, 'Stored14', { barcode: GTIN14 });
+    expect(await matchOne(w, { name: '?', barcodeText: EAN13 })).toMatchObject({ matchState: 'MATCHED', matchedProductId: stored14.id, matchedUnitId: stored14.strip });
+    const upc = '036000291452';
+    const storedEan = await product(w.a.id, 'StoredEan', { barcode: `0${upc}` });
+    expect(await matchOne(w, { name: '?', barcodeText: upc })).toMatchObject({ matchState: 'MATCHED', matchedProductId: storedEan.id });
+    const gtin8 = '96385074';
+    const stored8 = await product(w.a.id, 'Stored8', { barcode: gtin8.padStart(14, '0') });
+    expect(await matchOne(w, { name: '?', barcodeText: gtin8 })).toMatchObject({ matchState: 'MATCHED', matchedProductId: stored8.id });
+    // a code whose check digit is wrong is only ever compared as written
+    const wrong = `${EAN13.slice(0, 12)}${(Number(EAN13[12]) + 1) % 10}`;
+    expect(await matchOne(w, { name: '?', barcodeText: wrong })).toMatchObject({ matchState: 'UNMATCHED', matchedProductId: null });
   });
 
   it('the identity key (name, strength, form, pack) matches exactly and proposes the pack unit', async () => {
@@ -234,7 +276,7 @@ describe('matching lines to the catalog', () => {
     const b = await batch(w);
     const chosen = await row(w, b.fileId, { name: 'Unknown thing', strength: '', form: '', pack: '' });
     const auto = await row(w, b.fileId);
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId: chosen, productId: other.id, unitId: other.tablet }))).toBe('OK');
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId: chosen, productId: other.id, unitId: other.tablet }))).toBe('OK');
     await prisma().phIntakeRow.update({ where: { id: auto }, data: { matchState: 'UNMATCHED', matchedProductId: null, matchedUnitId: null } });
     const summary = dataOf(await act(w.pic, reviewActions.rematchBatch, { ...place(w), batchId: b.batchId }));
     expect(summary).toMatchObject({ matched: 1, chosen: 1 });
@@ -248,13 +290,13 @@ describe('matching lines to the catalog', () => {
     const gone = await product(w.a.id, 'Old', { active: false });
     const stranger = await product(w.a.id, 'Zinnat');
     const { rowId } = await clean(w);
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: gone.id, unitId: gone.strip }))).toBe('CONFLICT');
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: live.id, unitId: stranger.strip }))).toBe('INVALID');
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: 'nope', unitId: live.strip }))).toBe('NOT_FOUND');
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: gone.id, unitId: gone.strip }))).toBe('CONFLICT');
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: live.id, unitId: stranger.strip }))).toBe('INVALID');
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: 'nope', unitId: live.strip }))).toBe('NOT_FOUND');
     const other = await pharmacy('B');
     const foreign = await product(other.id, 'Foreign');
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: foreign.id, unitId: foreign.strip }))).toBe('NOT_FOUND');
-    const cleared = dataOf(await act(w.pic, reviewActions.rowClearMatch, { ...place(w), rowId }));
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: foreign.id, unitId: foreign.strip }))).toBe('NOT_FOUND');
+    const cleared = dataOf(await vact(w.pic, reviewActions.rowClearMatch, { ...place(w), rowId }));
     expect(cleared.flags).toContain('MISSING');
     expect(await rowOf(rowId)).toMatchObject({ matchState: 'UNMATCHED', matchedProductId: null });
   });
@@ -288,6 +330,30 @@ describe('matching 200 lines reads the catalog a constant number of times', () =
     } finally {
       await client.$disconnect();
     }
+  }, 120_000);
+});
+
+describe('a catalog of 5,000 products (review I5)', () => {
+  it('finds the real product however far down by id it is: exact name, exact barcode, and a misspelt name', async () => {
+    const w = await world();
+    const restaurantId = w.a.id;
+    // 5,000 products that all start with the same three letters as the real one, with ids that sort BEFORE the real one's
+    const rows = Array.from({ length: 5000 }, (_, i) => {
+      const tradeName = `Zolp${i.toString(36)} ${i % 7} mg`;
+      return { id: `a-noise-${String(i).padStart(5, '0')}`, restaurantId, tradeName, strength: '', form: '', identityKey: `${tradeName}|||${restaurantId}|${i}`, searchText: searchTextOf({ tradeName, genericName: '', activeIngredient: '', strength: '', form: '', manufacturer: '' }) };
+    });
+    await prisma().phProduct.createMany({ data: rows });
+    const real = await product(restaurantId, 'Zolpidem Tartrate', { strength: '10 mg', form: 'tablet', barcode: EAN13 });
+    expect(await prisma().phProduct.count({ where: { restaurantId } })).toBe(5001);
+    const b = await batch(w);
+    const exact = await row(w, b.fileId, { name: 'ZOLPIDEM TARTRATE', strength: '10MG', form: 'Tablet', pack: '10 strip', barcodeText: null });
+    const byCode = await row(w, b.fileId, { name: 'something else', strength: '', form: '', pack: '', barcodeText: EAN13 });
+    const typo = await row(w, b.fileId, { name: 'Zolpidm Tartrate', strength: '', form: '', pack: '', barcodeText: null });
+    await matchRows(prisma(), { restaurantId }, b.batchId, NOW);
+    expect(await rowOf(exact)).toMatchObject({ matchState: 'MATCHED', matchedProductId: real.id, matchedUnitId: real.strip });
+    expect(await rowOf(byCode)).toMatchObject({ matchState: 'MATCHED', matchedProductId: real.id });
+    const misspelt = await rowOf(typo);
+    expect((misspelt.candidates as Array<{ productId: string }>).map((c) => c.productId)).toContain(real.id);
   }, 120_000);
 });
 
@@ -349,7 +415,7 @@ describe('editing a line', () => {
     // a stale or forged stored flag set, and a client that claims there is nothing to fix
     await prisma().phIntakeRow.update({ where: { id: rowId }, data: { flags: [] } });
     expect((await readRow(w, batchId, rowId)).flags).toEqual(['MISSING']);
-    const result = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { barcodeText: '5901234123457' }, clientKey: key(), flags: [], openFlags: [] }));
+    const result = dataOf(await vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { barcodeText: '5901234123457' }, clientKey: key(), flags: [], openFlags: [] }));
     expect(result.flags).toEqual(['MISSING']);
     expect((await rowOf(rowId)).flags).toEqual(['MISSING']);
   });
@@ -371,25 +437,78 @@ describe('editing a line', () => {
     expect(codeOf(await update(w, w.pic, rowId, { lot: 'A' }, { version: v }))).toBe('OK');
     const stale = await update(w, w.pic, rowId, { lot: 'B' }, { version: v });
     expect(codeOf(stale)).toBe('CONFLICT');
-    expect(phCodeOf(stale)).toBe('ROW_STALE');
+    expect(phCodeOf(stale)).toBe('VERSION_CONFLICT');
     expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'A' });
+  });
+
+  it('every write to a line or the header needs the version it saw (review I3)', async () => {
+    const w = await world();
+    const { rowId, batchId } = await clean(w, { lineTotal: 9000, unclear: ['lot'] });
+    const p = place(w);
+    const calls: Array<[string, Promise<unknown>]> = [
+      ['row.update', act(w.pic, reviewActions.rowUpdate, { ...p, rowId, patch: { lot: 'Q' }, clientKey: key() })],
+      ['row.match', act(w.pic, reviewActions.rowMatch, { ...p, rowId, productId: 'x', unitId: 'y' })],
+      ['row.clearMatch', act(w.pic, reviewActions.rowClearMatch, { ...p, rowId })],
+      ['row.review', act(w.pic, reviewActions.rowReview, { ...p, rowId, note: 'seen', shown: ['MODEL_UNCLEAR'] })],
+      ['row.fillFromBarcode', act(w.pic, reviewActions.rowFillFromBarcode, { ...p, rowId })],
+      ['row.remove', act(w.pic, reviewActions.rowRemove, { ...p, rowId })],
+      ['header.update', act(w.pic, reviewActions.headerUpdate, { ...p, batchId, patch: { tax: 0 } })],
+      ['header.acknowledge', act(w.pic, reviewActions.headerAcknowledge, { ...p, batchId, reason: 'seen', shown: { difference: '0', currency: 'IQD' } })],
+    ];
+    for (const [name, call] of calls) expect(codeOf((await call) as never), `${name} without a version`).toBe('INVALID');
+    expect((await rowOf(rowId)).edited).toEqual({});
+  });
+
+  it('two keys in a row: the late retry of the first key is refused or replayed, and the second change stays (review I3)', async () => {
+    const w = await world();
+    const { rowId } = await clean(w);
+    const [k1, k2] = [key(), key()];
+    const v0 = (await rowOf(rowId)).version;
+    const first = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, version: v0, patch: { lot: 'K1' }, clientKey: k1 }));
+    const second = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, version: first.version, patch: { lot: 'K2' }, clientKey: k2 }));
+    expect(second.version).toBe(first.version + 1);
+    // K1 arrives again late (a flaky network), with the version it was sent with: the line is at K2 now
+    const late = await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, version: v0, patch: { lot: 'K1' }, clientKey: k1 });
+    expect(phCodeOf(late)).toBe('VERSION_CONFLICT');
+    expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'K2' });
+    // the latest key replays as the same answer
+    const again = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, version: first.version, patch: { lot: 'K2' }, clientKey: k2 }));
+    expect(again).toMatchObject({ replayed: true, version: second.version });
+    expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'K2' });
+  });
+
+  it('a stale version is refused by every other line write too', async () => {
+    const w = await world();
+    const { rowId, batchId } = await clean(w, { lineTotal: 9000, unclear: ['lot'] });
+    const v0 = (await rowOf(rowId)).version;
+    dataOf(await update(w, w.pic, rowId, { lot: 'A' }));
+    const p = place(w);
+    const flags = ['MATH_MISMATCH'];
+    for (const [name, call] of [
+      ['row.clearMatch', act(w.pic, reviewActions.rowClearMatch, { ...p, rowId, version: v0 })],
+      ['row.review', act(w.pic, reviewActions.rowReview, { ...p, rowId, version: v0, note: 'seen', shown: flags })],
+      ['row.fillFromBarcode', act(w.pic, reviewActions.rowFillFromBarcode, { ...p, rowId, version: v0 })],
+      ['row.remove', act(w.pic, reviewActions.rowRemove, { ...p, rowId, version: v0 })],
+      ['header.update', act(w.pic, reviewActions.headerUpdate, { ...p, batchId, version: 99, patch: { tax: 0 } })],
+    ] as const) expect(phCodeOf((await call) as never), name).toBe('VERSION_CONFLICT');
+    expect((await rowOf(rowId)).edited).toEqual({ lot: 'A' });
   });
 
   it('the same clientKey and patch replays; another patch under the key is a mismatch; two at once make one change', async () => {
     const w = await world();
     const { rowId } = await clean(w);
     const k = key();
-    const first = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }));
-    const again = dataOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }));
+    const first = dataOf(await vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }));
+    const again = dataOf(await vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }));
     expect(first.replayed).toBe(false);
     expect(again).toMatchObject({ replayed: true, version: first.version });
-    expect(phCodeOf(await act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R2' }, clientKey: k }))).toBe('CLIENT_KEY_MISMATCH');
-    expect(phCodeOf(await act(w.manager, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R2' }, clientKey: k }))).toBe('CLIENT_KEY_MISMATCH');
+    expect(phCodeOf(await vact(w.manager, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'R1' }, clientKey: k }))).toBe('CLIENT_KEY_MISMATCH');
     const parallel = key();
     const before = (await rowOf(rowId)).version;
     const both = await Promise.all([
-      act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'P1' }, clientKey: parallel }),
-      act(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'P1' }, clientKey: parallel }),
+      vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'P1' }, clientKey: parallel }),
+      vact(w.pic, reviewActions.rowUpdate, { ...place(w), rowId, patch: { lot: 'P1' }, clientKey: parallel }),
     ]);
     expect(both.map(codeOf)).toEqual(['OK', 'OK']);
     expect((await rowOf(rowId)).version).toBe(before + 1);
@@ -398,7 +517,7 @@ describe('editing a line', () => {
   it('a removed line is not editable', async () => {
     const w = await world();
     const { rowId } = await clean(w);
-    expect(codeOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId }))).toBe('OK');
+    expect(codeOf(await vact(w.pic, reviewActions.rowRemove, { ...place(w), rowId }))).toBe('OK');
     expect(phCodeOf(await update(w, w.pic, rowId, { lot: 'X' }))).toBe('ROW_REMOVED');
   });
 });
@@ -408,12 +527,12 @@ describe('acknowledging what a reviewer saw', () => {
     const w = await world();
     const { rowId, batchId } = await clean(w, { unclear: ['lot'] });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MODEL_UNCLEAR']);
-    expect(codeOf(await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'Checked the lot on the box' }))).toBe('OK');
+    expect(codeOf(await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'Checked the lot on the box' }))).toBe('OK');
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual([]);
     // an expiry in the past is a flag the note never saw
     expect(dataOf(await update(w, w.pic, rowId, { expiry: '01/2020' })).flags).toEqual(['EXPIRED']);
     // it can be acknowledged too, and then it is covered, until the date changes to another past date and back
-    await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'Old stock, goes to quarantine' });
+    await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'Old stock, goes to quarantine' });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual([]);
     await update(w, w.pic, rowId, { expiry: '2028-03' });
     expect((await rowOf(rowId)).acknowledged).toMatchObject({ flags: ['MODEL_UNCLEAR'] });
@@ -423,7 +542,7 @@ describe('acknowledging what a reviewer saw', () => {
   it('a note does not clear MISSING or AMBIGUOUS_MATCH', async () => {
     const w = await world();
     const { rowId, batchId } = await clean(w, { lot: null });
-    await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked' });
+    await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked' });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MISSING']);
   });
 
@@ -432,9 +551,9 @@ describe('acknowledging what a reviewer saw', () => {
     const { rowId, batchId } = await clean(w, { lineTotal: 9000 });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MATH_MISMATCH']);
     // a note alone does not accept a mismatch
-    await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked' });
+    await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked' });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MATH_MISMATCH']);
-    await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked', mismatchReason: 'The supplier gave a 10% discount' });
+    await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked', mismatchReason: 'The supplier gave a 10% discount' });
     const reasoned = await readRow(w, batchId, rowId);
     expect(reasoned.openFlags).toEqual([]);
     expect(reasoned.acknowledged.mismatch).toEqual({ difference: '-1000' });
@@ -450,20 +569,76 @@ describe('acknowledging what a reviewer saw', () => {
   it('the header difference is accepted with a reason for that difference only', async () => {
     const w = await world();
     const { batchId } = await clean(w);
-    expect(phCodeOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'fine' }))).toBe('NO_DIFFERENCE');
-    dataOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: '12,000' } }));
+    expect(phCodeOf(await vact(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'fine' }))).toBe('NO_DIFFERENCE');
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: '12,000' } }));
     let read = dataOf(await get(w, w.owner, batchId));
     expect(read.header.status).toBe('MISMATCH');
     expect(read.approval.reasons).toContainEqual({ code: 'HEADER_MISMATCH' });
-    dataOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'A line was torn off the copy' }));
+    dataOf(await vact(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'A line was torn off the copy' }));
     read = dataOf(await get(w, w.owner, batchId));
     expect(read.header.acknowledged).toMatchObject({ difference: '2000' });
     expect(read.approval.reasons).toEqual([]);
     expect(read.approval.ok).toBe(true);
-    dataOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: 13000 } }));
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: 13000 } }));
     read = dataOf(await get(w, w.owner, batchId));
     expect(read.header.acknowledged).toBeNull();
     expect(read.approval.reasons).toContainEqual({ code: 'HEADER_MISMATCH' });
+  });
+});
+
+describe('an acknowledgement is only for what the person saw (review I2)', () => {
+  it('a line review with other flags than the line raises now is refused: ACK_STALE, nothing stored', async () => {
+    const w = await world();
+    const { rowId, batchId } = await clean(w, { unclear: ['lot'] });
+    const version = async () => (await rowOf(rowId)).version;
+    const call = async (shown: string[]) => act(w.pic, reviewActions.rowReview, { ...place(w), rowId, version: await version(), note: 'looked', shown });
+    expect(phCodeOf(await call([]))).toBe('ACK_STALE');
+    expect(phCodeOf(await call(['MODEL_UNCLEAR', 'EXPIRED']))).toBe('ACK_STALE');
+    expect((await rowOf(rowId)).reviewed).toBe(false);
+    // the flags changed under the reviewer without a version change (a rematch, a barcode read, an edit in another tab)
+    await prisma().phIntakeRow.update({ where: { id: rowId }, data: { edited: { expiry: '2020-01' } } });
+    expect(phCodeOf(await call(['MODEL_UNCLEAR']))).toBe('ACK_STALE');
+    expect((await rowOf(rowId)).reviewed).toBe(false);
+    expect(codeOf(await call(['EXPIRED', 'MODEL_UNCLEAR']))).toBe('OK');
+    const stored = await rowOf(rowId);
+    expect(stored.acknowledged).toMatchObject({ flags: ['EXPIRED', 'MODEL_UNCLEAR'] });
+    expect((await readRow(w, batchId, rowId)).openFlags).toEqual([]);
+  });
+
+  it('what the client sends only decides a refusal: the stored acknowledgement is what the server derived', async () => {
+    const w = await world();
+    const { rowId } = await clean(w, { unclear: ['lot'] });
+    const result = await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, version: (await rowOf(rowId)).version, note: 'looked', shown: ['MODEL_UNCLEAR', 'MODEL_UNCLEAR'], acknowledged: { flags: ['MISSING'], mismatch: { reason: 'x', difference: '1' } } });
+    expect(codeOf(result)).toBe('OK');
+    expect((await rowOf(rowId)).acknowledged).toEqual({ flags: ['MODEL_UNCLEAR'], mismatch: null });
+  });
+
+  it('a header acknowledgement names the exact difference and currency it saw', async () => {
+    const w = await world();
+    const { batchId } = await clean(w);
+    dataOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, version: 1, patch: { total: '12,000' } }));
+    const send = async (shown: object) => act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, version: (await prisma().phIntakeBatch.findUniqueOrThrow({ where: { id: batchId } })).version, reason: 'A line was torn off', shown });
+    expect(phCodeOf(await send({ difference: '1000', currency: 'IQD' }))).toBe('ACK_STALE');
+    expect(phCodeOf(await send({ difference: '2000', currency: 'USD' }))).toBe('ACK_STALE');
+    expect(phCodeOf(await send({ difference: '2000', currency: null }))).toBe('ACK_STALE');
+    expect(dataOf(await get(w, w.owner, batchId)).header.acknowledged).toBeNull();
+    expect(codeOf(await send({ difference: '2000', currency: 'IQD' }))).toBe('OK');
+    expect((await prisma().phIntakeBatch.findUniqueOrThrow({ where: { id: batchId } })).header).toMatchObject({ acknowledged: { difference: '2000', currency: 'IQD' } });
+  });
+
+  it('the acknowledgement is bound to the currency: changing it brings the mismatch back, for the header and for a line', async () => {
+    const w = await world();
+    const { batchId, rowId } = await clean(w, { lineTotal: 9000 });
+    dataOf(await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked', mismatchReason: 'ok' }));
+    expect((await readRow(w, batchId, rowId)).openFlags).toEqual([]);
+    dataOf(await vact(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'The invoice total is off' }));
+    let read = dataOf(await get(w, w.owner, batchId));
+    expect(read.approval.ok).toBe(true);
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { currency: 'USD' } }));
+    read = dataOf(await get(w, w.owner, batchId));
+    expect(read.header.acknowledged).toBeNull();
+    expect(read.approval.reasons).toContainEqual({ code: 'HEADER_MISMATCH' });
+    expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MATH_MISMATCH']);
   });
 });
 
@@ -475,7 +650,7 @@ describe('header edits', () => {
     const gone = await prisma().phSupplier.create({ data: { restaurantId: w.a.id, name: 'Old Co', nameKey: 'old co', clientKey: key(), defaultCurrency: 'IQD', active: false, createdById: w.owner.userId }, select: { id: true } });
     const other = await pharmacy('B');
     const foreign = await prisma().phSupplier.create({ data: { restaurantId: other.id, name: 'Foreign', nameKey: 'foreign', clientKey: key(), defaultCurrency: 'IQD', createdById: w.owner.userId }, select: { id: true } });
-    const ok = dataOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceNumber: 'INV-77', invoiceDate: '21/10/2026', currency: 'USD', total: '100.50', supplierId: supplier.id } }));
+    const ok = dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceNumber: 'INV-77', invoiceDate: '21/10/2026', currency: 'USD', total: '100.50', supplierId: supplier.id } }));
     expect(ok.version).toBe(2);
     const stored = await prisma().phIntakeBatch.findUniqueOrThrow({ where: { id: batchId } });
     expect(stored.supplierId).toBe(supplier.id);
@@ -483,12 +658,12 @@ describe('header edits', () => {
     const read = dataOf(await get(w, w.owner, batchId));
     expect(read.header.values).toMatchObject({ invoiceNumber: 'INV-77', currency: 'USD', total: 10050 });
     expect(read.header.extracted).toMatchObject({ invoiceNumber: 'INV-1', currency: 'IQD' });
-    expect(codeOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { supplierId: gone.id } }))).toBe('CONFLICT');
-    expect(codeOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { supplierId: foreign.id } }))).toBe('NOT_FOUND');
-    expect(phCodeOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceDate: '03/2028' } }))).toBe('INVALID_DATE');
-    expect(phCodeOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: 'lots' } }))).toBe('INVALID_MONEY');
-    const stale = await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, version: 1, patch: { tax: 5 } });
-    expect(phCodeOf(stale)).toBe('BATCH_STALE');
+    expect(codeOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { supplierId: gone.id } }))).toBe('CONFLICT');
+    expect(codeOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { supplierId: foreign.id } }))).toBe('NOT_FOUND');
+    expect(phCodeOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceDate: '03/2028' } }))).toBe('INVALID_DATE');
+    expect(phCodeOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { total: 'lots' } }))).toBe('INVALID_MONEY');
+    const stale = await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, version: 1, patch: { tax: 5 } });
+    expect(phCodeOf(stale)).toBe('VERSION_CONFLICT');
   });
 
   it('removing a line changes the header check, and the header sum ignores removed lines', async () => {
@@ -497,7 +672,7 @@ describe('header edits', () => {
     const extra = await row(w, fileId, { lot: 'L2' });
     await matchRows(prisma(), { restaurantId: w.a.id }, batchId, NOW);
     expect(dataOf(await get(w, w.owner, batchId)).header.status).toBe('MISMATCH');
-    dataOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId: extra }));
+    dataOf(await vact(w.pic, reviewActions.rowRemove, { ...place(w), rowId: extra }));
     const read = dataOf(await get(w, w.owner, batchId));
     expect(read.header.status).toBe('OK');
     expect(read.rows.find((r) => r.id === rowId)!.removed).toBe(false);
@@ -507,13 +682,13 @@ describe('header edits', () => {
 });
 
 describe('reading a lot and expiry from a barcode', () => {
-  const gs1 = { gtin: GTIN14, lot: 'A1', expiry: { date: '2028-03-31', precision: 'MONTH' as const }, source: 'barcode' };
+  const gs1 = GS1;
 
   it('fills an empty lot and expiry, marks them as read from the barcode, and recomputes', async () => {
     const w = await world();
     const { rowId, batchId } = await clean(w, { lot: null, expiry: null, gs1 });
     expect((await readRow(w, batchId, rowId)).openFlags).toEqual(['MISSING']);
-    const result = dataOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
+    const result = dataOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
     expect(result).toMatchObject({ filled: ['expiry', 'lot'], flags: [] });
     expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'A1', expiry: '2028-03-31', fieldSources: { lot: 'barcode', expiry: 'barcode' } });
   });
@@ -521,29 +696,29 @@ describe('reading a lot and expiry from a barcode', () => {
   it('never replaces a printed or typed value', async () => {
     const w = await world();
     const { rowId } = await clean(w, { lot: 'PRINTED', expiry: null, gs1 });
-    const result = dataOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
+    const result = dataOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
     expect(result.filled).toEqual(['expiry']);
     expect((await rowOf(rowId)).edited).toMatchObject({ expiry: '2028-03-31', fieldSources: { expiry: 'barcode' } });
     expect((await rowOf(rowId)).edited).not.toHaveProperty('lot');
     const b = await batch(w);
     const full = await row(w, b.fileId, { gs1 });
-    expect(dataOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId: full })).filled).toEqual([]);
+    expect(dataOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId: full })).filled).toEqual([]);
     expect((await rowOf(full)).edited).toEqual({});
   });
 
   it('reads a typed GS1 barcode, and refuses when there is nothing to read', async () => {
     const w = await world();
     const { rowId } = await clean(w, { lot: null, expiry: null });
-    expect(phCodeOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }))).toBe('NOTHING_TO_FILL');
+    expect(phCodeOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }))).toBe('NOTHING_TO_FILL');
     dataOf(await update(w, w.pic, rowId, { barcodeText: `(01)${GTIN14}(17)280331(10)B2` }));
-    expect(dataOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId })).filled).toEqual(['expiry', 'lot']);
+    expect(dataOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId })).filled).toEqual(['expiry', 'lot']);
     expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'B2' });
   });
 
   it('a value the person types afterwards is no longer marked as read from the barcode', async () => {
     const w = await world();
     const { rowId } = await clean(w, { lot: null, expiry: null, gs1 });
-    dataOf(await act(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
+    dataOf(await vact(w.pic, reviewActions.rowFillFromBarcode, { ...place(w), rowId }));
     dataOf(await update(w, w.pic, rowId, { lot: 'TYPED' }));
     expect((await rowOf(rowId)).edited).toMatchObject({ lot: 'TYPED', fieldSources: { expiry: 'barcode' } });
     expect(((await rowOf(rowId)).edited as { fieldSources: object }).fieldSources).not.toHaveProperty('lot');
@@ -573,11 +748,11 @@ describe('adding and removing lines', () => {
     const noisy = await row(w, fileId, { lot: null });
     await matchRows(prisma(), { restaurantId: w.a.id }, batchId, NOW);
     expect(dataOf(await get(w, w.owner, batchId)).approval.ok).toBe(false);
-    dataOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId: noisy }));
+    dataOf(await vact(w.pic, reviewActions.rowRemove, { ...place(w), rowId: noisy }));
     expect(await rowOf(noisy)).toMatchObject({ edited: { removed: true }, extracted: expect.objectContaining({ name: 'Panadol' }) });
     expect(dataOf(await get(w, w.owner, batchId)).approval.ok).toBe(true);
     const v = (await rowOf(noisy)).version;
-    expect(dataOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId: noisy })).replayed).toBe(true);
+    expect(dataOf(await vact(w.pic, reviewActions.rowRemove, { ...place(w), rowId: noisy })).replayed).toBe(true);
     expect((await rowOf(noisy)).version).toBe(v);
   });
 
@@ -592,21 +767,56 @@ describe('adding and removing lines', () => {
   });
 });
 
+describe('adding a line needs a file that was read (review I4)', () => {
+  it('a file that is not EXTRACTED takes no hand-added line: it is not found, as is a purged or foreign one', async () => {
+    const w = await world();
+    for (const status of ['UPLOADED', 'EXTRACTING', 'FAILED', 'REJECTED_QUALITY', 'PURGED'] as const) {
+      const b = await batch(w);
+      await prisma().phIntakeFile.update({
+        where: { id: b.fileId },
+        data: { status, ...(status === 'EXTRACTING' ? { extractingSince: NOW, attempts: 1 } : {}), ...(status === 'FAILED' ? { failureCode: 'AI_TIMEOUT' } : {}), ...(status === 'REJECTED_QUALITY' ? { failureCode: 'BLURRY' } : {}) },
+      });
+      const refused = await act(w.pic, reviewActions.rowAdd, { ...place(w), fileId: b.fileId });
+      expect(codeOf(refused), status).toBe('NOT_FOUND');
+      expect(await prisma().phIntakeRow.count({ where: { fileId: b.fileId } }), status).toBe(0);
+    }
+    const ok = await batch(w);
+    expect(codeOf(await act(w.pic, reviewActions.rowAdd, { ...place(w), fileId: ok.fileId }))).toBe('OK');
+  });
+});
+
 describe('who may review and what is closed', () => {
-  const edits: Array<[string, (w: World, who: Person, ids: { rowId: string; batchId: string }) => Promise<unknown>]> = [
-    ['row.update', (w, who, ids) => update(w, who, ids.rowId, { lot: 'Q' })],
-    ['row.match', (w, who, ids) => act(who, reviewActions.rowClearMatch, { ...place(w), rowId: ids.rowId })],
-    ['row.review', (w, who, ids) => act(who, reviewActions.rowReview, { ...place(w), rowId: ids.rowId, note: 'seen' })],
-    ['header.update', (w, who, ids) => act(who, reviewActions.headerUpdate, { ...place(w), batchId: ids.batchId, patch: { tax: 0 } })],
-    ['rematch', (w, who, ids) => act(who, reviewActions.rematchBatch, { ...place(w), batchId: ids.batchId })],
+  type Ids = Awaited<ReturnType<typeof clean>>;
+  /** Every write definition of the review, each with the line it needs and the call. */
+  const edits: Array<[string, Record<string, unknown>, (w: World, who: Person, ids: Ids) => Promise<unknown>]> = [
+    ['row.update', {}, (w, who, ids) => update(w, who, ids.rowId, { lot: 'Q' })],
+    ['row.match', {}, (w, who, ids) => vact(who, reviewActions.rowMatch, { ...place(w), rowId: ids.rowId, productId: ids.p.id, unitId: ids.p.tablet })],
+    ['row.clearMatch', {}, (w, who, ids) => vact(who, reviewActions.rowClearMatch, { ...place(w), rowId: ids.rowId })],
+    ['row.review', {}, (w, who, ids) => vact(who, reviewActions.rowReview, { ...place(w), rowId: ids.rowId, note: 'seen' })],
+    ['row.fillFromBarcode', { lot: null, expiry: null, gs1: GS1 }, (w, who, ids) => vact(who, reviewActions.rowFillFromBarcode, { ...place(w), rowId: ids.rowId })],
+    ['row.add', {}, (w, who, ids) => act(who, reviewActions.rowAdd, { ...place(w), fileId: ids.fileId })],
+    ['row.remove', {}, (w, who, ids) => vact(who, reviewActions.rowRemove, { ...place(w), rowId: ids.rowId })],
+    ['header.update', {}, (w, who, ids) => vact(who, reviewActions.headerUpdate, { ...place(w), batchId: ids.batchId, patch: { tax: 0 } })],
+    ['header.acknowledge', { unitCost: 900, lineTotal: 9000 }, (w, who, ids) => vact(who, reviewActions.headerAcknowledge, { ...place(w), batchId: ids.batchId, reason: 'seen' })],
+    ['rematch', {}, (w, who, ids) => act(who, reviewActions.rematchBatch, { ...place(w), batchId: ids.batchId })],
   ];
 
-  it('editing needs ai.use AND purchase.manage: owner, manager and pharmacist in charge may; stock keeper, accountant, pharmacist and cashier may not', async () => {
-    for (const [name, run] of edits) {
+  it('editing needs ai.use AND purchase.manage: owner, manager and pharmacist in charge may; stock keeper, accountant, pharmacist and cashier may not (every write definition)', async () => {
+    expect(edits.map(([name]) => name).sort()).toEqual(
+      ['header.acknowledge', 'header.update', 'rematch', 'row.add', 'row.clearMatch', 'row.fillFromBarcode', 'row.match', 'row.remove', 'row.review', 'row.update'],
+    );
+    for (const [name, over, run] of edits) {
       const w = await world();
-      const ids = await clean(w);
-      for (const who of [w.stock, w.accountant, w.pharmacist, w.cashier]) expect(codeOf((await run(w, who, ids)) as never), `${name} as a role without both`).toBe('FORBIDDEN');
-      for (const who of [w.owner, w.manager, w.pic]) expect(codeOf((await run(w, who, ids)) as never), `${name} as a role with both`).toBe('OK');
+      for (const who of [w.stock, w.accountant, w.pharmacist, w.cashier]) {
+        const ids = await clean(w, over);
+        const before = await prisma().phIntakeRow.findMany({ orderBy: { id: 'asc' } });
+        expect(codeOf((await run(w, who, ids)) as never), `${name} as a role without both`).toBe('FORBIDDEN');
+        expect(await prisma().phIntakeRow.findMany({ orderBy: { id: 'asc' } }), `${name} changed nothing`).toEqual(before);
+      }
+      for (const who of [w.owner, w.manager, w.pic]) {
+        const ids = await clean(w, over);
+        expect(codeOf((await run(w, who, ids)) as never), `${name} as a role with both`).toBe('OK');
+      }
       await resetWorld();
     }
   });
@@ -633,23 +843,33 @@ describe('who may review and what is closed', () => {
     expect(codeOf(await get(w, w.manager, there.batchId, 2))).toBe('OK');
     const b = await pharmacy('B');
     const bOwner = await person('owner-b', { membership: [b.id, 'OWNER'] });
-    const foreign = await act(bOwner, reviewActions.rowUpdate, { restaurantId: b.id, branchId: b.branchId, rowId: rowThere, patch: { lot: 'Q' }, clientKey: key() });
+    const foreign = await vact(bOwner, reviewActions.rowUpdate, { restaurantId: b.id, branchId: b.branchId, rowId: rowThere, patch: { lot: 'Q' }, clientKey: key() });
     expect(codeOf(foreign)).toBe('NOT_FOUND');
     expect(codeOf(await ask(bOwner, reviewQueries.batchGet, { restaurantId: b.id, branchId: b.branchId, batchId: there.batchId }))).toBe('NOT_FOUND');
   });
 
-  it('an approved or cancelled batch cannot be edited, rematched or acknowledged', async () => {
+  it('an approved or cancelled batch cannot be edited, matched, read from a barcode, added to, rematched or acknowledged: all ten writes', async () => {
     for (const status of ['APPROVED', 'CANCELLED'] as const) {
       const w = await world();
+      const p = await product(w.a.id, 'Panadol', { strength: '500 mg', form: 'tablet' });
       const b = await batch(w, { status });
-      const rowId = await row(w, b.fileId);
-      expect(phCodeOf(await update(w, w.pic, rowId, { lot: 'Q' }))).toBe('BATCH_NOT_OPEN');
-      expect(phCodeOf(await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'x' }))).toBe('BATCH_NOT_OPEN');
-      expect(phCodeOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId }))).toBe('BATCH_NOT_OPEN');
-      expect(phCodeOf(await act(w.pic, reviewActions.rowClearMatch, { ...place(w), rowId }))).toBe('BATCH_NOT_OPEN');
-      expect(phCodeOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId: b.batchId, patch: { tax: 1 } }))).toBe('BATCH_NOT_OPEN');
-      expect(phCodeOf(await act(w.pic, reviewActions.rematchBatch, { ...place(w), batchId: b.batchId }))).toBe('BATCH_NOT_OPEN');
-      expect((await rowOf(rowId)).edited).toEqual({});
+      const rowId = await row(w, b.fileId, { lot: null, expiry: null, gs1: GS1 });
+      const there = place(w);
+      const calls: Array<[string, Promise<unknown>]> = [
+        ['row.update', update(w, w.pic, rowId, { lot: 'Q' })],
+        ['row.match', vact(w.pic, reviewActions.rowMatch, { ...there, rowId, productId: p.id, unitId: p.tablet })],
+        ['row.clearMatch', vact(w.pic, reviewActions.rowClearMatch, { ...there, rowId })],
+        ['row.review', vact(w.pic, reviewActions.rowReview, { ...there, rowId, note: 'x' })],
+        ['row.fillFromBarcode', vact(w.pic, reviewActions.rowFillFromBarcode, { ...there, rowId })],
+        ['row.add', act(w.pic, reviewActions.rowAdd, { ...there, fileId: b.fileId })],
+        ['row.remove', vact(w.pic, reviewActions.rowRemove, { ...there, rowId })],
+        ['header.update', vact(w.pic, reviewActions.headerUpdate, { ...there, batchId: b.batchId, patch: { tax: 1 } })],
+        ['header.acknowledge', vact(w.pic, reviewActions.headerAcknowledge, { ...there, batchId: b.batchId, reason: 'x' })],
+        ['rematch', act(w.pic, reviewActions.rematchBatch, { ...there, batchId: b.batchId })],
+      ];
+      for (const [name, call] of calls) expect(phCodeOf((await call) as never), `${name} on ${status}`).toBe('BATCH_NOT_OPEN');
+      expect(await rowOf(rowId)).toMatchObject({ edited: {}, matchState: 'UNMATCHED', reviewed: false });
+      expect(await prisma().phIntakeRow.count({ where: { fileId: b.fileId } })).toBe(1);
       await resetWorld();
     }
   });
@@ -660,12 +880,12 @@ describe('the audit trail', () => {
     const w = await world();
     const { rowId, batchId, fileId } = await clean(w, { unclear: ['lot'] });
     dataOf(await update(w, w.pic, rowId, { name: 'SECRET-NAME-77', lot: 'SECRET-LOT-77', barcodeText: 'SECRET-BARCODE-77', unitCost: 4321 }));
-    dataOf(await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'SECRET-NOTE-77', mismatchReason: 'SECRET-REASON-77' }));
-    dataOf(await act(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceNumber: 'SECRET-INV-77', total: 9999 } }));
-    dataOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'SECRET-HEADER-REASON-77' }));
+    dataOf(await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'SECRET-NOTE-77', mismatchReason: 'SECRET-REASON-77' }));
+    dataOf(await vact(w.pic, reviewActions.headerUpdate, { ...place(w), batchId, patch: { invoiceNumber: 'SECRET-INV-77', total: 12345 } }));
+    dataOf(await vact(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, reason: 'SECRET-HEADER-REASON-77' }));
     const added = dataOf(await act(w.pic, reviewActions.rowAdd, { ...place(w), fileId }));
     dataOf(await update(w, w.pic, added.rowId, { name: 'SECRET-ADDED-77' }));
-    dataOf(await act(w.pic, reviewActions.rowRemove, { ...place(w), rowId: added.rowId }));
+    dataOf(await vact(w.pic, reviewActions.rowRemove, { ...place(w), rowId: added.rowId }));
     dataOf(await act(w.pic, reviewActions.rematchBatch, { ...place(w), batchId }));
     const entries = await prisma().auditLog.findMany({ where: { action: { startsWith: 'ph.intake.' } }, orderBy: { occurredAt: 'asc' } });
     const actions = new Set(entries.map((e) => e.action));
@@ -673,6 +893,11 @@ describe('the audit trail', () => {
     const text = JSON.stringify(entries.map((e) => e.changes));
     expect(text).not.toMatch(/SECRET/);
     expect(text).not.toContain('Panadol');
+    // the actual numbers and strings of the fixture: unit cost 4321, header total 12345, line total 10000, the line difference, the header difference (12345 - 10000), the model's invoice number
+    for (const value of ['4321', '12345', '10000', '33210', '2345', 'INV-1', 'IQD', 'USD']) expect(text, value).not.toContain(value);
+    const acknowledged = entries.find((e) => e.action === 'ph.intake.header.acknowledge')!;
+    expect(JSON.stringify(acknowledged.changes)).not.toMatch(/difference|currency|amount/i);
+    expect(acknowledged.changes).toMatchObject({ acknowledged: { before: false, after: true } });
     const updated = entries.find((e) => e.action === 'ph.intake.row.update' && JSON.stringify(e.changes).includes('unitCost'))!;
     expect(updated.changes).toMatchObject({ fields: { after: ['barcodeText', 'lot', 'name', 'unitCost'] }, flags: { before: expect.any(Array), after: expect.any(Array) } });
   });
@@ -693,7 +918,7 @@ describe('unit removal and intake matches (review I5)', () => {
     const box = units[2]!;
     const b = await batch(w);
     const rowId = await row(w, b.fileId);
-    expect(codeOf(await act(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: created.id, unitId: box.id }))).toBe('OK');
+    expect(codeOf(await vact(w.pic, reviewActions.rowMatch, { ...place(w), rowId, productId: created.id, unitId: box.id }))).toBe('OK');
     expect((await readRow(w, b.batchId, rowId)).openFlags).toEqual([]);
     const done = await batch(w, { status: 'APPROVED' });
     const history = await row(w, done.fileId);
@@ -704,6 +929,31 @@ describe('unit removal and intake matches (review I5)', () => {
     expect(await prisma().phProductUnit.count({ where: { productId: created.id } })).toBe(2);
     expect(await rowOf(rowId)).toMatchObject({ matchState: 'UNMATCHED', matchedProductId: null, matchedUnitId: null });
     expect((await readRow(w, b.batchId, rowId)).openFlags).toEqual(['MISSING']);
+  });
+
+  it('a cancelled batch does not hold a pack: its matches are cleared and the pack goes (review minor)', async () => {
+    const w = await world();
+    const created = dataOf(await act(w.owner, productActions.create, input(w.a.id, 3)));
+    const units = await prisma().phProductUnit.findMany({ where: { productId: created.id }, orderBy: { level: 'asc' } });
+    const gone = await batch(w, { status: 'CANCELLED' });
+    const history = await row(w, gone.fileId);
+    await prisma().phIntakeRow.update({ where: { id: history }, data: { matchState: 'CHOSEN', matchedProductId: created.id, matchedUnitId: units[2]!.id } });
+    dataOf(await act(w.owner, productActions.update, { ...input(w.a.id, 2), productId: created.id, expectedVersion: created.version }));
+    expect(await prisma().phProductUnit.count({ where: { productId: created.id } })).toBe(2);
+    expect(await rowOf(history)).toMatchObject({ matchState: 'UNMATCHED', matchedProductId: null, matchedUnitId: null });
+  });
+
+  it('the refusal says an approved invoice line is the reason, and a status change racing the removal cannot slip a line past it', async () => {
+    const w = await world();
+    const created = dataOf(await act(w.owner, productActions.create, input(w.a.id, 3)));
+    const units = await prisma().phProductUnit.findMany({ where: { productId: created.id }, orderBy: { level: 'asc' } });
+    const done = await batch(w, { status: 'APPROVED' });
+    const history = await row(w, done.fileId);
+    await prisma().phIntakeRow.update({ where: { id: history }, data: { matchState: 'CHOSEN', matchedProductId: created.id, matchedUnitId: units[2]!.id } });
+    const refused = await act(w.owner, productActions.update, { ...input(w.a.id, 2), productId: created.id, expectedVersion: created.version });
+    expect(phCodeOf(refused)).toBe('UNIT_IN_USE');
+    expect(refused.ok ? '' : refused.error.message).toMatch(/approved invoice/i);
+    expect(await prisma().phProductUnit.count({ where: { productId: created.id } })).toBe(3);
   });
 
   it('refuses to remove a pack an approved batch still points at, and removes nothing', async () => {
@@ -744,10 +994,14 @@ describe('reading batches', () => {
     const w = await world();
     const one = await batch(w);
     const two = await batch(w, { branch: 2 });
-    const list = async (who: Person, branch?: 1 | 2) => dataOf(await ask(who, reviewQueries.batchList, { restaurantId: w.a.id, ...(branch ? { branchId: branch === 1 ? w.b1 : w.b2 } : { branchId: w.b1 }) })).items.map((b) => b.id);
+    const list = async (who: Person, branch?: 1 | 2) => dataOf(await ask(who, reviewQueries.batchList, { restaurantId: w.a.id, ...(branch ? { branchId: branch === 1 ? w.b1 : w.b2 } : {}) })).items.map((b) => b.id);
+    // a role limited to one branch sees that branch with or without naming it; the manager sees both branches, or the one named
     expect(await list(w.pic)).toEqual([one.batchId]);
-    expect((await list(w.manager)).sort()).toEqual([one.batchId]);
+    expect(await list(w.pic, 1)).toEqual([one.batchId]);
+    expect((await list(w.manager)).sort()).toEqual([one.batchId, two.batchId].sort());
+    expect(await list(w.manager, 1)).toEqual([one.batchId]);
     expect(await list(w.manager, 2)).toEqual([two.batchId]);
+    expect(codeOf(await ask(w.pic, reviewQueries.batchList, { restaurantId: w.a.id, branchId: w.b2 }))).not.toBe('OK');
     expect(codeOf(await ask(w.cashier, reviewQueries.batchList, { ...place(w) }))).toBe('FORBIDDEN');
   });
 
@@ -768,6 +1022,42 @@ describe('reading batches', () => {
     expect(read.totals).toEqual([{ currency: 'IQD', lineTotalMinor: '10000' }]);
   });
 
+  it('a file still waiting to be read, or being read, blocks the approval verdict with FILES_STILL_PROCESSING', async () => {
+    const w = await world();
+    const { batchId, fileId } = await clean(w);
+    expect(dataOf(await get(w, w.pic, batchId)).approval).toMatchObject({ ok: true, reasons: [] });
+    const extra = async (status: 'UPLOADED' | 'EXTRACTING' | 'EXTRACTED' | 'FAILED') =>
+      prisma().phIntakeFile.create({
+        data: {
+          restaurantId: w.a.id,
+          batchId,
+          sha256: createHash('sha256').update(`extra-${(seq += 1)}`).digest('hex'),
+          storageKey: null,
+          mediaType: 'image/png',
+          bytes: 10,
+          pages: 1,
+          status,
+          ...(status === 'EXTRACTING' ? { extractingSince: NOW, attempts: 1 } : {}),
+          ...(status === 'FAILED' ? { failureCode: 'AI_TIMEOUT' } : {}),
+          expiresAt: new Date(NOW.getTime() + 30 * 86_400_000),
+          uploadedById: w.owner.userId,
+        },
+        select: { id: true },
+      });
+    void fileId;
+    for (const status of ['UPLOADED', 'EXTRACTING'] as const) {
+      const made = await extra(status);
+      const read = dataOf(await get(w, w.pic, batchId));
+      expect(read.approval.ok, status).toBe(false);
+      expect(read.approval.reasons, status).toContainEqual(expect.objectContaining({ code: 'FILES_STILL_PROCESSING' }));
+      await prisma().phIntakeFile.delete({ where: { id: made.id } });
+    }
+    // a file that is read, or failed (the lines are typed by hand), does not block
+    await extra('EXTRACTED');
+    await extra('FAILED');
+    expect(dataOf(await get(w, w.pic, batchId)).approval).toMatchObject({ ok: true, reasons: [] });
+  });
+
   it('adds up line totals per currency in BigInt, beyond a safe integer', async () => {
     const w = await world();
     const { batchId, fileId } = await clean(w, { lineTotal: 9_000_000_000_000_000 });
@@ -779,7 +1069,7 @@ describe('reading batches', () => {
   it('shows money only with cost.view: the key is absent otherwise', async () => {
     const w = await world();
     const { batchId, rowId } = await clean(w, { lineTotal: 9000 });
-    await act(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked', mismatchReason: 'discount' });
+    await vact(w.pic, reviewActions.rowReview, { ...place(w), rowId, note: 'looked', mismatchReason: 'discount' });
     for (const who of [w.owner, w.pic]) {
       const read = dataOf(await get(w, who, batchId));
       expect(read.rows[0]!.line).toHaveProperty('unitCost', 1000);

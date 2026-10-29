@@ -335,7 +335,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This product is already in the catalog': 'error.text.phDuplicateProduct',
   'This barcode is already on another product. Mark it as shared to use it on both.': 'error.text.phBarcodeInUse',
   'This unit has stock or sales, so its size cannot change': 'error.text.phUnitResize',
-  'This unit has prices, stock or sales, so it cannot be removed': 'error.text.phUnitRemove',
+  'This unit has prices, stock, sales or approved invoice lines, so it cannot be removed': 'error.text.phUnitRemove',
   'This pack has prices, so its size cannot change. Add a new pack instead.': 'error.text.phUnitResizePriced',
   'This product is on open records, so it cannot be archived': 'error.text.phProductOpenRecords',
   // Pharmacy prices and bulk price changes (src/server/pharmacy/prices.ts)
@@ -580,7 +580,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'The upload could not be read': 'error.text.phIntakeUploadRead',
   'Choose a file': 'error.text.phIntakeChooseFile',
   'Only an open batch can be read': 'error.text.phIntakeNotOpenRead',
-  'This file has rows that were already checked': 'error.text.phIntakeReviewed',
+  'This file has lines that were already edited or checked': 'error.text.phIntakeReviewed',
   'This page position is not valid': 'error.text.phIntakePageInvalid',
   'Line not found': 'error.text.phIntakeLineNotFound',
   'Only an open batch can be edited': 'error.text.phIntakeNotOpenEdit',
@@ -597,6 +597,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Write what you checked': 'error.text.phIntakeWriteChecked',
   'This barcode holds no lot or expiry to use': 'error.text.phIntakeNothingToFill',
   'Someone else changed this invoice: reload it': 'error.text.phIntakeBatchStale',
+  'What you saw has changed: look at it again before you confirm': 'error.text.phIntakeAckStale',
   'Enter the invoice date as a day, such as 2028-03-31': 'error.text.phIntakeDateInvalid',
   'There is no difference to acknowledge': 'error.text.phIntakeNoDifference',
 };

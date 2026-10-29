@@ -84,8 +84,8 @@ export interface StoredHeader {
   extracted?: Partial<HeaderValues> & { supplierName?: string | null; unclear?: string[] };
   edited?: Partial<HeaderValues>;
   arithmetic?: unknown;
-  /** The reason a person gave for a header total that does not add up, with the exact difference they accepted. */
-  acknowledged?: { reason: string; difference: string } | null;
+  /** The reason a person gave for a header total that does not add up, with the exact difference and currency they accepted. */
+  acknowledged?: { reason: string; difference: string; currency?: string | null } | null;
   /** Header keys two files of the batch read differently (names only): each reads as unset until a person edits it. */
   conflicts?: string[];
 }
@@ -294,12 +294,14 @@ export function headerView(header: unknown, rows: readonly RowView[]): HeaderVie
     { total: values.total, tax: values.tax, discount: values.discount },
   );
   const stored = asObject((asObject(header) as StoredHeader).acknowledged);
-  const ack = typeof stored.reason === 'string' && typeof stored.difference === 'string' && /^-?\d+$/.test(stored.difference) ? { reason: stored.reason, difference: stored.difference } : null;
+  const ack = typeof stored.reason === 'string' && typeof stored.difference === 'string' && /^-?\d+$/.test(stored.difference) ? { reason: stored.reason, difference: stored.difference, currency: typeof stored.currency === 'string' ? stored.currency : null } : null;
   const current = arithmetic.status === 'MISMATCH' ? arithmetic.difference : null;
+  // Bound to the difference AND the currency it was accepted in: another currency is another amount.
+  const bound = ack !== null && current !== null && BigInt(ack.difference) === current && ack.currency === values.currency;
   return {
     values,
     arithmetic,
-    acknowledged: ack !== null && current !== null && BigInt(ack.difference) === current ? ack : null,
+    acknowledged: bound ? { reason: ack.reason, difference: ack.difference } : null,
     status: arithmetic.status,
   };
 }
@@ -312,10 +314,10 @@ export function arithmeticJson(a: Arithmetic): Record<string, unknown> {
 }
 
 /** Whether the batch can be approved now, decided from the derived flags and differences: never from a client's word. */
-export function approvalOf(rows: readonly RowView[], header: HeaderView): { ok: boolean; reasons: ApprovalReason[] } {
+export function approvalOf(rows: readonly RowView[], header: HeaderView, processingFiles = 0): ApprovalVerdict {
   const live = rows.filter((r) => !r.removed);
   const current = header.arithmetic.status === 'MISMATCH' ? header.arithmetic.difference : null;
-  return canApprove(
+  const verdict = canApprove(
     live.map((r) => ({
       flags: r.derived,
       mismatchDifference: r.arithmetic.status === 'MISMATCH' ? r.arithmetic.difference : null,
@@ -329,7 +331,12 @@ export function approvalOf(rows: readonly RowView[], header: HeaderView): { ok: 
       acknowledgedDifference: header.acknowledged ? BigInt(header.acknowledged.difference) : null,
     },
   );
+  // A file still waiting to be read, or being read, may still bring lines: the batch is not ready while any is.
+  if (processingFiles > 0) return { ok: false, reasons: [{ code: 'FILES_STILL_PROCESSING', files: processingFiles }, ...verdict.reasons] };
+  return verdict;
 }
+
+export type ApprovalVerdict = { ok: boolean; reasons: Array<ApprovalReason | { code: 'FILES_STILL_PROCESSING'; files: number }> };
 
 // Writing ---------------------------------------------------------------------------------------------------------------
 
@@ -373,26 +380,33 @@ export async function recomputeBatch(tx: ScopedTx, batchId: string, now: Date): 
 }
 
 /**
- * A pack unit is about to be removed (review I5): an OPEN batch's lines matched to it go back to unmatched and their flags are
- * recomputed in the same transaction. A line of an approved or cancelled batch is history that points at the unit: the removal
- * is refused by the caller (`UNIT_IN_USE`) when this returns `blocked`.
+ * A pack unit is about to be removed (review I5): the lines of an OPEN or CANCELLED batch matched to it go back to unmatched and
+ * their flags are recomputed in the same transaction (a cancelled batch is dead, it holds nothing). A line of an APPROVED batch
+ * is history that points at the unit: the removal is refused by the caller (`UNIT_IN_USE`) when this returns `blocked`.
+ *
+ * The batches are locked (in id order, as every writer of rows does) BEFORE the status is read, so an approval that is running
+ * has finished (or has not started) when the status is looked at: a line cannot slip into an approved batch between the check
+ * and the delete. The foreign key on the line is the last guard (the caller maps its violation to `UNIT_IN_USE`).
  */
 export async function clearUnitMatches(tx: ScopedTx, restaurantId: string, unitIds: readonly string[], now: Date): Promise<{ cleared: number; blocked: number }> {
   if (unitIds.length === 0) return { cleared: 0, blocked: 0 };
-  const rows = await tx.phIntakeRow.findMany({
-    where: { matchedUnitId: { in: [...unitIds] } },
-    select: { id: true, file: { select: { batchId: true, batch: { select: { status: true } } } } },
-  });
-  const open = rows.filter((r) => r.file.batch.status === 'OPEN');
-  const blocked = rows.length - open.length;
-  if (open.length === 0) return { cleared: 0, blocked };
-  // The batches are locked in id order before their rows change, as every other writer of rows does.
-  const batchIds = [...new Set(open.map((r) => r.file.batchId))].sort();
+  const find = () =>
+    tx.phIntakeRow.findMany({
+      where: { matchedUnitId: { in: [...unitIds] } },
+      select: { id: true, file: { select: { batchId: true, batch: { select: { status: true } } } } },
+    });
+  const batchIds = [...new Set((await find()).map((r) => r.file.batchId))].sort();
+  if (batchIds.length === 0) return { cleared: 0, blocked: 0 };
   for (const batchId of batchIds) await lockBatch(tx, restaurantId, batchId);
+  // Read again under the locks: the statuses and the rows are the settled ones.
+  const rows = await find();
+  const clearable = rows.filter((r) => r.file.batch.status !== 'APPROVED');
+  const blocked = rows.length - clearable.length;
+  if (clearable.length === 0) return { cleared: 0, blocked };
   await tx.phIntakeRow.updateMany({
-    where: { id: { in: open.map((r) => r.id) } },
+    where: { id: { in: clearable.map((r) => r.id) } },
     data: { matchedProductId: null, matchedUnitId: null, matchState: 'UNMATCHED', candidates: [], version: { increment: 1 } },
   });
-  for (const batchId of batchIds) await recomputeBatch(tx, batchId, now);
-  return { cleared: open.length, blocked };
+  for (const batchId of [...new Set(clearable.map((r) => r.file.batchId))].sort()) await recomputeBatch(tx, batchId, now);
+  return { cleared: clearable.length, blocked };
 }

@@ -20,10 +20,12 @@ import {
   arithmeticJson,
   effectiveHeader,
   effectiveLine,
+  type Line,
   evaluateRows,
   headerView,
   loadRows,
   lockBatch,
+  readAck,
   recomputeBatch,
   ROW_SELECT,
   type Ack,
@@ -37,8 +39,8 @@ import {
  * `extract.ts` are the only writers of a row's edits, match and acknowledgement (`rows.ts` keeps the flags in step).
  *
  * - Matching never picks between doubts: `rankMatches` says MATCHED, AMBIGUOUS or UNMATCHED and a person's choice (CHOSEN) is never
- *   overwritten. Archived products are not matched. The catalog is read once per call (three statements whatever the number of
- *   lines); the per-line work is in memory.
+ *   overwritten. Archived products are not matched. The catalog is searched in the database through its indexes, in a fixed number
+ *   of statements whatever the number of lines (`candidatesFor`); only the products found are ranked, in memory.
  * - A line's `extracted` JSON is never written here. A person's values go to `edited` (over the model's reading), the removal of a
  *   line is `edited.removed`, a line a person added has `extracted = {}` and `edited.source = 'manual'`, and a lot or expiry read
  *   from a barcode is marked in `edited.fieldSources`. Flags are recomputed from the stored values after every write.
@@ -57,6 +59,12 @@ const batchNotFound = () => new StudioError('NOT_FOUND', 'Batch not found');
 const notOpen = () => new StudioError('CONFLICT', 'Only an open batch can be edited', { phCode: 'BATCH_NOT_OPEN' });
 const removedLine = () => new StudioError('CONFLICT', 'This line was removed', { phCode: 'ROW_REMOVED' });
 const keyMismatch = () => new StudioError('CONFLICT', 'This key was already used for a different change', { phCode: 'CLIENT_KEY_MISMATCH' });
+const fileNotFound = () => new StudioError('NOT_FOUND', 'File not found');
+/** The version the person saw is not the current one (review I3): nothing is written. */
+const staleLine = () => new StudioError('CONFLICT', 'Someone else changed this line: reload it', { phCode: 'VERSION_CONFLICT' });
+const staleInvoice = () => new StudioError('CONFLICT', 'Someone else changed this invoice: reload it', { phCode: 'VERSION_CONFLICT' });
+/** What the person was shown is not what the server sees now (review I2): nothing is written. */
+const ackStale = () => new StudioError('CONFLICT', 'What you saw has changed: look at it again before you confirm', { phCode: 'ACK_STALE' });
 const invalid = (field: string, message: string, phCode: string) => new StudioError('INVALID', message, { [field]: message, phCode });
 
 export type Audit = (entry: AuditEntry) => void;
@@ -70,57 +78,147 @@ export interface MatchSummary {
   chosen: number;
 }
 
-/** At most this many catalog products are compared with one line (those sharing the start of a word of its name, or a barcode). */
-const MAX_COMPARED = 300;
+/** How many catalog products the trigram search brings back for one invoice name (the ranking then decides what they are). */
+const PER_NAME = 5;
 
-/** The start of a word, so a misspelt or cut word still finds its products (the ranking decides what is close enough). */
-const stem = (token: string): string => token.slice(0, 3);
+/**
+ * pg_trgm word similarity a catalog product must reach to be a candidate for a name. Lower than the extension's default (0.6) so
+ * a misspelt or cut word still finds its product; the domain ranking decides what is close enough to be MATCHED.
+ */
+const WORD_SIMILARITY = '0.4';
+
+const likeEscape = (text: string): string => text.replace(/[\\%_]/g, (c) => `\\${c}`);
+
+interface CatalogProduct {
+  id: string;
+  tradeName: string;
+  strength: string;
+  form: string;
+  units: Array<{ id: string; level: number; label: string; baseQty: number; sellable: boolean }>;
+}
+
+/**
+ * The catalog products each line may be, from the database and never from a list of all products:
+ *   1. exact barcodes (every spelling of the code, `barcodeForms`), one statement;
+ *   2. exact identity keys (trade name, strength, form, pack; the invoice names no manufacturer, so that field is a wildcard), one
+ *      statement that reaches the products through the trigram index on `searchText` (it starts with the trade name);
+ *   3. the five most similar products per distinct invoice name, ONE statement with a LATERAL subquery per name that uses the
+ *      trigram GIN index (`<%` is word similarity, served by `PhProduct_searchText_trgm`);
+ * then the products found, once. The number of statements does not depend on the number of lines, and nothing is ranked or cut by id.
+ *
+ * Arabic: pg_trgm takes trigrams from letters according to the database ctype. Under the C ctype Arabic and Kurdish letters give
+ * none, so step 3 finds nothing for such a name (steps 1 and 2 still do); the database must use a UTF-8 locale (the search-index
+ * migration says how to check it).
+ */
+async function candidatesFor(tx: ScopedTx, restaurantId: string, lines: ReadonlyMap<string, Line>): Promise<Map<string, Candidate[]>> {
+  const barcodeCodes = [...new Set([...lines.values()].flatMap((l) => (l.barcodeText === null ? [] : barcodeForms(l.barcodeText))))];
+  const hits = barcodeCodes.length === 0 ? [] : await tx.phBarcode.findMany({ where: { code: { in: barcodeCodes }, product: { active: true } }, select: { code: true, productId: true, unitId: true } });
+  const hitsOf = new Map<string, Array<{ code: string; unitId: string }>>();
+  for (const h of hits) hitsOf.set(h.productId, [...(hitsOf.get(h.productId) ?? []), { code: h.code, unitId: h.unitId }]);
+
+  const names = new Map<string, string>(); // line id -> normalised name
+  const patterns = new Map<string, string>(); // line id -> identity-key pattern
+  const prefixes = new Map<string, string>(); // identity-key pattern -> search-text prefix
+  for (const [id, line] of lines) {
+    const name = normalizeForSearch(line.name ?? '');
+    if (name === '') continue;
+    names.set(id, name);
+    const pattern = `${[name, normalizeForSearch(line.strength ?? ''), normalizeForSearch(line.form ?? '')].map(likeEscape).join('|')}|%|${likeEscape(normalizeForSearch(line.pack ?? ''))}`;
+    patterns.set(id, pattern);
+    prefixes.set(pattern, `${likeEscape(name)}|%`);
+  }
+
+  const identityOf = new Map<string, string[]>(); // pattern -> product ids
+  const similarOf = new Map<string, string[]>(); // normalised name -> product ids, best first
+  if (names.size > 0) {
+    // The planner costs the trigram index pessimistically for a name that is a parameter, and prefers to read every product of the
+    // business and test each one (measured: 3.4 s for 200 names over 5,000 products, against 0.9 s through the index). So, for these two
+    // statements only: sequential scans are discouraged, and the business test is written so it cannot be used as the index (the
+    // comparison is the same; it is still a filter on the tenant). The setting is put back right after.
+    // eslint-disable-next-line no-restricted-properties -- reads a planner setting; it touches no tenant data
+    const seqscan = (await tx.$queryRaw<Array<{ v: string }>>`SELECT current_setting('enable_seqscan') AS v`)[0]?.v ?? 'on';
+    // eslint-disable-next-line no-restricted-properties -- transaction-local planner setting; it touches no tenant data
+    await tx.$executeRaw`SELECT set_config('enable_seqscan', 'off', true)`;
+    const patternList = [...prefixes.keys()];
+    const prefixList = patternList.map((p) => prefixes.get(p)!);
+    // eslint-disable-next-line no-restricted-properties -- the pharmacy's own rows: the business is part of the match, and the statement needs LIKE through the trigram index
+    const identity = await tx.$queryRaw<Array<{ pattern: string; id: string }>>`
+      SELECT n."pattern", p."id"
+      FROM unnest(${patternList}::text[], ${prefixList}::text[]) AS n("pattern", "prefix")
+      JOIN "PhProduct" p ON (p."restaurantId" || '') = ${restaurantId} AND p."active" AND p."searchText" LIKE n."prefix" AND p."identityKey" LIKE n."pattern"`;
+    for (const r of identity) identityOf.set(r.pattern, [...(identityOf.get(r.pattern) ?? []), r.id]);
+
+    const nameList = [...new Set(names.values())];
+    // eslint-disable-next-line no-restricted-properties -- transaction-local setting; it touches no tenant data
+    await tx.$executeRaw`SELECT set_config('pg_trgm.word_similarity_threshold', ${WORD_SIMILARITY}, true)`;
+    // eslint-disable-next-line no-restricted-properties -- the pharmacy's own rows: the business is part of the match, and the statement needs LATERAL and the trigram operators
+    const similar = await tx.$queryRaw<Array<{ name: string; id: string }>>`
+      SELECT n."name", c."id"
+      FROM unnest(${nameList}::text[]) AS n("name")
+      CROSS JOIN LATERAL (
+        SELECT p."id", word_similarity(n."name", p."searchText") AS "score", similarity(n."name", p."searchText") AS "whole"
+        FROM "PhProduct" p
+        WHERE (p."restaurantId" || '') = ${restaurantId} AND p."active" AND n."name" <% p."searchText"
+        ORDER BY "score" DESC, "whole" DESC, p."id"
+        LIMIT ${PER_NAME}
+      ) c`;
+    for (const r of similar) similarOf.set(r.name, [...(similarOf.get(r.name) ?? []), r.id]);
+    // eslint-disable-next-line no-restricted-properties -- transaction-local planner setting; it touches no tenant data
+    await tx.$executeRaw`SELECT set_config('enable_seqscan', ${seqscan}, true)`;
+  }
+
+  // The products each line may be: its barcode hits, its identity matches and its most similar names (in that order, once each).
+  const idsOf = new Map<string, string[]>();
+  for (const [id, line] of lines) {
+    const forms = line.barcodeText === null ? [] : barcodeForms(line.barcodeText);
+    const fromBarcode = [...hitsOf].filter(([, own]) => own.some((h) => forms.includes(h.code))).map(([productId]) => productId);
+    const name = names.get(id);
+    const fromIdentity = name === undefined ? [] : (identityOf.get(patterns.get(id)!) ?? []);
+    const fromName = name === undefined ? [] : (similarOf.get(name) ?? []);
+    idsOf.set(id, [...new Set([...fromBarcode, ...fromIdentity, ...fromName])]);
+  }
+  const wanted = [...new Set([...idsOf.values()].flat())];
+  const products: CatalogProduct[] =
+    wanted.length === 0
+      ? []
+      : await tx.phProduct.findMany({
+          where: { id: { in: wanted }, active: true },
+          select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, level: true, label: true, baseQty: true, sellable: true } } },
+        });
+  const candidateOf = new Map<string, Candidate>();
+  for (const p of products) {
+    const top = [...p.units].sort((a, b) => b.level - a.level)[0];
+    candidateOf.set(p.id, {
+      productId: p.id,
+      tradeName: p.tradeName,
+      strength: p.strength,
+      form: p.form,
+      packLabel: packLabelOf(p.units),
+      manufacturer: '',
+      barcodes: hitsOf.get(p.id) ?? [],
+      defaultUnitId: top?.id ?? null,
+    });
+  }
+  return new Map([...idsOf].map(([id, ids]) => [id, ids.flatMap((productId) => candidateOf.get(productId) ?? [])]));
+}
 
 /**
  * Matches the lines of one batch inside `tx` (the batch row is locked by the caller). Lines a person chose and lines a person
- * removed are left alone. Reads the catalog in three statements however many lines there are.
+ * removed are left alone. The catalog is searched in a fixed number of statements however many lines there are (`candidatesFor`).
  */
 export async function matchInTx(tx: ScopedTx, batchId: string, now: Date): Promise<MatchSummary> {
   const rows = await loadRows(tx, batchId);
   const targets = rows.filter((r) => r.matchState !== 'CHOSEN' && asObject(r.edited).removed !== true);
   const summary: MatchSummary = { matched: 0, ambiguous: 0, unmatched: 0, chosen: rows.filter((r) => r.matchState === 'CHOSEN').length };
   if (targets.length > 0) {
+    const batch = await tx.phIntakeBatch.findFirst({ where: { id: batchId }, select: { restaurantId: true } });
+    if (!batch) throw batchNotFound();
     const lines = new Map(targets.map((r) => [r.id, effectiveLine(r.extracted, r.edited)]));
-    const codes = [...new Set([...lines.values()].flatMap((l) => (l.barcodeText === null ? [] : barcodeForms(l.barcodeText))))];
-    const [products, hits] = [
-      await tx.phProduct.findMany({
-        where: { active: true },
-        select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, level: true, label: true, baseQty: true, sellable: true } } },
-      }),
-      codes.length === 0 ? [] : await tx.phBarcode.findMany({ where: { code: { in: codes }, product: { active: true } }, select: { code: true, productId: true, unitId: true } }),
-    ];
-
-    const byToken = new Map<string, string[]>();
-    const candidateOf = new Map<string, Candidate>();
-    const hitsOf = new Map<string, Array<{ code: string; unitId: string }>>();
-    for (const h of hits) hitsOf.set(h.productId, [...(hitsOf.get(h.productId) ?? []), { code: h.code, unitId: h.unitId }]);
-    for (const p of products) {
-      const top = [...p.units].sort((a, b) => b.level - a.level)[0];
-      candidateOf.set(p.id, {
-        productId: p.id,
-        tradeName: p.tradeName,
-        strength: p.strength,
-        form: p.form,
-        packLabel: packLabelOf(p.units),
-        manufacturer: '',
-        barcodes: hitsOf.get(p.id) ?? [],
-        defaultUnitId: top?.id ?? null,
-      });
-      for (const token of new Set(normalizeForSearch(p.tradeName).split(' ').filter(Boolean).map(stem))) byToken.set(token, [...(byToken.get(token) ?? []), p.id]);
-    }
+    const compared = await candidatesFor(tx, batch.restaurantId, lines);
 
     for (const r of targets) {
       const line = lines.get(r.id)!;
-      const ids = new Set<string>();
-      for (const token of new Set(normalizeForSearch(line.name ?? '').split(' ').filter(Boolean).map(stem))) for (const id of byToken.get(token) ?? []) ids.add(id);
-      for (const productId of hitsOf.keys()) ids.add(productId);
-      const compared = [...ids].sort().slice(0, MAX_COMPARED).map((id) => candidateOf.get(id)!);
-      const result = rankMatches({ barcode: line.barcodeText, name: line.name ?? '', strength: line.strength ?? '', form: line.form ?? '', pack: line.pack ?? '' }, compared);
+      const result = rankMatches({ barcode: line.barcodeText, name: line.name ?? '', strength: line.strength ?? '', form: line.form ?? '', pack: line.pack ?? '' }, compared.get(r.id) ?? []);
       const productId = result.status === 'MATCHED' ? (result.productId ?? null) : null;
       const unitId = productId === null ? null : (result.unitId ?? null);
       const candidates = result.candidates.map((c) => ({ productId: c.productId, score: c.score }));
@@ -269,12 +367,13 @@ const stable = (value: unknown): string => JSON.stringify(value, (_k, v) => (v !
 
 /**
  * Applies a patch to a line's `edited` (never to `extracted`), then recomputes every flag of the batch from the stored values.
- * `version`, when given, must be the line's current one. A repeat of the same `clientKey` by the same person with the same patch
- * answers the stored state; with another patch it is `CLIENT_KEY_MISMATCH`. (Only the line's latest key is remembered.)
+ * `version` is required and must be the line's current one (`VERSION_CONFLICT`). A repeat of the line's LATEST `clientKey` by the
+ * same person with the same patch answers the stored state; with another patch it is `CLIENT_KEY_MISMATCH`. Only the latest key is
+ * remembered, so the late retry of an older key is not replayed: its version is stale and it is refused, and the newer change stays.
  */
 export async function updateRow(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; userId: string; rowId: string; version?: number; patch: RowPatch; clientKey: string; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; userId: string; rowId: string; version: number; patch: RowPatch; clientKey: string; now: Date; audit: Audit },
 ): Promise<RowResult> {
   // eslint-disable-next-line no-restricted-properties -- an advisory lock touches no tenant rows: it only serialises one client key
   await tx.$executeRaw`SELECT pg_advisory_xact_lock(${NS_CLIENT_KEY}::int, hashtext(${`${a.restaurantId}:${a.clientKey}`}))`;
@@ -285,9 +384,9 @@ export async function updateRow(
     const now = viewOf(evaluateRows(await loadRows(tx, open.batchId), a.now), a.rowId);
     return { rowId: a.rowId, version: now.version, flags: codes(now.open), replayed: true };
   }
-  if (a.version !== undefined && a.version !== open.row.version) throw new StudioError('CONFLICT', 'Someone else changed this line: reload it', { phCode: 'ROW_STALE' });
   const edited = asObject(open.row.edited);
   if (edited.removed === true) throw removedLine();
+  if (a.version !== open.row.version) throw staleLine();
 
   const before = viewOf(evaluateRows(await loadRows(tx, open.batchId), a.now), a.rowId);
   const parsed = parsePatch(a.patch, effectiveHeader(open.header).currency, a.now);
@@ -311,15 +410,16 @@ export async function updateRow(
 
 // Matches chosen by a person ---------------------------------------------------------------------------------------------
 
-export const matchChoiceInput = z.object({ rowId: z.string().min(1).max(64), productId: z.string().min(1).max(64), unitId: z.string().min(1).max(64) });
+export const matchChoiceInput = z.object({ rowId: z.string().min(1).max(64), version: z.number().int().min(1), productId: z.string().min(1).max(64), unitId: z.string().min(1).max(64) });
 
 /** A person chooses the product and unit of a line. The product must be an active one of the business and the unit one of its units. */
 export async function chooseMatch(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; rowId: string; productId: string; unitId: string; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; rowId: string; version: number; productId: string; unitId: string; now: Date; audit: Audit },
 ): Promise<RowResult> {
   const open = await openRow(tx, a);
   if (asObject(open.row.edited).removed === true) throw removedLine();
+  if (a.version !== open.row.version) throw staleLine();
   const product = await tx.phProduct.findFirst({ where: { id: a.productId }, select: { active: true, units: { where: { id: a.unitId }, select: { id: true } } } });
   if (!product) throw new StudioError('NOT_FOUND', 'Product not found');
   if (!product.active) throw new StudioError('CONFLICT', 'This product is archived', { phCode: 'PRODUCT_ARCHIVED' });
@@ -345,9 +445,10 @@ export async function chooseMatch(
 }
 
 /** Takes a line's match back: it is UNMATCHED (and MISSING) until the matcher or a person decides again. */
-export async function clearMatch(tx: ScopedTx, a: { restaurantId: string; branchId: string; rowId: string; now: Date; audit: Audit }): Promise<RowResult> {
+export async function clearMatch(tx: ScopedTx, a: { restaurantId: string; branchId: string; rowId: string; version: number; now: Date; audit: Audit }): Promise<RowResult> {
   const open = await openRow(tx, a);
   if (asObject(open.row.edited).removed === true) throw removedLine();
+  if (a.version !== open.row.version) throw staleLine();
   const before = viewOf(evaluateRows(await loadRows(tx, open.batchId), a.now), a.rowId);
   await tx.phIntakeRow.updateMany({ where: { id: a.rowId }, data: { matchedProductId: null, matchedUnitId: null, matchState: 'UNMATCHED', version: { increment: 1 } } });
   const after = viewOf((await recomputeBatch(tx, open.batchId, a.now)).rows, a.rowId);
@@ -362,8 +463,14 @@ export async function clearMatch(tx: ScopedTx, a: { restaurantId: string; branch
 
 // Acknowledging ----------------------------------------------------------------------------------------------------------
 
+/** The flag codes a line can raise (the domain's `Flag`). */
+export const FLAG_CODES = ['AMBIGUOUS_MATCH', 'DUPLICATE_LINE', 'EXPIRED', 'MATH_MISMATCH', 'MISSING', 'MODEL_UNCLEAR'] as const satisfies readonly Flag[];
+
 export const reviewInput = z.object({
   rowId: z.string().min(1).max(64),
+  version: z.number().int().min(1),
+  /** The flags the screen showed on this line. The server compares them with what the line raises now (`ACK_STALE`); it never stores them. */
+  shown: z.array(z.enum(FLAG_CODES)).max(FLAG_CODES.length),
   note: z.string().trim().min(1, 'Write what you checked').max(500, 'Use at most 500 characters'),
   /** The reason for a line total that does not match quantity x cost; without it MATH_MISMATCH stays open. */
   mismatchReason: z.string().trim().min(1, 'Write what you checked').max(500, 'Use at most 500 characters').optional(),
@@ -371,16 +478,21 @@ export const reviewInput = z.object({
 
 /**
  * Records that a person looked at a line. The note clears exactly the flags the line raises NOW (MODEL_UNCLEAR, EXPIRED,
- * DUPLICATE_LINE: the others need data or a choice); a flag raised by a later edit is not covered. A mismatch reason is bound to
+ * DUPLICATE_LINE: the others need data or a choice) and only when those are the flags the person was shown (`shown`); a flag
+ * raised by a later edit is not covered. A mismatch reason is bound to
  * the difference on screen: change the line and it is open again.
  */
 export async function reviewRow(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; rowId: string; note: string; mismatchReason?: string; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; rowId: string; version: number; shown: readonly Flag[]; note: string; mismatchReason?: string; now: Date; audit: Audit },
 ): Promise<RowResult> {
   const open = await openRow(tx, a);
   if (asObject(open.row.edited).removed === true) throw removedLine();
+  if (a.version !== open.row.version) throw staleLine();
   const before = viewOf(evaluateRows(await loadRows(tx, open.batchId), a.now), a.rowId);
+  // The note covers what the reviewer saw. If the line raises other flags now, nothing is acknowledged. What the client sent decides
+  // this refusal only: the stored acknowledgement below is derived from the server's own flags.
+  if ([...new Set(a.shown)].sort().join() !== [...before.derived].sort().join()) throw ackStale();
   const ack: Ack = {
     flags: [...before.derived],
     mismatch:
@@ -407,14 +519,18 @@ export async function reviewRow(
  */
 export async function fillFromBarcode(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; rowId: string; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; rowId: string; version: number; now: Date; audit: Audit },
 ): Promise<RowResult & { filled: string[] }> {
   const open = await openRow(tx, a);
   const edited = asObject(open.row.edited);
   if (edited.removed === true) throw removedLine();
+  if (a.version !== open.row.version) throw staleLine();
   const views = evaluateRows(await loadRows(tx, open.batchId), a.now);
   const before = viewOf(views, a.rowId);
-  const gs1 = (before.line.barcodeText === null ? null : parseGs1(before.line.barcodeText)) ?? (asObject(open.row.extracted).gs1 as ReturnType<typeof parseGs1> | undefined) ?? null;
+  // The model's own reading of the barcode (`extracted.gs1`) belongs to the barcode it read: once a person typed another, it is not used.
+  const extracted = asObject(open.row.extracted);
+  const sameBarcode = before.line.barcodeText === ((extracted.barcodeText as string | null | undefined) ?? null);
+  const gs1 = (before.line.barcodeText === null ? null : parseGs1(before.line.barcodeText)) ?? (sameBarcode ? ((extracted.gs1 as ReturnType<typeof parseGs1> | undefined) ?? null) : null);
   const patch: Record<string, Json> = {};
   if (gs1?.lot && before.line.lot === null) patch.lot = gs1.lot;
   if (gs1?.expiry && before.line.expiry === null) patch.expiry = gs1.expiry.date;
@@ -444,9 +560,14 @@ export async function addRow(
   tx: ScopedTx,
   a: { restaurantId: string; branchId: string; fileId: string; now: Date; audit: Audit },
 ): Promise<{ rowId: string; lineNo: number }> {
-  const file = await tx.phIntakeFile.findFirst({ where: { id: a.fileId }, select: { batchId: true, pages: true } });
-  if (!file) throw new StudioError('NOT_FOUND', 'File not found');
+  const file = await tx.phIntakeFile.findFirst({ where: { id: a.fileId }, select: { batchId: true } });
+  if (!file) throw fileNotFound();
+  // A file of another branch is not found either, with the same sentence.
+  if (!(await tx.phIntakeBatch.findFirst({ where: { id: file.batchId, branchId: a.branchId }, select: { id: true } }))) throw fileNotFound();
   const open = await openBatch(tx, { restaurantId: a.restaurantId, branchId: a.branchId, batchId: file.batchId });
+  // Only a file that was read takes a line by hand, and the status is read under the batch lock (a reading or a retry saves under it).
+  const current = await tx.phIntakeFile.findFirst({ where: { id: a.fileId }, select: { status: true } });
+  if (current?.status !== 'EXTRACTED') throw fileNotFound();
   const last = await tx.phIntakeRow.aggregate({ where: { fileId: a.fileId }, _max: { lineNo: true } });
   const lineNo = (last._max.lineNo ?? 0) + 1;
   const made = await tx.phIntakeRow.create({
@@ -459,10 +580,11 @@ export async function addRow(
 }
 
 /** Takes a line out of the review. The row stays (`edited.removed`), so before and after can be reproduced; approval ignores it. */
-export async function removeRow(tx: ScopedTx, a: { restaurantId: string; branchId: string; rowId: string; now: Date; audit: Audit }): Promise<RowResult> {
+export async function removeRow(tx: ScopedTx, a: { restaurantId: string; branchId: string; rowId: string; version: number; now: Date; audit: Audit }): Promise<RowResult> {
   const open = await openRow(tx, a);
   const edited = asObject(open.row.edited);
   if (edited.removed === true) return { rowId: a.rowId, version: open.row.version, flags: [], replayed: true };
+  if (a.version !== open.row.version) throw staleLine();
   const before = viewOf(evaluateRows(await loadRows(tx, open.batchId), a.now), a.rowId);
   await tx.phIntakeRow.updateMany({ where: { id: a.rowId }, data: { edited: toJson({ ...edited, removed: true }), version: { increment: 1 } } });
   const after = viewOf((await recomputeBatch(tx, open.batchId, a.now)).rows, a.rowId);
@@ -500,10 +622,10 @@ export interface HeaderResult {
 /** Edits the invoice's header over the model's reading (`header.edited`); the supplier is checked and goes to the batch. */
 export async function updateHeader(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; batchId: string; version?: number; patch: HeaderPatch; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; batchId: string; version: number; patch: HeaderPatch; now: Date; audit: Audit },
 ): Promise<HeaderResult> {
   const open = await openBatch(tx, a);
-  if (a.version !== undefined && a.version !== open.version) throw new StudioError('CONFLICT', 'Someone else changed this invoice: reload it', { phCode: 'BATCH_STALE' });
+  if (a.version !== open.version) throw staleInvoice();
   const currency = a.patch.currency !== undefined ? a.patch.currency : effectiveHeader(open.header).currency;
   const edits: Record<string, Json> = {};
   if (a.patch.invoiceNumber !== undefined) edits.invoiceNumber = text(a.patch.invoiceNumber);
@@ -529,6 +651,13 @@ export async function updateHeader(
   const beforeStatus = headerView(open.header, evaluateRows(await loadRows(tx, open.batchId), a.now)).status;
   const header = toJson({ ...open.header, edited: { ...asObject(open.header.edited), ...edits } });
   await tx.phIntakeBatch.updateMany({ where: { id: open.batchId }, data: { header, supplierId, version: { increment: 1 } } });
+  if (a.patch.currency !== undefined && a.patch.currency !== effectiveHeader(open.header).currency) {
+    // A line's accepted difference was seen in another currency: it is open again.
+    for (const r of await loadRows(tx, open.batchId)) {
+      const ack = readAck(r.acknowledged);
+      if (ack.mismatch !== null) await tx.phIntakeRow.updateMany({ where: { id: r.id }, data: { acknowledged: toJson({ flags: ack.flags, mismatch: null }) } });
+    }
+  }
   const { header: view } = await recomputeBatch(tx, open.batchId, a.now);
   a.audit({
     action: 'ph.intake.header.update',
@@ -541,25 +670,33 @@ export async function updateHeader(
 
 export const headerAckInput = z.object({
   batchId: z.string().min(1).max(64),
+  version: z.number().int().min(1),
+  /** The difference and currency the screen showed. The server compares them with its own (`ACK_STALE`); the stored acknowledgement is its own. */
+  shown: z.object({ difference: z.string().regex(/^-?\d{1,30}$/), currency: z.enum(['IQD', 'USD']).nullable() }),
   reason: z.string().trim().min(1, 'Write what you checked').max(500, 'Use at most 500 characters'),
 });
 
-/** Accepts the difference between the printed total and the lines, with a reason, bound to that exact difference. */
+/** Accepts the difference between the printed total and the lines, with a reason, bound to that exact difference and currency. */
 export async function acknowledgeHeader(
   tx: ScopedTx,
-  a: { restaurantId: string; branchId: string; batchId: string; reason: string; now: Date; audit: Audit },
+  a: { restaurantId: string; branchId: string; batchId: string; version: number; shown: { difference: string; currency: 'IQD' | 'USD' | null }; reason: string; now: Date; audit: Audit },
 ): Promise<HeaderResult & { difference: string }> {
   const open = await openBatch(tx, a);
-  const view = headerView(open.header, evaluateRows(await loadRows(tx, open.batchId), a.now));
+  if (a.version !== open.version) throw staleInvoice();
+  const evaluated = evaluateRows(await loadRows(tx, open.batchId), a.now);
+  const rowCount = evaluated.filter((r) => !r.removed).length;
+  const view = headerView(open.header, evaluated);
   if (view.arithmetic.status !== 'MISMATCH') throw new StudioError('CONFLICT', 'There is no difference to acknowledge', { phCode: 'NO_DIFFERENCE' });
   const difference = view.arithmetic.difference.toString();
-  const header = toJson({ ...open.header, acknowledged: { reason: cleanText(a.reason), difference }, arithmetic: arithmeticJson(view.arithmetic) });
+  if (a.shown.difference !== difference || a.shown.currency !== view.values.currency) throw ackStale();
+  const header = toJson({ ...open.header, acknowledged: { reason: cleanText(a.reason), difference, currency: view.values.currency }, arithmetic: arithmeticJson(view.arithmetic) });
   await tx.phIntakeBatch.updateMany({ where: { id: open.batchId }, data: { header, version: { increment: 1 } } });
   a.audit({
     action: 'ph.intake.header.acknowledge',
     entityType: 'PhIntakeBatch',
     entityId: open.batchId,
-    changes: { headerDifference: { before: null, after: { difference, currency: view.values.currency } } },
+    // No amount, difference or currency: the audit holds that the header was acknowledged and how many lines it was added up from.
+    changes: { acknowledged: { before: false, after: true }, headerStatus: { before: 'MISMATCH', after: 'MISMATCH' }, lines: { before: null, after: rowCount } },
   });
   return { batchId: open.batchId, version: open.version + 1, status: 'MISMATCH', difference };
 }

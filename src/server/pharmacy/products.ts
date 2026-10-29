@@ -434,6 +434,9 @@ async function createChunk(tx: ScopedTx, restaurantId: string, inputs: readonly 
   });
 }
 
+/** The refusal of removing a pack that has prices, stock, sales or a line of an approved invoice. */
+export const UNIT_REMOVE_BLOCKED = 'This unit has prices, stock, sales or approved invoice lines, so it cannot be removed';
+
 /** The refusal of a new size for a pack that has prices (its prices would belong to another pack). */
 export const UNIT_PRICED = 'This pack has prices, so its size cannot change. Add a new pack instead.';
 
@@ -483,14 +486,20 @@ export async function updateProduct(tx: ScopedTx, productId: string, expectedVer
   const removedIds = removed.map((u) => u.id);
   const priced = removedIds.length === 0 ? 0 : await tx.phPrice.count({ where: { unitId: { in: removedIds } } });
   if (priced > 0 || (await unitsWithStock(tx, removedIds)).length > 0) {
-    throw new StudioError('CONFLICT', 'This unit has prices, stock or sales, so it cannot be removed', { phCode: 'UNIT_IN_USE' });
+    throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
   }
   if (removedIds.length > 0) {
-    // Invoice lines of an OPEN intake batch matched to a removed pack go back to unmatched (same transaction); a line of an
-    // approved or cancelled batch is history that points at the unit, so the unit stays (review I5).
+    // Invoice lines of an OPEN or CANCELLED intake batch matched to a removed pack go back to unmatched (same transaction); a line of
+    // an APPROVED batch is history that points at the unit, so the unit stays (review I5).
     const intake = await clearUnitMatches(tx, current.restaurantId, removedIds, new Date());
-    if (intake.blocked > 0) throw new StudioError('CONFLICT', 'This unit has prices, stock or sales, so it cannot be removed', { phCode: 'UNIT_IN_USE' });
-    await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+    if (intake.blocked > 0) throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
+    try {
+      await tx.phProductUnit.deleteMany({ where: { id: { in: removedIds } } });
+    } catch (error) {
+      // A line was matched to the unit after the check (the foreign key is the last guard): the same refusal.
+      if ((error as { code?: unknown }).code === 'P2003') throw new StudioError('CONFLICT', UNIT_REMOVE_BLOCKED, { phCode: 'UNIT_IN_USE' });
+      throw error;
+    }
   }
 
   const unitIdByLevel = new Map<number, string>();

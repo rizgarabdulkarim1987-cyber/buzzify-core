@@ -34,7 +34,8 @@ function branchOf(input: { branchId?: string }): string {
 }
 
 const rowId = z.string().min(1).max(64);
-const version = z.number().int().min(1).optional();
+/** Every write to a line or the header names the version the person saw (`VERSION_CONFLICT` when it is not the current one). */
+const version = z.number().int().min(1);
 
 export const rowUpdate = defineAction({
   name: 'ph.intake.row.update',
@@ -63,7 +64,7 @@ export const rowMatch = defineAction({
     assertMayIntake(ph);
     const branchId = branchOf(input);
     return ctx.transaction((tx) =>
-      chooseMatch(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, productId: input.productId, unitId: input.unitId, now: new Date(), audit: (e) => ctx.audit(e) }),
+      chooseMatch(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, productId: input.productId, unitId: input.unitId, now: new Date(), audit: (e) => ctx.audit(e) }),
     );
   },
 });
@@ -72,13 +73,13 @@ export const rowClearMatch = defineAction({
   name: 'ph.intake.row.clearMatch',
   permission: null,
   ph: 'purchase.manage',
-  input: phPlaceInput.extend({ rowId }),
+  input: phPlaceInput.extend({ rowId, version }),
   target: phTargetOf,
   async run(ctx, input) {
     const { ph } = pharmacyOf(ctx);
     assertMayIntake(ph);
     const branchId = branchOf(input);
-    return ctx.transaction((tx) => clearMatch(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, now: new Date(), audit: (e) => ctx.audit(e) }));
+    return ctx.transaction((tx) => clearMatch(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, now: new Date(), audit: (e) => ctx.audit(e) }));
   },
 });
 
@@ -93,7 +94,7 @@ export const rowReview = defineAction({
     assertMayIntake(ph);
     const branchId = branchOf(input);
     return ctx.transaction((tx) =>
-      reviewRow(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, note: input.note, mismatchReason: input.mismatchReason, now: new Date(), audit: (e) => ctx.audit(e) }),
+      reviewRow(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, shown: input.shown, note: input.note, mismatchReason: input.mismatchReason, now: new Date(), audit: (e) => ctx.audit(e) }),
     );
   },
 });
@@ -102,13 +103,13 @@ export const rowFillFromBarcode = defineAction({
   name: 'ph.intake.row.fillFromBarcode',
   permission: null,
   ph: 'purchase.manage',
-  input: phPlaceInput.extend({ rowId }),
+  input: phPlaceInput.extend({ rowId, version }),
   target: phTargetOf,
   async run(ctx, input) {
     const { ph } = pharmacyOf(ctx);
     assertMayIntake(ph);
     const branchId = branchOf(input);
-    return ctx.transaction((tx) => fillFromBarcode(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, now: new Date(), audit: (e) => ctx.audit(e) }));
+    return ctx.transaction((tx) => fillFromBarcode(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, now: new Date(), audit: (e) => ctx.audit(e) }));
   },
 });
 
@@ -130,13 +131,13 @@ export const rowRemove = defineAction({
   name: 'ph.intake.row.remove',
   permission: null,
   ph: 'purchase.manage',
-  input: phPlaceInput.extend({ rowId }),
+  input: phPlaceInput.extend({ rowId, version }),
   target: phTargetOf,
   async run(ctx, input) {
     const { ph } = pharmacyOf(ctx);
     assertMayIntake(ph);
     const branchId = branchOf(input);
-    return ctx.transaction((tx) => removeRow(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, now: new Date(), audit: (e) => ctx.audit(e) }));
+    return ctx.transaction((tx) => removeRow(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, now: new Date(), audit: (e) => ctx.audit(e) }));
   },
 });
 
@@ -166,7 +167,7 @@ export const headerAcknowledge = defineAction({
     const { ph } = pharmacyOf(ctx);
     assertMayIntake(ph);
     const branchId = branchOf(input);
-    return ctx.transaction((tx) => acknowledgeHeader(tx, { restaurantId: ph.restaurantId, branchId, batchId: input.batchId, reason: input.reason, now: new Date(), audit: (e) => ctx.audit(e) }));
+    return ctx.transaction((tx) => acknowledgeHeader(tx, { restaurantId: ph.restaurantId, branchId, batchId: input.batchId, version: input.version, shown: input.shown, reason: input.reason, now: new Date(), audit: (e) => ctx.audit(e) }));
   },
 });
 
