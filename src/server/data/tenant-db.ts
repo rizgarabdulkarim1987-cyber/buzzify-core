@@ -119,20 +119,25 @@ export const PHARMACY_BRANCH_SCOPED_MODELS: readonly string[] = ['PhStaffBranch'
 export const PHARMACY_EITHER_BRANCH_MODELS: readonly string[] = ['PhTransfer', 'PhTransferLine'];
 
 /**
- * The relation fields that lead INTO transfers from other models (`Branch` to its transfers, `PhBatch` and `PhProduct` to
- * their transfer lines). A top-level query on those models is not filtered by either end, so in a client limited to branches
- * any use of these keys (include, select, where, nested write) is refused: transfers and lines are read and written through
- * `phTransfer` and `phTransferLine` only, where the either-branch rule applies.
+ * The relation fields that lead INTO transfers from the models that are not transfers: `Restaurant.phTransfers` and
+ * `phTransferLines`, `Branch.phTransfersFrom` and `phTransfersTo`, `PhProduct.transferLines` and `PhBatch.transferLines`. A top-level
+ * query on those models is not filtered by either end, so in a client limited to branches any use of these keys, at any depth
+ * of ANY query (include, select, where, nested write), is refused: transfers and lines are read and written through
+ * `phTransfer` and `phTransferLine` only, where the either-branch rule applies. The list is the schema's: the registry test
+ * (`tests/data/tenant-registry.test.ts`) derives it from every relation field of another model whose type is a transfer model
+ * and fails when this list differs, so a relation added later cannot slip past.
  */
-export const TRANSFER_RELATIONS: readonly string[] = ['phTransfersFrom', 'phTransfersTo', 'transferLines'];
+export const TRANSFER_RELATIONS: readonly string[] = ['phTransfers', 'phTransferLines', 'phTransfersFrom', 'phTransfersTo', 'transferLines'];
 
 /**
- * The relation keys a write to a transfer or a line may not carry in a client limited to branches: they would move a transfer's
- * end or write another row through the relation, past the either-branch filter (the service writes lines with scalar ids).
+ * The relation keys a write to a transfer or a line may not carry in a client limited to branches: EVERY relation field of the two
+ * models (the restaurant, the branches, the product, the batch, the lines), since a nested write through any of them would move a
+ * transfer's end or write another row past the either-branch filter (the service writes with scalar ids). Also checked against
+ * the schema by the registry test.
  */
 export const TRANSFER_NESTED_KEYS: Record<string, readonly string[]> = {
-  PhTransfer: ['lines', 'fromBranch', 'toBranch'],
-  PhTransferLine: ['transfer', 'requestLine', 'sentLines'],
+  PhTransfer: ['restaurant', 'fromBranch', 'toBranch', 'lines'],
+  PhTransferLine: ['restaurant', 'transfer', 'product', 'batch', 'requestLine', 'sentLines'],
 };
 
 let branchScoped = new Set<string>(PHARMACY_BRANCH_SCOPED_MODELS);
@@ -476,8 +481,10 @@ function tenantScope(scope: Scope) {
             throw new Error(`Tenant scope: ${model} is branch-scoped and this client has neither branches nor allBranches`);
           }
           // A branch-limited client reaches transfers and their lines through their own models only (they are filtered by
-          // either end there); the relations into them from other models are not filtered, so they are refused.
-          if (scope.branchIds !== undefined && !EITHER_BRANCH.has(model) && usesKey(args, TRANSFER_RELATION_SET)) {
+          // either end there); the relations into them from other models are not filtered, so they are refused in every
+          // query, the transfer models' own included (a chain from a transfer through its branch, product or batch back into
+          // other transfers uses one of these keys).
+          if (scope.branchIds !== undefined && usesKey(args, TRANSFER_RELATION_SET)) {
             throw new Error('Branch scope: transfers are read and written through the transfer models only');
           }
           const rewrites = rules.get(model);

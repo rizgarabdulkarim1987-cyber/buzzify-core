@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
   PHARMACY_BRANCH_SCOPED_MODELS,
@@ -678,5 +679,126 @@ describe('who sees a transfer and its lines', () => {
     await expect(bare.phTransfer.findMany()).rejects.toThrow(/branch-scoped/);
     await expect(bare.phTransfer.count()).rejects.toThrow(/branch-scoped/);
     await expect(bare.phTransferLine.findMany()).rejects.toThrow(/branch-scoped/);
+  });
+});
+
+// Every way into a transfer, from the schema ---------------------------------------------------------------------------------
+
+type Rel = { name: string; type: string; list: boolean };
+type Delegates = Record<string, Record<string, (args: unknown) => Promise<unknown>>>;
+
+/** The models of schema.prisma with their relation fields (name, target model, list or not). */
+function schemaRelations(): Map<string, Rel[]> {
+  const text = readFileSync('prisma/schema.prisma', 'utf8');
+  const names = new Set([...text.matchAll(/^model (\w+) \{/gm)].map((m) => m[1] as string));
+  const out = new Map<string, Rel[]>();
+  for (const m of text.matchAll(/^model (\w+) \{([\s\S]*?)^\}/gm)) {
+    const fields = [...(m[2] as string).matchAll(/^\s*(\w+)\s+(\w+)(\[\])?\??(?:[ \t]+@relation|[ \t]*$)/gm)]
+      .filter((f) => names.has(f[2] as string))
+      .map((f) => ({ name: f[1] as string, type: f[2] as string, list: f[3] !== undefined }));
+    out.set(m[1] as string, fields);
+  }
+  return out;
+}
+const delegateOf = (model: string) => model.charAt(0).toLowerCase() + model.slice(1);
+
+describe('every relation that reaches a transfer, from the schema', () => {
+  const as = (restaurantId: string, branchIds: string[]) => scopedClient(prisma(), { restaurantId, branchIds }) as unknown as Delegates;
+  const through = /through the transfer models only/;
+  const nested = /(may not go through a relation|may not set a branch by relation|may not change the branches|Tenant mismatch)/;
+  const TRANSFER = new Set(['PhTransfer', 'PhTransferLine']);
+  const relations = schemaRelations();
+  const into = (model: string) => (relations.get(model) ?? []).filter((f) => TRANSFER.has(f.type));
+
+  it('finds the relations the registry blocks', () => {
+    const found = [...relations.keys()].filter((m) => !TRANSFER.has(m)).flatMap((m) => into(m).map((f) => `${m}.${f.name}`));
+    expect(found.sort()).toEqual(['Branch.phTransfersFrom', 'Branch.phTransfersTo', 'PhBatch.transferLines', 'PhProduct.transferLines', 'Restaurant.phTransferLines', 'Restaurant.phTransfers']);
+  });
+
+  it('refuses each of them to a client limited to branches: include, select, count, where, and every nested write', async () => {
+    const w = await world();
+    const t = await transferOf(w, { fromBranchId: w.b1, toBranchId: w.b3 });
+    const r = await requestLine(w, t);
+    for (const ends of [[w.b3], [w.b1], [w.b2]]) {
+      const db = as(w.biz.id, ends);
+      for (const model of relations.keys()) {
+        if (TRANSFER.has(model)) continue;
+        for (const f of into(model)) {
+          const label = `${model}.${f.name} for ${ends.join()}`;
+          const d = db[delegateOf(model)]!;
+          await expect(d.findMany!({ include: { [f.name]: true } }), label).rejects.toThrow(through);
+          await expect(d.findMany!({ select: { [f.name]: { select: { id: true } } } }), label).rejects.toThrow(through);
+          await expect(d.findMany!({ include: { _count: { select: { [f.name]: true } } } }), label).rejects.toThrow(through);
+          await expect(d.findFirst!({ where: { [f.name]: { some: {} } } }), label).rejects.toThrow(through);
+          await expect(d.findFirst!({ include: { [f.name]: { include: { lines: true } } } }), label).rejects.toThrow(through);
+          for (const op of ['update', 'updateMany', 'upsert']) {
+            const call = (data: unknown) => (op === 'upsert' ? d.upsert!({ where: { id: 'x' }, create: data, update: data }) : d[op]!({ where: { id: 'x' }, data }));
+            for (const write of [{ deleteMany: {} }, { updateMany: { where: {}, data: { requestedQty: 999 } } }, { create: {} }, { connect: { id: r.id } }, { delete: { id: r.id } }, { disconnect: true }]) {
+              await expect(call({ [f.name]: write }), `${label} ${op}`).rejects.toThrow(through);
+            }
+          }
+          await expect(d.create!({ data: { [f.name]: { create: {} } } }), label).rejects.toThrow(through);
+        }
+      }
+    }
+    // nothing moved
+    expect(await prisma().phTransferLine.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ requestedQty: 10 });
+    expect(await prisma().phTransfer.count()).toBe(1);
+  });
+
+  it('refuses a chain from a transfer through its restaurant, branches, product or batch back into other transfers', async () => {
+    const w = await world();
+    const visible = await transferOf(w, { fromBranchId: w.b1, toBranchId: w.b2 });
+    await requestLine(w, visible);
+    const hidden = await transferOf(w, { fromBranchId: w.b1, toBranchId: w.b3 });
+    await requestLine(w, hidden);
+    const db = as(w.biz.id, [w.b2]);
+    expect((await db.phTransfer!.findMany!({})) as unknown[]).toHaveLength(1);
+    let chains = 0;
+    for (const model of TRANSFER) {
+      for (const hop of (relations.get(model) ?? []).filter((f) => !TRANSFER.has(f.type))) {
+        for (const back of into(hop.type)) {
+          chains += 1;
+          const label = `${model}.${hop.name}.${back.name}`;
+          await expect(db[delegateOf(model)]!.findMany!({ include: { [hop.name]: { include: { [back.name]: true } } } }), label).rejects.toThrow(through);
+          await expect(db[delegateOf(model)]!.findMany!({ select: { [hop.name]: { select: { [back.name]: { select: { id: true } } } } } }), label).rejects.toThrow(through);
+        }
+      }
+    }
+    expect(chains).toBeGreaterThanOrEqual(8);
+    // reading its own lines and ends is fine: they are the visible transfer's
+    const own = (await db.phTransfer!.findMany!({ include: { lines: true, fromBranch: { select: { name: true } } } })) as { lines: unknown[] }[];
+    expect(own).toHaveLength(1);
+    expect(own[0]!.lines).toHaveLength(1);
+  });
+
+  it('refuses a write to a transfer or a line that carries any of their relations, however it is spelled', async () => {
+    const w = await world();
+    const t = await transferOf(w, { fromBranchId: w.b1, toBranchId: w.b2 });
+    const r = await requestLine(w, t);
+    const db = as(w.biz.id, [w.b1]);
+    for (const model of TRANSFER) {
+      const d = db[delegateOf(model)]!;
+      const id = model === 'PhTransfer' ? t.id : r.id;
+      for (const f of relations.get(model) ?? []) {
+        for (const write of [{ update: { note: 'x' } }, { updateMany: { where: {}, data: {} } }, { deleteMany: {} }, { delete: true }, { connect: { id: 'x' } }, { create: {} }, { upsert: {} }, { set: [] }]) {
+          const label = `${model}.${f.name} ${Object.keys(write)[0]}`;
+          await expect(d.update!({ where: { id }, data: { [f.name]: write } }), label).rejects.toThrow(nested);
+          await expect(d.updateMany!({ where: { id }, data: { [f.name]: write } }), label).rejects.toThrow(nested);
+          await expect(d.upsert!({ where: { id }, create: { [f.name]: write }, update: { [f.name]: write } }), label).rejects.toThrow(nested);
+          await expect(d.create!({ data: { [f.name]: write } }), label).rejects.toThrow(nested);
+        }
+      }
+    }
+    expect(await prisma().phTransferLine.findUniqueOrThrow({ where: { id: r.id } })).toMatchObject({ requestedQty: 10 });
+  });
+
+  it('still lets an owner client (all branches of its business) use them', async () => {
+    const w = await world();
+    const t = await transferOf(w, { fromBranchId: w.b1, toBranchId: w.b3 });
+    await requestLine(w, t);
+    const owner = scopedClient(prisma(), { restaurantId: w.biz.id, allBranches: true });
+    const restaurant = await owner.restaurant.findFirstOrThrow({ include: { phTransfers: { include: { lines: true } } } });
+    expect(restaurant.phTransfers).toHaveLength(1);
   });
 });
