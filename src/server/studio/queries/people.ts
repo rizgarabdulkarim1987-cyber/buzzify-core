@@ -181,6 +181,29 @@ export const restaurantMembers = defineQuery({
   },
 });
 
+/** The people who work a restaurant's till from a till account (not its Studio members). Super Admins only. */
+export const restaurantTillStaff = defineQuery({
+  name: 'people.restaurantTillStaff',
+  permission: 'people.manage',
+  input: z.object({ restaurantId: idField }),
+  target: (i) => ({ kind: 'restaurant', restaurantId: i.restaurantId }),
+  run: async (ctx) => {
+    const rows = await ctx.db.posStaff.findMany({
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+      select: { id: true, role: true, deactivatedAt: true, createdAt: true, user: { select: { id: true, name: true, email: true, deactivatedAt: true } } },
+    });
+    return rows.map((row) => ({
+      staffId: row.id,
+      userId: row.user.id,
+      name: row.user.name,
+      email: row.user.email,
+      role: row.role,
+      active: row.deactivatedAt === null && row.user.deactivatedAt === null,
+      since: row.createdAt.toISOString(),
+    }));
+  },
+});
+
 /**
  * A restaurant's permission policy as saved (parsed: unknown keys and never-grantable grants are gone) and the version
  * to save a change against. Super Admins only: a client's policy is the agency's to read and change.

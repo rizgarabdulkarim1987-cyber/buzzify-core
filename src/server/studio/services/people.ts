@@ -43,13 +43,21 @@ function problem(field: string, message: string, code: 'INVALID' | 'CONFLICT' = 
 
 /** Prisma's unique-constraint violation, however many layers wrapped it on the way up. */
 function isUniqueViolation(error: unknown): boolean {
+  return hasCode(error, 'P2002');
+}
+
+/** A Prisma error code, however many layers wrapped it on the way up. */
+function hasCode(error: unknown, code: string): boolean {
   for (let e = error, depth = 0; e && typeof e === 'object' && depth < 5; e = (e as { cause?: unknown }).cause, depth += 1) {
-    if ((e as { code?: unknown }).code === 'P2002') return true;
+    if ((e as { code?: unknown }).code === code) return true;
   }
   return false;
 }
 
 // Memberships ---------------------------------------------------------------------------------------------------------
+
+/** Why a person who works a till cannot also be a Studio member. */
+export const TILL_ACCOUNT = 'This is a till account. Till staff cannot also be Studio members';
 
 /** Adds a person to a restaurant as a designer. Run it on the restaurant's own client. Someone who is a member already is refused, whatever their role. */
 export async function assignDesigner(tx: ScopedTx, args: { restaurantId: string; userId: string }): Promise<void> {
@@ -57,6 +65,8 @@ export async function assignDesigner(tx: ScopedTx, args: { restaurantId: string;
   if (!user) throw new StudioError('NOT_FOUND');
   const held = await tx.membership.findFirst({ where: { userId: user.id, restaurantId: args.restaurantId }, select: { id: true } });
   if (held) throw problem('userId', 'This person already has access to this restaurant', 'CONFLICT');
+  // A till account (made from the POS) works the till only: giving it a Studio role would hand a cashier the menus.
+  if (await tx.posStaff.findFirst({ where: { userId: user.id }, select: { id: true } })) throw problem('userId', TILL_ACCOUNT, 'CONFLICT');
   await tx.membership.create({ data: { userId: user.id, restaurantId: args.restaurantId, role: 'DESIGNER' } });
 }
 
@@ -126,6 +136,34 @@ export async function deactivatePerson(
     data: { revokedAt: args.now },
   });
   return { revokedInvitations: revoked.count };
+}
+
+/**
+ * Deletes a deactivated account for good: its memberships, till rows, sessions and invitations go with it (they cascade).
+ * Deactivation comes first, so a delete is never one click on a live account. Refused: your own account, a Super Admin's
+ * (they are switched off, never erased, so the last-admin rule stays simple), and an account that opened a till shift or
+ * made a payment reversal, whose cash history must keep its author.
+ */
+export async function deletePerson(
+  tx: ScopedTx,
+  args: { actor: Pick<Actor, 'userId' | 'isSuperAdmin'>; userId: string },
+): Promise<{ name: string; email: string }> {
+  if (args.userId === args.actor.userId) throw problem('userId', 'You cannot delete your own account');
+  const target = await tx.user.findUnique({
+    where: { id: args.userId },
+    select: { id: true, name: true, email: true, isSuperAdmin: true, deactivatedAt: true },
+  });
+  if (!target) throw new StudioError('NOT_FOUND');
+  if (target.isSuperAdmin) throw new StudioError('FORBIDDEN');
+  if (!target.deactivatedAt) throw problem('userId', 'Deactivate this account first, then delete it', 'CONFLICT');
+  try {
+    await tx.user.delete({ where: { id: target.id } });
+  } catch (error) {
+    // The till's shifts and reversals keep their author (a restriction, not a cascade): the database refuses.
+    if (hasCode(error, 'P2003')) throw problem('userId', 'This account has till history, so it can only stay deactivated', 'CONFLICT');
+    throw error;
+  }
+  return { name: target.name, email: target.email };
 }
 
 /** Switches a deactivated account back on. It signs in as before; the sessions and invitations that ended stay ended. */

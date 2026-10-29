@@ -36,7 +36,7 @@ export function ExpoScreen({ orders, readAt }: { orders: ExpoOrder[]; readAt: Da
       ) : (
         <ul className="grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3">
           {orders.map((order) => (
-            <li key={order.orderId} className={cx('flex flex-col gap-2 rounded-lg border-2 p-3', order.allReady ? 'border-ink bg-hover' : 'border-line-strong bg-raised')}>
+            <li key={order.orderId} className={cx('flex flex-col gap-2 rounded-lg border-2 p-3', order.allReady && !order.served ? 'border-ink bg-hover' : 'border-line-strong bg-raised')}>
               <header className="flex items-baseline justify-between gap-2">
                 <h2 className="text-lg font-semibold">
                   {order.kind !== 'DINE_IN' && order.queueNumber !== null
@@ -47,7 +47,7 @@ export function ExpoScreen({ orders, readAt }: { orders: ExpoOrder[]; readAt: Da
                 </h2>
                 <span className="text-sm text-muted">{elapsedLabel(elapsedMinutes(new Date(order.oldestAt).getTime(), now), text, locale)}</span>
               </header>
-              {order.allReady ? <p className="text-base font-bold">{t('pos.expo.readyToRun')}</p> : null}
+              {order.allReady && !order.served ? <p className="text-base font-bold">{t('pos.expo.readyToRun')}</p> : null}
               <ul className="flex flex-col gap-1">
                 {order.sections.map((section) => (
                   <li key={section.sectionId ?? 'none'} className="flex items-center justify-between gap-2 text-lg">

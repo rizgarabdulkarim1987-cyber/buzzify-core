@@ -7,7 +7,7 @@ import { OP_KINDS, operationSchema } from '@/lib/pos-sync/op-schema';
  * The offline queue replays a device's actions later, without the captain's gate in front of them. So no queueable kind may
  * touch a guest's request, a captain's order or a bill call: those stay online-only, where the server gate runs.
  */
-const ALLOWED = ['openOrder', 'addLine', 'sendToKitchen', 'requestBill', 'cancelOrder', 'payCash'];
+const ALLOWED = ['openOrder', 'addLine', 'sendToKitchen', 'requestBill', 'cancelOrder', 'payCash', 'drawerOpen', 'receiptCopy'];
 
 /** The kinds the schema really accepts: read off the union's own variants, not the hand-written OP_KINDS list. */
 const schemaKinds = (): string[] => operationSchema.options.map((variant) => String(variant.shape.kind.value));

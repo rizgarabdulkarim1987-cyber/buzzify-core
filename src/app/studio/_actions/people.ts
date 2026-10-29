@@ -25,12 +25,20 @@ export async function assignDesigner(input: unknown) {
   return invoke(people.assignDesigner, input);
 }
 
+export async function addTillStaff(input: unknown) {
+  return invoke(people.addTillStaff, input);
+}
+
 export async function unassignMember(input: unknown) {
   return invoke(people.unassignMember, input);
 }
 
 export async function deactivateUser(input: unknown) {
   return invoke(people.deactivateUser, input);
+}
+
+export async function deleteUser(input: unknown) {
+  return invoke(people.deleteUser, input);
 }
 
 export async function reactivateUser(input: unknown) {

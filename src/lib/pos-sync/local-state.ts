@@ -13,6 +13,13 @@ import type { SnapshotLine, SyncSnapshot } from './snapshot';
  * it will be told, and its totals come from the same rules (`computeTotals`).
  */
 
+/**
+ * A line as the device holds it. `cancelledHere` marks a line cancelled by an operation made on this device (after the
+ * snapshot was taken); a line the snapshot already shows cancelled had its slip printed online, so the offline till never
+ * prints it again. No queued operation cancels a single line yet, so today only the snapshot's own cancellations exist.
+ */
+export type LocalLine = SnapshotLine & { cancelledHere?: boolean };
+
 export interface LocalOrder {
   /** Stable identity on this device: the opening operation id (`op:<id>`), else the server order (`id:<id>`). */
   key: string;
@@ -30,7 +37,7 @@ export interface LocalOrder {
   invoiceDiscount: Discount | null;
   /** A part of the bill is already paid (from the snapshot): the offline till cannot take the rest. */
   partPaid?: boolean;
-  lines: SnapshotLine[];
+  lines: LocalLine[];
   /** Operations of this order that have not been applied. */
   waiting: number;
   attention: boolean;
@@ -161,11 +168,14 @@ export function deriveLocalState(snapshot: SyncSnapshot, queue: readonly QueuedO
       });
       continue;
     }
+    // Notes for the audit log (a drawer opening, a printed copy) change no order: a copy only counts as waiting.
+    if (op.kind === 'drawerOpen') continue;
     const ref = op.orderRef;
     const order = orders.get('id' in ref ? `id:${ref.id}` : (appliedOpen.get(ref.op) ?? `op:${ref.op}`));
     if (!order) continue;
     order.waiting += 1;
     if (q.state === 'attention') order.attention = true;
+    if (op.kind === 'receiptCopy') continue;
     order.version = op.expectedVersion + 1;
     switch (op.kind) {
       case 'addLine': {

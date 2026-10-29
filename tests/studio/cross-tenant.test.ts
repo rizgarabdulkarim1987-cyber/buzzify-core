@@ -623,11 +623,37 @@ const SWEPT: Record<string, Case[]> = {
     c("copies B's menu into A", (w) => ({ menuId: w.b.menuId, name: 'Copy', slug: 'copy-out-of-b', targetRestaurantId: w.a.restaurantId })),
   ],
   'menus.delete': [c("B's menu", (w) => ({ menuId: w.b.menuId, confirmName: w.b.menuName }))],
+  'menus.bulkDelete': [c("deletes B's menu", (w) => ({ menuIds: [w.b.menuId], confirm: 'DELETE' }), { kind: 'perItem' })],
   // The guests' complaints and suggestions box
   'menus.setFeedback': [
     c("switches on B's box", (w) => ({ menuId: w.b.menuId, enabled: true })),
     c("switches off B's box", (w) => ({ menuId: w.b.menuId, enabled: false })),
   ],
+  // The intro page before the menu: B's menu, and B's asset smuggled into A's.
+  'menus.setIntroEnabled': [c("switches on B's intro", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveIntro': [
+    c("B's intro", (w) => ({ menuId: w.b.menuId, backgroundAssetId: null, overlay: 50, showLogo: true, showContact: true })),
+    c("B's picture as A's background", (w) => ({ menuId: w.a.menuId, backgroundAssetId: w.b.assetId, overlay: 50, showLogo: true, showContact: true })),
+  ],
+  'menus.intro': [c("B's intro", (w) => ({ menuId: w.b.menuId }))],
+  // The About page: B's menu, B's picture and B's dish smuggled into A's, and B's offer through A.
+  'menus.setAboutEnabled': [c("switches on B's About page", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveAbout': [
+    c("B's About page", (w) => ({ menuId: w.b.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture as A's cover", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: w.b.assetId, story: {}, galleryAssetIds: [], showHours: true, showContact: true })),
+    c("B's picture in A's gallery", (w) => ({ menuId: w.a.menuId, titles: {}, coverAssetId: null, story: {}, galleryAssetIds: [w.b.assetId], showHours: true, showContact: true })),
+  ],
+  'menus.saveAboutOffer': [
+    c("an offer on B's page", (w) => ({ menuId: w.b.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: null, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+    c("B's picture on A's offer", (w) => ({ menuId: w.a.menuId, titles: {}, bodies: {}, label: {}, imageAssetId: w.b.assetId, startsAt: null, endsAt: null, active: true, productId: null, categoryId: null })),
+  ],
+  'menus.reorderAboutOffers': [c("B's offers", (w) => ({ menuId: w.b.menuId, ids: [] }))],
+  'menus.deleteAboutOffer': [c("B's offer, in B", (w) => ({ menuId: w.b.menuId, offerId: 'nope' }))],
+  'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
+  // The wheel: B's menu through A's session.
+  'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  'menus.saveWheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId, spinsPerDay: 1, startsAt: null, endsAt: null, title: {}, slices: [] }))],
+  'menus.wheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.
   'menus.bulk': ['publish', 'suspend', 'archive', 'restore'].map((action) =>
     c(`${action}s B's menu`, (w) => ({ menuIds: [w.b.menuId], action }), { kind: 'perItem' }),
@@ -635,6 +661,7 @@ const SWEPT: Record<string, Case[]> = {
 
   // People
   'people.inviteOwner': [c('into B', (w) => ({ restaurantId: w.b.restaurantId, email: address('planted-owner') }))],
+  'people.createTillStaff': [c('a till person into B', (w) => ({ restaurantId: w.b.restaurantId, name: 'Planted', email: address('planted-till'), role: 'CASHIER', password: GOOD }))],
   'people.revokeInvitation': [
     c("B's invitation, in B", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.b.restaurantId })),
     c("B's invitation, through A", (w) => ({ invitationId: w.b.invitationId, restaurantId: w.a.restaurantId })),
@@ -852,13 +879,12 @@ const SWEPT: Record<string, Case[]> = {
     c("B's people", (w) => ({ restaurantId: w.b.restaurantId })),
     c('everyone, on the platform', () => ({})),
     c("everyone, on the platform, searching for B's", () => ({ q: 'bravo' })),
-    c("A's people", (w) => ({ restaurantId: w.a.restaurantId }), SHOWS_OWN),
-    c("A's people, searching for B's owner", (w) => ({ restaurantId: w.a.restaurantId, q: w.b.ownerEmail }), SCOPED),
+    c("A's people", (w) => ({ restaurantId: w.a.restaurantId })),
   ],
   'people.listInvitations': [
     c("B's invitations", (w) => ({ restaurantId: w.b.restaurantId, status: 'all' })),
     c('every invitation, on the platform', () => ({ status: 'all' })),
-    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' }), SHOWS_OWN),
+    c("A's invitations", (w) => ({ restaurantId: w.a.restaurantId, status: 'all' })),
   ],
   'people.restaurantMembers': [c("B's members", (w) => ({ restaurantId: w.b.restaurantId }))],
   'people.restaurantPolicy': [c("B's policy", (w) => ({ restaurantId: w.b.restaurantId }))],
@@ -922,6 +948,13 @@ const PLATFORM_ONLY: Record<string, Case[]> = {
   'pos.setAiPackage': [c("switching on B's AI package", (w) => ({ restaurantId: w.b.restaurantId, enabled: true, monthlyLimit: 1000 }), ONLY_FORBIDDEN)],
   'pos.setCaptainApproval': [c("switching B's captain approval", (w) => ({ restaurantId: w.b.restaurantId, enabled: true }), ONLY_FORBIDDEN)],
   'restaurants.create': [c('a restaurant', () => ({ name: 'Bravo Annex', type: 'CAFE' }), ONLY_FORBIDDEN)],
+  // The platform's intro background and adverts (`platform.settings`).
+  'platform.intro': [c('the platform intro', () => ({}), ONLY_FORBIDDEN)],
+  'platform.introReports': [c('the intro report', () => ({ from: '2026-10-01', to: '2026-10-31' }), ONLY_FORBIDDEN)],
+  'platform.saveIntroDefault': [c('a default background', (w) => ({ backgroundAssetId: w.b.assetId }), ONLY_FORBIDDEN)],
+  'platform.savePlatformAdvert': [c('an advert for B', (w) => ({ imageAssetId: w.b.assetId, alts: {}, href: '', startsAt: null, endsAt: null, active: true, restaurantIds: [w.b.restaurantId], menuIds: [w.b.menuId] }), ONLY_FORBIDDEN)],
+  'platform.reorderPlatformAdverts': [c('the adverts', () => ({ ids: [] }), ONLY_FORBIDDEN)],
+  'platform.deletePlatformAdvert': [c('an advert', () => ({ advertId: 'nope' }), ONLY_FORBIDDEN)],
   'restaurants.newAccess': [c('the new restaurant form', () => ({}), ONLY_FORBIDDEN)],
   'people.inviteStaff': [c('a Super Admin', () => ({ email: address('planted-admin'), asSuperAdmin: true }), ONLY_FORBIDDEN)],
   'people.deactivateUser': [c("B's owner", (w) => ({ userId: w.b.ownerId }), ONLY_FORBIDDEN)],
@@ -1105,7 +1138,7 @@ afterAll(async () => {
  * membership. Their cross-tenant behavior (another restaurant's staff ids, settings that follow the actor) is proven in
  * tests/pos/staff.test.ts and tests/pos/settings.test.ts.
  */
-const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
+const TILL = ['pos.updateSettings', 'pos.changeStaffRole', 'pos.setStaffActive', 'pos.settings', 'pos.staff', 'pos.ensureCatalogMenu', 'pos.chooseCatalogMenu', 'pos.catalogMenu',
   'pos.createCategory', 'pos.updateCategory', 'pos.deleteCategory', 'pos.createProduct', 'pos.saveProductBasics', 'pos.deleteProduct', 'pos.setAvailability',
   'pos.createKitchenSection', 'pos.renameKitchenSection', 'pos.deleteKitchenSection', 'pos.setCategorySection', 'pos.setProductSetting', 'pos.catalogEditor',
   'pos.importPreview', 'pos.importAiPreview', 'pos.importAiPhotos', 'pos.importAiTranslate', 'pos.importApply', 'pos.importDiscard',
@@ -1113,7 +1146,7 @@ const TILL = ['pos.updateSettings', 'pos.createStaff', 'pos.changeStaffRole', 'p
   'pos.openShift', 'pos.addExpense', 'pos.closeShift', 'pos.myShift', 'pos.shift', 'pos.openShifts', 'pos.sendToKitchen', 'pos.markReady', 'pos.acknowledgeCancellations', 'pos.kitchenScope', 'pos.kitchenQueue', 'pos.kitchenTicket', 'pos.orderKitchenTicket', 'pos.shiftReport', 'pos.dailyReport', 'pos.board', 'pos.tillCatalog', 'pos.payOrder', 'pos.reversePayment', 'pos.setOwnPin', 'pos.clearStaffPin', 'pos.registerDevice', 'pos.revokeDevice', 'pos.devices', 'pos.receipt', 'pos.openOrder', 'pos.addLine', 'pos.updateLine', 'pos.cancelLine', 'pos.setInvoiceDiscount', 'pos.requestBill', 'pos.cancelOrder', 'pos.moveOrderToTable', 'pos.order', 'pos.acceptRequest', 'pos.rejectRequest', 'pos.approveRequest', 'pos.addRequestLine', 'pos.placeCaptainOrder', 'pos.markBillCallSeen', 'pos.billCalls', 'pos.requestCatalog', 'pos.setRequestLineQuantity', 'pos.removeRequestLine', 'pos.requests', 'pos.request', 'pos.ensureMenuTables', 'pos.qrSheet', 'pos.qrFlags', 'pos.createZone', 'pos.updateZone', 'pos.deleteZone', 'pos.createDriver', 'pos.updateDriver', 'pos.deliverySetup', 'pos.deliveryOptions', 'pos.approvers', 'pos.breakdown', 'pos.idleMinutes', 'pos.activity', 'pos.mergeOrders', 'pos.openOffPremiseOrder', 'pos.updateOffPremiseDetails', 'pos.recentCustomer', 'pos.advanceFulfillment', 'pos.assignDriver', 'pos.offPremiseBoard', 'pos.offPremiseFlags', 'pos.createItem', 'pos.updateItem', 'pos.adjustStock', 'pos.recordWaste', 'pos.recordStockCount', 'pos.setRecipe', 'pos.createSupplier', 'pos.updateSupplier', 'pos.createPurchase', 'pos.voidPurchase', 'pos.setPurchasePaid', 'pos.inventoryItems', 'pos.lowStock', 'pos.inventoryItem', 'pos.suppliers', 'pos.purchases', 'pos.purchase', 'pos.recipes', 'pos.recipe', 'pos.rangeReport', 'pos.setComplaintStatus', 'pos.addComplaintNote', 'pos.removeComplaintContact', 'pos.complaints', 'pos.complaint', 'pos.complaintBadge',
   'pos.aiAsk', 'pos.aiPhraseSummary', 'pos.aiLabelComplaints', 'pos.aiSupplyExtract', 'pos.aiState', 'pos.aiSummary', 'pos.aiAlerts', 'pos.aiComplaintLabels',
   'pos.syncSnapshot', 'pos.discardSyncOperation', 'pos.restaurantLogo',
-  'pos.savePrinter', 'pos.removePrinter', 'pos.openDrawer', 'pos.logReprint', 'pos.setProductBarcode', 'pos.printers', 'pos.sectionList', 'pos.expo',
+  'pos.savePrinter', 'pos.removePrinter', 'pos.openDrawer', 'pos.logReprint', 'pos.logOrderReprint', 'pos.setProductBarcode', 'pos.printers', 'pos.sectionList', 'pos.expo',
 ];
 
 describe('the cross-tenant sweep', () => {

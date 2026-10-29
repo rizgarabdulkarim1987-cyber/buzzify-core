@@ -36,7 +36,7 @@ export const FEATURES = [
   { key: 'selling.offers', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'selling.socialProof', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'selling.insights', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
-  { key: 'immersive.explore', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
+  { key: 'immersive.explore', area: 'immersive', status: 'live', project: 1, startsIn: 'BASIC' },
   { key: 'immersive.stage', area: 'immersive', status: 'live', project: 1, startsIn: 'PREMIUM' },
   // Motions from the library at places on the menu (docs/superpowers/specs/2026-10-18-menu-motions-design.md).
   { key: 'design.menuMotions', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
@@ -44,6 +44,10 @@ export const FEATURES = [
   { key: 'design.backgroundAnimation', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundVideo', area: 'design', status: 'live', project: 2, startsIn: 'PREMIUM' },
   { key: 'immersive.models3d', area: 'immersive', status: 'live', project: 2, startsIn: 'PREMIUM' },
+  // Guest-facing extras of the menu: the intro page, the restaurant's own page and the wheel of fortune (docs/superpowers/specs/2026-10-29-menu-*).
+  { key: 'menu.intro', area: 'publishing', status: 'live', project: 1, startsIn: 'BASIC' },
+  { key: 'menu.about', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
+  { key: 'menu.wheel', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'design.premiumTemplates', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundImage', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.motionPresets', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
@@ -68,6 +72,9 @@ export type FeatureKey = (typeof FEATURES)[number]['key'];
 export const FEATURE_KEYS: readonly FeatureKey[] = FEATURES.map((feature) => feature.key);
 
 const KNOWN = new Set<string>(FEATURE_KEYS);
+
+/** Features every plan holds, whatever a stored plan says: the way in to the menu is never sold. A restaurant's extra can still switch one off. */
+const IN_EVERY_PLAN: ReadonlySet<FeatureKey> = new Set<FeatureKey>(['immersive.explore', 'menu.intro']);
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
   return typeof value === 'string' && KNOWN.has(value);
@@ -128,7 +135,7 @@ export function parsePlans(json: unknown): Plans {
     const set = new Set<FeatureKey>();
     for (const feature of FEATURES) {
       const value = storedFeatures[feature.key];
-      if (typeof value === 'boolean' ? value : inByDefault(feature, tier)) set.add(feature.key);
+      if (IN_EVERY_PLAN.has(feature.key) || (typeof value === 'boolean' ? value : inByDefault(feature, tier))) set.add(feature.key);
     }
     features[tier] = set;
   }

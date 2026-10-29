@@ -3,7 +3,7 @@
 import { Delete, X } from 'lucide-react';
 import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react';
-import { elapsedLabel, elapsedMinutes, formatNumber, type ElapsedText } from '@/lib/pos-format';
+import { compactElapsed, elapsedLabel, elapsedMinutes, formatNumber, type ElapsedText } from '@/lib/pos-format';
 import { fitTiles, isLate, needOf, openFirst, queueOf, SELECTING, TILE_GAP_PX, type LayoutId, type Need, type TileFit } from '@/lib/pos-floor';
 import type { BoardView } from '@/server/pos/board';
 import type { OffPremiseCard } from '@/server/pos/off-premise';
@@ -45,12 +45,15 @@ function minutesOf(p: FloorProps, table: FloorTable) {
   return table.seatedAt !== null ? elapsedMinutes(new Date(table.seatedAt).getTime(), p.now) : null;
 }
 
-/** The table's time as "12 min", and whether it passed the owner's ring minutes. */
+const TIME_KEY = { minutes: 'pos.calm.minutes', hours: 'pos.calm.hoursShort', days: 'pos.calm.daysShort' } as const;
+
+/** The table's time as "12 min", "3 h" or "2 d", and whether it passed the owner's ring minutes. */
 function useTime(p: FloorProps) {
   const t = useT();
   return (table: FloorTable) => {
     const m = minutesOf(p, table);
-    return { text: m === null ? null : t('pos.calm.minutes', { n: formatNumber(m) }), late: isLate(m, p.ringMinutes) };
+    const short = m === null ? null : compactElapsed(m);
+    return { text: short === null ? null : t(TIME_KEY[short.unit], { n: formatNumber(short.n) }), late: isLate(m, p.ringMinutes) };
   };
 }
 
@@ -89,21 +92,29 @@ function Tile({ p, table, style }: { p: FloorProps; table: FloorTable; style?: C
   const button = useTableButton(p);
   const time = useTime(p)(table);
   const tag = table.status === 'FREE' || table.status === 'BUSY' ? null : t(BADGE_KEY[table.status]);
-  const sub = table.status === 'FREE' ? t('pos.calm.free') : [time.text, table.orderId ? formatNumber(table.total) : null].filter(Boolean).join(' · ');
   const count = table.pendingRequests > (table.status === 'PENDING_APPROVAL' ? 1 : 0) ? table.pendingRequests : 0;
   return (
-    <button {...button(table)} style={style} className="s-shape tile relative select-none p-3">
-      <span aria-hidden="true" className="tile-no font-bold leading-none" dir="ltr" style={{ fontSize: 'max(22px, 40cqmin)' }}>
+    <button {...button(table)} style={style} className="s-shape tile tile-disc relative select-none">
+      <span aria-hidden="true" className="tile-no font-bold leading-none" dir="ltr" style={{ fontSize: 'max(20px, 30cqmin)' }}>
         {formatNumber(table.number)}
       </span>
-      <span aria-hidden="true" className="flex min-w-0 flex-col gap-[2cqmin] leading-tight" style={{ fontSize: 'max(12px, 12cqmin)' }}>
-        {tag ? <span className="tile-tag truncate font-bold">{tag}</span> : null}
-        <span dir="auto" data-late={(table.status !== 'FREE' && time.late) || undefined} className="tile-sub truncate font-semibold">
-          {sub}
-        </span>
+      {/* Short lines, centred: the state word, then the time, then the amount; each wraps inside the tile's inner box. */}
+      <span aria-hidden="true" className="tile-lines leading-tight" style={{ fontSize: 'max(11px, 11cqmin)' }}>
+        {tag ? <span className="tile-tag font-bold">{tag}</span> : null}
+        {table.status === 'FREE' ? <span className="tile-sub font-semibold">{t('pos.calm.free')}</span> : null}
+        {table.status !== 'FREE' && time.text ? (
+          <span dir="auto" data-late={time.late || undefined} className="tile-sub font-semibold">
+            {time.text}
+          </span>
+        ) : null}
+        {table.status !== 'FREE' && table.orderId ? (
+          <span dir="ltr" className="tile-sub font-semibold">
+            {formatNumber(table.total)}
+          </span>
+        ) : null}
       </span>
       {count > 0 ? (
-        <span aria-hidden="true" className="absolute end-2 top-2 grid min-w-7 place-items-center rounded-full bg-raised px-1.5 text-sm font-bold leading-7 text-info">
+        <span aria-hidden="true" className="absolute end-[10%] top-[10%] grid min-w-6 place-items-center rounded-full bg-raised px-1 text-xs font-bold leading-6 text-info">
           {formatNumber(count)}
         </span>
       ) : null}

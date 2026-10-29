@@ -3,7 +3,7 @@ import type { Actor } from '@/server/studio/auth/actor';
 /** The icon a navigation item shows; the sidebar maps each name to its drawing. */
 export type NavIcon = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'store' | 'pharmacy';
 
-export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'activity' | 'settings' | 'myRestaurant' | 'cashier' | 'cashierOverview' | 'pharmacies';
+export type NavKey = 'overview' | 'restaurants' | 'billing' | 'menus' | 'media' | 'motion' | 'people' | 'announcements' | 'platformIntro' | 'activity' | 'settings' | 'myRestaurant' | 'myMenu' | 'cashier' | 'cashierOverview' | 'pharmacies';
 
 export interface NavItem {
   key: NavKey;
@@ -17,6 +17,10 @@ export interface NavItem {
   exact?: boolean;
   /** Further paths that are this item's own pages: an owner's restaurant and its menus. */
   match?: string[];
+  /** Paths under `match` that belong to a neighbouring item, so they do not mark this one. */
+  exclude?: string[];
+  /** A restaurant's name to append to the label when an owner of several restaurants has the same item for each. */
+  scope?: string;
 }
 
 /** The Studio's areas in the order the sidebar lists them. */
@@ -37,6 +41,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: 'people', href: '/studio/people', labelKey: 'nav.people', icon: 'people' },
   // What the Buzzify team tells every till and Studio user (docs/superpowers/specs/2026-10-26-staff-appearance-logo-announcements-design.md).
   { key: 'announcements', href: '/studio/announcements', labelKey: 'nav.announcements', icon: 'announcements' },
+  // The default background and adverts of every menu's intro page, and their report.
+  { key: 'platformIntro', href: '/studio/platform/intro', labelKey: 'nav.platformIntro', icon: 'media' },
   { key: 'activity', href: '/studio/activity', labelKey: 'nav.activity', icon: 'activity' },
   { key: 'settings', href: '/studio/settings', labelKey: 'nav.settings', icon: 'settings' },
 ];
@@ -46,7 +52,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
  * allowed to invite does that from their restaurant's People tab. Billing, Activity and Settings need `platform.settings`
  * or `audit.view`, which no client policy can grant.
  */
-const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'pharmacies', 'people', 'announcements', 'activity', 'settings']);
+const SUPER_ADMIN_AREAS: ReadonlySet<NavKey> = new Set<NavKey>(['billing', 'cashierOverview', 'pharmacies', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
 
 /** What the navigation needs to know about a restaurant an owner holds: its name and its menus. */
 export interface OwnedRestaurant {
@@ -73,20 +79,34 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
 
   const ids = [...new Set(actor.memberships.map((m) => m.restaurantId))];
   const several = ids.length > 1;
-  return ids.map((id) => {
+  return ids.flatMap((id): NavItem[] => {
     const known = owned.find((restaurant) => restaurant.id === id);
     const menuIds = known?.menuIds ?? [];
     const restaurantPath = `/studio/restaurants/${id}`;
-    // One menu is the whole of the restaurant's work, so it opens at once; otherwise the restaurant's Menus tab does.
-    const href = !several && menuIds.length === 1 ? `/studio/menus/${menuIds[0]}` : `${restaurantPath}/menus`;
-    return {
-      key: 'myRestaurant' as const,
-      href,
-      labelKey: 'nav.myRestaurant',
-      ...(several && known ? { label: known.name } : {}),
-      icon: 'store' as const,
-      match: [restaurantPath, ...menuIds.map((menuId) => `/studio/menus/${menuId}`)],
-    };
+    const menusPath = `${restaurantPath}/menus`;
+    const name = several && known ? known.name : undefined;
+    // Two items so the owner reaches the restaurant's own pages without going back through the menu: the restaurant
+    // (profile, branches, plan...) and the menu's settings. One menu opens at once; otherwise the Menus tab does.
+    return [
+      {
+        key: 'myRestaurant',
+        href: restaurantPath,
+        labelKey: 'nav.myRestaurant',
+        ...(name ? { label: name } : {}),
+        icon: 'store',
+        match: [restaurantPath],
+        // The Menus tab belongs to the menu item below.
+        exclude: [menusPath],
+      },
+      {
+        key: 'myMenu',
+        href: !several && menuIds.length === 1 ? `/studio/menus/${menuIds[0]}` : menusPath,
+        labelKey: 'nav.myMenu',
+        ...(name ? { scope: name } : {}),
+        icon: 'menus',
+        match: [menusPath, ...menuIds.map((menuId) => `/studio/menus/${menuId}`)],
+      },
+    ];
   });
 }
 
@@ -97,14 +117,15 @@ export function visibleNav(actor: Actor, owned: readonly OwnedRestaurant[] = [])
  */
 export function landingPath(actor: Actor, owned: readonly OwnedRestaurant[]): string | null {
   if (!isOwnerOnly(actor) || new Set(actor.memberships.map((m) => m.restaurantId)).size !== 1) return null;
-  return visibleNav(actor, owned)[0]?.href ?? null;
+  return visibleNav(actor, owned).find((item) => item.key === 'myMenu')?.href ?? null;
 }
 
 const within = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 
 /** Whether `pathname` is one of the item's pages, for marking the current item. */
-export function isNavItemActive(item: Pick<NavItem, 'href' | 'exact' | 'match'>, pathname: string): boolean {
+export function isNavItemActive(item: Pick<NavItem, 'href' | 'exact' | 'match' | 'exclude'>, pathname: string): boolean {
   if (item.exact) return pathname === item.href;
+  if (item.exclude?.some((path) => within(pathname, path))) return false;
   return [item.href, ...(item.match ?? [])].some((path) => within(pathname, path));
 }
 

@@ -16,7 +16,6 @@ import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/
 import { releaseHeldRequestsIn } from '@/server/pos/customer-orders';
 import { delegates } from '@/server/data/tenant-db';
 import {
-  addPosStaff,
   changePosStaffRole as changeRole,
   deactivateIn,
   mayAssign,
@@ -24,9 +23,6 @@ import {
   refuseRole,
   staffRowRole,
 } from '@/server/pos/staff';
-import { emailField } from '@/server/studio/auth/fields';
-import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
-import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { setProductAvailability } from '@/server/studio/services/availability';
 import { applyImport, discardImport, IMPORT_MAX_BYTES, sheetFileNameField } from '@/server/studio/services/imports';
@@ -96,58 +92,6 @@ export const updatePosSettings = defineAction({
       }
       return { version: after.version };
     });
-  },
-});
-
-export const createPosStaff = defineAction({
-  name: 'pos.createStaff',
-  permission: null,
-  pos: 'staff.manage',
-  input: z.object({
-    name: z.string().trim().min(1, 'Enter your name').max(120, 'Use at most 120 characters'),
-    email: emailField,
-    role: z.enum(POS_ROLES),
-    // The new person's first password; a till account is always created here, never an existing one attached.
-    password: z.string().max(1024, 'Use at most 128 characters').optional(),
-  }),
-  target: () => TILL,
-  run: async (ctx, input) => {
-    const { pos, restaurantId } = till(ctx);
-    if (!mayAssign(pos.role, input.role, null)) throw refuseRole();
-
-    // An existing account is never attached here: that would bind a stranger to this till without their consent and
-    // tell the caller which emails have accounts. Without a password it answers exactly like an unknown email.
-    if (!input.password) throw new StudioError('INVALID', undefined, { password: 'Choose a password' });
-    let userId: string;
-    try {
-      ({ userId } = await createPasswordUser(ctx.db, {
-        email: input.email,
-        name: input.name,
-        password: input.password,
-        locale: ctx.actor.locale,
-      }));
-    } catch (error) {
-      if (error instanceof PasswordPolicyError) throw new StudioError('INVALID', undefined, { password: passwordProblemMessage(error.reason) });
-      if (error instanceof EmailTakenError) throw new StudioError('CONFLICT', 'An account with this email already exists');
-      throw error;
-    }
-
-    try {
-      return await ctx.transaction(async (tx) => {
-        const { id } = await addPosStaff(tx, { restaurantId, userId, role: input.role });
-        ctx.audit({
-          action: 'pos.staff.create',
-          entityType: 'PosStaff',
-          entityId: id,
-          changes: { role: { before: null, after: input.role }, email: { before: null, after: input.email } },
-        });
-        return { staffId: id };
-      });
-    } catch (error) {
-      // The account was made a moment ago for this staff row; without the row it would be an orphan nobody recorded.
-      await ctx.db.user.delete({ where: { id: userId } }).catch(() => undefined);
-      throw error;
-    }
   },
 });
 
@@ -403,6 +347,22 @@ export const logPosReprint = defineAction({
     }),
 });
 
+/** A copy printed while the till was offline, recorded when it syncs: the order's payment, found by the order. */
+export const logPosOrderReprint = defineAction({
+  name: 'pos.logOrderReprint',
+  permission: null,
+  pos: 'order.handle',
+  input: z.object({ orderId: idField }),
+  target: () => TILL,
+  run: (ctx, { orderId }) =>
+    ctx.transaction(async (tx) => {
+      const payment = await tx.posPayment.findFirst({ where: { orderId }, orderBy: { paidAt: 'desc' }, select: { id: true } });
+      if (!payment) throw new StudioError('NOT_FOUND');
+      ctx.audit({ action: 'pos.receipt.reprint', entityType: 'PosPayment', entityId: payment.id, changes: {} });
+      return { logged: true as const };
+    }),
+});
+
 /** Which kitchen section a category belongs to (null: none). The category and the section must both be this restaurant's. */
 export const posSetCategorySection = defineAction({
   name: 'pos.setCategorySection',
@@ -459,18 +419,23 @@ export const posSetProductBarcode = defineAction({
   run: (ctx, { productId, barcode: typed }) => {
     const { restaurantId } = till(ctx);
     const barcode = typed === '' ? null : typed;
-    return ctx.transaction(async (tx) => {
-      if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
-      if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
-      const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
-      if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
-      else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
-      if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
-      return { productId };
-    }).catch((error: unknown) => {
-      // Two saves of one code at once: the database's unique index refuses the second, which says what the pre-check says.
-      throw isUniqueViolation(error) ? refuse('CONFLICT', 'This barcode belongs to another product') : error;
-    });
+    const attempt = () =>
+      ctx.transaction(async (tx) => {
+        if (!(await tx.product.findFirst({ where: { id: productId }, select: { id: true } }))) throw new StudioError('NOT_FOUND');
+        if (barcode !== null && (await tx.posProductSetting.findFirst({ where: { barcode, productId: { not: productId } }, select: { id: true } }))) throw refuse('CONFLICT', 'This barcode belongs to another product');
+        const row = await tx.posProductSetting.findFirst({ where: { productId }, select: { id: true, barcode: true } });
+        if (row) await tx.posProductSetting.updateMany({ where: { id: row.id }, data: { barcode } });
+        else await tx.posProductSetting.create({ data: { productId, restaurantId, barcode } });
+        if ((row?.barcode ?? null) !== barcode) ctx.audit({ action: 'pos.product.barcode', entityType: 'PosProductSetting', entityId: productId, changes: { barcode: { before: row?.barcode ?? null, after: barcode } } });
+        return { productId };
+      });
+    // A unique violation means a save raced this one: either for the same product (its row now exists) or for the same code
+    // (another product now holds it). One more attempt tells them apart with the ordinary checks, so the message is always the true one.
+    return attempt()
+      .catch((error: unknown) => (isUniqueViolation(error) ? attempt() : Promise.reject(error)))
+      .catch((error: unknown) => {
+        throw isUniqueViolation(error) ? refuse('CONFLICT', 'This barcode belongs to another product') : error;
+      });
   },
 });
 

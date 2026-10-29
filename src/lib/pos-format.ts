@@ -19,6 +19,17 @@ export function elapsedMinutes(fromMs: number, nowMs: number): number {
   return Math.max(0, Math.floor((nowMs - fromMs) / 60_000));
 }
 
+/**
+ * The time on a small table tile, in one short unit: minutes under two hours, whole hours under two days, then whole days.
+ * A table forgotten overnight reads "3 d", not "4,880 min".
+ */
+export function compactElapsed(minutes: number): { unit: 'minutes' | 'hours' | 'days'; n: number } {
+  const whole = Math.max(0, Math.floor(minutes));
+  if (whole < 120) return { unit: 'minutes', n: whole };
+  if (whole < 2880) return { unit: 'hours', n: Math.floor(whole / 60) };
+  return { unit: 'days', n: Math.floor(whole / 1440) };
+}
+
 export type ElapsedText = {
   justNow: string;
   one: string;

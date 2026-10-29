@@ -13,6 +13,7 @@ import type { ShiftSummary } from '@/server/pos/shifts';
 import { useT } from '@/studio/i18n';
 import { useMoney } from '../money';
 import { kickDrawer, printDoc, printFailureText, type PrintResult } from './print-client';
+import { printedSlips, rememberSlip } from './slip-memory';
 
 const PrintersContext = createContext<PrinterView[]>([]);
 const noPrinter: PrintResult = { ok: false, reason: 'printer', message: 'no printer' };
@@ -20,26 +21,6 @@ const noPrinter: PrintResult = { ok: false, reason: 'printer', message: 'no prin
 /** The restaurant's printers, read once by the till frame, for every screen that prints. */
 export function PrintProvider({ printers, children }: { printers: PrinterView[]; children: ReactNode }) {
   return <PrintersContext.Provider value={printers}>{children}</PrintersContext.Provider>;
-}
-
-const SLIPS_KEY = 'pos.printedCancelSlips';
-
-/** Cancellation slips this device already printed (kept in the browser; a cleared browser at worst prints one again). */
-function printedSlips(): Set<string> {
-  try {
-    return new Set(JSON.parse(localStorage.getItem(SLIPS_KEY) ?? '[]') as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function rememberSlip(printed: Set<string>, key: string): void {
-  printed.add(key);
-  try {
-    localStorage.setItem(SLIPS_KEY, JSON.stringify([...printed].slice(-200)));
-  } catch {
-    // Private mode or a full store: the slip may print again later, which is safe.
-  }
 }
 
 function bodyFont(): string {

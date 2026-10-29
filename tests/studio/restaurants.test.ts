@@ -440,10 +440,10 @@ describe('getRestaurant', () => {
     expect(codeOf(await ask(admin, restaurantQueries.getRestaurant, { restaurantId: 'nope' }))).toBe('NOT_FOUND');
   });
 
-  it('lets an owner see the client owner invite right when the client policy grants it', async () => {
+  it('never shows an owner the people tab, even when a stored client policy grants people.invite', async () => {
     await prisma().restaurant.update({ where: { id: atelier.id }, data: { permissionPolicy: { OWNER: { grant: ['people.invite'], revoke: [] } } } });
     const asOwner = dataOf(await ask(ownerOfAtelier, restaurantQueries.getRestaurant, { restaurantId: atelier.id }));
-    expect(asOwner.can.invite).toBe(true);
+    expect(asOwner.can.invite).toBe(false);
     expect(asOwner.can.manage).toBe(false);
   });
 });

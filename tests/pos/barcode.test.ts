@@ -187,6 +187,15 @@ describe('productByBarcode', () => {
 });
 
 describe('posSetProductBarcode, simultaneous saves', () => {
+  it('lets two first saves of one product both succeed', async () => {
+    const results = await Promise.all([
+      run(manager, posSetProductBarcode, { productId: kebab, barcode: '7001' }),
+      run(manager, posSetProductBarcode, { productId: kebab, barcode: '7002' }),
+    ]);
+    expect(results.map(codeOf)).toEqual(['OK', 'OK']);
+    expect(await prisma().posProductSetting.count({ where: { productId: kebab } })).toBe(1);
+  });
+
   it('gives the barcode refusal, never a raw error, when two products take one code at once', async () => {
     const results = await Promise.all([
       run(manager, posSetProductBarcode, { productId: kebab, barcode: '5551' }),

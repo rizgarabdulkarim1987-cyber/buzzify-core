@@ -110,6 +110,7 @@ function ShiftCard({ shift }: { shift: ShiftReport }) {
         {shift.usdReceived > 0 ? <Line label={t('pos.report.usdReceived')} value={t('pos.usd.amount', { n: formatNumber(shift.usdReceived) })} /> : null}
         {shift.usdRefunded > 0 ? <Line label={t('pos.report.usdRefunded')} value={t('pos.usd.amount', { n: formatNumber(shift.usdRefunded) })} /> : null}
         {shift.countedUsd !== null ? <Line label={t('pos.shift.expectedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.expectedUsd) })} /> : null}
+        {shift.usdBeyondDrawer > 0 ? <Line label={t('pos.shift.usdBeyondDrawer')} value={t('pos.usd.amount', { n: formatNumber(shift.usdBeyondDrawer) })} /> : null}
         {shift.countedUsd !== null ? <Line label={t('pos.shift.countedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.countedUsd) })} /> : null}
         <Line label={t('pos.shift.expenses')} value={money(shift.expenses.reduce((sum, e) => sum + e.amount, 0))} />
         <Line label={t('pos.shift.expected')} value={money(shift.expectedCash)} />

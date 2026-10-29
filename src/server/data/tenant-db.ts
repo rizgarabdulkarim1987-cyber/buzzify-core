@@ -3,6 +3,12 @@ import { Prisma, type PrismaClient } from '@/generated/prisma/client';
 /** Rows that belong to one menu and carry a required `menuId`. */
 export const MENU_SCOPED_MODELS = [
   'BrandConfig',
+  'MenuIntro',
+  'MenuAbout',
+  'AboutOffer',
+  'MenuWheel',
+  'WheelSlice',
+  'WheelSpin',
   'Category',
   'Product',
   'ProductVariant',
@@ -66,6 +72,10 @@ export const GLOBAL_MODELS = [
   'AuditLog',
   'Invitation',
   'PlatformSetting',
+  // The platform's own intro background and adverts, shown on every (or the listed) restaurants' intro pages.
+  'PlatformAdvert',
+  'PlatformIntro',
+  'PlatformAdvertDaily',
   // Written by the Buzzify team for everyone; no restaurant owns one.
   'Announcement',
   // Billing catalog and history: the products, their prices, and a subscription's events (reached through its subscription).

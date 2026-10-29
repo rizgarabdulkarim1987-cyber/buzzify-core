@@ -141,6 +141,11 @@ export interface ShiftSummary {
   countsDollars: boolean;
   /** The dollars the drawer should have held, frozen at close; null while the shift is open, so the count is blind. */
   expectedUsd: number | null;
+  /**
+   * Dollars this shift refunded beyond the dollars it took: paid from outside the drawer, so not in expectedUsd (see usdDrawer).
+   * Null while the shift is open: it hints at the dollars the drawer should hold, and the count is blind.
+   */
+  usdBeyondDrawer: number | null;
   openOrdersCount: number;
   /** Delivered orders still unpaid, restaurant-wide: the drivers hold that cash. Counted for the close-shift screen, never blocking it. */
   unsettledDeliveries: { count: number; amount: number };
@@ -184,6 +189,7 @@ export async function readShiftSummary(db: AnyDb, restaurantId: string, shiftId:
     expectedCash: shift.closedAt ? (shift.expectedCashAtClose ?? drawer.expectedCash) : null,
     countsDollars: drawer.usd.received > 0 || drawer.usd.refunded > 0 || shift.countedUsd !== null || usdOn,
     expectedUsd: shift.closedAt ? (shift.expectedUsdAtClose ?? drawer.usd.expectedUsd) : null,
+    usdBeyondDrawer: shift.closedAt ? drawer.usd.beyondDrawer : null,
     openOrdersCount,
     unsettledDeliveries,
   };

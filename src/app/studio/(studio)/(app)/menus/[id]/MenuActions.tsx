@@ -244,7 +244,7 @@ export function MenuActions({ menu, can, scheduleUpgrade, duplicateTargets, orig
         (action) => nextMenuStatus(menu.status, action, { hasLiveRevision: menu.hasLiveRevision, statusBeforeArchive: menu.statusBeforeArchive }) !== null,
       )
     : [];
-  const deletable = can.delete && menu.status === 'ARCHIVED';
+  const deletable = can.delete;
   const schedulable = can.schedule && menu.status !== 'ARCHIVED';
   const managed = schedulable || statusActions.length > 0 || can.settings || can.duplicate || deletable;
   const statusAction = open?.kind === 'status' ? open.action : null;

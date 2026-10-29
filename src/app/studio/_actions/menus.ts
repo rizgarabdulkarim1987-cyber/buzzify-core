@@ -32,6 +32,10 @@ export async function bulkMenuAction(input: unknown) {
   return invoke(menus.bulkMenuAction, input);
 }
 
+export async function bulkDeleteMenus(input: unknown) {
+  return invoke(menus.bulkDeleteMenus, input);
+}
+
 export async function slugAvailability(input: unknown) {
   return invokeQuery(menuQueries.slugAvailability, input);
 }

@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { removePosPrinter, savePosPrinter } from '@/app/studio/_actions/pos';
-import { bridgeAlive, printDoc } from '@/app/pos/_ui/print/print-client';
+import { bridgeAlive, printDoc, printFailureText } from '@/app/pos/_ui/print/print-client';
 import { readBridgeUrl, writeBridgeUrl } from '@/app/pos/_ui/print/bridge-url';
 import type { PaperDoc } from '@/server/domain/pos/paper';
 import type { PrinterView } from '@/server/pos/printers';
@@ -56,7 +56,7 @@ export function PrintersSection({ printers, sections }: { printers: PrinterView[
     const doc: PaperDoc = { rows: [{ kind: 'text', align: 'center', left: t('pos.printers.testLine', { name: printer.name }), size: 2, bold: true }, { kind: 'rule' }, { kind: 'text', align: 'start', left: 'ABC 0123456789', right: 'أبج ئەبج' }, { kind: 'gap' }] };
     const result = await printDoc(doc, printer, { drawer: false });
     if (result.ok) toast.success(t('pos.printers.testOk', { name: printer.name }));
-    else toast.error(t('pos.printers.testFailed', { message: result.message }));
+    else toast.error(t('pos.printers.testFailed', { message: printFailureText(result, t) }));
   };
 
   const saveBridge = async () => {

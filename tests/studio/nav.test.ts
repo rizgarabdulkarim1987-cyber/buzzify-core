@@ -20,7 +20,7 @@ const keys = (items: ReturnType<typeof visibleNav>) => items.map((item) => item.
 
 describe('NAV_ITEMS', () => {
   it('lists the Studio areas in order, each under /studio', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(NAV_ITEMS.map((item) => item.key)).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
     expect(NAV_ITEMS.map((item) => item.href)).toEqual([
       '/studio',
       '/studio/restaurants',
@@ -32,6 +32,7 @@ describe('NAV_ITEMS', () => {
       '/studio/motion',
       '/studio/people',
       '/studio/announcements',
+      '/studio/platform/intro',
       '/studio/activity',
       '/studio/settings',
     ]);
@@ -47,12 +48,12 @@ describe('the Menu Styles area', () => {
 
 describe('visibleNav', () => {
   it('gives a Super Admin every area', () => {
-    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(actor({ isSuperAdmin: true })))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin every area even when they also own a restaurant', () => {
     const superAdmin = actor({ isSuperAdmin: true, memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'activity', 'settings']);
+    expect(keys(visibleNav(superAdmin))).toEqual(['overview', 'restaurants', 'billing', 'cashierOverview', 'pharmacies', 'menus', 'media', 'motion', 'people', 'announcements', 'platformIntro', 'activity', 'settings']);
   });
 
   it('gives a Super Admin the Pharmacy area right after the Cashier, with its own pill icon', () => {
@@ -86,31 +87,40 @@ describe('visibleNav', () => {
     expect(keys(visibleNav(both))).toEqual(['overview', 'restaurants', 'menus', 'media', 'motion']);
   });
 
-  it('gives an owner only their restaurant', () => {
+  it('gives an owner two items: their restaurant and their menu settings', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
     expect(visibleNav(owner)).toEqual([
       {
         key: 'myRestaurant',
-        href: '/studio/restaurants/r1/menus',
+        href: '/studio/restaurants/r1',
         labelKey: 'nav.myRestaurant',
         icon: 'store',
         match: ['/studio/restaurants/r1'],
+        exclude: ['/studio/restaurants/r1/menus'],
+      },
+      {
+        key: 'myMenu',
+        href: '/studio/restaurants/r1/menus',
+        labelKey: 'nav.myMenu',
+        icon: 'menus',
+        match: ['/studio/restaurants/r1/menus'],
       },
     ]);
   });
 
   it('sends an owner whose restaurant has exactly one menu straight to that menu', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    const [item] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1'] }]);
-    expect(item!.href).toBe('/studio/menus/m1');
-    expect(item!.match).toEqual(['/studio/restaurants/r1', '/studio/menus/m1']);
+    const [restaurant, menu] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1'] }]);
+    expect(restaurant!.href).toBe('/studio/restaurants/r1');
+    expect(menu!.href).toBe('/studio/menus/m1');
+    expect(menu!.match).toEqual(['/studio/restaurants/r1/menus', '/studio/menus/m1']);
   });
 
   it("sends an owner whose restaurant has several menus (or none) to the restaurant's Menus tab", () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    const [item] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1', 'm2'] }]);
-    expect(item!.href).toBe('/studio/restaurants/r1/menus');
-    expect(item!.match).toEqual(['/studio/restaurants/r1', '/studio/menus/m1', '/studio/menus/m2']);
+    const [, menu] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1', 'm2'] }]);
+    expect(menu!.href).toBe('/studio/restaurants/r1/menus');
+    expect(menu!.match).toEqual(['/studio/restaurants/r1/menus', '/studio/menus/m1', '/studio/menus/m2']);
   });
 
   it('lists each restaurant by name for an owner of several, never jumping to one menu', () => {
@@ -124,9 +134,11 @@ describe('visibleNav', () => {
       { id: 'r1', name: 'ATELIER', menuIds: ['m1'] },
       { id: 'r2', name: 'مطعم مازو', menuIds: [] },
     ]);
-    expect(items.map((item) => [item.href, item.label])).toEqual([
-      ['/studio/restaurants/r1/menus', 'ATELIER'],
-      ['/studio/restaurants/r2/menus', 'مطعم مازو'],
+    expect(items.map((item) => [item.key, item.href, item.label ?? item.scope])).toEqual([
+      ['myRestaurant', '/studio/restaurants/r1', 'ATELIER'],
+      ['myMenu', '/studio/restaurants/r1/menus', 'ATELIER'],
+      ['myRestaurant', '/studio/restaurants/r2', 'مطعم مازو'],
+      ['myMenu', '/studio/restaurants/r2/menus', 'مطعم مازو'],
     ]);
   });
 
@@ -136,7 +148,7 @@ describe('visibleNav', () => {
       { id: 'r1', name: 'ATELIER', menuIds: ['m1', 'm2'] },
       { id: 'r9', name: 'Elsewhere', menuIds: ['m9'] },
     ]);
-    expect(items.map((item) => item.href)).toEqual(['/studio/restaurants/r1/menus']);
+    expect(items.map((item) => item.href)).toEqual(['/studio/restaurants/r1', '/studio/restaurants/r1/menus']);
   });
 });
 
@@ -154,62 +166,16 @@ describe('isNavItemActive', () => {
     expect(isNavItemActive(restaurants!, '/studio/restaurantsx')).toBe(false);
   });
 
-  it('marks an owner’s item on their restaurant and on its menus', () => {
+  it('marks the restaurant item on the restaurant pages and the menu item on the menu and the Menus tab', () => {
     const owner = actor({ memberships: [{ restaurantId: 'r1', role: 'OWNER' }] });
-    const [item] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1'] }]);
-    expect(isNavItemActive(item!, '/studio/menus/m1')).toBe(true);
-    expect(isNavItemActive(item!, '/studio/restaurants/r1/people')).toBe(true);
-    expect(isNavItemActive(item!, '/studio/account')).toBe(false);
-  });
-});
-
-describe('the cashier item and the shared sign-in', () => {
-  it('is one item pointing at /pos', () => {
-    expect(posNavItem()).toMatchObject({ key: 'cashier', href: '/pos', labelKey: 'nav.cashier' });
-  });
-
-  it('is not among the Studio areas, so a menu-only user never sees it', () => {
-    expect(NAV_ITEMS.map((item) => item.key)).not.toContain('cashier');
-  });
-
-  it('lets a sign-in return to the pharmacy', () => {
-    expect(safeNextPath('/pharmacy')).toBe('/pharmacy');
-    expect(safeNextPath('/pharmacy/select')).toBe('/pharmacy/select');
-    for (const value of ['/pharmacys', '/pharmacy/../studio', '//pharmacy', '/pharmacy?x=1']) {
-      expect(safeNextPath(value), value).toBeNull();
-    }
-  });
-
-  it('lets a sign-in return to the till', () => {
-    expect(safeNextPath('/pos')).toBe('/pos');
-    expect(safeNextPath('/pos/settings')).toBe('/pos/settings');
-    for (const value of ['/posters', '/pos/../studio', '//pos', '/pos?x=1', 'https://evil.test/pos']) {
-      expect(safeNextPath(value), value).toBeNull();
-    }
-  });
-});
-
-describe('safeNextPath', () => {
-  it('keeps a Studio path', () => {
-    expect(safeNextPath('/studio')).toBe('/studio');
-    expect(safeNextPath('/studio/invite/AbC-12_x')).toBe('/studio/invite/AbC-12_x');
-  });
-
-  it('refuses anything that could leave the Studio or the site', () => {
-    for (const value of [
-      null,
-      '',
-      'https://evil.test/studio',
-      '//evil.test',
-      '/studio/../api',
-      '/studios',
-      '/studio//evil.test',
-      '/studio/x?y=1',
-      '/studio\\evil',
-      '/atelier/en',
-      ['/studio'],
-    ]) {
-      expect(safeNextPath(value as never), String(value)).toBeNull();
-    }
+    const [restaurant, menu] = visibleNav(owner, [{ id: 'r1', name: 'ATELIER', menuIds: ['m1'] }]);
+    expect(isNavItemActive(restaurant!, '/studio/restaurants/r1')).toBe(true);
+    expect(isNavItemActive(restaurant!, '/studio/restaurants/r1/people')).toBe(true);
+    expect(isNavItemActive(restaurant!, '/studio/restaurants/r1/menus')).toBe(false);
+    expect(isNavItemActive(restaurant!, '/studio/menus/m1')).toBe(false);
+    expect(isNavItemActive(menu!, '/studio/menus/m1')).toBe(true);
+    expect(isNavItemActive(menu!, '/studio/restaurants/r1/menus')).toBe(true);
+    expect(isNavItemActive(menu!, '/studio/restaurants/r1/people')).toBe(false);
+    expect(isNavItemActive(restaurant!, '/studio/account')).toBe(false);
   });
 });

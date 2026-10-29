@@ -1,7 +1,7 @@
 'use client';
 
 import type { ColumnDef } from '@tanstack/react-table';
-import { KeyRound, Mail, MoreHorizontal, Power, PowerOff, UserPlus } from 'lucide-react';
+import { KeyRound, Mail, MoreHorizontal, Power, PowerOff, Trash2, UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo, useState, useTransition } from 'react';
 import { toast } from 'sonner';
@@ -62,8 +62,13 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
   const own = person.userId === me;
   const canAssign = !person.deactivated && !person.isSuperAdmin;
   if (own && !canAssign) return null;
+  const canDelete = person.deactivated && !person.isSuperAdmin && !own;
   return (
-    <DropdownMenu modal={false}>
+    <div className="flex items-center justify-end gap-1">
+      {canDelete && (
+        <IconButton label={t('people.delete')} icon={<Trash2 aria-hidden />} size="sm" className="hover:text-danger" onClick={() => onAction('delete')} />
+      )}
+      <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
         <IconButton label={t('people.actions', { name: person.name })} icon={<MoreHorizontal aria-hidden />} size="sm" />
       </DropdownMenuTrigger>
@@ -80,9 +85,16 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {person.deactivated ? (
-              <DropdownMenuItem icon={<Power aria-hidden />} onSelect={() => onAction('reactivate')}>
-                {t('people.reactivate')}
-              </DropdownMenuItem>
+              <>
+                <DropdownMenuItem icon={<Power aria-hidden />} onSelect={() => onAction('reactivate')}>
+                  {t('people.reactivate')}
+                </DropdownMenuItem>
+                {!person.isSuperAdmin && (
+                  <DropdownMenuItem danger icon={<Trash2 aria-hidden />} onSelect={() => onAction('delete')}>
+                    {t('people.delete')}
+                  </DropdownMenuItem>
+                )}
+              </>
             ) : (
               <DropdownMenuItem danger icon={<PowerOff aria-hidden />} onSelect={() => onAction('deactivate')}>
                 {t('people.deactivate')}
@@ -92,6 +104,7 @@ function RowActions({ person, me, onAction }: { person: PersonRow; me: string; o
         )}
       </DropdownMenuContent>
     </DropdownMenu>
+    </div>
   );
 }
 

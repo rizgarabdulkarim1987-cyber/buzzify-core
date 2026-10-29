@@ -100,6 +100,27 @@ describe('reversing one part of a split bill', () => {
     expect((await view(opened.orderId)).status).toBe('OPEN');
   });
 
+  it('refuses to reverse a part that carried the rounding of a later part still standing', async () => {
+    // Two guests at 600 with a rounding step of 1000: part 1 pays 1000, part 2 pays 0. Reversing part 1 alone would hand
+    // back 1000 and leave guest 2's food unpaid on a PAID order.
+    const { menuId, categoryId } = await prisma().product.findUniqueOrThrow({ where: { id: burger } });
+    const small = (await prisma().product.create({ data: { menuId, categoryId, slug: 'tea', sortOrder: 2, basePrice: 600, translations: names('شاي', 'Tea') } })).id;
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { roundingStep: 1000 } });
+    const opened = dataOf(await run(cashier, openPosOrder, { tableId }));
+    const one = dataOf(await run(cashier, addPosLine, { orderId: opened.orderId, productId: small, quantity: 1, note: '', optionIds: [], expectedVersion: opened.version }));
+    const two = dataOf(await run(cashier, addPosLine, { orderId: opened.orderId, productId: small, quantity: 1, note: '', optionIds: [], expectedVersion: one.version }));
+    const first = dataOf(await run(cashier, payPosOrder, { orderId: opened.orderId, expectedVersion: two.version, expectedTotal: 1_000, lineIds: [one.lineId], amountReceived: 1_000 }));
+    const second = dataOf(await run(cashier, payPosOrder, { orderId: opened.orderId, expectedVersion: (await view(opened.orderId)).version, expectedTotal: 0, lineIds: [two.lineId], amountReceived: 0 }));
+    const refused = await run(manager, reversePosPayment, { orderId: opened.orderId, paymentId: first.paymentId, expectedVersion: (await view(opened.orderId)).version, reason: 'Wrong dish' });
+    expect(codeOf(refused)).toBe('CONFLICT');
+    expect(JSON.stringify(refused)).toContain('Reverse the later parts of this bill first');
+    expect(await prisma().posPaymentReversal.count()).toBe(0);
+    // Reversing the later part first, then the earlier one, is allowed.
+    dataOf(await run(manager, reversePosPayment, { orderId: opened.orderId, paymentId: second.paymentId, expectedVersion: (await view(opened.orderId)).version, reason: 'Wrong dish' }));
+    const back = dataOf(await run(manager, reversePosPayment, { orderId: opened.orderId, paymentId: first.paymentId, expectedVersion: (await view(opened.orderId)).version, reason: 'Wrong dish' }));
+    expect(back.amount).toBe(1_000);
+  });
+
   it('keeps the day report in step: gross for both parts, the refund for one, the net for the other', async () => {
     const { orderId, first } = await splitBill();
     const version = (await view(orderId)).version;

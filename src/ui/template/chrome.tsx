@@ -9,6 +9,7 @@ import { DAYS } from '@/server/domain/restaurant-profile';
 import { useApp } from '@/ui/AppProviders';
 import { CameraIcon, ChatIcon, ClockIcon, CloseIcon, GlobeIcon, PauseIcon, PhoneIcon, PinIcon, PlayIcon, SearchIcon } from '@/ui/Icons';
 import { GuestTools } from '@/ui/guest/GuestTools';
+import { ModeSwitch } from '@/ui/menu/ModeSwitch';
 import { useOfferEnd } from '@/ui/menu/SalesLabels';
 
 /** The pieces around a template menu's products: header, search, filters, an offer, the place's details, the footer. */
@@ -16,7 +17,8 @@ import { useOfferEnd } from '@/ui/menu/SalesLabels';
 export function TemplateHeader() {
   const { tenant, table, t, href } = useApp();
   return (
-    <header className="tpl-header flex items-start justify-between gap-4 px-(--gutter)">
+    <>
+      <header className="tpl-header flex items-start justify-between gap-4 px-(--gutter)">
       <div className="min-w-0">
         <h1 className="tpl-brand tpl-display">
           <a href={href()} data-testid="brand" className="flex min-h-11 items-center">
@@ -36,8 +38,10 @@ export function TemplateHeader() {
         </h1>
         {table !== null && <p className="mt-0.5 text-sm text-(--accent-ink)">{t('menu.table', { number: String(table).padStart(2, '0') })}</p>}
       </div>
-      <GuestTools />
-    </header>
+      <GuestTools showAbout={false} />
+      </header>
+      {tenant.extras.about && (<div className="px-(--gutter)"><ModeSwitch current="menu" /></div>)}
+    </>
   );
 }
 

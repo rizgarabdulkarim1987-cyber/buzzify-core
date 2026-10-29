@@ -93,6 +93,7 @@ export function ShiftPanel({ summary, canClose }: { summary: ShiftSummary; canCl
             {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.expectedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.expectedUsdAtClose ?? 0) })} /> : null}
             {!open && shift.countedUsd !== null ? <Row label={t('pos.shift.countedUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.countedUsd) })} /> : null}
             {!open && shift.differenceUsd !== null ? <Row label={t('pos.shift.differenceUsd')} value={t('pos.usd.amount', { n: formatNumber(shift.differenceUsd) })} /> : null}
+            {!open && summary.usdBeyondDrawer !== null && summary.usdBeyondDrawer > 0 ? <Row label={t('pos.shift.usdBeyondDrawer')} value={t('pos.usd.amount', { n: formatNumber(summary.usdBeyondDrawer) })} /> : null}
             {!open && difference !== null ? <Verdict difference={difference} /> : null}
           </dl>
           {shift.note ? <p className="text-base text-muted">{shift.note}</p> : null}

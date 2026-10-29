@@ -1,13 +1,18 @@
 'use client';
 
-import { CircleAlert, ImageIcon, Upload, X } from 'lucide-react';
+import { CircleAlert, ImageIcon, Trash2, Upload, X } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useId, useRef, useState } from 'react';
+import { toast } from 'sonner';
+import { deleteAsset, deleteSharedAsset, listMedia } from '@/app/studio/_actions/media';
 import type { MediaRow } from '@/server/studio/services/media';
 import { describeFailure } from '@/studio/errors';
 import { formatBytes } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
-import { buttonClasses } from '@/studio/ui/Button';
+import { useRefuse } from '@/studio/refuse';
+import { Button, buttonClasses } from '@/studio/ui/Button';
+import { Checkbox } from '@/studio/ui/Checkbox';
+import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { cx } from '@/studio/ui/cx';
 import { EmptyState } from '@/studio/ui/EmptyState';
 import { Field } from '@/studio/ui/Field';
@@ -52,15 +57,73 @@ export function MediaLibrary({ restaurantId, editable, libraries, selectedLibrar
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
+  const refuse = useRefuse();
   const inputId = useId();
   const { params, set } = useFilterParams();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [uploads, setUploads] = useState<Upload[]>([]);
+  const [checked, setChecked] = useState<ReadonlySet<string>>(new Set());
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  // Every file of the library under the current filters, fetched when the person asks to select beyond this page.
+  const [everything, setEverything] = useState<{ key: string; ids: string[] } | null>(null);
+  const [gathering, setGathering] = useState(false);
   const counter = useRef(0);
   const folder = params.get('folder') ?? '';
   const tag = params.get('tag') ?? '';
   const filtered = FILTER_PARAMS.some((name) => params.get(name));
   const selected = list.rows.find((row) => row.id === selectedId) ?? null;
+
+  // Ticks are of files in view, unless the person chose every file of the library under these filters.
+  const filterKey = [selectedLibrary ?? '', params.get('q') ?? '', folder, tag].join('|');
+  const all = everything?.key === filterKey ? everything.ids : null;
+  const visibleChecked = all ?? list.rows.filter((row) => checked.has(row.id)).map((row) => row.id);
+  const allChecked = all !== null || (list.rows.length > 0 && visibleChecked.length === list.rows.length);
+  const toggle = (id: string) => {
+    setEverything(null);
+    setChecked((current) => {
+      const next = new Set(current);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+  };
+  const clear = () => {
+    setEverything(null);
+    setChecked(new Set());
+  };
+
+  /** Every id under the current filters, a page at a time. */
+  const gatherAll = async () => {
+    setGathering(true);
+    const ids: string[] = [];
+    for (let at = 1; at <= Math.ceil(list.total / pageSize); at += 1) {
+      const result = await listMedia({ ...(restaurantId ? { restaurantId, own: true } : {}), kinds: 'all', page: at, ...(folder ? { folder } : {}), ...(tag ? { tag } : {}), ...(params.get('q') ? { q: params.get('q')! } : {}) });
+      if (!result.ok) break;
+      ids.push(...result.data.rows.map((row) => row.id));
+    }
+    setGathering(false);
+    setEverything({ key: filterKey, ids });
+  };
+
+  const deleteChecked = async () => {
+    let deleted = 0;
+    let kept = 0;
+    let failure: Extract<Awaited<ReturnType<typeof deleteAsset>>, { ok: false }> | null = null;
+    const ids = [...visibleChecked];
+    for (let at = 0; at < ids.length; at += 4) {
+      const results = await Promise.all(ids.slice(at, at + 4).map((assetId) => (restaurantId ? deleteAsset({ restaurantId, assetId }) : deleteSharedAsset({ assetId }))));
+      for (const result of results) {
+        if (result.ok) deleted += 1;
+        else if (result.error.code === 'INVALID') kept += 1;
+        else failure ??= result;
+      }
+    }
+    clear();
+    if (selectedId && ids.includes(selectedId)) setSelectedId(null);
+    if (deleted > 0) toast.success(t('media.library.bulkDeleted', { count: String(deleted) }));
+    if (kept > 0) toast.error(t('media.library.bulkKept', { count: String(kept) }));
+    router.refresh();
+    return failure ? refuse(failure) : (true as const);
+  };
 
   const upload = async (files: File[]) => {
     const started = files.map((file) => ({ id: ++counter.current, name: file.name, progress: 0 }));
@@ -173,7 +236,35 @@ export function MediaLibrary({ restaurantId, editable, libraries, selectedLibrar
             />
           ) : (
             <div className="flex flex-col gap-4">
-              <MediaGrid rows={list.rows} selectedId={selected?.id ?? null} onSelect={(id) => setSelectedId((current) => (current === id ? null : id))} />
+              {editable && (
+                <div className="flex flex-wrap items-center gap-3 text-sm">
+                  <Checkbox
+                    label={t('media.library.selectAll', { count: String(list.rows.length) })}
+                    checked={allChecked}
+                    indeterminate={visibleChecked.length > 0 && !allChecked}
+                    onChange={() => (allChecked ? clear() : setChecked(new Set(list.rows.map((row) => row.id))))}
+                  />
+                  {visibleChecked.length > 0 && (
+                    <>
+                      <span className="text-muted">{t('media.library.selectedCount', { count: String(visibleChecked.length) })}</span>
+                      {all === null && allChecked && list.total > list.rows.length && (
+                        <Button variant="ghost" disabled={gathering} onClick={() => void gatherAll()}>
+                          {t('media.library.selectEvery', { count: String(list.total) })}
+                        </Button>
+                      )}
+                      <Button variant="ghost" icon={<Trash2 aria-hidden />} className="text-danger" onClick={() => setConfirmDelete(true)}>
+                        {t('media.library.deleteSelected')}
+                      </Button>
+                    </>
+                  )}
+                </div>
+              )}
+              <MediaGrid
+                rows={list.rows}
+                selectedId={selected?.id ?? null}
+                onSelect={(id) => setSelectedId((current) => (current === id ? null : id))}
+                {...(editable ? { checked, onToggle: toggle } : {})}
+              />
               <Pagination page={page} pageSize={pageSize} total={list.total} />
             </div>
           )}
@@ -184,6 +275,14 @@ export function MediaLibrary({ restaurantId, editable, libraries, selectedLibrar
           </div>
         )}
       </div>
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title={t('media.library.bulkDeleteTitle', { count: String(visibleChecked.length) })}
+        body={t('media.library.bulkDeleteBody')}
+        confirmLabel={t('media.library.bulkDeleteConfirm')}
+        onConfirm={deleteChecked}
+      />
     </div>
   );
 }

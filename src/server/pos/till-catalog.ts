@@ -1,9 +1,12 @@
 import type { PrismaClient } from '@/generated/prisma/client';
 import { isLocale, type Locale } from '@/lib/locale';
+import { parseMedia } from '@/lib/media';
 import { loadDraftCatalog } from '@/server/data/catalog-loader';
 import { scopedClient } from '@/server/data/tenant-db';
 import type { TillOffer } from '@/server/domain/pos/line-offer';
 import type { TranslationMap } from '@/server/domain/types';
+import { loadAssets, mediaAssetIds, resolveDraftMedia } from '@/server/media/resolve';
+import { getStorage } from '@/server/storage/storage';
 import { catalogMenuOf } from './catalog-menu';
 import { loadTillOffers } from './line-offers';
 
@@ -32,6 +35,14 @@ export interface TillGroup {
   options: TillOption[];
 }
 
+/** A product's first picture, the same one the menu shows (a library photo, uploaded by hand or brought in with the menu). */
+export interface TillImage {
+  url: string;
+  alt: string;
+  /** A tiny blurred WebP shown while the photo loads. */
+  placeholder: string | null;
+}
+
 export interface TillProduct {
   id: string;
   categoryId: string;
@@ -46,6 +57,8 @@ export interface TillProduct {
   sectionId: string | null;
   /** The code a scanner reads for this product; null when none was set. */
   barcode: string | null;
+  /** Null when the product has no picture. */
+  image: TillImage | null;
   variants: TillVariant[];
   groups: TillGroup[];
 }
@@ -69,6 +82,16 @@ export interface TillCatalog {
   timeZone: string;
   /** The menu's DISCOUNT offers (empty without the plan's timed offers). Whether one is live is decided where it is used. */
   offers: TillOffer[];
+}
+
+function imageOf(
+  media: readonly unknown[],
+  assets: Parameters<typeof resolveDraftMedia>[1],
+  defaultLocale: Locale,
+  mediaUrl: (key: string) => string,
+): TillImage | null {
+  const first = parseMedia(resolveDraftMedia(media, assets, defaultLocale, mediaUrl)).find((item) => item.kind === 'image');
+  return first?.kind === 'image' ? { url: first.url, alt: first.alt, placeholder: first.placeholder ?? null } : null;
 }
 
 function namesOf(map: TranslationMap, locales: readonly Locale[]): Names {
@@ -100,6 +123,8 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
     side.posCategorySetting.findMany({ select: { categoryId: true, sectionId: true } }),
     side.posProductSetting.findMany({ select: { productId: true, sectionId: true, soldOutOverride: true, barcode: true } }),
   ]);
+  const mediaUrl = (key: string) => getStorage().publicUrl(key);
+  const assets = await loadAssets(prisma, restaurantId, catalog.products.flatMap((product) => mediaAssetIds(product.media)));
   const categorySection = new Map(categorySettings.map((row) => [row.categoryId, row.sectionId]));
   const productSetting = new Map(productSettings.map((row) => [row.productId, row]));
 
@@ -129,6 +154,7 @@ export async function loadTillCatalog(prisma: PrismaClient, restaurantId: string
         hiddenFromGuests: product.isHidden,
         sectionId: setting?.sectionId ?? categorySection.get(product.categoryId) ?? null,
         barcode: setting?.barcode ?? null,
+        image: imageOf(product.media, assets, defaultLocale, mediaUrl),
         variants: product.variants.map((variant) => ({
           id: variant.id,
           names: namesOf(variant.translations, locales),

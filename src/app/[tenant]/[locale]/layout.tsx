@@ -106,6 +106,8 @@ export default async function RootLayout({
             priceStyle: salesSettings(tenant.engineConfig).priceStyle,
             // A resolution cached before the switch existed has no value: the box is on unless the menu said otherwise.
             feedback: tenant.feedbackEnabled !== false,
+            // A resolution cached before the extras existed has none: nothing is on.
+            extras: { about: tenant.extras?.about ?? false, wheel: tenant.extras?.wheel ?? false, aboutTitle: tenant.extras?.aboutTitle ?? { en: '', ar: '', ckb: '' } },
           }}
         >
           {children}

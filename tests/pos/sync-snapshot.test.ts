@@ -119,3 +119,23 @@ describe('the offline read cache', () => {
     expect(text).not.toMatch(/"(token|password|secret|session|cookie)[A-Za-z]*"\s*:/i);
   });
 });
+
+describe('the snapshot for offline printing', () => {
+  const printer = (restaurantId: string, name: string) =>
+    prisma().posPrinter.create({ data: { restaurantId, name, role: 'RECEIPT', transport: 'NETWORK', address: '192.168.1.50:9100', paperWidth: 80, cut: true, drawerPin: 2, isDefault: true } });
+
+  it("lists the restaurant's printers and never another's", async () => {
+    await printer(a.id, 'Front');
+    await printer(b.id, 'Other');
+    expect((await snapshot()).printers?.map((p) => p.name)).toEqual(['Front']);
+  });
+
+  it('carries the receipt details', async () => {
+    await prisma().posSettings.update({ where: { restaurantId: a.id }, data: { invoiceName: 'Grill House', invoiceAddress: 'Street 1', invoicePhone: '0770', invoiceTaxNumber: 'T-9', invoiceFooter: 'Thanks' } });
+    expect((await snapshot()).business).toEqual({ name: 'Grill House', address: 'Street 1', phone: '0770', taxNumber: 'T-9', footer: 'Thanks' });
+  });
+
+  it('has empty receipt details when none were set', async () => {
+    expect((await snapshot()).business).toEqual({ name: '', address: '', phone: '', taxNumber: '', footer: '' });
+  });
+});
