@@ -5,7 +5,6 @@ import { parsePolicy } from '@/server/domain/permissions';
 import { POS_ROLES } from '@/server/domain/pos/permissions';
 import { addPosStaff } from '@/server/pos/staff';
 import { sendAfterResponse } from '@/server/studio/auth/auth';
-import { addPosStaff } from '@/server/pos/staff';
 import { emailField } from '@/server/studio/auth/fields';
 import { passwordProblemMessage } from '@/server/studio/auth/password-policy';
 import { createPasswordUser, EmailTakenError, PasswordPolicyError } from '@/server/studio/auth/users';
