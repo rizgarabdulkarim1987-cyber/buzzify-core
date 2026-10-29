@@ -13,6 +13,13 @@ import { allocateFefo, fefoOrder, type BatchStatus, type StockBuckets } from './
 export type TransferStatus = 'REQUESTED' | 'SENT' | 'RECEIVED' | 'PARTIAL' | 'CANCELLED';
 export type LostReason = 'LOST' | 'OTHER';
 
+/**
+ * The most sent lines (one per batch) a transfer may have, for a send and for a receive alike: a receive must report every sent line
+ * in one call, so a transfer that was sent must never have more lines than a receive accepts. A request has at most 100 lines; FEFO
+ * may split each over many batches, which is what this caps.
+ */
+export const MAX_SENT_LINES = 500;
+
 export type TransferCode =
   | 'INVALID_QUANTITY'
   | 'INSUFFICIENT_STOCK'
@@ -25,7 +32,8 @@ export type TransferCode =
   | 'OVER_REQUESTED'
   | 'OVER_SENT'
   | 'UNACCOUNTED'
-  | 'REASON_REQUIRED';
+  | 'REASON_REQUIRED'
+  | 'TOO_MANY_LINES';
 
 /** What a product was short by when a transfer could not be sent in full. */
 export interface Shortfall {
@@ -183,8 +191,11 @@ export function planSend(args: { lines: readonly SendLine[]; batches: readonly S
     const total = own.reduce((sum, p) => sum + p.qty, 0);
     if (total > line.requestedQty) throw new TransferError('OVER_REQUESTED', 'A line cannot send more than was requested', { lineId: line.lineId });
     if (total === 0) continue;
-    const fefo = allocateFefo(candidates, total);
-    const same = fefo.ok && fefo.allocations.length === own.filter((p) => p.qty > 0).length && fefo.allocations.every((a) => own.some((p) => p.batchId === a.batchId && p.qty === a.qty));
+    // Out of FEFO order only when a sendable batch that expires EARLIER than a picked one still has stock left after the picks:
+    // batches that expire the same day are equally first in line (their lot and id order only makes the default plan deterministic).
+    const taken = new Map(own.map((p) => [p.batchId, p.qty]));
+    const latest = own.filter((p) => p.qty > 0).reduce((max, p) => (batchById.get(p.batchId)!.expiryDate > max ? batchById.get(p.batchId)!.expiryDate : max), '');
+    const same = !candidates.some((c) => c.expiryDate < latest && c.sellable - (taken.get(c.id) ?? 0) > 0);
     const ordered = own
       .filter((p) => p.qty > 0)
       .map((p) => ({ pick: p, batch: batchById.get(p.batchId)! }))
@@ -192,6 +203,7 @@ export function planSend(args: { lines: readonly SendLine[]; batches: readonly S
     for (const { pick } of ordered) allocations.push({ lineId: line.lineId, productId: line.productId, batchId: pick.batchId, qty: pick.qty, override: !same });
   }
   if (short.length > 0) throw new TransferError('INSUFFICIENT_STOCK', 'Not enough stock to send', { shortfalls: short });
+  if (allocations.length > MAX_SENT_LINES) throw new TransferError('TOO_MANY_LINES', 'A transfer can be sent from at most 500 batches');
   const totalQty = allocations.reduce((sum, a) => sum + a.qty, 0);
   if (totalQty === 0) throw new TransferError('NOTHING_TO_SEND', 'Send at least one unit');
   return { allocations, override: allocations.some((a) => a.override), totalQty };

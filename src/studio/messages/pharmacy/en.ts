@@ -2202,6 +2202,8 @@ const pharmacy: Messages = {
   'error.text.phTrSameBranch': 'Choose two different branches',
   'error.text.phTrBranchNotFound': 'Branch not found',
   'error.text.phTrLinesMismatch': 'Report every line of the transfer once',
+  'error.text.phTrMax500': 'Use at most 500 lines',
+  'error.text.phTrTooManyLines': 'A transfer can be sent from at most 500 batches',
 };
 
 export default pharmacy;

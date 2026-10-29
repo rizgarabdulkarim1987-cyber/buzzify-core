@@ -306,6 +306,36 @@ describe('sending', () => {
   });
 });
 
+describe('the cap on sent lines', () => {
+  it('sends from 500 batches and receives all 500, and refuses a send from 501 so a sent transfer can always be received', async () => {
+    const w = await world();
+    const rows = Array.from({ length: 501 }, (_, i) => ({ restaurantId: w.a.id, productId: w.p.id, lot: `C${String(i).padStart(4, '0')}`, expiryDate: new Date('2028-03-31T00:00:00.000Z') }));
+    await prisma().phBatch.createMany({ data: rows });
+    const ids = await prisma().phBatch.findMany({ where: { restaurantId: w.a.id }, select: { id: true } });
+    await prisma().phStockBalance.createMany({ data: ids.map((b) => ({ restaurantId: w.a.id, branchId: w.b1, productId: w.p.id, batchId: b.id, available: 1 })) });
+
+    const tooMany = await requested(w, { lines: [{ productId: w.p.id, qty: 501 }] });
+    const refused = await send(w, w.senderMgr, tooMany);
+    expect(phCodeOf(refused)).toBe('TOO_MANY_LINES');
+    expect(!refused.ok && refused.error.message).toBe('A transfer can be sent from at most 500 batches');
+    expect(await prisma().phStockMovement.count({ where: { type: 'TRANSFER_OUT' } })).toBe(0);
+    expect(await sentLines(tooMany.id)).toEqual([]);
+    expect((await prisma().phTransfer.findUniqueOrThrow({ where: { id: tooMany.id } })).status).toBe('REQUESTED');
+    // too many picks are refused at the door with the same cap
+    expect(codeOf(await send(w, w.senderMgr, tooMany, { picks: Array.from({ length: 501 }, () => ({ lineId: 'x', batchId: 'y', qty: 0 })) }))).toBe('INVALID');
+    expect(dataOf(await cancel(w, w.destMgr, tooMany)).status).toBe('CANCELLED');
+
+    const t = await requested(w, { lines: [{ productId: w.p.id, qty: 500 }] });
+    const sent = dataOf(await send(w, w.senderMgr, t));
+    expect(sent.lines).toHaveLength(500);
+    expect(sent.totalQty).toBe(500);
+    const done = dataOf(await receive(w, w.destMgr, { id: t.id, version: sent.version }, sent.lines.map((l) => ({ lineId: l.lineId, receivedQty: 1 }))));
+    expect(done).toMatchObject({ status: 'RECEIVED', receivedQty: 500 });
+    expect(await prisma().phStockBalance.count({ where: { branchId: w.b2, available: 1 } })).toBe(500);
+    expect(codeOf(await receive(w, w.destMgr, { id: t.id, version: sent.version }, [...sent.lines, sent.lines[0]!].map((l) => ({ lineId: l.lineId, receivedQty: 1 }))))).toBe('INVALID');
+  }, 180_000);
+});
+
 describe('who may act at each end', () => {
   it('lets stock clerks, branch managers and the owner work transfers, and refuses cashiers and pharmacists', async () => {
     const w = await world();

@@ -2196,6 +2196,8 @@ const pharmacy: Messages = {
   'error.text.phTrSameBranch': 'دوو لقی جیاواز هەڵبژێرە',
   'error.text.phTrBranchNotFound': 'لقەکە نەدۆزرایەوە',
   'error.text.phTrLinesMismatch': 'هەر دێڕێکی گواستنەوەکە یەکجار ڕاپۆرت بکە',
+  'error.text.phTrMax500': 'زیاتر لە ٥٠٠ دێڕ بەکارمەهێنە',
+  'error.text.phTrTooManyLines': 'گواستنەوە لە زیاتر لە ٥٠٠ دەستە ناناردرێت',
 };
 
 export default pharmacy;

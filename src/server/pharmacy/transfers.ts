@@ -6,6 +6,7 @@ import { utcToday } from '@/server/domain/pharmacy/expiry';
 import {
   checkReceive,
   closeStatus,
+  MAX_SENT_LINES,
   inTransitQty,
   needsLossApproval,
   planSend,
@@ -75,7 +76,7 @@ export const sendFields = z.object({
   transferId: idText,
   version: z.number().int().min(1),
   clientKey: keyText,
-  picks: z.array(z.object({ lineId: idText, batchId: idText, qty: qtyOrZero })).max(500, 'Use at most 100 lines').optional(),
+  picks: z.array(z.object({ lineId: idText, batchId: idText, qty: qtyOrZero })).max(MAX_SENT_LINES, 'Use at most 500 lines').optional(),
 });
 export type SendFields = z.infer<typeof sendFields>;
 
@@ -95,7 +96,7 @@ export const receiveFields = z.object({
       }),
     )
     .min(1, 'Add at least one line')
-    .max(500, 'Use at most 100 lines'),
+    .max(MAX_SENT_LINES, 'Use at most 500 lines'),
 });
 export type ReceiveFields = z.infer<typeof receiveFields>;
 
@@ -132,6 +133,7 @@ const SENTENCE: Record<TransferCode, string> = {
   OVER_SENT: 'More was received than was sent',
   UNACCOUNTED: 'Every unit sent is received, damaged or lost',
   REASON_REQUIRED: 'Say why units were lost',
+  TOO_MANY_LINES: 'A transfer can be sent from at most 500 batches',
 };
 
 /** A refusal of the pure rules, as the error a person is shown. */

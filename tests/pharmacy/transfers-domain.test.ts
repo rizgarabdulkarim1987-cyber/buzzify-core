@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  MAX_SENT_LINES,
   TransferError,
   canTransition,
   checkReceive,
@@ -173,6 +174,45 @@ describe('planSend', () => {
       planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: 'a', qty: 0 }, { lineId: 'L2', batchId: 'b', qty: 0 }], today: TODAY }),
     );
     expect(none.code).toBe('NOTHING_TO_SEND');
+  });
+});
+
+describe('planSend: ties, and the cap on sent lines', () => {
+  const lines = [{ lineId: 'L1', productId: 'P1', requestedQty: 10 }];
+
+  it('does not call a pick an override when two batches expire the same day: either one is first in line', () => {
+    const batches = [batch('a', { lot: 'A', expiryDate: '2028-03-31', available: 10 }), batch('b', { lot: 'B', expiryDate: '2028-03-31', available: 10 })];
+    for (const id of ['a', 'b']) {
+      const plan = planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: id, qty: 10 }], today: TODAY });
+      expect(plan.override, id).toBe(false);
+      expect(plan.allocations.map((x) => [x.batchId, x.override])).toEqual([[id, false]]);
+    }
+    // split over both, in any proportion
+    const split = planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: 'b', qty: 6 }, { lineId: 'L1', batchId: 'a', qty: 4 }], today: TODAY });
+    expect(split.override).toBe(false);
+  });
+
+  it('still flags a pick of a later expiry while an earlier batch has stock left, and not once the earlier one is emptied', () => {
+    const batches = [batch('early', { expiryDate: '2027-06-30', available: 6 }), batch('late', { expiryDate: '2028-03-31', available: 20 })];
+    const skip = planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: 'late', qty: 10 }], today: TODAY });
+    expect(skip.override).toBe(true);
+    expect(skip.allocations[0]!.override).toBe(true);
+    const part = planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: 'early', qty: 3 }, { lineId: 'L1', batchId: 'late', qty: 7 }], today: TODAY });
+    expect(part.override).toBe(true);
+    const emptied = planSend({ lines, batches, picks: [{ lineId: 'L1', batchId: 'early', qty: 6 }, { lineId: 'L1', batchId: 'late', qty: 4 }], today: TODAY });
+    expect(emptied.override).toBe(false);
+    // an earlier batch that cannot be sold does not make the later one an override
+    const recalled = [batch('early', { expiryDate: '2027-06-30', available: 6, status: 'RECALLED' }), batch('late', { expiryDate: '2028-03-31', available: 20 })];
+    expect(planSend({ lines, batches: recalled, picks: [{ lineId: 'L1', batchId: 'late', qty: 10 }], today: TODAY }).override).toBe(false);
+  });
+
+  it('sends from at most 500 batches in all: 500 is planned, 501 is refused so that a sent transfer can always be received', () => {
+    const many = (n: number) => Array.from({ length: n }, (_, i) => batch(`b${String(i).padStart(4, '0')}`, { lot: `L${String(i).padStart(4, '0')}`, available: 1 }));
+    const plan = planSend({ lines: [{ lineId: 'L1', productId: 'P1', requestedQty: 500 }], batches: many(501), today: TODAY });
+    expect(plan.allocations).toHaveLength(500);
+    expect(MAX_SENT_LINES).toBe(500);
+    const refused = failure(() => planSend({ lines: [{ lineId: 'L1', productId: 'P1', requestedQty: 501 }], batches: many(501), today: TODAY }));
+    expect(refused.code).toBe('TOO_MANY_LINES');
   });
 });
 

@@ -2196,6 +2196,8 @@ const pharmacy: Messages = {
   'error.text.phTrSameBranch': 'اختر فرعين مختلفين',
   'error.text.phTrBranchNotFound': 'الفرع غير موجود',
   'error.text.phTrLinesMismatch': 'أبلغ عن كل بند من التحويل مرة واحدة',
+  'error.text.phTrMax500': 'استخدم 500 بند على الأكثر',
+  'error.text.phTrTooManyLines': 'يمكن إرسال التحويل من 500 دفعة على الأكثر',
 };
 
 export default pharmacy;

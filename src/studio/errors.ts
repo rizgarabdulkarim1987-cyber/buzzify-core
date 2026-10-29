@@ -631,6 +631,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose two different branches': 'error.text.phTrSameBranch',
   'Branch not found': 'error.text.phTrBranchNotFound',
   'Report every line of the transfer once': 'error.text.phTrLinesMismatch',
+  'Use at most 500 lines': 'error.text.phTrMax500',
+  'A transfer can be sent from at most 500 batches': 'error.text.phTrTooManyLines',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
