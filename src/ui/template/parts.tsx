@@ -8,7 +8,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { ProductVisual } from '@/ui/art/ProductVisual';
 import { HeartIcon, PlusIcon } from '@/ui/Icons';
-import { hasSalesPills } from '@/ui/menu/SalesLabels';
+import { hasSalesPills, useCountsLabel } from '@/ui/menu/SalesLabels';
 import { useTemplate } from './context';
 
 /**
@@ -84,15 +84,26 @@ export function SaleChip({ product, className = '' }: { product: MenuProductView
   return label ? <span className={`tpl-off tabular-nums ${className}`}>{label}</span> : null;
 }
 
-/** The Sales tab's labels on a product: its special, its live discount and "Most ordered". */
+/**
+ * The dish's order and view counts as a quiet line of its own, for the cards that have no badge row (docs/superpowers/specs/2026-10-30-menu-dish-counts-design.md).
+ * Left out while the dish has no paid order or the menu does not show counts.
+ */
+export function DishCounts({ product, className = '' }: { product: MenuProductView; className?: string }) {
+  const counts = useCountsLabel(product);
+  return counts ? <span className={`tpl-counts tabular-nums ${className}`}>{counts}</span> : null;
+}
+
+/** The Sales tab's labels on a product: its special, its live discount, "Most ordered" and its counts. */
 function SalesTags({ product }: { product: MenuProductView }) {
   const { t } = useApp();
   const sale = useSaleLabel(product);
+  const counts = useCountsLabel(product);
   return (
     <>
       {product.special && <span className="tpl-badge tpl-badge-special">{product.special}</span>}
       {sale && <span className="tpl-badge tpl-badge-sale tabular-nums">{sale}</span>}
       {product.mostOrdered && <span className="tpl-badge">{t('menu.mostOrdered')}</span>}
+      {counts && <span className="tpl-badge tpl-counts tabular-nums">{counts}</span>}
     </>
   );
 }
