@@ -7,6 +7,7 @@ import {
   parseGs1,
   parseMoneyMinor,
   parseQuantity,
+  pickScanTarget,
   rankMatches,
   type Candidate,
   type Flag,
@@ -198,6 +199,7 @@ async function candidatesFor(tx: ScopedTx, restaurantId: string, lines: Readonly
       manufacturer: '',
       barcodes: hitsOf.get(p.id) ?? [],
       defaultUnitId: top?.id ?? null,
+      units: p.units.map((u) => ({ id: u.id, level: u.level, label: u.label, baseQty: u.baseQty })),
     });
   }
   return new Map([...idsOf].map(([id, ids]) => [id, ids.flatMap((productId) => candidateOf.get(productId) ?? [])]));
@@ -553,6 +555,68 @@ export async function fillFromBarcode(
     changes: { fields: { before: null, after: filled }, source: { before: null, after: 'barcode' }, flags: { before: codes(before.open), after: codes(after.open) } },
   });
   return { rowId: a.rowId, version: after.version, flags: codes(after.open), replayed: false, filled };
+}
+
+// One scan for the whole batch --------------------------------------------------------------------------------------------
+
+export const scanInput = z.object({ batchId: z.string().min(1).max(64), barcode: z.string().trim().min(1).max(200), version: z.number().int().min(1).optional() });
+
+export interface ScanResult {
+  rowId: string;
+  lineNo: number;
+  version: number;
+  productName: string;
+  /** The line took the product (it was open) or already held it. */
+  how: 'open' | 'same';
+  /** Which of lot and expiry the scan filled (only values the line did not have). */
+  filled: string[];
+  flags: Flag[];
+}
+
+/**
+ * A barcode scanned at the counter, for the whole batch. The code (a plain EAN or a GS1 element string, either direction between
+ * EAN-13 and GTIN-14) names a catalog product and unit. It goes to the first line, in line order, that is still unmatched or
+ * ambiguous and whose name looks like the product (the line becomes CHOSEN with the code's unit); else to the line that already
+ * holds that product. A GS1 lot or expiry fills only a value the line does not have, marked "barcode". No line fits:
+ * NO_LINE_FOR_BARCODE with the product's id, and nothing is written. Scanning twice does the same thing twice: nothing is
+ * replaced, so a repeat of a lost answer is harmless.
+ */
+export async function scanBarcode(tx: ScopedTx, a: { restaurantId: string; branchId: string; batchId: string; barcode: string; now: Date; audit: Audit }): Promise<ScanResult> {
+  const open = await openBatch(tx, a);
+  const gs1 = parseGs1(a.barcode);
+  const forms = barcodeForms(gs1?.gtin ?? a.barcode);
+  const hits = forms.length === 0 ? [] : await tx.phBarcode.findMany({ where: { code: { in: forms } }, select: { productId: true, unitId: true, product: { select: { tradeName: true, active: true } } } });
+  const live = hits.filter((h) => h.product.active);
+  const products = [...new Set(live.map((h) => h.productId))];
+  if (products.length === 0) throw new StudioError('NOT_FOUND', 'No product has this barcode', { phCode: 'BARCODE_UNKNOWN' });
+  if (products.length > 1) throw new StudioError('CONFLICT', 'More than one product has this barcode', { phCode: 'BARCODE_AMBIGUOUS' });
+  const hit = live[0]!;
+  const views = evaluateRows(await loadRows(tx, open.batchId), a.now).filter((r) => !r.removed);
+  const target = pickScanTarget(views.map((r) => ({ id: r.id, state: r.matchState, productId: r.matchedProductId, name: r.line.name ?? '' })), { id: hit.productId, tradeName: hit.product.tradeName });
+  if (!target) throw new StudioError('NOT_FOUND', 'No line fits this product', { phCode: 'NO_LINE_FOR_BARCODE', productId: hit.productId });
+  const row = views.find((r) => r.id === target.rowId)!;
+  const record = (await tx.phIntakeRow.findFirst({ where: { id: row.id }, select: ROW_SELECT })) as unknown as RowRecord;
+  const edited = asObject(record.edited);
+  const patch: Record<string, Json> = {};
+  if (gs1?.lot && (row.line.lot ?? '').trim() === '') patch.lot = gs1.lot;
+  if (gs1?.expiry && (row.line.expiry ?? '').trim() === '') patch.expiry = gs1.expiry.date;
+  const filled = Object.keys(patch).sort();
+  const sources = { ...asObject(edited.fieldSources) };
+  for (const key of filled) sources[key] = 'barcode';
+  const data = {
+    version: { increment: 1 },
+    ...(target.how === 'open' ? { matchedProductId: hit.productId, matchedUnitId: hit.unitId, matchState: 'CHOSEN' as const } : {}),
+    ...(filled.length > 0 ? { edited: toJson({ ...edited, ...patch, fieldSources: sources }) } : {}),
+  };
+  await tx.phIntakeRow.updateMany({ where: { id: row.id }, data });
+  const after = viewOf((await recomputeBatch(tx, open.batchId, a.now)).rows, row.id);
+  a.audit({
+    action: 'ph.intake.scan',
+    entityType: 'PhIntakeRow',
+    entityId: row.id,
+    changes: { how: { before: null, after: target.how }, fields: { before: null, after: filled }, flags: { before: codes(row.open), after: codes(after.open) } },
+  });
+  return { rowId: row.id, lineNo: row.lineNo, version: after.version, productName: hit.product.tradeName, how: target.how, filled, flags: codes(after.open) };
 }
 
 // Adding and removing lines ----------------------------------------------------------------------------------------------

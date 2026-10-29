@@ -61,6 +61,10 @@ export async function fillIntakeFromBarcode(input: unknown) {
   return invokePh(review.rowFillFromBarcode, input);
 }
 
+export async function scanIntakeBarcode(input: unknown) {
+  return invokePh(review.intakeScan, input);
+}
+
 export async function addIntakeRow(input: unknown) {
   return invokePh(review.rowAdd, input);
 }

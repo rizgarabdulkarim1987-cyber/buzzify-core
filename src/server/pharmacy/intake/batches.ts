@@ -98,6 +98,14 @@ export async function listBatches(
   };
 }
 
+/** A unit of a product, for the pack the line is received in: its size in base units is what the quantity is multiplied by. */
+export interface UnitRead {
+  id: string;
+  label: string;
+  baseQty: number;
+  level: number;
+}
+
 export interface RowRead {
   id: string;
   fileId: string;
@@ -113,8 +121,8 @@ export interface RowRead {
   flags: string[];
   openFlags: string[];
   matchState: string;
-  match: { productId: string; unitId: string | null; name: string; strength: string; form: string; unitLabel: string | null } | null;
-  candidates: Array<{ productId: string; name: string; strength: string; form: string; score: number }>;
+  match: { productId: string; unitId: string | null; name: string; strength: string; form: string; unitLabel: string | null; units: UnitRead[] } | null;
+  candidates: Array<{ productId: string; name: string; strength: string; form: string; score: number; units: UnitRead[] }>;
   reviewed: boolean;
   note: string | null;
   acknowledged: { flags: string[]; mismatch: { difference?: string } | null };
@@ -156,7 +164,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
   const candidateOfRow = new Map(records.map((r) => [r.id, candidatesOf(r.candidates)]));
 
   const productIds = [...new Set(rows.flatMap((r) => [...(r.matchedProductId ? [r.matchedProductId] : []), ...(candidateOfRow.get(r.id) ?? []).map((c) => c.productId)]))];
-  const products = productIds.length === 0 ? [] : await scoped.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, label: true } } } });
+  const products = productIds.length === 0 ? [] : await scoped.phProduct.findMany({ where: { id: { in: productIds } }, select: { id: true, tradeName: true, strength: true, form: true, units: { select: { id: true, label: true, baseQty: true, level: true }, orderBy: { level: 'asc' } } } });
   const byId = new Map(products.map((p) => [p.id, p]));
 
   const read = (r: RowView): RowRead => {
@@ -177,11 +185,11 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
       matchState: r.matchState,
       match:
         product && r.matchedProductId
-          ? { productId: r.matchedProductId, unitId: r.matchedUnitId, name: product.tradeName, strength: product.strength, form: product.form, unitLabel: product.units.find((u) => u.id === r.matchedUnitId)?.label ?? null }
+          ? { productId: r.matchedProductId, unitId: r.matchedUnitId, name: product.tradeName, strength: product.strength, form: product.form, unitLabel: product.units.find((u) => u.id === r.matchedUnitId)?.label ?? null, units: product.units }
           : null,
       candidates: (candidateOfRow.get(r.id) ?? []).flatMap((c) => {
         const p = byId.get(c.productId);
-        return p ? [{ productId: c.productId, name: p.tradeName, strength: p.strength, form: p.form, score: c.score }] : [];
+        return p ? [{ productId: c.productId, name: p.tradeName, strength: p.strength, form: p.form, score: c.score, units: p.units }] : [];
       }),
       reviewed: r.reviewed,
       note: r.note,

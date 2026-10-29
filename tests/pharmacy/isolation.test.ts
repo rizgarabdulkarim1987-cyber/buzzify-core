@@ -482,6 +482,7 @@ const CASES: Record<string, Case> = {
   'ph.intake.row.clearMatch': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, version: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.row.review': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, version: 1, shown: [], note: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.row.fillFromBarcode': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, version: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.scan': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, barcode: '6291000000013', clientKey: key() }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.row.add': { body: (ids, n) => ({ fileId: pick(ids, n).intakeFileId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.row.remove': { body: (ids, n) => ({ rowId: pick(ids, n).intakeRowId, version: 1 }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.header.update': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, version: 1, patch: { invoiceNumber: 'Planted' } }), foreignIds: 'refused', otherBranchIds: 'refused' },
@@ -573,7 +574,7 @@ describe('the pharmacy isolation sweep', () => {
       'ph.intake.approve', 'ph.intake.batch.create', 'ph.intake.batch.get', 'ph.intake.batch.list', 'ph.intake.cancel', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url',
       'ph.intake.header.acknowledge', 'ph.intake.header.update', 'ph.intake.rematch', 'ph.intake.retry',
       'ph.intake.row.add', 'ph.intake.row.clearMatch', 'ph.intake.row.fillFromBarcode', 'ph.intake.row.match', 'ph.intake.row.remove', 'ph.intake.row.review', 'ph.intake.row.update',
-      'ph.intake.usage',
+      'ph.intake.scan', 'ph.intake.usage',
     ]);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
   });

@@ -15,6 +15,8 @@ import {
   reviewInput,
   reviewRow,
   rowPatchInput,
+  scanBarcode,
+  scanInput,
   updateHeader,
   updateRow,
 } from '@/server/pharmacy/intake/review';
@@ -110,6 +112,20 @@ export const rowFillFromBarcode = defineAction({
     assertMayIntake(ph);
     const branchId = branchOf(input);
     return ctx.transaction((tx) => fillFromBarcode(tx, { restaurantId: ph.restaurantId, branchId, rowId: input.rowId, version: input.version, now: new Date(), audit: (e) => ctx.audit(e) }));
+  },
+});
+
+export const intakeScan = defineAction({
+  name: 'ph.intake.scan',
+  permission: null,
+  ph: 'purchase.manage',
+  input: phPlaceInput.extend({ ...scanInput.shape, clientKey: intakeClientKey }),
+  target: phTargetOf,
+  async run(ctx, input) {
+    const { ph } = pharmacyOf(ctx);
+    assertMayIntake(ph);
+    const branchId = branchOf(input);
+    return ctx.transaction((tx) => scanBarcode(tx, { restaurantId: ph.restaurantId, branchId, batchId: input.batchId, barcode: input.barcode, now: new Date(), audit: (e) => ctx.audit(e) }));
   },
 });
 
