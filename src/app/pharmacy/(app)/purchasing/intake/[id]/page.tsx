@@ -7,6 +7,8 @@ import { peopleOf } from '@/app/pharmacy/_ui/people';
 import { phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { getPhPlaces } from '@/server/pharmacy/actor';
 import { batchGet } from '@/server/pharmacy/queries/intake-review';
+import { list as suppliers } from '@/server/pharmacy/queries/suppliers';
+import type { ReviewData } from '@/app/pharmacy/_ui/intake-review-logic';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -33,6 +35,9 @@ export default async function IntakeBatchPage({ params }: { params: Promise<{ id
   const branches = places.find((p) => p.restaurantId === access.placeInput.restaurantId)?.branches ?? [];
   const branchName = branches.find((b) => b.id === data.batch.branchId)?.name ?? '';
   const branchOk = access.place.branchId === data.batch.branchId;
+  const mayAi = roleMay(access.actor, 'ai.use');
+  // The header's supplier picker only exists for someone who can edit an open batch.
+  const supplierPage = mayAi && data.batch.status === 'OPEN' && g.writable.ok ? await query(suppliers, { ...access.placeInput, active: true }) : null;
   return (
     <>
       <PageHeader className="max-sm:px-4" above={g.back} title={t('pharmacy.intake.batchTitle')} />
@@ -66,7 +71,18 @@ export default async function IntakeBatchPage({ params }: { params: Promise<{ id
             </dd>
           </div>
         </dl>
-        <IntakeBatch batchId={data.batch.id} initial={batchStateOf(data)} mayAi={roleMay(access.actor, 'ai.use')} writable={g.writable.ok} branchOk={branchOk} />
+        <IntakeBatch
+          batchId={data.batch.id}
+          initial={batchStateOf(data)}
+          initialReview={data as unknown as ReviewData}
+          mayAi={mayAi}
+          writable={g.writable.ok}
+          branchOk={branchOk}
+          userId={access.actor.userId}
+          restaurantId={access.placeInput.restaurantId}
+          branchId={data.batch.branchId}
+          suppliers={(supplierPage?.items ?? []).map((s) => ({ id: s.id, name: s.name }))}
+        />
       </div>
     </>
   );

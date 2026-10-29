@@ -11,7 +11,9 @@ import { settle } from '@/studio/settle';
 import { Button, buttonClasses } from '@/studio/ui/Button';
 import { Field } from '@/studio/ui/Field';
 import { Textarea } from '@/studio/ui/Textarea';
-import { batchStateOf, fileControls, nextToRead, pollPlan, stopsReadAll, type BatchState, type Control, type DisabledReason } from './intake-logic';
+import type { ReviewData } from './intake-review-logic';
+import { IntakeReview } from './IntakeReview';
+import { batchStateOf, fileControls, nextToRead, pollPlan, runDecision, type BatchState, type Control, type DisabledReason } from './intake-logic';
 import { FileStatus, QualityReasons } from './intake-parts';
 import { OfflineNotice } from './OfflineNotice';
 import { phMessage } from './ph-failure';
@@ -26,6 +28,12 @@ export interface IntakeBatchProps {
   writable: boolean;
   /** The branch chosen is this batch's branch. */
   branchOk: boolean;
+  /** The batch as the review shows it (lines, header, verdict). */
+  initialReview: ReviewData;
+  userId: string;
+  restaurantId: string;
+  branchId: string;
+  suppliers: Array<{ id: string; name: string }>;
 }
 
 const NOTE = 'flex items-start gap-2.5 text-sm text-text [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0';
@@ -37,12 +45,14 @@ const MANUAL = '/pharmacy/stock/receive/new';
  * with the reason written beside them. While any file is being read the batch is refreshed every three seconds (no
  * movement: the word "Reading" and the lines count change). "Read all" goes one file at a time and can be stopped.
  */
-export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: IntakeBatchProps) {
+export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk, initialReview, userId, restaurantId, branchId, suppliers }: IntakeBatchProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
   const online = useOnline();
   const [data, setData] = useState<BatchState>(initial);
+  const [review, setReview] = useState<ReviewData>(initialReview);
+  const freshReview = useRef<ReviewData>(initialReview);
   const [failures, setFailures] = useState(0);
   const [reading, setReading] = useState<ReadonlySet<string>>(() => new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -63,7 +73,10 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
       setFailures((n) => n + 1);
       return null;
     }
+    const raw = result.data as unknown as ReviewData;
     const next = batchStateOf(result.data as Parameters<typeof batchStateOf>[0]);
+    freshReview.current = raw;
+    setReview(raw);
     setFailures(0);
     setData(next);
     return next;
@@ -82,18 +95,18 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
   const ctx = { batchOpen: open, mayAi, writable, online, busy, branchOk };
   const reasonText = (r: DisabledReason) => t(`pharmacy.intake.reason.${r}`);
 
-  /** Reads one file; returns the failure code that should stop a "Read all" run, if any. */
-  const readOne = async (fileId: string, again: boolean): Promise<{ stop: boolean; fresh: BatchState | null }> => {
+  /** Reads one file; says whether a "Read all" run goes on, stops for a reason every file would meet, or stops offline. */
+  const readOne = async (fileId: string, again: boolean): Promise<{ stop: 'continue' | 'sameReason' | 'network'; fresh: BatchState | null }> => {
     setReading((s) => new Set(s).add(fileId));
     setErrors((e) => Object.fromEntries(Object.entries(e).filter(([id]) => id !== fileId)));
     const result = await settle(() => (again ? retryIntakeFile({ fileId }) : readIntakeFile({ fileId })));
-    let halt = false;
+    let halt: 'continue' | 'sameReason' | 'network';
     if (!result.ok) {
+      // This file's own sentence stays on the file; the run goes on unless every other file would meet the same thing.
       setErrors((e) => ({ ...e, [fileId]: phMessage(t, locale, result.error, 'pharmacy.intake') }));
-      halt = true;
+      halt = runDecision({ error: result.error });
     } else {
-      const outcome = result.data as { status: string; failureCode: string | null };
-      halt = stopsReadAll(outcome.failureCode);
+      halt = runDecision({ failureCode: (result.data as { failureCode: string | null }).failureCode });
     }
     const next = await refresh();
     setReading((s) => {
@@ -101,7 +114,7 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
       n.delete(fileId);
       return n;
     });
-    if (next && next.status !== 'OPEN') halt = true;
+    if (next && next.status !== 'OPEN') halt = 'sameReason';
     return { stop: halt, fresh: next };
   };
 
@@ -117,11 +130,14 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
       if (!id) break;
       tried.add(id);
       const { stop: halt, fresh } = await readOne(id, false);
-      if (halt) {
-        setRunNote(t('pharmacy.intake.run.halted'));
+      if (halt !== 'continue') {
+        setRunNote(t(halt === 'network' ? 'pharmacy.intake.run.network' : 'pharmacy.intake.run.halted'));
         break;
       }
-      if (!fresh) break;
+      if (!fresh) {
+        setRunNote(t('pharmacy.intake.run.network'));
+        break;
+      }
       files = fresh.files;
     }
     setRunState('idle');
@@ -248,12 +264,12 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
         ) : (
           <ul aria-label={t('pharmacy.intake.files')} className="flex flex-col border-t border-line">
             {data.files.map((f, index) => {
-              const c = fileControls(f.status, ctx);
-              const isReading = f.status === 'EXTRACTING' || reading.has(f.id);
+              const c = fileControls(f.status, ctx, f.stale);
+              const isReading = (f.status === 'EXTRACTING' && !f.stale) || reading.has(f.id);
               const picture = urls[f.id];
               const canShow = f.status !== 'PURGED' && f.status !== 'REJECTED_QUALITY';
               return (
-                <li key={f.id} data-testid="intake-file" data-state={f.status} className="flex min-w-0 flex-col gap-2 border-b border-line py-3">
+                <li key={f.id} data-testid="intake-file" data-state={f.status} data-stale={f.stale ? 'true' : undefined} className="flex min-w-0 flex-col gap-2 border-b border-line py-3">
                   <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
                     <span className="text-base font-medium text-text">{t('pharmacy.intake.fileN', { n: formatNumber(index + 1) })}</span>
                     {isReading && f.status !== 'EXTRACTING' ? (
@@ -281,6 +297,12 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
                     <p role="status" data-testid="file-reading" className={NOTE}>
                       <Info aria-hidden className="text-muted" />
                       <span className="min-w-0">{t('pharmacy.intake.reading')}</span>
+                    </p>
+                  )}
+                  {f.status === 'EXTRACTING' && f.stale && !reading.has(f.id) && (
+                    <p data-testid="file-stale" className="flex items-start gap-2 text-sm text-danger">
+                      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+                      <span className="min-w-0">{t('pharmacy.intake.stale')}</span>
                     </p>
                   )}
                   {f.status === 'REJECTED_QUALITY' && <QualityReasons reasons={f.failureCode} t={t} />}
@@ -343,15 +365,18 @@ export function IntakeBatch({ batchId, initial, mayAi, writable, branchOk }: Int
         )}
       </section>
 
-      <section aria-labelledby="intake-review-title" data-slot="intake-review" data-testid="intake-review-slot" className="flex min-w-0 flex-col gap-2 rounded-md border border-dashed border-line-strong p-4">
-        <h2 id="intake-review-title" className="text-md font-semibold text-text">
-          {t('pharmacy.intake.review.title')}
-        </h2>
-        <p className={NOTE}>
-          <Info aria-hidden className="text-muted" />
-          <span className="min-w-0">{t('pharmacy.intake.review.slot')}</span>
-        </p>
-      </section>
+      <IntakeReview
+        data={review}
+        reload={async () => ((await refresh()) ? freshReview.current : null)}
+        onApproved={() => router.refresh()}
+        userId={userId}
+        restaurantId={restaurantId}
+        branchId={branchId}
+        suppliers={suppliers}
+        mayAi={mayAi}
+        writable={writable}
+        branchOk={branchOk}
+      />
 
       {open && (
         <section aria-labelledby="intake-cancel-title" className="flex min-w-0 flex-col gap-3">
