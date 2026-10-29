@@ -122,6 +122,7 @@ model Restaurant {
   posOrders             PosOrder[]
   posOrderLines         PosOrderLine[]
   posCustomerOrders     PosCustomerOrder[]
+  posBillCalls          PosBillCall[]
   posDeliveryZones      PosDeliveryZone[]
   posDrivers            PosDriver[]
   posCustomerOrderLines PosCustomerOrderLine[]
@@ -1229,6 +1230,7 @@ enum PosRole {
   MANAGER
   CASHIER
   KITCHEN
+  CAPTAIN
 }
 
 enum PosPaymentMethod {
@@ -1261,6 +1263,8 @@ model PosSettings {
   idleMinutes           Int                @default(15)
   /// A cashier's discount, cancel and refund need a manager PIN on the spot.
   requireApproval       Boolean            @default(true)
+  /// A guest order waits for a captain's approval before the cashier may take it.
+  captainApproval       Boolean            @default(false)
   /// The payable total rounds to the nearest multiple of this many dinars; 0 turns it off.
   roundingStep          Int                @default(0)
   /// Cash in US dollars is accepted at `usdRate` dinars per dollar.
@@ -1439,9 +1443,27 @@ model PosTable {
   area           PosArea            @relation(fields: [areaId], references: [id], onDelete: Cascade)
   orders         PosOrder[]
   customerOrders PosCustomerOrder[]
+  billCalls      PosBillCall[]
 
   @@unique([restaurantId, number])
   @@index([areaId])
+}
+
+/// A guest at a table asked for the bill. Unseen until someone at the till or the floor marks it seen.
+model PosBillCall {
+  id             String     @id @default(cuid())
+  restaurantId   String
+  tableId        String
+  tableNumber    Int
+  createdAt      DateTime   @default(now())
+  seenAt         DateTime?
+  /// Plain id (no relation): the person who marked it seen.
+  seenByUserId   String?
+  restaurant     Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table          PosTable   @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([restaurantId, seenAt])
+  @@index([tableId, createdAt])
 }
 
 /// One bill. At most one live order per table: the partial unique index "PosOrder_one_live_per_table" (raw SQL in the migration).
@@ -1725,26 +1747,33 @@ enum PosCustomerOrderStatus {
 /// A guest's order from the Menu's table page, waiting for the cashier. Separate from `PosOrder`, so the one-live-order-per-table
 /// index and the order state machine are untouched. A request older than 60 minutes is expired on read, not by a job.
 model PosCustomerOrder {
-  id              String                 @id @default(cuid())
-  restaurantId    String
-  tableId         String
+  id                      String                 @id @default(cuid())
+  restaurantId            String
+  tableId                 String
   /// The Menu's table number when the guest sent it.
-  tableNumber     Int
+  tableNumber             Int
   /// Random and unguessable: the guest reads the request's status with it.
-  publicId        String                 @unique @default(cuid())
-  status          PosCustomerOrderStatus @default(PENDING)
-  customerNote    String                 @default("")
-  locale          String
-  rejectReason    String                 @default("")
+  publicId                String                 @unique @default(cuid())
+  status                  PosCustomerOrderStatus @default(PENDING)
+  customerNote            String                 @default("")
+  locale                  String
+  rejectReason            String                 @default("")
   /// Plain id (no relation): the order the request became or joined.
-  orderId         String?
-  decidedAt       DateTime?
+  orderId                 String?
+  decidedAt               DateTime?
   /// Plain id (no relation): the person who accepted or rejected it.
-  decidedByUserId String?
-  createdAt       DateTime               @default(now())
-  restaurant      Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  table           PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  lines           PosCustomerOrderLine[]
+  decidedByUserId         String?
+  /// True when placed while captain approval was on: the cashier may not accept it until a captain approves.
+  requiresCaptain         Boolean                @default(false)
+  captainApprovedAt       DateTime?
+  /// Plain id (no relation): the captain, manager or owner who approved it.
+  captainApprovedByUserId String?
+  /// Plain id (no relation): the captain who placed it by mouth at the table; null for a guest's own request.
+  createdByUserId         String?
+  createdAt               DateTime               @default(now())
+  restaurant              Restaurant             @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  table                   PosTable               @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  lines                   PosCustomerOrderLine[]
 
   @@index([restaurantId, status])
   @@index([tableId, status, createdAt])

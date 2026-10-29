@@ -28,19 +28,21 @@ interface Props {
   onAdd: (product: TillProduct, chosen: Chosen) => void;
   /** The menu offer the dish is under now: the add button then shows the sale price. */
   offer?: LineOffer | null;
+  /** The quantity it opens with: a dish replacing another starts at that one's quantity. */
+  initialQuantity?: number;
 }
 
 /** The sizes, option groups, quantity and note of one product, chosen before it joins the order. */
-export function OptionsSheet({ product, fallback, pending, onClose, onAdd, offer = null }: Props) {
+export function OptionsSheet({ product, fallback, pending, onClose, onAdd, offer = null, initialQuantity = 1 }: Props) {
   const { locale } = useLocale();
   return (
     <Dialog open={product !== null} onOpenChange={(open) => !open && onClose()} title={product ? pickName(product.names, locale, fallback) : ''} width="md">
-      {product ? <SheetBody key={product.id} product={product} fallback={fallback} pending={pending} onAdd={onAdd} offer={offer} /> : null}
+      {product ? <SheetBody key={product.id} product={product} fallback={fallback} pending={pending} onAdd={onAdd} offer={offer} initialQuantity={initialQuantity} /> : null}
     </Dialog>
   );
 }
 
-function SheetBody({ product, fallback, pending, onAdd, offer }: { product: TillProduct; fallback: Locale; pending: boolean; onAdd: Props['onAdd']; offer: LineOffer | null }) {
+function SheetBody({ product, fallback, pending, onAdd, offer, initialQuantity }: { product: TillProduct; fallback: Locale; pending: boolean; onAdd: Props['onAdd']; offer: LineOffer | null; initialQuantity: number }) {
   const t = useT();
   const { locale } = useLocale();
   const money = useMoney();
@@ -48,7 +50,7 @@ function SheetBody({ product, fallback, pending, onAdd, offer }: { product: Till
   const defaultVariant = product.variants.find((variant) => variant.isDefault) ?? product.variants[0];
   const [variantId, setVariantId] = useState<string | undefined>(defaultVariant?.id);
   const [optionIds, setOptionIds] = useState<string[]>([]);
-  const [quantity, setQuantity] = useState(1);
+  const [quantity, setQuantity] = useState(initialQuantity);
   const [note, setNote] = useState('');
 
   const toggle = (groupId: string, optionId: string) => {

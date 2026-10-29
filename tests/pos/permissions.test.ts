@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { canPos, POS_PERMISSIONS, POS_ROLES, posLanding, posPermissionsOf, roleMatrix } from '@/server/domain/pos/permissions';
 
 describe('POS roles and permissions', () => {
-  it('has the cashier repo\'s sixteen keys plus pin.own, once each', () => {
+  it('has the cashier repo\'s sixteen keys plus the request and captain keys and pin.own, once each', () => {
     expect([...POS_PERMISSIONS]).toEqual([
       'catalog.manage',
       'staff.manage',
@@ -20,6 +20,9 @@ describe('POS roles and permissions', () => {
       'purchase.manage',
       'complaint.view',
       'complaint.manage',
+      'request.handle',
+      'request.approve',
+      'captain.order',
       'pin.own',
     ]);
     expect(new Set(POS_PERMISSIONS).size).toBe(POS_PERMISSIONS.length);
@@ -33,7 +36,7 @@ describe('POS roles and permissions', () => {
 
   it('CASHIER holds exactly the floor permissions', () => {
     expect([...posPermissionsOf('CASHIER')].sort()).toEqual(
-      ['order.handle', 'order.discount', 'order.cancel', 'payment.take', 'shift.use', 'inventory.view', 'pin.own'].sort(),
+      ['order.handle', 'order.discount', 'order.cancel', 'payment.take', 'shift.use', 'inventory.view', 'request.handle', 'pin.own'].sort(),
     );
     expect(canPos('CASHIER', 'settings.manage')).toBe(false);
     expect(canPos('CASHIER', 'payment.refund')).toBe(false);
@@ -57,8 +60,25 @@ describe('POS roles and permissions', () => {
     }
   });
 
-  it('lands the kitchen on its screen and everyone else on the tables', () => {
+  it('lands the kitchen on its screen, the captain on the captain page and everyone else on the tables', () => {
     expect(posLanding('KITCHEN')).toBe('kitchen');
-    for (const role of POS_ROLES.filter((r) => r !== 'KITCHEN')) expect(posLanding(role)).toBe('tables');
+    expect(posLanding('CAPTAIN')).toBe('captain');
+    for (const role of POS_ROLES.filter((r) => r !== 'KITCHEN' && r !== 'CAPTAIN')) expect(posLanding(role)).toBe('tables');
+  });
+
+  it('gives the captain the request and captain keys and no money or report keys', () => {
+    expect([...posPermissionsOf('CAPTAIN')].sort()).toEqual(['request.handle', 'request.approve', 'captain.order', 'pin.own'].sort());
+    expect(canPos('CAPTAIN', 'request.approve')).toBe(true);
+    expect(canPos('CAPTAIN', 'payment.take')).toBe(false);
+    expect(canPos('CAPTAIN', 'report.view')).toBe(false);
+  });
+
+  it('lets the cashier handle guest requests but not approve them; the kitchen neither', () => {
+    expect(canPos('CASHIER', 'request.handle')).toBe(true);
+    expect(canPos('CASHIER', 'request.approve')).toBe(false);
+    expect(canPos('CASHIER', 'captain.order')).toBe(false);
+    expect(canPos('KITCHEN', 'request.handle')).toBe(false);
+    expect(canPos('MANAGER', 'request.approve')).toBe(true);
+    expect(canPos('OWNER', 'request.approve')).toBe(true);
   });
 });

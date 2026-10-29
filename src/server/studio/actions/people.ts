@@ -204,7 +204,7 @@ export const assignDesigner = defineAction({
 });
 
 /** The roles a Super Admin hands out here: the till's, not the owner's (an owner is invited, and holds a Studio membership). */
-const TILL_ROLES = ['MANAGER', 'CASHIER', 'KITCHEN'] as const;
+const TILL_ROLES = ['MANAGER', 'CASHIER', 'KITCHEN', 'CAPTAIN'] as const;
 
 /**
  * Makes a till account for a restaurant: a new person with a password and a role at the till, who is not a Studio

@@ -7,5 +7,5 @@ export default async function PosHomePage() {
   const { actor } = await getPosAccess();
   // The layout has already refused anyone without a till; this keeps the type honest.
   if (!actor) return null;
-  redirect(posLanding(actor.role) === 'kitchen' ? '/pos/kitchen' : '/pos/tables');
+  redirect(`/pos/${posLanding(actor.role)}`);
 }

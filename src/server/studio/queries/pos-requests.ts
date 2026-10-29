@@ -1,6 +1,8 @@
 import { z } from 'zod';
+import { listOpenBillCalls } from '@/server/pos/bill-calls';
 import { listPendingDetails, readRequest } from '@/server/pos/customer-orders';
 import { readQrFlags, readQrSheet } from '@/server/pos/qr-sheet';
+import { loadTillCatalog } from '@/server/pos/till-catalog';
 import { hostEnv } from '@/server/env';
 import { defineQuery, type QueryContext } from '@/server/studio/framework/query';
 import { idField } from '@/server/studio/services/content';
@@ -18,7 +20,7 @@ function restaurantOf(ctx: QueryContext): string {
 export const posRequests = defineQuery({
   name: 'pos.requests',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({}),
   target: () => TILL,
   run: async (ctx) => {
@@ -30,10 +32,33 @@ export const posRequests = defineQuery({
 export const posRequest = defineQuery({
   name: 'pos.request',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({ requestId: idField }),
   target: () => TILL,
   run: (ctx, { requestId }) => readRequest(ctx.db, restaurantOf(ctx), requestId),
+});
+
+/** The guests' calls for the bill nobody has marked seen yet, oldest first: shown to the captain and the cashier alike. */
+export const posBillCalls = defineQuery({
+  name: 'pos.billCalls',
+  permission: null,
+  pos: 'request.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => listOpenBillCalls(ctx.db, restaurantOf(ctx)),
+});
+
+/**
+ * The till catalog for whoever handles guest orders: the dishes a waiting order can gain and a captain's order is taken
+ * from. The cashier's own catalog query asks for `order.handle`, which the captain does not hold. Null without a catalog menu.
+ */
+export const posRequestCatalog = defineQuery({
+  name: 'pos.requestCatalog',
+  permission: null,
+  pos: 'request.handle',
+  input: z.object({}),
+  target: () => TILL,
+  run: (ctx) => loadTillCatalog(ctx.db, restaurantOf(ctx)),
 });
 
 /** The table codes to print, for the restaurant's catalog menu. Refused until a catalog menu exists. */
@@ -50,7 +75,7 @@ export const posQrSheet = defineQuery({
 export const posQrFlags = defineQuery({
   name: 'pos.qrFlags',
   permission: null,
-  pos: 'order.handle',
+  pos: 'request.handle',
   input: z.object({}),
   target: () => TILL,
   run: (ctx) => readQrFlags(ctx.db, restaurantOf(ctx)),

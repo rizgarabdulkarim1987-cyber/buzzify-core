@@ -160,6 +160,13 @@ const posAi: Messages = {
   'cashierOverview.aiSwitchOn': 'Switch on',
   'cashierOverview.aiSwitchOff': 'Switch off',
   'cashierOverview.aiSaveLimit': 'Save limit',
+  'cashierOverview.captain': 'Captain approval',
+  'cashierOverview.captainOn': 'On',
+  'cashierOverview.captainOff': 'Off',
+  'cashierOverview.captainSwitchOn': 'Switch on',
+  'cashierOverview.captainSwitchOff': 'Switch off',
+  'cashierOverview.captainSaved': 'Captain approval saved',
+  'activity.action.pos.captain.approval': 'Changed captain approval',
   'cashierOverview.aiSaved': 'AI package saved',
 };
 
