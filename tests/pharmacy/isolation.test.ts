@@ -487,6 +487,9 @@ const CASES: Record<string, Case> = {
   'ph.intake.header.update': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, version: 1, patch: { invoiceNumber: 'Planted' } }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.header.acknowledge': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, version: 1, shown: { difference: '0', currency: null }, reason: 'Planted' }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.rematch': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  // Approval and cancel (phase 5, task 7): a batch is branch-scoped, so another branch's or business's batch id is not found.
+  'ph.intake.approve': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId, clientKey: key(), expectedVersion: 1, verdictToken: 'f'.repeat(64) }), foreignIds: 'refused', otherBranchIds: 'refused' },
+  'ph.intake.cancel': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.batch.get': { body: (ids, n) => ({ batchId: pick(ids, n).intakeBatchId }), foreignIds: 'refused', otherBranchIds: 'refused' },
   'ph.intake.batch.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   // Reading stock: filters that name the other side's rows answer nothing of theirs
@@ -567,7 +570,7 @@ describe('the pharmacy isolation sweep', () => {
   it('covers every phase 5 intake definition', () => {
     const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.intake.'));
     expect(names.sort()).toEqual([
-      'ph.intake.batch.create', 'ph.intake.batch.get', 'ph.intake.batch.list', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url',
+      'ph.intake.approve', 'ph.intake.batch.create', 'ph.intake.batch.get', 'ph.intake.batch.list', 'ph.intake.cancel', 'ph.intake.extract', 'ph.intake.file.add', 'ph.intake.file.url',
       'ph.intake.header.acknowledge', 'ph.intake.header.update', 'ph.intake.rematch', 'ph.intake.retry',
       'ph.intake.row.add', 'ph.intake.row.clearMatch', 'ph.intake.row.fillFromBarcode', 'ph.intake.row.match', 'ph.intake.row.remove', 'ph.intake.row.review', 'ph.intake.row.update',
       'ph.intake.usage',
