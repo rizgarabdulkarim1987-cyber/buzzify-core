@@ -25,6 +25,18 @@
     --panel: var(--s-surface);
   }
 
+  /*
+   * The till's own colour: a deep emerald in place of the Studio's black ink, so the main actions (Pay, the chosen tab and
+   * category, the item counts) read as colour, not black and white. On html so dialogs, which leave .till, wear it too.
+   */
+  html:has(.till) {
+    --s-ink: #0b6b52;
+    --s-ink-hover: #09543f;
+    --color-ink: #0b6b52;
+    --color-ink-hover: #09543f;
+    --s-info-wash: #e6f4ef;
+  }
+
   /* Night: the same calm in dark graphite, while the tables page shows it. */
   html:has(.till[data-layout='night']) {
     color-scheme: dark;
@@ -38,6 +50,8 @@
     --s-text: #eeeeee;
     --s-muted: #a6a6a6;
     --s-ink: #f2f2f2;
+    --color-ink: #f2f2f2;
+    --color-ink-hover: #dddddd;
     --s-ink-hover: #dddddd;
     --s-on-ink: #111111;
     --s-on-status: #111111;
@@ -394,6 +408,14 @@
     padding: 1.5rem;
   }
 
+  /* On a phone the card gives its width back to the content. */
+  @media (max-width: 639px) {
+    .till main section[aria-labelledby] {
+      border-radius: 22px;
+      padding: 1rem;
+    }
+  }
+
   .till main section[aria-labelledby] > h2 {
     font-size: 1.5rem;
     font-weight: 700;
@@ -413,5 +435,132 @@
     border-radius: 22px;
     padding: 2.5rem 1rem;
     text-align: center;
+  }
+}
+
+/* How the order screen looks on a big screen (the till's "Order look" setting). Pure CSS on hooks in OrderScreen; phones keep their own layout. */
+@media (min-width: 1024px) {
+  .till[data-desk='photo'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(10.5rem, 1fr));
+    gap: 0.875rem;
+  }
+  .till[data-desk='photo'] .pos-tile {
+    position: relative;
+    min-height: 11rem;
+    border: 0;
+    border-radius: 24px;
+    background: linear-gradient(135deg, hsl(var(--hue) 60% 70%), hsl(var(--hue) 60% 46%)) !important;
+    box-shadow: 0 3px 10px rgb(0 0 0 / 0.18);
+  }
+  .till[data-desk='photo'] .pos-tile.border-ink {
+    outline: 4px solid var(--s-ink);
+    outline-offset: -4px;
+  }
+  .till[data-desk='photo'] .pos-tile-img {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    width: 100%;
+    height: 100%;
+    aspect-ratio: auto;
+    border-radius: 0;
+  }
+  .till[data-desk='photo'] .pos-tile-body {
+    position: absolute;
+    inset-inline: 0;
+    bottom: 0;
+    width: 100%;
+    padding: 2rem 0.875rem 0.625rem;
+    background: linear-gradient(transparent, rgb(0 0 0 / 0.72));
+  }
+  .till[data-desk='photo'] .pos-tile-body span {
+    color: #fff;
+  }
+  .till[data-desk='photo'] .pos-cats,
+  .till[data-desk='cards'] .pos-cats {
+    flex-wrap: wrap;
+    gap: 0.625rem;
+  }
+  .till[data-desk='photo'] .pos-cats button {
+    min-height: 3.5rem;
+    border: 0;
+    border-radius: 18px;
+    padding-inline: 1.5rem;
+    background: hsl(var(--hue) 80% 91%);
+    color: hsl(var(--hue) 60% 22%);
+  }
+  .till[data-desk='photo'] .pos-cats button[aria-selected='true'] {
+    background: hsl(var(--hue) 78% 44%);
+    color: #fff;
+  }
+
+  .till[data-desk='rows'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 0.625rem;
+  }
+  .till[data-desk='rows'] .pos-tile {
+    flex-direction: row;
+    align-items: center;
+    min-height: 5rem;
+    border-radius: 18px;
+    border-inline-start: 8px solid hsl(var(--hue) 85% 52%);
+  }
+  .till[data-desk='rows'] .pos-tile-img {
+    margin: 0.5rem;
+    width: 3.75rem;
+    height: 3.75rem;
+    aspect-ratio: auto;
+    border-radius: 14px;
+  }
+  .till[data-desk='rows'] .pos-tile-body {
+    padding: 0.5rem 0.75rem;
+    gap: 0.25rem;
+  }
+  .till[data-desk='rows'] .pos-cats button {
+    border: 0;
+    background: hsl(var(--hue) 80% 91%);
+    color: hsl(var(--hue) 60% 22%);
+  }
+  .till[data-desk='rows'] .pos-cats button[aria-selected='true'] {
+    background: hsl(var(--hue) 78% 44%);
+    color: #fff;
+  }
+
+  .till[data-desk='cards'] .pos-tiles {
+    grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+    gap: 0.75rem;
+  }
+  .till[data-desk='cards'] .pos-tile {
+    flex-direction: column;
+    align-items: stretch;
+    border: 0;
+    border-radius: 22px;
+    box-shadow: 0 2px 10px rgb(11 92 58 / 0.18);
+  }
+  .till[data-desk='cards'] .pos-tile-img {
+    margin: 0;
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    border-radius: 0;
+  }
+  .till[data-desk='cards'] .pos-cats button {
+    flex: 1;
+    min-height: 5rem;
+    border: 0;
+    border-radius: 22px;
+    font-size: 1.125rem;
+    background: linear-gradient(135deg, hsl(var(--hue) 78% 60%), hsl(var(--hue) 72% 42%));
+    color: #fff;
+    opacity: 0.78;
+  }
+  .till[data-desk='cards'] .pos-cats button[aria-selected='true'] {
+    opacity: 1;
+    outline: 4px solid var(--s-ink);
+    outline-offset: 3px;
+  }
+  .till[data-desk='cards'] .pos-ticket {
+    border: 0;
+    border-radius: 28px;
+    box-shadow: 0 10px 30px rgb(11 92 58 / 0.22);
   }
 }

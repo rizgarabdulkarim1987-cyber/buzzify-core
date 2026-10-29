@@ -2,7 +2,7 @@ import { cookies } from 'next/headers';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
-import { LAYOUT_COOKIE, layoutOf } from '@/lib/pos-floor';
+import { DESK_COOKIE, LAYOUT_COOKIE, deskOf, layoutOf } from '@/lib/pos-floor';
 import { idleMinutesFor } from '@/lib/pos-idle';
 import { requestBadges } from '@/lib/pos-requests-model';
 import { tillNav } from '@/server/domain/pos/nav';
@@ -24,6 +24,7 @@ import { getStudioTranslator } from '@/studio/messages';
 import { AnnouncementBar } from '@/studio/shell/AnnouncementBar';
 import { BrandFooter } from '@/studio/shell/BrandFooter';
 import { BrandLogo } from '@/studio/shell/BrandLogo';
+import { HeaderMenu } from '@/app/pos/_ui/HeaderMenu';
 import { IdleGuard } from '@/app/pos/_ui/IdleGuard';
 import { LayoutPicker } from '@/app/pos/_ui/floor/LayoutPicker';
 import { ShiftPill } from '@/app/pos/_ui/ShiftPill';
@@ -66,41 +67,45 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
   const idleMinutes = await query(posIdleMinutes, {});
   const printers = await query(posPrinters, {});
-  const layout = layoutOf((await cookies()).get(LAYOUT_COOKIE)?.value);
+  const jar = await cookies();
+  const layout = layoutOf(jar.get(LAYOUT_COOKIE)?.value);
+  const desk = deskOf(jar.get(DESK_COOKIE)?.value);
   // From lg up the till is one screen: the page never scrolls, a page taller than the screen scrolls inside <main>.
   return (
-    <div data-layout={layout} className="till flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden print:block print:h-auto print:overflow-visible">
+    <div data-layout={layout} data-desk={desk} className="till flex min-h-dvh flex-col lg:h-dvh lg:overflow-hidden print:block print:h-auto print:overflow-visible">
       <a
         href="#main"
         className="sr-only rounded-md bg-ink px-3 py-2 text-on-ink focus:not-sr-only focus:absolute focus:start-4 focus:top-4 focus:z-50"
       >
         {t('common.skipToContent')}
       </a>
-      <header className="print:hidden flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-line px-4 py-2 sm:px-8">
-        <Link href="/pos" className="flex shrink-0 items-center gap-3 text-lg font-bold text-text">
+      <header className="print:hidden relative flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-3 py-2 sm:px-8 lg:gap-x-4">
+        <Link href="/pos" className="flex min-w-0 shrink-0 items-center gap-2.5 text-lg font-bold text-text">
           {logo ? (
             // eslint-disable-next-line @next/next/no-img-element -- the restaurant's own uploaded file, any size
-            <img src={logo.url} alt="" width={logo.width} height={logo.height} className="h-8 w-auto max-w-40 object-contain" />
+            <img src={logo.url} alt="" width={logo.width} height={logo.height} className="h-8 w-auto max-w-28 object-contain sm:max-w-40" />
           ) : (
             <BrandLogo height={20} />
           )}
-          <span>{t('pos.shell.label')}</span>
+          <span className="hidden min-[400px]:inline">{t('pos.shell.label')}</span>
         </Link>
-        <TillNav items={items} className="order-last w-full" />
-        <div className="ms-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
-          <span>
-            {entry.actor.name} · {t(`pos.role.${entry.actor.role}`)}
-          </span>
-          <Link href="/pos/pin" className="underline underline-offset-2">
-            {t('pos.pin.title')}
-          </Link>
-          <Link href="/studio/account" className="underline underline-offset-2">
-            {t('pos.shell.account')}
-          </Link>
-          {handlesOrders ? <LayoutPicker current={layout} /> : null}
+        <TillNav items={items} variant="top" className="order-last w-full" />
+        <div className="ms-auto flex items-center gap-2 text-sm text-muted lg:gap-3">
           <SyncIndicator />
           {shift.openedAt && shift.readAt ? <ShiftPill openedAt={new Date(shift.openedAt).getTime()} readAt={new Date(shift.readAt).getTime()} /> : null}
-          {sharedDevice ? <SwitchUserButton /> : <SignOutButton />}
+          <HeaderMenu summary={entry.actor.name}>
+            <span className="text-base font-semibold text-text lg:text-sm lg:font-normal lg:text-muted">
+              {entry.actor.name} · {t(`pos.role.${entry.actor.role}`)}
+            </span>
+            <Link href="/pos/pin" className="inline-flex min-h-11 items-center underline underline-offset-2 lg:min-h-0">
+              {t('pos.pin.title')}
+            </Link>
+            <Link href="/studio/account" className="inline-flex min-h-11 items-center underline underline-offset-2 lg:min-h-0">
+              {t('pos.shell.account')}
+            </Link>
+            {handlesOrders ? <LayoutPicker current={layout} desk={desk} /> : null}
+            {sharedDevice ? <SwitchUserButton /> : <SignOutButton />}
+          </HeaderMenu>
         </div>
       </header>
       <AppearanceCache userId={entry.actor.userId} vars={lookVars} shape={Object.keys(lookVars).length > 0 ? look.shape : null} />
@@ -112,6 +117,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
         <PrintProvider printers={printers}>{children}</PrintProvider>
       </main>
       <BrandFooter />
+      <TillNav items={items} variant="bottom" />
     </div>
   );
 }

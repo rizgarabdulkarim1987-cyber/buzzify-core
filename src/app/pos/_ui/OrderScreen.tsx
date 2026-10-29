@@ -1,10 +1,10 @@
 'use client';
 
-import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, Search, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import {
   addPosLine,
   cancelPosLine,
@@ -46,6 +46,8 @@ import { usePrint } from './print/PrintProvider';
 import { useBarcodeScanner } from './use-barcode-scanner';
 import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
+
+const HUES = [28, 160, 40, 8, 330, 200, 270];
 
 export interface OrderCan {
   discount: boolean;
@@ -102,7 +104,7 @@ export function OrderScreen({
   const router = useRouter();
   const { call, pending } = usePosCall();
   const { printKitchenRound } = usePrint();
-  const [tab, setTab] = useState<'menu' | 'order'>('menu');
+  const [searching, setSearching] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sheet, setSheet] = useState<TillProduct | null>(null);
@@ -119,6 +121,11 @@ export function OrderScreen({
       .map((category) => ({ id: category.id as string | null, label: pickName(category.names, locale, fallback) as string | null, products: products.filter((product) => product.categoryId === category.id) }))
       .filter((section) => section.products.length > 0);
   }, [catalog, categoryId, search, products, locale, fallback]);
+  /** A tint per category, so a dish without a picture still reads as its group (the same hue in every visit). */
+  const hueOf = (categoryId: string | null) => {
+    const index = catalog ? [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder).findIndex((category) => category.id === categoryId) : -1;
+    return HUES[(index < 0 ? 0 : index) % HUES.length];
+  };
   const liveLines = order.lines.filter((line) => !line.cancelled);
   // Split bill: the guest's lines are ticked and paid on their own; the share includes a part of the discount, service and tax.
   const [splitting, setSplitting] = useState(false);
@@ -181,8 +188,8 @@ export function OrderScreen({
 
   const onShortcut = (shortcut: Shortcut) => {
     if (shortcut === 'search') {
-      setTab('menu');
-      // The search box is on screen only after the menu tab shows, so focus it on the next frame.
+      setSearching(true);
+      // On a phone the search box is on screen only once opened, so focus it on the next frame.
       requestAnimationFrame(() => document.getElementById('pos-menu-search')?.focus());
     } else if (shortcut === 'pay') {
       if (can.pay && canChange && stillUnpaid.length > 0 && dialog === 'none' && !pending) setDialog('pay');
@@ -196,14 +203,14 @@ export function OrderScreen({
   };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-24 pt-4 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+    <div className="flex flex-col gap-3 px-4 pt-3 max-lg:min-h-[calc(100dvh-4.5rem)] max-lg:pb-0 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
       <Shortcuts onShortcut={onShortcut} />
       <p className="hidden text-sm text-muted lg:block">{t('pos.shortcuts.help')}</p>
-      <header className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-14 place-items-center rounded-2xl border border-line bg-raised text-text hover:bg-hover">
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
+        <Link href="/pos/tables" aria-label={t('pos.calm.backToTables')} className="grid size-12 place-items-center rounded-2xl border sm:size-14 border-line bg-raised text-text hover:bg-hover">
           <ArrowLeft size={26} aria-hidden className="rtl:rotate-180" />
         </Link>
-        <h1 className="text-3xl font-bold sm:text-4xl">
+        <h1 className="text-2xl font-bold sm:text-4xl">
           {order.offPremise
             ? t(order.kind === 'DELIVERY' ? 'pos.offp.headingDelivery' : 'pos.offp.headingTakeaway', { n: formatNumber(order.number), q: formatNumber(order.offPremise.queueNumber) })
             : order.tableNumber !== null
@@ -213,38 +220,36 @@ export function OrderScreen({
         <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-status' : 'bg-hover text-text')}>
           {t(`pos.order.status.${order.status}`)}
         </span>
-        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted max-sm:hidden">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        <button
+          type="button"
+          aria-label={t('pos.order.search')}
+          aria-pressed={searching}
+          onClick={() => {
+            setSearching((now) => !now);
+            requestAnimationFrame(() => document.getElementById('pos-menu-search-phone')?.focus());
+          }}
+          className={cx('ms-auto grid size-12 place-items-center rounded-xl border lg:hidden', searching ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text')}
+        >
+          <Search size={22} aria-hidden />
+        </button>
         {canChange && can.cancel ? (
-          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} className="ms-auto inline-flex min-h-12 items-center gap-2 rounded-xl px-4 text-base font-semibold text-danger hover:bg-hover disabled:opacity-60">
+          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} aria-label={t('pos.order.cancelOrder')} className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold text-danger lg:ms-auto hover:bg-hover disabled:opacity-60 sm:px-4">
             <Ban size={20} aria-hidden />
-            {t('pos.order.cancelOrder')}
+            <span className="hidden sm:inline">{t('pos.order.cancelOrder')}</span>
           </button>
         ) : null}
       </header>
 
       <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
-      <div role="tablist" className="flex gap-1 lg:hidden">
-        {(['menu', 'order'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cx('min-h-12 flex-1 rounded-md border text-base font-medium', tab === key ? 'border-ink bg-ink text-on-ink' : 'border-line-strong text-text')}
-          >
-            {key === 'menu' ? t('pos.order.tabMenu') : `${t('pos.order.tabOrder')} (${formatNumber(itemCount)})`}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
-        <section aria-label={t('pos.order.tabMenu')} className={cx('flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0', tab === 'order' && 'hidden lg:flex')}>
+      <div className="pos-order-grid grid gap-4 max-lg:flex-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section aria-label={t('pos.order.tabMenu')} className={cx('pos-menu hidden min-w-0 flex-col gap-3 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0')}>
           {!catalog ? (
             <Alert>{t('pos.order.noCatalog')}</Alert>
           ) : (
             <>
+              <div className="sticky top-0 z-10 -mx-4 flex flex-col gap-2 bg-bg px-4 pt-1 pb-2 sm:-mx-8 sm:px-8 lg:static lg:m-0 lg:bg-transparent lg:p-0">
               <Input
                 id="pos-menu-search"
                 type="search"
@@ -254,7 +259,7 @@ export function OrderScreen({
                 placeholder={t('pos.order.search')}
                 aria-label={t('pos.order.search')}
               />
-              <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1 overflow-x-auto pb-1">
+              <div role="tablist" aria-label={t('pos.order.categories')} className="pos-cats flex gap-1 overflow-x-auto pb-1">
                 {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
                   <button
                     key={category.id ?? 'all'}
@@ -262,6 +267,7 @@ export function OrderScreen({
                     role="tab"
                     aria-selected={categoryId === category.id}
                     onClick={() => setCategoryId(category.id)}
+                    style={{ '--hue': category.id ? hueOf(category.id) : 160 } as CSSProperties}
                     className={cx(
                       'min-h-12 shrink-0 rounded-full border px-5 text-base font-semibold whitespace-nowrap',
                       categoryId === category.id ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text hover:bg-hover',
@@ -271,6 +277,7 @@ export function OrderScreen({
                   </button>
                 ))}
               </div>
+              </div>
               {products.length === 0 ? (
                 <EmptyState title={t('pos.order.noProducts')} />
               ) : (
@@ -278,20 +285,22 @@ export function OrderScreen({
                   {sections.map((section) => (
                     <section key={section.id ?? 'all'} aria-label={section.label ?? undefined}>
                       {section.label ? <h2 className="mb-3 text-lg font-bold text-muted">{section.label}</h2> : null}
-                      <ul className="grid grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] gap-3">
+                      <ul className="pos-tiles grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
                           const offer = offerFor(product);
                           return (
-                            <li key={product.id} className="flex">
+                            <li key={product.id} className="flex gap-2">
                               <button
                                 type="button"
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  'relative flex min-h-28 w-full flex-col items-start overflow-hidden rounded-3xl border bg-raised text-start hover:bg-hover disabled:opacity-60',
-                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
+                                  'pos-tile relative flex min-h-[4.5rem] w-full flex-row items-center overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:min-h-28 sm:flex-col sm:items-start sm:rounded-3xl',
+                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : product.image ? 'border-line' : 'border-[hsl(var(--hue)_35%_80%)]',
+                                  'max-sm:border-s-[6px] max-sm:border-s-[hsl(var(--hue)_65%_48%)]',
                                 )}
+                                style={{ '--hue': hueOf(product.categoryId), ...(product.image ? {} : { background: `hsl(${hueOf(product.categoryId)} 60% 95%)` }) } as CSSProperties}
                               >
                                 {product.image ? (
                                   // eslint-disable-next-line @next/next/no-img-element -- library renditions are already sized; the blur placeholder fills in while it loads
@@ -302,14 +311,14 @@ export function OrderScreen({
                                     decoding="async"
                                     draggable={false}
                                     style={product.image.placeholder ? { backgroundImage: `url(${product.image.placeholder})`, backgroundSize: 'cover' } : undefined}
-                                    className={cx('aspect-[4/3] w-full bg-hover object-cover', !product.available && 'grayscale')}
+                                    className={cx('pos-tile-img m-2 size-16 shrink-0 rounded-xl bg-hover object-cover sm:m-0 sm:aspect-[4/3] sm:size-auto sm:w-full sm:rounded-none', !product.available && 'grayscale')}
                                   />
                                 ) : null}
-                                <span className="flex w-full flex-1 flex-col items-start gap-2 p-4">
-                                <span className="line-clamp-2 text-lg leading-snug font-bold text-text">{pickName(product.names, locale, fallback)}</span>
+                                <span className="pos-tile-body flex w-full flex-1 flex-col items-start gap-1.5 p-3 sm:gap-2 sm:p-4">
+                                <span className="line-clamp-2 text-base leading-snug font-bold text-text sm:text-lg">{pickName(product.names, locale, fallback)}</span>
                                 <span className="mt-auto flex w-full flex-wrap items-end justify-between gap-2">
                                   <span className="flex flex-wrap items-baseline gap-x-2">
-                                    <span className="text-xl font-bold text-text">{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                                    <span className="text-lg font-bold text-text sm:text-xl">{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
                                     {product.available && offer ? (
                                       <>
                                         <span className="text-sm text-muted line-through">{money(product.price)}</span>
@@ -325,6 +334,10 @@ export function OrderScreen({
                                     </span>
                                   ) : needsSheet(product) ? (
                                     <SlidersHorizontal size={18} aria-hidden className="text-muted" />
+                                  ) : product.available && canChange ? (
+                                    <span aria-hidden className="grid size-8 place-items-center rounded-full border border-line-strong bg-raised text-xl leading-none text-muted sm:hidden">
+                                      +
+                                    </span>
                                   ) : null}
                                 </span>
                                 </span>
@@ -341,7 +354,7 @@ export function OrderScreen({
           )}
         </section>
 
-        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-[28px] border border-line bg-raised p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0', tab === 'menu' && 'hidden lg:flex')}>
+        <section aria-label={t('pos.order.tabOrder')} className={cx('pos-ticket flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0')}>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-2xl font-bold">{t('pos.calm.ticket')}</h2>
             <span className="text-base text-muted">{t('pos.calm.items', { n: formatNumber(itemCount) })}</span>
@@ -439,38 +452,38 @@ export function OrderScreen({
           </dl>
 
           {canChange ? (
-            <div className="flex flex-col gap-2">
+            <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
               {kitchenOn ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
+                <button type="button" className="max-lg:hidden col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}
               {can.discount ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('invoiceDiscount')}>
                   <Percent size={20} aria-hidden />
                   {t('pos.calm.invoiceDiscount')}
                 </button>
               ) : null}
               {order.tableId ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || freeTables.length === 0} onClick={() => setDialog('move')}>
                   <ArrowRightLeft size={20} aria-hidden />
                   {t('pos.calm.moveTo')}
                 </button>
               ) : null}
               {order.tableId && order.parts.length === 0 && mergeTargets.length > 0 ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('merge')}>
+                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-2 text-center leading-tight sm:px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending} onClick={() => setDialog('merge')}>
                   <Merge size={20} aria-hidden />
                   {t('pos.merge.button')}
                 </button>
               ) : null}
               {order.status !== 'BILL_REQUESTED' ? (
-                <button type="button" className="inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
+                <button type="button" className="col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || liveLines.length === 0} onClick={() => void call(() => requestPosBill({ orderId: order.id, expectedVersion: order.version }))}>
                   <ReceiptText size={20} aria-hidden />
                   {t('pos.order.bill')}
                 </button>
               ) : null}
               {kitchenOn ? (
-                <a className="inline-flex min-h-12 items-center justify-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
+                <a className="col-span-2 inline-flex min-h-12 items-center justify-center px-4 text-base text-muted underline underline-offset-2" href={`/pos/orders/${order.id}/kitchen`} target="_blank" rel="noreferrer">
                   {t('pos.order.printTicket')}
                 </a>
               ) : null}
@@ -478,7 +491,7 @@ export function OrderScreen({
                 <button
                   type="button"
                   aria-pressed={splitting}
-                  className={cx('inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-base font-semibold disabled:opacity-60', splitting ? 'border-ink bg-ink text-on-ink' : 'border-line bg-hover text-text hover:bg-pressed')}
+                  className={cx('col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border px-4 text-base font-semibold disabled:opacity-60', splitting ? 'border-ink bg-ink text-on-ink' : 'border-line bg-hover text-text hover:bg-pressed')}
                   disabled={pending}
                   onClick={() => (splitting ? leaveSplit() : setSplitting(true))}
                 >
@@ -488,7 +501,7 @@ export function OrderScreen({
               ) : null}
               {splitting ? (
                 <>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="col-span-2 flex flex-wrap items-center gap-2">
                     <span className="text-base text-muted">{t('pos.split.evenly')}</span>
                     {[2, 3, 4].map((guests) => (
                       <button key={guests} type="button" className="min-h-12 rounded-md border border-line-strong bg-raised px-4 text-base font-medium hover:bg-hover" onClick={() => setSelected(evenGroups(order.lines, guests)[0] ?? [])}>
@@ -497,13 +510,13 @@ export function OrderScreen({
                     ))}
                   </div>
                   {can.pay ? (
-                    <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || picked.length === 0} onClick={() => setDialog('paySelected')}>
+                    <Button variant="primary" size="lg" className="col-span-2 min-h-16 w-full text-xl" disabled={pending || picked.length === 0} onClick={() => setDialog('paySelected')}>
                       {t('pos.split.paySelected')} · {money(pickedTotal)}
                     </Button>
                   ) : null}
                 </>
               ) : can.pay ? (
-                <Button variant="primary" size="lg" className="min-h-16 w-full text-xl" disabled={pending || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
+                <Button variant="primary" size="lg" className={cx('col-span-2 min-h-16 w-full text-xl', liveLines.length > 0 && 'max-lg:hidden')} disabled={pending || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
                   {t('pos.calm.payButton')}
                   {order.parts.length > 0 ? ` · ${money(order.leftToPay)}` : ''}
                 </Button>
@@ -511,6 +524,83 @@ export function OrderScreen({
             </div>
           ) : null}
         </section>
+      </div>
+
+      {/* Phones: the dishes, the categories and the two big actions sit at the thumb, under the ticket. */}
+      <div className="sticky bottom-0 z-30 -mx-4 flex flex-col gap-2 border-t border-line bg-surface px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:-mx-8 lg:hidden">
+        {catalog ? (
+          <>
+            {searching ? (
+              <Input id="pos-menu-search-phone" type="search" size="lg" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('pos.order.search')} aria-label={t('pos.order.search')} />
+            ) : null}
+            {products.length === 0 ? (
+              <p className="py-4 text-center text-base text-muted">{t('pos.order.noProducts')}</p>
+            ) : (
+              <ul className="grid max-h-[9.75rem] grid-cols-3 gap-2 overflow-y-auto overscroll-contain">
+                {products.map((product) => {
+                  const count = onOrder.get(product.id) ?? 0;
+                  const offer = offerFor(product);
+                  return (
+                    <li key={product.id} className="flex">
+                      <button
+                        type="button"
+                        disabled={!canChange || pending || !product.available}
+                        onClick={() => tapProduct(product)}
+                        className={cx(
+                          'relative flex min-h-[4.5rem] w-full flex-col justify-between rounded-2xl border p-2.5 text-start shadow-sm disabled:opacity-60',
+                          count > 0 ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text',
+                        )}
+                      >
+                        <span className="line-clamp-2 text-sm leading-tight font-bold">{pickName(product.names, locale, fallback)}</span>
+                        <span className={cx('text-sm font-bold', count > 0 ? 'text-on-ink' : 'text-muted')}>{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                        {count > 0 ? (
+                          <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="absolute -top-1.5 -inset-e-1.5 grid min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs leading-6 font-bold text-text">
+                            {formatNumber(count)}
+                          </span>
+                        ) : needsSheet(product) ? (
+                          <SlidersHorizontal size={14} aria-hidden className="absolute top-2 inset-e-2 text-muted" />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+              {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
+                <button
+                  key={category.id ?? 'all'}
+                  type="button"
+                  role="tab"
+                  aria-selected={categoryId === category.id}
+                  onClick={() => setCategoryId(category.id)}
+                  className={cx('min-h-12 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap', categoryId === category.id ? 'bg-ink text-on-ink' : 'bg-hover text-text')}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {canChange && !splitting ? (
+          <div className="flex gap-2">
+            {kitchenOn ? (
+              <button
+                type="button"
+                disabled={pending || unsent.length === 0}
+                onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}
+                className="min-h-14 min-w-28 rounded-2xl border border-line-strong bg-hover px-3 text-base font-bold text-text disabled:opacity-60"
+              >
+                {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
+              </button>
+            ) : null}
+            {can.pay ? (
+              <Button variant="primary" size="lg" className="min-h-14 flex-1 text-lg" disabled={pending || liveLines.length === 0 || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
+                {t('pos.calm.payButton')} · {money(order.parts.length > 0 ? order.leftToPay : order.totals.total)}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
       </div>
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />

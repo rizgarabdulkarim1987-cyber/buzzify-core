@@ -786,6 +786,13 @@ const posTill: Messages = {
   'pos.settings.state.CANCELLED': 'ملغى',
   'pos.settings.state.EXPIRED': 'منتهٍ',
   // The calm layouts of the tables screen (docs/superpowers/specs/2026-10-26-pos-calm-layouts-design.md)
+  'pos.layout.sectionTables': 'الطاولات',
+  'pos.desk.title': 'شكل الطلب',
+  'pos.desk.subtitle': 'يتغيّر على هذا الجهاز فقط، وللشاشة الكبيرة.',
+  'pos.desk.name.classic': 'الكلاسيكي',
+  'pos.desk.name.photo': 'صور كبيرة',
+  'pos.desk.name.rows': 'صفوف سريعة',
+  'pos.desk.name.cards': 'بطاقات',
   'pos.layout.open': 'ترتيب الشاشة',
   'pos.layout.title': 'ترتيب الشاشة',
   'pos.layout.subtitle': 'يتغيّر على هذا الجهاز فقط.',
