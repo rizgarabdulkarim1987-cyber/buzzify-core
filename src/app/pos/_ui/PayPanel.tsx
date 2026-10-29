@@ -259,7 +259,7 @@ function PayBody({
           <legend className="text-base font-medium text-text">
             {t("pos.pay.method")}
           </legend>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {offered.map((m) => (
               <button
                 key={m}
@@ -302,7 +302,7 @@ function PayBody({
         <span className="text-base font-medium text-text">
           {t("pos.pay.tip")}
         </span>
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-3 gap-2">
           <button
             type="button"
             aria-pressed={tip === 0}
@@ -367,7 +367,7 @@ function PayBody({
           <span className="text-base font-medium text-text">
             {t("pos.pay.usdHanded")}
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {usdQuick(usdNeeded).map((dollars) => (
               <button
                 key={dollars}
@@ -408,7 +408,7 @@ function PayBody({
           <span className="text-base font-medium text-text">
             {t("pos.pay.received")}
           </span>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {quickCash(cashDue).map((amount) => (
               <button
                 key={amount}
