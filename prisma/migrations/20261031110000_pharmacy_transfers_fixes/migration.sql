@@ -10,6 +10,16 @@
 --   * triggers: a sent transfer and its lines cannot be deleted or rewound, ends never change, sent lines change only their
 --     receive columns while SENT, and the sent quantities of a request line never exceed what was requested.
 
+-- This migration reshapes and drops objects of two tables that no database has data in yet. It must never run on rows: it stops
+-- here, with a clear message, when either table holds any (the additive-migration test pins this file's hash for the same reason).
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM "PhTransfer") OR EXISTS (SELECT 1 FROM "PhTransferLine") THEN
+    RAISE EXCEPTION 'transfer tables must be empty';
+  END IF;
+END
+$$;
+
 -- CreateEnum
 CREATE TYPE "PhTransferLostReason" AS ENUM ('LOST', 'OTHER');
 

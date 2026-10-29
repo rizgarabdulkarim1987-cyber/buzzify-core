@@ -802,3 +802,28 @@ describe('every relation that reaches a transfer, from the schema', () => {
     expect(restaurant.phTransfers).toHaveLength(1);
   });
 });
+
+describe('the fixes migration never runs on rows', () => {
+  const block = () => {
+    const sql = readFileSync('prisma/migrations/20261031110000_pharmacy_transfers_fixes/migration.sql', 'utf8');
+    const found = /DO \$\$[\s\S]*?\n\$\$;/.exec(sql);
+    if (!found) throw new Error('the precheck is missing');
+    return found[0];
+  };
+
+  it('passes on empty transfer tables and stops, saying so, when a transfer or a line exists', async () => {
+    const w = await world();
+    // eslint-disable-next-line no-restricted-properties -- runs the migration's own precheck text; reads no tenant data through a client
+    await prisma().$executeRawUnsafe(block());
+    const t = await transferOf(w);
+    // eslint-disable-next-line no-restricted-properties -- runs the migration's own precheck text; reads no tenant data through a client
+    await expect(prisma().$executeRawUnsafe(block())).rejects.toThrow(/transfer tables must be empty/);
+    await prisma().phTransfer.delete({ where: { id: t.id } });
+    // eslint-disable-next-line no-restricted-properties -- runs the migration's own precheck text; reads no tenant data through a client
+    await prisma().$executeRawUnsafe(block());
+    const again = await transferOf(w);
+    await requestLine(w, again);
+    // eslint-disable-next-line no-restricted-properties -- runs the migration's own precheck text; reads no tenant data through a client
+    await expect(prisma().$executeRawUnsafe(block())).rejects.toThrow(/transfer tables must be empty/);
+  });
+});

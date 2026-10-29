@@ -1,4 +1,5 @@
-﻿import { existsSync, readdirSync, readFileSync } from 'node:fs';
+﻿import { createHash } from 'node:crypto';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
@@ -14,6 +15,7 @@ const LAST_BEFORE_PHARMACY = '20261026300000_complaint_suggestion';
 /** Strips `--` line comments and splits into statements. */
 function statements(sql: string): string[] {
   return sql
+    .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => line.replace(/--.*$/, ''))
     .join('\n')
@@ -39,17 +41,26 @@ function applicationInserts(sql: string): string[] {
 /**
  * One narrow exemption. The transfer tables were created by an earlier migration of the same unreleased phase (nothing is
  * deployed, they hold no rows), and the review of that schema needed constraints, a column and an enum of those two tables
- * replaced, which cannot be said without a DROP. This migration may drop objects of PhTransfer and PhTransferLine, and the enum
- * it replaces, and nothing else: any other destructive statement in it is still refused.
+ * replaced, which cannot be said without a DROP. That one migration may drop exactly those objects and nothing else, and ONLY
+ * while its file is the one reviewed: the exemption is pinned to the sha256 of the file (line ends normalised), so any later edit
+ * of it, however small, loses the exemption and the guard fails. Each pattern is anchored at both ends, and a CASCADE is never
+ * covered. The migration itself starts with a check that stops it when either table has rows. Squashing it into the migration
+ * before it (and deleting this exemption) is a choice for the owner, before the first deploy.
  */
-const REWORK_OF_UNRELEASED_TABLES: Record<string, RegExp> = {
-  '20261031110000_pharmacy_transfers_fixes': /^(ALTER TABLE "PhTransfer(Line)?" DROP (CONSTRAINT|COLUMN)|DROP TYPE "PhTransferDiffReason"$)/i,
+const REWORK_OF_UNRELEASED_TABLES: Record<string, { sha256: string; allowed: RegExp }> = {
+  '20261031110000_pharmacy_transfers_fixes': {
+    sha256: '731bd2a40f48dc2e9b32c5e53d45c215329cc57309f64561df45bec995eab08a',
+    allowed: /^(?:ALTER TABLE "PhTransfer(?:Line)?" DROP CONSTRAINT "\w+"|ALTER TABLE "PhTransferLine" DROP COLUMN "diffReason"(?:, ADD COLUMN "\w+" (?:TEXT|"PhTransferLostReason")(?: NOT NULL)?)*|DROP TYPE "PhTransferDiffReason")$/i,
+  },
 };
+
+const fingerprint = (sql: string) => createHash('sha256').update(sql.replace(/\r/g, '')).digest('hex');
 
 /** The destructive statements of a migration that its exemption (if any) does not cover. */
 function refusedIn(name: string, sql: string): string[] {
-  const allowed = REWORK_OF_UNRELEASED_TABLES[name];
-  return destructive(sql).filter((statement) => !(allowed && allowed.test(statement.replace(/\s+/g, ' '))));
+  const exemption = REWORK_OF_UNRELEASED_TABLES[name];
+  const pinned = exemption !== undefined && fingerprint(sql) === exemption.sha256;
+  return destructive(sql).filter((statement) => !(pinned && exemption.allowed.test(statement.replace(/\s+/g, ' '))));
 }
 
 function pharmacyMigrations(): { name: string; sql: string }[] {
@@ -93,16 +104,57 @@ describe('pharmacy migrations', () => {
     for (const { name, sql } of migrations) expect(refusedIn(name, sql), name).toEqual([]);
   });
 
-  it('the one exemption covers the transfer rework and nothing else', () => {
-    const name = '20261031110000_pharmacy_transfers_fixes';
-    const rework = ['ALTER TABLE "PhTransferLine" DROP CONSTRAINT "x"', 'ALTER TABLE "PhTransfer" DROP COLUMN "y"', 'DROP TYPE "PhTransferDiffReason"'];
-    expect(refusedIn(name, rework.join(';\n'))).toEqual([]);
-    expect(refusedIn(name, 'ALTER TABLE "PhBatch" DROP COLUMN "lot"')).toHaveLength(1);
-    expect(refusedIn(name, 'DROP TABLE "PhTransfer"')).toHaveLength(1);
-    expect(refusedIn(name, 'UPDATE "PhTransfer" SET "note" = \'x\'')).toHaveLength(1);
-    expect(refusedIn(name, 'DROP TYPE "PhMovementType"')).toHaveLength(1);
-    // any other migration gets no exemption
-    expect(refusedIn('20261031100000_pharmacy_transfers', 'ALTER TABLE "PhTransferLine" DROP COLUMN "y"')).toHaveLength(1);
+  const FIXES = '20261031110000_pharmacy_transfers_fixes';
+  const fixesSql = () => readFileSync(join(MIGRATIONS, FIXES, 'migration.sql'), 'utf8');
+
+  it('the exemption holds for the reviewed file as it is, and its drops are exactly the ones it covers', () => {
+    expect(fingerprint(fixesSql())).toBe(REWORK_OF_UNRELEASED_TABLES[FIXES]!.sha256);
+    expect(destructive(fixesSql()).length).toBeGreaterThan(8);
+    expect(refusedIn(FIXES, fixesSql())).toEqual([]);
+  });
+
+  it('loses the exemption on any later edit of the file, even a comment, a blank line or one more drop', () => {
+    const sql = fixesSql();
+    for (const edited of [sql + '\n', sql + '-- note', sql.replace('CREATE TYPE', 'CREATE  TYPE'), sql + '\nALTER TABLE "PhTransfer" DROP COLUMN "clientKey";']) {
+      expect(refusedIn(FIXES, edited).length, edited.slice(-40)).toBeGreaterThan(8);
+    }
+    // line ends do not matter: a CRLF checkout is the same file
+    expect(refusedIn(FIXES, sql.replace(/\n/g, '\r\n'))).toEqual([]);
+  });
+
+  it('covers only whole statements of the transfer rework: other tables, CASCADE, tails and other types are refused', () => {
+    const covered = (statement: string) => REWORK_OF_UNRELEASED_TABLES[FIXES]!.allowed.test(statement.replace(/\s+/g, ' '));
+    for (const good of [
+      'ALTER TABLE "PhTransferLine" DROP CONSTRAINT "x_fkey"',
+      'ALTER TABLE "PhTransfer" DROP CONSTRAINT "PhTransfer_a"',
+      'DROP TYPE "PhTransferDiffReason"',
+      'ALTER TABLE "PhTransferLine" DROP COLUMN "diffReason",\nADD COLUMN "fromBranchId" TEXT NOT NULL,\nADD COLUMN "lostReason" "PhTransferLostReason"',
+    ]) {
+      expect(covered(good), good).toBe(true);
+    }
+    for (const bad of [
+      'ALTER TABLE "PhBatch" DROP COLUMN "lot"',
+      'ALTER TABLE "PhTransfer" DROP COLUMN "clientKey"',
+      'ALTER TABLE "PhTransferLine" DROP CONSTRAINT "x" CASCADE',
+      'ALTER TABLE "PhTransferLine" DROP CONSTRAINT "x"; DROP TABLE "Branch"',
+      'ALTER TABLE "PhTransferLine" DROP COLUMN "diffReason", DROP COLUMN "productId"',
+      'DROP TYPE "PhTransferDiffReason" CASCADE',
+      'DROP TYPE "PhMovementType"',
+      'DROP TABLE "PhTransfer"',
+      "UPDATE \"PhTransfer\" SET \"note\" = 'x'",
+    ]) {
+      expect(covered(bad), bad).toBe(false);
+    }
+    // any other migration gets no exemption, whatever its statements
+    expect(refusedIn('20261031100000_pharmacy_transfers', 'ALTER TABLE "PhTransferLine" DROP COLUMN "diffReason"')).toHaveLength(1);
+  });
+
+  it('starts with a check that stops the migration when either transfer table has rows', () => {
+    const first = statements(fixesSql())[0]!;
+    expect(first).toMatch(/^DO \$\$/);
+    expect(first).toMatch(/EXISTS \(SELECT 1 FROM "PhTransfer"\)/);
+    expect(first).toMatch(/EXISTS \(SELECT 1 FROM "PhTransferLine"\)/);
+    expect(first).toMatch(/RAISE EXCEPTION 'transfer tables must be empty'/);
   });
 
   it('a pharmacy migration only inserts the pharmacy application row', () => {
