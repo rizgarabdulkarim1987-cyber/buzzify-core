@@ -990,6 +990,23 @@ describe('reading batches', () => {
     expect(codeOf(await ask(w.pic, reviewQueries.batchList, { ...place(w), take: 51 }))).toBe('INVALID');
   });
 
+  it('the list carries the counts a screen shows: files, lines read, files that need attention, who made it', async () => {
+    const w = await world();
+    const b = await batch(w);
+    await row(w, b.fileId);
+    await row(w, b.fileId);
+    const extra = (status: 'FAILED' | 'REJECTED_QUALITY' | 'UPLOADED', n: number) =>
+      prisma().phIntakeFile.create({
+        data: { restaurantId: w.a.id, batchId: b.batchId, sha256: createHash('sha256').update(`counts-${n}-${b.batchId}`).digest('hex'), storageKey: null, mediaType: 'image/png', bytes: 10, pages: 1, uploadedById: w.owner.userId, status, ...(status === 'FAILED' ? { failureCode: 'AI_TIMEOUT' } : status === 'REJECTED_QUALITY' ? { failureCode: 'BLURRY' } : {}), expiresAt: new Date(NOW.getTime() + 86_400_000) },
+      });
+    await extra('FAILED', 1);
+    await extra('REJECTED_QUALITY', 2);
+    await extra('UPLOADED', 3);
+    const item = dataOf(await ask(w.pic, reviewQueries.batchList, { ...place(w) })).items.find((i) => i.id === b.batchId)!;
+    expect(item).toMatchObject({ fileCount: 4, rowCount: 2, attentionCount: 2, createdById: w.owner.userId });
+    expect(dataOf(await get(w, w.owner, b.batchId)).batch.createdById).toBe(w.owner.userId);
+  });
+
   it('branch-limited roles see their own branch’s batches only; the manager sees both', async () => {
     const w = await world();
     const one = await batch(w);

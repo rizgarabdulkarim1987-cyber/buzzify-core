@@ -43,6 +43,11 @@ export interface BatchSummary {
   invoiceNumber: string | null;
   currency: 'IQD' | 'USD' | null;
   fileCount: number;
+  /** Lines the reading and the reviewer put into the batch (removed ones included). */
+  rowCount: number;
+  /** Files that need a person: failed to read, or rejected for quality. */
+  attentionCount: number;
+  createdById: string;
   version: number;
   createdAt: string;
   totalMinor?: string | null;
@@ -60,7 +65,7 @@ export async function listBatches(
       ...(input.branchId ? { branchId: input.branchId } : {}),
       ...(at ? { OR: [{ createdAt: { lt: at.createdAt } }, { createdAt: at.createdAt, id: { lt: at.id } }] } : {}),
     },
-    select: { id: true, status: true, branchId: true, supplierId: true, supplier: { select: { name: true } }, receiptId: true, header: true, version: true, createdAt: true, _count: { select: { files: true } } },
+    select: { id: true, status: true, branchId: true, supplierId: true, supplier: { select: { name: true } }, receiptId: true, header: true, version: true, createdAt: true, createdById: true, files: { select: { status: true, _count: { select: { rows: true } } } } },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: input.take + 1,
   });
@@ -79,7 +84,10 @@ export async function listBatches(
         receiptId: b.receiptId,
         invoiceNumber: header.invoiceNumber,
         currency: header.currency,
-        fileCount: b._count.files,
+        fileCount: b.files.length,
+        rowCount: b.files.reduce((sum, f) => sum + f._count.rows, 0),
+        attentionCount: b.files.filter((f) => f.status === 'FAILED' || f.status === 'REJECTED_QUALITY').length,
+        createdById: b.createdById,
         version: b.version,
         createdAt: b.createdAt.toISOString(),
         ...(withCost ? { totalMinor: header.total === null ? null : String(header.total) } : {}),
@@ -127,7 +135,7 @@ const ackOf = (ack: Ack, withCost: boolean): RowRead['acknowledged'] => ({
 export async function getBatch(scoped: ScopedClient, batchId: string, branchId: string | undefined, withCost: boolean, now: Date) {
   const batch = await scoped.phIntakeBatch.findFirst({
     where: { id: batchId, ...(branchId ? { branchId } : {}) },
-    select: { id: true, status: true, branchId: true, supplierId: true, supplier: { select: { name: true } }, receiptId: true, header: true, version: true, createdAt: true },
+    select: { id: true, status: true, branchId: true, supplierId: true, supplier: { select: { name: true } }, receiptId: true, header: true, version: true, createdAt: true, createdById: true },
   });
   if (!batch) throw new StudioError('NOT_FOUND', 'Batch not found');
   const files = await scoped.phIntakeFile.findMany({
@@ -192,6 +200,7 @@ export async function getBatch(scoped: ScopedClient, batchId: string, branchId: 
       receiptId: batch.receiptId,
       version: batch.version,
       createdAt: batch.createdAt.toISOString(),
+      createdById: batch.createdById,
     },
     header: {
       values: withCost ? { ...header.values } : omitHeaderMoney({ ...header.values }),

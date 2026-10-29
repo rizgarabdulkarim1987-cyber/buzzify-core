@@ -182,7 +182,8 @@ export const attentionOf = (files: readonly { status: string }[]): number => fil
 // Controls --------------------------------------------------------------------------------------------------------------------
 
 export type DisabledReason = 'readOnly' | 'closed' | 'noAi' | 'offline' | 'busy';
-export type Control = { shown: false } | { shown: true; disabled: false | DisabledReason };
+/** `disabled` is the reason a shown control cannot be used now; false when it can (and always false when not shown). */
+export type Control = { shown: boolean; disabled: false | DisabledReason };
 
 export interface ControlContext {
   batchOpen: boolean;
@@ -204,8 +205,8 @@ const reasonOf = (ctx: ControlContext): false | DisabledReason => (!ctx.writable
 export function fileControls(status: FileStatusName, ctx: ControlContext): { read: Control; retry: Control; manual: boolean } {
   const disabled = reasonOf(ctx);
   return {
-    read: status === 'UPLOADED' ? { shown: true, disabled } : { shown: false },
-    retry: status === 'FAILED' ? { shown: true, disabled } : { shown: false },
+    read: status === 'UPLOADED' ? { shown: true, disabled } : { shown: false, disabled: false },
+    retry: status === 'FAILED' ? { shown: true, disabled } : { shown: false, disabled: false },
     manual: ctx.batchOpen && (status === 'FAILED' || status === 'REJECTED_QUALITY' || (status === 'UPLOADED' && disabled === 'noAi')),
   };
 }
