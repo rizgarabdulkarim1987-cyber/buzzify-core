@@ -1,9 +1,10 @@
-import { Building2, CalendarClock, ClipboardList, HandCoins, NotebookText, PackageMinus, ReceiptText, Wallet } from 'lucide-react';
+import { Building2, CalendarClock, Camera, ClipboardList, HandCoins, NotebookText, PackageMinus, ReceiptText, Wallet } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { formatNumber } from '@/lib/pos-format';
 import { formatPhMoney } from '@/server/domain/pharmacy/money';
+import { batchList } from '@/server/pharmacy/queries/intake-review';
 import { list as payables } from '@/server/pharmacy/queries/payables';
 import { list as orders } from '@/server/pharmacy/queries/purchase-orders';
 import { query } from '@/server/studio/framework/invoke';
@@ -42,14 +43,16 @@ export default async function PurchasingHub() {
   const g = await purchasingGate('pharmacy.purchasing.title');
   if (g.blocked) return g.blocked;
   const { access, t, locale } = g;
-  const [ordered, partial, owed] = await Promise.all([
+  const [ordered, partial, owed, openBatches] = await Promise.all([
     query(orders, { ...access.placeInput, status: 'ORDERED' }),
     query(orders, { ...access.placeInput, status: 'PARTIAL' }),
     query(payables, { ...access.placeInput, take: 1 }),
+    query(batchList, { ...access.placeInput, status: 'OPEN' }),
   ]);
   const count = (n: number, more: boolean) => (more ? `${formatNumber(n)}+` : formatNumber(n));
   const openCount = ordered.items.length + partial.items.length;
   const openMore = ordered.nextCursor !== null || partial.nextCursor !== null;
+  const openIntake = count(openBatches.items.length, openBatches.nextCursor !== null);
   const due7 = owed.totals.reduce((sum, row) => sum + row.bands.DUE_7.count, 0);
   const overdue = owed.totals.reduce((sum, row) => sum + row.bands.OVERDUE_1_30.count + row.bands.OVERDUE_31_60.count + row.bands.OVERDUE_60_PLUS.count, 0);
   const money = (amount: string, currency: 'IQD' | 'USD') => {
@@ -70,6 +73,11 @@ export default async function PurchasingHub() {
           <Card testId="hub-open-orders" icon={<ClipboardList aria-hidden />} title={t('pharmacy.purchasing.hub.openOrders')} figure={<bdi dir="ltr">{count(openCount, openMore)}</bdi>} note={t('pharmacy.purchasing.hub.openOrdersNote')}>
             <Link href="/pharmacy/purchasing/orders" className={LINK}>
               {t('pharmacy.purchasing.hub.toOrders')}
+            </Link>
+          </Card>
+          <Card testId="hub-intake" icon={<Camera aria-hidden />} title={t('pharmacy.intake.title')} figure={<bdi dir="ltr">{openIntake}</bdi>} note={t('pharmacy.intake.hub.note')}>
+            <Link href="/pharmacy/purchasing/intake" className={LINK}>
+              {t('pharmacy.intake.hub.link')}
             </Link>
           </Card>
           <Card testId="hub-due" icon={<CalendarClock aria-hidden />} title={t('pharmacy.purchasing.hub.due7')} figure={<bdi dir="ltr">{formatNumber(due7)}</bdi>} note={t('pharmacy.purchasing.hub.due7Note')} />
