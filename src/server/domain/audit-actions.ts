@@ -217,6 +217,7 @@ export const AUDIT_ENTITY_TYPES = [
   'PosCashExpense',
   'PosCustomerOrder',
   'PosCustomerOrderLine',
+  'PosBillCall',
   'PosDeliveryZone',
   'PosInventoryItem',
   'PosStockCount',
