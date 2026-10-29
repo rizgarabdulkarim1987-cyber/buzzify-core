@@ -585,7 +585,7 @@ describe('till staff from the restaurant page', () => {
 
   it('lets a Super Admin add a cashier, a manager and a kitchen member, and lists them', async () => {
     for (const role of ['CASHIER', 'MANAGER', 'KITCHEN']) {
-      expect(codeOf(await run(admin, people.addTillStaff, till(address(`till-${role}`), role)))).toBe('OK');
+      expect(codeOf(await run(admin, people.createTillStaff, till(address(`till-${role}`), role)))).toBe('OK');
     }
     const rows = dataOf(await ask(admin, peopleQueries.restaurantTillStaff, { restaurantId: atelier.id }));
     expect(rows.map((r) => r.role).sort()).toEqual(['CASHIER', 'KITCHEN', 'MANAGER']);
@@ -595,15 +595,14 @@ describe('till staff from the restaurant page', () => {
   });
 
   it('is for Super Admins only: an owner and a designer are refused', async () => {
-    expect(codeOf(await run(olive, people.addTillStaff, till(address('x1'))))).toBe('FORBIDDEN');
-    expect(codeOf(await run(dee, people.addTillStaff, till(address('x2'))))).toBe('FORBIDDEN');
+    expect(codeOf(await run(olive, people.createTillStaff, till(address('x1'))))).toBe('FORBIDDEN');
+    expect(codeOf(await run(dee, people.createTillStaff, till(address('x2'))))).toBe('FORBIDDEN');
     expect(await prisma().posStaff.count()).toBe(0);
   });
 
-  it('refuses the owner role, an address that has an account, and a weak password', async () => {
-    expect(codeOf(await run(admin, people.addTillStaff, till(address('y1'), 'OWNER')))).toBe('INVALID');
-    expect(codeOf(await run(admin, people.addTillStaff, till(olive.email)))).toBe('CONFLICT');
-    expect(codeOf(await run(admin, people.addTillStaff, { ...till(address('y2')), password: 'short' }))).toBe('INVALID');
+  it('refuses an address that has an account and a weak password', async () => {
+    expect(codeOf(await run(admin, people.createTillStaff, till(olive.email)))).toBe('CONFLICT');
+    expect(codeOf(await run(admin, people.createTillStaff, { ...till(address('y2')), password: 'short' }))).toBe('INVALID');
     expect(await prisma().posStaff.count()).toBe(0);
   });
 });

@@ -3,7 +3,7 @@
 import { UserPlus } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { addTillStaff } from '@/app/studio/_actions/people';
+import { createTillStaff } from '@/app/studio/_actions/people';
 import { formatDate } from '@/studio/format';
 import { requireFields, useActionForm } from '@/studio/forms';
 import { useLocale, useT } from '@/studio/i18n';
@@ -33,7 +33,7 @@ export function TillStaffPanel({ restaurantId, staff }: { restaurantId: string; 
 
   const add = useActionForm(
     (values) =>
-      addTillStaff({ restaurantId, name: values.name ?? '', email: values.email ?? '', role: values.role ?? 'CASHIER', password: values.password ?? '' }),
+      createTillStaff({ restaurantId, name: values.name ?? '', email: values.email ?? '', role: values.role ?? 'CASHIER', password: values.password ?? '' }),
     {
       validate: (values) =>
         requireFields(values, { name: t('error.text.nameEnter'), email: t('error.text.emailInvalid'), password: t('error.text.passwordChoose') }),
