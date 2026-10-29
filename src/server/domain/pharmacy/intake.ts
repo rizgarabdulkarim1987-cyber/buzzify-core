@@ -586,17 +586,19 @@ function nameScore(a: string, b: string): number {
 }
 
 /**
- * The stored-code spellings a scan can mean: the text itself, and for a GS1 element string or a GTIN-14 the GTIN-14 and its
- * EAN-13 form (the leading 0 indicator dropped), since the catalog stores what is printed on the pack.
+ * The stored-code spellings a scan can mean: the text itself, and for a GS1 element string or a valid GTIN (8, 12, 13 or 14
+ * digits) the 14-digit form and each shorter form with the same number, since the catalog stores what is printed on the pack.
  */
 export function barcodeForms(raw: string): string[] {
   const scan = normalizeScan(raw);
   if (scan === '') return [];
   const forms = new Set([scan]);
-  const gtin = parseGs1(scan)?.gtin ?? (/^\d{14}$/.test(scan) ? scan : undefined);
+  const gtin = parseGs1(scan)?.gtin ?? (/^\d{8}$|^\d{12,14}$/.test(scan) && gtinCheckOk(scan.padStart(14, '0')) ? scan.padStart(14, '0') : undefined);
   if (gtin) {
+    // The same trade item is printed as a GTIN-8, UPC-A (12), EAN-13 or GTIN-14: the 14-digit form and every shorter form
+    // that is the same number without its leading zeros. Both directions, so a stored GTIN-14 meets an invoice EAN-13.
     forms.add(gtin);
-    if (gtin.startsWith('0')) forms.add(gtin.slice(1));
+    for (const length of [13, 12, 8]) if (/^0*$/.test(gtin.slice(0, 14 - length))) forms.add(gtin.slice(14 - length));
   }
   return [...forms];
 }

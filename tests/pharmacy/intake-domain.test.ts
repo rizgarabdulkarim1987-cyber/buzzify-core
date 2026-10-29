@@ -12,6 +12,7 @@ import {
   effectiveRow,
   estimateCostMicroUsd,
   BudgetError,
+  barcodeForms,
   extractionJsonSchema,
   extractionShapes,
   headerArithmetic,
@@ -689,5 +690,24 @@ describe('intakeFileAcceptable / STORAGE', () => {
     expect(STORAGE.fits(0, 1, 0)).toBe(false);
     expect(STORAGE.filesFit(19, 1)).toBe(true);
     expect(STORAGE.filesFit(20, 1)).toBe(false);
+  });
+});
+
+describe('barcodeForms', () => {
+  it('gives every spelling of one trade item, in both directions', () => {
+    const ean13 = '6221031002342';
+    const gtin = `0${ean13}`;
+    expect(barcodeForms(ean13).sort()).toEqual([ean13, gtin].sort());
+    expect(barcodeForms(gtin).sort()).toEqual([ean13, gtin].sort());
+    expect(barcodeForms('036000291452').sort()).toEqual(['036000291452', '0036000291452', '00036000291452'].sort());
+    expect(barcodeForms('96385074').sort()).toEqual(['96385074', '000096385074', '0000096385074', '00000096385074'].sort());
+    expect(barcodeForms(`(01)${gtin}(17)280331(10)A1`)).toEqual(expect.arrayContaining([gtin, ean13]));
+  });
+
+  it('a number with a wrong check digit, a short number or text stays exactly as written', () => {
+    expect(barcodeForms('6221031002340')).toEqual(['6221031002340']);
+    expect(barcodeForms('12345')).toEqual(['12345']);
+    expect(barcodeForms('ABC-1')).toEqual(['ABC-1']);
+    expect(barcodeForms('  ')).toEqual([]);
   });
 });
