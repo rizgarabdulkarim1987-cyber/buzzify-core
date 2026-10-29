@@ -25,6 +25,7 @@ import {
   type TransferLineDraft,
 } from '@/app/pharmacy/_ui/transfers-logic';
 import { attemptKeyFor } from '@/app/pharmacy/_ui/purchasing-logic';
+import { receiveDestination } from '@/server/domain/pharmacy/stock';
 
 const units = [
   { id: 'u0', label: 'Tablet', baseQty: 1 },
@@ -82,6 +83,14 @@ describe('transferInputOf', () => {
   });
   it('flags a quantity beyond what the server accepts', () => {
     expect(transferInputOf(draft({ lines: [line({ units: [...units, { id: 'u3', label: 'Pallet', baseQty: 1000 }], unitId: 'u3', qty: '9999999' })] }), reach, 'create').problems['lines.0.qty']).toBe('big');
+  });
+});
+
+describe('a product without units', () => {
+  it('says so instead of a generic quantity problem', () => {
+    const out = transferInputOf(draft({ lines: [line({ units: [], unitId: '' })] }), reach, 'create');
+    expect(out.problems['lines.0.qty']).toBe('noUnits');
+    expect(out.input).toBeUndefined();
   });
 });
 
@@ -270,11 +279,24 @@ describe('sendInputOf', () => {
     const out = sendInputOf({ transferId: 't1', version: 4, proposal: two, edits: { 'l2|z': '0' }, stock: [...stock, batch('z', '2027-03-31', 9, { productId: 'p2' })], today: TODAY, canOverride: false });
     expect(out.input?.picks).toContainEqual({ lineId: 'l2', batchId: 'z', qty: 0 });
   });
-  it('a line with no sendable batch blocks the send with its own problem', () => {
-    const empty = proposeSend([{ lineId: 'l1', productId: 'p1', requestedQty: 5 }], [stock[3]!], TODAY);
-    const out = sendInputOf({ transferId: 't1', version: 4, proposal: empty, edits: {}, stock: [stock[3]!], today: TODAY, canOverride: true });
+  it('a line with nothing sendable is sent as a zero pick and the other lines still go', () => {
+    const lines = [{ lineId: 'l1', productId: 'p1', requestedQty: 5 }, { lineId: 'l2', productId: 'p2', requestedQty: 5 }];
+    const batches = [stock[2]!, batch('z', '2027-03-31', 9, { productId: 'p2' })];
+    const out = sendInputOf({ transferId: 't1', version: 4, proposal: proposeSend(lines, batches, TODAY), edits: {}, stock: batches, today: TODAY, canOverride: false });
+    expect(out.problems).toEqual({});
+    expect(out.input?.picks).toEqual([{ lineId: 'l1', batchId: 'c', qty: 0 }, { lineId: 'l2', batchId: 'z', qty: 5 }]);
+    // the server takes exactly this plan: the zero pick on the expired batch skips the line, the other is allocated
+    const domain = planSend({ lines, batches: batches.map(toDomain), picks: out.input!.picks, today: TODAY });
+    expect(domain.allocations.map((a) => [a.lineId, a.batchId, a.qty])).toEqual([['l2', 'z', 5]]);
+  });
+  it('only a sender that holds no batch of the product at all blocks the send', () => {
+    const lines = [{ lineId: 'l1', productId: 'p1', requestedQty: 5 }];
+    const out = sendInputOf({ transferId: 't1', version: 4, proposal: proposeSend(lines, [], TODAY), edits: {}, stock: [], today: TODAY, canOverride: true });
     expect(out.problems.l1).toBe('noStock');
     expect(out.input).toBeUndefined();
+    // and when it is the only line with a zero pick, there is nothing to send
+    const empty = sendInputOf({ transferId: 't1', version: 4, proposal: proposeSend(lines, [stock[2]!], TODAY), edits: {}, stock: [stock[2]!], today: TODAY, canOverride: true });
+    expect(empty.problems.nothing).toBe('nothing');
   });
   it('the send signature changes with the picks, not with the version', () => {
     const a = sendSignature('t1', [{ lineId: 'l1', batchId: 'a', qty: 18 }]);
@@ -380,5 +402,23 @@ describe('receiveInputOf', () => {
     expect(receiveSignature('t1', [rl()])).toBe(a);
     expect(receiveSignature('t1', [rl({ quarantine: true })])).not.toBe(a);
     expect(receiveSignature('t1', [rl({ received: '17', damaged: '1' })])).not.toBe(a);
+  });
+});
+
+describe('where received units go: the server rule and the screen agree', () => {
+  it('a table of batch status x expiry x toggle', () => {
+    for (const status of ['ACTIVE', 'RECALLED', 'BLOCKED'] as const) {
+      for (const [expiryDate, expired] of [['2026-10-30', true], ['2026-10-31', false], ['2027-01-31', false]] as const) {
+        for (const quarantine of [false, true]) {
+          const where = receiveDestination({ status, expiryDate }, quarantine, TODAY);
+          const forced = receiveDestination({ status, expiryDate }, false, TODAY) === 'quarantine';
+          expect(forced, `${status} ${expiryDate}`).toBe(status !== 'ACTIVE' || expired);
+          expect(where, `${status} ${expiryDate} ${quarantine}`).toBe(quarantine || status !== 'ACTIVE' || expired ? 'quarantine' : 'available');
+          const ui = receiveBreakdown(rl({ quarantine }), forced);
+          expect(ui.goes.quarantine === 18, `${status} ${expiryDate} ${quarantine}`).toBe(where === 'quarantine');
+          expect(ui.goes.available === 18).toBe(where === 'available');
+        }
+      }
+    }
   });
 });

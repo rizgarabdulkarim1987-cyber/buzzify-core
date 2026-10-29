@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
-import { expect, test, type Browser, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
 import { createPrisma } from '@/server/data/prisma';
 import { scopedClient } from '@/server/data/tenant-db';
 import { searchTextOf } from '@/server/domain/pharmacy/product-identity';
@@ -106,16 +106,26 @@ async function staff(userId: string, shop: Shop, role: 'BRANCH_MANAGER' | 'STOCK
   }
 }
 
-/** Signs in and chooses a place: a branch by name, or `null` for "All branches" (an owner). */
+/** The sign-in of each person, kept after the first one: the sign-in is rate limited per account, so a person signs in once per run. */
+const logins = new Map<string, Awaited<ReturnType<BrowserContext['storageState']>>>();
+
+/** Signs in (once per person) and chooses a place: a branch by name, or `null` for "All branches" (an owner). */
 async function session(browser: Browser, user: StudioUser, shop: Shop, branch: string | null, viewport = { width: 1280, height: 900 }): Promise<Page> {
-  const context = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() }, viewport });
+  const saved = logins.get(user.email);
+  const context = await browser.newContext({ extraHTTPHeaders: { 'x-forwarded-for': uniqueClientAddress() }, viewport, ...(saved ? { storageState: saved } : {}) });
   await hideDevTools(context);
   const page = await context.newPage();
-  await page.goto('/pharmacy');
-  await page.getByLabel(/^(Email|البريد الإلكتروني)$/).fill(user.email);
-  await page.locator('input[type="password"]').fill(user.password);
-  await page.locator('form button[type="submit"]').click();
-  await expect(page).toHaveURL(/\/pharmacy\/select$/);
+  page.on('dialog', (dialog) => void dialog.accept());
+  if (saved) {
+    await page.goto('/pharmacy/select');
+  } else {
+    await page.goto('/pharmacy');
+    await page.getByLabel(/^(Email|البريد الإلكتروني)$/).fill(user.email);
+    await page.locator('input[type="password"]').fill(user.password);
+    await page.locator('form button[type="submit"]').click();
+    await expect(page).toHaveURL(/\/pharmacy\/select$/);
+    logins.set(user.email, await context.storageState());
+  }
   const group = page.getByRole('group', { name: shop.name });
   await (branch === null ? group.getByRole('button').first() : group.getByRole('button', { name: new RegExp(branch) })).click();
   await expect(page).toHaveURL(/\/pharmacy\/home$/);
@@ -172,7 +182,7 @@ test.describe('Pharmacy transfers @desktop', () => {
   let B: string;
   let C: string;
   /** The transfers the scenarios leave behind, by the state the screens are checked in. */
-  const ids: { partial?: string; received?: string; sent?: string; requested?: string; bulk?: string } = {};
+  const ids: { partial?: string; received?: string; sent?: string; requested?: string; bulk?: string; override?: string } = {};
 
   test.beforeAll(async () => {
     test.setTimeout(240_000);
@@ -282,8 +292,8 @@ test.describe('Pharmacy transfers @desktop', () => {
     await expect(b.getByTestId('transfer-row').first()).toContainText('Your turn: receive');
     await openShift(b);
     await b.getByTestId('sell-search').fill(productName);
-    const atB = b.getByTestId('result').filter({ hasText: productName });
-    if (await atB.count()) await expect(atB.getByTestId('sellable-qty')).not.toContainText('30');
+    // Nothing of it is sellable at B yet: the result says out of stock (the 30 on the road are not counted).
+    await expect(b.getByTestId('result').filter({ hasText: productName })).toContainText('Out of stock');
     await b.goto(`/pharmacy/stock/transfers/${id}`);
     await expect(b.getByTestId('transfer-in-transit')).toContainText('30');
     await b.getByTestId('transfer-receive').click();
@@ -301,6 +311,17 @@ test.describe('Pharmacy transfers @desktop', () => {
     await expect(b.getByTestId('transfer-diff-totals')).toContainText('received 25');
     await expect(b.getByTestId('transfer-diff-totals')).toContainText('lost 5');
     await expect(b.getByTestId('transfer-in-transit')).toHaveCount(0);
+    // The double click on receive booked each line once: two TRANSFER_IN movements (18 and 7).
+    {
+      const client = db();
+      try {
+        const into = await client.phStockMovement.findMany({ where: { type: 'TRANSFER_IN', refId: id }, select: { availableDelta: true } });
+        expect(into.map((m) => m.availableDelta).sort((x, y) => x - y)).toEqual([7, 18]);
+      } finally {
+        await client.$disconnect();
+      }
+    }
+    await expect(b.getByTestId('transfer-requested-on')).toContainText(/by .?Trf mgr-a/);
 
     // After: 25 at B (sellable), no more "on the road" at A.
     await b.goto('/pharmacy/stock');
@@ -348,38 +369,104 @@ test.describe('Pharmacy transfers @desktop', () => {
     await r.context().close();
   });
 
-  test('a lost answer replays to one effect', async ({ browser }) => {
+  test('a manager may send out of expiry order: the flag, the confirmation sentence and the stored override', async ({ browser }) => {
     test.setTimeout(240_000);
+    const a = await session(browser, mgrA, shop, A);
+    const id = await request(a, B, productName, '2');
+    ids.override = id;
+    await a.getByTestId('transfer-send').click();
+    await expect(a.getByTestId('send-row')).toHaveCount(1);
+    await expect(a.getByTestId('send-override-flag')).toHaveCount(0);
+    // MID-2 is first in line; pick LAST-3 instead and zero the first row.
+    await a.getByTestId('send-pick-select').selectOption({ index: 1 });
+    await a.getByTestId('send-pick-add').click();
+    await expect(a.getByTestId('send-row')).toHaveCount(2);
+    await a.getByTestId('send-qty').nth(0).fill('0');
+    await a.getByTestId('send-qty').nth(1).fill('2');
+    await expect(a.getByTestId('send-override-flag')).toBeVisible();
+    await a.getByTestId('send-review').click();
+    await expect(a.getByTestId('send-confirm')).toContainText('out of expiry order');
+    await a.getByTestId('send-confirm-yes').click();
+    await expect(a.getByTestId('transfer-status')).toContainText('Sent');
+    const client = db();
+    try {
+      expect(await client.phTransfer.findUniqueOrThrow({ where: { id }, select: { sendOverride: true } })).toEqual({ sendOverride: true });
+    } finally {
+      await client.$disconnect();
+    }
+    await a.context().close();
+  });
+
+  test('a lost answer replays to one effect (send) and a reload shows it done (receive)', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const dropOnce = async (page: Page) => {
+      let dropped = false;
+      await page.route('**/*', async (route) => {
+        const req = route.request();
+        if (!dropped && req.method() === 'POST' && req.headers()['next-action']) {
+          dropped = true;
+          await route.fetch();
+          await route.abort('failed');
+          return;
+        }
+        await route.continue();
+      });
+    };
     const a = await session(browser, mgrA, shop, A);
     const id = await request(a, B, productName, '2');
     ids.sent = id;
     await a.getByTestId('transfer-send').click();
     await expect(a.getByTestId('send-row').first()).toBeVisible();
     await a.getByTestId('send-review').click();
-    // The first answer is dropped after the server did the work; the form keeps its key and the second try replays.
-    let dropped = false;
-    await a.route('**/*', async (route) => {
-      const request = route.request();
-      if (!dropped && request.method() === 'POST' && request.headers()['next-action']) {
-        dropped = true;
-        await route.fetch();
-        await route.abort('failed');
-        return;
-      }
-      await route.continue();
-    });
+    // The first answer is dropped after the server did the work. The key is kept with the draft: the second try replays.
+    await dropOnce(a);
     await a.getByTestId('send-confirm-yes').click();
     await expect(a.getByTestId('transfer-send-error')).toBeVisible();
+    await a.unroute('**/*');
+    // The retry on the same screen sends the same key: the server replays its answer.
     await a.getByTestId('send-review').click();
     await a.getByTestId('send-confirm-yes').click();
     await expect(a.getByTestId('transfer-status')).toContainText('Sent');
-    const client = db();
-    try {
-      expect(await client.phTransferLine.count({ where: { transferId: id, sentQty: { gt: 0 } } })).toBe(1);
-    } finally {
-      await client.$disconnect();
+    {
+      const client = db();
+      try {
+        expect(await client.phTransferLine.count({ where: { transferId: id, sentQty: { gt: 0 } } })).toBe(1);
+        expect(await client.phStockMovement.count({ where: { type: 'TRANSFER_OUT', refId: id } })).toBe(1);
+      } finally {
+        await client.$disconnect();
+      }
     }
+
+    // Receive: a second transfer, whose receive answer is dropped; after a reload the same key replays.
+    const id2 = await request(a, B, productName, '1');
+    await a.getByTestId('transfer-send').click();
+    await expect(a.getByTestId('send-row').first()).toBeVisible();
+    await a.getByTestId('send-review').click();
+    await a.getByTestId('send-confirm-yes').click();
+    await expect(a.getByTestId('transfer-status')).toContainText('Sent');
     await a.context().close();
+    const b = await session(browser, mgrB, shop, B);
+    await b.goto(`/pharmacy/stock/transfers/${id2}`);
+    await b.getByTestId('transfer-receive').click();
+    await expect(b.getByTestId('receive-line')).toHaveCount(1);
+    await b.getByTestId('receive-review').click();
+    await dropOnce(b);
+    await b.getByTestId('receive-confirm-yes').click();
+    await expect(b.getByTestId('transfer-receive-error')).toBeVisible();
+    await b.unroute('**/*');
+    // The person reloads instead: the page shows what the server did (received once), with no receive control left.
+    await b.reload();
+    await expect(b.getByTestId('transfer-status')).toContainText('Received');
+    await expect(b.getByTestId('transfer-receive')).toHaveCount(0);
+    {
+      const client = db();
+      try {
+        expect(await client.phStockMovement.count({ where: { type: 'TRANSFER_IN', refId: id2 } })).toBe(1);
+      } finally {
+        await client.$disconnect();
+      }
+    }
+    await b.context().close();
   });
 
   test('a stale version is said in words; offline keeps the form', async ({ browser }) => {
@@ -398,8 +485,11 @@ test.describe('Pharmacy transfers @desktop', () => {
     await expect(a.getByTestId('transfer-view')).toBeVisible();
     await tab2.getByTestId('transfer-cancel').click();
     await tab2.getByTestId('transfer-cancel-yes').click();
-    await expect(tab2.getByTestId('transfer-action-error')).toBeVisible();
+    await expect(tab2.getByTestId('transfer-action-error')).toContainText('Someone else changed this transfer');
     await expect(tab2.getByTestId('transfer-status')).toContainText('Requested');
+    await tab2.getByTestId('transfer-action-error').getByRole('button', { name: 'Reload' }).click();
+    await expect(tab2.getByTestId('transfer-action-error')).toHaveCount(0);
+    await expect(tab2.getByTestId('transfer-cancel')).toBeVisible();
     await tab2.close();
 
     // Offline: the notice shows, the save waits, the typed form stays.
@@ -461,56 +551,216 @@ test.describe('Pharmacy transfers @desktop', () => {
       await expect(a.getByTestId('transfer-send')).toHaveCount(0);
       await expect(a.getByTestId('transfer-cancel')).toHaveCount(0);
       await expect(a.getByTestId('transfer-edit')).toHaveCount(0);
+      await expect(a.getByTestId('transfer-blocked-note')).toContainText('subscription has lapsed');
       await a.goto('/pharmacy/stock/transfers/new');
       await expect(a.getByTestId('transfer-write-blocked')).toBeVisible();
+      await expect(a.getByTestId('transfer-blocked-note')).toContainText('Transfers can be read but not changed');
       await expect(a.getByTestId('transfer-editor')).toHaveCount(0);
       await a.goto('/pharmacy/stock/transfers');
       await expect(a.getByTestId('transfer-row').first()).toBeVisible();
       await a.context().close();
+      // A SENT transfer shows no receive control to its receiver either.
+      const b = await session(browser, mgrB, shop, B);
+      await b.goto(`/pharmacy/stock/transfers/${ids.sent}`);
+      await expect(b.getByTestId('transfer-view')).toBeVisible();
+      await expect(b.getByTestId('transfer-receive')).toHaveCount(0);
+      await expect(b.getByTestId('transfer-blocked-note')).toBeVisible();
+      await b.context().close();
     } finally {
       if (was) await client.subscription.updateMany({ where: { restaurantId: shop.id, applicationId: 'pharmacy' }, data: { currentPeriodEnd: was } });
       await client.$disconnect();
     }
   });
 
-  test('English, Arabic and Sorani: no sideways scroll at 375, 768 and 1280 and axe clean on every screen and state', async ({ browser }) => {
-    test.setTimeout(600_000);
+  /** Data the audit needs once: a batch in the middle of the expiry order, and the batch of the sent transfer recalled on the road. */
+  let auditReady = false;
+  async function prepareAudit(): Promise<void> {
+    if (auditReady) return;
+    auditReady = true;
+    const client = db();
+    try {
+      const product = await client.phProduct.findFirstOrThrow({ where: { restaurantId: shop.id, tradeName: productName }, select: { id: true } });
+      const scoped = scopedClient(client, { restaurantId: shop.id, allBranches: true });
+      const added = await client.phBatch.create({
+        data: { restaurantId: shop.id, productId: product.id, lot: 'AUD-1', expiryDate: new Date(`${dateIn(100)}T00:00:00.000Z`) },
+        select: { id: true },
+      });
+      await scoped.$transaction(async (tx) => {
+        await applyMovement(tx, { restaurantId: shop.id, branchId: shop.branches[0]!.id, batchId: added.id, userId: 'seed', type: 'RECEIPT', deltas: { available: 50 }, reason: '' });
+      });
+      const sentLine = await client.phTransferLine.findFirstOrThrow({ where: { transferId: ids.sent!, sentQty: { gt: 0 } }, select: { batchId: true } });
+      await client.phBatch.update({ where: { id: sentLine.batchId! }, data: { status: 'RECALLED' } });
+    } finally {
+      await client.$disconnect();
+    }
+  }
+
+  /** No sideways scroll and no serious axe finding at 375, 768 and 1280 (a screenshot of each). */
+  async function check(page: Page, name: string, widths = [375, 768, 1280]): Promise<void> {
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await scrollsSideways(page), `${name} at ${width}px`).toBe(false);
+      expect(await seriousViolations(page), `${name} at ${width}px`).toEqual([]);
+      await page.screenshot({ path: `${SHOTS}/${name}-${width}.png`, fullPage: true });
+    }
+  }
+
+  /** Every server action call fails before it leaves the browser (no effect on the server), to show the failure alerts. */
+  const failActions = async (page: Page) => {
+    const handler = async (route: import('@playwright/test').Route) => {
+      const req = route.request();
+      if (req.method() === 'POST' && req.headers()['next-action']) await route.abort('failed');
+      else await route.continue();
+    };
+    await page.route('**/*', handler);
+    return () => page.unroute('**/*', handler);
+  };
+
+  async function auditLocale(browser: Browser, locale: 'en' | 'ar' | 'ckb'): Promise<void> {
+    await prepareAudit();
+    for (const u of [owner, cashier, mgrA, mgrC, stockAB]) await setUserLocale(u.userId, locale);
+    const dir = locale === 'en' ? 'ltr' : 'rtl';
+    const req = `/pharmacy/stock/transfers/${ids.requested}`;
+    const sent = `/pharmacy/stock/transfers/${ids.sent}`;
+    const small = { width: 375, height: 800 };
+
+    // The owner, at All branches: every screen and state, the panels, the confirmation regions and the failure alerts.
+    const o = await session(browser, owner, shop, null, small);
+    await expect(o.locator('html')).toHaveAttribute('dir', dir);
     const states: [string, string][] = [
       ['list', '/pharmacy/stock/transfers'],
       ['new', '/pharmacy/stock/transfers/new'],
-      ['requested', `/pharmacy/stock/transfers/${ids.requested}`],
-      ['sent', `/pharmacy/stock/transfers/${ids.sent}`],
+      ['requested', req],
+      ['sent', sent],
       ['received', `/pharmacy/stock/transfers/${ids.received}`],
       ['partial', `/pharmacy/stock/transfers/${ids.partial}`],
+      ['edit', `${req}/edit`],
+      ['edit-blocked', `/pharmacy/stock/transfers/${ids.partial}/edit`],
     ];
-    for (const locale of ['en', 'ar', 'ckb'] as const) {
-      await setUserLocale(owner.userId, locale);
-      const page = await session(browser, owner, shop, null, { width: 375, height: 800 });
-      await expect(page.locator('html')).toHaveAttribute('dir', locale === 'en' ? 'ltr' : 'rtl');
-      for (const [name, path] of states) {
-        await page.goto(path);
-        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        for (const width of [375, 768, 1280]) {
-          await page.setViewportSize({ width, height: 900 });
-          expect(await scrollsSideways(page), `${locale} ${name} at ${width}px`).toBe(false);
-          expect(await seriousViolations(page), `${locale} ${name} at ${width}px`).toEqual([]);
-          await page.screenshot({ path: `${SHOTS}/${locale}-${name}-${width}.png`, fullPage: true });
-        }
-        // The panels, open: send on the request, receive on the sent one.
-        const opener = name === 'requested' ? 'transfer-send' : name === 'sent' ? 'transfer-receive' : null;
-        if (opener && (await page.getByTestId(opener).count())) {
-          await page.getByTestId(opener).click();
-          await expect(page.getByTestId(opener === 'transfer-send' ? 'transfer-send-panel' : 'transfer-receive-panel')).toBeVisible();
-          for (const width of [375, 768, 1280]) {
-            await page.setViewportSize({ width, height: 900 });
-            expect(await scrollsSideways(page), `${locale} ${name} panel at ${width}px`).toBe(false);
-            expect(await seriousViolations(page), `${locale} ${name} panel at ${width}px`).toEqual([]);
-            await page.screenshot({ path: `${SHOTS}/${locale}-${name}-panel-${width}.png`, fullPage: true });
-          }
-        }
-      }
-      await page.context().close();
+    for (const [name, path] of states) {
+      await o.goto(path);
+      await expect(o.getByRole('heading', { level: 1 })).toBeVisible();
+      if (name === 'edit') await expect(o.getByTestId('transfer-editor').or(o.getByTestId('transfer-edit-blocked'))).toBeVisible();
+      if (name === 'edit-blocked') await expect(o.getByTestId('transfer-edit-blocked')).toBeVisible();
+      await check(o, `${locale}-${name}`);
     }
+
+    await o.goto(req);
+    await o.getByTestId('transfer-send').click();
+    await expect(o.getByTestId('send-row').first()).toBeVisible();
+    await check(o, `${locale}-send-panel`, [375, 1280]);
+    await o.getByTestId('send-review').click();
+    await expect(o.getByTestId('send-confirm')).toBeVisible();
+    await check(o, `${locale}-send-confirm`, [375, 1280]);
+    let restore = await failActions(o);
+    await o.getByTestId('send-confirm-yes').click();
+    await expect(o.getByTestId('transfer-send-error')).toBeVisible();
+    await check(o, `${locale}-send-error`, [375, 1280]);
+    await restore();
+
+    await o.goto(req);
+    await o.getByTestId('transfer-cancel').click();
+    await expect(o.getByTestId('transfer-cancel-yes')).toBeVisible();
+    await check(o, `${locale}-cancel-confirm`, [375, 1280]);
+    restore = await failActions(o);
+    await o.getByTestId('transfer-cancel-yes').click();
+    await expect(o.getByTestId('transfer-action-error')).toBeVisible();
+    await check(o, `${locale}-cancel-error`, [375, 1280]);
+    await restore();
+
+    await o.goto(sent);
+    await o.getByTestId('transfer-receive').click();
+    await expect(o.getByTestId('receive-forced').first()).toBeVisible();
+    await check(o, `${locale}-receive-panel`, [375, 1280]);
+    await o.getByTestId('receive-review').click();
+    await expect(o.getByTestId('receive-confirm')).toBeVisible();
+    await check(o, `${locale}-receive-confirm`, [375, 1280]);
+    restore = await failActions(o);
+    await o.getByTestId('receive-confirm-yes').click();
+    await expect(o.getByTestId('transfer-receive-error')).toBeVisible();
+    await check(o, `${locale}-receive-error`, [375, 1280]);
+    await restore();
+    await o.context().close();
+
+    // A cashier is blocked; a third branch has an empty list.
+    const till = await session(browser, cashier, shop, A, small);
+    for (const [name, path] of [['forbidden-list', '/pharmacy/stock/transfers'], ['forbidden-new', '/pharmacy/stock/transfers/new']] as const) {
+      await till.goto(path);
+      await expect(till.getByTestId('transfers-forbidden')).toBeVisible();
+      await check(till, `${locale}-${name}`, [375, 1280]);
+    }
+    await till.context().close();
+    const c = await session(browser, mgrC, shop, C, small);
+    await c.goto('/pharmacy/stock/transfers');
+    await expect(c.getByTestId('transfers-empty')).toBeVisible();
+    await check(c, `${locale}-empty`, [375, 1280]);
+    await c.context().close();
+
+    // The stock role at the receiver: the change-branch sentence, and lost units refused.
+    const sb = await session(browser, stockAB, shop, B, small);
+    await sb.goto(req);
+    await expect(sb.getByTestId('transfer-send-wrong-place')).toBeVisible();
+    await check(sb, `${locale}-wrong-place`, [375, 1280]);
+    await sb.goto(sent);
+    await sb.getByTestId('transfer-receive').click();
+    const line = sb.getByTestId('receive-line').first();
+    await line.getByTestId('receive-received').fill('1');
+    await line.getByTestId('receive-lost').fill('1');
+    await line.getByTestId('receive-lost-reason').selectOption('LOST');
+    await expect(sb.getByTestId('receive-loss-blocked')).toBeVisible();
+    await check(sb, `${locale}-loss-blocked`, [375, 1280]);
+    await sb.context().close();
+
+    // The stock role at the sender cannot pick another batch; a manager can, and sees the flag.
+    const sa = await session(browser, stockAB, shop, A, small);
+    await sa.goto(req);
+    await sa.getByTestId('transfer-send').click();
+    await expect(sa.getByTestId('send-pick-disabled').first()).toBeVisible();
+    await check(sa, `${locale}-pick-disabled`, [375, 1280]);
+    await sa.context().close();
+    const m = await session(browser, mgrA, shop, A, small);
+    await m.goto(req);
+    await m.getByTestId('transfer-send').click();
+    await expect(m.getByTestId('send-row').first()).toBeVisible();
+    await m.getByTestId('send-pick-select').first().selectOption({ index: 1 });
+    await m.getByTestId('send-pick-add').first().click();
+    await m.getByTestId('send-qty').nth(0).fill('0');
+    await m.getByTestId('send-qty').nth(1).fill('6');
+    await expect(m.getByTestId('send-override-flag')).toBeVisible();
+    await check(m, `${locale}-override`, [375, 1280]);
+    await m.context().close();
+
+    // A lapsed subscription: the read-only notice on the new screen and on a request.
+    const client = db();
+    let was: Date | null = null;
+    try {
+      was = (await client.subscription.findFirstOrThrow({ where: { restaurantId: shop.id, applicationId: 'pharmacy' }, select: { currentPeriodEnd: true } })).currentPeriodEnd;
+      await client.subscription.updateMany({ where: { restaurantId: shop.id, applicationId: 'pharmacy' }, data: { currentPeriodEnd: new Date(Date.now() - 20 * DAY) } });
+      const ro = await session(browser, mgrA, shop, A, small);
+      await ro.goto('/pharmacy/stock/transfers/new');
+      await expect(ro.getByTestId('transfer-write-blocked')).toBeVisible();
+      await check(ro, `${locale}-write-blocked`, [375, 1280]);
+      await ro.goto(req);
+      await expect(ro.getByTestId('transfer-blocked-note')).toBeVisible();
+      await check(ro, `${locale}-read-only-detail`, [375, 1280]);
+      await ro.context().close();
+    } finally {
+      if (was) await client.subscription.updateMany({ where: { restaurantId: shop.id, applicationId: 'pharmacy' }, data: { currentPeriodEnd: was } });
+      await client.$disconnect();
+    }
+  }
+
+  test('English: no sideways scroll and axe clean on every screen and state', async ({ browser }) => {
+    test.setTimeout(540_000);
+    await auditLocale(browser, 'en');
+  });
+  test('Arabic: no sideways scroll and axe clean on every screen and state', async ({ browser }) => {
+    test.setTimeout(540_000);
+    await auditLocale(browser, 'ar');
+  });
+  test('Sorani: no sideways scroll and axe clean on every screen and state', async ({ browser }) => {
+    test.setTimeout(540_000);
+    await auditLocale(browser, 'ckb');
     await setUserLocale(owner.userId, 'en');
   });
 

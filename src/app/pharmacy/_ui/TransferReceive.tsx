@@ -7,7 +7,8 @@ import { receiveTransfer } from '@/app/pharmacy/_actions/transfers';
 import { formatNumber } from '@/lib/pos-format';
 import { draftKey, useDraft } from '@/lib/use-draft';
 import { useLeaveGuard } from '@/lib/use-leave-guard';
-import { formatExpiry, isExpired, type ExpiryPrecision } from '@/server/domain/pharmacy/expiry';
+import { formatExpiry, type ExpiryPrecision } from '@/server/domain/pharmacy/expiry';
+import { receiveDestination } from '@/server/domain/pharmacy/stock';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
@@ -78,7 +79,8 @@ export function TransferReceive({
   useLeaveGuard(draft.dirty, t('pharmacy.catalog.leaveConfirm'));
 
   const meta = new Map(lines.map((l) => [l.lineId, l]));
-  const unsellable = (l: ReceiveSentLine) => l.batchStatus !== 'ACTIVE' || isExpired(l, today);
+  // The server's rule (`receiveDestination`): a batch that can no longer be sold goes to quarantine whatever the toggle says.
+  const unsellable = (l: ReceiveSentLine) => receiveDestination({ status: l.batchStatus, expiryDate: l.expiryDate }, false, today) === 'quarantine';
   const built = receiveInputOf({ transferId: transfer.id, version: transfer.version, clientKey: value.clientKey, lines: value.lines });
   const blockedByRole = built.needsReportView && !canSeeLoss;
   const change = (lineId: string, patch: Partial<ReceiveLineDraft>) => {
@@ -138,8 +140,12 @@ export function TransferReceive({
           {t('pharmacy.catalog.draft.restored')}
         </p>
       )}
-      {failure && <TransferFailure testId="transfer-receive-error" message={failure.message} stale={failure.stale} onReload={() => router.refresh()} />}
+      {failure && <TransferFailure testId="transfer-receive-error" message={failure.message} stale={failure.stale} onReload={() => {
+          setFailure(null);
+          router.refresh();
+        }} />}
 
+      <fieldset disabled={pending} className="m-0 min-w-0 border-0 p-0">
       <ol className="flex flex-col gap-3">
         {value.lines.map((line) => {
           const info = meta.get(line.lineId)!;
@@ -256,6 +262,7 @@ export function TransferReceive({
           );
         })}
       </ol>
+      </fieldset>
 
       <p data-testid="receive-summary" role="status" className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-text tabular-nums">
         <span>{t('pharmacy.transfers.receive.summary', { available: formatNumber(totals.available), quarantine: formatNumber(totals.quarantine), damaged: formatNumber(totals.damaged), lost: formatNumber(totals.lost) })}</span>

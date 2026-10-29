@@ -2271,7 +2271,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.loading': 'جارٍ قراءة مخزون هذا الفرع…',
   'pharmacy.transfers.send.loadFailed': 'تعذرت قراءة المخزون. لم يُرسل شيء.',
   'pharmacy.transfers.send.line.figures': 'المطلوب {requested} · المتاح {available} · المرسل الآن {sending}',
-  'pharmacy.transfers.send.line.none': 'لا يملك هذا الفرع مخزونا قابلا للإرسال من هذا الصنف. عدّل الطلب لإزالته أو ألغِه.',
+  'pharmacy.transfers.send.line.none': 'لا يمكن إرسال شيء من هذا الصنف من هنا. سيُتخطى هذا السطر وتُرسل بقية الأسطر.',
   'pharmacy.transfers.send.line.short': 'يمكن إرسال {available} فقط. أرسل المتوفر أو عدّل الطلب.',
   'pharmacy.transfers.send.row.qty': 'الكمية المرسلة من الدفعة {lot}',
   'pharmacy.transfers.send.pickAnother': 'اختيار دفعة أخرى',
@@ -2283,7 +2283,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.problem.qty': 'أدخل عددا صحيحا',
   'pharmacy.transfers.send.problem.overBatch': 'أكثر مما تحتويه هذه الدفعة',
   'pharmacy.transfers.send.problem.overRequested': 'أكثر مما يطلبه الطلب',
-  'pharmacy.transfers.send.problem.noStock': 'لا يمكن إرسال شيء من هذا الصنف',
+  'pharmacy.transfers.send.problem.noStock': 'لا يحتفظ هذا الفرع بأي دفعة من هذا الصنف. أزل السطر قبل الإرسال:',
   'pharmacy.transfers.send.problem.needed': 'الإرسال خارج ترتيب الانتهاء يتطلب صلاحية تجاوز الدفعات.',
   'pharmacy.transfers.send.problem.nothing': 'أرسل وحدة واحدة على الأقل.',
   'pharmacy.transfers.send.review': 'مراجعة وإرسال',
@@ -2390,6 +2390,13 @@ const pharmacy: Messages = {
   'pharmacy.transfers.fail.UNACCOUNTED': 'يجب أن تكون كل وحدة مرسلة مستلمة أو تالفة أو مفقودة.',
   'pharmacy.transfers.fail.REASON_REQUIRED': 'اذكر سبب فقدان الوحدات.',
   'pharmacy.transfers.fail.TOO_MANY_LINES': 'يمكن إرسال التحويل من 500 دفعة كحد أقصى.',
+  'pharmacy.transfers.by': 'بواسطة {name}',
+  'pharmacy.transfers.blocked.readOnly': 'انتهى الاشتراك. يمكن قراءة التحويلات لكن لا يمكن تغييرها حتى يتم التجديد.',
+  'pharmacy.transfers.blocked.role': 'يمكن لدورك الاطلاع على التحويلات دون تغييرها.',
+  'pharmacy.transfers.blocked.support': 'يرى الدعم التحويلات للقراءة فقط.',
+  'pharmacy.transfers.editor.problem.noUnits': 'لا توجد وحدات لهذا الصنف. أزل السطر.',
+  'pharmacy.transfers.reloadDiscards': 'إعادة التحميل وتجاهل تغييراتي',
+  'pharmacy.transfers.lostAnswer': 'لم يصل الرد، فقد يكون تغييرك محفوظا بالفعل. تم تحديث الصفحة: تحقق منها قبل المحاولة مجددا.',
 };
 
 export default pharmacy;

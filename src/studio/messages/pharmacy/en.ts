@@ -2277,7 +2277,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.loading': 'Reading the stock of this branch…',
   'pharmacy.transfers.send.loadFailed': 'The stock could not be read. Nothing was sent.',
   'pharmacy.transfers.send.line.figures': 'Requested {requested} · available {available} · sending {sending}',
-  'pharmacy.transfers.send.line.none': 'This branch has no sendable stock of this product. Edit the request to remove it, or cancel.',
+  'pharmacy.transfers.send.line.none': 'Nothing of this product can be sent from here. This line is skipped; the other lines still go.',
   'pharmacy.transfers.send.line.short': 'Only {available} can be sent. Send what exists, or edit the request.',
   'pharmacy.transfers.send.row.qty': 'Quantity to send from lot {lot}',
   'pharmacy.transfers.send.pickAnother': 'Pick another batch',
@@ -2289,7 +2289,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.problem.qty': 'Enter a whole number',
   'pharmacy.transfers.send.problem.overBatch': 'More than this batch holds',
   'pharmacy.transfers.send.problem.overRequested': 'More than the request asks for',
-  'pharmacy.transfers.send.problem.noStock': 'Nothing can be sent for this product',
+  'pharmacy.transfers.send.problem.noStock': 'This branch holds no batch of this product. Remove the line before sending:',
   'pharmacy.transfers.send.problem.needed': 'Sending out of expiry order needs the batch override permission.',
   'pharmacy.transfers.send.problem.nothing': 'Send at least one unit.',
   'pharmacy.transfers.send.review': 'Review and send',
@@ -2396,6 +2396,13 @@ const pharmacy: Messages = {
   'pharmacy.transfers.fail.UNACCOUNTED': 'Every unit sent must be received, damaged or lost.',
   'pharmacy.transfers.fail.REASON_REQUIRED': 'Say why units were lost.',
   'pharmacy.transfers.fail.TOO_MANY_LINES': 'A transfer can be sent from at most 500 batches.',
+  'pharmacy.transfers.by': 'by {name}',
+  'pharmacy.transfers.blocked.readOnly': 'The subscription has lapsed. Transfers can be read but not changed until it is renewed.',
+  'pharmacy.transfers.blocked.role': 'Your role can look at transfers but not change them.',
+  'pharmacy.transfers.blocked.support': 'Support sees transfers read only.',
+  'pharmacy.transfers.editor.problem.noUnits': 'This product has no units. Remove the line.',
+  'pharmacy.transfers.reloadDiscards': 'Reload and discard my changes',
+  'pharmacy.transfers.lostAnswer': 'The answer did not arrive, so your change may already be saved. The page was refreshed: check it before trying again.',
 };
 
 export default pharmacy;

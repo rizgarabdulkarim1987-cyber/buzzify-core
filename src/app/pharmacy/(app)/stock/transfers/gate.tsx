@@ -1,7 +1,7 @@
 import { ArrowLeft, Lock } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { ReceiveBlocked } from '@/app/pharmacy/_ui/ReceiveBlocked';
+import { TransferBlocked } from '@/app/pharmacy/_ui/TransferBlocked';
 import { getPhBranches } from '@/server/pharmacy/actor';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -47,6 +47,6 @@ export async function transfersGate(titleKey: string, backTo?: { href: string; l
     reach,
     /** Every branch of the business by id (names only), fetched by the screens that need them after the gate. */
     branches: () => getPhBranches(access.actor.restaurantId),
-    writeNotice: !writable.ok && may ? <ReceiveBlocked reason={writable.reason} t={t} /> : null,
+    writeNotice: !writable.ok && may ? <TransferBlocked reason={writable.reason} t={t} /> : null,
   };
 }

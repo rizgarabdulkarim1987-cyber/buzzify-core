@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { TransferActions } from '@/app/pharmacy/_ui/TransferActions';
+import { isolateName as isolate } from '@/app/pharmacy/_ui/isolate-name';
 import { actionFor, detailControls } from '@/app/pharmacy/_ui/transfers-logic';
 import { Route, TransferStatusChip, TurnChip } from '@/app/pharmacy/_ui/transfers-parts';
 import { formatNumber } from '@/lib/pos-format';
@@ -44,7 +45,13 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
     (sum, s) => ({ sent: sum.sent + s.sentQty, received: sum.received + s.receivedQty, damaged: sum.damaged + s.damagedQty, lost: sum.lost + s.lostQty, transit: sum.transit + s.inTransitQty }),
     { sent: 0, received: 0, damaged: 0, lost: 0, transit: 0 },
   );
-  const date = (iso: string | null) => (iso ? <bdi dir="ltr">{phDate(iso, locale)}</bdi> : null);
+  const date = (iso: string | null, by?: string | null) =>
+    iso ? (
+      <>
+        <bdi dir="ltr">{phDate(iso, locale)}</bdi>
+        {by ? <span className="text-muted"> · {t('pharmacy.transfers.by', { name: isolate(by) })}</span> : null}
+      </>
+    ) : null;
   return (
     <>
       <PageHeader className="max-sm:px-4" above={g.back} title={tr.number ? t('pharmacy.transfers.viewTitle', { number: tr.number }) : t('pharmacy.transfers.title')} />
@@ -54,7 +61,7 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
         {turn && (
           <p role="status" data-testid="transfer-turn" className="flex items-start gap-2.5 rounded-md border border-ink bg-raised px-3 py-2.5 text-sm font-medium text-text">
             <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
-            <span className="min-w-0">{t(`pharmacy.transfers.turn.${turn}.body`, { from: tr.fromBranchName, to: tr.toBranchName })}</span>
+            <span className="min-w-0">{t(`pharmacy.transfers.turn.${turn}.body`, { from: isolate(tr.fromBranchName), to: isolate(tr.toBranchName) })}</span>
           </p>
         )}
         <dl className="grid gap-x-8 gap-y-3 text-sm sm:grid-cols-2 lg:grid-cols-4">
@@ -73,24 +80,24 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
           </div>
           <div className="flex min-w-0 flex-col gap-0.5">
             <dt className="text-muted">{t('pharmacy.transfers.requestedOn')}</dt>
-            <dd className="text-text">{date(tr.requestedAt)}</dd>
+            <dd className="text-text" data-testid="transfer-requested-on">{date(tr.requestedAt, tr.who.requestedBy)}</dd>
           </div>
           {tr.sentAt && (
             <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted">{t('pharmacy.transfers.sentOn')}</dt>
-              <dd className="text-text">{date(tr.sentAt)}</dd>
+              <dd className="text-text">{date(tr.sentAt, tr.who.sentBy)}</dd>
             </div>
           )}
           {tr.receivedAt && (
             <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted">{t('pharmacy.transfers.receivedOn')}</dt>
-              <dd className="text-text">{date(tr.receivedAt)}</dd>
+              <dd className="text-text">{date(tr.receivedAt, tr.who.receivedBy)}</dd>
             </div>
           )}
           {tr.cancelledAt && (
             <div className="flex min-w-0 flex-col gap-0.5">
               <dt className="text-muted">{t('pharmacy.transfers.cancelledOn')}</dt>
-              <dd className="text-text">{date(tr.cancelledAt)}</dd>
+              <dd className="text-text">{date(tr.cancelledAt, tr.who.cancelledBy)}</dd>
             </div>
           )}
           <div className="flex min-w-0 flex-col gap-0.5">
@@ -110,7 +117,7 @@ export default async function TransferPage({ params }: { params: Promise<{ id: s
         {tr.status === 'SENT' && (
           <p data-testid="transfer-in-transit" className="flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text">
             <Truck aria-hidden className="mt-px size-4 shrink-0 text-muted" />
-            <span className="min-w-0">{t('pharmacy.transfers.inTransit', { qty: formatNumber(totals.transit), from: tr.fromBranchName, to: tr.toBranchName })}</span>
+            <span className="min-w-0">{t('pharmacy.transfers.inTransit', { qty: formatNumber(totals.transit), from: isolate(tr.fromBranchName), to: isolate(tr.toBranchName) })}</span>
           </p>
         )}
 

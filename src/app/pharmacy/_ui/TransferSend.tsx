@@ -1,6 +1,7 @@
 'use client';
 
 import { CircleAlert, Info, Lock, Plus, RotateCcw, Send, TriangleAlert } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { stockBalances } from '@/app/pharmacy/_actions/stock';
@@ -175,7 +176,9 @@ export function TransferSend({
 
   const busy = pending;
   const can = online && !busy;
-  const rowsOf = (line: SendProposal): SendRow[] => [...line.rows, ...(value.extra[line.lineId] ?? []).filter((id) => !line.rows.some((r) => r.batchId === id)).map((batchId) => ({ batchId, qty: 0 }))];
+  // A picked batch that a re-read of the stock no longer lists is left out (it cannot be shown or sent).
+  const rowsOf = (line: SendProposal): SendRow[] =>
+    [...line.rows, ...(value.extra[line.lineId] ?? []).filter((id) => !line.rows.some((r) => r.batchId === id)).map((batchId) => ({ batchId, qty: 0 }))].filter((r) => stock.some((b) => b.batchId === r.batchId));
   const lineOver = (line: SendProposal) => {
     const filled = rowsOf(line).map((r) => ({ batchId: r.batchId, qty: rowQty(value.edits, line.lineId, r) ?? 0 }));
     return isOverridePicks(filled, stock.filter((b) => b.productId === line.productId), today);
@@ -202,7 +205,10 @@ export function TransferSend({
           {t('pharmacy.transfers.send.stockChanged')}
         </p>
       )}
-      {failure && <TransferFailure testId="transfer-send-error" message={failure.message} stale={failure.stale} onReload={() => router.refresh()} />}
+      {failure && <TransferFailure testId="transfer-send-error" message={failure.message} stale={failure.stale} onReload={() => {
+          setFailure(null);
+          router.refresh();
+        }} />}
 
       {load.state === 'loading' && (
         <p role="status" className="flex items-center gap-2.5 text-sm text-muted">
@@ -242,7 +248,7 @@ export function TransferSend({
                       {t('pharmacy.transfers.send.line.figures', { requested: formatNumber(line.requestedQty), available: formatNumber(line.availableQty), sending: formatNumber(total) })}
                     </p>
                   </div>
-                  {line.short && (
+                  {line.short && (line.availableQty > 0 || stock.some((b) => b.productId === line.productId)) && (
                     <p data-testid="send-short" className="flex items-start gap-2 text-sm text-danger">
                       <TriangleAlert aria-hidden className="mt-px size-4 shrink-0" />
                       <span className="min-w-0">{line.availableQty === 0 ? t('pharmacy.transfers.send.line.none') : t('pharmacy.transfers.send.line.short', { available: formatNumber(line.availableQty) })}</span>
@@ -251,13 +257,24 @@ export function TransferSend({
                   {lineProblem && (
                     <p role="alert" className="flex items-start gap-2 text-sm text-danger">
                       <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
-                      <span className="min-w-0">{lineProblem}</span>
+                      <span className="min-w-0">
+                        {lineProblem}
+                        {built.problems[line.lineId] === 'noStock' && (
+                          <>
+                            {' '}
+                            <Link href={`/pharmacy/stock/transfers/${transfer.id}/edit`} className="font-medium underline underline-offset-2">
+                              {t('pharmacy.transfers.edit')}
+                            </Link>
+                          </>
+                        )}
+                      </span>
                     </p>
                   )}
                   {lineRows.length > 0 && (
                     <ul className="flex flex-col border-t border-line">
                       {lineRows.map((r) => {
-                        const batch = stock.find((b) => b.batchId === r.batchId)!;
+                        const batch = stock.find((b) => b.batchId === r.batchId);
+                        if (!batch) return null;
                         const problem = problemText(built.problems[rowKey(line.lineId, r.batchId)]);
                         const label = t('pharmacy.transfers.send.row.qty', { lot: batch.lot });
                         return (

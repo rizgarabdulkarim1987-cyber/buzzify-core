@@ -166,7 +166,12 @@ describe('the hand figures: 30 asked, 18 + 12 sent, 25 received and 5 lost', () 
     expect(detail.sentLines).toEqual([expect.objectContaining({ batchId: b, lot: 'ONLY', expiryDate: '2028-03-31', sentQty: 25, inTransitQty: 25 })]);
     const done = dataOf(await receive(w, w.owner, { id: t.id, version: sent.version }, [{ lineId: sent.lines[0]!.lineId, receivedQty: 25 }]));
     expect(done.status).toBe('RECEIVED');
-    expect(dataOf(await get(w, w.destMgr, t.id))).toMatchObject({ status: 'RECEIVED', inTransitQty: 0 });
+    const closed = dataOf(await get(w, w.destMgr, t.id));
+    expect(closed).toMatchObject({ status: 'RECEIVED', inTransitQty: 0 });
+    // who did each step: the person's name only, never an email, and nothing for a step not taken
+    const ownerRow = await prisma().user.findUniqueOrThrow({ where: { id: w.owner.userId }, select: { name: true, email: true } });
+    expect(closed.who).toEqual({ requestedBy: expect.any(String), sentBy: ownerRow.name, receivedBy: ownerRow.name, cancelledBy: null });
+    expect(JSON.stringify(closed.who)).not.toContain(ownerRow.email);
   });
 });
 

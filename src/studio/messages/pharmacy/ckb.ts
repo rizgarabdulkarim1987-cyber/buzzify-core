@@ -2271,7 +2271,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.loading': 'کۆگای ئەم لقە دەخوێندرێتەوە…',
   'pharmacy.transfers.send.loadFailed': 'کۆگا نەخوێندرایەوە. هیچ نەنێردرا.',
   'pharmacy.transfers.send.line.figures': 'داواکراو {requested} · بەردەست {available} · دەنێردرێت {sending}',
-  'pharmacy.transfers.send.line.none': 'ئەم لقە هیچ کۆگایەکی ناردنی ئەم بەرهەمەی نییە. داواکارییەکە دەستکاری بکە بۆ سڕینەوەی، یان هەڵیبوەشێنەوە.',
+  'pharmacy.transfers.send.line.none': 'لێرەوە هیچ شتێک لەم بەرهەمە ناتوانرێت بنێردرێت. ئەم دێڕە تێدەپەڕێنرێت و دێڕەکانی تر دەنێردرێن.',
   'pharmacy.transfers.send.line.short': 'تەنها {available} دەنێردرێت. ئەوەی هەیە بینێرە، یان داواکارییەکە دەستکاری بکە.',
   'pharmacy.transfers.send.row.qty': 'بڕی ناردن لە لۆتی {lot}',
   'pharmacy.transfers.send.pickAnother': 'باچێکی دیکە هەڵبژێرە',
@@ -2283,7 +2283,7 @@ const pharmacy: Messages = {
   'pharmacy.transfers.send.problem.qty': 'ژمارەیەکی تەواو بنووسە',
   'pharmacy.transfers.send.problem.overBatch': 'زیاترە لەوەی ئەم باچە هەیەتی',
   'pharmacy.transfers.send.problem.overRequested': 'زیاترە لەوەی داواکارییەکە دەیەوێت',
-  'pharmacy.transfers.send.problem.noStock': 'هیچ شتێک ناتوانرێت بنێردرێت بۆ ئەم بەرهەمە',
+  'pharmacy.transfers.send.problem.noStock': 'ئەم لقە هیچ دەستەیەکی ئەم بەرهەمەی نییە. پێش ناردن دێڕەکە لابە:',
   'pharmacy.transfers.send.problem.needed': 'ناردن لە دەرەوەی ڕیزبەندی بەسەرچوون مۆڵەتی تێپەڕاندنی باچی دەوێت.',
   'pharmacy.transfers.send.problem.nothing': 'لانی کەم یەک یەکە بنێرە.',
   'pharmacy.transfers.send.review': 'پێداچوونەوە و ناردن',
@@ -2390,6 +2390,13 @@ const pharmacy: Messages = {
   'pharmacy.transfers.fail.UNACCOUNTED': 'هەموو یەکەیەکی نێردراو دەبێت وەرگیرابێت، زیانلێکەوتوو بێت یان ونبوو بێت.',
   'pharmacy.transfers.fail.REASON_REQUIRED': 'بڵێ بۆچی یەکەکان ونبوون.',
   'pharmacy.transfers.fail.TOO_MANY_LINES': 'گواستنەوە لە زۆرترین 500 باچ دەنێردرێت.',
+  'pharmacy.transfers.by': 'لەلایەن {name}',
+  'pharmacy.transfers.blocked.readOnly': 'ئابوونە بەسەرچووە. گواستنەوەکان دەخوێنرێنەوە بەڵام ناگۆڕدرێن تا نوێ بکرێتەوە.',
+  'pharmacy.transfers.blocked.role': 'ڕۆڵەکەت دەتوانێت گواستنەوەکان ببینێت بەڵام نایانگۆڕێت.',
+  'pharmacy.transfers.blocked.support': 'پشتگیری گواستنەوەکان تەنها بۆ خوێندنەوە دەبینێت.',
+  'pharmacy.transfers.editor.problem.noUnits': 'ئەم بەرهەمە هیچ یەکەیەکی نییە. دێڕەکە لابە.',
+  'pharmacy.transfers.reloadDiscards': 'دووبارە بارکردن و فەرامۆشکردنی گۆڕانکارییەکانم',
+  'pharmacy.transfers.lostAnswer': 'وەڵام نەگەیشت، بۆیە ڕەنگە گۆڕانکارییەکەت پێشتر پاشەکەوت کرابێت. پەڕەکە نوێکرایەوە: پێش هەوڵدانەوە بیپشکنە.',
 };
 
 export default pharmacy;

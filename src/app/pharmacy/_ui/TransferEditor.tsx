@@ -38,6 +38,7 @@ import {
   type TransferDraft,
   type TransferLineDraft,
 } from './transfers-logic';
+import { isConflict, lostAnswer } from './transfers-failure';
 import { UnsavedBadge } from './UnsavedBadge';
 import { useOnline } from './use-online';
 import { isolate } from './WriteBlocked';
@@ -73,6 +74,7 @@ export function TransferEditor({ userId, restaurantId, branches, reach, placeBra
   const router = useRouter();
   const online = useOnline();
   const searchRef = useRef<HTMLDivElement>(null);
+  const lostRef = useRef(false);
   const [firstKey] = useState(() => newClientKey('tr'));
   const mine = useMemo(() => (reach.allBranches ? branches : branches.filter((b) => reach.branchIds.includes(b.id))), [branches, reach]);
   const start = useMemo<TransferDraft>(() => {
@@ -171,7 +173,13 @@ export function TransferEditor({ userId, restaurantId, branches, reach, placeBra
     if (!result.ok) {
       const code = result.error.fields?.phCode;
       if (code === 'CLIENT_KEY_MISMATCH' || code === 'CLIENT_KEY_USED') draft.set({ ...value, clientKey: newClientKey('tr'), keySig: '' });
-      setFailure({ message: phMessage(t, locale, result.error, 'pharmacy.transfers'), stale: code === 'VERSION_CONFLICT' || code === 'NOT_REQUESTED', fields: result.error.fields ?? {} });
+      // An update has no key: after a lost answer it may be saved already, so say that and refresh.
+      const maybeDone = edit !== null && (lostAnswer(result.error) || (lostRef.current && isConflict(code)));
+      if (edit !== null && lostAnswer(result.error)) {
+        lostRef.current = true;
+        router.refresh();
+      }
+      setFailure({ message: maybeDone ? t('pharmacy.transfers.lostAnswer') : phMessage(t, locale, result.error, 'pharmacy.transfers'), stale: !maybeDone && isConflict(code), fields: result.error.fields ?? {} });
       return;
     }
     const data = result.data as { id: string };
@@ -222,7 +230,7 @@ export function TransferEditor({ userId, restaurantId, branches, reach, placeBra
                 router.refresh();
               }}
             >
-              {t('pharmacy.transfers.reload')}
+              {t('pharmacy.transfers.reloadDiscards')}
             </Button>
           )}
         </div>

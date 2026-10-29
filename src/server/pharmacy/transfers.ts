@@ -15,6 +15,7 @@ import {
   type SendBatch,
   type TransferCode,
 } from '@/server/domain/pharmacy/transfers';
+import { receiveDestination } from '@/server/domain/pharmacy/stock';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { applyMovement } from './stock';
@@ -559,10 +560,10 @@ export async function receiveTransfer(
     const sent = sentLines.find((s) => s.id === line.lineId)!;
     const batch = batchById.get(sent.batchId!);
     if (!batch) throw new StudioError('NOT_FOUND', 'Batch not found');
-    const sellable = batch.status === 'ACTIVE' && iso(batch.expiryDate) >= today;
+    const destination = receiveDestination({ status: batch.status, expiryDate: iso(batch.expiryDate) }, line.quarantine, today);
     const base = { restaurantId, branchId: header.toBranchId, batchId: sent.batchId!, type: 'TRANSFER_IN' as const, reason: '', userId: ph.userId, refType: 'PhTransfer', refId: header.id };
     if (line.receivedQty > 0) {
-      const moved = await applyMovement(tx, { ...base, deltas: line.quarantine || !sellable ? { quarantine: line.receivedQty } : { available: line.receivedQty } });
+      const moved = await applyMovement(tx, { ...base, deltas: destination === 'quarantine' ? { quarantine: line.receivedQty } : { available: line.receivedQty } });
       movementIds.push(moved.id);
     }
     if (line.damagedQty > 0) {
@@ -571,7 +572,7 @@ export async function receiveTransfer(
     }
     await tx.phTransferLine.update({
       where: { id: line.lineId },
-      data: { receivedQty: line.receivedQty, damagedQty: line.damagedQty, lostQty: line.lostQty, lostReason: line.lostReason, quarantine: line.quarantine || !sellable },
+      data: { receivedQty: line.receivedQty, damagedQty: line.damagedQty, lostQty: line.lostQty, lostReason: line.lostReason, quarantine: destination === 'quarantine' },
     });
   }
   await tx.phTransfer.update({
@@ -686,6 +687,8 @@ export async function listTransfers(scoped: ScopedClient, ph: PhActor, input: Tr
 export interface TransferDetail extends TransferSummary {
   note: string;
   requestedById: string;
+  /** Who did each step: the display name only (never an email), of a person of this business; null when not done or not known. */
+  who: { requestedBy: string | null; sentBy: string | null; receivedBy: string | null; cancelledBy: string | null };
   sentAt: string | null;
   receivedAt: string | null;
   cancelledAt: string | null;
@@ -730,10 +733,19 @@ export async function getTransfer(scoped: ScopedClient, transferId: string): Pro
   const batch = new Map(batches.map((b) => [b.id, b]));
   const requestLines = t.lines.filter((l) => l.requestLineId === null);
   const sentLines = t.lines.filter((l) => l.requestLineId !== null);
+  // The names of the people who did each step: staff or members of this business only, name and id, nothing else.
+  const personIds = [...new Set([t.requestedById, t.sentById, t.receivedById, t.cancelledById].flatMap((id) => (id ? [id] : [])))];
+  const people = await scoped.user.findMany({
+    where: { id: { in: personIds }, OR: [{ phStaffs: { some: { restaurantId: t.restaurantId } } }, { memberships: { some: { restaurantId: t.restaurantId } } }] },
+    select: { id: true, name: true },
+  });
+  const personName = new Map(people.map((p) => [p.id, p.name]));
+  const who = (id: string | null) => (id ? (personName.get(id) ?? null) : null);
   return {
     ...summaryOf(t),
     note: t.note,
     requestedById: t.requestedById,
+    who: { requestedBy: who(t.requestedById), sentBy: who(t.sentById), receivedBy: who(t.receivedById), cancelledBy: who(t.cancelledById) },
     sentAt: t.sentAt?.toISOString() ?? null,
     receivedAt: t.receivedAt?.toISOString() ?? null,
     cancelledAt: t.cancelledAt?.toISOString() ?? null,

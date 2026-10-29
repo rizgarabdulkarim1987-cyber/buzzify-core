@@ -3,14 +3,14 @@
 import { Ban, Lock, PackageCheck, PencilLine, Send } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { cancelTransfer } from '@/app/pharmacy/_actions/transfers';
 import { useLocale, useT } from '@/studio/i18n';
 import { settle } from '@/studio/settle';
 import { Button, buttonClasses } from '@/studio/ui/Button';
-import { OfflineNotice } from './OfflineNotice';
 import { phMessage } from './ph-failure';
 import { TransferFailure } from './TransferFailure';
+import { isConflict, lostAnswer } from './transfers-failure';
 import { TransferReceive, type ReceiveSentLine } from './TransferReceive';
 import { TransferSend, type SendRequestRow } from './TransferSend';
 import type { DetailControls } from './transfers-logic';
@@ -48,6 +48,7 @@ export function TransferActions(props: TransferActionsProps) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<{ message: string; stale: boolean } | null>(null);
   const can = online && !pending;
+  const lost = useRef(false);
 
   const cancel = async () => {
     if (pending) return;
@@ -56,7 +57,13 @@ export function TransferActions(props: TransferActionsProps) {
     setPending(false);
     if (!result.ok) {
       const code = result.error.fields?.phCode;
-      setError({ message: phMessage(t, locale, result.error, 'pharmacy.transfers'), stale: code === 'VERSION_CONFLICT' || code === 'NOT_REQUESTED' });
+      // The cancel has no key: after a lost answer it may be done already, so refresh and say that (not "someone else").
+      const maybeDone = lostAnswer(result.error) || (lost.current && isConflict(code));
+      if (lostAnswer(result.error)) {
+        lost.current = true;
+        router.refresh();
+      }
+      setError({ message: maybeDone ? t('pharmacy.transfers.lostAnswer') : phMessage(t, locale, result.error, 'pharmacy.transfers'), stale: !maybeDone && isConflict(code) });
       return;
     }
     setError(null);
@@ -70,8 +77,10 @@ export function TransferActions(props: TransferActionsProps) {
 
   return (
     <div className="flex min-w-0 flex-col gap-3" data-testid="transfer-actions">
-      <OfflineNotice />
-      {error && panel !== 'send' && panel !== 'receive' && <TransferFailure testId="transfer-action-error" message={error.message} stale={error.stale} onReload={() => router.refresh()} />}
+      {error && panel !== 'send' && panel !== 'receive' && <TransferFailure testId="transfer-action-error" message={error.message} stale={error.stale} onReload={() => {
+          setError(null);
+          router.refresh();
+        }} />}
       <div className="flex flex-wrap items-center gap-2">
         {controls.send === 'yes' && (
           <Button variant="primary" size="lg" className="min-h-11" icon={<Send aria-hidden />} data-testid="transfer-send" aria-expanded={panel === 'send'} disabled={!can} onClick={() => setPanel(panel === 'send' ? null : 'send')}>

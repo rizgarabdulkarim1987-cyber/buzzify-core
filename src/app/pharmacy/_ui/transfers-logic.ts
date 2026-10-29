@@ -148,7 +148,7 @@ export function draftSignature(draft: TransferDraft): string {
   return JSON.stringify([fromBranchId, toBranchId, draft.note, draft.lines.map((l) => [l.productId, l.unitId, l.qty.trim()])]);
 }
 
-export type RequestProblem = 'missing' | 'same' | 'notMine' | 'none' | 'tooMany' | 'qty' | 'big' | 'duplicate';
+export type RequestProblem = 'missing' | 'same' | 'notMine' | 'none' | 'tooMany' | 'qty' | 'big' | 'duplicate' | 'noUnits';
 
 export interface BuiltRequest {
   input?: { fromBranchId: string; toBranchId: string; note: string; lines: { productId: string; qty: number }[] } | { note: string; lines: { productId: string; qty: number }[] };
@@ -170,7 +170,8 @@ export function transferInputOf(draft: TransferDraft, reach: Reach, mode: 'creat
   const seen = new Set<string>();
   const lines = draft.lines.map((l, i) => {
     const base = lineBaseQty(l);
-    if (base === null) problems[`lines.${i}.qty`] = wholeOf(l.qty) !== null && (wholeOf(l.qty) ?? 0) >= 1 ? 'big' : 'qty';
+    if (l.units.length === 0) problems[`lines.${i}.qty`] = 'noUnits';
+    else if (base === null) problems[`lines.${i}.qty`] = wholeOf(l.qty) !== null && (wholeOf(l.qty) ?? 0) >= 1 ? 'big' : 'qty';
     else if (base > MAX_QTY) problems[`lines.${i}.qty`] = 'big';
     if (seen.has(l.productId)) problems[`lines.${i}.productId`] = 'duplicate';
     seen.add(l.productId);
@@ -290,7 +291,11 @@ export function sendInputOf(args: {
     const batches = args.stock.filter((b) => b.productId === line.productId);
     const rows: SendRow[] = [...line.rows, ...(args.extra?.[line.lineId] ?? []).filter((id) => !line.rows.some((r) => r.batchId === id)).map((batchId) => ({ batchId, qty: 0 }))];
     if (rows.length === 0) {
-      problems[line.lineId] = 'noStock';
+      // Nothing of this product can leave (empty, expired, recalled or blocked batches only): the line is not sent. The server
+      // skips a zero pick, so the other lines still go. Only a sender that holds no batch of the product at all blocks the send.
+      const any = batches[0];
+      if (any) picks.push({ lineId: line.lineId, batchId: any.batchId, qty: 0 });
+      else problems[line.lineId] = 'noStock';
       continue;
     }
     const filled: SendRow[] = [];

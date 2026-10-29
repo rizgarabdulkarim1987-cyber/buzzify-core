@@ -71,3 +71,13 @@ export function allocateFefo(batches: (FefoBatch & { sellable: number })[], need
   }
   return rest === 0 ? { ok: true, allocations } : { ok: false, shortfall: rest, allocations };
 }
+
+/**
+ * Where the received units of one sent line go: to `available` when the batch is active and not expired on `today` and the
+ * receiver did not ask for quarantine, else to `quarantine`. The transfers service books with this and the receive screen
+ * shows it from the same rule (a batch recalled, blocked or expired in transit is quarantined whatever the toggle says).
+ */
+export function receiveDestination(batch: { status: BatchStatus; expiryDate: string }, quarantineFlag: boolean, today: string): 'available' | 'quarantine' {
+  const sellable = batch.status === 'ACTIVE' && !isExpired(batch, today);
+  return quarantineFlag || !sellable ? 'quarantine' : 'available';
+}

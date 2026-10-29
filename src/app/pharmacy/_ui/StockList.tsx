@@ -116,7 +116,7 @@ export function StockList({ items, t, locale, today, branchNames, showCost, adju
             {(inTransit?.[product.productId] ?? []).map((road) => (
               <p key={road.toBranchId} data-testid="stock-in-transit" className="flex items-start gap-2 text-sm text-text">
                 <Truck aria-hidden className="mt-px size-4 shrink-0 text-muted" />
-                <span className="min-w-0">{t('pharmacy.transfers.stockInTransit', { branch: nameOf(road.toBranchId), qty: formatNumber(road.qty) })}</span>
+                <span className="min-w-0">{t('pharmacy.transfers.stockInTransit', { branch: `⁨${nameOf(road.toBranchId)}⁩`, qty: formatNumber(road.qty) })}</span>
               </p>
             ))}
 
