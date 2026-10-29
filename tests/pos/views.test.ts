@@ -14,6 +14,7 @@ const product = (id: string, categoryId: string, sortOrder: number, names: TillP
   hiddenFromGuests: false,
   sectionId: null,
   barcode: null,
+  image: null,
   variants: [],
   groups: [],
   ...extra,
