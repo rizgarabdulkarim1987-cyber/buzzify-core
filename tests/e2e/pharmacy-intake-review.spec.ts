@@ -59,6 +59,25 @@ async function signInAndChoose(page: Page, user: StudioUser, shop: TestPharmacy,
   sessions.set(key, await page.context().storageState());
 }
 
+const checkDigit = (digits: string): string => {
+  let sum = 0;
+  for (let i = digits.length - 1, w = 3; i >= 0; i -= 1, w = w === 3 ? 1 : 3) sum += Number(digits[i]) * w;
+  return String((10 - (sum % 10)) % 10);
+};
+
+/** The list starts on the lines with open items when there are any; a test that counts every line shows them all first. */
+async function showAll(page: Page): Promise<void> {
+  await expect(page.getByTestId('intake-review')).toBeVisible();
+  const filter = page.getByTestId('filter-open');
+  if ((await filter.count()) > 0 && (await filter.getAttribute('aria-pressed')) === 'true') await filter.click();
+}
+
+/** The pack step of the picker: the second pack (a strip). */
+async function pickPack(page: Page): Promise<void> {
+  await page.getByTestId('pick-unit').selectOption({ index: 2 });
+  await page.getByTestId('pick-unit-confirm').click();
+}
+
 const scrollsSideways = (page: Page) => page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
 
 async function shoot(page: Page, name: string, fullPage = true): Promise<void> {
@@ -186,7 +205,7 @@ test.describe('Pharmacy invoice review @desktop', () => {
     await expect(page.getByTestId('intake-file').first()).toHaveAttribute('data-state', 'EXTRACTED', { timeout: 60_000 });
 
     // The review equals the scripted answer.
-    await expect(page.getByTestId('intake-review')).toBeVisible();
+    await showAll(page);
     const rows = page.getByTestId('review-row');
     await expect(rows).toHaveCount(4);
     for (const [i, line] of lines.entries()) await expect(rows.nth(i)).toContainText(line.name);
@@ -252,22 +271,32 @@ test.describe('Pharmacy invoice review @desktop', () => {
     const brufen = rowByName(page, 'Brufen');
     await brufen.getByTestId('row-choose').click();
     await page.getByTestId('pick-candidate').first().click();
+    await pickPack(page);
     await expect(rowByName(page, 'Brufen').getByTestId('match-chip')).toHaveAttribute('data-match', 'chosen');
     expect(await flagsOf(rowByName(page, 'Brufen'))).not.toContain('AMBIGUOUS_MATCH');
-    // A scanned GS1 label fills what the line lacks (its expiry) and says where it came from; matching again finds the product by its code.
+    // A scanned label with no line for its product offers to add one; the product is then chosen (with its pack) and a second scan fills what the line lacks and says where it came from.
+    const gs1 = '(01)06291000000013(17)271100(10)LOT77';
     await expect(rowByName(page, 'Scribble').getByTestId('flag-text-MISSING')).toContainText('expiry');
-    const scribbleScan = rowByName(page, 'Scribble').getByTestId('row-scan');
-    await scribbleScan.fill('(01)06291000000013(17)271100(10)LOT77');
-    await scribbleScan.press('Enter');
-    await expect(rowByName(page, 'Scribble').getByTestId('flag-text-MISSING')).not.toContainText('expiry', { timeout: 30_000 });
-    await expect(rowByName(page, 'Scribble').getByTestId('source-tag').filter({ hasText: /barcode/i }).first()).toBeVisible();
-    await page.getByTestId('rematch').click();
+    const scanAll = page.getByTestId('scan-all');
+    await scanAll.fill(gs1);
+    await scanAll.press('Enter');
+    await expect(page.getByTestId('scan-result')).toContainText('No line for this product', { timeout: 30_000 });
+    await expect(page.getByTestId('scan-add-line')).toBeVisible();
+    await rowByName(page, 'Scribble').getByTestId('row-choose').click();
+    await page.getByRole('dialog').getByRole('searchbox').fill('Cetrax');
+    await page.getByRole('list', { name: 'Matching products' }).getByRole('button').first().click();
+    await pickPack(page);
     await expect(rowByName(page, 'Scribble').getByTestId('matched-product')).toContainText('Cetrax', { timeout: 30_000 });
+    await scanAll.fill(gs1);
+    await scanAll.press('Enter');
+    await expect(rowByName(page, 'Scribble').getByTestId('flag-text-MISSING')).toHaveCount(0, { timeout: 30_000 });
+    await expect(rowByName(page, 'Scribble').getByTestId('source-tag').filter({ hasText: /barcode/i }).first()).toBeVisible();
 
     // Zorbex has no product: choose one from the catalog search.
     await rowByName(page, 'Zorbex').getByTestId('row-choose').click();
     await page.getByRole('dialog').getByRole('searchbox').fill('Panadol');
     await page.getByRole('list', { name: 'Matching products' }).getByRole('button').first().click();
+    await pickPack(page);
     await expect(rowByName(page, 'Zorbex').getByTestId('match-chip')).toHaveAttribute('data-match', 'chosen', { timeout: 30_000 });
 
     // Ready: approving asks first and says what it makes.
@@ -400,6 +429,7 @@ test.describe('Pharmacy invoice review @desktop', () => {
     const page = await freshPage(browser, { width: 375, height: 800 });
     await signInAndChoose(page, owner, shop, 1);
     await page.goto(seeded.path);
+    await showAll(page);
     await expect(page.getByTestId('review-row')).toHaveCount(200);
     expect(await scrollsSideways(page)).toBe(false);
     expect(await seriousViolations(page)).toEqual([]);
@@ -412,6 +442,237 @@ test.describe('Pharmacy invoice review @desktop', () => {
     await expect(page.getByTestId('intake-approve-bar')).toBeInViewport();
     await shoot(page, 'en-review-200-375', false);
     await page.context().close();
+  });
+
+  test('the batch scan field finds the line, the pack shows its base units, a missing line is offered, and the field is never disabled', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner, supplier, panadol } = await owned();
+    const lorem = `629100000${String(Math.floor(Math.random() * 900) + 100)}`;
+    await makeProduct(shop, { name: 'Lorem', barcode: `${lorem}${checkDigit(lorem)}` });
+    const seeded = await seedBatch(shop, {
+      userId: owner.userId,
+      branch: 0,
+      supplier,
+      invoiceNumber: `SCN-${randomUUID().slice(0, 5)}`,
+      total: null,
+      lines: [
+        { name: 'Cetrax tabs strip', quantity: 4, unitCost: 1000, lineTotal: 4000, lot: null, expiry: null },
+        { name: panadol.name, strength: '500 mg', form: 'tablet', quantity: 1, unitCost: 1000, lineTotal: 1000, lot: 'A', expiry: '2027-03', match: panadol },
+      ],
+    });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(seeded.path);
+    await showAll(page);
+    const rows = page.getByTestId('review-row');
+    await expect(rows).toHaveCount(2);
+    const scanAll = page.getByTestId('scan-all');
+    await expect(page.getByTestId('scan-result')).toHaveAttribute('aria-live', 'polite');
+    // One field for the whole batch: the server finds the line, the line is shown, the answer is in words.
+    await scanAll.fill('(01)06291000000013(17)271100(10)LOT77');
+    await scanAll.press('Enter');
+    await expect(scanAll).toBeEnabled();
+    await expect(page.getByTestId('scan-result')).toContainText('Line 1', { timeout: 30_000 });
+    const first = rows.first();
+    await expect(first.getByTestId('matched-product')).toContainText('Cetrax');
+    // The pack is explicit: the base quantity follows the pack chosen.
+    await expect(first.getByTestId('row-base')).toContainText('120 base units');
+    await first.getByTestId('row-unit-select').selectOption({ index: 2 });
+    await expect(first.getByTestId('row-base')).toContainText('40 base units', { timeout: 30_000 });
+    // An unknown code is said so; a known product with no line offers to add one for it.
+    await scanAll.fill('5901234123457');
+    await scanAll.press('Enter');
+    await expect(page.getByTestId('scan-result')).toContainText('No product in the catalog has this barcode', { timeout: 30_000 });
+    await scanAll.fill(`${lorem}${checkDigit(lorem)}`);
+    await scanAll.press('Enter');
+    await expect(page.getByTestId('scan-result')).toContainText('No line for this product', { timeout: 30_000 });
+    await page.getByTestId('scan-add-line').click();
+    await expect(rows).toHaveCount(3, { timeout: 30_000 });
+    await expect(rows.nth(2).getByTestId('matched-product')).toContainText('Lorem', { timeout: 30_000 });
+    await shoot(page, 'en-review-scan-1280');
+    await page.context().close();
+  });
+
+  test('approve is held while typed work is unsaved and while offline, each with its reason', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, supplier, panadol, cetrax } = await owned();
+    const { lines, total } = cleanLines([panadol, cetrax]);
+    const seeded = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `GRD-${randomUUID().slice(0, 5)}`, total, lines });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(seeded.path);
+    const approve = page.getByTestId('intake-approve');
+    await expect(approve).toBeEnabled();
+    const first = page.getByTestId('review-row').first();
+    await first.getByTestId('row-edit').click();
+    await first.getByTestId('edit-lot').fill('ZZ9');
+    await expect(approve).toBeDisabled();
+    await expect(page.getByTestId('approve-why')).toContainText('Save or discard');
+    await first.getByTestId('row-discard').click();
+    await expect(approve).toBeEnabled();
+    await page.context().setOffline(true);
+    await expect(approve).toBeDisabled();
+    await expect(page.getByTestId('approve-why')).toBeVisible();
+    await page.context().setOffline(false);
+    await expect(approve).toBeEnabled();
+    await page.context().close();
+  });
+
+  test('a change made elsewhere is refused for the acknowledgement and for the approval, and the screen says so', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner, supplier, panadol, cetrax } = await owned();
+    const { lines, total } = cleanLines([panadol, cetrax]);
+    const off = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `STA-${randomUUID().slice(0, 5)}`, total: total + 500, lines });
+    const ready = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `STB-${randomUUID().slice(0, 5)}`, total, lines });
+    const one = await freshPage(browser);
+    const two = await freshPage(browser);
+    await signInAndChoose(one, owner, shop, 1);
+    await signInAndChoose(two, owner, shop, 1);
+    // ACK_STALE: the other screen moves the lines' sum after this one loaded the difference.
+    await one.goto(off.path);
+    await two.goto(off.path);
+    await expect(one.getByTestId('arith-form')).toBeVisible();
+    const other = two.getByTestId('review-row').first();
+    await other.getByTestId('row-edit').click();
+    await other.getByTestId('edit-lineTotal').fill('12345');
+    await other.getByTestId('row-save').click();
+    await expect(two.getByTestId('review-row').first().getByTestId('row-form')).toHaveCount(0);
+    await one.getByTestId('arith-reason').fill('Rounded by the supplier');
+    await one.getByTestId('arith-accept').click();
+    await expect(one.getByTestId('arith-message')).toBeVisible({ timeout: 30_000 });
+    await expect(one.getByTestId('arith-accepted')).toHaveCount(0);
+    // APPROVAL_STALE: the other screen changes the header after this one was ready.
+    await one.goto(ready.path);
+    await two.goto(ready.path);
+    await expect(one.getByTestId('intake-approve')).toBeEnabled();
+    await two.getByTestId('header-edit').click();
+    await two.getByTestId('header-invoiceNumber').fill(`CHG-${randomUUID().slice(0, 5)}`);
+    await two.getByTestId('header-save').click();
+    await expect(two.getByTestId('header-form')).toHaveCount(0);
+    await one.getByTestId('intake-approve').click();
+    await one.getByTestId('approve-yes').click();
+    await expect(one.getByTestId('approve-message')).toBeVisible({ timeout: 30_000 });
+    await expect(one.getByTestId('intake-approved')).toHaveCount(0);
+    await one.context().close();
+    await two.context().close();
+  });
+
+  test('the answer to approve is lost: pressing again makes one draft receipt, not two', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner, supplier, panadol, cetrax } = await owned();
+    const { lines, total } = cleanLines([panadol, cetrax]);
+    const seeded = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `LST-${randomUUID().slice(0, 5)}`, total, lines });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(seeded.path);
+    await expect(page.getByTestId('intake-approve')).toBeEnabled();
+    let dropped = false;
+    await page.route('**/*', async (route) => {
+      const request = route.request();
+      if (!dropped && request.method() === 'POST' && request.headers()['next-action'] && (request.postData() ?? '').includes('iappr')) {
+        dropped = true;
+        await route.fetch();
+        await route.abort('failed');
+        return;
+      }
+      await route.continue();
+    });
+    await page.getByTestId('intake-approve').click();
+    await page.getByTestId('approve-yes').click();
+    await expect.poll(async () => (await page.getByTestId('approve-message').count()) + (await page.getByTestId('intake-approved').count()), { timeout: 30_000 }).toBeGreaterThan(0);
+    if ((await page.getByTestId('intake-approved').count()) === 0) {
+      await page.getByTestId('intake-approve').click();
+      await page.getByTestId('approve-yes').click();
+    }
+    await expect(page.getByTestId('intake-approved')).toBeVisible({ timeout: 60_000 });
+    expect(dropped).toBe(true);
+    const made = await receiptOf(seeded.batchId);
+    expect(made.status).toBe('DRAFT');
+    await page.context().close();
+  });
+
+  test('two files that disagree on a header value: the conflict tag goes when a value is chosen or typed', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, supplier, panadol } = await owned();
+    const { lines, total } = cleanLines([panadol]);
+    const seeded = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: 'INV-A', total, lines });
+    const client = db();
+    try {
+      const found = await client.phIntakeBatch.findUniqueOrThrow({ where: { id: seeded.batchId }, select: { header: true } });
+      const header = found.header as unknown as Record<string, never>;
+      await client.phIntakeBatch.update({ where: { id: seeded.batchId }, data: { header: { ...header, conflicts: ['invoiceNumber'] } } });
+    } finally {
+      await client.$disconnect();
+    }
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(seeded.path);
+    await page.getByTestId('header-edit').click();
+    const conflicts = page.getByTestId('header-form').locator('[data-testid=source-tag][data-source=conflict]');
+    await expect(conflicts).toHaveCount(1);
+    await expect(page.getByTestId('header-use-invoiceNumber')).toBeVisible();
+    await page.getByTestId('header-use-invoiceNumber').click();
+    await expect(conflicts).toHaveCount(0);
+    await expect(page.getByTestId('header-invoiceNumber')).toHaveValue('INV-A');
+    await page.context().close();
+  });
+
+  test('a batch with no lines says so; a batch is cancelled from the review', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, supplier, panadol } = await owned();
+    const empty = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `EMP-${randomUUID().slice(0, 5)}`, total: null, lines: [] });
+    const { lines, total } = cleanLines([panadol]);
+    const toCancel = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `CNC-${randomUUID().slice(0, 5)}`, total, lines });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(empty.path);
+    await expect(page.getByTestId('review-empty')).toBeVisible();
+    await expect(page.getByTestId('intake-approve')).toBeDisabled();
+    await shoot(page, 'en-review-empty-1280');
+    await page.goto(toCancel.path);
+    await page.getByTestId('intake-cancel').click();
+    await page.getByTestId('intake-cancel-yes').click();
+    await expect(page.getByTestId('intake-cancelled')).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByTestId('intake-approve')).toHaveCount(0);
+    await page.context().close();
+  });
+
+  test('the original that cannot be opened says so', async ({ browser }) => {
+    test.setTimeout(240_000);
+    const { shop, owner, supplier, panadol } = await owned();
+    const { lines, total } = cleanLines([panadol]);
+    const seeded = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `ORG-${randomUUID().slice(0, 5)}`, total, lines });
+    const page = await freshPage(browser);
+    await signInAndChoose(page, owner, shop, 1);
+    await page.goto(seeded.path);
+    await page.getByTestId('original-load').click();
+    await expect(page.getByText('The picture could not be opened')).toBeVisible({ timeout: 30_000 });
+    await page.context().close();
+  });
+
+  test('a stock clerk and an accountant: every edit control is disabled with the reason; the accountant approves a clean batch', async ({ browser }) => {
+    test.setTimeout(300_000);
+    const { shop, owner, supplier, panadol, cetrax } = await owned();
+    for (const role of ['STOCK', 'ACCOUNTANT'] as const) {
+      const user = await staffUser(role, `ph-review-${role.toLowerCase()}-all`);
+      const { lines, total } = cleanLines([panadol, cetrax]);
+      const seeded = await seedBatch(shop, { userId: owner.userId, branch: 0, supplier, invoiceNumber: `ALL-${role.slice(0, 3)}-${randomUUID().slice(0, 5)}`, total, lines });
+      const page = await freshPage(browser);
+      await signInAndChoose(page, user, shop, 0);
+      await page.goto(seeded.path);
+      await expect(page.getByTestId('review-row')).toHaveCount(2);
+      await expect(page.getByTestId('review-why')).toBeVisible();
+      await expect(page.getByTestId('scan-all')).toBeDisabled();
+      await expect(page.getByTestId('header-edit')).toBeDisabled();
+      const enabled = await page.locator('[data-testid=review-row] button:not([disabled]), [data-testid=review-toolbar] button:not([disabled])').evaluateAll((els) => els.map((e) => e.getAttribute('data-testid') ?? (e.textContent ?? '').trim()));
+      expect(enabled.filter((x) => x !== 'row-show-original'), `${role}: controls still enabled`).toEqual([]);
+      if (role === 'ACCOUNTANT') {
+        await page.getByTestId('intake-approve').click();
+        await page.getByTestId('approve-yes').click();
+        await expect(page.getByTestId('intake-approved')).toBeVisible({ timeout: 60_000 });
+      }
+      await page.context().close();
+    }
   });
 
   for (const lang of ['en', 'ar', 'ckb'] as const) {
@@ -440,6 +701,7 @@ test.describe('Pharmacy invoice review @desktop', () => {
 
         // Flags and a blocked approve bar.
         await page.goto(flagged.path);
+        await showAll(page);
         await expect(page.getByTestId('review-row')).toHaveCount(3);
         // On a phone the reasons start closed (once the page has settled); open them.
         await expect(page.getByTestId('approve-blockers')).toHaveJSProperty('open', false);
@@ -465,13 +727,10 @@ test.describe('Pharmacy invoice review @desktop', () => {
         await page.getByTestId('intake-approve').click();
         await expect(page.getByTestId('approve-confirm-body')).toBeVisible();
         await checkWidths(page, 'review confirm', lang, 'review-confirm');
-        await page.keyboard.press('Escape');
-        // Approved.
-        if (world.approvedPath) {
-          await page.goto(world.approvedPath);
-          await expect(page.getByTestId('intake-approved')).toBeVisible();
-          await checkWidths(page, 'review approved', lang, 'review-approved');
-        }
+        // Approved (this test approves its own batch, so it also runs alone).
+        await page.getByTestId('approve-yes').click();
+        await expect(page.getByTestId('intake-approved')).toBeVisible({ timeout: 60_000 });
+        await checkWidths(page, 'review approved', lang, 'review-approved');
         await page.context().close();
       } finally {
         if (lang !== 'en') await setUserLocale(owner.userId, 'en');
