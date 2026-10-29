@@ -21,6 +21,11 @@ function parseModels(schema: string): Map<string, string> {
   return models;
 }
 
+/** The required String fields of a model body whose name is branchId or ends in BranchId: its columns that name a branch. */
+function requiredBranchColumns(body: string): string[] {
+  return [...body.matchAll(/^\s*(\w*[bB]ranchId)\s+String(?!\?)\b/gm)].map((m) => m[1] as string);
+}
+
 describe('tenant scoping registry', () => {
   const models = parseModels(readFileSync('prisma/schema.prisma', 'utf8'));
 
@@ -62,15 +67,15 @@ describe('tenant scoping registry', () => {
 
   // A required branchId names a branch of the row's restaurant: such a model is confined to the branches in a client's scope.
   it('lists every model with a required branchId column as branch-scoped, and only real models', () => {
-    const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body));
+    const withBranch = names((body) => /^\s*branchId\s+String(?!\?)\b/m.test(body) && requiredBranchColumns(body).length === 1);
     expect([...PHARMACY_BRANCH_SCOPED_MODELS].sort()).toEqual(withBranch);
     for (const model of PHARMACY_BRANCH_SCOPED_MODELS) expect(models.has(model), `${model} is a model`).toBe(true);
   });
 
   // A model that joins two branches (both ends required, no branchId) is confined by either end, so a new one cannot be served
   // to a client limited to branches without a decision here.
-  it('lists every model with required fromBranchId and toBranchId columns as either-branch, and only real models', () => {
-    const joining = names((body) => /^\s*fromBranchId\s+String(?!\?)\b/m.test(body) && /^\s*toBranchId\s+String(?!\?)\b/m.test(body));
+  it('lists every model with two or more required branch columns as either-branch, and only real models', () => {
+    const joining = names((body) => requiredBranchColumns(body).length >= 2);
     expect([...PHARMACY_EITHER_BRANCH_MODELS].sort()).toEqual(joining);
     for (const model of PHARMACY_EITHER_BRANCH_MODELS) {
       expect(models.has(model), `${model} is a model`).toBe(true);

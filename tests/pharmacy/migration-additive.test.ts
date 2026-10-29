@@ -36,6 +36,22 @@ function applicationInserts(sql: string): string[] {
   return statements(sql).filter((s) => /^INSERT\s+INTO\s+"Application"/i.test(s));
 }
 
+/**
+ * One narrow exemption. The transfer tables were created by an earlier migration of the same unreleased phase (nothing is
+ * deployed, they hold no rows), and the review of that schema needed constraints, a column and an enum of those two tables
+ * replaced, which cannot be said without a DROP. This migration may drop objects of PhTransfer and PhTransferLine, and the enum
+ * it replaces, and nothing else: any other destructive statement in it is still refused.
+ */
+const REWORK_OF_UNRELEASED_TABLES: Record<string, RegExp> = {
+  '20261031110000_pharmacy_transfers_fixes': /^(ALTER TABLE "PhTransfer(Line)?" DROP (CONSTRAINT|COLUMN)|DROP TYPE "PhTransferDiffReason"$)/i,
+};
+
+/** The destructive statements of a migration that its exemption (if any) does not cover. */
+function refusedIn(name: string, sql: string): string[] {
+  const allowed = REWORK_OF_UNRELEASED_TABLES[name];
+  return destructive(sql).filter((statement) => !(allowed && allowed.test(statement.replace(/\s+/g, ' '))));
+}
+
 function pharmacyMigrations(): { name: string; sql: string }[] {
   if (!existsSync(MIGRATIONS)) return [];
   return readdirSync(MIGRATIONS)
@@ -74,7 +90,19 @@ describe('pharmacy migrations', () => {
   const migrations = pharmacyMigrations();
 
   it('a pharmacy migration never drops or renames', () => {
-    for (const { name, sql } of migrations) expect(destructive(sql), name).toEqual([]);
+    for (const { name, sql } of migrations) expect(refusedIn(name, sql), name).toEqual([]);
+  });
+
+  it('the one exemption covers the transfer rework and nothing else', () => {
+    const name = '20261031110000_pharmacy_transfers_fixes';
+    const rework = ['ALTER TABLE "PhTransferLine" DROP CONSTRAINT "x"', 'ALTER TABLE "PhTransfer" DROP COLUMN "y"', 'DROP TYPE "PhTransferDiffReason"'];
+    expect(refusedIn(name, rework.join(';\n'))).toEqual([]);
+    expect(refusedIn(name, 'ALTER TABLE "PhBatch" DROP COLUMN "lot"')).toHaveLength(1);
+    expect(refusedIn(name, 'DROP TABLE "PhTransfer"')).toHaveLength(1);
+    expect(refusedIn(name, 'UPDATE "PhTransfer" SET "note" = \'x\'')).toHaveLength(1);
+    expect(refusedIn(name, 'DROP TYPE "PhMovementType"')).toHaveLength(1);
+    // any other migration gets no exemption
+    expect(refusedIn('20261031100000_pharmacy_transfers', 'ALTER TABLE "PhTransferLine" DROP COLUMN "y"')).toHaveLength(1);
   });
 
   it('a pharmacy migration only inserts the pharmacy application row', () => {

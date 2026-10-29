@@ -2447,6 +2447,7 @@ model PhBatch {
   @@unique([restaurantId, productId, lot, expiryDate, supplierName])
   @@unique([restaurantId, productId, lot, expiryDate])
   @@unique([restaurantId, id])
+  @@unique([restaurantId, productId, id])
   @@index([restaurantId, productId])
   @@index([restaurantId, expiryDate])
 }
@@ -3521,9 +3522,8 @@ enum PhTransferStatus {
   CANCELLED
 }
 
-enum PhTransferDiffReason {
+enum PhTransferLostReason {
   LOST
-  DAMAGED_IN_TRANSIT
   OTHER
 }
 
@@ -3551,6 +3551,10 @@ model PhTransfer {
   receivedAt    DateTime?
   cancelledById String?
   cancelledAt   DateTime?
+  sendKey       String?
+  sendHash      String?
+  receiveKey    String?
+  receiveHash   String?
   version       Int              @default(1)
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
@@ -3561,35 +3565,46 @@ model PhTransfer {
 
   @@unique([restaurantId, id])
   @@unique([restaurantId, clientKey])
+  @@unique([restaurantId, id, fromBranchId, toBranchId])
+  @@unique([restaurantId, sendKey])
+  @@unique([restaurantId, receiveKey])
   @@unique([fromBranchId, number])
   @@index([restaurantId, fromBranchId, status])
   @@index([restaurantId, toBranchId, status])
   @@index([restaurantId, status, sentAt])
 }
 
-/// One line of a transfer, in whole base units. `batchId` is null while the line is only requested and set when it is sent
-/// (FEFO can split one requested product into several lines, one per batch). `receivedQty + lostQty + damagedQty` never
-/// exceeds `sentQty`; a lost or damaged quantity needs a `diffReason`. CHECKs are in the migration.
+/// A line of a transfer, in whole base units. Two kinds, told apart by `requestLineId`: a REQUEST line (no batch, no request
+/// line, `requestedQty >= 1`, nothing sent) is the record of what was asked for a product and never changes; a SENT line (one per
+/// batch FEFO took from, `requestLineId` set, `requestedQty` 0, `sentQty >= 1`) is created when the transfer is sent, and only
+/// its receive columns change after that. `fromBranchId`/`toBranchId` copy the parent's ends (composite FK), so the line is
+/// confined to the same two branches as its transfer. CHECKs and triggers are in the migrations.
 model PhTransferLine {
-  id           String                @id @default(cuid())
-  restaurantId String
-  transferId   String
-  lineNo       Int
-  productId    String
-  batchId      String?
-  requestedQty Int
-  sentQty      Int                   @default(0)
-  receivedQty  Int                   @default(0)
-  lostQty      Int                   @default(0)
-  damagedQty   Int                   @default(0)
-  diffReason   PhTransferDiffReason?
-  quarantine   Boolean               @default(false)
-  restaurant   Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
-  transfer     PhTransfer            @relation(fields: [restaurantId, transferId], references: [restaurantId, id], onDelete: Cascade)
-  product      PhProduct             @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
-  batch        PhBatch?              @relation(fields: [restaurantId, batchId], references: [restaurantId, id], onDelete: NoAction)
+  id            String                @id @default(cuid())
+  restaurantId  String
+  transferId    String
+  fromBranchId  String
+  toBranchId    String
+  lineNo        Int
+  productId     String
+  batchId       String?
+  requestLineId String?
+  requestedQty  Int
+  sentQty       Int                   @default(0)
+  receivedQty   Int                   @default(0)
+  lostQty       Int                   @default(0)
+  damagedQty    Int                   @default(0)
+  lostReason    PhTransferLostReason?
+  quarantine    Boolean               @default(false)
+  restaurant    Restaurant            @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  transfer      PhTransfer            @relation(fields: [restaurantId, transferId, fromBranchId, toBranchId], references: [restaurantId, id, fromBranchId, toBranchId], onDelete: Cascade)
+  product       PhProduct             @relation(fields: [restaurantId, productId], references: [restaurantId, id], onDelete: NoAction)
+  batch         PhBatch?              @relation(fields: [restaurantId, productId, batchId], references: [restaurantId, productId, id], onDelete: NoAction)
+  requestLine   PhTransferLine?       @relation("PhTransferLineRequest", fields: [restaurantId, transferId, requestLineId], references: [restaurantId, transferId, id], onDelete: NoAction)
+  sentLines     PhTransferLine[]      @relation("PhTransferLineRequest")
 
   @@unique([restaurantId, id])
+  @@unique([restaurantId, transferId, id])
   @@unique([transferId, lineNo])
   @@index([restaurantId, batchId])
   @@index([restaurantId, productId])
