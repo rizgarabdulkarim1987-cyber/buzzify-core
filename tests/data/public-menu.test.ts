@@ -48,7 +48,7 @@ describe('public menu read path', () => {
   it('carries the extras gate: off until the menu switches them on, and only while the plan holds them', async () => {
     const x = await createMenuFixture(prisma, 'public-extras');
     const before = await resolvePublicMenu('public-extras');
-    expect(before.kind === 'live' && before.tenant.extras).toEqual({ intro: false, about: false, wheel: false, aboutTitle: { en: '', ar: '', ckb: '' } });
+    expect(before.kind === 'live' && before.tenant.extras).toEqual({ intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } });
     await prisma.menu.update({ where: { id: x.menu.id }, data: { introEnabled: true, wheelEnabled: true } });
     await prisma.restaurant.update({ where: { id: x.restaurant.id }, data: { plan: 'PREMIUM' } });
     const { expireMenu } = await import('@/server/data/cache');

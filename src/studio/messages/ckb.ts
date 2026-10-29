@@ -3103,6 +3103,7 @@ const ckb: Messages = {
   'plans.feature.menu.intro': 'پەڕەی بەخێرهاتن پێش مینیو',
   'plans.feature.menu.about': 'پەڕەی تایبەتی چێشتخانە لە ناو مینیو',
   'plans.feature.menu.wheel': 'چەرخی بەخت',
+  'plans.feature.menu.dishCounts': 'ژمارەی داواکاری و بینین لەسەر هەموو خواردنێک',
   'plans.feature.immersive.ar': 'AR لەسەر مێز',
   'plans.feature.ordering.tableBasket': 'داواکاری بەکۆمەڵ لە مێزەوە',
   'plans.feature.table.callWaiter': 'بانگکردنی گارسۆن و داواکردنی حساب',

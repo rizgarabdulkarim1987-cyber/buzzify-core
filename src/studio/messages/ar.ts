@@ -3127,6 +3127,7 @@ const ar: Messages = {
   'plans.feature.menu.intro': 'صفحة ترحيب قبل المنيو',
   'plans.feature.menu.about': 'صفحة المطعم الخاصة داخل المنيو',
   'plans.feature.menu.wheel': 'عجلة الحظ',
+  'plans.feature.menu.dishCounts': 'عدد الطلبات والمشاهدات على كل طبق',
   'plans.feature.immersive.ar': 'الواقع المعزز على الطاولة',
   'plans.feature.ordering.tableBasket': 'الطلب الجماعي من الطاولة',
   'plans.feature.table.callWaiter': 'نداء النادل وطلب الحساب',

@@ -3098,6 +3098,7 @@ const en: Messages = {
   'plans.feature.menu.intro': 'Intro page before the menu',
   'plans.feature.menu.about': 'The restaurant’s own page in the menu',
   'plans.feature.menu.wheel': 'Wheel of fortune',
+  'plans.feature.menu.dishCounts': 'Orders and views on every dish',
   'plans.feature.immersive.ar': 'AR on the table',
   'plans.feature.ordering.tableBasket': 'Order together at the table',
   'plans.feature.table.callWaiter': 'Call the waiter, ask for the bill',

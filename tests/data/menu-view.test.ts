@@ -19,8 +19,8 @@ const tenant: TenantInfo = {
   numeralSystem: 'latn',
   engineConfig: DEFAULT_ENGINE_CONFIG,
   seo: {},
-  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, intro: true, about: true, wheel: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
-  extras: { intro: false, about: false, wheel: false, aboutTitle: { en: '', ar: '', ckb: '' } },
+  features: { explore: true, stage: true, smartSelling: true, offers: true, socialProof: true, motions: true, intro: true, about: true, wheel: true, dishCounts: true, rails: ['grains', 'drum', 'flap', 'deck', 'plain'] },
+  extras: { intro: false, about: false, wheel: false, dishCounts: false, aboutTitle: { en: '', ar: '', ckb: '' } },
   motions: [],
   brand: {
     logoText: 'TEST',
