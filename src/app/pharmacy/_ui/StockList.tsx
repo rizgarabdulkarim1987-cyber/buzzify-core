@@ -1,4 +1,4 @@
-import { History } from 'lucide-react';
+import { History, Truck } from 'lucide-react';
 import Link from 'next/link';
 import type { Translate } from '@/lib/i18n';
 import type { Locale } from '@/lib/locale';
@@ -54,6 +54,8 @@ export interface StockListProps {
   showCost: boolean;
   /** The chosen branch when the person may change stock in it; null hides every change control. */
   adjustBranchId: string | null;
+  /** Units on the road per product and destination (`ph.transfers.inTransit`); absent for a role without `transfer.manage`. Read only: it changes no figure above. */
+  inTransit?: Record<string, { toBranchId: string; qty: number }[]>;
 }
 
 /**
@@ -61,7 +63,7 @@ export interface StockListProps {
  * first. Batches open with the browser's own disclosure (no animation). Each batch states its condition as an icon and a
  * word; lots, dates and numbers read left to right inside right-to-left text.
  */
-export function StockList({ items, t, locale, today, branchNames, showCost, adjustBranchId }: StockListProps) {
+export function StockList({ items, t, locale, today, branchNames, showCost, adjustBranchId, inTransit }: StockListProps) {
   const nameOf = (branchId: string) => branchNames[branchId] ?? branchId.slice(0, 8);
   return (
     <ul aria-label={t('pharmacy.stock.title')} className="flex flex-col border-t border-line">
@@ -109,6 +111,13 @@ export function StockList({ items, t, locale, today, branchNames, showCost, adju
                 )}
                 <Totals totals={branch} minQty={branch.minQty} t={t} />
               </div>
+            ))}
+
+            {(inTransit?.[product.productId] ?? []).map((road) => (
+              <p key={road.toBranchId} data-testid="stock-in-transit" className="flex items-start gap-2 text-sm text-text">
+                <Truck aria-hidden className="mt-px size-4 shrink-0 text-muted" />
+                <span className="min-w-0">{t('pharmacy.transfers.stockInTransit', { branch: nameOf(road.toBranchId), qty: formatNumber(road.qty) })}</span>
+              </p>
             ))}
 
             <details data-testid="stock-batches" className="min-w-0">

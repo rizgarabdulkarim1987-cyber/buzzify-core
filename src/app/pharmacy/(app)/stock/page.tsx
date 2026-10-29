@@ -1,12 +1,14 @@
-import { Lock, PackageOpen, SearchX, History, Search } from 'lucide-react';
+import { ArrowLeftRight, Lock, PackageOpen, SearchX, History, Search } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { StockBlocked } from '@/app/pharmacy/_ui/StockBlocked';
 import { StockList } from '@/app/pharmacy/_ui/StockList';
+import { transfersWaiting } from '@/app/pharmacy/_ui/transfers-counts';
 import { utcToday } from '@/server/domain/pharmacy/expiry';
 import { getPhPlaces } from '@/server/pharmacy/actor';
 import { balances } from '@/server/pharmacy/queries/stock';
+import { inTransit as inTransitQuery } from '@/server/pharmacy/queries/transfers';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
@@ -60,6 +62,21 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
     pageSize: PAGE_SIZE,
   });
 
+  // Transfers: a read-only "on the road" line per product and the open-transfer count, for roles that move stock. They change no stock figure.
+  const mayTransfer = roleMay(actor, 'transfer.manage');
+  const [road, waiting] = mayTransfer
+    ? await Promise.all([
+        query(inTransitQuery, { ...access.placeInput, ...(sp.product ? { productId: sp.product } : {}) }),
+        transfersWaiting(access.placeInput, { allBranches: actor.allBranches, branchIds: actor.branchIds }),
+      ])
+    : [null, null];
+  const inTransit: Record<string, { toBranchId: string; qty: number }[]> = {};
+  for (const item of road ?? []) {
+    const rows = (inTransit[item.productId] ??= []);
+    const found = rows.find((r) => r.toBranchId === item.toBranchId);
+    if (found) found.qty += item.qty;
+    else rows.push({ toBranchId: item.toBranchId, qty: item.qty });
+  }
   const branches = places.find((p) => p.restaurantId === access.placeInput.restaurantId)?.branches ?? [];
   const branchNames = Object.fromEntries(branches.map((b) => [b.id, b.name]));
   const adjust = access.writable('stock.adjust');
@@ -127,6 +144,20 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             </Link>
           </p>
         )}
+        {mayTransfer && waiting && (
+          <p>
+            <Link href="/pharmacy/stock/transfers" data-testid="stock-transfers-link" className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
+              <ArrowLeftRight aria-hidden className="size-4 shrink-0" />
+              {t('pharmacy.transfers.stockLink')}
+              {waiting.send + waiting.receive > 0 && (
+                <span data-testid="stock-transfers-count" className="tabular-nums">
+                  {' · '}
+                  {t('pharmacy.transfers.stockLinkCount', { count: `${waiting.send + waiting.receive}${waiting.more ? '+' : ''}` })}
+                </span>
+              )}
+            </Link>
+          </p>
+        )}
         {canSeeMovements && (
           <p>
             <Link href="/pharmacy/stock/movements" className="inline-flex min-h-11 items-center gap-2 rounded-md px-2 text-sm font-medium text-text underline underline-offset-2 hover:bg-hover">
@@ -153,6 +184,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             branchNames={branchNames}
             showCost={access.showCost}
             adjustBranchId={adjustBranchId}
+            {...(mayTransfer ? { inTransit } : {})}
           />
         )}
 
