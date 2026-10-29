@@ -174,6 +174,20 @@ async function approveNow(w: World, batchId: string) {
   return act(w.pic, approveActions.approve, { ...place(w), batchId, clientKey: key(), expectedVersion: read.batch.version, verdictToken: read.verdictToken });
 }
 
+/** What the header acknowledgement is bound to, as the screen sends it: the difference (if any), the currency, and the discount and tax (if the invoice has either). */
+function headerShown(read: Awaited<ReturnType<typeof getBatch>>) {
+  const a = read.header.arithmetic;
+  const adjustment = read.header.adjustment ?? null;
+  return { difference: a && a.status === 'MISMATCH' ? a.difference : null, currency: read.header.values.currency, ...(adjustment ? { discount: adjustment.discount, tax: adjustment.tax } : {}) };
+}
+
+/** A person says they know the receipt keeps the printed costs when the invoice has a discount or tax (a header that does not add up is acknowledged separately). */
+async function acknowledgeAdjustment(w: World, batchId: string) {
+  const read = await getBatch(w, w.pic, batchId);
+  if (!read.header.adjustment || read.header.adjustment.acknowledged || read.header.arithmetic?.status === 'MISMATCH') return;
+  dataOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId, version: read.batch.version, shown: headerShown(read), reason: 'the receipt keeps the printed unit costs; the discount is settled with the supplier' }));
+}
+
 /** Acknowledges a line the way the screen does: the flags it showed, a note, and a reason for a printed total that does not add up. */
 async function acknowledgeRow(w: World, batchId: string, index: number, mismatch: boolean) {
   const row = live(await getBatch(w, w.pic, batchId))[index]!;
@@ -320,6 +334,7 @@ describe('50 invoices through the whole pipeline', () => {
       if (!r.before) continue;
       // a person picks the product for every line the pipeline could not match by itself (never guessed)
       await matchByHand(w, catalog, inv, r.batchId);
+      await acknowledgeAdjustment(w, r.batchId);
 
       if (inv.kind === 'duplicate') {
         // one repeat is typed differently: upper/lower case and spaces are the same invoice number
@@ -346,9 +361,9 @@ describe('50 invoices through the whole pipeline', () => {
           dataOf(await acknowledgeRow(w, r.batchId, inv.wrongLine!, true));
         } else if (inv.id === DROPPED) {
           const read = await getBatch(w, w.pic, r.batchId);
-          const a = read.header.arithmetic!;
-          dataOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId: r.batchId, version: read.batch.version, shown: { difference: a.difference, currency: read.header.values.currency }, reason: 'a line is missing from the reading; the paper has it' }));
+          dataOf(await act(w.pic, reviewActions.headerAcknowledge, { ...place(w), batchId: r.batchId, version: read.batch.version, shown: headerShown(read), reason: 'a line is missing from the reading; the paper has it' }));
         }
+        await acknowledgeAdjustment(w, r.batchId);
         result = await approveNow(w, r.batchId);
       }
       const done = dataOf(result);
@@ -374,7 +389,9 @@ describe('50 invoices through the whole pipeline', () => {
     }
     // the dropped line: the lines themselves are clean, only the header sum stops the approval
     expect(firstTry.get(DROPPED)!.code).toBe('CONFLICT');
-    expect(JSON.parse(firstTry.get(DROPPED)!.reasons)).toEqual([{ code: 'HEADER_MISMATCH' }]);
+    // (when that invoice also prints a discount or tax, that is the second thing a person must acknowledge)
+    const dropped = INVOICES.find((i) => i.id === DROPPED)!;
+    expect(JSON.parse(firstTry.get(DROPPED)!.reasons)).toEqual([{ code: 'HEADER_MISMATCH' }, ...(dropped.discount || dropped.tax ? [{ code: 'HEADER_ADJUSTMENT' }] : [])]);
 
     // the repeats: refused, with the earlier invoice named
     for (const inv of INVOICES.filter((i) => i.kind === 'duplicate')) {
@@ -410,8 +427,9 @@ describe('50 invoices through the whole pipeline', () => {
       balances: await prisma().phStockBalance.count({ where: { restaurantId: w.a.id } }),
       movements: await prisma().phStockMovement.count({ where: { restaurantId: w.a.id } }),
       invoices: await prisma().phSupplierInvoice.count({ where: { restaurantId: w.a.id } }),
+      prices: await prisma().phPrice.count({ where: { restaurantId: w.a.id } }),
     });
-    expect(await count()).toEqual({ batches: 0, balances: 0, movements: 0, invoices: 0 });
+    expect(await count()).toEqual({ batches: 0, balances: 0, movements: 0, invoices: 0, prices: 0 });
     expect(await prisma().phReceipt.count({ where: { restaurantId: w.a.id, status: 'DRAFT' } })).toBe(45);
 
     const first = INVOICES[0]!;
@@ -448,6 +466,7 @@ describe('50 invoices through the whole pipeline', () => {
     expect(dataOf(await readFile(w, up.fileId)).status).toBe('EXTRACTED');
     await matchByHand(w, catalog, inv, up.batchId);
     dataOf(await acknowledgeRow(w, up.batchId, inv.wrongLine!, true));
+    await acknowledgeAdjustment(w, up.batchId);
     const approvable = await getBatch(w, w.pic, up.batchId);
     expect(approvable.approval.ok).toBe(true);
     // the person changes the quantity of that line: the difference is another one, the acknowledged one no longer applies
@@ -600,6 +619,16 @@ describe('(5) an AI outage still allows manual entry, and the retry later does n
     expect(retried).toMatchObject({ status: 'EXTRACTED', rowCount: inv.lines.length, failureCode: null });
     expect((await prisma().phIntakeBatch.findUniqueOrThrow({ where: { id: up.batchId } })).status).toBe('OPEN');
 
+    // the person checks the lines and approves: the same invoice number of the same supplier was already typed by hand, so it is refused (no second receipt, no double stock)
+    await matchByHand(w, await seedCatalog(w.a.id), inv, up.batchId);
+    await acknowledgeAdjustment(w, up.batchId);
+    const receiptsBefore = await prisma().phReceipt.count({ where: { restaurantId: w.a.id } });
+    expect((await getBatch(w, w.pic, up.batchId)).batch.supplierId).toBe(w.suppliers.get(inv.supplierName));
+    const late = await approveNow(w, up.batchId);
+    expect(phCodeOf(late)).toBe('DUPLICATE_INVOICE');
+    expect(await prisma().phReceipt.count({ where: { restaurantId: w.a.id } })).toBe(receiptsBefore);
+    expect((await prisma().phIntakeBatch.findUniqueOrThrow({ where: { id: up.batchId } })).status).toBe('OPEN');
+
     // no double spend: the month's spend is exactly what the call log says, nothing is held, one reading was paid in full
     const usage = await prisma().phAiUsageMonth.findFirstOrThrow({ where: { restaurantId: w.a.id } });
     const calls = await prisma().phAiCall.findMany({ where: { restaurantId: w.a.id, fileId: up.fileId } });
@@ -660,8 +689,10 @@ describe('(6) the budget stops spending', () => {
     expect(budget).toBeLessThan(BigInt(K + 1) * worst);
 
     const w = await world({ budgetCents: cents });
-    // every answer reports a very large usage, so each reading is charged its full reservation (the model may bill more than the cap)
-    const huge = (inv: SyntheticInvoice) => ({ text: textOf(inv), inputTokens: 5_000_000, outputTokens: 5_000_000 });
+    // every answer reports the usage that costs just under the worst case the reservation held (a reading bills what it used; one that
+    // uses more than the reservation is booked in full, which the domain tests cover), so K readings use the budget up and the next is refused
+    const tokens = Number((worst * 1_000_000n) / BigInt(PRICE)) - 2000;
+    const huge = (inv: SyntheticInvoice) => ({ text: textOf(inv), inputTokens: tokens - 1000, outputTokens: 1000 });
     const results: string[] = [];
     for (const inv of INVOICES.slice(0, 11)) {
       const up = await upload(w, inv, { answer: huge(inv) });
@@ -673,7 +704,10 @@ describe('(6) the budget stops spending', () => {
     expect(results).toEqual([...Array<string>(K).fill('OK'), ...Array<string>(4).fill('AI_BUDGET_REACHED')]);
     expect(provider.reached).toHaveLength(K); // the refused ones never reached the model
     const row = await prisma().phAiUsageMonth.findFirstOrThrow({ where: { restaurantId: w.a.id } });
-    expect(row).toMatchObject({ spentMicroUsd: BigInt(K) * worst, reservedMicroUsd: 0n, calls: K });
+    const charged = await prisma().phAiCall.findMany({ where: { restaurantId: w.a.id, status: 'OK' } });
+    expect(charged).toHaveLength(K);
+    for (const c of charged) expect(c.costMicroUsd <= worst && c.costMicroUsd > worst - 10_000n).toBe(true);
+    expect(row).toMatchObject({ spentMicroUsd: charged.reduce((sum, c) => sum + c.costMicroUsd, 0n), reservedMicroUsd: 0n, calls: K });
     // eslint-disable-next-line no-restricted-properties -- the budget is checked by SQL on purpose, not through the code under test
     const sql = await prisma().$queryRaw<{ ok: boolean }[]>`SELECT ("spentMicroUsd" + "reservedMicroUsd" <= ${budget}) AS ok FROM "PhAiUsageMonth" WHERE "restaurantId" = ${w.a.id}`;
     expect(sql).toEqual([{ ok: true }]);
