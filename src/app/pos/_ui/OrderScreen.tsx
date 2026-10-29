@@ -1,10 +1,10 @@
 'use client';
 
-import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, SlidersHorizontal, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, ArrowRightLeft, Ban, Merge, Percent, ReceiptText, Search, SlidersHorizontal, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import {
   addPosLine,
   cancelPosLine,
@@ -104,7 +104,7 @@ export function OrderScreen({
   const router = useRouter();
   const { call, pending } = usePosCall();
   const { printKitchenRound } = usePrint();
-  const [tab, setTab] = useState<'menu' | 'order'>('menu');
+  const [searching, setSearching] = useState(false);
   const [categoryId, setCategoryId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [sheet, setSheet] = useState<TillProduct | null>(null);
@@ -188,8 +188,8 @@ export function OrderScreen({
 
   const onShortcut = (shortcut: Shortcut) => {
     if (shortcut === 'search') {
-      setTab('menu');
-      // The search box is on screen only after the menu tab shows, so focus it on the next frame.
+      setSearching(true);
+      // On a phone the search box is on screen only once opened, so focus it on the next frame.
       requestAnimationFrame(() => document.getElementById('pos-menu-search')?.focus());
     } else if (shortcut === 'pay') {
       if (can.pay && canChange && stillUnpaid.length > 0 && dialog === 'none' && !pending) setDialog('pay');
@@ -203,7 +203,7 @@ export function OrderScreen({
   };
 
   return (
-    <div className="flex flex-col gap-3 px-4 pb-28 pt-3 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
+    <div className="flex flex-col gap-3 px-4 pt-3 max-lg:min-h-[calc(100dvh-4.5rem)] max-lg:pb-0 sm:px-8 lg:min-h-0 lg:flex-1 lg:pb-4">
       <Shortcuts onShortcut={onShortcut} />
       <p className="hidden text-sm text-muted lg:block">{t('pos.shortcuts.help')}</p>
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 sm:gap-x-4">
@@ -220,9 +220,21 @@ export function OrderScreen({
         <span data-status={order.status} className={cx('rounded-full px-3.5 text-base leading-8 font-bold', order.status === 'BILL_REQUESTED' ? 'bg-danger text-on-status' : 'bg-hover text-text')}>
           {t(`pos.order.status.${order.status}`)}
         </span>
-        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        {order.tableNumber !== null && !order.offPremise ? <span className="text-base text-muted max-sm:hidden">{t('pos.calm.orderNo', { n: formatNumber(order.number) })}</span> : null}
+        <button
+          type="button"
+          aria-label={t('pos.order.search')}
+          aria-pressed={searching}
+          onClick={() => {
+            setSearching((now) => !now);
+            requestAnimationFrame(() => document.getElementById('pos-menu-search-phone')?.focus());
+          }}
+          className={cx('ms-auto grid size-12 place-items-center rounded-xl border lg:hidden', searching ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text')}
+        >
+          <Search size={22} aria-hidden />
+        </button>
         {canChange && can.cancel ? (
-          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} aria-label={t('pos.order.cancelOrder')} className="ms-auto inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold text-danger hover:bg-hover disabled:opacity-60 sm:px-4">
+          <button type="button" disabled={pending} onClick={() => setDialog('cancelOrder')} aria-label={t('pos.order.cancelOrder')} className="inline-flex min-h-12 min-w-12 items-center justify-center gap-2 rounded-xl px-3 text-base font-semibold text-danger lg:ms-auto hover:bg-hover disabled:opacity-60 sm:px-4">
             <Ban size={20} aria-hidden />
             <span className="hidden sm:inline">{t('pos.order.cancelOrder')}</span>
           </button>
@@ -231,23 +243,8 @@ export function OrderScreen({
 
       <OffPremiseBar order={order} zones={delivery.zones} drivers={delivery.drivers} editable={canChange} />
 
-      <div role="tablist" className="flex gap-1 lg:hidden">
-        {(['menu', 'order'] as const).map((key) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={tab === key}
-            onClick={() => setTab(key)}
-            className={cx('min-h-11 flex-1 rounded-xl border text-base font-medium', tab === key ? 'border-ink bg-ink text-on-ink' : 'border-line-strong text-text')}
-          >
-            {key === 'menu' ? t('pos.order.tabMenu') : `${t('pos.order.tabOrder')} (${formatNumber(itemCount)})`}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
-        <section aria-label={t('pos.order.tabMenu')} className={cx('flex min-w-0 flex-col gap-3 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0', tab === 'order' && 'hidden lg:flex')}>
+      <div className="grid gap-4 max-lg:flex-1 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_24rem] lg:grid-rows-[minmax(0,1fr)]">
+        <section aria-label={t('pos.order.tabMenu')} className={cx('hidden min-w-0 flex-col gap-3 lg:flex lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain lg:pe-1 [&>*]:shrink-0')}>
           {!catalog ? (
             <Alert>{t('pos.order.noCatalog')}</Alert>
           ) : (
@@ -287,21 +284,22 @@ export function OrderScreen({
                   {sections.map((section) => (
                     <section key={section.id ?? 'all'} aria-label={section.label ?? undefined}>
                       {section.label ? <h2 className="mb-3 text-lg font-bold text-muted">{section.label}</h2> : null}
-                      <ul className="grid grid-cols-2 gap-2.5 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
+                      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(11rem,1fr))] sm:gap-3">
                         {section.products.map((product) => {
                           const count = onOrder.get(product.id) ?? 0;
                           const offer = offerFor(product);
                           return (
-                            <li key={product.id} className="flex">
+                            <li key={product.id} className="flex gap-2">
                               <button
                                 type="button"
                                 disabled={!canChange || pending || !product.available}
                                 onClick={() => tapProduct(product)}
                                 className={cx(
-                                  'relative flex min-h-28 w-full flex-col items-start overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:rounded-3xl',
-                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
+                                  'relative flex min-h-[4.5rem] w-full flex-row items-center overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:min-h-28 sm:flex-col sm:items-start sm:rounded-3xl',
+                                  count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : product.image ? 'border-line' : 'border-[hsl(var(--hue)_35%_80%)]',
+                                  'max-sm:border-s-[6px] max-sm:border-s-[hsl(var(--hue)_65%_48%)]',
                                 )}
-                                style={product.image ? undefined : { background: `hsl(${hueOf(product.categoryId)} 60% 95%)`, borderColor: count > 0 ? undefined : `hsl(${hueOf(product.categoryId)} 35% 80%)` }}
+                                style={{ '--hue': hueOf(product.categoryId), ...(product.image ? {} : { background: `hsl(${hueOf(product.categoryId)} 60% 95%)` }) } as CSSProperties}
                               >
                                 {product.image ? (
                                   // eslint-disable-next-line @next/next/no-img-element -- library renditions are already sized; the blur placeholder fills in while it loads
@@ -312,7 +310,7 @@ export function OrderScreen({
                                     decoding="async"
                                     draggable={false}
                                     style={product.image.placeholder ? { backgroundImage: `url(${product.image.placeholder})`, backgroundSize: 'cover' } : undefined}
-                                    className={cx('aspect-[4/3] w-full bg-hover object-cover', !product.available && 'grayscale')}
+                                    className={cx('m-2 size-16 shrink-0 rounded-xl bg-hover object-cover sm:m-0 sm:aspect-[4/3] sm:size-auto sm:w-full sm:rounded-none', !product.available && 'grayscale')}
                                   />
                                 ) : null}
                                 <span className="flex w-full flex-1 flex-col items-start gap-1.5 p-3 sm:gap-2 sm:p-4">
@@ -335,6 +333,10 @@ export function OrderScreen({
                                     </span>
                                   ) : needsSheet(product) ? (
                                     <SlidersHorizontal size={18} aria-hidden className="text-muted" />
+                                  ) : product.available && canChange ? (
+                                    <span aria-hidden className="grid size-8 place-items-center rounded-full border border-line-strong bg-raised text-xl leading-none text-muted sm:hidden">
+                                      +
+                                    </span>
                                   ) : null}
                                 </span>
                                 </span>
@@ -351,7 +353,7 @@ export function OrderScreen({
           )}
         </section>
 
-        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0', tab === 'menu' && 'hidden lg:flex')}>
+        <section aria-label={t('pos.order.tabOrder')} className={cx('flex min-w-0 flex-col gap-3 rounded-3xl border border-line bg-raised p-4 sm:p-5 lg:min-h-0 lg:overflow-y-auto lg:overscroll-contain [&>*]:shrink-0')}>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-2xl font-bold">{t('pos.calm.ticket')}</h2>
             <span className="text-base text-muted">{t('pos.calm.items', { n: formatNumber(itemCount) })}</span>
@@ -451,7 +453,7 @@ export function OrderScreen({
           {canChange ? (
             <div className="grid grid-cols-2 gap-2 lg:flex lg:flex-col">
               {kitchenOn ? (
-                <button type="button" className="col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
+                <button type="button" className="max-lg:hidden col-span-2 inline-flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl border border-line bg-hover px-4 text-base font-semibold text-text hover:bg-pressed disabled:opacity-60" disabled={pending || unsent.length === 0} onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}>
                   {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
                 </button>
               ) : null}
@@ -523,23 +525,82 @@ export function OrderScreen({
         </section>
       </div>
 
-      {canChange && liveLines.length > 0 && !splitting ? (
-        <div className="fixed inset-x-0 bottom-0 z-30 flex items-stretch gap-2 border-t border-line bg-surface px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden">
-          <button
-            type="button"
-            onClick={() => setTab(tab === 'menu' ? 'order' : 'menu')}
-            className="flex min-h-14 min-w-0 flex-1 flex-col items-start justify-center rounded-2xl border border-line bg-raised px-4 text-start"
-          >
-            <span className="text-sm text-muted">{tab === 'menu' ? `${t('pos.order.tabOrder')} · ${t('pos.calm.items', { n: formatNumber(itemCount) })}` : t('pos.order.tabMenu')}</span>
-            <span className="truncate text-xl leading-tight font-bold">{money(order.parts.length > 0 ? order.leftToPay : order.totals.total)}</span>
-          </button>
-          {can.pay ? (
-            <Button variant="primary" size="lg" className="min-h-14 flex-1 text-lg" disabled={pending || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
-              {t('pos.calm.payButton')}
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
+      {/* Phones: the dishes, the categories and the two big actions sit at the thumb, under the ticket. */}
+      <div className="sticky bottom-0 z-30 -mx-4 flex flex-col gap-2 border-t border-line bg-surface px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:-mx-8 lg:hidden">
+        {catalog ? (
+          <>
+            {searching ? (
+              <Input id="pos-menu-search-phone" type="search" size="lg" value={search} onChange={(event) => setSearch(event.target.value)} placeholder={t('pos.order.search')} aria-label={t('pos.order.search')} />
+            ) : null}
+            {products.length === 0 ? (
+              <p className="py-4 text-center text-base text-muted">{t('pos.order.noProducts')}</p>
+            ) : (
+              <ul className="grid max-h-[9.75rem] grid-cols-3 gap-2 overflow-y-auto overscroll-contain">
+                {products.map((product) => {
+                  const count = onOrder.get(product.id) ?? 0;
+                  const offer = offerFor(product);
+                  return (
+                    <li key={product.id} className="flex">
+                      <button
+                        type="button"
+                        disabled={!canChange || pending || !product.available}
+                        onClick={() => tapProduct(product)}
+                        className={cx(
+                          'relative flex min-h-[4.5rem] w-full flex-col justify-between rounded-2xl border p-2.5 text-start shadow-sm disabled:opacity-60',
+                          count > 0 ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-text',
+                        )}
+                      >
+                        <span className="line-clamp-2 text-sm leading-tight font-bold">{pickName(product.names, locale, fallback)}</span>
+                        <span className={cx('text-sm font-bold', count > 0 ? 'text-on-ink' : 'text-muted')}>{!product.available ? t('pos.order.soldOut') : money(product.price - offerPerUnit(product.price, offer))}</span>
+                        {count > 0 ? (
+                          <span aria-label={t('pos.calm.onOrder', { n: formatNumber(count) })} className="absolute -top-1.5 -inset-e-1.5 grid min-w-6 place-items-center rounded-full bg-accent px-1.5 text-xs leading-6 font-bold text-text">
+                            {formatNumber(count)}
+                          </span>
+                        ) : needsSheet(product) ? (
+                          <SlidersHorizontal size={14} aria-hidden className="absolute top-2 inset-e-2 text-muted" />
+                        ) : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+            <div role="tablist" aria-label={t('pos.order.categories')} className="flex gap-1.5 overflow-x-auto [scrollbar-width:none]">
+              {[{ id: null, label: t('pos.board.allAreas') }, ...catalog.categories.map((c) => ({ id: c.id, label: pickName(c.names, locale, fallback) }))].map((category) => (
+                <button
+                  key={category.id ?? 'all'}
+                  type="button"
+                  role="tab"
+                  aria-selected={categoryId === category.id}
+                  onClick={() => setCategoryId(category.id)}
+                  className={cx('min-h-12 shrink-0 rounded-xl px-4 text-sm font-bold whitespace-nowrap', categoryId === category.id ? 'bg-ink text-on-ink' : 'bg-hover text-text')}
+                >
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : null}
+        {canChange && !splitting ? (
+          <div className="flex gap-2">
+            {kitchenOn ? (
+              <button
+                type="button"
+                disabled={pending || unsent.length === 0}
+                onClick={() => void call(() => sendPosToKitchen({ orderId: order.id, expectedVersion: order.version }), { onOk: (sent) => { if (order.kitchen.print) void printKitchenRound(order.id, sent.batch); } })}
+                className="min-h-14 min-w-28 rounded-2xl border border-line-strong bg-hover px-3 text-base font-bold text-text disabled:opacity-60"
+              >
+                {t('pos.order.send')} {unsent.length > 0 ? `(${formatNumber(unsent.length)})` : ''}
+              </button>
+            ) : null}
+            {can.pay ? (
+              <Button variant="primary" size="lg" className="min-h-14 flex-1 text-lg" disabled={pending || liveLines.length === 0 || stillUnpaid.length === 0} onClick={() => setDialog('pay')}>
+                {t('pos.calm.payButton')} · {money(order.parts.length > 0 ? order.leftToPay : order.totals.total)}
+              </Button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
 
       <OptionsSheet product={sheet} fallback={fallback} pending={pending} onClose={() => setSheet(null)} onAdd={add} offer={sheet ? offerFor(sheet) : null} />
 
