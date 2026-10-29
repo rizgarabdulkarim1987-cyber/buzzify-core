@@ -602,7 +602,7 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Someone else changed this invoice: reload it': 'error.text.phIntakeBatchStale',
   'What you saw has changed: look at it again before you confirm': 'error.text.phIntakeAckStale',
   'Enter the invoice date as a day, such as 2028-03-31': 'error.text.phIntakeDateInvalid',
-  'There is no difference to acknowledge': 'error.text.phIntakeNoDifference',
+  'There is nothing to acknowledge': 'error.text.phIntakeNoDifference',
   'Only an open batch can be approved or cancelled': 'error.text.phIntakeNotOpenApprove',
   'The invoice is not what you reviewed: look at it again before you approve': 'error.text.phIntakeApprovalStale',
   'This key was already used for a different approval': 'error.text.phIntakeApprovalKey',

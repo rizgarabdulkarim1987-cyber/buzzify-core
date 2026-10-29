@@ -8,7 +8,7 @@ import { Field } from '@/studio/ui/Field';
 import { Input } from '@/studio/ui/Input';
 import { Select } from '@/studio/ui/Select';
 import { Textarea } from '@/studio/ui/Textarea';
-import { formatAmount, headerFieldSource, headerFormOf, type EditBlock, type HeaderField, type HeaderFormField, type ReviewData } from './intake-review-logic';
+import { formatAmount, headerFieldSource, headerFormOf, headerNeedsAck, type EditBlock, type HeaderField, type HeaderFormField, type ReviewData } from './intake-review-logic';
 import { Message, NotRead, SourceTag } from './intake-review-parts';
 import { isolate } from './WriteBlocked';
 
@@ -63,7 +63,29 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
   const value = (field: HeaderFormField) => form?.[field] ?? current[field];
   const currency = (editing ? (value('currency') as 'IQD' | 'USD' | '') : (data.header.values.currency ?? '')) || null;
   const arithmetic = data.header.arithmetic;
+  const adjustment = data.header.adjustment ?? null;
+  const needsReason = headerNeedsAck(data);
   const lockedWhy = block ? t(`pharmacy.intake.reason.${block}`) : null;
+  const ackForm = (
+    <form
+    className="flex max-w-xl flex-col gap-2"
+    data-testid="arith-form"
+    onSubmit={(e) => {
+      e.preventDefault();
+      if (!busy && block === false && reason.trim() !== '') void onAcknowledge(reason.trim()).then((ok) => ok && setReason(''));
+    }}
+  >
+    <Field label={t('pharmacy.intake.rv.arith.reason')} hint={t('pharmacy.intake.rv.arith.reasonHint')}>
+      <Textarea className="min-h-20" dir="auto" maxLength={500} data-testid="arith-reason" disabled={block !== false} value={reason} onChange={(e) => setReason(e.target.value)} />
+    </Field>
+    <div className="flex flex-col gap-1">
+      <Button type="submit" size="lg" className="min-h-11 w-fit" data-testid="arith-accept" disabled={busy || block !== false || reason.trim() === ''}>
+        {t('pharmacy.intake.rv.arith.accept')}
+      </Button>
+      {lockedWhy && <p className="text-sm text-muted">{lockedWhy}</p>}
+    </div>
+  </form>
+  );
 
   // The chosen supplier is always in the list under its name, even when it is archived or the search does not return it.
   const chosenId = value('supplierId');
@@ -241,28 +263,31 @@ export function IntakeHeaderCard(props: IntakeHeaderCardProps) {
                 </span>
               </p>
             ) : data.batch.status === 'OPEN' ? (
-              <form
-                className="flex max-w-xl flex-col gap-2"
-                data-testid="arith-form"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  if (!busy && block === false && reason.trim() !== '') void onAcknowledge(reason.trim()).then((ok) => ok && setReason(''));
-                }}
-              >
-                <Field label={t('pharmacy.intake.rv.arith.reason')} hint={t('pharmacy.intake.rv.arith.reasonHint')}>
-                  <Textarea className="min-h-20" dir="auto" maxLength={500} data-testid="arith-reason" disabled={block !== false} value={reason} onChange={(e) => setReason(e.target.value)} />
-                </Field>
-                <div className="flex flex-col gap-1">
-                  <Button type="submit" size="lg" className="min-h-11 w-fit" data-testid="arith-accept" disabled={busy || block !== false || reason.trim() === ''}>
-                    {t('pharmacy.intake.rv.arith.accept')}
-                  </Button>
-                  {lockedWhy && <p className="text-sm text-muted">{lockedWhy}</p>}
-                </div>
-              </form>
+              ackForm
             ) : null}
           </>
         )}
         {arithmetic && arithmetic.status !== 'UNKNOWN' && arithmetic.assumed && arithmetic.assumed.length > 0 && <p className="text-sm text-muted">{t('pharmacy.intake.rv.arith.assumed')}</p>}
+        {adjustment && (
+          <div className="flex min-w-0 flex-col gap-2" data-testid="header-adjustment">
+            <Message tone={adjustment.acknowledged ? 'info' : 'error'} testId="adjustment-note">
+              {t('pharmacy.intake.rv.arith.adjustment', {
+                discount: formatAmount(adjustment.discount, data.header.values.currency) ?? '',
+                tax: formatAmount(adjustment.tax, data.header.values.currency) ?? '',
+                currency: data.header.values.currency ?? '',
+              })}
+            </Message>
+            {adjustment.acknowledged && (
+              <p data-testid="adjustment-accepted" className="flex items-start gap-2.5 text-sm text-text [&_svg]:mt-px [&_svg]:size-4 [&_svg]:shrink-0">
+                <CircleCheck aria-hidden className="text-success" />
+                <span className="min-w-0 break-words" dir="auto">
+                  {t('pharmacy.intake.rv.arith.adjustmentAccepted', { reason: isolate(adjustment.acknowledged.reason) })}
+                </span>
+              </p>
+            )}
+          </div>
+        )}
+        {needsReason && data.batch.status === 'OPEN' && !(arithmetic && arithmetic.status === 'MISMATCH' && !data.header.acknowledged) && ackForm}
         {ackMessage && <Message tone={ackMessage.tone} testId="arith-message">{ackMessage.text}</Message>}
       </div>
     </section>

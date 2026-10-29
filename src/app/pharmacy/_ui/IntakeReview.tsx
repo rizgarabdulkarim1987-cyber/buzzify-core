@@ -26,7 +26,7 @@ import { settle } from '@/studio/settle';
 import { Button } from '@/studio/ui/Button';
 import { ConfirmDialog } from '@/studio/ui/ConfirmDialog';
 import { Select } from '@/studio/ui/Select';
-import { approveSignature, approveBlockers, approveControl, buildHeaderPatch, buildRowPatch, duplicateTarget, editReason, emptyReviewDraft, hasUnsaved, historyOf, jumpId, nextOpenId, openRowIds, reviewShown, rowKeyFor, unsavedParts, type Blocker, type EditField, type HeaderFormField, type ReviewData, type ReviewDraft, type ReviewRow } from './intake-review-logic';
+import { approveSignature, approveBlockers, approveControl, buildHeaderPatch, buildRowPatch, duplicateTarget, editReason, emptyReviewDraft, hasUnsaved, headerAckShown, historyOf, jumpId, nextOpenId, openRowIds, reviewShown, rowKeyFor, unsavedParts, type Blocker, type EditField, type HeaderFormField, type ReviewData, type ReviewDraft, type ReviewRow } from './intake-review-logic';
 import { Message } from './intake-review-parts';
 import { IntakeApproveBar } from './IntakeApproveBar';
 import { IntakeHeaderCard } from './IntakeHeaderCard';
@@ -277,9 +277,9 @@ export function IntakeReview({ data, reload, onApproved, userId, restaurantId, b
   };
 
   const acknowledge = async (reason: string): Promise<boolean> => {
-    const a = data.header.arithmetic;
-    if (!a || a.status !== 'MISMATCH' || a.difference === undefined) return false;
-    const done = await write('ack', () => acknowledgeIntakeHeader({ batchId: data.batch.id, version: data.batch.version, shown: { difference: a.difference, currency }, reason }));
+    const shown = headerAckShown(data);
+    if (!shown) return false;
+    const done = await write('ack', () => acknowledgeIntakeHeader({ batchId: data.batch.id, version: data.batch.version, shown, reason }));
     return done.ok;
   };
 

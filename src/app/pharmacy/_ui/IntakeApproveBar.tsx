@@ -60,7 +60,7 @@ export function IntakeApproveBar({ data, blockers, block, busy, onConfirm, onJum
         return t(`pharmacy.intake.rv.block.${b.kind}`);
     }
   };
-  const jumpLabel = (b: Blocker): string | null => (b.kind === 'flag' ? t('pharmacy.intake.rv.block.jump', { n: formatNumber(b.lineNo) }) : b.kind === 'header' || b.kind === 'supplier' || b.kind === 'currency' || b.kind === 'number' ? t('pharmacy.intake.rv.block.headerJump') : null);
+  const jumpLabel = (b: Blocker): string | null => (b.kind === 'flag' ? t('pharmacy.intake.rv.block.jump', { n: formatNumber(b.lineNo) }) : b.kind === 'header' || b.kind === 'adjustment' || b.kind === 'supplier' || b.kind === 'currency' || b.kind === 'number' ? t('pharmacy.intake.rv.block.headerJump') : null);
 
   return (
     <div data-testid="intake-approve-bar" className="sticky bottom-0 z-20 flex min-w-0 flex-col gap-3 border-t border-line-strong bg-raised px-1 py-3">

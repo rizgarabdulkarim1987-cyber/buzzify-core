@@ -9,6 +9,7 @@ import {
   editReason,
   formatAmount,
   headerAckShown,
+  headerNeedsAck,
   headerFieldSource,
   historyOf,
   jumpId,
@@ -195,6 +196,10 @@ describe('counts and blockers', () => {
     const d = data({ batch: { supplierId: null }, header: { values: { invoiceNumber: ' ', invoiceDate: null, currency: null, total: null, discount: null, tax: null } } });
     expect(approveBlockers(d).map((b) => b.kind)).toEqual(['supplier', 'currency', 'number']);
   });
+  it('lists a header discount or tax that is not acknowledged as its own blocker', () => {
+    const d = data({ reasons: [{ code: 'HEADER_ADJUSTMENT' }] });
+    expect(approveBlockers(d)).toEqual([{ kind: 'adjustment' }]);
+  });
   it('lists no rows, and files still being read', () => {
     const d = data({ rows: [], reasons: [{ code: 'NO_ROWS' }, { code: 'FILES_STILL_PROCESSING', files: 2 }] });
     expect(approveBlockers(d)).toEqual([{ kind: 'noRows' }, { kind: 'processing', files: 2 }]);
@@ -238,6 +243,23 @@ describe('header', () => {
     const d = data({ header: { status: 'MISMATCH', arithmetic: { status: 'MISMATCH', expected: '9000', actual: '10000', difference: '1000' } } });
     expect(headerAckShown(d)).toEqual({ difference: '1000', currency: 'IQD' });
     expect(headerAckShown(data())).toBeNull();
+  });
+  it('shows the discount and tax too when the invoice has either, and the difference only when there is one', () => {
+    const adjustment = { discount: '500', tax: '0', acknowledged: null };
+    const only = data({ header: { adjustment } });
+    expect(headerAckShown(only)).toEqual({ difference: null, currency: 'IQD', discount: '500', tax: '0' });
+    const both = data({ header: { status: 'MISMATCH', arithmetic: { status: 'MISMATCH', expected: '9700', actual: '9000', difference: '-700' }, adjustment } });
+    expect(headerAckShown(both)).toEqual({ difference: '-700', currency: 'IQD', discount: '500', tax: '0' });
+  });
+  it('asks for the reason while either part is not acknowledged', () => {
+    const open = { discount: '500', tax: '0', acknowledged: null };
+    expect(headerNeedsAck(data())).toBe(false);
+    expect(headerNeedsAck(data({ header: { adjustment: open } }))).toBe(true);
+    expect(headerNeedsAck(data({ header: { adjustment: { ...open, acknowledged: { reason: 'checked' } } } }))).toBe(false);
+    const mismatch = { status: 'MISMATCH', arithmetic: { status: 'MISMATCH', expected: '9000', actual: '10000', difference: '1000' } } as const;
+    expect(headerNeedsAck(data({ header: mismatch }))).toBe(true);
+    expect(headerNeedsAck(data({ header: { ...mismatch, acknowledged: { reason: 'checked', difference: '1000' } } }))).toBe(false);
+    expect(headerNeedsAck(data({ header: { ...mismatch, acknowledged: { reason: 'checked', difference: '1000' }, adjustment: open } }))).toBe(true);
   });
 });
 

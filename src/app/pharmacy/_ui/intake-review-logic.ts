@@ -68,7 +68,7 @@ export interface ReviewRow {
 export const HEADER_FIELDS = ['invoiceNumber', 'invoiceDate', 'currency', 'total', 'discount', 'tax'] as const;
 export type HeaderField = (typeof HEADER_FIELDS)[number];
 
-export type ApprovalReason = { code: 'NO_ROWS' } | { code: 'OPEN_FLAG'; rowIndex: number; flag: string } | { code: 'HEADER_MISMATCH' } | { code: 'FILES_STILL_PROCESSING'; files: number };
+export type ApprovalReason = { code: 'NO_ROWS' } | { code: 'OPEN_FLAG'; rowIndex: number; flag: string } | { code: 'HEADER_MISMATCH' } | { code: 'HEADER_ADJUSTMENT' } | { code: 'FILES_STILL_PROCESSING'; files: number };
 
 export interface ReviewHeader {
   values: { invoiceNumber: string | null; invoiceDate: string | null; currency: Currency | null; total: number | null; discount: number | null; tax: number | null };
@@ -77,6 +77,8 @@ export interface ReviewHeader {
   status: 'OK' | 'MISMATCH' | 'UNKNOWN';
   conflicts: string[];
   acknowledged: { reason: string; difference?: string } | null;
+  /** A non-zero discount or tax on the invoice (amounts as minor-unit text): the receipt keeps the printed costs, so a person must say they know. Only with `cost.view`. */
+  adjustment?: { discount: string; tax: string; acknowledged: { reason: string } | null } | null;
   arithmetic?: { status: 'OK' | 'MISMATCH' | 'UNKNOWN'; expected?: string; actual?: string; difference?: string; assumed?: Array<'tax' | 'discount'> };
 }
 
@@ -222,6 +224,7 @@ export type Blocker =
   | { kind: 'processing'; files: number }
   | { kind: 'flag'; flag: string; count: number; rowId: string; lineNo: number }
   | { kind: 'header' }
+  | { kind: 'adjustment' }
   | { kind: 'supplier' }
   | { kind: 'currency' }
   | { kind: 'number' };
@@ -238,6 +241,7 @@ export function approveBlockers(data: ReviewData): Blocker[] {
     if (reason.code === 'NO_ROWS') out.push({ kind: 'noRows' });
     else if (reason.code === 'FILES_STILL_PROCESSING') out.push({ kind: 'processing', files: reason.files });
     else if (reason.code === 'HEADER_MISMATCH') out.push({ kind: 'header' });
+    else if (reason.code === 'HEADER_ADJUSTMENT') out.push({ kind: 'adjustment' });
     else {
       const target = live[reason.rowIndex];
       const existing = out.find((b): b is Extract<Blocker, { kind: 'flag' }> => b.kind === 'flag' && b.flag === reason.flag);
@@ -339,11 +343,23 @@ export function buildHeaderPatch(data: ReviewData, values: Partial<Record<Header
   return patch;
 }
 
-/** The difference and currency the acknowledgement is bound to, exactly as the server sees them now; null when the header does not differ. */
-export function headerAckShown(data: ReviewData): { difference: string; currency: Currency | null } | null {
+/**
+ * What the acknowledgement is bound to, exactly as the server sees it now: the difference (when the lines and the total differ),
+ * the currency, and the discount and tax (when the invoice has either). Null when there is nothing to acknowledge.
+ */
+export function headerAckShown(data: ReviewData): { difference: string | null; currency: Currency | null; discount?: string; tax?: string } | null {
   const a = data.header.arithmetic;
-  if (!a || a.status !== 'MISMATCH' || a.difference === undefined) return null;
-  return { difference: a.difference, currency: data.header.values.currency };
+  const difference = a && a.status === 'MISMATCH' && a.difference !== undefined ? a.difference : null;
+  const adjustment = data.header.adjustment ?? null;
+  if (difference === null && adjustment === null) return null;
+  return { difference, currency: data.header.values.currency, ...(adjustment ? { discount: adjustment.discount, tax: adjustment.tax } : {}) };
+}
+
+/** Whether the header still has something a reason must be given for: a difference or a discount/tax nobody has accepted yet. */
+export function headerNeedsAck(data: ReviewData): boolean {
+  const mismatch = data.header.arithmetic?.status === 'MISMATCH' && !data.header.acknowledged;
+  const adjustment = data.header.adjustment != null && data.header.adjustment.acknowledged === null;
+  return mismatch || adjustment;
 }
 
 // The original ------------------------------------------------------------------------------------------------------------------
