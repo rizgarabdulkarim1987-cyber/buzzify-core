@@ -21,6 +21,18 @@
     --panel: var(--s-surface);
   }
 
+  /*
+   * The till's own colour: a deep emerald in place of the Studio's black ink, so the main actions (Pay, the chosen tab and
+   * category, the item counts) read as colour, not black and white. On html so dialogs, which leave .till, wear it too.
+   */
+  html:has(.till) {
+    --s-ink: #0b6b52;
+    --s-ink-hover: #09543f;
+    --color-ink: #0b6b52;
+    --color-ink-hover: #09543f;
+    --s-info-wash: #e6f4ef;
+  }
+
   /* Night: the same calm in dark graphite, while the tables page shows it. */
   html:has(.till[data-layout='night']) {
     color-scheme: dark;
@@ -34,6 +46,8 @@
     --s-text: #eeeeee;
     --s-muted: #a6a6a6;
     --s-ink: #f2f2f2;
+    --color-ink: #f2f2f2;
+    --color-ink-hover: #dddddd;
     --s-ink-hover: #dddddd;
     --s-on-ink: #111111;
     --s-on-status: #111111;
@@ -344,6 +358,14 @@
     border-radius: 28px;
     background: var(--s-surface);
     padding: 1.5rem;
+  }
+
+  /* On a phone the card gives its width back to the content. */
+  @media (max-width: 639px) {
+    .till main section[aria-labelledby] {
+      border-radius: 22px;
+      padding: 1rem;
+    }
   }
 
   .till main section[aria-labelledby] > h2 {

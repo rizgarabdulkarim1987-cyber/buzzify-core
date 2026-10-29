@@ -47,6 +47,8 @@ import { useBarcodeScanner } from './use-barcode-scanner';
 import { Shortcuts } from './Shortcuts';
 import { usePosCall } from './use-pos-call';
 
+const HUES = [28, 160, 40, 8, 330, 200, 270];
+
 export interface OrderCan {
   discount: boolean;
   cancel: boolean;
@@ -119,6 +121,11 @@ export function OrderScreen({
       .map((category) => ({ id: category.id as string | null, label: pickName(category.names, locale, fallback) as string | null, products: products.filter((product) => product.categoryId === category.id) }))
       .filter((section) => section.products.length > 0);
   }, [catalog, categoryId, search, products, locale, fallback]);
+  /** A tint per category, so a dish without a picture still reads as its group (the same hue in every visit). */
+  const hueOf = (categoryId: string | null) => {
+    const index = catalog ? [...catalog.categories].sort((a, b) => a.sortOrder - b.sortOrder).findIndex((category) => category.id === categoryId) : -1;
+    return HUES[(index < 0 ? 0 : index) % HUES.length];
+  };
   const liveLines = order.lines.filter((line) => !line.cancelled);
   // Split bill: the guest's lines are ticked and paid on their own; the share includes a part of the discount, service and tax.
   const [splitting, setSplitting] = useState(false);
@@ -294,6 +301,7 @@ export function OrderScreen({
                                   'relative flex min-h-28 w-full flex-col items-start overflow-hidden rounded-2xl border bg-raised text-start hover:bg-hover disabled:opacity-60 sm:rounded-3xl',
                                   count > 0 ? 'border-ink ring-2 ring-ink ring-inset' : 'border-line',
                                 )}
+                                style={product.image ? undefined : { background: `hsl(${hueOf(product.categoryId)} 60% 95%)`, borderColor: count > 0 ? undefined : `hsl(${hueOf(product.categoryId)} 35% 80%)` }}
                               >
                                 {product.image ? (
                                   // eslint-disable-next-line @next/next/no-img-element -- library renditions are already sized; the blur placeholder fills in while it loads
