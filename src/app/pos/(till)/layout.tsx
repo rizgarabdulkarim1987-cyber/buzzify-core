@@ -26,7 +26,6 @@ import { BrandLogo } from '@/studio/shell/BrandLogo';
 import { HeaderMenu } from '@/app/pos/_ui/HeaderMenu';
 import { IdleGuard } from '@/app/pos/_ui/IdleGuard';
 import { LayoutPicker } from '@/app/pos/_ui/floor/LayoutPicker';
-import { DeskPicker } from '@/app/pos/_ui/DeskPicker';
 import { ShiftPill } from '@/app/pos/_ui/ShiftPill';
 import { SignOutButton } from '@/app/pos/_ui/SignOutButton';
 import { SwitchUserButton } from '@/app/pos/_ui/SwitchUserButton';
@@ -99,8 +98,7 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
             <Link href="/studio/account" className="inline-flex min-h-11 items-center underline underline-offset-2 lg:min-h-0">
               {t('pos.shell.account')}
             </Link>
-            {handlesOrders ? <LayoutPicker current={layout} /> : null}
-            {handlesOrders ? <DeskPicker current={desk} /> : null}
+            {handlesOrders ? <LayoutPicker current={layout} desk={desk} /> : null}
             {sharedDevice ? <SwitchUserButton /> : <SignOutButton />}
           </HeaderMenu>
         </div>

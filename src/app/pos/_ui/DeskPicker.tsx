@@ -1,11 +1,10 @@
 'use client';
 
-import { Check, PanelsTopLeft } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useState, useTransition } from 'react';
+import { useTransition } from 'react';
 import { DESK_COOKIE, DESKS, type DeskId } from '@/lib/pos-floor';
 import { useT } from '@/studio/i18n';
-import { Dialog } from '@/studio/ui/Dialog';
 
 const YEAR = 60 * 60 * 24 * 365;
 
@@ -32,11 +31,10 @@ function Sketch({ id }: { id: DeskId }) {
   );
 }
 
-/** The header button that picks how the order screen looks on a big screen. The choice applies at once (a refresh). */
-export function DeskPicker({ current }: { current: DeskId }) {
+/** The "order look" choices, shown inside the screen-look dialog. Big screens only: phones keep their own layout. */
+export function DeskSection({ current }: { current: DeskId }) {
   const t = useT();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
   function choose(id: DeskId) {
@@ -45,38 +43,31 @@ export function DeskPicker({ current }: { current: DeskId }) {
   }
 
   return (
-    <>
-      <button
-        type="button"
-        data-testid="desk-picker"
-        onClick={() => setOpen(true)}
-        className="hidden min-h-11 items-center gap-2 rounded-md border border-line-strong px-3 text-base font-medium text-text hover:bg-hover lg:inline-flex"
-      >
-        <PanelsTopLeft size={18} aria-hidden="true" />
-        {t('pos.desk.open')}
-      </button>
-      <Dialog open={open} onOpenChange={setOpen} title={t('pos.desk.title')} description={t('pos.desk.subtitle')} width="md">
-        <ul className="grid grid-cols-2 gap-3" aria-busy={pending || undefined}>
-          {DESKS.map((id) => {
-            const on = id === current;
-            return (
-              <li key={id}>
-                <button type="button" data-desk-option={id} aria-pressed={on} disabled={pending} onClick={() => choose(id)} className="layout-option flex w-full flex-col gap-2 rounded-xl p-2 text-start">
-                  <span aria-hidden="true" className="relative block aspect-[16/10] w-full">
-                    <Sketch id={id} />
-                    {on ? (
-                      <span className="absolute end-1 top-1 grid size-6 place-items-center rounded-full bg-ink text-on-ink">
-                        <Check size={16} />
-                      </span>
-                    ) : null}
-                  </span>
-                  <span className="px-1 text-sm font-bold">{t(`pos.desk.name.${id}`)}</span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </Dialog>
-    </>
+    <section className="mt-5 hidden flex-col gap-3 lg:flex" aria-labelledby="desk-title">
+      <div>
+        <h3 id="desk-title" className="text-base font-bold">{t('pos.desk.title')}</h3>
+        <p className="text-sm text-muted">{t('pos.desk.subtitle')}</p>
+      </div>
+      <ul className="grid grid-cols-4 gap-3" aria-busy={pending || undefined}>
+        {DESKS.map((id) => {
+          const on = id === current;
+          return (
+            <li key={id}>
+              <button type="button" data-desk-option={id} aria-pressed={on} disabled={pending} onClick={() => choose(id)} className="layout-option flex w-full flex-col gap-2 rounded-xl p-2 text-start">
+                <span aria-hidden="true" className="relative block aspect-[16/10] w-full">
+                  <Sketch id={id} />
+                  {on ? (
+                    <span className="absolute end-1 top-1 grid size-6 place-items-center rounded-full bg-ink text-on-ink">
+                      <Check size={16} />
+                    </span>
+                  ) : null}
+                </span>
+                <span className="px-1 text-sm font-bold">{t(`pos.desk.name.${id}`)}</span>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
