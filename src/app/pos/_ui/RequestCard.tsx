@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 import { acceptPosRequest, addPosRequestLine, approvePosRequest, rejectPosRequest, removePosRequestLine, setPosRequestLineQuantity } from '@/app/studio/_actions/pos';
 import { markBillCallSeen } from '@/app/studio/_actions/pos-captain';
 import { elapsedLabel, elapsedMinutes, formatNumber, formatStamp, type ElapsedText } from '@/lib/pos-format';
-import { requestActions } from '@/lib/pos-requests-model';
+import { lockedNote, requestActions } from '@/lib/pos-requests-model';
 import { needsSheet } from '@/lib/pos-view';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { canPos, type PosRole } from '@/server/domain/pos/permissions';
@@ -308,7 +308,7 @@ export function RequestCard({ request, role, catalog, now, call, busy, onReject,
       {!can.approve && !can.accept ? (
         <p className="flex items-center gap-2 rounded-md border border-dashed border-line-strong px-3 py-2 text-base text-text" data-testid="request-locked">
           <Lock size={18} aria-hidden className="shrink-0" />
-          {request.awaitingCaptain ? t('pos.requests.awaitingHint') : t('pos.requests.withCashier')}
+          {t(lockedNote(request))}
         </p>
       ) : null}
 

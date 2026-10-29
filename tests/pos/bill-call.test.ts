@@ -90,6 +90,31 @@ describe.each([false, true])('a guest asks for the bill (captain approval %s)', 
     expect(await calls()).toHaveLength(1);
   });
 
+  it('a forgotten unseen call older than an hour does not swallow a new one and is no longer listed', async () => {
+    const t0 = new Date(Date.now() - 61 * 60_000);
+    await call(1, t0);
+    const db = delegates(scopedClient(prisma(), { restaurantId: a.id }));
+    expect(await listOpenBillCalls(db, a.id)).toEqual([]);
+    expect(dataOf(await ask(captain, posQrFlags, {}))).toMatchObject({ billCalls: 0 });
+    const open = await order(0, 'OPEN');
+    await call(1);
+    expect(await calls()).toHaveLength(2);
+    expect(await statusOf(open.id)).toBe('BILL_REQUESTED');
+    expect((await listOpenBillCalls(db, a.id)).map((c) => c.tableNumber)).toEqual([1]);
+  });
+
+  it('a repeat call while the first is unseen still moves an order opened since, and adds no call', async () => {
+    await call(1);
+    const open = await order(0, 'OPEN');
+    await call(1);
+    expect(await statusOf(open.id)).toBe('BILL_REQUESTED');
+    expect(await calls()).toHaveLength(1);
+    const rows = await prisma().auditLog.findMany({ where: { restaurantId: a.id, action: 'pos.billCall.call' } });
+    expect(rows).toHaveLength(2);
+    const move = rows.find((row) => (row.changes as { orderId?: string } | null)?.orderId === open.id);
+    expect(move?.changes).toMatchObject({ orderId: open.id, orderStatus: { before: 'OPEN', after: 'BILL_REQUESTED' } });
+  });
+
   it('a table with no live order gets a call and no order', async () => {
     await call(2);
     expect(await calls()).toHaveLength(1);

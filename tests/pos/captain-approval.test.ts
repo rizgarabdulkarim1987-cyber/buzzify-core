@@ -12,6 +12,8 @@ import {
   setPosRequestLineQuantity,
 } from '@/server/studio/actions/pos-requests';
 import { posQrFlags, posRequest, posRequests } from '@/server/studio/queries/pos-requests';
+import { updatePosSettings } from '@/server/studio/actions/pos';
+import { setPosCaptainApproval } from '@/server/studio/actions/pos-captain';
 import { publishFixture } from '../helpers/db';
 import { ask, codeOf, dataOf, failureOf, person, prisma, resetWorld, restaurant, run, useTestDatabase, type Person } from './fixture';
 
@@ -248,6 +250,68 @@ describe('edits after the approval', () => {
     dataOf(await run(captain, removePosRequestLine, { lineId: req.lines[0]!.id }));
     expect(failureOf(await run(captain, approvePosRequest, { requestId: req.id }))).toMatchObject({ code: 'CONFLICT', message: 'The request has no items' });
     expect((await stored(req.id)).captainApprovedAt).toBeNull();
+  });
+});
+
+describe('switching captain approval off releases the held orders', () => {
+  const SETTINGS = {
+    serviceRatePercent: 0,
+    taxRatePercent: 0,
+    enabledPaymentMethods: ['CASH'],
+    tableRingMinutes: 60,
+    kitchenPrintEnabled: false,
+    kitchenScreenEnabled: false,
+    qrOrderingEnabled: true,
+    takeawayEnabled: false,
+    deliveryEnabled: false,
+    complaintsEnabled: false,
+    idleMinutes: 15,
+    requireApproval: true,
+  };
+
+  const viaSettings = async (on: boolean) => {
+    const { version } = await prisma().posSettings.findFirstOrThrow({ where: { restaurantId: a.id } });
+    dataOf(await run(manager, updatePosSettings, { ...SETTINGS, captainApproval: on, version }));
+  };
+  const viaAdmin = async (on: boolean) => {
+    const admin = await person(`admin-${on}-${Math.random().toString(36).slice(2, 8)}`, { superAdmin: true });
+    dataOf(await run(admin, setPosCaptainApproval, { restaurantId: a.id, enabled: on }));
+  };
+
+  describe.each([
+    ['the till settings', viaSettings],
+    ['the platform switch', viaAdmin],
+  ])('through %s', (_name, toggle) => {
+    it('frees a held order for the cashier and touches nothing else', async () => {
+      const before = await guest({ table: 3 });
+      await toggle(true);
+      expect((await stored(before.id)).requiresCaptain).toBe(false);
+      const held = await guest({ table: 1 });
+      const approved = await guest({ table: 2 });
+      dataOf(await run(captain, approvePosRequest, { requestId: approved.id }));
+      const expired = await guest({ table: 1, now: new Date(Date.now() - (QR_LIMITS.expiryMinutes + 1) * 60_000) });
+      const rejected = await guest({ table: 2 });
+      dataOf(await run(cashier, rejectPosRequest, { requestId: rejected.id, reason: '' }));
+
+      await toggle(false);
+      expect((await stored(held.id)).requiresCaptain).toBe(false);
+      expect(await stored(approved.id)).toMatchObject({ requiresCaptain: true, captainApprovedByUserId: captain.userId });
+      expect((await stored(expired.id)).requiresCaptain).toBe(true);
+      expect((await stored(rejected.id)).requiresCaptain).toBe(true);
+      expect((await stored(before.id)).requiresCaptain).toBe(false);
+      const audit = await prisma().auditLog.findFirst({ where: { action: 'pos.request.release', restaurantId: a.id } });
+      expect(audit?.changes).toMatchObject({ released: { before: null, after: 1 } });
+      dataOf(await run(cashier, acceptPosRequest, { requestId: held.id }));
+      dataOf(await run(cashier, acceptPosRequest, { requestId: approved.id }));
+    });
+
+    it('switching on, or saving with it off, releases nothing', async () => {
+      await setSwitch(true);
+      const held = await guest();
+      await toggle(true);
+      expect((await stored(held.id)).requiresCaptain).toBe(true);
+      expect(await prisma().auditLog.count({ where: { action: 'pos.request.release' } })).toBe(0);
+    });
   });
 });
 

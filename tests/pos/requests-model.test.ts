@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { requestActions, requestBadges } from '@/lib/pos-requests-model';
+import { lockedNote, requestActions, requestBadges } from '@/lib/pos-requests-model';
 
 describe('requests screen model', () => {
   it('a cashier cannot accept or approve an order held for the captain, but may still trim or reject it', () => {
@@ -37,5 +37,12 @@ describe('till nav badges', () => {
 
   it('everyone else sees bill calls with the guest orders, never twice', () => {
     for (const role of ['OWNER', 'MANAGER', 'CASHIER'] as const) expect(requestBadges(role, counts)).toEqual({ requests: 5, captain: 0 });
+  });
+
+  it('says who a locked order waits for: the captain, the cashier after an approval, or just the cashier', () => {
+    expect(lockedNote({ awaitingCaptain: true, captainApproved: false })).toBe('pos.requests.awaitingHint');
+    expect(lockedNote({ awaitingCaptain: false, captainApproved: true })).toBe('pos.requests.withCashier');
+    // Never held (the switch was off): no word of an approval that never happened.
+    expect(lockedNote({ awaitingCaptain: false, captainApproved: false })).toBe('pos.requests.waitingCashier');
   });
 });

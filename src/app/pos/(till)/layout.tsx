@@ -57,12 +57,12 @@ export default async function TillLayout({ children }: { children: ReactNode }) 
   const handlesOrders = canPos(entry.actor.role, 'order.handle');
   // The captain sees the guests' orders too, so the requests badge follows `request.handle`, like the page's own queries.
   const handlesRequests = canPos(entry.actor.role, 'request.handle');
-  const flags = handlesRequests ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0, billCalls: 0 };
+  const flags = handlesRequests ? await query(posQrFlags, {}) : { qrOrdering: false, delivery: false, pendingRequests: 0, billCalls: 0, captainApproval: false };
   const complaints = canPos(entry.actor.role, 'complaint.view') ? await query(posComplaintBadge, {}) : { show: false, count: 0 };
   const ai = canPos(entry.actor.role, 'report.view') ? await query(posAiState, {}) : { enabled: false };
   // A bill call is counted once: on the captain page for the captain, with the guest orders for everyone else.
   const badges = requestBadges(entry.actor.role, flags);
-  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? badges.requests : item.key === 'captain' ? badges.captain : item.key === 'complaints' ? complaints.count : 0 }));
+  const items = tillNav(entry.actor.role, { qrOrdering: flags.qrOrdering, delivery: flags.delivery, captainApproval: flags.captainApproval, complaints: complaints.show, ai: ai.enabled }).map((item) => ({ ...item, badge: item.key === 'requests' ? badges.requests : item.key === 'captain' ? badges.captain : item.key === 'complaints' ? complaints.count : 0 }));
   const shift = canPos(entry.actor.role, 'shift.use') ? await query(posMyShift, {}) : { shiftId: null, openedAt: null, readAt: null };
   const idleMinutes = await query(posIdleMinutes, {});
   const printers = await query(posPrinters, {});

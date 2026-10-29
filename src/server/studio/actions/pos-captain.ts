@@ -3,7 +3,7 @@ import { delegates } from '@/server/data/tenant-db';
 import { QR_LIMITS } from '@/server/domain/pos/customer-order-rules';
 import { getCatalog, getTenant } from '@/server/data/public-menu';
 import { markBillCallSeenIn } from '@/server/pos/bill-calls';
-import { createCaptainRequestIn } from '@/server/pos/customer-orders';
+import { createCaptainRequestIn, releaseHeldRequestsIn } from '@/server/pos/customer-orders';
 import { refuse } from '@/server/pos/errors';
 import { defineAction, type ActionContext } from '@/server/studio/framework/action';
 import { StudioError } from '@/server/studio/framework/result';
@@ -35,6 +35,13 @@ export const setPosCaptainApproval = defineAction({
         entityId: input.restaurantId,
         changes: { captainApproval: { before: existing?.captainApproval ?? false, after: input.enabled } },
       });
+      // Switching it off releases the orders still held for the captain.
+      if (existing?.captainApproval === true && !input.enabled) {
+        const released = await releaseHeldRequestsIn(delegates(tx), input.restaurantId);
+        if (released > 0) {
+          ctx.audit({ action: 'pos.request.release', entityType: 'PosSettings', entityId: input.restaurantId, restaurantId: input.restaurantId, changes: { released: { before: null, after: released } } });
+        }
+      }
       return { enabled: input.enabled };
     }),
 });

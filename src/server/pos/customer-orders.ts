@@ -386,6 +386,20 @@ export async function createCaptainRequestIn(db: AnyDb, restaurantId: string, ca
  * The captain's approval of a request held for them: after it the cashier may accept it. One guarded update, so two
  * approvals, or an approval and a decision, cannot both win.
  */
+/**
+ * Captain approval was switched off: no captain is coming, so the orders still held for one go to the cashier. Only waiting,
+ * unexpired requests that were never approved change; approved, decided and expired ones keep what they had. Called in the
+ * transaction that saves the switch, after its settings row is written (a guest submission locks that row first, so one
+ * sent at the same moment is either released here or stamped free). Returns how many were released.
+ */
+export async function releaseHeldRequestsIn(db: AnyDb, restaurantId: string, now: Date = new Date()): Promise<number> {
+  const { count } = await db.posCustomerOrder.updateMany({
+    where: { restaurantId, ...waiting(now), requiresCaptain: true, captainApprovedAt: null },
+    data: { requiresCaptain: false },
+  });
+  return count;
+}
+
 export async function approveRequestIn(db: AnyDb, restaurantId: string, input: { requestId: string; userId: string }, now: Date = new Date()) {
   const { count } = await db.posCustomerOrder.updateMany({
     where: { id: input.requestId, restaurantId, ...waiting(now), requiresCaptain: true, captainApprovedAt: null },

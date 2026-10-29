@@ -22,6 +22,15 @@ export function requestActions(role: PosRole, request: { awaitingCaptain: boolea
 }
 
 /**
+ * The line shown on an order nobody on this screen can move on: held for the captain, approved and now with the cashier,
+ * or simply waiting for the cashier when it never needed the captain.
+ */
+export function lockedNote(request: { awaitingCaptain: boolean; captainApproved: boolean }): 'pos.requests.awaitingHint' | 'pos.requests.withCashier' | 'pos.requests.waitingCashier' {
+  if (request.awaitingCaptain) return 'pos.requests.awaitingHint';
+  return request.captainApproved ? 'pos.requests.withCashier' : 'pos.requests.waitingCashier';
+}
+
+/**
  * The counts on the till's nav for guest orders and bill calls. A bill call is counted once: on the captain page for the
  * captain, with the guest orders for everyone else.
  */

@@ -13,6 +13,8 @@ import { isUniqueViolation, refuse } from '@/server/pos/errors';
 import { removePrinterIn, savePrinterIn } from '@/server/pos/printers';
 import { chooseCatalogMenu as choose, ensureCatalogMenu as ensure } from '@/server/pos/catalog-menu';
 import { POS_PAYMENT_METHODS, savePosSettings, settingsChanges } from '@/server/pos/settings';
+import { releaseHeldRequestsIn } from '@/server/pos/customer-orders';
+import { delegates } from '@/server/data/tenant-db';
 import {
   addPosStaff,
   changePosStaffRole as changeRole,
@@ -87,6 +89,11 @@ export const updatePosSettings = defineAction({
     return ctx.transaction(async (tx) => {
       const { id, before, after } = await savePosSettings(tx, restaurantId, input);
       ctx.audit({ action: 'pos.settings.update', entityType: 'PosSettings', entityId: id, changes: settingsChanges(before, after) });
+      // Switching captain approval off releases the orders still held for the captain.
+      if (before.captainApproval && !after.captainApproval) {
+        const released = await releaseHeldRequestsIn(delegates(tx), restaurantId);
+        if (released > 0) ctx.audit({ action: 'pos.request.release', entityType: 'PosSettings', entityId: id, changes: { released: { before: null, after: released } } });
+      }
       return { version: after.version };
     });
   },
