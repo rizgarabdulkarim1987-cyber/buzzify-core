@@ -48,9 +48,10 @@ export const FEATURES = [
   { key: 'menu.wheel', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   // Real order and view counts on every dish card (docs/superpowers/specs/2026-10-30-menu-dish-counts-design.md).
   { key: 'menu.dishCounts', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
-  { key: 'design.premiumTemplates', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
-  { key: 'design.backgroundImage', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
-  { key: 'design.motionPresets', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
+  // Project 2 finished (docs/superpowers/specs/2026-10-31-project-2-style-control-design.md).
+  { key: 'design.premiumTemplates', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
+  { key: 'design.backgroundImage', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
+  { key: 'design.motionPresets', area: 'design', status: 'live', project: 2, startsIn: 'PRO' },
   { key: 'guest.moodPicker', area: 'selling', status: 'reserved', project: 3, startsIn: 'PRO' },
   { key: 'guest.livingPhotos', area: 'immersive', status: 'reserved', project: 3, startsIn: 'PREMIUM' },
   { key: 'guest.stories', area: 'selling', status: 'reserved', project: 3, startsIn: 'PRO' },

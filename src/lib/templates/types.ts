@@ -2,6 +2,7 @@ import type { Palette } from '@/lib/brand';
 import type { FontPairId } from '@/lib/font-pairs';
 import type { Locale } from '@/lib/locale';
 import type { WorkingHours } from '@/server/domain/restaurant-profile';
+import type { MotionPresetId } from './motion-presets';
 
 /**
  * The template presets' vocabulary (spec `2026-10-18-template-studio-design.md`, section 4): what a preset is, what a
@@ -378,6 +379,8 @@ export interface DesignOverrides {
   type?: Partial<DesignType>;
   layout?: Partial<DesignLayout>;
   scene?: Partial<SceneSettings>;
+  /** A named bundle of motion settings, under the hand-set `scene` values (see `motion-presets.ts`). */
+  motionPreset?: MotionPresetId;
   /** A library file drawn as the background instead of the template's own scene. Part of the look. */
   sceneAsset?: SceneAssetChoice;
   /** Products to feature, by slug (ids change when a revision is restored or a menu duplicated; slugs do not). */

@@ -3,6 +3,7 @@ import { isFontPairId } from '@/lib/font-pairs';
 import { LOCALES } from '@/lib/locale';
 import { isSafeMediaUrl } from '@/lib/media';
 import { DAYS, TIME_OF_DAY, type WorkingHours } from '@/server/domain/restaurant-profile';
+import { isMotionPresetId, withMotionPreset } from './motion-presets';
 import { sanitizeDesignPalette, themeOf } from './palette';
 import {
   CARD_KINDS,
@@ -200,6 +201,7 @@ export function parseOverrides(input: unknown): DesignOverrides {
   if (layout) overrides.layout = layout;
   const scene = isObject(input.scene) ? picked<SceneSettings>(input.scene, SCENE_RULES) : undefined;
   if (scene) overrides.scene = scene;
+  if (isMotionPresetId(input.motionPreset)) overrides.motionPreset = input.motionPreset;
   if (isObject(input.sceneAsset) && typeof input.sceneAsset.assetId === 'string' && ASSET_ID.test(input.sceneAsset.assetId)) {
     const framing = isObject(input.sceneAsset.framing) ? picked<ModelFraming>(input.sceneAsset.framing, FRAMING_RULES) : undefined;
     overrides.sceneAsset = { assetId: input.sceneAsset.assetId, ...(framing ? { framing } : {}) };
@@ -303,7 +305,7 @@ export function resolveDesign(preset: TemplatePreset, overrides: DesignOverrides
     palette,
     type: { ...preset.type, ...overrides.type },
     layout: { ...preset.layout, ...overrides.layout },
-    scene: { ...preset.scene, ...overrides.scene },
+    scene: { ...withMotionPreset(preset.scene, overrides.motionPreset), ...overrides.scene },
     featured: {
       slugs: overrides.featured?.slugs ?? [],
       ...(overrides.featured?.title ? { title: overrides.featured.title } : {}),

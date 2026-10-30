@@ -7,7 +7,7 @@ import type { SceneMedia } from '@/lib/templates/types';
 import { designPaletteProblems } from '@/lib/templates/palette';
 import { overriddenPalette, parseOverrides } from '@/lib/templates/resolve';
 import { allows, type Entitlements, type FeatureKey } from '@/server/domain/entitlements';
-import { allowedSceneKinds, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
+import { allowedSceneKinds, motionPresetLock, premiumTemplateLock, sceneChoiceLock, sceneFeature, type SceneFileKind } from '@/server/domain/plan-choices';
 import { isSceneKind, SCENE_KINDS, SCENE_MEDIA_KIND } from '@/server/media/kinds';
 import { loadAssets } from '@/server/media/resolve';
 import { sceneMediaOf } from '@/server/media/scene';
@@ -207,6 +207,10 @@ export async function applyDesign(ctx: ActionContext, input: { version: number; 
   return editDraft(ctx, async (tx, menuId) => {
     const row = await brandRow(tx, menuId);
     const current = parseOverrides(row.design);
+    // A premium template is newly chosen only on a plan that has it; the one the menu already has is kept.
+    const chosen = input.choice.kind === 'preset' ? input.choice.templateId : input.choice.kind === 'custom' ? (saved!.basePresetId as TemplateId) : null;
+    const premiumLocked = ctx.plan === null ? null : premiumTemplateLock(chosen, isTemplateId(row.templateId) ? row.templateId : null, ctx.plan.entitlements);
+    if (premiumLocked) requireFeature(ctx.plan, premiumLocked);
     // Likewise a file the plan locks, unless it is the one the menu already has.
     if (sceneLock(ctx, savedScene, current.sceneAsset?.assetId ?? null)) delete savedLook.sceneAsset;
     const next =
@@ -259,6 +263,8 @@ export async function updateDesign(ctx: ActionContext, input: { version: number;
     const before = parseOverrides(row.design);
     const locked = sceneLock(ctx, scene, before.sceneAsset?.assetId ?? null);
     if (locked) requireFeature(ctx.plan, locked);
+    const presetLocked = ctx.plan === null ? null : motionPresetLock(overrides.motionPreset, before.motionPreset, ctx.plan.entitlements);
+    if (presetLocked) requireFeature(ctx.plan, presetLocked);
     refuseUnreadable(row.templateId, overrides);
     await updateWithVersion(tx.brandConfig, { id: row.id, version: input.version, data: { design: json(overrides) }, entityType: 'BrandConfig' }, tx);
     const changed = [...new Set([...Object.keys(before), ...Object.keys(overrides)])].filter(
