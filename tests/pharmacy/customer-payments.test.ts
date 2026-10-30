@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as customerActions from '@/server/pharmacy/actions/customers';
+import * as returnActions from '@/server/pharmacy/actions/returns';
 import * as customerQueries from '@/server/pharmacy/queries/customers';
 import { NOW, prisma, resetWorld, useTestDatabase } from './fixture';
 import { act, ask, codeOf, dataOf, phCodeOf } from './stock-helpers';
@@ -256,9 +257,10 @@ describe('statement and ageing', () => {
   }
   const statement = async (customerId: string, from: string, to: string, extra: Record<string, unknown> = {}) =>
     dataOf(await ask(w.accountant, customerQueries.statement, { ...at(), customerId, from, to, ...extra })) as Statement;
-  const sqlSum = async (customerId: string, where: 'before' | 'upto', instant: string) => {
+  /** The ledger summed by SQL over everything made before an instant. */
+  const sqlSumBefore = async (customerId: string, instant: string) => {
     // eslint-disable-next-line no-restricted-properties -- the test sums the ledger itself, to check the statement against it
-    const rows = await prisma().$queryRaw<{ s: bigint | null }[]>`SELECT COALESCE(SUM("amountMinor"), 0)::bigint AS s FROM "PhCustomerLedger" WHERE "customerId" = ${customerId} AND (${where} = 'before' AND "createdAt" < ${new Date(instant)}::timestamptz OR ${where} = 'upto' AND "createdAt" < ${new Date(instant)}::timestamptz)`;
+    const rows = await prisma().$queryRaw<{ s: bigint | null }[]>`SELECT COALESCE(SUM("amountMinor"), 0)::bigint AS s FROM "PhCustomerLedger" WHERE "customerId" = ${customerId} AND "createdAt" < ${new Date(instant)}::timestamptz`;
     return rows[0]!.s ?? 0n;
   };
 
@@ -284,11 +286,11 @@ describe('statement and ageing', () => {
     const { c } = await history();
     const fromAug28 = await statement(c.id, '2026-08-28', '2026-10-31');
     expect(fromAug28.openingMinor).toBe('30000');
-    expect(fromAug28.openingMinor).toBe(String(await sqlSum(c.id, 'before', '2026-08-27T21:00:00.000Z')));
+    expect(fromAug28.openingMinor).toBe(String(await sqlSumBefore(c.id, '2026-08-27T21:00:00.000Z')));
     expect(fromAug28.rows.map((r) => r.balanceMinor)).toEqual(['50000', '60000', '35000']);
     const fromAug29 = await statement(c.id, '2026-08-29', '2026-10-31');
     expect(fromAug29.openingMinor).toBe('50000');
-    expect(fromAug29.openingMinor).toBe(String(await sqlSum(c.id, 'before', '2026-08-28T21:00:00.000Z')));
+    expect(fromAug29.openingMinor).toBe(String(await sqlSumBefore(c.id, '2026-08-28T21:00:00.000Z')));
     const julyOnly = await statement(c.id, '2026-07-01', '2026-08-15');
     expect([julyOnly.openingMinor, julyOnly.closingMinor]).toEqual(['0', '30000']);
   });
@@ -345,6 +347,41 @@ describe('statement and ageing', () => {
     const bySql = Object.fromEntries(sql.map((r) => [r.bucket, String(r.s)]));
     const a = dataOf(await ask(w.accountant, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
     for (const bucket of ['0-30', '31-60', '61-90', '90+']) expect(a.items[0]!.buckets[bucket], bucket).toBe(bySql[bucket] ?? '0');
+  });
+
+  it('a returned recent sale cancels its own charge: 30 000 owed for 89 days stays 61-90 whole (a first-in-first-out refund would show 20 000 old and 10 000 new)', async () => {
+    const c = await makeCustomer(w, { limit: 1_000_000n });
+    vi.setSystemTime(new Date('2026-07-30T09:00:00.000Z'));
+    dataOf(await sellOnCredit(w, w.pharmacist, c.id, 30_000n));
+    vi.setSystemTime(new Date('2026-10-25T09:00:00.000Z'));
+    const recent = dataOf(await sellOnCredit(w, w.pharmacist, c.id, 10_000n));
+    vi.setSystemTime(new Date('2026-10-26T09:00:00.000Z'));
+    const lineId = (await prisma().phSaleLine.findFirstOrThrow({ where: { saleId: recent.id }, select: { id: true } })).id;
+    dataOf(await act(w.manager, returnActions.create, { ...at(), saleId: recent.id, lines: [{ saleLineId: lineId, baseQty: 100 }], reason: 'Customer changed their mind', clientKey: key('ret') }));
+    vi.setSystemTime(NOW);
+    expect(await balanceBySql(c.id)).toBe(30_000n);
+    const a = dataOf(await ask(w.accountant, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
+    // By hand: the 10 000 sale is gone with its return; what is owed is the July sale, 89 days old on 2026-10-27.
+    expect(a.items[0]!.buckets).toEqual({ '0-30': '0', '31-60': '0', '61-90': '30000', '90+': '0' });
+  });
+
+  it('a corrected payment goes back onto the debt it had settled: 5 000 paid then corrected leaves 30 000 in 61-90 and 10 000 in 0-30', async () => {
+    const c = await makeCustomer(w, { limit: 1_000_000n });
+    vi.setSystemTime(new Date('2026-07-30T09:00:00.000Z'));
+    dataOf(await sellOnCredit(w, w.pharmacist, c.id, 30_000n));
+    vi.setSystemTime(new Date('2026-10-25T09:00:00.000Z'));
+    dataOf(await sellOnCredit(w, w.pharmacist, c.id, 10_000n));
+    vi.setSystemTime(new Date('2026-10-26T09:00:00.000Z'));
+    const paid = dataOf(await act(w.owner, customerActions.pay, pay(c.id, 'CARD', 5000n)));
+    const before = dataOf(await ask(w.accountant, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
+    expect(before.items[0]!.buckets).toEqual({ '0-30': '10000', '31-60': '0', '61-90': '25000', '90+': '0' });
+    vi.setSystemTime(new Date('2026-10-27T06:00:00.000Z'));
+    dataOf(await act(w.owner, customerActions.reverse, { ...at(), paymentId: paid.id, clientKey: key('crev') }));
+    vi.setSystemTime(NOW);
+    expect(await balanceBySql(c.id)).toBe(40_000n);
+    const a = dataOf(await ask(w.accountant, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
+    // By hand: the correction cancels the payment, so both sales are open in full: 30 000 from 07-30 (89 days) and 10 000 from 10-25 (2 days).
+    expect(a.items[0]!.buckets).toEqual({ '0-30': '10000', '31-60': '0', '61-90': '30000', '90+': '0' });
   });
 
   it('keeps currencies apart and leaves out customers who owe nothing', async () => {

@@ -24,7 +24,10 @@ import { applyMovement, lockOrder } from './stock';
  * `FOR UPDATE`, so no refund is ever posted into a closed shift; the database trigger is the backstop), (3) the sale row
  * `FOR UPDATE` (two returns of one sale queue up, so the second sees the first's quantities and refunds), (3b) when the sale was
  * paid partly on credit (phase 7): the customer row `FOR UPDATE` (customers.ts; the order is shift -> sale -> customer -> stock/number, the
- * same relative order a credit sale and a customer payment use), (4) the branch's
+ * same relative order a credit sale and a customer payment use; a controlled-medicine register row written later takes a
+ * key-share on its prescription AFTER the customer, while a credit sale locks the prescription BEFORE the customer: a cycle would need a new sale
+ * to name an already-dispensed prescription for the same credit customer at the same moment, which `claimPrescription` refuses before the
+ * customer lock, and Postgres would abort one side with 40P01 at worst), (4) the branch's
  * return numbering (advisory, held to the end of the transaction), (5) the return rows, then the allocation counters and
  * the stock balances through `applyMovement` in batch order. The number lock is deliberately taken BEFORE the balances,
  * not last as in a sale: the return row (which carries the number) is the parent of the line rows, and nothing else takes

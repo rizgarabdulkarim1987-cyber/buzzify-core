@@ -257,8 +257,8 @@ export interface AgeingView {
 export const AGEING_LIMIT = 200;
 
 /**
- * What customers owe by age, per customer and per currency: a charge ages from its Baghdad day, and everything paid or
- * refunded settles the oldest charges first. Customers who owe nothing are left out. At most 200 customers (by name).
+ * What customers owe by age, per customer and per currency: a charge ages from its Baghdad day; a refund cancels its own
+ * sale's charge and a corrected payment goes back onto what it had settled; other payments settle the oldest charges first. Customers who owe nothing are left out. At most 200 customers (by name).
  */
 export async function customerAgeing(scoped: ScopedClient, ph: PhActor, input: z.infer<typeof ageingInput>): Promise<AgeingView> {
   assertCustomerManager(ph);
@@ -273,10 +273,17 @@ export async function customerAgeing(scoped: ScopedClient, ph: PhActor, input: z
     : [];
   const shown = customers.slice(0, AGEING_LIMIT);
   const entries = shown.length
-    ? await scoped.phCustomerLedger.findMany({ where: { customerId: { in: shown.map((c) => c.id) } }, select: { customerId: true, amountMinor: true, createdAt: true } })
+    ? await scoped.phCustomerLedger.findMany({ where: { customerId: { in: shown.map((c) => c.id) } }, select: { customerId: true, kind: true, amountMinor: true, createdAt: true, saleId: true, paymentId: true } })
     : [];
+  // A REVERSAL row points at the reversing payment; that payment points at the one it corrects.
+  const reversalIds = entries.filter((e) => e.kind === 'REVERSAL' && e.paymentId).map((e) => e.paymentId as string);
+  const reverses = new Map(
+    (reversalIds.length ? await scoped.phCustomerPayment.findMany({ where: { id: { in: reversalIds } }, select: { id: true, reversesId: true } }) : []).map((p) => [p.id, p.reversesId]),
+  );
   const items: AgeingItem[] = shown.map((c) => {
-    const mine = entries.filter((e) => e.customerId === c.id).map((e) => ({ day: baghdadDay(e.createdAt), amountMinor: e.amountMinor }));
+    const mine = entries
+      .filter((e) => e.customerId === c.id)
+      .map((e) => ({ day: baghdadDay(e.createdAt), amountMinor: e.amountMinor, kind: e.kind, saleId: e.saleId, paymentId: e.paymentId, reversesPaymentId: e.kind === 'REVERSAL' && e.paymentId ? (reverses.get(e.paymentId) ?? null) : null }));
     const aged = ageingBuckets(mine, asOf);
     return {
       customerId: c.id,

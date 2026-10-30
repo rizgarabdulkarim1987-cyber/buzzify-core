@@ -138,3 +138,36 @@ describe('ageingBuckets: charge dates, payments applied oldest first', () => {
     expect(ageingBuckets([], asOf)).toEqual({ buckets: zero, owedMinor: 0n, unappliedMinor: 0n });
   });
 });
+
+describe('ageingBuckets: refunds and corrections go to what they belong to', () => {
+  const asOf = '2026-10-27';
+  const old = { day: '2026-07-30', amountMinor: 30_000n, kind: 'CHARGE', saleId: 's1' } as const; // 89 days
+  const recent = { day: '2026-10-25', amountMinor: 10_000n, kind: 'CHARGE', saleId: 's2' } as const; // 2 days
+
+  it('a refund of the recent sale cancels that sale, not the oldest debt', () => {
+    const refund = { day: '2026-10-26', amountMinor: -10_000n, kind: 'REFUND', saleId: 's2' } as const;
+    expect(ageingBuckets([old, recent, refund], asOf)).toEqual({ buckets: { '0-30': 0n, '31-60': 0n, '61-90': 30_000n, '90+': 0n }, owedMinor: 30_000n, unappliedMinor: 0n });
+  });
+
+  it('a refund beyond its own charge (the customer had paid) is a credit on the account, applied to the oldest debt', () => {
+    const paid = { day: '2026-10-20', amountMinor: -10_000n, kind: 'PAYMENT', paymentId: 'p1' } as const;
+    const refund = { day: '2026-10-26', amountMinor: -10_000n, kind: 'REFUND', saleId: 's2' } as const;
+    // 40 000 charged, the recent sale (10 000) cancelled by its refund, 10 000 paid off the oldest: 20 000 of the July sale is left.
+    expect(ageingBuckets([old, recent, paid, refund], asOf)).toEqual({ buckets: { '0-30': 0n, '31-60': 0n, '61-90': 20_000n, '90+': 0n }, owedMinor: 20_000n, unappliedMinor: 0n });
+  });
+
+  it('a corrected payment disappears with its correction: both sales are open in full', () => {
+    const paid = { day: '2026-10-26', amountMinor: -5000n, kind: 'PAYMENT', paymentId: 'p1' } as const;
+    const fixed = { day: '2026-10-27', amountMinor: 5000n, kind: 'REVERSAL', paymentId: 'p2', reversesPaymentId: 'p1' } as const;
+    expect(ageingBuckets([old, recent, paid, fixed], asOf)).toEqual({ buckets: { '0-30': 10_000n, '31-60': 0n, '61-90': 30_000n, '90+': 0n }, owedMinor: 40_000n, unappliedMinor: 0n });
+  });
+
+  it('plain entries without a kind keep the plain rule', () => {
+    expect(ageingBuckets([{ day: '2026-07-30', amountMinor: 30_000n }, { day: '2026-10-25', amountMinor: 10_000n }, { day: '2026-10-26', amountMinor: -10_000n }], asOf).buckets).toEqual({
+      '0-30': 10_000n,
+      '31-60': 0n,
+      '61-90': 20_000n,
+      '90+': 0n,
+    });
+  });
+});

@@ -75,17 +75,53 @@ export interface AgeingResult {
   unappliedMinor: bigint;
 }
 
+/** A ledger row as ageing reads it. Without `kind` a row is a plain signed amount (positive: a debt of its day, negative: a payment). */
+export interface AgeingEntry {
+  day: string;
+  amountMinor: bigint;
+  kind?: 'CHARGE' | 'PAYMENT' | 'REFUND' | 'REVERSAL';
+  /** The sale a CHARGE or REFUND belongs to. */
+  saleId?: string | null;
+  /** The payment a PAYMENT row records. */
+  paymentId?: string | null;
+  /** For a REVERSAL: the payment it corrects. */
+  reversesPaymentId?: string | null;
+}
+
 /**
- * Open debt by age. `entries` are signed ledger amounts with the day they were made: positive ones (charges, reversals of a
- * payment) are debts dated that day, negative ones (payments, refunds) settle the oldest debts first, whatever their own day.
+ * Open debt by age. A charge is a debt dated its day and keyed by its sale. A REFUND cancels its own sale's charge first (a returned
+ * sale is not an older debt paid off), a REVERSAL cancels the payment it corrects (the debt it puts back is the one that payment
+ * had settled, not a new one); what is left (payments, a refund beyond its charge) settles the oldest debts first, whatever its own
+ * day. A row of a kind it cannot attribute (a plain entry, an unlinked reversal) keeps the plain rule: positive is a debt of its day,
+ * negative a payment.
  */
-export function ageingBuckets(entries: readonly { day: string; amountMinor: bigint }[], asOfDay: string): AgeingResult {
+export function ageingBuckets(entries: readonly AgeingEntry[], asOfDay: string): AgeingResult {
   const buckets: Record<AgeingBucket, bigint> = { '0-30': 0n, '31-60': 0n, '61-90': 0n, '90+': 0n };
-  const debts = entries.filter((e) => e.amountMinor > 0n).map((e) => ({ day: e.day, left: e.amountMinor }));
-  debts.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
-  let paid = entries.filter((e) => e.amountMinor < 0n).reduce((sum, e) => sum - e.amountMinor, 0n);
+  const open: { day: string; left: bigint; sale: string | null }[] = [];
+  let loose = 0n;
+  const refunds: { saleId: string; amount: bigint }[] = [];
+  const reversed = new Set(entries.filter((e) => e.kind === 'REVERSAL' && e.reversesPaymentId).map((e) => e.reversesPaymentId as string));
+  for (const e of entries) {
+    if (e.kind === 'REFUND' && e.saleId && e.amountMinor < 0n) refunds.push({ saleId: e.saleId, amount: -e.amountMinor });
+    else if (e.kind === 'REVERSAL' && e.reversesPaymentId) continue;
+    else if (e.kind === 'PAYMENT' && e.paymentId && reversed.has(e.paymentId)) continue;
+    else if (e.amountMinor > 0n) open.push({ day: e.day, left: e.amountMinor, sale: e.kind === 'CHARGE' ? (e.saleId ?? null) : null });
+    else loose -= e.amountMinor;
+  }
+  for (const refund of refunds) {
+    let rest = refund.amount;
+    for (const d of open) {
+      if (d.sale !== refund.saleId || rest === 0n) continue;
+      const used = rest < d.left ? rest : d.left;
+      d.left -= used;
+      rest -= used;
+    }
+    loose += rest;
+  }
+  open.sort((a, b) => (a.day < b.day ? -1 : a.day > b.day ? 1 : 0));
+  let paid = loose;
   let owedMinor = 0n;
-  for (const debt of debts) {
+  for (const debt of open) {
     const used = paid < debt.left ? paid : debt.left;
     paid -= used;
     const left = debt.left - used;
