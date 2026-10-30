@@ -1,4 +1,5 @@
-import { ClipboardList } from 'lucide-react';
+import { ClipboardList, Sparkles } from 'lucide-react';
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { ReceiveBlocked } from '@/app/pharmacy/_ui/ReceiveBlocked';
 import { MoneyLocked } from '@/app/pharmacy/_ui/ReasonAction';
@@ -9,6 +10,7 @@ import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
 import { requestStudioLocale } from '@/studio/request-locale';
 import { PageHeader } from '@/studio/ui/PageHeader';
+import { acceptedProposal } from '../../../assistant/prefill';
 import { purchasingGate } from '../../gate';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,10 +18,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 /** Returning stock to a supplier from the chosen branch. Needs purchase.manage AND stock.adjust: a role without the second sees the blocked state. */
-export default async function NewSupplierReturnPage() {
+export default async function NewSupplierReturnPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const g = await purchasingGate('pharmacy.purchasing.m.ret.newTitle', { href: '/pharmacy/purchasing/returns', labelKey: 'pharmacy.purchasing.m.ret.back' });
   if (g.blocked) return g.blocked;
   const { access, t } = g;
+  const raw = await searchParams;
   const header = <PageHeader className="max-sm:px-4" above={g.back} title={t('pharmacy.purchasing.m.ret.newTitle')} description={t('pharmacy.purchasing.m.ret.newIntro')} />;
   if (!g.writable.ok) {
     return (
@@ -53,9 +56,22 @@ export default async function NewSupplierReturnPage() {
     );
   }
   const page = await query(suppliers, { ...access.placeInput, active: true });
+  // Opened from an accepted assistant suggestion: the lines it names are shown above the form, which is the same form as always.
+  const accepted = await acceptedProposal(access.placeInput, typeof raw.proposal === 'string' ? raw.proposal : undefined, 'SUPPLIER_RETURN');
   return (
     <>
       {header}
+      {accepted && (
+        <p data-testid="assistant-prefill" className="mx-4 mb-3 flex items-start gap-2.5 rounded-md border border-line bg-surface px-3 py-2.5 text-sm text-text sm:mx-8">
+          <Sparkles aria-hidden className="mt-px size-4 shrink-0 text-muted" />
+          <span className="min-w-0">
+            {t('pharmacy.assistant.prefillReturn')}{' '}
+            <Link href={`/pharmacy/assistant/proposals/${accepted.id}`} className="underline underline-offset-2">
+              {t('pharmacy.assistant.prefillReturnLink')}
+            </Link>
+          </span>
+        </p>
+      )}
       <SupplierReturnForm
         userId={access.actor.userId}
         restaurantId={access.placeInput.restaurantId}

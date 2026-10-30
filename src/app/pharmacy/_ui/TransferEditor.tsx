@@ -58,6 +58,8 @@ export interface TransferEditorProps {
   placeBranchId: string | null;
   /** The saved REQUESTED transfer being edited; null for a new one. */
   edit: { id: string; version: number; draft: TransferDraft } | null;
+  /** A new request opened from an accepted assistant suggestion: its lines, kept on this device apart from the empty form. Nothing is saved until Save. */
+  prefill?: { id: string; draft: TransferDraft } | null;
 }
 
 type StockNote = { state: 'loading' } | { state: 'ready'; sellable: number } | { state: 'failed' };
@@ -68,7 +70,7 @@ type StockNote = { state: 'loading' } | { state: 'ready'; sellable: number } | {
  * until saved; the save key is made for exactly the values sent, so a retry after a lost answer replays. Where the sender's
  * stock can be seen from the branch the person works in, each line says how much is available there. No motion.
  */
-export function TransferEditor({ userId, restaurantId, branches, reach, placeBranchId, edit }: TransferEditorProps) {
+export function TransferEditor({ userId, restaurantId, branches, reach, placeBranchId, edit, prefill = null }: TransferEditorProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -79,10 +81,11 @@ export function TransferEditor({ userId, restaurantId, branches, reach, placeBra
   const mine = useMemo(() => (reach.allBranches ? branches : branches.filter((b) => reach.branchIds.includes(b.id))), [branches, reach]);
   const start = useMemo<TransferDraft>(() => {
     if (edit) return edit.draft;
+    if (prefill) return prefill.draft;
     const own = (placeBranchId && mine.some((b) => b.id === placeBranchId) ? placeBranchId : mine[0]?.id) ?? '';
     return emptyTransferDraft(firstKey, 'send', own, branches.find((b) => b.id !== own)?.id ?? '');
-  }, [edit, firstKey, mine, branches, placeBranchId]);
-  const draft = useDraft<TransferDraft>(draftKey(userId, `transfer@${restaurantId}`, edit ? `${edit.id}:${edit.version}` : 'new'), start);
+  }, [edit, prefill, firstKey, mine, branches, placeBranchId]);
+  const draft = useDraft<TransferDraft>(draftKey(userId, `transfer@${restaurantId}`, edit ? `${edit.id}:${edit.version}` : prefill ? `assistant-${prefill.id}` : 'new'), start);
   const value = draft.value;
   const [pending, setPending] = useState(false);
   const [failure, setFailure] = useState<{ message: string; stale: boolean; fields: Record<string, string> } | null>(null);

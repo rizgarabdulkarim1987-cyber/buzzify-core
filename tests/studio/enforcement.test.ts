@@ -73,9 +73,9 @@ const actionsFileViolations = (source: string) => exportsNotMatching(source, ACT
 /**
  * The pharmacy's Server Actions forward through `invokePh` or `invokePhQuery`, which put the place the person chose (the
  * signed cookie, checked again) in place of any restaurant or branch the browser sent: never `invoke` directly. The report reads
- * use `invokePhReport`: the business is the place's, the branch is the person's own filter (R6-15).
+ * use `invokePhReport` (and the assistant's actions `invokePhFiltered`): the business is the place's, the branch is the person's own filter (R6-15).
  */
-const PH_ACTION_EXPORT = /export async function (\w+)\(input: unknown\)\s*\{\s*return (invokePh|invokePhQuery|invokePhReport)\(\w+\.\w+, input\);\s*\}/;
+const PH_ACTION_EXPORT = /export async function (\w+)\(input: unknown\)\s*\{\s*return (invokePh|invokePhQuery|invokePhReport|invokePhFiltered)\(\w+\.\w+, input\);\s*\}/;
 
 const pharmacyActionsFileViolations = (source: string) => exportsNotMatching(source, PH_ACTION_EXPORT);
 

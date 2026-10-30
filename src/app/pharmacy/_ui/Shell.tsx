@@ -146,6 +146,16 @@ export function Shell({
             {t('pharmacy.nav.reports')}
           </Link>
         )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/assistant" className={LINK}>
+            {t('pharmacy.nav.assistant')}
+          </Link>
+        )}
+        {actor.role !== null && canPh(actor.role, 'catalog.view') && (
+          <Link href="/pharmacy/print/labels" className={LINK}>
+            {t('pharmacy.print.labels.title')}
+          </Link>
+        )}
         {actor.role !== null && canPh(actor.role, 'report.view') && actor.branchIds.length > 1 && (
           <Link href="/pharmacy/chain" className={LINK}>
             {t('pharmacy.nav.chain')}
@@ -157,7 +167,7 @@ export function Shell({
           </Link>
         ) : null}
       </nav>
-      {notice}
+      {notice ? <div className="print:hidden">{notice}</div> : null}
       <main id="main" className="flex min-w-0 flex-1 flex-col">
         {children}
       </main>

@@ -46,6 +46,8 @@ export interface PurchaseOrderEditorProps {
   /** The saved draft order to edit as the form's value; null for a new one. */
   initial: PoDraft | null;
   orderId: string | null;
+  /** A new order opened from an accepted assistant suggestion: keeps its draft on this device apart from the empty form. */
+  draftId?: string;
 }
 
 type Suggestions = { state: 'idle' } | { state: 'loading' } | { state: 'failed'; message: string } | { state: 'done'; items: PoSuggestion[]; supplierId: string; hasHistory: boolean };
@@ -56,7 +58,7 @@ type Suggestions = { state: 'idle' } | { state: 'loading' } | { state: 'failed';
  * values stay on this device; the save key is made for exactly the values sent, so a retry after a lost answer replays.
  * A refusal is shown as its translated sentence and the form keeps what was typed. No motion.
  */
-export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName, currencies, suppliers: initialSuppliers, initial, orderId }: PurchaseOrderEditorProps) {
+export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName, currencies, suppliers: initialSuppliers, initial, orderId, draftId }: PurchaseOrderEditorProps) {
   const t = useT();
   const { locale } = useLocale();
   const router = useRouter();
@@ -64,7 +66,7 @@ export function PurchaseOrderEditor({ userId, restaurantId, branchId, branchName
   const searchRef = useRef<HTMLDivElement>(null);
   const [firstKey] = useState(() => newClientKey('po'));
   const start = useMemo(() => initial ?? emptyPoDraft(firstKey, currencies[0] ?? 'IQD'), [initial, firstKey, currencies]);
-  const draft = useDraft<PoDraft>(draftKey(userId, `po@${restaurantId}:${branchId}`, orderId ?? 'new'), start);
+  const draft = useDraft<PoDraft>(draftKey(userId, `po@${restaurantId}:${branchId}`, orderId ?? (draftId ? `assistant-${draftId}` : 'new')), start);
   const value = draft.value;
   const [suppliers, setSuppliers] = useState<SupplierOption[]>(initialSuppliers);
   const [supplierSearch, setSupplierSearch] = useState('');

@@ -38,6 +38,16 @@ export async function invokePhReport<I, O>(def: QueryDef<I, O>, raw: unknown): P
   return invokeQuery(def, withBusiness(raw, known.place.restaurantId), { phAccess: known.phAccess });
 }
 
+/**
+ * An ACTION whose branch is the person's own filter, like a report read (assistant questions and suggestions, R7-6): the business is the place's,
+ * the branch the browser sends stays and the action's target check refuses one that is not the person's.
+ */
+export async function invokePhFiltered<I, O>(def: ActionDef<I, O>, raw: unknown): Promise<ActionResult<O>> {
+  const known = await placeOf();
+  if (!known) return failure('FORBIDDEN');
+  return invoke(def, withBusiness(raw, known.place.restaurantId), { phAccess: known.phAccess });
+}
+
 /** The validated place and what was resolved for it in this request; null when the person has no valid place now. */
 async function placeOf() {
   const { actor, gate, place } = await getPhAccess();
