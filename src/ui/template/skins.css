@@ -891,6 +891,9 @@ span.tpl-counts:not(.tpl-badge) {
   display: flex;
   flex-direction: column;
   max-height: inherit;
+}
+/* Only a surface with a height of its own gives its panel a percentage of it; elsewhere iPhone resolves it to nothing. */
+.tpl-surface-page .tpl-surface-panel {
   height: 100%;
 }
 .tpl-surface-sheet {
@@ -918,6 +921,9 @@ span.tpl-counts:not(.tpl-badge) {
   box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.6);
 }
 @media (min-width: 640px) {
+  .tpl-surface-drawer .tpl-surface-panel {
+    height: 100%;
+  }
   .tpl-surface-sheet {
     margin: auto;
     max-width: 36rem;
