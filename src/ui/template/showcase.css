@@ -23,9 +23,12 @@
   /* Room for the focus ring, which the scroll container would otherwise clip. */
   padding-block: 0.3rem;
 }
-/* The strip takes focus (tabindex 0), so a keyboard can scroll a strip with no button in it. */
+/*
+ * The strip takes focus (tabindex 0), so a keyboard can scroll a strip with no button in it. `--accent-ink` is set on
+ * every template's root by designStyle() (design-style.ts); the fallback keeps a visible ring if a skin ever drops it.
+ */
 .tpl-showcase-strip:focus-visible {
-  outline: 2px solid var(--accent-ink);
+  outline: 2px solid var(--accent-ink, currentColor);
   outline-offset: -2px;
 }
 
@@ -98,12 +101,12 @@
   outline: none;
 }
 .tpl-showcase-card:has(.tpl-showcase-link:focus-visible) {
-  outline: 2px solid var(--accent-ink);
+  outline: 2px solid var(--accent-ink, currentColor);
   outline-offset: 2px;
 }
 @media (hover: hover) {
   .tpl-showcase-card-tap:hover {
-    box-shadow: inset 0 0 0 1px var(--accent-ink);
+    box-shadow: inset 0 0 0 1px var(--accent-ink, currentColor);
   }
 }
 

@@ -258,5 +258,11 @@ describe('ShowcaseCarousel', () => {
       // A property at the start of a declaration (so `text-transform` is not a transform).
       expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/(^|[\s;{])(animation[\w-]*|transition[\w-]*|transform|will-change|translate|scale|rotate|filter|backdrop-filter)\s*:/m);
     });
+
+    it('draws its focus ring and hover line with a colour that always resolves', () => {
+      const rules = css.replace(/\/\*[\s\S]*?\*\//g, '');
+      expect(rules).toMatch(/\.tpl-showcase-strip:focus-visible\s*\{[^}]*outline:[^;]*var\(--accent-ink, currentColor\)/);
+      expect(rules).not.toMatch(/var\(--accent-ink\)/);
+    });
   });
 });
