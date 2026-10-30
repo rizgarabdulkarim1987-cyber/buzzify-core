@@ -303,8 +303,9 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
                     <RuleRow
                       key={card.id}
                       title={
-                        <span className="inline-flex flex-wrap items-center gap-2">
-                          {label}
+                        <span className="inline-flex max-w-full flex-wrap items-center gap-2">
+                          {/* A long unbroken title (a URL, a word with no spaces) wraps instead of widening the page. */}
+                          <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
                           <span className="text-xs font-normal text-muted">{t(`sales.showcase.kind.${card.kind}`)}</span>
                         </span>
                       }
