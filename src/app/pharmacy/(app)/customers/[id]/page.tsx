@@ -113,11 +113,13 @@ export default async function CustomerPage({ params, searchParams }: { params: P
             </Chip>
           </p>
         )}
-        <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label={t('pharmacy.credit.account')}>
-          {figure(t('pharmacy.credit.balance'), view.balance, 'customer-balance', true)}
-          {figure(t('pharmacy.credit.limit'), view.limit, 'customer-limit-figure')}
-          {figure(t('pharmacy.credit.remaining'), view.remaining, 'customer-remaining')}
-        </dl>
+        <section aria-label={t('pharmacy.credit.account')}>
+          <dl className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {figure(t('pharmacy.credit.balance'), view.balance, 'customer-balance', true)}
+            {figure(t('pharmacy.credit.limit'), view.limit, 'customer-limit-figure')}
+            {figure(t('pharmacy.credit.remaining'), view.remaining, 'customer-remaining')}
+          </dl>
+        </section>
         {view.balance < 0n && (
           <p className="flex items-center gap-2 text-sm text-muted" data-testid="customer-overpaid">
             <Info aria-hidden className="size-4 shrink-0" />
