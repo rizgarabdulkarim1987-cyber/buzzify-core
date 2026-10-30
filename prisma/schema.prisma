@@ -216,6 +216,8 @@ model Menu {
   introEnabled        Boolean       @default(false)
   aboutEnabled        Boolean       @default(false)
   wheelEnabled        Boolean       @default(false)
+  /// Whether each dish card shows its order and view counts; read live like the switches above, and shown only when the plan holds menu.dishCounts.
+  dishCountsEnabled   Boolean       @default(false)
   /// What bulk price changes round to, in minor units; null for the currency's default (0.05 USD, 250 IQD).
   priceStep           Int?
   engineConfig        Json          @default("{}")
@@ -238,6 +240,8 @@ model Menu {
   wheel           MenuWheel?
   wheelSlices     WheelSlice[]
   wheelSpins      WheelSpin[]
+  viewTotals      ProductViewTotal[]
+  viewMarks       ProductViewMark[]
   categories      Category[]
   products        Product[]
   variants        ProductVariant[]
@@ -2608,5 +2612,37 @@ model WheelSpin {
 
   @@unique([menuId, day, guestKey, slot])
   @@index([menuId, day, ipHash])
+  @@index([createdAt])
+}
+
+/// How many times guests opened a dish, from the first day. Counted once per device and day, at most three per address and day (ProductViewMark); nobody edits it.
+model ProductViewTotal {
+  id        String   @id @default(cuid())
+  menuId    String
+  /// A plain id (no relation): a deleted dish never blocks anything.
+  productId String
+  views     Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, productId])
+}
+
+/// Who has been counted for a dish today, kept three days. No personal data: a signed random cookie key and a salted address hash.
+model ProductViewMark {
+  id        String   @id @default(cuid())
+  menuId    String
+  productId String
+  /// YYYY-MM-DD in the menu's time zone.
+  day       String
+  guestKey  String
+  ipHash    String
+  createdAt DateTime @default(now())
+
+  menu Menu @relation(fields: [menuId], references: [id], onDelete: Cascade)
+
+  @@unique([menuId, productId, day, guestKey])
+  @@index([menuId, productId, day, ipHash])
   @@index([createdAt])
 }

@@ -27,6 +27,7 @@ export const AUDIT_ACTIONS = [
   'menu.about_changed',
   'menu.about_offer_changed',
   'menu.wheel_changed',
+  'menu.dish_counts_changed',
   'platform.intro_changed',
   'menu.slug_changed',
   'menu.settings_changed',

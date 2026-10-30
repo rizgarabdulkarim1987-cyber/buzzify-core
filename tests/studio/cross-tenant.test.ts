@@ -651,6 +651,8 @@ const SWEPT: Record<string, Case[]> = {
   'menus.about': [c("B's About page", (w) => ({ menuId: w.b.menuId }))],
   // The wheel: B's menu through A's session.
   'menus.setWheelEnabled': [c("switches on B's wheel", (w) => ({ menuId: w.b.menuId, enabled: true }))],
+  // The dish counts switch: B's menu through A's session.
+  'menus.setDishCountsEnabled': [c("switches on B's dish counts", (w) => ({ menuId: w.b.menuId, enabled: true }))],
   'menus.saveWheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId, spinsPerDay: 1, startsAt: null, endsAt: null, title: {}, slices: [] }))],
   'menus.wheel': [c("B's wheel", (w) => ({ menuId: w.b.menuId }))],
   // A self target that names menus by id: each one is run as its own action, and each must be refused.

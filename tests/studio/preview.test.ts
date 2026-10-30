@@ -51,6 +51,19 @@ describe('the draft preview', () => {
     expect(view.products[0]!.orderState).toBe('UNAVAILABLE');
   });
 
+  it('shows the dish counts the owner switched on, so the switch can be seen working', async () => {
+    const order = await prisma().posOrder.create({ data: { restaurantId: a.restaurant.id, number: 1 } });
+    const payment = await prisma().posPayment.create({ data: { restaurantId: a.restaurant.id, orderId: order.id, method: 'CASH', amountReceived: 0, totalsSnapshot: {} } });
+    await prisma().posOrderLine.create({ data: { restaurantId: a.restaurant.id, orderId: order.id, productId: a.product.id, nameSnapshot: 'x', unitPriceSnapshot: 100, quantity: 4, paymentId: payment.id } });
+    await prisma().productViewTotal.create({ data: { menuId: a.menu.id, productId: a.product.id, views: 9 } });
+    const off = dataOf(await runQuery(prisma(), owner, preview.draft, { menuId: a.menu.id, locale: 'en' }));
+    expect(off.view.products[0]).not.toHaveProperty('counts');
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { plan: 'PRO' } });
+    await prisma().menu.update({ where: { id: a.menu.id }, data: { dishCountsEnabled: true } });
+    const on = dataOf(await runQuery(prisma(), owner, preview.draft, { menuId: a.menu.id, locale: 'en' }));
+    expect(on.view.products[0]!.counts).toEqual({ orders: 4, views: 9 });
+  });
+
   it('refuses a language the menu does not offer', async () => {
     await prisma().menu.update({ where: { id: a.menu.id }, data: { locales: ['en'] } });
     const result = await runQuery(prisma(), owner, preview.draft, { menuId: a.menu.id, locale: 'ckb' });

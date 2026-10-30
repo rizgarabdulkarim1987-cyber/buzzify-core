@@ -1,7 +1,9 @@
 import { z } from 'zod';
 import { LOCALES } from '@/lib/locale';
+import { loadDishCounts } from '@/server/data/dish-counts';
 import { loadOverlay } from '@/server/data/live';
 import { buildMenuView, type MenuView } from '@/server/data/menu-view';
+import { getPrisma } from '@/server/data/prisma';
 import { tenantInfo } from '@/server/data/public-menu';
 import type { TenantInfo } from '@/server/data/tenant';
 import { hiddenFromGuests, servedCatalog } from '@/server/domain/plan-choices';
@@ -26,7 +28,7 @@ export const draft = defineQuery({
   target: (i) => ({ kind: 'menu', menuId: i.menuId }),
   run: async (ctx, { locale }): Promise<{ tenant: TenantInfo; view: MenuView; designContext: DesignContext }> => {
     if (ctx.menuId === null || ctx.plan === null) throw new Error('A menu query ran without a menu');
-    const menu = await ctx.db.menu.findUnique({ where: { id: ctx.menuId }, select: { id: true, slug: true, restaurantId: true } });
+    const menu = await ctx.db.menu.findUnique({ where: { id: ctx.menuId }, select: { id: true, slug: true, restaurantId: true, dishCountsEnabled: true } });
     if (!menu) throw new StudioError('NOT_FOUND');
     const snapshot = await loadDraftSnapshot(ctx.db, menu.id);
     if (!snapshot.menu.locales.includes(locale)) throw new StudioError('NOT_FOUND');
@@ -39,7 +41,7 @@ export const draft = defineQuery({
       select: { address: true, city: true, phone: true, whatsapp: true, mapUrl: true, socialLinks: true, workingHours: true, showPoweredBy: true },
     });
     const { showPoweredBy, ...details } = restaurant;
-    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date()), designContext: { details, showPoweredBy } };
+    return { tenant, view: buildMenuView(catalog, tenant, locale, new Date(), { dishCounts: tenant.extras.dishCounts ? await loadDishCounts(getPrisma(), menu.id) : undefined }), designContext: { details, showPoweredBy } };
   },
 });
 

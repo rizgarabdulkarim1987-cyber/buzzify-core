@@ -48,6 +48,8 @@ export const FEATURES = [
   { key: 'menu.intro', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'menu.about', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'menu.wheel', area: 'publishing', status: 'live', project: 1, startsIn: 'PRO' },
+  // Real order and view counts on every dish card (docs/superpowers/specs/2026-10-30-menu-dish-counts-design.md).
+  { key: 'menu.dishCounts', area: 'selling', status: 'live', project: 1, startsIn: 'PRO' },
   { key: 'design.premiumTemplates', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.backgroundImage', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },
   { key: 'design.motionPresets', area: 'design', status: 'reserved', project: 2, startsIn: 'PRO' },

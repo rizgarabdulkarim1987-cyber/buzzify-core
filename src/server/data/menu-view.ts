@@ -25,6 +25,7 @@ import {
   type VisualKey,
 } from '@/server/domain';
 import type { MotionParams } from '@/motion/types';
+import { showsCounts } from '@/server/domain/dish-counts';
 import { guestParams, type SnapshotMotion } from '@/server/domain/menu-motions';
 import type { TenantInfo } from './tenant';
 
@@ -85,6 +86,8 @@ export interface MenuProductView {
   special?: string;
   /** Among the menu's most ordered dishes, from real guest data. */
   mostOrdered?: true;
+  /** Paid orders and guest openings of the dish, from the first day; present only from its first paid order and only while the menu shows counts. */
+  counts?: { orders: number; views: number };
   /** Portions left today, when at or below the dish's threshold. */
   fewLeft?: number;
   /** How many people the dish is for. */
@@ -252,13 +255,17 @@ export function buildMenuView(
   tenant: TenantInfo,
   locale: Locale,
   now: Date,
-  extras: { mostOrdered?: readonly string[] } = {},
+  extras: { mostOrdered?: readonly string[]; dishCounts?: ReadonlyMap<string, { orders: number; views: number }> } = {},
 ): MenuView {
   const fallback = catalog.defaultLocale;
   const current = daypartNow(catalog, now);
   const live = liveOffers(catalog, now);
   const sales = salesSettings(tenant.engineConfig);
   const socialProof = tenant.features.socialProof;
+  const dishCounts = (id: string) => {
+    const found = tenant.extras?.dishCounts ? extras.dishCounts?.get(id) : undefined;
+    return found && showsCounts(found.orders) ? found : undefined;
+  };
   const mostOrdered = new Set(socialProof && sales.showMostOrdered ? (extras.mostOrdered ?? []) : []);
   const fewLeft = (product: CatalogProduct): number | null =>
     socialProof &&
@@ -294,6 +301,7 @@ export function buildMenuView(
         ...(discount ? { percentOff: discount.percent, roundTo: discount.roundTo } : {}),
         ...(special ? { special: resolveText(special.translations, 'title', locale, fallback) } : {}),
         ...(mostOrdered.has(product.id) ? { mostOrdered: true as const } : {}),
+        ...(dishCounts(product.id) ? { counts: dishCounts(product.id) } : {}),
         ...(left !== null ? { fewLeft: left } : {}),
         ...(product.serves !== null ? { serves: product.serves } : {}),
         needsChoices: product.groups.some((group) => group.minSelect > 0 && group.options.length > 0),

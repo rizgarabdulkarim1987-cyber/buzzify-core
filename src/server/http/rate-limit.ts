@@ -77,6 +77,12 @@ export async function prunePublicRateLimits(prisma: Pick<PrismaClient, 'authRate
   return count;
 }
 
+/** Deletes the dish-view marks recorded before `before`: they only tell whether a device or an address has counted today, so three days is more than enough. The totals stay. */
+export async function pruneProductViewMarks(prisma: Pick<PrismaClient, 'productViewMark'>, before: Date): Promise<number> {
+  const { count } = await prisma.productViewMark.deleteMany({ where: { createdAt: { lt: before } } });
+  return count;
+}
+
 /** Deletes the wheel's spins recorded before `before`: they exist only to count a day's spins, so three days is more than enough. */
 export async function pruneWheelSpins(prisma: Pick<PrismaClient, 'wheelSpin'>, before: Date): Promise<number> {
   const { count } = await prisma.wheelSpin.deleteMany({ where: { createdAt: { lt: before } } });
