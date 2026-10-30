@@ -5,7 +5,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import type { MenuProductView } from '@/server/data/menu-view';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { hueAt } from './shared/hue';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
@@ -90,6 +90,7 @@ function Pin({ product, priority, order }: { product: MenuProductView; priority:
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name tm-name text-center">
         {product.name}
       </button>
+      <DishCounts product={product} />
     </li>
   );
 }

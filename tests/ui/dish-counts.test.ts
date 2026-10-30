@@ -38,19 +38,16 @@ describe('the dish counts line', () => {
 });
 
 /**
- * Every style must show the counts. A style shows them through the shared `Badges`, through a shared dish card that carries them, or, for the
- * styles listed here, only in the opened dish (their cards are drawn one by one and still need the line placed). The list may only shrink.
+ * Every style must show the counts on its dish cards: through the shared `Badges`, a shared dish card that carries them, or its own `DishCounts`.
+ * Periodic is the one exception: its tiles are about 100px wide and the line does not fit, so it shows them only in the opened dish.
  */
-const DETAIL_ONLY = [
-  'BeachBody', 'BookBody', 'CabinetBody', 'CarpetBody', 'ComicsBody', 'FrostBody', 'GateBody', 'KineticBody', 'LatticeBody', 'LevelsBody',
-  'MagazineBody', 'PeriodicBody', 'PrinterBody', 'RugsBody', 'ShelvesBody', 'StationBody', 'SteamBody', 'TabletopBody', 'TreasureBody',
-];
+const DETAIL_ONLY = ['PeriodicBody'];
 
 describe('the styles that show the counts', () => {
   const dir = join(process.cwd(), 'src/ui/template/bodies');
   const bodies = readdirSync(dir).filter((file) => file.endsWith('Body.tsx'));
 
-  it('shows them in every style except the listed ones', () => {
+  it('shows them in every style except the listed one', () => {
     const without = bodies
       .filter((file) => {
         const source = readFileSync(join(dir, file), 'utf8');
