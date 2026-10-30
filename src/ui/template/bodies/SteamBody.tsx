@@ -6,7 +6,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { LANES, temperatureOf, type Temperature } from './temperature';
 import { useSteamLive } from './useSteamLive';
@@ -121,6 +121,7 @@ function Hero({ product, temperature, label, badge }: { product: MenuProductView
           <span className="sr-only">{label}: </span>
           {product.name}
         </button>
+        <DishCounts product={product} />
         <div className="stm-meta">
           <Price product={product} className="stm-price" />
           <QuickAction product={product} variant="icon" className="tpl-rim-add stm-add" />
@@ -139,6 +140,7 @@ function Tile({ product, temperature, badge, priority }: { product: MenuProductV
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name stm-name">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <div className="stm-meta">
         <Price product={product} className="stm-price" />
         <QuickAction product={product} variant="icon" className="tpl-rim-add stm-add" />

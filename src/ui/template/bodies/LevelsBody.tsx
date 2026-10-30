@@ -6,7 +6,7 @@ import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
 import type { MenuProductView } from '@/server/data/menu-view';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { hueAt, SHAPE_HUES } from './shared/hue';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
@@ -117,6 +117,7 @@ function Level({ product, level, spot, priority, order }: { product: MenuProduct
         <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name lv-name">
           {product.name}
         </button>
+        <DishCounts product={product} />
         <div className="lv-line">
           <Price product={product} className="tpl-price-tight lv-pill" />
           <SaleChip product={product} className="lv-off" />

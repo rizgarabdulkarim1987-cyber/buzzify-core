@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import './shared/shapes.css';
 import './comics.css';
@@ -87,6 +87,7 @@ function Panel({ product, wide, splash, priority, order }: { product: MenuProduc
           <button type="button" onClick={() => openProduct(product.id)} className="tpl-open cm-name">
             {product.name}
           </button>
+          <DishCounts product={product} />
         </div>
         <i aria-hidden className="cm-tail" />
       </div>

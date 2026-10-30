@@ -5,7 +5,7 @@ import type { MenuProductView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
 import { useApp } from '@/ui/AppProviders';
 import { useTemplate } from '../context';
-import { Price, ProductMedia, QuickAction, SaleChip } from '../parts';
+import { DishCounts, Price, ProductMedia, QuickAction, SaleChip } from '../parts';
 import { SectionStrip, ShapeHeading } from './shared/SectionStrip';
 import { useOnceInView } from './shared/useOnceInView';
 import { usePlaceOf } from './shared/usePlaceOf';
@@ -91,6 +91,7 @@ function Planet({ product, label, turned, onTurned }: { product: MenuProductView
             <span className="sr-only">{label}: </span>
             {product.name}
           </button>
+          <DishCounts product={product} />
           <div className="st-meta">
             <Price product={product} className="st-price" />
             <QuickAction product={product} variant="icon" className="tpl-rim-add st-add" />
@@ -118,6 +119,7 @@ function Port({ product, priority }: { product: MenuProductView; priority: boole
       <button type="button" onClick={() => openProduct(product.id)} className="tpl-open tpl-dish-name st-name">
         {product.name}
       </button>
+      <DishCounts product={product} />
       <div className="st-meta">
         <Price product={product} className="st-price" />
         <QuickAction product={product} variant="icon" className="tpl-rim-add st-add" />
