@@ -921,9 +921,20 @@ export interface SalesRules {
   }>;
 }
 
-export type ShowcaseHiddenReason = 'OFFER_OFF' | 'OFFER_ENDED' | 'SET_OFF' | 'SET_UNAVAILABLE' | 'OCCASION_OFF' | 'OCCASION_ENDED' | 'OCCASION_UPCOMING';
+export type ShowcaseHiddenReason = 'PLAN' | 'OFFER_OFF' | 'OFFER_ENDED' | 'SET_OFF' | 'SET_UNAVAILABLE' | 'OCCASION_OFF' | 'OCCASION_ENDED' | 'OCCASION_UPCOMING';
 
-export async function salesRules(db: QueryContext['db'], menuId: string, now: Date = new Date()): Promise<SalesRules> {
+/** What the restaurant's plan serves guests (`servedCatalog`): without timed offers no offer card shows, without smart selling no set card. */
+export interface ShowcasePlan {
+  offers: boolean;
+  smartSelling: boolean;
+}
+
+export async function salesRules(
+  db: QueryContext['db'],
+  menuId: string,
+  now: Date = new Date(),
+  plan: ShowcasePlan = { offers: true, smartSelling: true },
+): Promise<SalesRules> {
   const menu = await db.menu.findUniqueOrThrow({
     where: { id: menuId },
     select: { locales: true, defaultLocale: true, currency: true, numeralSystem: true, timezone: true },
@@ -955,6 +966,7 @@ export async function salesRules(db: QueryContext['db'], menuId: string, now: Da
   const offerById = new Map(offers.map((offer) => [offer.id, offer]));
   const setById = new Map(sets.map((bundle) => [bundle.id, bundle]));
   const hiddenReason = (card: (typeof cards)[number]): ShowcaseHiddenReason | null => {
+    if ((card.kind === 'OFFER' && !plan.offers) || (card.kind === 'SET' && !plan.smartSelling)) return 'PLAN';
     const occasion = card.occasionId === null ? undefined : occasionById.get(card.occasionId);
     if (occasion) {
       if (!occasion.isActive) return 'OCCASION_OFF';

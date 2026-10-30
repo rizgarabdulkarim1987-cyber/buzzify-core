@@ -291,6 +291,23 @@ describe('what the Sales tab reads for the showcase', () => {
     expect(reason(ids.setLive)).toBeNull();
     expect(read.showcase.find((c) => c.id === ids.occRunning)).toMatchObject({ slot: 'ABOVE_SEARCH', kind: 'BUFFET', price: 1, version: 1, isActive: true, title: { en: 'x' } });
   });
+
+  it('marks offer and set cards hidden by the plan when it leaves out timed offers and smart selling', async () => {
+    const promo = dataOf(await run(sales.saveOffer, offer()));
+    const bundle = dataOf(await run(sales.saveSet, set()));
+    const offerCard = dataOf(await run(sales.saveShowcaseCard, card({ kind: 'OFFER', promotionId: promo.id, price: null, title: {} }))).id;
+    const setCard = dataOf(await run(sales.saveShowcaseCard, card({ kind: 'SET', bundleId: bundle.id, price: null, title: {} }))).id;
+    const buffet = dataOf(await run(sales.saveShowcaseCard, card())).id;
+    const reason = async (id: string) => dataOf(await rules()).showcase.find((c) => c.id === id)?.hiddenReason;
+    expect(await reason(offerCard)).toBeNull();
+    expect(await reason(setCard)).toBeNull();
+
+    await prisma().restaurant.update({ where: { id: a.restaurant.id }, data: { plan: 'BASIC' } });
+    expect(dataOf(await rules()).upgrade.allowed).not.toEqual(expect.arrayContaining(['selling.offers']));
+    expect(await reason(offerCard)).toBe('PLAN');
+    expect(await reason(setCard)).toBe('PLAN');
+    expect(await reason(buffet)).toBeNull();
+  });
 });
 
 describe('a set for several people', () => {

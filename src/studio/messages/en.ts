@@ -1341,6 +1341,7 @@ const en: Messages = {
   'sales.showcase.deleteBody': '{name} will no longer be shown.',
   'sales.showcase.missing': 'Removed item',
   'sales.showcase.during': 'During {name}',
+  'sales.showcase.hidden.PLAN': 'Not in your plan',
   'sales.showcase.hidden.OFFER_OFF': 'Offer off',
   'sales.showcase.hidden.OFFER_ENDED': 'Offer ended',
   'sales.showcase.hidden.OFFER_NOT_STARTED': 'Offer not started',

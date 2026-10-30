@@ -149,6 +149,11 @@ describe('the showcase editor', () => {
     expect(rowOf('First').textContent).not.toContain(en('sales.showcase.hidden.OCCASION_ENDED'));
   });
 
+  it('marks a card the plan keeps from guests', () => {
+    editor({ ...baseRules, showcase: [card('Gated set', 'ABOVE_SEARCH', 0, { kind: 'SET', bundleId: 's1', price: null, hiddenReason: 'PLAN' })] });
+    expect(rowOf('Gated set').textContent).toContain(en('sales.showcase.hidden.PLAN'));
+  });
+
   it('marks an offer card whose offer has not started yet', () => {
     editor();
     expect(rowOf('Winter soup').textContent).toContain(en('sales.showcase.hidden.OFFER_NOT_STARTED'));

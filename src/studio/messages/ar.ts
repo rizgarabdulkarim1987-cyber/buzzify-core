@@ -1346,6 +1346,7 @@ const ar: Messages = {
   'sales.showcase.deleteBody': 'لن تظهر {name} بعد الآن.',
   'sales.showcase.missing': 'عنصر محذوف',
   'sales.showcase.during': 'خلال {name}',
+  'sales.showcase.hidden.PLAN': 'غير مشمول في باقتك',
   'sales.showcase.hidden.OFFER_OFF': 'العرض متوقف',
   'sales.showcase.hidden.OFFER_ENDED': 'العرض انتهى',
   'sales.showcase.hidden.OFFER_NOT_STARTED': 'العرض لم يبدأ',

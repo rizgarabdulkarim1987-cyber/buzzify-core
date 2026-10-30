@@ -1345,6 +1345,7 @@ const ckb: Messages = {
   'sales.showcase.deleteBody': 'ئیتر {name} پیشان نادرێت.',
   'sales.showcase.missing': 'بڕگەی سڕاوە',
   'sales.showcase.during': 'لە ماوەی {name}',
+  'sales.showcase.hidden.PLAN': 'لە پلانەکەتدا نییە',
   'sales.showcase.hidden.OFFER_OFF': 'ئۆفەر ڕاگیراوە',
   'sales.showcase.hidden.OFFER_ENDED': 'ئۆفەر کۆتایی هات',
   'sales.showcase.hidden.OFFER_NOT_STARTED': 'ئۆفەر دەستی پێنەکردووە',

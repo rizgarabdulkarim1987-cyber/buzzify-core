@@ -25,7 +25,9 @@ export const rules = defineQuery({
   input: z.object({ menuId: idField }),
   target: (i) => atMenu(i.menuId),
   run: async (ctx): Promise<SalesRules & { upgrade: UpgradeInfo }> => {
-    const [read, upgrade] = await Promise.all([salesRules(ctx.db, menuOf(ctx)), upgradeInfo(ctx.db, ctx)]);
+    // The same gate `servedCatalog` applies for guests, so a card the plan keeps from them is marked as hidden.
+    const plan = { offers: ctx.plan !== null && allows(ctx.plan.entitlements, 'selling.offers'), smartSelling: ctx.plan !== null && allows(ctx.plan.entitlements, 'selling.smart') };
+    const [read, upgrade] = await Promise.all([salesRules(ctx.db, menuOf(ctx), new Date(), plan), upgradeInfo(ctx.db, ctx)]);
     return { ...read, upgrade };
   },
 });
