@@ -38,11 +38,13 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 - R6-14 the transfer detail shows who requested, sent, received and cancelled (display names only, same business). Cost if wrong: none (display).
 - R6-15 the place switcher's branch does not narrow a report; the filter bar's branch does. Cost if wrong: a few lines in `reports/load.ts` and the export route.
 - R6-16 "Load more" past 20 pages; caps of 500 rows (sales, margin, valuation) and 2,000 (keyset reports) with a "capped" sentence. Cost if wrong: a client-side append component.
+- R6-17 (whole-phase review) a branch outside the person's reach appears in reports, exports and valuation as "other branch" with no id and no name; transfer screens, `getTransfer` and the request form keep naming business branches (the person must choose the other end). Cost if wrong: one mask in `reports-ledger.ts` and `reports-stock.ts`.
+- R6-17a the transfers report counts units lost or damaged in transit by the day the transfer was received (`receivedAt`), like the damaged report; the transfers table, status counts and routes count by request day. Cost if wrong: one date expression.
 - Sub-rulings: R6-3a..c (see above), R6-9a (expiry export limit 20,000 batches), R6-9b (XLSX money and counts as exact text), R6-9c (as-of-today files named by the UTC day), R6-10a (year-window dashboard budget 2 s), R6-12a (valuation includes reserved and quarantine, damaged apart).
 
 ## Status: DONE (2026-10-31), nothing pushed
 
-Task 7 delivered `tests/pharmacy/acceptance-phase-6.test.ts` (20 tests, hand figures), the README phase 6 section, the Arabic phase 6 subsection of spec section 16 and the status line under spec section 12. The acceptance found one defect, fixed in one line (`4b534283`): the valuation report named, in "on the road by destination", a branch the person does not work in.
+Task 7 delivered `tests/pharmacy/acceptance-phase-6.test.ts` (22 tests after fix round W, hand figures), the README phase 6 section, the Arabic phase 6 subsection of spec section 16 and the status line under spec section 12. The acceptance found one defect, fixed in one line (`4b534283`): the valuation report named, in "on the road by destination", a branch the person does not work in.
 
 Commits (oldest first), by task:
 
@@ -52,4 +54,5 @@ Commits (oldest first), by task:
 4. Reports reads: `c3a8eab5`, `373212de`, `a31ee416`; fix round `3f5ac6eb`, `74fead85`, `562920fa`, `8ea6defb`.
 5. Chain reads and exports: `de8e076b`, `cc39d0c1`, `b896fce3`, `1d15edbe`, `81771950`; fix round `879c45cb`, `fb7f2e6c`.
 6. Reports and chain UI: `ef578714`, `0837fe88`, `d6a6aa9c`, `95608c53`, `6548f6b3`, `d691a1d9`, `25559db5`; fix round `cd7cc1dc`, `59a5b471`, `4ff8e298`, `660c0578`, `2268f0bc`.
+8. Fix round W (whole-phase review): migration `20261031140000_pharmacy_transfer_line_request_index` (two `PhTransferLine` indexes, `PhTransfer (restaurantId, requestedAt)`; EXPLAIN in `transfers-perf.test.ts`), R6-17 and R6-17a (`reports-transfers-axis.test.ts`), `keyed()` unique mapping (`transfers-keyed.test.ts`), the clock-order stamps (`transfers-clock.test.ts`), the in-transit relation filter, the export same-site check, the stricter additive guard, the acceptance world with a discount and a return, the `refundsOf` ordering of the phase 3 returns test. The commits are listed in `task-w-report.md`.
 7. Acceptance and docs: `4b534283` (one-line fix), `c12dcd12` (acceptance test), then the docs commit (README, spec, this plan).
