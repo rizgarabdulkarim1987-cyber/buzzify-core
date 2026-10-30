@@ -1,8 +1,8 @@
 import { CircleAlert, Info, TriangleAlert } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import type { Translate } from '@/lib/i18n';
 import { formatNumber } from '@/lib/pos-format';
-import { bpPercent, formatMinor, type Currency, type Notice } from './reports-logic';
+import { bpPercent, countParams, formatMinor, type Currency, type Notice } from './reports-logic';
 
 /**
  * The building blocks of the report and chain screens (server rendered, no motion). Every figure is text: money from the exact
@@ -43,7 +43,7 @@ export function NoticeLine({ notice, t }: { notice: Notice; t: Translate }) {
   return (
     <p data-testid="report-notice" data-notice={notice.key} role="note" className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 text-sm text-text ${notice.tone === 'warn' ? 'border-ink bg-raised font-medium' : 'border-line bg-surface'}`}>
       <Icon aria-hidden className="mt-px size-4 shrink-0" />
-      <span className="min-w-0">{t(`pharmacy.reports.notice.${notice.key}`, { count: notice.count === undefined ? '' : formatNumber(notice.count) })}</span>
+      <span className="min-w-0">{t(`pharmacy.reports.notice.${notice.key}`, notice.count === undefined ? undefined : countParams(notice.count))}</span>
     </p>
   );
 }
@@ -59,9 +59,12 @@ export function Unavailable({ t }: { t: Translate }) {
 }
 
 export function Section({ title, hint, children, testid }: { title: string; hint?: string; children: ReactNode; testid?: string }) {
+  const id = useId();
   return (
-    <section data-testid={testid} aria-label={title} className="flex min-w-0 flex-col gap-2.5">
-      <h2 className="text-md font-semibold text-text">{title}</h2>
+    <section data-testid={testid} aria-labelledby={id} className="flex min-w-0 flex-col gap-2.5">
+      <h2 id={id} className="text-md font-semibold text-text">
+        {title}
+      </h2>
       {hint && <p className="max-w-[72ch] text-sm text-muted">{hint}</p>}
       {children}
     </section>
@@ -89,16 +92,19 @@ export interface Col {
 }
 
 /**
- * A table in its own scroll region, with a visible caption that names it and says it scrolls sideways when it is wider than the
- * screen. The first cell of each row is the row header.
+ * A table in its own scroll region. Its name is the table's own caption (not shown: the section's heading above it says the same, and a screen reader
+ * would otherwise hear it three times) and the region is named by it; a visible line says it scrolls sideways when it is wider than the screen.
+ * The first cell of each row is the row header.
  */
 export function Tbl({ caption, cols, rows, testid, scrollHint }: { caption: string; cols: Col[]; rows: ReactNode[][]; testid?: string; scrollHint: string }) {
+  const id = useId();
   return (
     <div data-testid={testid} className="flex min-w-0 flex-col gap-1">
-      <p className="text-sm font-medium text-text">{caption}</p>
-      <div role="region" aria-label={`${caption}. ${scrollHint}`} tabIndex={0} className="max-w-full overflow-x-auto rounded-md border border-line">
+      <div role="region" aria-labelledby={`${id}-c`} aria-describedby={`${id}-h`} tabIndex={0} className="max-w-full overflow-x-auto rounded-md border border-line">
         <table className="w-full min-w-max border-collapse text-sm">
-          <caption className="sr-only">{caption}</caption>
+          <caption id={`${id}-c`} className="sr-only">
+            {caption}
+          </caption>
           <thead>
             <tr className="bg-surface">
               {cols.map((c, i) => (
@@ -127,7 +133,9 @@ export function Tbl({ caption, cols, rows, testid, scrollHint }: { caption: stri
           </tbody>
         </table>
       </div>
-      <p className="text-xs text-muted">{scrollHint}</p>
+      <p id={`${id}-h`} className="text-xs text-muted">
+        {scrollHint}
+      </p>
     </div>
   );
 }

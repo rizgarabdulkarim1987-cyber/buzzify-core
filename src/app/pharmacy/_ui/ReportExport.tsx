@@ -62,7 +62,8 @@ export function ReportExport({ params }: { params: Record<string, string> }) {
       document.body.append(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(url);
+      // Not at once: a browser may still be starting the download (Firefox cancels it when the address goes away first).
+      setTimeout(() => URL.revokeObjectURL(url), 30_000);
       setState({ kind: 'done', fileName });
     } catch {
       setState({ kind: 'failed', message: t('pharmacy.reports.export.network') });

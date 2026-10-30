@@ -4,7 +4,7 @@ import { CircleAlert, Clock, SlidersHorizontal } from 'lucide-react';
 import Link from 'next/link';
 import { useId, useState } from 'react';
 import { useT } from '@/studio/i18n';
-import { isLongRange, PRESETS, type Preset } from './reports-logic';
+import { filtersKey, isLongRange, PRESETS, type Preset } from './reports-logic';
 
 /**
  * The filter bar of a report or of the chain page. A plain GET form: the address carries the filters (shareable, and it works
@@ -33,7 +33,7 @@ type Props = {
 
 /** Keyed by what the address says, so a preset or a new address (a soft navigation) starts the form again from the new values instead of keeping the typed ones. */
 export function ReportFilters(props: Props) {
-  return <FiltersForm key={[props.from, props.to, ...props.fields.map((f) => f.value)].join("|")} {...props} />;
+  return <FiltersForm key={filtersKey(props)} {...props} />;
 }
 
 function FiltersForm({
@@ -97,7 +97,7 @@ function FiltersForm({
                   className={CONTROL}
                 />
                 {err(name) && (
-                  <p id={`${id}-${name}-err`} role="alert" data-testid={`filter-error-${name}`} className="flex items-start gap-1.5 text-sm text-danger">
+                  <p id={`${id}-${name}-err`} data-testid={`filter-error-${name}`} className="flex items-start gap-1.5 text-sm text-danger">
                     <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
                     <span className="min-w-0">{err(name)}</span>
                   </p>
@@ -129,7 +129,7 @@ function FiltersForm({
                 ))}
               </select>
               {err(f.name) && (
-                <p id={`${id}-${f.name}-err`} role="alert" data-testid={`filter-error-${f.name}`} className="flex items-start gap-1.5 text-sm text-danger">
+                <p id={`${id}-${f.name}-err`} data-testid={`filter-error-${f.name}`} className="flex items-start gap-1.5 text-sm text-danger">
                   <CircleAlert aria-hidden className="mt-px size-4 shrink-0" />
                   <span className="min-w-0">{err(f.name)}</span>
                 </p>

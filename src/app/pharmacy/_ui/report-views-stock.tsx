@@ -4,7 +4,7 @@ import type { DamagedReport, TransfersReport } from '@/server/pharmacy/reports-l
 import type { ExpiryReport, LowStockReport, ValuationReport, ValueView } from '@/server/pharmacy/reports-stock';
 import type { ReportLabels } from '@/server/pharmacy/report-labels';
 import { Day, Figures, Money, Name, Num, Section, Tbl, Unavailable } from './reports-parts';
-import type { Currency } from './reports-logic';
+import { durationParts, type Currency } from './reports-logic';
 
 /**
  * The stock-side reports as screens (phase 6, task 6): valuation, expiry, damaged, transfers and low stock. The cost keys exist
@@ -106,7 +106,7 @@ export function ExpiryView({ r, ctx }: { r: Data<ExpiryReport>; ctx: StockCtx })
   return (
     <>
       <Section title={t(key('expiry.bands'))} hint={t(key('expiry.bandsNote'))} testid="report-totals">
-        <Tbl testid="expiry-bands" scrollHint={hint(t)} caption={t(key('expiry.bands'))} cols={cols} rows={BANDS.map((band) => [t(key(`expiry.band.${band}`)), ...bandCells(r.totals.find((b) => b.band === band) ?? { band, rows: 0, units: 0 })])} />
+        <Tbl testid="expiry-bands" scrollHint={hint(t)} caption={t(key('expiry.bands'))} cols={cols} rows={BANDS.map((band) => [t(key(`expiry.band.${band}`)), ...bandCells(r.totals.find((b) => b.band === band) ?? { band, rows: 0, units: 0, ...(withCost ? { values: [] } : {}) })])} />
       </Section>
       {r.byBranch.length > 1 && (
         <Section title={t(key('byBranch'))}>
@@ -217,7 +217,10 @@ export function DamagedView({ r, ctx }: { r: Data<DamagedReport>; ctx: StockCtx 
 
 // Transfers ------------------------------------------------------------------------------------------------------------------
 
-const seconds = (s: number, t: Translate) => (s >= 3600 ? t(key('transfers.hours'), { n: (Math.round(s / 360) / 10).toString() }) : t(key('transfers.minutes'), { n: String(Math.max(1, Math.round(s / 60))) }));
+const seconds = (s: number, t: Translate) => {
+  const d = durationParts(s);
+  return t(key(`transfers.${d.unit}`), { count: d.count, n: d.text });
+};
 
 export function TransfersView({ r, ctx, date }: { r: Data<TransfersReport>; ctx: StockCtx; date: (iso: string) => string }) {
   const { t } = ctx;
