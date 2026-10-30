@@ -20,6 +20,7 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 - R6-10 Performance budgets: a report over 12 months of 100,000 sales lines completes < 2 s on the test DB with the right indexes (additive migration if an index is missing; measure with EXPLAIN and say which index); the chain dashboard < 1.5 s for 5 branches. Cost if wrong: indexes/materialised daily rollups later.
 - R6-11 UI: no motion; en/ar/ckb parity (ar/ckb machine-drafted); RTL logical CSS; 375/768/1280 no horizontal scroll; axe clean in EN, AR AND ckb on every new screen and state; targets >= 44px; text AND icon for states; drafts kept for transfer entry with UnsavedBadge and leave guard; per-attempt keys; WriteBlocked read-only mode (transfers blocked, reports and exports open); charts are optional: tables first; any chart has a text equivalent and no animation.
 - R6-12 Tests share ONE database: one DB test file at a time, always `BUZZIFY_DB_PORT=54503`.
+- R6-12a Stock valuation counts available + RESERVED + quarantine at batch cost; damaged stock is shown apart and is not in the value (accepted by the controller, task 4 review). Reserved stock still belongs to the business (it is held for a sale or transfer, not written off). Cost if wrong: one SQL filter (`valued` in `reports-stock.ts`) and the hand figures of the valuation test.
 
 ## Tasks (each: tests first with real RED, typecheck, eslint on touched paths, small commits with the trailer, independent Opus reviewer, fix round, reports in `.superpowers/sdd/2026-10-31-pharmacy-phase-6/`)
 

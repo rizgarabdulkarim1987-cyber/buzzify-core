@@ -1,34 +1,17 @@
 import { phPlaceInput, phTargetOf } from '@/server/pharmacy/entry';
 import { pharmacyOf } from '@/server/pharmacy/products';
-import {
-  discountsInput,
-  discountsReport,
-  marginInput,
-  marginReport,
-  returnsInput,
-  returnsReport,
-  salesInput,
-  salesReport,
-} from '@/server/pharmacy/reports';
-import {
-  damagedInput,
-  damagedReport,
-  expiryReport,
-  expiryReportInput,
-  lowStockInput,
-  lowStockReport,
-  stockValuation,
-  transfersReport,
-  transfersReportInput,
-  valuationInput,
-} from '@/server/pharmacy/reports-stock';
+import { discountsReport, returnsReport, salesReport } from '@/server/pharmacy/reports';
+import { marginReport } from '@/server/pharmacy/reports-margin';
+import { discountsInput, marginInput, returnsInput, salesInput } from '@/server/pharmacy/reports-inputs';
+import { damagedInput, damagedReport, transfersReport, transfersReportInput } from '@/server/pharmacy/reports-ledger';
+import { expiryReport, expiryReportInput, lowStockInput, lowStockReport, stockValuation, valuationInput } from '@/server/pharmacy/reports-stock';
 import { defineQuery } from '@/server/studio/framework/query';
 
 /**
  * Reports (phase 6, task 4; R6-7). Every one is a read for `report.view` (OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE,
  * ACCOUNTANT), open while the pharmacy is read-only like the other reads and closed once it is archived. A support actor and a
  * role without the permission read nothing. The place's branch narrows a report to that branch; without one a person
- * gets the branches they work in. Margin also needs `profit.view` and `cost.view`; the cost keys of the others exist only with `cost.view`.
+ * gets the branches they work in. Margin also needs `profit.view` and `cost.view` (checked in its service); the cost keys of the others exist only with `cost.view`.
  */
 
 export const sales = defineQuery({
@@ -73,7 +56,9 @@ export const discounts = defineQuery({
 export const margin = defineQuery({
   name: 'ph.reports.margin',
   permission: null,
-  ph: 'profit.view',
+  // Like every report it is gated on `report.view`; the margin itself also needs `profit.view` AND `cost.view`, checked in the service
+  // (the figures are cost-derived), so a role that holds only one of them is refused there.
+  ph: 'report.view',
   allowReadOnly: true,
   input: marginInput.extend(phPlaceInput.shape),
   target: phTargetOf,

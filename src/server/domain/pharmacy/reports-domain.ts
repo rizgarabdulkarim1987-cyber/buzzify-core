@@ -12,7 +12,7 @@ export const BAGHDAD_OFFSET_HOURS = 3;
 const HOUR_MS = 3_600_000;
 const DAY_MS = 86_400_000;
 
-export type ReportsErrorCode = 'BAD_DATE' | 'FROM_AFTER_TO' | 'RANGE_TOO_LONG' | 'BAD_QUANTITY';
+export type ReportsErrorCode = 'BAD_DATE' | 'FROM_AFTER_TO' | 'RANGE_TOO_LONG';
 
 export class ReportsError extends Error {
   constructor(
@@ -27,8 +27,12 @@ export class ReportsError extends Error {
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const midnightUtc = (date: string): Date => new Date(`${date}T00:00:00.000Z`);
 
-function validDay(date: string): boolean {
-  return /^\d{4}-\d{2}-\d{2}$/.test(date) && iso(midnightUtc(date)) === date;
+/** A real calendar day written YYYY-MM-DD. */
+export function validDay(date: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return false;
+  const at = midnightUtc(date);
+  // `2026-13-45` matches the pattern and is no date: an invalid Date cannot be written back, so it is not valid.
+  return !Number.isNaN(at.getTime()) && iso(at) === date;
 }
 
 /** The Baghdad calendar day of an instant, 'YYYY-MM-DD'. */
@@ -62,12 +66,14 @@ export function baghdadWindow(from: string, to: string): ReportWindow {
   return { from, to, start: new Date(midnightUtc(from).getTime() - shift), endExclusive: new Date(midnightUtc(to).getTime() + DAY_MS - shift), days };
 }
 
-/** `part / whole` in basis points, half away from zero, in bigint. Null when `whole` is not above zero. */
+/** `part / whole` in basis points, rounded half up (toward plus infinity at exactly .5), in bigint. Null when `whole` is not above zero. */
 export function bpOf(part: bigint, whole: bigint): bigint | null {
   if (whole <= 0n) return null;
-  const abs = part < 0n ? -part : part;
-  const rounded = (abs * 20_000n + whole) / (2n * whole);
-  return part < 0n ? -rounded : rounded;
+  const numerator = part * 20_000n + whole;
+  const divisor = 2n * whole;
+  const quotient = numerator / divisor;
+  // bigint division truncates toward zero; half up needs the floor.
+  return numerator % divisor !== 0n && numerator < 0n ? quotient - 1n : quotient;
 }
 
 /** The estimated margin, `(net - cost) / net` in basis points; null when there are no sales to divide by. */
@@ -75,16 +81,8 @@ export function marginBp(netMinor: bigint, costMinor: bigint): bigint | null {
   return bpOf(netMinor - costMinor, netMinor);
 }
 
-/** The cost of the units a return gave back: the allocation's cost in proportion to the units returned, floored. */
-export function returnedCost(allocationCostMinor: bigint, allocationBaseQty: number, returnedBaseQty: number): bigint {
-  if (!Number.isSafeInteger(allocationBaseQty) || allocationBaseQty < 1 || !Number.isSafeInteger(returnedBaseQty) || returnedBaseQty < 0 || returnedBaseQty > allocationBaseQty) {
-    throw new ReportsError('BAD_QUANTITY', 'A return cannot be larger than the sale');
-  }
-  return (allocationCostMinor * BigInt(returnedBaseQty)) / BigInt(allocationBaseQty);
-}
-
 /**
- * The units a valuation counts (ruling R6-12a): stock that still belongs to the business and is not written off, so available,
+ * The units a valuation counts (ruling R6-12a, plan file): stock that still belongs to the business and is not written off, so available,
  * reserved and quarantine. Damaged stock is shown on its own and left out of the total.
  */
 export function valuedUnits(b: { available: number; reserved: number; quarantine: number; damaged: number }): number {
