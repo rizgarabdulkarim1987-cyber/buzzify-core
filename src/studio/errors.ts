@@ -662,6 +662,18 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'This prescription number was already used for this medicine': 'error.text.phRxDuplicate',
   'Cross-origin requests are refused': 'error.text.phRxCrossOrigin',
   'Choose the pharmacy': 'error.text.phChoosePharmacy',
+  'Customer not found': 'error.text.phCustNotFound',
+  'The payment is more than the customer owes': 'error.text.phCustPayExceeds',
+  'A correction cannot be corrected': 'error.text.phCustCorrectionOfCorrection',
+  'This payment was already corrected': 'error.text.phCustAlreadyCorrected',
+  'Credit sales are switched off': 'error.text.phCreditOff',
+  'Selling on credit needs permission': 'error.text.phCreditNeedsPermission',
+  'Choose the customer for a credit sale': 'error.text.phCreditNeedsCustomer',
+  'Choose a customer only for a credit sale': 'error.text.phCreditNoCustomerWithoutCredit',
+  'Choose one of this pharmacy’s customers': 'error.text.phCustNotOurs',
+  'The customer’s currency is not the sale’s currency': 'error.text.phCustCurrency',
+  'This customer is archived': 'error.text.phCustArchived',
+  'This sale is over the customer’s credit limit': 'error.text.phCreditLimit',
 };
 
 /** What a form shows for a failed action: one message for the form, and one per field it names. */
