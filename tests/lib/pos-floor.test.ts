@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LAYOUT, fitTiles, isLate, LAYOUTS, layoutOf, needOf, openFirst, queueOf, SELECTING, type FloorTableState } from '@/lib/pos-floor';
+import { DEFAULT_DESK, DESK_LAYOUT, DESKS, deskOf, DEFAULT_LAYOUT, fitTiles, isLate, LAYOUTS, layoutOf, needOf, openFirst, queueOf, SELECTING, type FloorTableState } from '@/lib/pos-floor';
 
 const table = (number: number, status: FloorTableState['status'], pendingRequests = 0): FloorTableState => ({ number, status, pendingRequests });
 
@@ -64,5 +64,21 @@ describe('isLate', () => {
     expect(isLate(89, 90)).toBe(false);
     expect(isLate(null, 90)).toBe(false);
     expect(isLate(500, 0)).toBe(false);
+  });
+});
+
+describe('cashier looks', () => {
+  it('has eight looks and falls back to the classic one for anything else', () => {
+    expect(DESKS).toHaveLength(8);
+    expect(deskOf('register')).toBe('register');
+    expect(deskOf('night')).toBe(DEFAULT_DESK);
+    expect(deskOf(undefined)).toBe(DEFAULT_DESK);
+  });
+
+  it('goes with a tables arrangement that exists', () => {
+    for (const [desk, layout] of Object.entries(DESK_LAYOUT)) {
+      expect(DESKS).toContain(desk);
+      expect(LAYOUTS).toContain(layout);
+    }
   });
 });
