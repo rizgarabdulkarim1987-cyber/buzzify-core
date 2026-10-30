@@ -547,6 +547,8 @@ export const SERVER_TEXT: Readonly<Record<string, string>> = {
   'Choose a line of this sale': 'error.text.phReturnLineChoose',
   'Choose how to refund': 'error.text.phRefundChoose',
   'Choose how to group': 'error.text.phGroupChoose',
+  'The chain view needs more than one branch': 'error.text.phChainNeedsMany',
+  'This report has too many rows for one file. Narrow the dates or choose a branch.': 'error.text.phReportTooLarge',
   'Use at most 300 characters': 'error.text.phTextMax300',
   'You can return only what was sold and not yet returned': 'error.text.phReturnLimit',
   'This key was already used for a different return': 'error.text.phReturnKeyMismatch',

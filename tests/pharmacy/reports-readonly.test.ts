@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { PrismaClient } from '@/generated/prisma/client';
+import * as chain from '@/server/pharmacy/queries/chain';
 import * as reports from '@/server/pharmacy/queries/reports';
 import { loadActor, type Actor } from '@/server/studio/auth/actor';
 import { runQuery, type QueryDef } from '@/server/studio/framework/query';
@@ -23,6 +24,10 @@ const FILES = [
     .map((f) => `src/server/pharmacy/${f}`),
   'src/server/domain/pharmacy/reports-domain.ts',
   'src/server/pharmacy/queries/reports.ts',
+  // The chain dashboard (phase 6, task 5) only reads too.
+  'src/server/pharmacy/chain.ts',
+  'src/server/pharmacy/queries/chain.ts',
+  'src/server/domain/pharmacy/chain-domain.ts',
 ];
 
 const WRITES = [
@@ -48,7 +53,7 @@ describe('the report modules write nothing (source scan)', () => {
   });
 
   it('finds the report modules (the list is not empty and holds the split files)', () => {
-    for (const name of ['reports.ts', 'reports-common.ts', 'reports-margin.ts', 'reports-stock.ts', 'reports-ledger.ts']) expect(FILES).toContain(`src/server/pharmacy/${name}`);
+    for (const name of ['reports.ts', 'reports-common.ts', 'reports-margin.ts', 'reports-stock.ts', 'reports-ledger.ts', 'chain.ts']) expect(FILES).toContain(`src/server/pharmacy/${name}`);
   });
 
   it.each(FILES)('%s', (file) => {
@@ -98,4 +103,9 @@ describe('every report runs on a connection the database holds read-only', () =>
     const def = (reports as unknown as Record<string, QueryDef<unknown, unknown>>)[name]!;
     dataOf(await runQuery(client, actor, def, { ...at(w), ...input }));
   });
+  it('ph.chain.dashboard', async () => {
+    const actor = (await loadActor(prisma(), w.owner.userId)) as Actor;
+    dataOf(await runQuery(client, actor, chain.dashboard as unknown as QueryDef<unknown, unknown>, { ...at(w), from: '2026-10-27', to: '2026-10-28' }));
+  });
 });
+

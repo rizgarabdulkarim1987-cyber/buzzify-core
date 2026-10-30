@@ -2397,6 +2397,8 @@ const pharmacy: Messages = {
   'pharmacy.transfers.editor.problem.noUnits': 'ئەم بەرهەمە هیچ یەکەیەکی نییە. دێڕەکە لابە.',
   'pharmacy.transfers.reloadDiscards': 'دووبارە بارکردن و فەرامۆشکردنی گۆڕانکارییەکانم',
   'pharmacy.transfers.lostAnswer': 'وەڵام نەگەیشت، بۆیە ڕەنگە گۆڕانکارییەکەت پێشتر پاشەکەوت کرابێت. پەڕەکە نوێکرایەوە: پێش هەوڵدانەوە بیپشکنە.',
+  'error.text.phChainNeedsMany': 'بینینی زنجیرە پێویستی بە زیاتر لە یەک لق هەیە',
+  'error.text.phReportTooLarge': 'ئەم ڕاپۆرتە ڕیزی زۆرتری هەیە لەوەی لە یەک فایلدا جێ ببێتەوە. بەروارەکان کورت بکەرەوە یان لقێک هەڵبژێرە.',
 };
 
 export default pharmacy;

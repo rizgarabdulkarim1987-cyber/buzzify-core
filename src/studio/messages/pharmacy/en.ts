@@ -2403,6 +2403,8 @@ const pharmacy: Messages = {
   'pharmacy.transfers.editor.problem.noUnits': 'This product has no units. Remove the line.',
   'pharmacy.transfers.reloadDiscards': 'Reload and discard my changes',
   'pharmacy.transfers.lostAnswer': 'The answer did not arrive, so your change may already be saved. The page was refreshed: check it before trying again.',
+  'error.text.phChainNeedsMany': 'The chain view needs more than one branch',
+  'error.text.phReportTooLarge': 'This report has too many rows for one file. Narrow the dates or choose a branch.',
 };
 
 export default pharmacy;

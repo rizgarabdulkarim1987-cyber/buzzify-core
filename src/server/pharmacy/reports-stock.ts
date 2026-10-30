@@ -236,19 +236,11 @@ export interface ExpiryReport {
   nextCursor: string | null;
 }
 
-export async function expiryReport(scoped: ScopedClient, ph: PhActor, place: { branchId?: string | undefined }, input: z.infer<typeof expiryReportInput>): Promise<ExpiryReport> {
-  const scope = scopeOf(ph, place.branchId);
-  const withCost = mayViewCost(ph);
+/** The band totals of the expiry report, in total and per branch: one aggregate over the stock rows in reach, with no cap on the number of batches. */
+export async function expiryBandTotals(scoped: ScopedClient, scope: Scope, withCost: boolean): Promise<{ totals: ExpiryBandTotals[]; byBranch: Array<{ branchId: string; bands: ExpiryBandTotals[] }> }> {
   const today = utcToday();
   const reach = new Date(new Date(`${today}T00:00:00.000Z`).getTime() + (90 + 31) * DAY_MS);
-  const [list, groups] = await Promise.all([
-    // The list, its rows and its counts, are the phase 2 service's: not rebuilt here. On a chain too large for it (it refuses with
-    // TOO_MANY) the band totals below still answer; only the list is dropped, and the answer says so.
-    listExpiry(scoped, ph, { ...expiryInput.parse({ days: 90, includeExpired: true, pageSize: input.take, cursor: input.cursor ?? null }), ...(place.branchId ? { branchId: place.branchId } : {}) }).catch((error: unknown) => {
-      if (error instanceof StudioError && error.code === 'CONFLICT' && error.fields?.phCode === 'TOO_MANY') return null;
-      throw error;
-    }),
-    scoped.$queryRaw<Array<{ branchId: string; expiryDate: Date; precision: 'DAY' | 'MONTH'; rows: number; units: number; nocost: number; cur: Currency | null; value: bigint }>>(Prisma.sql`
+  const groups = await scoped.$queryRaw<Array<{ branchId: string; expiryDate: Date; precision: 'DAY' | 'MONTH'; rows: number; units: number; nocost: number; cur: Currency | null; value: bigint }>>(Prisma.sql`
       SELECT sb."branchId", b."expiryDate", b."expiryPrecision"::text AS "precision", COUNT(*)::int AS "rows", SUM(sb."available" + sb."reserved" + sb."quarantine")::int AS "units",
              (COUNT(*) FILTER (WHERE NOT (${HAS_COST})))::int AS "nocost", b."costCurrency"::text AS "cur",
              COALESCE(SUM(${valueOf(Prisma.sql`sb."available" + sb."reserved" + sb."quarantine"`)}) FILTER (WHERE ${HAS_COST}), 0)::bigint AS "value"
@@ -257,8 +249,7 @@ export async function expiryReport(scoped: ScopedClient, ph: PhActor, place: { b
         LEFT JOIN "PhProductUnit" cu ON cu."productId" = b."productId" AND cu."id" = b."costUnitId"
       WHERE sb."restaurantId" = ${scope.restaurantId} AND sb."branchId" = ANY(${scope.branchIds}::text[])
         AND (sb."available" > 0 OR sb."reserved" > 0 OR sb."quarantine" > 0) AND b."expiryDate" <= ${reach.toISOString().slice(0, 10)}::date
-      GROUP BY sb."branchId", b."expiryDate", b."expiryPrecision", b."costCurrency"`),
-  ]);
+      GROUP BY sb."branchId", b."expiryDate", b."expiryPrecision", b."costCurrency"`);
 
   type Acc = { rows: number; units: number; nocost: number; values: Map<Currency, bigint> };
   const blank = (): Acc => ({ rows: 0, units: 0, nocost: 0, values: new Map() });
@@ -280,7 +271,6 @@ export async function expiryReport(scoped: ScopedClient, ph: PhActor, place: { b
       if (g.cur !== null) acc.values.set(g.cur, (acc.values.get(g.cur) ?? 0n) + g.value);
     }
   }
-  const rowsIn = (band: ExpiryReportBand) => overall.get(band)?.rows ?? 0;
   const view = (band: ExpiryReportBand, acc: Acc | undefined): ExpiryBandTotals => ({
     band,
     rows: acc?.rows ?? 0,
@@ -293,12 +283,31 @@ export async function expiryReport(scoped: ScopedClient, ph: PhActor, place: { b
       : {}),
   });
   return {
-    days: 90,
     totals: EXPIRY_REPORT_BANDS.map((band) => view(band, overall.get(band))),
     byBranch: sortBy(
       [...perBranch.entries()].map(([branchId, bands]) => ({ branchId, bands: EXPIRY_REPORT_BANDS.map((band) => view(band, bands.get(band))) })),
       (r) => r.branchId,
     ),
+  };
+}
+
+export async function expiryReport(scoped: ScopedClient, ph: PhActor, place: { branchId?: string | undefined }, input: z.infer<typeof expiryReportInput>): Promise<ExpiryReport> {
+  const scope = scopeOf(ph, place.branchId);
+  const withCost = mayViewCost(ph);
+  const [list, bands] = await Promise.all([
+    // The list, its rows and its counts, are the phase 2 service's: not rebuilt here. On a chain too large for it (it refuses with
+    // TOO_MANY) the band totals below still answer; only the list is dropped, and the answer says so.
+    listExpiry(scoped, ph, { ...expiryInput.parse({ days: 90, includeExpired: true, pageSize: input.take, cursor: input.cursor ?? null }), ...(place.branchId ? { branchId: place.branchId } : {}) }).catch((error: unknown) => {
+      if (error instanceof StudioError && error.code === 'CONFLICT' && error.fields?.phCode === 'TOO_MANY') return null;
+      throw error;
+    }),
+    expiryBandTotals(scoped, scope, withCost),
+  ]);
+  const rowsIn = (band: ExpiryReportBand) => bands.totals.find((t) => t.band === band)?.rows ?? 0;
+  return {
+    days: 90,
+    totals: bands.totals,
+    byBranch: bands.byBranch,
     listTotals: list?.totals ?? { expired: rowsIn('expired'), d30: rowsIn('d30'), d60: rowsIn('d60'), d90: rowsIn('d90'), d180: 0 },
     listTruncated: list === null,
     items: list?.items ?? [],

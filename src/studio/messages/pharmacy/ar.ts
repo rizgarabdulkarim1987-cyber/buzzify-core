@@ -2397,6 +2397,8 @@ const pharmacy: Messages = {
   'pharmacy.transfers.editor.problem.noUnits': 'لا توجد وحدات لهذا الصنف. أزل السطر.',
   'pharmacy.transfers.reloadDiscards': 'إعادة التحميل وتجاهل تغييراتي',
   'pharmacy.transfers.lostAnswer': 'لم يصل الرد، فقد يكون تغييرك محفوظا بالفعل. تم تحديث الصفحة: تحقق منها قبل المحاولة مجددا.',
+  'error.text.phChainNeedsMany': 'عرض السلسلة يحتاج إلى أكثر من فرع واحد',
+  'error.text.phReportTooLarge': 'هذا التقرير يحتوي على صفوف أكثر مما يتسع له ملف واحد. ضيّق التواريخ أو اختر فرعا.',
 };
 
 export default pharmacy;

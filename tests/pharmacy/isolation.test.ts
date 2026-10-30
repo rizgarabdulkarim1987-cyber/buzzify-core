@@ -512,6 +512,8 @@ const CASES: Record<string, Case> = {
   'ph.reports.damaged': { body: () => ({ from: baghdadDayFromNow(-2), to: baghdadDayFromNow(2) }), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.reports.transfers': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'scoped', otherBranchIds: 'scoped', bothEnds: true },
   'ph.reports.lowStock': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
+  // Chain dashboard (phase 6, task 5): the cards and the total of the actor's own branches; it names no id; a one-branch person is refused with CHAIN_NEEDS_MANY_BRANCHES (so the outcome is harmless, not scoped), and the owner case below proves the rows.
+  'ph.chain.dashboard': { body: () => ({ from: '2026-10-01', to: '2026-10-31' }), foreignIds: 'harmless', otherBranchIds: 'harmless' },
   'ph.credits.record': { body: (ids, n) => creditNoteBody(ids, n), foreignIds: 'refused', otherBranchIds: 'harmless' },
   'ph.credits.list': { body: () => ({}), foreignIds: 'scoped', otherBranchIds: 'scoped' },
   'ph.credits.get': { body: (ids) => ({ creditNoteId: ids.creditNoteId }), foreignIds: 'refused', otherBranchIds: 'scoped' },
@@ -647,6 +649,22 @@ describe('the pharmacy isolation sweep', () => {
       'ph.reports.returns', 'ph.reports.sales', 'ph.reports.stockValuation', 'ph.reports.transfers',
     ]);
     expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+  });
+
+  it('covers the chain dashboard, and it has real rows: the owner sees both branches of their own business and none of the other, the branch-1 manager is told the view needs more branches', async () => {
+    const names = [...DEFINITIONS.keys()].filter((name) => name.startsWith('ph.chain.'));
+    expect(names).toEqual(['ph.chain.dashboard']);
+    expect(names.filter((name) => CASES[name] === undefined || COVERED_ELSEWHERE.includes(name))).toEqual([]);
+    const { a, b, ownerA, managerA1 } = world;
+    const c = CASES['ph.chain.dashboard']!;
+    const owner = json(await run(DEFINITIONS.get('ph.chain.dashboard')!, ownerA, { ...c.body(a, 1), restaurantId: a.restaurantId }));
+    expect(owner).toContain(a.b1);
+    expect(owner).toContain(a.b2);
+    expect(owner).toContain('"salesMinor"');
+    expect(owner).not.toContain(b.b1);
+    expect(owner).not.toContain(b.b2);
+    const mine = await run(DEFINITIONS.get('ph.chain.dashboard')!, managerA1, { ...c.body(a, 1), restaurantId: a.restaurantId });
+    expect(json(mine)).toContain('CHAIN_NEEDS_MANY_BRANCHES');
   });
 
   it('the report cases have real rows to show: each report answers the owner with branch 1 in it, and the branch-1 manager with branch 1 and no branch 2', async () => {
