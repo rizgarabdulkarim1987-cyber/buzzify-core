@@ -40,6 +40,8 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
   const online = useOnline();
   const [version, setVersion] = useState(initial.version);
   const [controlled, setControlled] = useState(initial.controlledEnabled);
+  // What the server holds now: the confirmation asks only when this is off, whatever the page props have refreshed to yet.
+  const [savedOn, setSavedOn] = useState(initial.controlledEnabled);
   const [maxQty, setMaxQty] = useState(String(initial.controlledMaxQty));
   const [retention, setRetention] = useState(String(initial.rxRetentionDays));
   const [credit, setCredit] = useState(initial.creditEnabled);
@@ -52,7 +54,7 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
   const days = whole(retention, 1, 36_500);
   const can = editable && online && busy === null;
 
-  const run = async (group: 'controlled' | 'credit', call: () => Promise<unknown>) => {
+  const run = async (group: 'controlled' | 'credit', call: () => Promise<unknown>, after?: () => void) => {
     if (lock.current) return;
     lock.current = true;
     setBusy(group);
@@ -65,17 +67,19 @@ export function PharmacySettings({ initial, editable }: { initial: SettingsIn; e
       return;
     }
     setVersion(result.data.version);
+    after?.();
     setMessage({ group, tone: 'success', text: t('pharmacy.settings.saved') });
     router.refresh();
   };
 
   const saveControlled = () => {
     if (!can || qty === null || days === null) return;
-    void run('controlled', () => setControlledSettings({ controlledEnabled: controlled, controlledMaxQty: qty, rxRetentionDays: days, version }));
+    const value = controlled;
+    void run('controlled', () => setControlledSettings({ controlledEnabled: value, controlledMaxQty: qty, rxRetentionDays: days, version }), () => setSavedOn(value));
   };
   const askOrSave = () => {
     if (!can || qty === null || days === null) return;
-    if (controlled && !initial.controlledEnabled) setAsking(true);
+    if (controlled && !savedOn) setAsking(true);
     else saveControlled();
   };
 

@@ -7,7 +7,7 @@ import { CorrectPayment } from './CustomerPayment';
 import { phDate } from './ph-date';
 import { Num } from './sell-parts';
 import { formatMinor, type Currency } from './sell-logic';
-import { isolate } from './WriteBlocked';
+import { isolateName as isolate } from './isolate-name';
 import type { Locale } from '@/lib/locale';
 
 const TH = 'px-3 py-2 text-start font-medium';

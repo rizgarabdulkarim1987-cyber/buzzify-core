@@ -5,7 +5,7 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { keysetOf, netRegister } from '@/app/pharmacy/_ui/prescription-logic';
 import { Note, Num } from '@/app/pharmacy/_ui/sell-parts';
-import { isolate } from '@/app/pharmacy/_ui/WriteBlocked';
+import { isolateName as isolate } from '@/app/pharmacy/_ui/isolate-name';
 import { baghdadDay, validDay } from '@/server/domain/pharmacy/reports-domain';
 import { register } from '@/server/pharmacy/queries/prescriptions';
 import { query } from '@/server/studio/framework/invoke';

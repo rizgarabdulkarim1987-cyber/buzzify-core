@@ -7,7 +7,7 @@ import { OfflineNotice } from '@/app/pharmacy/_ui/OfflineNotice';
 import { phDate, phDateTime } from '@/app/pharmacy/_ui/ph-date';
 import { RxAttachmentViewer } from '@/app/pharmacy/_ui/RxAttachmentViewer';
 import { Chip, Num } from '@/app/pharmacy/_ui/sell-parts';
-import { isolate } from '@/app/pharmacy/_ui/WriteBlocked';
+import { isolateName as isolate } from '@/app/pharmacy/_ui/isolate-name';
 import { get } from '@/server/pharmacy/queries/prescriptions';
 import { query } from '@/server/studio/framework/invoke';
 import { StudioError } from '@/server/studio/framework/result';

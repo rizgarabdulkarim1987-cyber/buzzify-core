@@ -6,7 +6,7 @@ import { loadPages, pagesOf } from '@/app/pharmacy/_ui/load-pages';
 import { phDate } from '@/app/pharmacy/_ui/ph-date';
 import { keysetOf } from '@/app/pharmacy/_ui/prescription-logic';
 import { Chip, Num } from '@/app/pharmacy/_ui/sell-parts';
-import { isolate } from '@/app/pharmacy/_ui/WriteBlocked';
+import { isolateName as isolate } from '@/app/pharmacy/_ui/isolate-name';
 import { list } from '@/server/pharmacy/queries/prescriptions';
 import { query } from '@/server/studio/framework/invoke';
 import { getStudioTranslator } from '@/studio/messages';
