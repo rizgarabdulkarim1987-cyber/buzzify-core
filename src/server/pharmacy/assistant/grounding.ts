@@ -40,8 +40,8 @@ export function supportedBy(outputs: readonly unknown[]): { numbers: Set<number>
     if (Number.isFinite(n)) numbers.add(Math.abs(n));
   };
   const addDay = (value: string) => {
+    // The whole date is what the tables support (checked as a date); its year, month and day are not figures a count may borrow.
     dates.add(value.slice(0, 10));
-    for (const part of value.slice(0, 10).split('-')) add(Number(part));
   };
   const walk = (value: unknown, key: string, parent: Record<string, unknown> | null) => {
     if (typeof value === 'number') {
@@ -134,6 +134,12 @@ export function numberWords(text: string): number[] {
 const ISO_IN_TEXT = /\b(\d{4})-(\d{2})-(\d{2})\b/g;
 const DMY_IN_TEXT = /\b(\d{1,2})[/.](\d{1,2})[/.](\d{4})\b/g;
 const pad = (n: string) => n.padStart(2, '0');
+/** English month names: "20 November 2026" and "November 20, 2026" are whole dates too. */
+const MONTHS = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+const MONTH_RE = `(${MONTHS.join('|')})`;
+const D_MONTH_Y = new RegExp(String.raw`\b(\d{1,2})\s+${MONTH_RE}\s+(\d{4})\b`, 'gi');
+const MONTH_D_Y = new RegExp(String.raw`\b${MONTH_RE}\s+(\d{1,2}),?\s+(\d{4})\b`, 'gi');
+const monthDay = (month: string, y: string, d: string) => `${y}-${pad(String(MONTHS.indexOf(month.toLowerCase()) + 1))}-${pad(d)}`;
 
 const RISE = /\b(rose|rise|rises|rising|increas\w*|grew|grow\w*|higher|improv\w*|gain\w*)\b|ارتفع|ارتفاع|زاد|ازداد|زيادة|تحسن|زیادی کرد|بەرزبووەتەوە|بەرزبوو|زیادبوو/iu;
 const FALL = /\b(fell|fall\w*|drop\w*|decreas\w*|declin\w*|lower\w*|reduc\w*|shrank|shrink\w*)\b|انخفض|انخفاض|نقص|هبط|تراجع|کەمیکرد|دابەزی|کەمبووەوە/iu;
@@ -172,6 +178,8 @@ export function checkAnswer(answer: string, outputs: readonly unknown[], extra: 
   const asked = new Set<string>();
   text = text.replace(ISO_IN_TEXT, (all, y: string, m: string, d: string) => (asked.add(`${y}-${m}-${d}`), ' '));
   text = text.replace(DMY_IN_TEXT, (all, d: string, m: string, y: string) => (asked.add(`${y}-${pad(m)}-${pad(d)}`), ' '));
+  text = text.replace(D_MONTH_Y, (all, d: string, m: string, y: string) => (asked.add(monthDay(m, y, d)), ' '));
+  text = text.replace(MONTH_D_Y, (all, m: string, d: string, y: string) => (asked.add(monthDay(m, y, d)), ' '));
   for (const day of asked) if (!dates.has(day)) problems.push(`date ${day}`);
   if (directionContradicts(answer, outputs)) problems.push('direction');
   const found = [...extractNumbers(text), ...numberWords(text)];

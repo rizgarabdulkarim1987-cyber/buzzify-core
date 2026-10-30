@@ -117,3 +117,15 @@ describe('the forecast needs sales in eight distinct weeks, not one old sale', (
     expect(seasonalNaive({ saleDays: days, today, lastWeekUnits: 40 })).toEqual({ nextWeekUnits: 40, basisFrom: '2026-10-20', basisTo: '2026-10-26', weeksOfHistory: 8 });
   });
 });
+
+describe('grounding: the parts of a date are not figures', () => {
+  const out = many(3);
+  it.each(['10 batches expire this month', '11 batches expire', '20 batches are late', '27 batches', '2026 batches'])('rejects a count that only equals a year, month or day of a date in the tables: %s', (text) => {
+    expect(checkAnswer(text, [out]).grounded, text).toBe(false);
+  });
+  it('still accepts the real count, a whole date the tables hold, and the real days to expiry', () => {
+    expect(checkAnswer('3 batches expire, the first on 2026-11-20', [out]).grounded).toBe(true);
+    expect(checkAnswer('The first expires in 24 days', [out]).grounded).toBe(true);
+    expect(checkAnswer('Data as of 2026-10-27', [out]).grounded).toBe(true);
+  });
+});

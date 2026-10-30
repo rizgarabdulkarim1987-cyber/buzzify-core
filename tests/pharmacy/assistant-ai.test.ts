@@ -332,7 +332,7 @@ describe('the ask action', () => {
       label: { before: null, after: 'fact' },
       grounded: { before: null, after: true },
       degraded: { before: null, after: false },
-      reason: { before: null, after: null },
+      degradeReason: { before: null, after: null },
     });
     expect(JSON.stringify(rows)).not.toMatch(/ZEBRA|3 batches/);
   });
