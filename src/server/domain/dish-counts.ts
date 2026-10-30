@@ -6,6 +6,9 @@
 /** Views one address (a salted hash, never the raw IP) may add to one dish in one day: a shared café Wi-Fi is not punished, a cleared browser cannot inflate. */
 export const VIEW_IP_LIMIT = 3;
 
+/** Dishes one request may count: the menu opens a dish at a time, so a longer list is a script. */
+export const MAX_VIEWS_PER_REQUEST = 10;
+
 const NOT_A_GUEST = /bot|crawl|spider|slurp|preview|facebookexternalhit|whatsapp|telegram|headless|lighthouse/i;
 
 /** False for a missing user agent, and for bots, crawlers and link-preview fetchers: they open dishes but are not guests. */

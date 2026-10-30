@@ -52,6 +52,18 @@ describe('POST events: dish views', () => {
     expect((await prisma.productViewTotal.findFirstOrThrow({ where: { productId: x.product.id } })).views).toBe(3);
   });
 
+  it('cannot be inflated by writing a different X-Forwarded-For on every request', async () => {
+    for (let k = 0; k < 5; k++) await send(productView(x.product.id), { address: `spoofed-${k}, 10.9.9.9` });
+    expect((await prisma.productViewTotal.findFirstOrThrow({ where: { productId: x.product.id } })).views).toBe(3);
+  });
+
+  it('looks at no more than ten dishes in one request', async () => {
+    const ids: string[] = [];
+    for (let k = 0; k < 12; k++) ids.push((await prisma.product.create({ data: { menuId: x.menu.id, categoryId: x.category.id, slug: `many-${k}`, basePrice: 100, translations: { en: { name: `M${k}` } } } })).id);
+    await send({ anonymousSessionId: 'session-12345', events: ids.map((productId) => ({ type: 'PRODUCT_VIEW', productId })) }, { address: '10.3.0.1' });
+    expect(await prisma.productViewTotal.count()).toBe(10);
+  });
+
   it('does not count a bot, and sets no cookie when no dish was opened', async () => {
     await send(productView(x.product.id), { agent: 'Googlebot/2.1' });
     expect(await prisma.productViewTotal.count()).toBe(0);
