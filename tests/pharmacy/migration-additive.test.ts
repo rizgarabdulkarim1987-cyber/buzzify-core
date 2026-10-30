@@ -52,6 +52,13 @@ const REWORK_OF_UNRELEASED_TABLES: Record<string, { sha256: string; allowed: Reg
     sha256: '731bd2a40f48dc2e9b32c5e53d45c215329cc57309f64561df45bec995eab08a',
     allowed: /^(?:ALTER TABLE "PhTransfer(?:Line)?" DROP CONSTRAINT "\w+"|ALTER TABLE "PhTransferLine" DROP COLUMN "diffReason"(?:, ADD COLUMN "\w+" (?:TEXT|"PhTransferLostReason")(?: NOT NULL)?)*|DROP TYPE "PhTransferDiffReason")$/i,
   },
+  // Phase 7: a new enum value cannot be used in the transaction that adds it, so the drawer's sign CHECK (which must know
+  // CUSTOMER_PAYMENT) is replaced by the next migration, in ONE statement that drops it and adds the same name back, widened by that
+  // one type. The whole statement is pinned, along with the file.
+  '20261101100100_pharmacy_cash_movement_customer_payment': {
+    sha256: '8b7d927b4777031f190eafa91724e98b3a7d9233e0fdb37ee76b483be2c21770',
+    allowed: /^ALTER TABLE "PhCashMovement" DROP CONSTRAINT "PhCashMovement_amount_sign", ADD CONSTRAINT "PhCashMovement_amount_sign" CHECK \( \("type" IN \('FLOAT_OPEN', 'SALE_CASH', 'PAID_IN', 'CUSTOMER_PAYMENT'\) AND "amountMinor" > 0\) OR \("type" IN \('CHANGE_OUT', 'REFUND_CASH', 'PAID_OUT'\) AND "amountMinor" < 0\) \)$/,
+  },
 };
 
 const fingerprint = (sql: string) => createHash('sha256').update(sql.replace(/\r/g, '')).digest('hex');
@@ -159,6 +166,60 @@ describe('pharmacy migrations', () => {
     expect(first).toMatch(/EXISTS \(SELECT 1 FROM "PhTransfer"\)/);
     expect(first).toMatch(/EXISTS \(SELECT 1 FROM "PhTransferLine"\)/);
     expect(first).toMatch(/RAISE EXCEPTION 'transfer tables must be empty'/);
+  });
+
+  describe('phase 7', () => {
+    const PHASE7 = '20261101100000_pharmacy_phase7';
+    const CASH = '20261101100100_pharmacy_cash_movement_customer_payment';
+    const sqlOf = (name: string) => readFileSync(join(MIGRATIONS, name, 'migration.sql'), 'utf8');
+
+    it('is additive as written, and adds the enum values only with IF NOT EXISTS', () => {
+      const sql = sqlOf(PHASE7);
+      expect(destructive(sql)).toEqual([]);
+      expect(refusedIn(PHASE7, sql)).toEqual([]);
+      expect(insertsOutsideApplication(sql)).toEqual([]);
+      const alters = statements(sql).filter((statement) => /^ALTER TYPE /i.test(statement));
+      expect(alters).toEqual([
+        `ALTER TYPE "PhCashMovementType" ADD VALUE IF NOT EXISTS 'CUSTOMER_PAYMENT'`,
+        `ALTER TYPE "PhPaymentMethod" ADD VALUE IF NOT EXISTS 'CREDIT'`,
+      ]);
+      // a value added here is not used here: nothing in the file names the new values except those two statements
+      const others = statements(sql).filter((statement) => !/^ALTER TYPE /i.test(statement));
+      expect(others.filter((statement) => /'CREDIT'|'CUSTOMER_PAYMENT'/.test(statement))).toEqual([]);
+    });
+
+    it('accepts enum additions and refuses a drop, an update or a delete added to the file', () => {
+      const sql = sqlOf(PHASE7);
+      expect(destructive(`ALTER TYPE "PhPaymentMethod" ADD VALUE IF NOT EXISTS 'X'; ALTER TABLE "PhSale" ADD COLUMN "x" TEXT`)).toEqual([]);
+      for (const bad of [
+        'DROP TABLE "PhCustomer"',
+        'ALTER TABLE "PhSale" DROP COLUMN "customerId"',
+        `ALTER TYPE "PhPaymentMethod" RENAME VALUE 'CREDIT' TO 'ACCOUNT'`,
+        'UPDATE "PhSettings" SET "rxRetentionDays" = 3650',
+        'DELETE FROM "PhPrescription"',
+        'DO $$ BEGIN DELETE FROM "PhPrescription"; END $$',
+        'ALTER TABLE "PhCashMovement" DROP CONSTRAINT "PhCashMovement_amount_sign"',
+      ]) {
+        const edited = `${sql}\n${bad};`;
+        expect(refusedIn(PHASE7, edited), bad).toHaveLength(1);
+        expect(refusedIn('20261101100200_next', edited), bad).toHaveLength(1);
+      }
+    });
+
+    it('lets the drawer CHECK be replaced by exactly the reviewed file, and nothing else', () => {
+      const sql = sqlOf(CASH);
+      expect(destructive(sql)).toHaveLength(1);
+      expect(refusedIn(CASH, sql)).toEqual([]);
+      expect(fingerprint(sql)).toBe(REWORK_OF_UNRELEASED_TABLES[CASH]!.sha256);
+      // any edit, a widened rule or a second drop loses it
+      for (const edited of [sql + '\n', sql.replace("'PAID_IN'", "'PAID_IN', 'PAID_OUT'"), sql + 'ALTER TABLE "PhSale" DROP COLUMN "note";']) {
+        expect(refusedIn(CASH, edited).length).toBeGreaterThan(0);
+      }
+      // the same statement in another migration is refused
+      expect(refusedIn(PHASE7, sql)).toHaveLength(1);
+      // the old rule is not left in place beside the new one: it is the same name, replaced
+      expect(statements(sql)).toHaveLength(1);
+    });
   });
 
   it('a pharmacy migration only inserts the pharmacy application row', () => {
