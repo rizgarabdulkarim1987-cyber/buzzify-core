@@ -527,10 +527,14 @@ describe('pharmacy products', () => {
     // received, lost and damaged counts, so a later resize of a unit or archive of the product changes nothing in a transfer
     // already made (an archived product is refused when a new transfer is requested). Decided here, not by omission.
     const SELF_CONTAINED_TRANSFERS = ['PhTransfer', 'PhTransferLine'];
+    // Phase 7 records are self-contained: a prescription and its file hold text and a stored object, never a unit; a register row is in
+    // base units (`baseQty`) and names the batch it came from, so a resize of a unit changes nothing in it; customers, their ledger and
+    // their payments hold money and a currency only; an assistant proposal is a suggestion and moves no stock or money. Decided here, not by omission.
+    const SELF_CONTAINED_PHASE_7 = ['PhPrescription', 'PhRxAttachment', 'PhControlledEntry', 'PhCustomer', 'PhCustomerLedger', 'PhCustomerPayment', 'PhAiProposal'];
     // The generated client's model names: the schema as the application sees it.
     const phModels = Object.values(Prisma.ModelName).filter((name) => /^Ph[A-Z]/.test(name));
     expect(phModels).toContain('PhProduct');
-    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !SELF_CONTAINED_TRANSFERS.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
+    const unclassified = phModels.filter((name) => !CATALOG.includes(name) && !SELF_CONTAINED_SALES.includes(name) && !SELF_CONTAINED_PURCHASING.includes(name) && !SELF_CONTAINED_INTAKE.includes(name) && !SELF_CONTAINED_TRANSFERS.includes(name) && !SELF_CONTAINED_PHASE_7.includes(name) && !PH_STOCK_RECORD_MODELS.includes(name));
     expect(unclassified).toEqual([]);
   });
 });
