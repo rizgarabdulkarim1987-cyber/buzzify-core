@@ -2,7 +2,22 @@ import { z } from 'zod';
 import { defineAction } from '@/server/studio/framework/action';
 import { idField } from '@/server/studio/services/content';
 import * as sales from '@/server/studio/services/sales';
-import { offerFields, pairingFields, sameOfferRef, sameRef, sameSetRef, setFields, settingsFields, upgradeFields, versionField } from '@/server/studio/services/sales';
+import { SHOWCASE_SLOTS } from '@/server/domain/showcase';
+import {
+  occasionFields,
+  offerFields,
+  pairingFields,
+  sameCardRef,
+  sameOccasionRef,
+  sameOfferRef,
+  sameRef,
+  sameSetRef,
+  setFields,
+  settingsFields,
+  showcaseCardFields,
+  upgradeFields,
+  versionField,
+} from '@/server/studio/services/sales';
 
 /**
  * The Sales tab's changes to a menu's draft (docs/superpowers/specs/2026-10-18-sales-tools-design.md, 6.4). All need
@@ -111,4 +126,47 @@ export const reorderOffers = defineAction({
   input: z.object({ menuId: idField, order: z.array(idField).max(200) }),
   target: (i) => atMenu(i.menuId),
   run: (ctx, input) => sales.reorderOffers(ctx, input),
+});
+
+// Occasions and showcase cards ----------------------------------------------------------------------------------------
+
+/** Occasions and showcase cards are content, open to every plan: a menu with none shows no carousel. */
+export const saveOccasion = defineAction({
+  name: 'sales.saveOccasion',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...occasionFields }).refine(sameOccasionRef),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.saveOccasion(ctx, input),
+});
+
+export const deleteOccasion = defineAction({
+  name: 'sales.deleteOccasion',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, occasionId: idField, version: versionField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.deleteOccasion(ctx, input),
+});
+
+export const saveShowcaseCard = defineAction({
+  name: 'sales.saveShowcaseCard',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, ...showcaseCardFields }).refine(sameCardRef),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.saveShowcaseCard(ctx, input),
+});
+
+export const deleteShowcaseCard = defineAction({
+  name: 'sales.deleteShowcaseCard',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, cardId: idField, version: versionField }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.deleteShowcaseCard(ctx, input),
+});
+
+export const reorderShowcaseCards = defineAction({
+  name: 'sales.reorderShowcaseCards',
+  permission: 'content.edit',
+  input: z.object({ menuId: idField, slot: z.enum(SHOWCASE_SLOTS), order: z.array(idField).max(200) }),
+  target: (i) => atMenu(i.menuId),
+  run: (ctx, input) => sales.reorderShowcaseCards(ctx, input),
 });
