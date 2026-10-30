@@ -311,6 +311,19 @@ span.tpl-counts:not(.tpl-badge) {
 .tpl-flavor .tpl-counts {
   color: var(--tile-text);
 }
+/*
+ * "Recommended" is filled too (it was a faint outline in the muted ink, easy to miss on a photo): the button colour with its own
+ * text, bold. !important for the same reason as the hot label.
+ */
+.tpl-badge.tpl-badge-pick {
+  background: var(--button) !important;
+  color: var(--on-button) !important;
+  box-shadow: none !important;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  line-height: 1.5;
+}
 /* The regular price, crossed out beside the price during a discount, and "Only 2 left". */
 .tpl-was {
   margin-inline-start: 0.45em;
