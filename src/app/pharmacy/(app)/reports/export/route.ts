@@ -18,8 +18,9 @@ const refuse = (error: StudioFailure) => Response.json({ error }, { status: STAT
 
 export async function GET(request: Request): Promise<Response> {
   const search = new URL(request.url).searchParams;
-  // The file is made by a click on this site's own screens. A request another site started (it carries our cookie) makes no file and no audit row.
-  if (request.headers.get('sec-fetch-site') === 'cross-site') return refuse(failure('FORBIDDEN').error);
+  // The file is made by a click on this site's own screens. A request another site (or another subdomain of this one) started, with our cookie, makes no file and no audit row.
+  const site = request.headers.get('sec-fetch-site');
+  if (site !== null && site !== 'same-origin' && site !== 'none') return refuse(failure('FORBIDDEN').error);
   const branch = search.get('branch');
   // Like the screens: the filter is the branch (the report refuses one that is not the person's). The place's own branch does not narrow a report.
   const input: Record<string, string> = {};

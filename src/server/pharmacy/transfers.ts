@@ -176,6 +176,14 @@ export function asRetryableTransfer(error: unknown): unknown {
   return error;
 }
 
+/** A unique violation on one of the transfer's own keys (client, send or receive key): the same save came twice. Any other unique violation (the per-branch number) is a conflict to retry. */
+export function isTransferKeyUnique(error: unknown): boolean {
+  const e = error as { code?: unknown; message?: unknown; meta?: unknown; cause?: unknown } | null;
+  if (e?.code !== 'P2002') return false;
+  const text = `${String(e.message ?? '')} ${JSON.stringify(e.meta ?? '')} ${String((e.cause as { message?: unknown } | null)?.message ?? '')}`;
+  return /clientKey|sendKey|receiveKey/.test(text);
+}
+
 /** Whether the actor works at this branch. */
 export const mayUseBranch = (ph: PhActor, branchId: string): boolean => ph.allBranches || ph.branchIds.includes(branchId);
 
@@ -192,6 +200,8 @@ async function advisory(tx: ScopedTx, restaurantId: string, kind: string, key: s
 
 interface Header {
   id: string;
+  requestedAt: Date;
+  sentAt: Date | null;
   number: string | null;
   status: 'REQUESTED' | 'SENT' | 'RECEIVED' | 'PARTIAL' | 'CANCELLED';
   version: number;
@@ -205,10 +215,13 @@ async function lockTransfer(tx: ScopedTx, restaurantId: string, transferId: stri
   if (!visible) throw notFound();
   // eslint-disable-next-line no-restricted-properties -- a row lock on one transfer the scoped client just showed this actor; it names the actor's business
   await tx.$queryRaw`SELECT "id" FROM "PhTransfer" WHERE "restaurantId" = ${restaurantId} AND "id" = ${transferId} FOR UPDATE`;
-  const row = await tx.phTransfer.findFirst({ where: { id: transferId }, select: { id: true, number: true, status: true, version: true, fromBranchId: true, toBranchId: true } });
+  const row = await tx.phTransfer.findFirst({ where: { id: transferId }, select: { id: true, requestedAt: true, sentAt: true, number: true, status: true, version: true, fromBranchId: true, toBranchId: true } });
   if (!row) throw notFound();
   return row;
 }
+
+/** A time stamp never earlier than the one it follows: the CHECK PhTransfer_times_ordered holds even when two servers' clocks differ by a second. */
+const notBefore = (now: Date, floor: Date | null): Date => (floor !== null && now < floor ? floor : now);
 
 function assertVersion(header: Header, version: number): void {
   if (header.version !== version) throw stale();
@@ -334,7 +347,7 @@ export async function cancelTransfer(tx: ScopedTx, args: { restaurantId: string;
   const count = await tx.phTransferLine.count({ where: { transferId: header.id } });
   const next = await tx.phTransfer.update({
     where: { id: header.id },
-    data: { status: 'CANCELLED', cancelledById: ph.userId, cancelledAt: args.now ?? new Date(), version: { increment: 1 } },
+    data: { status: 'CANCELLED', cancelledById: ph.userId, cancelledAt: notBefore(args.now ?? new Date(), header.requestedAt), version: { increment: 1 } },
     select: { version: true },
   });
   return { id: header.id, number: header.number ?? '', status: 'CANCELLED', version: next.version, lineCount: count };
@@ -453,7 +466,7 @@ export async function sendTransfer(
   });
   await tx.phTransfer.update({
     where: { id: header.id },
-    data: { status: 'SENT', sentById: ph.userId, sentAt: now, sendKey: input.clientKey, sendHash: hash, sendOverride: plan.override, version: { increment: 1 } },
+    data: { status: 'SENT', sentById: ph.userId, sentAt: notBefore(now, header.requestedAt), sendKey: input.clientKey, sendHash: hash, sendOverride: plan.override, version: { increment: 1 } },
   });
   const result = await sentResult(tx, header.id, false);
   return { ...result, override: plan.override, movementIds };
@@ -577,7 +590,7 @@ export async function receiveTransfer(
   }
   await tx.phTransfer.update({
     where: { id: header.id },
-    data: { status: closeStatus(checked), receivedById: ph.userId, receivedAt: now, receiveKey: input.clientKey, receiveHash: hash, version: { increment: 1 } },
+    data: { status: closeStatus(checked), receivedById: ph.userId, receivedAt: notBefore(now, header.sentAt ?? header.requestedAt), receiveKey: input.clientKey, receiveHash: hash, version: { increment: 1 } },
   });
   const result = await receivedResult(tx, header.id, false);
   return { ...result, movementIds };
@@ -791,11 +804,10 @@ export interface InTransitItem {
 
 /** What is on the road: per product, batch and destination, the units sent and not yet received, damaged or lost. */
 export async function inTransit(scoped: ScopedClient, input: InTransitInput): Promise<InTransitItem[]> {
-  const open = await scoped.phTransfer.findMany({ where: { status: 'SENT' }, select: { id: true } });
-  if (open.length === 0) return [];
+  // The sent transfers are a relation filter, not a list of ids: a business with thousands of transfers on the road sends one short statement.
   const lines = await scoped.phTransferLine.findMany({
     where: {
-      transferId: { in: open.map((t) => t.id) },
+      transfer: { is: { status: 'SENT' } },
       requestLineId: { not: null },
       ...(input.productId ? { productId: input.productId } : {}),
       ...(input.branchId ? { OR: [{ fromBranchId: input.branchId }, { toBranchId: input.branchId }] } : {}),

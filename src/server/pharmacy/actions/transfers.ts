@@ -5,6 +5,7 @@ import {
   asRetryableTransfer,
   cancelFields,
   cancelTransfer,
+  isTransferKeyUnique,
   receiveFields,
   receiveTransfer,
   requestFields,
@@ -40,6 +41,8 @@ async function keyed<T>(attempt: () => Promise<T>): Promise<T> {
     } catch (again) {
       const second = asRetryableTransfer(again);
       if (!isUnique(second)) throw second;
+      // Only the transfer's own keys mean the same save came twice; another unique violation (the number) is a conflict to retry.
+      if (!isTransferKeyUnique(second)) throw new StudioError('CONFLICT', 'Someone else changed this transfer: reload it', { phCode: 'VERSION_CONFLICT' });
       throw new StudioError('CONFLICT', 'This key was already used', { phCode: 'CLIENT_KEY_USED' });
     }
   }
