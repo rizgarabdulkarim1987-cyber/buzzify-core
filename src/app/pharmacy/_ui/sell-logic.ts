@@ -331,9 +331,11 @@ export function estimateCart(cart: CartState, currency: Currency, roundingStepMi
 export type PayMethod = 'CASH' | 'CARD_MANUAL' | 'TRANSFER_MANUAL';
 export interface PayDraft {
   method: PayMethod;
-  /** What the person typed as tendered (cash) or paid (card, transfer); empty = the exact total. */
+  /** What the person typed as tendered (cash) or paid (card, transfer); empty = the exact total (the rest, with credit). */
   tendered: string;
   reference: string;
+  /** Phase 7: part of the sale on a customer's account (`amount` is text in the currency; the rest is paid by `method`). */
+  credit?: { customerId: string; amount: string } | null;
 }
 
 /** What the payment would be, for the dialog: the amount, the change (cash only) and whether it covers the total. */
@@ -441,19 +443,49 @@ export interface SaleAttempt extends KeyedAttempt {
   amountMinor: string;
   reference: string;
   fromHoldId: string | null;
+  /** Phase 7: the key of the CREDIT payment, its customer and amount text, and the prescription (an id only, never a patient field). */
+  creditKey?: string;
+  credit?: { customerId: string; amount: string } | null;
+  prescriptionId?: string | null;
 }
 
 /** The identity of a sale request: the cart as it goes to the server, the payment and the hold it completes. Null when the cart cannot be built. */
-export function saleSignature(cart: CartState, currency: Currency, draft: PayDraft, amountMinor: bigint, fromHoldId: string | null): string | null {
+export function saleSignature(cart: CartState, currency: Currency, draft: PayDraft, amountMinor: bigint, fromHoldId: string | null, prescriptionId: string | null = null): string | null {
   const base = buildCartRequest(cart, currency, '');
   if (!base) return null;
-  return JSON.stringify({ ...base, clientKey: null, pay: [draft.method, amountMinor.toString(), draft.reference.trim()], fromHoldId });
+  // Credit and the prescription are in the identity only when present, so a plain sale's signature is what it always was.
+  return JSON.stringify({
+    ...base,
+    clientKey: null,
+    pay: [draft.method, amountMinor.toString(), draft.reference.trim()],
+    fromHoldId,
+    ...(draft.credit ? { credit: [draft.credit.customerId, draft.credit.amount.trim()] } : {}),
+    ...(prescriptionId ? { rx: prescriptionId } : {}),
+  });
 }
 
 /** The attempt for a sale: reused while the sale is the same, new keys (sale and payment) when it changed. */
-export function saleAttemptFor(prev: SaleAttempt | null, sig: string, draft: PayDraft, amountMinor: bigint, fromHoldId: string | null, make: (prefix: string) => string = newClientKey): SaleAttempt {
+export function saleAttemptFor(
+  prev: SaleAttempt | null,
+  sig: string,
+  draft: PayDraft,
+  amountMinor: bigint,
+  fromHoldId: string | null,
+  make: (prefix: string) => string = newClientKey,
+  prescriptionId: string | null = null,
+): SaleAttempt {
   if (prev && prev.sig === sig) return prev;
-  return { sig, key: make('sale'), paymentKey: make('pay'), method: draft.method, amountMinor: amountMinor.toString(), reference: draft.reference.trim(), fromHoldId };
+  return {
+    sig,
+    key: make('sale'),
+    paymentKey: make('pay'),
+    method: draft.method,
+    amountMinor: amountMinor.toString(),
+    reference: draft.reference.trim(),
+    fromHoldId,
+    ...(draft.credit ? { creditKey: make('pay'), credit: { customerId: draft.credit.customerId, amount: draft.credit.amount.trim() } } : {}),
+    ...(prescriptionId ? { prescriptionId } : {}),
+  };
 }
 
 /** The identity of a hold request (the cart without its key). Null when the cart cannot be built. */
@@ -589,10 +621,12 @@ export interface Draft {
   fromHoldId: string | null;
   /** The sale that was being sent (keys and payment), kept until it is done or definitely refused. */
   attempt: SaleAttempt | null;
+  /** The prescription recorded for this cart (an id only: no patient field is ever kept on this device). */
+  prescriptionId?: string | null;
 }
 
-export function serializeDraft(currency: Currency, cart: CartState, attempt: SaleAttempt | null = null, fromHoldId: string | null = null): string {
-  return JSON.stringify({ v: DRAFT_VERSION, currency, cart, fromHoldId, attempt } satisfies Draft);
+export function serializeDraft(currency: Currency, cart: CartState, attempt: SaleAttempt | null = null, fromHoldId: string | null = null, prescriptionId: string | null = null): string {
+  return JSON.stringify({ v: DRAFT_VERSION, currency, cart, fromHoldId, attempt, ...(prescriptionId ? { prescriptionId } : {}) } satisfies Draft);
 }
 
 const isDiscount = (d: unknown): d is DiscountDraft | null =>
@@ -656,7 +690,7 @@ export function parseDraft(text: string | null): Draft | null {
     const c = raw.cart;
     if (!c || !Array.isArray(c.lines) || c.lines.length === 0 || c.lines.length > MAX_LINES || !c.lines.every(isLine)) return null;
     if (!isDiscount(c.invoiceDiscount) || typeof c.discountReason !== 'string' || !Number.isInteger(c.seq)) return null;
-    return { v: raw.v, currency: raw.currency, cart: c, fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null };
+    return { v: raw.v, currency: raw.currency, cart: c, fromHoldId: typeof raw.fromHoldId === 'string' ? raw.fromHoldId : null, attempt: isAttempt(raw.attempt) ? raw.attempt : null, ...(typeof raw.prescriptionId === 'string' && raw.prescriptionId.length <= 64 ? { prescriptionId: raw.prescriptionId } : {}) };
   } catch {
     return null;
   }
