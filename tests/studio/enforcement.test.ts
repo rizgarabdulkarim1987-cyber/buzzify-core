@@ -72,9 +72,10 @@ const actionsFileViolations = (source: string) => exportsNotMatching(source, ACT
 
 /**
  * The pharmacy's Server Actions forward through `invokePh` or `invokePhQuery`, which put the place the person chose (the
- * signed cookie, checked again) in place of any restaurant or branch the browser sent: never `invoke` directly.
+ * signed cookie, checked again) in place of any restaurant or branch the browser sent: never `invoke` directly. The report reads
+ * use `invokePhReport`: the business is the place's, the branch is the person's own filter (R6-15).
  */
-const PH_ACTION_EXPORT = /export async function (\w+)\(input: unknown\)\s*\{\s*return (invokePh|invokePhQuery)\(\w+\.\w+, input\);\s*\}/;
+const PH_ACTION_EXPORT = /export async function (\w+)\(input: unknown\)\s*\{\s*return (invokePh|invokePhQuery|invokePhReport)\(\w+\.\w+, input\);\s*\}/;
 
 const pharmacyActionsFileViolations = (source: string) => exportsNotMatching(source, PH_ACTION_EXPORT);
 
@@ -278,6 +279,7 @@ describe('Studio enforcement rules', () => {
     it('makes the pharmacy forward through invokePh or invokePhQuery only', () => {
       expect(pharmacyActionsFileViolations('export async function save(input: unknown) { return invokePh(products.create, input); }')).toEqual([]);
       expect(pharmacyActionsFileViolations('export async function find(input: unknown) { return invokePhQuery(products.search, input); }')).toEqual([]);
+      expect(pharmacyActionsFileViolations('export async function sales(input: unknown) { return invokePhReport(reports.sales, input); }')).toEqual([]);
       // Straight to the framework: the browser's restaurant would be used as sent.
       expect(pharmacyActionsFileViolations('export async function save(input: unknown) { return invoke(products.create, input); }')).toHaveLength(1);
       expect(pharmacyActionsFileViolations('export async function find(input: unknown) { return invokeQuery(products.search, input); }')).toHaveLength(1);

@@ -6,7 +6,7 @@ import * as reports from '@/server/pharmacy/queries/reports';
 import { salesReport } from '@/server/pharmacy/reports';
 import { marginReport } from '@/server/pharmacy/reports-margin';
 import { stockValuation } from '@/server/pharmacy/reports-stock';
-import { asPh, grant, NOW, person, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
+import { asPh, grant, NOW, person, pharmacy, prisma, resetWorld, useTestDatabase, type Person } from './fixture';
 import { ask, codeOf } from './stock-helpers';
 import { at, batch, build, dataOf, type Biz } from './reports-world';
 
@@ -296,6 +296,15 @@ describe('margin report (estimated)', () => {
 });
 
 describe('stock valuation', () => {
+  it('a business with no stock at all answers zeros, never null (the grand-total row exists over zero rows)', async () => {
+    const empty = await pharmacy('Empty', { branches: 2 });
+    const owner = await person('ownerEmpty', { membership: [empty.id, 'OWNER'] });
+    const r = dataOf(await ask(owner, reports.stockValuationQuery, { restaurantId: empty.id, groupBy: 'branch' }));
+    expect(r.totals).toMatchObject({ available: 0, reserved: 0, quarantine: 0, damaged: 0 });
+    expect(r.rows).toEqual([]);
+    expect(r.byBranch).toEqual([]);
+  });
+
   /* Balances (hand): PB1@b1 153 avail + 5 quarantine (cost 705/strip IQD); PB2@b2 172 avail + 3 damaged (600/strip); PB2@b1 14 avail + 2 damaged;
      PB3@b2 190 (500/strip USD); QB1@b1 86 avail + 10 quarantine (no cost); QB2@b2 96 (100/strip USD).
      Valued = available + reserved + quarantine. IQD: 705*158/10 = 11139, 600*172/10 = 10320, 600*14/10 = 840 -> 22299; damaged 600*3/10 + 600*2/10 = 300.

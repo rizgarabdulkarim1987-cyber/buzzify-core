@@ -3,7 +3,7 @@ import { invoke, invokeQuery } from '@/server/studio/framework/invoke';
 import type { QueryDef } from '@/server/studio/framework/query';
 import { failure, type ActionResult } from '@/server/studio/framework/result';
 import { getPhAccess } from './actor';
-import { withPlace } from './place-input';
+import { withBusiness, withPlace } from './place-input';
 
 /**
  * How the pharmacy's Server Actions (src/app/pharmacy/_actions) and its file routes run a definition: the restaurant and
@@ -26,6 +26,16 @@ export async function invokePhQuery<I, O>(def: QueryDef<I, O>, raw: unknown): Pr
   const known = await placeOf();
   if (!known) return failure('FORBIDDEN');
   return invokeQuery(def, withPlace(raw, known.place), { phAccess: known.phAccess });
+}
+
+/**
+ * A report read (ruling R6-15): like `invokePhQuery` (the person, the pharmacy and the business come from this request, never from the browser) but
+ * the place's branch does NOT narrow it. The input's `branchId` is the person's own filter and goes on to the report's checks.
+ */
+export async function invokePhReport<I, O>(def: QueryDef<I, O>, raw: unknown): Promise<ActionResult<O>> {
+  const known = await placeOf();
+  if (!known) return failure('FORBIDDEN');
+  return invokeQuery(def, withBusiness(raw, known.place.restaurantId), { phAccess: known.phAccess });
 }
 
 /** The validated place and what was resolved for it in this request; null when the person has no valid place now. */

@@ -114,7 +114,7 @@ export async function stockValuation(scoped: ScopedClient, ph: PhActor, place: {
   const [qty, values, transit] = await Promise.all([
     scoped.$queryRaw<QtyFact[]>(Prisma.sql`
       SELECT GROUPING(sb."branchId")::int AS "gb", GROUPING(${key})::int AS "gk", sb."branchId", ${key} AS "k", MIN(${label}) AS "label",
-             SUM(sb."available")::int AS "available", SUM(sb."reserved")::int AS "reserved", SUM(sb."quarantine")::int AS "quarantine", SUM(sb."damaged")::int AS "damaged",
+             COALESCE(SUM(sb."available"), 0)::int AS "available", COALESCE(SUM(sb."reserved"), 0)::int AS "reserved", COALESCE(SUM(sb."quarantine"), 0)::int AS "quarantine", COALESCE(SUM(sb."damaged"), 0)::int AS "damaged",
              (COUNT(*) FILTER (WHERE NOT (${HAS_COST})))::int AS "nocost"
       ${bal}
       GROUP BY GROUPING SETS ((), (sb."branchId"), (${key}))`),

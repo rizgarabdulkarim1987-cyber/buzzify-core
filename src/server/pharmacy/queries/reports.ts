@@ -11,8 +11,10 @@ import { defineQuery } from '@/server/studio/framework/query';
 /**
  * Reports (phase 6, task 4; R6-7). Every one is a read for `report.view` (OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE,
  * ACCOUNTANT), open while the pharmacy is read-only like the other reads and closed once it is archived. A support actor and a
- * role without the permission read nothing. The place's branch narrows a report to that branch; without one a person
- * gets the branches they work in. Margin also needs `profit.view` and `cost.view` (checked in its service); the cost keys of the others exist only with `cost.view`.
+ * role without the permission read nothing. A report covers the branches the person works in, or the ONE branch named in the input's
+ * `branchId` when it is theirs (the report's own filter, "all my branches" by default). The place switcher's branch does NOT narrow a report
+ * (ruling R6-15: the screens and their file route go through `invokePhReport`, which keeps the person's filter and drops nothing but the
+ * restaurant; cost if wrong: read the place's branch into the screens' default filter, a few lines in reports/load.ts and the filter bar). Margin also needs `profit.view` and `cost.view` (checked in its service); the cost keys of the others exist only with `cost.view`.
  *
  * Each answer also carries `labels` (task 6): the names of the branches of the report and of the products, categories and sellers its
  * rows name, so a screen never shows an id (report-labels.ts).
