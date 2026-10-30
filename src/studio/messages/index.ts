@@ -3,9 +3,16 @@ import type { Locale } from '@/lib/locale';
 import ar from './ar';
 import ckb from './ckb';
 import en from './en';
+import salesDishesAr from './sales-dishes/ar';
+import salesDishesCkb from './sales-dishes/ckb';
+import salesDishesEn from './sales-dishes/en';
 
 /** The Studio's own catalog, separate from the public menu's. Later tasks add their groups of keys to all three files. */
-export const STUDIO_MESSAGES: Record<Locale, Messages> = { en, ar, ckb };
+export const STUDIO_MESSAGES: Record<Locale, Messages> = {
+  en: { ...en, ...salesDishesEn },
+  ar: { ...ar, ...salesDishesAr },
+  ckb: { ...ckb, ...salesDishesCkb },
+};
 
 export function getStudioTranslator(locale: Locale): Translate {
   return createTranslator(locale, STUDIO_MESSAGES);
