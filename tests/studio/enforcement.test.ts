@@ -673,7 +673,7 @@ describe('Studio enforcement rules', () => {
        * Table -> the only files that may write it, each for a reason: `sales.ts` makes a sale, `holds.ts` a held cart
        * (a HELD `PhSale` with lines), `shifts.ts` opens and closes a shift and posts paid in/out, `returns.ts` makes a return
        * (and a cancel), moves a sale to RETURNED_*, bumps `returnedBaseQty` on the allocation and posts the refund,
-       * `receipt-print.ts` logs a reprint. Anything else is a new writer: it is not allowed until this table says so.
+       * `receipt-print.ts` logs a reprint, `customers.ts` posts a cash customer payment (and its correction) to the drawer. Anything else is a new writer: it is not allowed until this table says so.
        */
       const WRITERS: Record<string, string[]> = {
         PhSale: ['sales.ts', 'holds.ts', 'returns.ts'],
@@ -681,7 +681,7 @@ describe('Studio enforcement rules', () => {
         PhSaleLineAllocation: ['sales.ts', 'returns.ts'],
         PhPayment: ['sales.ts'],
         PhShift: ['shifts.ts'],
-        PhCashMovement: ['sales.ts', 'shifts.ts', 'returns.ts'],
+        PhCashMovement: ['sales.ts', 'shifts.ts', 'returns.ts', 'customers.ts'],
         PhReturn: ['returns.ts'],
         PhReturnLine: ['returns.ts'],
         PhReceiptReprint: ['receipt-print.ts'],
@@ -1035,6 +1035,112 @@ describe('Studio enforcement rules', () => {
         const files = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')];
         expect(files.filter((path) => touchesFileRows(read(path)) && path !== SERVICE && !path.endsWith('tenant-db.ts'))).toEqual([]);
         expect(files.filter((path) => callsGate(read(path)) && path !== SERVICE)).toEqual(['src/server/pharmacy/queries/prescriptions.ts']);
+      });
+    });
+
+    describe('customers, their credit ledger and their payments: one writer, append-only records, no personal data in the audit (phase 7)', () => {
+      const SERVICE = 'src/server/pharmacy/customers.ts';
+      const TABLES = ['PhCustomer', 'PhCustomerLedger', 'PhCustomerPayment'];
+      const WRITE = '(?:create|createMany|createManyAndReturn|update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)';
+      const RECORDS = ['PhCustomerLedger', 'PhCustomerPayment'];
+
+      /** The tables of this group `source` writes: by any receiver, a destructured delegate, raw SQL, or a write nested through the ledger relation. */
+      function customerTableWrites(source: string): string[] {
+        const found: string[] = [];
+        for (const table of TABLES) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*${WRITE}\\b`).test(source)) found.push(table);
+          else if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(table);
+          else if (new RegExp(`(?:insert\\s+into|update|delete\\s+from)\\s+(?:"${table}"|${table}\\b)`, 'i').test(source)) found.push(table);
+        }
+        if (/\bledger\s*:\s*\{\s*(?:create|createMany|connectOrCreate|upsert|update|updateMany|delete|deleteMany)\b/.test(source)) found.push('nested');
+        return found;
+      }
+      const offenders = (path: string, source: string) => (path === SERVICE ? [] : customerTableWrites(source));
+
+      /** Anything that could change or remove a ledger or payment row, in ANY file: the service that appends to them included. */
+      function recordMutations(source: string): string[] {
+        const found: string[] = [];
+        for (const table of RECORDS) {
+          const delegate = table.charAt(0).toLowerCase() + table.slice(1);
+          if (new RegExp(`\\b${delegate}\\s*\\.\\s*(?:update|updateMany|updateManyAndReturn|upsert|delete|deleteMany)\\b`).test(source)) found.push(`${table} mutation`);
+          if (new RegExp(`\\{[^}]*\\b${delegate}\\b[^}]*\\}\\s*=`).test(source)) found.push(`${table} destructured delegate`);
+          if (new RegExp(`(?:\\bupdate|delete\\s+from|truncate(?:\\s+table)?)\\s+(?:only\\s+)?"?${table}\\b`, 'i').test(source)) found.push(`${table} raw sql`);
+        }
+        if (/\bledger\s*:\s*\{\s*(?:update|updateMany|upsert|delete|deleteMany|set|disconnect)\b/.test(source)) found.push('nested');
+        return found;
+      }
+
+      /** An audit entry that names a customer's name, phone or note. */
+      const personalAuditKeys = (source: string) =>
+        [...source.matchAll(/\b(name|phone|note|customerName|customerPhone|patientName)\s*:\s*\{\s*before\b/g)].map((m) => m[1]);
+      const AUDIT_FILES = [
+        'src/server/pharmacy/actions/customers.ts',
+        'src/server/pharmacy/actions/credit-settings.ts',
+        'src/server/pharmacy/actions/sales.ts',
+        'src/server/pharmacy/actions/returns.ts',
+      ];
+
+      it('recognises a write however the receiver is spelled, raw SQL and a nested write included', () => {
+        expect(customerTableWrites('await tx.phCustomer.create({ data });')).toEqual(['PhCustomer']);
+        expect(customerTableWrites('await ctx.scoped!.phCustomerLedger.createMany({ data });')).toEqual(['PhCustomerLedger']);
+        expect(customerTableWrites('await getPrisma().phCustomerPayment.create({ data });')).toEqual(['PhCustomerPayment']);
+        expect(customerTableWrites('const { phCustomerLedger } = tx;')).toEqual(['PhCustomerLedger']);
+        expect(customerTableWrites('await tx.$executeRaw`UPDATE "PhCustomer" SET "name" = 1`;')).toEqual(['PhCustomer']);
+        expect(customerTableWrites('await tx.$executeRaw`insert into "PhCustomerPayment" ("id") values (1)`;')).toEqual(['PhCustomerPayment']);
+        expect(customerTableWrites('await tx.phCustomer.update({ where, data: { ledger: { create: [] } } });')).toEqual(['PhCustomer', 'nested']);
+        expect(customerTableWrites('await tx.phCustomer.findMany({});\nawait tx.phCustomerLedger.aggregate({});\nawait tx.phCustomerPayment.count();')).toEqual([]);
+        expect(customerTableWrites('await tx.$queryRaw`SELECT "id" FROM "PhCustomer" WHERE "id" = ${id} FOR UPDATE`;')).toEqual([]);
+      });
+
+      it('names a write in a file that is not the customer service', () => {
+        expect(offenders('src/server/pharmacy/sales.ts', 'await tx.phCustomerLedger.create({ data });')).toEqual(['PhCustomerLedger']);
+        expect(offenders('src/server/pharmacy/returns.ts', 'await tx.phCustomerLedger.createMany({ data });')).toEqual(['PhCustomerLedger']);
+        expect(offenders('src/server/pharmacy/actions/customers.ts', 'await tx.phCustomer.update({ where, data });')).toEqual(['PhCustomer']);
+        expect(offenders('src/app/api/pharmacy/x/route.ts', 'await tx.phCustomerPayment.create({ data });')).toEqual(['PhCustomerPayment']);
+        expect(offenders(SERVICE, 'await tx.phCustomer.create({ data });\nawait tx.phCustomerLedger.create({ data });')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts: only the customer service writes these tables', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => offenders(path, read(path)).map((table) => `${path}: ${table}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the service’s own writes, so the check is not passing on a stale path', () => {
+        const written = customerTableWrites(read(SERVICE));
+        for (const table of TABLES) expect(written, table).toContain(table);
+      });
+
+      it('has no way to change or delete a ledger row or a payment: not by update, delete, upsert, truncate, a destructured delegate or raw SQL (negative self-test)', () => {
+        expect(recordMutations('await tx.phCustomerLedger.update({ where, data });')).toEqual(['PhCustomerLedger mutation']);
+        expect(recordMutations('await tx.phCustomerPayment.deleteMany({});')).toEqual(['PhCustomerPayment mutation']);
+        expect(recordMutations('await tx.phCustomerPayment.upsert({});')).toEqual(['PhCustomerPayment mutation']);
+        expect(recordMutations('const { phCustomerLedger } = tx;')).toEqual(['PhCustomerLedger destructured delegate']);
+        expect(recordMutations('await tx.$executeRaw`UPDATE "PhCustomerLedger" SET "amountMinor" = 0`;')).toEqual(['PhCustomerLedger raw sql']);
+        expect(recordMutations('await tx.$executeRaw`DELETE FROM "PhCustomerPayment"`;')).toEqual(['PhCustomerPayment raw sql']);
+        expect(recordMutations('await tx.$executeRaw`TRUNCATE TABLE "PhCustomerLedger"`;')).toEqual(['PhCustomerLedger raw sql']);
+        expect(recordMutations('await tx.phCustomer.update({ data: { ledger: { deleteMany: {} } } });')).toEqual(['nested']);
+        expect(recordMutations('await tx.phCustomerLedger.create({ data });\nawait tx.phCustomerLedger.findMany({});\nawait tx.phCustomerPayment.count();')).toEqual([]);
+        expect(recordMutations('await tx.phCustomer.update({ where, data });')).toEqual([]);
+        expect(recordMutations('await tx.$queryRaw`SELECT 1 FROM "PhCustomerLedger" l JOIN "PhCustomer" c ON c."id" = l."customerId" FOR UPDATE`;')).toEqual([]);
+      });
+
+      it('holds for every file under src/server, src/app and scripts, the customer service included', () => {
+        const found = [...sourceFiles('src/server'), ...sourceFiles('src/app'), ...sourceFiles('scripts')].flatMap((path) => recordMutations(read(path)).map((what) => `${path}: ${what}`));
+        expect(found).toEqual([]);
+      });
+
+      it('finds the appends in the service, so the check above is not passing on a stale path', () => {
+        const source = read(SERVICE);
+        expect(source).toMatch(/\bphCustomerLedger\s*\.\s*create/);
+        expect(source).toMatch(/\bphCustomerPayment\s*\.\s*create/);
+      });
+
+      it('keeps names, phones and notes out of the audit rows (negative self-test)', () => {
+        expect(personalAuditKeys('changes: { name: { before: null, after: made.name } }')).toEqual(['name']);
+        expect(personalAuditKeys('changes: { phone: { before: a, after: b }, note: { before: a, after: b } }')).toEqual(['phone', 'note']);
+        expect(personalAuditKeys('changes: { amountMinor: { before: null, after: 1n }, accountId: { before: null, after: id } }')).toEqual([]);
+        for (const path of AUDIT_FILES) expect(personalAuditKeys(read(path)), path).toEqual([]);
       });
     });
 
