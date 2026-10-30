@@ -191,7 +191,7 @@ export async function customerStatement(scoped: ScopedClient, ph: PhActor, input
   const [rows, totals] = await Promise.all([
     scoped.phCustomerLedger.findMany({
       where: { customerId: customer.id, createdAt: inRange, ...(after ? after : {}) },
-      select: { id: true, kind: true, amountMinor: true, createdAt: true, saleId: true, paymentId: true },
+      select: { id: true, kind: true, amountMinor: true, createdAt: true, saleId: true, paymentId: true, payment: { select: { reversedBy: { select: { id: true } } } } },
       orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
       take: input.pageSize + 1,
     }),
@@ -205,7 +205,7 @@ export async function customerStatement(scoped: ScopedClient, ph: PhActor, input
     // A payment taken at a branch the actor does not work at is not visible to a branch-limited actor: its method is left out.
     paymentIds.length ? scoped.phCustomerPayment.findMany({ where: { id: { in: paymentIds } }, select: { id: true, method: true } }) : [],
   ]);
-  const correctedIds = paymentIds.length ? new Set((await scoped.phCustomerPayment.findMany({ where: { reversesId: { in: paymentIds } }, select: { reversesId: true } })).map((p) => p.reversesId)) : new Set<string | null>();
+  // Whether a payment was corrected is read through the ledger row's own relation, so it does not depend on the viewer's branches.
   const numberOf = new Map(sales.map((s) => [s.id, s.number]));
   const methodOf = new Map(payments.map((p) => [p.id, p.method]));
   const totalsByKind = { CHARGE: 0n, PAYMENT: 0n, REVERSAL: 0n, REFUND: 0n } as Record<StatementRowView['kind'], bigint>;
@@ -225,7 +225,7 @@ export async function customerStatement(scoped: ScopedClient, ph: PhActor, input
       saleNumber: r.saleId ? (numberOf.get(r.saleId) ?? null) : null,
       paymentId: r.paymentId,
       method: r.paymentId ? (methodOf.get(r.paymentId) ?? null) : null,
-      corrected: r.kind === 'PAYMENT' && r.paymentId !== null && correctedIds.has(r.paymentId),
+      corrected: r.kind === 'PAYMENT' && r.paymentId !== null && (r.payment?.reversedBy.length ?? 0) > 0,
     };
   });
   return {
@@ -277,17 +277,14 @@ export async function customerAgeing(scoped: ScopedClient, ph: PhActor, input: z
     : [];
   const shown = customers.slice(0, AGEING_LIMIT);
   const entries = shown.length
-    ? await scoped.phCustomerLedger.findMany({ where: { customerId: { in: shown.map((c) => c.id) } }, select: { customerId: true, kind: true, amountMinor: true, createdAt: true, saleId: true, paymentId: true } })
+    ? await scoped.phCustomerLedger.findMany({ where: { customerId: { in: shown.map((c) => c.id) } }, select: { customerId: true, kind: true, amountMinor: true, createdAt: true, saleId: true, paymentId: true, payment: { select: { reversesId: true } } } })
     : [];
-  // A REVERSAL row points at the reversing payment; that payment points at the one it corrects.
-  const reversalIds = entries.filter((e) => e.kind === 'REVERSAL' && e.paymentId).map((e) => e.paymentId as string);
-  const reverses = new Map(
-    (reversalIds.length ? await scoped.phCustomerPayment.findMany({ where: { id: { in: reversalIds } }, select: { id: true, reversesId: true } }) : []).map((p) => [p.id, p.reversesId]),
-  );
+  // A REVERSAL row points at the reversing payment; that payment points at the one it corrects. The link is read through the ledger row's own
+  // relation (the ledger is business-wide), not through a branch-scoped payment query, so a viewer limited to other branches sees the same ageing.
   const items: AgeingItem[] = shown.map((c) => {
     const mine = entries
       .filter((e) => e.customerId === c.id)
-      .map((e) => ({ day: baghdadDay(e.createdAt), amountMinor: e.amountMinor, kind: e.kind, saleId: e.saleId, paymentId: e.paymentId, reversesPaymentId: e.kind === 'REVERSAL' && e.paymentId ? (reverses.get(e.paymentId) ?? null) : null }));
+      .map((e) => ({ day: baghdadDay(e.createdAt), amountMinor: e.amountMinor, kind: e.kind, saleId: e.saleId, paymentId: e.paymentId, reversesPaymentId: e.kind === 'REVERSAL' && e.paymentId ? (e.payment?.reversesId ?? null) : null }));
     const aged = ageingBuckets(mine, asOf);
     return {
       customerId: c.id,

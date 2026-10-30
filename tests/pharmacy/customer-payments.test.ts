@@ -384,6 +384,27 @@ describe('statement and ageing', () => {
     expect(a.items[0]!.buckets).toEqual({ '0-30': '10000', '31-60': '0', '61-90': '30000', '90+': '0' });
   });
 
+  it('a branch-limited viewer gets the same ageing as the owner when the corrected payment was taken at another branch', async () => {
+    const c = await makeCustomer(w, { limit: 1_000_000n });
+    vi.setSystemTime(new Date('2026-07-30T09:00:00.000Z'));
+    dataOf(await sellOnCredit(w, w.pharmacist, c.id, 30_000n));
+    vi.setSystemTime(new Date('2026-10-25T09:00:00.000Z'));
+    dataOf(await sellOnCredit(w, w.pharmacist, c.id, 10_000n));
+    vi.setSystemTime(new Date('2026-10-26T09:00:00.000Z'));
+    // Taken and corrected at branch 2; the accountant works at branch 1 only and cannot see those payment rows.
+    const paid = dataOf(await act(w.owner, customerActions.pay, pay(c.id, 'CARD', 5000n, { branchId: w.b2 })));
+    vi.setSystemTime(new Date('2026-10-27T06:00:00.000Z'));
+    dataOf(await act(w.owner, customerActions.reverse, { ...at(w.b2), paymentId: paid.id, clientKey: key('crev') }));
+    vi.setSystemTime(NOW);
+    const owner = dataOf(await ask(w.owner, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
+    const accountant = dataOf(await ask(w.accountant, customerQueries.ageing, { ...at(), customerId: c.id })) as Ageing;
+    expect(owner.items[0]!.buckets).toEqual({ '0-30': '10000', '31-60': '0', '61-90': '30000', '90+': '0' });
+    expect(accountant).toEqual(owner);
+    const st = (who: typeof w.owner) => ask(who, customerQueries.statement, { ...at(), customerId: c.id, from: '2026-07-01', to: '2026-10-31' }).then((r) => (dataOf(r) as { rows: { kind: string; corrected?: boolean }[] }).rows.filter((x) => x.kind === 'PAYMENT').map((x) => x.corrected));
+    expect(await st(w.accountant)).toEqual(await st(w.owner));
+    expect(await st(w.owner)).toEqual([true]);
+  });
+
   it('keeps currencies apart and leaves out customers who owe nothing', async () => {
     const { c } = await history();
     const usd = await makeCustomer(w, { name: 'Dollar', currency: 'USD', limit: 100_000n });
