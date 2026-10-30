@@ -59,7 +59,7 @@ export type SnapshotProduct = Omit<CatalogProduct, 'isAvailable' | 'isHidden' | 
 export type SnapshotCategory = Omit<CatalogCategory, 'completesMeal'> & { completesMeal?: true };
 
 /** The catalog as published; `promotions` is left out when the menu has none. */
-export type SnapshotCatalog = Omit<Catalog, 'menuId' | 'products' | 'categories' | 'promotions'> & {
+export type SnapshotCatalog = Omit<Catalog, 'menuId' | 'products' | 'categories' | 'promotions' | 'occasions' | 'showcaseCards'> & {
   categories: SnapshotCategory[];
   products: SnapshotProduct[];
   promotions?: CatalogPromotion[];
@@ -460,6 +460,9 @@ export function toCatalog(menuId: string, snapshot: MenuSnapshot, overlay: LiveO
         categoryIds: promotion.categoryIds.filter((id) => offeredCategories.has(id)),
       }))
       .filter((promotion) => promotion.productIds.length + promotion.categoryIds.length > 0),
+    // The snapshot does not carry occasions or showcase cards yet.
+    occasions: [],
+    showcaseCards: [],
     schedule: catalog.schedule,
   };
 }

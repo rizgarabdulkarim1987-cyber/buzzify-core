@@ -425,6 +425,8 @@ function atelierCatalog(data: SeedData): Catalog {
       items: b.items.map((i) => ({ productId: productId(i.product), variantId: null, quantity: i.quantity })),
     })),
     promotions: [],
+    occasions: [],
+    showcaseCards: [],
     schedule: data.schedule,
   };
 }

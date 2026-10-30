@@ -1,7 +1,9 @@
 import { LOCALES, type Locale } from '@/lib/locale';
 
+import type { CatalogOccasion, CatalogShowcaseCard } from './showcase';
+
 export { LOCALES };
-export type { Locale };
+export type { Locale, CatalogOccasion, CatalogShowcaseCard };
 
 export const DAYPARTS = ['BREAKFAST', 'LUNCH', 'DINNER', 'LATE_NIGHT'] as const;
 export type Daypart = (typeof DAYPARTS)[number];
@@ -172,6 +174,8 @@ export interface Catalog {
   pairingRules: PairingRule[];
   bundles: Bundle[];
   promotions: CatalogPromotion[];
+  occasions: CatalogOccasion[];
+  showcaseCards: CatalogShowcaseCard[];
   schedule: DaypartWindow[];
 }
 

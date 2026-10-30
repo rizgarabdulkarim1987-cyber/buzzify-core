@@ -165,6 +165,9 @@ export async function loadDraftCatalog(client: AnyDb | ScopedDb, menuId: string)
       translations: translationMap(p.translations),
       sortOrder: p.sortOrder,
     })),
+    // Stopgap until the occasion and showcase models exist; Task 3 loads them.
+    occasions: [],
+    showcaseCards: [],
     schedule: schedule.map((s) => ({
       daypart: s.daypart as Daypart,
       startMinute: s.startMinute,

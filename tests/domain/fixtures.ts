@@ -374,6 +374,8 @@ export function makeCatalog(overrides: Partial<Catalog> = {}): Catalog {
     pairingRules,
     bundles,
     promotions: [],
+    occasions: [],
+    showcaseCards: [],
     schedule: WINDOWS,
     ...overrides,
   };
