@@ -31,3 +31,25 @@ Brainstorming was run short (owner: "finish all the phases"). My calls are rulin
 5. **Chain dashboard reads + exports**: consolidated queries, branch comparison, CSV/XLSX for every report.
 6. **Reports + chain UI**: report screens with filters (date range, branch, currency), export buttons, chain dashboard; e2e axe EN/AR/ckb.
 7. **Acceptance + docs + whole-phase review + full suite**: `tests/pharmacy/acceptance-phase-6.test.ts` (hand figures: transfer of 30 units A->B with 5 lost: in transit 30 then received 25 + lost 5; the sale screen cannot sell in-transit stock; per-branch sums = chain total with independent SQL; conservation invariant; reports equal hand-built figures), README phase 6 section, spec section 16 phase-6 subsection (Arabic), ledger.
+
+## Rulings added during execution
+
+- R6-13 cancelling a transfer asks for no reason (the server has none). Cost if wrong: an additive column and a dialog.
+- R6-14 the transfer detail shows who requested, sent, received and cancelled (display names only, same business). Cost if wrong: none (display).
+- R6-15 the place switcher's branch does not narrow a report; the filter bar's branch does. Cost if wrong: a few lines in `reports/load.ts` and the export route.
+- R6-16 "Load more" past 20 pages; caps of 500 rows (sales, margin, valuation) and 2,000 (keyset reports) with a "capped" sentence. Cost if wrong: a client-side append component.
+- Sub-rulings: R6-3a..c (see above), R6-9a (expiry export limit 20,000 batches), R6-9b (XLSX money and counts as exact text), R6-9c (as-of-today files named by the UTC day), R6-10a (year-window dashboard budget 2 s), R6-12a (valuation includes reserved and quarantine, damaged apart).
+
+## Status: DONE (2026-10-31), nothing pushed
+
+Task 7 delivered `tests/pharmacy/acceptance-phase-6.test.ts` (20 tests, hand figures), the README phase 6 section, the Arabic phase 6 subsection of spec section 16 and the status line under spec section 12. The acceptance found one defect, fixed in one line (`4b534283`): the valuation report named, in "on the road by destination", a branch the person does not work in.
+
+Commits (oldest first), by task:
+
+1. Schema: `7b6ab176`; fix round `b7734ef3`.
+2. Transfer domain and services: `37f2f70c`, `c7f147c3`, `0336b6fe`; fix round `e8aa5c38`, `664b247e`, `cac497d4`, `fc00263e`, `9bad56ac`, `183be2ab`.
+3. Transfers UI: `50e23e2f`, `11fb96bf`, `69092d8c`, `30e1f3be`, `24d55241`; fix round `795e5082`.
+4. Reports reads: `c3a8eab5`, `373212de`, `a31ee416`; fix round `3f5ac6eb`, `74fead85`, `562920fa`, `8ea6defb`.
+5. Chain reads and exports: `de8e076b`, `cc39d0c1`, `b896fce3`, `1d15edbe`, `81771950`; fix round `879c45cb`, `fb7f2e6c`.
+6. Reports and chain UI: `ef578714`, `0837fe88`, `d6a6aa9c`, `95608c53`, `6548f6b3`, `d691a1d9`, `25559db5`; fix round `cd7cc1dc`, `59a5b471`, `4ff8e298`, `660c0578`, `2268f0bc`.
+7. Acceptance and docs: `4b534283` (one-line fix), `c12dcd12` (acceptance test), then the docs commit (README, spec, this plan).

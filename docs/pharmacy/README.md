@@ -1,10 +1,10 @@
-# Buzzify Pharmacy: phases 0 to 4
+# Buzzify Pharmacy: phases 0 to 6
 
 The pharmacy module runs a pharmacy business (sector `PHARMACY`) inside this repository, next to the menu and the
 cashier, which stay as they were. Design: `docs/superpowers/specs/2026-10-27-pharmacy-design.md` (Arabic). Plans:
 `docs/superpowers/plans/2026-10-27-pharmacy-phase-0-1.md`, `docs/superpowers/plans/2026-10-27-pharmacy-phase-2.md` and
-`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md` and `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`.
-This file covers what phases 0, 1, 2, 3 and 4 built, what they did not build, and the policies in force.
+`docs/superpowers/plans/2026-10-28-pharmacy-phase-3.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-4.md`, `docs/superpowers/plans/2026-10-29-pharmacy-phase-5.md` and `docs/superpowers/plans/2026-10-31-pharmacy-phase-6.md`.
+This file covers what phases 0 to 6 built, what they did not build, and the policies in force.
 
 Nothing here is deployed. No migration has been run on production.
 
@@ -464,10 +464,136 @@ E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.in
 
 The e2e config starts its own dev server with the file-scripted provider and sets `Application(pharmacy)` ACTIVE and back.
 
+## Phase 6: transfers between branches, reports, chain dashboard, exports
+
+Plan: `docs/superpowers/plans/2026-10-31-pharmacy-phase-6.md`. Rulings R6-1 to R6-16 (and the lettered ones) are listed below with
+their cost if wrong, and in Arabic in section 16 of the spec. Acceptance (spec section 12, row 6): **stock in transit appears and is
+not sold; the sum of the branches equals the sum of each branch.** `tests/pharmacy/acceptance-phase-6.test.ts` proves it with hand
+figures through the same actions the screens call (see "How to run").
+
+**What exists**
+
+- **Transfers** (`/pharmacy/stock/transfers`: list, new, detail with the send and receive panels, edit): `transfer.manage` (OWNER,
+  BRANCH_MANAGER, STOCK). A transfer goes from one branch to another branch of the same business. States: REQUESTED, SENT, RECEIVED,
+  PARTIAL (closed with differences), CANCELLED (only from REQUESTED). Either end may ask; only the sending branch sends and only the
+  receiving branch receives. The number is `T-<last four characters of the sending branch id>-<YYYYMMDD>-<sequence>`. Send takes the
+  stock FEFO from the sender's AVAILABLE bucket (one `TRANSFER_OUT` per batch; a pick out of FEFO order needs `batch.override` and the
+  transfer remembers it was sent out of order). Receive accounts for every sent unit: received (available, or quarantine if flagged or
+  if the batch is by then recalled, blocked or expired), damaged (the destination's DAMAGED bucket, no reason needed) or lost (only
+  recorded, with a reason LOST or OTHER; **closing with lost units needs `report.view` too**, so a stock clerk cannot write units off).
+  Send, receive and request are idempotent by their own keys. A person limited to some branches sees only transfers that touch one of
+  them (the scoped client knows a transfer has two ends); a third branch and another business see nothing.
+- **In transit is derived, not a bucket** (R6-2): sent minus received minus damaged minus lost over the sent lines of SENT transfers.
+  The goods are in no branch's balances, so the sale screen, FEFO and the sale service cannot sell them at either end; they show on the
+  transfer screens, the stock page ("on the road, N to <branch>"), the valuation report and the chain dashboard. `applyMovement`
+  stays the only writer of balances.
+- **Reports** (`/pharmacy/reports`, nine of them; `report.view`: OWNER, BRANCH_MANAGER, PHARMACIST_IN_CHARGE, ACCOUNTANT): sales
+  (by day, branch, user, payment method, product, category), returns, discounts (who, how much, over the limit), margin ("estimated";
+  needs `report.view` AND `profit.view` AND `cost.view`), stock valuation (by branch, product, category; the road shown apart),
+  expiry (bands), damaged and quarantine, transfers (by status, sending branch and route; what is on the road; lost and damaged;
+  average time in transit), low stock. Read-only SQL with bigint sums; Baghdad days (UTC+3 fixed); at most 366 days; money per
+  currency and **never summed across currencies**; keyset paging; filters live in the address. Every answer also carries the names of
+  its branches, products, categories and sellers, so no screen shows an id.
+- **Chain dashboard** (`/pharmacy/chain`; `report.view` and more than one branch): per-branch cards and one total for sales, margin
+  (with `profit.view`), stock value, expiring soon, in transit, open transfers and low stock, plus a ranked comparison. The total is the
+  total **of the branches the person sees** and the screen says so; it comes from the same aggregates as the cards, and a transfer that
+  touches a visible branch is counted once in the total.
+- **Exports** (`ph.exports.report`, route `GET /pharmacy/reports/export`, Studio host only, behind the screens): every report and the chain
+  dashboard as UTF-8 BOM CSV or XLSX, with the same permission as the report, open in read-only mode, at most 50,000 rows (refused,
+  never cut), cost and margin columns omitted without the permissions. The file holds every figure of its report as typed rows
+  (`rowType`), money as exact decimal text. Cells starting with `= + - @` (also after white space or in full-width form) are
+  escaped. One audit row per export, counts only.
+
+**Rulings (cost if wrong)**
+
+| Ruling | What was built | Cost if wrong |
+|---|---|---|
+| R6-1 states | REQUESTED, SENT, RECEIVED, PARTIAL, CANCELLED; the spec's IN_TRANSIT is SENT | one enum value |
+| R6-2 in transit | derived from open transfer lines, not a bucket | an additive `inTransit` column and migration |
+| R6-3 differences | received + damaged + lost = sent on every line; lost needs a reason and `report.view`; more than sent is refused; request lines and sent lines are separate rows | the receive form and one CHECK |
+| R6-3a auto-quarantine | units of a batch recalled, blocked or expired on arrival go to quarantine whatever the flag says; the line records it | one rule in `receiveDestination` |
+| R6-3b numbers | `T-<branch part>-<day>-<seq>`; `sendOverride` stored | the number format (Branch has no code field) |
+| R6-3c cap | 500 sent lines (batches) per transfer; a request has up to 100 lines | the constant |
+| R6-4, R6-5, R6-6 | AVAILABLE stock of ACTIVE unexpired batches only, FEFO with override; two branches of one business; lock order: client key, transfer, lines, stock rows by batch, number | locks and tests |
+| R6-7 reports | the nine above; no tax and no customer report (see below) | one report each |
+| R6-8 chain | as above; one-branch people are refused with a sentence, not an empty page | a role rule |
+| R6-9 exports | CSV and XLSX for every report; R6-9a the expiry export keeps the phase 2 limit of 20,000 batches; R6-9b XLSX money and counts are exact text (Excel shows a "number stored as text" mark); R6-9c "as of today" files (expiry, low stock) are named for the UTC day their figures use | a chain with 20,001+ batches cannot export all branches at once; number cells later |
+| R6-10 budgets | a report over 100,000 sale lines of a year under 2 s; R6-10a the chain dashboard 1.5 s for the default 30 days and **2 s for a year window** (measured 1.3 to 1.5 s on the 5-branch perf seed) | rollup tables |
+| R6-11 UI | no motion, en/ar/ckb, RTL, 375/768/1280, axe, text plus icon for states, drafts kept with a leave guard | polish |
+| R6-12 / R6-12a | one test database; valuation counts available + reserved + quarantine at batch cost and shows damaged apart | one SQL filter (`valued` in `reports-stock.ts`) and the valuation hand figures |
+| R6-13 | cancelling a transfer asks for no reason (the server has none) | an additive column and a dialog |
+| R6-14 | the transfer detail shows who requested, sent, received, cancelled (display names only, same business) | none (display) |
+| R6-15 | the place switcher's branch does **not** narrow a report: the filter bar's branch does (`invokePhReport`) | a few lines in `reports/load.ts` and the export route |
+| R6-16 | "Load more" past 20 pages; sales, margin and valuation cap at 500 rows and the keyset reports at 2,000, with a "capped" sentence | a client-side append component |
+| Other decisions | returns stand on their own date (createdAt), net = sales - refunds; margin counts a line only when every allocation has a cost in the sale's currency (the rest are counted as left out); refunds by user go to the seller of the original sale; expiry bands are exclusive (d30, d60 = 31 to 60, d90 = 61 to 90); expiry and low stock use the UTC day, the rest Baghdad days; the damaged report counts negative adjustments only | each is one filter or expression |
+
+**Indexes and migrations added (all additive; 33 pharmacy migrations in all)**
+
+- `20261031100000_pharmacy_transfers`: `PhTransfer`, `PhTransferLine`, enums, composite foreign keys, 12 named CHECKs.
+- `20261031100100_pharmacy_sales_report_index`: `PhSale (restaurantId, branchId, completedAt)`: reports cut by the completion day; on
+  100,000 sales over 12 months a 2-branch month went from 40,000 rows read to 3,401 (13 ms to 3 ms).
+- `20261031110000_pharmacy_transfers_fixes`: line scope columns, triggers (forward-only status, no delete past REQUESTED, immutable
+  lines), request vs sent lines, `lostReason`, send/receive keys, partial unique `(transferId, batchId)`. It drops constraints and
+  columns of the two still-empty transfer tables; `migration-additive.test.ts` carries one exemption pinned to the file's sha256, and
+  the migration stops itself when a transfer row exists. **Squashing it into the first transfers migration before the first deploy
+  (and deleting the exemption) is the owner's choice**; it needs a local database reset, which was not authorised.
+- `20261031120000_pharmacy_transfers_override`: `PhTransfer.sendOverride`.
+- `20261031130000_pharmacy_report_indexes`: `PhStockMovement (restaurantId, branchId, createdAt)` and `(reversesId)`. The second
+  one is **proven needed** (deleting a business with 100,000 movements ran for 10+ minutes without it: the self foreign key
+  cascade scanned the table); the first is cheap and serves narrow windows but the year-window damaged report did not prove it.
+
+**No tax report and no customer report, on purpose.** The sale model carries no tax figure, so a tax report would be invented
+numbers; customers do not exist until phase 7. Neither is built; adding either needs a schema first.
+
+**Performance** (test database, 50,000 IQD sales + 2,000 USD sales + 2,000 returns + 100,000 allocations + ledger rows, 5 branches,
+a year): sales by day 0.29 s, by product 0.27 s, margin about 1.0 to 1.1 s (the slowest), valuation 0.03 s, the dashboard 1.3 to 1.5 s
+for a year and 0.12 to 0.17 s for 30 days; the number of statements is the same on 40 and on 50,000 sales (11 to 18 per report, 25
+for the dashboard). EXPLAIN (ANALYZE, BUFFERS) of every report statement is replayed inside `reports-perf.test.ts`.
+
+**What was NOT verified (phase 6)**
+
+- Real devices, screen readers, contrast beyond axe, Firefox/Safari downloads; the `loading.tsx` states and the `error.tsx` boundary
+  (not reachable in the e2e), FORBIDDEN states of the report pages (source review only), the retry's `router.refresh`.
+- Native review of every ar and ckb string: **all phase 6 strings in Arabic and Sorani are machine drafts** (about 185 transfer keys,
+  238 report and chain keys, and the server sentences of the transfer and report rules). Terms to check: in transit, quarantine, lost, damaged, sent/received.
+- Excel's display of text-numbers (R6-9b), the year-window dashboard timing on a slower machine or on Neon, end-to-end latency on
+  Neon for any report (only query counts and local timings).
+- The whole repository suite in one pass (it shares one database and takes over 15 minutes): the phase was run file by file; see the
+  ledger for the last combined runs. Known failing before phase 6: `tests/studio/enforcement.test.ts` rule 4 (ai-import `withKeepAlive`).
+- `impeccable detect` was not run on the new screens.
+
+**Open items (phase 6)**
+
+- Squash the transfers fixes migration before the first deploy (above).
+- Transfer detail shows base units, not the pack ladder (the request form does show it); the sender's stock query on the send panel does not follow the place switcher.
+- Damaged units received in a transfer are booked as `TRANSFER_IN` with a damaged delta (no separate movement type); a database backstop for "the close is correct" (every sent unit accounted for) is the service's rule only.
+- Reports compute the whole window on every page of a long list ("Load more" repeats pages 1..N): fine at the budgets above, a rollup table is the answer if a business outgrows them.
+- Recalled or expired stock on the road is booked to quarantine on arrival; there is no screen to send a quarantine batch back.
+- The margin report is the only one that needs three permissions; the owner may want a role that holds `report.view` without `cost.view` (none exists today, so the cost-key gating is proven by a direct service call as a synthetic role).
+- The chain dashboard needs two or more branches in the person's reach; a one-branch manager uses the reports.
+
+**Environment and launch notes**
+
+- Merging runs five more migrations on production (above); the earlier warnings under "Before merging or deploying" stand (Neon
+  dry run, backup, `lock_timeout`). No new environment variable.
+- `Application(pharmacy)` still ships `DISABLED`; the e2e specs set it ACTIVE and restore it, so run them with `--workers=1`.
+- The transfer and report e2e suites sign each person in once and reuse the stored login (sign-in is rate limited per account).
+
+**How to run the phase 6 tests** (always `BUZZIFY_DB_PORT=<port>`, one database test file at a time)
+
+```sh
+BUZZIFY_DB_PORT=<port> npx vitest run tests/pharmacy/acceptance-phase-6.test.ts   # the row 6 criterion with hand figures (about 10 s)
+# one file at a time: transfers-schema, transfers-domain, transfers, reports, reports-domain, reports-rules, reports-damaged, reports-scope,
+# reports-gating, reports-readonly, reports-perf (long), chain, chain-domain, chain-gating, report-exports, report-exports-complete,
+# report-exports-gating, ui-transfers-logic, ui-reports-logic, ui-reports-plurals, reports-pages-no-fetch, isolation, migration-additive
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.transfers.config.ts --workers=1   # pharmacy-transfers.spec.ts (en, ar, ckb)
+E2E_PORT=<free port> BUZZIFY_DB_PORT=<port> npx playwright test -c playwright.reports.config.ts --workers=1     # pharmacy-reports.spec.ts (about 9 minutes)
+```
+
 ## What is NOT built
 
-- **Phase 6 onward**: transfers and chain reports (6); assistant, prescriptions, credit,
-  controlled-drug register, advanced printing (7). Phases 4 (purchasing) and 5 (invoice by photo) are built; what phase 5 leaves out is listed at the end of its section above. Offline selling (the sale is not queued; the screen says so and keeps
+- **Phase 7 onward**: assistant, prescriptions, credit,
+  controlled-drug register, advanced printing (7). Phases 4 to 6 are built; what each leaves out is listed in its own section above (phase 6: no tax report, no customer report). Offline selling (the sale is not queued; the screen says so and keeps
   the cart).
 - **Phase 3 known limits.**
   - Silent printing, ESC/POS and the cash drawer are not built: browser print only. Receipts print the date and time in the business zone `PhSettings.timeZone` (IANA name, default `Asia/Baghdad`; there is no settings screen for it yet, so it is set in the database, and an unknown name falls back to the default). Stored instants stay UTC. **Sale and return numbers still use the UTC day** (`20261028-...`), so the number series rolls over at 03:00 Baghdad time and a sale at 01:30 local carries the previous day's number. The receipt footer is omitted (no field). Digits on paper are Latin.
@@ -594,8 +720,8 @@ read `.env`.
 
 **Merging is deploying.** The host build `build:host` (`package.json` line 37) runs `prisma migrate deploy` before
 `next build`, and so does `vercel-build`. Merging this branch into the branch the host builds from therefore runs all
-twenty-eight pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
-the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
+thirty-three pharmacy migrations on production unattended: the six of phases 0 and 1 (`20261027100000` to `20261027150000`) and
+the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, plus `20261028170000_pharmacy_shift_closed_by` and `20261028171000_pharmacy_settings_timezone`) the four of phase 4 (listed under Phase 4 above) and the three of phase 5 (`20261030100000_pharmacy_intake`: the intake tables `PhIntakeBatch`, `PhIntakeFile`, `PhIntakeRow`, `PhAiUsageMonth`, `PhAiCall`; `20261030110000_pharmacy_intake_fixes`: the reservation table, the extraction lease and a receipt/branch key; `20261030120000_pharmacy_intake_row_match`: match state, acknowledgement and version columns) and the five of phase 6 (listed under Phase 6 above; `20261031110000_pharmacy_transfers_fixes` drops constraints and columns of the still-empty transfer tables and stops itself if they hold a row), all additive (new tables, columns with defaults, indexes, a trigger; nothing existing is changed):
 
 - `20261027160000_pharmacy_stock`: the eight stock tables, the CHECK constraints, the reversal index and the
   append-only trigger on `PhStockMovement`.
@@ -608,7 +734,7 @@ the five of phase 2, the ten of phase 3 (the eight listed under Phase 3 above, p
 `main..HEAD` also carries **six migrations that are not pharmacy**: `20261026203406_user_appearance`,
 `20261026205851_announcements`, `20261026300000_complaint_suggestion`, `20261027100000_ai_menu_import`,
 `20261027110000_import_job_photos` and `20261027120000_import_job_translations` (checked with
-`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other twenty-eight folders). They run on
+`git diff --name-only main..HEAD -- prisma/migrations`; the pharmacy ones are the other thirty-three folders). They run on
 production in the same `migrate deploy`, so they need the same dry run.
 
 Locks: the new foreign keys take `SHARE ROW EXCLUSIVE` locks on `Restaurant`, `Branch` and `PhProduct` while they
@@ -617,7 +743,7 @@ of the migrations. The old five-column batch unique index (business, product, lo
 next to the four-column one and can be dropped in a later migration; it is left in place.
 
 Merging **runs these on production**, and that is still blocked: the owner's Neon preview branch for the dry run
-is not available yet, so none of the twenty-eight has been run against Neon.
+is not available yet, so none of the thirty-three has been run against Neon.
 
 Do not merge until these steps are done, in this order, or merge with the deploy pipeline paused:
 
@@ -652,6 +778,7 @@ the row ships DISABLED. So set it ACTIVE first, then start the trials, then give
 - **Phase 4 owner list:** see the rulings table in section 16 of the spec: R4-4a (a void frees the supplier's number), R4-4b (only confirmed receipts of a supplier record can be invoiced), R4-7a (a supplier return needs `stock.adjust`), R4-9a (money actions need `report.view`; STOCK may enter invoices but not pay), R4-12a (branch redaction on invoices), R4-13a (the order suggestion's wording), a credit note on an invoice once, and no un-apply. Known gaps: cursor-plus-skip paging (the cursor row is looked up inside the list's own filter) exists in 9 older lists of phases 1 to 3 (counts, prices, products, receipts, returns, sales, shifts, and two in stock reads); the receipts, counts and shifts lists filter on status, so a row whose status changes between pages can drop out of the next page. Of the phase 4 lists only invoices, purchase orders, credit notes and the payables reads use a keyset; the payments, supplier returns and suppliers lists still use cursor-plus-skip. ar and ckb strings are machine drafts.
 - **Open items from the whole-phase review (not fixed):** (M-3) the supplier statement and the payables reads take several reads that are not one snapshot, so a concurrent write between them can show a false non-zero invariant difference for a moment; reading again clears it. (M-7) the older receipt confirm takes row locks on lots in an order that can differ between two branches receiving the same lot, so two such confirms can deadlock; Postgres ends one with a deadlock error and a retry succeeds.
 - **Phase 5 owner list:** see the rulings table in section 16 of the spec and `docs/pharmacy/intake-uat.md` (D1 to D6): month-first dates, Arabic and Kurdish search under the Neon locale, image barcode decoding, who may edit (STOCK and ACCOUNTANT approve but do not edit), discounts and tax outside the receipt cost, native review of ar and ckb. Known gaps: scheduling of the purge and expiry scripts and the bucket lifecycle rule; no restore of a removed line; the approval's request key lives in `PhIntakeBatch.header.approval` (JSON, no index); real-invoice figures (quality limits, token bounds) are synthetic until UAT. Before launch: the private bucket, its `PH_INTAKE_R2_*` variables, `AI_PRICE_*` and the plan budget.
+- **Phase 6 owner list:** see the rulings table under "Phase 6" above and section 16 of the spec: squash the transfers fixes migration before the first deploy, the three-permission rule of the margin report, R6-9b (Excel text-numbers), R6-10a (a 2 s year-window dashboard), R6-13 (a cancel with no reason), R6-15 (the place does not narrow reports), native review of every ar and ckb string, and the items listed as NOT verified in that section.
 - **Support revoke screen:** it must ship with the grant screen or before it. A grant without a visible revoke
   button is worse than no grant screen.
 - **Typo-tolerant search, scheduled-price cancellation, price caps:** see "What is NOT built".
