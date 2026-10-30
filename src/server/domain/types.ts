@@ -126,6 +126,8 @@ export interface Bundle {
   dayparts: Daypart[];
   translations: TranslationMap; // name, description
   items: BundleItem[];
+  /** How many people the set feeds (a package for N people); null when not stated. */
+  people: number | null;
 }
 
 export const PROMOTION_KINDS = ['SPECIAL', 'DISCOUNT'] as const;

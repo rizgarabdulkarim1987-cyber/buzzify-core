@@ -37,6 +37,7 @@ const view = (products: MenuProductView[]): MenuView => ({
   signatureProductId: null,
   priceStyle: 'symbol',
   offers: [],
+  showcase: { aboveSearch: [], belowSearch: [] },
   motions: { categories: {} },
 });
 

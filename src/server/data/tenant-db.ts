@@ -21,6 +21,8 @@ export const MENU_SCOPED_MODELS = [
   'Bundle',
   'BundleItem',
   'Promotion',
+  'Occasion',
+  'ShowcaseCard',
   'DaypartSchedule',
   'MenuMotion',
   'Table',

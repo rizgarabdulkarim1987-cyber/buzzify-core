@@ -423,6 +423,7 @@ function atelierCatalog(data: SeedData): Catalog {
       dayparts: b.dayparts ?? [],
       translations: translations({ name: b.name, description: b.description }),
       items: b.items.map((i) => ({ productId: productId(i.product), variantId: null, quantity: i.quantity })),
+      people: null,
     })),
     promotions: [],
     occasions: [],

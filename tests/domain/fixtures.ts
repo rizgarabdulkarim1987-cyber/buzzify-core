@@ -329,6 +329,7 @@ const bundles: Bundle[] = [
       { productId: IDS.croissant, variantId: null, quantity: 1 },
       { productId: IDS.espresso, variantId: null, quantity: 1 },
     ],
+    people: null,
   },
   {
     id: 'b-burger-meal',
@@ -341,6 +342,7 @@ const bundles: Bundle[] = [
       { productId: IDS.fries, variantId: null, quantity: 1 },
       { productId: IDS.sparkling, variantId: null, quantity: 1 },
     ],
+    people: null,
   },
   {
     // Not a deal: 900 + 550 = 1450 individually, bundle price 1450.
@@ -353,6 +355,7 @@ const bundles: Bundle[] = [
       { productId: IDS.burger, variantId: null, quantity: 1 },
       { productId: IDS.fries, variantId: null, quantity: 1 },
     ],
+    people: null,
   },
 ];
 
