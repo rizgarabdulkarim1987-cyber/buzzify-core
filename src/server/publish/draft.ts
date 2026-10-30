@@ -340,7 +340,9 @@ export async function writeDraftFromSnapshot(
   const { catalog, brand } = snapshot;
   const where = { menuId };
 
-  // Children before parents, so nothing relies on a cascade.
+  // Children before parents, so nothing relies on a cascade: cards point at occasions, offers and sets.
+  await tx.showcaseCard.deleteMany({ where });
+  await tx.occasion.deleteMany({ where });
   await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
@@ -528,6 +530,8 @@ export async function writeDraftFromSnapshot(
     if (items.some((item) => item.productId === undefined || item.variantId === undefined)) return [];
     return [{ old: b, items: items as Array<{ productId: string; variantId: string | null; quantity: number }> }];
   });
+  // Old bundle id to new, for the showcase cards below.
+  const bundleIds = new Map<string, string>();
   if (bundles.length > 0) {
     const createdBundles = await tx.bundle.createManyAndReturn({
       data: bundles.map(({ old }) => ({
@@ -536,14 +540,14 @@ export async function writeDraftFromSnapshot(
         price: old.price,
         dayparts: old.dayparts,
         translations: json(old.translations),
+        people: old.people ?? null,
       })),
       select: { id: true, slug: true },
     });
-    const bundleIds = new Map(createdBundles.map((b) => [b.slug, b.id]));
+    const bySlug = new Map(createdBundles.map((b) => [b.slug, b.id]));
+    for (const { old } of bundles) bundleIds.set(old.id, remapped(bySlug, old.slug, 'bundle'));
     await tx.bundleItem.createMany({
-      data: bundles.flatMap(({ old, items }) =>
-        items.map((item) => ({ menuId, bundleId: remapped(bundleIds, old.slug, 'bundle'), ...item })),
-      ),
+      data: bundles.flatMap(({ old, items }) => items.map((item) => ({ menuId, bundleId: bundleIds.get(old.id)!, ...item }))),
     });
   }
 
@@ -558,9 +562,30 @@ export async function writeDraftFromSnapshot(
       return mapped === undefined ? [] : [mapped];
     });
     if (productIdsHere.length + categoryIdsHere.length === 0) return [];
-    return [{ ...promotionRow(p), menuId, productIds: productIdsHere, categoryIds: categoryIdsHere }];
+    return [{ oldId: p.id, row: { ...promotionRow(p), menuId, productIds: productIdsHere, categoryIds: categoryIdsHere } }];
   });
-  if (promotions.length > 0) await tx.promotion.createMany({ data: promotions });
+  // One at a time, so each old id is matched to its new row (offers have no key of their own).
+  const promotionIds = new Map<string, string>();
+  for (const { oldId, row } of promotions) {
+    const created = await tx.promotion.create({ data: row, select: { id: true } });
+    promotionIds.set(oldId, created.id);
+  }
+
+  const occasionIds = new Map<string, string>();
+  for (const occasion of catalog.occasions ?? []) {
+    const created = await tx.occasion.create({ data: { ...occasionRow(occasion), menuId }, select: { id: true } });
+    occasionIds.set(occasion.id, created.id);
+  }
+
+  // A card whose occasion, offer or set did not come across is left out, as guests could not be shown it.
+  const cards = (catalog.showcaseCards ?? []).flatMap((c) => {
+    const occasionId = optional(occasionIds, c.occasionId);
+    const promotionId = optional(promotionIds, c.promotionId);
+    const bundleId = optional(bundleIds, c.bundleId);
+    if (occasionId === undefined || promotionId === undefined || bundleId === undefined) return [];
+    return [{ ...cardRow(c), menuId, occasionId, promotionId, bundleId }];
+  });
+  if (cards.length > 0) await tx.showcaseCard.createMany({ data: cards });
 
   if (catalog.schedule.length > 0) {
     await tx.daypartSchedule.createMany({
