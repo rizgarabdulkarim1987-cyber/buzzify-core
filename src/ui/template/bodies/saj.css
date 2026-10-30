@@ -85,9 +85,16 @@
   border-radius: 50%;
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--sj-char) 50%, transparent);
 }
-/* The studio photos are a bowl on a grey backdrop: zoom in so the circle ends at the rim and no grey shows around it. */
-[data-body='saj'] .cf-frame img {
-  transform: scale(1.12);
+/*
+ * The studio photos are a bowl on a grey backdrop: enlarge the photo a little inside its round clip so no grey shows
+ * around the bowl. Sized and offset, not `transform: scale()`: a transform on each of a menu's hundreds of photos gave
+ * every one its own clipped layer, which stalls iPhone Safari and Chrome.
+ */
+[data-body='saj'] .cf-frame picture img {
+  inline-size: 112%;
+  block-size: 112%;
+  max-inline-size: none;
+  margin: -6%;
 }
 [data-body='saj'] .cf-badges {
   inset-block-start: 0;
