@@ -35,6 +35,8 @@ export function useNamer(defaultLocale: string): (names: Names) => string {
 /**
  * Sends a save: on success the page's data is read again and `onSaved` runs; a refusal gives its field messages back
  * (by the server's field paths) or, when it names no field, shows its sentence.
+ * A save sent with no dialog open (`inline: false`, e.g. a row's switch) has nowhere to show field messages, so the
+ * first one is shown as a toast instead.
  */
 export function useSave() {
   const t = useT();
@@ -44,7 +46,7 @@ export function useSave() {
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const save = useCallback(
-    async (send: () => Promise<ActionResult<unknown>>, onSaved?: () => void, savedMessage = t('sales.saved')) => {
+    async (send: () => Promise<ActionResult<unknown>>, onSaved?: () => void, savedMessage = t('sales.saved'), { inline = true }: { inline?: boolean } = {}) => {
       setPending(true);
       const result = await send();
       setPending(false);
@@ -56,8 +58,9 @@ export function useSave() {
         return true;
       }
       const described = describeFailure(t, locale, result.error);
-      if (Object.keys(described.fields).length > 0) setErrors(described.fields);
-      else toast.error(described.message);
+      const fieldMessages = Object.values(described.fields);
+      if (inline && fieldMessages.length > 0) setErrors(described.fields);
+      else toast.error(fieldMessages[0] ?? described.message);
       return false;
     },
     [t, locale, router],

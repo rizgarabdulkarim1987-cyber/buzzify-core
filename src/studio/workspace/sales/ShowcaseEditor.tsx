@@ -6,7 +6,7 @@ import { deleteOccasion, deleteShowcaseCard, reorderShowcaseCards, saveOccasion,
 import type { Locale } from '@/lib/locale';
 import { formatPriceInput, parsePriceInput } from '@/lib/money-input';
 import { localDate } from '@/server/domain/offers';
-import { SHOWCASE_KINDS, SHOWCASE_MAX_PER_SLOT, SHOWCASE_SLOTS, type ShowcaseKind, type ShowcaseSlot } from '@/server/domain/showcase';
+import { SHOWCASE_KINDS, SHOWCASE_SLOTS, type ShowcaseKind, type ShowcaseSlot } from '@/server/domain/showcase';
 import type { SalesRules, ShowcaseHiddenReason } from '@/server/studio/services/sales';
 import { formatDate } from '@/studio/format';
 import { useLocale, useT } from '@/studio/i18n';
@@ -280,7 +280,6 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
 
       {SHOWCASE_SLOTS.map((slot) => {
         const cards = rules.showcase.filter((card) => card.slot === slot).sort((x, y) => x.sortOrder - y.sortOrder);
-        const showing = cards.filter((card) => card.isActive && cardHidden(card, rules.offers, today) === null).length;
         const slotLabel = t(`sales.showcase.slot.${slot}`);
         return (
           <Section
@@ -293,7 +292,6 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
               </Button>
             }
           >
-            {showing > SHOWCASE_MAX_PER_SLOT && <p className="rounded-md border border-line bg-surface px-3 py-2 text-sm text-text">{t('sales.showcase.firstEight')}</p>}
             {cards.length === 0 ? (
               <p className="rounded-lg border border-dashed border-line px-4 py-6 text-center text-sm text-muted">{t('sales.showcase.slotEmpty')}</p>
             ) : (
@@ -324,7 +322,7 @@ export function ShowcaseEditor({ menuId, rules }: { menuId: string; rules: Sales
                             aria-label={t('sales.showcase.showOne', { name: label })}
                             checked={card.isActive}
                             disabled={pending}
-                            onCheckedChange={(isActive) => void save(() => saveShowcaseCard({ menuId, ...cardInput(card), isActive }))}
+                            onCheckedChange={(isActive) => void save(() => saveShowcaseCard({ menuId, ...cardInput(card), isActive }), undefined, undefined, { inline: false })}
                           />
                           {cards.length > 1 && (
                             <span className="flex items-center">

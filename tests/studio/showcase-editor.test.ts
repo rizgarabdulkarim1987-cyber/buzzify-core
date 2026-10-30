@@ -17,6 +17,8 @@ const actions = vi.hoisted(() => ({
   reorderShowcaseCards: vi.fn(),
 }));
 vi.mock('@/app/studio/_actions/sales', () => actions);
+const toast = vi.hoisted(() => ({ success: vi.fn(), error: vi.fn() }));
+vi.mock('sonner', () => ({ toast }));
 
 const { ShowcaseEditor } = await import('@/studio/workspace/sales/ShowcaseEditor');
 
@@ -192,12 +194,22 @@ describe('the showcase editor', () => {
     expect(document.body.textContent).toContain(en('error.text.offerEndsBefore'));
   });
 
-  it('says guests see the first 8 once a strip has more showing cards', () => {
-    const many = (n: number) => Array.from({ length: n }, (_, i) => card(`Card ${i + 1}`, 'ABOVE_SEARCH', i));
-    editor({ ...baseRules, showcase: many(8) });
-    expect(container.textContent).not.toContain(en('sales.showcase.firstEight'));
-    editor({ ...baseRules, showcase: many(9) });
-    expect(container.textContent).toContain(en('sales.showcase.firstEight'));
+  it('says in each strip’s hint that guests see its first 8 cards, however many there are', () => {
+    editor({ ...baseRules, showcase: [] });
+    for (const slot of ['ABOVE_SEARCH', 'BELOW_SEARCH'] as const) {
+      expect(container.textContent).toContain(en(`sales.showcase.slotHint.${slot}`));
+      expect(en(`sales.showcase.slotHint.${slot}`)).toContain('8');
+    }
+  });
+
+  it('shows a refused switch as an error toast, since no dialog is open to show its fields', async () => {
+    actions.saveShowcaseCard.mockResolvedValue({ ok: false, error: { code: 'INVALID', message: 'Check the highlighted fields', fields: { promotionId: 'Pick an offer' } } });
+    editor();
+    await click(button(en('sales.showcase.showOne', { name: 'First' })));
+    expect(actions.saveShowcaseCard).toHaveBeenCalledWith(expect.objectContaining({ cardId: 'First', isActive: false }));
+    expect(toast.error).toHaveBeenCalledTimes(1);
+    expect(toast.error.mock.calls[0]![0]).toBeTruthy();
+    expect(toast.success).not.toHaveBeenCalled();
   });
 
   it('asks before deleting a card', async () => {
