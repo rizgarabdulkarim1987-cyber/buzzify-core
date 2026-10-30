@@ -25,6 +25,11 @@ import { displayName, type Names } from '../content/shared';
 
 export type RulesView = SalesRules & { upgrade: UpgradeInfo };
 
+/** Western digits for Arabic-Indic and Persian ones, so a number typed on an Arabic keyboard reads. */
+export function latinDigits(text: string): string {
+  return text.replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
+}
+
 /** A row's name in the person's language, falling back to the menu's own. */
 export function useNamer(defaultLocale: string): (names: Names) => string {
   const { locale } = useLocale();

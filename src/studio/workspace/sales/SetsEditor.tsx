@@ -19,7 +19,7 @@ import { Select } from '@/studio/ui/Select';
 import { Switch } from '@/studio/ui/Switch';
 import { formatMoney, newKey, PRICE_PROBLEM_KEYS, type Names } from '../content/shared';
 import { TranslationFields } from '../content/TranslationFields';
-import { daypartsText, DaypartToggles, dishOptions, DishSelect, Locked, PageIntro, RuleList, RuleRow, useNamer, useSave, type RulesView } from './shared';
+import { daypartsText, DaypartToggles, dishOptions, DishSelect, latinDigits, Locked, PageIntro, RuleList, RuleRow, useNamer, useSave, type RulesView } from './shared';
 
 type SetView = RulesView['sets'][number];
 
@@ -87,7 +87,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
     }
     const items = draft.items.filter((item) => item.productId !== '').map(({ productId, variantId, quantity }) => ({ productId, variantId, quantity }));
     const { bundleId, version, slug, names, descriptions, dayparts, isActive } = draft;
-    const typedPeople = draft.people.trim();
+    const typedPeople = latinDigits(draft.people.trim());
     const people = typedPeople === '' ? null : Number(typedPeople);
     void save(
       () => saveSet({ menuId, ...(bundleId ? { bundleId, version } : {}), ...(slug ? { slug } : {}), names, descriptions, price: price.minor, items, people, dayparts, isActive }),
@@ -247,7 +247,7 @@ export function SetsEditor({ menuId, rules, canPrice }: { menuId: string; rules:
               </div>
             </div>
             <Field label={t('sales.sets.people')} hint={t('sales.sets.peopleHint')} error={errors.people}>
-              <Input value={draft.people} type="number" min={2} max={12} step={1} inputMode="numeric" dir="ltr" onChange={(event) => change({ people: event.target.value })} className="tabular-nums sm:w-32" />
+              <Input value={draft.people} inputMode="numeric" dir="ltr" onChange={(event) => change({ people: event.target.value })} className="tabular-nums sm:w-32" />
             </Field>
             <label className="flex items-center justify-between gap-4">
               <span className="text-sm text-text">{t('sales.active')}</span>

@@ -102,6 +102,20 @@ describe('the sets editor people field', () => {
     expect(actions.saveSet).toHaveBeenCalledWith(expect.objectContaining({ bundleId: 's1', people: 6 }));
   });
 
+  it('reads a number typed in Arabic-Indic or Persian digits, as the Offers page does', async () => {
+    editor();
+    await click(button(en('sales.sets.editOne', { name: 'Family breakfast' })));
+    expect(peopleInput().getAttribute('inputmode')).toBe('numeric');
+    type(peopleInput(), '٦');
+    await click(button(en('common.save')));
+    expect(actions.saveSet).toHaveBeenLastCalledWith(expect.objectContaining({ bundleId: 's1', people: 6 }));
+
+    await click(button(en('sales.sets.editOne', { name: 'Family breakfast' })));
+    type(peopleInput(), '۱۰');
+    await click(button(en('common.save')));
+    expect(actions.saveSet).toHaveBeenLastCalledWith(expect.objectContaining({ bundleId: 's1', people: 10 }));
+  });
+
   it('sends null when emptied, and for an ordinary set left alone', async () => {
     editor();
     await click(button(en('sales.sets.editOne', { name: 'Family breakfast' })));

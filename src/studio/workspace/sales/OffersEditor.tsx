@@ -20,7 +20,7 @@ import { StatusBadge } from '@/studio/ui/StatusBadge';
 import { Switch } from '@/studio/ui/Switch';
 import type { Names } from '../content/shared';
 import { TranslationFields } from '../content/TranslationFields';
-import { ALL_DAYS, clock, Locked, minuteOf, PageIntro, RuleList, RuleRow, useNamer, useSave, WeekdayToggles, weekText, type RulesView } from './shared';
+import { ALL_DAYS, clock, latinDigits, Locked, minuteOf, PageIntro, RuleList, RuleRow, useNamer, useSave, WeekdayToggles, weekText, type RulesView } from './shared';
 
 type Offer = RulesView['offers'][number];
 
@@ -39,11 +39,6 @@ interface OfferDraft {
   title: Names;
   text: Names;
   isActive: boolean;
-}
-
-/** Western digits for Arabic-Indic and Persian ones, so a number typed on an Arabic keyboard reads. */
-function latinDigits(text: string): string {
-  return text.replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660)).replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 0x06f0));
 }
 
 const blank = (): OfferDraft => ({
