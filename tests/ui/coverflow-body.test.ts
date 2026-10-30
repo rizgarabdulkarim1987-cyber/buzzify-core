@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { focusOf, nearestOf, padCount, starPolygon, stepTo } from '@/ui/template/bodies/CoverflowBody';
+import { focalShift, focusOf, nearestOf, padCount, starPolygon, stepTo } from '@/ui/template/bodies/CoverflowBody';
 
 describe('the coverflow body', () => {
   it('brings the card at the middle fully forward and fades it out a card and a tenth away', () => {
@@ -15,6 +15,20 @@ describe('the coverflow body', () => {
     expect(nearestOf([0.2, 0.9, 0.4])).toBe(1);
     expect(nearestOf([0.5, 0.5])).toBe(0);
     expect(nearestOf([])).toBe(0);
+  });
+
+  it('keeps the first card the forward one at the start edge and hands over to the second as the row scrolls', () => {
+    // The first card rests 100 before the middle, the cards 150 apart: the second one is centred after 50 of scrolling.
+    expect(focalShift(100, 0, 150)).toBe(100);
+    expect(focalShift(100, 25, 150)).toBeCloseTo(50);
+    expect(focalShift(100, 50, 150)).toBe(0);
+    expect(focalShift(100, 300, 150)).toBe(0);
+    // A card that rests at or past the middle, or a row too wide to need it: no shift.
+    expect(focalShift(0, 0, 150)).toBe(0);
+    expect(focalShift(-20, 0, 150)).toBe(0);
+    expect(focalShift(160, 0, 150)).toBe(0);
+    // A single card (no pitch) stays forward at the start.
+    expect(focalShift(100, 0, Infinity)).toBe(100);
   });
 
   it('steps one card with the arrows and stays inside the row', () => {
