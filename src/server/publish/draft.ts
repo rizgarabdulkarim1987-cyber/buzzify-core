@@ -11,7 +11,7 @@ import { delegates, type AnyDb, type ScopedDb, type ScopedTx } from '@/server/da
 import { resolveEngineConfig } from '@/server/domain/config';
 import { slotOf, type SnapshotMotion } from '@/server/domain/menu-motions';
 import { buildSnapshot, snapshotHash, type MenuSnapshot, type SnapshotMenu } from '@/server/domain/snapshot';
-import type { CatalogPromotion } from '@/server/domain/types';
+import type { CatalogOccasion, CatalogPromotion, CatalogShowcaseCard } from '@/server/domain/types';
 import { SCENE_KINDS } from '@/server/media/kinds';
 import { assetImage, draftMediaFromSnapshot, loadAssets, mediaAssetIds, resolveDraftMedia, type ResolvableAsset } from '@/server/media/resolve';
 import type { AssetVariants } from '@/server/media/process';
@@ -592,6 +592,25 @@ function promotionRow(p: CatalogPromotion) {
   };
 }
 
+/** An occasion's own columns, as a snapshot holds them. */
+function occasionRow(o: CatalogOccasion) {
+  return { startsOn: o.startsOn, endsOn: o.endsOn, isActive: o.isActive, translations: json(o.translations) };
+}
+
+/** A showcase card's own columns, as a snapshot holds them (its menu, ids and references are the caller's). */
+function cardRow(c: CatalogShowcaseCard) {
+  return {
+    slot: c.slot,
+    kind: c.kind,
+    sortOrder: c.sortOrder,
+    price: c.price,
+    startMinute: c.startMinute,
+    endMinute: c.endMinute,
+    daysOfWeek: c.daysOfWeek,
+    translations: json(c.translations),
+  };
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Restoring a revision into the draft
 // ---------------------------------------------------------------------------------------------------------------------
@@ -623,15 +642,31 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
   const pairingRows = await tx.pairingRule.findMany({ where, select: { id: true, version: true } });
   const bundleRows = await tx.bundle.findMany({ where, select: { id: true, version: true } });
   const promotionRows = await tx.promotion.findMany({ where, select: { id: true, version: true } });
+  const occasionRows = await tx.occasion.findMany({ where, select: { id: true, version: true, sortOrder: true } });
+  const cardRows = await tx.showcaseCard.findMany({ where, select: { id: true, version: true } });
   const versions = new Map<string, number>(
-    [...products, ...options, ...categories, ...variantRows, ...groupRows, ...upsellRows, ...pairingRows, ...bundleRows, ...promotionRows].map(
-      (row) => [row.id, row.version] as const,
-    ),
+    [
+      ...products,
+      ...options,
+      ...categories,
+      ...variantRows,
+      ...groupRows,
+      ...upsellRows,
+      ...pairingRows,
+      ...bundleRows,
+      ...promotionRows,
+      ...occasionRows,
+      ...cardRows,
+    ].map((row) => [row.id, row.version] as const),
   );
   const productLive = new Map(products.map((row) => [row.id, row]));
   const optionLive = new Map(options.map((row) => [row.id, row.isAvailable]));
+  // The snapshot does not carry an occasion's place in the Studio list; one that is still there keeps it.
+  const occasionOrder = new Map(occasionRows.map((row) => [row.id, row.sortOrder]));
 
-  // Children before parents, so nothing relies on a cascade.
+  // Children before parents, so nothing relies on a cascade: cards point at occasions, offers and sets.
+  await tx.showcaseCard.deleteMany({ where });
+  await tx.occasion.deleteMany({ where });
   await tx.menuMotion.deleteMany({ where });
   await tx.bundleItem.deleteMany({ where });
   await tx.bundle.deleteMany({ where });
@@ -783,6 +818,7 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         price: b.price,
         dayparts: b.dayparts,
         translations: json(b.translations),
+        people: b.people ?? null,
         version: nextVersion(versions, b.id),
       })),
     });
@@ -799,6 +835,32 @@ export async function restoreDraftFromSnapshot(client: AnyDb | ScopedDb, menuId:
         productIds: p.productIds,
         categoryIds: p.categoryIds,
         version: nextVersion(versions, p.id),
+      })),
+    });
+  }
+  const snapshotOccasions = catalog.occasions ?? [];
+  if (snapshotOccasions.length > 0) {
+    await tx.occasion.createMany({
+      data: snapshotOccasions.map((o) => ({
+        ...occasionRow(o),
+        id: o.id,
+        menuId,
+        sortOrder: occasionOrder.get(o.id) ?? 0,
+        version: nextVersion(versions, o.id),
+      })),
+    });
+  }
+  const snapshotCards = catalog.showcaseCards ?? [];
+  if (snapshotCards.length > 0) {
+    await tx.showcaseCard.createMany({
+      data: snapshotCards.map((c) => ({
+        ...cardRow(c),
+        id: c.id,
+        menuId,
+        occasionId: c.occasionId,
+        promotionId: c.promotionId,
+        bundleId: c.bundleId,
+        version: nextVersion(versions, c.id),
       })),
     });
   }

@@ -109,6 +109,48 @@ describe('restore to draft', () => {
     expect((await menuRow()).currency).toBe('USD');
   });
 
+  it('restores occasions, showcase cards and a set people count, so the draft hashes as the revision', async () => {
+    const menuId = a.menu.id;
+    const occasion = await prisma().occasion.create({ data: { menuId, startsOn: '2026-01-01', endsOn: '2026-12-31', translations: { en: { name: 'Eid' } } } });
+    const offer = await prisma().promotion.create({
+      data: { menuId, kind: 'DISCOUNT', percentOff: 10, productIds: [a.product.id], categoryIds: [], translations: { en: { title: 'Ten off' } } },
+    });
+    const set = await prisma().bundle.create({
+      data: { menuId, slug: 'family', price: 1500, dayparts: [], translations: { en: { name: 'Family' } }, people: 4, items: { create: [{ menuId, productId: a.product.id, quantity: 2 }] } },
+    });
+    await prisma().showcaseCard.createMany({
+      data: [
+        { menuId, slot: 'ABOVE_SEARCH', kind: 'OFFER', sortOrder: 0, promotionId: offer.id, occasionId: occasion.id, translations: {} },
+        { menuId, slot: 'ABOVE_SEARCH', kind: 'SET', sortOrder: 1, bundleId: set.id, translations: {} },
+        { menuId, slot: 'BELOW_SEARCH', kind: 'BUFFET', sortOrder: 0, price: 2000, occasionId: occasion.id, translations: { en: { title: 'Buffet' } } },
+      ],
+    });
+    const published = await publishFixture(prisma(), menuId);
+    const r2 = await prisma().menuRevision.findUniqueOrThrow({ where: { id: published.revisionId } });
+    const before = await prisma().showcaseCard.findMany({ where: { menuId }, orderBy: { id: 'asc' } });
+    const versions = new Map(before.map((card) => [card.id, card.version]));
+
+    // Edits after the publish: the set loses its people count, the offer and its card go, a card is added.
+    await prisma().bundle.update({ where: { id: set.id }, data: { people: null } });
+    await prisma().promotion.delete({ where: { id: offer.id } });
+    await prisma().showcaseCard.create({ data: { menuId, slot: 'BELOW_SEARCH', kind: 'BUFFET', sortOrder: 5, price: 1, translations: {} } });
+    await refreshDraftHash(prisma(), menuId);
+    expect((await menuRow()).draftHash).not.toBe(r2.snapshotHash);
+
+    await prisma().$transaction((tx) => restoreDraftFromSnapshot(tx, menuId, parseSnapshot(r2.snapshot)));
+    expect(snapshotHash(await loadDraftSnapshot(prisma(), menuId))).toBe(r2.snapshotHash);
+    expect((await menuRow()).draftHash).toBe(r2.snapshotHash);
+    const after = await prisma().showcaseCard.findMany({ where: { menuId }, orderBy: { id: 'asc' } });
+    expect(after.map((card) => card.id)).toEqual(before.map((card) => card.id));
+    // A card that was still there moves on a version; the offer card the delete took with it comes back at 1.
+    const setCard = after.find((card) => card.kind === 'SET')!;
+    expect(setCard.version).toBe(versions.get(setCard.id)! + 1);
+    expect(after.find((card) => card.kind === 'OFFER')!.version).toBe(1);
+    expect(await prisma().occasion.findUniqueOrThrow({ where: { id: occasion.id } })).toMatchObject({ version: 2, startsOn: '2026-01-01' });
+    expect(await prisma().bundle.findUniqueOrThrow({ where: { id: set.id } })).toMatchObject({ people: 4 });
+    expect(await prisma().promotion.findUnique({ where: { id: offer.id } })).not.toBeNull();
+  });
+
   it('restores the rail choice, the logo text, the font pair and the logos', async () => {
     const logo = await prisma().mediaAsset.create({
       data: {
