@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useId, useRef } from 'react';
 import { direction } from '@/lib/locale';
 import type { ShowcaseCardView } from '@/server/data/menu-view';
 import { formatCount } from '@/server/domain/money';
@@ -20,12 +20,14 @@ import './showcase.css';
 export function ShowcaseCarousel({ slot }: { slot: 'aboveSearch' | 'belowSearch' }) {
   const { view } = useTemplate();
   const { t, locale } = useApp();
+  const id = useId();
   const cards = view.showcase[slot];
   if (cards.length === 0) return null;
   return (
-    <section aria-label={t('showcase.label')} dir={direction(locale)} className="tpl-showcase">
-      {/* Focusable so a keyboard can scroll a strip of cards with no button (Safari does not focus scroll containers). */}
-      <ul tabIndex={0} aria-label={t('showcase.label')} className="tpl-showcase-strip scroll-hidden">
+    <section id={id} aria-label={t(slot === 'aboveSearch' ? 'showcase.labelAbove' : 'showcase.labelBelow')} dir={direction(locale)} className="tpl-showcase">
+      {/* Focusable so a keyboard can scroll a strip of cards with no button (Safari does not focus scroll containers);
+          named by the region's label rather than a second copy of it. */}
+      <ul tabIndex={0} aria-labelledby={id} className="tpl-showcase-strip scroll-hidden">
         {cards.map((card) => (
           <ShowcaseCard key={card.id} card={card} />
         ))}

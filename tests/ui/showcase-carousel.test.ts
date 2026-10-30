@@ -105,7 +105,7 @@ describe('ShowcaseCarousel', () => {
   it('renders its slot only, as a labelled region holding a list of the cards in order', () => {
     mount({ aboveSearch: [set, buffet], belowSearch: [card({ id: 'below', kind: 'BUFFET' })] });
     const region = container.querySelector('section')!;
-    expect(region.getAttribute('aria-label')).toBe(en('showcase.label'));
+    expect(region.getAttribute('aria-label')).toBe(en('showcase.labelAbove'));
     const items = [...region.querySelectorAll('ul > li')];
     expect(items.map((li) => li.querySelector('h3')?.textContent)).toEqual(['Family meal', 'Open buffet']);
   });
@@ -115,7 +115,17 @@ describe('ShowcaseCarousel', () => {
     const strip = container.querySelector('ul')!;
     expect(container.querySelector('button')).toBeNull();
     expect(strip.getAttribute('tabindex')).toBe('0');
-    expect(strip.getAttribute('aria-label')).toBe(en('showcase.label'));
+    // Named by the region's own label, not a second copy of it.
+    expect(strip.hasAttribute('aria-label')).toBe(false);
+    const region = container.querySelector('section')!;
+    expect(region.id).not.toBe('');
+    expect(strip.getAttribute('aria-labelledby')).toBe(region.id);
+  });
+
+  it('gives the two slots different names', () => {
+    mount({ aboveSearch: [], belowSearch: [buffet] }, { slot: 'belowSearch' });
+    expect(container.querySelector('section')!.getAttribute('aria-label')).toBe(en('showcase.labelBelow'));
+    expect(en('showcase.labelBelow')).not.toBe(en('showcase.labelAbove'));
   });
 
   it('renders every card it is given, even past the view cap of 8', () => {
