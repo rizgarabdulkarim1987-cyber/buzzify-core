@@ -118,7 +118,7 @@ export type RunResult =
   | { ok: false; code: AiFailureCode };
 
 const fail = (code: AiFailureCode): RunResult => ({ ok: false, code });
-const logError = (what: string, detail: Record<string, string>, error?: unknown) =>
+export const logError = (what: string, detail: Record<string, string>, error?: unknown) =>
   console.error(`[pharmacy-ai] ${what}`, { ...detail, error: error instanceof Error ? `${error.name}:${(error as { code?: string }).code ?? ''}` : '' });
 
 // Estimating -----------------------------------------------------------------------------------------------------------
@@ -143,7 +143,7 @@ export function worstCaseMicroUsd(input: RunArgs['input'], maxOutputTokens: numb
 }
 
 let pricingWarned = false;
-function pricingOf(opts: RunOptions): AiPricing | null {
+export function pricingOf(opts: RunOptions): AiPricing | null {
   if (opts.pricing !== undefined) return opts.pricing;
   try {
     return aiPricingEnv();
@@ -156,12 +156,12 @@ function pricingOf(opts: RunOptions): AiPricing | null {
   }
 }
 
-const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
+export const isUnique = (error: unknown) => (error as { code?: unknown } | null)?.code === 'P2002';
 
 // Bookkeeping ----------------------------------------------------------------------------------------------------------
 
 /** Locks the month's usage row; every transaction here starts with this (ascending month when it needs several). */
-async function lockUsage(tx: ScopedTx, restaurantId: string, month: string): Promise<{ spent: bigint; reserved: bigint }> {
+export async function lockUsage(tx: ScopedTx, restaurantId: string, month: string): Promise<{ spent: bigint; reserved: bigint }> {
   // eslint-disable-next-line no-restricted-properties -- row lock on the business's month row; the restaurant is part of the match
   const rows = await tx.$queryRaw<{ spent: bigint; reserved: bigint }[]>`SELECT "spentMicroUsd" AS spent, "reservedMicroUsd" AS reserved FROM "PhAiUsageMonth" WHERE "restaurantId" = ${restaurantId} AND "month" = ${month} FOR UPDATE`;
   if (rows.length === 0) throw new BudgetError('UNKNOWN_RESERVATION');
@@ -169,7 +169,7 @@ async function lockUsage(tx: ScopedTx, restaurantId: string, month: string): Pro
 }
 
 /** Ends a reservation of `held` micro-dollars (0 when it is already gone) and books `charged` as spent, plus the usage counters. */
-async function book(
+export async function book(
   tx: ScopedTx,
   month: string,
   state: { spent: bigint; reserved: bigint },
@@ -242,7 +242,7 @@ async function reserve(scoped: ScopedClient, args: RunArgs, month: string, worst
 
 // Running --------------------------------------------------------------------------------------------------------------
 
-const isTimeout = (error: unknown) => error instanceof AiTimeoutError || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'));
+export const isTimeout = (error: unknown) => error instanceof AiTimeoutError || (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError'));
 
 /**
  * One extraction call under the budget. Refusals before the call come back as `{ ok: false, code }` with nothing reserved and
