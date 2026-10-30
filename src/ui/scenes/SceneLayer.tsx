@@ -140,7 +140,8 @@ export function SceneLayer({ design, paused, categoryIndex }: { design: MenuDesi
       const x = (event.clientX / window.innerWidth) * 2 - 1;
       const y = -((event.clientY / window.innerHeight) * 2 - 1);
       signal.current.tap = { x, y, time: performance.now() };
-      if (mode === 'motion') {
+      // Touch screens keep the 3D answer only: the ripple and tilt repaint the whole layer on the first tap, which freezes an iPhone.
+      if (mode === 'motion' && event.pointerType !== 'touch') {
         // A short-lived mark the motion layer reacts to (stones tilt, shapes bounce), and a ripple where the tap landed.
         element.setAttribute('data-tapped', '');
         clearTimeout(tapTimer);

@@ -13,6 +13,7 @@ import { CartBar } from '@/ui/cart/CartBar';
 import { useSearchIndex } from '@/ui/menu/useSearchIndex';
 import { useProductSheet } from '@/ui/product/useProductSheet';
 import { SceneLayer } from '@/ui/scenes/SceneLayer';
+import { isInteractiveTarget } from '@/ui/scenes/signal';
 import { usePrefersReducedMotion } from '@/ui/use-prefers-reduced-motion';
 import { BODIES } from './bodies';
 import { ProductList } from './cards';
@@ -20,6 +21,7 @@ import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFoot
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
 import { diagFlags, withDiag } from './diag';
+import { openerForPhoto, type OpenerNode } from './photo-opener';
 import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
@@ -159,6 +161,17 @@ export function TemplateMenu({
     },
     [openSheet],
   );
+
+  // A tap on a dish photo opens the dish, whatever the template draws the photo as.
+  useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      const target = event.target as Element | null;
+      if (event.defaultPrevented || isInteractiveTarget(target)) return;
+      openerForPhoto(target as unknown as OpenerNode | null)?.click();
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
 
   const canOrder = design.ordering === 'list' && !preview;
   const quickAdd = useCallback(
