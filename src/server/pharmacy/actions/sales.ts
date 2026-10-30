@@ -47,6 +47,7 @@ export const create = defineAction({
                 priceOverrides: { before: null, after: audit.priceOverrides },
                 batchOverrides: { before: null, after: audit.batchOverrides },
                 ...(audit.fromHoldId ? { fromHoldId: { before: null, after: audit.fromHoldId } } : {}),
+                ...(audit.controlledQty > 0 ? { controlledQty: { before: null, after: audit.controlledQty } } : {}),
               },
             });
           }

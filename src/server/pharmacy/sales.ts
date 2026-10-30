@@ -21,6 +21,7 @@ import { allocateFefo, costOfBaseQty, sellableStock, toBase, type FefoBatch } fr
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
 import { priceRowsAt } from './prices';
+import { claimPrescription, recordControlledSale } from './prescriptions';
 import { applyMovement, lockOrder } from './stock';
 
 /**
@@ -96,6 +97,8 @@ export const saleInput = z.object({
   note: z.string().trim().max(1000, 'Use at most 1000 characters').default(''),
   /** A held cart this sale completes: the hold is consumed in the same transaction (exactly one completion wins). */
   fromHoldId: z.string().min(1).max(64).optional(),
+  /** The prescription this sale dispenses against (phase 7): needed for a controlled (RESTRICTED) line, optional for a prescription (RX) one. */
+  prescriptionId: z.string().min(1).max(64).optional(),
 });
 export type SaleInput = z.infer<typeof saleInput>;
 
@@ -154,6 +157,7 @@ export function payloadHash(input: SaleInput): string {
     input.payments.map((p) => [p.method, String(p.amountMinor), p.reference, p.clientKey]),
     // Only when present, so the hash of a sale that completes no hold is what it always was.
     ...(input.fromHoldId === undefined ? [] : [input.fromHoldId]),
+    ...(input.prescriptionId === undefined ? [] : ['rx', input.prescriptionId]),
   ];
   return createHash('sha256').update(JSON.stringify(canonical)).digest('hex');
 }
@@ -188,6 +192,8 @@ export interface SaleAudit {
   discountMinor: string;
   /** The hold this sale consumed, when it completed one. */
   fromHoldId: string | null;
+  /** Base units of controlled medicine dispensed (0 when none). */
+  controlledQty: number;
 }
 
 interface SaleRow {
@@ -316,7 +322,7 @@ export async function createSale(
     }
   }
 
-  const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true } });
+  const settings = await tx.phSettings.findFirst({ select: { roundingStepMinor: true, maxDiscountPercent: true, controlledEnabled: true, controlledMaxQty: true } });
   // The column is CHECKed 0..100; clamp anyway so a bad row is never a 500.
   const maxDiscountPercent = Math.min(100, Math.max(0, settings?.maxDiscountPercent ?? 5));
   const roundingStep = input.currency === 'IQD' ? Number(settings?.roundingStepMinor ?? 0n) : 0;
@@ -334,10 +340,11 @@ export async function createSale(
     if (!product || !product.active) throw invalid(`lines.${index}.productId`, 'Choose one of this pharmacy’s active products');
     const unit = unitById.get(line.unitId);
     if (!unit || unit.productId !== line.productId || !unit.sellable) throw invalid(`lines.${index}.unitId`, 'Choose one of this product’s units');
-    if (product.rxLevel === 'RESTRICTED') {
+    // A controlled medicine is sold only when the owner has switched controlled sales on (R7-1); the default is the refusal it always was.
+    if (product.rxLevel === 'RESTRICTED' && !(settings?.controlledEnabled ?? false)) {
       throw conflict('RESTRICTED_NOT_AVAILABLE', 'Controlled medicines cannot be sold yet', { productId: product.id, productName: product.tradeName });
     }
-    if (product.rxLevel === 'RX' && !canPh(role, 'rx.dispense')) {
+    if ((product.rxLevel === 'RX' || product.rxLevel === 'RESTRICTED') && !canPh(role, 'rx.dispense')) {
       throw invalid(`lines.${index}.productId`, 'A pharmacist must sell this medicine', 'RX_NEEDS_PHARMACIST', { productName: product.tradeName });
     }
     let baseQty: number;
@@ -397,7 +404,7 @@ export async function createSale(
       grossMinor,
       lineDiscountMinor,
       invoiceShareMinor: 0n,
-      pharmacistId: product.rxLevel === 'RX' ? ph.userId : null,
+      pharmacistId: product.rxLevel === 'OTC' ? null : ph.userId,
     };
   });
 
@@ -469,6 +476,10 @@ export async function createSale(
     const used = await tx.phPayment.findFirst({ where: { clientKey: { in: paymentKeys } }, select: { id: true } });
     if (used) throw conflict('PAYMENT_KEY_USED', 'This payment key was already used');
   }
+
+  // The prescription of a controlled (or prescription) sale: its row and its number are taken before any stock row.
+  const restricted = prepared.filter((l) => l.product.rxLevel === 'RESTRICTED').map((l) => ({ productId: l.product.id, tradeName: l.product.tradeName, baseQty: l.baseQty }));
+  const claimed = await claimPrescription(tx, { restaurantId, branchId, prescriptionId: input.prescriptionId, restricted, maxQty: settings?.controlledMaxQty ?? 30, now });
 
   // (7) FEFO from the branch's sellable stock, under row locks taken in batch order.
   const soldProducts = [...new Set(prepared.map((l) => l.product.id))];
@@ -633,6 +644,14 @@ export async function createSale(
     })),
   });
 
+  // The controlled register: one row per batch a controlled line took from, in this transaction. A prescription on any sale is linked.
+  const controlledEntries = allocationRows
+    .filter((a) => a.product.rxLevel === 'RESTRICTED')
+    .map((a) => ({ saleLineId: a.saleLineId, productId: a.product.id, batchId: a.batchId, baseQty: a.baseQty }));
+  if (claimed) {
+    await recordControlledSale(tx, { restaurantId, branchId, saleId: sale.id, userId: ph.userId, prescriptionId: claimed.id, entries: controlledEntries, now });
+  }
+
   // One SALE movement per allocation, balances taken in batch order.
   for (const a of lockOrder(allocationRows)) {
     try {
@@ -709,6 +728,7 @@ export async function createSale(
       batchOverrides,
       discountMinor: String(discountMinor),
       fromHoldId: input.fromHoldId ?? null,
+      controlledQty: controlledEntries.reduce((sum, e) => sum + e.baseQty, 0),
     },
   };
 }

@@ -11,6 +11,7 @@ import {
 } from '@/server/domain/pharmacy/sale';
 import { StudioError } from '@/server/studio/framework/result';
 import type { PhActor } from './actor';
+import { recordControlledReturn } from './prescriptions';
 import { applyMovement, lockOrder } from './stock';
 
 /**
@@ -240,7 +241,7 @@ export async function createReturn(
       payments: { select: { method: true, amountMinor: true } },
       lines: {
         orderBy: { lineNo: 'asc' },
-        select: { id: true, lineNo: true, baseQty: true, totalMinor: true, allocations: { orderBy: { id: 'asc' }, select: { id: true, batchId: true, baseQty: true, returnedBaseQty: true } } },
+        select: { id: true, lineNo: true, productId: true, rxLevel: true, baseQty: true, totalMinor: true, allocations: { orderBy: { id: 'asc' }, select: { id: true, batchId: true, baseQty: true, returnedBaseQty: true } } },
       },
     },
   });
@@ -389,6 +390,18 @@ export async function createReturn(
       refId: t.lineId,
     });
   }
+
+  // A controlled medicine returned: the register gets reversing rows, one per returned batch (the units are in quarantine above).
+  await recordControlledReturn(tx, {
+    restaurantId,
+    branchId,
+    saleId: sale.id,
+    userId: ph.userId,
+    entries: taken
+      .filter((t) => t.allocation.line.rxLevel === 'RESTRICTED')
+      .map((t) => ({ saleLineId: t.allocation.line.id, productId: t.allocation.line.productId, batchId: t.allocation.batchId, baseQty: t.baseQty })),
+    now,
+  });
 
   // Cash given back is a negative cash movement of the approver's shift.
   if (method === 'CASH' && refundMinor > 0n) {
