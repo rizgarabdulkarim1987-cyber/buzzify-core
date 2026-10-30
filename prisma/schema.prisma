@@ -2935,6 +2935,8 @@ model PhReturn {
   approvedById  String
   refundMethod  PhPaymentMethod
   refundMinor   BigInt
+  /// The part of `refundMinor` taken off the customer's balance (phase 7, a credit sale); the rest (`refundMinor - creditMinor`) is handed back by `refundMethod`. CHECK 0..refundMinor.
+  creditMinor   BigInt          @default(0)
   currency      Currency
   clientKey     String
   /// SHA-256 of the request that created the return (canonical JSON), so a replayed `clientKey` can prove it is the same request.
