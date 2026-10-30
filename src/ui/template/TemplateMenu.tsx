@@ -19,7 +19,7 @@ import { ProductList } from './cards';
 import { FilterBar, InfoSection, OfferList, PromoCard, SearchField, TemplateFooter, TemplateHeader } from './chrome';
 import { TemplateContext, type TemplateContextValue } from './context';
 import { designStyle } from './design-style';
-import { Hero } from './heroes';
+import { FeaturedStrip, Hero, SignatureStrip, chosenFeatured, showsFeaturedStrip, showsSignatureStrip } from './heroes';
 import { Nav } from './navs';
 import { SectionHeading } from './sections';
 import { useFavorites } from './favorites';
@@ -92,6 +92,7 @@ export function TemplateMenu({
   const [activeId, setActiveId] = useState<string | null>(view.categories[0]?.id ?? null);
 
   const signature = view.products.find((product) => product.id === view.signatureProductId);
+  const picks = useMemo(() => chosenFeatured(view.products, design.featured.slugs).filter((product) => product.id !== view.signatureProductId), [view.products, view.signatureProductId, design.featured.slugs]);
   const featured = useMemo(() => {
     const bySlug = new Map(view.products.map((product) => [product.slug, product]));
     const chosen = design.featured.slugs.map((slug) => bySlug.get(slug)).filter((product): product is MenuProductView => product !== undefined);
@@ -220,6 +221,8 @@ export function TemplateMenu({
           </a>
           <TemplateHeader />
           {query.trim() === '' && <Hero kind={heroKind} tagline={tagline} />}
+          {query.trim() === '' && showsSignatureStrip(heroKind, body, signature !== undefined) && <SignatureStrip />}
+          {query.trim() === '' && showsFeaturedStrip(heroKind, body, picks.length) && <FeaturedStrip items={picks} />}
           {design.promo && query.trim() === '' && <PromoCard promo={design.promo} />}
           {query.trim() === '' && <OfferList offers={view.offers} />}
           <div className="tpl-tools flex flex-col gap-3">
